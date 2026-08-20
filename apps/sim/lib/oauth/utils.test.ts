@@ -8,6 +8,7 @@ import {
   getCanonicalScopesForProvider,
   getMissingRequiredScopes,
   getProviderIdFromServiceId,
+  getScopeDescription,
   getScopesForService,
   getServiceByProviderAndId,
   getServiceConfigByProviderId,
@@ -381,6 +382,20 @@ describe('getCanonicalScopesForProvider', () => {
 
     expect(Array.isArray(scopes)).toBe(true)
     expect(scopes.length).toBe(0)
+  })
+})
+
+describe('getScopeDescription', () => {
+  it.concurrent('uses provider-specific labels for Bitbucket scope names', () => {
+    expect(getScopeDescription('account', 'bitbucket')).toBe(
+      'View your Bitbucket account and workspace memberships'
+    )
+    expect(getScopeDescription('pipeline:write', 'bitbucket')).toBe('Run and stop pipelines')
+  })
+
+  it.concurrent('preserves the existing Reddit meaning of the account scope', () => {
+    expect(getScopeDescription('account', 'reddit')).toBe('Update account preferences and settings')
+    expect(getScopeDescription('account')).toBe('Update account preferences and settings')
   })
 })
 

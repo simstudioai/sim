@@ -12,6 +12,7 @@ import { executionIdParamsSchema } from '@/lib/api/contracts/logs'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { hydrateChildTraces } from '@/lib/logs/execution/hydrate-child-traces'
 import { materializeExecutionData } from '@/lib/logs/execution/trace-store'
 import type { TraceSpan, WorkflowExecutionLog } from '@/lib/logs/types'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
@@ -126,6 +127,14 @@ export const GET = withRouteHandler(
         }
       )) as WorkflowExecutionLog['executionData']
       const traceSpans = (executionData?.traceSpans as TraceSpan[]) || []
+
+      // Join any custom-block child runs first: the spans they contribute carry
+      // their own `childWorkflowSnapshotId`s, so the collection below picks them
+      // up and canvas drill-down works across the workspace boundary too.
+      if (traceSpans.length > 0) {
+        await hydrateChildTraces(traceSpans, { viewerUserId: authenticatedUserId })
+      }
+
       const childSnapshotIds = new Set<string>()
       const collectSnapshotIds = (spans: TraceSpan[]) => {
         spans.forEach((span) => {

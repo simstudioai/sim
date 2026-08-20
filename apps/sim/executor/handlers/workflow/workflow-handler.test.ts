@@ -44,6 +44,8 @@ const {
   mockSetTraceLargeValueAccess,
   mockDispose,
   mockBuildExecutorDelegationHeaders,
+  mockCheckWorkspaceAccess,
+  mockProjectTraceSpansForLiveDisplay,
   executorOptions,
   loggingSessionArgs,
 } = vi.hoisted(() => ({
@@ -51,6 +53,8 @@ const {
   mockCreateSnapshot: vi.fn(),
   mockResolveBillingAttribution: vi.fn(),
   mockGetCustomBlockAuthority: vi.fn(),
+  mockCheckWorkspaceAccess: vi.fn(),
+  mockProjectTraceSpansForLiveDisplay: vi.fn(),
   mockGetUserEmailById: vi.fn(),
   mockAdmitCustomBlockChildExecution: vi.fn(),
   mockTrackChildRun: vi.fn(),
@@ -80,6 +84,7 @@ vi.mock('@/lib/logs/execution/logging-session', () => ({
     setExecutionDeadlineAt = mockSetExecutionDeadlineAt
     setResolvedSecretTraceRegistry = mockSetResolvedSecretTraceRegistry
     setTraceLargeValueAccess = mockSetTraceLargeValueAccess
+    projectTraceSpansForLiveDisplay = mockProjectTraceSpansForLiveDisplay
     onBlockStart = vi.fn()
     onBlockComplete = vi.fn()
   },
@@ -124,6 +129,10 @@ const mockGetPersonalAndWorkspaceEnv = environmentUtilsMockFns.mockGetPersonalAn
 
 vi.mock('@/lib/workflows/custom-blocks/operations', () => ({
   getCustomBlockAuthority: mockGetCustomBlockAuthority,
+}))
+
+vi.mock('@/lib/workspaces/permissions/utils', () => ({
+  checkWorkspaceAccess: mockCheckWorkspaceAccess,
 }))
 
 vi.mock('@/lib/users/queries', () => ({
@@ -1196,6 +1205,152 @@ describe('WorkflowBlockHandler', () => {
       mockExecutorExecute.mockResolvedValue({ success: true, output: { data: 'ok' } })
     })
 
+    describe('live child spans for the terminal reconcile', () => {
+      const rawSpan = { id: 's1', name: 'Agent 1', type: 'agent', blockId: 'b1' }
+      const projectedSpan = { ...rawSpan, input: { key: '{{PUBLISHER_SECRET}}' } }
+
+      beforeEach(() => {
+        mockBuildTraceSpans.mockReturnValue({ traceSpans: [rawSpan], totalDuration: 5 })
+        mockProjectTraceSpansForLiveDisplay.mockResolvedValue([projectedSpan])
+      })
+
+      it('emits NOTHING when there is no authorized live viewer', async () => {
+        const output: any = await handler.execute(customBlockContext(), customBlock(), {})
+
+        expect(output.childTraceSpans).toBeUndefined()
+        expect(mockProjectTraceSpansForLiveDisplay).not.toHaveBeenCalled()
+      })
+
+      it('emits nothing when the viewer cannot read the source workspace', async () => {
+        mockCheckWorkspaceAccess.mockResolvedValue({ hasAccess: false })
+
+        const output: any = await handler.execute(
+          customBlockContext({ liveTraceViewerUserId: 'outsider' }),
+          customBlock(),
+          {}
+        )
+
+        expect(output.childTraceSpans).toBeUndefined()
+        expect(mockProjectTraceSpansForLiveDisplay).not.toHaveBeenCalled()
+      })
+
+      it('projects through the CHILD session before handing spans to an authorized viewer', async () => {
+        // The invoking run's registry knows nothing about the publisher's secrets, so
+        // projecting there would leave a source-owner credential unmasked in the consumer's
+        // stream. Only the child's own session can mask them.
+        mockCheckWorkspaceAccess.mockResolvedValue({ hasAccess: true })
+
+        const output: any = await handler.execute(
+          customBlockContext({ liveTraceViewerUserId: 'viewer-1' }),
+          customBlock(),
+          {}
+        )
+
+        expect(mockProjectTraceSpansForLiveDisplay).toHaveBeenCalledTimes(1)
+        expect(output.childTraceSpans).toEqual([projectedSpan])
+        // The raw, unprojected span must never be what crosses the boundary.
+        expect(output.childTraceSpans).not.toEqual([rawSpan])
+        // Correlation for the reconcile: without this the terminal cannot match the rows.
+        expect(output._childWorkflowInstanceId).toBeTruthy()
+      })
+
+      it("streams via the emit-only sink, never the parent run's persisting callbacks", async () => {
+        // `ctx.onBlockStart/onBlockComplete` on the invoking run are persist-then-emit
+        // composites: they write block names and I/O into the PARENT's LoggingSession.
+        // Those markers are keyed by the parent execution and readable by anyone with
+        // parent-workspace access, long after the per-viewer gate this stream passed — so
+        // the source workflow's blocks must reach the emit half only.
+        mockCheckWorkspaceAccess.mockResolvedValue({ hasAccess: true })
+        const persistingStart = vi.fn()
+        const persistingComplete = vi.fn()
+        const emitOnlyStart = vi.fn()
+        const emitOnlyComplete = vi.fn()
+
+        await handler.execute(
+          customBlockContext({
+            liveTraceViewerUserId: 'viewer-1',
+            onBlockStart: persistingStart,
+            onBlockComplete: persistingComplete,
+            liveStreamCallbacks: { onBlockStart: emitOnlyStart, onBlockComplete: emitOnlyComplete },
+          }),
+          customBlock(),
+          {}
+        )
+
+        const forwarded = executorOptions[0].contextExtensions
+        await forwarded.onBlockStart?.('b1', 'Publisher Agent', 'agent', 1)
+        await forwarded.onBlockComplete?.('b1', 'Publisher Agent', 'agent', {})
+
+        expect(emitOnlyStart).toHaveBeenCalledTimes(1)
+        expect(emitOnlyComplete).toHaveBeenCalledTimes(1)
+        expect(persistingStart).not.toHaveBeenCalled()
+        expect(persistingComplete).not.toHaveBeenCalled()
+      })
+
+      it('forwards the emit-only sink to the child, so nested hops still stream', async () => {
+        // The viewer id alone is not enough: a nested custom block clears
+        // `canStreamCustomBlockToViewer` off the inherited id and then needs a sink to
+        // stream through. Without this the live trace stops at the first sub-executor.
+        mockCheckWorkspaceAccess.mockResolvedValue({ hasAccess: true })
+        const emitOnly = { onBlockStart: vi.fn(), onBlockComplete: vi.fn() }
+
+        await handler.execute(
+          customBlockContext({ liveTraceViewerUserId: 'viewer-1', liveStreamCallbacks: emitOnly }),
+          customBlock(),
+          {}
+        )
+
+        const forwarded = executorOptions[0].contextExtensions
+        expect(forwarded.liveTraceViewerUserId).toBe('viewer-1')
+        expect(forwarded.liveStreamCallbacks).toBe(emitOnly)
+      })
+
+      it('withholds both the viewer id and the sink when streaming is not permitted', async () => {
+        mockCheckWorkspaceAccess.mockResolvedValue({ hasAccess: false })
+        const emitOnly = { onBlockStart: vi.fn(), onBlockComplete: vi.fn() }
+
+        await handler.execute(
+          customBlockContext({ liveTraceViewerUserId: 'outsider', liveStreamCallbacks: emitOnly }),
+          customBlock(),
+          {}
+        )
+
+        const forwarded = executorOptions[0].contextExtensions
+        expect(forwarded.liveTraceViewerUserId).toBeUndefined()
+        expect(forwarded.liveStreamCallbacks).toBeUndefined()
+      })
+
+      it('keeps the boundary shut when the surface offers no emit-only sink', async () => {
+        mockCheckWorkspaceAccess.mockResolvedValue({ hasAccess: true })
+        const persistingStart = vi.fn()
+
+        await handler.execute(
+          customBlockContext({ liveTraceViewerUserId: 'viewer-1', onBlockStart: persistingStart }),
+          customBlock(),
+          {}
+        )
+
+        const forwarded = executorOptions[0].contextExtensions
+        await forwarded.onBlockStart?.('b1', 'Publisher Agent', 'agent', 1)
+
+        expect(persistingStart).not.toHaveBeenCalled()
+      })
+
+      it('still exposes only curated outputs alongside the spans', async () => {
+        mockCheckWorkspaceAccess.mockResolvedValue({ hasAccess: true })
+
+        const output: any = await handler.execute(
+          customBlockContext({ liveTraceViewerUserId: 'viewer-1' }),
+          customBlock(),
+          {}
+        )
+
+        expect(output.childWorkflowId).toBeUndefined()
+        expect(output.childWorkflowName).toBeUndefined()
+        expect(output.cost).toBeUndefined()
+      })
+    })
+
     it('opens a session on the source workflow with a fresh id and no base charge', async () => {
       await handler.execute(customBlockContext(), customBlock(), {})
 
@@ -1715,6 +1870,62 @@ describe('WorkflowBlockHandler', () => {
       expect(executorOptions[0].contextExtensions.executorDelegationOrigin).toBe(
         ctx.executorDelegationOrigin
       )
+    })
+  })
+
+  describe('canStreamCustomBlockToViewer', () => {
+    // Streaming a custom block's child into the parent's live trace reveals the SOURCE
+    // workflow's block names, inputs, outputs, and raw agent tokens. It is allowed only
+    // when the run has a single known, authenticated viewer who can already read that
+    // workspace — every other combination must keep the boundary shut.
+    it('streams when an authenticated viewer can read the source workspace', async () => {
+      mockCheckWorkspaceAccess.mockResolvedValue({ hasAccess: true })
+
+      const allowed = await (handler as any).canStreamCustomBlockToViewer(
+        { liveTraceViewerUserId: 'user-1' },
+        'ws-source'
+      )
+
+      expect(allowed).toBe(true)
+      expect(mockCheckWorkspaceAccess).toHaveBeenCalledWith('ws-source', 'user-1')
+    })
+
+    it('refuses when the viewer cannot read the source workspace', async () => {
+      mockCheckWorkspaceAccess.mockResolvedValue({ hasAccess: false })
+
+      expect(
+        await (handler as any).canStreamCustomBlockToViewer(
+          { liveTraceViewerUserId: 'outsider' },
+          'ws-source'
+        )
+      ).toBe(false)
+    })
+
+    it('refuses when there is no identified live viewer', async () => {
+      // Chat deployments, the public API, webhooks, and schedules all leave
+      // `liveTraceViewerUserId` unset — their stream consumer may be anonymous.
+      expect(await (handler as any).canStreamCustomBlockToViewer({}, 'ws-source')).toBe(false)
+      expect(mockCheckWorkspaceAccess).not.toHaveBeenCalled()
+    })
+
+    it('refuses when the source workspace is unknown', async () => {
+      expect(
+        await (handler as any).canStreamCustomBlockToViewer(
+          { liveTraceViewerUserId: 'user-1' },
+          null
+        )
+      ).toBe(false)
+    })
+
+    it('fails closed when the access check throws', async () => {
+      mockCheckWorkspaceAccess.mockRejectedValue(new Error('permissions backend down'))
+
+      expect(
+        await (handler as any).canStreamCustomBlockToViewer(
+          { liveTraceViewerUserId: 'user-1' },
+          'ws-source'
+        )
+      ).toBe(false)
     })
   })
 

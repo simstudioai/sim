@@ -44,6 +44,8 @@ const SECTION_ALIASES: Readonly<Record<string, SettingsSection>> = {
 const TOP_LEVEL_REDIRECTS: Readonly<Record<string, (workspaceId: string) => string>> = {
   integrations: (workspaceId) => `/workspace/${workspaceId}/integrations`,
   skills: (workspaceId) => `/workspace/${workspaceId}/skills`,
+  // Cookie preferences moved into General; keep old links working.
+  privacy: (workspaceId) => `/workspace/${workspaceId}/settings/general?view=privacy`,
 }
 
 const WORKSPACE_SECTION_MAP: Partial<Record<SettingsSection, WorkspaceSettingsSection>> = {

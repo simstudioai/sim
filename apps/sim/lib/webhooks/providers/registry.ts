@@ -20,6 +20,7 @@ import { gmailHandler } from '@/lib/webhooks/providers/gmail'
 import { gongHandler } from '@/lib/webhooks/providers/gong'
 import { googleFormsHandler } from '@/lib/webhooks/providers/google-forms'
 import { grainHandler } from '@/lib/webhooks/providers/grain'
+import { granolaHandler } from '@/lib/webhooks/providers/granola'
 import { greenhouseHandler } from '@/lib/webhooks/providers/greenhouse'
 import { imapHandler } from '@/lib/webhooks/providers/imap'
 import { incidentioHandler } from '@/lib/webhooks/providers/incidentio'
@@ -85,6 +86,7 @@ const PROVIDER_HANDLERS: Record<string, WebhookProviderHandler> = {
   google_forms: googleFormsHandler,
   fathom: fathomHandler,
   grain: grainHandler,
+  granola: granolaHandler,
   greenhouse: greenhouseHandler,
   imap: imapHandler,
   incidentio: incidentioHandler,

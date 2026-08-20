@@ -36,7 +36,7 @@ import {
   adminV1UpdateOrganizationMemberContract,
 } from '@/lib/api/contracts/v1/admin'
 import { parseRequest } from '@/lib/api/server'
-import { getOrgMemberLedgerByUser } from '@/lib/billing/core/organization'
+import { getOrganizationMemberUsageSnapshot } from '@/lib/billing/core/organization'
 import {
   removeUserFromOrganization,
   WORKSPACE_BILLING_ACCOUNT_REMOVAL_ERROR,
@@ -104,9 +104,10 @@ export const GET = withRouteHandler(
         return notFoundResponse('Member')
       }
 
-      // currentPeriodCost is only a baseline; add this member's attributed
-      // usage_log for the org's period so admin shows real current usage.
-      const ledgerByUser = await getOrgMemberLedgerByUser(organizationId)
+      const { includeLegacyBaseline, usageByUser } = await getOrganizationMemberUsageSnapshot(
+        organizationId,
+        { userIds: [memberData.userId] }
+      )
 
       const data: AdminMemberDetail = {
         id: memberData.id,
@@ -117,7 +118,8 @@ export const GET = withRouteHandler(
         userName: memberData.userName,
         userEmail: memberData.userEmail,
         currentPeriodCost: (
-          Number(memberData.currentPeriodCost ?? 0) + (ledgerByUser.get(memberData.userId) ?? 0)
+          (includeLegacyBaseline ? Number(memberData.currentPeriodCost ?? 0) : 0) +
+          (usageByUser.get(memberData.userId) ?? 0)
         ).toString(),
         currentUsageLimit: memberData.currentUsageLimit,
         billingBlocked: memberData.billingBlocked ?? false,

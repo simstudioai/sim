@@ -287,7 +287,7 @@ describe('listAccessibleWorkspaceRowsForUser', () => {
 
     const rows = await listAccessibleWorkspaceRowsForUser('user-1', 'active')
 
-    expect(rows).toEqual([{ workspace: orgWorkspace, permissionType: 'admin' }])
+    expect(rows).toEqual([{ workspace: orgWorkspace, permissionType: 'admin', viaOrgAdmin: true }])
   })
 
   it('keeps a lower explicit grant on a workspace owned by a different organization', async () => {
@@ -309,8 +309,20 @@ describe('listAccessibleWorkspaceRowsForUser', () => {
     const rows = await listAccessibleWorkspaceRowsForUser('user-1', 'active')
 
     expect(rows).toEqual([
-      { workspace: externalWorkspace, permissionType: 'write' },
-      { workspace: orgWorkspace, permissionType: 'admin' },
+      { workspace: externalWorkspace, permissionType: 'write', viaOrgAdmin: false },
+      { workspace: orgWorkspace, permissionType: 'admin', viaOrgAdmin: true },
     ])
+  })
+
+  it('reports viaOrgAdmin false for every row when the viewer administers no organization', async () => {
+    const ownWorkspace = { id: 'ws-own', name: 'Own', ownerId: 'user-1', organizationId: null }
+
+    dbChainMockFns.select
+      .mockReturnValueOnce(createMockChain([{ workspace: ownWorkspace, permissionType: 'admin' }]))
+      .mockReturnValueOnce(createMockChain([]))
+
+    const rows = await listAccessibleWorkspaceRowsForUser('user-1', 'active')
+
+    expect(rows).toEqual([{ workspace: ownWorkspace, permissionType: 'admin', viaOrgAdmin: false }])
   })
 })

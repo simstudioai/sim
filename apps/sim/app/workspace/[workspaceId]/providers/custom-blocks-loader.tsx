@@ -36,6 +36,7 @@ export function CustomBlocksLoader() {
             name: block.name,
             description: block.description,
             workflowId: block.workflowId,
+            workspaceName: block.workspaceName,
             exposedOutputs: block.exposedOutputs,
           },
           block.inputFields,

@@ -8,6 +8,7 @@ import {
   ConnectorFileTooLargeError,
   connectorFileExtension,
   extractConnectorText,
+  hasIndexablePayload,
   isIndexableConnectorFile,
   isSkippedDocument,
   markSkipped,
@@ -931,7 +932,7 @@ export const sharepointConnector: ConnectorConfig = {
 
     try {
       const payload = await fetchFilePayload(accessToken, driveId, item.id, item.name)
-      if (!payload.sourceFile && !payload.content.trim()) return null
+      if (!hasIndexablePayload(payload)) return null
 
       const stub = itemToStub(item, siteName ?? siteUrl)
       return { ...stub, ...payload, contentDeferred: false }

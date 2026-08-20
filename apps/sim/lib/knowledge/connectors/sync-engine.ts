@@ -33,6 +33,7 @@ import type {
   ExternalDocument,
   SyncResult,
 } from '@/connectors/types'
+import { hasIndexablePayload } from '@/connectors/utils'
 
 const logger = createLogger('ConnectorSyncEngine')
 
@@ -157,7 +158,7 @@ export function classifyExternalDoc(
   if (extDoc.skippedReason) {
     return existing ? { type: 'unchanged' } : { type: 'skip' }
   }
-  if (!hasPayload(extDoc) && !extDoc.contentDeferred) {
+  if (!hasIndexablePayload(extDoc) && !extDoc.contentDeferred) {
     return { type: 'drop' }
   }
   if (!existing) {
@@ -201,11 +202,6 @@ export function mergeHydratedDocument(
     sourceUrl: hydrated.sourceUrl ?? stub.sourceUrl,
     metadata: { ...stub.metadata, ...hydrated.metadata },
   }
-}
-
-/** Whether a document carries anything to index — extracted text or the source file. */
-function hasPayload(extDoc: Pick<ExternalDocument, 'content' | 'sourceFile'>): boolean {
-  return extDoc.sourceFile !== undefined || extDoc.content.trim().length > 0
 }
 
 /** Estimated source bytes for a pending op, taken from its listing metadata. */
@@ -1093,7 +1089,7 @@ export async function executeSync(
               }
               return null
             }
-            if (!fullDoc || !hasPayload(fullDoc)) {
+            if (!fullDoc || !hasIndexablePayload(fullDoc)) {
               // An empty re-fetch leaves an already-indexed update as last-known-good; count
               // it as unchanged so the totals still reconcile with documents seen. Not a
               // verified refresh, though — see failedExternalIds below.

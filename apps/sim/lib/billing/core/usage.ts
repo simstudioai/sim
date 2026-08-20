@@ -18,6 +18,10 @@ import {
   getHighestPrioritySubscription,
   type HighestPrioritySubscription,
 } from '@/lib/billing/core/plan'
+import {
+  type ResolvedUsagePeriod,
+  resolveSubscriptionUsagePeriod,
+} from '@/lib/billing/core/reporting-period'
 import { getBillingPeriodUsageCost } from '@/lib/billing/core/usage-log'
 import {
   computeDailyRefreshConsumed,
@@ -56,6 +60,9 @@ export interface UsageLimitSubscription {
   seats: number | null
   periodStart: Date | null
   periodEnd: Date | null
+  billingInterval?: string | null
+  metadata?: unknown
+  usagePeriod?: ResolvedUsagePeriod | null
 }
 
 /**
@@ -228,12 +235,16 @@ export async function getResolvedUserUsageData(
 
     const stats = userStatsData[0]
     const orgScoped = isOrgScopedSubscription(subscription, userId)
-    const billingPeriod =
-      subscription?.periodStart && subscription.periodEnd
-        ? { start: subscription.periodStart, end: subscription.periodEnd }
-        : defaultBillingPeriod()
+    const billingPeriod = resolveSubscriptionUsagePeriod(subscription) ?? {
+      ...defaultBillingPeriod(),
+      source: 'default' as const,
+      anchorDate: null,
+      interval: null,
+    }
 
-    let currentUsageDecimal = toDecimal(stats.currentPeriodCost)
+    let currentUsageDecimal = toDecimal(
+      billingPeriod.source === 'reporting' ? 0 : stats.currentPeriodCost
+    )
     if (!orgScoped) {
       currentUsageDecimal = currentUsageDecimal.plus(
         await getBillingPeriodUsageCost(
@@ -285,15 +296,16 @@ export async function getResolvedUserUsageData(
         undefined,
         executor
       )
-      currentUsage = pooled.currentPeriodCost + ledgerUsage
+      currentUsage =
+        (billingPeriod.source === 'reporting' ? 0 : pooled.currentPeriodCost) + ledgerUsage
     } else {
       limit = stats.currentUsageLimit
         ? toNumber(toDecimal(stats.currentUsageLimit))
         : getFreeTierLimit()
     }
 
-    const billingPeriodStart = subscription?.periodStart ?? null
-    const billingPeriodEnd = subscription?.periodEnd ?? null
+    const billingPeriodStart = billingPeriod.source === 'default' ? null : billingPeriod.start
+    const billingPeriodEnd = billingPeriod.source === 'default' ? null : billingPeriod.end
 
     let dailyRefreshConsumed = 0
     if (subscription && isPaid(subscription.plan) && billingPeriodStart) {
@@ -701,12 +713,14 @@ export async function getEffectiveCurrentPeriodCost(
     const pooled = await getPooledOrgCurrentPeriodCost(subscription.referenceId, executor)
     if (pooled.memberIds.length === 0) return 0
     refreshUserIds = pooled.memberIds
-    const billingPeriod =
-      subscription.periodStart && subscription.periodEnd
-        ? { start: subscription.periodStart, end: subscription.periodEnd }
-        : defaultBillingPeriod()
+    const billingPeriod = resolveSubscriptionUsagePeriod(subscription) ?? {
+      ...defaultBillingPeriod(),
+      source: 'default' as const,
+      anchorDate: null,
+      interval: null,
+    }
     rawCost =
-      pooled.currentPeriodCost +
+      (billingPeriod.source === 'reporting' ? 0 : pooled.currentPeriodCost) +
       (await getBillingPeriodUsageCost(
         { type: 'organization', id: subscription.referenceId },
         billingPeriod,
@@ -721,12 +735,14 @@ export async function getEffectiveCurrentPeriodCost(
       .limit(1)
 
     if (rows.length === 0) return 0
-    const billingPeriod =
-      subscription?.periodStart && subscription.periodEnd
-        ? { start: subscription.periodStart, end: subscription.periodEnd }
-        : defaultBillingPeriod()
+    const billingPeriod = resolveSubscriptionUsagePeriod(subscription) ?? {
+      ...defaultBillingPeriod(),
+      source: 'default' as const,
+      anchorDate: null,
+      interval: null,
+    }
     rawCost =
-      toNumber(toDecimal(rows[0].current)) +
+      (billingPeriod.source === 'reporting' ? 0 : toNumber(toDecimal(rows[0].current))) +
       (await getBillingPeriodUsageCost(
         { type: 'user', id: userId },
         billingPeriod,

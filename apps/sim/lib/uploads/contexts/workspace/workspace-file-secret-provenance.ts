@@ -12,20 +12,22 @@ import {
   importDurableSecretProvenance,
   isPrivateSecretProvenanceScopeCompatible,
 } from '@/lib/execution/durable-secret-provenance'
+import {
+  PROVENANCE_MAX_ENTRIES,
+  PROVENANCE_MAX_SERIALIZED_BYTES,
+} from '@/lib/execution/provenance-limits'
 import type {
   ResolvedSecretTraceProvenanceV1,
   ResolvedSecretTraceRegistry,
 } from '@/executor/utils/resolved-secret-trace-registry'
 
-const MAX_WORKSPACE_FILE_SECRET_PROVENANCE_ENTRIES = 10_000
-const MAX_WORKSPACE_FILE_SECRET_PROVENANCE_BYTES = 8 * 1024 * 1024
+/** Ids per statement. Bounds the query, never how many files a caller may classify. */
+const FILE_PROVENANCE_QUERY_CHUNK_SIZE = 1_000
 const ANONYMOUS_WORKSPACE_FILE_SECRET_STORAGE_NAME = 'MOUNTED_FILE_SECRET'
 const LEGACY_ANONYMOUS_WORKSPACE_FILE_SECRET_STORAGE_NAME =
   ':SIM_INTERNAL_ANONYMOUS_SECRET_PROVENANCE_V1:'
 export const MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE =
   'File cannot be sent to a model because its secret provenance is unavailable'
-const MAX_MODEL_ATTACHMENT_PROVENANCE_LOOKUPS = 1_000
-const MAX_FUNCTION_EXPORT_PROVENANCE_FILES = 20
 
 export type WorkspaceFileSecretProvenance =
   | { status: 'exact'; entries: readonly WorkspaceFileSecretProvenanceEntry[] }
@@ -140,7 +142,7 @@ function storedEntryLogicalByteSize(entry: StoredWorkspaceFileSecretProvenanceEn
 function normalizeExactEntries(
   entries: readonly WorkspaceFileSecretProvenanceEntry[]
 ): WorkspaceFileSecretProvenanceEntry[] {
-  if (entries.length > MAX_WORKSPACE_FILE_SECRET_PROVENANCE_ENTRIES) {
+  if (entries.length > PROVENANCE_MAX_ENTRIES) {
     throw new Error('Workspace file secret provenance exceeds its entry limit')
   }
 
@@ -157,7 +159,7 @@ function normalizeExactEntries(
     const key = `${entry.sourceUserId}\u0000${entry.sourceWorkspaceId ?? ''}\u0000${entry.name ?? ''}\u0000${entry.encryptedValue}`
     if (normalized.has(key)) continue
     bytes += exactEntryByteSize(entry)
-    if (bytes > MAX_WORKSPACE_FILE_SECRET_PROVENANCE_BYTES) {
+    if (bytes > PROVENANCE_MAX_SERIALIZED_BYTES) {
       throw new Error('Workspace file secret provenance exceeds its size limit')
     }
     normalized.set(key, {
@@ -283,7 +285,7 @@ export async function createWorkspaceFileSecretProvenanceFromRegistry(
       ...(sourceScope.workspaceId ? { sourceWorkspaceId: sourceScope.workspaceId } : {}),
     })
   }
-  if (entries.length + derivedRepresentations.size > MAX_WORKSPACE_FILE_SECRET_PROVENANCE_ENTRIES) {
+  if (entries.length + derivedRepresentations.size > PROVENANCE_MAX_ENTRIES) {
     return { safe: false }
   }
   try {
@@ -313,7 +315,7 @@ export async function createWorkspaceFileSecretProvenanceFromRegistry(
 }
 
 function isValidStoredEntries(value: unknown): value is StoredWorkspaceFileSecretProvenanceEntry[] {
-  if (!Array.isArray(value) || value.length > MAX_WORKSPACE_FILE_SECRET_PROVENANCE_ENTRIES) {
+  if (!Array.isArray(value) || value.length > PROVENANCE_MAX_ENTRIES) {
     return false
   }
   let bytes = 0
@@ -340,7 +342,7 @@ function isValidStoredEntries(value: unknown): value is StoredWorkspaceFileSecre
       return false
     }
     bytes += storedEntryLogicalByteSize(entry as StoredWorkspaceFileSecretProvenanceEntry)
-    if (bytes > MAX_WORKSPACE_FILE_SECRET_PROVENANCE_BYTES) return false
+    if (bytes > PROVENANCE_MAX_SERIALIZED_BYTES) return false
   }
   return true
 }
@@ -560,29 +562,42 @@ export async function markWorkspaceFileSecretProvenanceUnknown(
 ): Promise<void> {
   const uniqueIds = [...new Set(fileIds.filter((fileId) => fileId.length > 0))]
   if (uniqueIds.length === 0) return
-  if (uniqueIds.length > MAX_FUNCTION_EXPORT_PROVENANCE_FILES) {
-    throw new Error('Too many Function export files to classify')
-  }
 
   await db.transaction(async (tx) => {
-    const rows = await tx
-      .select({ id: workspaceFiles.id, contentUpdatedAt: workspaceFiles.contentUpdatedAt })
-      .from(workspaceFiles)
-      .where(
-        and(
-          inArray(workspaceFiles.id, uniqueIds),
-          eq(workspaceFiles.workspaceId, workspaceId),
-          eq(workspaceFiles.context, 'workspace'),
-          isNull(workspaceFiles.deletedAt)
+    /**
+     * Paged rather than capped. This marks files unknown, so refusing to run because there were
+     * too many would leave every one of them carrying whatever provenance it had before — the
+     * failure this function exists to prevent, reached by declining to prevent it. The former
+     * twenty-file limit threw, which made an ordinary Function block that wrote twenty-one files
+     * fail outright. The page size bounds the statement, never the caller.
+     */
+    let bound = 0
+    for (let index = 0; index < uniqueIds.length; index += FILE_PROVENANCE_QUERY_CHUNK_SIZE) {
+      const chunk = uniqueIds.slice(index, index + FILE_PROVENANCE_QUERY_CHUNK_SIZE)
+      const rows = await tx
+        .select({ id: workspaceFiles.id, contentUpdatedAt: workspaceFiles.contentUpdatedAt })
+        .from(workspaceFiles)
+        .where(
+          and(
+            inArray(workspaceFiles.id, chunk),
+            eq(workspaceFiles.workspaceId, workspaceId),
+            eq(workspaceFiles.context, 'workspace'),
+            isNull(workspaceFiles.deletedAt)
+          )
         )
-      )
-    if (rows.length !== uniqueIds.length) {
-      throw new Error('Function export file provenance could not be bound to canonical records')
+      bound += rows.length
+      for (const row of rows) {
+        await replaceWorkspaceFileSecretProvenanceInTx(tx, row.id, row.contentUpdatedAt, {
+          status: 'unknown',
+        })
+      }
     }
-    for (const row of rows) {
-      await replaceWorkspaceFileSecretProvenanceInTx(tx, row.id, row.contentUpdatedAt, {
-        status: 'unknown',
-      })
+    /**
+     * Still fatal, and deliberately so: an id that matched no canonical row means the caller named
+     * a file this workspace does not own, which is not a capacity problem.
+     */
+    if (bound !== uniqueIds.length) {
+      throw new Error('Function export file provenance could not be bound to canonical records')
     }
   })
 }
@@ -770,7 +785,7 @@ export async function filterModelSafeWorkspaceFileAttachments<
   options: { workspaceId?: string } = {}
 ): Promise<TAttachment[]> {
   if (attachments.length === 0) return []
-  if (attachments.length > MAX_MODEL_ATTACHMENT_PROVENANCE_LOOKUPS) {
+  if (attachments.length > PROVENANCE_MAX_ENTRIES) {
     throw new Error('Too many file attachments to verify secret provenance')
   }
 
@@ -858,7 +873,7 @@ export async function areModelSafeWorkspaceFileKeys(
 ): Promise<boolean> {
   const uniqueKeys = [...new Set(keys.filter((key) => key.length > 0))]
   if (uniqueKeys.length === 0) return true
-  if (uniqueKeys.length > MAX_MODEL_ATTACHMENT_PROVENANCE_LOOKUPS) {
+  if (uniqueKeys.length > PROVENANCE_MAX_ENTRIES) {
     throw new Error('Too many file keys to verify secret provenance')
   }
 

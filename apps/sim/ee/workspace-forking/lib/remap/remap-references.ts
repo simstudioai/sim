@@ -38,6 +38,7 @@ import {
   resolveToolParamRequired,
 } from '@/lib/workflows/tool-input/param-visibility'
 import type { ParsedStoredTool } from '@/lib/workflows/tool-input/types'
+import { isCustomBlockType, RESERVED_PARAMS } from '@/blocks/custom/build-config'
 import { getBlock } from '@/blocks/registry'
 import type { SubBlockConfig } from '@/blocks/types'
 import {
@@ -213,6 +214,189 @@ export type SubBlockTransform = (
   canonicalModes?: CanonicalModeOverrides,
   onCanonicalModesChanged?: (next: CanonicalModeOverrides) => void
 ) => SubBlockRecord
+
+/**
+ * The sub-block key reported for a custom-block reference. It names the block's own
+ * identity rather than one of its fields, because a custom block has no field to name.
+ */
+export const CUSTOM_BLOCK_REFERENCE_KEY = 'type'
+
+/** Outcome of remapping a placed block's own `type` across a fork edge. */
+export interface RemapForkBlockTypeResult {
+  /** The type to persist. Equal to the input unless a mapping pointed elsewhere. */
+  type: string
+  /** Set when the block IS a custom block, so callers can aggregate/report it. */
+  reference?: ForkReference
+  /**
+   * Whether a mapping EXISTS for this reference — deliberately not "the type changed".
+   * The two diverge on an identity mapping: the org-wide candidate list includes the
+   * source block, so binding an environment to the shared block is a normal pick, and
+   * treating it as unresolved would raise `unmapped-custom-block` and block the promote
+   * on a choice the user explicitly made. Callers use this to decide whether the
+   * reference is a blocker; whether the type actually moved is visible from `type`.
+   */
+  resolved: boolean
+}
+
+/**
+ * Separator for a configured custom-block input's storage key. `::` cannot occur in a
+ * `custom_block_<slug>` type, and a field id that contained it would simply fail to parse and
+ * be skipped rather than land on the wrong field.
+ */
+const CUSTOM_BLOCK_INPUT_KEY_SEPARATOR = '::'
+
+/**
+ * Storage key for one configured input of a repointed custom block.
+ *
+ * The stored value's own key carries the TARGET TYPE and the field's declared TYPE, because the
+ * dependent-value store is keyed only by `(target workflow, block, sub-block)` and holds a plain
+ * string:
+ *  - **target type** — remap a block to A, configure its fields, then remap it to B. Without the
+ *    type in the key, a field id that happens to exist on both would pre-fill and submit A's
+ *    value into B, which is a different workflow's field of the same name. Namespacing makes
+ *    that structurally impossible rather than a rule someone has to remember.
+ *  - **field type** — the canvas stores a `boolean` input as a real boolean (its sub-block is a
+ *    `switch`), so a stored `'true'` has to become `true` on the way in. Reading the type from
+ *    the key means the apply side needs no second lookup of the target's schema.
+ */
+export function customBlockInputStorageKey(
+  targetType: string,
+  fieldType: string,
+  fieldId: string
+): string {
+  const sep = CUSTOM_BLOCK_INPUT_KEY_SEPARATOR
+  return `${targetType}${sep}${fieldType}${sep}${fieldId}`
+}
+
+interface ParsedCustomBlockInputKey {
+  targetType: string
+  fieldType: string
+  fieldId: string
+}
+
+/** Inverse of {@link customBlockInputStorageKey}; null when the key is not one of ours. */
+export function parseCustomBlockInputStorageKey(key: string): ParsedCustomBlockInputKey | null {
+  const parts = key.split(CUSTOM_BLOCK_INPUT_KEY_SEPARATOR)
+  if (parts.length !== 3) return null
+  const [targetType, fieldType, fieldId] = parts
+  if (!targetType || !fieldType || !fieldId) return null
+  return { targetType, fieldType, fieldId }
+}
+
+/**
+ * Replace a retyped custom block's inputs with the values configured for the TARGET block.
+ *
+ * A custom block's input sub-blocks are keyed by the SOURCE Start field's stable id, so once
+ * the block's `type` is repointed they describe fields the new config does not declare. The
+ * serializer would drop them silently (a stored value with no matching config is a deleted
+ * input), which is what made a synced block look corrupted: same name, no fields.
+ *
+ * There is deliberately NO attempt to match or migrate values across the swap. Two custom
+ * blocks are independent workflows; a field id that happens to collide would carry a value
+ * that means something else.
+ *
+ * Only values stored for THIS target type are applied — a key naming a previous target is
+ * skipped, so re-pointing a block twice never carries the first target's values into the
+ * second. Reserved wiring (`workflowId`/`inputMapping`) is preserved untouched: those are
+ * computed value-fns the serializer recomputes and never carries forward.
+ *
+ * `targetCurrent` is the block the sync is about to overwrite. When it is ALREADY the mapped
+ * type — the normal state of every sync after the one that set the mapping — its own values
+ * seed the result and the configured ones are layered on top. That is what stops a re-sync
+ * wiping an input the modal cannot offer a control for: a `file[]` field is an upload on the
+ * canvas, so it is only ever set there, and rebuilding the block from the stored overrides
+ * alone would blank it every single time. It also means a field the user simply left alone in
+ * the modal keeps the target's value rather than being cleared; a field they explicitly
+ * emptied stores `''`, which is an override and still wins.
+ *
+ * The type equality check is the whole safety property. Under a DIFFERENT current type the
+ * target's values are keyed by another block's field ids, which is exactly the orphaning this
+ * function exists to prevent — so nothing is carried over.
+ */
+export function replaceCustomBlockInputs(
+  subBlocks: SubBlockRecord,
+  values: ReadonlyMap<string, string> | undefined,
+  targetType: string,
+  targetCurrent?: { type: string; subBlocks: SubBlockRecord }
+): SubBlockRecord {
+  const next: SubBlockRecord = {}
+  for (const [key, subBlock] of Object.entries(subBlocks)) {
+    if (RESERVED_PARAMS.has(key)) next[key] = subBlock
+  }
+  if (targetCurrent?.type === targetType) {
+    for (const [key, subBlock] of Object.entries(targetCurrent.subBlocks)) {
+      // Reserved wiring is taken from the SOURCE block above: it is recomputed by the
+      // serializer, and the target's copy is stale the moment the mapping changes.
+      if (!RESERVED_PARAMS.has(key)) next[key] = subBlock
+    }
+  }
+  for (const [key, value] of values ?? []) {
+    const parsed = parseCustomBlockInputStorageKey(key)
+    if (!parsed || parsed.targetType !== targetType) continue
+    if (RESERVED_PARAMS.has(parsed.fieldId)) continue
+    if (parsed.fieldType === 'boolean') {
+      // A `boolean` field's sub-block is a `switch`, which the canvas stores as a real boolean
+      // — but only `'true'`/`'false'` mean anything. An untouched optional flag submits `''`,
+      // and coercing that to `false` would write a value the user never chose:
+      // `assembleCustomBlockInputMapping` skips `''` and keeps `false`, so it would reach the
+      // child's `inputMapping` and override the Start field's own default. Leave it unset.
+      if (value !== 'true' && value !== 'false') continue
+      next[parsed.fieldId] = { value: value === 'true' }
+      continue
+    }
+    // Everything else is stored as text: `object`/`array` are authored as JSON and parsed by
+    // the executor, and a number rides a `short-input` like it does on the canvas.
+    next[parsed.fieldId] = { value }
+  }
+  return next
+}
+
+/**
+ * Repoint a placed custom block at the fork's own published block.
+ *
+ * Custom blocks are the one remappable resource NOT referenced by a sub-block value:
+ * the reference IS the canvas block's `type` (`custom_block_<slug>`), and its bound
+ * workflow lives in a hidden, recomputed sub-block the serializer never carries
+ * forward. `remapForkSubBlocks` therefore cannot express this rewrite, so it gets its
+ * own channel.
+ *
+ * Mapping rows are keyed by the block TYPE, not `custom_block.id` — the same rule every
+ * other kind follows (`file` keys by storage key, `env-var` by name): key by whatever the
+ * workflow actually references, so a resolver lookup needs no extra translation table.
+ *
+ * Unresolved references are deliberately LEFT POINTING AT THE SOURCE rather than cleared,
+ * in both modes. Every other unresolved reference clears to an empty field; there is no
+ * such thing for a block's type — clearing it would delete the node and silently drop a
+ * step from the workflow. The reference is reported as unmapped instead, so the mapping UI
+ * surfaces it and `sync-blockers` refuses the promote. That is what stops a uat
+ * orchestrator from quietly invoking prod.
+ *
+ * An UNMAPPED reference and one mapped back to itself look identical in the output `type`
+ * but are opposite states, which is why {@link RemapForkBlockTypeResult.resolved} reports
+ * mapping existence rather than whether the type moved.
+ */
+export function remapForkBlockType(
+  blockType: string | undefined,
+  resolve: ForkReferenceResolver,
+  context?: { blockId?: string; blockName?: string }
+): RemapForkBlockTypeResult {
+  const type = blockType ?? ''
+  if (!isCustomBlockType(type)) return { type, resolved: false }
+
+  const reference: ForkReference = {
+    kind: 'custom-block',
+    sourceId: type,
+    blockId: context?.blockId,
+    blockName: context?.blockName,
+    subBlockKey: CUSTOM_BLOCK_REFERENCE_KEY,
+    required: true,
+  }
+
+  const targetType = resolve('custom-block', type)
+  if (!targetType) return { type, reference, resolved: false }
+
+  return { type: targetType, reference, resolved: true }
+}
 
 /**
  * The canonical-pair mode questions every fork/promote surface asks of a subblock key.
@@ -1445,6 +1629,48 @@ function applyNestedToolOverrides(
  * set a parent/credential field (bypassing mapping validation) or inject a bogus subblock.
  * Returns a new record only when something applied.
  */
+/** Sub-block types the fork sync modal renders as a free-text field rather than a picker. */
+export const TEXT_DEPENDENT_TYPES = new Set<string>(['short-input', 'long-input'])
+
+/**
+ * The dependents of a remapped parent that the sync modal can offer AND the sync can apply.
+ *
+ * ONE definition on purpose. The collector and the apply side each encoded this rule separately
+ * and drifted the moment text fields were added: they were collected, stored, and gated on by
+ * the Sync button, then dropped here because the allowlist still demanded a `selectorKey`. The
+ * field stayed wiped on every push and the typed value went nowhere.
+ *
+ * A text member of a canonical pair whose basic side is a selector is excluded: the pair is
+ * already represented by its selector member, and the manual member is verbatim by policy.
+ */
+export function reconfigurableDependentIds(
+  subBlocks: ReadonlyArray<{
+    id?: string
+    type?: string
+    dependsOn?: unknown
+    selectorKey?: string
+    canonicalParamId?: string
+  }>
+): Set<string> {
+  const canonicalWithSelector = new Set(
+    subBlocks
+      .filter((cfg) => cfg.canonicalParamId && cfg.selectorKey)
+      .map((cfg) => cfg.canonicalParamId)
+  )
+  const allowed = new Set<string>()
+  for (const cfg of subBlocks) {
+    if (!cfg.id || !cfg.dependsOn) continue
+    if (cfg.selectorKey) {
+      allowed.add(cfg.id)
+      continue
+    }
+    if (!TEXT_DEPENDENT_TYPES.has(cfg.type ?? '')) continue
+    if (cfg.canonicalParamId && canonicalWithSelector.has(cfg.canonicalParamId)) continue
+    allowed.add(cfg.id)
+  }
+  return allowed
+}
+
 export function applyDependentOverrides(
   subBlocks: SubBlockRecord,
   blockType: string,
@@ -1453,12 +1679,10 @@ export function applyDependentOverrides(
   const config = getBlock(blockType)
   if (!config || overrides.size === 0) return subBlocks
 
-  const allowedTopLevel = new Set<string>()
+  const allowedTopLevel = reconfigurableDependentIds(config.subBlocks)
   const toolInputIds = new Set<string>()
   for (const cfg of config.subBlocks) {
-    if (!cfg.id) continue
-    if (cfg.dependsOn && cfg.selectorKey) allowedTopLevel.add(cfg.id)
-    if (cfg.type === 'tool-input') toolInputIds.add(cfg.id)
+    if (cfg.id && cfg.type === 'tool-input') toolInputIds.add(cfg.id)
   }
 
   const nestedByTool = new Map<string, Array<{ index: number; paramId: string; value: string }>>()
@@ -1559,6 +1783,21 @@ export function scanWorkflowReferences(
   const unmapped = new Map<string, ForkReference>()
 
   for (const block of blocks) {
+    // A custom block's reference is the block's own TYPE, not a sub-block value, so it is
+    // detected here rather than inside the sub-block walk — and before the `subBlocks`
+    // guard below, since a custom block with no sub-blocks is still a live reference.
+    const blockTypeResult = remapForkBlockType(block.type, resolve, {
+      blockId: block.id,
+      blockName: block.name,
+    })
+    if (blockTypeResult.reference) {
+      const key = `${blockTypeResult.reference.kind}:${blockTypeResult.reference.sourceId}`
+      if (!references.has(key)) references.set(key, blockTypeResult.reference)
+      if (!blockTypeResult.resolved && !unmapped.has(key)) {
+        unmapped.set(key, blockTypeResult.reference)
+      }
+    }
+
     if (!block.subBlocks || typeof block.subBlocks !== 'object' || Array.isArray(block.subBlocks)) {
       continue
     }

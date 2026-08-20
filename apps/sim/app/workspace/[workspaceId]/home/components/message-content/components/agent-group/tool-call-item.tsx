@@ -12,7 +12,7 @@ import { getReadTargetBlock } from '@/lib/copilot/tools/client/read-block'
 import { RETIRED_BROWSER_REQUEST_TAKEOVER_ID } from '@/lib/copilot/tools/retired-tools'
 import { extractStreamingStringArgument } from '@/lib/copilot/tools/streaming-args'
 import { getToolStatusDisplayTitle, getWaitCountdownTitle } from '@/lib/copilot/tools/tool-display'
-import { getBareIconStyle } from '@/blocks/brand-icon-style'
+import { BrandIcon } from '@/blocks/brand-icon'
 import { getBlockByToolName } from '@/blocks/registry'
 import type { ToolCallData, ToolCallStatus } from '../../../../types'
 import { resolveToolDisplayState } from '../../utils'
@@ -237,12 +237,7 @@ export function ToolCallItem({
 
   return (
     <div className='flex min-w-0 items-center gap-[6px] pl-6'>
-      {BlockIcon && (
-        <BlockIcon
-          className='size-[14px] flex-shrink-0 text-[var(--text-icon)]'
-          style={getBareIconStyle(BlockIcon)}
-        />
-      )}
+      {BlockIcon && <BrandIcon icon={BlockIcon} className='size-[14px] flex-shrink-0' />}
       {isExecuting ? (
         <ShimmerText className='min-w-0 truncate text-[13px] leading-[18px] [--shimmer-rest:var(--text-secondary)]'>
           {title}

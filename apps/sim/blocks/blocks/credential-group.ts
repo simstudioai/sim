@@ -1,5 +1,4 @@
 import { GridOffset } from '@sim/emcn/icons'
-import { getCredentialGroupProviderService } from '@/lib/credential-groups/providers'
 import {
   type CanonicalGroup,
   resolveActiveCanonicalValue,
@@ -163,23 +162,11 @@ export const CredentialGroupBlock: BlockConfig<CredentialGroupBlockOutput> = {
       id: 'credentialGroup',
       title: 'Credential Group',
       type: 'dropdown',
-      options: [],
+      selectorKey: 'workspace.credentialGroups',
       required: { field: 'operation', value: [...GROUP_OPERATIONS] },
       mode: 'basic',
       canonicalParamId: 'credentialGroupId',
       condition: { field: 'operation', value: [...GROUP_OPERATIONS] },
-      fetchOptions: async () => {
-        const groups = await fetchCachedCredentialGroups()
-        return groups
-          .filter((group) => group.status === 'active')
-          .map((group) => ({ label: group.name, id: group.id }))
-          .sort((a, b) => a.label.localeCompare(b.label))
-      },
-      fetchOptionById: async (_blockId: string, optionId: string) => {
-        const groups = await fetchCachedCredentialGroups()
-        const group = groups.find((candidate) => candidate.id === optionId)
-        return group ? { label: group.name, id: group.id } : null
-      },
     },
     {
       id: 'manualCredentialGroup',
@@ -203,44 +190,14 @@ export const CredentialGroupBlock: BlockConfig<CredentialGroupBlockOutput> = {
       id: 'providerFilter',
       title: 'Provider',
       type: 'dropdown',
+      selectorKey: 'workspace.credentialGroupProviders',
       multiSelect: true,
       emptyIsValid: true,
-      options: [],
       required: false,
       mode: 'basic',
       canonicalParamId: 'credentialProviderIds',
       dependsOn: ['credentialGroupId'],
       condition: { field: 'operation', value: 'list_credentials' },
-      fetchOptions: async (blockId: string) => {
-        const credentialGroupId = resolveCredentialGroupIdForBlock(blockId)
-        if (!credentialGroupId) return []
-        const groups = await fetchCachedCredentialGroups()
-        const group = groups.find((candidate) => candidate.id === credentialGroupId)
-        if (!group) return []
-        return group.options
-          .filter((option) => option.status === 'active')
-          .map((option) => {
-            const service = getCredentialGroupProviderService(option.provider)
-            return { id: service.providerId, label: service.name }
-          })
-          .sort((a, b) => a.label.localeCompare(b.label))
-      },
-      fetchOptionById: async (blockId: string, optionId: string) => {
-        const credentialGroupId = resolveCredentialGroupIdForBlock(blockId)
-        if (!credentialGroupId) return null
-        const groups = await fetchCachedCredentialGroups()
-        const group = groups.find((candidate) => candidate.id === credentialGroupId)
-        const option = group?.options.find(
-          (candidate) =>
-            candidate.status === 'active' &&
-            getCredentialGroupProviderService(candidate.provider).providerId === optionId
-        )
-        if (!option) return null
-        return {
-          id: optionId,
-          label: getCredentialGroupProviderService(option.provider).name,
-        }
-      },
     },
     {
       id: 'manualProviderIds',

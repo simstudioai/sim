@@ -71,6 +71,7 @@ export interface GranolaGetNoteResponse extends ToolResponse {
     transcript:
       | {
           speaker: string
+          speakerAttribution: string | null
           speakerLabel: string | null
           speakerName: string | null
           text: string
@@ -78,5 +79,119 @@ export interface GranolaGetNoteResponse extends ToolResponse {
           endTime: string
         }[]
       | null
+  }
+}
+
+export interface GranolaGetTranscriptParams {
+  apiKey: string
+  noteId: string
+  cursor?: string
+  pageSize?: number
+}
+
+export interface GranolaListAuditEventsParams {
+  apiKey: string
+  action?: string
+  occurredBefore?: string
+  occurredAfter?: string
+  cursor?: string
+  pageSize?: number
+}
+
+export interface GranolaCreateWebhookEndpointParams {
+  apiKey: string
+  url: string
+  scopes: string
+  events?: string
+  folderIds?: string
+}
+
+export interface GranolaListWebhookEndpointsParams {
+  apiKey: string
+}
+
+export interface GranolaUpdateWebhookEndpointParams {
+  apiKey: string
+  webhookEndpointId: string
+  url?: string
+  scopes?: string
+  events?: string
+  folderIds?: string
+  enabled?: boolean | string
+}
+
+export interface GranolaDeleteWebhookEndpointParams {
+  apiKey: string
+  webhookEndpointId: string
+}
+
+export interface GranolaGetTranscriptResponse extends ToolResponse {
+  output: {
+    transcript: {
+      speaker: string
+      speakerAttribution: string | null
+      speakerLabel: string | null
+      speakerName: string | null
+      text: string
+      startTime: string
+      endTime: string
+    }[]
+    hasMore: boolean
+    cursor: string | null
+  }
+}
+
+export interface GranolaListAuditEventsResponse extends ToolResponse {
+  output: {
+    events: {
+      id: string
+      action: string
+      occurredAt: string
+      collectedAt: string
+      actorType: string
+      actorId: string | null
+      actorEmail: string | null
+      data: Record<string, unknown>
+      ipAddress: string | null
+      userAgent: string | null
+      clientVersion: string | null
+    }[]
+    hasMore: boolean
+    cursor: string | null
+  }
+}
+
+/** The webhook endpoint shape shared by the create, list, and update tools. */
+export interface GranolaWebhookEndpointOutput {
+  id: string
+  url: string
+  urlRedacted: boolean
+  events: string[]
+  folderIds: string[]
+  scopes: string[]
+  createdByName: string | null
+  createdByEmail: string | null
+  enabled: boolean
+  createdAt: string
+}
+
+export interface GranolaCreateWebhookEndpointResponse extends ToolResponse {
+  output: GranolaWebhookEndpointOutput & { signingSecret: string }
+}
+
+export interface GranolaListWebhookEndpointsResponse extends ToolResponse {
+  output: {
+    webhookEndpoints: GranolaWebhookEndpointOutput[]
+  }
+}
+
+export interface GranolaUpdateWebhookEndpointResponse extends ToolResponse {
+  output: GranolaWebhookEndpointOutput
+}
+
+export interface GranolaDeleteWebhookEndpointResponse extends ToolResponse {
+  output: {
+    id: string
+    deleted: boolean
   }
 }

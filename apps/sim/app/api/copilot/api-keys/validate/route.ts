@@ -169,7 +169,7 @@ async function checkAdmissionUsage(admission: AdmissionBillingDecision): Promise
       onError: 'throw',
     })
     const billingContext = deriveBillingContext(admission.userId, subscription)
-    const usage = await checkServerSideUsageLimits(admission.userId, subscription)
+    const usage = await checkServerSideUsageLimits(admission.userId, subscription, billingContext)
     return {
       isExceeded: usage.isExceeded,
       currentUsage: usage.currentUsage,
@@ -181,6 +181,9 @@ async function checkAdmissionUsage(admission: AdmissionBillingDecision): Promise
         billingPeriod: {
           start: billingContext.billingPeriod.start.toISOString(),
           end: billingContext.billingPeriod.end.toISOString(),
+          ...(billingContext.billingPeriod.source
+            ? { source: billingContext.billingPeriod.source }
+            : {}),
         },
       },
     }

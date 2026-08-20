@@ -612,6 +612,15 @@ function BlockToolRow({
           )}
         >
           <span className='truncate text-sm'>{block.name}</span>
+          {/* An org running one custom block per environment has prod/uat/sandbox copies
+              sharing a name and differing only by an opaque type slug. The source workspace
+              is the only thing that tells them apart, so an allowlist decision made without
+              it is a guess. */}
+          {block.sourceWorkspaceName && (
+            <span className='flex-shrink-0 text-[var(--text-muted)] text-caption'>
+              {block.sourceWorkspaceName}
+            </span>
+          )}
           {isBlockAllowed && deniedCount > 0 && (
             <ChipTag variant='gray' className='flex-shrink-0'>
               {deniedCount} blocked
@@ -1643,6 +1652,11 @@ export function GroupDetail({
                             {BlockIcon && <BlockIcon className='!size-[9px] text-white' />}
                           </div>
                           <span className='truncate text-sm'>{block.name}</span>
+                          {block.sourceWorkspaceName && (
+                            <span className='flex-shrink-0 text-[var(--text-muted)] text-caption'>
+                              {block.sourceWorkspaceName}
+                            </span>
+                          )}
                         </label>
                         {block.description && (
                           <Info side='top' className='flex-shrink-0'>

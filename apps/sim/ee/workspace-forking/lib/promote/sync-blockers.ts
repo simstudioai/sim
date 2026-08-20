@@ -31,6 +31,10 @@ export function forkSyncBlockerReasonFor(ref: ForkClearedRef): ForkSyncBlockerRe
   if (ref.cause === 'workflow') return 'workflow-missing'
   if (ref.cause !== 'reference') return null
   if (ref.sourceDeleted) return 'source-deleted'
+  // Checked before the copyable split because a custom block is neither copyable nor
+  // clearable: its reference IS the block's type, so an unmapped one keeps pointing at the
+  // SOURCE environment's block instead of emptying a field. Blocking is the only signal.
+  if (ref.kind === 'custom-block') return 'unmapped-custom-block'
   if (COPYABLE_BLOCKER_KINDS.has(ref.kind)) return 'unmapped-copyable'
   // Credential / env-var / knowledge-document never reach the cleared list (excluded by the
   // collector; the first two gate via the kind-level required gate, documents follow their KB).

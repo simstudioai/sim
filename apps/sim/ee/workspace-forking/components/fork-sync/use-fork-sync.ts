@@ -30,6 +30,7 @@ import {
   forkVisibleCopyables,
   isForkRequiredComplete,
 } from '@/ee/workspace-forking/components/fork-sync/copy-reconciliation'
+import { isForkSyncConfigurableField } from '@/ee/workspace-forking/components/fork-sync/custom-block-input-control'
 import {
   type DependentReconfigState,
   dependentKey,
@@ -67,7 +68,8 @@ const MAPPING_SECTION: Record<MappableMappingKind, { label: string; order: numbe
   file: { label: 'Files', order: 4 },
   'mcp-server': { label: 'MCP servers', order: 5 },
   'custom-tool': { label: 'Custom tools', order: 6 },
-  skill: { label: 'Skills', order: 7 },
+  'custom-block': { label: 'Custom blocks', order: 7 },
+  skill: { label: 'Skills', order: 8 },
 }
 
 /** Shared empty owners map for the pull direction so the options mapper never re-allocates. */
@@ -235,9 +237,21 @@ const entryKey = (entry: ForkMappingEntry) => forkRefKey(entry)
  * the dependents). Pure over (entry, in-session targets) so the inline render, the Sync
  * gate, and the payload build share one predicate instead of drifting copies.
  */
-function shouldReconfigureEntry(entry: ForkMappingEntry, targets: Record<string, string>): boolean {
+export function shouldReconfigureEntry(
+  entry: ForkMappingEntry,
+  targets: Record<string, string>
+): boolean {
   const next = targets[entryKey(entry)] ?? entry.targetId ?? ''
   if (next === '') return false
+  // A custom block pointed at a DIFFERENT block needs its inputs configured for as long as
+  // that mapping stands, not only in the session where it was picked. Every other kind can
+  // fall through to the in-session test because an unchanged mapping leaves its stored
+  // dependent values valid — a Gmail label picked under the same credential still resolves.
+  // A custom block has no such continuity: its sub-blocks are keyed by the SOURCE block's
+  // Start field ids, so under a different target they describe fields that do not exist and
+  // nothing carries over. Treating it as settled once saved is what left the fields hidden
+  // behind "no changes required" on every sync after the first.
+  if (entry.kind === 'custom-block') return next !== entry.sourceId
   return entry.suggested || next !== (entry.targetId ?? '')
 }
 
@@ -548,6 +562,9 @@ export function useForkSync(params: {
   // instead, so it's skipped here.
   const reconfigComplete = dependentReconfigs.every((field) => {
     if (!field.required) return true
+    // A field the modal renders no control for can never satisfy this gate — see
+    // `isForkSyncConfigurableField`.
+    if (!isForkSyncConfigurableField(field)) return true
     const parent = entryForDependent(field)
     if (!parent) return true
     const resolution = resolutionFor(parent)
@@ -561,6 +578,9 @@ export function useForkSync(params: {
   const reconfigPendingByKind = new Set<MappableMappingKind>()
   for (const field of dependentReconfigs) {
     if (!field.required) continue
+    // Mirrors the Sync gate above: a field it cannot block on must not make the kind's badge
+    // read "Needs setup" forever either.
+    if (!isForkSyncConfigurableField(field)) continue
     const parent = entryForDependent(field)
     if (!parent) continue
     const resolution = resolutionFor(parent)

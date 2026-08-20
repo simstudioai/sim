@@ -101,7 +101,16 @@ export async function listAccessibleWorkspaceRowsForUser(
   userId: string,
   scope: WorkspaceScope = 'active'
 ): Promise<
-  Array<{ workspace: typeof workspaceTable.$inferSelect; permissionType: PermissionType }>
+  Array<{
+    workspace: typeof workspaceTable.$inferSelect
+    permissionType: PermissionType
+    /**
+     * The viewer is an admin of this workspace's organization, so their admin
+     * access is derived and cannot be given up — no permission row to delete.
+     * True whether or not they also hold an explicit grant.
+     */
+    viaOrgAdmin: boolean
+  }>
 > {
   const explicit = await db
     .select({ workspace: workspaceTable, permissionType: permissions.permissionType })
@@ -126,18 +135,20 @@ export async function listAccessibleWorkspaceRowsForUser(
 
   const orgRows = await getOrgAdminWorkspaceRows(userId, scope)
   if (orgRows.length === 0) {
-    return explicit
+    return explicit.map((row) => ({ ...row, viaOrgAdmin: false }))
   }
 
   const orgWorkspaceIds = new Set(orgRows.map((ws) => ws.id))
   const seen = new Set(explicit.map((row) => row.workspace.id))
 
   const elevatedExplicit = explicit.map((row) =>
-    orgWorkspaceIds.has(row.workspace.id) ? { ...row, permissionType: 'admin' as const } : row
+    orgWorkspaceIds.has(row.workspace.id)
+      ? { ...row, permissionType: 'admin' as const, viaOrgAdmin: true }
+      : { ...row, viaOrgAdmin: false }
   )
   const derived = orgRows
     .filter((ws) => !seen.has(ws.id))
-    .map((ws) => ({ workspace: ws, permissionType: 'admin' as const }))
+    .map((ws) => ({ workspace: ws, permissionType: 'admin' as const, viaOrgAdmin: true }))
 
   return [...elevatedExplicit, ...derived]
 }

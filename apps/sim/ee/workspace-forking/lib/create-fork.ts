@@ -283,6 +283,10 @@ export async function createFork(params: CreateForkParams): Promise<CreateForkRe
       return resourceResult.idMap.get(resourceType)?.get(sourceId) ?? null
     }
     const transform = createForkBootstrapTransform(resolveCopied)
+    // No block-type transform here: custom blocks are never copied into a fork and a fresh
+    // fork has no mappings yet, so a placed custom block necessarily keeps the parent's type.
+    // It surfaces as an unmapped reference in the sync view (via `scanWorkflowReferences`) and
+    // blocks the first promote until the environment's own block is mapped to it.
 
     // The child is brand new, so this loads an empty registry; name collisions can only
     // arise among the copied workflows themselves, which the in-loop claims resolve.

@@ -2,8 +2,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { getErrorMessage } from '@sim/utils/errors'
 import { isEqual } from 'es-toolkit'
 import { useStoreWithEqualityFn } from 'zustand/traditional'
+import { buildSelectorContextFromBlock } from '@/lib/workflows/subblocks/context'
 import { buildCanonicalIndex, resolveDependencyValue } from '@/lib/workflows/subblocks/visibility'
 import { getBlock } from '@/blocks/registry'
+import { getSelectorDefinition, loadAllSelectorOptions } from '@/hooks/selectors/registry'
+import type { SelectorKey } from '@/hooks/selectors/types'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
@@ -20,8 +23,18 @@ interface UseFetchedOptionsProps {
   blockId: string
   /** Sibling subblock ids this list is scoped by; a change refetches. */
   dependsOnFields: string[]
-  fetchOptions?: (blockId: string) => Promise<FetchedOption[]>
-  fetchOptionById?: (blockId: string, optionId: string) => Promise<FetchedOption | null>
+  /**
+   * The registered selector supplying this control's options.
+   *
+   * This is the ONLY way a sub-block loads a remote list. A selector is parameterized by an
+   * explicit {@link SelectorContext} built from the block's own values, so the same definition
+   * serves the canvas, the fork sync modal, and any future surface. The alternative that used
+   * to live here — a per-block `fetchOptions(blockId)` reading the live store — could only ever
+   * work on the canvas, and was in every case a duplicate of a selector that already existed.
+   */
+  selectorKey?: SelectorKey
+  /** Drop the hosting workflow from the list — see `SubBlockConfig.selectorExcludeSelf`. */
+  selectorExcludeSelf?: boolean
   isPreview: boolean
   disabled: boolean
   /**
@@ -35,6 +48,13 @@ interface UseFetchedOptionsProps {
 
 export interface UseFetchedOptionsResult {
   fetchedOptions: FetchedOption[]
+  /**
+   * Whether this control loads its options remotely at all. Controls use it to decide whether
+   * `fetchedOptions` or the static `options` array is authoritative — a question they used to
+   * answer by testing the `fetchOptions` prop, which stops being true once the source is a
+   * `selectorKey` instead.
+   */
+  isDynamic: boolean
   isLoadingOptions: boolean
   fetchError: string | null
   hydratedOption: FetchedOption | null
@@ -61,8 +81,8 @@ function hasLocalOption(options: readonly LocalOption[], id: string): boolean {
 export function useFetchedOptions({
   blockId,
   dependsOnFields,
-  fetchOptions,
-  fetchOptionById,
+  selectorKey,
+  selectorExcludeSelf,
   isPreview,
   disabled,
   valueToHydrate,
@@ -94,6 +114,69 @@ export function useFetchedOptions({
     isEqual
   )
 
+  /**
+   * The block's live sub-block values merged over its persisted ones — the shape
+   * `buildSelectorContextFromBlock` reads. Resolved at call time rather than memoized so a
+   * selector always fetches against what the user has actually chosen, not a stale snapshot.
+   */
+  const readSelectorContext = useCallback(() => {
+    const block = useWorkflowStore.getState().blocks[blockId]
+    if (!block?.type) return null
+    const live = activeWorkflowId
+      ? (useSubBlockStore.getState().workflowValues[activeWorkflowId]?.[blockId] ?? {})
+      : {}
+    const merged: Record<string, { value?: unknown }> = { ...(block.subBlocks ?? {}) }
+    for (const [id, value] of Object.entries(live)) merged[id] = { ...merged[id], value }
+    const context = buildSelectorContextFromBlock(block.type, merged, {
+      workflowId: activeWorkflowId ?? undefined,
+      workspaceId: workspaceId ?? undefined,
+      canonicalModes: block.data?.canonicalModes,
+    })
+    if (selectorExcludeSelf && activeWorkflowId) context.excludeWorkflowId = activeWorkflowId
+    return context
+  }, [blockId, activeWorkflowId, workspaceId, selectorExcludeSelf])
+
+  const selectorDefinition = selectorKey ? getSelectorDefinition(selectorKey) : undefined
+
+  /**
+   * A selector-backed control reuses this hook's whole lifecycle by presenting the registry
+   * through the same two function shapes the props already describe — so there is one fetch
+   * path, not a second system running alongside it.
+   *
+   * Memoized on `dependencyValues` so a changed parent (a newly picked credential) yields a
+   * new identity and the scope reset below refetches, exactly as it does for a prop fetcher.
+   */
+  const fetchOptions = useMemo(() => {
+    if (!selectorDefinition) return undefined
+    const definition = selectorDefinition
+    return async (): Promise<FetchedOption[]> => {
+      const context = readSelectorContext()
+      if (!context) return []
+      const args = { key: definition.key, context }
+      // The selector's own readiness gate: an unset credential yields an empty list rather
+      // than an error, which is how every other selector-backed control already behaves.
+      if (definition.enabled && !definition.enabled(args)) return []
+      // Shared with search/replace and value resolution, so a paginated selector drains the
+      // same bounded way here as everywhere else instead of silently showing one page.
+      const options = await loadAllSelectorOptions(definition, args)
+      return options.map((option) => ({ id: option.id, label: option.label }))
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- dependencyValues is the refetch scope
+  }, [selectorDefinition, readSelectorContext, dependencyValues])
+
+  /** Label hydration for a stored id, from the same definition. */
+  const fetchOptionById = useMemo(() => {
+    const definition = selectorDefinition
+    const fetchById = definition?.fetchById
+    if (!definition || !fetchById) return undefined
+    return async (_blockId: string, optionId: string, signal?: AbortSignal) => {
+      const context = readSelectorContext()
+      if (!context) return null
+      const option = await fetchById({ key: definition.key, context, detailId: optionId, signal })
+      return option ? { id: option.id, label: option.label } : null
+    }
+  }, [selectorDefinition, readSelectorContext])
+
   const [fetchedOptions, setFetchedOptions] = useState<FetchedOption[]>([])
   const [isLoadingOptions, setIsLoadingOptions] = useState(false)
   const [fetchError, setFetchError] = useState<string | null>(null)
@@ -120,7 +203,7 @@ export function useFetchedOptions({
     setIsLoadingOptions(true)
     setFetchError(null)
     try {
-      const options = await fetchOptions(blockId)
+      const options = await fetchOptions()
       if (requestId !== fetchRequestIdRef.current) return
       setFetchedOptions(options)
     } catch (error) {
@@ -229,6 +312,7 @@ export function useFetchedOptions({
 
   return {
     fetchedOptions,
+    isDynamic: Boolean(fetchOptions),
     isLoadingOptions,
     fetchError,
     hydratedOption,

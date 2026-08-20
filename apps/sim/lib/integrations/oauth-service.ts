@@ -1,6 +1,6 @@
 import type { ComponentType } from 'react'
+import integrationsJson from '@sim/deployment-config/integrations.json'
 import { asServiceAccountProviderId } from '@/lib/credentials/service-account-provider-ids'
-import integrationsJson from '@/lib/integrations/integrations.json'
 import type { Integration } from '@/lib/integrations/types'
 import { getServiceConfigByServiceId } from '@/lib/oauth'
 import type { ServiceAccountProviderId } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal'

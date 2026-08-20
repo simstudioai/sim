@@ -1,0 +1,174 @@
+name: Publish Sim Setup Package
+
+on:
+  push:
+    branches: [main, staging, dev]
+    paths:
+      - 'packages/sim-setup/**'
+      - 'packages/deployment-config/**'
+      - 'packages/security/**'
+      - 'packages/utils/**'
+      - 'docker-compose.prod.yml'
+      - 'bun.lock'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-sim-setup-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish-npm:
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-4vcpu-ubuntu-2404' || 'ubuntu-latest' }}
+    timeout-minutes: 15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: 1.3.14
+
+      - name: Setup Node
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: '20'
+
+      - name: Cache Bun dependencies
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        with:
+          path: |
+            ~/.bun/install/cache
+            node_modules
+            **/node_modules
+          key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-bun-
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile --ignore-scripts
+
+      - name: Verify npm authentication
+        env:
+          NPM_CONFIG_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: bun pm whoami
+
+      - name: Check generated deployment config
+        run: bun run deployment-config:check
+
+      - name: Run tests
+        working-directory: packages/sim-setup
+        run: bun run test
+
+      - name: Type-check packages
+        run: |
+          bun run --cwd packages/deployment-config type-check
+          bun run --cwd packages/sim-setup type-check
+
+      - name: Build package
+        working-directory: packages/sim-setup
+        run: bun run build
+
+      - name: Resolve release channel
+        id: release
+        working-directory: packages/sim-setup
+        env:
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          BASE_VERSION="$(bun -p "require('./package.json').version")"
+          if [[ ! "$BASE_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Package version must be a stable X.Y.Z base, got '$BASE_VERSION'." >&2
+            exit 1
+          fi
+
+          case "$BRANCH" in
+            dev)
+              VERSION="${BASE_VERSION}-dev.${GITHUB_RUN_NUMBER}.${GITHUB_RUN_ATTEMPT}"
+              TAG="dev"
+              ;;
+            staging)
+              VERSION="${BASE_VERSION}-preview.${GITHUB_RUN_NUMBER}.${GITHUB_RUN_ATTEMPT}"
+              TAG="staging"
+              ;;
+            main)
+              VERSION="$BASE_VERSION"
+              TAG="latest"
+              ;;
+            *)
+              echo "Unsupported release branch '$BRANCH'." >&2
+              exit 1
+              ;;
+          esac
+
+          bun pm pkg set "version=$VERSION"
+          RESOLVED_VERSION="$(bun -p "require('./package.json').version")"
+          if [ "$RESOLVED_VERSION" != "$VERSION" ]; then
+            echo "Version injection mismatch: wanted '$VERSION', got '$RESOLVED_VERSION'." >&2
+            exit 1
+          fi
+
+          {
+            echo "version=$VERSION"
+            echo "tag=$TAG"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Smoke-test packed Node bundle
+        working-directory: packages/sim-setup
+        run: |
+          set -euo pipefail
+          SMOKE_DIR="$(mktemp -d "$RUNNER_TEMP/sim-setup-smoke.XXXXXX")"
+          PACKAGE_PATH="$SMOKE_DIR/sim-setup.tgz"
+          bun pm pack --ignore-scripts --filename "$PACKAGE_PATH" --quiet
+          tar -xzf "$PACKAGE_PATH" -C "$SMOKE_DIR"
+
+          if tar -tzf "$PACKAGE_PATH" | grep -Eq '^package/(apps|docker|helm|packages|scripts)/'; then
+            echo 'Packed setup package contains repository source directories.' >&2
+            exit 1
+          fi
+          test -x "$SMOKE_DIR/package/dist/index.js"
+          test -f "$SMOKE_DIR/package/dist/docker-compose.prod.yml"
+          if grep -Eq '^[[:space:]]+(build|context):' "$SMOKE_DIR/package/dist/docker-compose.prod.yml"; then
+            echo 'Production Compose asset contains a local build dependency.' >&2
+            exit 1
+          fi
+
+          cd "$SMOKE_DIR"
+          node package/dist/index.js --version
+          node package/dist/index.js --help
+          for command in config add doctor start stop restart update status logs down reset; do
+            node package/dist/index.js "$command" --help > /dev/null
+          done
+          node package/dist/index.js add integration --help > /dev/null
+          if node package/dist/index.js --quik > /dev/null 2>&1; then
+            echo 'Packed setup CLI accepted an unknown option.' >&2
+            exit 1
+          fi
+          if node package/dist/index.js start extra > /dev/null 2>&1; then
+            echo 'Packed setup CLI accepted an extra lifecycle operand.' >&2
+            exit 1
+          fi
+
+      - name: Verify version is unpublished
+        working-directory: packages/sim-setup
+        env:
+          VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          if bun pm view "sim-setup@$VERSION" version > /dev/null 2>&1; then
+            echo "sim-setup@$VERSION is already published. Bump packages/sim-setup/package.json before releasing another build." >&2
+            exit 1
+          fi
+
+      - name: Publish to npm
+        working-directory: packages/sim-setup
+        env:
+          NPM_CONFIG_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_TAG: ${{ steps.release.outputs.tag }}
+        run: bun publish --access public --tag "$NPM_TAG" --no-save
+
+      - name: Summarize release
+        env:
+          VERSION: ${{ steps.release.outputs.version }}
+          NPM_TAG: ${{ steps.release.outputs.tag }}
+        run: echo "Published sim-setup@$VERSION with the '$NPM_TAG' tag."

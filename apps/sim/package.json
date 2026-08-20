@@ -111,6 +111,7 @@
     "@sim/audit": "workspace:*",
     "@sim/auth": "workspace:*",
     "@sim/browser-protocol": "workspace:*",
+    "@sim/deployment-config": "workspace:*",
     "@sim/desktop-bridge": "workspace:*",
     "@sim/emcn": "workspace:*",
     "@sim/logger": "workspace:*",

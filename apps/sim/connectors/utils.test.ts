@@ -63,6 +63,7 @@ import { typeformConnector } from '@/connectors/typeform/typeform'
 import {
   ConnectorFileTooLargeError,
   extractConnectorText,
+  hasIndexablePayload,
   htmlToPlainText,
   isIndexableConnectorFile,
   isSkippedDocument,
@@ -1480,5 +1481,35 @@ describe('pipelineParsedMimeType', () => {
     expect(pipelineParsedMimeType('REPORT.PDF')).toBe('application/pdf')
     expect(pipelineParsedMimeType('archive.zip')).toBeUndefined()
     expect(pipelineParsedMimeType('README')).toBeUndefined()
+  })
+})
+
+describe('hasIndexablePayload', () => {
+  const bytes = (value: string) => ({
+    bytes: Buffer.from(value),
+    fileName: 'Report.pdf',
+    mimeType: 'application/pdf',
+  })
+
+  it('accepts a source file with bytes', () => {
+    expect(hasIndexablePayload({ content: '', sourceFile: bytes('%PDF') })).toBe(true)
+  })
+
+  it('accepts extracted text', () => {
+    expect(hasIndexablePayload({ content: 'notes' })).toBe(true)
+  })
+
+  /**
+   * Observed in production: a zero-byte PDF was stored and shipped to OCR, which
+   * answered `400 Bad Request` — an external call billed to discover the file was
+   * empty, reported as an API fault rather than as an empty file. Before source
+   * files existed this was dropped at the empty-content check.
+   */
+  it('rejects a zero-byte source file rather than sending it to OCR', () => {
+    expect(hasIndexablePayload({ content: '', sourceFile: bytes('') })).toBe(false)
+  })
+
+  it('rejects blank text', () => {
+    expect(hasIndexablePayload({ content: '   ' })).toBe(false)
   })
 })
