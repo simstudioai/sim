@@ -505,6 +505,20 @@ describe('Bitbucket merge lifecycle', () => {
     })
   })
 
+  it('accepts a canonical-cased merge task Location for a mixed-case slug', async () => {
+    const result = await bitbucketMergePullRequestTool.transformResponse!(
+      new Response(null, {
+        status: 202,
+        headers: {
+          Location:
+            'https://api.bitbucket.org/2.0/repositories/acme%20team/sdk%2Fcore/pullrequests/7/merge/task-status/task-1',
+        },
+      }),
+      { ...PULL_REQUEST_PARAMS, workspaceSlug: 'ACME Team', repoSlug: 'SDK/Core' }
+    )
+    expect(result.output).toMatchObject({ status: 'pending', taskId: 'task-1' })
+  })
+
   it('rejects missing, cross-origin, and wrong-pull-request task Locations', async () => {
     await expect(
       bitbucketMergePullRequestTool.transformResponse!(

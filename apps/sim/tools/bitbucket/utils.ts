@@ -316,6 +316,17 @@ export function validateBitbucketOpaqueUrl(value: string): string {
   return parsed.toString()
 }
 
+/**
+ * Bitbucket resolves workspace and repository slugs case-insensitively but echoes the canonical
+ * lowercase form in `next` links, redirect `Location` headers, and merge task URLs. Binding those
+ * back to the caller's slug must therefore ignore case, or a mixed-case slug that Bitbucket just
+ * accepted fails on the follow-up request. Repository file paths are compared verbatim — git
+ * treats those as case-sensitive.
+ */
+export function equalsIgnoreCase(a: string, b: string): boolean {
+  return a.toLowerCase() === b.toLowerCase()
+}
+
 export type BitbucketPullRequestRedirectKind = 'diff' | 'diffstat'
 
 export function validateBitbucketPullRequestRedirect(
@@ -327,7 +338,10 @@ export function validateBitbucketPullRequestRedirect(
   const validated = validateBitbucketOpaqueUrl(value)
   const parsed = new URL(validated)
   const expectedPrefix = `/2.0${bitbucketRepositoryPath(workspaceSlug, repoSlug)}/${kind}/`
-  const encodedSpec = parsed.pathname.startsWith(expectedPrefix)
+  const encodedSpec = equalsIgnoreCase(
+    parsed.pathname.slice(0, expectedPrefix.length),
+    expectedPrefix
+  )
     ? parsed.pathname.slice(expectedPrefix.length)
     : ''
   if (!encodedSpec) {
@@ -417,12 +431,17 @@ export function bitbucketApiUrl(
       const prefixSegments = decodePath(prefix)
       if (
         candidateSegments.length <= prefixSegments.length ||
-        !prefixSegments.every((segment, index) => candidateSegments[index] === segment)
+        !prefixSegments.every((segment, index) =>
+          equalsIgnoreCase(candidateSegments[index], segment)
+        )
       ) {
         throw new Error('nextUrl does not belong to this Bitbucket list endpoint')
       }
       const revisionAndPath = candidateSegments.slice(prefixSegments.length)
-      if (options.nextRevision === undefined || revisionAndPath[0] !== options.nextRevision) {
+      if (
+        options.nextRevision === undefined ||
+        !equalsIgnoreCase(revisionAndPath[0], options.nextRevision)
+      ) {
         throw new Error('nextUrl does not preserve the requested Bitbucket revision')
       }
       const expectedSuffix = decodePath(options.nextPathSuffix ?? '')
@@ -433,7 +452,7 @@ export function bitbucketApiUrl(
       ) {
         throw new Error('nextUrl does not preserve the requested Bitbucket directory path')
       }
-    } else if (candidatePath.replace(/\/$/, '') !== exactPath) {
+    } else if (!equalsIgnoreCase(candidatePath.replace(/\/$/, ''), exactPath)) {
       throw new Error('nextUrl does not belong to this Bitbucket list endpoint')
     }
     return validated
