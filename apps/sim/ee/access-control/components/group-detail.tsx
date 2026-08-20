@@ -30,6 +30,7 @@ import { useQueryState } from 'nuqs'
 import { saveDiscardActions } from '@/components/settings/save-discard-actions'
 import type { ShareAuthType } from '@/lib/api/contracts/public-shares'
 import { isBlockTypeAccessControlExempt } from '@/lib/permission-groups/block-access'
+import { PLATFORM_CATEGORY_ORDER, PLATFORM_FEATURES } from '@/lib/permission-groups/features'
 import type { PermissionGroupConfig } from '@/lib/permission-groups/types'
 import { UnsavedChangesModal } from '@/app/workspace/[workspaceId]/components/credential-detail'
 import {
@@ -173,151 +174,6 @@ function AuthModeField({ label, value, onChange, options, disabled }: AuthModeFi
     </div>
   )
 }
-
-/** Render order for the platform-feature category sections; unlisted ones follow. */
-const PLATFORM_CATEGORY_ORDER = [
-  'Sidebar',
-  'Deploy Tabs',
-  'Chat',
-  'Collaboration',
-  'Workflow Panel',
-  'Tools',
-  'Features',
-  'Settings Tabs',
-  'Logs',
-  'Files',
-]
-
-const PLATFORM_FEATURES = [
-  {
-    id: 'hide-knowledge-base',
-    label: 'Knowledge Base',
-    category: 'Sidebar',
-    configKey: 'hideKnowledgeBaseTab' as const,
-    hint: 'Hide the Knowledge Base module from the sidebar.',
-  },
-  {
-    id: 'hide-tables',
-    label: 'Tables',
-    category: 'Sidebar',
-    configKey: 'hideTablesTab' as const,
-    hint: 'Hide the Tables module from the sidebar.',
-  },
-  {
-    id: 'hide-copilot',
-    label: 'Chat',
-    category: 'Workflow Panel',
-    configKey: 'hideCopilot' as const,
-    hint: 'Hide the Chat panel so users cannot build or edit with natural language.',
-  },
-  {
-    id: 'hide-integrations',
-    label: 'Integrations',
-    category: 'Settings Tabs',
-    configKey: 'hideIntegrationsTab' as const,
-    hint: 'Hide the Integrations settings tab (OAuth connections).',
-  },
-  {
-    id: 'hide-secrets',
-    label: 'Secrets',
-    category: 'Settings Tabs',
-    configKey: 'hideSecretsTab' as const,
-    hint: 'Hide the Secrets (environment variables) settings tab.',
-  },
-  {
-    id: 'hide-api-keys',
-    label: 'API Keys',
-    category: 'Settings Tabs',
-    configKey: 'hideApiKeysTab' as const,
-    hint: 'Hide the API Keys settings tab.',
-  },
-  {
-    id: 'hide-files',
-    label: 'Files',
-    category: 'Settings Tabs',
-    configKey: 'hideFilesTab' as const,
-    hint: 'Hide the Files settings tab.',
-  },
-  {
-    id: 'hide-deploy-api',
-    label: 'API',
-    category: 'Deploy Tabs',
-    configKey: 'hideDeployApi' as const,
-    hint: 'Hide the API deployment option.',
-  },
-  {
-    id: 'hide-deploy-mcp',
-    label: 'MCP',
-    category: 'Deploy Tabs',
-    configKey: 'hideDeployMcp' as const,
-    hint: 'Hide the MCP server deployment option.',
-  },
-  {
-    id: 'disable-mcp',
-    label: 'MCP Tools',
-    category: 'Tools',
-    configKey: 'disableMcpTools' as const,
-    hint: 'Block agents from calling MCP tools.',
-  },
-  {
-    id: 'disable-custom-tools',
-    label: 'Custom Tools',
-    category: 'Tools',
-    configKey: 'disableCustomTools' as const,
-    hint: 'Block agents from calling user-defined custom tools.',
-  },
-  {
-    id: 'disable-skills',
-    label: 'Skills',
-    category: 'Tools',
-    configKey: 'disableSkills' as const,
-    hint: 'Block agents from loading skills.',
-  },
-  {
-    id: 'hide-trace-spans',
-    label: 'Trace Spans',
-    category: 'Logs',
-    configKey: 'hideTraceSpans' as const,
-    hint: 'Hide per-block trace spans in logs.',
-  },
-  {
-    id: 'disable-invitations',
-    label: 'Invitations',
-    category: 'Collaboration',
-    configKey: 'disableInvitations' as const,
-    hint: 'Prevent users from inviting others to workspaces.',
-  },
-  {
-    id: 'hide-inbox',
-    label: 'Sim Mailer',
-    category: 'Features',
-    configKey: 'hideInboxTab' as const,
-    hint: 'Hide the Sim Mailer inbox.',
-  },
-  {
-    id: 'disable-public-api',
-    label: 'Public API',
-    category: 'Features',
-    configKey: 'disablePublicApi' as const,
-    hint: 'Disable public API access to deployed workflows.',
-  },
-  // Chat and Files get a category of their own so their nested auth-mode
-  // dropdown (see `featureExtras`) reads as part of the toggle it qualifies.
-  {
-    id: 'hide-deploy-chatbot',
-    label: 'Deployment',
-    category: 'Chat',
-    configKey: 'hideDeployChatbot' as const,
-    hint: 'Hide the chat deployment option.',
-  },
-  {
-    id: 'disable-public-file-sharing',
-    label: 'Public Sharing',
-    category: 'Files',
-    configKey: 'disablePublicFileSharing' as const,
-    hint: 'Disable public file-share links.',
-  },
-]
 
 interface OrganizationMemberOption {
   userId: string
@@ -963,7 +819,7 @@ export function GroupDetail({
   }, [searchedPlatformFeatures, statusFilter, editingConfig])
 
   const platformCategories = useMemo(() => {
-    const categories: Record<string, typeof PLATFORM_FEATURES> = {}
+    const categories: Record<string, (typeof PLATFORM_FEATURES)[number][]> = {}
     for (const feature of filteredPlatformFeatures) {
       if (!categories[feature.category]) {
         categories[feature.category] = []

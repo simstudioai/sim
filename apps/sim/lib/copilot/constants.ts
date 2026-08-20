@@ -36,6 +36,19 @@ export const TOOL_WATCHDOG_RESUME_GRACE_MS = 30_000
 /** Timeout for the client-side streaming response handler (60 min). */
 export const STREAM_TIMEOUT_MS = 3_600_000
 
+/**
+ * How long a workflow tool call waits for a browser to pick it up before the
+ * server runs it itself.
+ *
+ * Workflow tools are client-routed, but the only thing that starts one is the
+ * mounted chat view — a call frame that arrives while the user is on a
+ * different chat is never dispatched by anyone, and the turn used to park for
+ * the full STREAM_TIMEOUT_MS. The real pickup path (stream frame -> execute
+ * POST -> claim) lands in ~1-3s, so 30s is an order of magnitude of headroom
+ * and cannot steal work from a live tab.
+ */
+export const COPILOT_WORKFLOW_TOOL_CLIENT_GRACE_MS = 30_000
+
 /** SessionStorage key for persisting active stream metadata across page reloads. */
 export const STREAM_STORAGE_KEY = 'copilot_active_stream'
 

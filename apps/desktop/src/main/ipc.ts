@@ -70,6 +70,7 @@ import {
   importChromePasswords,
   listChromeImportProfiles,
 } from '@/main/browser-import'
+import { getSearchSuggestions } from '@/main/browser-search/suggestions'
 import { listSites } from '@/main/browser-sites'
 import { isSafeInternalPath } from '@/main/config'
 import type { DesktopSettingsService } from '@/main/desktop-settings'
@@ -661,6 +662,15 @@ export function registerIpcHandlers(deps: IpcDeps): void {
           ? deps.settings.setPreference(key, value)
           : deps.settings.getPreferences(),
     },
+    'desktop:settings:set-browser-search-suggestions': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      denied: null,
+      handler: (enabled) =>
+        typeof enabled === 'boolean'
+          ? deps.settings.setBrowserSearchSuggestionsEnabled(enabled)
+          : deps.settings.getPreferences(),
+    },
     'desktop:settings:set-appearance': {
       kind: 'invoke',
       gate: 'app-origin',
@@ -927,6 +937,16 @@ export function registerIpcHandlers(deps: IpcDeps): void {
         "read/reset of the surface's own data; gating it on the surface would strand the browsing trail with no way to inspect or erase it",
       denied: { sessions: [] },
       handler: () => getKnownSessions(),
+    },
+    'browser-agent:search-suggestions': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      requires: 'browser',
+      denied: [],
+      handler: (query) =>
+        deps.settings.getPreferences().browserSearchSuggestionsEnabled === false
+          ? []
+          : getSearchSuggestions(query),
     },
     'browser-agent:clear-browsing-data': {
       kind: 'invoke',

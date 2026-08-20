@@ -13,8 +13,18 @@ export interface ToolExecutionContext {
   runId?: string
   /** Stable identity of the individual tool call being executed. */
   toolCallId?: string
+  /**
+   * Workflow execution id this tool call is already bound to, set only by the
+   * copilot request handler when it wins the workflow-tool execution claim and
+   * runs the tool server-side instead of waiting for a browser. Distinct from
+   * `executionId`, which is the copilot run's own identity and is re-emitted
+   * into the principal by `requireTrustedCopilotExecutionContext`.
+   */
+  boundWorkflowExecutionId?: string
   billingAttribution?: BillingAttributionSnapshot
   copilotToolExecution?: boolean
+  /** Trusted lifecycle classification stamped by the server, never from model parameters. */
+  copilotInteractionMode?: 'interactive' | 'headless'
   /** Server-owned base image selected from the fixed Go route for this turn. */
   sandboxProfile?: 'mothership'
   requestMode?: string

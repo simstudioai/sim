@@ -69,6 +69,87 @@ sim skills get <id>
 
 </CommandTable>
 
+## Grant skill editor
+
+```bash
+sim skills editors create <id> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `id` | Yes | Unique skill identifier. A built-in skill is `builtin-` followed by its name, for example `builtin-research`. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--email <value>` | Yes | Email address of a current workspace member. |
+
+</CommandTable>
+
+## List skill editors
+
+```bash
+sim skills editors list <id> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `id` | Yes | Unique skill identifier. A built-in skill is `builtin-` followed by its name, for example `builtin-research`. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--sort-by <value>` | No | Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order. Accepted values: `email`, `name`. |
+| `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+
+</CommandTable>
+
+## Revoke skill editor
+
+```bash
+sim skills editors delete <id> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `id` | Yes | Unique skill identifier. A built-in skill is `builtin-` followed by its name, for example `builtin-research`. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--email <value>` | Yes | Email address of a current workspace member. |
+| `-y, --yes` | Yes | Confirm this destructive operation. |
+
+</CommandTable>
+
 ## List skills
 
 ```bash

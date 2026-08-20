@@ -28,6 +28,7 @@ import { columnTypeOf } from '@/lib/table/column-types'
 import { TABLE_LIMITS } from '@/lib/table/constants'
 import { cellValueFilterConditions } from '@/lib/table/query-builder/cell-filter'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
+import { FindBar } from '@/app/workspace/[workspaceId]/components'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import type { RemoteTableSelection } from '@/app/workspace/[workspaceId]/tables/[tableId]/hooks/use-table-room'
 import type { BlockedTableAction } from '@/app/workspace/[workspaceId]/tables/[tableId]/lock-copy'
@@ -63,7 +64,6 @@ import { ADD_COL_WIDTH, COL_WIDTH, SELECTION_TINT_BG } from './constants'
 import { DataRow } from './data-row'
 import { ColumnHeaderMenu, WorkflowGroupMetaCell } from './headers'
 import { RemoteSelectionOverlay } from './remote-selection-overlay'
-import { TableFind } from './table-find'
 import { AddRowButton, SelectAllCheckbox, TableColGroup } from './table-primitives'
 import type { DisplayColumn } from './types'
 import {
@@ -4592,7 +4592,8 @@ export function TableGrid({
     <div ref={containerRef} className='flex h-full flex-col overflow-hidden'>
       <div className='relative flex min-h-0 flex-1'>
         {findOpen && (
-          <TableFind
+          <FindBar
+            ariaLabel='Find in table'
             query={findQuery}
             onQueryChange={setFindQuery}
             onNext={handleFindNext}

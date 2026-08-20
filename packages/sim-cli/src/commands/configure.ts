@@ -1,6 +1,12 @@
 import chalk from 'chalk'
 import { Command } from 'commander'
-import { configPath, OUTPUT_FORMATS, readConfigProfile, writeConfigProfile } from '../config/index'
+import {
+  configPath,
+  OUTPUT_FORMATS,
+  readConfigProfile,
+  resolveAuthenticationProfileName,
+  writeConfigProfile,
+} from '../config/index'
 import { normalizeEndpoint } from '../config/profile'
 import { profileFrom } from '../context'
 import { SimApiError } from '../http/client'
@@ -28,9 +34,16 @@ export function configureCommand(): Command {
         command: Command
       ) => {
         const profile = profileFrom(command)
+        const authProfile = resolveAuthenticationProfileName(profile.name)
         const updates: Record<string, string | null> = {}
 
         if (options.setEndpoint) {
+          if (authProfile !== profile.name) {
+            throw new SimApiError(
+              `Profile "${profile.name}" shares its endpoint with authentication profile "${authProfile}". Run: sim configure --profile ${authProfile} --set-endpoint ${options.setEndpoint}`,
+              0
+            )
+          }
           updates.endpoint = normalizeEndpoint(options.setEndpoint, '--set-endpoint')
         }
         if (options.setWorkspace) updates.workspace = options.setWorkspace
@@ -47,6 +60,12 @@ export function configureCommand(): Command {
         for (const key of options.unset ?? []) {
           if (!['endpoint', 'workspace', 'output'].includes(key)) {
             throw new SimApiError(`Cannot unset "${key}". Use endpoint, workspace, or output.`, 0)
+          }
+          if (key === 'endpoint' && authProfile !== profile.name) {
+            throw new SimApiError(
+              `Profile "${profile.name}" shares its endpoint with authentication profile "${authProfile}". Run: sim configure --profile ${authProfile} --unset endpoint`,
+              0
+            )
           }
           updates[key] = null
         }

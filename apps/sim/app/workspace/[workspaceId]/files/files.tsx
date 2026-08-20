@@ -47,18 +47,21 @@ import {
   SUPPORTED_IMAGE_EXTENSIONS,
   SUPPORTED_VIDEO_EXTENSIONS,
 } from '@/lib/uploads/utils/validation'
+import { SIM_PAGE_CONTENT_TYPE } from '@/lib/workspace-files/page-compile'
 import type {
   BreadcrumbItem,
   FilterTag,
   ResourceAction,
   ResourceColumn,
   ResourceRow,
+  ResourceTableHandle,
   SearchConfig,
   SortConfig,
 } from '@/app/workspace/[workspaceId]/components'
 import {
   EMPTY_CELL_PLACEHOLDER,
   FILTER_SECTION_LABEL_CLASS,
+  FindBar,
   OwnerAvatar,
   ownerCell,
   Resource,
@@ -222,11 +225,13 @@ const MIME_TYPE_LABELS: Record<string, string> = {
   'text/csv': 'CSV',
   'text/plain': 'Text',
   'text/html': 'HTML',
+  'text/x-sim-page': 'Page',
   'text/markdown': 'Markdown',
 }
 
 const EMPTY_WORKSPACE_FILES: WorkspaceFileRecord[] = []
 const EMPTY_WORKSPACE_FILE_FOLDERS: WorkspaceFileFolderApi[] = []
+const EMPTY_FIND_MATCH_IDS: readonly string[] = Object.freeze([])
 
 const hasExternalFiles = (dataTransfer: DataTransfer): boolean =>
   dataTransfer.types.includes('Files')
@@ -779,6 +784,79 @@ export function Files() {
       }
     })
   }, [baseRows, listRename.editingId, listRename.editValue, listRename.isSaving])
+
+  // Find (Cmd/Ctrl+F): the shared find bar over the visible list, stepping
+  // through rows whose name matches. The list is client-side, so matching is
+  // synchronous — no debounce or loading states.
+  const [findOpen, setFindOpen] = useState(false)
+  const [findQuery, setFindQuery] = useState('')
+  const [findIndex, setFindIndex] = useState(0)
+  const findInputRef = useRef<HTMLInputElement>(null)
+  const tableApiRef = useRef<ResourceTableHandle | null>(null)
+
+  const trimmedFindQuery = findQuery.trim().toLowerCase()
+  const findMatchIds = useMemo<readonly string[]>(() => {
+    if (!findOpen || trimmedFindQuery.length === 0) return EMPTY_FIND_MATCH_IDS
+    const ids = rows
+      .filter((row) => (row.cells.name?.label ?? '').toLowerCase().includes(trimmedFindQuery))
+      .map((row) => row.id)
+    return ids.length > 0 ? ids : EMPTY_FIND_MATCH_IDS
+  }, [rows, findOpen, trimmedFindQuery])
+  const findMatchIdsRef = useRef(findMatchIds)
+  findMatchIdsRef.current = findMatchIds
+  const findIndexRef = useRef(findIndex)
+  findIndexRef.current = findIndex
+
+  const goToFindMatch = useCallback((index: number) => {
+    const matches = findMatchIdsRef.current
+    if (matches.length === 0) return
+    const wrapped = ((index % matches.length) + matches.length) % matches.length
+    setFindIndex(wrapped)
+    tableApiRef.current?.scrollToRow(matches[wrapped])
+  }, [])
+
+  /**
+   * A new term resets to and reveals its first match. Keyed on the term, not
+   * the match set: rows regenerate on renames, uploads and SSE refreshes, and
+   * re-revealing then would yank a user who has stepped elsewhere back to
+   * match one.
+   */
+  useEffect(() => {
+    setFindIndex(0)
+    if (trimmedFindQuery.length === 0) return
+    const first = findMatchIdsRef.current[0]
+    if (first) tableApiRef.current?.scrollToRow(first)
+  }, [trimmedFindQuery])
+
+  const handleFindNext = useCallback(() => {
+    goToFindMatch(findIndexRef.current + 1)
+  }, [goToFindMatch])
+
+  const handleFindPrev = useCallback(() => {
+    goToFindMatch(findIndexRef.current - 1)
+  }, [goToFindMatch])
+
+  /** Closing clears the search: term, highlights and cursor all go. */
+  const handleFindClose = useCallback(() => {
+    setFindOpen(false)
+    setFindQuery('')
+    setFindIndex(0)
+  }, [])
+
+  /**
+   * Rows for the table, with the active term tinted into matching name cells.
+   * Layered over `rows` so selection, drag-drop and keyboard nav keep reading
+   * the canonical list.
+   */
+  const displayRows: ResourceRow[] = useMemo(() => {
+    if (findMatchIds.length === 0) return rows
+    const matchSet = new Set(findMatchIds)
+    return rows.map((row) =>
+      matchSet.has(row.id)
+        ? { ...row, cells: { ...row.cells, name: { ...row.cells.name, highlight: findQuery } } }
+        : row
+    )
+  }, [rows, findMatchIds, findQuery])
 
   const visibleRowIds = useMemo(() => rows.map((row) => row.id), [rows])
 
@@ -1445,6 +1523,71 @@ export function Files() {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [handleSave])
 
+  const selectedRowIdsRef = useRef(selectedRowIds)
+  selectedRowIdsRef.current = selectedRowIds
+  const visibleRowIdsRef = useRef(visibleRowIds)
+  visibleRowIdsRef.current = visibleRowIds
+  const listRenameActiveRef = useRef(listRename.editingId)
+  listRenameActiveRef.current = listRename.editingId
+  const handleBulkDeleteRef = useRef(handleBulkDelete)
+  handleBulkDeleteRef.current = handleBulkDelete
+
+  useEffect(() => {
+    const handleListKeyDown = (e: KeyboardEvent) => {
+      if (fileIdFromRouteRef.current) return
+      const active = document.activeElement
+      if (
+        active &&
+        (active.tagName === 'INPUT' ||
+          active.tagName === 'TEXTAREA' ||
+          (active as HTMLElement).isContentEditable)
+      )
+        return
+      if (listRenameActiveRef.current) return
+
+      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedRowIdsRef.current.size > 0) {
+        e.preventDefault()
+        handleBulkDeleteRef.current()
+        return
+      }
+
+      if (e.key === 'Escape' && selectedRowIdsRef.current.size > 0) {
+        e.preventDefault()
+        clearSelection()
+        return
+      }
+
+      if ((e.metaKey || e.ctrlKey) && e.key === 'a' && visibleRowIdsRef.current.length > 0) {
+        e.preventDefault()
+        replaceSelection(visibleRowIdsRef.current)
+      }
+    }
+    window.addEventListener('keydown', handleListKeyDown)
+    return () => window.removeEventListener('keydown', handleListKeyDown)
+  }, [])
+
+  /**
+   * Overrides the browser's Cmd/Ctrl+F with the in-list find while the list is
+   * showing. Skipped when a file is open — its editor owns the shortcut there —
+   * and when another surface already claimed the press.
+   */
+  useEffect(() => {
+    const handleFindShortcut = (e: KeyboardEvent) => {
+      if (!(e.metaKey || e.ctrlKey) || e.altKey || e.shiftKey) return
+      if (e.key.toLowerCase() !== 'f') return
+      if (fileIdFromRouteRef.current) return
+      if (e.defaultPrevented) return
+      e.preventDefault()
+      setFindOpen(true)
+      requestAnimationFrame(() => {
+        findInputRef.current?.focus()
+        findInputRef.current?.select()
+      })
+    }
+    document.addEventListener('keydown', handleFindShortcut)
+    return () => document.removeEventListener('keydown', handleFindShortcut)
+  }, [])
+
   const handleCyclePreviewMode = useCallback(() => {
     setPreviewMode((prev) => {
       if (prev === 'editor') return 'split'
@@ -1466,8 +1609,10 @@ export function Files() {
     const canPreview = isPreviewable(selectedFile) && !streamOnly
     // Markdown renders in the single-surface inline editor, which has no raw/split/preview modes.
     const isInlineMarkdown = isMarkdownFile(selectedFile)
-    const hasSplitView = canEditText && canPreview && !isInlineMarkdown
-    const showPreviewToggle = canPreview && !isInlineMarkdown
+    // A Sim page is locked to its rendered view — no code view to toggle to.
+    const isSimPage = selectedFile.type === SIM_PAGE_CONTENT_TYPE
+    const hasSplitView = canEditText && canPreview && !isInlineMarkdown && !isSimPage
+    const showPreviewToggle = canPreview && !isInlineMarkdown && !isSimPage
 
     const nextModeLabel =
       previewMode === 'editor' ? 'Split' : previewMode === 'split' ? 'Preview' : 'Edit'
@@ -2019,7 +2164,8 @@ export function Files() {
         />
         <Resource.Table
           columns={isSearching ? SEARCH_COLUMNS : COLUMNS}
-          rows={rows}
+          rows={displayRows}
+          apiRef={tableApiRef}
           emptyState={
             listState === 'empty' ? (
               <FilesEmptyState
@@ -2040,6 +2186,21 @@ export function Files() {
           onRowContextMenu={handleRowContextMenu}
           overlay={
             <>
+              {findOpen && (
+                <FindBar
+                  ariaLabel='Find in files'
+                  query={findQuery}
+                  onQueryChange={setFindQuery}
+                  onNext={handleFindNext}
+                  onPrev={handleFindPrev}
+                  onClose={handleFindClose}
+                  count={findMatchIds.length}
+                  currentIndex={Math.min(findIndex, Math.max(0, findMatchIds.length - 1))}
+                  truncated={false}
+                  isLoading={false}
+                  inputRef={findInputRef}
+                />
+              )}
               <ResourceActionBar
                 selectedCount={selectedRowIds.size}
                 onDownload={handleBulkDownload}

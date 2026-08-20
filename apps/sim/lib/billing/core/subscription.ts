@@ -713,7 +713,7 @@ export async function hasWorkspaceLiveSyncAccess(workspaceId: string): Promise<b
  * Existing Function execution deliberately does not consult it (see
  * `resolveWorkspaceSandbox`), so a workspace that downgrades keeps running the
  * sandboxes it already built. New Copilot discovery, mutations, attachments,
- * and direct function_execute selections do re-check it.
+ * and direct run_function selections do re-check it.
  */
 export async function hasWorkspaceSandboxAccess(workspaceId: string): Promise<boolean> {
   try {

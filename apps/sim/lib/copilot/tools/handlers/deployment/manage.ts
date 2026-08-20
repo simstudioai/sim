@@ -511,7 +511,8 @@ export async function executeUpdateDeploymentVersion(
     if (version === null) {
       return {
         success: false,
-        error: 'version must be a deployment version number (use get_deployment_log to find it)',
+        error:
+          'version must be a deployment version number (use list_deployment_versions to find it)',
       }
     }
 

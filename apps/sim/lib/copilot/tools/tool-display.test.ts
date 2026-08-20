@@ -4,9 +4,9 @@
 import { describe, expect, it } from 'vitest'
 import {
   FfmpegOperationValues,
-  KnowledgeBaseOperationValues,
-  MaterializeFileOperationValues,
+  ManageKnowledgeBaseOperationValues,
   QueryUserTableOperationValues,
+  SaveUploadOperationValues,
   SearchKnowledgeBaseOperationValues,
   TOOL_CATALOG,
   type ToolCatalogEntry,
@@ -65,22 +65,41 @@ describe('humanizeToolName', () => {
 
   it('keeps canonical acronym casing', () => {
     expect(humanizeToolName('create_workspace_mcp_server')).toBe('Create Workspace MCP Server')
-    expect(humanizeToolName('deploy_api')).toBe('Deploy API')
+    expect(humanizeToolName('deploy_as_api')).toBe('Deploy As API')
     expect(humanizeToolName('oauth_request_access')).toBe('OAuth Request Access')
   })
 })
 
 describe('getToolDisplayTitle natural-language coverage', () => {
   it('gives gerund titles to tools that previously fell through to humanize', () => {
-    expect(getToolDisplayTitle('deploy_api')).toBe('Deploying API')
+    expect(getToolDisplayTitle('deploy_as_api')).toBe('Deploying as API')
     expect(getToolDisplayTitle('list_workspace_mcp_servers')).toBe('Listing MCP servers')
-    expect(getToolDisplayTitle('oauth_get_auth_link')).toBe('Getting authorization link')
+    expect(getToolDisplayTitle('oauth_get_auth_link')).toBe('Creating sign-in link')
     expect(getToolDisplayTitle('diff_workflows')).toBe('Comparing workflows')
+    expect(getToolDisplayTitle('get_enterprise_context')).toBe('Checking enterprise access')
   })
 
-  it('falls back to running code for function_execute without a title', () => {
-    expect(getToolDisplayTitle('function_execute')).toBe('Running code')
-    expect(getToolDisplayTitle('function_execute', { title: 'Crunching numbers' })).toBe(
+  it('includes the query in search_docs titles', () => {
+    expect(getToolDisplayTitle('search_docs')).toBe('Searching Sim docs')
+    expect(getToolDisplayTitle('search_docs', { query: 'loop blocks iteration' })).toBe(
+      'Searching Sim docs for "loop blocks iteration"'
+    )
+    expect(
+      getToolCompletedTitle(
+        getToolDisplayTitle('search_docs', { query: 'how to read workflow logs' })
+      )
+    ).toBe('Searched Sim docs for "how to read workflow logs"')
+    expect(
+      getToolDisplayTitle('search_docs', {
+        query:
+          'reference block outputs connection tags blockname.field pass data between blocks in a workflow',
+      })?.length
+    ).toBeLessThanOrEqual('Searching Sim docs for ""'.length + 32 + '...'.length)
+  })
+
+  it('falls back to running code for run_function without a title', () => {
+    expect(getToolDisplayTitle('run_function')).toBe('Running code')
+    expect(getToolDisplayTitle('run_function', { title: 'Crunching numbers' })).toBe(
       'Crunching numbers'
     )
   })
@@ -107,16 +126,16 @@ describe('getToolDisplayTitle natural-language coverage', () => {
 
   it('resolves every catalog action and operation enum without a generic placeholder', () => {
     const genericPlaceholders = new Set([
-      'Credential action',
-      'Custom tool action',
+      'Managing credential',
+      'Managing custom tool',
       'Editing file',
       'Folder action',
-      'MCP server action',
+      'Managing MCP server',
       'Managing knowledge base',
       'Managing table',
       'Preparing file',
       'Processing media',
-      'Skill action',
+      'Managing skill',
     ])
     const unresolvedVariants: string[] = []
 
@@ -141,14 +160,14 @@ describe('getToolDisplayTitle natural-language coverage', () => {
 
 describe('getToolDisplayTitle for deployments', () => {
   it.each([
-    ['deploy_api', undefined, 'Deploying API'],
-    ['deploy_api', { action: 'deploy' }, 'Deploying API'],
-    ['deploy_api', { action: 'undeploy' }, 'Undeploying API'],
-    ['deploy_chat', { action: 'deploy' }, 'Deploying chat'],
-    ['deploy_chat', { action: 'undeploy' }, 'Undeploying chat'],
-    ['deploy_custom_block', { action: 'deploy' }, 'Deploying custom block'],
-    ['deploy_custom_block', { action: 'undeploy' }, 'Undeploying custom block'],
-    ['deploy_mcp', undefined, 'Deploying MCP tool'],
+    ['deploy_as_api', undefined, 'Deploying as API'],
+    ['deploy_as_api', { action: 'deploy' }, 'Deploying as API'],
+    ['deploy_as_api', { action: 'undeploy' }, 'Undeploying as API'],
+    ['deploy_as_chat', { action: 'deploy' }, 'Deploying as chat'],
+    ['deploy_as_chat', { action: 'undeploy' }, 'Undeploying as chat'],
+    ['publish_custom_block', { action: 'deploy' }, 'Publishing custom block'],
+    ['publish_custom_block', { action: 'undeploy' }, 'Unpublishing custom block'],
+    ['deploy_as_mcp', undefined, 'Deploying as MCP tool'],
     ['redeploy', undefined, 'Redeploying API'],
   ])('uses the action and deployment type for %s', (toolName, args, expected) => {
     expect(getToolDisplayTitle(toolName, args)).toBe(expected)
@@ -167,7 +186,7 @@ describe('getToolCompletedTitle', () => {
     expect(getToolCompletedTitle('Creating workflow')).toBe('Created workflow')
     expect(getToolCompletedTitle('Running workflow')).toBe('Ran workflow')
     expect(getToolCompletedTitle('Reading file')).toBe('Read file')
-    expect(getToolCompletedTitle('Undeploying API')).toBe('Undeployed API')
+    expect(getToolCompletedTitle('Undeploying as API')).toBe('Undeployed as API')
     expect(getToolCompletedTitle('Duplicating workflow')).toBe('Duplicated workflow')
     expect(getToolCompletedTitle('Viewing custom tools')).toBe('Viewed custom tools')
     expect(getToolCompletedTitle('Saving report.pdf')).toBe('Saved report.pdf')
@@ -179,12 +198,26 @@ describe('getToolCompletedTitle', () => {
     expect(getToolCompletedTitle('Custom title from the model')).toBeUndefined()
   })
 
-  it('projects completed titles only for successful rows', () => {
+  it('projects a terminal tense for every settled row, present tense only while running', () => {
     expect(getToolStatusDisplayTitle('Comparing workflows', 'success')).toBe('Compared workflows')
     expect(getToolStatusDisplayTitle('Comparing workflows', 'executing')).toBe(
       'Comparing workflows'
     )
-    expect(getToolStatusDisplayTitle('Comparing workflows', 'error')).toBe('Comparing workflows')
+    // An errored row must not read as still running — the frozen present-tense
+    // title ("Searching for X" forever) was reported as a stuck tool call.
+    expect(getToolStatusDisplayTitle('Comparing workflows', 'error')).toBe(
+      'Failed comparing workflows'
+    )
+    expect(getToolStatusDisplayTitle('Searching for admin mentions', 'error')).toBe(
+      'Failed searching for admin mentions'
+    )
+    expect(getToolStatusDisplayTitle('Comparing workflows', 'cancelled')).toBe(
+      'Stopped comparing workflows'
+    )
+    // Non-gerund titles get a prefix rather than a bad rewrite.
+    expect(getToolStatusDisplayTitle('Read recent emails', 'error')).toBe(
+      'Failed: Read recent emails'
+    )
   })
 })
 
@@ -216,19 +249,21 @@ describe('mvDisplayVerb', () => {
 describe('getToolDisplayTitle for the vfs verbs', () => {
   it('shows the created file name', () => {
     expect(
-      getToolDisplayTitle('create_file', {
+      getToolDisplayTitle('create_empty_file', {
         outputs: {
           files: [{ path: 'files/Reports/Quarterly%20Report.pdf', mode: 'create' }],
         },
       })
     ).toBe('Creating Quarterly Report.pdf')
-    expect(getToolDisplayTitle('create_file', { fileName: 'notes.md' })).toBe('Creating notes.md')
+    expect(getToolDisplayTitle('create_empty_file', { fileName: 'notes.md' })).toBe(
+      'Creating notes.md'
+    )
     expect(
-      getToolDisplayTitle('create_file', {
+      getToolDisplayTitle('create_empty_file', {
         outputs: { files: [{ path: 'files/notes.md', mode: 'overwrite' }] },
       })
     ).toBe('Overwriting notes.md')
-    expect(getToolDisplayTitle('create_file')).toBe('Creating file')
+    expect(getToolDisplayTitle('create_empty_file')).toBe('Creating file')
   })
 
   it('titles rm from toolTitle, falling back to the paths', () => {
@@ -305,7 +340,7 @@ describe('getToolDisplayTitle for managed resources', () => {
       },
       'Creating lookupWeather',
     ],
-    ['manage_mcp_tool', { operation: 'edit', config: { name: 'Linear' } }, 'Updating Linear'],
+    ['manage_mcp_connection', { operation: 'edit', config: { name: 'Linear' } }, 'Updating Linear'],
     ['manage_skill', { operation: 'delete', name: 'sales-research' }, 'Deleting sales-research'],
     [
       'manage_credential',
@@ -318,7 +353,7 @@ describe('getToolDisplayTitle for managed resources', () => {
     ],
     ['rm', { paths: ['workflows/Marketing/Q3%20Campaigns'] }, 'Deleting Q3 Campaigns'],
     ['manage_custom_tool', { operation: 'list' }, 'Viewing custom tools'],
-    ['manage_mcp_tool', { operation: 'list' }, 'Viewing MCP servers'],
+    ['manage_mcp_connection', { operation: 'list' }, 'Viewing MCP servers'],
     ['manage_skill', { operation: 'list' }, 'Viewing skills'],
   ])('uses verb + resource name for %s', (toolName, args, expected) => {
     expect(getToolDisplayTitle(toolName, args)).toBe(expected)
@@ -335,15 +370,15 @@ describe('getToolDisplayTitle for operation-driven tools', () => {
   })
 
   it('covers every knowledge-base operation with its actual verb and resource', () => {
-    for (const operation of KnowledgeBaseOperationValues) {
-      expect(getToolDisplayTitle('knowledge_base', { operation })).not.toBe(
+    for (const operation of ManageKnowledgeBaseOperationValues) {
+      expect(getToolDisplayTitle('manage_knowledge_base', { operation })).not.toBe(
         'Managing knowledge base'
       )
     }
-    expect(getToolDisplayTitle('knowledge_base', { operation: 'query' })).toBe(
+    expect(getToolDisplayTitle('manage_knowledge_base', { operation: 'query' })).toBe(
       'Searching knowledge base'
     )
-    expect(getToolDisplayTitle('knowledge_base', { operation: 'sync_connector' })).toBe(
+    expect(getToolDisplayTitle('manage_knowledge_base', { operation: 'sync_connector' })).toBe(
       'Syncing knowledge base connector'
     )
   })
@@ -381,19 +416,19 @@ describe('getToolDisplayTitle for operation-driven tools', () => {
   })
 
   it('distinguishes saving uploads from importing workflows', () => {
-    for (const operation of MaterializeFileOperationValues) {
+    for (const operation of SaveUploadOperationValues) {
       expect(
-        getToolDisplayTitle('materialize_file', { operation, fileNames: ['Lead Router.json'] })
+        getToolDisplayTitle('save_upload', { operation, fileNames: ['Lead Router.json'] })
       ).not.toBe('Preparing file')
     }
     expect(
-      getToolDisplayTitle('materialize_file', {
+      getToolDisplayTitle('save_upload', {
         operation: 'save',
         fileNames: ['Quarterly Report.pdf'],
       })
     ).toBe('Saving Quarterly Report.pdf')
     expect(
-      getToolDisplayTitle('materialize_file', {
+      getToolDisplayTitle('save_upload', {
         operation: 'import',
         fileNames: ['Lead Router.json'],
       })
@@ -602,5 +637,116 @@ describe('wait countdown', () => {
 
   it('matches the static title at zero elapsed', () => {
     expect(getWaitCountdownTitle(args, 0)).toBe(getToolDisplayTitle('wait', args))
+  })
+})
+
+describe('opaque id suppression', () => {
+  const uuid = '5bae7849-ffa5-4f57-984f-feab73e513df'
+
+  it('falls back to the generic label instead of printing a workflow id', () => {
+    expect(getToolDisplayTitle('run_workflow', { workflowName: uuid })).toBe('Running workflow')
+    expect(getToolDisplayTitle('run_workflow', { name: uuid })).toBe('Running workflow')
+  })
+
+  it('suppresses a bare-hex id too', () => {
+    expect(getToolDisplayTitle('run_workflow', { name: 'a'.repeat(32) })).toBe('Running workflow')
+  })
+
+  it('still shows real names, including id-adjacent ones', () => {
+    expect(getToolDisplayTitle('run_workflow', { workflowName: 'Elder v1' })).toBe(
+      'Running Elder v1'
+    )
+    expect(getToolDisplayTitle('run_workflow', { workflowName: 'GoogleSheets_v2Block' })).toBe(
+      'Running GoogleSheets_v2Block'
+    )
+  })
+
+  it('degrades a block-id fallback rather than leaking it', () => {
+    expect(getToolDisplayTitle('run_block', { blockId: uuid })).toBe('Running block')
+  })
+})
+
+describe('terminal-title projection is idempotent', () => {
+  // The client tool store phrases its own error/skip labels, so the render
+  // boundary must not project a second time onto them.
+  const storeErrorLabel = 'Attempted to read metadata for thread_tracking'
+  const storeSkipLabel = 'Skipped reading metadata for thread_tracking'
+
+  it('leaves a store-phrased error label alone instead of prefixing it', () => {
+    expect(getToolStatusDisplayTitle(storeErrorLabel, 'error')).toBe(storeErrorLabel)
+    expect(getToolStatusDisplayTitle(storeErrorLabel, 'rejected')).toBe(storeErrorLabel)
+  })
+
+  it('never stacks a second Failed prefix', () => {
+    const once = getToolStatusDisplayTitle('Reading table', 'error')
+    expect(once).toBe('Failed reading table')
+    expect(getToolStatusDisplayTitle(once, 'error')).toBe(once)
+    expect(getToolStatusDisplayTitle('Failed: Something', 'error')).toBe('Failed: Something')
+  })
+
+  it('leaves a store-phrased skip label alone when cancelled', () => {
+    expect(getToolStatusDisplayTitle(storeSkipLabel, 'aborted')).toBe(storeSkipLabel)
+    const stopped = getToolStatusDisplayTitle('Reading table', 'cancelled')
+    expect(stopped).toBe('Stopped reading table')
+    expect(getToolStatusDisplayTitle(stopped, 'cancelled')).toBe(stopped)
+  })
+
+  it('still projects an ordinary present-tense title', () => {
+    expect(getToolStatusDisplayTitle('Searching Sim docs', 'error')).toBe(
+      'Failed searching Sim docs'
+    )
+    expect(getToolStatusDisplayTitle('Running workflow', 'cancelled')).toBe(
+      'Stopped running workflow'
+    )
+  })
+})
+
+describe('resource-naming titles', () => {
+  it('names the table a row/column operation targets', () => {
+    expect(getToolDisplayTitle('table_rows', { operation: 'insert', tableName: 'Runtimes' })).toBe(
+      'Adding rows to Runtimes'
+    )
+    expect(
+      getToolDisplayTitle('table_columns', {
+        operation: 'add',
+        columnName: 'status',
+        tableName: 'Runtimes',
+      })
+    ).toBe('Adding column status in Runtimes')
+    expect(getToolDisplayTitle('table_views', { operation: 'list', tableName: 'Runtimes' })).toBe(
+      'Reading views of Runtimes'
+    )
+  })
+
+  it('falls back cleanly when the table is unnamed', () => {
+    expect(getToolDisplayTitle('table_rows', { operation: 'update' })).toBe('Updating rows')
+  })
+
+  it('names the block behind a block-schema read', () => {
+    expect(getToolDisplayTitle('read', { path: 'components/blocks/slack_v2.json' })).toBe(
+      'Loading Slack'
+    )
+    expect(
+      getToolDisplayTitle('read', { path: 'components/blocks/google_sheets_v2/README.md' })
+    ).toBe('Loading Google Sheets tips')
+  })
+
+  it('shows the text a browser type/insert call sends', () => {
+    expect(getToolDisplayTitle('browser_type', { text: 'hello there' })).toBe(
+      'Typing "hello there"'
+    )
+    expect(getToolDisplayTitle('browser_insert_text', {})).toBe('Inserting text')
+  })
+
+  it('names downloads, docs searches, and generated files', () => {
+    expect(getToolDisplayTitle('download_file', { fileName: 'report.csv' })).toBe(
+      'Downloading report.csv'
+    )
+    expect(
+      getToolDisplayTitle('search_library_docs', { library_name: 'React', query: 'useEffect' })
+    ).toBe('Searching React docs for useEffect')
+    expect(getToolDisplayTitle('generate_image', { path: 'files/hero.png' })).toBe(
+      'Generating hero.png'
+    )
   })
 })

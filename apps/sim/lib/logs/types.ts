@@ -230,6 +230,21 @@ export const PERSISTED_WORKFLOW_EXECUTION_STATUSES = [
 export type PersistedWorkflowExecutionStatus =
   (typeof PERSISTED_WORKFLOW_EXECUTION_STATUSES)[number]
 
+/**
+ * In-flight statuses a crashed worker can strand, which the stale-execution
+ * cron terminalizes. `pending` and `paused` are excluded: both are written as
+ * the resting state of a run waiting on a resume, so sweeping them would fail
+ * live work. Each status here needs its own partial index on
+ * `workflow_execution_logs` — the sweep runs one status per pass so it can use
+ * them.
+ */
+export const STALE_SWEEPABLE_EXECUTION_STATUSES = [
+  'running',
+  'redacting',
+] as const satisfies readonly PersistedWorkflowExecutionStatus[]
+
+export type StaleSweepableExecutionStatus = (typeof STALE_SWEEPABLE_EXECUTION_STATUSES)[number]
+
 export interface CompletedWorkflowExecutionLog extends WorkflowExecutionLog {
   persistedStatus: PersistedWorkflowExecutionStatus
 }

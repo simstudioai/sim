@@ -29,6 +29,7 @@ import {
   SLACK_CAPABILITIES,
   SLACK_MANAGED_USER_AUTHORIZATION_CAPABILITY,
 } from '@/triggers/slack/capabilities'
+import { buildSlackCustomBotRequestUrl } from '@/triggers/webhook-url'
 
 const logger = createLogger('ConnectSlackBotModal')
 
@@ -119,13 +120,9 @@ export function ConnectSlackBotModal({
     }
   }, [open, created, isReconnect, initialDisplayName, initialDescription])
 
-  // NEXT_PUBLIC_APP_URL, not window.location.origin: Slack's servers must be
-  // able to reach this URL, so it has to be the app's public base (e.g. the
-  // tunnel host in dev), not whatever host the browser happens to be on.
-  const requestUrl = useMemo(
-    () => `${getBaseUrl()}/api/webhooks/slack/custom/${credentialId}`,
-    [credentialId]
-  )
+  // Shared server-side derivation: uses the app public base (not
+  // window.location.origin) so Slack's servers can reach it.
+  const requestUrl = useMemo(() => buildSlackCustomBotRequestUrl(credentialId), [credentialId])
 
   const manifestJson = useMemo(() => {
     const managedUserAuthorization = selected.has(SLACK_MANAGED_USER_AUTHORIZATION_CAPABILITY.id)

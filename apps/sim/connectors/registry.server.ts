@@ -2,9 +2,11 @@ import { airtableConnector } from '@/connectors/airtable'
 import { asanaConnector } from '@/connectors/asana'
 import { ashbyConnector } from '@/connectors/ashby'
 import { azureDevopsConnector } from '@/connectors/azure-devops'
+import { bitbucketConnector } from '@/connectors/bitbucket'
 import { boxConnector } from '@/connectors/box'
 import { clickupConnector } from '@/connectors/clickup'
 import { confluenceConnector } from '@/connectors/confluence'
+import { databricksConnector } from '@/connectors/databricks'
 import { discordConnector } from '@/connectors/discord'
 import { docusignConnector } from '@/connectors/docusign'
 import { dropboxConnector } from '@/connectors/dropbox'
@@ -15,6 +17,7 @@ import { gitlabConnector } from '@/connectors/gitlab'
 import { gmailConnector } from '@/connectors/gmail'
 import { gongConnector } from '@/connectors/gong'
 import { googleCalendarConnector } from '@/connectors/google-calendar'
+import { googleChatConnector } from '@/connectors/google-chat'
 import { googleDocsConnector } from '@/connectors/google-docs'
 import { googleDriveConnector } from '@/connectors/google-drive'
 import { googleFormsConnector } from '@/connectors/google-forms'
@@ -54,6 +57,7 @@ import { typeformConnector } from '@/connectors/typeform'
 import type { ConnectorRegistry } from '@/connectors/types'
 import { webflowConnector } from '@/connectors/webflow'
 import { wordpressConnector } from '@/connectors/wordpress'
+import { workdayConnector } from '@/connectors/workday'
 import { xConnector } from '@/connectors/x'
 import { youtubeConnector } from '@/connectors/youtube'
 import { zendeskConnector } from '@/connectors/zendesk'
@@ -72,9 +76,11 @@ export const CONNECTOR_REGISTRY: ConnectorRegistry = {
   asana: asanaConnector,
   ashby: ashbyConnector,
   azure_devops: azureDevopsConnector,
+  bitbucket: bitbucketConnector,
   box: boxConnector,
   clickup: clickupConnector,
   confluence: confluenceConnector,
+  databricks: databricksConnector,
   discord: discordConnector,
   docusign: docusignConnector,
   dropbox: dropboxConnector,
@@ -85,6 +91,7 @@ export const CONNECTOR_REGISTRY: ConnectorRegistry = {
   gmail: gmailConnector,
   gong: gongConnector,
   google_calendar: googleCalendarConnector,
+  google_chat: googleChatConnector,
   google_docs: googleDocsConnector,
   google_drive: googleDriveConnector,
   google_forms: googleFormsConnector,
@@ -123,6 +130,7 @@ export const CONNECTOR_REGISTRY: ConnectorRegistry = {
   typeform: typeformConnector,
   webflow: webflowConnector,
   wordpress: wordpressConnector,
+  workday: workdayConnector,
   x: xConnector,
   youtube: youtubeConnector,
   zendesk: zendeskConnector,

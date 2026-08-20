@@ -274,6 +274,44 @@ export const webhookTriggerPostContract = defineRouteContract({
 })
 
 /**
+ * `PUT`, `PATCH` and `DELETE` deliveries. Same shape as the `POST` contract — they exist as
+ * separate declarations rather than reusing it so each route method is described by a contract
+ * that states its own method, which is what the boundary audit and any future client read.
+ */
+export const webhookTriggerPutContract = defineRouteContract({
+  method: 'PUT',
+  path: '/api/webhooks/trigger/[path]',
+  params: webhookTriggerParamsSchema,
+  response: {
+    mode: 'json',
+    // untyped-response: webhook trigger forwards arbitrary provider challenge or workflow execution payloads
+    schema: z.unknown(),
+  },
+})
+
+export const webhookTriggerPatchContract = defineRouteContract({
+  method: 'PATCH',
+  path: '/api/webhooks/trigger/[path]',
+  params: webhookTriggerParamsSchema,
+  response: {
+    mode: 'json',
+    // untyped-response: webhook trigger forwards arbitrary provider challenge or workflow execution payloads
+    schema: z.unknown(),
+  },
+})
+
+export const webhookTriggerDeleteContract = defineRouteContract({
+  method: 'DELETE',
+  path: '/api/webhooks/trigger/[path]',
+  params: webhookTriggerParamsSchema,
+  response: {
+    mode: 'json',
+    // untyped-response: webhook trigger forwards arbitrary provider challenge or workflow execution payloads
+    schema: z.unknown(),
+  },
+})
+
+/**
  * TikTok app-level webhook ingress. Signature is verified from the raw body
  * before this schema runs; `content` remains a JSON string per TikTok docs.
  */

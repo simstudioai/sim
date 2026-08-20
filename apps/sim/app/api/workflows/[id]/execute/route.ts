@@ -21,7 +21,6 @@ import {
   type BillingAttributionSnapshot,
   requireBillingAttributionHeader,
 } from '@/lib/billing/core/billing-attribution'
-import { isWorkflowToolExecutionClaimable } from '@/lib/copilot/async-runs/lifecycle'
 import {
   claimWorkflowToolExecution,
   getAsyncToolCall,
@@ -29,10 +28,12 @@ import {
   releaseWorkflowToolExecutionClaim,
 } from '@/lib/copilot/async-runs/repository'
 import { COPILOT_WORKFLOW_EXECUTION_CONFLICT_CODE } from '@/lib/copilot/constants'
+import { CopilotDegradedReason } from '@/lib/copilot/generated/trace-attribute-values-v1'
+import { recordDegraded } from '@/lib/copilot/request/metrics'
 import {
   ASYNC_WORKFLOW_DEPLOYMENT_ERRORS,
-  isWorkflowToolName,
-  resolveWorkflowToolTargetId,
+  type CopilotWorkflowToolBindingResult,
+  classifyWorkflowToolBinding,
 } from '@/lib/copilot/tools/workflow-tools'
 import { admissionRejectedResponse, tryAdmit } from '@/lib/core/admission/gate'
 import {
@@ -168,25 +169,19 @@ const SERVER_EXECUTION_ID_CLAIM_ATTEMPTS = 3
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-async function isValidCopilotWorkflowToolBinding(params: {
+async function resolveCopilotWorkflowToolBinding(params: {
   toolCallId: string
   userId: string
   workflowId: string
-}): Promise<boolean> {
+}): Promise<CopilotWorkflowToolBindingResult> {
   const toolCall = await getAsyncToolCall(params.toolCallId)
-  if (
-    !toolCall ||
-    !isWorkflowToolName(toolCall.toolName) ||
-    !isWorkflowToolExecutionClaimable(toolCall.status, toolCall.permissionDecision)
-  ) {
-    return false
-  }
-
-  const run = await getRunSegment(toolCall.runId)
-  return (
-    run?.userId === params.userId &&
-    resolveWorkflowToolTargetId(toolCall.args, run.workflowId) === params.workflowId
-  )
+  const run = toolCall ? await getRunSegment(toolCall.runId) : null
+  return classifyWorkflowToolBinding({
+    toolCall,
+    run,
+    userId: params.userId,
+    workflowId: params.workflowId,
+  })
 }
 
 function createExecutionJsonResponse(
@@ -1021,18 +1016,29 @@ async function handleExecutePost(
       )
     }
 
-    if (
-      copilotToolCallId &&
-      !(await isValidCopilotWorkflowToolBinding({
+    if (copilotToolCallId) {
+      const binding = await resolveCopilotWorkflowToolBinding({
         toolCallId: copilotToolCallId,
         userId,
         workflowId,
-      }))
-    ) {
-      return NextResponse.json(
-        { error: 'Copilot workflow tool binding was not found' },
-        { status: 403 }
-      )
+      })
+      if (!binding.ok) {
+        // This rejection happens before any LoggingSession exists, so it leaves
+        // no execution log and no workflow span — log the reason or it is
+        // invisible everywhere except the browser console.
+        // This rejection happens before a LoggingSession or any workflow span
+        // exists, so the counter is the only place it becomes visible.
+        recordDegraded(CopilotDegradedReason.BindingRejected)
+        reqLogger.warn('Rejected Copilot workflow tool execution', {
+          copilotToolCallId,
+          workflowId,
+          reason: binding.rejection.code,
+        })
+        return NextResponse.json(
+          { error: binding.rejection.message, code: binding.rejection.code },
+          { status: binding.rejection.statusCode }
+        )
+      }
     }
 
     if (inputFromExecutionId) {

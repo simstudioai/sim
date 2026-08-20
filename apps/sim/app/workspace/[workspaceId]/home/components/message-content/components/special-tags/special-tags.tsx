@@ -371,6 +371,56 @@ function isOptionsItemData(value: unknown): value is OptionsItemData {
 }
 
 /**
+ * Repairs the one malformed options payload seen in the wild: the LAST entry
+ * loses its object braces, so its title lands directly on the numeric key and
+ * its description is hoisted to a sibling of the entries —
+ *
+ *   {"1": {…}, "2": {…}, "3": "Third title", "description": "Third desc"}
+ *
+ * — which fails both the per-item shape check and the numeric-key gate, so the
+ * whole card was dropped and the raw JSON rendered as prose.
+ *
+ * Deliberately narrow: a bare string is only accepted under a numeric key, and
+ * only a single stray `description` is absorbed, attaching to the last numeric
+ * entry that lacks one. Anything else is returned untouched so a JSON object
+ * quoted in prose still cannot masquerade as an options card. Returns the input
+ * unchanged when there is nothing to repair.
+ */
+/** Whether keys are exactly "1".."N" in order, the shape the options contract emits. */
+function isSequentialOptionKeys(keys: string[]): boolean {
+  return keys.length > 0 && keys.every((key, index) => key === String(index + 1))
+}
+
+function repairFlattenedOptionEntry(value: unknown): unknown {
+  if (!isRecordLike(value) || Array.isArray(value)) return value
+
+  const entries = Object.entries(value)
+  const numericKeys = entries.filter(([key]) => /^\d+$/.test(key))
+  if (numericKeys.length === 0) return value
+
+  // The hoisted description IS the signature of this corruption. Without one,
+  // a numeric-keyed map of plain strings is just data ({"1": "ok", "2": "ok"})
+  // and must stay prose.
+  const strayKeys = entries.filter(([key]) => !/^\d+$/.test(key))
+  if (strayKeys.length !== 1) return value
+  const [strayKey, strayValue] = strayKeys[0]
+  if (strayKey !== 'description' || typeof strayValue !== 'string') return value
+
+  // Exactly one entry lost its braces, and it is the last one — every earlier
+  // entry must already be a well-formed option.
+  const flattenedCount = numericKeys.filter(([, item]) => typeof item === 'string').length
+  if (flattenedCount !== 1) return value
+  const [lastKey, lastItem] = numericKeys[numericKeys.length - 1]
+  if (typeof lastItem !== 'string') return value
+
+  const repaired: Record<string, unknown> = {}
+  for (const [key, item] of numericKeys) {
+    repaired[key] = key === lastKey ? { title: lastItem, description: strayValue } : item
+  }
+  return repaired
+}
+
+/**
  * Arrays are accepted alongside keyed objects: an agent that emits
  * `<options>[{title,description},…]</options>` still renders, with the array
  * index standing in as the option key.
@@ -592,11 +642,14 @@ export function parseQuestionTagBody(body: string): QuestionTagData | null {
 
 export function parseJsonTagBody<T>(
   body: string,
-  isExpectedShape: (value: unknown) => value is T
+  isExpectedShape: (value: unknown) => value is T,
+  /** Optional normalizer applied before the shape check, for known model typos. */
+  repair?: (value: unknown) => unknown
 ): T | null {
   try {
     const parsed = JSON.parse(body) as unknown
-    return isExpectedShape(parsed) ? parsed : null
+    const candidate = repair ? repair(parsed) : parsed
+    return isExpectedShape(candidate) ? candidate : null
   } catch {
     return null
   }
@@ -667,7 +720,7 @@ function parseSpecialTagData(
   }
 
   if (tagName === 'options') {
-    const data = parseJsonTagBody(body, isOptionsTagData)
+    const data = parseJsonTagBody(body, isOptionsTagData, repairFlattenedOptionEntry)
     return data ? { type: 'options', data } : null
   }
 
@@ -1455,7 +1508,138 @@ export function parseSpecialTags(content: string, isStreaming: boolean): ParsedS
     segments.push({ type: 'text', content })
   }
 
+  if (!isStreaming) {
+    recoverTrailingBareOptions(segments)
+    recoverTrailingBareQuestion(segments)
+  }
+
   return { segments, hasPendingTag }
+}
+/**
+ * Recovers a trailing bare-JSON options payload the model emitted WITHOUT the
+ * `<options>` wrapper (observed when an automation prompt asks the model to
+ * "(re)send suggested actions" and it answers with the JSON as content). The
+ * shape check is strict — a non-empty object whose every value is
+ * { title, description } with numeric-string keys — so ordinary JSON in prose
+ * cannot false-positive. Only a message's FINAL text segment is considered,
+ * mirroring the tag contract (options go last), and only when no options tag
+ * already parsed. Never applied mid-stream: a partial JSON tail must not
+ * flicker between prose and a card.
+ */
+const NEAR_MISS_OPTIONS_WRAPPER = /<option>\s*(\{[\s\S]*\})\s*<\/option>\s*$/
+
+/**
+ * Locates a trailing bare JSON payload: the earliest opening delimiter from
+ * which the whole remainder parses. Nested objects mean the FIRST `{` is not
+ * necessarily the payload's start, so positions are probed left to right and
+ * bounded so a brace-heavy prose block cannot become a hot loop.
+ */
+function findTrailingJsonPayload(
+  text: string,
+  openers: string[]
+): { start: number; body: string } | null {
+  const trimmed = text.trimEnd()
+  if (!openers.some((opener) => trimmed.endsWith(opener === '[' ? ']' : '}'))) return null
+  let probe = -1
+  for (const opener of openers) {
+    const index = text.indexOf(opener)
+    if (index !== -1 && (probe === -1 || index < probe)) probe = index
+  }
+  for (let attempts = 0; probe !== -1 && attempts < 20; attempts++) {
+    const body = text.slice(probe).trim()
+    try {
+      JSON.parse(body)
+      return { start: probe, body }
+    } catch {
+      let next = -1
+      for (const opener of openers) {
+        const index = text.indexOf(opener, probe + 1)
+        if (index !== -1 && (next === -1 || index < next)) next = index
+      }
+      probe = next
+    }
+  }
+  return null
+}
+
+/** Drops a bare `question` / `<question>` label sitting just before a payload. */
+const BARE_QUESTION_LABEL = /(^|\n)\s*<?questions?>?\s*:?\s*$/i
+
+/**
+ * Recovers a trailing `<question>` payload the model emitted WITHOUT the
+ * wrapper, mirroring {@link recoverTrailingBareOptions}.
+ *
+ * Safe to attempt on bare JSON because the question shape is far more
+ * distinctive than the options one: `parseQuestionTagBody` requires a `type` of
+ * exactly `single_select` or `multi_select`, a non-empty `prompt`, and a
+ * non-empty `options` array of `{id, label}`. Ordinary JSON in prose — a config
+ * blob, an API response, a code sample — does not carry that combination, so
+ * the strict validator is the whole gate. Accepts an array or a single object,
+ * exactly as the tagged path does.
+ */
+function recoverTrailingBareQuestion(segments: ContentSegment[]): void {
+  const last = segments[segments.length - 1]
+  if (!last || last.type !== 'text') return
+  if (segments.some((segment) => segment.type === 'question')) return
+  const payload = findTrailingJsonPayload(last.content, ['{', '['])
+  if (!payload) return
+  const data = parseQuestionTagBody(payload.body)
+  if (!data) return
+  const prefix = last.content
+    .slice(0, payload.start)
+    .replace(/\s+$/, '')
+    .replace(BARE_QUESTION_LABEL, '$1')
+    .replace(/\s+$/, '')
+  segments.pop()
+  if (prefix) segments.push({ type: 'text', content: prefix })
+  segments.push({ type: 'question', data })
+}
+
+function recoverTrailingBareOptions(segments: ContentSegment[]): void {
+  const last = segments[segments.length - 1]
+  if (!last || last.type !== 'text') return
+  if (segments.some((segment) => segment.type === 'options')) return
+  let text = last.content
+  // A near-miss wrapper — the singular `<option>` tag observed in the wild —
+  // is neither a parseable tag nor bare JSON (the trailing `</option>` fails
+  // the brace gate below). Unwrap it and let the strict shape check decide.
+  const nearMiss = NEAR_MISS_OPTIONS_WRAPPER.exec(text)
+  if (nearMiss) {
+    text = `${text.slice(0, nearMiss.index)}${nearMiss[1]}`
+  }
+  if (!text.trimEnd().endsWith('}')) return
+  // The payload nests objects, so the START brace is the first one from which
+  // the remainder parses — probe brace positions left to right (bounded).
+  let start = -1
+  let parsed: unknown
+  let probe = text.indexOf('{')
+  for (let attempts = 0; probe !== -1 && attempts < 20; attempts++) {
+    try {
+      parsed = JSON.parse(text.slice(probe).trim())
+      start = probe
+      break
+    } catch {
+      probe = text.indexOf('{', probe + 1)
+    }
+  }
+  if (start === -1) return
+  const repaired = repairFlattenedOptionEntry(parsed)
+  if (!isOptionsTagData(repaired) || Object.keys(repaired as object).length === 0) return
+  // The contract numbers options from 1 upward. Demanding the exact run — not
+  // merely "every key is numeric" — keeps a numeric-keyed map that happens to
+  // hold {title, description} values (e.g. {"0": {…}}) from becoming a card.
+  if (!isSequentialOptionKeys(Object.keys(repaired as object))) return
+  // A bare `options` / `<options>` label immediately before the payload is the
+  // wrapper the model meant to emit, not prose — drop it rather than leaving a
+  // stray word above the card.
+  const prefix = text
+    .slice(0, start)
+    .replace(/\s+$/, '')
+    .replace(/(^|\n)\s*<?options>?\s*:?\s*$/i, '$1')
+    .replace(/\s+$/, '')
+  segments.pop()
+  if (prefix) segments.push({ type: 'text', content: prefix })
+  segments.push({ type: 'options', data: repaired })
 }
 
 interface SpecialTagsProps {
@@ -2708,10 +2892,16 @@ export function CredentialDisplay({
   )
 }
 
+/**
+ * The message is the whole user-facing story. The raw `code` is an internal
+ * identifier ("async_resume_aborted") that means nothing to a reader and made
+ * every error line end in parenthesized jargon; it stays in the tag payload for
+ * logs and support, just not on screen.
+ */
 function MothershipErrorDisplay({ data }: { data: MothershipErrorTagData }) {
-  const detail = data.code ? `${data.message} (${data.code})` : data.message
-
-  return <p className='text-[13px] text-[var(--text-secondary)] italic leading-[20px]'>{detail}</p>
+  return (
+    <p className='text-[13px] text-[var(--text-secondary)] italic leading-[20px]'>{data.message}</p>
+  )
 }
 
 function UsageUpgradeDisplay({ data }: { data: UsageUpgradeTagData }) {

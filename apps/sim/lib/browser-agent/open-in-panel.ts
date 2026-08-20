@@ -1,6 +1,6 @@
 /**
  * "Open this URL in the Sim browser panel" — the desktop-only affordance that
- * routes chat links into the embedded agent browser instead of a new browser
+ * routes chat links into the embedded agent browser instead of a system-browser
  * tab.
  *
  * Rendering components (markdown links, chips) can't reach the chat's

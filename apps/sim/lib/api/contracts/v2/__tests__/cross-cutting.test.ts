@@ -182,10 +182,11 @@ describe('knowledge and files request-slice strictness', () => {
    * A count, so a document that stopped listing its routes cannot make every
    * assertion below pass vacuously. It rises when a route gains a slice: it went
    * 45 → 63 when the knowledge and files endpoints that take no query params
-   * started saying so with `noInputSchema` instead of omitting `query`.
+   * started saying so with `noInputSchema` instead of omitting `query`, then
+   * 63 → 75 when knowledge connector management joined the documented surface.
    */
   it('sweeps every documented query and body slice', () => {
-    expect(slices.length).toBe(63)
+    expect(slices.length).toBe(75)
   })
 
   it.each(slices)('%s rejects an undeclared key', (_name, schema) => {

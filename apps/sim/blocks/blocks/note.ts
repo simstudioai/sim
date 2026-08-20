@@ -15,6 +15,7 @@ export const NoteBlock: BlockConfig = {
     {
       id: 'content',
       type: 'long-input',
+      searchTextFormat: 'markdown',
       rows: 8,
       placeholder: 'Add context or instructions for collaborators...',
       description: 'Write your note using Markdown. YouTube links will display as embedded videos.',

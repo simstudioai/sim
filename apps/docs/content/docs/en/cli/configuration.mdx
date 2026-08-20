@@ -9,8 +9,10 @@ for a single command.
 
 ## Profiles
 
-A profile is one identity plus one set of defaults, in the style of the AWS CLI.
-Select one with `-P`, `--profile`, or `SIM_PROFILE`:
+A profile selects one set of defaults, in the style of the AWS CLI. It normally
+uses its same-named stored identity, but a workspace profile can share another
+profile's identity through `auth_profile`. Select one with `-P`, `--profile`, or
+`SIM_PROFILE`:
 
 ```bash
 sim workflows list --profile dev
@@ -21,6 +23,12 @@ The profile is named `default` when you do not pick one.
 
 ```bash
 sim profiles     # list them; * marks the active one
+```
+
+Add a profile for another workspace without creating or copying an API key:
+
+```bash
+sim profile add acme --workspace ws_acme
 ```
 
 ## Setting defaults
@@ -51,7 +59,7 @@ Each setting resolves independently, and the first match wins:
 | --- | --- |
 | 1 | Command-line flag — `--endpoint`, `--workspace`, `--output` |
 | 2 | Environment — `SIM_ENDPOINT`, `SIM_API_KEY`, `SIM_WORKSPACE`, `SIM_OUTPUT` |
-| 3 | `~/.sim/config` and `~/.sim/credentials`, for the selected profile |
+| 3 | `~/.sim/config` for the selected profile and `~/.sim/credentials` for its `auth_profile`, when set |
 | 4 | Built-in default — `https://www.sim.ai` and `table` |
 
 `sim whoami` prints the winning source for each setting:
@@ -74,6 +82,10 @@ output = table
 [profile dev]
 endpoint = http://localhost:3000
 workspace = ws_local
+
+[profile acme]
+auth_profile = default
+workspace = ws_acme
 ```
 
 Keys live in `~/.sim/credentials`, written `0600`:
@@ -88,6 +100,10 @@ api_key = sim_…
 
 Section naming follows the AWS convention: `[profile dev]` in config, `[dev]` in
 credentials. The `default` profile is `[default]` in both.
+
+`auth_profile` references one direct profile and shares only its endpoint and
+API key; workspace and output remain local. References cannot be chained, and a
+shared profile cannot also set its own endpoint or API key.
 
 ## Environment variables
 
@@ -120,6 +136,19 @@ sim tables list --workspace ws_other
 sim configure --set-workspace ws_abc123
 export SIM_WORKSPACE=ws_abc123
 ```
+
+For a reusable selection, create a workspace profile backed by the current
+stored login:
+
+```bash
+sim workspaces list
+sim profile add acme --workspace ws_acme
+sim --profile acme tables list
+```
+
+When `--workspace` is omitted in a terminal, `profile add` presents an
+interactive picker, capped at 1,000 entries. It refuses environment-only keys
+and endpoint overrides because those values would disappear in another shell.
 
 `sim billing status`, `sim billing logs`, and `sim audit-logs list` accept
 `--all-workspaces` to drop the filter instead. It cannot be combined with

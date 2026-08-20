@@ -12,6 +12,7 @@ import {
   SEARCH_REPLACE_BLOCK_CONFIGS,
 } from '@/lib/workflows/search-replace/search-replace.fixtures'
 import { WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS } from '@/lib/workflows/search-replace/subflow-fields'
+import { NoteBlock } from '@/blocks/blocks/note'
 
 /**
  * Uses the real tool registry. Nothing here imports it directly — the dependency
@@ -114,6 +115,46 @@ describe('indexWorkflowSearchMatches', () => {
     expect(blockNameMatches[0]?.fieldTitle).toBe('Block name')
   })
 
+  it('matches a block name containing a non-breaking space against a typed space', () => {
+    const workflow = {
+      blocks: {
+        'nbsp-1': {
+          id: 'nbsp-1',
+          type: 'function',
+          name: 'Load\u00a0Prompt',
+          position: { x: 0, y: 0 },
+          subBlocks: {},
+          outputs: {},
+          enabled: true,
+        },
+      },
+    } as ReturnType<typeof createSearchReplaceWorkflowFixture>
+
+    const matches = indexWorkflowSearchMatches({
+      workflow,
+      query: 'load prompt',
+      mode: 'text',
+      blockConfigs: SEARCH_REPLACE_BLOCK_CONFIGS,
+    })
+
+    const blockNameMatches = matches.filter((match) => match.target.kind === 'block-name')
+    // The raw value keeps the original characters so replacements stay exact.
+    expect(blockNameMatches.map((match) => match.rawValue)).toEqual(['Load\u00a0Prompt'])
+  })
+
+  it('ignores accidental leading/trailing whitespace in the query', () => {
+    const workflow = createSearchReplaceWorkflowFixture()
+
+    const matches = indexWorkflowSearchMatches({
+      workflow,
+      query: ' agent ',
+      mode: 'text',
+      blockConfigs: SEARCH_REPLACE_BLOCK_CONFIGS,
+    })
+
+    expect(matches.some((match) => match.target.kind === 'block-name')).toBe(true)
+  })
+
   it('does not include block-name matches in resource-only mode', () => {
     const workflow = createSearchReplaceWorkflowFixture()
 
@@ -125,6 +166,92 @@ describe('indexWorkflowSearchMatches', () => {
     })
 
     expect(matches.some((match) => match.target.kind === 'block-name')).toBe(false)
+  })
+
+  describe('the Note body declares the markdown format the card assumes', () => {
+    /*
+     * The canvas card projects markdown escapes unconditionally — it renders from a package that
+     * cannot read the block registry. The indexer projects only when the field says so. Dropping
+     * the declaration would leave the two disagreeing about what an occurrence is, and the failure
+     * is silent: the panel counts a hit the card marks somewhere else.
+     */
+    it('keeps searchTextFormat on the Note content field', () => {
+      const content = NoteBlock.subBlocks.find((subBlock) => subBlock.id === 'content')
+      expect(content?.searchTextFormat).toBe('markdown')
+    })
+  })
+
+  describe('a markdown field is searched as it renders', () => {
+    /*
+     * The rich-text editor backslash-escapes every markdown-significant character in prose, so a
+     * Note the reader sees as `{{TE_SERET}}` is stored as `{{TE\_SERET}}`. Searching what is on
+     * screen has to see through that, and the range has to keep spanning the escaped source so
+     * replace rewrites the whole `\_` instead of stranding the backslash.
+     */
+    const NOTE_CONFIGS = {
+      note: { subBlocks: [{ id: 'content', type: 'long-input', searchTextFormat: 'markdown' }] },
+      function: { subBlocks: [{ id: 'code', type: 'code' }] },
+    } as unknown as typeof SEARCH_REPLACE_BLOCK_CONFIGS
+
+    function workflowWith(noteContent: string, code: string) {
+      return {
+        blocks: {
+          'note-1': {
+            id: 'note-1',
+            type: 'note',
+            name: 'Note',
+            position: { x: 0, y: 0 },
+            enabled: true,
+            horizontalHandles: true,
+            subBlocks: { content: { id: 'content', type: 'long-input', value: noteContent } },
+            outputs: {},
+          },
+          'fn-1': {
+            id: 'fn-1',
+            type: 'function',
+            name: 'Fn',
+            position: { x: 0, y: 0 },
+            enabled: true,
+            horizontalHandles: true,
+            subBlocks: { code: { id: 'code', type: 'code', value: code } },
+            outputs: {},
+          },
+        },
+      } as unknown as Parameters<typeof indexWorkflowSearchMatches>[0]['workflow']
+    }
+
+    it('finds an escaped underscore by what the reader sees', () => {
+      const matches = indexWorkflowSearchMatches({
+        workflow: workflowWith('{{TE\\_SERET}}', ''),
+        query: '{{TE_',
+        mode: 'text',
+        blockConfigs: NOTE_CONFIGS,
+      })
+      expect(matches.map((match) => match.blockId)).toContain('note-1')
+    })
+
+    it('keeps the range over the escape, so replace cannot strand a backslash', () => {
+      const content = 'uses SB\\_ACTION here'
+      const [match] = indexWorkflowSearchMatches({
+        workflow: workflowWith(content, ''),
+        query: 'SB_ACTION',
+        mode: 'text',
+        blockConfigs: NOTE_CONFIGS,
+      })
+      expect(content.slice(match.range!.start, match.range!.end)).toBe('SB\\_ACTION')
+      expect(match.rawValue).toBe('SB\\_ACTION')
+    })
+
+    /* A code field stores what the author typed: a backslash there is theirs, not an escape. */
+    it('leaves a field that is not markdown searched as stored', () => {
+      const matches = indexWorkflowSearchMatches({
+        workflow: workflowWith('', 'const s = "a\\_b"'),
+        query: 'a_b',
+        mode: 'text',
+        blockConfigs: NOTE_CONFIGS,
+      })
+      expect(matches.map((match) => match.blockId)).not.toContain('fn-1')
+    })
   })
 
   describe('block references search under the name the canvas shows', () => {

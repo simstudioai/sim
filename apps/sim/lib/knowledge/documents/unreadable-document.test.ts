@@ -10,10 +10,16 @@
  */
 import { describe, expect, it, vi } from 'vitest'
 
-const { mockParseBuffer, mockDownload } = vi.hoisted(() => ({
-  mockParseBuffer: vi.fn(),
-  mockDownload: vi.fn(),
-}))
+const { mockParseBuffer, mockDownload } = vi.hoisted(() => {
+  // A developer's .env MISTRAL_API_KEY would route the empty-parse case into
+  // the OCR/cloud-upload branch and fail on unmocked uploads; CI has no key.
+  // Pin the keyless path so the test is hermetic.
+  process.env.MISTRAL_API_KEY = ''
+  return {
+    mockParseBuffer: vi.fn(),
+    mockDownload: vi.fn(),
+  }
+})
 
 vi.mock('@/lib/file-parsers', () => ({
   parseBuffer: mockParseBuffer,

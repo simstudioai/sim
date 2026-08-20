@@ -13,6 +13,7 @@ import {
   PopoverContent,
   PopoverItem,
   PopoverSection,
+  Tooltip,
 } from '@sim/emcn'
 import { Check, Pencil, Pin, Plus, Trash } from '@sim/emcn/icons'
 import type { TableViewWire } from '@/lib/api/contracts/tables'
@@ -169,15 +170,14 @@ export const ViewsMenu = memo(function ViewsMenu({
                         label: 'Rename',
                         onClick: () => runAndClose(() => onRename(view.id)),
                       },
-                      ...(!view.isDefault
-                        ? [
-                            {
-                              icon: Trash,
-                              label: 'Delete',
-                              onClick: () => runAndClose(() => onDelete(view.id)),
-                            },
-                          ]
-                        : []),
+                      {
+                        icon: Trash,
+                        label: 'Delete',
+                        disabledReason: view.isDefault
+                          ? 'Default view cannot be deleted'
+                          : undefined,
+                        onClick: () => runAndClose(() => onDelete(view.id)),
+                      },
                     ]
                   : undefined
               }
@@ -207,6 +207,8 @@ interface ViewRowAction {
   icon: React.ElementType
   label: string
   onClick: () => void
+  /** Renders the action inert and dimmed, with this text in its hover tooltip. */
+  disabledReason?: string
 }
 
 interface ViewRowDefaultState {
@@ -252,24 +254,47 @@ function ViewRow({ label, isActive, onSelect, defaultState, actions }: ViewRowPr
       </PopoverItem>
       {actionCount > 0 && (
         <div className='pointer-events-none absolute right-1.5 flex items-center gap-0.5'>
-          {actions?.map((action) => (
-            <Button
-              key={action.label}
-              type='button'
-              variant='quiet'
-              size='icon'
-              aria-label={action.label}
-              title={action.label}
-              onClick={(event) => {
-                event.preventDefault()
-                event.stopPropagation()
-                action.onClick()
-              }}
-              className='pointer-events-none opacity-0 transition-[background-color,color,opacity] group-focus-within/view:pointer-events-auto group-focus-within/view:opacity-100 group-hover/view:pointer-events-auto group-hover/view:opacity-100'
-            >
-              <action.icon className='size-3' />
-            </Button>
-          ))}
+          {actions?.map((action) => {
+            // Disabled via aria-disabled, not the `disabled` attribute: the button
+            // must keep receiving hover and focus events so the tooltip can explain
+            // why it is inert, and Button's disabled:opacity-70 would otherwise
+            // leak it through the hidden (opacity-0) resting state.
+            const button = (
+              <Button
+                key={action.label}
+                type='button'
+                variant='quiet'
+                size='icon'
+                aria-label={action.label}
+                title={action.disabledReason ? undefined : action.label}
+                aria-disabled={action.disabledReason ? true : undefined}
+                onClick={(event) => {
+                  event.preventDefault()
+                  event.stopPropagation()
+                  if (action.disabledReason) return
+                  action.onClick()
+                }}
+                className={cn(
+                  'pointer-events-none opacity-0 transition-[background-color,color,opacity] group-focus-within/view:pointer-events-auto group-hover/view:pointer-events-auto',
+                  action.disabledReason
+                    ? 'cursor-default hover-hover:bg-transparent group-focus-within/view:opacity-40 group-hover/view:opacity-40'
+                    : 'group-focus-within/view:opacity-100 group-hover/view:opacity-100'
+                )}
+              >
+                <action.icon className='size-3' />
+              </Button>
+            )
+            return action.disabledReason ? (
+              <Tooltip.Root key={action.label}>
+                <Tooltip.Trigger asChild>{button}</Tooltip.Trigger>
+                <Tooltip.Content>
+                  <p>{action.disabledReason}</p>
+                </Tooltip.Content>
+              </Tooltip.Root>
+            ) : (
+              button
+            )
+          })}
           {defaultState && (
             <Button
               type='button'
