@@ -251,7 +251,7 @@ function ViewRow({ label, isActive, onSelect, defaultState, actions }: ViewRowPr
         )}
       </PopoverItem>
       {actionCount > 0 && (
-        <div className='absolute right-1.5 flex items-center gap-0.5'>
+        <div className='pointer-events-none absolute right-1.5 flex items-center gap-0.5'>
           {actions?.map((action) => (
             <Button
               key={action.label}
@@ -278,6 +278,7 @@ function ViewRow({ label, isActive, onSelect, defaultState, actions }: ViewRowPr
               aria-label={defaultState.isDefault ? 'Current default view' : 'Set as default'}
               title={defaultState.isDefault ? 'Current default view' : 'Set as default'}
               disabled={!defaultState.onSetDefault}
+              className='pointer-events-auto'
               onClick={(event) => {
                 event.preventDefault()
                 event.stopPropagation()
