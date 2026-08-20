@@ -452,6 +452,15 @@ figcaption { font-size: 0.875em; line-height: 1.4285714; color: var(--text-prima
 }
 a.page-tab:hover { color: var(--text-body); opacity: 1; }
 .page-tab.is-active { color: var(--text-primary); font-weight: 500; border-bottom-color: var(--text-primary); }
+/* In-document tabs render as buttons (client-side switch, one file) — same
+   chrome as the linked set tabs. */
+button.page-tab { background: none; border-top: 0; border-left: 0; border-right: 0; font: inherit; font-size: var(--text-sm); cursor: pointer; }
+button.page-tab:hover { color: var(--text-body); }
+.doc-tab-panel { display: none; }
+.doc-tab-panel.is-active { display: block; }
+/* The panel's leading heading otherwise stacks its section margin on the tab
+   row's own gap. */
+.doc-tab-panel > :first-child { margin-top: 0; }
 
 /* The docs' theme toggle: 30px, rounded-lg, --text-icon, --surface-active hover. */
 .art-theme {

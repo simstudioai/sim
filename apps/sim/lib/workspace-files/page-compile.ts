@@ -93,6 +93,87 @@ function tabBar(tabs: string[] | undefined): string {
   return `<nav class="page-tabs" aria-label="Pages">${items}</nav>`
 }
 
+interface DocTab {
+  title: string
+  body: string
+}
+
+/**
+ * Splits a page body at top-level `# ` headings — each starts an in-document
+ * tab. Fence contents are opaque: a `# ` line inside a ``` or ~~~ block stays
+ * content. With fewer than two headings the body is not tabbed at all, so a
+ * stray single H1 never eats content.
+ */
+function splitDocTabs(body: string): { intro: string; tabs: DocTab[] } {
+  const intro: string[] = []
+  const tabs: Array<{ title: string; lines: string[] }> = []
+  let fenceChar: string | null = null
+  for (const line of body.split('\n')) {
+    const fence = line.match(/^\s*(`{3,}|~{3,})/)
+    if (fence) {
+      const char = fence[1][0]
+      if (!fenceChar) fenceChar = char
+      else if (char === fenceChar) fenceChar = null
+    }
+    const heading = fenceChar ? null : line.match(/^# +(.+?)\s*$/)
+    if (heading) {
+      tabs.push({ title: heading[1], lines: [] })
+      continue
+    }
+    ;(tabs.length > 0 ? tabs[tabs.length - 1].lines : intro).push(line)
+  }
+  return {
+    intro: intro.join('\n'),
+    tabs: tabs.map((tab) => ({ title: tab.title, body: tab.lines.join('\n') })),
+  }
+}
+
+/** The in-document tab row — same chrome as the set tab bar, but buttons. */
+function docTabBar(tabs: DocTab[]): string {
+  const items = tabs
+    .map(
+      (tab, i) =>
+        `<button type="button" class="page-tab${i === 0 ? ' is-active' : ''}" data-tab-target="doc-tab-${i}">${escapeHtml(tab.title)}</button>`
+    )
+    .join('')
+  return `<nav class="page-tabs" data-doc-tabs aria-label="Pages">${items}</nav>`
+}
+
+/**
+ * The in-document tab switcher. Panels toggle by class; the shell's TOC is
+ * built from every panel's headings, so each switch re-hides the rail links
+ * that belong to inactive panels (the rAF wait covers the shell building
+ * after this script runs).
+ */
+const DOC_TABS_SCRIPT = `<script>
+(() => {
+  const tabs = [...document.querySelectorAll('[data-doc-tabs] .page-tab')]
+  const panels = [...document.querySelectorAll('[data-tab-panel]')]
+  if (tabs.length === 0) return
+  const syncToc = () => {
+    for (const a of document.querySelectorAll('.rail[data-rail="toc"] a')) {
+      const id = (a.getAttribute('href') || '').slice(1)
+      const el = id ? document.getElementById(id) : null
+      const panel = el ? el.closest('[data-tab-panel]') : null
+      a.toggleAttribute('hidden', Boolean(panel && !panel.classList.contains('is-active')))
+    }
+  }
+  const activate = (target) => {
+    for (const t of tabs) t.classList.toggle('is-active', t.dataset.tabTarget === target)
+    for (const p of panels) p.classList.toggle('is-active', p.id === target)
+    syncToc()
+    window.scrollTo({ top: 0 })
+  }
+  for (const t of tabs) t.addEventListener('click', () => activate(t.dataset.tabTarget))
+  let tries = 0
+  const wait = () => {
+    if (document.querySelector('.rail[data-rail="toc"]') || tries++ > 40) return syncToc()
+    requestAnimationFrame(wait)
+  }
+  wait()
+})()
+</script>`
+
 /** YAML leaves unquoted scalars typed; reject null/objects rather than stringify them. */
 const textCell = z.union([z.string(), z.number(), z.boolean()]).transform((value) => String(value))
 
@@ -420,6 +501,13 @@ function compileSimPageDocument(source: string, diagnostics?: string[]): string 
     return compileBody(source, diagnostics)
   }
 
+  // Two or more top-level `# ` headings turn the body into IN-DOCUMENT tabs:
+  // one file, one tab per heading, switched client-side. Content before the
+  // first heading renders above the panels on every tab. In-file tabs win
+  // over the legacy frontmatter `tabs` (cross-file set links).
+  const { intro, tabs: docTabs } = splitDocTabs(rest)
+  const multiTab = docTabs.length >= 2
+
   return [
     '<!DOCTYPE html>',
     '<html lang="en">',
@@ -431,10 +519,19 @@ function compileSimPageDocument(source: string, diagnostics?: string[]): string 
     '</head>',
     '<body>',
     `<div class="page" data-layout="${meta.layout ?? 'docs'}">`,
-    ...(meta.tabs ? [tabBar(meta.tabs)] : []),
+    ...(multiTab ? [docTabBar(docTabs)] : meta.tabs ? [tabBar(meta.tabs)] : []),
     `<h1>${escapeHtml(meta.title)}</h1>`,
     ...(meta.lede ? [`<p class="lede">${escapeHtml(meta.lede)}</p>`] : []),
-    compileBody(rest, diagnostics),
+    ...(multiTab
+      ? [
+          ...(intro.trim() ? [compileBody(intro, diagnostics)] : []),
+          ...docTabs.map(
+            (tab, i) =>
+              `<section class="doc-tab-panel${i === 0 ? ' is-active' : ''}" id="doc-tab-${i}" data-tab-panel>${compileBody(tab.body, diagnostics)}</section>`
+          ),
+          DOC_TABS_SCRIPT,
+        ]
+      : [compileBody(rest, diagnostics)]),
     '</div>',
     '</body>',
     '</html>',

@@ -226,3 +226,103 @@ describe('isHandWrittenCompiledPage', () => {
     expect(isHandWrittenCompiledPage(SOURCE)).toBe(false)
   })
 })
+
+describe('in-document tabs', () => {
+  const TABBED = `---
+title: API Guide
+---
+
+Shared intro paragraph.
+
+# Overview
+
+## Getting started
+
+Overview body.
+
+# Reference
+
+## Endpoints
+
+Reference body.
+`
+
+  it('turns two top-level headings into tab buttons and panels', () => {
+    const html = compileSimPage(TABBED)
+    expect(html).toContain('data-doc-tabs')
+    expect(html).toContain('data-tab-target="doc-tab-0"')
+    expect(html).toContain('>Overview</button>')
+    expect(html).toContain('>Reference</button>')
+    expect(html).toContain('id="doc-tab-0" data-tab-panel')
+    expect(html).toContain('id="doc-tab-1" data-tab-panel')
+    expect(html.match(/doc-tab-panel is-active/g)).toHaveLength(1)
+    expect(html).toContain('Overview body.')
+    expect(html).toContain('Reference body.')
+  })
+
+  it('renders content before the first heading outside the panels', () => {
+    const html = compileSimPage(TABBED)
+    const intro = html.indexOf('Shared intro paragraph.')
+    const firstPanel = html.indexOf('data-tab-panel')
+    expect(intro).toBeGreaterThan(-1)
+    expect(intro).toBeLessThan(firstPanel)
+  })
+
+  it('includes the client-side switcher script', () => {
+    expect(compileSimPage(TABBED)).toContain('data-doc-tabs] .page-tab')
+  })
+
+  it('ignores # lines inside code fences', () => {
+    const html = compileSimPage(`---
+title: One Pager
+---
+
+# Only Tab
+
+\`\`\`bash
+# a comment, not a tab
+echo hi
+\`\`\`
+
+# Second Tab
+
+Body.
+`)
+    expect(html).toContain('data-doc-tabs')
+    expect(html).not.toContain('>a comment, not a tab</button>')
+    expect(html.match(/data-tab-target/g)).toHaveLength(2)
+  })
+
+  it('leaves a single top-level heading untabbed', () => {
+    const html = compileSimPage(`---
+title: Plain
+---
+
+# Just A Heading
+
+Body text.
+`)
+    expect(html).not.toContain('data-doc-tabs')
+    expect(html).toContain('Body text.')
+  })
+
+  it('prefers in-file tabs over the frontmatter set tabs', () => {
+    const html = compileSimPage(`---
+title: Guide
+tabs:
+  - Guide
+  - "[Other](sim:file/abc)"
+---
+
+# First
+
+A.
+
+# Second
+
+B.
+`)
+    expect(html).toContain('data-doc-tabs')
+    expect(html).not.toContain('sim:file/abc')
+  })
+})
