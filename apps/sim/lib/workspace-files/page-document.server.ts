@@ -1,6 +1,8 @@
 import { downloadFile } from '@/lib/uploads/core/storage-service'
 import { getFileMetadataById } from '@/lib/uploads/server/metadata'
 import { renderSimPageDocument } from '@/lib/workspace-files/page-document'
+// Side-effect import: registers the SSR sim:chart renderer with page-compile.
+import '@/lib/workspace-files/page-chart-ssr.server'
 
 /** Images past this size stay as URL references rather than bloating the document. */
 const MAX_INLINE_IMAGE_BYTES = 8 * 1024 * 1024
