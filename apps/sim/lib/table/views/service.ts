@@ -464,7 +464,8 @@ export async function createTableView(data: CreateTableViewData): Promise<TableV
         and(eq(tableViews.tableId, data.tableId), eq(tableViews.workspaceId, data.workspaceId))
       )
 
-    if (Number(existing?.total ?? 0) >= TABLE_LIMITS.MAX_VIEWS_PER_TABLE) {
+    const existingTotal = Number(existing?.total ?? 0)
+    if (existingTotal >= TABLE_LIMITS.MAX_VIEWS_PER_TABLE) {
       throw new TableViewValidationError(
         `A table cannot have more than ${TABLE_LIMITS.MAX_VIEWS_PER_TABLE} saved views`
       )
@@ -478,6 +479,7 @@ export async function createTableView(data: CreateTableViewData): Promise<TableV
         workspaceId: data.workspaceId,
         name,
         config,
+        isDefault: existingTotal === 0,
         createdBy: data.userId,
       })
       .returning()
