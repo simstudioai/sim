@@ -39,11 +39,22 @@ import type { ConnectorMeta } from '@/connectors/types'
  *
  * `/articleVersions` lists article *versions*, not articles: every row carries a
  * `version` number and a `parentArticle` reference to the article it belongs to,
- * and the service publishes no "latest version only" filter or sort order. An
- * unfiltered sync can therefore index each historical revision as its own
- * document. Status is the only server-side narrowing the API offers, so it is
- * required and has no default: the operator picks the scope explicitly, and the
- * option that indexes every revision says so on its label.
+ * and the service publishes no "latest version only" filter or sort order — the
+ * whole document has eleven paths and none of them addresses an article. An
+ * unfiltered sync therefore indexes each historical revision as its own
+ * document, so the status filter is required and has no default: the operator
+ * picks the scope explicitly, and the option that indexes every revision says so
+ * on its label.
+ *
+ * The three options are the ones the service's own prose enumerates — "an
+ * article version can have a status of Published, Draft, or Archived". What the
+ * `status` *query parameter* accepts for them is the one thing the published
+ * spec does not settle: it is an untyped `array` of `string` with no enum and no
+ * `x-workday-populated-by`, unlike the sibling `audience` parameter, whose model
+ * names `/values/common/audiences` as its value source. The connector resolves
+ * the chosen name against `/articleStatuses` and sends the Workday ID;
+ * `validateConfig` reads the filtered response back and refuses the
+ * configuration if the tenant answered with a version in another status.
  */
 export const workdayConnectorMeta: ConnectorMeta = {
   id: 'workday',

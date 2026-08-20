@@ -45,9 +45,16 @@ interface SpacesListResponse {
 }
 
 /**
- * The author of a message. With user authentication the API populates
- * `displayName`; a Chat app authenticating as a user only receives `name` and
- * `type`, so `name` is the fallback.
+ * The author of a message.
+ *
+ * This connector authenticates as a user, and the User reference states that
+ * "if your Chat app authenticates as a user, the output for a User resource
+ * only populates the user's `name` and `type`" — so `displayName` is expected
+ * to be absent here and `name` (a `users/{id}` resource name) is the label that
+ * actually reaches the transcript. Resolving human names would need
+ * `spaces.members.list` and the `chat.memberships.readonly` scope, which this
+ * connector does not request. `displayName` is still read first so the
+ * transcript improves for free if a call ever does carry it.
  *
  * https://developers.google.com/workspace/chat/api/reference/rest/v1/User
  */
@@ -236,6 +243,18 @@ async function fetchSpace(accessToken: string, name: string): Promise<Space | nu
 }
 
 /**
+ * An RFC-3339 timestamp without fractional seconds, matching the form every
+ * example in the `spaces.messages.list` filter reference uses. `toISOString()`
+ * alone emits milliseconds, and the API rejects a filter it cannot parse with
+ * `INVALID_ARGUMENT` rather than ignoring it.
+ *
+ * https://developers.google.com/workspace/chat/api/reference/rest/v1/spaces.messages/list
+ */
+function rfc3339(date: Date): string {
+  return `${date.toISOString().slice(0, 19)}Z`
+}
+
+/**
  * Fetches the newest `maxMessages` messages of a space, optionally bounded by a
  * lookback window. Messages are requested newest-first (`orderBy=DESC`) so the
  * cap keeps the most recent conversation, then returned in chronological order.
@@ -248,7 +267,7 @@ async function fetchSpaceMessages(
 ): Promise<ChatMessage[]> {
   const filter =
     lookbackDays > 0
-      ? `createTime > "${new Date(Date.now() - lookbackDays * MS_PER_DAY).toISOString()}"`
+      ? `createTime > "${rfc3339(new Date(Date.now() - lookbackDays * MS_PER_DAY))}"`
       : undefined
 
   const collected: ChatMessage[] = []

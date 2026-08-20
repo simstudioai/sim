@@ -717,8 +717,8 @@ export const databricksConnector: ConnectorConfig = {
     const maxDocuments = sourceConfig.maxDocuments
     if (maxDocuments !== undefined && maxDocuments !== null && String(maxDocuments).trim()) {
       const parsed = Number(maxDocuments)
-      if (!Number.isFinite(parsed) || parsed < 0) {
-        return { valid: false, error: 'Max documents must be a non-negative number' }
+      if (!Number.isFinite(parsed) || parsed <= 0) {
+        return { valid: false, error: 'Max documents must be a positive number' }
       }
     }
 

@@ -73,6 +73,13 @@ function listFilter(): string | null {
   return listUrl ? new URL(listUrl).searchParams.get('filter') : null
 }
 
+/** Search params of the first `spaces.messages.list` request. */
+function messagesParams(): URLSearchParams {
+  const url = requestedUrls.find((requested) => requested.includes('/messages?'))
+  if (!url) throw new Error('no messages request was made')
+  return new URL(url).searchParams
+}
+
 describe('google-chat space scope', () => {
   it('filters to named spaces only when spaceTypes is unset', async () => {
     await googleChatConnector.listDocuments('token', {})
@@ -168,6 +175,21 @@ describe('google-chat listing caps', () => {
     expect(syncContext.listingCapped).toBe(true)
   })
 
+  it('stops paginating at the cap even while the source offers another page', async () => {
+    listNextPageToken = 'page-2'
+    const syncContext: Record<string, unknown> = {}
+
+    const result = await googleChatConnector.listDocuments(
+      'token',
+      { maxSpaces: '1' },
+      undefined,
+      syncContext
+    )
+    expect(result.hasMore).toBe(false)
+    expect(result.nextCursor).toBeUndefined()
+    expect(syncContext.listingCapped).toBe(true)
+  })
+
   it('leaves deletion reconciliation enabled when the source is exhausted at the cap', async () => {
     const syncContext: Record<string, unknown> = {}
     await googleChatConnector.listDocuments('token', { maxSpaces: '1' }, undefined, syncContext)
@@ -179,6 +201,103 @@ describe('google-chat listing caps', () => {
     const result = await googleChatConnector.listDocuments('token', {})
     expect(result.hasMore).toBe(true)
     expect(result.nextCursor).toBe('page-2')
+  })
+})
+
+describe('google-chat message window', () => {
+  it('requests messages newest-first so the cap keeps the most recent conversation', async () => {
+    await googleChatConnector.getDocument('token', {}, SPACE_NAME)
+    expect(messagesParams().get('orderBy')).toBe('DESC')
+  })
+
+  it('renders the newest-first page back into chronological order', async () => {
+    const doc = await googleChatConnector.getDocument('token', {}, SPACE_NAME)
+    const content = doc?.content ?? ''
+    expect(content.indexOf('Ada Lovelace')).toBeLessThan(content.indexOf('Grace Hopper'))
+  })
+
+  it('bounds the message page to the remaining window rather than the API maximum', async () => {
+    await googleChatConnector.getDocument('token', { maxMessages: '5' }, SPACE_NAME)
+    expect(messagesParams().get('pageSize')).toBe('5')
+  })
+
+  it('sends the lookback cutoff as an RFC-3339 timestamp without fractional seconds', async () => {
+    await googleChatConnector.getDocument('token', { lookbackDays: '30' }, SPACE_NAME)
+    const filter = messagesParams().get('filter')
+    expect(filter).toMatch(/^createTime > "\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z"$/)
+  })
+
+  it('omits the filter entirely when no lookback window is configured', async () => {
+    await googleChatConnector.getDocument('token', {}, SPACE_NAME)
+    expect(messagesParams().get('filter')).toBeNull()
+  })
+
+  it('indexes a card-only message through its fallbackText', async () => {
+    fetchMock.mockImplementation(async (input) => {
+      const url = String(input)
+      requestedUrls.push(url)
+      if (url.includes('/messages?')) {
+        return jsonResponse({
+          messages: [
+            {
+              name: `${SPACE_NAME}/messages/card`,
+              sender: { name: 'users/9', type: 'BOT' },
+              createTime: '2026-02-01T09:00:00Z',
+              fallbackText: 'Deploy finished',
+            },
+          ],
+        })
+      }
+      if (url.endsWith(`/${SPACE_NAME}`)) return jsonResponse(SPACE)
+      return jsonResponse({}, 404)
+    })
+
+    const doc = await googleChatConnector.getDocument('token', {}, SPACE_NAME)
+    expect(doc?.content).toContain('Deploy finished')
+    expect(doc?.metadata?.messageCount).toBe(1)
+  })
+
+  it('labels a sender by resource name when user auth omits displayName', async () => {
+    fetchMock.mockImplementation(async (input) => {
+      const url = String(input)
+      requestedUrls.push(url)
+      if (url.includes('/messages?')) {
+        return jsonResponse({
+          messages: [
+            {
+              name: `${SPACE_NAME}/messages/m1`,
+              sender: { name: 'users/104512345678', type: 'HUMAN' },
+              createTime: '2026-02-01T10:00:00Z',
+              text: 'Morning',
+            },
+          ],
+        })
+      }
+      if (url.endsWith(`/${SPACE_NAME}`)) return jsonResponse(SPACE)
+      return jsonResponse({}, 404)
+    })
+
+    const doc = await googleChatConnector.getDocument('token', {}, SPACE_NAME)
+    expect(doc?.content).toContain('users/104512345678: Morning')
+  })
+
+  it('rehashes when the configured window changes so the stored transcript is refetched', async () => {
+    const base = await googleChatConnector.listDocuments('token', {}, undefined, {})
+    const narrower = await googleChatConnector.listDocuments(
+      'token',
+      { maxMessages: '50' },
+      undefined,
+      {}
+    )
+    const windowed = await googleChatConnector.listDocuments(
+      'token',
+      { lookbackDays: '30' },
+      undefined,
+      {}
+    )
+
+    expect(narrower.documents[0].contentHash).not.toBe(base.documents[0].contentHash)
+    expect(windowed.documents[0].contentHash).not.toBe(base.documents[0].contentHash)
   })
 })
 

@@ -31,6 +31,9 @@ const VALUES_PAGE_SIZE = 1000
  */
 const MAX_VALUE_LOOKUP_ROWS = 5000
 
+/** How many available values an unresolved-name error is allowed to name. */
+const MAX_ERROR_DESCRIPTORS = 20
+
 /**
  * Workday resolves REST services as `/ccx/api/{service}/{version}/{tenant}/...`,
  * where `{service}/{version}` is the `basePath` the service's OpenAPI document
@@ -353,7 +356,26 @@ async function fetchInstances(
     if (typeof body.total === 'number' && instances.length >= body.total) break
   }
 
+  if (instances.length >= MAX_VALUE_LOOKUP_ROWS) {
+    logger.warn('Workday value lookup hit its row cap; names beyond it cannot be resolved', {
+      resource,
+      rows: instances.length,
+    })
+  }
+
   return instances
+}
+
+/**
+ * Names the values the lookup did return, capped. An audience list runs to as
+ * many rows as {@link MAX_VALUE_LOOKUP_ROWS} allows, and the whole list would
+ * otherwise be interpolated into an error string the knowledge base UI renders.
+ */
+function availableSuffix(descriptors: string[]): string {
+  if (descriptors.length === 0) return ''
+  const shown = descriptors.slice(0, MAX_ERROR_DESCRIPTORS)
+  const omitted = descriptors.length - shown.length
+  return `. Available: ${shown.join(', ')}${omitted > 0 ? `, and ${omitted} more` : ''}`
 }
 
 /**
@@ -362,11 +384,19 @@ async function fetchInstances(
  * a `Type=Value` reference ID is passed through, so an operator who has the ID
  * to hand never has to match a descriptor exactly.
  */
-function resolveInstanceIds(
+async function resolveInstanceIds(
   values: string[],
-  instances: WorkdayInstance[],
+  loadInstances: () => Promise<WorkdayInstance[]>,
   label: string
-): string[] {
+): Promise<string[]> {
+  /**
+   * Every value already being an ID is the common case for an operator who
+   * pasted Workday IDs, and the lookup it would otherwise run reads the tenant's
+   * whole prompt-value collection.
+   */
+  if (values.every((value) => WORKDAY_INSTANCE_ID.test(value))) return values
+
+  const instances = await loadInstances()
   const idByDescriptor = new Map<string, string>()
   const descriptors: string[] = []
   for (const instance of instances) {
@@ -383,9 +413,7 @@ function resolveInstanceIds(
     const resolved = idByDescriptor.get(value.toLowerCase())
     if (resolved) return resolved
     throw new Error(
-      `Your Workday tenant has no ${label} named "${value}"${
-        descriptors.length > 0 ? `. Available: ${descriptors.join(', ')}` : ''
-      }`
+      `Your Workday tenant has no ${label} named "${value}"${availableSuffix(descriptors)}`
     )
   })
 }
@@ -419,16 +447,17 @@ async function resolveFilters(
   const status =
     statusChoice === ALL_STATUSES
       ? []
-      : resolveInstanceIds(
+      : await resolveInstanceIds(
           [statusChoice],
-          await fetchInstances(
-            '/articleStatuses',
-            PAGE_SIZE,
-            accessToken,
-            wd,
-            syncContext,
-            retryOptions
-          ),
+          () =>
+            fetchInstances(
+              '/articleStatuses',
+              PAGE_SIZE,
+              accessToken,
+              wd,
+              syncContext,
+              retryOptions
+            ),
           'article status'
         )
 
@@ -436,16 +465,17 @@ async function resolveFilters(
   const audience =
     audienceNames.length === 0
       ? []
-      : resolveInstanceIds(
+      : await resolveInstanceIds(
           audienceNames,
-          await fetchInstances(
-            '/values/common/audiences/',
-            VALUES_PAGE_SIZE,
-            accessToken,
-            wd,
-            syncContext,
-            retryOptions
-          ),
+          () =>
+            fetchInstances(
+              '/values/common/audiences/',
+              VALUES_PAGE_SIZE,
+              accessToken,
+              wd,
+              syncContext,
+              retryOptions
+            ),
           'audience'
         )
 
@@ -522,11 +552,20 @@ function buildListUrl(
   return tenantResourceUrl(wd, '/articleVersions', query)
 }
 
+/**
+ * Reads the optional version cap: `0` when none was configured, the floored
+ * count when one was, and `-1` when a value was supplied that is not a positive
+ * number, which {@link workdayConnector.validateConfig} rejects.
+ *
+ * The field is a short-input so the value normally arrives as a string, but a
+ * `sourceConfig` persisted with a JSON number must not crash the sync — reading
+ * it as a string and calling `.trim()` on it would.
+ */
 function parseMaxVersions(value: unknown): number {
-  const raw = (value as string | undefined)?.trim()
-  if (!raw) return 0
+  const raw = typeof value === 'string' ? value.trim() : value
+  if (raw === '' || raw === null || raw === undefined) return 0
   const parsed = Number(raw)
-  return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : 0
+  return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : -1
 }
 
 export const workdayConnector: ConnectorConfig = {
@@ -546,7 +585,7 @@ export const workdayConnector: ConnectorConfig = {
       throw new Error(`Invalid pagination cursor: ${cursor}`)
     }
 
-    const maxVersions = parseMaxVersions(sourceConfig.maxVersions)
+    const maxVersions = Math.max(parseMaxVersions(sourceConfig.maxVersions), 0)
     const alreadyFetched = offset
     const remaining = maxVersions > 0 ? maxVersions - alreadyFetched : PAGE_SIZE
     const limit = Math.min(PAGE_SIZE, Math.max(remaining, 0))
@@ -638,13 +677,11 @@ export const workdayConnector: ConnectorConfig = {
     accessToken: string,
     sourceConfig: Record<string, unknown>
   ): Promise<{ valid: boolean; error?: string }> => {
-    const maxVersions = (sourceConfig.maxVersions as string | undefined)?.trim()
-    if (maxVersions) {
-      const parsed = Number(maxVersions)
-      if (!Number.isFinite(parsed) || parsed <= 0) {
-        return { valid: false, error: 'Max article versions must be a positive number' }
-      }
+    if (parseMaxVersions(sourceConfig.maxVersions) < 0) {
+      return { valid: false, error: 'Max article versions must be a positive number' }
     }
+
+    const statusChoice = typeof sourceConfig.status === 'string' ? sourceConfig.status.trim() : ''
 
     try {
       const wd = resolveTenant(sourceConfig)
@@ -677,6 +714,30 @@ export const workdayConnector: ConnectorConfig = {
         return {
           valid: false,
           error: `Workday returned ${response.status}: ${await readErrorMessage(response)}`,
+        }
+      }
+
+      /**
+       * The `helpArticle` OpenAPI document declares `status` as an untyped
+       * `array` of `string` with no enum, no `$ref` and — unlike the sibling
+       * `audience` parameter, whose model carries
+       * `x-workday-populated-by: /values/common/audiences` — no declared value
+       * source. Whether it binds to an `/articleStatuses` Workday ID cannot be
+       * settled from the published spec, so the one request validation already
+       * makes is read back: a tenant that ignored the filter answers with a
+       * version in some other status, and the connector says so at configuration
+       * time instead of silently indexing the wrong scope on every sync.
+       */
+      const sample = ((await response.json()) as WorkdayCollection<WorkdayArticleVersion>).data?.[0]
+      const returnedStatus = sample?.status?.descriptor
+      if (
+        statusChoice !== ALL_STATUSES &&
+        returnedStatus &&
+        returnedStatus.toLowerCase() !== statusChoice.toLowerCase()
+      ) {
+        return {
+          valid: false,
+          error: `Workday ignored the article status filter: the first article version it returned is "${returnedStatus}", not "${statusChoice}". Choose "Every status" to sync every revision, or ask your Workday administrator whether the Help Article REST API accepts a status filter in this tenant.`,
         }
       }
 

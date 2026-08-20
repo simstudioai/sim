@@ -73,6 +73,12 @@ function mockApi(listing: unknown, options: { audiences?: unknown } = {}) {
   })
 }
 
+function tokenExchanges(): string[] {
+  return mockFetch.mock.calls
+    .map(([url]) => url as string)
+    .filter((url) => url.includes('/ccx/oauth2/'))
+}
+
 function listingUrls(): string[] {
   return mockFetch.mock.calls
     .map(([url]) => url as string)
@@ -211,6 +217,60 @@ describe('workday listDocuments', () => {
     )
   })
 
+  it('accepts a tenant host written without a scheme', async () => {
+    mockApi({ total: 1, data: [versionFixture('a')] })
+
+    await workdayConnector.listDocuments(
+      ACCESS_TOKEN,
+      { ...CONFIG, tenantUrl: 'wd5-impl-services1.workday.com' },
+      undefined,
+      {}
+    )
+
+    expect(listingUrls()[0]).toContain(
+      'https://wd5-impl-services1.workday.com/ccx/api/helpArticle/v1/acme_pt1/articleVersions?'
+    )
+  })
+
+  it('passes a Workday ID through instead of looking it up as a display name', async () => {
+    mockApi({ total: 1, data: [versionFixture('a')] })
+
+    await workdayConnector.listDocuments(
+      ACCESS_TOKEN,
+      { ...CONFIG, audience: AUDIENCE_ID },
+      undefined,
+      {}
+    )
+
+    expect(listingUrls()[0]).toContain(`audience=${AUDIENCE_ID}`)
+    expect(
+      mockFetch.mock.calls.some(([url]) => (url as string).includes('/values/common/audiences'))
+    ).toBe(false)
+  })
+
+  it('caps how many available values an unresolved-name error names', async () => {
+    const many = Array.from({ length: 30 }, (_, index) => ({
+      id: `${index}`.padStart(32, '0'),
+      descriptor: `Audience ${index}`,
+    }))
+    mockApi({ total: 1, data: [versionFixture('a')] }, { audiences: { total: 30, data: many } })
+
+    const error = await workdayConnector
+      .listDocuments(ACCESS_TOKEN, { ...CONFIG, audience: 'Nope' }, undefined, {})
+      .catch((thrown: Error) => thrown)
+
+    expect((error as Error).message).toContain('and 10 more')
+    expect((error as Error).message).not.toContain('Audience 25')
+  })
+
+  it('reads a version cap persisted as a number rather than a string', async () => {
+    mockApi({ total: 500, data: [versionFixture('a')] })
+
+    await workdayConnector.listDocuments(ACCESS_TOKEN, { ...CONFIG, maxVersions: 1 }, undefined, {})
+
+    expect(listingUrls()[0]).toContain('limit=1')
+  })
+
   it('rejects a tenant host that is not a Workday domain', async () => {
     mockApi({ total: 0, data: [] })
 
@@ -242,6 +302,79 @@ describe('workday credential failures', () => {
 
     expect(result.valid).toBe(false)
     expect(result.error).toMatch(/Manage Refresh Tokens for Integrations/)
+  })
+
+  it('buys one bearer token for a whole sync run and reuses it across pages', async () => {
+    mockApi({ total: 500, data: [versionFixture('a')] })
+    const syncContext: Record<string, unknown> = {}
+
+    await workdayConnector.listDocuments(ACCESS_TOKEN, CONFIG, undefined, syncContext)
+    await workdayConnector.listDocuments(ACCESS_TOKEN, CONFIG, '100', syncContext)
+
+    expect(tokenExchanges()).toHaveLength(1)
+  })
+
+  it('re-authenticates once and replays the request when a cached token has expired', async () => {
+    let listingCalls = 0
+    mockFetch.mockImplementation(async (url: string) => {
+      if (url.includes('/ccx/oauth2/')) {
+        return jsonResponse({ access_token: 'bearer', expires_in: 3600 })
+      }
+      if (url.includes('/articleStatuses')) {
+        return jsonResponse({ total: 1, data: [{ id: PUBLISHED_ID, descriptor: 'Published' }] })
+      }
+      listingCalls += 1
+      return listingCalls === 1
+        ? jsonResponse({ error: 'expired token' }, 401)
+        : jsonResponse({ total: 1, data: [versionFixture('a')] })
+    })
+
+    const result = await workdayConnector.listDocuments(ACCESS_TOKEN, CONFIG, undefined, {})
+
+    expect(result.documents).toHaveLength(1)
+    expect(listingCalls).toBe(2)
+    expect(tokenExchanges()).toHaveLength(2)
+  })
+
+  it('surfaces a persistent 401 instead of retrying the exchange forever', async () => {
+    mockFetch.mockImplementation(async (url: string) => {
+      if (url.includes('/ccx/oauth2/')) {
+        return jsonResponse({ access_token: 'bearer', expires_in: 3600 })
+      }
+      if (url.includes('/articleStatuses')) {
+        return jsonResponse({ total: 1, data: [{ id: PUBLISHED_ID, descriptor: 'Published' }] })
+      }
+      return jsonResponse({ error: 'still unauthorized' }, 401)
+    })
+
+    await expect(
+      workdayConnector.listDocuments(ACCESS_TOKEN, CONFIG, undefined, {})
+    ).rejects.toThrow(/still unauthorized/)
+    expect(tokenExchanges()).toHaveLength(2)
+  })
+
+  it('rejects a version cap that is not a positive number', async () => {
+    mockApi({ total: 0, data: [] })
+
+    const result = await workdayConnector.validateConfig(ACCESS_TOKEN, {
+      ...CONFIG,
+      maxVersions: '0',
+    })
+
+    expect(result.valid).toBe(false)
+    expect(result.error).toMatch(/positive number/)
+  })
+
+  it('refuses a tenant that answered the status filter with another status', async () => {
+    mockApi({
+      total: 1,
+      data: [{ ...versionFixture('a'), status: { id: 'other', descriptor: 'Draft' } }],
+    })
+
+    const result = await workdayConnector.validateConfig(ACCESS_TOKEN, CONFIG)
+
+    expect(result.valid).toBe(false)
+    expect(result.error).toMatch(/ignored the article status filter/)
   })
 
   it('rejects a credential that is not a clientSecret:refreshToken pair', async () => {

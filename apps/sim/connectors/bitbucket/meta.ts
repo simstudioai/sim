@@ -10,12 +10,16 @@ export const bitbucketConnectorMeta: ConnectorMeta = {
   icon: BitbucketIcon,
 
   /**
-   * Incremental sync applies to pull requests only, via a BBQL
-   * `q=updated_on > <timestamp>` filter derived from lastSyncAt. Repository files
-   * carry no per-file change timestamp in the source listing, so they are always
-   * re-listed in full and reconciled by content hash.
+   * Deliberately disabled. Incremental sync would only ever apply to pull requests,
+   * via a BBQL `q=updated_on > <timestamp>` filter derived from lastSyncAt; repository
+   * files carry no per-file change timestamp in the source listing and are always
+   * re-listed in full regardless. The sync engine disables deletion reconciliation for
+   * every incremental run, so declaring support would leave files deleted upstream
+   * indexed indefinitely on the default `code` configuration -- a complete listing whose
+   * deletions are never applied. Re-listing pull requests in full each run is the
+   * cheaper tradeoff.
    */
-  supportsIncrementalSync: true,
+  supportsIncrementalSync: false,
 
   /**
    * Bitbucket Cloud REST API 2.0 authenticates with an OAuth 2.0 bearer token, the

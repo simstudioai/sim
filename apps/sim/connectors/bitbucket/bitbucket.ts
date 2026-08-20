@@ -774,11 +774,16 @@ export const bitbucketConnector: ConnectorConfig = {
 
     /**
      * Cursor that stays in the code phase to walk the next frontier directory.
-     * Falls through to the following phase when there is no syncContext to carry
-     * the frontier — see {@link pendingDirectories}.
+     * Falls through to the following phase when the frontier is empty, or when
+     * there is no syncContext to carry it — see {@link pendingDirectories}.
+     * Checking the frontier here matters on the skip paths (a timed-out or absent
+     * directory): claiming `hasMore` with nothing left to walk costs the sync
+     * engine a whole extra listing round-trip that can only return zero documents.
      */
-    const continueCode = (): { nextCursor?: string; hasMore: boolean } =>
-      syncContext ? { nextCursor: encodeCursor({ phase: 'code' }), hasMore: true } : advance('code')
+    const continueCode = (frontier: string[]): { nextCursor?: string; hasMore: boolean } =>
+      syncContext && frontier.length > 0
+        ? { nextCursor: encodeCursor({ phase: 'code' }), hasMore: true }
+        : advance('code')
 
     if (state.phase === 'code') {
       const { commit, ref } = await resolveCommit(
@@ -841,7 +846,7 @@ export const bitbucketConnector: ConnectorConfig = {
             dir,
           })
           if (syncContext) syncContext.listingCapped = true
-          const skipped = continueCode()
+          const skipped = continueCode(frontier)
           return { documents: [], nextCursor: skipped.nextCursor, hasMore: skipped.hasMore }
         }
         if (response.status === 404) {
@@ -854,7 +859,7 @@ export const bitbucketConnector: ConnectorConfig = {
             repository: repository.fullName,
             dir,
           })
-          const skipped = continueCode()
+          const skipped = continueCode(frontier)
           return { documents: [], nextCursor: skipped.nextCursor, hasMore: skipped.hasMore }
         }
         if (response.status === 401 || response.status === 403) {
@@ -928,12 +933,8 @@ export const bitbucketConnector: ConnectorConfig = {
           hasMore: true,
         }
       }
-      if (frontier.length > 0) {
-        const cont = continueCode()
-        return { documents: capped, nextCursor: cont.nextCursor, hasMore: cont.hasMore }
-      }
-      const adv = advance('code')
-      return { documents: capped, nextCursor: adv.nextCursor, hasMore: adv.hasMore }
+      const cont = continueCode(frontier)
+      return { documents: capped, nextCursor: cont.nextCursor, hasMore: cont.hasMore }
     }
 
     let url: string
