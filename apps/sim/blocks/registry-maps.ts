@@ -698,7 +698,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
  * two stay in lockstep without a separate registry to maintain.
  *
  * `BlockMeta` exists only for catalog-visible integrations — every key here
- * has a corresponding entry in `lib/integrations/integrations.json`. Blocks
+ * has a corresponding entry in `packages/deployment-config/src/integrations.json`. Blocks
  * absent from the catalog (core blocks like `agent`/`api`, superseded base
  * versions, and hidden tools) carry no meta because the only consumers are
  * integration surfaces: `getTemplatesForBlock` (the two integration detail

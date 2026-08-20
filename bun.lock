@@ -212,6 +212,7 @@
         "@sim/audit": "workspace:*",
         "@sim/auth": "workspace:*",
         "@sim/browser-protocol": "workspace:*",
+        "@sim/deployment-config": "workspace:*",
         "@sim/desktop-bridge": "workspace:*",
         "@sim/emcn": "workspace:*",
         "@sim/logger": "workspace:*",
@@ -450,6 +451,17 @@
         "typescript": "^7.0.2",
       },
     },
+    "packages/deployment-config": {
+      "name": "@sim/deployment-config",
+      "version": "0.1.0",
+      "dependencies": {
+        "@sim/utils": "workspace:*",
+      },
+      "devDependencies": {
+        "@sim/tsconfig": "workspace:*",
+        "typescript": "^7.0.2",
+      },
+    },
     "packages/desktop-bridge": {
       "name": "@sim/desktop-bridge",
       "version": "0.1.0",
@@ -603,6 +615,26 @@
         "chalk": "5.6.2",
         "commander": "^11.1.0",
         "js-yaml": "4.3.1",
+        "typescript": "^7.0.2",
+        "vitest": "^4.1.0",
+      },
+    },
+    "packages/sim-setup": {
+      "name": "@sim/setup",
+      "version": "1.0.0",
+      "bin": {
+        "sim-setup": "dist/index.js",
+      },
+      "devDependencies": {
+        "@clack/prompts": "1.7.0",
+        "@next/env": "16.2.12",
+        "@sim/deployment-config": "workspace:*",
+        "@sim/security": "workspace:*",
+        "@sim/tsconfig": "workspace:*",
+        "@sim/utils": "workspace:*",
+        "@types/node": "24.2.1",
+        "chalk": "5.6.2",
+        "postgres": "^3.4.5",
         "typescript": "^7.0.2",
         "vitest": "^4.1.0",
       },
@@ -1785,6 +1817,8 @@
 
     "@sim/db": ["@sim/db@workspace:packages/db"],
 
+    "@sim/deployment-config": ["@sim/deployment-config@workspace:packages/deployment-config"],
+
     "@sim/desktop": ["@sim/desktop@workspace:apps/desktop"],
 
     "@sim/desktop-bridge": ["@sim/desktop-bridge@workspace:packages/desktop-bridge"],
@@ -1804,6 +1838,8 @@
     "@sim/runtime-secrets": ["@sim/runtime-secrets@workspace:packages/runtime-secrets"],
 
     "@sim/security": ["@sim/security@workspace:packages/security"],
+
+    "@sim/setup": ["@sim/setup@workspace:packages/sim-setup"],
 
     "@sim/terminal-protocol": ["@sim/terminal-protocol@workspace:packages/terminal-protocol"],
 

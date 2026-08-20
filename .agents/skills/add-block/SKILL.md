@@ -172,8 +172,8 @@ Optional companions: `credentialLabels` (override the picker's section/connect-r
 ### OAuth deployment availability (required for integration blocks)
 
 A visible tools-category block with OAuth is deployment-gated. Its `oauth-input.serviceId` is
-projected into `apps/sim/lib/integrations/integrations.json`, then resolved through
-`resolveOAuthClientCapabilityId()` in `apps/sim/lib/core/config/env-capabilities.ts`.
+projected into `packages/deployment-config/src/integrations.json`, then resolved through
+`resolveOAuthClientCapabilityId()` in `packages/deployment-config/src/env-capabilities.ts`.
 
 When adding or changing an OAuth integration block:
 
@@ -184,13 +184,14 @@ When adding or changing an OAuth integration block:
 3. For a new capability, add its required client fields to `OAUTH_CLIENT_CAPABILITIES` and ensure
    every referenced field exists in the env schema in `apps/sim/lib/core/config/env.ts`. Then add
    the matching `text` or `secret` input modes to `OAUTH_CLIENT_SETUP_FIELDS` in
-   `scripts/setup/capability-config.ts`. The CLI catalog is exhaustively typed and checked against
-   the runtime field list; do not infer secrecy from the field name.
-4. If the canonical OAuth service declares `serviceAccountProviderId`, keep
-   `SERVICE_ACCOUNT_METADATA_BY_OAUTH_SERVICE_ID` in
-   `apps/sim/lib/integrations/service-account-metadata.ts` aligned. Set
-   `deploymentRequirement` only when the service-account path is preview-gated or depends on the
-   OAuth client fields; otherwise omit it.
+   `packages/sim-setup/src/capability-config.ts`. The CLI catalog is exhaustively typed and checked
+   against the runtime field list; do not infer secrecy from the field name.
+4. If the canonical OAuth service declares `serviceAccountProviderId`, run
+   `bun run deployment-config:generate`; this regenerates the provider-ID facts in
+   `packages/deployment-config/src/service-account-providers.generated.ts`. Never hand-edit that
+   generated map. Add `deploymentRequirement` policy in
+   `packages/deployment-config/src/service-account-metadata.ts` only when the service-account path
+   is preview-gated or depends on the OAuth client fields; otherwise omit it.
 
 Missing capability metadata is a runtime configuration error, not a reason to make the integration
 silently available.
@@ -992,16 +993,21 @@ After adding or changing one, run:
 
 ```bash
 bun run scripts/generate-docs.ts
+bun run deployment-config:generate
 bun run integration-catalog:check
+bun run deployment-config:check
 bun run docs:check
 ```
 
 The catalog check independently derives deployment metadata from the executable block registry and
-compares it with the committed `apps/sim/lib/integrations/integrations.json`. `docs:check` re-renders
-every generated docs artifact in memory and fails on any committed file that differs — it runs in CI
-via `check:audits`, so commit the full generator output. If the generator also trues up pages an
-earlier PR left stale, commit that catch-up too; reverting it as "unrelated drift" makes `docs:check`
-fail.
+compares it with the committed `packages/deployment-config/src/integrations.json`. The deployment
+config check verifies the generated service-account facts against the canonical OAuth registry and
+catalog. `docs:check` re-renders every generated docs artifact in memory and fails on any committed
+file that differs — it runs in CI via `check:audits`, so commit the full generator output. If the
+generator also trues up pages an earlier PR left stale, commit that catch-up too; reverting it as
+"unrelated drift" makes `docs:check` fail. Review the generated diff and keep only intentional
+changes.
+
 ## Checklist Before Finishing
 
 - [ ] `integrationType` is set to the correct `IntegrationType` enum value

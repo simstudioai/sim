@@ -1,8 +1,9 @@
 /**
  * @vitest-environment node
  */
+
+import integrationsJson from '@sim/deployment-config/integrations.json'
 import { describe, expect, it } from 'vitest'
-import integrationsJson from '@/lib/integrations/integrations.json'
 import {
   resolveOAuthServiceForSlug,
   resolveServiceAccountIntegration,
