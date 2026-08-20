@@ -1594,7 +1594,7 @@ const declaredRoutes = [
       operationId: 'restoreTable',
       summary: 'Restore Table',
       description:
-        'Un-archive a table a `DELETE` archived, along with the rows, views, and workflow groups archived with it. Find archived tables with `scope=archived` on the table list. Restoring a table that is not archived is a `409`; a name collision is resolved by renaming, so the restored table may come back under a different `name`.',
+        'Un-archive a table a `DELETE` archived, along with the rows, views, and workflow groups archived with it. Find archived tables with `scope=archived` on the table list. Idempotent: a table that is already active is returned unchanged with no audit entry recorded, so a retry after a dropped response cannot look like a failure. A name collision is resolved by renaming, so the restored table may come back under a different `name`.',
       errors: [...RESOURCE_CONFLICT_ERRORS, 'PayloadTooLarge'],
       success: { description: 'The restored table.' },
     }),

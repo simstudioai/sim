@@ -269,6 +269,7 @@ sim tables bulk-delete create [options]
 | --- | --- | --- |
 | `--table-ids <json\|@file>` | No | Tables to archive, by identifier. (JSON, or @path / @- to read a file or stdin). |
 | `--folder <value...>` | No | Folder path as shown in the app; the leading / is optional (space-separated, or @path / @- with one value per line). |
+| `-y, --yes` | Yes | Confirm this destructive operation. |
 
 </CommandTable>
 
@@ -689,7 +690,7 @@ sim tables rows list <tableId> [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
-| `--include-run-state` | No | Include per-workflow-group run state on every returned row. Off by default: run state is a separate sidecar read and its `blockErrors` are unbounded, so a full page carries it only when asked. |
+| `--include-run-state` | No | Include per-workflow-group run state on every returned row. Off by default: run state is a separate sidecar read and its `blockErrors` are unbounded, so a full page carries it only when asked. Caps `limit` at 200. |
 | `--no-include-run-state` | No | Send --include-run-state as false. |
 
 </CommandTable>
@@ -719,7 +720,7 @@ sim tables rows query <tableId> [options]
 | `--filter <json\|@file>` | No | Predicate: &#123;"all":[&#123;"field":"status","op":"eq","value":"active"&#125;]&#125;; groups use all/any. Operators: eq, ne, gt, gte, lt, lte, in, nin, contains, ncontains, startsWith, endsWith, like, ilike, nlike, nilike, isEmpty, isNotEmpty, isNull, isNotNull (JSON, or @path / @- to read a file or stdin). |
 | `--sort <json\|@file>` | No | Ordered sort keys: [&#123;"field":"createdAt","direction":"desc"&#125;] (direction: asc or desc) (JSON, or @path / @- to read a file or stdin). |
 | `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
-| `--include-run-state` | No | Include per-workflow-group run state on every returned row. Off by default: run state is a separate sidecar read and its `blockErrors` are unbounded, so a full page carries it only when asked. |
+| `--include-run-state` | No | Include per-workflow-group run state on every returned row. Off by default: run state is a separate sidecar read and its `blockErrors` are unbounded, so a full page carries it only when asked. Incompatible with `limit: 0`, and caps `limit` at 200. |
 | `--no-include-run-state` | No | Send --include-run-state as false. |
 
 </CommandTable>

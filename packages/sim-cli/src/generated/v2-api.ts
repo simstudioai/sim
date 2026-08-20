@@ -1998,7 +1998,7 @@ type CreateTableRowsResponseRef0 = {
 type CreateTableRowsResponseRef1 = Record<string, unknown>
 
 type CreateTableRowsResponseRef2 = {
-  status: 'pending' | 'queued' | 'running' | 'completed' | 'error' | 'cancelled'
+  status: string
   executionId: string | null
   workflowId: string
   error: string | null
@@ -3977,8 +3977,8 @@ export type GetRowEnrichmentQuery = {
 }
 
 type GetRowEnrichmentResponseRef0 = {
-  startedAt: string
-  completedAt: string
+  startedAt: string | null
+  completedAt: string | null
   durationMs: number
   totalCost: number
   matchedProvider: string | null
@@ -3990,7 +3990,7 @@ type GetRowEnrichmentResponseRef1 = {
   id: string
   label: string
   toolId: string
-  status: 'matched' | 'no_match' | 'skipped' | 'error' | 'not_run'
+  status: string
   cost: number
   durationMs: number
   error: string | null
@@ -4208,7 +4208,7 @@ export type GetTableRowQuery = {
 type GetTableRowResponseRef0 = Record<string, unknown>
 
 type GetTableRowResponseRef1 = {
-  status: 'pending' | 'queued' | 'running' | 'completed' | 'error' | 'cancelled'
+  status: string
   executionId: string | null
   workflowId: string
   error: string | null
@@ -5644,7 +5644,7 @@ type ListTableRowsResponseRef0 = {
 type ListTableRowsResponseRef1 = Record<string, unknown>
 
 type ListTableRowsResponseRef2 = {
-  status: 'pending' | 'queued' | 'running' | 'completed' | 'error' | 'cancelled'
+  status: string
   executionId: string | null
   workflowId: string
   error: string | null
@@ -6246,7 +6246,7 @@ type QueryRowsResponseRef0 = {
 type QueryRowsResponseRef1 = Record<string, unknown>
 
 type QueryRowsResponseRef2 = {
-  status: 'pending' | 'queued' | 'running' | 'completed' | 'error' | 'cancelled'
+  status: string
   executionId: string | null
   workflowId: string
   error: string | null
@@ -7920,7 +7920,7 @@ export type UpdateTableRowBody = {
 type UpdateTableRowResponseRef0 = Record<string, unknown>
 
 type UpdateTableRowResponseRef1 = {
-  status: 'pending' | 'queued' | 'running' | 'completed' | 'error' | 'cancelled'
+  status: string
   executionId: string | null
   workflowId: string
   error: string | null
@@ -8356,7 +8356,7 @@ export type UpsertTableRowBody = {
 type UpsertTableRowResponseRef0 = Record<string, unknown>
 
 type UpsertTableRowResponseRef1 = {
-  status: 'pending' | 'queued' | 'running' | 'completed' | 'error' | 'cancelled'
+  status: string
   executionId: string | null
   workflowId: string
   error: string | null
@@ -11633,7 +11633,7 @@ export const V2_OPERATIONS = {
       includeRunState: {
         kind: 'boolean',
         describe:
-          'Include per-workflow-group run state on every returned row. Off by default: run state is a separate sidecar read and its `blockErrors` are unbounded, so a full page carries it only when asked.',
+          'Include per-workflow-group run state on every returned row. Off by default: run state is a separate sidecar read and its `blockErrors` are unbounded, so a full page carries it only when asked. Caps `limit` at 200.',
       },
     },
   },
@@ -12155,7 +12155,7 @@ export const V2_OPERATIONS = {
         kind: 'boolean',
         default: false,
         describe:
-          'Include per-workflow-group run state on every returned row. Off by default: run state is a separate sidecar read and its `blockErrors` are unbounded, so a full page carries it only when asked.',
+          'Include per-workflow-group run state on every returned row. Off by default: run state is a separate sidecar read and its `blockErrors` are unbounded, so a full page carries it only when asked. Incompatible with `limit: 0`, and caps `limit` at 200.',
       },
     },
   },

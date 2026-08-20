@@ -1,8 +1,13 @@
-import type { V2ApiTable, V2RowRunState } from '@/lib/api/contracts/v2/tables'
+import type {
+  V2ApiTable,
+  V2EnrichmentProviderOutcome,
+  V2EnrichmentRunDetail,
+  V2RowRunState,
+} from '@/lib/api/contracts/v2/tables'
 import type { RowData, TableDefinition, TableSchema } from '@/lib/table'
 import { getMaxRowsPerTable } from '@/lib/table/billing'
 import { buildColumnNameById, remapViewConfigColumnRefs } from '@/lib/table/column-keys'
-import type { ColumnDefinition, RowExecutions } from '@/lib/table/types'
+import type { ColumnDefinition, EnrichmentRunDetail, RowExecutions } from '@/lib/table/types'
 import type { TableView } from '@/lib/table/views/service'
 import { normalizeColumn } from '@/lib/table/wire'
 import { getUserEmailsByIds, requireResolvedUserEmail } from '@/lib/users/queries'
@@ -217,5 +222,65 @@ export function toApiRow(
     ...(runState ? { runState: toApiRunState(runState) } : {}),
     createdAt: toIso(row.createdAt),
     updatedAt: toIso(row.updatedAt),
+  }
+}
+
+/** Reads a stored field that the published shape declares as a plain number. */
+function storedNumber(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value) ? value : 0
+}
+
+/** Reads a stored field that the published shape declares as a nullable string. */
+function storedNullableString(value: unknown): string | null {
+  return typeof value === 'string' ? value : null
+}
+
+/**
+ * Reads a stored timestamp, keeping only a value the published `date-time`
+ * format will accept. A Postgres literal or a half-written blob becomes `null`
+ * rather than failing response validation.
+ */
+function storedTimestamp(value: unknown): string | null {
+  if (typeof value !== 'string') return null
+  const parsed = Date.parse(value)
+  return Number.isNaN(parsed) ? null : new Date(parsed).toISOString()
+}
+
+function toApiEnrichmentProvider(value: unknown): V2EnrichmentProviderOutcome {
+  const provider = (value ?? {}) as Record<string, unknown>
+  return {
+    id: storedNullableString(provider.id) ?? '',
+    label: storedNullableString(provider.label) ?? '',
+    toolId: storedNullableString(provider.toolId) ?? '',
+    status: storedNullableString(provider.status) ?? 'not_run',
+    cost: storedNumber(provider.cost),
+    durationMs: storedNumber(provider.durationMs),
+    error: storedNullableString(provider.error),
+  }
+}
+
+/**
+ * Projects the stored enrichment cascade blob onto the published detail shape.
+ *
+ * `tableRowExecutions.enrichmentDetails` is schemaless JSONB read back through
+ * a bare `as` cast, so the domain type is the writer's intent, not a property of
+ * the column. Every declared key is projected with a default here so a blob
+ * written by an older runner — or one whose shape drifts — degrades to a partial
+ * answer instead of turning a well-formed `GET` into a `500` at response
+ * validation.
+ */
+export function toApiEnrichmentDetail(
+  detail: EnrichmentRunDetail | null
+): V2EnrichmentRunDetail | null {
+  if (!detail || typeof detail !== 'object') return null
+  const stored: Record<string, unknown> = { ...detail }
+  return {
+    startedAt: storedTimestamp(stored.startedAt),
+    completedAt: storedTimestamp(stored.completedAt),
+    durationMs: storedNumber(stored.durationMs),
+    totalCost: storedNumber(stored.totalCost),
+    matchedProvider: storedNullableString(stored.matchedProvider),
+    aborted: stored.aborted === true,
+    providers: Array.isArray(stored.providers) ? stored.providers.map(toApiEnrichmentProvider) : [],
   }
 }

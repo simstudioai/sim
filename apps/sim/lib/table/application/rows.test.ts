@@ -160,6 +160,7 @@ vi.mock('@/lib/table/events', () => ({
   signalTableRowsChangedByActor: mockSignalRowsChangedByActor,
 }))
 
+import { TABLE_LIMITS } from '@/lib/table'
 import {
   batchUpdateTableRows,
   createTableRows,
@@ -171,12 +172,12 @@ import {
   replaceProjectedWireRows,
   replaceTableRows,
   TableRowsValidationError,
-  TableRunStateCollectionLimitExceededError,
   tablePredicateNamesToFilter,
   updateTableRow,
   updateTableRows,
   upsertTableRow,
 } from '@/lib/table/application/rows'
+import { CSV_MAX_BATCH_SIZE } from '@/lib/table/import'
 import { encodeCursor } from '@/lib/table/rows/cursor'
 
 const TABLE: TableDefinition = {
@@ -1400,48 +1401,35 @@ describe('opt-in per-cell run state', () => {
   })
 
   /**
-   * `blockErrors` is unbounded jsonb, so a full page of rows carrying one has no
-   * ceiling of its own. Refuse rather than truncate: a short answer to "which of
-   * my rows errored" is wrong, not merely incomplete.
+   * `blockErrors` is unbounded jsonb, so a row carrying one has no ceiling of
+   * its own. The budget travels INTO the drain rather than being measured over
+   * its result: a ceiling checked after materialization can only report a heap
+   * spike that has already happened.
    */
-  it('refuses a page whose run state outgrows the response budget', async () => {
-    mockQueryRows.mockResolvedValue({
-      rows: Array.from({ length: 10 }, (_, index) => ({
-        id: `row-${index}`,
-        data: {},
-        executions: { 'group-1': { ...RUN_STATE['group-1'], error: 'e'.repeat(200) } },
-      })),
-      rowCount: 10,
-      totalCount: null,
-      nextCursor: null,
+  it('hands the single-row sidecar read the published byte budget', async () => {
+    mockGetRowSummaryById.mockResolvedValue({ id: 'row-1', data: {} })
+    mockLoadExecutionsForRow.mockResolvedValue(RUN_STATE)
+
+    await readTableRow.execute({
+      principal: PRINCIPAL,
+      input: { tableId: TABLE.id, rowId: 'row-1', includeRunState: true },
     })
+
+    expect(mockLoadExecutionsForRow).toHaveBeenCalledWith(expect.anything(), 'row-1', {
+      budgetBytes: TABLE_LIMITS.MAX_ROW_RUN_STATE_BYTES,
+    })
+  })
+
+  it('propagates the sidecar refusal rather than answering a short page', async () => {
+    const refusal = Object.assign(new Error('too large'), { code: 'payload_too_large' })
+    mockQueryRows.mockRejectedValueOnce(refusal)
 
     await expect(
       listTableRows.execute({
         principal: PRINCIPAL,
         input: { tableId: TABLE.id, limit: 10, includeRunState: true },
       })
-    ).rejects.toBeInstanceOf(TableRunStateCollectionLimitExceededError)
-  })
-
-  it('does not apply the budget to a read that did not ask for run state', async () => {
-    mockQueryRows.mockResolvedValue({
-      rows: Array.from({ length: 10 }, (_, index) => ({
-        id: `row-${index}`,
-        data: {},
-        executions: { 'group-1': { ...RUN_STATE['group-1'], error: 'e'.repeat(200) } },
-      })),
-      rowCount: 10,
-      totalCount: null,
-      nextCursor: null,
-    })
-
-    await expect(
-      listTableRows.execute({
-        principal: PRINCIPAL,
-        input: { tableId: TABLE.id, limit: 10 },
-      })
-    ).resolves.toBeDefined()
+    ).rejects.toBe(refusal)
   })
 })
 
@@ -1528,6 +1516,49 @@ describe('batchUpdateTableRows application use case', () => {
         input: { tableId: TABLE.id, strictWrite: true, dataKeying: 'names', updates: [] },
       })
     ).rejects.toMatchObject({ code: 'validation' })
+    expect(mockBatchUpdateRows).not.toHaveBeenCalled()
+  })
+
+  const batchOf = (length: number) =>
+    Array.from({ length }, (_, index) => ({ rowId: `row-${index}`, data: { name: 'Ada' } }))
+
+  /**
+   * The two surfaces cap differently on purpose — the contracts at 1000, the
+   * Copilot tool at 5000 — so the shared backstop sits at the LOOSER ceiling.
+   * Tightening it to the contract's number would make batches Copilot accepts
+   * today start failing here, which is the behavior change this pins against.
+   */
+  it('admits a batch past the contract ceiling that the looser surface allows', async () => {
+    mockBatchUpdateRows.mockResolvedValue({ affectedCount: 1001, affectedRowIds: [] })
+
+    await batchUpdateTableRows.execute({
+      principal: PRINCIPAL,
+      input: {
+        tableId: TABLE.id,
+        strictWrite: false,
+        dataKeying: 'names',
+        updates: batchOf(TABLE_LIMITS.MAX_BULK_OPERATION_SIZE + 1),
+      },
+    })
+
+    expect(mockBatchUpdateRows).toHaveBeenCalled()
+  })
+
+  it('refuses past the backstop, naming the bound that actually applied', async () => {
+    await expect(
+      batchUpdateTableRows.execute({
+        principal: PRINCIPAL,
+        input: {
+          tableId: TABLE.id,
+          strictWrite: true,
+          dataKeying: 'names',
+          updates: batchOf(CSV_MAX_BATCH_SIZE + 1),
+        },
+      })
+    ).rejects.toMatchObject({
+      code: 'validation',
+      message: `Batch update count must be between 1 and ${CSV_MAX_BATCH_SIZE}`,
+    })
     expect(mockBatchUpdateRows).not.toHaveBeenCalled()
   })
 

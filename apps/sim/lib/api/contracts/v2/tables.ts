@@ -104,6 +104,18 @@ import type { RowData } from '@/lib/table/types'
 export const V2_DEFAULT_ROW_LIMIT = 100
 /** Hard cap on an explicit page `limit`. Larger pulls use `limit=0` (query) or an export resource. */
 export const V2_MAX_ROW_LIMIT = 1000
+/**
+ * Hard cap on a page `limit` that also asks for the run-state sidecar.
+ *
+ * The sidecar is a second read whose `blockErrors` are unbounded jsonb, so its
+ * cost is not a function of the row data the page already bounds. The drain
+ * enforces its own byte budget, but a byte budget only decides how far a read
+ * gets before it is refused — this bounds how much a caller may ask for in the
+ * first place, so an ordinary large page keeps working while the pathological
+ * one is a `400` naming the flag that caused it rather than a `413` after the
+ * work was started.
+ */
+export const V2_MAX_RUN_STATE_ROW_LIMIT = 200
 /** Keeps upload-token metadata comfortably below common 8 KiB request-header limits after signing. */
 export const V2_TABLE_IMPORT_OPTIONS_MAX_BYTES = 2 * 1024
 
@@ -219,11 +231,22 @@ export const v2RowDataSchema = z
  * that only knew the in-flight half would turn reading a finished cell into a
  * 500.
  */
+/**
+ * `status` and `blockErrors` come off a `text` column and a schemaless JSONB
+ * column, both read through bare `as` casts. The writers guard both shapes, so
+ * drift is latent rather than observed — but a response schema is `.parse`d on
+ * the way out, so a closed enum and a strict `Record<string, string>` would each
+ * turn one drifted row into a `500` on a well-formed read. `status` is therefore
+ * a documented string rather than an enum, and the loader projects `blockErrors`
+ * through `normalizeBlockErrors` before it reaches here.
+ */
 export const v2RowRunStateSchema = z
   .object({
     status: z
-      .enum(['pending', 'queued', 'running', 'completed', 'error', 'cancelled'])
-      .describe('Lifecycle state of the most recent run for this cell.'),
+      .string()
+      .describe(
+        'Lifecycle state of the most recent run for this cell: `pending`, `queued`, `running`, `completed`, `error`, or `cancelled`.'
+      ),
     executionId: z
       .string()
       .nullable()
@@ -781,10 +804,25 @@ export const v2TableRowsQuerySchema = tableRowsQueryBaseSchema
       .optional()
       .default(false)
       .describe(
-        'Include per-workflow-group run state on every returned row. Off by default: run state is a separate sidecar read and its `blockErrors` are unbounded, so a full page carries it only when asked.'
+        `Include per-workflow-group run state on every returned row. Off by default: run state is a separate sidecar read and its \`blockErrors\` are unbounded, so a full page carries it only when asked. Caps \`limit\` at ${V2_MAX_RUN_STATE_ROW_LIMIT}.`
       ),
   })
   .strict()
+  /**
+   * The same ceiling `POST /query` applies to the same flag. This read cannot
+   * express the unbounded form, so there is no `limit: 0` pair to refuse here —
+   * but two different row caps for one flag across two reads of one resource is
+   * an inconsistency a caller can only discover from a 400.
+   */
+  .superRefine((query, ctx) => {
+    if (query.includeRunState && query.limit > V2_MAX_RUN_STATE_ROW_LIMIT) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['limit'],
+        message: `limit cannot exceed ${V2_MAX_RUN_STATE_ROW_LIMIT} when includeRunState is set`,
+      })
+    }
+  })
 export type V2TableRowsQuery = z.output<typeof v2TableRowsQuerySchema>
 
 /** Cursor-paginated row list. */
@@ -838,10 +876,35 @@ export const v2QueryRowsBodySchema = z
       .optional()
       .default(false)
       .describe(
-        'Include per-workflow-group run state on every returned row. Off by default: run state is a separate sidecar read and its `blockErrors` are unbounded, so a full page carries it only when asked.'
+        `Include per-workflow-group run state on every returned row. Off by default: run state is a separate sidecar read and its \`blockErrors\` are unbounded, so a full page carries it only when asked. Incompatible with \`limit: 0\`, and caps \`limit\` at ${V2_MAX_RUN_STATE_ROW_LIMIT}.`
       ),
   })
   .strict()
+  .superRefine((body, ctx) => {
+    if (!body.includeRunState) return
+    /**
+     * `limit: 0` is the unbounded form, and the sidecar has no page to be
+     * bounded by: the row drain would read the whole table and the sidecar read
+     * would follow it, both before anything could refuse the result. Refusing
+     * the pair at the contract is the only place that costs nothing.
+     */
+    if (body.limit === 0) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['limit'],
+        message:
+          'limit: 0 cannot be combined with includeRunState; request a bounded page or drop includeRunState',
+      })
+      return
+    }
+    if (body.limit !== undefined && body.limit > V2_MAX_RUN_STATE_ROW_LIMIT) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['limit'],
+        message: `limit cannot exceed ${V2_MAX_RUN_STATE_ROW_LIMIT} when includeRunState is set`,
+      })
+    }
+  })
 export type V2QueryRowsBody = z.input<typeof v2QueryRowsBodySchema>
 
 /**
@@ -1222,9 +1285,13 @@ export type V2WorkspaceScopedBody = z.input<typeof v2WorkspaceScopedBodySchema>
 
 /**
  * Un-archives a table that `DELETE /api/v2/tables/{tableId}` archived, together
- * with the rows, views, and groups archived alongside it. Restoring a table
- * that is not archived is a `409`, not a silent success — the caller asked for
- * a state transition that did not happen.
+ * with the rows, views, and groups archived alongside it.
+ *
+ * Idempotent: restoring a table that is already active answers `200` with its
+ * current representation rather than `409`, so a retry after a dropped response
+ * cannot look like a failure. No audit entry is recorded for that no-op. This
+ * matches `POST /api/v2/knowledge/{id}/restore`, which takes the same position
+ * for the same reason.
  *
  * Restore renames on collision rather than failing, so the returned table's
  * `name` may differ from the one it was archived under.
@@ -1738,8 +1805,10 @@ export const v2EnrichmentProviderOutcomeSchema = z
     label: z.string().describe('Human-readable provider name.'),
     toolId: z.string().describe('Sim tool identifier the provider ran.'),
     status: z
-      .enum(['matched', 'no_match', 'skipped', 'error', 'not_run'])
-      .describe('How this provider ended.'),
+      .string()
+      .describe(
+        "How this provider ended: `matched`, `no_match`, `skipped`, `error`, or `not_run`. Declared as a string rather than a closed enum because the value is read back out of a schemaless JSONB blob — a member added by a newer runner must widen a client's switch, not fail its read."
+      ),
     cost: z
       .number()
       .describe('Hosted-key cost in USD this provider incurred; zero when Sim did not bill it.'),
@@ -1761,13 +1830,29 @@ export type V2EnrichmentProviderOutcome = z.output<typeof v2EnrichmentProviderOu
  * `domainObjectSchema`: this payload is not opaque, and `z.unknown()` in a
  * response slot would need an `untyped-response` annotation it does not
  * deserve.
+ *
+ * But it IS read back out of a schemaless JSONB column through a bare `as`
+ * cast, so the declared shape is what a writer intended rather than what the
+ * column holds. Every field a blob could be missing is therefore nullable, and
+ * the route projects the stored value onto these keys (`toApiEnrichmentDetail`)
+ * before presenting it — the same shape `normalizeStoredViewConfig` uses on the
+ * other stored blob this surface publishes. Without both halves a row written
+ * by an older runner is a caller-reachable `500` on a well-formed read.
  */
 export const v2EnrichmentRunDetailSchema = z
   .object({
-    startedAt: v2TimestampSchema.describe('ISO 8601 timestamp when the cascade started.'),
-    completedAt: v2TimestampSchema.describe('ISO 8601 timestamp when the cascade finished.'),
-    durationMs: z.number().describe('Wall-clock milliseconds across the whole cascade.'),
-    totalCost: z.number().describe('Sum of per-provider hosted-key cost in USD.'),
+    startedAt: v2TimestampSchema
+      .nullable()
+      .describe('ISO 8601 timestamp when the cascade started, or null when not recorded.'),
+    completedAt: v2TimestampSchema
+      .nullable()
+      .describe('ISO 8601 timestamp when the cascade finished, or null when not recorded.'),
+    durationMs: z
+      .number()
+      .describe('Wall-clock milliseconds across the whole cascade; zero when not recorded.'),
+    totalCost: z
+      .number()
+      .describe('Sum of per-provider hosted-key cost in USD; zero when not recorded.'),
     matchedProvider: z
       .string()
       .nullable()

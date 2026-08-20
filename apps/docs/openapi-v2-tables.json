@@ -784,9 +784,9 @@
             "name": "includeRunState",
             "in": "query",
             "required": false,
-            "description": "Include per-workflow-group run state on every returned row. Off by default: run state is a separate sidecar read and its `blockErrors` are unbounded, so a full page carries it only when asked.",
+            "description": "Include per-workflow-group run state on every returned row. Off by default: run state is a separate sidecar read and its `blockErrors` are unbounded, so a full page carries it only when asked. Caps `limit` at 200.",
             "schema": {
-              "description": "Include per-workflow-group run state on every returned row. Off by default: run state is a separate sidecar read and its `blockErrors` are unbounded, so a full page carries it only when asked.",
+              "description": "Include per-workflow-group run state on every returned row. Off by default: run state is a separate sidecar read and its `blockErrors` are unbounded, so a full page carries it only when asked. Caps `limit` at 200.",
               "type": "boolean"
             }
           }
@@ -3885,7 +3885,7 @@
       "post": {
         "operationId": "restoreTable",
         "summary": "Restore Table",
-        "description": "Un-archive a table a `DELETE` archived, along with the rows, views, and workflow groups archived with it. Find archived tables with `scope=archived` on the table list. Restoring a table that is not archived is a `409`; a name collision is resolved by renaming, so the restored table may come back under a different `name`.",
+        "description": "Un-archive a table a `DELETE` archived, along with the rows, views, and workflow groups archived with it. Find archived tables with `scope=archived` on the table list. Idempotent: a table that is already active is returned unchanged with no audit entry recorded, so a retry after a dropped response cannot look like a failure. A name collision is resolved by renaming, so the restored table may come back under a different `name`.",
         "tags": ["Tables"],
         "parameters": [
           {
@@ -5471,8 +5471,7 @@
         "properties": {
           "status": {
             "type": "string",
-            "enum": ["pending", "queued", "running", "completed", "error", "cancelled"],
-            "description": "Lifecycle state of the most recent run for this cell."
+            "description": "Lifecycle state of the most recent run for this cell: `pending`, `queued`, `running`, `completed`, `error`, or `cancelled`."
           },
           "executionId": {
             "anyOf": [
@@ -6188,7 +6187,7 @@
           },
           "includeRunState": {
             "default": false,
-            "description": "Include per-workflow-group run state on every returned row. Off by default: run state is a separate sidecar read and its `blockErrors` are unbounded, so a full page carries it only when asked.",
+            "description": "Include per-workflow-group run state on every returned row. Off by default: run state is a separate sidecar read and its `blockErrors` are unbounded, so a full page carries it only when asked. Incompatible with `limit: 0`, and caps `limit` at 200.",
             "type": "boolean"
           }
         },
@@ -9358,24 +9357,38 @@
         "type": "object",
         "properties": {
           "startedAt": {
-            "type": "string",
-            "format": "date-time",
-            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
-            "description": "ISO 8601 timestamp when the cascade started."
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ISO 8601 timestamp when the cascade started, or null when not recorded."
           },
           "completedAt": {
-            "type": "string",
-            "format": "date-time",
-            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
-            "description": "ISO 8601 timestamp when the cascade finished."
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ISO 8601 timestamp when the cascade finished, or null when not recorded."
           },
           "durationMs": {
             "type": "number",
-            "description": "Wall-clock milliseconds across the whole cascade."
+            "description": "Wall-clock milliseconds across the whole cascade; zero when not recorded."
           },
           "totalCost": {
             "type": "number",
-            "description": "Sum of per-provider hosted-key cost in USD."
+            "description": "Sum of per-provider hosted-key cost in USD; zero when not recorded."
           },
           "matchedProvider": {
             "anyOf": [
@@ -9430,8 +9443,7 @@
           },
           "status": {
             "type": "string",
-            "enum": ["matched", "no_match", "skipped", "error", "not_run"],
-            "description": "How this provider ended."
+            "description": "How this provider ended: `matched`, `no_match`, `skipped`, `error`, or `not_run`. Declared as a string rather than a closed enum because the value is read back out of a schemaless JSONB blob — a member added by a newer runner must widen a client's switch, not fail its read."
           },
           "cost": {
             "type": "number",

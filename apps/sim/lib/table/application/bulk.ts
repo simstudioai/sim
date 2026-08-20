@@ -169,6 +169,14 @@ async function resolveBulkTablesContext(
       unresolvedFolders.push(folderPath)
       continue
     }
+    /**
+     * The selection deduplicates PATHS, but two distinct spellings of the same
+     * folder resolve to one id — so the batch would carry that id twice while
+     * `folderPathById` is last-wins, leaving one of the two paths unreportable.
+     * Deduplicate after resolution, keeping the first path that named the
+     * folder so the reported spelling matches the first one the caller sent.
+     */
+    if (folderPathById.has(folderId)) continue
     folderIds.push(folderId)
     folderPathById.set(folderId, folderPath)
   }
