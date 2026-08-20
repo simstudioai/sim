@@ -1,6 +1,7 @@
 import crypto from 'node:crypto'
 import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { getNotificationUrl } from '@/lib/webhooks/provider-subscription-utils'
 import { granolaHandler } from '@/lib/webhooks/providers/granola'
 
 const SECRET_BYTES = Buffer.from('granola-test-secret-key-padding!!!!!')
@@ -285,6 +286,130 @@ describe('Granola webhook provider', () => {
           requestId: 'granola-sub3',
         } as never)
       ).rejects.toThrow(/Business or Enterprise plan/)
+    })
+
+    it('deletes the endpoint when a 2xx response omits the signing secret', async () => {
+      /**
+       * The registration service only rolls back external state when createSubscription
+       * RETURNS, so a handler that throws must not leave an endpoint behind — it would keep
+       * delivering to a path whose signature can never be verified, with no id recorded for
+       * undeploy to clean up, and duplicate on every retry.
+       */
+      fetchMock.mockResolvedValueOnce({
+        ok: true,
+        status: 201,
+        json: async () => ({ id: 'whe_orphan' }),
+      })
+      fetchMock.mockResolvedValueOnce({ ok: true, status: 200 })
+
+      await expect(
+        granolaHandler.createSubscription!({
+          webhook: { id: 'wh_8', path: 'p8', providerConfig: { apiKey: 'grn_key' } },
+          requestId: 'granola-orphan1',
+        } as never)
+      ).rejects.toThrow(/signing secret|ID and signing/)
+
+      const [url, init] = fetchMock.mock.calls[1]
+      expect(init.method).toBe('DELETE')
+      expect(url).toBe('https://public-api.granola.ai/v1/webhook-endpoints/whe_orphan')
+    })
+
+    it('recovers the endpoint by URL when the response body is unusable', async () => {
+      fetchMock.mockResolvedValueOnce({
+        ok: true,
+        status: 201,
+        json: async () => {
+          throw new Error('invalid json')
+        },
+      })
+      fetchMock.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          webhook_endpoints: [
+            { id: 'whe_other', url: 'https://other.test/hook', url_redacted: false },
+            {
+              id: 'whe_mine',
+              url: getNotificationUrl({ path: 'p9' }),
+              url_redacted: false,
+            },
+          ],
+        }),
+      })
+      fetchMock.mockResolvedValueOnce({ ok: true, status: 200 })
+
+      await expect(
+        granolaHandler.createSubscription!({
+          webhook: { id: 'wh_9', path: 'p9', providerConfig: { apiKey: 'grn_key' } },
+          requestId: 'granola-orphan2',
+        } as never)
+      ).rejects.toThrow()
+
+      const deleteCall = fetchMock.mock.calls.find(([, init]) => init?.method === 'DELETE')
+      expect(deleteCall?.[0]).toContain('whe_mine')
+      expect(deleteCall?.[0]).not.toContain('whe_other')
+    })
+
+    it('never deletes an endpoint whose URL was redacted to its origin', async () => {
+      /* A redacted url is only an origin, so matching on it could delete another workflow's
+         endpoint that happens to share the host. */
+      fetchMock.mockResolvedValueOnce({
+        ok: true,
+        status: 201,
+        json: async () => ({}),
+      })
+      fetchMock.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          webhook_endpoints: [
+            {
+              id: 'whe_redacted',
+              url: getNotificationUrl({ path: 'p10' }),
+              url_redacted: true,
+            },
+          ],
+        }),
+      })
+
+      await expect(
+        granolaHandler.createSubscription!({
+          webhook: { id: 'wh_10', path: 'p10', providerConfig: { apiKey: 'grn_key' } },
+          requestId: 'granola-orphan3',
+        } as never)
+      ).rejects.toThrow()
+
+      expect(fetchMock.mock.calls.some(([, init]) => init?.method === 'DELETE')).toBe(false)
+    })
+
+    it('does not attempt cleanup when Granola rejected the request outright', async () => {
+      /* A non-2xx means no endpoint was created, so a recovery listing would be pure noise. */
+      fetchMock.mockResolvedValue({ ok: false, status: 403, text: async () => 'scope disabled' })
+
+      await expect(
+        granolaHandler.createSubscription!({
+          webhook: { id: 'wh_11', path: 'p11', providerConfig: { apiKey: 'grn_key' } },
+          requestId: 'granola-orphan4',
+        } as never)
+      ).rejects.toThrow(/scope/i)
+
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+    })
+
+    it('still surfaces the original error when orphan cleanup itself fails', async () => {
+      fetchMock.mockResolvedValueOnce({
+        ok: true,
+        status: 201,
+        json: async () => ({ id: 'whe_orphan' }),
+      })
+      fetchMock.mockRejectedValueOnce(new Error('network down'))
+
+      await expect(
+        granolaHandler.createSubscription!({
+          webhook: { id: 'wh_12', path: 'p12', providerConfig: { apiKey: 'grn_key' } },
+          requestId: 'granola-orphan5',
+        } as never)
+      ).rejects.toThrow(/signing secret|ID and signing/)
     })
 
     it('throws when the API key is missing so the deploy rolls back', async () => {
