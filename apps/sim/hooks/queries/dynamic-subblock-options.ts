@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from 'react'
+import { useMemo } from 'react'
 import { useQueries } from '@tanstack/react-query'
 import { buildSelectorContextFromBlock } from '@/lib/workflows/subblocks/context'
 import { summarizeNames } from '@/lib/workflows/subblocks/display'
@@ -14,13 +14,26 @@ export const DYNAMIC_SUBBLOCK_OPTION_STALE_TIME = 30 * 1000
 export const dynamicSubBlockOptionKeys = {
   all: ['dynamic-subblock-options'] as const,
   details: () => [...dynamicSubBlockOptionKeys.all, 'detail'] as const,
-  detail: (workspaceId?: string, blockId?: string, subBlockId?: string, optionId?: string) =>
+  /**
+   * `selectorScope` is the selector's OWN query key for this context — every context field its
+   * result depends on, named by the selector rather than restated here. Without it a label
+   * resolved under an empty or previous sibling (no credential group picked yet) stays cached
+   * and is reused once the sibling is set, so the card keeps showing a raw id or a stale name.
+   */
+  detail: (
+    workspaceId?: string,
+    blockId?: string,
+    subBlockId?: string,
+    optionId?: string,
+    selectorScope: readonly unknown[] = []
+  ) =>
     [
       ...dynamicSubBlockOptionKeys.details(),
       workspaceId ?? '',
       blockId ?? '',
       subBlockId ?? '',
       optionId ?? '',
+      ...selectorScope,
     ] as const,
 }
 
@@ -60,34 +73,54 @@ export function useDynamicSubBlockOptionDisplayName({
    * silently fails every selector scoped by a sibling — `workspace.credentialGroupProviders`
    * needs the group before it can name a provider, so the card fell back to raw ids.
    */
-  const buildResolverContext = useCallback((): SelectorContext => {
-    const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
-    const block = blockId ? useWorkflowStore.getState().blocks[blockId] : undefined
-    if (!block?.type || !blockId) return { workspaceId }
-    const live = activeWorkflowId
-      ? (useSubBlockStore.getState().workflowValues[activeWorkflowId]?.[blockId] ?? {})
-      : {}
+  const activeWorkflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
+  const block = useWorkflowStore((state) => (blockId ? state.blocks[blockId] : undefined))
+  const liveValues = useSubBlockStore((state) =>
+    activeWorkflowId && blockId ? state.workflowValues[activeWorkflowId]?.[blockId] : undefined
+  )
+
+  const resolverContext = useMemo((): SelectorContext => {
+    if (!block?.type) return { workspaceId }
     const merged: Record<string, { value?: unknown }> = { ...(block.subBlocks ?? {}) }
-    for (const [id, value] of Object.entries(live)) merged[id] = { ...merged[id], value }
+    for (const [id, value] of Object.entries(liveValues ?? {})) {
+      merged[id] = { ...merged[id], value }
+    }
     return buildSelectorContextFromBlock(block.type, merged, {
       workflowId: activeWorkflowId ?? undefined,
       workspaceId,
       canonicalModes: block.data?.canonicalModes,
     })
-  }, [blockId, workspaceId])
+  }, [block, liveValues, activeWorkflowId, workspaceId])
+
+  /**
+   * The selector's own key for this context. Reusing it means the cache is scoped by exactly
+   * what the selector reads — no second list of context fields to keep in step, and it stays
+   * correct when a selector's dependencies change.
+   */
+  const selectorScope = useMemo(
+    () =>
+      definition ? definition.getQueryKey({ key: definition.key, context: resolverContext }) : [],
+    [definition, resolverContext]
+  )
   const canResolve = Boolean(blockId && fetchById && optionIds.length > 0)
 
   const queries = useQueries({
     queries: canResolve
       ? optionIds.map((optionId) => ({
-          queryKey: dynamicSubBlockOptionKeys.detail(workspaceId, blockId, subBlock?.id, optionId),
+          queryKey: dynamicSubBlockOptionKeys.detail(
+            workspaceId,
+            blockId,
+            subBlock?.id,
+            optionId,
+            selectorScope as readonly unknown[]
+          ),
           queryFn: ({ signal }) => {
             if (!blockId || !fetchById || !definition) {
               throw new Error('Dynamic subblock option resolver is required')
             }
             return fetchById({
               key: definition.key,
-              context: buildResolverContext(),
+              context: resolverContext,
               detailId: optionId,
               signal,
             })

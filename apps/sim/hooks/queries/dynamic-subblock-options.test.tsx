@@ -15,7 +15,10 @@ vi.mock('@/hooks/selectors/registry', () => ({
 }))
 
 import type { SubBlockConfig } from '@/blocks/types'
-import { useDynamicSubBlockOptionDisplayName } from '@/hooks/queries/dynamic-subblock-options'
+import {
+  dynamicSubBlockOptionKeys,
+  useDynamicSubBlockOptionDisplayName,
+} from '@/hooks/queries/dynamic-subblock-options'
 import type { SelectorDefinition, SelectorKey } from '@/hooks/selectors/types'
 
 /** Any registered key; the hook only uses it to look the definition up. */
@@ -125,5 +128,23 @@ describe('useDynamicSubBlockOptionDisplayName', () => {
     mounted.push(hook.unmount)
 
     await waitForResult(() => expect(hook.result()).toBe('Gmail, Slack'))
+  })
+
+  it('re-resolves a label when the sibling its selector depends on changes', () => {
+    // The bug: `fetchById` reads sibling context, but the cache key did not, so a label
+    // resolved before a credential group was picked (null) stayed cached after it was, and the
+    // card kept showing the raw id. The key now carries the selector's OWN query key, which
+    // names every context field its result depends on.
+    const keyFor = (credentialGroupId?: string) =>
+      dynamicSubBlockOptionKeys.detail('workspace-1', 'block-1', 'providerFilter', 'gmail', [
+        'selectors',
+        'workspace.credentialGroupProviders',
+        'workspace-1',
+        credentialGroupId ?? 'none',
+      ])
+
+    expect(keyFor(undefined)).not.toEqual(keyFor('group-1'))
+    expect(keyFor('group-1')).not.toEqual(keyFor('group-2'))
+    expect(keyFor('group-1')).toEqual(keyFor('group-1'))
   })
 })
