@@ -1,0 +1,263 @@
+import { readFile } from 'node:fs/promises'
+import { join } from 'node:path'
+import type { CSSProperties } from 'react'
+import { ImageResponse } from 'next/og'
+
+/**
+ * The brandbook cover template, rendered on demand.
+ *
+ * One template backs every social card the site generates: light gray field,
+ * the "sim" wordmark top-left, a diagonal open arrow top-right, and the title
+ * set large at the bottom-left. Library post covers are the build-time
+ * rendering of it (`scripts/generate-library-covers.tsx`), docs pages the
+ * edge-runtime one (`apps/docs/app/api/og/route.tsx`). This is the Node
+ * rendering, for `apps/sim` routes that resolve their title per request.
+ */
+
+const COVER_WIDTH = 1200
+const COVER_HEIGHT = 675
+
+/** Exact hex from a vector trace of the reference cover template, not an estimate off compressed JPEG pixels. */
+const INK_COLOR = '#515151'
+const BACKGROUND_COLOR = '#c1c1c1'
+/** The title's ink, dropped back so a secondary line reads as caption rather than headline. */
+const MUTED_INK_COLOR = 'rgba(81, 81, 81, 0.72)'
+
+const TITLE_FONT_SIZE = {
+  large: 110,
+  medium: 96,
+  small: 85,
+} as const
+const SUBTITLE_FONT_SIZE = 30
+const TITLE_BOX_WIDTH = 1020
+/** Average glyph width as a fraction of font size, for this weight/family — used to pack words into lines. */
+const CHAR_WIDTH_EM = 0.42
+
+/**
+ * Söhne Kräftig (weight 500), the typeface of the reference cover template, as
+ * a plain TTF — Satori (the renderer behind `ImageResponse`) parses neither
+ * WOFF2 nor variable fonts.
+ *
+ * Read once at module scope, per Next's `ImageResponse` guidance, from
+ * `public/` so it needs no `outputFileTracingIncludes` entry:
+ * `docker/app.Dockerfile` copies that directory into the runner, which
+ * per-request cards need since they render outside the build. `process.cwd()`
+ * is the app directory in every environment this runs in — Next's generated
+ * standalone `server.js` opens with `process.chdir(__dirname)`, and that file
+ * ships beside `public/`. See `app/(landing)/og-utils.tsx` for the longer
+ * account of why these are not fetched.
+ */
+const titleFont = await readFile(
+  join(process.cwd(), 'public', 'brand', 'fonts', 'Soehne-Kraftig.ttf')
+)
+
+const CONTAINER_STYLE = {
+  height: '100%',
+  width: '100%',
+  display: 'flex',
+  flexDirection: 'column',
+  justifyContent: 'space-between',
+  padding: '26px',
+  background: BACKGROUND_COLOR,
+  fontFamily: 'Soehne',
+} satisfies CSSProperties
+const HEADER_STYLE = {
+  display: 'flex',
+  justifyContent: 'space-between',
+  alignItems: 'flex-start',
+  width: '100%',
+} satisfies CSSProperties
+const FOOTER_STYLE = {
+  display: 'flex',
+  flexDirection: 'column',
+  width: `${TITLE_BOX_WIDTH}px`,
+  /** Compensates for Satori adding extra invisible leading below the last line instead of splitting it evenly. */
+  transform: 'translateY(14px)',
+} satisfies CSSProperties
+const TITLE_STYLE = {
+  display: 'flex',
+  flexDirection: 'column',
+  fontWeight: 500,
+  color: INK_COLOR,
+  lineHeight: 1.1,
+} satisfies CSSProperties
+const SUBTITLE_STYLE = {
+  display: 'flex',
+  marginTop: 18,
+  fontSize: SUBTITLE_FONT_SIZE,
+  fontWeight: 500,
+  color: MUTED_INK_COLOR,
+  lineHeight: 1.2,
+} satisfies CSSProperties
+
+function getTitleFontSize(title: string): number {
+  if (title.length > 45) return TITLE_FONT_SIZE.small
+  if (title.length > 30) return TITLE_FONT_SIZE.medium
+  return TITLE_FONT_SIZE.large
+}
+
+function estimateWidthEm(text: string): number {
+  return text.length * CHAR_WIDTH_EM
+}
+
+/**
+ * Splits a single word wider than `maxWidthEm` into chunks that each fit.
+ *
+ * Hyphens are tried first because that is where a reader expects a compound to
+ * break, and the trailing hyphen stays on the upper line. A chunk with no
+ * usable hyphen falls back to a character-level split, which only a
+ * pathological token reaches — and file names, the titles this renders,
+ * supply plenty of them.
+ */
+function splitOversizedWord(word: string, maxWidthEm: number): string[] {
+  const chunks: string[] = []
+  let chunk = ''
+
+  const pieces = word.split(/(?<=-)/).flatMap((piece) => (piece.length > 1 ? [piece] : [...piece]))
+  for (const piece of pieces) {
+    const candidate = chunk + piece
+    if (estimateWidthEm(candidate) > maxWidthEm && chunk) {
+      chunks.push(chunk)
+      chunk = piece
+    } else {
+      chunk = candidate
+    }
+  }
+  if (chunk) chunks.push(chunk)
+
+  return chunks.flatMap((entry) =>
+    estimateWidthEm(entry) > maxWidthEm ? splitByCharacter(entry, maxWidthEm) : [entry]
+  )
+}
+
+/** Last-resort break for a run with no hyphen to break on — a long URL, an unbroken identifier. */
+function splitByCharacter(word: string, maxWidthEm: number): string[] {
+  const chunks: string[] = []
+  let chunk = ''
+
+  for (const char of word) {
+    const candidate = chunk + char
+    if (estimateWidthEm(candidate) > maxWidthEm && chunk) {
+      chunks.push(chunk)
+      chunk = char
+    } else {
+      chunk = candidate
+    }
+  }
+  if (chunk) chunks.push(chunk)
+
+  return chunks
+}
+
+/**
+ * Replaces every plain space (U+0020) with U+00A0. Satori has a
+ * text-measurement bug where the first plain space in a text node renders at
+ * roughly double width — a non-breaking space measures correctly and reads
+ * identically at these sizes, so it sidesteps the bug rather than fighting
+ * Satori's own line-wrapping, which is disabled here since lines arrive
+ * pre-split.
+ */
+function withHardSpaces(text: string): string {
+  return text.replace(/ /g, '\u00a0')
+}
+
+/** Greedily packs words into lines that fit `TITLE_BOX_WIDTH` at `fontSize`. */
+function wrapTitleLines(title: string, fontSize: number): string[] {
+  const maxWidthEm = TITLE_BOX_WIDTH / fontSize
+  const lines: string[] = []
+  let current = ''
+
+  for (const word of title.split(' ')) {
+    if (estimateWidthEm(word) > maxWidthEm) {
+      if (current) {
+        lines.push(current)
+        current = ''
+      }
+      const chunks = splitOversizedWord(word, maxWidthEm)
+      lines.push(...chunks.slice(0, -1))
+      current = chunks[chunks.length - 1] ?? ''
+      continue
+    }
+
+    const candidate = current ? `${current} ${word}` : word
+    if (estimateWidthEm(candidate) > maxWidthEm && current) {
+      lines.push(current)
+      current = word
+    } else {
+      current = candidate
+    }
+  }
+  if (current) lines.push(current)
+
+  return lines.map(withHardSpaces)
+}
+
+/** "sim" wordmark, no icon — the brandbook wordmark geometry the docs navbar and library covers use. */
+function SimWordmark() {
+  return (
+    <svg width='118' height='57' viewBox='0 0 800 386' fill='none'>
+      <path
+        d='M0 293.75h53.4128c0 14.748 5.3413 26.506 16.0239 35.275 10.6826 8.37 25.1238 12.555 43.3233 12.555 19.783 0 35.016-3.786 45.698-11.36 10.683-7.971 16.024-18.534 16.024-31.687 0-9.566-2.967-17.538-8.902-23.915-5.539-6.378-15.826-11.559-30.861-15.545l-51.0389-11.958c-25.7173-6.377-44.9063-16.142-57.5672-29.296-12.2651-13.153-18.39771-30.491-18.39771-52.015 0-17.936 4.55001-33.481 13.64991-46.635 9.4957-13.153 22.3543-23.3169 38.576-30.4914 16.6173-7.1745 35.6086-10.7619 56.9739-10.7619 21.365 0 39.763 3.7866 55.193 11.3598 15.826 7.5731 28.091 18.1355 36.796 31.6875 9.1 13.552 13.847 29.695 14.243 48.428h-53.413c-.395-15.146-5.341-26.904-14.837-35.275-9.495-8.37-22.75-12.555-39.763-12.555-17.4083 0-30.8604 3.786-40.356 11.36-9.4956 7.573-14.2434 17.936-14.2434 31.089 0 19.531 14.2434 32.884 42.7304 40.058l51.039 12.556c24.53 5.58 42.928 14.747 55.193 27.502 12.265 12.356 18.398 29.296 18.398 50.82 0 18.335-4.946 34.477-14.837 48.428-9.891 13.552-23.541 24.114-40.95 31.687-17.013 7.175-37.191 10.762-60.534 10.762-34.0265 0-61.1285-8.37-81.3067-25.111-20.1782-16.74-30.2673-39.061-30.2673-66.962z'
+        fill={INK_COLOR}
+      />
+      <path
+        d='m267.175 385.826v-292.3631c22.244 8.1331 32.053 8.1331 55.787 0v292.3631zm27.3-311.6891c-9.891 0-18.596-3.5872-26.113-10.7618-7.122-7.5731-10.683-16.342-10.683-26.3067 0-10.3632 3.561-19.132 10.683-26.3066 7.517-7.17453 16.222-10.7618 26.113-10.7618 10.287 0 18.991 3.58727 26.113 10.7618 7.122 7.1746 10.682 15.9434 10.682 26.3066 0 9.9647-3.56 18.7336-10.682 26.3067-7.122 7.1746-15.826 10.7618-26.113 10.7618z'
+        fill={INK_COLOR}
+      />
+      <path
+        d='m421.362 385.823h-55.786v-292.3624h49.852v49.3294c5.934-16.342 17.408-30.197 33.234-40.959 16.222-11.1605 35.807-16.7407 58.754-16.7407 25.718 0 47.083 6.9752 64.096 20.9257 17.013 13.951 28.091 32.485 33.234 55.603h-10.089c3.957-23.118 14.837-41.652 32.642-55.603 17.804-13.9505 39.762-20.9257 65.875-20.9257 33.235 0 59.348 9.7653 78.339 29.2957 18.991 19.531 28.487 46.236 28.487 80.116v191.321h-54.6v-177.57c0-23.118-5.934-40.855-17.804-53.211-11.474-12.755-27.102-19.132-46.885-19.132-13.847 0-26.113 3.189-36.795 9.566-10.287 5.979-18.398 14.748-24.333 26.307-5.934 11.559-8.902 25.111-8.902 40.655v173.385h-55.193v-178.168c0-23.118-5.737-40.655-17.211-52.613-11.474-12.356-27.102-18.534-46.885-18.534-13.847 0-26.112 3.189-36.795 9.566-10.287 5.979-18.398 14.748-24.333 26.307-5.934 11.16-8.902 24.513-8.902 40.057z'
+        fill={INK_COLOR}
+      />
+    </svg>
+  )
+}
+
+/** Diagonal "open" arrow, top-right — square caps and a miter join to match the reference's sharp corners. */
+function CornerArrow() {
+  return (
+    <svg width='58' height='58' viewBox='0 0 24 24' fill='none'>
+      <path
+        d='M2 22 22 2M22 2H12M22 2V12'
+        stroke={INK_COLOR}
+        strokeWidth={3.6}
+        strokeLinecap='square'
+        strokeLinejoin='miter'
+      />
+    </svg>
+  )
+}
+
+export const COVER_OG_SIZE = { width: COVER_WIDTH, height: COVER_HEIGHT } as const
+
+interface CoverOgImageProps {
+  title: string
+  /** Optional caption under the title — provenance, a byline, a section label. */
+  subtitle?: string
+}
+
+/** Renders the brandbook cover template for a single title. */
+export function createCoverOgImage({ title, subtitle }: CoverOgImageProps) {
+  const fontSize = getTitleFontSize(title)
+
+  return new ImageResponse(
+    <div style={CONTAINER_STYLE}>
+      <div style={HEADER_STYLE}>
+        <SimWordmark />
+        <CornerArrow />
+      </div>
+
+      <div style={FOOTER_STYLE}>
+        <div style={{ ...TITLE_STYLE, fontSize }}>
+          {wrapTitleLines(title, fontSize).map((line, index) => (
+            <span key={index}>{line}</span>
+          ))}
+        </div>
+        {subtitle ? <span style={SUBTITLE_STYLE}>{withHardSpaces(subtitle)}</span> : null}
+      </div>
+    </div>,
+    {
+      ...COVER_OG_SIZE,
+      fonts: [{ name: 'Soehne', data: titleFont, style: 'normal' as const, weight: 500 as const }],
+    }
+  )
+}
