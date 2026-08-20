@@ -188,7 +188,7 @@ export function canEditUsageLimit(subscription: any): boolean {
   }
 
   // Only Pro and Team plans can edit limits
-  // Enterprise has fixed limits that match their monthly cost
+  // Enterprise has a fixed, administrator-controlled contract-period limit.
   return isPro(subscription.plan) || isTeam(subscription.plan)
 }
 

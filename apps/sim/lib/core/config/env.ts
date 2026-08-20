@@ -431,6 +431,8 @@ export const env = createEnv({
     ASANA_CLIENT_SECRET:                   z.string().optional(),                  // Asana OAuth client secret
     AIRTABLE_CLIENT_ID:                    z.string().optional(),                  // Airtable OAuth client ID
     AIRTABLE_CLIENT_SECRET:                z.string().optional(),                  // Airtable OAuth client secret
+    BITBUCKET_CLIENT_ID:                   z.string().optional(),                  // Bitbucket OAuth consumer key
+    BITBUCKET_CLIENT_SECRET:               z.string().optional(),                  // Bitbucket OAuth consumer secret
     APOLLO_API_KEY:                        z.string().optional(),                  // Apollo API key (optional system-wide config)
     SUPABASE_CLIENT_ID:                    z.string().optional(),                  // Supabase OAuth client ID
     SUPABASE_CLIENT_SECRET:                z.string().optional(),                  // Supabase OAuth client secret

@@ -36,6 +36,7 @@ import { MaxBadge } from '@/app/workspace/[workspaceId]/knowledge/[id]/component
 import { useConnectorConfigFields } from '@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-config-fields'
 import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import { getBlock } from '@/blocks'
+import { withBrandIcon } from '@/blocks/brand-icon'
 import { getTileIconColorClass } from '@/blocks/icon-color'
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
 import type { ConnectorMeta } from '@/connectors/types'
@@ -332,7 +333,7 @@ export function AddConnectorModal({
                         (cred): ComboboxOption => ({
                           label: cred.name || cred.provider,
                           value: cred.id,
-                          icon: connectorConfig.icon,
+                          icon: withBrandIcon(connectorConfig.icon),
                         })
                       ),
                       {

@@ -80,6 +80,7 @@ import {
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
+import { BrandIcon } from '@/blocks/brand-icon'
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
 import { useKnowledgeBasesList } from '@/hooks/kb/use-knowledge'
 import { useCreateFolder, useDeleteFolderMutation, useUpdateFolder } from '@/hooks/queries/folders'
@@ -167,8 +168,8 @@ function connectorCell(connectorTypes?: string[]): ResourceCell {
           return (
             <Tooltip.Root key={type}>
               <Tooltip.Trigger asChild>
-                <span className='flex size-5 flex-shrink-0 items-center justify-center rounded-md bg-[var(--surface-4)] text-[var(--text-secondary)]'>
-                  <Icon className='size-[13px]' />
+                <span className='flex size-5 flex-shrink-0 items-center justify-center rounded-md bg-[var(--surface-4)]'>
+                  <BrandIcon icon={Icon} className='size-[13px]' />
                 </span>
               </Tooltip.Trigger>
               <Tooltip.Content>{def.name}</Tooltip.Content>

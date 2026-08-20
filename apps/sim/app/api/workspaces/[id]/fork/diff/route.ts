@@ -14,6 +14,7 @@ import {
 } from '@/ee/workspace-forking/lib/copy/deploy-bridge'
 import { assertCanPromote } from '@/ee/workspace-forking/lib/lineage/authz'
 import { loadForkBlockMap } from '@/ee/workspace-forking/lib/mapping/block-map-store'
+import { collectForkCustomBlockReconfigs } from '@/ee/workspace-forking/lib/mapping/custom-block-reconfigs'
 import {
   collectForkDependentReconfigs,
   collectForkResourceUsages,
@@ -127,7 +128,25 @@ export const GET = withRouteHandler(
     // that's exactly what the first sync copies verbatim, so the pre-fill is honest and
     // configuring it ahead of the first sync is possible (the deterministic target ids
     // already exist).
+    // Custom-block inputs join the same list: repointing a block makes every one of its
+    // inputs reconfigurable (see `collectForkCustomBlockReconfigs`), and they store, pre-fill,
+    // gate Sync, and apply through this identical channel.
+    const customBlockReconfigs = await collectForkCustomBlockReconfigs({
+      items: plan.items,
+      sourceStates,
+      resolveTargetBlockId: resolveBlockId,
+      resolve: plan.resolver,
+      targetWorkspaceId: plan.targetWorkspaceId,
+    })
+
     const dependentReconfigs = [
+      ...customBlockReconfigs.map((field) => ({
+        ...field,
+        currentValue:
+          storedByKey.get(
+            forkDependentValueKey(field.targetWorkflowId, field.targetBlockId, field.subBlockKey)
+          ) ?? field.currentValue,
+      })),
       ...collectForkDependentReconfigs(plan.items, sourceStates, resolveBlockId).map((field) => ({
         ...field,
         currentValue:
@@ -135,7 +154,7 @@ export const GET = withRouteHandler(
             forkDependentValueKey(field.targetWorkflowId, field.targetBlockId, field.subBlockKey)
           ) ??
           readTargetDraftDependentValue(
-            targetDraftByWorkflow.get(field.targetWorkflowId)?.get(field.targetBlockId),
+            targetDraftByWorkflow.get(field.targetWorkflowId)?.get(field.targetBlockId)?.subBlocks,
             sourceBlocksByTarget.get(field.targetWorkflowId)?.get(field.targetBlockId),
             field.subBlockKey
           ),

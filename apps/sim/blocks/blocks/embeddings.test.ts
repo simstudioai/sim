@@ -2,6 +2,8 @@
  * @vitest-environment node
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { getSelectorDefinition } from '@/hooks/selectors/registry'
+import type { SelectorKey } from '@/hooks/selectors/types'
 
 const { mockFetchQuery } = vi.hoisted(() => ({
   mockFetchQuery: vi.fn(),
@@ -157,8 +159,9 @@ describe('Embeddings block', () => {
       (subBlock) => conditionProvider(subBlock) === 'openrouter'
     )
     expect(openRouterModels?.type).toBe('combobox')
-    expect(openRouterModels?.options).toEqual([])
-    expect(optionIds(await openRouterModels?.fetchOptions?.('block-1'))).toEqual(OPENROUTER_MODELS)
+    const definition = getSelectorDefinition(openRouterModels?.selectorKey as SelectorKey)
+    const options = await definition.fetchList?.({ key: definition.key, context: {} })
+    expect(optionIds(options)).toEqual(OPENROUTER_MODELS)
     expect(mockFetchQuery).toHaveBeenCalledOnce()
 
     expect(

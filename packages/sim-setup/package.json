@@ -1,0 +1,63 @@
+{
+  "name": "sim-setup",
+  "version": "1.0.0",
+  "description": "Set up and manage a self-hosted Sim installation",
+  "type": "module",
+  "bin": {
+    "sim-setup": "dist/index.js"
+  },
+  "scripts": {
+    "prebuild": "bun run clean",
+    "build": "bun build src/index.ts --target=node --format=esm --packages=bundle --reject-unresolved --outfile=dist/index.js && bun run build:assets",
+    "build:assets": "bun run src/build-assets.ts",
+    "clean": "bun -e \"import { rmSync } from 'node:fs'; rmSync('dist', { recursive: true, force: true })\"",
+    "type-check": "tsc --noEmit",
+    "lint": "biome check --write --unsafe .",
+    "lint:check": "biome check .",
+    "format": "biome format --write .",
+    "format:check": "biome format .",
+    "test": "vitest run",
+    "prepublishOnly": "bun run build"
+  },
+  "files": [
+    "dist",
+    "THIRD_PARTY_LICENSES"
+  ],
+  "keywords": [
+    "sim",
+    "self-hosted",
+    "docker",
+    "compose",
+    "setup"
+  ],
+  "author": "Sim",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/simstudioai/sim.git",
+    "directory": "packages/sim-setup"
+  },
+  "homepage": "https://github.com/simstudioai/sim/tree/main/packages/sim-setup#readme",
+  "bugs": {
+    "url": "https://github.com/simstudioai/sim/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "@clack/prompts": "1.7.0",
+    "@next/env": "16.2.12",
+    "@sim/deployment-config": "workspace:*",
+    "@sim/security": "workspace:*",
+    "@sim/tsconfig": "workspace:*",
+    "@sim/utils": "workspace:*",
+    "@types/node": "24.2.1",
+    "chalk": "5.6.2",
+    "postgres": "^3.4.5",
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.0"
+  }
+}

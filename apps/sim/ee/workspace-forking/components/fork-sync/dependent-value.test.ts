@@ -55,6 +55,27 @@ describe('effectiveDependentValue', () => {
     expect(effectiveDependentValue(field({ currentValue: 'INBOX' }), {}, false)).toBe('INBOX')
   })
 
+  it('keeps a custom-block input\'s stored value even though its parent always "changed"', () => {
+    // These fields exist BECAUSE the block's type was repointed, so `parentChanged` is always
+    // true — but the stored value is the user's configuration for that exact target (the
+    // storage key namespaces it by target type), not a stale pick against an old parent.
+    // Blanking it here desyncs the rendered value from the Sync gate and the submitted
+    // payload: required fields look filled but keep Sync disabled, and optional ones submit
+    // empty and wipe the stored mapping.
+    const customBlockField = field({
+      parentKind: 'custom-block',
+      parentSourceId: 'custom_block_uat0001',
+      currentValue: 'configured for the target',
+    })
+
+    expect(effectiveDependentValue(customBlockField, {}, true)).toBe('configured for the target')
+  })
+
+  it('still blanks a custom-block input the user explicitly cleared', () => {
+    const f = field({ parentKind: 'custom-block', currentValue: 'stored' })
+    expect(effectiveDependentValue(f, { [dependentKey(f)]: null }, true)).toBe('')
+  })
+
   it('returns blank when the parent changed (the stored value no longer resolves)', () => {
     expect(effectiveDependentValue(field({ currentValue: 'INBOX' }), {}, true)).toBe('')
   })

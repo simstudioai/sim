@@ -1,6 +1,6 @@
 'use client'
 
-import { createElement, lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react'
 import {
   ArrowRight,
   Check,
@@ -61,6 +61,7 @@ import type {
 import { useServiceAccountConnectTarget } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal/use-service-account-connect'
 import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
+import { BrandIcon } from '@/blocks/brand-icon'
 import {
   useUpdateWorkspaceCredential,
   useWorkspaceCredential,
@@ -2160,7 +2161,7 @@ function ServiceAccountConnectDisplay({
           'hover-hover:bg-[var(--surface-5)]'
         )}
       >
-        {createElement(target.serviceIcon, { className: 'size-[16px] shrink-0' })}
+        <BrandIcon icon={target.serviceIcon} className='size-[16px] shrink-0' />
         <span className='flex-1 text-[var(--text-body)] text-sm'>{displayLabel}</span>
         {connected ? (
           <Check className='size-[16px] shrink-0 text-[var(--text-icon)]' />
@@ -2257,7 +2258,7 @@ function CredentialLinkDisplay({
         'hover-hover:bg-[var(--surface-5)]'
       )}
     >
-      {createElement(Icon, { className: 'size-[16px] shrink-0' })}
+      <BrandIcon icon={Icon} className='size-[16px] shrink-0' />
       <span className='flex-1 text-[var(--text-body)] text-sm'>{displayLabel}</span>
       {connected ? (
         <Check className='size-[16px] shrink-0 text-[var(--text-icon)]' />

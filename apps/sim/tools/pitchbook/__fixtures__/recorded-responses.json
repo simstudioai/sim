@@ -1,0 +1,3850 @@
+{
+  "pitchbook_search": {
+    "stats": {
+      "total": 5,
+      "perPage": 5,
+      "page": 1,
+      "lastPage": 1
+    },
+    "items": [
+      {
+        "pbId": "59199-40",
+        "name": "Databricks",
+        "website": "www.databricks.com",
+        "pitchBookProfileLink": "https://my.pitchbook.com/profile/59199-40/company/profile",
+        "primaryFirmType": {
+          "pbId": "59199-40",
+          "type": "COMPANY"
+        },
+        "otherFirmTypes": [
+          {
+            "pbId": "59199-40",
+            "type": "INVESTOR"
+          }
+        ],
+        "stockTicker": null
+      },
+      {
+        "fundId": "25435-36F",
+        "fundName": "Databricks MAV Alternate Fund I",
+        "pbId": null,
+        "name": null
+      },
+      {
+        "pbId": "484851-52",
+        "name": "Databricks Ventures",
+        "website": null,
+        "pitchBookProfileLink": "https://my.pitchbook.com/profile/484851-52/investor/profile",
+        "primaryFirmType": {
+          "pbId": "484851-52",
+          "type": "INVESTOR"
+        },
+        "otherFirmTypes": [],
+        "stockTicker": null
+      }
+    ]
+  },
+  "pitchbook_shared_search": {
+    "stats": {
+      "total": 7566,
+      "perPage": 25,
+      "page": 1,
+      "lastPage": 303
+    },
+    "searchCriteria": "Deal Date: From: 25-Oct-2023; Deal Options: Search on a full transaction; Deal Types: All VC Stages; Locations: United States; Search HQ Only; ",
+    "items": [
+      {
+        "companyId": "432917-74",
+        "companyName": "(Specialty Retail)",
+        "website": "www.hellobaru.com"
+      },
+      {
+        "companyId": "183309-13",
+        "companyName": "0x",
+        "website": "www.0x.org"
+      },
+      {
+        "companyId": "509176-99",
+        "companyName": "1 True Health",
+        "website": "www.1truehealth.com"
+      }
+    ]
+  },
+  "pitchbook_entity_people": {
+    "entityId": "51261-67",
+    "primaryContact": {
+      "personId": "179051-50P",
+      "fullName": "Ellie Mertz",
+      "title": "Vice President of Finance",
+      "phone": null,
+      "fax": null,
+      "email": "ellie.mertz@airbnb.com"
+    },
+    "currentTeam": [
+      {
+        "id": "36938-71P",
+        "name": "Brian Chesky",
+        "title": "Chief Executive Officer & Chairman",
+        "positionStart": "2008-06-27",
+        "infoAvailable": true
+      },
+      {
+        "id": "197283-52P",
+        "name": "Dave Stephenson",
+        "title": "Chief Financial Officer and Head of Employee Experience",
+        "positionStart": "2018-11-26",
+        "infoAvailable": true
+      },
+      {
+        "id": "234171-19P",
+        "name": "Xiao Jinhong",
+        "title": "Chief Operating Officer, China & Interim Head APAC",
+        "positionStart": null,
+        "infoAvailable": true
+      }
+    ],
+    "formerTeam": [
+      {
+        "id": "156729-07P",
+        "name": "Andrew Verbitsky",
+        "title": "General Manager, Central and Eastern Europe",
+        "positionStart": "2015-01-01",
+        "positionFinish": "2018-01-01",
+        "infoAvailable": false
+      },
+      {
+        "id": "87765-40P",
+        "name": "Adrian Cleave",
+        "title": "Director of Design, Growth & Traffic",
+        "positionStart": "2015-07-01",
+        "positionFinish": "2021-09-01",
+        "infoAvailable": false
+      },
+      {
+        "id": "131254-12P",
+        "name": "David King III",
+        "title": "Director of Diversity and Belonging",
+        "positionStart": "2016-02-01",
+        "infoAvailable": false
+      }
+    ],
+    "currentBoardMembersAndObservers": [
+      {
+        "personId": "30329-47P",
+        "personName": "Alfred Lin",
+        "fullTitle": "Partner",
+        "boardRepresentingId": "11295-73",
+        "boardRepresentingName": "Sequoia Capital",
+        "roleOnBoard": "Board Member",
+        "boardStart": "2012-01-01",
+        "contactInfoAvailable": true
+      },
+      {
+        "personId": "199692-10P",
+        "personName": "Amrita Ahuja",
+        "fullTitle": "Board Member",
+        "boardRepresentingId": null,
+        "boardRepresentingName": null,
+        "roleOnBoard": "Board Member",
+        "boardStart": "2021-01-01",
+        "contactInfoAvailable": true
+      },
+      {
+        "personId": "64336-15P",
+        "personName": "Ann Mather",
+        "fullTitle": "Board Member",
+        "boardRepresentingId": null,
+        "boardRepresentingName": null,
+        "roleOnBoard": "Board Member",
+        "boardStart": "2018-08-24",
+        "contactInfoAvailable": true
+      }
+    ],
+    "formerBoardMembersAndObservers": [
+      {
+        "personId": "74682-10P",
+        "personName": "Belinda Johnson JD",
+        "fullTitle": "Board Member",
+        "boardRepresentingId": null,
+        "boardRepresentingName": null,
+        "roleOnBoard": "Board Member",
+        "boardStart": "2011-12-01",
+        "contactInfoAvailable": true
+      }
+    ]
+  },
+  "pitchbook_entity_locations": {
+    "entityId": "51261-67",
+    "hqOffice": {
+      "location": "San Francisco, CA",
+      "addressLine1": "888 Brannan Street",
+      "addressLine2": null,
+      "city": "San Francisco",
+      "stateProvince": "California",
+      "postCode": "94103",
+      "country": "United States",
+      "phone": "+1 (855) 424-7262",
+      "fax": null,
+      "email": "info@airbnb.com",
+      "globalRegion": "Americas",
+      "globalSubRegion": "North America"
+    },
+    "alternateOffices": [
+      {
+        "location": "Beijing, China",
+        "addressLine1": null,
+        "addressLine2": null,
+        "city": "Beijing",
+        "stateProvince": null,
+        "postCode": null,
+        "country": "China",
+        "phone": null,
+        "fax": null,
+        "email": "info@airbnb.com",
+        "globalRegion": "Asia",
+        "globalSubRegion": "East Asia"
+      },
+      {
+        "location": "Berlin, Germany",
+        "addressLine1": null,
+        "addressLine2": null,
+        "city": "Berlin",
+        "stateProvince": null,
+        "postCode": null,
+        "country": "Germany",
+        "phone": null,
+        "fax": null,
+        "email": "info@airbnb.com",
+        "globalRegion": "Europe",
+        "globalSubRegion": "Western Europe"
+      },
+      {
+        "location": "Dublin, Ireland",
+        "addressLine1": "The Watermarque Building",
+        "addressLine2": "South Lotts Road, Ringsend",
+        "city": "Dublin",
+        "stateProvince": null,
+        "postCode": "4",
+        "country": "Ireland",
+        "phone": null,
+        "fax": null,
+        "email": "info@airbnb.com",
+        "globalRegion": "Europe",
+        "globalSubRegion": "Western Europe"
+      }
+    ],
+    "alternateOfficesCount": 16
+  },
+  "pitchbook_entity_affiliates": [
+    {
+      "entityId": "51261-67",
+      "affiliateId": "52167-88",
+      "affiliateName": "HotelTonight",
+      "affiliateType": "Subsidiary"
+    },
+    {
+      "entityId": "51261-67",
+      "affiliateId": "57018-43",
+      "affiliateName": "Minbox",
+      "affiliateType": "Subsidiary"
+    },
+    {
+      "entityId": "51261-67",
+      "affiliateId": "161125-93",
+      "affiliateName": "Urbandoor",
+      "affiliateType": "Subsidiary"
+    }
+  ],
+  "pitchbook_entity_news": [
+    {
+      "entityId": "10377-37",
+      "title": "Tuesday's Market Minute: Tesla (TSLA) & the E.V. Industry",
+      "byline": "Tesla (NASDAQ: TSLA) dropped prices on the U.S. Model X & S for the second time this year yesterday, by about 9% and 5%, respectively. Tesla\u2019s earlier price cuts in January, which were as high as 20%, were possibly to make the luxury cars eligible...",
+      "source": "Long Bridge",
+      "publishDate": "2023-03-07T17:12:21",
+      "url": "https://longportapp.com/news/81734029"
+    },
+    {
+      "entityId": "10377-37",
+      "title": "Tesla cuts prices of top US models",
+      "byline": "Fifth price adjustment since the start of 2023",
+      "source": "Just Auto",
+      "publishDate": "2023-03-07T11:02:19",
+      "url": "https://www.just-auto.com/news/tesla-cuts-prices-of-top-us-models/"
+    },
+    {
+      "entityId": "10377-37",
+      "title": "Despite any warning, Tesla is reopening the electric car market. Freewheeling Elon Musk?",
+      "byline": "Despite any warning, Tesla is reopening the electric car market. Freewheeling Elon Musk?",
+      "source": "Game News 24",
+      "publishDate": "2023-03-07T10:56:16",
+      "url": "https://game-news24.com/2023/03/07/despite-any-warning-tesla-is-reopening-the-electric-car-market-freewheeling-elon-musk/"
+    }
+  ],
+  "pitchbook_entity_updates": {
+    "updates": {
+      "Entity Locations": "No",
+      "Entity Affiliates": "No",
+      "Entity People": "No"
+    }
+  },
+  "pitchbook_company_search": {
+    "stats": {
+      "total": 864,
+      "perPage": 25,
+      "page": 1,
+      "lastPage": 35
+    },
+    "items": [
+      {
+        "companyId": "102196-63",
+        "companyName": "Wisdo Health",
+        "website": "www.wisdo.com"
+      },
+      {
+        "companyId": "187513-39",
+        "companyName": "Agricolum",
+        "website": "www.agricolum.com"
+      },
+      {
+        "companyId": "222511-24",
+        "companyName": "OneSoil",
+        "website": "www.onesoil.ai"
+      }
+    ]
+  },
+  "pitchbook_company_bio": {
+    "companyId": "10618-03",
+    "companyName": {
+      "formalName": "Jaguar Land Rover Automotive",
+      "alsoKnownAs": "Jaguar Land Rover",
+      "legalName": "Jaguar Land Rover Automotive PLC",
+      "formerlyKnownAs": "Jaguar Land Rover PLC"
+    },
+    "parentCompanyId": "41517-91",
+    "parentCompanyName": "Tata Motors",
+    "hqLocation": {
+      "city": "Coventry",
+      "stateProvince": "England",
+      "postCode": "CV3 4LF",
+      "country": "United Kingdom"
+    },
+    "description": "Manufacturer and distributor of automobiles and spare parts based in Coventry, England, United Kingdom. The company engages in the manufacturing and marketing of automobiles such as luxury sedans, sports cars and off-road vehicles, along with designing spare parts and other automotive components.",
+    "financingStatus": {
+      "code": "CBOA",
+      "description": "Corporate Backed or Acquired"
+    },
+    "businessStatus": {
+      "code": "PROF",
+      "description": "Profitable"
+    },
+    "ownershipStatus": {
+      "code": "ACQOS",
+      "description": "Acquired/Merged (Operating Subsidiary)"
+    },
+    "universe": [
+      {
+        "code": "CSU",
+        "description": "M&A"
+      },
+      {
+        "code": "DEBTU",
+        "description": "Debt Financed"
+      }
+    ],
+    "website": "www.jaguarlandrover.com",
+    "employees": 44000,
+    "employeeHistory": [
+      {
+        "asOfDate": "2023-04-01",
+        "employeeCount": 44000
+      },
+      {
+        "asOfDate": "2022-09-29",
+        "employeeCount": 47000
+      },
+      {
+        "asOfDate": "2022-08-30",
+        "employeeCount": 40000
+      }
+    ],
+    "exchange": null,
+    "ticker": null,
+    "yearFounded": 1922,
+    "financingStatusNote": {
+      "note": "The company received $704.5 million of debt financing in the form of a revolving loan from Bank of China, Bank of Communications, China Construction Bank, Industrial and Commercial Bank of China and Shanghai Pudong Development Bank Company on June 5, 2020. The loan facility can help the company better manage cash flow amid the coronavirus epidemic.",
+      "asOfDate": "2020-06-05"
+    },
+    "totalMoneyRaised": {
+      "amount": 12009834883.64,
+      "currency": "USD",
+      "nativeAmount": 10158638934.67,
+      "nativeCurrency": "EUR",
+      "estimated": false
+    },
+    "sicCodes": [
+      {
+        "code": "3711",
+        "description": "Motor vehicles & passenger car bodies"
+      }
+    ],
+    "morningstarCode": null,
+    "cikCode": null,
+    "companySocialURLs": {
+      "facebookProfileUrl": "https://www.facebook.com/LifeatJLR",
+      "twitterProfileUrl": "https://twitter.com/jlr_news",
+      "linkedInProfileUrl": "https://www.linkedin.com/company/jaguar-land-rover_1"
+    },
+    "pitchBookProfileLink": "https://my.pitchbook.com/profile/10618-03/company/profile"
+  },
+  "pitchbook_company_industries": {
+    "companyId": "51136-75",
+    "industries": [
+      {
+        "industrySector": {
+          "code": "60",
+          "description": "Information Technology"
+        },
+        "industryGroup": {
+          "code": "6050",
+          "description": "Software"
+        },
+        "industryCode": {
+          "code": "605010",
+          "description": "Application Software"
+        },
+        "primary": true
+      },
+      {
+        "industrySector": {
+          "code": "20",
+          "description": "Consumer Products and Services (B2C)"
+        },
+        "industryGroup": {
+          "code": "2080",
+          "description": "Transportation"
+        },
+        "industryCode": {
+          "code": "208020",
+          "description": "Automotive"
+        },
+        "primary": false
+      },
+      {
+        "industrySector": {
+          "code": "20",
+          "description": "Consumer Products and Services (B2C)"
+        },
+        "industryGroup": {
+          "code": "2050",
+          "description": "Restaurants, Hotels and Leisure"
+        },
+        "industryCode": {
+          "code": "205060",
+          "description": "Other Restaurants, Hotels and Leisure"
+        },
+        "primary": false
+      }
+    ],
+    "verticals": [
+      {
+        "code": "AIML",
+        "description": "Artificial Intelligence & Machine Learning"
+      },
+      {
+        "code": "FDC",
+        "description": "FoodTech"
+      },
+      {
+        "code": "MLT",
+        "description": "Mobility Tech"
+      }
+    ],
+    "keywords": ["cab booking platform", "cab booking portal", "food delivery"],
+    "emergingSpaces": []
+  },
+  "pitchbook_company_investors": {
+    "countAllInvestors": 201,
+    "investors": [
+      {
+        "companyId": "51136-75",
+        "investorId": "11776-33",
+        "investorName": "Axel Springer",
+        "investorTypes": [
+          {
+            "type": {
+              "code": "CA",
+              "description": "PE-Backed Company"
+            },
+            "primary": true
+          },
+          {
+            "type": {
+              "code": "CO",
+              "description": "Corporation"
+            },
+            "primary": false
+          }
+        ],
+        "investorSince": "2019-05-10",
+        "investorExit": null,
+        "investorStatus": {
+          "code": "WO",
+          "description": "Former Investor"
+        }
+      },
+      {
+        "companyId": "51136-75",
+        "investorId": "126970-03",
+        "investorName": "HOF Capital",
+        "investorTypes": [
+          {
+            "type": {
+              "code": "VC",
+              "description": "Venture Capital"
+            },
+            "primary": true
+          }
+        ],
+        "investorSince": "2019-05-10",
+        "investorExit": null,
+        "investorStatus": {
+          "code": "WO",
+          "description": "Former Investor"
+        }
+      },
+      {
+        "companyId": "51136-75",
+        "investorId": "10727-11",
+        "investorName": "PayPal Holdings",
+        "investorTypes": [
+          {
+            "type": {
+              "code": "VCBK",
+              "description": "VC-Backed Company"
+            },
+            "primary": false
+          },
+          {
+            "type": {
+              "code": "CO",
+              "description": "Corporation"
+            },
+            "primary": true
+          },
+          {
+            "type": {
+              "code": "ACINC",
+              "description": "Accelerator/Incubator"
+            },
+            "primary": false
+          }
+        ],
+        "investorSince": "2019-05-10",
+        "investorExit": null,
+        "investorStatus": {
+          "code": "ACT",
+          "description": "Active Investor"
+        }
+      }
+    ]
+  },
+  "pitchbook_company_active_investors": [
+    {
+      "companyId": "51136-75",
+      "investorId": "10727-11",
+      "investorName": "PayPal Holdings",
+      "investorTypes": [
+        {
+          "type": {
+            "code": "VCBK",
+            "description": "VC-Backed Company"
+          },
+          "primary": false
+        },
+        {
+          "type": {
+            "code": "CO",
+            "description": "Corporation"
+          },
+          "primary": true
+        },
+        {
+          "type": {
+            "code": "ACINC",
+            "description": "Accelerator/Incubator"
+          },
+          "primary": false
+        }
+      ],
+      "investorSince": "2019-05-10",
+      "holding": "Minority"
+    },
+    {
+      "companyId": "51136-75",
+      "investorId": "264469-24",
+      "investorName": "Polyvalent Capital",
+      "investorTypes": [
+        {
+          "type": {
+            "code": "VC",
+            "description": "Venture Capital"
+          },
+          "primary": true
+        },
+        {
+          "type": {
+            "code": "FO",
+            "description": "Family Office"
+          },
+          "primary": false
+        }
+      ],
+      "investorSince": "2018-12-28",
+      "holding": "Minority"
+    }
+  ],
+  "pitchbook_company_deals": [
+    {
+      "companyId": "51136-75",
+      "dealId": "18019-54T",
+      "dealDate": "2010-09-22",
+      "dealType1": {
+        "code": "Seed",
+        "description": "Seed Round"
+      },
+      "dealType2": null,
+      "dealType3": null,
+      "dealNumber": 1
+    },
+    {
+      "companyId": "51136-75",
+      "dealId": "56494-45T",
+      "dealDate": "2011-01-01",
+      "dealType1": {
+        "code": "SeedA",
+        "description": "Accelerator/Incubator"
+      },
+      "dealType2": null,
+      "dealType3": null,
+      "dealNumber": 2
+    },
+    {
+      "companyId": "51136-75",
+      "dealId": "18058-24T",
+      "dealDate": "2011-02-14",
+      "dealType1": {
+        "code": "EVC",
+        "description": "Early Stage VC"
+      },
+      "dealType2": {
+        "code": "A",
+        "description": "Series A"
+      },
+      "dealType3": null,
+      "dealNumber": 3
+    }
+  ],
+  "pitchbook_company_most_recent_financing": {
+    "companyId": "51136-75",
+    "lastFinancingDealId": "182493-46T",
+    "lastFinancingDate": "2020-05-13",
+    "lastFinancingSize": {
+      "amount": 927978,
+      "currency": "USD",
+      "nativeAmount": 927978,
+      "nativeCurrency": "USD",
+      "estimated": false
+    },
+    "lastFinancingSizeStatus": null,
+    "lastFinancingValuation": null,
+    "lastFinancingValuationStatus": null,
+    "lastFinancingDealType": {
+      "code": "DebtPPP",
+      "description": "Debt - PPP"
+    },
+    "lastFinancingDealType2": null,
+    "lastFinancingDealType3": null,
+    "lastFinancingDealClass": {
+      "code": "D",
+      "description": "Debt"
+    },
+    "lastKnownValuation": {
+      "amount": 75713488425,
+      "currency": "USD",
+      "nativeAmount": 75713488425,
+      "nativeCurrency": "USD",
+      "estimated": false
+    },
+    "lastKnownValuationDate": "2019-05-10",
+    "lastKnownValuationDealType": {
+      "code": "IPO",
+      "description": "IPO"
+    }
+  },
+  "pitchbook_company_most_recent_debt_financing": {
+    "companyId": "51136-75",
+    "lastDebtFinancingDealId": "102608-20T",
+    "lastDebtFinancingDate": "2018-03-22",
+    "lastDebtFinancing": [
+      {
+        "lastDebtFinancingType": {
+          "code": "LOAN",
+          "description": "Loan"
+        },
+        "lastDebtFinancingAmount": {
+          "amount": 1500000000,
+          "currency": "USD",
+          "nativeAmount": 1500000000,
+          "nativeCurrency": "USD",
+          "estimated": false
+        },
+        "seniority": null,
+        "security": null,
+        "subordination": null,
+        "term": null,
+        "additionalDebtCharacteristics": {
+          "unitranche": false,
+          "syndicated": false,
+          "mezzanine": false,
+          "covLite": false,
+          "warrants": false,
+          "convertible": false,
+          "rate": null
+        },
+        "lenders": []
+      }
+    ]
+  },
+  "pitchbook_company_most_recent_financials": {
+    "companyId": "64648-00",
+    "period": 2021,
+    "endDate": "2021-12-31",
+    "enterpriseValue": null,
+    "revenue": {
+      "amount": 200000000,
+      "currency": "USD",
+      "nativeAmount": 200000000,
+      "nativeCurrency": "USD",
+      "estimated": false
+    },
+    "netIncome": null,
+    "ebitda": null,
+    "totalAssets": null,
+    "totalDebt": null
+  },
+  "pitchbook_company_financials": {
+    "companyId": "482061-07",
+    "items": [
+      {
+        "period": "2026",
+        "endDate": "2026-12-31",
+        "enterpriseValue": {
+          "amount": 22557156.16,
+          "currency": "USD",
+          "nativeAmount": 205314100,
+          "nativeCurrency": "SEK",
+          "estimated": false
+        },
+        "revenue": {
+          "amount": 539790.39,
+          "currency": "USD",
+          "nativeAmount": 4913145,
+          "nativeCurrency": "SEK",
+          "estimated": false
+        },
+        "netIncome": {
+          "amount": -4642197.39,
+          "currency": "USD",
+          "nativeAmount": -42253047,
+          "nativeCurrency": "SEK",
+          "estimated": false
+        },
+        "ebitda": {
+          "amount": -4642197.39,
+          "currency": "USD",
+          "nativeAmount": -42253047,
+          "nativeCurrency": "SEK",
+          "estimated": false
+        },
+        "totalAssets": null,
+        "totalDebt": null
+      },
+      {
+        "period": "2025",
+        "endDate": "2025-12-31",
+        "enterpriseValue": {
+          "amount": 22733590.73,
+          "currency": "USD",
+          "nativeAmount": 211644160,
+          "nativeCurrency": "SEK",
+          "estimated": false
+        },
+        "revenue": {
+          "amount": 527741.6,
+          "currency": "USD",
+          "nativeAmount": 4913145,
+          "nativeCurrency": "SEK",
+          "estimated": false
+        },
+        "netIncome": {
+          "amount": -4253597.3,
+          "currency": "USD",
+          "nativeAmount": -39599948.7,
+          "nativeCurrency": "SEK",
+          "estimated": false
+        },
+        "ebitda": {
+          "amount": -4253597.3,
+          "currency": "USD",
+          "nativeAmount": -39599948.7,
+          "nativeCurrency": "SEK",
+          "estimated": false
+        },
+        "totalAssets": null,
+        "totalDebt": null
+      },
+      {
+        "period": "2024",
+        "endDate": "2024-12-31",
+        "enterpriseValue": null,
+        "revenue": {
+          "amount": 3877135.55,
+          "currency": "USD",
+          "nativeAmount": 42661000,
+          "nativeCurrency": "SEK",
+          "estimated": false
+        },
+        "netIncome": {
+          "amount": -3542324.66,
+          "currency": "USD",
+          "nativeAmount": -38977000,
+          "nativeCurrency": "SEK",
+          "estimated": false
+        },
+        "ebitda": {
+          "amount": -3543142.6,
+          "currency": "USD",
+          "nativeAmount": -38986000,
+          "nativeCurrency": "SEK",
+          "estimated": false
+        },
+        "totalAssets": {
+          "amount": 6073309.59,
+          "currency": "USD",
+          "nativeAmount": 66826000,
+          "nativeCurrency": "SEK",
+          "estimated": false
+        },
+        "totalDebt": {
+          "amount": 29355.03,
+          "currency": "USD",
+          "nativeAmount": 323000,
+          "nativeCurrency": "SEK",
+          "estimated": false
+        }
+      }
+    ]
+  },
+  "pitchbook_company_similar_companies": [
+    {
+      "companyId": "51136-75",
+      "similarCompanyId": "50894-65",
+      "similarCompanyName": "Lyft",
+      "similarityScore": 0.9973713,
+      "competitor": true
+    },
+    {
+      "companyId": "51136-75",
+      "similarCompanyId": "58167-28",
+      "similarCompanyName": "DoorDash",
+      "similarityScore": 0.9947426,
+      "competitor": true
+    },
+    {
+      "companyId": "51136-75",
+      "similarCompanyId": "64334-26",
+      "similarCompanyName": "Deliveroo",
+      "similarityScore": 0.9921138,
+      "competitor": true
+    }
+  ],
+  "pitchbook_company_vc_exit_predictions": {
+    "companyId": "111382-48",
+    "predictionDate": "2023-08-07",
+    "opportunityScore": 50,
+    "successClass": "Success",
+    "successProbability": 95,
+    "noexitProbability": 5,
+    "exitClass": "M&A",
+    "ipoProbability": 20,
+    "mergeracquisitionProbability": 75,
+    "vcDealNumber": 7
+  },
+  "pitchbook_company_social_analytics": {
+    "companyId": "51136-75",
+    "growthRate": 0.07,
+    "growthRatePercentile": 90,
+    "growthRateChange": 0,
+    "growthRatePercentChange": -2.22,
+    "webGrowthRate": 0.47,
+    "webGrowthRatePercentile": 94,
+    "socialGrowthRate": -0.02,
+    "socialGrowthRatePercentile": 38,
+    "sizeMultiple": 17485.47,
+    "sizeMultiplePercentile": 100,
+    "sizeMultipleChange": 15.84,
+    "sizeMultiplePercentChange": 0.09,
+    "webSizeMultiple": 5433.2,
+    "webSizeMultiplePercentile": 100,
+    "socialSizeMultiple": 3319.41,
+    "socialSizeMultiplePercentile": 100,
+    "twitterFollowers": 1052346,
+    "twitterFollowersChange": -216,
+    "twitterFollowersPercentChange": -0.02
+  },
+  "pitchbook_company_general_service_providers": {
+    "companyId": "51136-75",
+    "currentGeneralServices": [
+      {
+        "serviceProviderId": "226649-71",
+        "serviceProviderName": "Aksiom",
+        "serviceProviderTypes": [
+          {
+            "type": {
+              "code": "MC",
+              "description": "Management Consultants"
+            },
+            "primary": true
+          },
+          {
+            "type": {
+              "code": "FIA",
+              "description": "Financing Advisory"
+            },
+            "primary": false
+          }
+        ],
+        "serviceProvided": {
+          "code": "CON",
+          "description": "Consulting"
+        }
+      },
+      {
+        "serviceProviderId": "223987-51",
+        "serviceProviderName": "Cadre Talent",
+        "serviceProviderTypes": [
+          {
+            "type": {
+              "code": "RECF",
+              "description": "Recruiting Firm"
+            },
+            "primary": true
+          }
+        ],
+        "serviceProvided": {
+          "code": "CON",
+          "description": "Consulting"
+        }
+      },
+      {
+        "serviceProviderId": "121356-64",
+        "serviceProviderName": "Clarity Consultants",
+        "serviceProviderTypes": [
+          {
+            "type": {
+              "code": "MC",
+              "description": "Management Consultants"
+            },
+            "primary": true
+          }
+        ],
+        "serviceProvided": {
+          "code": "CON",
+          "description": "Consulting"
+        }
+      }
+    ],
+    "formerGeneralServices": [
+      {
+        "serviceProviderId": "231521-14",
+        "serviceProviderName": "Network Control",
+        "serviceProviderTypes": [
+          {
+            "type": {
+              "code": "OSP",
+              "description": "Other Service Provider Type"
+            },
+            "primary": true
+          }
+        ],
+        "serviceProvided": {
+          "code": "CON",
+          "description": "Consulting"
+        }
+      },
+      {
+        "serviceProviderId": "51538-87",
+        "serviceProviderName": "Silicon Legal Strategy",
+        "serviceProviderTypes": [
+          {
+            "type": {
+              "code": "LGL",
+              "description": "Law Firm"
+            },
+            "primary": true
+          },
+          {
+            "type": {
+              "code": "MC",
+              "description": "Management Consultants"
+            },
+            "primary": false
+          }
+        ],
+        "serviceProvided": {
+          "code": "LAD",
+          "description": "Legal Advisor"
+        }
+      }
+    ]
+  },
+  "pitchbook_company_deal_service_providers": [
+    {
+      "serviceProviderId": "60975-91",
+      "serviceProviderName": "Academy Securities",
+      "serviceProviderTypes": [
+        {
+          "type": {
+            "code": "IB",
+            "description": "Investment Bank"
+          },
+          "primary": true
+        },
+        {
+          "type": {
+            "code": "OSP",
+            "description": "Other Service Provider Type"
+          },
+          "primary": false
+        }
+      ],
+      "serviceProvided": {
+        "code": "UND",
+        "description": "Underwriter"
+      },
+      "dealIdServiceProvided": "114489-37T"
+    },
+    {
+      "serviceProviderId": "10382-32",
+      "serviceProviderName": "Allen & Company",
+      "serviceProviderTypes": [
+        {
+          "type": {
+            "code": "IB",
+            "description": "Investment Bank"
+          },
+          "primary": true
+        },
+        {
+          "type": {
+            "code": "FIA",
+            "description": "Financing Advisory"
+          },
+          "primary": false
+        },
+        {
+          "type": {
+            "code": "IN",
+            "description": "Insurance Firm"
+          },
+          "primary": false
+        }
+      ],
+      "serviceProvided": {
+        "code": "UND",
+        "description": "Underwriter"
+      },
+      "dealIdServiceProvided": "114489-37T"
+    },
+    {
+      "serviceProviderId": "10091-08",
+      "serviceProviderName": "Bank of America",
+      "serviceProviderTypes": [
+        {
+          "type": {
+            "code": "CB",
+            "description": "Commercial Bank"
+          },
+          "primary": true
+        },
+        {
+          "type": {
+            "code": "FIA",
+            "description": "Financing Advisory"
+          },
+          "primary": false
+        }
+      ],
+      "serviceProvided": {
+        "code": "UND",
+        "description": "Underwriter"
+      },
+      "dealIdServiceProvided": "114489-37T"
+    }
+  ],
+  "pitchbook_company_updates": {
+    "updates": {
+      "Company Active Investors": "No",
+      "Company Most Recent Financing": "No",
+      "Company Bio": "No",
+      "Company Industry": "No",
+      "Company Deals": "No",
+      "Company General Service Providers": "No",
+      "Company Deal Service Providers": "No",
+      "Company All Investors": "No"
+    }
+  },
+  "pitchbook_patent_search": {
+    "companyId": "51136-75",
+    "stats": {
+      "total": 425,
+      "perPage": 25,
+      "page": 1,
+      "lastPage": 17
+    },
+    "items": [
+      {
+        "patentId": "EP-3167426-B1",
+        "patentTitle": "System and methods for facilitating real-time carpooling",
+        "status": "Active",
+        "publicationDate": "2024-06-12",
+        "firstFilingDate": "2014-05-06",
+        "expirationDate": "2035-05-06",
+        "filingAuthorityLocation": "EP",
+        "cpcSection": {
+          "code": "G",
+          "description": "Physics"
+        },
+        "cpcClass": {
+          "code": "G08",
+          "description": "Signalling"
+        },
+        "cpcSubclass": {
+          "code": "G08G",
+          "description": "Traffic control systems (guiding railway traffic, ensuring the safety of railway traffic b61l; arrangement of road signs or traffic signals e01f9/00; radar or analogous systems, sonar systems, lidar systems specially adapted for traffic control g01s13/91, g01s15/88, g01s17/88;radar or analogous systems, sonar systems, lidar systems specially adapted for anti-collision purposes g01s13/93, g01s15/93"
+        }
+      },
+      {
+        "patentId": "US-12008610-B2",
+        "patentTitle": "Implementing and optimizing safety interventions",
+        "status": "Active",
+        "publicationDate": "2024-06-11",
+        "firstFilingDate": "2023-06-29",
+        "expirationDate": "2036-11-30",
+        "filingAuthorityLocation": "US",
+        "cpcSection": {
+          "code": "G",
+          "description": "Physics"
+        },
+        "cpcClass": {
+          "code": "G06",
+          "description": "Computing; calculating or counting"
+        },
+        "cpcSubclass": {
+          "code": "G06Q",
+          "description": "Information and communication technology [ict] specially adapted for administrative, commercial, financial, managerial or supervisory purposes; systems or methods specially adapted for administrative, commercial, financial, managerial or supervisory purposes, not otherwise provided for"
+        }
+      },
+      {
+        "patentId": "US-12008492-B2",
+        "patentTitle": "On-demand transport services",
+        "status": "Active",
+        "publicationDate": "2024-06-11",
+        "firstFilingDate": "2023-06-05",
+        "expirationDate": "2040-02-14",
+        "filingAuthorityLocation": "US",
+        "cpcSection": {
+          "code": "G",
+          "description": "Physics"
+        },
+        "cpcClass": {
+          "code": "G06",
+          "description": "Computing; calculating or counting"
+        },
+        "cpcSubclass": {
+          "code": "G06Q",
+          "description": "Information and communication technology [ict] specially adapted for administrative, commercial, financial, managerial or supervisory purposes; systems or methods specially adapted for administrative, commercial, financial, managerial or supervisory purposes, not otherwise provided for"
+        }
+      }
+    ]
+  },
+  "pitchbook_patent_detailed": {
+    "patentId": "US-20200336512-A1",
+    "patentTitle": "System and method for organizing a plurality of local meeting groups",
+    "status": "Active",
+    "publicationDate": "2020-10-22",
+    "firstFilingDate": "2015-05-18",
+    "expirationDate": null,
+    "filingAuthorityLocation": "US",
+    "cpcSection": {
+      "code": "H",
+      "description": "Electricity"
+    },
+    "cpcClass": {
+      "code": "H04",
+      "description": "Electric communication technique"
+    },
+    "cpcSubclass": {
+      "code": "H04W",
+      "description": "Wireless communication networks (broadcast communication h04h; communication systems using wireless links for non-selective communication, e.g. wireless extensions h04m1/72)"
+    },
+    "currentAssigneeNames": ["Meetup LLC"],
+    "originalAssigneeNames": [],
+    "mostRecentLegalStatus": "Assignment",
+    "mostRecentLegalStatusDate": "2024-01-24",
+    "applicationDate": "2020-03-30",
+    "grantDate": "2020-10-22",
+    "familyId": "57325854",
+    "inventors": ["Beniflah Odile", "Levine Jake", "Pashman David"],
+    "documentForwardCitations": 0,
+    "documentBackwardCitations": 0,
+    "countOfClaims": 20,
+    "countOfIndependentClaims": 3,
+    "patentDownloadUrl": "https://api.pitchbook.com/companies/patents/US-20200336512-A1/download"
+  },
+  "pitchbook_deal_search": {
+    "stats": {
+      "total": 11225,
+      "perPage": 25,
+      "page": 1,
+      "lastPage": 449
+    },
+    "items": [
+      {
+        "dealId": "29702-44T",
+        "companyId": "59648-68",
+        "companyName": "Bridgemarq Real Estate Services"
+      },
+      {
+        "dealId": "67972-60T",
+        "companyId": "94637-71",
+        "companyName": "Unknown Worlds Entertainment"
+      },
+      {
+        "dealId": "77466-52T",
+        "companyId": "51251-05",
+        "companyName": "Genworth Financial"
+      }
+    ]
+  },
+  "pitchbook_deal_bio": {
+    "dealId": "52721-65T",
+    "dealNumber": 1,
+    "companyId": "118990-00",
+    "companyName": "Owl Labs",
+    "dealAnnouncedDate": null,
+    "dealDate": "2015-06-10",
+    "dealSize": {
+      "amount": 1300001,
+      "currency": "USD",
+      "nativeAmount": 1300001,
+      "nativeCurrency": "USD",
+      "estimated": false
+    },
+    "dealSizeStatus": "Actual",
+    "dealStatus": {
+      "code": "COMP",
+      "description": "Completed"
+    },
+    "dealType1": {
+      "code": "Seed",
+      "description": "Seed Round"
+    },
+    "dealType2": null,
+    "dealType3": null,
+    "dealClass": {
+      "code": "VC",
+      "description": "Venture Capital"
+    },
+    "valuationAvailable": true,
+    "capTableAvailable": true,
+    "trancheInfoAvailable": false,
+    "debtLenderInfoAvailable": false
+  },
+  "pitchbook_deal_detailed": {
+    "dealId": "52721-65T",
+    "dealNumber": 1,
+    "companyId": "118990-00",
+    "companyName": "Owl Labs",
+    "dealDate": "2015-06-10",
+    "dealSize": {
+      "amount": 1300001,
+      "currency": "USD",
+      "nativeAmount": 1300001,
+      "nativeCurrency": "USD",
+      "estimated": false
+    },
+    "dealSizeStatus": "Actual",
+    "dealStatus": {
+      "code": "COMP",
+      "description": "Completed"
+    },
+    "percentAcquired": 12.75,
+    "raisedToDate": {
+      "amount": 1300001,
+      "currency": "USD",
+      "nativeAmount": 1300001,
+      "nativeCurrency": "USD",
+      "estimated": false
+    },
+    "vcRound": "1st Round",
+    "vcRoundUpDownFlat": null,
+    "totalInvestedCapital": {
+      "amount": 1300001,
+      "currency": "USD",
+      "nativeAmount": 1300001,
+      "nativeCurrency": "USD",
+      "estimated": false
+    },
+    "investorOwnership": 12.745105048827089,
+    "stockSplit": "1:1",
+    "dealType1": {
+      "code": "Seed",
+      "description": "Seed Round"
+    },
+    "dealType2": null,
+    "dealType3": null,
+    "dealClass": {
+      "code": "VC",
+      "description": "Venture Capital"
+    },
+    "dealSynopsis": "The company raised $1.3 million of seed funding in a deal led by Playground Global and Bantam Group on June 10, 2015, putting the company's pre-money valuation at $8.9 million. Other undisclosed investors also participated in this round.",
+    "totalInvestedEquity": {
+      "amount": 1300001,
+      "currency": "USD",
+      "nativeAmount": 1300001,
+      "nativeCurrency": "USD",
+      "estimated": false
+    },
+    "debtType1": null,
+    "debtType2": null,
+    "debtType3": null,
+    "debtAmount1": null,
+    "debtAmount2": null,
+    "debtAmount3": null,
+    "debtRaisedInRound": null,
+    "contingentPayout": null,
+    "valuationAvailable": true,
+    "capTableAvailable": true,
+    "trancheInfoAvailable": false,
+    "debtLenderInfoAvailable": false
+  },
+  "pitchbook_deal_valuation": {
+    "dealId": "52721-65T",
+    "dealNumber": 1,
+    "companyId": "118990-00",
+    "companyName": "Owl Labs",
+    "preValuation": {
+      "amount": 8900000,
+      "currency": "USD",
+      "nativeAmount": 8900000,
+      "nativeCurrency": "USD",
+      "estimated": false
+    },
+    "postValuation": {
+      "amount": 10200000,
+      "currency": "USD",
+      "nativeAmount": 10200000,
+      "nativeCurrency": "USD",
+      "estimated": false
+    },
+    "postValuationStatus": "Actual"
+  },
+  "pitchbook_deal_multiples": {
+    "dealId": "61191-01T",
+    "dealNumber": 2,
+    "companyId": "96310-18",
+    "companyName": "LCH",
+    "dealSizeToCashFlow": 0.09,
+    "dealSizeToEBIT": 1.83,
+    "dealSizeToEBITDA": 1.8,
+    "dealSizeToNetIncome": null,
+    "dealSizeToRevenue": 1,
+    "debtRaisedInRoundToEBITDA": null,
+    "debtRaisedInRoundToEquity": null,
+    "impliedEvToCashFlow": 0.09,
+    "impliedEvToEBIT": 1.83,
+    "impliedEvToEBITDA": 1.8,
+    "impliedEvToNetIncome": null,
+    "impliedEvToRevenue": 1,
+    "valuationToCashFlow": 0.09,
+    "valuationToEBIT": 1.83,
+    "valuationToEBITDA": 1.8,
+    "valuationToNetIncome": null,
+    "valuationToRevenue": 1
+  },
+  "pitchbook_deal_investors": {
+    "dealId": "52721-65T",
+    "companyId": "118990-00",
+    "companyName": "Owl Labs",
+    "investors": [
+      {
+        "investorId": "51427-00",
+        "investorName": "Bantam Group",
+        "investmentStatus": "New Investor",
+        "leadSoleInvestor": true,
+        "leadPartnerId": null,
+        "leadPartnerName": null,
+        "investorFunds": [],
+        "investmentAmount": null,
+        "formOfPayment": {
+          "code": "C",
+          "description": "Cash"
+        }
+      },
+      {
+        "investorId": "111213-01",
+        "investorName": "Playground Global",
+        "investmentStatus": "New Investor",
+        "leadSoleInvestor": true,
+        "leadPartnerId": "44974-99P",
+        "leadPartnerName": "Bruce Leak",
+        "investorFunds": [
+          {
+            "fundId": "15333-31F",
+            "fundName": "Playground Ventures"
+          }
+        ],
+        "investmentAmount": null,
+        "formOfPayment": {
+          "code": "C",
+          "description": "Cash"
+        }
+      }
+    ],
+    "sellers": [],
+    "exiters": []
+  },
+  "pitchbook_deal_stock_info": {
+    "dealId": "52721-65T",
+    "dealNumber": 1,
+    "companyId": "118990-00",
+    "companyName": "Owl Labs",
+    "series": "Seed",
+    "pricePerShare": {
+      "amount": 1.38,
+      "currency": "USD",
+      "nativeAmount": 1.38,
+      "nativeCurrency": "USD",
+      "estimated": false
+    },
+    "stockType": null,
+    "numberOfSharesAcquired": 944768,
+    "sharesSought": 1025509,
+    "conversionRatio": "1",
+    "liquidationPreferences": "Senior",
+    "liquidationParticipating": "Non-participating",
+    "dividendRights": "Yes",
+    "cumulativeness": "Non-Cumulative",
+    "antiDilutionProvisions": "Weighted Average",
+    "redemptionRights": null,
+    "boardVotingRights": "Yes",
+    "generalVotingRights": "Yes"
+  },
+  "pitchbook_deal_cap_table_history": [
+    {
+      "dealId": "52721-65T",
+      "dealNumber": 1,
+      "companyId": "118990-00",
+      "companyName": "Owl Labs",
+      "stockSeries": "Seed",
+      "numberOfSharesAuthorized": 1025509,
+      "parValue": {
+        "amount": 0.0001,
+        "currency": "USD",
+        "nativeAmount": 0.0001,
+        "nativeCurrency": "USD",
+        "estimated": false
+      },
+      "dividendRate": 6,
+      "dividendAmount": null,
+      "originalIssuePrice": {
+        "amount": 1.38,
+        "currency": "USD",
+        "nativeAmount": 1.38,
+        "nativeCurrency": "USD",
+        "estimated": false
+      },
+      "liquidationPrice": {
+        "amount": 1.38,
+        "currency": "USD",
+        "nativeAmount": 1.38,
+        "nativeCurrency": "USD",
+        "estimated": false
+      },
+      "liquidationPreferenceMultiple": 1,
+      "conversionPrice": {
+        "amount": 1.38,
+        "currency": "USD",
+        "nativeAmount": 1.38,
+        "nativeCurrency": "USD",
+        "estimated": false
+      },
+      "percentOwned": 12.75
+    }
+  ],
+  "pitchbook_deal_tranche_info": {
+    "dealId": "59937-31T",
+    "dealNumber": 12,
+    "company": {
+      "id": "51136-75",
+      "name": "Uber"
+    },
+    "tranches": [
+      {
+        "trancheSize": {
+          "amount": 2000000000,
+          "currency": "USD",
+          "nativeAmount": 2000000000,
+          "nativeCurrency": "USD",
+          "estimated": false
+        },
+        "trancheSizeStatus": "Actual",
+        "trancheDate": "2016-02-09",
+        "financingType": {
+          "code": "LVC",
+          "description": "Later Stage VC"
+        },
+        "stockType": {
+          "code": "PPREF",
+          "description": "Participating Preferred"
+        },
+        "stockSeriesType": "G",
+        "conversionStatus": null,
+        "conversionDate": null,
+        "investor": null,
+        "investor2": {
+          "id": "42873-94",
+          "name": "Tiger Global Management"
+        },
+        "investor3": {
+          "id": "109556-20",
+          "name": "LetterOne"
+        }
+      },
+      {
+        "trancheSize": null,
+        "trancheSizeStatus": "Actual",
+        "trancheDate": "2016-05-24",
+        "financingType": {
+          "code": "Corp",
+          "description": "Corporate"
+        },
+        "stockType": {
+          "code": "PPREF",
+          "description": "Participating Preferred"
+        },
+        "stockSeriesType": "G",
+        "conversionStatus": null,
+        "conversionDate": null,
+        "investor": {
+          "id": "41518-00",
+          "name": "Toyota Motor"
+        },
+        "investor2": null,
+        "investor3": null
+      },
+      {
+        "trancheSize": {
+          "amount": 3500000000,
+          "currency": "USD",
+          "nativeAmount": 3500000000,
+          "nativeCurrency": "USD",
+          "estimated": false
+        },
+        "trancheSizeStatus": "Actual",
+        "trancheDate": "2016-06-01",
+        "financingType": {
+          "code": "LVC",
+          "description": "Later Stage VC"
+        },
+        "stockType": null,
+        "stockSeriesType": "G",
+        "conversionStatus": null,
+        "conversionDate": null,
+        "investor": {
+          "id": "52314-76",
+          "name": "Saudi Arabia's Public Investment Fund"
+        },
+        "investor2": null,
+        "investor3": null
+      }
+    ]
+  },
+  "pitchbook_deal_debt_lenders": {
+    "dealId": "103770-37T",
+    "dealNumber": 1,
+    "company": {
+      "id": "227270-89",
+      "name": "& Talent"
+    },
+    "debts": [
+      {
+        "debtSize": null,
+        "paymentInKind": null,
+        "debtType": {
+          "code": "OTHER",
+          "description": "Other"
+        },
+        "seniority": null,
+        "security": null,
+        "subordination": null,
+        "term": null,
+        "additionalDebtCharacteristics": {
+          "unitranche": false,
+          "syndicated": false,
+          "mezzanine": false,
+          "covLite": false,
+          "warrants": false,
+          "convertible": false,
+          "rate": null
+        },
+        "maturityDate": null,
+        "spreadInterestRate": null,
+        "lenders": [
+          {
+            "lenderId": "53450-56",
+            "lenderName": "Noordelijke Ontwikkelings Maatschappij",
+            "firmType": "SERVICE_PROVIDER",
+            "serviceProviderType": {
+              "code": "OSP",
+              "description": "Other Service Provider Type"
+            },
+            "lenderSize": null
+          }
+        ]
+      }
+    ]
+  },
+  "pitchbook_deal_service_providers": [
+    {
+      "dealId": "18019-54T",
+      "companyId": "51136-75",
+      "companyName": "Uber",
+      "serviceProviderId": "51538-87",
+      "serviceProviderName": "Silicon Legal Strategy",
+      "serviceProviderTypes": [
+        {
+          "type": {
+            "code": "LGL",
+            "description": "Law Firm"
+          },
+          "primary": true
+        },
+        {
+          "type": {
+            "code": "MC",
+            "description": "Management Consultants"
+          },
+          "primary": false
+        }
+      ],
+      "serviceProvided": {
+        "code": "LAD",
+        "description": "Legal Advisor"
+      },
+      "serviceProvidedToId": "51136-75",
+      "serviceProvidedToName": "Uber",
+      "leadPartnerId": null,
+      "leadPartnerName": null
+    }
+  ],
+  "pitchbook_deal_updates": {
+    "updates": {
+      "Deal Tranche Information": "No",
+      "Deal Detailed": "No",
+      "Deal Cap Table History": "No",
+      "Deal Valuation": "No",
+      "Deal Service Providers": "No",
+      "Deal Bio": "No",
+      "Deal Stock Info": "No",
+      "Deal Debt/Lenders": "No",
+      "Deal Multiples": "No",
+      "Deal Investors/Exiters": "No"
+    }
+  },
+  "pitchbook_investor_search": {
+    "stats": {
+      "total": 6,
+      "perPage": 25,
+      "page": 1,
+      "lastPage": 1
+    },
+    "items": [
+      {
+        "investorId": "11194-12",
+        "investorName": "Frazier Healthcare Partners",
+        "website": "www.frazierhealthcare.com"
+      },
+      {
+        "investorId": "11229-85",
+        "investorName": "Madrona Venture Group",
+        "website": "www.madrona.com"
+      },
+      {
+        "investorId": "11919-79",
+        "investorName": "Amazon.com",
+        "website": "www.amazon.com"
+      }
+    ]
+  },
+  "pitchbook_investor_bio": {
+    "investorId": "58781-35",
+    "investorName": {
+      "formalName": "137 Ventures",
+      "alsoKnownAs": "137",
+      "legalName": "137 Ventures Management, LLC",
+      "formerlyKnownAs": null
+    },
+    "hqLocation": {
+      "city": "San Francisco",
+      "stateProvince": "California",
+      "postCode": "94108",
+      "country": "United States"
+    },
+    "description": {
+      "brief": null,
+      "full": "Founded in 2011, 137 Ventures is a growth-stage venture firm that prefers to invest in private technology companies. The firm is based in San Francisco, California."
+    },
+    "investorStatus": {
+      "code": "ACT",
+      "description": "Actively Seeking New Investments"
+    },
+    "investorType": [
+      {
+        "type": {
+          "code": "VC",
+          "description": "Venture Capital"
+        },
+        "primary": true
+      }
+    ],
+    "assetsUnderManagement": {
+      "amount": 1000000000,
+      "currency": "USD",
+      "nativeAmount": 1000000000,
+      "nativeCurrency": "USD",
+      "estimated": false
+    },
+    "dryPowder": {
+      "amount": 290997281.36,
+      "currency": "USD",
+      "nativeAmount": 290997281.36,
+      "nativeCurrency": "USD",
+      "estimated": false
+    },
+    "yearFounded": 2011,
+    "website": "www.137ventures.com",
+    "countInvestmentProfessionals": 8,
+    "tradeAssociations": []
+  },
+  "pitchbook_investor_investments": [
+    {
+      "investorId": "58781-35",
+      "companyId": "53780-77",
+      "companyName": "Wish",
+      "investorStatus": "Former Investor",
+      "investmentDate": "2019-08-01",
+      "investmentDealId": "118141-66T",
+      "exitDate": "2020-12-16",
+      "exitDealId": "155327-14T"
+    },
+    {
+      "investorId": "58781-35",
+      "companyId": "54309-16",
+      "companyName": "Postmates",
+      "investorStatus": "Former Investor",
+      "investmentDate": "2019-02-08",
+      "investmentDealId": "115434-64T",
+      "exitDate": "2020-12-01",
+      "exitDealId": "138831-04T"
+    },
+    {
+      "investorId": "58781-35",
+      "companyId": "51136-75",
+      "companyName": "Uber",
+      "investorStatus": "Former Investor",
+      "investmentDate": "2018-12-28",
+      "investmentDealId": "92819-08T",
+      "exitDate": null,
+      "exitDealId": null
+    }
+  ],
+  "pitchbook_investor_active_investments": [
+    {
+      "investorId": "58781-35",
+      "companyId": "63647-83",
+      "companyName": "Workrise",
+      "investorSince": "2020-03-23",
+      "investmentDealId": "172495-81T",
+      "investmentDate": "2021-05-20"
+    },
+    {
+      "investorId": "58781-35",
+      "companyId": "266143-60",
+      "companyName": "Route (Property and Casualty Insurance)",
+      "investorSince": "2020-12-01",
+      "investmentDealId": "160949-26T",
+      "investmentDate": "2020-12-01"
+    },
+    {
+      "investorId": "58781-35",
+      "companyId": "433000-90",
+      "companyName": "Podium Education",
+      "investorSince": "2020-10-14",
+      "investmentDealId": "137860-48T",
+      "investmentDate": "2020-10-14"
+    }
+  ],
+  "pitchbook_investor_funds": {
+    "investorId": "58781-35",
+    "stats": {
+      "totalFundsOpen": 3,
+      "totalFundsClosed": 4
+    },
+    "minFundSize": {
+      "amount": 50000000,
+      "currency": "USD",
+      "nativeAmount": 50000000,
+      "nativeCurrency": "USD",
+      "estimated": false
+    },
+    "medianFundSize": {
+      "amount": 137951520,
+      "currency": "USD",
+      "nativeAmount": 137951520,
+      "nativeCurrency": "USD",
+      "estimated": false
+    },
+    "maxFundSize": {
+      "amount": 210000000,
+      "currency": "USD",
+      "nativeAmount": 210000000,
+      "nativeCurrency": "USD",
+      "estimated": false
+    },
+    "fundInfo": [
+      {
+        "fundId": "18673-75F",
+        "fundName": "137 Opportunity Fund",
+        "fundType": {
+          "code": "VC",
+          "description": "Venture - General"
+        }
+      },
+      {
+        "fundId": "17664-40F",
+        "fundName": "Astronave Holdings II",
+        "fundType": {
+          "code": "VC",
+          "description": "Venture - General"
+        }
+      },
+      {
+        "fundId": "17669-80F",
+        "fundName": "137 Ventures V",
+        "fundType": {
+          "code": "VC",
+          "description": "Venture - General"
+        }
+      }
+    ]
+  },
+  "pitchbook_investor_last_closed_fund": {
+    "investorId": "58781-35",
+    "fundId": "16210-72F",
+    "fundName": "137 Ventures IV",
+    "fundVintage": 2019,
+    "fundSize": {
+      "amount": 210000000,
+      "currency": "USD",
+      "nativeAmount": 210000000,
+      "nativeCurrency": "USD",
+      "estimated": false
+    },
+    "fundType": {
+      "code": "VC",
+      "description": "Venture - General"
+    },
+    "fundCloseDate": "2019-03-12",
+    "fundOpenDate": null
+  },
+  "pitchbook_investor_preferences": {
+    "investorId": "11134-45",
+    "investorName": "CDH Investments",
+    "preferredInvestmentAmount": {
+      "min": {
+        "amount": 5000000,
+        "currency": "USD",
+        "nativeAmount": 5000000,
+        "nativeCurrency": "USD",
+        "estimated": false
+      },
+      "max": {
+        "amount": 300000000,
+        "currency": "USD",
+        "nativeAmount": 300000000,
+        "nativeCurrency": "USD",
+        "estimated": false
+      }
+    },
+    "preferredDealSize": {
+      "min": {
+        "amount": 5000000,
+        "currency": "USD",
+        "nativeAmount": 5000000,
+        "nativeCurrency": "USD",
+        "estimated": false
+      },
+      "max": {
+        "amount": 1000000000,
+        "currency": "USD",
+        "nativeAmount": 1000000000,
+        "nativeCurrency": "USD",
+        "estimated": false
+      }
+    },
+    "preferredCompanyValuation": {
+      "min": {
+        "amount": 10000000,
+        "currency": "USD",
+        "nativeAmount": 10000000,
+        "nativeCurrency": "USD",
+        "estimated": false
+      },
+      "max": {
+        "amount": 3000000000,
+        "currency": "USD",
+        "nativeAmount": 3000000000,
+        "nativeCurrency": "USD",
+        "estimated": false
+      }
+    },
+    "preferredEbitda": {
+      "min": {
+        "amount": 10000000,
+        "currency": "USD",
+        "nativeAmount": 10000000,
+        "nativeCurrency": "USD",
+        "estimated": false
+      },
+      "max": {
+        "amount": 1000000000,
+        "currency": "USD",
+        "nativeAmount": 1000000000,
+        "nativeCurrency": "USD",
+        "estimated": false
+      }
+    },
+    "preferredEbit": {
+      "min": {
+        "amount": 10000000,
+        "currency": "USD",
+        "nativeAmount": 10000000,
+        "nativeCurrency": "USD",
+        "estimated": false
+      },
+      "max": {
+        "amount": 1000000000,
+        "currency": "USD",
+        "nativeAmount": 1000000000,
+        "nativeCurrency": "USD",
+        "estimated": false
+      }
+    },
+    "preferredRevenue": {
+      "min": {
+        "amount": 100000000,
+        "currency": "USD",
+        "nativeAmount": 100000000,
+        "nativeCurrency": "USD",
+        "estimated": false
+      },
+      "max": {
+        "amount": 5000000000,
+        "currency": "USD",
+        "nativeAmount": 5000000000,
+        "nativeCurrency": "USD",
+        "estimated": false
+      }
+    },
+    "preferredInvestmentHorizon": {
+      "min": 3,
+      "max": 5
+    },
+    "geographicalPreferences": [
+      {
+        "regionGroup": {
+          "code": "gAs",
+          "description": "Asia"
+        },
+        "regionSegment": {
+          "code": "sgEastAsia",
+          "description": "East Asia"
+        },
+        "regionCode": {
+          "code": "cCHI",
+          "description": "China"
+        },
+        "regionState": null
+      }
+    ],
+    "otherInvestmentPreferences": [
+      {
+        "code": "PMINS",
+        "description": "Prefers minority stake"
+      },
+      {
+        "code": "SYND",
+        "description": "Will syndicate"
+      }
+    ],
+    "preferredIndustry": [],
+    "preferredDealTypes": [
+      {
+        "code": "ACQF",
+        "description": "Acquisition Financing"
+      },
+      {
+        "code": "LBO",
+        "description": "Buyout/LBO"
+      },
+      {
+        "code": "CONV",
+        "description": "Convertible Debt"
+      }
+    ],
+    "preferredVerticals": [],
+    "assetPreferences": [
+      {
+        "assetClass": {
+          "code": "RE",
+          "description": "Real Estate"
+        },
+        "subcategory": {
+          "code": "MF",
+          "description": "Multi-family"
+        }
+      },
+      {
+        "assetClass": {
+          "code": "RE",
+          "description": "Real Estate"
+        },
+        "subcategory": {
+          "code": "OFFC",
+          "description": "Office"
+        }
+      },
+      {
+        "assetClass": {
+          "code": "RE",
+          "description": "Real Estate"
+        },
+        "subcategory": {
+          "code": "RTL",
+          "description": "Retail"
+        }
+      }
+    ]
+  },
+  "pitchbook_investor_board_seats": {
+    "investorId": "58781-35",
+    "current": [
+      {
+        "personId": "53352-19P",
+        "personName": "Justin Fishner-Wolfson",
+        "boardCompanyId": "108107-02",
+        "boardCompanyName": "Virgin Hyperloop",
+        "onBoard": true,
+        "boardStartDate": "2016-05-11",
+        "boardEndDate": null,
+        "role": "Board Member"
+      }
+    ],
+    "former": []
+  },
+  "pitchbook_investor_general_service_providers": {
+    "investorId": "11295-73",
+    "currentGeneralServices": [
+      {
+        "serviceProviderId": "56508-22",
+        "serviceProviderName": "AI Partners Executive Search",
+        "serviceProviderTypes": [
+          {
+            "type": {
+              "code": "RECF",
+              "description": "Recruiting Firm"
+            },
+            "primary": true
+          }
+        ],
+        "serviceProvided": {
+          "code": "DADV",
+          "description": "Advisor: General"
+        }
+      },
+      {
+        "serviceProviderId": "226649-71",
+        "serviceProviderName": "Aksiom",
+        "serviceProviderTypes": [
+          {
+            "type": {
+              "code": "MC",
+              "description": "Management Consultants"
+            },
+            "primary": true
+          },
+          {
+            "type": {
+              "code": "FIA",
+              "description": "Financing Advisory"
+            },
+            "primary": false
+          }
+        ],
+        "serviceProvided": {
+          "code": "CON",
+          "description": "Consulting"
+        }
+      },
+      {
+        "serviceProviderId": "20672-74",
+        "serviceProviderName": "Cabrillo Advisors",
+        "serviceProviderTypes": [
+          {
+            "type": {
+              "code": "FIA",
+              "description": "Financing Advisory"
+            },
+            "primary": true
+          },
+          {
+            "type": {
+              "code": "AC",
+              "description": "Accounting/Auditor"
+            },
+            "primary": false
+          },
+          {
+            "type": {
+              "code": "IB",
+              "description": "Investment Bank"
+            },
+            "primary": false
+          }
+        ],
+        "serviceProvided": {
+          "code": "DADV",
+          "description": "Advisor: General"
+        }
+      }
+    ],
+    "formerGeneralServices": []
+  },
+  "pitchbook_investor_deal_service_providers": [
+    {
+      "investorId": "11295-73",
+      "serviceProviderId": "10067-86",
+      "serviceProviderName": "Cooley",
+      "serviceProviderTypes": [
+        {
+          "type": {
+            "code": "LGL",
+            "description": "Law Firm"
+          },
+          "primary": true
+        }
+      ],
+      "serviceProvided": {
+        "code": "LAD",
+        "description": "Legal Advisor"
+      },
+      "dealIdServiceProvided": "170904-16T"
+    },
+    {
+      "investorId": "11295-73",
+      "serviceProviderId": "10034-56",
+      "serviceProviderName": "Goodwin",
+      "serviceProviderTypes": [
+        {
+          "type": {
+            "code": "LGL",
+            "description": "Law Firm"
+          },
+          "primary": true
+        }
+      ],
+      "serviceProvided": {
+        "code": "LAD",
+        "description": "Legal Advisor"
+      },
+      "dealIdServiceProvided": "168265-00T"
+    },
+    {
+      "investorId": "11295-73",
+      "serviceProviderId": "10075-78",
+      "serviceProviderName": "Gunderson Dettmer",
+      "serviceProviderTypes": [
+        {
+          "type": {
+            "code": "LGL",
+            "description": "Law Firm"
+          },
+          "primary": true
+        }
+      ],
+      "serviceProvided": {
+        "code": "LAD",
+        "description": "Legal Advisor"
+      },
+      "dealIdServiceProvided": "165895-66T"
+    }
+  ],
+  "pitchbook_investor_updates": {
+    "updates": {
+      "Investor Bio": "Yes",
+      "Investment Preferences": "No",
+      "All Investments": "No",
+      "Investor Funds": "No",
+      "Active Investments": "No"
+    }
+  },
+  "pitchbook_people_search": {
+    "stats": {
+      "total": 36,
+      "perPage": 25,
+      "page": 1,
+      "lastPage": 2
+    },
+    "items": [
+      {
+        "personId": "13546-09P",
+        "personName": "Oren Etzioni Ph.D",
+        "firmId": "108783-64"
+      },
+      {
+        "personId": "13681-18P",
+        "personName": "Brooke Seawell",
+        "firmId": "44506-99"
+      },
+      {
+        "personId": "13734-28P",
+        "personName": "Victor Chang",
+        "firmId": "44506-99"
+      }
+    ]
+  },
+  "pitchbook_person_bio": {
+    "personId": "217377-01P",
+    "personName": {
+      "full": "Jane Trust",
+      "first": "Jane",
+      "last": "Trust",
+      "middle": "E.",
+      "prefix": null,
+      "suffix": null
+    },
+    "biography": "Ms. Jane E. Trust, Senior Managing Director of Legg Mason & Co., LLC (Legg Mason & Co.) (since 2018); Managing Director of Legg Mason & Co. (2016 to 2018); Officer and/or Trustee/Director of 145 funds associated with Legg Mason Partners Fund Advisor, LLC (LMPFA) or its affiliates (since 2015); President and Chief Executive Officer of LMPFA (since 2015); formerly, Senior Vice President of LMPFA (20",
+    "linkedInProfileUrl": "http://linkedin.com/in/janeevans1/",
+    "gender": "Female",
+    "primaryEntityId": "438757-75",
+    "primaryEntityName": "Western Asset Inflation Linked Opportunities and Income Fund",
+    "primaryEntityType": "Company",
+    "primaryEntityWebsite": null,
+    "primaryPosition": "Chief Executive Officer & Board Member",
+    "primaryOffice": {
+      "location": "New York, NY",
+      "addressLine1": "620 Eighth Avenue",
+      "addressLine2": "49th Floor",
+      "city": "New York",
+      "stateProvince": "New York",
+      "postCode": "10018",
+      "country": "United States",
+      "phone": "+1 (888) 777-0102",
+      "fax": null,
+      "email": null,
+      "globalRegion": "Americas",
+      "globalSubRegion": "North America"
+    }
+  },
+  "pitchbook_person_contact": {
+    "personId": "39058-75P",
+    "fullName": "Robert Fairbairn",
+    "phone": "+1 (800) 882-0052",
+    "fax": null,
+    "email": "robert.fairbairn@blackrock.com"
+  },
+  "pitchbook_person_education_work": {
+    "personId": "53503-66P",
+    "fullName": "Thomas Faust Jr.",
+    "education": [
+      {
+        "institution": "Massachusetts Institute of Technology (MIT)",
+        "degree": "BS (Bachelor of Science)",
+        "yearOfGraduation": 1981
+      },
+      {
+        "institution": "Harvard Business School",
+        "degree": "MBA (Master of Business Administration)",
+        "yearOfGraduation": 1985
+      }
+    ],
+    "companyRoles": [
+      {
+        "companyId": "100146-79",
+        "companyName": "Eaton Vance CA Muni Income Trust",
+        "position": "Trustee",
+        "positionType": "Non-Employee",
+        "positionStatus": "Current",
+        "positionStart": "2007-01-01",
+        "positionFinish": null
+      },
+      {
+        "companyId": "100147-15",
+        "companyName": "Eaton Vance California Municipal Bond Fund",
+        "position": "Trustee",
+        "positionType": "Non-Employee",
+        "positionStatus": "Current",
+        "positionStart": "2007-01-01",
+        "positionFinish": null
+      },
+      {
+        "companyId": "308328-40",
+        "companyName": "Eaton Vance Enhanced Equity Income Fund",
+        "position": "Trustee",
+        "positionType": "Non-Employee",
+        "positionStatus": "Current",
+        "positionStart": "2007-01-01",
+        "positionFinish": null
+      }
+    ],
+    "boardSeats": [
+      {
+        "boardCompanyId": "10641-07",
+        "boardCompanyName": "Eaton Vance",
+        "boardRepresentingId": null,
+        "boardRepresentingName": null,
+        "positionStatus": "Former",
+        "boardStart": "1985-01-01",
+        "boardFinish": null
+      }
+    ],
+    "currentAdvisoryRoles": [],
+    "dealRoles": [
+      {
+        "dealId": "107390-53T",
+        "dealDate": "2018-06-13",
+        "companyId": "54107-11",
+        "companyName": "SigFig",
+        "representingId": "10641-07",
+        "representingName": "Eaton Vance"
+      },
+      {
+        "dealId": "70356-52T",
+        "dealDate": "2016-05-16",
+        "companyId": "54107-11",
+        "companyName": "SigFig",
+        "representingId": "10641-07",
+        "representingName": "Eaton Vance"
+      },
+      {
+        "dealId": "61236-10T",
+        "dealDate": "2012-08-06",
+        "companyId": "111543-40",
+        "companyName": "Hexavest",
+        "representingId": "10641-07",
+        "representingName": "Eaton Vance"
+      }
+    ],
+    "fundRoles": [
+      {
+        "fundId": "13367-08F",
+        "fundName": "Eaton Vance Small Cap Core Fund",
+        "investorId": "10641-07",
+        "investorName": "Eaton Vance",
+        "representingId": "10641-07",
+        "representingName": "Eaton Vance"
+      },
+      {
+        "fundId": "13843-18F",
+        "fundName": "Eaton Vance Global Macro Plus Fund",
+        "investorId": "10641-07",
+        "investorName": "Eaton Vance",
+        "representingId": "10641-07",
+        "representingName": "Eaton Vance"
+      },
+      {
+        "fundId": "15858-19F",
+        "fundName": "Eaton Vance Institutional Senior Loan Plus Fund",
+        "investorId": "10641-07",
+        "investorName": "Eaton Vance",
+        "representingId": "10641-07",
+        "representingName": "Eaton Vance"
+      }
+    ]
+  },
+  "pitchbook_fund_search": {
+    "stats": {
+      "total": 6,
+      "perPage": 25,
+      "page": 1,
+      "lastPage": 1
+    },
+    "items": [
+      {
+        "fundId": "14650-30F",
+        "fundName": "137 Ventures II",
+        "investors": [
+          {
+            "investorId": "58781-35",
+            "investorName": "137 Ventures"
+          }
+        ]
+      },
+      {
+        "fundId": "14651-83F",
+        "fundName": "137 Ventures",
+        "investors": [
+          {
+            "investorId": "58781-35",
+            "investorName": "137 Ventures"
+          }
+        ]
+      },
+      {
+        "fundId": "15139-90F",
+        "fundName": "137 Ventures III",
+        "investors": [
+          {
+            "investorId": "58781-35",
+            "investorName": "137 Ventures"
+          }
+        ]
+      }
+    ]
+  },
+  "pitchbook_fund_bio": {
+    "fundId": "14650-30F",
+    "name": "137 Ventures II",
+    "fundInvestors": [
+      {
+        "investorId": "58781-35",
+        "investorName": "137 Ventures",
+        "fundNo": 2,
+        "firstFund": false
+      }
+    ],
+    "vintage": 2014,
+    "fundStatus": "Closed",
+    "fundType": "Venture - General",
+    "fundSize": {
+      "amount": 137951530,
+      "currency": "USD",
+      "nativeAmount": 137951530,
+      "nativeCurrency": "USD",
+      "estimated": false
+    },
+    "location": {
+      "location": "San Francisco, CA",
+      "addressLine1": "49 Geary Street",
+      "addressLine2": null,
+      "city": "San Francisco",
+      "stateProvince": null,
+      "postCode": "94108",
+      "country": "United States",
+      "phone": "+1 (855) 731-1337",
+      "fax": null,
+      "email": "info@137ventures.com",
+      "globalRegion": "Americas",
+      "globalSubRegion": "North America"
+    },
+    "fundTeam": [
+      {
+        "personId": "42968-89P",
+        "personFullName": "Alda Dennis JD"
+      },
+      {
+        "personId": "30923-20P",
+        "personFullName": "Andrew Laszlo JD"
+      },
+      {
+        "personId": "53352-19P",
+        "personFullName": "Justin Fishner-Wolfson"
+      }
+    ],
+    "openDate": "2013-09-12",
+    "closeDate": "2014-07-09",
+    "fundTargetSize": {
+      "min": {
+        "amount": 137951530,
+        "currency": "USD",
+        "nativeAmount": 137951530,
+        "nativeCurrency": "USD",
+        "estimated": false
+      },
+      "max": null
+    },
+    "sbic": false,
+    "returnsInfoAvailable": []
+  },
+  "pitchbook_fund_performance": {
+    "fundId": "11373-13F",
+    "fundName": "Accel V",
+    "asOfQuarter": 2,
+    "asOfYear": 2020,
+    "irr": 188.44,
+    "dpi": 19.62,
+    "rvpi": 0,
+    "tvpi": 19.62,
+    "nav": 0,
+    "quartile": 1,
+    "numberOfFundsInBenchmark": 8
+  },
+  "pitchbook_fund_benchmark": {
+    "fundId": "13774-15F",
+    "fundName": "Franklin Street Equity Fund II",
+    "benchmarkFundType": {
+      "code": "BO",
+      "description": "Buyout"
+    },
+    "benchmarkFundSize": {
+      "code": "S100M250M_USD",
+      "description": "100M - 249M"
+    },
+    "benchmarkFundLocation": {
+      "code": "gUS",
+      "description": "United States"
+    },
+    "benchmarkFundVintageYear": 2004,
+    "irrBenchmark": 10.53,
+    "dpiBenchmark": 1.22,
+    "tvpiBenchmark": 1.44,
+    "rvpiBenchmark": 0.03,
+    "numberOfFundsInBenchmark": 19,
+    "benchmarkFunds": [
+      {
+        "fundId": "11352-52F",
+        "fundName": "Veritas Capital Fund II"
+      },
+      {
+        "fundId": "12640-15F",
+        "fundName": "Grey Mountain Partners Fund I"
+      },
+      {
+        "fundId": "11276-47F",
+        "fundName": "Sorenson Capital Fund I"
+      }
+    ]
+  },
+  "pitchbook_fund_cash_flows": {
+    "fundId": "11373-13F",
+    "fundName": "Accel V",
+    "asOfQuarter": 4,
+    "asOfYear": 2018,
+    "contributed": {
+      "amount": 150,
+      "currency": "USD",
+      "nativeAmount": 150,
+      "nativeCurrency": "USD",
+      "estimated": false
+    },
+    "percentCalledDown": 100,
+    "dryPowder": {
+      "amount": 0,
+      "currency": "USD",
+      "nativeAmount": 0,
+      "nativeCurrency": "USD",
+      "estimated": false
+    },
+    "percentDryPowder": 0,
+    "distributed": {
+      "amount": 2943.33,
+      "currency": "USD",
+      "nativeAmount": 2943.33,
+      "nativeCurrency": "USD",
+      "estimated": false
+    },
+    "remainingValue": {
+      "amount": 0,
+      "currency": "USD",
+      "nativeAmount": 0,
+      "nativeCurrency": "USD",
+      "estimated": false
+    },
+    "distributedRemaining": {
+      "amount": 2943.33,
+      "currency": "USD",
+      "nativeAmount": 2943.33,
+      "nativeCurrency": "USD",
+      "estimated": false
+    }
+  },
+  "pitchbook_fund_investments": {
+    "fundId": "14650-30F",
+    "fundName": "137 Ventures II",
+    "investments": [
+      {
+        "targetCompanyId": "108107-02",
+        "targetCompanyName": "Virgin Hyperloop",
+        "investmentStatus": "Active Investments",
+        "targetCompanyInvestmentDate": "2016-05-11",
+        "investmentDealId": "57541-42T",
+        "targetCompanyExitDate": null,
+        "exitDealId": null
+      },
+      {
+        "targetCompanyId": "94615-48",
+        "targetCompanyName": "Curology",
+        "investmentStatus": "Active Investments",
+        "targetCompanyInvestmentDate": "2016-04-18",
+        "investmentDealId": "72217-18T",
+        "targetCompanyExitDate": null,
+        "exitDealId": null
+      },
+      {
+        "targetCompanyId": "54244-00",
+        "targetCompanyName": "Course Hero",
+        "investmentStatus": "Active Investments",
+        "targetCompanyInvestmentDate": "2014-11-11",
+        "investmentDealId": "39317-32T",
+        "targetCompanyExitDate": null,
+        "exitDealId": null
+      }
+    ]
+  },
+  "pitchbook_fund_active_investments": [
+    {
+      "fundId": "14650-30F",
+      "targetCompanyId": "108107-02",
+      "targetCompanyName": "Virgin Hyperloop",
+      "targetCompanyInvestmentDate": "2016-05-11",
+      "investmentDealId": "57541-42T"
+    },
+    {
+      "fundId": "14650-30F",
+      "targetCompanyId": "94615-48",
+      "targetCompanyName": "Curology",
+      "targetCompanyInvestmentDate": "2016-04-18",
+      "investmentDealId": "72217-18T"
+    },
+    {
+      "fundId": "14650-30F",
+      "targetCompanyId": "54244-00",
+      "targetCompanyName": "Course Hero",
+      "targetCompanyInvestmentDate": "2014-11-11",
+      "investmentDealId": "39317-32T"
+    }
+  ],
+  "pitchbook_fund_commitments": [
+    {
+      "fundId": "11373-13F",
+      "limitedPartnerId": "65616-67",
+      "limitedPartnerName": "Agilent Technologies Deferred Profit-Sharing Plan",
+      "commitmentDate": "1996-01-01",
+      "commitmentSize": null,
+      "commitmentStatus": {
+        "code": "C",
+        "description": "Current"
+      },
+      "commitmentType": {
+        "code": "OLP",
+        "description": "Original"
+      }
+    },
+    {
+      "fundId": "11373-13F",
+      "limitedPartnerId": "52502-77",
+      "limitedPartnerName": "Agilent Technologies Retirement Plan",
+      "commitmentDate": "1996-01-01",
+      "commitmentSize": null,
+      "commitmentStatus": {
+        "code": "C",
+        "description": "Current"
+      },
+      "commitmentType": {
+        "code": "OLP",
+        "description": "Original"
+      }
+    },
+    {
+      "fundId": "11373-13F",
+      "limitedPartnerId": "65273-68",
+      "limitedPartnerName": "Employees' Retirement Plan of Duke University",
+      "commitmentDate": "1996-01-01",
+      "commitmentSize": null,
+      "commitmentStatus": {
+        "code": "C",
+        "description": "Current"
+      },
+      "commitmentType": {
+        "code": "OLP",
+        "description": "Original"
+      }
+    }
+  ],
+  "pitchbook_fund_investment_preferences": {
+    "fundId": "11373-13F",
+    "preferredInvestmentAmount": null,
+    "preferredDealSize": null,
+    "preferredCompanyValuation": null,
+    "preferredEbitda": null,
+    "preferredEbit": null,
+    "preferredRevenue": null,
+    "preferredInvestmentHorizon": null,
+    "geographicalPreferences": [
+      {
+        "regionGroup": {
+          "code": "gAm",
+          "description": "Americas"
+        },
+        "regionSegment": {
+          "code": "sgNorthAmerica",
+          "description": "North America"
+        },
+        "regionCode": {
+          "code": "cUS",
+          "description": "United States"
+        },
+        "regionState": null
+      }
+    ],
+    "otherInvestmentPreferences": [
+      {
+        "code": "PMINS",
+        "description": "Prefers minority stake"
+      },
+      {
+        "code": "SYND",
+        "description": "Will syndicate"
+      }
+    ],
+    "preferredIndustry": [
+      {
+        "industryCode": null,
+        "industrySector": {
+          "code": "60",
+          "description": "Information Technology"
+        },
+        "industryGroup": {
+          "code": "6010",
+          "description": "Communications and Networking"
+        },
+        "primary": false
+      },
+      {
+        "industryCode": null,
+        "industrySector": {
+          "code": "60",
+          "description": "Information Technology"
+        },
+        "industryGroup": {
+          "code": "6050",
+          "description": "Software"
+        },
+        "primary": false
+      }
+    ],
+    "preferredDealTypes": [
+      {
+        "code": "EVC",
+        "description": "Early Stage VC"
+      },
+      {
+        "code": "Seed",
+        "description": "Seed Round"
+      }
+    ],
+    "preferredVerticals": [
+      {
+        "code": "TMT",
+        "description": "TMT"
+      }
+    ],
+    "assetPreferences": []
+  },
+  "pitchbook_fund_team": {
+    "fundId": "11373-13F",
+    "investorIds": ["10139-41"],
+    "countActiveTeam": 3,
+    "active": [
+      {
+        "id": "15332-05P",
+        "name": "Arthur Patterson",
+        "title": "Co-Founder",
+        "infoAvailable": true
+      },
+      {
+        "id": "35831-17P",
+        "name": "James Flach",
+        "title": "Partner",
+        "infoAvailable": false
+      },
+      {
+        "id": "15332-23P",
+        "name": "James Swartz",
+        "title": "Co-Founder",
+        "infoAvailable": true
+      }
+    ],
+    "former": [
+      {
+        "id": "15331-69P",
+        "name": "James Breyer",
+        "title": "Partner Emeritus",
+        "infoAvailable": true
+      }
+    ]
+  },
+  "pitchbook_fund_updates": {
+    "updates": {
+      "Fund Cash Flows": "No",
+      "Fund Commitments": "No",
+      "Fund Benchmark": "Yes",
+      "Fund Investment Preferences": "No",
+      "Fund All Investments": "No",
+      "Fund Bio": "No",
+      "Fund People": "No"
+    }
+  },
+  "pitchbook_limited_partner_search": {
+    "stats": {
+      "total": 5,
+      "perPage": 25,
+      "page": 1,
+      "lastPage": 1
+    },
+    "items": [
+      {
+        "limitedPartnerId": "10894-78",
+        "limitedPartnerName": "New York State Common Retirement Fund",
+        "website": "www.osc.state.ny.us/common-retirement-fund"
+      },
+      {
+        "limitedPartnerId": "11079-46",
+        "limitedPartnerName": "California Public Employees' Retirement System",
+        "website": "www.calpers.ca.gov"
+      },
+      {
+        "limitedPartnerId": "11105-47",
+        "limitedPartnerName": "Adams Street Partners",
+        "website": "www.adamsstreetpartners.com"
+      }
+    ]
+  },
+  "pitchbook_limited_partner_bio": {
+    "limitedPartnerId": "58901-50",
+    "limitedPartnerName": {
+      "formalName": "Yale University Retirement Plan for Staff Employees",
+      "alsoKnownAs": "YRPSE",
+      "legalName": null,
+      "formerlyKnownAs": null
+    },
+    "description": "Yale University Retirement Plan for Staff Employees (YRPSE) is a single-employer non-contributory defined benefit corporate pension fund based in New Haven, Connecticut. Established in 1969, the plan provides retirement, survivor, death and disability benefits to the employees of Yale University. The assets of the pension fund are managed by the executive management team. Northern Trust serves as ",
+    "limitedPartnerTypes": [
+      {
+        "type": {
+          "code": "CPF",
+          "description": "Corporate Pension"
+        },
+        "primary": true
+      }
+    ],
+    "assetsUnderManagement": {
+      "amount": 1486605000,
+      "currency": "USD",
+      "nativeAmount": 1486605000,
+      "nativeCurrency": "USD",
+      "estimated": false
+    },
+    "yearFounded": 1969,
+    "website": null,
+    "managementStaff": 5
+  },
+  "pitchbook_limited_partner_commitments_detailed": [
+    {
+      "limitedPartnerId": "58901-50",
+      "committedFundId": "14601-79F",
+      "committedFundName": "Avanti Strategic Land Investors II",
+      "committedInvestors": [
+        {
+          "committedInvestorId": "61332-85",
+          "committedInvestorName": "Avanti Properties Group"
+        }
+      ],
+      "commitmentDate": "2014-12-31",
+      "commitmentSize": null,
+      "commitmentStatus": {
+        "code": "C",
+        "description": "Current"
+      },
+      "commitmentType": {
+        "code": "OLP",
+        "description": "Original"
+      }
+    },
+    {
+      "limitedPartnerId": "58901-50",
+      "committedFundId": "14577-49F",
+      "committedFundName": "Sonora Fund II",
+      "committedInvestors": [
+        {
+          "committedInvestorId": "10090-90",
+          "committedInvestorName": "Maples Group"
+        }
+      ],
+      "commitmentDate": "2014-12-31",
+      "commitmentSize": null,
+      "commitmentStatus": {
+        "code": "C",
+        "description": "Current"
+      },
+      "commitmentType": {
+        "code": "OLP",
+        "description": "Original"
+      }
+    },
+    {
+      "limitedPartnerId": "58901-50",
+      "committedFundId": "13471-66F",
+      "committedFundName": "Stockbridge Value Fund",
+      "committedInvestors": [
+        {
+          "committedInvestorId": "10642-33",
+          "committedInvestorName": "Stockbridge Capital Group"
+        }
+      ],
+      "commitmentDate": "2012-06-20",
+      "commitmentSize": {
+        "amount": 34000000,
+        "currency": "USD",
+        "nativeAmount": 34000000,
+        "nativeCurrency": "USD",
+        "estimated": false
+      },
+      "commitmentStatus": {
+        "code": "C",
+        "description": "Current"
+      },
+      "commitmentType": {
+        "code": "OLP",
+        "description": "Original"
+      }
+    }
+  ],
+  "pitchbook_limited_partner_commitment_aggregates": {
+    "limitedPartnerId": "58901-50",
+    "limitedPartnerName": "Yale University Retirement Plan for Staff Employees",
+    "activeCommitmentsInDebtFunds": null,
+    "activeCommitmentsInPeFunds": 22,
+    "activeCommitmentsInReFunds": 11,
+    "activeCommitmentsInVcFunds": 12,
+    "activeCommitmentsInFoFsAnd2nd": null,
+    "activeCommitmentsInInfrastructure": null,
+    "activeCommitmentsInEnergyFunds": null,
+    "activeCommitmentsInOtherFunds": 2,
+    "totalActiveCommitments": 60,
+    "totalCommitmentsInDebtFunds": null,
+    "totalCommitmentsInPeFunds": 22,
+    "totalCommitmentsInReFunds": 11,
+    "totalCommitmentsInVcFunds": 12,
+    "totalCommitmentsInFoFsAnd2nd": null,
+    "totalCommitmentsInInfrastructure": null,
+    "totalCommitmentsInEnergyFunds": null,
+    "totalCommitmentsInOtherFunds": 2,
+    "totalCommitments": 61
+  },
+  "pitchbook_limited_partner_commitment_preferences": {
+    "limitedPartnerId": "58901-50",
+    "limitedPartnerName": "Yale University Retirement Plan for Staff Employees",
+    "preferredCommitmentSize": null,
+    "preferredGeography": [
+      {
+        "code": "gAm",
+        "description": "Americas"
+      },
+      {
+        "code": "gAs",
+        "description": "Asia"
+      },
+      {
+        "code": "cBER",
+        "description": "Bermuda"
+      }
+    ],
+    "preferredFundTypes": [
+      {
+        "code": "BO",
+        "description": "Buyout"
+      },
+      {
+        "code": "COI",
+        "description": "Co-Investment"
+      },
+      {
+        "code": "FOF",
+        "description": "Fund of Funds"
+      }
+    ],
+    "preferredDirectInvestmentSize": null,
+    "otherInvestmentPreferences": []
+  },
+  "pitchbook_limited_partner_actual_allocations": {
+    "limitedPartnerId": "58901-50",
+    "limitedPartnerName": "Yale University Retirement Plan for Staff Employees",
+    "affiliatedFunds": 60,
+    "affiliatedInvestors": 29,
+    "allocations": [
+      {
+        "alternativeInvestments": null,
+        "alternativeInvestmentsPercent": null,
+        "privateEquity": {
+          "amount": 322706000,
+          "currency": "USD",
+          "nativeAmount": 322706000,
+          "nativeCurrency": "USD",
+          "estimated": false
+        },
+        "privateEquityPercent": 22.8,
+        "realEstate": {
+          "amount": 95829000,
+          "currency": "USD",
+          "nativeAmount": 95829000,
+          "nativeCurrency": "USD",
+          "estimated": false
+        },
+        "realEstatePercent": 6.8,
+        "specialOpportunities": null,
+        "specialOpportunitiePercent": null,
+        "hedgeFunds": {
+          "amount": 346320000,
+          "currency": "USD",
+          "nativeAmount": 346320000,
+          "nativeCurrency": "USD",
+          "estimated": false
+        },
+        "hedgeFundsPercent": 24.4,
+        "equities": {
+          "amount": 23306000,
+          "currency": "USD",
+          "nativeAmount": 23306000,
+          "nativeCurrency": "USD",
+          "estimated": false
+        },
+        "equitiesPercent": 1.6,
+        "fixedIncome": {
+          "amount": 112614000,
+          "currency": "USD",
+          "nativeAmount": 112614000,
+          "nativeCurrency": "USD",
+          "estimated": false
+        },
+        "fixedIncomePercent": 7.9,
+        "cash": {
+          "amount": 8102000,
+          "currency": "USD",
+          "nativeAmount": 8102000,
+          "nativeCurrency": "USD",
+          "estimated": false
+        },
+        "cashPercent": 0.6
+      }
+    ]
+  },
+  "pitchbook_limited_partner_target_allocations": {
+    "limitedPartnerId": "10339-57",
+    "limitedPartnerName": "Caisse de d\u00e9p\u00f4t et placement du Qu\u00e9bec",
+    "targetAllocations": [
+      {
+        "policyDescription": "Caisse de d\u00e9p\u00f4t et placement du Qu\u00e9bec's investment portfolio is valued at CAD 378.627 billion, with investments in domestic and international equities, fixed income, infrastructure, natural resources, private equity, real estate, and hedge funds. \n\nInvestments in private equity include buyout, diversified private equity, private equity growth-expansion, and venture capital strategies diversified ",
+        "alternativesMin": null,
+        "alternativesPercentMin": null,
+        "alternativesMax": null,
+        "alternativesPercentMax": null,
+        "privateEquityMin": {
+          "amount": 33991500000,
+          "currency": "USD",
+          "nativeAmount": 33991500000,
+          "nativeCurrency": "USD",
+          "estimated": false
+        },
+        "privateEquityPercentMin": 9.3,
+        "privateEquityMax": {
+          "amount": 65424500000,
+          "currency": "USD",
+          "nativeAmount": 65424500000,
+          "nativeCurrency": "USD",
+          "estimated": false
+        },
+        "privateEquityPercentMax": 17.9,
+        "realEstateMin": {
+          "amount": 29971000000,
+          "currency": "USD",
+          "nativeAmount": 29971000000,
+          "nativeCurrency": "USD",
+          "estimated": false
+        },
+        "realEstatePercentMin": 8.2,
+        "realEstateMax": {
+          "amount": 59211000000,
+          "currency": "USD",
+          "nativeAmount": 59211000000,
+          "nativeCurrency": "USD",
+          "estimated": false
+        },
+        "realEstatePercentMax": 16.2,
+        "specialOpportunitiesMin": null,
+        "specialOpportunitiesPercentMin": null,
+        "specialOpportunitiesMax": null,
+        "specialOpportunitiesPercentMax": null,
+        "hedgeFundsMin": null,
+        "hedgeFundsPercentMin": null,
+        "hedgeFundsMax": null,
+        "hedgeFundsPercentMax": null,
+        "equitiesMin": {
+          "amount": 85892500000,
+          "currency": "USD",
+          "nativeAmount": 85892500000,
+          "nativeCurrency": "USD",
+          "estimated": false
+        },
+        "equitiesPercentMin": 23.5,
+        "equitiesMax": {
+          "amount": 156799500000,
+          "currency": "USD",
+          "nativeAmount": 156799500000,
+          "nativeCurrency": "USD",
+          "estimated": false
+        },
+        "equitiesPercentMax": 42.9,
+        "fixedIncomeMin": {
+          "amount": 73831000000,
+          "currency": "USD",
+          "nativeAmount": 73831000000,
+          "nativeCurrency": "USD",
+          "estimated": false
+        },
+        "fixedIncomePercentMin": 20.2,
+        "fixedIncomeMax": {
+          "amount": 169592000000,
+          "currency": "USD",
+          "nativeAmount": 169592000000,
+          "nativeCurrency": "USD",
+          "estimated": false
+        },
+        "fixedIncomePercentMax": 46.4,
+        "cashMin": null,
+        "cashPercentMin": null,
+        "cashMax": null,
+        "cashPercentMax": null
+      }
+    ]
+  },
+  "pitchbook_limited_partner_service_providers": {
+    "limitedPartnerId": "58901-50",
+    "currentGeneralServices": [
+      {
+        "serviceProviderId": "10466-11",
+        "serviceProviderName": "Aon",
+        "serviceProviderTypes": [
+          {
+            "type": {
+              "code": "FIA",
+              "description": "Financing Advisory"
+            },
+            "primary": true
+          },
+          {
+            "type": {
+              "code": "BI",
+              "description": "Business Intermediary"
+            },
+            "primary": false
+          },
+          {
+            "type": {
+              "code": "LPC",
+              "description": "LP Consultants"
+            },
+            "primary": false
+          }
+        ],
+        "serviceProvided": {
+          "code": "DADVACT",
+          "description": "Advisor: Actuarial"
+        }
+      },
+      {
+        "serviceProviderId": "10014-31",
+        "serviceProviderName": "Deloitte",
+        "serviceProviderTypes": [
+          {
+            "type": {
+              "code": "AC",
+              "description": "Accounting/Auditor"
+            },
+            "primary": true
+          },
+          {
+            "type": {
+              "code": "FIA",
+              "description": "Financing Advisory"
+            },
+            "primary": false
+          },
+          {
+            "type": {
+              "code": "FPA",
+              "description": "Placement Agent (Fundraising)"
+            },
+            "primary": false
+          }
+        ],
+        "serviceProvided": {
+          "code": "ACON",
+          "description": "Accounting"
+        }
+      },
+      {
+        "serviceProviderId": "10016-83",
+        "serviceProviderName": "Grant Thornton",
+        "serviceProviderTypes": [
+          {
+            "type": {
+              "code": "AC",
+              "description": "Accounting/Auditor"
+            },
+            "primary": true
+          },
+          {
+            "type": {
+              "code": "FIA",
+              "description": "Financing Advisory"
+            },
+            "primary": false
+          },
+          {
+            "type": {
+              "code": "IB",
+              "description": "Investment Bank"
+            },
+            "primary": false
+          }
+        ],
+        "serviceProvided": {
+          "code": "AUD",
+          "description": "Auditor"
+        }
+      }
+    ],
+    "formerGeneralServices": [
+      {
+        "serviceProviderId": "10014-76",
+        "serviceProviderName": "PwC",
+        "serviceProviderTypes": [
+          {
+            "type": {
+              "code": "AC",
+              "description": "Accounting/Auditor"
+            },
+            "primary": true
+          },
+          {
+            "type": {
+              "code": "FIA",
+              "description": "Financing Advisory"
+            },
+            "primary": false
+          }
+        ],
+        "serviceProvided": {
+          "code": "AUD",
+          "description": "Auditor"
+        }
+      },
+      {
+        "serviceProviderId": "10394-11",
+        "serviceProviderName": "Stikeman Elliott",
+        "serviceProviderTypes": [
+          {
+            "type": {
+              "code": "LGL",
+              "description": "Law Firm"
+            },
+            "primary": true
+          }
+        ],
+        "serviceProvided": {
+          "code": "LAD",
+          "description": "Legal Advisor"
+        }
+      }
+    ]
+  },
+  "pitchbook_limited_partner_updates": {
+    "updates": {
+      "Limited Partner Commitment Preferences": "No",
+      "Limited Partner Bio": "No",
+      "Limited Partner Commitments Detailed": "No"
+    }
+  },
+  "pitchbook_service_provider_search": {
+    "stats": {
+      "total": 3776,
+      "perPage": 25,
+      "page": 1,
+      "lastPage": 152
+    },
+    "items": [
+      {
+        "serviceProviderId": "10011-61",
+        "serviceProviderName": "Ares Private Equity Group",
+        "website": null
+      },
+      {
+        "serviceProviderId": "10014-04",
+        "serviceProviderName": "Lincoln International",
+        "website": "www.lincolninternational.com"
+      },
+      {
+        "serviceProviderId": "10014-22",
+        "serviceProviderName": "Lazard Middle Market",
+        "website": "www.lazardmm.com"
+      }
+    ]
+  },
+  "pitchbook_service_provider_bio": {
+    "serviceProviderId": "11356-75",
+    "serviceProviderName": {
+      "formalName": "Collins Stewart Wealth Management",
+      "alsoKnownAs": null,
+      "legalName": "Collins Stewart LLC",
+      "formerlyKnownAs": null
+    },
+    "serviceProviderTypes": [
+      {
+        "type": {
+          "code": "FIA",
+          "description": "Financing Advisory"
+        },
+        "primary": false
+      },
+      {
+        "type": {
+          "code": "IB",
+          "description": "Investment Bank"
+        },
+        "primary": true
+      }
+    ],
+    "description": "Collins Stewart was an independent investment banking group with offices in London, New York, Jersey, Guernsey, Isle of Man, Dublin, Paris, Geneva, Singapore, Tel Aviv, Mumbai, and Tokyo. The company was a fundraiser on London's Alternative, Investment Market. the firm's services included fixed income credit trading, corporate broking, corporate finance advisory services, debt capital markets advi",
+    "website": "www.collins-stewart.com",
+    "employees": null,
+    "servicedCompanies": 35,
+    "servicedDeals": 37,
+    "servicedInvestors": 14,
+    "servicedFunds": 0,
+    "servicedLimitedPartners": 0
+  },
+  "pitchbook_serviced_companies": {
+    "serviceProviderId": "11356-75",
+    "serviceProviderName": "Collins Stewart Wealth Management",
+    "currentGeneralServices": [
+      {
+        "entityId": "58546-54",
+        "entityName": "Gaming Technology Solutions",
+        "serviceProvided": {
+          "code": "DADV",
+          "description": "Advisor: General"
+        }
+      }
+    ],
+    "formerGeneralServices": []
+  },
+  "pitchbook_serviced_deals": {
+    "serviceProviderName": "UBS Private Funds Group",
+    "servicedDealInfo": [
+      {
+        "companyId": "168163-39",
+        "companyName": "ATTAbotics",
+        "serviceProvided": {
+          "code": "PA",
+          "description": "Placement Agent"
+        },
+        "dealId": "149100-58T",
+        "dealNumber": 6,
+        "dealDate": "2020-08-18"
+      }
+    ]
+  },
+  "pitchbook_serviced_investors": {
+    "serviceProviderId": "11356-75",
+    "serviceProviderName": "Collins Stewart Wealth Management",
+    "currentGeneralServices": [
+      {
+        "entityId": "10599-67",
+        "entityName": "Headway Capital Partners",
+        "serviceProvided": {
+          "code": "CUDN",
+          "description": "Custodian"
+        }
+      }
+    ],
+    "formerGeneralServices": []
+  },
+  "pitchbook_serviced_funds": {
+    "serviceProviderId": "62181-19",
+    "serviceProviderName": "UBS Private Funds Group",
+    "fundServices": [
+      {
+        "fundId": "11150-02F",
+        "fundName": "3i Eurofund IV",
+        "serviceProvided": {
+          "code": "PA",
+          "description": "Placement Agent"
+        },
+        "servicedEntityType": {
+          "code": "INV",
+          "description": "Investor"
+        }
+      },
+      {
+        "fundId": "11150-38F",
+        "fundName": "3i Eurofund V",
+        "serviceProvided": {
+          "code": "PA",
+          "description": "Placement Agent"
+        },
+        "servicedEntityType": {
+          "code": "INV",
+          "description": "Investor"
+        }
+      },
+      {
+        "fundId": "13391-74F",
+        "fundName": "AEA Investors Fund V",
+        "serviceProvided": {
+          "code": "PA",
+          "description": "Placement Agent"
+        },
+        "servicedEntityType": {
+          "code": "INV",
+          "description": "Investor"
+        }
+      }
+    ]
+  },
+  "pitchbook_serviced_limited_partners": {
+    "serviceProviderId": "62181-19",
+    "serviceProviderName": "UBS Private Funds Group",
+    "currentGeneralServices": [],
+    "formerGeneralServices": [
+      {
+        "entityId": "11269-27",
+        "entityName": "Paul Capital",
+        "serviceProvided": {
+          "code": "PA",
+          "description": "Placement Agent"
+        }
+      }
+    ]
+  },
+  "pitchbook_service_provider_updates": {
+    "updates": {
+      "Serviced Investors": "No",
+      "Service Provider Bio": "No",
+      "Serviced Companies": "No"
+    }
+  },
+  "pitchbook_credit_news_search": {
+    "stats": {
+      "total": 182383,
+      "perPage": 25,
+      "page": 1,
+      "lastPage": 7296
+    },
+    "items": [
+      {
+        "articleId": 12505190,
+        "title": "Sound Physicians reportedly hires PJT Partners amid revenue troubles",
+        "authors": [
+          {
+            "authorName": "Sean Czarnecki"
+          }
+        ],
+        "regions": ["United States"],
+        "publishDate": "2023-08-07T16:45:57.879",
+        "assetClasses": ["Distressed"],
+        "topics": ["People"],
+        "issuer": {
+          "pbId": "12368-80",
+          "name": "Sound Physicians"
+        },
+        "lender": null,
+        "sponsor": null
+      },
+      {
+        "articleId": 12505188,
+        "title": "Tacala launches add-on 1st-lien term loan for dividend; commitments due Aug. 14",
+        "authors": [
+          {
+            "authorName": "Jonathan Hemingway"
+          }
+        ],
+        "regions": ["United States"],
+        "publishDate": "2023-08-07T16:45:46.029",
+        "assetClasses": ["Leveraged Loans"],
+        "topics": ["Amendment", "Covenant-Lite", "Dividends"],
+        "issuer": {
+          "pbId": "55821-70",
+          "name": "Tacala"
+        },
+        "lender": null,
+        "sponsor": {
+          "pbId": "51524-02",
+          "name": "Altamont Capital Partners"
+        }
+      },
+      {
+        "articleId": 12505189,
+        "title": "Greystar Real Estate Partners floats talk for $400M secured notes pitch",
+        "authors": [
+          {
+            "authorName": "Jakema Lewis"
+          }
+        ],
+        "regions": ["United States"],
+        "publishDate": "2023-08-07T16:39:30.413",
+        "assetClasses": ["Bonds"],
+        "topics": ["High Yield Bond", "Leveraged Loan", "Refinancing"],
+        "issuer": {
+          "pbId": "50923-90",
+          "name": "Greystar Real Estate Partners"
+        },
+        "lender": {
+          "pbId": "55545-67",
+          "name": "JP Morgan Chase (NYS: JPM)"
+        },
+        "sponsor": null
+      }
+    ]
+  },
+  "pitchbook_credit_news_most_recent": {
+    "stats": {
+      "total": 228146,
+      "perPage": 25,
+      "page": 1,
+      "lastPage": 9126
+    },
+    "items": [
+      {
+        "articleId": 12505191,
+        "title": "ATI circulates price talk for upsized, seven-year unsecured notes",
+        "authors": [
+          {
+            "authorName": "Jakema Lewis"
+          },
+          {
+            "authorName": "David Cox"
+          }
+        ],
+        "regions": ["United States"],
+        "publishDate": "2023-08-07T17:19:27.013",
+        "assetClasses": ["Bonds"],
+        "topics": ["High Yield Bond"],
+        "issuer": {
+          "pbId": "41149-18",
+          "name": "Allegheny Technologies (NYS: ATI)"
+        },
+        "lender": {
+          "pbId": "10024-75",
+          "name": "Citigroup (NYS: C)"
+        },
+        "sponsor": null
+      },
+      {
+        "articleId": 12505190,
+        "title": "Sound Physicians reportedly hires PJT Partners amid revenue troubles",
+        "authors": [
+          {
+            "authorName": "Sean Czarnecki"
+          }
+        ],
+        "regions": ["United States"],
+        "publishDate": "2023-08-07T16:45:57.879",
+        "assetClasses": ["Distressed"],
+        "topics": ["People"],
+        "issuer": {
+          "pbId": "12368-80",
+          "name": "Sound Physicians"
+        },
+        "lender": null,
+        "sponsor": null
+      },
+      {
+        "articleId": 12505188,
+        "title": "Tacala launches add-on 1st-lien term loan for dividend; commitments due Aug. 14",
+        "authors": [
+          {
+            "authorName": "Jonathan Hemingway"
+          }
+        ],
+        "regions": ["United States"],
+        "publishDate": "2023-08-07T16:45:46.029",
+        "assetClasses": ["Leveraged Loans"],
+        "topics": ["Amendment", "Covenant-Lite", "Dividends"],
+        "issuer": {
+          "pbId": "55821-70",
+          "name": "Tacala"
+        },
+        "lender": null,
+        "sponsor": {
+          "pbId": "51524-02",
+          "name": "Altamont Capital Partners"
+        }
+      }
+    ]
+  },
+  "pitchbook_credit_news": {
+    "articleId": 1312103,
+    "title": "Offer to investors soar on UAL DIP term loan",
+    "authors": [
+      {
+        "authorName": "Staff Reports"
+      }
+    ],
+    "regions": ["United States"],
+    "publishDate": "2002-01-31T11:48:00",
+    "assetClasses": ["Leveraged Loans"],
+    "topics": ["Flex", "Leveraged Loan"],
+    "issuer": {
+      "pbId": "41094-82",
+      "name": "United Airlines Holdings (NAS: UAL)"
+    },
+    "lender": null,
+    "sponsor": null,
+    "articleBody": "New York, Jan. 31 (Standard &amp; Poor's LCD) \u2013 Pricing appears to have firmed at higher levels on the $400 million institutional carve-out of UAL Corp.'s $1.2 billion debtor-in-possession financing. The DIP, which has been underwritten by J.P. Morgan, Citibank/SSB, CIT Group and Bank One, has been in syndication since late last year. Now, institutional investors are being offered the deal at L+65",
+    "attachments": []
+  },
+  "pitchbook_credit_news_bulk": {
+    "stats": {
+      "total": 3,
+      "found": 3,
+      "notFound": 0,
+      "duplicates": 0
+    },
+    "found": [
+      {
+        "articleId": 5302402,
+        "title": "Herbalife's $190M credit gains on better-than-expected rating",
+        "authors": [
+          {
+            "authorName": "Staff Reports"
+          }
+        ],
+        "regions": ["United States"],
+        "publishDate": "2002-05-30T18:14:00",
+        "assetClasses": ["Leveraged Loans"],
+        "topics": ["Leveraged Loan"],
+        "issuer": {
+          "pbId": "10191-43",
+          "name": "Herbalife Nutrition (NYS: HLF)"
+        },
+        "lender": null,
+        "sponsor": null,
+        "articleBody": "New York, May 13 (Standard &amp; Poor's PMD) - The book of commitments is building toward the $190 million bank deal for Herbalife International, according to sources who say deal got a boost when Standard &amp; Poor's delivered a better-than-expected BB- rating to the credit. That rating is at least one notch higher than expected, sources said. Moody's assigned a B1 rating to the credit, as expec",
+        "attachments": [],
+        "deal": null
+      },
+      {
+        "articleId": 2142401,
+        "title": "Therma-Tru moves ahead with reverse-flex on $225M term loan",
+        "authors": [
+          {
+            "authorName": "Staff Reports"
+          }
+        ],
+        "regions": ["United States"],
+        "publishDate": "2002-02-14T10:04:00",
+        "assetClasses": ["Leveraged Loans"],
+        "topics": ["Flex", "Leveraged Loan", "Repayment"],
+        "issuer": {
+          "pbId": "12127-06",
+          "name": "Therma-Tru Doors"
+        },
+        "lender": null,
+        "sponsor": null,
+        "articleBody": "New York, Feb. 14 (Standard &amp; Poor's LCD) - Therma-Tru has reverse-flexed its $255 million B tranche to L+300, a spread that was first available only as a step-down if the company reduced leverage to 2.25x, according to sources. The CIBC World Markets and GE Capital-led credit was launched initially at L+325. Therma-Tru's new credit package totals $330 million and comprises the $255 million TL",
+        "attachments": [],
+        "deal": {
+          "dealId": "230884-39T"
+        }
+      },
+      {
+        "articleId": 11041384,
+        "title": "Notice: S&P Global CDO Conference set for Nov. 11 in NYC",
+        "authors": [
+          {
+            "authorName": "Staff Reports"
+          }
+        ],
+        "regions": ["United States"],
+        "publishDate": "2001-11-04T15:12:01",
+        "assetClasses": ["Bonds"],
+        "topics": ["High Yield Bond", "Repayment"],
+        "issuer": null,
+        "lender": null,
+        "sponsor": null,
+        "articleBody": "New York, Nov. 4 (Standard &amp; Poor's LCD) - Standard &amp; Poor's annual Global CDO Conference will be held on Tuesday, Nov. 11, at the McGraw-Hill Building, 1221 Avenue of the Americas, New York City. This year's CDO Hot Topics panel will include speakers: Patricia Donoghue, FASB's FAS 140 Project Manager Ann McIntosh, FASB's FIN 46 Project Manager Sol Samson, S&amp;P's Chief Corporate Ratings",
+        "attachments": [],
+        "deal": null
+      }
+    ],
+    "notFound": [],
+    "duplicates": []
+  },
+  "pitchbook_contracts_history": [
+    {
+      "contractNumber": "Current Contract Test",
+      "activeContract": true,
+      "pricingModel": "Subscription",
+      "startDate": "2020-04-15",
+      "endDate": "2025-03-31",
+      "creditsUsed": 241364,
+      "creditsChanged": 100000574,
+      "creditsExpired": 0,
+      "creditsRemaining": 99819210,
+      "overageUsed": 0
+    },
+    {
+      "contractNumber": "PPC Test",
+      "activeContract": false,
+      "pricingModel": "Pay-per-Call",
+      "startDate": "2020-04-13",
+      "endDate": null,
+      "creditsUsed": 1075,
+      "creditsChanged": -48925,
+      "creditsExpired": 0,
+      "creditsRemaining": 0,
+      "overageUsed": 0
+    },
+    {
+      "contractNumber": "Test",
+      "activeContract": false,
+      "pricingModel": "Subscription",
+      "startDate": "2020-03-28",
+      "endDate": "2020-04-13",
+      "creditsUsed": 10,
+      "creditsChanged": 2,
+      "creditsExpired": 11992,
+      "creditsRemaining": 0,
+      "overageUsed": 0
+    }
+  ],
+  "pitchbook_credit_history": [
+    {
+      "contractNumber": "Current Contract Test",
+      "activeContract": true,
+      "pricingModel": "Subscription",
+      "creditsUsed": 80,
+      "creditsChanged": 0,
+      "creditsExpired": 0,
+      "creditsRemaining": 99819131,
+      "overageUsed": 0
+    }
+  ],
+  "pitchbook_usage_report": {
+    "stats": {
+      "endpoints": [],
+      "totalCountOfCalls": 0,
+      "totalChargedCredits": 0
+    },
+    "rawData": []
+  },
+  "pitchbook_cost_of_calls": [
+    {
+      "group": "General",
+      "endpoint": "General Search",
+      "initialCost": 0,
+      "refreshCost": 0
+    },
+    {
+      "group": "General",
+      "endpoint": "Shared Search",
+      "initialCost": 0,
+      "refreshCost": 0
+    },
+    {
+      "group": "General",
+      "endpoint": "Entity People",
+      "initialCost": 1,
+      "refreshCost": 1
+    }
+  ],
+  "pitchbook_sandbox_entities": {
+    "entityTypeCounts": {
+      "companies": 187
+    },
+    "companies": [
+      {
+        "companyId": "11009-35",
+        "companyName": "Raymond Loewy International"
+      },
+      {
+        "companyId": "12396-16",
+        "companyName": "Mayfair Hotel & Spa"
+      },
+      {
+        "companyId": "41262-58",
+        "companyName": "Network Equipment Technologies"
+      }
+    ]
+  },
+  "pitchbook_lookup_table_structure": [
+    {
+      "tableName": "INDUSTRY",
+      "tableDescription": "Industries"
+    },
+    {
+      "tableName": "VERTICAL",
+      "tableDescription": "Verticals"
+    },
+    {
+      "tableName": "US_AREA",
+      "tableDescription": "US Area"
+    }
+  ],
+  "pitchbook_lookup_tables": {
+    "items": [
+      {
+        "tableName": "INDUSTRY",
+        "tableDescription": "Industries",
+        "codes": [
+          {
+            "code": "10",
+            "description": "Business Products and Services (B2B)"
+          },
+          {
+            "code": "1010",
+            "description": "Commercial Products"
+          },
+          {
+            "code": "101010",
+            "description": "Aerospace and Defense"
+          }
+        ]
+      }
+    ]
+  }
+}

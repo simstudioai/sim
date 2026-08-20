@@ -93,6 +93,7 @@ import { getDocumentIcon } from '@/app/workspace/[workspaceId]/knowledge/compone
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
+import { BrandIcon } from '@/blocks/brand-icon'
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
 import { useKnowledgeBase, useKnowledgeBaseDocuments } from '@/hooks/kb/use-knowledge'
 import {
@@ -1093,7 +1094,7 @@ export function KnowledgeBase({
                 {connector.status === 'syncing' ? (
                   <Loader className='size-[14px]' animate />
                 ) : (
-                  ConnectorIcon && <ConnectorIcon className='size-[14px]' />
+                  ConnectorIcon && <BrandIcon icon={ConnectorIcon} className='size-[14px]' />
                 )}
                 {connector.status !== 'active' && connector.status !== 'syncing' && (
                   <span

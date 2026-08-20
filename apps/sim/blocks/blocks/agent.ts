@@ -25,8 +25,6 @@ import {
   isAutoModel,
   supportsTemperature,
 } from '@/providers/models'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import type { ToolResponse } from '@/tools/types'
 
 const logger = createLogger('AgentBlock')
@@ -176,49 +174,19 @@ Return ONLY the JSON array.`,
       title: 'Reasoning Effort',
       type: 'combobox',
       placeholder: 'Type or select reasoning effort...',
-      options: [
-        { label: 'auto', id: 'auto' },
-        { label: 'low', id: 'low' },
-        { label: 'medium', id: 'medium' },
-        { label: 'high', id: 'high' },
-      ],
       dependsOn: ['model'],
-      fetchOptions: async (blockId: string) => {
+      options: (params) => {
         const autoOption = { label: 'auto', id: 'auto' }
-
-        const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
-        if (!activeWorkflowId) {
-          return [
-            autoOption,
-            { label: 'low', id: 'low' },
-            { label: 'medium', id: 'medium' },
-            { label: 'high', id: 'high' },
-          ]
-        }
-
-        const workflowValues = useSubBlockStore.getState().workflowValues[activeWorkflowId]
-        const blockValues = workflowValues?.[blockId]
-        const modelValue = blockValues?.model as string
-
-        if (!modelValue) {
-          return [
-            autoOption,
-            { label: 'low', id: 'low' },
-            { label: 'medium', id: 'medium' },
-            { label: 'high', id: 'high' },
-          ]
-        }
-
+        const fallback = [
+          autoOption,
+          { label: 'low', id: 'low' },
+          { label: 'medium', id: 'medium' },
+          { label: 'high', id: 'high' },
+        ]
+        const modelValue = params?.values.model
+        if (typeof modelValue !== 'string' || !modelValue) return fallback
         const validOptions = getReasoningEffortValuesForModel(modelValue)
-        if (!validOptions) {
-          return [
-            autoOption,
-            { label: 'low', id: 'low' },
-            { label: 'medium', id: 'medium' },
-            { label: 'high', id: 'high' },
-          ]
-        }
-
+        if (!validOptions) return fallback
         return [autoOption, ...validOptions.map((opt) => ({ label: opt, id: opt }))]
       },
       mode: 'advanced',
@@ -229,49 +197,19 @@ Return ONLY the JSON array.`,
       title: 'Verbosity',
       type: 'combobox',
       placeholder: 'Type or select verbosity...',
-      options: [
-        { label: 'auto', id: 'auto' },
-        { label: 'low', id: 'low' },
-        { label: 'medium', id: 'medium' },
-        { label: 'high', id: 'high' },
-      ],
       dependsOn: ['model'],
-      fetchOptions: async (blockId: string) => {
+      options: (params) => {
         const autoOption = { label: 'auto', id: 'auto' }
-
-        const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
-        if (!activeWorkflowId) {
-          return [
-            autoOption,
-            { label: 'low', id: 'low' },
-            { label: 'medium', id: 'medium' },
-            { label: 'high', id: 'high' },
-          ]
-        }
-
-        const workflowValues = useSubBlockStore.getState().workflowValues[activeWorkflowId]
-        const blockValues = workflowValues?.[blockId]
-        const modelValue = blockValues?.model as string
-
-        if (!modelValue) {
-          return [
-            autoOption,
-            { label: 'low', id: 'low' },
-            { label: 'medium', id: 'medium' },
-            { label: 'high', id: 'high' },
-          ]
-        }
-
+        const fallback = [
+          autoOption,
+          { label: 'low', id: 'low' },
+          { label: 'medium', id: 'medium' },
+          { label: 'high', id: 'high' },
+        ]
+        const modelValue = params?.values.model
+        if (typeof modelValue !== 'string' || !modelValue) return fallback
         const validOptions = getVerbosityValuesForModel(modelValue)
-        if (!validOptions) {
-          return [
-            autoOption,
-            { label: 'low', id: 'low' },
-            { label: 'medium', id: 'medium' },
-            { label: 'high', id: 'high' },
-          ]
-        }
-
+        if (!validOptions) return fallback
         return [autoOption, ...validOptions.map((opt) => ({ label: opt, id: opt }))]
       },
       mode: 'advanced',
@@ -282,36 +220,14 @@ Return ONLY the JSON array.`,
       title: 'Thinking Level',
       type: 'combobox',
       placeholder: 'Type or select thinking level...',
-      options: [
-        { label: 'none', id: 'none' },
-        { label: 'minimal', id: 'minimal' },
-        { label: 'low', id: 'low' },
-        { label: 'medium', id: 'medium' },
-        { label: 'high', id: 'high' },
-        { label: 'max', id: 'max' },
-      ],
       dependsOn: ['model'],
-      fetchOptions: async (blockId: string) => {
+      options: (params) => {
         const noneOption = { label: 'none', id: 'none' }
-
-        const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
-        if (!activeWorkflowId) {
-          return [noneOption, { label: 'low', id: 'low' }, { label: 'high', id: 'high' }]
-        }
-
-        const workflowValues = useSubBlockStore.getState().workflowValues[activeWorkflowId]
-        const blockValues = workflowValues?.[blockId]
-        const modelValue = blockValues?.model as string
-
-        if (!modelValue) {
-          return [noneOption, { label: 'low', id: 'low' }, { label: 'high', id: 'high' }]
-        }
-
+        const fallback = [noneOption, { label: 'low', id: 'low' }, { label: 'high', id: 'high' }]
+        const modelValue = params?.values.model
+        if (typeof modelValue !== 'string' || !modelValue) return fallback
         const validOptions = getThinkingLevelsForModel(modelValue)
-        if (!validOptions) {
-          return [noneOption, { label: 'low', id: 'low' }, { label: 'high', id: 'high' }]
-        }
-
+        if (!validOptions) return fallback
         return [noneOption, ...validOptions.map((opt) => ({ label: opt, id: opt }))]
       },
       mode: 'advanced',

@@ -4,6 +4,10 @@ import { decryptSecret } from '@/lib/core/security/encryption'
 import { isLargeArrayManifest } from '@/lib/execution/payloads/large-array-manifest-metadata'
 import { isLargeValueRef } from '@/lib/execution/payloads/large-value-ref'
 import { MAX_INLINE_MATERIALIZATION_BYTES } from '@/lib/execution/payloads/limits'
+import {
+  PROVENANCE_MAX_ENTRIES,
+  PROVENANCE_MAX_SERIALIZED_BYTES,
+} from '@/lib/execution/provenance-limits'
 import { isNonIdentifyingSecretLiteral } from '@/executor/utils/resolved-secret-match-policy'
 import {
   createResolvedSecretMatcher,
@@ -57,10 +61,8 @@ export type ResolvedSecretIncompletenessReason =
   | 'client-tool-execution-untrusted'
   | 'client-tool-content-unavailable'
   | 'knowledge-result-provenance-unavailable'
-  | 'knowledge-response-capacity-exceeded'
   | 'knowledge-row-missing'
   | 'knowledge-row-content-mismatch'
-  | 'memory-crossing-capacity-exceeded'
   | 'table-result-provenance-unavailable'
   | 'mounted-file-provenance-unavailable'
   | 'workspace-file-provenance-unknown'
@@ -172,10 +174,10 @@ export interface ResolvedSecretIncompletenessDiagnostics {
 export const ANONYMOUS_SECRET_TRACE_REPLACEMENT = OPAQUE_RESOLVED_SECRET_REPLACEMENT
 export const RESOLVED_SECRET_TRACE_CHECKPOINT_VERSION = 1
 
-const MAX_PROVENANCE_ENTRIES = 10_000
-const MAX_SERIALIZED_PROVENANCE_BYTES = 8 * 1024 * 1024
-const MAX_TRACE_CATALOG_ENTRIES = MAX_PROVENANCE_ENTRIES
-const MAX_TRACE_CATALOG_BYTES = 8 * 1024 * 1024
+const MAX_PROVENANCE_ENTRIES = PROVENANCE_MAX_ENTRIES
+const MAX_SERIALIZED_PROVENANCE_BYTES = PROVENANCE_MAX_SERIALIZED_BYTES
+const MAX_TRACE_CATALOG_ENTRIES = PROVENANCE_MAX_ENTRIES
+const MAX_TRACE_CATALOG_BYTES = PROVENANCE_MAX_SERIALIZED_BYTES
 const MAX_PROVENANCE_FILTER_NODES = 50_000
 const MAX_PROVENANCE_FILTER_CHARACTERS = MAX_INLINE_MATERIALIZATION_BYTES
 const MAX_PROVENANCE_FILTER_MATCH_EVENTS = 1_000_000
@@ -370,6 +372,32 @@ function isInputPathWithin(path: readonly string[], root: readonly string[]): bo
 
 function inputPathsOverlap(left: readonly string[], right: readonly string[]): boolean {
   return isInputPathWithin(left, right) || isInputPathWithin(right, left)
+}
+
+const EMPTY_GROUP_MATCH: readonly number[] = []
+
+/**
+ * Indices of every group whose root sits at or above `path`.
+ *
+ * The prefix form of {@link isInputPathWithin}, read from an index of the roots rather than by
+ * testing each one. Scanning the roots per path is what forced a cap on how many a caller could
+ * vouch for at once; walking `path`'s own prefixes is bounded by its depth instead.
+ *
+ * Copies on the first hit rather than aliasing, because the caller owns the index and a returned
+ * alias would let an append mutate it.
+ */
+function groupsAlongInputPath(
+  groupsByRoot: ReadonlyMap<string, readonly number[]>,
+  path: ResolvedSecretInputPath
+): readonly number[] {
+  let matched: number[] | undefined
+  for (let length = 0; length <= path.length; length += 1) {
+    const indices = groupsByRoot.get(inputPathKey(path.slice(0, length)))
+    if (!indices) continue
+    if (!matched) matched = [...indices]
+    else matched.push(...indices)
+  }
+  return matched ?? EMPTY_GROUP_MATCH
 }
 
 function readInputPath(root: unknown, path: readonly string[]): unknown {
@@ -1334,19 +1362,111 @@ export class ResolvedSecretTraceRegistry {
     paths: readonly ResolvedSecretInputPath[],
     options: ExportResolvedSecretTraceProvenanceForValueOptions = {}
   ): ResolvedSecretTraceProvenanceV1 {
-    if (!this.complete || this.hasIncompleteInputPathOverlapping(paths)) {
-      return this.incompleteProvenance()
+    return this.exportCommittedProvenanceForInputPathGroups([paths], options)[0]
+  }
+
+  /**
+   * Exports resolver-recorded provenance for many input-path groups in a single pass.
+   *
+   * One group per cell a write vouches for. Called per group, each export rescans every resolved
+   * input path and every active entry, so vouching for N cells cost O(N x paths) — and a wide
+   * table write is exactly that shape. That cost is what a selection cap was really bounding, and
+   * the cap failed the whole bundle rather than the work, so every row of an oversized write
+   * landed `unknown` in its durable sidecar with nothing recorded about why.
+   *
+   * Indexing the group roots once makes the batch linear in the resolved paths and the active
+   * entries, so there is no size at which a caller has to stop vouching. Groups are answered
+   * independently and in order: an incomplete input path fails only the groups it overlaps, which
+   * is the same per-group judgement the single-path form has always made.
+   */
+  exportCommittedProvenanceForInputPathGroups(
+    groups: ReadonlyArray<readonly ResolvedSecretInputPath[]>,
+    options: ExportResolvedSecretTraceProvenanceForValueOptions = {}
+  ): ResolvedSecretTraceProvenanceV1[] {
+    if (!this.complete) return groups.map(() => this.incompleteProvenance())
+
+    const groupsByRoot = new Map<string, number[]>()
+    groups.forEach((paths, index) => {
+      for (const path of paths) {
+        const key = inputPathKey(path)
+        const existing = groupsByRoot.get(key)
+        if (existing) existing.push(index)
+        else groupsByRoot.set(key, [index])
+      }
+    })
+
+    /**
+     * Overlap is symmetric, so a group fails on an incomplete path at or below its root — matched
+     * by walking that path — or at or above it, matched by walking the root's own prefixes.
+     */
+    const incompleteGroups = new Set<number>()
+    for (const incompletePath of this.incompleteInputPaths.values()) {
+      for (const index of groupsAlongInputPath(groupsByRoot, incompletePath)) {
+        incompleteGroups.add(index)
+      }
     }
-    const selectedKeys = this.collectInputPathEntryKeys(paths)
-    const entries = [...this.activeEntries]
-      .filter(([key]) => selectedKeys.has(key))
-      .map(([, entry]) => entry)
-    return {
-      version: 1,
-      complete: true,
-      entries: this.buildProvenanceEntries(entries, options.anonymous),
-      ...(this.scope ? { scope: cloneProvenanceScope(this.scope) } : {}),
+    if (incompleteGroups.size < groups.length) {
+      const incompleteRoots = new Set(this.incompleteInputPaths.keys())
+      groups.forEach((paths, index) => {
+        if (incompleteGroups.has(index)) return
+        for (const path of paths) {
+          for (let length = 0; length <= path.length; length += 1) {
+            if (!incompleteRoots.has(inputPathKey(path.slice(0, length)))) continue
+            incompleteGroups.add(index)
+            return
+          }
+        }
+      })
     }
+
+    /**
+     * Allocated per group only once that group actually selects something. A write whose cells
+     * carry no secrets is the common case and the widest one, and it is the shape that used to
+     * exceed the cap — it should not pay a collection per cell to say so.
+     */
+    const entryKeysByGroup: Array<Set<string> | undefined> = new Array(groups.length)
+    for (const state of this.resolvedInputPaths.values()) {
+      if (state.entryKeys.size === 0) continue
+      for (const index of groupsAlongInputPath(groupsByRoot, state.path)) {
+        if (incompleteGroups.has(index)) continue
+        const selected = (entryKeysByGroup[index] ??= new Set<string>())
+        for (const entryKey of state.entryKeys) selected.add(entryKey)
+      }
+    }
+
+    /**
+     * Inverted before the single walk of `activeEntries` so each group's entries keep that map's
+     * insertion order, which is the order the per-group export produced and the order
+     * {@link buildProvenanceEntries} breaks its ties on.
+     */
+    const groupsByEntryKey = new Map<string, number[]>()
+    entryKeysByGroup.forEach((entryKeys, index) => {
+      if (!entryKeys) return
+      for (const entryKey of entryKeys) {
+        const existing = groupsByEntryKey.get(entryKey)
+        if (existing) existing.push(index)
+        else groupsByEntryKey.set(entryKey, [index])
+      }
+    })
+    const entriesByGroup: Array<ActiveSecretEntry[] | undefined> = new Array(groups.length)
+    if (groupsByEntryKey.size > 0) {
+      for (const [entryKey, entry] of this.activeEntries) {
+        const indices = groupsByEntryKey.get(entryKey)
+        if (!indices) continue
+        for (const index of indices) (entriesByGroup[index] ??= []).push(entry)
+      }
+    }
+
+    return groups.map((_, index) =>
+      incompleteGroups.has(index)
+        ? this.incompleteProvenance()
+        : {
+            version: 1,
+            complete: true,
+            entries: this.buildProvenanceEntries(entriesByGroup[index] ?? [], options.anonymous),
+            ...(this.scope ? { scope: cloneProvenanceScope(this.scope) } : {}),
+          }
+    )
   }
 
   /** Imports encrypted provenance only from a boundary that has already established trust. */

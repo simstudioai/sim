@@ -40,7 +40,13 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     )
     if (!parsed.success) return parsed.response
 
-    const { context, userId = session.user.id, organizationId } = parsed.data.query
+    const {
+      context,
+      userId = session.user.id,
+      organizationId,
+      memberLimit,
+      memberOffset,
+    } = parsed.data.query
 
     if (context === 'user' && userId !== session.user.id) {
       return NextResponse.json(
@@ -62,7 +68,10 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         return NextResponse.json({ error: 'Permission denied' }, { status: 403 })
       }
 
-      const org = await getOrganizationBillingData(organizationId, dbReplica)
+      const org = await getOrganizationBillingData(organizationId, dbReplica, {
+        limit: memberLimit,
+        offset: memberOffset,
+      })
       return NextResponse.json({
         success: true,
         context,

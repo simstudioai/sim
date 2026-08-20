@@ -4,8 +4,10 @@ import {
   member,
   organization,
   organizationMemberUsageLimit,
+  outboxEvent,
   permissions,
   subscription,
+  usageLog,
   user,
   userStats,
   workspace,
@@ -13,18 +15,40 @@ import {
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { isRecordLike } from '@sim/utils/object'
-import { and, count, countDistinct, desc, eq, ilike, inArray, isNull, or, sql } from 'drizzle-orm'
+import {
+  and,
+  count,
+  countDistinct,
+  desc,
+  eq,
+  gte,
+  ilike,
+  inArray,
+  isNull,
+  lt,
+  notExists,
+  or,
+  sql,
+} from 'drizzle-orm'
+import { alias } from 'drizzle-orm/pg-core'
 import {
   getOrganizationUsageLimitFallbackDollars,
   getTeamOrganizationEconomics,
 } from '@/lib/admin/organization-economics'
 import { parseBillingConcurrencyLimit } from '@/lib/billing/concurrency-defaults'
 import { getBillingConcurrencyLimit } from '@/lib/billing/concurrency-limits'
+import { defaultBillingPeriod } from '@/lib/billing/core/billing-period'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/plan'
+import {
+  type ResolvedUsagePeriod,
+  resolveEnterpriseReportingPeriod,
+  resolveSubscriptionUsagePeriod,
+} from '@/lib/billing/core/reporting-period'
 import { syncUsageLimitsFromSubscription } from '@/lib/billing/core/usage'
 import { creditsToDollars, dollarsToCredits } from '@/lib/billing/credits/conversion'
 import {
   ENTERPRISE_METADATA_SYNC_EVENT_TYPE,
+  enterpriseMetadataSyncPayloadSchema,
   resolveEnterpriseMetadataIntent,
 } from '@/lib/billing/enterprise-outbox'
 import {
@@ -89,6 +113,7 @@ async function enqueueEnterpriseMetadataIntent(
     subscriptionId: string
     appliedMetadata: unknown
     buildDesiredMetadata: (current: Record<string, unknown>) => Record<string, unknown>
+    terms?: { invoiceAmountCents: number; billingInterval: 'month' | 'year' } | null
   }
 ): Promise<{ version: number; desiredMetadata: Record<string, unknown> }> {
   const intent = await resolveEnterpriseMetadataIntent(
@@ -96,14 +121,24 @@ async function enqueueEnterpriseMetadataIntent(
     params.subscriptionId,
     params.appliedMetadata
   )
+  if (intent.hasUnappliedIntent) {
+    throw new Error(
+      intent.configurationUpdate?.providerAccepted
+        ? 'Stripe accepted the previous Enterprise update, but Sim has not reconciled it. Retry that update before making another change.'
+        : 'An Enterprise configuration update is already in progress. Wait for it to apply before making another change.'
+    )
+  }
   const {
     simConfigRevision: _appliedRevision,
     simConfigOperationId: _appliedOperationId,
+    simConfigDeliveryRevision: _appliedDeliveryRevision,
+    simConfigDeliveryAttempt: _appliedDeliveryAttempt,
     ...current
   } = {
     ...intent.desiredMetadata,
   }
   const desiredMetadata = params.buildDesiredMetadata(current)
+  const desiredTerms = params.terms === undefined ? intent.desiredTerms : params.terms
   const version = intent.latestRevision + 1
 
   await enqueueOutboxEvent(tx, ENTERPRISE_METADATA_SYNC_EVENT_TYPE, {
@@ -111,6 +146,7 @@ async function enqueueEnterpriseMetadataIntent(
     revision: version,
     deliveryRevision: 0,
     metadata: desiredMetadata,
+    ...(desiredTerms ? { terms: desiredTerms } : {}),
   })
   return { version, desiredMetadata }
 }
@@ -144,6 +180,210 @@ interface DashboardOrganizationSummaryInput {
   latestSubscription: typeof subscription.$inferSelect | null
   provisioning: EnterpriseProvisioningView | null
   owner: { id: string; name: string; email: string } | null
+  usageDollars: number
+  usagePeriod: ResolvedUsagePeriod
+}
+
+interface DashboardOrganizationUsageContext {
+  organizationId: string
+  period: ResolvedUsagePeriod
+}
+
+interface DashboardOrganizationUsage {
+  total: number
+  byUser: Map<string, number>
+}
+
+function resolveDashboardUsagePeriod(
+  latestSubscription: typeof subscription.$inferSelect | null
+): ResolvedUsagePeriod {
+  return (
+    resolveSubscriptionUsagePeriod(latestSubscription) ?? {
+      ...defaultBillingPeriod(),
+      source: 'default' as const,
+      anchorDate: null,
+      interval: null,
+    }
+  )
+}
+
+async function getDashboardOrganizationUsage(
+  contexts: DashboardOrganizationUsageContext[],
+  options: { includeUserBreakdown?: boolean; userIds?: string[] } = {}
+): Promise<Map<string, DashboardOrganizationUsage>> {
+  const result = new Map<string, DashboardOrganizationUsage>()
+  for (const context of contexts) {
+    result.set(context.organizationId, { total: 0, byUser: new Map() })
+  }
+  if (contexts.length === 0) return result
+
+  const includeUserBreakdown = options.includeUserBreakdown ?? true
+  if (options.userIds?.length === 0) return result
+  const ledgerPeriodWhere = or(
+    ...contexts.map((context) =>
+      and(
+        eq(usageLog.billingEntityType, 'organization'),
+        eq(usageLog.billingEntityId, context.organizationId),
+        ...(context.period.source === 'reporting'
+          ? [
+              gte(usageLog.createdAt, context.period.start),
+              lt(usageLog.createdAt, context.period.end),
+            ]
+          : [
+              eq(usageLog.billingPeriodStart, context.period.start),
+              eq(usageLog.billingPeriodEnd, context.period.end),
+            ])
+      )
+    )
+  )
+
+  if (!includeUserBreakdown) {
+    const ledgerTotals = await db
+      .select({
+        organizationId: usageLog.billingEntityId,
+        cost: sql<string>`coalesce(sum(${usageLog.cost}), 0)`,
+      })
+      .from(usageLog)
+      .where(ledgerPeriodWhere)
+      .groupBy(usageLog.billingEntityId)
+    for (const row of ledgerTotals) {
+      if (!row.organizationId) continue
+      const usage = result.get(row.organizationId)
+      if (usage) usage.total += Number(row.cost)
+    }
+
+    const legacyOrganizationIds = contexts
+      .filter((context) => context.period.source !== 'reporting')
+      .map((context) => context.organizationId)
+    if (legacyOrganizationIds.length > 0) {
+      const baselineTotals = await db
+        .select({
+          organizationId: member.organizationId,
+          cost: sql<string>`coalesce(sum(${userStats.currentPeriodCost}), 0)`,
+        })
+        .from(member)
+        .leftJoin(userStats, eq(userStats.userId, member.userId))
+        .where(inArray(member.organizationId, legacyOrganizationIds))
+        .groupBy(member.organizationId)
+      for (const row of baselineTotals) {
+        const usage = result.get(row.organizationId)
+        if (usage) usage.total += Number(row.cost)
+      }
+    }
+    return result
+  }
+
+  const ledgerRows = await db
+    .select({
+      organizationId: usageLog.billingEntityId,
+      userId: usageLog.userId,
+      cost: sql<string>`coalesce(sum(${usageLog.cost}), 0)`,
+    })
+    .from(usageLog)
+    .where(
+      options.userIds
+        ? and(ledgerPeriodWhere, inArray(usageLog.userId, options.userIds))
+        : ledgerPeriodWhere
+    )
+    .groupBy(usageLog.billingEntityId, usageLog.userId)
+
+  for (const row of ledgerRows) {
+    if (!row.organizationId) continue
+    const usage = result.get(row.organizationId)
+    if (!usage) continue
+    const amount = Number(row.cost)
+    usage.total += amount
+    usage.byUser.set(row.userId, (usage.byUser.get(row.userId) ?? 0) + amount)
+  }
+
+  const legacyOrganizationIds = contexts
+    .filter((context) => context.period.source !== 'reporting')
+    .map((context) => context.organizationId)
+  if (legacyOrganizationIds.length > 0) {
+    const baselineRows = await db
+      .select({
+        organizationId: member.organizationId,
+        userId: member.userId,
+        cost: userStats.currentPeriodCost,
+      })
+      .from(member)
+      .leftJoin(userStats, eq(userStats.userId, member.userId))
+      .where(
+        options.userIds
+          ? and(
+              inArray(member.organizationId, legacyOrganizationIds),
+              inArray(member.userId, options.userIds)
+            )
+          : inArray(member.organizationId, legacyOrganizationIds)
+      )
+    for (const row of baselineRows) {
+      const usage = result.get(row.organizationId)
+      if (!usage) continue
+      const amount = Number(row.cost ?? 0)
+      usage.total += amount
+      usage.byUser.set(row.userId, (usage.byUser.get(row.userId) ?? 0) + amount)
+    }
+  }
+  return result
+}
+
+const historicalUsageMember = alias(member, 'historical_usage_member')
+const historicalUsagePermission = alias(permissions, 'historical_usage_permission')
+const historicalUsageWorkspace = alias(workspace, 'historical_usage_workspace')
+
+async function getHistoricalActorUsage(
+  organizationId: string,
+  period: ResolvedUsagePeriod
+): Promise<{ usedDollars: number; actorCount: number }> {
+  const currentMember = db
+    .select({ value: sql`1` })
+    .from(historicalUsageMember)
+    .where(
+      and(
+        eq(historicalUsageMember.organizationId, organizationId),
+        eq(historicalUsageMember.userId, usageLog.userId)
+      )
+    )
+  const currentCollaborator = db
+    .select({ value: sql`1` })
+    .from(historicalUsagePermission)
+    .innerJoin(
+      historicalUsageWorkspace,
+      and(
+        eq(historicalUsagePermission.entityType, 'workspace'),
+        eq(historicalUsagePermission.entityId, historicalUsageWorkspace.id)
+      )
+    )
+    .where(
+      and(
+        eq(historicalUsageWorkspace.organizationId, organizationId),
+        eq(historicalUsagePermission.userId, usageLog.userId)
+      )
+    )
+  const [row] = await db
+    .select({
+      usedDollars: sql<string>`coalesce(sum(${usageLog.cost}), 0)`,
+      actorCount: countDistinct(usageLog.userId),
+    })
+    .from(usageLog)
+    .where(
+      and(
+        eq(usageLog.billingEntityType, 'organization'),
+        eq(usageLog.billingEntityId, organizationId),
+        ...(period.source === 'reporting'
+          ? [gte(usageLog.createdAt, period.start), lt(usageLog.createdAt, period.end)]
+          : [
+              eq(usageLog.billingPeriodStart, period.start),
+              eq(usageLog.billingPeriodEnd, period.end),
+            ]),
+        notExists(currentMember),
+        notExists(currentCollaborator)
+      )
+    )
+  return {
+    usedDollars: Number(row?.usedDollars ?? 0),
+    actorCount: row?.actorCount ?? 0,
+  }
 }
 
 export function toDashboardProvisioning(view: EnterpriseProvisioningView) {
@@ -161,21 +401,16 @@ function buildDashboardOrganizationSummary({
   latestSubscription,
   provisioning,
   owner,
+  usageDollars,
+  usagePeriod,
 }: DashboardOrganizationSummaryInput) {
   const metadata = metadataRecord(latestSubscription?.metadata)
   const teamEconomics = getTeamOrganizationEconomics(latestSubscription?.plan, memberCount)
-  const planAllowanceDollars = teamEconomics?.planAllowanceDollars ?? null
   const invoiceAmountCents = metadataNumber(metadata, 'invoiceAmountCents')
   const monthlyPrice = metadataNumber(metadata, 'monthlyPrice')
-  const effectiveUsageLimitDollars = Number(org.orgUsageLimit ?? 0)
-  const metadataUsageLimitDollars =
-    metadataNumber(metadata, 'usageLimitCredits') === null
-      ? null
-      : creditsToDollars(metadataNumber(metadata, 'usageLimitCredits') ?? 0)
-  const usageLimitDollars = Math.max(
-    0,
-    metadataUsageLimitDollars === null ? effectiveUsageLimitDollars : metadataUsageLimitDollars
-  )
+  const usageLimitDollars = Math.max(0, Number(org.orgUsageLimit ?? 0))
+  const planAllowanceDollars = teamEconomics?.planAllowanceDollars ?? null
+  const reportingPeriod = usagePeriod
   const seats =
     latestSubscription?.plan === 'enterprise'
       ? Math.max(0, Math.round(metadataNumber(metadata, 'seats') ?? 0))
@@ -210,25 +445,42 @@ function buildDashboardOrganizationSummary({
     workflowExecutionTimeoutSeconds,
     planAllowanceDollars,
     usageLimitDollars,
-    effectiveUsageLimitDollars,
+    effectiveUsageLimitDollars: usageLimitDollars,
     prepaidBalanceDollars: Number(org.creditBalance ?? 0),
-    monthlyInvoiceAmountUsd:
+    invoiceAmountUsd:
       latestSubscription?.plan === 'enterprise'
         ? invoiceAmountCents !== null
           ? invoiceAmountCents / 100
           : (monthlyPrice ?? null)
         : (teamEconomics?.monthlyInvoiceAmountUsd ?? null),
+    billingInterval:
+      latestSubscription?.billingInterval === 'year' ||
+      latestSubscription?.billingInterval === 'month'
+        ? latestSubscription.billingInterval
+        : teamEconomics
+          ? 'month'
+          : null,
+    reportingPeriod: {
+      anchorDate: reportingPeriod.anchorDate,
+      interval: reportingPeriod.interval,
+      currentStart: reportingPeriod.start.toISOString(),
+      currentEnd: reportingPeriod.end.toISOString(),
+      source: reportingPeriod.source,
+    },
+    usage: { usedDollars: Math.max(0, usageDollars), limitDollars: usageLimitDollars },
     provisioning: provisioning ? toDashboardProvisioning(provisioning) : null,
     subscription: latestSubscription,
   }
 }
 
 export function toDashboardConfigurationUpdate(
-  intent: Awaited<ReturnType<typeof resolveEnterpriseMetadataIntent>> | null
+  intent: Awaited<ReturnType<typeof resolveEnterpriseMetadataIntent>> | null,
+  prepaidBalanceDollars = 0
 ) {
   const update = intent?.configurationUpdate
   if (!update) return null
   const metadata = update.requestedMetadata
+  const terms = update.requestedTerms
   const usageLimitCredits = metadataNumber(metadata, 'usageLimitCredits')
   const seats = metadataNumber(metadata, 'seats')
   const concurrencyLimit = metadataNumber(metadata, 'concurrencyLimit')
@@ -241,11 +493,20 @@ export function toDashboardConfigurationUpdate(
     id: update.id,
     status: update.status,
     requestedUsageLimitDollars:
-      usageLimitCredits === null ? null : creditsToDollars(usageLimitCredits),
+      usageLimitCredits === null
+        ? null
+        : creditsToDollars(usageLimitCredits) + prepaidBalanceDollars,
+    requestedInvoiceAmountUsd: terms ? terms.invoiceAmountCents / 100 : null,
+    requestedBillingInterval: terms?.billingInterval ?? null,
+    requestedReportingPeriodAnchorDate:
+      typeof metadata.reportingPeriodAnchorDate === 'string'
+        ? metadata.reportingPeriodAnchorDate
+        : null,
     requestedSeats: seats === null ? null : Math.round(seats),
     requestedConcurrencyLimit: concurrencyLimit === null ? null : Math.round(concurrencyLimit),
     requestedWorkflowExecutionTimeoutSeconds:
       workflowExecutionTimeoutSeconds === null ? null : Math.round(workflowExecutionTimeoutSeconds),
+    providerAccepted: update.providerAccepted,
     error: update.error,
   }
 }
@@ -285,6 +546,98 @@ export async function listDashboardUsers({ search, limit, offset }: PaginationIn
       .limit(limit)
       .offset(offset),
   ])
+  const organizationIds = [...new Set(rows.flatMap((row) => row.organizationId ?? []))]
+  const personalUserIds = rows.filter((row) => !row.organizationId).map((row) => row.id)
+  const [organizationSubscriptions, personalSubscriptions] = await Promise.all([
+    organizationIds.length === 0
+      ? Promise.resolve([])
+      : db
+          .selectDistinctOn([subscription.referenceId])
+          .from(subscription)
+          .where(inArray(subscription.referenceId, organizationIds))
+          .orderBy(
+            subscription.referenceId,
+            sql`case when ${subscription.status} in ('active', 'past_due') then 0 else 1 end`,
+            sql`coalesce(${subscription.endedAt}, ${subscription.canceledAt}, ${subscription.periodEnd}, ${subscription.periodStart}) desc nulls last`,
+            desc(subscription.id)
+          ),
+    personalUserIds.length === 0
+      ? Promise.resolve([])
+      : db
+          .selectDistinctOn([subscription.referenceId])
+          .from(subscription)
+          .where(inArray(subscription.referenceId, personalUserIds))
+          .orderBy(
+            subscription.referenceId,
+            sql`case when ${subscription.status} in ('active', 'past_due') then 0 else 1 end`,
+            sql`coalesce(${subscription.endedAt}, ${subscription.canceledAt}, ${subscription.periodEnd}, ${subscription.periodStart}) desc nulls last`,
+            desc(subscription.id)
+          ),
+  ])
+  const organizationSubscriptionMap = new Map(
+    organizationSubscriptions.map((row) => [row.referenceId, row])
+  )
+  const organizationUsage = await getDashboardOrganizationUsage(
+    organizationIds.map((organizationId) => ({
+      organizationId,
+      period: resolveDashboardUsagePeriod(organizationSubscriptionMap.get(organizationId) ?? null),
+    })),
+    { userIds: rows.map((row) => row.id) }
+  )
+  const personalSubscriptionMap = new Map(
+    personalSubscriptions.map((row) => [row.referenceId, row])
+  )
+  const personalPeriods = new Map(
+    personalUserIds.map((userId) => [
+      userId,
+      resolveDashboardUsagePeriod(personalSubscriptionMap.get(userId) ?? null),
+    ])
+  )
+  const personalLedgerRows =
+    personalUserIds.length === 0
+      ? []
+      : await db
+          .select({
+            userId: usageLog.billingEntityId,
+            cost: sql<string>`coalesce(sum(${usageLog.cost}), 0)`,
+          })
+          .from(usageLog)
+          .where(
+            or(
+              ...personalUserIds.map((userId) => {
+                const period = personalPeriods.get(userId) as ResolvedUsagePeriod
+                return and(
+                  eq(usageLog.billingEntityType, 'user'),
+                  eq(usageLog.billingEntityId, userId),
+                  ...(period.source === 'reporting'
+                    ? [gte(usageLog.createdAt, period.start), lt(usageLog.createdAt, period.end)]
+                    : [
+                        eq(usageLog.billingPeriodStart, period.start),
+                        eq(usageLog.billingPeriodEnd, period.end),
+                      ])
+                )
+              })
+            )
+          )
+          .groupBy(usageLog.billingEntityId)
+  const personalUsage = new Map(
+    personalLedgerRows.flatMap((row) =>
+      row.userId ? ([[row.userId, Number(row.cost)]] as const) : []
+    )
+  )
+  const legacyPersonalIds = personalUserIds.filter(
+    (userId) => personalPeriods.get(userId)?.source !== 'reporting'
+  )
+  if (legacyPersonalIds.length > 0) {
+    const baselineRows = await db
+      .select({ userId: userStats.userId, cost: userStats.currentPeriodCost })
+      .from(userStats)
+      .where(inArray(userStats.userId, legacyPersonalIds))
+    for (const row of baselineRows) {
+      personalUsage.set(row.userId, (personalUsage.get(row.userId) ?? 0) + Number(row.cost ?? 0))
+    }
+  }
+
   return {
     data: rows.map((row) => ({
       id: row.id,
@@ -294,6 +647,9 @@ export async function listDashboardUsers({ search, limit, offset }: PaginationIn
         row.organizationId && row.organizationName
           ? { id: row.organizationId, name: row.organizationName }
           : null,
+      usageDollars: row.organizationId
+        ? (organizationUsage.get(row.organizationId)?.byUser.get(row.id) ?? 0)
+        : (personalUsage.get(row.id) ?? 0),
     })),
     pagination: {
       total: totalRow[0]?.total ?? 0,
@@ -326,7 +682,9 @@ async function getDashboardOrganizationSummary(organizationId: string) {
         )
         .where(isNull(member.id)),
       getLatestSubscription(organizationId),
-      getLatestEnterpriseProvisionings([organizationId]),
+      getLatestEnterpriseProvisionings([organizationId], {
+        includeWorkspaceMoveFailures: true,
+      }),
     ])
   if (!org) return null
 
@@ -337,14 +695,23 @@ async function getDashboardOrganizationSummary(organizationId: string) {
     .where(and(eq(member.organizationId, organizationId), eq(member.role, 'owner')))
     .limit(1)
   const memberCount = memberCountRow?.value ?? 0
-  return buildDashboardOrganizationSummary({
-    org,
-    memberCount,
-    externalCollaboratorCount: externalCountRow?.value ?? 0,
-    latestSubscription,
-    provisioning: provisionings.get(organizationId) ?? null,
-    owner: owner ?? null,
+  const period = resolveDashboardUsagePeriod(latestSubscription)
+  const usage = await getDashboardOrganizationUsage([{ organizationId, period }], {
+    includeUserBreakdown: false,
   })
+  return {
+    ...buildDashboardOrganizationSummary({
+      org,
+      memberCount,
+      externalCollaboratorCount: externalCountRow?.value ?? 0,
+      latestSubscription,
+      provisioning: provisionings.get(organizationId) ?? null,
+      owner: owner ?? null,
+      usageDollars: usage.get(organizationId)?.total ?? 0,
+      usagePeriod: period,
+    }),
+    usagePeriod: period,
+  }
 }
 
 export async function listDashboardOrganizations({ search, limit, offset }: PaginationInput) {
@@ -427,6 +794,22 @@ export async function listDashboardOrganizations({ search, limit, offset }: Pagi
     )
   )
   const subscriptionByOrganization = new Map(subscriptionRows.map((row) => [row.referenceId, row]))
+  const usagePeriodsByOrganization = new Map(
+    organizationIds.map(
+      (organizationId) =>
+        [
+          organizationId,
+          resolveDashboardUsagePeriod(subscriptionByOrganization.get(organizationId) ?? null),
+        ] as const
+    )
+  )
+  const usageByOrganization = await getDashboardOrganizationUsage(
+    organizationIds.map((organizationId) => ({
+      organizationId,
+      period: usagePeriodsByOrganization.get(organizationId)!,
+    })),
+    { includeUserBreakdown: false }
+  )
   const data = orgRows.map((org) => {
     const membership = membershipsByOrganization.get(org.id)
     const owner =
@@ -444,6 +827,8 @@ export async function listDashboardOrganizations({ search, limit, offset }: Pagi
       latestSubscription: subscriptionByOrganization.get(org.id) ?? null,
       provisioning: provisionings.get(org.id) ?? null,
       owner,
+      usageDollars: usageByOrganization.get(org.id)?.total ?? 0,
+      usagePeriod: usagePeriodsByOrganization.get(org.id)!,
     })
     return summary
   })
@@ -458,78 +843,148 @@ export async function listDashboardOrganizations({ search, limit, offset }: Pagi
   }
 }
 
-export async function getDashboardOrganization(organizationId: string) {
+export async function getDashboardOrganization(
+  organizationId: string,
+  pagination: {
+    limit: number
+    memberOffset: number
+    externalCollaboratorOffset: number
+    workspaceOffset: number
+  } = {
+    limit: 50,
+    memberOffset: 0,
+    externalCollaboratorOffset: 0,
+    workspaceOffset: 0,
+  }
+) {
   const summary = await getDashboardOrganizationSummary(organizationId)
   if (!summary) return null
-  const { subscription: subscriptionRow, ...base } = summary
-  const [memberRows, externalRows, workspaceRows, limitRows, configurationIntent] =
+  const { subscription: subscriptionRow, usagePeriod, ...base } = summary
+  const memberQuery = () =>
+    db
+      .select({
+        id: member.id,
+        userId: user.id,
+        name: user.name,
+        email: user.email,
+        role: member.role,
+      })
+      .from(member)
+      .innerJoin(user, eq(user.id, member.userId))
+      .where(eq(member.organizationId, organizationId))
+      .orderBy(user.name, user.id)
+  const externalCollaboratorQuery = () =>
+    db
+      .select({
+        userId: user.id,
+        name: user.name,
+        email: user.email,
+        workspaceCount: countDistinct(workspace.id),
+      })
+      .from(permissions)
+      .innerJoin(user, eq(user.id, permissions.userId))
+      .innerJoin(
+        workspace,
+        and(
+          eq(permissions.entityType, 'workspace'),
+          eq(permissions.entityId, workspace.id),
+          eq(workspace.organizationId, organizationId)
+        )
+      )
+      .leftJoin(
+        member,
+        and(eq(member.userId, permissions.userId), eq(member.organizationId, organizationId))
+      )
+      .where(isNull(member.id))
+      .groupBy(user.id, user.name, user.email)
+      .orderBy(user.name, user.id)
+  const workspaceQuery = () =>
+    db
+      .select({ id: workspace.id, name: workspace.name })
+      .from(workspace)
+      .where(eq(workspace.organizationId, organizationId))
+      .orderBy(workspace.name, workspace.id)
+
+  const [memberRows, externalRows, workspaceRows, workspaceCountRows, configurationIntent] =
     await Promise.all([
+      memberQuery().limit(pagination.limit).offset(pagination.memberOffset),
+      externalCollaboratorQuery()
+        .limit(pagination.limit)
+        .offset(pagination.externalCollaboratorOffset),
+      workspaceQuery().limit(pagination.limit).offset(pagination.workspaceOffset),
       db
-        .select({
-          id: member.id,
-          userId: user.id,
-          name: user.name,
-          email: user.email,
-          role: member.role,
-        })
-        .from(member)
-        .innerJoin(user, eq(user.id, member.userId))
-        .where(eq(member.organizationId, organizationId))
-        .orderBy(user.name),
-      db
-        .select({
-          userId: user.id,
-          name: user.name,
-          email: user.email,
-          workspaceCount: countDistinct(workspace.id),
-        })
-        .from(permissions)
-        .innerJoin(user, eq(user.id, permissions.userId))
-        .innerJoin(
-          workspace,
-          and(
-            eq(permissions.entityType, 'workspace'),
-            eq(permissions.entityId, workspace.id),
-            eq(workspace.organizationId, organizationId)
-          )
-        )
-        .leftJoin(
-          member,
-          and(eq(member.userId, permissions.userId), eq(member.organizationId, organizationId))
-        )
-        .where(isNull(member.id))
-        .groupBy(user.id, user.name, user.email)
-        .orderBy(user.name),
-      db
-        .select({ id: workspace.id, name: workspace.name })
+        .select({ value: count() })
         .from(workspace)
-        .where(eq(workspace.organizationId, organizationId))
-        .orderBy(workspace.name),
-      db
-        .select({
-          userId: organizationMemberUsageLimit.userId,
-          limit: organizationMemberUsageLimit.usageLimit,
-        })
-        .from(organizationMemberUsageLimit)
-        .where(eq(organizationMemberUsageLimit.organizationId, organizationId)),
+        .where(eq(workspace.organizationId, organizationId)),
       subscriptionRow?.plan === 'enterprise'
         ? resolveEnterpriseMetadataIntent(db, subscriptionRow.id, subscriptionRow.metadata)
         : Promise.resolve(null),
     ])
+  const visibleUserIds = [
+    ...new Set([...memberRows.map((row) => row.userId), ...externalRows.map((row) => row.userId)]),
+  ]
+  const [limitRows, usageByOrganization, historicalActorUsage] = await Promise.all([
+    visibleUserIds.length === 0
+      ? Promise.resolve([])
+      : db
+          .select({
+            userId: organizationMemberUsageLimit.userId,
+            limit: organizationMemberUsageLimit.usageLimit,
+          })
+          .from(organizationMemberUsageLimit)
+          .where(
+            and(
+              eq(organizationMemberUsageLimit.organizationId, organizationId),
+              inArray(organizationMemberUsageLimit.userId, visibleUserIds)
+            )
+          ),
+    getDashboardOrganizationUsage([{ organizationId, period: usagePeriod }], {
+      userIds: visibleUserIds,
+    }),
+    getHistoricalActorUsage(organizationId, usagePeriod),
+  ])
   const limits = new Map(limitRows.map((row) => [row.userId, Number(row.limit)]))
+  const usageByUser = usageByOrganization.get(organizationId)?.byUser ?? new Map<string, number>()
+  const workspaceTotal = workspaceCountRows[0]?.value ?? 0
   return {
     ...base,
-    configurationUpdate: toDashboardConfigurationUpdate(configurationIntent),
+    configurationUpdate: toDashboardConfigurationUpdate(
+      configurationIntent,
+      base.prepaidBalanceDollars
+    ),
+    historicalActorUsage,
     members: memberRows.map((row) => ({
       ...row,
       usageLimitDollars: limits.get(row.userId) ?? null,
+      usageDollars: usageByUser.get(row.userId) ?? 0,
     })),
     externalCollaborators: externalRows.map((row) => ({
       ...row,
       workspaceCount: row.workspaceCount,
       usageLimitDollars: limits.get(row.userId) ?? null,
+      usageDollars: usageByUser.get(row.userId) ?? 0,
     })),
     workspaces: workspaceRows,
+    memberPagination: {
+      total: base.memberCount,
+      limit: pagination.limit,
+      offset: pagination.memberOffset,
+      hasMore: pagination.memberOffset + memberRows.length < base.memberCount,
+    },
+    externalCollaboratorPagination: {
+      total: base.externalCollaboratorCount,
+      limit: pagination.limit,
+      offset: pagination.externalCollaboratorOffset,
+      hasMore:
+        pagination.externalCollaboratorOffset + externalRows.length <
+        base.externalCollaboratorCount,
+    },
+    workspacePagination: {
+      total: workspaceTotal,
+      limit: pagination.limit,
+      offset: pagination.workspaceOffset,
+      hasMore: pagination.workspaceOffset + workspaceRows.length < workspaceTotal,
+    },
     subscription: subscriptionRow
       ? {
           id: subscriptionRow.id,
@@ -538,7 +993,7 @@ export async function getDashboardOrganization(organizationId: string) {
           periodStart: subscriptionRow.periodStart?.toISOString() ?? null,
           periodEnd: subscriptionRow.periodEnd?.toISOString() ?? null,
           stripeSubscriptionId: subscriptionRow.stripeSubscriptionId,
-          invoiceAmountUsd: base.monthlyInvoiceAmountUsd,
+          invoiceAmountUsd: base.invoiceAmountUsd,
         }
       : null,
   }
@@ -589,6 +1044,196 @@ export async function updateDashboardEnterpriseSeats(
   })
 }
 
+interface DashboardEnterpriseBillingTerms {
+  invoiceAmountUsd: number
+  billingInterval: 'month' | 'year'
+  reportingPeriodAnchorDate: string
+}
+
+function validateDashboardEnterpriseBillingTerms(values: DashboardEnterpriseBillingTerms) {
+  const invoiceAmountCents = Math.round(values.invoiceAmountUsd * 100)
+  if (
+    invoiceAmountCents <= 0 ||
+    !Number.isSafeInteger(invoiceAmountCents) ||
+    Math.abs(values.invoiceAmountUsd * 100 - invoiceAmountCents) > 1e-8
+  ) {
+    throw new Error('Invoice amount must be at least $0.01 and use whole cents')
+  }
+  const reportingPeriod = resolveEnterpriseReportingPeriod(
+    values.reportingPeriodAnchorDate,
+    values.billingInterval
+  )
+  if (!reportingPeriod) {
+    throw new Error('Contract start must be a valid UTC date that is not in the future')
+  }
+  return { invoiceAmountCents, reportingPeriod }
+}
+
+export async function previewDashboardEnterpriseBillingTerms(
+  organizationId: string,
+  values: DashboardEnterpriseBillingTerms
+) {
+  const { reportingPeriod } = validateDashboardEnterpriseBillingTerms(values)
+  const [[org], [subscriptionRow]] = await Promise.all([
+    db
+      .select({ orgUsageLimit: organization.orgUsageLimit })
+      .from(organization)
+      .where(eq(organization.id, organizationId))
+      .limit(1),
+    db
+      .select({ id: subscription.id })
+      .from(subscription)
+      .where(
+        and(
+          eq(subscription.referenceId, organizationId),
+          eq(subscription.plan, 'enterprise'),
+          inArray(subscription.status, ENTITLED_SUBSCRIPTION_STATUSES)
+        )
+      )
+      .limit(1),
+  ])
+  if (!org || !subscriptionRow) throw new Error('Active Enterprise subscription not found')
+  const usage = await getDashboardOrganizationUsage([{ organizationId, period: reportingPeriod }], {
+    includeUserBreakdown: false,
+  })
+  const usedDollars = usage.get(organizationId)?.total ?? 0
+  const limitDollars = Number(org.orgUsageLimit ?? 0)
+  return {
+    reportingPeriod: {
+      anchorDate: reportingPeriod.anchorDate,
+      interval: reportingPeriod.interval,
+      currentStart: reportingPeriod.start.toISOString(),
+      currentEnd: reportingPeriod.end.toISOString(),
+      source: reportingPeriod.source,
+    },
+    usage: { usedDollars, limitDollars },
+    exceedsLimit: usedDollars > limitDollars,
+  }
+}
+
+export async function updateDashboardEnterpriseBillingTerms(
+  organizationId: string,
+  values: DashboardEnterpriseBillingTerms,
+  actor: AdminMutationActor
+) {
+  const { invoiceAmountCents } = validateDashboardEnterpriseBillingTerms(values)
+  await db.transaction(async (tx) => {
+    await acquireOrganizationMutationLock(tx, organizationId)
+    const [subscriptionRow] = await tx
+      .select()
+      .from(subscription)
+      .where(
+        and(
+          eq(subscription.referenceId, organizationId),
+          eq(subscription.plan, 'enterprise'),
+          inArray(subscription.status, ENTITLED_SUBSCRIPTION_STATUSES)
+        )
+      )
+      .for('update')
+      .limit(1)
+    if (!subscriptionRow?.stripeSubscriptionId) {
+      throw new Error('Active Stripe-backed Enterprise subscription not found')
+    }
+    const appliedMetadata = metadataRecord(subscriptionRow.metadata)
+    const appliedInvoiceAmountCents =
+      metadataNumber(appliedMetadata, 'invoiceAmountCents') ??
+      Math.round((metadataNumber(appliedMetadata, 'monthlyPrice') ?? 0) * 100)
+    const appliedBillingInterval = subscriptionRow.billingInterval === 'year' ? 'year' : 'month'
+    const termsChanged =
+      appliedInvoiceAmountCents !== invoiceAmountCents ||
+      appliedBillingInterval !== values.billingInterval
+    await enqueueEnterpriseMetadataIntent(tx, {
+      subscriptionId: subscriptionRow.id,
+      appliedMetadata: subscriptionRow.metadata,
+      terms: termsChanged ? { invoiceAmountCents, billingInterval: values.billingInterval } : null,
+      buildDesiredMetadata: (current) => {
+        const { monthlyPrice: _legacyMonthlyPrice, ...rest } = current
+        return {
+          ...rest,
+          // Stripe metadata updates merge by default. An empty value removes
+          // the legacy key after the neutral amount has been written.
+          monthlyPrice: null,
+          invoiceAmountCents,
+          reportingPeriodAnchorDate: values.reportingPeriodAnchorDate,
+        }
+      },
+    })
+  })
+  recordAudit({
+    actorId: actor.id,
+    actorName: actor.name,
+    actorEmail: actor.email,
+    action: AuditAction.ORGANIZATION_UPDATED,
+    resourceType: AuditResourceType.ORGANIZATION,
+    resourceId: organizationId,
+    description: 'Admin requested Enterprise billing-term update',
+    metadata: { ...values },
+  })
+}
+
+export async function retryDashboardEnterpriseConfigurationUpdate(
+  organizationId: string,
+  operationId: string,
+  actor: AdminMutationActor
+) {
+  await db.transaction(async (tx) => {
+    await acquireOrganizationMutationLock(tx, organizationId)
+    const [subscriptionRow] = await tx
+      .select({ id: subscription.id })
+      .from(subscription)
+      .where(
+        and(
+          eq(subscription.referenceId, organizationId),
+          eq(subscription.plan, 'enterprise'),
+          inArray(subscription.status, ENTITLED_SUBSCRIPTION_STATUSES)
+        )
+      )
+      .for('update')
+      .limit(1)
+    if (!subscriptionRow) throw new Error('Active Enterprise subscription not found')
+    const [event] = await tx
+      .select({ status: outboxEvent.status, payload: outboxEvent.payload })
+      .from(outboxEvent)
+      .where(
+        and(
+          eq(outboxEvent.id, operationId),
+          eq(outboxEvent.eventType, ENTERPRISE_METADATA_SYNC_EVENT_TYPE)
+        )
+      )
+      .for('update')
+      .limit(1)
+    const payload = enterpriseMetadataSyncPayloadSchema.safeParse(event?.payload)
+    if (!event || !payload.success || payload.data.subscriptionId !== subscriptionRow.id) {
+      throw new Error('Enterprise configuration update not found')
+    }
+    if (event.status !== 'dead_letter') {
+      throw new Error('Only a failed Enterprise configuration update can be retried')
+    }
+    await tx
+      .update(outboxEvent)
+      .set({
+        status: 'pending',
+        attempts: 0,
+        lastError: null,
+        availableAt: new Date(),
+        lockedAt: null,
+        processedAt: null,
+        payload: sql`((${outboxEvent.payload}::jsonb - 'acknowledgement') || ${JSON.stringify({ deliveryRevision: payload.data.deliveryRevision + 1 })}::jsonb)::json`,
+      })
+      .where(eq(outboxEvent.id, operationId))
+  })
+  recordAudit({
+    actorId: actor.id,
+    actorName: actor.name,
+    actorEmail: actor.email,
+    action: AuditAction.ORGANIZATION_UPDATED,
+    resourceType: AuditResourceType.ORGANIZATION,
+    resourceId: organizationId,
+    description: 'Admin retried Enterprise configuration update',
+    metadata: { operationId },
+  })
+}
+
 export async function updateDashboardOrganizationLimits(
   organizationId: string,
   values: {
@@ -633,6 +1278,13 @@ export async function updateDashboardOrganizationLimits(
       if (!hasPaidSubscriptionStatus(subscriptionRow.status)) {
         throw new Error('Enterprise limits can be changed only for an active subscription')
       }
+      const prepaidBalanceDollars = Number(org.creditBalance ?? 0)
+      if (
+        values.usageLimitDollars !== undefined &&
+        values.usageLimitDollars < prepaidBalanceDollars
+      ) {
+        throw new Error('Enterprise usage limit cannot be below its prepaid balance')
+      }
       await enqueueEnterpriseMetadataIntent(tx, {
         subscriptionId: subscriptionRow.id,
         appliedMetadata: subscriptionRow.metadata,
@@ -641,9 +1293,11 @@ export async function updateDashboardOrganizationLimits(
             values.usageLimitDollars === undefined
               ? Math.round(
                   metadataNumber(current, 'usageLimitCredits') ??
-                    dollarsToCredits(Number(org.orgUsageLimit ?? 0))
+                    dollarsToCredits(
+                      Math.max(0, Number(org.orgUsageLimit ?? 0) - prepaidBalanceDollars)
+                    )
                 )
-              : dollarsToCredits(values.usageLimitDollars)
+              : dollarsToCredits(values.usageLimitDollars - prepaidBalanceDollars)
           return {
             ...current,
             usageLimitCredits: configuredUsageLimit,

@@ -1,6 +1,6 @@
 'use client'
 
-import { createElement, useCallback, useMemo, useRef, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import { Button, Combobox } from '@sim/emcn'
 import { SquareArrowUpRight } from '@sim/emcn/icons'
 import { useParams } from 'next/navigation'
@@ -19,6 +19,7 @@ import { ConnectOAuthModal } from '@/app/workspace/[workspaceId]/components/conn
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { getWorkflowSearchLabelHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
 import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/providers/active-search-target-provider'
+import { BrandIcon } from '@/blocks/brand-icon'
 import { useWorkspaceCredential } from '@/hooks/queries/credentials'
 import { useOAuthCredentials } from '@/hooks/queries/oauth/oauth-credentials'
 import { useWorkflowMap } from '@/hooks/queries/workflows'
@@ -32,7 +33,7 @@ const getProviderIcon = (providerName: OAuthProvider) => {
   if (!baseProviderConfig) {
     return <SquareArrowUpRight className='size-3' />
   }
-  return createElement(baseProviderConfig.icon, { className: 'size-3' })
+  return <BrandIcon icon={baseProviderConfig.icon} className='size-3' />
 }
 
 const getProviderName = (providerName: OAuthProvider) => {

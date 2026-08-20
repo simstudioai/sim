@@ -20,7 +20,7 @@ import type {
   MothershipResource,
   MothershipResourceType,
 } from '@/app/workspace/[workspaceId]/home/types'
-import { getBareIconStyle, type StyleableIcon } from '@/blocks/brand-icon-style'
+import { BrandIcon, type StyleableIcon } from '@/blocks/brand-icon'
 import { logKeys } from '@/hooks/queries/logs'
 import { mothershipChatKeys } from '@/hooks/queries/mothership-chats'
 import { folderKeys } from '@/hooks/queries/utils/folder-keys'
@@ -85,10 +85,7 @@ function IntegrationDropdownItem({ item }: DropdownItemRenderProps) {
   if (!Icon) return <span className='truncate'>{item.name}</span>
   return (
     <>
-      <Icon
-        className='size-[14px] flex-shrink-0 text-[var(--text-icon)]'
-        style={getBareIconStyle(Icon)}
-      />
+      <BrandIcon icon={Icon} className='size-[14px] flex-shrink-0' />
       <span className='truncate'>{item.name}</span>
     </>
   )

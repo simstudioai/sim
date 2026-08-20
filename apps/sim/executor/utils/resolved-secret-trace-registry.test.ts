@@ -416,6 +416,72 @@ describe('ResolvedSecretTraceRegistry', () => {
     })
   })
 
+  it('narrows each grouped export to its own root', () => {
+    const scope = { userId: 'user-1', workspaceId: 'workspace-1' }
+    const registry = new ResolvedSecretTraceRegistry(
+      [
+        { name: 'FIRST', plaintext: 'alpha', encryptedValue: 'encrypted-first' },
+        { name: 'SECOND', plaintext: 'beta', encryptedValue: 'encrypted-second' },
+      ],
+      scope
+    )
+    registry.recordResolvedAtInputPath('FIRST', 'alpha', ['rows', '0', 'a'])
+    registry.recordResolvedAtInputPath('SECOND', 'beta', ['rows', '1', 'b'])
+    registry.recordResolvedAtInputPath('FIRST', 'alpha', ['rows', '2', 'c', 'nested'])
+
+    const exported = registry.exportCommittedProvenanceForInputPathGroups([
+      [['rows', '0', 'a']],
+      [['rows', '1', 'b']],
+      [['rows', '2', 'c']],
+      [['rows']],
+      [['rows', '3', 'untouched']],
+      [],
+      [
+        ['rows', '0', 'a'],
+        ['rows', '1', 'b'],
+      ],
+    ])
+
+    expect(exported.map((provenance) => provenance.entries)).toEqual([
+      [{ name: 'FIRST', encryptedValue: 'encrypted-first' }],
+      [{ name: 'SECOND', encryptedValue: 'encrypted-second' }],
+      [{ name: 'FIRST', encryptedValue: 'encrypted-first' }],
+      [
+        { name: 'FIRST', encryptedValue: 'encrypted-first' },
+        { name: 'SECOND', encryptedValue: 'encrypted-second' },
+      ],
+      [],
+      [],
+      [
+        { name: 'FIRST', encryptedValue: 'encrypted-first' },
+        { name: 'SECOND', encryptedValue: 'encrypted-second' },
+      ],
+    ])
+    expect(exported.every((provenance) => provenance.complete)).toBe(true)
+  })
+
+  it('fails only the grouped exports an incomplete input path overlaps', async () => {
+    const scope = { userId: 'user-1', workspaceId: 'workspace-1' }
+    const registry = new ResolvedSecretTraceRegistry(
+      [{ name: 'FIRST', plaintext: 'alpha', encryptedValue: 'encrypted-first' }],
+      scope
+    )
+    registry.recordResolvedAtInputPath('FIRST', 'alpha', ['rows', '0', 'a'])
+    await registry.importProvenanceForValueAtInputPath(null, 'alpha', ['rows', '1', 'b'], {
+      trusted: false,
+    })
+
+    const exported = registry.exportCommittedProvenanceForInputPathGroups([
+      [['rows', '1', 'b']],
+      [['rows', '1']],
+      [['rows', '1', 'b', 'deeper']],
+      [['rows', '0', 'a']],
+    ])
+
+    expect(exported.map((provenance) => provenance.complete)).toEqual([false, false, false, true])
+    expect(exported[3].entries).toEqual([{ name: 'FIRST', encryptedValue: 'encrypted-first' }])
+  })
+
   it('fails closed when independent secret paths collapse into one transformed string', () => {
     const registry = new ResolvedSecretTraceRegistry([
       { name: 'FIRST', plaintext: 'first', encryptedValue: 'encrypted-first' },
@@ -1598,8 +1664,6 @@ describe('incompleteness diagnostics', () => {
     'client-tool-execution-untrusted',
     'client-tool-content-unavailable',
     'knowledge-result-provenance-unavailable',
-    'knowledge-response-capacity-exceeded',
-    'memory-crossing-capacity-exceeded',
     'table-result-provenance-unavailable',
     'mounted-file-provenance-unavailable',
     'workspace-file-provenance-unknown',

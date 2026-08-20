@@ -23,6 +23,7 @@ import {
   AzureDataExplorerBlockMeta,
 } from '@/blocks/blocks/azure_data_explorer'
 import { AzureDevOpsBlock, AzureDevOpsBlockMeta } from '@/blocks/blocks/azure_devops'
+import { BitbucketBlock, BitbucketBlockMeta } from '@/blocks/blocks/bitbucket'
 import { BoxBlock, BoxBlockMeta } from '@/blocks/blocks/box'
 import { BrandfetchBlock, BrandfetchBlockMeta } from '@/blocks/blocks/brandfetch'
 import { BrexBlock, BrexBlockMeta } from '@/blocks/blocks/brex'
@@ -31,6 +32,7 @@ import { BrowserUseBlock, BrowserUseBlockMeta } from '@/blocks/blocks/browser_us
 import { BufferBlock, BufferBlockMeta } from '@/blocks/blocks/buffer'
 import { CalComBlock, CalComBlockMeta } from '@/blocks/blocks/calcom'
 import { CalendlyBlock, CalendlyBlockMeta } from '@/blocks/blocks/calendly'
+import { CbInsightsBlock, CbInsightsBlockMeta } from '@/blocks/blocks/cbinsights'
 import { ChatTriggerBlock } from '@/blocks/blocks/chat_trigger'
 import { CirclebackBlock, CirclebackBlockMeta } from '@/blocks/blocks/circleback'
 import { ClayBlock, ClayBlockMeta } from '@/blocks/blocks/clay'
@@ -48,6 +50,7 @@ import { ConvexBlock, ConvexBlockMeta } from '@/blocks/blocks/convex'
 import { CredentialBlock } from '@/blocks/blocks/credential'
 import { CredentialGroupBlock } from '@/blocks/blocks/credential-group'
 import { CrowdStrikeBlock, CrowdStrikeBlockMeta } from '@/blocks/blocks/crowdstrike'
+import { CrunchbaseBlock, CrunchbaseBlockMeta } from '@/blocks/blocks/crunchbase'
 import { CursorBlock, CursorBlockMeta, CursorV2Block } from '@/blocks/blocks/cursor'
 import { DagsterBlock, DagsterBlockMeta } from '@/blocks/blocks/dagster'
 import { DatabricksBlock, DatabricksBlockMeta } from '@/blocks/blocks/databricks'
@@ -248,6 +251,7 @@ import { PersonaBlock, PersonaBlockMeta } from '@/blocks/blocks/persona'
 import { PiBlock } from '@/blocks/blocks/pi'
 import { PineconeBlock, PineconeBlockMeta } from '@/blocks/blocks/pinecone'
 import { PipedriveBlock, PipedriveBlockMeta } from '@/blocks/blocks/pipedrive'
+import { PitchBookBlock, PitchBookBlockMeta } from '@/blocks/blocks/pitchbook'
 import { PolymarketBlock, PolymarketBlockMeta } from '@/blocks/blocks/polymarket'
 import { PostgreSQLBlock, PostgreSQLBlockMeta } from '@/blocks/blocks/postgresql'
 import { PostHogBlock, PostHogBlockMeta } from '@/blocks/blocks/posthog'
@@ -383,6 +387,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   attio: AttioBlock,
   azure_data_explorer: AzureDataExplorerBlock,
   azure_devops: AzureDevOpsBlock,
+  bitbucket: BitbucketBlock,
   box: BoxBlock,
   brandfetch: BrandfetchBlock,
   brex: BrexBlock,
@@ -391,6 +396,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   buffer: BufferBlock,
   calcom: CalComBlock,
   calendly: CalendlyBlock,
+  cbinsights: CbInsightsBlock,
   chat_trigger: ChatTriggerBlock,
   circleback: CirclebackBlock,
   clay: ClayBlock,
@@ -409,6 +415,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   credential: CredentialBlock,
   credential_group: CredentialGroupBlock,
   crowdstrike: CrowdStrikeBlock,
+  crunchbase: CrunchbaseBlock,
   cursor: CursorBlock,
   cursor_v2: CursorV2Block,
   dagster: DagsterBlock,
@@ -576,6 +583,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   pi: PiBlock,
   pinecone: PineconeBlock,
   pipedrive: PipedriveBlock,
+  pitchbook: PitchBookBlock,
   polymarket: PolymarketBlock,
   postgresql: PostgreSQLBlock,
   posthog: PostHogBlock,
@@ -698,7 +706,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
  * two stay in lockstep without a separate registry to maintain.
  *
  * `BlockMeta` exists only for catalog-visible integrations — every key here
- * has a corresponding entry in `lib/integrations/integrations.json`. Blocks
+ * has a corresponding entry in `packages/deployment-config/src/integrations.json`. Blocks
  * absent from the catalog (core blocks like `agent`/`api`, superseded base
  * versions, and hidden tools) carry no meta because the only consumers are
  * integration surfaces: `getTemplatesForBlock` (the two integration detail
@@ -724,6 +732,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   attio: AttioBlockMeta,
   azure_data_explorer: AzureDataExplorerBlockMeta,
   azure_devops: AzureDevOpsBlockMeta,
+  bitbucket: BitbucketBlockMeta,
   box: BoxBlockMeta,
   brandfetch: BrandfetchBlockMeta,
   brex: BrexBlockMeta,
@@ -732,6 +741,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   buffer: BufferBlockMeta,
   calcom: CalComBlockMeta,
   calendly: CalendlyBlockMeta,
+  cbinsights: CbInsightsBlockMeta,
   circleback: CirclebackBlockMeta,
   clay: ClayBlockMeta,
   clerk: ClerkBlockMeta,
@@ -745,6 +755,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   context_dev: ContextDevBlockMeta,
   convex: ConvexBlockMeta,
   crowdstrike: CrowdStrikeBlockMeta,
+  crunchbase: CrunchbaseBlockMeta,
   cursor: CursorBlockMeta,
   dagster: DagsterBlockMeta,
   databricks: DatabricksBlockMeta,
@@ -883,6 +894,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   persona: PersonaBlockMeta,
   pinecone: PineconeBlockMeta,
   pipedrive: PipedriveBlockMeta,
+  pitchbook: PitchBookBlockMeta,
   polymarket: PolymarketBlockMeta,
   postgresql: PostgreSQLBlockMeta,
   posthog: PostHogBlockMeta,
