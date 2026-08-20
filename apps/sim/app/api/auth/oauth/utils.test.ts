@@ -445,6 +445,23 @@ describe('OAuth Utils', () => {
       expect(result.accessToken).toBe('xoxb-tok')
     })
 
+    it('returns the bot token for an action-only Slack bot without a signing secret', async () => {
+      mockSelectChain([
+        {
+          type: 'service_account',
+          providerId: SLACK_CUSTOM_BOT_PROVIDER_ID,
+          encryptedServiceAccountKey: 'enc',
+        },
+      ])
+      mockDecryptSecret.mockResolvedValueOnce({
+        decrypted: JSON.stringify({ botToken: 'xoxb-action' }),
+      })
+
+      const result = await resolveServiceAccountToken('cred-1', SLACK_CUSTOM_BOT_PROVIDER_ID)
+
+      expect(result.accessToken).toBe('xoxb-action')
+    })
+
     it('throws when the Slack bot credential is missing', async () => {
       mockSelectChain([])
       await expect(

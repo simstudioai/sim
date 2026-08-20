@@ -41,9 +41,8 @@ export interface ServiceAccountConnectTarget {
   label: string
   /**
    * True when the provider's setup surface must stay hidden for this viewer.
-   * Custom Slack bots ride the `slack_v2` preview flag, so any surface that
-   * offers one — the integrations page or the chat — has to honour it or the
-   * flag is trivially bypassed.
+   * Custom Slack bots follow the released `slack_v2` block's visibility, so a
+   * hosted kill switch applies consistently across integrations and chat.
    */
   hidden: boolean
 }
@@ -55,7 +54,7 @@ interface UseServiceAccountConnectTargetArgs {
 }
 
 /**
- * Derives the connect-control label and preview gating for a service-account
+ * Derives the connect-control label and block visibility for a service-account
  * provider. Shared by the integrations detail page and the chat's inline
  * connect button so the two can't drift on either the wording or the gate.
  */

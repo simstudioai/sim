@@ -106,8 +106,8 @@ const HANDWRITTEN_TRIGGER_DOCS = new Set([
   'sim',
 ])
 
-/** Providers whose docs are already covered by hand-written pages. */
-const SKIP_TRIGGER_PROVIDERS = new Set(['generic', 'rss', 'table', 'sim'])
+/** Omits hand-written providers and Slack's superseded legacy webhook trigger. */
+const SKIP_TRIGGER_PROVIDERS = new Set(['generic', 'rss', 'table', 'sim', 'slack'])
 
 /**
  * Maps trigger provider names (from TriggerConfig.provider) to their
@@ -120,6 +120,7 @@ const PROVIDER_TO_BLOCK_TYPE: Record<string, string> = {
   'google-drive': 'google_drive',
   'google-sheets': 'google_sheets',
   jsm: 'jira_service_management',
+  slack_app: 'slack',
 }
 
 /** Human-readable display names for trigger providers. */
@@ -3895,10 +3896,8 @@ async function buildProviderColorMap(): Promise<Map<string, string>> {
  * Trigger ids that every hosting block gates behind `preview: true`.
  *
  * Blocks declare the triggers they expose via `triggers.available`. A trigger
- * listed only by preview blocks inherits their gate — `slack_oauth` is reachable
- * solely through the preview-gated `slack_v2` block, so documenting it would
- * publish an unreleased surface under its own `slack_app` page. Triggers no
- * block claims are left alone: standalone webhook providers are legitimately
+ * listed only by preview blocks inherits their gate, while triggers no block
+ * claims are left alone because standalone webhook providers are legitimately
  * unlisted and must keep their pages.
  */
 async function collectPreviewOnlyTriggerIds(): Promise<Set<string>> {
@@ -3955,7 +3954,7 @@ async function generateAllTriggerDocs(): Promise<void> {
 
     for (const [provider, triggers] of grouped) {
       if (SKIP_TRIGGER_PROVIDERS.has(provider)) {
-        console.log(`Skipping trigger provider: ${provider} (covered by hand-written docs)`)
+        console.log(`Skipping trigger provider: ${provider}`)
         continue
       }
 
