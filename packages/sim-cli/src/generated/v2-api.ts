@@ -242,6 +242,154 @@ export type AddWorkflowGroupResponse = {
   data: AddWorkflowGroupResponseRef1
 }
 
+/** `POST /api/v2/workflows/[id]/operations` */
+export type ApplyWorkflowOperationsParams = {
+  id: string
+}
+
+export type ApplyWorkflowOperationsQuery = Record<string, unknown>
+
+type ApplyWorkflowOperationsBodyRef0 =
+  | {
+      operation_type: 'add'
+      block_id: string
+      params: {
+        type: string
+        name: string
+      }
+    }
+  | {
+      operation_type: 'edit'
+      block_id: string
+      params: Record<string, unknown>
+    }
+  | {
+      operation_type: 'delete'
+      block_id: string
+    }
+  | {
+      operation_type: 'insert_into_subflow'
+      block_id: string
+      params: {
+        subflowId: string
+        type: string
+        name: string
+      }
+    }
+  | {
+      operation_type: 'extract_from_subflow'
+      block_id: string
+      params: {
+        subflowId: string
+      }
+    }
+
+export type ApplyWorkflowOperationsBody = {
+  operations: Array<ApplyWorkflowOperationsBodyRef0>
+  atomic?: boolean
+  layout?: 'targeted' | 'none'
+  setBlockEnabled?: Array<{
+    block_id: string
+    enabled: boolean
+  }>
+}
+
+type ApplyWorkflowOperationsResponseRef0 = {
+  type:
+    | 'block_not_found'
+    | 'invalid_block_type'
+    | 'block_not_allowed'
+    | 'block_locked'
+    | 'tool_not_allowed'
+    | 'invalid_edge_target'
+    | 'invalid_edge_source'
+    | 'invalid_edge_scope'
+    | 'invalid_source_handle'
+    | 'invalid_target_handle'
+    | 'invalid_subblock_field'
+    | 'missing_required_params'
+    | 'invalid_subflow_parent'
+    | 'nested_subflow_not_allowed'
+    | 'duplicate_block_name'
+    | 'reserved_block_name'
+    | 'duplicate_trigger'
+    | 'duplicate_single_instance_block'
+  operationType: string
+  blockId: string
+  reason: string
+  details?: Record<string, unknown>
+}
+
+type ApplyWorkflowOperationsResponseRef1 = {
+  blockId: string
+  blockType: string
+  field: string
+  error: string
+}
+
+type ApplyWorkflowOperationsResponseRef2 = {
+  unresolvedReferences: Array<{
+    blockId: string
+    blockType: string | null
+    field: string
+    reason: string
+  }>
+  notes: Array<string>
+}
+
+type ApplyWorkflowOperationsResponseRef3 = {
+  id: string
+  warnings: Array<string>
+  needsRedeployment: boolean
+  applied: number
+  skipped: Array<ApplyWorkflowOperationsResponseRef0>
+  deferred: Array<ApplyWorkflowOperationsResponseRef0>
+  inputValidationErrors: Array<ApplyWorkflowOperationsResponseRef1>
+  lint: ApplyWorkflowOperationsResponseRef2
+}
+
+export type ApplyWorkflowOperationsResponse = {
+  data: ApplyWorkflowOperationsResponseRef3
+}
+
+/** `PATCH /api/v2/workflows/[id]/variables` */
+export type ApplyWorkflowVariablesParams = {
+  id: string
+}
+
+export type ApplyWorkflowVariablesQuery = Record<string, unknown>
+
+export type ApplyWorkflowVariablesBody = {
+  operations: Array<
+    | {
+        operation: 'add'
+        name: string
+        type: 'string' | 'number' | 'boolean' | 'object' | 'array' | 'plain'
+        value: unknown
+      }
+    | {
+        operation: 'edit'
+        name: string
+        type?: 'string' | 'number' | 'boolean' | 'object' | 'array' | 'plain'
+        value: unknown
+      }
+    | {
+        operation: 'delete'
+        name: string
+      }
+  >
+}
+
+type ApplyWorkflowVariablesResponseRef0 = {
+  id: string
+  variableCount: number
+  changed: boolean
+}
+
+export type ApplyWorkflowVariablesResponse = {
+  data: ApplyWorkflowVariablesResponseRef0
+}
+
 /** `POST /api/v2/files/bulk-delete` */
 export type BulkDeleteFilesQuery = Record<string, unknown>
 
@@ -1642,6 +1790,12 @@ export type CreateWorkflowBody = {
 
 type CreateWorkflowResponseRef0 = {
   id: string
+  type: string
+  name: string
+}
+
+type CreateWorkflowResponseRef1 = {
+  id: string
   name: string
   description: string | null
   folderPath: string
@@ -1652,10 +1806,11 @@ type CreateWorkflowResponseRef0 = {
   lastRunAt: string | null
   createdAt: string
   updatedAt: string
+  blocks: Array<CreateWorkflowResponseRef0>
 }
 
 export type CreateWorkflowResponse = {
-  data: CreateWorkflowResponseRef0
+  data: CreateWorkflowResponseRef1
 }
 
 /** `POST /api/v2/workflows/folders` */
@@ -2116,6 +2271,7 @@ export type DeleteWorkflowQuery = Record<string, unknown>
 type DeleteWorkflowResponseRef0 = {
   id: string
   deleted: true
+  archived: true
 }
 
 export type DeleteWorkflowResponse = {
@@ -2259,6 +2415,38 @@ export type DownloadFileQuery = {
 
 /** Non-JSON response (`binary`). */
 export type DownloadFileResponse = never
+
+/** `POST /api/v2/workflows/[id]/duplicate` */
+export type DuplicateWorkflowParams = {
+  id: string
+}
+
+export type DuplicateWorkflowQuery = Record<string, unknown>
+
+type DuplicateWorkflowBodyRef0 = string
+
+export type DuplicateWorkflowBody = {
+  name?: string
+  folderPath?: DuplicateWorkflowBodyRef0
+}
+
+type DuplicateWorkflowResponseRef0 = {
+  id: string
+  name: string
+  description: string | null
+  folderPath: string
+  workspaceId: string
+  isDeployed: boolean
+  deployedAt: string | null
+  runCount: number
+  lastRunAt: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export type DuplicateWorkflowResponse = {
+  data: DuplicateWorkflowResponseRef0
+}
 
 /** `POST /api/v2/workflows/[id]/execute` */
 export type ExecuteWorkflowParams = {
@@ -3413,6 +3601,110 @@ export type GetWorkflowRunResponse = {
   data: GetWorkflowRunResponseRef1
 }
 
+/** `GET /api/v2/workflows/[id]/state` */
+export type GetWorkflowStateParams = {
+  id: string
+}
+
+export type GetWorkflowStateQuery = Record<string, unknown>
+
+type GetWorkflowStateResponseRef0 = {
+  id: string
+  type: string
+  name: string
+  position: {
+    x: number
+    y: number
+  }
+  subBlocks: Record<
+    string,
+    {
+      id: string
+      type: string
+      value: unknown
+    }
+  >
+  outputs: Record<string, unknown>
+  enabled: boolean
+  horizontalHandles?: boolean
+  height?: number
+  advancedMode?: boolean
+  errorEnabled?: boolean
+  retry?: {
+    enabled: boolean
+    maxTries: number
+    waitBetweenTriesMs: number
+  }
+  triggerMode?: boolean
+  data?: {
+    parentId?: string
+    extent?: 'parent'
+    width?: number
+    height?: number
+    collection?: unknown
+    count?: number
+    loopType?: 'for' | 'forEach' | 'while' | 'doWhile'
+    whileCondition?: string
+    doWhileCondition?: string
+    parallelType?: 'collection' | 'count'
+    batchSize?: number
+    type?: string
+    canonicalModes?: Record<string, 'basic' | 'advanced'>
+  }
+  locked?: boolean
+}
+
+type GetWorkflowStateResponseRef1 = {
+  id: string
+  source: string
+  target: string
+  sourceHandle?: string | null
+  targetHandle?: string | null
+  type?: string
+}
+
+type GetWorkflowStateResponseRef2 = {
+  id: string
+  nodes: Array<string>
+  iterations: number
+  loopType: 'for' | 'forEach' | 'while' | 'doWhile'
+  forEachItems?: Array<unknown> | Record<string, unknown> | string
+  whileCondition?: string
+  doWhileCondition?: string
+  enabled?: boolean
+  locked?: boolean
+}
+
+type GetWorkflowStateResponseRef3 = {
+  id: string
+  nodes: Array<string>
+  distribution?: Array<unknown> | Record<string, unknown> | string
+  count?: number
+  parallelType?: 'count' | 'collection'
+  batchSize?: number
+  enabled?: boolean
+  locked?: boolean
+}
+
+type GetWorkflowStateResponseRef4 = {
+  id: string
+  name: string
+  type: 'string' | 'number' | 'boolean' | 'object' | 'array' | 'plain'
+  value: unknown
+}
+
+type GetWorkflowStateResponseRef5 = {
+  blocks: Record<string, GetWorkflowStateResponseRef0>
+  edges: Array<GetWorkflowStateResponseRef1>
+  loops: Record<string, GetWorkflowStateResponseRef2>
+  parallels: Record<string, GetWorkflowStateResponseRef3>
+  variables: Record<string, GetWorkflowStateResponseRef4>
+}
+
+export type GetWorkflowStateResponse = {
+  data: GetWorkflowStateResponseRef5
+}
+
 /** `GET /api/v2/workflows/[id]/versions/[version]` */
 export type GetWorkflowVersionParams = {
   id: string
@@ -4507,6 +4799,7 @@ type ListWorkflowsQueryRef0 = string
 
 export type ListWorkflowsQuery = {
   workspaceId: string
+  scope?: 'active' | 'archived'
   folderPath?: ListWorkflowsQueryRef0
   deployedOnly?: boolean
   limit?: number
@@ -4604,6 +4897,27 @@ type MoveFileItemsResponseRef0 = {
 
 export type MoveFileItemsResponse = {
   data: MoveFileItemsResponseRef0
+}
+
+/** `POST /api/v2/workflows/move` */
+export type MoveWorkflowsQuery = Record<string, unknown>
+
+type MoveWorkflowsBodyRef0 = string
+
+export type MoveWorkflowsBody = {
+  workspaceId: string
+  workflowIds: Array<string>
+  folderPath: MoveWorkflowsBodyRef0
+}
+
+type MoveWorkflowsResponseRef0 = {
+  moved: Array<string>
+  failed: Array<string>
+  folderPath: string
+}
+
+export type MoveWorkflowsResponse = {
+  data: MoveWorkflowsResponseRef0
 }
 
 /** `POST /api/v2/tables/[tableId]/query` */
@@ -4904,6 +5218,118 @@ export type RenameFileResponse = {
   data: RenameFileResponseRef0
 }
 
+/** `PUT /api/v2/workflows/[id]/state` */
+export type ReplaceWorkflowStateParams = {
+  id: string
+}
+
+export type ReplaceWorkflowStateQuery = Record<string, unknown>
+
+type ReplaceWorkflowStateBodyRef0 = {
+  id: string
+  type: string
+  name: string
+  position: {
+    x: number
+    y: number
+  }
+  subBlocks: Record<
+    string,
+    {
+      id: string
+      type: string
+      value: unknown
+    }
+  >
+  outputs: Record<string, unknown>
+  enabled: boolean
+  horizontalHandles?: boolean
+  height?: number
+  advancedMode?: boolean
+  errorEnabled?: boolean
+  retry?: {
+    enabled: boolean
+    maxTries: number
+    waitBetweenTriesMs: number
+  }
+  triggerMode?: boolean
+  data?: {
+    parentId?: string
+    extent?: 'parent'
+    width?: number
+    height?: number
+    collection?: unknown
+    count?: number
+    loopType?: 'for' | 'forEach' | 'while' | 'doWhile'
+    whileCondition?: string
+    doWhileCondition?: string
+    parallelType?: 'collection' | 'count'
+    batchSize?: number
+    type?: string
+    canonicalModes?: Record<string, 'basic' | 'advanced'>
+  }
+  locked?: boolean
+}
+
+type ReplaceWorkflowStateBodyRef1 = {
+  id: string
+  source: string
+  target: string
+  sourceHandle?: string | null
+  targetHandle?: string | null
+  type?: string
+}
+
+type ReplaceWorkflowStateBodyRef2 = {
+  id: string
+  nodes: Array<string>
+  iterations: number
+  loopType: 'for' | 'forEach' | 'while' | 'doWhile'
+  forEachItems?: Array<unknown> | Record<string, unknown> | string
+  whileCondition?: string
+  doWhileCondition?: string
+  enabled?: boolean
+  locked?: boolean
+}
+
+type ReplaceWorkflowStateBodyRef3 = {
+  id: string
+  nodes: Array<string>
+  distribution?: Array<unknown> | Record<string, unknown> | string
+  count?: number
+  parallelType?: 'count' | 'collection'
+  batchSize?: number
+  enabled?: boolean
+  locked?: boolean
+}
+
+type ReplaceWorkflowStateBodyRef4 = {
+  id: string
+  name: string
+  type: 'string' | 'number' | 'boolean' | 'object' | 'array' | 'plain'
+  value: unknown
+}
+
+export type ReplaceWorkflowStateBody = {
+  blocks: Record<string, ReplaceWorkflowStateBodyRef0>
+  edges: Array<ReplaceWorkflowStateBodyRef1>
+  loops?: Record<string, ReplaceWorkflowStateBodyRef2>
+  parallels?: Record<string, ReplaceWorkflowStateBodyRef3>
+  variables?: Record<string, ReplaceWorkflowStateBodyRef4>
+}
+
+type ReplaceWorkflowStateResponseRef0 = ReplaceWorkflowStateResponseRef1
+
+type ReplaceWorkflowStateResponseRef1 = {
+  id: string
+  warnings: Array<string>
+  needsRedeployment: boolean
+}
+
+export type ReplaceWorkflowStateResponse = {
+  data: ReplaceWorkflowStateResponseRef0
+}
+
 /** `POST /api/v2/files/[fileId]/restore` */
 export type RestoreFileParams = {
   fileId: string
@@ -4930,6 +5356,31 @@ type RestoreFileResponseRef0 = {
 
 export type RestoreFileResponse = {
   data: RestoreFileResponseRef0
+}
+
+/** `POST /api/v2/workflows/[id]/restore` */
+export type RestoreWorkflowParams = {
+  id: string
+}
+
+export type RestoreWorkflowQuery = Record<string, unknown>
+
+type RestoreWorkflowResponseRef0 = {
+  id: string
+  name: string
+  description: string | null
+  folderPath: string
+  workspaceId: string
+  isDeployed: boolean
+  deployedAt: string | null
+  runCount: number
+  lastRunAt: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export type RestoreWorkflowResponse = {
+  data: RestoreWorkflowResponseRef0
 }
 
 /** `POST /api/v2/workflows/[id]/runs/[runId]/resume` */
@@ -6245,6 +6696,50 @@ export const V2_OPERATIONS = {
       },
     },
   },
+  applyWorkflowOperations: {
+    method: 'POST',
+    path: '/api/v2/workflows/[id]/operations',
+    pathParams: ['id'] as const,
+    pathParamDocs: { id: 'Unique workflow identifier.' },
+    responseMode: 'json',
+    summary: 'Apply Workflow Operations',
+    body: {
+      operations: { kind: 'array', required: true, describe: 'Edits to apply, in a single batch.' },
+      atomic: {
+        kind: 'boolean',
+        default: false,
+        describe:
+          'Fail the whole batch when any operation is declined. The default applies what it can and reports the rest in `skipped`; `true` writes nothing and answers `409` instead.',
+      },
+      layout: {
+        kind: 'enum',
+        values: ['targeted', 'none'] as const,
+        default: 'targeted',
+        describe:
+          'Whether to reposition blocks the batch touched. `targeted` (default) nudges only the affected subgraph; `none` leaves every position exactly as supplied.',
+      },
+      setBlockEnabled: {
+        kind: 'array',
+        describe:
+          'Blocks to enable or disable, applied after `operations`. Disabling a loop or parallel cascades to its unlocked descendants; enabling a block whose container is disabled is declined.',
+      },
+    },
+  },
+  applyWorkflowVariables: {
+    method: 'PATCH',
+    path: '/api/v2/workflows/[id]/variables',
+    pathParams: ['id'] as const,
+    pathParamDocs: { id: 'Unique workflow identifier.' },
+    responseMode: 'json',
+    summary: 'Update Workflow Variables',
+    body: {
+      operations: {
+        kind: 'array',
+        required: true,
+        describe: 'Variable changes to apply, in order.',
+      },
+    },
+  },
   bulkDeleteFiles: {
     method: 'POST',
     path: '/api/v2/files/bulk-delete',
@@ -7293,6 +7788,24 @@ export const V2_OPERATIONS = {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the file.' },
     },
   },
+  duplicateWorkflow: {
+    method: 'POST',
+    path: '/api/v2/workflows/[id]/duplicate',
+    pathParams: ['id'] as const,
+    pathParamDocs: { id: 'Unique workflow identifier.' },
+    responseMode: 'json',
+    summary: 'Duplicate Workflow',
+    body: {
+      name: {
+        kind: 'string',
+        describe: 'Name for the copy. Defaults to the source name, deduplicated within the folder.',
+      },
+      folderPath: {
+        kind: 'string',
+        describe: "Destination folder path. Defaults to the source workflow's folder.",
+      },
+    },
+  },
   executeWorkflow: {
     method: 'POST',
     path: '/api/v2/workflows/[id]/execute',
@@ -7651,6 +8164,14 @@ export const V2_OPERATIONS = {
           'Comma-separated block output references to include, as `blockId` or `blockId.path`. Block *names* are not resolved here — unlike the execute request, this resource reads a recorded run and matches ids only, so a name selects nothing and yields an empty `blockOutputs`.',
       },
     },
+  },
+  getWorkflowState: {
+    method: 'GET',
+    path: '/api/v2/workflows/[id]/state',
+    pathParams: ['id'] as const,
+    pathParamDocs: { id: 'Unique workflow identifier.' },
+    responseMode: 'json',
+    summary: 'Get Workflow State',
   },
   getWorkflowVersion: {
     method: 'GET',
@@ -8788,6 +9309,13 @@ export const V2_OPERATIONS = {
         required: true,
         describe: 'Workspace whose workflows should be listed.',
       },
+      scope: {
+        kind: 'enum',
+        values: ['active', 'archived'] as const,
+        default: 'active',
+        describe:
+          'Which lifecycle set to list: `active` (default) for live workflows, `archived` for workflows a `DELETE` archived. `folderPath` resolves against active folders only, so pairing it with `scope=archived` returns an empty page when the containing folder was archived too.',
+      },
       folderPath: {
         kind: 'string',
         describe:
@@ -8881,6 +9409,30 @@ export const V2_OPERATIONS = {
       targetFolderPath: {
         kind: 'string',
         describe: 'Destination folder path. Omit to move files to the workspace root.',
+      },
+    },
+  },
+  moveWorkflows: {
+    method: 'POST',
+    path: '/api/v2/workflows/move',
+    pathParams: [] as const,
+    responseMode: 'json',
+    summary: 'Move Workflows',
+    body: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace holding every workflow in the batch.',
+      },
+      workflowIds: {
+        kind: 'array',
+        required: true,
+        describe: 'Workflows to move. Duplicates are collapsed.',
+      },
+      folderPath: {
+        kind: 'string',
+        required: true,
+        describe: 'Destination folder path; `/` moves the workflows to the workspace root.',
       },
     },
   },
@@ -8998,6 +9550,30 @@ export const V2_OPERATIONS = {
       name: { kind: 'string', required: true, describe: 'New file name, including its extension.' },
     },
   },
+  replaceWorkflowState: {
+    method: 'PUT',
+    path: '/api/v2/workflows/[id]/state',
+    pathParams: ['id'] as const,
+    pathParamDocs: { id: 'Unique workflow identifier.' },
+    responseMode: 'json',
+    summary: 'Replace Workflow State',
+    body: {
+      blocks: { kind: 'object', required: true, describe: 'Blocks keyed by block id.' },
+      edges: { kind: 'array', required: true, describe: 'Directed connections between blocks.' },
+      loops: {
+        kind: 'object',
+        describe: 'Ignored on write: loop containers are recomputed from `blocks`.',
+      },
+      parallels: {
+        kind: 'object',
+        describe: 'Ignored on write: parallel containers are recomputed from `blocks`.',
+      },
+      variables: {
+        kind: 'object',
+        describe: 'Replacement variable set. Omit to leave the stored variables untouched.',
+      },
+    },
+  },
   restoreFile: {
     method: 'POST',
     path: '/api/v2/files/[fileId]/restore',
@@ -9012,6 +9588,14 @@ export const V2_OPERATIONS = {
         describe: 'Workspace that owns the archived file.',
       },
     },
+  },
+  restoreWorkflow: {
+    method: 'POST',
+    path: '/api/v2/workflows/[id]/restore',
+    pathParams: ['id'] as const,
+    pathParamDocs: { id: 'Unique workflow identifier.' },
+    responseMode: 'json',
+    summary: 'Restore Workflow',
   },
   resumeWorkflow: {
     method: 'POST',

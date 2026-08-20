@@ -17,28 +17,18 @@ const mocks = vi.hoisted(() => ({
   applyWorkflowOperations: vi.fn(),
 }))
 
-vi.mock('@/lib/workflows/application/apply-workflow-operations', async () => {
-  const { OrchestrationError } = await import('@/lib/core/orchestration/types')
-  class WorkflowOperationsNotAppliedError extends OrchestrationError {
-    constructor(readonly skipped: unknown[]) {
-      super('conflict', `${skipped.length} operation(s) could not be applied`)
-      this.name = 'WorkflowOperationsNotAppliedError'
-    }
-  }
-  return {
-    WorkflowOperationsNotAppliedError,
-    applyWorkflowOperations: {
-      operation: { id: 'workflows.operations.apply' },
-      execute: mocks.applyWorkflowOperations,
-    },
-  }
-})
+vi.mock('@/lib/workflows/application/apply-workflow-operations', () => ({
+  applyWorkflowOperations: {
+    operation: { id: 'workflows.operations.apply' },
+    execute: mocks.applyWorkflowOperations,
+  },
+}))
 vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
 vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
 vi.mock('@/app/api/v2/lib/gate', () => v2GateModuleMock)
 
 import { NoWorkspaceAccessError } from '@/lib/core/application'
-import { WorkflowOperationsNotAppliedError } from '@/lib/workflows/application/apply-workflow-operations'
+import { WorkflowOperationsNotAppliedError } from '@/lib/workflows/application/workflow-operations-error'
 import { POST } from '@/app/api/v2/workflows/[id]/operations/route'
 
 const WORKFLOW_ID = 'workflow-1'
@@ -161,7 +151,8 @@ describe('/api/v2/workflows/[id]/operations', () => {
     expect(await response.json()).toEqual({
       error: {
         code: 'CONFLICT',
-        message: '1 operation(s) could not be applied',
+        message:
+          '1 operation(s) could not be applied and atomic was requested; nothing was written',
         details: { code: 'OPERATIONS_NOT_APPLIED', skipped: [SKIPPED] },
       },
     })

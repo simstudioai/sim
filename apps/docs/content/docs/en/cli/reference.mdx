@@ -3230,6 +3230,66 @@ sim tools list [options]
 
 Also spelled `sim workflow`.
 
+### sim workflows operations create
+
+Apply Workflow Operations
+
+```bash
+sim workflows operations create <id> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `id` | Yes | Unique workflow identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--operations <json\|@file>` | Yes | Edits to apply, in a single batch. (JSON, or @path / @- to read a file or stdin). |
+| `--atomic` | No | Fail the whole batch when any operation is declined. The default applies what it can and reports the rest in `skipped`; `true` writes nothing and answers `409` instead. |
+| `--no-atomic` | No | Send --atomic as false. |
+| `--layout <value>` | No | Whether to reposition blocks the batch touched. `targeted` (default) nudges only the affected subgraph; `none` leaves every position exactly as supplied. Accepted values: `targeted`, `none`. |
+| `--set-block-enabled <json\|@file>` | No | Blocks to enable or disable, applied after `operations`. Disabling a loop or parallel cascades to its unlocked descendants; enabling a block whose container is disabled is declined. (JSON, or @path / @- to read a file or stdin). |
+
+</CommandTable>
+
+### sim workflows variables update
+
+Update Workflow Variables
+
+```bash
+sim workflows variables update <id> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `id` | Yes | Unique workflow identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--operations <json\|@file>` | Yes | Variable changes to apply, in order. (JSON, or @path / @- to read a file or stdin). |
+
+</CommandTable>
+
 ### sim workflows runs cancel
 
 Cancel a running workflow run
@@ -3539,6 +3599,35 @@ sim workflows deploy <id> [options]
 
 </CommandTable>
 
+### sim workflows duplicate create
+
+Duplicate Workflow
+
+```bash
+sim workflows duplicate create <id> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `id` | Yes | Unique workflow identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--name <value>` | No | Name for the copy. Defaults to the source name, deduplicated within the folder. |
+| `--folder-path <value>` | No | Destination folder path. Defaults to the source workflow's folder. |
+
+</CommandTable>
+
 ### sim workflows run
 
 Run a deployed workflow
@@ -3630,6 +3719,56 @@ sim workflows deployment status <id>
 
 </CommandTable>
 
+### sim workflows state list
+
+Get Workflow State
+
+```bash
+sim workflows state list <id>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `id` | Yes | Unique workflow identifier. |
+
+</CommandTable>
+
+### sim workflows state update
+
+Replace Workflow State
+
+```bash
+sim workflows state update <id> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `id` | Yes | Unique workflow identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--blocks <json\|@file>` | Yes | Blocks keyed by block id. (JSON, or @path / @- to read a file or stdin). |
+| `--edges <json\|@file>` | Yes | Directed connections between blocks. (JSON, or @path / @- to read a file or stdin). |
+| `--loops <json\|@file>` | No | Ignored on write: loop containers are recomputed from `blocks`. (JSON, or @path / @- to read a file or stdin). |
+| `--parallels <json\|@file>` | No | Ignored on write: parallel containers are recomputed from `blocks`. (JSON, or @path / @- to read a file or stdin). |
+| `--variables <json\|@file>` | No | Replacement variable set. Omit to leave the stored variables untouched. (JSON, or @path / @- to read a file or stdin). |
+
+</CommandTable>
+
 ### sim workflows versions get
 
 Get Workflow Version
@@ -3712,6 +3851,7 @@ sim workflows list [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
+| `--scope <value>` | No | Which lifecycle set to list: `active` (default) for live workflows, `archived` for workflows a `DELETE` archived. `folderPath` resolves against active folders only, so pairing it with `scope=archived` returns an empty page when the containing folder was archived too. Accepted values: `active`, `archived`. |
 | `--folder <value>` | No | Folder path as shown in the app; the leading / is optional. |
 | `--deployed-only` | No | Return only workflows with an active deployment when true. |
 | `--no-deployed-only` | No | Send --deployed-only as false. |
@@ -3719,6 +3859,43 @@ sim workflows list [options]
 | `--search <value>` | No | Case-insensitive substring match against the resource name. |
 | `--sort-by <value>` | No | Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order. Accepted values: `position`, `name`, `createdAt`, `updatedAt`, `runCount`. |
 | `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
+
+</CommandTable>
+
+### sim workflows move create
+
+Move Workflows
+
+```bash
+sim workflows move create [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--workflow-ids <json\|@file>` | Yes | Workflows to move. Duplicates are collapsed. (JSON, or @path / @- to read a file or stdin). |
+| `--folder-path <value>` | Yes | Destination folder path; `/` moves the workflows to the workspace root. |
+
+</CommandTable>
+
+### sim workflows restore create
+
+Restore Workflow
+
+```bash
+sim workflows restore create <id>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `id` | Yes | Unique workflow identifier. |
 
 </CommandTable>
 

@@ -97,10 +97,8 @@ vi.mock('@/lib/workflows/autolayout', () => ({
 }))
 
 import { ForbiddenOperationError } from '@/lib/core/application'
-import {
-  applyWorkflowOperations,
-  WorkflowOperationsNotAppliedError,
-} from '@/lib/workflows/application/apply-workflow-operations'
+import { applyWorkflowOperations } from '@/lib/workflows/application/apply-workflow-operations'
+import { WorkflowOperationsNotAppliedError } from '@/lib/workflows/application/workflow-operations-error'
 
 const BLOCK = {
   id: 'block-1',

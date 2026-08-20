@@ -17,6 +17,7 @@ import {
 import { workflowOperations } from '@/lib/workflows/application/operations'
 import { assertedWorkflowWorkspaceId } from '@/lib/workflows/application/principal-scope'
 import { requireMutableWorkflow } from '@/lib/workflows/application/workflow-mutability'
+import { WorkflowOperationsNotAppliedError } from '@/lib/workflows/application/workflow-operations-error'
 import {
   applyTargetedLayout,
   getTargetedLayoutImpact,
@@ -64,16 +65,6 @@ const logger = createLogger('ApplyWorkflowOperations')
  * Carries the declined operations so a pipeline can act on them without a second
  * request; the surface renders them as `409` with `error.details`.
  */
-export class WorkflowOperationsNotAppliedError extends OrchestrationError {
-  constructor(readonly skipped: SkippedItem[]) {
-    super(
-      'conflict',
-      `${skipped.length} operation(s) could not be applied and atomic was requested; nothing was written`
-    )
-    this.name = 'WorkflowOperationsNotAppliedError'
-  }
-}
-
 /** One enable/disable request riding along with an edit batch. */
 export interface WorkflowBlockEnabledChange {
   blockId: string
