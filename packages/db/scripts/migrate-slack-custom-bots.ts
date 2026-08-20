@@ -145,6 +145,7 @@ interface PreparedCredential {
   botToken?: string
   signingSecret?: string
   updateTriggerBlock: boolean
+  legacyWebhookCount: number
   webhookIdsToUpdate: string[]
 }
 
@@ -698,20 +699,18 @@ async function prepareWorkspaceCredentials(params: {
   const prepared: PreparedCredential[] = []
 
   for (const source of params.sources) {
+    const legacyWebhookRows = params.webhookRowsBySourceId.get(source.sourceId) ?? []
     const existingCredential = params.existingCredentialsBySourceId.get(source.sourceId)
     if (existingCredential) {
       params.stats.skippedExisting++
-      const link = planLegacySlackTriggerLink(
-        source,
-        existingCredential,
-        params.webhookRowsBySourceId.get(source.sourceId) ?? []
-      )
+      const link = planLegacySlackTriggerLink(source, existingCredential, legacyWebhookRows)
       if (link.updateTriggerBlock || link.webhookIdsToUpdate.length > 0) {
         prepared.push({
           source,
           credentialId: existingCredential.credentialId,
           insertCredential: false,
           updateTriggerBlock: link.updateTriggerBlock,
+          legacyWebhookCount: legacyWebhookRows.length,
           webhookIdsToUpdate: link.webhookIdsToUpdate,
         })
       }
@@ -742,7 +741,7 @@ async function prepareWorkspaceCredentials(params: {
     const link = planLegacySlackTriggerLink(
       source,
       { credentialId, hasSigningSecret: Boolean(signingSecret) },
-      params.webhookRowsBySourceId.get(source.sourceId) ?? []
+      legacyWebhookRows
     )
 
     prepared.push({
@@ -754,6 +753,7 @@ async function prepareWorkspaceCredentials(params: {
       botToken,
       signingSecret,
       updateTriggerBlock: link.updateTriggerBlock,
+      legacyWebhookCount: legacyWebhookRows.length,
       webhookIdsToUpdate: link.webhookIdsToUpdate,
     })
   }
@@ -1114,6 +1114,12 @@ async function processWorkspace(params: {
         sources: sources.length,
         credentialsToInsert: prepared.filter((candidate) => candidate.insertCredential).length,
         triggersToLink: prepared.filter((candidate) => candidate.updateTriggerBlock).length,
+        undeployedTriggersToLink: prepared.filter(
+          (candidate) =>
+            candidate.source.kind === 'trigger' &&
+            candidate.updateTriggerBlock &&
+            candidate.legacyWebhookCount === 0
+        ).length,
         webhooksToMark: prepared.reduce(
           (total, candidate) => total + candidate.webhookIdsToUpdate.length,
           0
@@ -1131,6 +1137,12 @@ async function processWorkspace(params: {
           displayName: candidate.displayName,
           createCredential: candidate.insertCredential,
           linkTrigger: candidate.updateTriggerBlock,
+          triggerDeployment:
+            candidate.source.kind === 'trigger'
+              ? candidate.legacyWebhookCount > 0
+                ? 'deployed'
+                : 'undeployed'
+              : undefined,
           webhooksToMark: candidate.webhookIdsToUpdate.length,
           actionOnly: candidate.insertCredential && !candidate.signingSecret,
         })
@@ -1164,6 +1176,12 @@ async function processWorkspace(params: {
         displayName: candidate.displayName,
         createdCredential: candidate.insertCredential,
         linkedTrigger: applied.triggerLinked,
+        triggerDeployment:
+          candidate.source.kind === 'trigger'
+            ? candidate.legacyWebhookCount > 0
+              ? 'deployed'
+              : 'undeployed'
+            : undefined,
         webhooksMarked: applied.webhooksMarked,
         actionOnly: candidate.insertCredential && !candidate.signingSecret,
       })

@@ -261,6 +261,13 @@ describe('planLegacySlackTriggerLink', () => {
     ).toEqual({ updateTriggerBlock: true, webhookIdsToUpdate: ['webhook-1'] })
   })
 
+  it('links an undeployed trigger even when there is no webhook to mark', () => {
+    expect(planLegacySlackTriggerLink(triggerSource, existingCredential, [])).toEqual({
+      updateTriggerBlock: true,
+      webhookIdsToUpdate: [],
+    })
+  })
+
   it('is idempotent after the block and webhook are linked', () => {
     expect(
       planLegacySlackTriggerLink(
