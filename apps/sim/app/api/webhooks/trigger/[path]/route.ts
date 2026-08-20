@@ -19,6 +19,7 @@ import {
   handleProviderReachabilityTest,
   parseWebhookBody,
   verifyProviderAuth,
+  type WebhookDispatchResult,
 } from '@/lib/webhooks/processor'
 import { acceptsPathWebhookDelivery, acceptsWebhookDeliveryMethod } from '@/lib/webhooks/providers'
 import {
@@ -216,8 +217,9 @@ async function handleWebhookDelivery(
     )
   }
 
-  let dispatchedLegacySlackAlias = false
+  let authenticatedLegacySlackAlias = false
   let firstLegacySlackAuthError: NextResponse | null = null
+  const legacySlackDispatchResults: WebhookDispatchResult[] = []
   for (const credentialId of legacySlackCredentialIds) {
     const authError = await verifySlackCustomBotCredentialRequest({
       credentialId,
@@ -231,17 +233,18 @@ async function handleWebhookDelivery(
       continue
     }
 
-    await dispatchSlackCustomBotCredential({
+    const dispatchResults = await dispatchSlackCustomBotCredential({
       credentialId,
       body,
       request,
       requestId,
       receivedAt,
     })
-    dispatchedLegacySlackAlias = true
+    authenticatedLegacySlackAlias = true
+    legacySlackDispatchResults.push(...dispatchResults)
   }
 
-  if (legacySlackCredentialIds.size > 0 && !dispatchedLegacySlackAlias) {
+  if (legacySlackCredentialIds.size > 0 && !authenticatedLegacySlackAlias) {
     return (
       firstLegacySlackAuthError ??
       new NextResponse('Unauthorized - Invalid Slack signature', { status: 401 })
@@ -252,11 +255,17 @@ async function handleWebhookDelivery(
    * Process each unmarked webhook matched on this path. Marked Slack rows were
    * already included in the routing-key fan-out and must not run twice.
    */
-  const responses: NextResponse[] = dispatchedLegacySlackAlias
-    ? [new NextResponse(null, { status: 200 })]
-    : []
+  const responses: NextResponse[] = []
   const failures: NextResponse[] = []
-  const dispatchTargetCount = directWebhooksForPath.length + (dispatchedLegacySlackAlias ? 1 : 0)
+  for (const dispatchResult of legacySlackDispatchResults) {
+    if (dispatchResult.reason === 'filtered') continue
+    if (dispatchResult.outcome === 'failed' || dispatchResult.reason === 'block-missing') {
+      failures.push(dispatchResult.response)
+      continue
+    }
+    responses.push(dispatchResult.response)
+  }
+  const dispatchTargetCount = directWebhooksForPath.length + legacySlackDispatchResults.length
 
   for (const { webhook: foundWebhook, workflow: foundWorkflow } of directWebhooksForPath) {
     const provider = foundWebhook.provider

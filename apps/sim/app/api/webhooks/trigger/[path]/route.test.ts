@@ -520,7 +520,13 @@ describe('Webhook Trigger API Route', () => {
         : null
     })
     verifySlackCustomBotCredentialRequestMock.mockResolvedValue(null)
-    dispatchSlackCustomBotCredentialMock.mockResolvedValue(1)
+    dispatchSlackCustomBotCredentialMock.mockResolvedValue([
+      {
+        outcome: 'queued',
+        reason: 'queued',
+        response: new NextResponse(null, { status: 200 }),
+      },
+    ])
 
     // Set up default workflow for tests
     testData.workflows.push({
@@ -1027,6 +1033,36 @@ describe('Webhook Trigger API Route', () => {
 
       expect(response.status).toBe(401)
       expect(dispatchSlackCustomBotCredentialMock).not.toHaveBeenCalled()
+      expect(dispatchResolvedWebhookTargetMock).not.toHaveBeenCalled()
+    })
+
+    it('propagates a legacy fan-out failure when no target queues successfully', async () => {
+      testData.webhooks.push({
+        id: 'legacy-slack-webhook',
+        provider: 'slack',
+        path: 'legacy-slack-path',
+        routingKey: 'credential-1',
+        isActive: true,
+        providerConfig: {
+          triggerId: 'slack_webhook',
+          credentialId: 'credential-1',
+          ingressMode: 'legacy_custom_bot',
+        },
+        workflowId: 'test-workflow-id',
+      })
+      dispatchSlackCustomBotCredentialMock.mockResolvedValueOnce([
+        {
+          outcome: 'failed',
+          reason: 'preprocessing',
+          response: NextResponse.json({ error: 'Preprocessing failed' }, { status: 500 }),
+        },
+      ])
+
+      const response = await POST(createMockRequest('POST', { type: 'event_callback' }), {
+        params: Promise.resolve({ path: 'legacy-slack-path' }),
+      })
+
+      expect(response.status).toBe(500)
       expect(dispatchResolvedWebhookTargetMock).not.toHaveBeenCalled()
     })
   })
