@@ -1,5 +1,6 @@
 import { LRUCache } from 'lru-cache'
 import { resolveOrganizationPlan } from '@/lib/billing/core/subscription'
+import { coalesceLocally } from '@/lib/concurrency/singleflight'
 import { isHosted } from '@/lib/core/config/env-flags'
 
 /**
@@ -13,13 +14,13 @@ import { isHosted } from '@/lib/core/config/env-flags'
 export const ORGANIZATION_BYOK_ENTITLEMENT_TTL_MS = 60 * 1000
 
 /**
- * Caches the in-flight promise rather than the resolved boolean, following
- * `lib/copilot/entitlements.ts`. Storing the promise is what makes concurrent
- * callers collapse onto one resolution: a parallel or loop block resolving N
- * items issues one query set instead of N, with no separate in-flight
- * bookkeeping. `LRUCache` supplies the TTL and the size bound.
+ * Resolved entitlements, with `LRUCache` supplying the TTL and the size bound.
+ *
+ * Values are booleans, so every read must test `!== undefined` — a plain
+ * truthiness check would treat a cached `false` as a miss and re-query an
+ * unentitled organization on every single resolution.
  */
-const entitlementCache = new LRUCache<string, Promise<boolean>>({
+const entitlementCache = new LRUCache<string, boolean>({
   max: 500,
   ttl: ORGANIZATION_BYOK_ENTITLEMENT_TTL_MS,
 })
@@ -57,27 +58,25 @@ export function isOrganizationBYOKEntitledCached(organizationId: string): Promis
   if (!isHosted) return Promise.resolve(false)
 
   const cached = entitlementCache.get(organizationId)
-  if (cached) return cached
+  if (cached !== undefined) return Promise.resolve(cached)
 
   /**
-   * `onError: 'throw'` is load-bearing: the resolver otherwise maps a failed
-   * billing read to `false`, indistinguishable from a real plan lapse, and a
-   * cached `false` would silently meter every inheriting run for the whole TTL.
+   * `coalesceLocally` around a read-through cache is the shape
+   * `oauth/credential-service.ts` uses. It collapses a parallel or loop block's
+   * N simultaneous misses onto one resolution, and — unlike caching the promise
+   * directly — bounds a *hung* billing read at its settle deadline instead of
+   * wedging every caller for the whole TTL.
+   *
+   * Writing the cache only on the success path is what keeps a momentary
+   * outage from being recorded as a plan lapse; `onError: 'throw'` is what
+   * makes that outage distinguishable, since the resolver otherwise maps a
+   * failed read to `false` exactly like a real lapse.
    */
-  const resolution = resolveOrganizationPlan(organizationId, { onError: 'throw' })
-  entitlementCache.set(organizationId, resolution)
-
-  /**
-   * Caching the promise means a rejected one would stay cached for the full TTL
-   * — the neighbour in `copilot/entitlements.ts` never has to think about this
-   * because its evaluators swallow their own errors. Evicting on rejection is
-   * what keeps a momentary billing outage from pinning the gate shut. The
-   * caller still sees the rejection through `resolution`; `getBYOKKey` catches
-   * it and falls back for that one call.
-   */
-  resolution.catch(() => entitlementCache.delete(organizationId))
-
-  return resolution
+  return coalesceLocally(`byok-entitlement:${organizationId}`, async () => {
+    const entitled = await resolveOrganizationPlan(organizationId, { onError: 'throw' })
+    entitlementCache.set(organizationId, entitled)
+    return entitled
+  })
 }
 
 /**

@@ -23,6 +23,7 @@ import {
   isOrganizationBYOKEntitledCached,
   resetOrganizationBYOKEntitlementCache,
 } from '@/lib/api-key/byok-entitlement'
+import { __resetCoalesceLocallyForTests } from '@/lib/concurrency/singleflight'
 
 const ORGANIZATION_ID = 'org-1'
 
@@ -30,6 +31,7 @@ describe('organization BYOK entitlement', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetOrganizationBYOKEntitlementCache()
+    __resetCoalesceLocallyForTests()
     mockIsHosted.value = true
     mockResolveOrganizationPlan.mockResolvedValue(true)
   })
@@ -72,6 +74,21 @@ describe('organization BYOK entitlement', () => {
     release(true)
 
     await expect(inflight).resolves.toEqual([true, true, true])
+    expect(mockResolveOrganizationPlan).toHaveBeenCalledTimes(1)
+  })
+
+  /**
+   * The cached value is a boolean, so a truthiness check would read a cached
+   * `false` as a miss — re-querying billing on every resolution for exactly the
+   * organizations the cache exists to protect (lapsed ones still holding keys).
+   */
+  it('serves a cached false without re-reading billing', async () => {
+    mockResolveOrganizationPlan.mockResolvedValue(false)
+
+    await expect(isOrganizationBYOKEntitledCached(ORGANIZATION_ID)).resolves.toBe(false)
+    await expect(isOrganizationBYOKEntitledCached(ORGANIZATION_ID)).resolves.toBe(false)
+    await expect(isOrganizationBYOKEntitledCached(ORGANIZATION_ID)).resolves.toBe(false)
+
     expect(mockResolveOrganizationPlan).toHaveBeenCalledTimes(1)
   })
 
