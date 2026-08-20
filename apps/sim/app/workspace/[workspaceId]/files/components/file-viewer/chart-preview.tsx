@@ -82,8 +82,19 @@ function parseChartSpec(content: string): { spec?: ChartSpec; error?: string } {
  */
 function buildOption(spec: ChartSpec, rows: Array<Record<string, unknown>> | null): EChartsOption {
   const option = structuredClone(spec.option)
-  if (rows && rows.length > 0 && option.dataset === undefined) {
-    option.dataset = { source: rows }
+  if (rows && rows.length > 0) {
+    // The resolved rows become the FIRST dataset (id "table", datasetIndex 0).
+    // Spec-declared datasets follow it, so filter/sort transform datasets can
+    // derive from the injected rows (transforms default to fromDatasetIndex 0,
+    // or name it explicitly with fromDatasetId: "table").
+    const injected = { id: 'table', source: rows }
+    if (option.dataset === undefined) {
+      option.dataset = injected
+    } else if (Array.isArray(option.dataset)) {
+      option.dataset = [injected, ...option.dataset]
+    } else {
+      option.dataset = [injected, option.dataset]
+    }
   }
   if (option.backgroundColor === undefined) {
     option.backgroundColor = 'transparent'
@@ -94,16 +105,16 @@ function buildOption(spec: ChartSpec, rows: Array<Record<string, unknown>> | nul
   // Gentle layout defaults — fill in ONLY what the spec leaves unset. A title
   // and a legend both default to the top edge and overlap; when both are
   // present and the legend declares no position, drop it below the title.
-  const legend = option.legend
-  if (
-    option.title !== undefined &&
-    legend !== null &&
-    typeof legend === 'object' &&
-    !Array.isArray(legend)
-  ) {
-    const positioned = legend as Record<string, unknown>
-    if (positioned.top === undefined && positioned.bottom === undefined) {
-      positioned.top = 32
+  if (option.title !== undefined && option.legend !== null && typeof option.legend === 'object') {
+    const legends = Array.isArray(option.legend) ? option.legend : [option.legend]
+    let nextTop = 32
+    for (const entry of legends) {
+      if (entry === null || typeof entry !== 'object') continue
+      const positioned = entry as Record<string, unknown>
+      if (positioned.top === undefined && positioned.bottom === undefined) {
+        positioned.top = nextTop
+        nextTop += 28
+      }
     }
   }
   return option as EChartsOption
