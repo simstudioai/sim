@@ -3,7 +3,12 @@
  */
 import { readdir, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+
+// Structurally slow — it scans call sites across the repo — so under a fully-parallel local run this file
+// blows the default timeout while passing in isolation and on CI. Give it a
+// real budget instead of letting machine load decide the verdict.
+vi.setConfig({ testTimeout: 30_000 })
 
 /**
  * `signalTableRowsChangedByActor` lets the acting tab skip its own refetch, which is only sound

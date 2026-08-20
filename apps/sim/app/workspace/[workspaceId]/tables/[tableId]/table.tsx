@@ -125,6 +125,13 @@ interface TableProps {
    * today's Filter/Sort behavior.
    */
   viewsEnabled?: boolean
+  /**
+   * Saved view to adopt on first seed instead of the table's default —
+   * embedded mode only, set when the agent opened this table pinned to a
+   * view. Participates only in the one-time adoption branch, so it never
+   * fights a later user switch.
+   */
+  initialViewId?: string
 }
 
 /**
@@ -191,6 +198,7 @@ interface ViewConfigKeep {
  */
 export function Table({
   embedded,
+  initialViewId,
   workspaceId: propWorkspaceId,
   tableId: propTableId,
   tableLocksEnabled = false,
@@ -585,17 +593,23 @@ export function Table({
       const legacyAllWithDefault = activeViewId === ALL_VIEW_PARAM && defaultView !== null
 
       if (activeViewId === null || inheritedParams || legacyAllWithDefault) {
+        // Embedded mode may pin the view the agent opened this table on
+        // (`initialViewId`); the pin outranks the persisted default for this
+        // first adoption.
+        const pinnedView =
+          embedded && initialViewId ? views.find((view) => view.id === initialViewId) : undefined
+        const viewToApply = pinnedView ?? defaultView
         // `sort` rides the same host URL, so when the view id is inherited the
         // sort beside it is too — not local work, and it must not suppress the
         // default view's own sort.
         const keep = inheritedParams ? { ...localWork(), sort: false } : localWork()
-        if (defaultView) {
-          appliedViewRevisionRef.current = getTableViewRevision(defaultView)
-          setTableParams({ view: defaultView.id })
-          preserveViewState(defaultView.id, keep)
-          applyViewConfig(resolveTableViewConfig(tableData?.metadata, defaultView.config), keep)
-          resolvePendingLayout(defaultView.id)
-          flushPendingViewConfig(defaultView.id)
+        if (viewToApply) {
+          appliedViewRevisionRef.current = getTableViewRevision(viewToApply)
+          setTableParams({ view: viewToApply.id })
+          preserveViewState(viewToApply.id, keep)
+          applyViewConfig(resolveTableViewConfig(tableData?.metadata, viewToApply.config), keep)
+          resolvePendingLayout(viewToApply.id)
+          flushPendingViewConfig(viewToApply.id)
           return
         }
         // No view to adopt. Deliberately does NOT apply an empty config — that

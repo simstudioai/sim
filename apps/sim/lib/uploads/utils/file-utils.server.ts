@@ -13,6 +13,9 @@ import {
 } from '@/lib/core/utils/stream-limits'
 import { StorageService } from '@/lib/uploads'
 import { isExecutionFile } from '@/lib/uploads/contexts/execution/utils'
+// This file is lazily imported back by workspace-file-manager, so that edge
+// stays dynamic on their side; these statics do not close a load-time cycle.
+import { parseWorkspaceFileKey } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import {
   isModelSafeWorkspaceFileKey,
   MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE,
@@ -30,6 +33,8 @@ import {
   type RawFileInput,
   resolveTrustedFileContext,
 } from '@/lib/uploads/utils/file-utils'
+import { isSimPageSource, SIM_PAGE_CONTENT_TYPE } from '@/lib/workspace-files/page-compile'
+import { renderSimPageDocumentWithAssets } from '@/lib/workspace-files/page-document.server'
 import { verifyFileAccess } from '@/app/api/files/authorization'
 import type { UserFile } from '@/executor/types'
 
@@ -415,6 +420,23 @@ export async function downloadServableFileFromStorage(
     maxBytes: options.maxBytes,
   })
 
+  // The pdf model for pages: a page file stores its source and downloads
+  // resolve to the fully styled compiled document, like a .pdf key resolving
+  // to its binary. Sim pages store an extensionless name (the record type
+  // marks them); legacy pages still carry .html.
+  if (userFile.name.toLowerCase().endsWith('.html') || userFile.type === SIM_PAGE_CONTENT_TYPE) {
+    const text = buffer.toString('utf8')
+    if (isSimPageSource(text)) {
+      const workspaceId = userFile.key
+        ? (parseWorkspaceFileKey(userFile.key) ?? undefined)
+        : undefined
+      return {
+        buffer: Buffer.from(await renderSimPageDocumentWithAssets(text, { workspaceId }), 'utf8'),
+        contentType: 'text/html',
+      }
+    }
+  }
+
   // Cheap pre-filter so only generated-doc candidates pay for the heavier resolver
   // import below.
   if (!isRenderableDocumentName(userFile.name)) {
@@ -422,9 +444,6 @@ export async function downloadServableFileFromStorage(
     return { buffer, contentType: userFile.type || getMimeTypeFromExtension(ext) }
   }
 
-  const { parseWorkspaceFileKey } = await import(
-    '@/lib/uploads/contexts/workspace/workspace-file-manager'
-  )
   const workspaceId = userFile.key
     ? (parseWorkspaceFileKey(userFile.key) ??
       extractWorkspaceIdFromExecutionKey(userFile.key) ??

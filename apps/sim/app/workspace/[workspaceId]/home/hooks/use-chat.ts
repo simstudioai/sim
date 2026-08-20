@@ -30,7 +30,7 @@ import { onOpenInBrowserPanel } from '@/lib/browser-agent/open-in-panel'
 import {
   cancelActiveBrowserTools,
   initBrowserAgentTransport,
-  sendBrowserPanelAction,
+  openUrlInNewBrowserTab,
 } from '@/lib/browser-agent/transport'
 import { getMothershipAttachmentPreviewUrl } from '@/lib/copilot/chat/attachment-preview'
 import { toDisplayMessage } from '@/lib/copilot/chat/display-message'
@@ -126,8 +126,10 @@ import { getFolderMap } from '@/hooks/queries/utils/folder-cache'
 import { invalidateWorkflowSelectors } from '@/hooks/queries/utils/invalidate-workflow-lists'
 import { getTopInsertionSortOrder } from '@/hooks/queries/utils/top-insertion-sort-order'
 import { getWorkflowById, getWorkflows } from '@/hooks/queries/utils/workflow-cache'
+import { getWorkflowListQueryOptions } from '@/hooks/queries/utils/workflow-list-query'
 import { workflowKeys } from '@/hooks/queries/workflows'
 import { useExecutionStream } from '@/hooks/use-execution-stream'
+import { snapAllSmoothText } from '@/hooks/use-smooth-text'
 import { useExecutionStore } from '@/stores/execution/store'
 import { useMothershipQueueStore } from '@/stores/mothership-queue/store'
 import type {
@@ -228,6 +230,7 @@ const RECONNECT_TAIL_ERROR =
 const MAX_RECONNECT_ATTEMPTS = 10
 const RECONNECT_BASE_DELAY_MS = 1000
 const RECONNECT_MAX_DELAY_MS = 30_000
+const RECONNECT_EXHAUSTED_RECHECK_MS = 30_000
 const STREAM_BATCH_FETCH_TIMEOUT_MS = 10_000
 const STREAM_CHAT_ID_RESOLVE_TIMEOUT_MS = 10_000
 const CHAT_HISTORY_RECOVERY_TIMEOUT_MS = 10_000
@@ -1188,8 +1191,65 @@ function ensureWorkflowInRegistry(resourceId: string, title: string, workspaceId
   return true
 }
 
+/**
+ * Hydrated workflow resources whose workflow exists neither in the fetched
+ * server list nor in the local cache. The cache term protects a workflow the
+ * agent created after the list snapshot was taken — the stream's registry
+ * insert lands it in the cache before any refetch does.
+ */
+export function selectDeletedWorkflowResources(
+  workflowResources: MothershipResource[],
+  fetchedWorkflowIds: ReadonlySet<string>,
+  cachedWorkflows: readonly WorkflowMetadata[]
+): MothershipResource[] {
+  const cachedIds = new Set(cachedWorkflows.map((workflow) => workflow.id))
+  return workflowResources.filter(
+    (resource) => !fetchedWorkflowIds.has(resource.id) && !cachedIds.has(resource.id)
+  )
+}
+
+export interface ResourceEventOptions {
+  activate?: boolean
+}
+
+export type ResourceEventHandler = (resourceId: string, options?: ResourceEventOptions) => void
+
+/**
+ * Whether a streamed resource event should activate its tab. The panel always
+ * follows the agent: whatever it is creating, editing, or driving becomes the
+ * visible resource, browser sessions included. The parameters are retained so
+ * callers stay explicit about the resource in play, and so a future opt-out
+ * (an event that deliberately declines focus) has a place to live.
+ */
+export function shouldActivateResourceEvent(
+  _activeResourceId: string | null,
+  _resourceId: string,
+  options?: ResourceEventOptions
+): boolean {
+  return options?.activate !== false
+}
+
+/**
+ * Whether a fresh outbound message must join the chat's send queue instead of
+ * dispatching directly. Queueing while a send or stop is in flight is the
+ * obvious half; the queued-ahead term preserves FIFO across the
+ * streaming→idle boundary — a message queued while the previous turn streamed
+ * must reach the model before one typed after that turn ended but before the
+ * queue drained. Without it the fresh send jumps the queue and both the
+ * transcript and the model see the user's messages in swapped order. The two
+ * signals never gap mid-dispatch: a queued message stays in the queue until
+ * its optimistic send applies, which is after the in-flight flag is set.
+ */
+export function shouldQueueOutgoingMessage(
+  sendInFlight: boolean,
+  stopPending: boolean,
+  queuedAheadCount: number
+): boolean {
+  return sendInFlight || stopPending || queuedAheadCount > 0
+}
+
 export interface UseChatOptions {
-  onResourceEvent?: (resourceId: string) => void
+  onResourceEvent?: ResourceEventHandler
   apiPath?: string
   stopPath?: string
   workflowId?: string
@@ -1437,6 +1497,10 @@ export function useChat(
     () => {}
   )
   const recoveringQueuedSendHandoffRef = useRef<ActiveQueuedSendHandoffRecovery | null>(null)
+  const recoverActiveStreamRef = useRef<
+    (reason: 'pageshow' | 'visible' | 'online' | 'exhausted_recheck') => Promise<void>
+  >(async () => {})
+  const reconnectExhaustedRecheckTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const abortControllerRef = useRef<AbortController | null>(null)
   const detachedChatResolutionControllersRef = useRef<Set<AbortController>>(new Set())
@@ -1814,6 +1878,37 @@ export function useChat(
     }
   }, [])
 
+  /**
+   * Drops hydrated workflow tabs whose workflow no longer exists, so an old
+   * chat cannot resurrect a deleted workflow. The check is against a fetched
+   * workflow list rather than the cache: seeding the registry from the chat's
+   * persisted resources (what hydration previously did unconditionally) put
+   * phantom entries in the sidebar that 404 on click. Removal also deletes the
+   * resource from the chat's persisted set, so the tab stays gone next open.
+   */
+  const reconcileHydratedWorkflowResources = useCallback(
+    async (chatId: string, workflowResources: MothershipResource[]) => {
+      let existing: WorkflowMetadata[]
+      try {
+        existing = await getQueryClient().fetchQuery(getWorkflowListQueryOptions(workspaceId))
+      } catch {
+        // Existence is unknowable right now; keep the tabs rather than delete
+        // resources on a network failure. The next hydration retries.
+        return
+      }
+      const deleted = selectDeletedWorkflowResources(
+        workflowResources,
+        new Set(existing.map((workflow) => workflow.id)),
+        getWorkflows(workspaceId)
+      )
+      for (const resource of deleted) {
+        if ((chatIdRef.current ?? selectedChatIdRef.current) !== chatId) return
+        removeResource('workflow', resource.id)
+      }
+    },
+    [workspaceId, removeResource]
+  )
+
   const reorderResources = useCallback((newOrder: MothershipResource[]) => {
     setResources(newOrder)
     const persistChatId = chatIdRef.current ?? selectedChatIdRef.current
@@ -1924,12 +2019,14 @@ export function useChat(
   )
 
   const openBrowserResource = useCallback(() => {
+    // Browser work surfaces like any other agent activity: the panel follows
+    // the agent to the browser whether or not the session was already open.
     addResource({
       type: 'browser',
       id: BROWSER_SESSION_RESOURCE_ID,
       title: 'Browser',
     })
-    onResourceEventRef.current?.(BROWSER_SESSION_RESOURCE_ID)
+    onResourceEventRef.current?.(BROWSER_SESSION_RESOURCE_ID, { activate: true })
   }, [addResource])
 
   const getResourceActivityTracker = useCallback(
@@ -2047,7 +2144,11 @@ export function useChat(
   useEffect(() => {
     return onOpenInBrowserPanel((url) => {
       openBrowserResource()
-      sendBrowserPanelAction('navigate', { url }, desktopScopeIdRef.current)
+      void openUrlInNewBrowserTab(url, desktopScopeIdRef.current).catch((error) => {
+        logger.warn('Failed to open chat link in a new browser tab', {
+          error: getErrorMessage(error),
+        })
+      })
     })
   }, [openBrowserResource])
 
@@ -2355,9 +2456,12 @@ export function useChat(
         setActiveResourceId(hydratedActiveResourceId)
       }
 
-      for (const resource of persistedResources) {
-        if (resource.type !== 'workflow') continue
-        ensureWorkflowInRegistry(resource.id, resource.title, workspaceId)
+      // Restored workflow tabs are verified against the server instead of
+      // seeded into the registry: a chat can outlive its workflows, and
+      // fabricating entries for deleted ones polluted the sidebar.
+      const workflowResources = persistedResources.filter((r) => r.type === 'workflow')
+      if (workflowResources.length > 0) {
+        void reconcileHydratedWorkflowResources(chatHistory.id, workflowResources)
       }
     } else if (hasPersistedStreamingFile) {
       activeResourceIdRef.current = null
@@ -2442,6 +2546,7 @@ export function useChat(
     flushPendingResources,
     openBrowserResource,
     openTerminalResource,
+    reconcileHydratedWorkflowResources,
     recoverPendingClientWorkflowTools,
     seedPreviewSessions,
     setTransportIdle,
@@ -3199,7 +3304,29 @@ export function useChat(
         maxAttempts: MAX_RECONNECT_ATTEMPTS,
       })
       if (streamGenRef.current === gen) {
+        /**
+         * Never give up silently: surface the failure so the pane shows why
+         * the live stream stopped instead of a torn-down transcript. Callers
+         * own the finalize on a false return (every call site finalizes with
+         * error: true), which refetches the persisted transcript; if the
+         * server turn is still running, the visibility/online recovery path
+         * re-attaches on the next pageshow/visible/online event.
+         */
         setIsReconnecting(false)
+        setError(RECONNECT_TAIL_ERROR)
+        /**
+         * The tab may stay visible (no pageshow/visible/online event will ever
+         * fire) while the server turn keeps running detached. One bounded
+         * recheck re-enters recovery once the transient network condition has
+         * had time to clear; recovery itself no-ops when nothing is active.
+         */
+        if (reconnectExhaustedRecheckTimerRef.current) {
+          clearTimeout(reconnectExhaustedRecheckTimerRef.current)
+        }
+        reconnectExhaustedRecheckTimerRef.current = setTimeout(() => {
+          reconnectExhaustedRecheckTimerRef.current = null
+          void recoverActiveStreamRef.current('exhausted_recheck')
+        }, RECONNECT_EXHAUSTED_RECHECK_MS)
       }
       return false
     },
@@ -3208,7 +3335,7 @@ export function useChat(
   retryReconnectRef.current = retryReconnect
 
   const recoverActiveStreamFromRedis = useCallback(
-    async (reason: 'pageshow' | 'visible' | 'online'): Promise<void> => {
+    async (reason: 'pageshow' | 'visible' | 'online' | 'exhausted_recheck'): Promise<void> => {
       const startingChatId = chatIdRef.current
       const startingSelectedChatId = selectedChatIdRef.current
       const chatId = startingChatId ?? startingSelectedChatId
@@ -3343,6 +3470,7 @@ export function useChat(
     },
     [getActiveStreamIdForChat, queryClient, resumeOrFinalize, setTransportReconnecting]
   )
+  recoverActiveStreamRef.current = recoverActiveStreamFromRedis
 
   useEffect(() => {
     if (typeof window === 'undefined' || typeof document === 'undefined') return
@@ -3374,6 +3502,10 @@ export function useChat(
       document.removeEventListener('visibilitychange', handleVisibilityChange)
       window.removeEventListener('pageshow', handlePageShow)
       window.removeEventListener('online', handleOnline)
+      if (reconnectExhaustedRecheckTimerRef.current) {
+        clearTimeout(reconnectExhaustedRecheckTimerRef.current)
+        reconnectExhaustedRecheckTimerRef.current = null
+      }
     }
   }, [recoverActiveStreamFromRedis])
 
@@ -4164,12 +4296,23 @@ export function useChat(
 
       // An in-flight send drains the queue from `finalize`; a pending stop kicks
       // the dispatcher itself, since nothing else will once the stop settles.
-      if (sendingRef.current || pendingStopPromiseRef.current) {
+      // A non-empty queue forces queueing even on an idle chat: messages
+      // queued while the previous turn streamed must go out first, so a fresh
+      // send lands behind them instead of jumping the line in the drain gap
+      // after a turn ends.
+      const queuedAheadCount = (queueStore.queues[activeChatKey] ?? EMPTY_MESSAGE_QUEUE).length
+      if (
+        shouldQueueOutgoingMessage(
+          Boolean(sendingRef.current),
+          Boolean(pendingStopPromiseRef.current),
+          queuedAheadCount
+        )
+      ) {
         queueStore.enqueue(
           activeChatKey,
           createQueuedMessage(message, fileAttachments, contexts, options?.resumeUserMessageId)
         )
-        if (pendingStopPromiseRef.current) {
+        if (pendingStopPromiseRef.current || (queuedAheadCount > 0 && !sendingRef.current)) {
           void enqueueQueueDispatchRef.current({ type: 'send_head' })
         }
         return
@@ -4518,6 +4661,9 @@ export function useChat(
       abortControllerRef.current?.abort('user_stop:client_stopGeneration')
       abortControllerRef.current = null
       setTransportIdle()
+      // The paced reveal may still hold up to a drain-horizon of buffered text;
+      // after an explicit Stop it must not keep typing itself out.
+      snapAllSmoothText()
 
       try {
         if (activeChatId) {

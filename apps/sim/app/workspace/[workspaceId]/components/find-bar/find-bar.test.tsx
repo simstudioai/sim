@@ -35,7 +35,10 @@ vi.mock('@sim/emcn/icons', () => ({
   X: () => <span data-icon='x' />,
 }))
 
-import { TableFind, type TableFindProps } from './table-find'
+import {
+  FindBar,
+  type FindBarProps,
+} from '@/app/workspace/[workspaceId]/components/find-bar/find-bar'
 
 let container: HTMLDivElement
 let root: Root
@@ -53,16 +56,15 @@ afterEach(() => {
   container.remove()
 })
 
-function render(overrides: Partial<TableFindProps> = {}) {
-  const props: TableFindProps = {
+function render(overrides: Partial<FindBarProps> = {}) {
+  const props: FindBarProps = {
+    ariaLabel: 'Find in table',
     query: '',
     onQueryChange: vi.fn(),
     onNext: vi.fn(),
     onPrev: vi.fn(),
     onSubmit: vi.fn(),
     onClose: vi.fn(),
-    isStale: false,
-    canNavigate: true,
     count: 0,
     currentIndex: 0,
     truncated: false,
@@ -70,7 +72,7 @@ function render(overrides: Partial<TableFindProps> = {}) {
     inputRef: createRef<HTMLInputElement>(),
     ...overrides,
   }
-  act(() => root.render(<TableFind {...props} />))
+  act(() => root.render(<FindBar {...props} />))
   return props
 }
 
@@ -96,7 +98,7 @@ function press(key: string, init: KeyboardEventInit = {}) {
   })
 }
 
-describe('TableFind counter', () => {
+describe('FindBar counter', () => {
   it('shows nothing before the user has typed', () => {
     render({ query: '' })
     expect(counterText()).toBe('')
@@ -138,7 +140,7 @@ describe('TableFind counter', () => {
   })
 })
 
-describe('TableFind keyboard', () => {
+describe('FindBar keyboard', () => {
   it('navigates on Enter rather than submitting a search', () => {
     const props = render({ query: 'a', count: 3 })
     press('Enter')
@@ -190,9 +192,17 @@ describe('TableFind keyboard', () => {
     expect(props.onSubmit).toHaveBeenCalledTimes(2)
     expect(props.onPrev).not.toHaveBeenCalled()
   })
+
+  // A surface that matches synchronously passes neither flag; Enter must still
+  // step rather than stall on the defaults.
+  it('steps on Enter when the surface declares no staleness model', () => {
+    const props = render({ query: 'a', count: 3, onSubmit: undefined })
+    press('Enter')
+    expect(props.onNext).toHaveBeenCalledTimes(1)
+  })
 })
 
-describe('TableFind controls', () => {
+describe('FindBar controls', () => {
   it('offers a clear button only once there is text', () => {
     render({ query: '' })
     expect(container.querySelector('button[aria-label="Clear search"]')).toBeNull()

@@ -34,6 +34,20 @@ export interface CopilotWorkflowRunLifecycle {
   billingAttribution?: BillingAttributionSnapshot
   resolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry
   abortSignal?: AbortSignal
+  /**
+   * Execution identity the caller already claimed for this Copilot tool call.
+   *
+   * Set only when the copilot request handler runs a workflow tool server-side
+   * because no browser picked it up. Using the claimed id as the child
+   * execution id — and stamping the matching trusted correlation — keeps a
+   * server-run tool call as attributable in `workflow_execution_logs` as a
+   * browser-routed one, which `/api/workflows/[id]/execute` does for its own
+   * claim at the equivalent point.
+   */
+  boundExecution?: {
+    executionId: string
+    copilotToolCallId: string
+  }
 }
 
 interface BaseCopilotRunInput {
@@ -207,7 +221,11 @@ async function executeCopilotRun(params: {
   }
 }): Promise<ExecutionResult> {
   const actorUserId = requirePrincipalSubjectUserId(params.principal)
-  const childExecutionId = generateId()
+  const boundExecution = params.input.lifecycle.boundExecution
+  // Reuse the caller's already-claimed execution id so the claim and the log
+  // row describe the same run; otherwise mint our own as before.
+  const childExecutionId = boundExecution?.executionId ?? generateId()
+  const requestId = generateRequestId()
   const admission = await prepareWorkflowExecutionAdmission(
     {
       userId: actorUserId,
@@ -229,7 +247,7 @@ async function executeCopilotRun(params: {
         workspaceId: params.context.workspaceId,
         variables: params.context.workflow.variables || {},
       },
-      generateRequestId(),
+      requestId,
       params.executionInput,
       actorUserId,
       {
@@ -245,6 +263,18 @@ async function executeCopilotRun(params: {
         billingAttribution: admission.billingAttribution,
         ...(trustedInitialResolvedSecretTraceProvenance
           ? { trustedInitialResolvedSecretTraceProvenance }
+          : {}),
+        ...(boundExecution
+          ? {
+              trustedExecutionCorrelation: {
+                executionId: childExecutionId,
+                requestId,
+                source: 'workflow' as const,
+                workflowId: params.context.workflowId,
+                triggerType: 'copilot',
+                copilotToolCallId: boundExecution.copilotToolCallId,
+              },
+            }
           : {}),
       },
       childExecutionId

@@ -12,7 +12,7 @@ export type PendingFileIntent = {
   chatId?: string
   messageId?: string
   // The invoking file subagent's channel id (its outer tool_use id). Lets
-  // edit_content consume the intent for ITS OWN file subagent instead of the
+  // apply_file_edit consume the intent for ITS OWN file subagent instead of the
   // latest in the message, so two file agents writing concurrently never cross
   // their content into each other's file.
   channelId?: string
@@ -178,6 +178,36 @@ export async function peekFileIntent(
     })
   }
   return intent
+}
+
+const INTENT_WAIT_TIMEOUT_MS = 10_000
+const INTENT_WAIT_INTERVAL_MS = 300
+
+/**
+ * Bounded wait for the paired prepare_file_edit to stage its intent. The model
+ * may batch prepare_file_edit and apply_file_edit into one round, and the Go
+ * loop executes same-round tools concurrently — so apply_file_edit can reach
+ * this executor before its prepare has run. Failing instantly turns that
+ * ordinary race into a model-visible error, a wasted retry round, and a
+ * transient "Failed …" state on the chat's shared file row. Polling briefly
+ * lets the prepare land and the pair succeed first try; a truly missing
+ * prepare still returns undefined once the deadline passes.
+ */
+export async function waitForLatestFileIntent(
+  workspaceId: string,
+  scope?: FileIntentScope,
+  options?: { timeoutMs?: number; intervalMs?: number }
+): Promise<PendingFileIntent | undefined> {
+  const timeoutMs = options?.timeoutMs ?? INTENT_WAIT_TIMEOUT_MS
+  const intervalMs = options?.intervalMs ?? INTENT_WAIT_INTERVAL_MS
+  const deadline = Date.now() + timeoutMs
+  for (;;) {
+    const intent = await consumeLatestFileIntent(workspaceId, scope)
+    if (intent) return intent
+    const remainingMs = deadline - Date.now()
+    if (remainingMs <= 0) return undefined
+    await sleep(Math.min(intervalMs, remainingMs))
+  }
 }
 
 export async function consumeLatestFileIntent(

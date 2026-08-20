@@ -1,3 +1,4 @@
+import { foldSearchWhitespace } from '@sim/utils/string'
 import {
   getWorkflowSearchSubBlockResourceKind,
   parseWorkflowSearchSubBlockResources,
@@ -146,7 +147,9 @@ export function matchesSearchText(
   caseSensitive = false
 ): boolean {
   if (!query) return true
-  const source = caseSensitive ? candidate : candidate.toLowerCase()
-  const target = caseSensitive ? query : query.toLowerCase()
+  const foldedCandidate = foldSearchWhitespace(candidate)
+  const foldedQuery = foldSearchWhitespace(query)
+  const source = caseSensitive ? foldedCandidate : foldedCandidate.toLowerCase()
+  const target = caseSensitive ? foldedQuery : foldedQuery.toLowerCase()
   return source.includes(target)
 }

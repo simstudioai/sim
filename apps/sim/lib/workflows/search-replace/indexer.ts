@@ -1,4 +1,5 @@
 import { isRecordLike } from '@sim/utils/object'
+import { foldSearchWhitespace, projectEscapedMarkdownForSearch } from '@sim/utils/string'
 import { DEFAULT_SUBBLOCK_TYPE } from '@sim/workflow-persistence/subblocks'
 import type { SubBlockType } from '@sim/workflow-types/blocks'
 import { isWorkflowBlockProtected } from '@sim/workflow-types/workflow'
@@ -56,19 +57,47 @@ import {
   type ToolParameterConfig,
 } from '@/tools/params'
 
+/**
+ * Whitespace is folded before comparison (see {@link foldSearchWhitespace}):
+ * the fold is one-to-one, so ranges found in the normalized string index the
+ * original text correctly.
+ */
 function normalizeForSearch(value: string, caseSensitive: boolean): string {
-  return caseSensitive ? value : value.toLowerCase()
+  const folded = foldSearchWhitespace(value)
+  return caseSensitive ? folded : folded.toLowerCase()
 }
 
-function findTextRanges(value: string, query: string, caseSensitive: boolean) {
+/**
+ * Ranges of `query` in `value`, always in `value`'s own coordinates.
+ *
+ * A field declaring `searchTextFormat: 'markdown'` is matched against the text
+ * it RENDERS as: the rich-text editor backslash-escapes every
+ * markdown-significant character in prose, so a Note body reading `SB_ACTION`
+ * on screen is stored as `SB\_ACTION`. The escape is undone only to match — the
+ * returned range still spans the escaped source, so replace rewrites the whole
+ * `\_` and never strands a backslash.
+ */
+function findTextRanges(
+  value: string,
+  query: string,
+  caseSensitive: boolean,
+  searchTextFormat?: SubBlockConfig['searchTextFormat']
+) {
   if (!query) return []
-  const source = normalizeForSearch(value, caseSensitive)
+
+  const projection = searchTextFormat === 'markdown' ? projectEscapedMarkdownForSearch(value) : null
+  const source = normalizeForSearch(projection ? projection.text : value, caseSensitive)
   const target = normalizeForSearch(query, caseSensitive)
   const ranges: Array<{ start: number; end: number }> = []
 
   let index = source.indexOf(target)
   while (index !== -1) {
-    ranges.push({ start: index, end: index + target.length })
+    const end = index + target.length
+    ranges.push(
+      projection
+        ? { start: projection.starts[index], end: projection.starts[end] }
+        : { start: index, end }
+    )
     index = source.indexOf(target, index + Math.max(target.length, 1))
   }
 
@@ -571,6 +600,8 @@ interface AddTextMatchesOptions {
   protectedByLock: boolean
   isSnapshotView: boolean
   readonlyReason?: string
+  /** Declared by the field's config; see {@link findTextRanges}. */
+  searchTextFormat?: SubBlockConfig['searchTextFormat']
 }
 
 function getReadonlyReason({
@@ -603,8 +634,9 @@ function addTextMatches({
   protectedByLock,
   isSnapshotView,
   readonlyReason,
+  searchTextFormat,
 }: AddTextMatchesOptions) {
-  const ranges = query ? findTextRanges(value, query, caseSensitive) : []
+  const ranges = query ? findTextRanges(value, query, caseSensitive, searchTextFormat) : []
   ranges.forEach((range, occurrenceIndex) => {
     matches.push({
       id: createMatchId([
@@ -1241,7 +1273,7 @@ export function indexWorkflowSearchMatches(
 ): WorkflowSearchMatch[] {
   const {
     workflow,
-    query,
+    query: rawQuery,
     mode = 'all',
     caseSensitive = false,
     includeResourceMatchesWithoutQuery = false,
@@ -1255,6 +1287,10 @@ export function indexWorkflowSearchMatches(
     customTools,
     mcpToolNamesById,
   } = options
+
+  // Match on the trimmed query: an accidental leading/trailing space (easy to
+  // type, impossible to see in the search box) must not hide every match.
+  const query = rawQuery?.trim()
 
   const matches: WorkflowSearchMatch[] = []
   const resourceQueryEnabled = includeResourceMatchesWithoutQuery || Boolean(query)
@@ -1463,6 +1499,7 @@ export function indexWorkflowSearchMatches(
             target: { kind: 'subblock' },
             query,
             caseSensitive,
+            searchTextFormat: subBlockConfig?.searchTextFormat,
             editable: leafEditable,
             protectedByLock,
             isSnapshotView,

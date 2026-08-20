@@ -237,8 +237,13 @@ describe('mothership private trace provenance transport', () => {
       'user-1',
       'secret-value __var_FOREIGN',
       'workspace-1',
-      'chat-1'
+      'chat-1',
+      expect.any(Object)
     )
+
+    const contextRegistry = mockProcessContextsServer.mock.calls.at(-1)?.[5]
+    const lifecycleOptions = mockRunHeadlessCopilotLifecycle.mock.calls.at(-1)?.[1]
+    expect(contextRegistry).toBe(lifecycleOptions.environmentContext?.resolvedSecretTraceRegistry)
   })
 
   it('keeps context routing and display inputs raw until the lifecycle boundary', async () => {
@@ -290,7 +295,8 @@ describe('mothership private trace provenance transport', () => {
       'user-1',
       'hello',
       'workspace-1',
-      'chat-1'
+      'chat-1',
+      expect.any(Object)
     )
   })
 

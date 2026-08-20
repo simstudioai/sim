@@ -9,6 +9,7 @@ import { getBlock } from '@/blocks/registry'
 import { normalizeName, RESERVED_BLOCK_NAMES } from '@/executor/constants'
 import { TRIGGER_RUNTIME_SUBBLOCK_IDS } from '@/triggers/constants'
 import {
+  applyBlockRetry,
   applyTriggerConfigToBlockSubblocks,
   createBlockFromParams,
   filterDisallowedTools,
@@ -655,6 +656,17 @@ export function handleEditOperation(op: EditWorkflowOperation, ctx: OperationCon
   // Handle advanced mode toggle
   if (typeof params?.advancedMode === 'boolean') {
     block.advancedMode = params.advancedMode
+  }
+
+  // Handle retry policy. Runs after the trigger-mode branch above so eligibility
+  // sees the block's post-update mode: turning a block into a trigger in the
+  // same operation makes it ineligible, exactly as the editor treats it.
+  if (params?.retry !== undefined) {
+    applyBlockRetry(block, params.retry, {
+      operationType: 'edit',
+      blockId: block_id,
+      skippedItems,
+    })
   }
 
   // Handle nested nodes update (for loops/parallels) using merge strategy.

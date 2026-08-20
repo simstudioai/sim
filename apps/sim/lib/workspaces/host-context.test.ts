@@ -85,6 +85,7 @@ describe('getWorkspaceHostContextForViewer', () => {
           permission: 'write',
           isHostOrganizationMember: true,
           isHostOrganizationAdmin: false,
+          organizationRole: 'member',
         },
       })
     )
@@ -104,6 +105,7 @@ describe('getWorkspaceHostContextForViewer', () => {
       permission: 'read',
       isHostOrganizationMember: false,
       isHostOrganizationAdmin: false,
+      organizationRole: null,
     })
     expect(context?.hostOrganizationId).toBe('org-host')
   })
@@ -125,6 +127,7 @@ describe('getWorkspaceHostContextForViewer', () => {
           permission: 'admin',
           isHostOrganizationMember: false,
           isHostOrganizationAdmin: false,
+          organizationRole: null,
         },
       })
     )

@@ -41,7 +41,7 @@ export interface ToolCallState {
    * For a subagent-scoped tool call, the invoking subagent's channel id (its
    * outer tool_use id, = event.scope.parentToolCallId). Captured at dispatch so
    * the executor can thread it into the server tool context and scope the
-   * workspace_file -> edit_content intent handoff per file subagent. Undefined
+   * prepare_file_edit -> apply_file_edit intent handoff per file subagent. Undefined
    * for main-lane tool calls.
    */
   parentToolCallId?: string
@@ -80,6 +80,8 @@ export interface ContentBlock {
    * `subagent` start block is missing (resume legs re-emit text without start).
    */
   subagent?: string
+  /** Orchestrator-chosen display name for a `subagent` start block. */
+  subagentName?: string
   /**
    * Deterministic agent-run identity. `spanId` is the stable per-invocation id
    * of the subagent that produced the block; `parentSpanId` links it to the run
@@ -146,6 +148,8 @@ export interface StreamingContext {
    * block. Per-lane keying keeps each subagent's reasoning intact.
    */
   subagentThinkingBlocks: Map<string, ContentBlock>
+  /** Span ids whose lane start block has been persisted (dedupe across replays). */
+  openSubagentSpans?: Set<string>
   isInThinkingBlock: boolean
   subAgentContent: Record<string, string>
   subAgentToolCalls: Record<string, ToolCallState[]>

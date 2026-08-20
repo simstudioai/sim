@@ -1,16 +1,21 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   BLOCK_DIMENSIONS,
+  countNoteSearchOccurrencesBefore,
   DEFAULT_NOTE_COLOR,
   estimateNoteBlockHeight,
+  forEachNoteSourceOccurrence,
   getNoteStringValue,
   isNoteColor,
   NoteBlockView,
   type NoteColor,
   type NoteContentEditorProps,
+  type NoteSearchHighlight,
+  type NoteSearchRange,
 } from '@sim/workflow-renderer'
 import dynamic from 'next/dynamic'
 import { type NodeProps, useReactFlow } from 'reactflow'
+import { useShallow } from 'zustand/react/shallow'
 import { appendNoteImageMarkdown } from '@/lib/workflows/notes/add-image'
 import {
   NOTE_ADD_IMAGE_EVENT,
@@ -26,7 +31,7 @@ import { useBlockDimensions } from '@/app/workspace/[workspaceId]/w/[workflowId]
 import { isBlockProtected } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useIsCurrentWorkflowExecuting } from '@/stores/execution'
-import { usePanelEditorStore } from '@/stores/panel'
+import { usePanelEditorSearchStore, usePanelEditorStore } from '@/stores/panel'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
@@ -47,6 +52,9 @@ const NoteMarkdownEditor = dynamic(
 )
 
 const NOTE_EXPAND_FOCUS_DURATION_MS = 300
+
+/** The markdown body's sub-block id, as declared by the Note block config. */
+const NOTE_CONTENT_SUBBLOCK_ID = 'content'
 
 function renderNoteContentEditor(props: NoteContentEditorProps) {
   return <NoteMarkdownEditor {...props} />
@@ -106,7 +114,92 @@ export const NoteBlock = memo(function NoteBlock({
     useCallback((state) => isBlockProtected(id, state.blocks), [id])
   )
   const clearCurrentBlock = usePanelEditorStore((state) => state.clearCurrentBlock)
+  /* Flattened to primitives under a shallow compare, never held as the target
+     object: the search panel re-publishes an equal target on most of its own
+     renders, and a card that subscribes to the object rebuilds its highlight on
+     every one of them. */
+  const searchTarget = usePanelEditorSearchStore(
+    useShallow((state) => {
+      const target = state.activeSearchTarget
+      return {
+        blockId: target?.blockId ?? null,
+        subBlockId: target?.subBlockId ?? null,
+        targetKind: target?.targetKind ?? null,
+        query: target?.query ?? null,
+        rawValue: target?.rawValue ?? null,
+        rangeStart: target?.range?.start ?? null,
+        rangeEnd: target?.range?.end ?? null,
+      }
+    })
+  )
   const canEditNote = canEditWorkflow && !data.isPreview && !isProtected
+
+  /** Whether the active search match belongs to this card at all. */
+  const isSearchTargetBlock =
+    !data.isPreview &&
+    !data.isEmbedded &&
+    searchTarget.blockId === id &&
+    Boolean(searchTarget.query)
+
+  /**
+   * The workflow search match this card should paint in its body.
+   *
+   * The panel editor renders nothing for a note, so the card is the only
+   * surface that can answer a search — without this a note match counts towards
+   * "1 of 6" and then highlights nowhere.
+   *
+   * The stored range is re-checked against the live content before it is
+   * trusted: the index runs over a snapshot, and a collaborator's edit between
+   * indexing and painting would shift the ordinal onto the wrong words. When it
+   * no longer holds — or the match never carried one — this falls back to the
+   * first rendered occurrence, which is the same fallback the editor panel
+   * makes for a label whose stored range does not fit.
+   */
+  const searchHighlight = useMemo<NoteSearchHighlight | null>(() => {
+    if (!isSearchTargetBlock) return null
+    if (searchTarget.targetKind !== 'subblock') return null
+    if (searchTarget.subBlockId !== NOTE_CONTENT_SUBBLOCK_ID) return null
+
+    const { query, rawValue, rangeStart, rangeEnd } = searchTarget
+    if (!query) return null
+
+    const rangeHolds =
+      rangeStart !== null && rangeEnd !== null && content.slice(rangeStart, rangeEnd) === rawValue
+    if (rangeHolds) {
+      return {
+        query,
+        occurrenceIndex: countNoteSearchOccurrencesBefore(content, query, rangeStart),
+      }
+    }
+
+    /* Asked through the same scan that will do the marking, rather than a local
+       `includes`: a bare comparison skips the whitespace fold, so a query the
+       indexer matched across a newline or a non-breaking space would read as
+       absent here and the card would paint nothing while the panel counted it. */
+    let occurs = false
+    forEachNoteSourceOccurrence(content, query, () => {
+      occurs = true
+    })
+    return occurs ? { query, occurrenceIndex: 0 } : null
+  }, [content, isSearchTargetBlock, searchTarget])
+
+  /**
+   * The match to paint in the title, for a search that hit the note's name.
+   *
+   * A name match carries an exact range over `block.name`, so unlike the body
+   * there is no occurrence to reconstruct — it is used directly, once it still
+   * describes the live name.
+   */
+  const nameSearchRange = useMemo<NoteSearchRange | null>(() => {
+    if (!isSearchTargetBlock) return null
+    if (searchTarget.targetKind !== 'block-name') return null
+
+    const { rawValue, rangeStart, rangeEnd } = searchTarget
+    if (rangeStart === null || rangeEnd === null) return null
+    if ((name ?? '').slice(rangeStart, rangeEnd) !== rawValue) return null
+
+    return { start: rangeStart, end: rangeEnd }
+  }, [isSearchTargetBlock, name, searchTarget])
   const uploadNoteImage = useNoteImageUpload()
   const imageInputRef = useRef<HTMLInputElement>(null)
   const [blockHeight, setBlockHeight] = useState(() => estimateNoteBlockHeight(content))
@@ -132,6 +225,48 @@ export const NoteBlock = memo(function NoteBlock({
     []
   )
 
+  const isExpandedRef = useRef(isExpanded)
+  useEffect(() => {
+    isExpandedRef.current = isExpanded
+  }, [isExpanded])
+
+  /**
+   * Opens the card while it holds the current search match, and closes it again
+   * when the match moves on.
+   *
+   * A compact note shows a few lines of what is often a long document, so a
+   * match found deep inside it lands in a body the user cannot read. Expanding
+   * is the same gesture a click makes, and it gives the mark somewhere to be.
+   *
+   * Two things this deliberately does not do. It does not call
+   * {@link handleExpandedChange}, whose own `setCenter` would race the camera
+   * the canvas already moved for this match. And it only closes a card it
+   * opened — a note the user expanded by hand, or collapsed by hand while the
+   * match still points here, is left exactly as they left it.
+   */
+  const searchExpandedRef = useRef(false)
+  const hasSearchMatch = searchHighlight !== null || nameSearchRange !== null
+  useEffect(() => {
+    /* Losing edit rights already force-collapses the card during render. Drop the latch with it,
+       or regaining them would hit the early return below and leave a deep match clipped in the
+       compact body until the active match moved. */
+    if (!canEditNote) {
+      searchExpandedRef.current = false
+      return
+    }
+
+    if (hasSearchMatch) {
+      if (searchExpandedRef.current || isExpandedRef.current) return
+      searchExpandedRef.current = true
+      setIsExpanded(true)
+      return
+    }
+
+    if (!searchExpandedRef.current) return
+    searchExpandedRef.current = false
+    setIsExpanded(false)
+  }, [canEditNote, hasSearchMatch])
+
   const handleNameChange = (nextName: string) => {
     if (!canEditNote) return false
     return collaborativeUpdateBlockName(id, nextName).success
@@ -139,7 +274,7 @@ export const NoteBlock = memo(function NoteBlock({
 
   const handleContentChange = (nextContent: string) => {
     if (!canEditNote) return
-    collaborativeSetSubblockValue(id, 'content', nextContent)
+    collaborativeSetSubblockValue(id, NOTE_CONTENT_SUBBLOCK_ID, nextContent)
   }
 
   /**
@@ -175,9 +310,14 @@ export const NoteBlock = memo(function NoteBlock({
       if (!image) continue
       /* Re-read per image: each append has to build on the previous one, and on
          anything a collaborator wrote while the upload was in flight. */
-      const current = getNoteStringValue(useSubBlockStore.getState().getValue(id, 'content')) ?? ''
+      const current =
+        getNoteStringValue(useSubBlockStore.getState().getValue(id, NOTE_CONTENT_SUBBLOCK_ID)) ?? ''
       setExternalContentWrites((count) => count + 1)
-      collaborativeSetSubblockValue(id, 'content', appendNoteImageMarkdown(current, image))
+      collaborativeSetSubblockValue(
+        id,
+        NOTE_CONTENT_SUBBLOCK_ID,
+        appendNoteImageMarkdown(current, image)
+      )
     }
   }
 
@@ -292,6 +432,8 @@ export const NoteBlock = memo(function NoteBlock({
         onExpandedChange={handleExpandedChange}
         onImageFilesDrop={(files) => void insertImages(files)}
         renderContentEditor={renderNoteContentEditor}
+        searchHighlight={searchHighlight}
+        nameSearchRange={nameSearchRange}
         actionBar={
           <ActionBar
             blockId={id}

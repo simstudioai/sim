@@ -297,7 +297,7 @@ describe('executeFunctionExecute trace-secret provenance', () => {
       names: ['TOKEN'],
     },
   ])(
-    'uses the shared $language compiler analysis before delegating source to function_execute',
+    'uses the shared $language compiler analysis before delegating source to run_function',
     async ({ language, code, names }) => {
       await executeFunctionExecute({ language, code }, context as never)
 
@@ -314,7 +314,7 @@ describe('executeFunctionExecute trace-secret provenance', () => {
     }
   )
 
-  it('routes run_code shell commands through the same function_execute boundary', async () => {
+  it('routes run_code shell commands through the same run_function boundary', async () => {
     const code = 'printf %s "{{CLI_TOKEN}}"'
     const abortController = new AbortController()
 
@@ -344,7 +344,7 @@ describe('executeFunctionExecute trace-secret provenance', () => {
     )
   })
 
-  it('uses the trusted Mothership profile for function_execute without accepting a param override', async () => {
+  it('uses the trusted Mothership profile for run_function without accepting a param override', async () => {
     await executeFunctionExecute(
       {
         code: 'return 1',
@@ -1218,7 +1218,7 @@ describe('executeFunctionExecute unmountable namespaces', () => {
   it('keeps the uploads/ guidance intact', async () => {
     const message = await mountError({ inputFiles: ['uploads/report.json'] })
 
-    expect(message).toContain('materialize_file')
+    expect(message).toContain('save_upload')
   })
 
   it('still reports a genuine files/ miss as not found', async () => {

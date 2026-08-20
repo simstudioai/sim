@@ -48,6 +48,7 @@ import {
   readTableUseCase,
   updateTableUseCase,
 } from '@/lib/table/application/tables'
+import { readTableViewUseCase } from '@/lib/table/application/views'
 import { namedRowMapper } from '@/lib/table/cell-format'
 import { isSupportedCurrencyCode } from '@/lib/table/currency'
 import { normalizeTablePredicate } from '@/lib/table/query-builder/predicate'
@@ -56,11 +57,13 @@ import { normalizeSelectOptionsInput } from '@/lib/table/select-options'
 import type {
   RowData,
   SortSpec,
+  TablePredicate,
   TablePredicateInput,
   TableSchema,
   WorkflowGroupDependencies,
   WorkflowGroupDeploymentMode,
 } from '@/lib/table/types'
+import { viewConfigIdsToNames } from '@/lib/table/views/service'
 import type { ResolvedSecretTraceProvenanceV1 } from '@/executor/utils/resolved-secret-trace-registry'
 
 const logger = createLogger('UserTableServerTool')
@@ -145,6 +148,19 @@ async function importRowsProvenanceForModel(
   await registry.importCrossingProvenance(provenance, values, { trusted: true })
 }
 
+/** AND-combines a saved view's predicate with an explicit one; either may be absent. */
+function mergeViewPredicate(
+  viewFilter: TablePredicateInput | undefined,
+  explicit: TablePredicateInput | undefined
+): TablePredicate | undefined {
+  const parts: TablePredicate[] = []
+  if (viewFilter) parts.push(normalizeTablePredicate(viewFilter))
+  if (explicit) parts.push(normalizeTablePredicate(explicit))
+  if (parts.length === 0) return undefined
+  if (parts.length === 1) return parts[0]
+  return { all: parts }
+}
+
 export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult> = {
   name: UserTable.id,
   async execute(params: UserTableArgs, context?: ServerToolContext): Promise<UserTableResult> {
@@ -178,6 +194,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             name: args.name,
             description: args.description,
             schema: normalizeSchemaSelectColumns(args.schema as TableSchema),
+            folderPath: args.folderPath,
             workspaceId,
           })
 
@@ -402,6 +419,31 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             return { success: false, message: 'Workspace ID is required' }
           }
 
+          // Saved-view scope: the view's stored filter ANDs with any explicit
+          // filter (query-within-the-view), its sort applies only when no
+          // explicit order is given, and layout fields (hidden columns, order,
+          // widths) are ignored — agents always see full rows. Views are
+          // referenced by id only (from views.json or table_views list_views).
+          let viewFilter: TablePredicateInput | undefined
+          let viewSort: SortSpec | undefined
+          let appliedViewName: string | undefined
+          if (typeof args.view === 'string' && args.view.trim() !== '') {
+            const viewId = (args.view as string).trim()
+            const resolved = await executeCopilotTableUseCase(
+              context,
+              readTableViewUseCase,
+              { tableId: args.tableId, workspaceId, viewId },
+              { tableId: args.tableId }
+            )
+            const named = viewConfigIdsToNames(
+              resolved.view.config,
+              (resolved.table.schema as TableSchema).columns
+            )
+            viewFilter = (named.filter as TablePredicateInput | null) ?? undefined
+            viewSort = (named.sort as SortSpec | null) ?? undefined
+            appliedViewName = resolved.view.name
+          }
+
           const queryLimitError = limitError(args.limit, TABLE_LIMITS.MAX_QUERY_LIMIT)
           if (queryLimitError) {
             return { success: false, message: queryLimitError }
@@ -413,10 +455,11 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             {
               tableId: args.tableId,
               assertedWorkspaceId: workspaceId,
-              predicate: args.filter
-                ? normalizeTablePredicate(args.filter as TablePredicateInput)
-                : undefined,
-              sort: args.order as SortSpec | undefined,
+              predicate: mergeViewPredicate(
+                viewFilter,
+                args.filter as TablePredicateInput | undefined
+              ),
+              sort: (args.order as SortSpec | undefined) ?? viewSort,
               limit: args.limit ?? TABLE_LIMITS.MAX_QUERY_LIMIT,
               cursor: args.cursor,
               includeTotal: !args.cursor,
@@ -435,7 +478,9 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           // nextCursor covers both cut kinds (explicit limit or the 5MB byte
           // budget) — either way the truthful signal is "more rows exist". The
           // token is opaque; the agent echoes it back as `cursor` to continue.
-          const countSuffix = result.totalCount != null ? ` of ${result.totalCount}` : ''
+          const viewSuffix = appliedViewName ? ` (view: ${appliedViewName})` : ''
+          const countSuffix =
+            (result.totalCount != null ? ` of ${result.totalCount}` : '') + viewSuffix
           const message = result.nextCursor
             ? `Returned ${result.rows.length}${countSuffix} rows (more available — pass cursor=${result.nextCursor} to continue)`
             : `Returned ${result.rows.length}${countSuffix} rows`

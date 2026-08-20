@@ -5,61 +5,77 @@ import { memo } from 'react'
 import { Button, ChipInput } from '@sim/emcn'
 import { ChevronDown, ChevronUp, Loader, Search, X } from '@sim/emcn/icons'
 
-export interface TableFindProps {
+export interface FindBarProps {
+  /** Accessible name for the input, naming the surface: "Find in table", "Find in files". */
+  ariaLabel: string
   query: string
   onQueryChange: (query: string) => void
   onNext: () => void
   onPrev: () => void
-  /** Adopts the typed term immediately, skipping the debounce. */
-  onSubmit: () => void
   onClose: () => void
-  /** Whether the typed term has yet to be searched, so Enter should commit it. */
-  isStale: boolean
+  /**
+   * Adopts the typed term immediately, skipping the surface's debounce. Only
+   * meaningful on a surface that debounces; omit it and Enter always steps.
+   */
+  onSubmit?: () => void
+  /**
+   * Whether the typed term has yet to be searched, so Enter should commit it
+   * rather than step. Defaults to false — a surface that searches
+   * synchronously is never stale.
+   */
+  isStale?: boolean
   /**
    * Whether the matches on screen belong to the term that was searched. False
    * while a term's own results are in flight, when the count still describes
    * the previous term and stepping through it would land on a cell the box no
-   * longer names.
+   * longer names. Defaults to true for surfaces that match synchronously.
    */
-  canNavigate: boolean
-  /** Number of matches after dropping columns not in the current view. */
+  canNavigate?: boolean
+  /** Number of matches after dropping any the current view cannot show. */
   count: number
   /** 0-based index of the active match. Ignored when `count` is 0. */
   currentIndex: number
-  /** Whether the server capped the match set. */
+  /** Whether the producer capped the match set. */
   truncated: boolean
   isLoading: boolean
   inputRef: React.RefObject<HTMLInputElement | null>
 }
 
 /**
- * Memoized: while the bar is open it is a child of the grid, which re-renders
- * on scroll, hover and selection. Every prop is a primitive or a stable
+ * The find bar every Cmd/Ctrl+F surface shares (tables, files, ...). Purely
+ * presentational and fully controlled: the surface owns the query, the match
+ * model and the stepping; this renders the input, the tally and the
+ * next/prev/close controls. Positioned absolutely against the nearest
+ * relative container, top-right, the way an in-page find sits in Chrome.
+ *
+ * Memoized: while the bar is open it is a child of a view that re-renders on
+ * scroll, hover and selection. Every prop is a primitive or a stable
  * identity, so this collapses to renders where a find value actually changed.
  */
-export const TableFind = memo(function TableFind({
+export const FindBar = memo(function FindBar({
+  ariaLabel,
   query,
   onQueryChange,
   onNext,
   onPrev,
-  onSubmit,
   onClose,
-  isStale,
-  canNavigate,
+  onSubmit,
+  isStale = false,
+  canNavigate = true,
   count,
   currentIndex,
   truncated,
   isLoading,
   inputRef,
-}: TableFindProps) {
+}: FindBarProps) {
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
       e.preventDefault()
       // Commit an unsearched term; otherwise step — but only once the results
       // describe it. In between (committed, still loading) Enter does nothing
-      // rather than walk the previous term's matches; the auto-reveal lands on
-      // the first hit as soon as they arrive.
-      if (isStale) onSubmit()
+      // rather than walk the previous term's matches; the surface's auto-reveal
+      // lands on the first hit as soon as they arrive.
+      if (isStale && onSubmit) onSubmit()
       else if (!canNavigate) return
       else if (e.shiftKey) onPrev()
       else onNext()
@@ -89,7 +105,7 @@ export const TableFind = memo(function TableFind({
         ref={inputRef}
         value={query}
         placeholder='Search'
-        aria-label='Find in table'
+        aria-label={ariaLabel}
         spellCheck={false}
         autoComplete='off'
         icon={Search}

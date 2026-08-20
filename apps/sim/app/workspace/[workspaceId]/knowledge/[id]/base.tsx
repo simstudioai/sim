@@ -64,6 +64,7 @@ import {
   isResourceListEmpty,
   Resource,
   ResourceNotFound,
+  SearchHighlight,
 } from '@/app/workspace/[workspaceId]/components'
 import {
   FOLDERED_RESOURCE_HEADERS,
@@ -81,7 +82,6 @@ import {
   ConnectorsSection,
   DocumentContextMenu,
   RenameDocumentModal,
-  SearchHighlight,
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/components'
 import {
   addConnectorParam,

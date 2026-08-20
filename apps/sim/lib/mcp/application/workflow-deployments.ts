@@ -281,7 +281,7 @@ export const deployWorkflowMcpTool = defineAuthorizedWorkspaceUseCase({
     if (!context.workflow.isDeployed) {
       throw new OrchestrationError(
         'validation',
-        'Workflow must be deployed before adding as an MCP tool. Use deploy_api first.'
+        'Workflow must be deployed before adding as an MCP tool. Use deploy_as_api first.'
       )
     }
     if (

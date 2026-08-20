@@ -256,6 +256,7 @@ export const ResourceContent = memo(function ResourceContent({
           tableId={resource.id}
           embedded
           viewsEnabled={tableViewsEnabled}
+          initialViewId={resource.viewId}
         />
       )
 

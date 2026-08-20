@@ -4,6 +4,7 @@
  * Framework-agnostic logging utilities for the Sim platform.
  * Provides standardized console logging with environment-aware configuration.
  */
+import { logs, SeverityNumber } from '@opentelemetry/api-logs'
 import { filterUndefined, isRecordLike } from '@sim/utils/object'
 import chalk from 'chalk'
 import { getRequestContext } from './request-context'
@@ -394,6 +395,8 @@ export class Logger {
   private log(level: LogLevel, message: string, ...args: unknown[]) {
     if (!this.shouldLog(level)) return
 
+    emitOtelLogRecord(level, this.module, message, this.metadata, args)
+
     const timestamp = new Date().toISOString()
     const formattedArgs = this.formatArgs(args)
 
@@ -403,6 +406,7 @@ export class Logger {
           requestId: reqCtx.requestId,
           method: reqCtx.method,
           path: reqCtx.path,
+          traceId: reqCtx.traceId,
           ...this.metadata,
         }
       : this.metadata
@@ -523,4 +527,59 @@ export function createLogger(module: string, config?: LoggerConfig): Logger {
 }
 
 export type { RequestContext } from './request-context'
-export { getRequestContext, runWithRequestContext } from './request-context'
+export { getRequestContext, runWithRequestContext, setRequestTraceId } from './request-context'
+
+const OTEL_LOG_SEVERITY: Record<LogLevel, { number: SeverityNumber; text: string }> = {
+  [LogLevel.DEBUG]: { number: SeverityNumber.DEBUG, text: 'DEBUG' },
+  [LogLevel.INFO]: { number: SeverityNumber.INFO, text: 'INFO' },
+  [LogLevel.WARN]: { number: SeverityNumber.WARN, text: 'WARN' },
+  [LogLevel.ERROR]: { number: SeverityNumber.ERROR, text: 'ERROR' },
+}
+
+const OTEL_LOG_ARG_MAX_CHARS = 2000
+
+/**
+ * Fans every accepted log line out through the OTel Logs API. Until an
+ * application installs a global LoggerProvider (apps/sim does in
+ * instrumentation-node.ts), the api-logs global is a no-op delegate, so this
+ * costs nothing in browsers, tests, and services that do not export logs.
+ * The active trace context is attached by the SDK, which is what enables
+ * span → logs correlation in the backend. Never allowed to throw into the
+ * console write path.
+ */
+function emitOtelLogRecord(
+  level: LogLevel,
+  module: string,
+  message: string,
+  metadata: Record<string, unknown>,
+  args: unknown[]
+): void {
+  try {
+    const severity = OTEL_LOG_SEVERITY[level]
+    const attributes: Record<string, string> = { 'log.module': module }
+    for (const [key, value] of Object.entries(filterUndefined(metadata))) {
+      attributes[key] = String(value)
+    }
+    const firstError = args.find((arg) => arg instanceof Error) as Error | undefined
+    if (firstError) {
+      attributes['error.message'] = firstError.message
+      if (firstError.stack) attributes['error.stack'] = firstError.stack
+    }
+    const plainArgs = args.filter((arg) => !(arg instanceof Error))
+    if (plainArgs.length > 0) {
+      try {
+        attributes['log.args'] = JSON.stringify(plainArgs).slice(0, OTEL_LOG_ARG_MAX_CHARS)
+      } catch {
+        attributes['log.args'] = String(plainArgs).slice(0, OTEL_LOG_ARG_MAX_CHARS)
+      }
+    }
+    logs.getLogger('sim').emit({
+      severityNumber: severity.number,
+      severityText: severity.text,
+      body: message,
+      attributes,
+    })
+  } catch {
+    // Log export must never break the primary console write path.
+  }
+}

@@ -1,3 +1,4 @@
+import { foldSearchWhitespace } from '@sim/utils/string'
 import type {
   WorkflowSearchMatch,
   WorkflowSearchMatchKind,
@@ -241,7 +242,10 @@ export function workflowSearchMatchMatchesQuery(
   if (!trimmedQuery) return false
   if (match.kind === 'text') return true
 
-  const normalize = (value: string) => (caseSensitive ? value : value.toLowerCase())
+  const normalize = (value: string) => {
+    const folded = foldSearchWhitespace(value)
+    return caseSensitive ? folded : folded.toLowerCase()
+  }
   const searchable =
     match.resource?.kind === 'workflow-reference' || match.resource?.kind === 'environment'
       ? [match.displayLabel, match.rawValue, match.searchText]

@@ -1,6 +1,5 @@
 {
   "lockfileVersion": 1,
-  "configVersion": 0,
   "workspaces": {
     "": {
       "name": "simstudio",
@@ -184,11 +183,13 @@
         "@modelcontextprotocol/sdk": "1.29.0",
         "@monaco-editor/react": "4.7.0",
         "@opentelemetry/api": "^1.9.0",
+        "@opentelemetry/api-logs": "0.219.0",
         "@opentelemetry/core": "2.8.0",
         "@opentelemetry/exporter-logs-otlp-http": "0.219.0",
         "@opentelemetry/exporter-metrics-otlp-http": "0.219.0",
         "@opentelemetry/exporter-trace-otlp-http": "0.219.0",
         "@opentelemetry/resources": "2.8.0",
+        "@opentelemetry/sdk-logs": "0.219.0",
         "@opentelemetry/sdk-metrics": "2.8.0",
         "@opentelemetry/sdk-node": "0.219.0",
         "@opentelemetry/sdk-trace-base": "2.8.0",
@@ -293,6 +294,7 @@
         "lib0": "0.2.117",
         "lru-cache": "11.3.6",
         "mammoth": "^1.9.0",
+        "marked": "15.0.12",
         "mermaid": "11.16.1",
         "micromatch": "4.0.8",
         "monaco-editor": "0.55.1",
@@ -537,6 +539,7 @@
       "name": "@sim/logger",
       "version": "0.1.0",
       "dependencies": {
+        "@opentelemetry/api-logs": "0.219.0",
         "@sim/utils": "workspace:*",
         "chalk": "5.6.2",
       },
@@ -718,6 +721,7 @@
         "@sim/utils": "workspace:*",
         "@sim/workflow-types": "workspace:*",
         "@testing-library/jest-dom": "^6.6.3",
+        "@types/hast": "^3.0.4",
         "@types/react": "^19",
         "jsdom": "^26.0.0",
         "react": "19.2.4",
@@ -1838,8 +1842,6 @@
     "@sim/runtime-secrets": ["@sim/runtime-secrets@workspace:packages/runtime-secrets"],
 
     "@sim/security": ["@sim/security@workspace:packages/security"],
-
-    "sim-setup": ["sim-setup@workspace:packages/sim-setup"],
 
     "@sim/terminal-protocol": ["@sim/terminal-protocol@workspace:packages/terminal-protocol"],
 
@@ -4238,6 +4240,8 @@
     "signal-exit": ["signal-exit@3.0.7", "", {}, "sha512-wnD2ZE+l+SPC/uoS0vXeE9L1+0wuaMqKlfz9AMUo38JsyLSBWSFcHR1Rri62LZc12vLr1gb3jl7iwQhgwpAbGQ=="],
 
     "sim": ["sim@workspace:packages/sim-cli"],
+
+    "sim-setup": ["sim-setup@workspace:packages/sim-setup"],
 
     "simple-update-notifier": ["simple-update-notifier@2.0.0", "", { "dependencies": { "semver": "^7.5.3" } }, "sha512-a2B9Y0KlNXl9u/vsW6sTIu9vGEpfKu2wRV6l1H3XEas/0gUIzGzBoP/IouTcUQbm9JWZLH3COxyn03TYlFax6w=="],
 

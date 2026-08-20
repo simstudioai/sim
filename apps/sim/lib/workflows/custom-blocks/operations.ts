@@ -244,7 +244,7 @@ export async function listCustomBlocksWithInputs(
 /**
  * The custom block bound to a workflow (with live-derived input fields), or `null`
  * when the workflow isn't published as a block. One block per workflow is enforced
- * at publish time. Used by the copilot deploy_custom_block tool.
+ * at publish time. Used by the copilot publish_custom_block tool.
  */
 export async function getCustomBlockWithInputsByWorkflowId(
   workflowId: string

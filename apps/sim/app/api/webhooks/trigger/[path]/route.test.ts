@@ -462,7 +462,11 @@ vi.mock('postgres', () => vi.fn().mockReturnValue({}))
 
 process.env.DATABASE_URL = 'postgresql://test:test@localhost:5432/test'
 
-import { GET, POST } from '@/app/api/webhooks/trigger/[path]/route'
+import {
+  handlePreLookupWebhookVerification,
+  handleProviderChallenges,
+} from '@/lib/webhooks/processor'
+import { DELETE, GET, PATCH, POST, PUT } from '@/app/api/webhooks/trigger/[path]/route'
 
 describe('Webhook Trigger API Route', () => {
   beforeEach(() => {
@@ -680,6 +684,284 @@ describe('Webhook Trigger API Route', () => {
 
       expect(response.status).toBe(200)
       expect(queueWebhookExecutionMock).toHaveBeenCalledOnce()
+    })
+  })
+
+  /**
+   * Both handshakes are answered from the request alone, before any webhook lookup, so their
+   * order relative to each other and to the load-shed gate is the behavior — and it is invisible
+   * to every other test here, which is how an earlier refactor inverted it unnoticed.
+   */
+  describe('pre-lookup handshake ordering', () => {
+    /**
+     * Meta verifies a WhatsApp URL with a GET challenge. Answering it behind the load-shed gate
+     * means a busy instance returns 429 and the webhook silently fails to verify, at setup time
+     * only — so the challenge must be answered without taking a ticket at all.
+     */
+    it('answers a provider challenge without taking an admission ticket', async () => {
+      vi.mocked(handleProviderChallenges).mockResolvedValueOnce(
+        new NextResponse('hub-challenge-123', { status: 200 })
+      )
+
+      const req = createMockRequest(
+        'GET',
+        undefined,
+        {},
+        'http://localhost:3000/api/webhooks/trigger/verify-path?hub.challenge=hub-challenge-123'
+      )
+
+      const response = await GET(req, { params: Promise.resolve({ path: 'verify-path' }) })
+
+      expect(response.status).toBe(200)
+      await expect(response.text()).resolves.toBe('hub-challenge-123')
+      expect(tryAdmitMock).not.toHaveBeenCalled()
+    })
+
+    /**
+     * A challenge is the more specific answer: the provider is echoing a token it chose, where a
+     * pending verification only claims the URL is reachable. Answering the generic 200 first
+     * fails the handshake that actually had a token to return.
+     */
+    it('prefers a provider challenge over a pending setup verification', async () => {
+      vi.mocked(handleProviderChallenges).mockResolvedValueOnce(
+        new NextResponse('hub-challenge-123', { status: 200 })
+      )
+
+      const req = createMockRequest(
+        'GET',
+        undefined,
+        {},
+        'http://localhost:3000/api/webhooks/trigger/verify-path?hub.challenge=hub-challenge-123'
+      )
+
+      const response = await GET(req, { params: Promise.resolve({ path: 'verify-path' }) })
+
+      await expect(response.text()).resolves.toBe('hub-challenge-123')
+      expect(handlePreLookupWebhookVerification).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('GET deliveries', () => {
+    it('dispatches a GET delivery to a generic webhook', async () => {
+      testData.webhooks.push({
+        id: 'generic-webhook-id',
+        provider: 'generic',
+        path: 'get-path',
+        isActive: true,
+        providerConfig: { requireAuth: false, acceptOtherMethods: true },
+        workflowId: 'test-workflow-id',
+      })
+
+      const req = createMockRequest(
+        'GET',
+        undefined,
+        {},
+        'http://localhost:3000/api/webhooks/trigger/get-path?srcId=123'
+      )
+
+      const response = await GET(req, { params: Promise.resolve({ path: 'get-path' }) })
+
+      expect(response.status).toBe(200)
+      expect(dispatchResolvedWebhookTargetMock).toHaveBeenCalledOnce()
+    })
+
+    /**
+     * The compatibility guarantee for the route: a generic webhook deployed before the flag
+     * existed has no flag, so it answers exactly as it did before — 405, no execution.
+     */
+    it('rejects a GET delivery to a generic webhook that has not opted in', async () => {
+      testData.webhooks.push({
+        id: 'generic-webhook-id',
+        provider: 'generic',
+        path: 'opt-out-path',
+        isActive: true,
+        providerConfig: { requireAuth: false },
+        workflowId: 'test-workflow-id',
+      })
+
+      const req = createMockRequest(
+        'GET',
+        undefined,
+        {},
+        'http://localhost:3000/api/webhooks/trigger/opt-out-path?srcId=123'
+      )
+
+      const response = await GET(req, { params: Promise.resolve({ path: 'opt-out-path' }) })
+
+      expect(response.status).toBe(405)
+      expect(response.headers.get('Allow')).toBe('POST')
+      expect(dispatchResolvedWebhookTargetMock).not.toHaveBeenCalled()
+    })
+
+    /**
+     * Next derives HEAD from the exported GET, so a HEAD probe reaches the same handler. It must
+     * not execute a workflow: scanners and prefetchers send HEAD unprompted.
+     */
+    it('rejects a HEAD probe to a webhook that accepts every declared method', async () => {
+      testData.webhooks.push({
+        id: 'generic-webhook-id',
+        provider: 'generic',
+        path: 'head-path',
+        isActive: true,
+        providerConfig: { requireAuth: false, acceptOtherMethods: true },
+        workflowId: 'test-workflow-id',
+      })
+
+      const req = createMockRequest(
+        'HEAD',
+        undefined,
+        {},
+        'http://localhost:3000/api/webhooks/trigger/head-path'
+      )
+
+      const response = await GET(req, { params: Promise.resolve({ path: 'head-path' }) })
+
+      expect(response.status).toBe(405)
+      expect(dispatchResolvedWebhookTargetMock).not.toHaveBeenCalled()
+    })
+
+    it('rejects a GET delivery to a provider that only accepts POST', async () => {
+      testData.webhooks.push({
+        id: 'stripe-webhook-id',
+        provider: 'stripe',
+        path: 'post-only-path',
+        isActive: true,
+        providerConfig: {},
+        workflowId: 'test-workflow-id',
+      })
+
+      const req = createMockRequest(
+        'GET',
+        undefined,
+        {},
+        'http://localhost:3000/api/webhooks/trigger/post-only-path'
+      )
+
+      const response = await GET(req, { params: Promise.resolve({ path: 'post-only-path' }) })
+
+      expect(response.status).toBe(405)
+      expect(dispatchResolvedWebhookTargetMock).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('PUT, PATCH and DELETE deliveries', () => {
+    const handlers = { PUT, PATCH, DELETE }
+
+    it.each(Object.keys(handlers) as Array<keyof typeof handlers>)(
+      'dispatches a %s delivery to a generic webhook',
+      async (method) => {
+        testData.webhooks.push({
+          id: 'generic-webhook-id',
+          provider: 'generic',
+          path: 'any-method-path',
+          isActive: true,
+          providerConfig: { requireAuth: false, acceptOtherMethods: true },
+          workflowId: 'test-workflow-id',
+        })
+
+        const req = createMockRequest(
+          method,
+          { event: 'test' },
+          {},
+          'http://localhost:3000/api/webhooks/trigger/any-method-path?srcId=123'
+        )
+
+        const response = await handlers[method](req, {
+          params: Promise.resolve({ path: 'any-method-path' }),
+        })
+
+        expect(response.status).toBe(200)
+        expect(dispatchResolvedWebhookTargetMock).toHaveBeenCalledOnce()
+      }
+    )
+
+    it('rejects a PUT delivery to a generic webhook that has not opted in', async () => {
+      testData.webhooks.push({
+        id: 'generic-webhook-id',
+        provider: 'generic',
+        path: 'opt-out-path',
+        isActive: true,
+        providerConfig: { requireAuth: false },
+        workflowId: 'test-workflow-id',
+      })
+
+      const req = createMockRequest(
+        'PUT',
+        { event: 'test' },
+        {},
+        'http://localhost:3000/api/webhooks/trigger/opt-out-path'
+      )
+
+      const response = await PUT(req, { params: Promise.resolve({ path: 'opt-out-path' }) })
+
+      expect(response.status).toBe(405)
+      expect(dispatchResolvedWebhookTargetMock).not.toHaveBeenCalled()
+    })
+
+    it('rejects a PUT delivery to a provider that only accepts POST', async () => {
+      testData.webhooks.push({
+        id: 'stripe-webhook-id',
+        provider: 'stripe',
+        path: 'post-only-path',
+        isActive: true,
+        providerConfig: {},
+        workflowId: 'test-workflow-id',
+      })
+
+      const req = createMockRequest(
+        'PUT',
+        { event: 'test' },
+        {},
+        'http://localhost:3000/api/webhooks/trigger/post-only-path'
+      )
+
+      const response = await PUT(req, { params: Promise.resolve({ path: 'post-only-path' }) })
+
+      expect(response.status).toBe(405)
+      expect(dispatchResolvedWebhookTargetMock).not.toHaveBeenCalled()
+    })
+
+    /**
+     * Every non-POST rejection is the same 405, whether the path is unknown, holds only
+     * non-path triggers, or holds a trigger that has not opted in — so a probe cannot tell
+     * a configured path from an unused one.
+     */
+    it('returns the same 405 for a DELETE to a non-path trigger as to an unknown path', async () => {
+      testData.webhooks.push({
+        id: 'internal-webhook-id',
+        provider: 'sim',
+        path: 'internal-path',
+        isActive: true,
+        providerConfig: {},
+        workflowId: 'test-workflow-id',
+      })
+
+      const req = createMockRequest(
+        'DELETE',
+        undefined,
+        {},
+        'http://localhost:3000/api/webhooks/trigger/internal-path'
+      )
+
+      const response = await DELETE(req, { params: Promise.resolve({ path: 'internal-path' }) })
+
+      expect(response.status).toBe(405)
+      expect(response.headers.get('Allow')).toBe('POST')
+      expect(dispatchResolvedWebhookTargetMock).not.toHaveBeenCalled()
+    })
+
+    it('returns 405 for a DELETE to an unknown path', async () => {
+      const req = createMockRequest(
+        'DELETE',
+        undefined,
+        {},
+        'http://localhost:3000/api/webhooks/trigger/unknown-path'
+      )
+
+      const response = await DELETE(req, { params: Promise.resolve({ path: 'unknown-path' }) })
+
+      expect(response.status).toBe(405)
+      expect(dispatchResolvedWebhookTargetMock).not.toHaveBeenCalled()
     })
   })
 

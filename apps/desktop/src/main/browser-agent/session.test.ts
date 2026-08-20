@@ -1715,6 +1715,21 @@ describe('browser-agent session', () => {
     expect(contents.loadURL).not.toHaveBeenCalled()
   })
 
+  it('brings an agent-opened working tab into view, unless the user claimed the visible one', () => {
+    // browser_open_tab is the agent choosing a page to work in — the panel
+    // follows it so the work is visible, which a popup deliberately does not.
+    const first = session.ensureTab()
+    const working = session.addAutomationTab({ reveal: true })
+    expect(session.activeTab()).toBe(working)
+    expect(working.id).not.toBe(first.id)
+
+    // Once the user claims what they are looking at, the next agent tab opens
+    // behind it rather than yanking the page out from under them.
+    session.claimActiveTabForUser()
+    const background = session.addAutomationTab({ reveal: true })
+    expect(session.activeTab()).not.toBe(background)
+  })
+
   it('keeps agent popups in the background and context-menu links user-owned', () => {
     const onTabCreated = vi.fn()
     session = freshSession(win, { onTabCreated })
@@ -1770,27 +1785,38 @@ describe('browser-agent session', () => {
     expect(event.preventDefault).toHaveBeenCalledOnce()
   })
 
-  it('permission handlers deny every request on the agent partition but the copy button', () => {
+  it('permission handlers deny everything on the agent partition but the copy button and media', async () => {
     const tab = session.ensureTab()
     const ses = (tab.view as unknown as MockView).webContents.session
     const requestHandler = ses.setPermissionRequestHandler.mock.calls[0][0] as (
       wc: unknown,
       permission: string,
-      callback: (granted: boolean) => void
+      callback: (granted: boolean) => void,
+      details?: unknown
     ) => void
     const checkHandler = ses.setPermissionCheckHandler.mock.calls[0][0] as (
       wc: unknown,
-      permission: string
+      permission: string,
+      origin?: string,
+      details?: unknown
     ) => boolean
 
     // Reading the clipboard would leak whatever the user last copied anywhere
     // else, so it stays denied alongside everything a page could spy through.
-    for (const permission of ['media', 'geolocation', 'notifications', 'clipboard-read']) {
+    for (const permission of ['geolocation', 'notifications', 'clipboard-read']) {
       const callback = vi.fn()
       requestHandler(null, permission, callback)
       expect(callback).toHaveBeenCalledWith(false)
       expect(checkHandler(null, permission)).toBe(false)
     }
+
+    // Media is the deliberate exception — the agent browser joins real
+    // meetings — but the grant is gated on the OS grant (mocked as granted
+    // here), so System Settings remains the real authority.
+    const mediaCallback = vi.fn()
+    requestHandler(null, 'media', mediaCallback, { mediaTypes: ['audio', 'video'] })
+    await vi.waitFor(() => expect(mediaCallback).toHaveBeenCalledWith(true))
+    expect(checkHandler(null, 'media', undefined, { mediaType: 'audio' })).toBe(true)
 
     // Chromium routes navigator.clipboard.writeText through this one; denying
     // it silently broke every copy button that does not use execCommand.

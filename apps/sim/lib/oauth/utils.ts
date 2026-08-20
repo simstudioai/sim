@@ -47,6 +47,10 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'https://www.googleapis.com/auth/admin.directory.group.readonly': 'View Google Workspace groups',
   'https://www.googleapis.com/auth/admin.directory.group.member.readonly':
     'View Google Workspace group memberships',
+  'https://www.googleapis.com/auth/chat.spaces.readonly':
+    'View Google Chat spaces you are a member of',
+  'https://www.googleapis.com/auth/chat.messages.readonly':
+    'View messages in Google Chat spaces you are a member of',
   'https://www.googleapis.com/auth/meetings.space.created':
     'Create and manage Google Meet meeting spaces',
   'https://www.googleapis.com/auth/meetings.space.readonly':

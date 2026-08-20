@@ -33,11 +33,14 @@ export const BROWSER_TOOL_NAMES = [
   'browser_screenshot',
   'browser_extract',
   'browser_click',
+  'browser_click_at',
   'browser_type',
+  'browser_insert_text',
   'browser_press_key',
   'browser_scroll',
   'browser_select_option',
   'browser_hover',
+  'browser_drag',
   'browser_request_takeover',
 ] as const
 

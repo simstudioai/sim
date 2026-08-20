@@ -107,6 +107,17 @@ export const nativeImage = {
     setTemplateImage: vi.fn(),
     getSize: vi.fn(() => ({ width: options.width, height: options.height })),
   })),
+  /**
+   * Decodes nothing: tests pass short base64 stand-ins rather than real images.
+   * Reports empty so callers take their undecodable-capture fallback, and let a
+   * test opt into the resize path by overriding this mock with a sized image.
+   */
+  createFromBuffer: vi.fn((_buffer: unknown) => ({
+    isEmpty: vi.fn(() => true),
+    getSize: vi.fn(() => ({ width: 0, height: 0 })),
+    resize: vi.fn(),
+    toJPEG: vi.fn(() => Buffer.alloc(0)),
+  })),
 }
 
 export class Tray {
@@ -226,6 +237,8 @@ export class BrowserWindow {
     getZoomFactor: vi.fn(() => 1),
     executeJavaScript: vi.fn(() => Promise.resolve(true)),
     focus: vi.fn(),
+    isFocused: vi.fn(() => false),
+    isDestroyed: vi.fn(() => false),
     send: vi.fn(),
     setWindowOpenHandler: vi.fn(),
     isDevToolsOpened: vi.fn(() => false),

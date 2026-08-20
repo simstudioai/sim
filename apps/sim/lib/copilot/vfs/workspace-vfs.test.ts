@@ -34,6 +34,7 @@ vi.mock('@/lib/workspace-files/application/read-workspace-file-content', () => (
 }))
 
 import { WorkspaceVFS } from '@/lib/copilot/vfs/workspace-vfs'
+import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 
 const MAX_DOC_READ_INPUT_BYTES = 50 * 1024 * 1024
 const MAX_DOCUMENT_PREVIEW_CODE_BYTES = 1024 * 1024
@@ -128,5 +129,106 @@ describe('WorkspaceVFS dynamic render reads', () => {
       totalLines: 1,
       error,
     })
+  })
+})
+
+describe('WorkspaceVFS lazy grep resilience', () => {
+  it('skips an unmaterializable lazy artifact instead of failing the whole sweep', async () => {
+    const vfs = new WorkspaceVFS({ kind: 'session', userId: 'user-1', sessionId: 'session-1' })
+    const internals = vfs as unknown as {
+      files: Map<string, string>
+      registerLazy: (path: string, loader: () => Promise<string | null>) => void
+      resolveLazyPath: (path: string) => Promise<string | null>
+    }
+    internals.files.set('workflows/A/state.json', '{"needle": true}')
+    internals.registerLazy.call(vfs, 'knowledgebases/huge/documents.json', async () => {
+      throw new Error(
+        'Knowledge base kb-1 has more than 10000 documents; documents.json cannot be materialized'
+      )
+    })
+    internals.registerLazy.call(
+      vfs,
+      'knowledgebases/small/documents.json',
+      async () => '{"needle": "lazy"}'
+    )
+
+    const matches = (await vfs.grep('needle')) as Array<{ path: string }>
+    const paths = matches.map((m) => m.path)
+    expect(paths).toContain('workflows/A/state.json')
+    expect(paths).toContain('knowledgebases/small/documents.json')
+
+    // Reading the failing artifact directly still surfaces its own error, and
+    // the loader stays re-armed for that read.
+    await expect(
+      internals.resolveLazyPath.call(vfs, 'knowledgebases/huge/documents.json')
+    ).rejects.toThrow('cannot be materialized')
+  })
+})
+
+describe('WorkspaceVFS oversized content reads', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  function arrangeOversizedContentRead() {
+    const record = {
+      id: 'file-big',
+      workspaceId: 'ws-1',
+      name: 'big.tsv',
+      key: 'big.tsv',
+      path: '/api/files/serve/big.tsv',
+      size: 7_500_000,
+      type: 'text/tab-separated-values',
+      uploadedBy: 'user-1',
+      deletedAt: null,
+      uploadedAt: new Date('2026-01-01T00:00:00.000Z'),
+      updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+      storageContext: 'workspace' as const,
+    }
+    listAllWorkspaceFilesExecute.mockResolvedValue({ files: [record] })
+    findWorkspaceFileRecord.mockReturnValue(record)
+    readWorkspaceFileContentExecute.mockRejectedValue(
+      new PayloadSizeLimitError({ label: 'Workspace file', maxBytes: 20_971_520 })
+    )
+
+    const vfs = new WorkspaceVFS({ kind: 'session', userId: 'user-1', sessionId: 'session-1' })
+    Object.assign(vfs, { _workspaceId: 'ws-1' })
+    const internals = vfs as unknown as { files: Map<string, string> }
+    internals.files.set('files/big.tsv', '')
+    return vfs
+  }
+
+  it('answers a cap breach with an oversized placeholder, not "not found"', async () => {
+    const vfs = arrangeOversizedContentRead()
+
+    const result = await vfs.readFileContent('files/big.tsv/content')
+
+    expect(result).not.toBeNull()
+    expect(result).toMatchObject({ placeholder: 'oversized' })
+    expect(result?.content).toContain('File too large')
+    expect(result?.content).toContain('big.tsv')
+  })
+
+  it('reports a cap breach honestly for grep instead of "content not found"', async () => {
+    const vfs = arrangeOversizedContentRead()
+
+    await expect(vfs.grepFile('files/big.tsv', 'needle')).rejects.toThrow(/too large to search/)
+  })
+})
+
+describe('WorkspaceVFS decoded-equivalent resolution', () => {
+  it('resolves a decoded path to its single encoded twin and rejects ambiguity', () => {
+    const vfs = new WorkspaceVFS({ kind: 'session', userId: 'user-1', sessionId: 'session-1' })
+    const internals = vfs as unknown as { files: Map<string, string> }
+    internals.files.set('workflows/Elder%20v2/The%20Elder/state.json', '{}')
+
+    expect(vfs.resolveDecodedEquivalent('workflows/Elder v2/The Elder/state.json')).toBe(
+      'workflows/Elder%20v2/The%20Elder/state.json'
+    )
+    expect(vfs.resolveDecodedEquivalent('workflows/Elder v2/The Elder/meta.json')).toBeNull()
+
+    // Two keys decoding identically (pathological) must refuse to guess.
+    internals.files.set('workflows/Elder v2/The Elder/state.json', '{}')
+    expect(vfs.resolveDecodedEquivalent('workflows/Elder v2/The Elder/state.json')).toBeNull()
   })
 })

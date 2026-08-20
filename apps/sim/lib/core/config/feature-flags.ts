@@ -118,7 +118,8 @@ const FEATURE_FLAGS = {
   'tables-v2-api': {
     description:
       'Gate the internal predicate-grammar table query route (POST /api/table/[tableId]/query), ' +
-      'its only caller. When off, that route returns 404 as if it does not exist. Despite the ' +
+      'its only caller. When off, that route returns 403 naming the gate (post-authz, so the ' +
+      'masquerade 404 served nobody and broke the table_v2 block confusingly). Despite the ' +
       'name it does NOT gate any /api/v2/tables route — the public v2 tables surface is gated ' +
       'by v2-api alone. Gated by userId/orgId/admins via AppConfig; off-AppConfig falls back to ' +
       'TABLES_V2_API.',

@@ -4,6 +4,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   createCopilotApplicationPrincipal,
+  requireInteractiveCopilotExecutionContext,
   requireTrustedCopilotExecutionContext,
 } from '@/lib/copilot/auth/application-delegation'
 
@@ -60,5 +61,26 @@ describe('Copilot application delegation', () => {
         executionId: 'execution-1',
       },
     })
+  })
+
+  it.each([undefined, 'headless' as const])(
+    'rejects non-interactive live platform context (%s)',
+    (copilotInteractionMode) => {
+      expect(() =>
+        requireInteractiveCopilotExecutionContext({
+          ...trustedContext,
+          copilotInteractionMode,
+        })
+      ).toThrow('only in an interactive Copilot session')
+    }
+  )
+
+  it('accepts a server-classified interactive lifecycle', () => {
+    expect(
+      requireInteractiveCopilotExecutionContext({
+        ...trustedContext,
+        copilotInteractionMode: 'interactive',
+      })
+    ).toMatchObject({ copilotInteractionMode: 'interactive' })
   })
 })

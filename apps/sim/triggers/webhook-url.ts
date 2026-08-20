@@ -12,6 +12,16 @@ export function buildWebhookTriggerUrl(path: string): string {
   return `${getBaseUrl()}/api/webhooks/trigger/${path}`
 }
 
+/**
+ * The Request URL a Slack custom-bot app posts events to. One URL per
+ * credential (not per workflow): the endpoint verifies with the credential's
+ * signing secret and fans out to every workflow whose trigger routes by this
+ * credential id. Uses the app's public base so Slack's servers can reach it.
+ */
+export function buildSlackCustomBotRequestUrl(credentialId: string): string {
+  return `${getBaseUrl()}/api/webhooks/slack/custom/${credentialId}`
+}
+
 function subBlockValue(block: BlockState, subBlockId: string): unknown {
   return block.subBlocks?.[subBlockId]?.value
 }

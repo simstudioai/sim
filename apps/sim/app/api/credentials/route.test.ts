@@ -20,6 +20,9 @@ const {
   mockCheckWorkspaceAccess,
   mockGetCredentialActorContext,
   mockGetCredentialCreationWorkspaceContext,
+  mockGetBlockVisibility,
+  mockCreateIntegrationCredentialVisibility,
+  mockIsCredentialVisible,
   mockLoadWorkspace,
   mockResolveWorkspacePermission,
   mockSyncWorkspaceOAuthCredentials,
@@ -28,6 +31,9 @@ const {
   mockCheckWorkspaceAccess: vi.fn(),
   mockGetCredentialActorContext: vi.fn(),
   mockGetCredentialCreationWorkspaceContext: vi.fn(),
+  mockGetBlockVisibility: vi.fn(),
+  mockCreateIntegrationCredentialVisibility: vi.fn(),
+  mockIsCredentialVisible: vi.fn(),
   mockLoadWorkspace: vi.fn(),
   mockResolveWorkspacePermission: vi.fn(),
   mockSyncWorkspaceOAuthCredentials: vi.fn(),
@@ -36,6 +42,14 @@ const {
 
 vi.mock('@sim/audit', () => auditMock)
 vi.mock('@/lib/posthog/server', () => posthogServerMock)
+
+vi.mock('@/lib/core/config/block-visibility', () => ({
+  getBlockVisibility: mockGetBlockVisibility,
+}))
+
+vi.mock('@/lib/integrations/credential-visibility.server', () => ({
+  createIntegrationCredentialVisibility: mockCreateIntegrationCredentialVisibility,
+}))
 
 vi.mock('@/lib/workspaces/permissions/utils', () => ({
   checkWorkspaceAccess: mockCheckWorkspaceAccess,
@@ -109,6 +123,16 @@ describe('GET /api/credentials', () => {
       canWrite: true,
       canAdmin: false,
     })
+    mockGetBlockVisibility.mockResolvedValue({
+      revealed: new Set(),
+      disabled: new Set(),
+      previewTagged: new Set(),
+    })
+    mockIsCredentialVisible.mockReturnValue(true)
+    mockCreateIntegrationCredentialVisibility.mockReturnValue({
+      isCredentialVisible: mockIsCredentialVisible,
+      isOAuthServiceVisible: vi.fn(),
+    })
   })
 
   it('reports an owned personal secret as raw-view admin without a membership row', async () => {
@@ -150,6 +174,70 @@ describe('GET /api/credentials', () => {
         role: 'admin',
       }),
     ])
+    expect(mockGetBlockVisibility).not.toHaveBeenCalled()
+  })
+
+  it('hides a service-account credential when its gating block is preview-hidden', async () => {
+    mockIsCredentialVisible.mockReturnValue(false)
+    queueTableRows(credential, [
+      {
+        id: 'slack-credential',
+        workspaceId: WORKSPACE_ID,
+        type: 'service_account',
+        displayName: 'Slack custom bot',
+        description: null,
+        providerId: 'slack-custom-bot',
+        accountId: null,
+        envKey: null,
+        envOwnerUserId: null,
+        createdBy: 'user-1',
+        createdAt: new Date('2026-08-01T00:00:00.000Z'),
+        updatedAt: new Date('2026-08-01T00:00:00.000Z'),
+        memberRole: 'admin',
+      },
+      {
+        id: 'google-credential',
+        workspaceId: WORKSPACE_ID,
+        type: 'oauth',
+        displayName: 'Google account',
+        description: null,
+        providerId: 'google-email',
+        accountId: 'google-account',
+        envKey: null,
+        envOwnerUserId: null,
+        createdBy: 'user-1',
+        createdAt: new Date('2026-08-01T00:00:00.000Z'),
+        updatedAt: new Date('2026-08-01T00:00:00.000Z'),
+        memberRole: 'admin',
+      },
+    ])
+
+    const response = await GET(
+      createMockRequest(
+        'GET',
+        undefined,
+        {},
+        `http://localhost:3000/api/credentials?workspaceId=${WORKSPACE_ID}`
+      )
+    )
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({
+      credentials: [expect.objectContaining({ id: 'google-credential' })],
+    })
+    expect(mockGetBlockVisibility).toHaveBeenCalledWith({ userId: 'user-1', orgId: 'org-1' })
+    expect(mockCreateIntegrationCredentialVisibility).toHaveBeenCalledWith({
+      allowedIntegrationTypes: null,
+      blockVisibility: {
+        revealed: new Set(),
+        disabled: new Set(),
+        previewTagged: new Set(),
+      },
+    })
+    expect(mockIsCredentialVisible).toHaveBeenCalledExactlyOnceWith({
+      providerId: 'slack-custom-bot',
+      type: 'service_account',
+    })
   })
 
   it('normalizes padded, blank, and duplicate legacy query values', async () => {
@@ -197,6 +285,7 @@ describe('GET /api/credentials', () => {
     })
     expect(mockSyncWorkspaceOAuthCredentials).not.toHaveBeenCalled()
     expect(mockCheckWorkspaceAccess).not.toHaveBeenCalled()
+    expect(mockGetBlockVisibility).not.toHaveBeenCalled()
   })
 })
 

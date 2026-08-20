@@ -21,14 +21,13 @@ import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 import { getWorkspaceOrganizationId } from '@/lib/workspaces/utils'
 
 /**
- * Gate for the v2 tables HTTP API (`tables-v2-api` flag). Returns a 404 response
- * when the flag is off for the caller — the surface behaves as if it doesn't
- * exist — or `null` to proceed. Gated by userId + the workspace's org cohort.
- *
- * **Call this AFTER the authz check, never before.** Ahead of authz it does a
- * primary-DB read keyed on a caller-supplied `workspaceId`, and the 404-vs-403
- * split tells an unauthorized caller whether that workspace's org is in the
- * rollout cohort.
+ * Gate for the internal predicate-grammar table query route (`tables-v2-api`
+ * flag). Runs AFTER authorization, so the caller has already proven read
+ * access to the table — hiding the gate behind a bare 404 at that point
+ * serves nobody and reads as data loss (live incident: the table_v2 block
+ * hard-"Not found"-ing on every query while the copilot gateway, which
+ * bypasses HTTP, found the rows). Authorized callers get an honest 403
+ * naming the gate instead.
  */
 export async function tablesV2GateError(
   userId: string,
@@ -36,7 +35,13 @@ export async function tablesV2GateError(
 ): Promise<NextResponse | null> {
   const orgId = await getWorkspaceOrganizationId(workspaceId)
   if (await isFeatureEnabled('tables-v2-api', { userId, orgId })) return null
-  return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  return NextResponse.json(
+    {
+      error: 'The v2 table query API is not enabled for this workspace',
+      code: 'tables_v2_disabled',
+    },
+    { status: 403 }
+  )
 }
 
 /**

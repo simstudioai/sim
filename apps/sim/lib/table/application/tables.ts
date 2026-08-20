@@ -219,7 +219,10 @@ export const updateTableUseCase = defineAuthorizedTableUseCase({
 
       const table = await getTableById(current.id)
       if (!table || table.workspaceId !== context.workspaceId) {
-        throw new OrchestrationError('not_found', 'Table not found')
+        throw new OrchestrationError(
+          'not_found',
+          'Table not found in this workspace — run glob("tables/*") to list valid tables'
+        )
       }
       const index =
         resolution?.index ??
@@ -290,7 +293,11 @@ export const deleteTableUseCase = defineAuthorizedTableUseCase({
     const { archived } = await deleteTable(context.table.id, generateRequestId(), {
       expectedWorkspaceId: context.workspaceId,
     })
-    if (!archived) throw new OrchestrationError('not_found', 'Table not found')
+    if (!archived)
+      throw new OrchestrationError(
+        'not_found',
+        'Table not found in this workspace — run glob("tables/*") to list valid tables'
+      )
     return {
       id: context.table.id,
       deleted: true as const,

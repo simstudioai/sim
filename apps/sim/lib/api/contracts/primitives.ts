@@ -277,6 +277,12 @@ export const workspaceFileNameSchema = z
 /** Non-empty `organizationId` field with a stable, human-readable message. */
 export const organizationIdSchema = requiredFieldSchema('Organization ID is required')
 
+/** Canonical organization membership role shared across API resource families. */
+export const organizationRoleSchema = z.enum(['owner', 'admin', 'member'], {
+  error: 'Invalid role',
+})
+export type OrganizationRole = z.output<typeof organizationRoleSchema>
+
 /** Non-empty `workflowId` field with a stable, human-readable message. */
 export const workflowIdSchema = requiredFieldSchema('Workflow ID is required')
 

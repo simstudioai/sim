@@ -86,8 +86,10 @@ describe('desktop title-bar surface audit', () => {
   // Regression: a px clearance shrinks under page zoom while the OS-drawn lights
   // do not, so they end up drawn over the sidebar toggle.
   it('reserves the traffic-light lane from the platform, not hardcoded pixels', () => {
-    expect(globalStyles).toContain('--desktop-title-bar-height: env(titlebar-area-height,')
-    expect(globalStyles).toContain('--desktop-title-bar-inset-x: env(titlebar-area-x,')
+    // The env() term is the platform-derived part; the max() floor keeps the
+    // lane from collapsing below the OS-drawn lights under page zoom.
+    expect(globalStyles).toContain('--desktop-title-bar-height: max(env(titlebar-area-height,')
+    expect(globalStyles).toContain('--desktop-title-bar-inset-x: max(env(titlebar-area-x,')
 
     // Scoped to the desktop block: the `:root` zeros are the deliberate
     // no-lane case, so only the overrides must stay derived.
@@ -95,13 +97,17 @@ describe('desktop title-bar surface audit', () => {
       /html\[data-sim-desktop-title-bar="inset"\]\s*\{([^}]*)\}/
     )?.[1]
     expect(insetBlock).toBeTypeOf('string')
+    // The zoom rework split the lane from the control: the lane stays
+    // platform-derived (clamped env() above), while the control is a fixed
+    // square — CSS px already scale under page zoom, so only the centering
+    // offset must remain computed from the lane height.
+    expect(insetBlock).toMatch(/--desktop-title-bar-control-offset: calc\(/)
+    expect(insetBlock).not.toMatch(/--desktop-title-bar-control-offset:\s*[\d.]+px/)
     for (const name of [
       '--desktop-title-bar-control-size',
       '--desktop-title-bar-control-icon-size',
-      '--desktop-title-bar-control-offset',
     ]) {
-      expect(insetBlock).toMatch(new RegExp(`${name}: calc\\(`))
-      expect(insetBlock).not.toMatch(new RegExp(`${name}:\\s*[\\d.]+px`))
+      expect(insetBlock).toMatch(new RegExp(`${name}:\\s*[\\d.]+px`))
     }
 
     // Both lane consumers read those vars; a literal in either is the bug.

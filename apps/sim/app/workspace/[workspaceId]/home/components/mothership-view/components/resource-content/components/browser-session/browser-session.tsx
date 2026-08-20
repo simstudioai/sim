@@ -39,6 +39,7 @@ import { onFocusVisibleBrowserOmnibox } from '@/lib/browser-agent/renderer-short
 import {
   fillBrowserCredential,
   loadBrowserFillOptions,
+  loadBrowserSearchSuggestions,
   loadBrowserSuggestionSources,
   onBrowserAddToChat,
   onBrowserAppearanceThemeChanged,
@@ -84,12 +85,16 @@ import {
 import { BrowserTabStrip } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-tab-strip'
 import { BrowserThemeNotice } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-theme-notice'
 import {
+  buildOmniboxSuggestions,
+  googleSearchUrl,
+  isSearchQueryInput,
   mergeSuggestionSources,
   moveActiveIndex,
-  rankSuggestions,
+  type OmniboxSuggestion,
   type UrlSuggestion,
 } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/url-suggestions'
 import { ResourceZoomMenuItems } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/resource-zoom-menu-items'
+import { useDebounce } from '@/hooks/use-debounce'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import { useBrowserSessionStore } from '@/stores/browser-session/store'
 import { MOTHERSHIP_WIDTH } from '@/stores/constants'
@@ -97,6 +102,7 @@ import type { ChatContext } from '@/stores/panel'
 
 /** Ties the omnibox to its listbox for assistive tech. */
 const SUGGESTIONS_LIST_ID = 'browser-url-suggestions'
+const SEARCH_SUGGESTIONS_DEBOUNCE_MS = 160
 const NEW_TAB_CONFIRM_TIMEOUT_MS = 10_000
 const EMPTY_BROWSER_TABS: BrowserTabState[] = []
 
@@ -156,14 +162,10 @@ export function browserSelectionContext({
 export function resolveUrlBarInput(raw: string): string {
   const input = raw.trim()
   if (/^https?:\/\//i.test(input)) return input
-  const hostLike =
-    /^([a-z0-9-]+(\.[a-z0-9-]+)+|localhost|\d{1,3}(\.\d{1,3}){3}|\[[0-9a-f:]+\])(:\d+)?([/?#].*)?$/i
-  if (!input.includes(' ') && hostLike.test(input)) {
-    const isLocal =
-      /^(localhost|127\.\d{1,3}\.\d{1,3}\.\d{1,3}|0\.0\.0\.0|\[::1?\])(:\d+)?([/?#]|$)/i.test(input)
-    return `${isLocal ? 'http' : 'https'}://${input}`
-  }
-  return `https://www.google.com/search?q=${encodeURIComponent(input)}`
+  if (isSearchQueryInput(input)) return googleSearchUrl(input)
+  const isLocal =
+    /^(localhost|127\.\d{1,3}\.\d{1,3}\.\d{1,3}|0\.0\.0\.0|\[::1?\])(:\d+)?([/?#]|$)/i.test(input)
+  return `${isLocal ? 'http' : 'https'}://${input}`
 }
 
 /**
@@ -302,13 +304,14 @@ export function shouldOpenUrlSuggestions(
   return activeOverlay === 'suggestions' && suggestionCount > 0
 }
 
-/** New tabs submit the best suggestion; existing pages submit their current URL. */
+/** Typed searches and new tabs select the first row; an untouched page URL remains literal. */
 export function initialUrlSuggestionIndex(
   pageUrl: string | undefined,
-  suggestionCount: number
+  suggestionCount: number,
+  query = ''
 ): number | null {
   if (suggestionCount === 0) return null
-  return !pageUrl || pageUrl === 'about:blank' ? 0 : null
+  return query.trim() || !pageUrl || pageUrl === 'about:blank' ? 0 : null
 }
 
 /** A new-tab request is complete only after the authoritative strip grows and activates a new id. */
@@ -369,6 +372,9 @@ export function BrowserSession({
   const suspended = useBrowserSessionStore((state) => state.sessions[scopeId]?.suspended ?? false)
   const panelRef = useRef<HTMLDivElement>(null)
   const hostRef = useRef<HTMLDivElement>(null)
+  // Lets the occlusion handshake reject a capture taken before a modal's
+  // scroll lock reflowed the panel — painting that stale rect is the flash.
+  const getHostRect = useCallback(() => hostRef.current?.getBoundingClientRect() ?? null, [])
   const urlInputRef = useRef<HTMLInputElement>(null)
   const findInputRef = useRef<HTMLInputElement>(null)
   const fillButtonRef = useRef<HTMLButtonElement>(null)
@@ -429,6 +435,15 @@ export function BrowserSession({
   const [suggestionsVisible, setSuggestionsVisible] = useState(false)
   /** Empty on initial focus; follows the typed text once the user edits it. */
   const [suggestionQuery, setSuggestionQuery] = useState<string | null>(null)
+  /** Live completions tagged with the query that produced them, so late replies cannot leak in. */
+  const [searchCompletions, setSearchCompletions] = useState<{
+    query: string
+    values: string[]
+  }>({ query: '', values: [] })
+  const debouncedSuggestionQuery = useDebounce(
+    suggestionQuery ?? '',
+    SEARCH_SUGGESTIONS_DEBOUNCE_MS
+  )
   /** Whether the find bar is docked above the page. */
   const [findOpen, setFindOpen] = useState(false)
   const {
@@ -438,7 +453,7 @@ export function BrowserSession({
     requestOverlay,
     closeOverlay,
     onSnapshotError,
-  } = useBrowserPanelOcclusion(scopeId, activeTabId, panelVisible)
+  } = useBrowserPanelOcclusion(scopeId, activeTabId, panelVisible, getHostRect)
 
   // The resource picker lives above this component in the panel tab bar. Give
   // that one external browser overlay access to the same capture/hide handshake
@@ -501,6 +516,23 @@ export function BrowserSession({
       active = false
     }
   }, [panelVisible])
+
+  /** Debounced live completions never block the immediate local/search row. */
+  useEffect(() => {
+    const query = debouncedSuggestionQuery.trim()
+    if (!suggestionsVisible || !isSearchQueryInput(query)) {
+      setSearchCompletions({ query: '', values: [] })
+      return
+    }
+
+    let active = true
+    void loadBrowserSearchSuggestions(query).then((values) => {
+      if (active) setSearchCompletions({ query, values })
+    })
+    return () => {
+      active = false
+    }
+  }, [debouncedSuggestionQuery, suggestionsVisible])
 
   useEffect(() => {
     if (appearanceTheme) {
@@ -578,6 +610,24 @@ export function BrowserSession({
   }, [clearPendingNewTabFocus, scopeId])
 
   useEffect(() => onBrowserOmniboxFocus(focusOmnibox, scopeId), [focusOmnibox, scopeId])
+
+  // Follow the agent's tab. The panel already marks the automated tab in the
+  // strip; this makes it the VISIBLE one, so watching the agent never means
+  // hunting for which tab it moved to. Keyed on the automation target
+  // CHANGING, not on it merely being set — the user can still browse a
+  // different tab mid-run and is only pulled along when the agent itself
+  // moves to another tab.
+  const followedAutomationTabRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (!automationActive || !automationTabId) {
+      if (!automationActive) followedAutomationTabRef.current = null
+      return
+    }
+    if (followedAutomationTabRef.current === automationTabId) return
+    followedAutomationTabRef.current = automationTabId
+    if (automationTabId === activeTabId) return
+    sendBrowserPanelAction('switch-tab', { tabId: automationTabId }, scopeId)
+  }, [activeTabId, automationActive, automationTabId, scopeId])
 
   // Sim owns keyboard events while its renderer has focus. Claim Cmd+L here
   // before the workspace's global "Go to Logs" command can navigate away.
@@ -748,6 +798,17 @@ export function BrowserSession({
         // then report bounds: the WebContentsView is attached hidden from its
         // very first compositor frame. This also reasserts the lease after a
         // minimized/throttled window temporarily loses its bounds.
+        //
+        // The reassert must be REAL, not deduped. Main's bounds lease expires
+        // after 2.5s of missed reports (renderer jank, a skipped commit) and
+        // resets panelOccluded — while this side still remembers `applied:
+        // true`. Without dropping that belief, setDesired(true) is a no-op,
+        // the next bounds commit lays out an unoccluded native view, and the
+        // browser punches above the still-open modal with nothing left to
+        // ever re-hide it. Forgetting `applied` costs one idempotent hide IPC
+        // per heartbeat while a modal is up, and makes any main-side lease
+        // loss self-heal within a second.
+        if (nativeSurfaceOcclusionPresent) geometryOcclusionLease.assumeRevealed()
         void geometryOcclusionLease.setDesired(nativeSurfaceOcclusionPresent).then((settled) => {
           if (disposed) return
           const latestOcclusionPresent = atomicPanelOcclusion && hasNativeSurfaceOcclusion()
@@ -833,17 +894,18 @@ export function BrowserSession({
    * Programmatic focus on a new tab keeps the omnibox ready for typing without
    * opening this list. A pointer interaction or typed edit opts into suggestions.
    */
-  const suggestions = useMemo(
-    () =>
-      suggestionsVisible && suggestionQuery !== null
-        ? rankSuggestions(suggestionCorpus, suggestionQuery)
-        : [],
-    [suggestionCorpus, suggestionQuery, suggestionsVisible]
-  )
+  const suggestions = useMemo((): OmniboxSuggestion[] => {
+    if (!suggestionsVisible || suggestionQuery === null) return []
+    const query = suggestionQuery.trim()
+    const live = searchCompletions.query === query ? searchCompletions.values : []
+    return buildOmniboxSuggestions(suggestionCorpus, suggestionQuery, live)
+  }, [searchCompletions, suggestionCorpus, suggestionQuery, suggestionsVisible])
 
   useEffect(() => {
-    setActiveSuggestion(initialUrlSuggestionIndex(suggestionOriginUrl, suggestions.length))
-  }, [suggestionOriginUrl, suggestions])
+    setActiveSuggestion(
+      initialUrlSuggestionIndex(suggestionOriginUrl, suggestions.length, suggestionQuery ?? '')
+    )
+  }, [suggestionOriginUrl, suggestionQuery, suggestions])
 
   // The suggestion list is renderer UI that extends over the native page.
   // Keep the page's exact captured frame underneath it while it is open so
@@ -1075,6 +1137,7 @@ export function BrowserSession({
                   placeholder='Search Google or enter a URL'
                   autoComplete='off'
                   role='combobox'
+                  aria-autocomplete='list'
                   aria-expanded={suggestionsOpen}
                   aria-controls={SUGGESTIONS_LIST_ID}
                   aria-activedescendant={
@@ -1092,6 +1155,7 @@ export function BrowserSession({
                   onChange={(event) => {
                     setSuggestionsVisible(true)
                     setSuggestionQuery(event.target.value)
+                    setSearchCompletions({ query: '', values: [] })
                     setUrlDraft(event.target.value)
                     // The old highlight pointed at a row that may no longer be
                     // in the list, let alone in the same position.
@@ -1150,7 +1214,11 @@ export function BrowserSession({
             >
               {suggestions.map((suggestion, index) => (
                 <PopoverItem
-                  key={suggestion.hostname}
+                  key={
+                    suggestion.kind === 'site'
+                      ? `site:${suggestion.hostname}`
+                      : `search:${suggestion.query}`
+                  }
                   id={suggestionRowId(index)}
                   role='option'
                   aria-selected={index === activeSuggestion}
@@ -1161,17 +1229,24 @@ export function BrowserSession({
                   onClick={() => navigateTo(suggestion.url)}
                 >
                   <div className='flex w-full min-w-0 items-center gap-2'>
-                    <BrowserSuggestionIcon suggestion={suggestion} />
-                    {suggestion.name ? (
+                    {suggestion.kind === 'search' ? (
+                      <>
+                        <Search className='size-4 shrink-0 text-[var(--text-icon)]' />
+                        <span className='truncate'>{suggestion.query}</span>
+                      </>
+                    ) : (
+                      <BrowserSuggestionIcon suggestion={suggestion} />
+                    )}
+                    {suggestion.kind === 'site' && suggestion.name ? (
                       <div className='flex min-w-0 flex-1 items-center gap-1.5'>
                         <span className='min-w-0 flex-1 truncate'>{suggestion.name}</span>
                         <span className='max-w-[45%] shrink-0 truncate text-[var(--text-muted)]'>
                           — {suggestion.hostname}
                         </span>
                       </div>
-                    ) : (
+                    ) : suggestion.kind === 'site' ? (
                       <span className='truncate'>{suggestion.hostname}</span>
-                    )}
+                    ) : null}
                   </div>
                 </PopoverItem>
               ))}

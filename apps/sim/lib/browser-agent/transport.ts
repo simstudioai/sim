@@ -307,6 +307,15 @@ export async function openBrowserTab(
   return state
 }
 
+/** Opens a distinct browser tab and navigates it after the shell accepts it. */
+export async function openUrlInNewBrowserTab(
+  url: string,
+  scopeId = currentBrowserScopeId()
+): Promise<void> {
+  await openBrowserTab(scopeId)
+  sendBrowserPanelAction('navigate', { url }, scopeId)
+}
+
 /** Pins or unpins a live browser tab. */
 export function setBrowserTabPinned(
   tabId: string,
@@ -485,6 +494,19 @@ export async function loadBrowserSuggestionSources(): Promise<{
     desktop?.browserImport?.listSites().catch(() => []) ?? [],
   ])
   return { sessions: known?.sessions ?? [], credentials, sites }
+}
+
+/**
+ * Requests live Google completions through the desktop shell. Older shells and
+ * disabled/offline providers resolve to an empty list, leaving local sites and
+ * ordinary Enter-to-search behavior intact.
+ */
+export function loadBrowserSearchSuggestions(query: string): Promise<string[]> {
+  return (
+    bridge()
+      ?.getSearchSuggestions?.(query)
+      .catch(() => []) ?? Promise.resolve([])
+  )
 }
 
 /** Subscribes to native browser shortcuts that target the renderer omnibox. */

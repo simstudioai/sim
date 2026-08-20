@@ -89,6 +89,18 @@ export const knowledgeOperations = {
     workspaceApiKey: 'deny',
     ...COPILOT_PRINCIPAL_POLICY,
   }),
+  moveByVfsPath: defineWorkspaceOperation({
+    id: 'knowledge.vfs.move',
+    minimumRole: 'write',
+    workspaceApiKey: 'deny',
+    ...COPILOT_PRINCIPAL_POLICY,
+  }),
+  manageVfsFolders: defineWorkspaceOperation({
+    id: 'knowledge.vfs.folders.manage',
+    minimumRole: 'write',
+    workspaceApiKey: 'deny',
+    ...COPILOT_PRINCIPAL_POLICY,
+  }),
   deleteByVfsPath: defineWorkspaceOperation({
     id: 'knowledge.vfs.delete',
     minimumRole: 'write',

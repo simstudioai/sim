@@ -148,6 +148,71 @@ describe('Copilot workflow run application commands', () => {
     )
   })
 
+  it('runs under a caller-claimed execution id and stamps its copilot correlation', async () => {
+    // Set when the request handler wins the workflow-tool claim and runs the
+    // tool server-side. The claimed id must BE the child execution id, and the
+    // log row must carry the tool-call correlation, or a server-run tool call
+    // is unattributable where a browser-run one is not.
+    await runWorkflowFromCopilot.execute({
+      principal,
+      input: {
+        workflowId: 'workflow-1',
+        assertedWorkspaceId: 'workspace-1',
+        useDraftState: true,
+        lifecycle: {
+          ...lifecycle,
+          boundExecution: {
+            executionId: 'claimed-execution-1',
+            copilotToolCallId: 'tool-call-1',
+          },
+        },
+        hasWorkflowInput: false,
+        useMockPayload: true,
+      },
+    })
+
+    expect(mocks.admission).toHaveBeenCalledWith(
+      { userId: 'user-1', billingAttribution: undefined },
+      'workspace-1',
+      'claimed-execution-1'
+    )
+    expect(mocks.executeWorkflow).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'workflow-1' }),
+      'request-1',
+      { source: 'mock' },
+      'user-1',
+      expect.objectContaining({
+        trustedExecutionCorrelation: {
+          executionId: 'claimed-execution-1',
+          requestId: 'request-1',
+          source: 'workflow',
+          workflowId: 'workflow-1',
+          triggerType: 'copilot',
+          copilotToolCallId: 'tool-call-1',
+        },
+      }),
+      'claimed-execution-1'
+    )
+  })
+
+  it('does not stamp a correlation for an ordinary browser-routed run', async () => {
+    await runWorkflowFromCopilot.execute({
+      principal,
+      input: {
+        workflowId: 'workflow-1',
+        assertedWorkspaceId: 'workspace-1',
+        useDraftState: true,
+        lifecycle,
+        hasWorkflowInput: false,
+        useMockPayload: true,
+      },
+    })
+
+    expect(mocks.executeWorkflow.mock.calls.at(-1)?.[4]).not.toHaveProperty(
+      'trustedExecutionCorrelation'
+    )
+  })
+
   it('rechecks current permission before loading execution state', async () => {
     mocks.permission.mockResolvedValueOnce(null)
 

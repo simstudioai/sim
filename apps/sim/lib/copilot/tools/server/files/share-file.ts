@@ -11,6 +11,7 @@ import {
   type BaseServerTool,
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
+import { resolveEnvReferenceSecretArg } from '@/lib/copilot/tools/server/env-reference'
 import { asOrchestrationError } from '@/lib/core/orchestration/types'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { readWorkspaceFileMetadata } from '@/lib/workspace-files/application/read-workspace-file-metadata'
@@ -60,7 +61,20 @@ export const shareFileServerTool: BaseServerTool<ShareFileArgs, ShareFileResult>
     const authType = (params.authType || (nested?.authType as ShareAuthType | undefined)) as
       | ShareAuthType
       | undefined
-    const password = params.password || (nested?.password as string) || undefined
+    const rawPassword = params.password || (nested?.password as string) || undefined
+    // "Protect it with the password in {{SHARE_PW}}" arrives as the literal
+    // reference — resolve it, or the placeholder becomes the real password.
+    const resolvedPassword = await resolveEnvReferenceSecretArg({
+      userId: context.userId,
+      workspaceId: context.workspaceId,
+      value: rawPassword,
+      argName: 'password',
+      registry: context.resolvedSecretTraceRegistry,
+    })
+    if (resolvedPassword.error) {
+      return { success: false, message: resolvedPassword.error }
+    }
+    const password = resolvedPassword.value
     const allowedEmails =
       params.allowedEmails || (nested?.allowedEmails as string[] | undefined) || undefined
 
