@@ -146,23 +146,33 @@ describe('compileSimPage', () => {
     expect(html).toContain('src="/api/files/view/img9"')
   })
 
-  it('keeps a lone next card right-aligned with a spacer', () => {
-    const html = compileSimPage('---\ntitle: T\nnext: "[API](sim:file/b)"\n---\nBody.')
-    expect(html).toContain('<div class="page-nav-spacer"></div><a class="page-nav-card next"')
+  it('renders the tabs frontmatter as the docs tab row above the title', () => {
+    const html = compileSimPage(
+      '---\ntitle: Overview\ntabs:\n  - "Overview"\n  - "[API Reference](sim:file/b)"\n  - "[CLI](sim:file/c)"\n---\nBody.',
+      { workspaceId: 'ws1' }
+    )
+    expect(html).toContain('<nav class="page-tabs" aria-label="Pages">')
+    // The bare-label entry IS this page: the active, unlinked tab.
+    expect(html).toContain('<span class="page-tab is-active">Overview</span>')
+    // Linked entries resolve through the normal sim: link pass.
+    expect(html).toContain(
+      '<a class="page-tab" href="/workspace/ws1/files/b" data-sim-link="">API Reference</a>'
+    )
+    // Tabs precede the title, the docs' top-row placement.
+    expect(html.indexOf('page-tabs')).toBeLessThan(html.indexOf('<h1>'))
   })
 
-  it('renders frontmatter prev/next as footer pagination cards', () => {
+  it('renders no tab row for a single page', () => {
+    expect(compileSimPage('---\ntitle: T\n---\nBody.')).not.toContain('page-tabs')
+  })
+
+  it('tolerates prev/next frontmatter without rendering pagination', () => {
     const html = compileSimPage(
       '---\ntitle: T\nprev: "[Getting Started](sim:file/a)"\nnext: "[API Reference](sim:file/b)"\n---\nBody.',
       { workspaceId: 'ws1' }
     )
-    expect(html).toContain('<footer class="page-nav">')
-    expect(html).toContain('class="page-nav-card prev"')
-    expect(html).toContain('Getting Started')
-    expect(html).toContain('href="/workspace/ws1/files/b"')
-    // The docs' PageFooter shape: chevron + name, no Previous/Next labels.
-    expect(html).toContain('M6.25 3L13.25 10.25L6.25 17.5')
-    expect(html).not.toContain('Previous')
+    expect(html).not.toContain('page-nav')
+    expect(html).toContain('Body.')
   })
 
   it('tolerates nav frontmatter without rendering a sidebar', () => {

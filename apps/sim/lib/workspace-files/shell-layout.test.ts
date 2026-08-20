@@ -30,13 +30,13 @@ describe('shell layout decisions', () => {
     expect(toc.map((a) => a.textContent)).toEqual(['A', 'B', 'C'])
   })
 
-  it('keeps prev/next arrows wired from frontmatter', () => {
-    runShell('---\ntitle: T\nnext: "[Reference](sim:file/b)"\n---\n## Only\n\nx')
-    const next = document.querySelector('.page-actions .pa-nav[aria-label="Next page"]')
-    expect(next?.getAttribute('href')).toBe('sim:file/b')
-    expect(
-      document.querySelector('.page-actions .pa-nav[aria-label="Previous page"]')?.classList
-    ).toContain('is-disabled')
+  it('keeps the set tabs in place and adds no arrow chrome', () => {
+    runShell('---\ntitle: T\ntabs:\n  - "T"\n  - "[Reference](sim:file/b)"\n---\n## Only\n\nx')
+    const tabs = [...document.querySelectorAll('.page-tabs .page-tab')]
+    expect(tabs.map((tab) => tab.textContent)).toEqual(['T', 'Reference'])
+    expect(document.querySelector('.page-tab.is-active')?.textContent).toBe('T')
+    expect(document.querySelector('.page-actions')).toBeNull()
+    expect(document.querySelector('.pa-nav')).toBeNull()
   })
 })
 

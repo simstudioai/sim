@@ -165,6 +165,18 @@ describe('docs fidelity', () => {
     expect(SIM_ARTIFACT_STYLESHEET).not.toContain('data-rail="nav"')
   })
 
+  // Set navigation is the docs' top tab row. A long set must scroll
+  // sideways — never wrap or truncate — with no scrollbar chrome; and the
+  // retired prev/next arrows must stay gone.
+  it('keeps the tab row one scrollable line and carries no arrow chrome', () => {
+    expect(SIM_ARTIFACT_STYLESHEET).toContain('overflow-x: auto; scrollbar-width: none;')
+    expect(SIM_ARTIFACT_STYLESHEET).toContain('.page-tabs::-webkit-scrollbar { display: none; }')
+    expect(SIM_ARTIFACT_STYLESHEET).toContain('.page-tab.is-active')
+    expect(SIM_ARTIFACT_STYLESHEET).not.toContain('.page-nav')
+    expect(SIM_ARTIFACT_STYLESHEET).not.toContain('.pa-nav')
+    expect(SIM_ARTIFACT_SHELL).not.toContain('page-actions')
+  })
+
   // Pages live inside the app: the PLATFORM stack, not the docs' webfont —
   // Inter next to emcn/sim chrome read as foreign.
   it('uses the platform font stack', () => {
@@ -178,7 +190,7 @@ describe('docs fidelity', () => {
     expect(SIM_ARTIFACT_STYLESHEET).toContain('text-decoration-thickness: 1.5px')
     expect(SIM_ARTIFACT_STYLESHEET).toContain('text-underline-offset: 3.5px')
     expect(SIM_ARTIFACT_STYLESHEET).toContain('a:hover { opacity: 0.8; }')
-    expect(SIM_ARTIFACT_STYLESHEET).toContain('.rail a, .page-nav-card { font-weight: 400')
+    expect(SIM_ARTIFACT_STYLESHEET).toContain('.rail a { font-weight: 400')
   })
 
   // The docs' figure.shiki shell and Code.Viewer metrics.

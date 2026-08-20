@@ -40,9 +40,17 @@ const frontmatterSchema = z.object({
   eyebrow: z.string().optional(),
   lede: z.string().optional(),
   layout: z.enum(['docs', 'report']).optional(),
-  /** Docs-style footer pagination: a markdown link — `[Title](sim:file/<id>)`. */
+  /** Tolerated for old sources; no longer rendered — sets navigate by tabs. */
   prev: z.string().optional(),
   next: z.string().optional(),
+  /**
+   * Multi-page set navigation, the docs' top tab row: every page of a set
+   * carries the SAME ordered list. Each entry is a markdown link
+   * (`"[API Reference](sim:file/<id>)"`) to a sibling page; the CURRENT
+   * page's entry is its bare label (`"Overview"`), rendered as the active
+   * tab. The row scrolls horizontally when the set outgrows the column.
+   */
+  tabs: z.array(z.string()).min(1).optional(),
   /**
    * The SET's sidebar, docs-style: groups of pages under muted labels. Each
    * page entry is a markdown link; every page of a set carries the same nav.
@@ -66,26 +74,23 @@ const frontmatterSchema = z.object({
 
 const MD_LINK = /^\s*\[([^\]]+)\]\(([^)]+)\)\s*$/
 
-const CHEVRON_ATTRS =
-  'viewBox="-1 -2 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.55" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"'
-const CHEVRON_LEFT = `<svg ${CHEVRON_ATTRS}><path d="M13.25 3L6.25 10.25L13.25 17.5"/></svg>`
-const CHEVRON_RIGHT = `<svg ${CHEVRON_ATTRS}><path d="M6.25 3L13.25 10.25L6.25 17.5"/></svg>`
-
 /**
- * One footer navigation card from a frontmatter `[Title](href)` link — the
- * docs' own PageFooter: the destination name with a direction chevron on a
- * hover pill, no border and no Previous/Next label (the chevron already says
- * which way you are going). A missing side renders a spacer so the other
- * card keeps its half.
+ * The set's tab row above the title — the docs' own top tabs: linked entries
+ * navigate to sibling pages, the bare-label entry IS this page and renders as
+ * the active tab. sim: hrefs resolve through the normal link pass.
  */
-function paginationCard(value: string | undefined, direction: 'prev' | 'next'): string {
-  const match = value?.match(MD_LINK)
-  if (!match) return '<div class="page-nav-spacer"></div>'
-  const [, title, href] = match
-  const name = escapeHtml(title)
-  return direction === 'prev'
-    ? `<a class="page-nav-card prev" href="${escapeHtml(href)}">${CHEVRON_LEFT}${name}</a>`
-    : `<a class="page-nav-card next" href="${escapeHtml(href)}">${name}${CHEVRON_RIGHT}</a>`
+function tabBar(tabs: string[] | undefined): string {
+  if (!tabs || tabs.length === 0) return ''
+  const items = tabs
+    .map((entry) => {
+      const match = entry.match(MD_LINK)
+      if (match) {
+        return `<a class="page-tab" href="${escapeHtml(match[2])}">${escapeHtml(match[1])}</a>`
+      }
+      return `<span class="page-tab is-active">${escapeHtml(entry.trim())}</span>`
+    })
+    .join('')
+  return `<nav class="page-tabs" aria-label="Pages">${items}</nav>`
 }
 
 /** YAML leaves unquoted scalars typed; reject null/objects rather than stringify them. */
@@ -426,14 +431,10 @@ function compileSimPageDocument(source: string, diagnostics?: string[]): string 
     '</head>',
     '<body>',
     `<div class="page" data-layout="${meta.layout ?? 'docs'}">`,
+    ...(meta.tabs ? [tabBar(meta.tabs)] : []),
     `<h1>${escapeHtml(meta.title)}</h1>`,
     ...(meta.lede ? [`<p class="lede">${escapeHtml(meta.lede)}</p>`] : []),
     compileBody(rest, diagnostics),
-    ...(meta.prev || meta.next
-      ? [
-          `<footer class="page-nav">${paginationCard(meta.prev, 'prev')}${paginationCard(meta.next, 'next')}</footer>`,
-        ]
-      : []),
     '</div>',
     '</body>',
     '</html>',

@@ -431,18 +431,27 @@ figcaption { font-size: 0.875em; line-height: 1.4285714; color: var(--text-prima
   border-bottom: 1px solid var(--border);
 }
 .art-bar-title { font-size: var(--text-sm); font-weight: 500; color: var(--text-primary); margin-right: auto; }
-/* Top-of-page controls: Copy page + prev/next chevrons on the title row. */
-.page-actions {
-  display: flex; justify-content: flex-end; align-items: center; gap: 2px;
-  margin-bottom: -2.4rem; position: relative; z-index: 2;
+
+/* Multi-page set tabs — the docs' top tab row: muted labels, the current
+   page in primary with a 2px underline riding the row's hairline. The row
+   scrolls horizontally (no scrollbar chrome) when the set outgrows the
+   column, so a long set never wraps or truncates. */
+.page-tabs {
+  display: flex; gap: 1.75rem;
+  margin: 0 0 2rem;
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto; scrollbar-width: none;
 }
-.pa-nav {
-  display: inline-flex; align-items: center; justify-content: center;
-  width: 30px; height: 30px; border-radius: 0.5rem;
-  color: var(--text-icon); transition: background-color 0.15s;
+.page-tabs::-webkit-scrollbar { display: none; }
+.page-tab {
+  flex-shrink: 0; white-space: nowrap;
+  padding: 0 0 0.65rem;
+  font-size: var(--text-sm); color: var(--text-muted);
+  text-decoration: none;
+  border-bottom: 2px solid transparent; margin-bottom: -1px;
 }
-.pa-nav:hover { background: var(--surface-active); opacity: 1; }
-.pa-nav.is-disabled { opacity: 0.35; pointer-events: none; }
+a.page-tab:hover { color: var(--text-body); opacity: 1; }
+.page-tab.is-active { color: var(--text-primary); font-weight: 500; border-bottom-color: var(--text-primary); }
 
 /* The docs' theme toggle: 30px, rounded-lg, --text-icon, --surface-active hover. */
 .art-theme {
@@ -474,8 +483,8 @@ figcaption { font-size: 0.875em; line-height: 1.4285714; color: var(--text-prima
 .toc-track, .toc-thumb { display: block; }
 .rail ol, .rail ul { list-style: none; margin: 0; padding: 0; }
 /* Chrome links are navigation, not prose: no underline weight or hover fade. */
-.rail a, .page-nav-card { font-weight: 400; transition: none; }
-.rail a:hover, .page-nav-card:hover { opacity: 1; }
+.rail a { font-weight: 400; transition: none; }
+.rail a:hover { opacity: 1; }
 
 .rail[data-rail="toc"] { min-width: 150px; }
 
@@ -558,7 +567,11 @@ figcaption { font-size: 0.875em; line-height: 1.4285714; color: var(--text-prima
    moment step bodies vary in height; a full-height rail that the opaque
    circles paint over is what the docs render. */
 .steps { list-style: none; margin: 1.25rem 0; padding: 0; }
-.step { --step-marker: 28px; position: relative; display: flex; gap: 1rem; padding-bottom: 1.75rem; }
+/* Explicit margin/padding resets: the prose list rules (ol > li's inline-start
+   indent, li's vertical margins) otherwise leak in — the indent shifts the
+   circles off the absolutely-positioned rail, and inter-item margins cut gaps
+   into it. */
+.step { --step-marker: 28px; position: relative; display: flex; gap: 1rem; margin: 0; padding: 0 0 1.75rem; }
 .step:last-child { padding-bottom: 0.25rem; }
 /* The rail spans the whole step, dead-centered under the circle; the last
    step draws none, so the line ends AT the final circle. */
@@ -596,23 +609,6 @@ figcaption { font-size: 0.875em; line-height: 1.4285714; color: var(--text-prima
 .codetab.is-active { background: var(--surface-active); color: var(--text-primary); }
 .codetabs-head .codetabs-copy { position: static; margin-left: auto; }
 
-/* API method chips — sidebar entries only, the docs' reference nav. */
-
-/* Footer pagination — the docs' PageFooter verbatim: name + chevron on a
-   hover pill (mt-12 flex gap-2 py-3; cards flex-1 gap-1.5 rounded-lg px-3
-   py-3 text-sm --text-body, hover --surface-active; chevrons 14px
-   --text-icon; a missing side keeps its half as a spacer). */
-.page-nav { display: flex; gap: 0.5rem; margin-top: 3rem; padding: 0.75rem 0; }
-.page-nav-card {
-  flex: 1; display: flex; align-items: center; gap: 0.375rem; min-width: 0;
-  border-radius: 0.5rem; padding: 0.75rem;
-  font-size: var(--text-sm); font-weight: 400; color: var(--text-body);
-  text-decoration: none; transition: background-color 0.2s;
-}
-.page-nav-card:hover { background: var(--surface-active); opacity: 1; }
-.page-nav-card.next { justify-content: flex-end; }
-.page-nav-card svg { flex-shrink: 0; color: var(--text-icon); }
-.page-nav-spacer { flex: 1; }
 `.trim()
 
 /**
@@ -802,29 +798,6 @@ export const SIM_ARTIFACT_SHELL = `<script>
       mid.appendChild(main)
     }
     cols.append(mid, right)
-
-    // Top-of-page controls: prev/next chevrons on the title row, wired to
-    // the same targets as the footer cards.
-    const CHEV_L = '<svg ' + ICON_ATTRS + '><path d="M13.25 3L6.25 10.25L13.25 17.5"/></svg>'
-    const CHEV_R = '<svg ' + ICON_ATTRS + '><path d="M6.25 3L13.25 10.25L6.25 17.5"/></svg>'
-    const actions = document.createElement('div')
-    actions.className = 'page-actions'
-    const prevCard = page.querySelector('.page-nav-card.prev')
-    const nextCard = page.querySelector('.page-nav-card.next')
-    if (prevCard || nextCard) {
-      const mkNav = (card, svg, label) => {
-        const a = document.createElement('a')
-        a.className = 'pa-nav'
-        a.setAttribute('aria-label', label)
-        const href = card ? card.getAttribute('href') : null
-        if (href) a.href = href
-        else a.classList.add('is-disabled')
-        a.innerHTML = svg
-        return a
-      }
-      actions.append(mkNav(prevCard, CHEV_L, 'Previous page'), mkNav(nextCard, CHEV_R, 'Next page'))
-    }
-    if (actions.childElementCount > 0) mid.insertBefore(actions, mid.firstChild)
 
     // Clerk track geometry (fumadocs clerk.js): one path threading every item,
     // vertical through each and a cubic easing across depth changes.
