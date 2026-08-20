@@ -36,6 +36,26 @@ export interface CatalogToolOutput {
   fileConfig?: { mimeType?: string; extension?: string }
 }
 
+/**
+ * Deployment facts a projection needs but must not read for itself.
+ *
+ * Passed in rather than imported so this module stays a pure function of its
+ * arguments — the same reason `describeTool` is an option on the block detail
+ * projection rather than a branch inside it.
+ */
+export interface CatalogDeployment {
+  /**
+   * Whether Sim supplies hosted API keys at all.
+   *
+   * False on every self-hosted deployment, where `injectHostedKeyIfNeeded`
+   * short-circuits on `isHosted` and no tool ever receives a Sim-supplied key —
+   * so a tool that *declares* hosted-key support still requires the caller to
+   * bring one. Publishing the raw declaration there would tell 127 tools' worth
+   * of callers they need no key when they do.
+   */
+  hostedKeys: boolean
+}
+
 /** OAuth requirement declared by a tool. */
 export interface CatalogToolOAuth {
   required: boolean
@@ -76,14 +96,19 @@ function projectOAuth(oauth: ToolMetadata['oauth']): CatalogToolOAuth | undefine
  * `name` and `description` fall back to the id: both are optional on the
  * generated artifact, and a catalog entry with an empty name is unusable.
  * `hostedApiKey` falls back to `none`, which is what an artifact generated
- * before the field existed means.
+ * before the field existed means, and is forced to `none` wherever the
+ * deployment supplies no hosted keys.
  */
-export function projectToolSummary(toolId: string, metadata: ToolMetadata): CatalogToolSummary {
+export function projectToolSummary(
+  toolId: string,
+  metadata: ToolMetadata,
+  deployment: CatalogDeployment
+): CatalogToolSummary {
   const summary: CatalogToolSummary = {
     id: toolId,
     name: metadata.name ?? toolId,
     description: metadata.description ?? '',
-    hostedApiKey: metadata.hostedApiKey ?? 'none',
+    hostedApiKey: deployment.hostedKeys ? (metadata.hostedApiKey ?? 'none') : 'none',
   }
   if (metadata.version !== undefined) summary.version = metadata.version
   const oauth = projectOAuth(metadata.oauth)
@@ -129,20 +154,26 @@ export function projectToolOutputs(
  * execution does, so `gmail_send` finds `gmail_send_v2`. The returned `id` is
  * the resolved one, so a caller can always see which version answered.
  */
-export function projectToolDetail(toolId: string): CatalogToolDetail | undefined {
+export function projectToolDetail(
+  toolId: string,
+  deployment: CatalogDeployment
+): CatalogToolDetail | undefined {
   const resolved = resolveToolId(toolId)
   const metadata = getToolMetadata(resolved)
   if (!metadata) return undefined
   return {
-    ...projectToolSummary(resolved, metadata),
+    ...projectToolSummary(resolved, metadata, deployment),
     params: projectToolParams(metadata.params),
     outputs: projectToolOutputs(getToolOutputsMetadata(resolved)),
   }
 }
 
 /** Projects a tool to its catalog summary, or `undefined` when no such tool exists. */
-export function projectToolSummaryById(toolId: string): CatalogToolSummary | undefined {
+export function projectToolSummaryById(
+  toolId: string,
+  deployment: CatalogDeployment
+): CatalogToolSummary | undefined {
   const resolved = resolveToolId(toolId)
   const metadata = getToolMetadata(resolved)
-  return metadata ? projectToolSummary(resolved, metadata) : undefined
+  return metadata ? projectToolSummary(resolved, metadata, deployment) : undefined
 }

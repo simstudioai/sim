@@ -825,10 +825,6 @@ async function processHostedKeyCost(
 
   if (cost <= 0) return { cost: 0 }
 
-  const { userId } = resolveToolScope(params, executionContext)
-
-  if (!userId) return { cost, metadata }
-
   logger.debug(
     `[${requestId}] Hosted key cost for ${tool.id}: $${cost}`,
     metadata ? { metadata } : {}

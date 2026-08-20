@@ -10114,7 +10114,10 @@ export const V2_OPERATIONS = {
     method: 'GET',
     path: '/api/v2/blocks/[blockId]',
     pathParams: ['blockId'] as const,
-    pathParamDocs: { blockId: 'Block type identifier.' },
+    pathParamDocs: {
+      blockId:
+        'Block type identifier. An unversioned base type resolves to the newest version, and the response echoes the resolved id.',
+    },
     responseMode: 'json',
     summary: 'Get Block',
     query: {

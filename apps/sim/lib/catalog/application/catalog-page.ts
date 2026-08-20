@@ -34,6 +34,22 @@ export function matchesCatalogSearch(
 }
 
 /**
+ * Orders two strings by UTF-16 code unit, deliberately not by `localeCompare`.
+ *
+ * A bare `localeCompare` reads the process's default locale and ICU data, so two
+ * app instances started with different `LANG` values order the same set
+ * differently — and an offset cursor minted on one then names a different row on
+ * the other, silently skipping or repeating entries. Code-unit order is the same
+ * everywhere, which is the property a cursor needs; catalog ids and names are
+ * ASCII, so nothing human-visible changes.
+ */
+function compareCodeUnits(left: string, right: string): number {
+  if (left < right) return -1
+  if (left > right) return 1
+  return 0
+}
+
+/**
  * Sorts a copy by one string field, breaking ties on `id`.
  *
  * The tie-break is what makes an offset cursor sound: two entries comparing
@@ -48,9 +64,9 @@ export function sortCatalogEntries<T extends { id: string }>(
 ): T[] {
   const direction = sortOrder === 'desc' ? -1 : 1
   return [...entries].sort((left, right) => {
-    const compared = select(left).localeCompare(select(right))
+    const compared = compareCodeUnits(select(left), select(right))
     if (compared !== 0) return compared * direction
-    return left.id.localeCompare(right.id) * direction
+    return compareCodeUnits(left.id, right.id) * direction
   })
 }
 

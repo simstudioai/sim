@@ -108,6 +108,26 @@ export function getAllBlocks(): BlockConfig[] {
   return all.map((block) => projectBlock(block, vis))
 }
 
+/**
+ * The newest version of a block type, projected through the viewer's visibility.
+ *
+ * The detail-read counterpart of {@link getAllBlocks}, and the two must agree.
+ * {@link getBlock} is a pure key lookup: it answers `confluence` with the
+ * superseded v1 (which carries `hideFromToolbar`, so a catalog read of it 404s
+ * while the list contains `confluence_v2`), and it never applies the
+ * " (Preview)" display suffix a revealed preview block carries in the list. This
+ * resolves the version the way {@link getLatestBlock} does and projects the
+ * result the way {@link getAllBlocks} does, so a detail read can never
+ * contradict the list it came from. Execution paths keep using the pure
+ * {@link getBlock}.
+ */
+export function getLatestBlockForViewer(type: string): BlockConfig | undefined {
+  const block = getLatestBlock(type) ?? resolveOverlayBlock(type)
+  if (!block) return undefined
+  const vis = overlayVisibility()
+  return visibilityInert(vis) ? block : projectBlock(block, vis)
+}
+
 /** Find the block whose `tools.access` contains the given tool id. */
 export function getBlockByToolName(toolName: string): BlockConfig | undefined {
   return Object.values(BLOCK_REGISTRY).find((b) => b.tools?.access?.includes(toolName))

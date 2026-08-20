@@ -6,6 +6,7 @@ import { catalogOperations } from '@/lib/catalog/application/operations'
 import { resolveVisibleToolIds } from '@/lib/catalog/application/tool-scope'
 import { type CatalogToolDetail, projectToolDetail } from '@/lib/catalog/projection/tool'
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
+import { isHosted } from '@/lib/core/config/env-flags'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { resolveToolId } from '@/tools/tool-ids'
 
@@ -33,7 +34,7 @@ export const getCatalogTool = defineAuthorizedWorkspaceUseCase({
   authorizationOptions: {},
   execute: async ({ principal, input, context }): Promise<GetCatalogToolResult> => {
     const resolvedToolId = resolveToolId(input.toolId)
-    const tool = projectToolDetail(resolvedToolId)
+    const tool = projectToolDetail(resolvedToolId, { hostedKeys: isHosted })
     if (!tool) throw new OrchestrationError('not_found', 'Tool not found')
 
     const gate = await resolveCatalogGate(principal, context)

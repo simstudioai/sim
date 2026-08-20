@@ -1533,7 +1533,7 @@ const declaredRoutes = [
       operationId: 'getBlock',
       summary: 'Get Block',
       description:
-        'Read one block’s full configuration shape: its fields and their conditions, its operations with the tool each runs, every tool’s parameters and outputs, and its triggers. A block this caller cannot see answers 404, identically to one that does not exist.',
+        'Read one block’s full configuration shape: its fields and their conditions, its operations with the tool each runs, every tool’s parameters and outputs, and its triggers. An unversioned base type resolves to the newest version — `confluence` answers with `confluence_v2` — and the returned `id` is always the resolved one, matching Get Tool. A block this caller cannot see answers 404, identically to one that does not exist.',
       errors: RESOURCE_ERRORS,
       success: { description: 'The block.' },
     }),
@@ -1542,7 +1542,7 @@ const declaredRoutes = [
         v2GetBlockContract.params,
         'GetBlockParams',
         'Get block path parameters',
-        'Block selected for retrieval.'
+        'Block selected for retrieval. An unversioned base type resolves to the newest version.'
       ),
       query: documentedSchema(
         v2GetBlockContract.query,

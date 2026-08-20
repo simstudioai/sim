@@ -15,11 +15,13 @@ import { describe, expect, it } from 'vitest'
  * same applies to `@/connectors/registry.server`, whose fetch closures pull
  * `undici` and the server-only input validators in behind them.
  *
- * `scripts/check-tool-registry-boundary.ts` walks these same entries and would
- * also catch a registry edge. This test is the cheaper, faster half: it runs in
- * the normal suite, names the offending file directly, and additionally holds
- * `projection/` to the stricter rule that it stay free of HTTP and database
- * imports so any surface — including a client component — can import it.
+ * `scripts/check-tool-registry-boundary.ts` walks these same entries and is the
+ * authoritative half: it follows every edge transitively, so it catches a
+ * registry import reintroduced one hop away, which the direct-specifier scan
+ * below cannot. This test is the cheaper, faster half — it runs in the normal
+ * suite, names the offending file directly, and additionally holds `projection/`
+ * to the stricter rule that it stay free of HTTP and database imports so it
+ * stays surface-neutral.
  */
 
 const APP_ROOT = join(import.meta.dirname, '..', '..')
@@ -30,6 +32,8 @@ const CATALOG_ROOTS = [
   'app/api/v2/tools',
   'app/api/v2/connector-types',
   'app/api/v2/enrichments',
+  /** The Copilot tool the shared projection was extracted for: ~6,756 modules down to ~1,321. */
+  'lib/copilot/tools/server/blocks',
 ] as const
 
 /** Modules no catalog file may import, with what each would drag in. */

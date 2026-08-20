@@ -7,8 +7,9 @@ import {
 import { catalogOperations } from '@/lib/catalog/application/operations'
 import { type CatalogBlockDetail, projectBlockDetail } from '@/lib/catalog/projection/block-detail'
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
+import { isHosted } from '@/lib/core/config/env-flags'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { getBlock } from '@/blocks/registry'
+import { getLatestBlockForViewer } from '@/blocks/registry'
 
 export interface GetCatalogBlockInput {
   workspaceId: string
@@ -21,6 +22,11 @@ export interface GetCatalogBlockResult {
 
 /**
  * One block's full authoring shape.
+ *
+ * An unversioned base type resolves to its newest version, exactly as the tool
+ * detail read does — `confluence` answers with `confluence_v2` — and the
+ * response echoes the resolved id. Without that, every one of the 34 versioned
+ * families 404s on the name the list publishes it under.
  *
  * Every filter the list applies also produces a 404 here — an unknown type, a
  * block hidden from the toolbar, an unrevealed preview block, a kill-switched
@@ -37,9 +43,9 @@ export const getCatalogBlock = defineAuthorizedWorkspaceUseCase({
     const gate = await resolveCatalogGate(principal, context)
 
     const detail = await withCatalogBlockScope(gate, async () => {
-      const block = getBlock(input.blockId)
+      const block = getLatestBlockForViewer(input.blockId)
       if (!block || !isBlockVisibleToCaller(block, gate)) return null
-      return projectBlockDetail(block)
+      return projectBlockDetail(block, { deployment: { hostedKeys: isHosted } })
     })
 
     if (!detail) throw new OrchestrationError('not_found', 'Block not found')
