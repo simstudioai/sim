@@ -117,7 +117,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     )
     if (!parsed.success) return parsed.response
 
-    const { context, id: contextId, includeOrg } = parsed.data.query
+    const { context, id: contextId, includeOrg, memberLimit, memberOffset } = parsed.data.query
     if (context === 'organization' && !contextId) {
       return NextResponse.json(
         { error: 'Organization ID is required when context=organization' },
@@ -190,7 +190,10 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       billingStatus,
       upgradeWorkspaceId,
     ] = await Promise.all([
-      getOrganizationBillingData(organizationId, dbReplica),
+      getOrganizationBillingData(organizationId, dbReplica, {
+        limit: memberLimit,
+        offset: memberOffset,
+      }),
       getOrganizationSubscription(organizationId, { executor: dbReplica, onError: 'throw' }),
       dbReplica
         .select({ id: organizationTable.id, name: organizationTable.name })
@@ -254,6 +257,13 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         rawBillingData?.billingPeriodEnd?.toISOString() ??
         displayedSubscription?.periodEnd?.toISOString() ??
         null,
+      membersTotal: rawBillingData?.membersTotal ?? 0,
+      memberPagination: rawBillingData?.memberPagination ?? {
+        total: 0,
+        limit: memberLimit,
+        offset: memberOffset,
+        hasMore: false,
+      },
       members:
         rawBillingData?.members.map((organizationMember) => ({
           ...organizationMember,

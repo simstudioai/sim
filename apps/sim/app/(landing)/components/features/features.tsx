@@ -1,4 +1,4 @@
-import { BuildCallout } from '@/app/(landing)/components/features/components/build-callout/build-callout'
+import { BuildCallout } from '@/app/(landing)/components/features/components/build-callout'
 import { FeatureCard } from '@/app/(landing)/components/features/components/feature-card'
 import { IntegrationsCallout } from '@/app/(landing)/components/features/components/integrations-callout/integrations-callout'
 import { KnowledgeCallout } from '@/app/(landing)/components/features/components/knowledge-callout/knowledge-callout'

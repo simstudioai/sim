@@ -1394,6 +1394,22 @@ export class LoggingSession {
     return this.completionPromise
   }
 
+  /**
+   * A secret-safe copy of `traceSpans`, projected against THIS session's registry.
+   *
+   * Exists for one case: a custom block handing its child's spans to an already-authorized
+   * live viewer. Those spans must be projected against the CHILD's registry — the invoking
+   * run's session knows nothing about the publisher's secrets, so projecting them there
+   * would leave a source-owner credential unmasked in the consumer's stream. Unlike the
+   * completion path this does no persistence prep; it is display-only.
+   *
+   * Fails closed via {@link projectTraceSpansForSecrets}: an incomplete registry yields
+   * structure with no content rather than unprojected values.
+   */
+  async projectTraceSpansForLiveDisplay(traceSpans: TraceSpan[]): Promise<TraceSpan[]> {
+    return this.projectRawTraceSpans(traceSpans)
+  }
+
   async safeComplete(params: SessionCompleteParams = {}): Promise<void> {
     return this.runCompletionAttempt('complete', () => this._safeCompleteImpl(params))
   }

@@ -470,12 +470,27 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'me:read': 'Read your user profile',
 }
 
+/** Scope labels that cannot be keyed by scope alone because providers reuse names. */
+const PROVIDER_SCOPE_DESCRIPTIONS: Readonly<Record<string, Readonly<Record<string, string>>>> = {
+  bitbucket: {
+    account: 'View your Bitbucket account and workspace memberships',
+    repository: 'View repositories and source code',
+    'repository:write': 'Create and modify repositories, branches, and source code',
+    pullrequest: 'View pull requests, comments, approvals, and statuses',
+    'pullrequest:write': 'Create, update, approve, decline, and merge pull requests',
+    pipeline: 'View pipelines, steps, and logs',
+    'pipeline:write': 'Run and stop pipelines',
+  },
+}
+
 /**
  * Get a human-readable description for a scope.
  * Falls back to the raw scope string if no description is found.
  */
-export function getScopeDescription(scope: string): string {
-  return SCOPE_DESCRIPTIONS[scope] || scope
+export function getScopeDescription(scope: string, providerId?: string): string {
+  return (
+    PROVIDER_SCOPE_DESCRIPTIONS[providerId ?? '']?.[scope] || SCOPE_DESCRIPTIONS[scope] || scope
+  )
 }
 
 /**

@@ -1,6 +1,7 @@
 /**
  * @vitest-environment node
  */
+
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { IntegrationAvailability } from '@/lib/integrations/availability'
 import type { OAuthServiceMetadata } from '@/lib/oauth/types'

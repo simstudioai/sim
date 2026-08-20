@@ -9,7 +9,7 @@ import {
   ISO_FILL_PULSE_LOW,
   ISO_FILL_PULSE_MID,
   ISO_STROKE,
-} from '@/app/(landing)/components/mothership/components/iso-marks/iso-illustration-style'
+} from '@/components/iso/iso-illustration-style'
 
 export interface IsoIngestIllustrationProps {
   size?: number
@@ -18,7 +18,7 @@ export interface IsoIngestIllustrationProps {
 
 const STROKE_PAINT = ISO_STROKE
 
-const LINE_PROPS = createIsoLineProps('iso-ingest-line', STROKE_PAINT)
+const LINE_PROPS = createIsoLineProps(STROKE_PAINT, undefined, 'iso-ingest-line')
 
 /**
  * Inline supplied illustration for the Context area - a central store

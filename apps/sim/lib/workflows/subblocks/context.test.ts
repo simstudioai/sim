@@ -123,6 +123,35 @@ describe('buildSelectorContextFromBlock', () => {
     expect(ctx.jobId).toBe('job-7')
   })
 
+  it('exposes the active Bitbucket workspace slug to repository selectors', () => {
+    const subBlocks = {
+      operation: {
+        id: 'operation',
+        type: 'dropdown',
+        value: 'bitbucket_get_repository',
+      },
+      workspacePicker: {
+        id: 'workspacePicker',
+        type: 'project-selector',
+        value: 'acme-platform',
+      },
+      workspaceSlugInput: {
+        id: 'workspaceSlugInput',
+        type: 'short-input',
+        value: 'advanced-team',
+      },
+    }
+
+    expect(buildSelectorContextFromBlock('bitbucket', subBlocks).workspaceSlug).toBe(
+      'acme-platform'
+    )
+    expect(
+      buildSelectorContextFromBlock('bitbucket', subBlocks, {
+        canonicalModes: { workspaceSlug: 'advanced' },
+      }).workspaceSlug
+    ).toBe('advanced-team')
+  })
+
   it('should ignore subblock keys not in SELECTOR_CONTEXT_FIELDS', () => {
     const ctx = buildSelectorContextFromBlock('knowledge', {
       operation: { id: 'operation', type: 'dropdown', value: 'search' },

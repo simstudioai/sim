@@ -69,6 +69,7 @@ export const FORK_RESOURCE_KIND_LABEL: Record<string, string> = {
   'knowledge-base': 'knowledge base',
   file: 'file',
   'custom-tool': 'custom tool',
+  'custom-block': 'custom block',
   skill: 'skill',
   'mcp-server': 'MCP server',
   credential: 'credential',
@@ -97,5 +98,10 @@ export function forkBlockerResolution(
       return `deleted in the source — map it to an existing ${FORK_RESOURCE_KIND_LABEL[ref.kind] ?? 'resource'} in ${targetWorkspaceName}`
     case 'workflow-missing':
       return `deploy "${ref.sourceLabel}" in the source or remove the reference`
+    // Phrased as a consequence, not a loss: an unmapped custom block does not empty a field,
+    // it keeps invoking the SOURCE environment's block. The row renders this as the whole
+    // clause after the block name (no "would lose" lead-in), so it reads as a sentence.
+    case 'unmapped-custom-block':
+      return `still runs the source's block — map it to a custom block published in ${targetWorkspaceName}`
   }
 }

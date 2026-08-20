@@ -20,14 +20,18 @@ import { Camera, Check, CircleInfo, Pencil } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
-import { requestJson } from '@/lib/api/client/request'
-import { telemetryContract } from '@/lib/api/contracts/telemetry'
+import { useQueryState } from 'nuqs'
 import { signOut, useSession } from '@/lib/auth/auth-client'
 import { ANONYMOUS_USER_ID } from '@/lib/auth/constants'
 import { isHosted } from '@/lib/core/config/env-flags'
 import { getBrowserTimezone, getTimezoneOptions } from '@/lib/core/utils/timezone'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { DeleteAccountModal } from '@/app/workspace/[workspaceId]/settings/components/general/components/delete-account-modal'
+import { PrivacyView } from '@/app/workspace/[workspaceId]/settings/components/general/components/privacy-view'
+import {
+  generalViewParam,
+  generalViewUrlKeys,
+} from '@/app/workspace/[workspaceId]/settings/components/general/search-params'
 import type { SettingsAction } from '@/app/workspace/[workspaceId]/settings/components/settings-header/settings-header'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
@@ -92,6 +96,10 @@ export function General() {
     setName(profile.name)
   }
 
+  const [view, setView] = useQueryState(generalViewParam.key, {
+    ...generalViewParam.parser,
+    ...generalViewUrlKeys,
+  })
   const [showResetPasswordModal, setShowResetPasswordModal] = useState(false)
   const resetPassword = useResetPassword()
 
@@ -246,28 +254,14 @@ export function General() {
     }
   }
 
-  const handleTelemetryToggle = async (checked: boolean) => {
-    if (checked !== settings?.telemetryEnabled && !updateSetting.isPending) {
-      await updateSetting.mutateAsync({ key: 'telemetryEnabled', value: checked })
-
-      if (checked) {
-        if (typeof window !== 'undefined') {
-          requestJson(telemetryContract, {
-            body: {
-              category: 'consent',
-              action: 'enable_from_settings',
-              timestamp: new Date().toISOString(),
-            },
-          }).catch(() => {})
-        }
-      }
-    }
-  }
-
   const imageUrl = profilePictureUrl || profile?.image || brandConfig.logoUrl
 
   if (isLoading) {
     return null
+  }
+
+  if (view === 'privacy') {
+    return <PrivacyView onBack={() => setView(null)} />
   }
 
   const actions: SettingsAction[] = [
@@ -561,33 +555,17 @@ export function General() {
         </SettingsSection>
 
         <SettingsSection label='Privacy'>
-          <div className='flex flex-col gap-3'>
-            <div className='flex items-center justify-between'>
-              <Label htmlFor='telemetry'>Allow anonymous telemetry</Label>
-              <Switch
-                id='telemetry'
-                checked={settings?.telemetryEnabled ?? true}
-                onCheckedChange={handleTelemetryToggle}
-              />
-            </div>
-            <p className='text-[var(--text-muted)] text-small'>
-              We use OpenTelemetry to collect anonymous usage data to improve Sim. You can opt-out
-              at any time.
-            </p>
+          <div className='flex items-center justify-between'>
+            <Label>Privacy settings</Label>
+            <Chip onClick={() => setView('privacy')}>Manage</Chip>
           </div>
         </SettingsSection>
 
         {!isAuthDisabled && (
           <SettingsSection label='Account'>
-            <div className='flex flex-col gap-3'>
-              <div className='flex items-center justify-between'>
-                <Label>Delete account</Label>
-                <Chip onClick={() => setShowDeleteAccountModal(true)}>Delete</Chip>
-              </div>
-              <p className='text-[var(--text-muted)] text-small'>
-                Permanently deletes your account and everything only you can reach — workflows,
-                chats, files, knowledge bases and credentials. This cannot be undone.
-              </p>
+            <div className='flex items-center justify-between'>
+              <Label>Delete account</Label>
+              <Chip onClick={() => setShowDeleteAccountModal(true)}>Delete</Chip>
             </div>
           </SettingsSection>
         )}

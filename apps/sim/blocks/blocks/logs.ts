@@ -1,8 +1,4 @@
 import { Library } from '@sim/emcn/icons'
-import {
-  fetchTriggerTypeOptions,
-  fetchWorkspaceWorkflowOptions,
-} from '@/lib/workflows/subblocks/options'
 import type { BlockConfig } from '@/blocks/types'
 
 export const LogsBlock: BlockConfig = {
@@ -371,14 +367,13 @@ export const LogsV2Block: BlockConfig = {
       id: 'workflowSelector',
       title: 'Workflows',
       type: 'dropdown',
+      selectorKey: 'sim.workflows',
       multiSelect: true,
-      options: [],
       placeholder: 'All workflows',
       description: 'Only include runs of these workflows. Leave empty for all.',
       mode: 'basic',
       canonicalParamId: 'workflowIds',
       condition: { field: 'operation', value: 'query' },
-      fetchOptions: () => fetchWorkspaceWorkflowOptions(),
     },
     {
       id: 'manualWorkflowIds',
@@ -408,14 +403,13 @@ export const LogsV2Block: BlockConfig = {
       id: 'triggerSelector',
       title: 'Triggers',
       type: 'dropdown',
+      selectorKey: 'workspace.triggerTypes',
       multiSelect: true,
-      options: [],
       placeholder: 'All triggers',
       description: 'Only include runs started this way. Leave empty for all.',
       mode: 'basic',
       canonicalParamId: 'triggers',
       condition: { field: 'operation', value: 'query' },
-      fetchOptions: () => fetchTriggerTypeOptions(),
     },
     {
       id: 'manualTriggers',

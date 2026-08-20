@@ -44,7 +44,7 @@ const SECRET_KEYS = [
  * Placeholders are rejected at any length: the repository publishes example values longer
  * than the 32-character minimum, so a copied `.env.example` would otherwise pass as real.
  *
- * Mirrors `isUsableSecret` in `scripts/setup/env-files.ts`.
+ * Mirrors `isUsableSecret` in `packages/sim-setup/src/env-files.ts`.
  */
 const AES_KEY_PATTERN = /^[0-9a-f]{64}$/i
 const AES_SECRET_KEYS = new Set<string>(['ENCRYPTION_KEY', 'API_ENCRYPTION_KEY'])

@@ -904,7 +904,7 @@ describe.concurrent('Blocks Module', () => {
           (sb) => sb.id === 'model' && sb.condition?.value === provider
         )
         if (provider === 'openrouter') {
-          expect(modelSubBlock?.fetchOptions).toBeTypeOf('function')
+          expect(modelSubBlock?.selectorKey).toBeTypeOf('string')
         } else {
           expect(
             Array.isArray(modelSubBlock?.options) ? modelSubBlock.options.length : 0

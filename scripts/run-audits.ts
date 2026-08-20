@@ -26,6 +26,7 @@ const EXCLUDED: Record<string, string> = {
  */
 const EXTRA_AUDITS = [
   'tool-metadata:check',
+  'deployment-config:check',
   'integration-catalog:check',
   'docs:check',
   'agent-stream-docs:check',

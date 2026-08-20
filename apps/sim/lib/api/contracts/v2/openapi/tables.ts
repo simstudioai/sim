@@ -1,6 +1,5 @@
 import {
   documentedSchema,
-  ERROR_RESPONSES,
   type ErrorResponseId,
   FOLDER_TREE_TOO_LARGE,
   FULL_SET_LIST,
@@ -13,6 +12,7 @@ import {
   V2_COMMON_HEADERS,
   V2_ERROR_SCHEMA,
   WORKSPACE_ERRORS,
+  withErrorExamples,
   withRequestBodyErrors,
 } from '@/lib/api/contracts/v2/openapi/shared'
 import {
@@ -1603,6 +1603,13 @@ export const tablesOpenApiDocument = defineOpenApiDocument({
   securitySchemes: V2_API_KEY_SECURITY_SCHEMES,
   headers: V2_COMMON_HEADERS,
   errorSchema: V2_ERROR_SCHEMA,
-  errorResponses: ERROR_RESPONSES,
+  errorResponses: withErrorExamples({
+    Conflict: { message: 'A table named "Orders" already exists in this workspace' },
+    Locked: {
+      message: 'This table is insert-locked: new rows cannot be added.',
+      /** Names which of the four locks refused the write, so a caller can say which. */
+      details: { lock: 'insert' },
+    },
+  }),
   routes,
 })

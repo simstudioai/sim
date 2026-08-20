@@ -14,7 +14,7 @@ import {
   getPostgresErrorCode,
 } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
-import { and, eq, isNotNull, isNull, or, type SQL, sql } from 'drizzle-orm'
+import { and, eq, inArray, isNotNull, isNull, or, type SQL, sql } from 'drizzle-orm'
 import type { ShareRecord } from '@/lib/api/contracts/public-shares'
 import type { V2FileSortBy } from '@/lib/api/contracts/v2/files'
 import type { ListSortOrder } from '@/lib/api/list-query'
@@ -1252,7 +1252,14 @@ export interface QueryWorkspaceFilesOptions {
   scope?: WorkspaceFileScope
   /** Restrict to one file folder. */
   /** `undefined` lists every folder, `null` lists only root files. */
-  folderId?: string | null
+  /**
+   * The folder to match: one id, `null` for the workspace root, or several ids for a folder
+   * and its descendants. Omit to match every folder.
+   *
+   * An empty array matches nothing — the honest answer for an empty set of folders, and the
+   * shape Drizzle already emits (`false`) for an empty `IN`.
+   */
+  folderId?: string | null | readonly string[]
   /** Case-insensitive substring match on the file name. */
   search?: string
   sortBy: V2FileSortBy
@@ -1266,6 +1273,16 @@ export interface QueryWorkspaceFilesResult {
   files: WorkspaceFileRecord[]
   /** Keyset values to resume from, or `null` when this page is the last one. */
   nextKeys: CursorKey[] | null
+}
+
+/** The folder predicate for {@link QueryWorkspaceFilesOptions.folderId}'s three shapes. */
+function workspaceFileFolderCondition(
+  folderId: string | null | readonly string[] | undefined
+): SQL | undefined {
+  if (folderId === undefined) return undefined
+  if (folderId === null) return isNull(workspaceFiles.folderId)
+  if (Array.isArray(folderId)) return inArray(workspaceFiles.folderId, folderId)
+  return eq(workspaceFiles.folderId, folderId as string)
 }
 
 /**
@@ -1297,11 +1314,7 @@ export async function queryWorkspaceFiles(
 
   const conditions = [
     workspaceFileScopeCondition(workspaceId, scope),
-    folderId === undefined
-      ? undefined
-      : folderId === null
-        ? isNull(workspaceFiles.folderId)
-        : eq(workspaceFiles.folderId, folderId),
+    workspaceFileFolderCondition(folderId),
     searchFilter(workspaceFiles.originalName, search),
     resumeAfter,
   ]

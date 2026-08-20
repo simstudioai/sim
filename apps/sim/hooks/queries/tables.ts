@@ -1540,8 +1540,8 @@ export function useCreateTableView({ workspaceId, tableId }: RowMutationContext)
         prev ? [...prev, view] : [view]
       )
     },
-    // Returned so the mutation stays pending until the refetch settles — otherwise
-    // the Save chip re-enables and flashes dirty against a stale cached config.
+    // Keep creation pending until the refetch settles so the newly selected
+    // view does not briefly resolve against an incomplete list.
     onSettled: () => queryClient.invalidateQueries({ queryKey: tableKeys.views(tableId) }),
   })
 }
@@ -1549,7 +1549,7 @@ export function useCreateTableView({ workspaceId, tableId }: RowMutationContext)
 interface UpdateTableViewParams {
   viewId: string
   name?: string
-  /** Full replace (explicit Save). Mutually exclusive with `configPatch`. */
+  /** Full replacement for API consumers. Mutually exclusive with `configPatch`. */
   config?: TableViewConfigInput
   /** Server-side shallow merge — used for the grid's incremental layout writes. */
   configPatch?: TableViewConfigInput
@@ -1565,6 +1565,10 @@ export function useUpdateTableView({ workspaceId, tableId }: RowMutationContext)
   const queryClient = useQueryClient()
 
   return useMutation({
+    // View config and layout patches can touch the same top-level JSON keys.
+    // Preserve gesture order so rapid visibility toggles cannot finish out of
+    // order and leave an older snapshot stored last.
+    scope: { id: `table-view:${tableId}` },
     mutationFn: async ({ viewId, name, config, configPatch, isDefault }: UpdateTableViewParams) => {
       const response = await requestJson(updateTableViewContract, {
         params: { tableId, viewId },
@@ -1572,21 +1576,43 @@ export function useUpdateTableView({ workspaceId, tableId }: RowMutationContext)
       })
       return response.data.view
     },
-    // Without this the edited view's cached config stays stale until the refetch,
-    // so `isViewDirty` re-reads true and the Save chip flashes back after a save.
+    // Keep the active view's server baseline current immediately; the refetch
+    // remains the authoritative reconciliation for concurrent collaborators.
     onSuccess: (view) => {
-      queryClient.setQueryData<TableViewWire[]>(tableKeys.views(tableId), (prev) =>
-        prev?.map((existing) => {
-          if (existing.id !== view.id) return existing
-          // Layout auto-saves and an explicit Save fire concurrently, and their
-          // responses can arrive out of order. The DB merge is authoritative, so
-          // only let a row at least as new as the cached one win — otherwise a
-          // slower response rewinds the cache until the refetch lands.
-          return new Date(view.updatedAt) >= new Date(existing.updatedAt) ? view : existing
+      queryClient.setQueryData<TableViewWire[]>(tableKeys.views(tableId), (prev) => {
+        if (!prev) return prev
+        // Layout and view controls auto-save concurrently, and their
+        // responses can arrive out of order. The DB merge is authoritative, so
+        // only let a response at least as new as the cached row win — for
+        // installing the row AND for demoting the previous default. A stale
+        // response applies nothing; otherwise it would rewind the cache (or
+        // strip isDefault from a newer default, leaving none) until the
+        // refetch lands.
+        const cached = prev.find((existing) => existing.id === view.id)
+        const currentDefault = view.isDefault
+          ? prev.find((existing) => existing.id !== view.id && existing.isDefault)
+          : undefined
+        const responseTime = new Date(view.updatedAt)
+        if (
+          (cached && responseTime < new Date(cached.updatedAt)) ||
+          (currentDefault && responseTime < new Date(currentDefault.updatedAt))
+        ) {
+          return prev
+        }
+        return prev.map((existing) => {
+          if (view.isDefault && existing.id !== view.id && existing.isDefault) {
+            return { ...existing, isDefault: false }
+          }
+          return existing.id === view.id ? view : existing
         })
-      )
+      })
     },
-    onSettled: () => queryClient.invalidateQueries({ queryKey: tableKeys.views(tableId) }),
+    onSettled: () => {
+      // A scoped mutation only needs the database write ahead of the next
+      // patch. Let reconciliation run alongside the queue instead of making
+      // every rapid visibility toggle wait for a full list refetch.
+      void queryClient.invalidateQueries({ queryKey: tableKeys.views(tableId) })
+    },
   })
 }
 

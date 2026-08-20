@@ -30,6 +30,7 @@ import {
 import { ClientCredentialAccountModal } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal/client-credential-account-modal'
 import { TokenServiceAccountModal } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal/token-service-account-modal'
 import { ConnectSlackBotModal } from '@/app/workspace/[workspaceId]/integrations/components/connect-slack-bot-modal/connect-slack-bot-modal'
+import { withBrandIcon } from '@/blocks/brand-icon'
 import {
   useCreateWorkspaceCredential,
   useUpdateWorkspaceCredential,
@@ -360,7 +361,7 @@ function GoogleServiceAccountModal({
       onOpenChange={onOpenChange}
       srTitle={`Add ${serviceName} service account`}
     >
-      <ChipModalHeader icon={ServiceIcon} onClose={() => onOpenChange(false)}>
+      <ChipModalHeader icon={withBrandIcon(ServiceIcon)} onClose={() => onOpenChange(false)}>
         Add {serviceName} service account
       </ChipModalHeader>
       <ChipModalBody>
@@ -512,7 +513,7 @@ function AtlassianServiceAccountModal({
       onOpenChange={onOpenChange}
       srTitle={`Add ${serviceName} service account`}
     >
-      <ChipModalHeader icon={ServiceIcon} onClose={() => onOpenChange(false)}>
+      <ChipModalHeader icon={withBrandIcon(ServiceIcon)} onClose={() => onOpenChange(false)}>
         Add {serviceName} service account
       </ChipModalHeader>
       <ChipModalBody>

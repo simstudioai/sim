@@ -185,8 +185,16 @@ export class GenericBlockHandler implements BlockHandler {
               try {
                 finalInputs[key] = JSON.parse(value.trim())
               } catch (error) {
+                /**
+                 * The failure class, not the thrown message. This parses a resolved input, so the
+                 * string may be a secret, and V8 quotes the text it rejected back into the
+                 * message — `Unexpected token 's', "sk-live-EX"... is not valid JSON`. That
+                 * prefix is enough to leak. The field name and its declared type are already in
+                 * the message above, and `SyntaxError` is the only class `JSON.parse` throws, so
+                 * nothing diagnostic is lost.
+                 */
                 logger.warn(`Failed to parse ${inputType} field "${key}":`, {
-                  error: toError(error).message,
+                  error: toError(error).name,
                 })
               }
             }
@@ -199,8 +207,11 @@ export class GenericBlockHandler implements BlockHandler {
         boundary && boundary.paths.length > 0 && registry?.hasResolvedInputProjections()
           ? registry.projectResolvedInputSelections(inputs)
           : undefined
-      if (projectedInputs?.complete === false)
-        registry?.markIncomplete('structural-input-projection-incomplete')
+      if (projectedInputs?.complete === false) {
+        registry?.markIncomplete('structural-input-projection-incomplete', {
+          detail: { blockType, ...(tool ? { tool: tool.id } : {}) },
+        })
+      }
 
       if (projectedInputs?.complete && boundary && tool && registry) {
         for (const projection of projectedInputs.values) {
@@ -220,7 +231,7 @@ export class GenericBlockHandler implements BlockHandler {
                 ...blockConfig.tools.config.params(projectedFinalInputs),
               }
             }
-          } catch {
+          } catch (error) {
             const structuredProjection = createStructuredModelProjection(
               tool,
               finalInputs,
@@ -234,7 +245,21 @@ export class GenericBlockHandler implements BlockHandler {
               continue
             }
             if (boundary.requiredProjectionRoots.has(projection.path[0])) {
-              registry.markIncomplete('structural-input-root-unprojected')
+              /**
+               * `config.params` threw on the projected inputs — the copy where a secret has been
+               * replaced by its placeholder — and no structured projection could recover it. The
+               * reason alone said only that this happened somewhere, which is not enough to find
+               * the block. The failure class rather than the thrown message, because a coercion
+               * that rejects a value tends to quote it, and this input may hold a secret.
+               */
+              registry.markIncomplete('structural-input-root-unprojected', {
+                detail: {
+                  blockType,
+                  tool: tool.id,
+                  inputPath: projection.path.join('.'),
+                  failure: toError(error).name,
+                },
+              })
             }
             continue
           }

@@ -416,6 +416,72 @@ describe('ResolvedSecretTraceRegistry', () => {
     })
   })
 
+  it('narrows each grouped export to its own root', () => {
+    const scope = { userId: 'user-1', workspaceId: 'workspace-1' }
+    const registry = new ResolvedSecretTraceRegistry(
+      [
+        { name: 'FIRST', plaintext: 'alpha', encryptedValue: 'encrypted-first' },
+        { name: 'SECOND', plaintext: 'beta', encryptedValue: 'encrypted-second' },
+      ],
+      scope
+    )
+    registry.recordResolvedAtInputPath('FIRST', 'alpha', ['rows', '0', 'a'])
+    registry.recordResolvedAtInputPath('SECOND', 'beta', ['rows', '1', 'b'])
+    registry.recordResolvedAtInputPath('FIRST', 'alpha', ['rows', '2', 'c', 'nested'])
+
+    const exported = registry.exportCommittedProvenanceForInputPathGroups([
+      [['rows', '0', 'a']],
+      [['rows', '1', 'b']],
+      [['rows', '2', 'c']],
+      [['rows']],
+      [['rows', '3', 'untouched']],
+      [],
+      [
+        ['rows', '0', 'a'],
+        ['rows', '1', 'b'],
+      ],
+    ])
+
+    expect(exported.map((provenance) => provenance.entries)).toEqual([
+      [{ name: 'FIRST', encryptedValue: 'encrypted-first' }],
+      [{ name: 'SECOND', encryptedValue: 'encrypted-second' }],
+      [{ name: 'FIRST', encryptedValue: 'encrypted-first' }],
+      [
+        { name: 'FIRST', encryptedValue: 'encrypted-first' },
+        { name: 'SECOND', encryptedValue: 'encrypted-second' },
+      ],
+      [],
+      [],
+      [
+        { name: 'FIRST', encryptedValue: 'encrypted-first' },
+        { name: 'SECOND', encryptedValue: 'encrypted-second' },
+      ],
+    ])
+    expect(exported.every((provenance) => provenance.complete)).toBe(true)
+  })
+
+  it('fails only the grouped exports an incomplete input path overlaps', async () => {
+    const scope = { userId: 'user-1', workspaceId: 'workspace-1' }
+    const registry = new ResolvedSecretTraceRegistry(
+      [{ name: 'FIRST', plaintext: 'alpha', encryptedValue: 'encrypted-first' }],
+      scope
+    )
+    registry.recordResolvedAtInputPath('FIRST', 'alpha', ['rows', '0', 'a'])
+    await registry.importProvenanceForValueAtInputPath(null, 'alpha', ['rows', '1', 'b'], {
+      trusted: false,
+    })
+
+    const exported = registry.exportCommittedProvenanceForInputPathGroups([
+      [['rows', '1', 'b']],
+      [['rows', '1']],
+      [['rows', '1', 'b', 'deeper']],
+      [['rows', '0', 'a']],
+    ])
+
+    expect(exported.map((provenance) => provenance.complete)).toEqual([false, false, false, true])
+    expect(exported[3].entries).toEqual([{ name: 'FIRST', encryptedValue: 'encrypted-first' }])
+  })
+
   it('fails closed when independent secret paths collapse into one transformed string', () => {
     const registry = new ResolvedSecretTraceRegistry([
       { name: 'FIRST', plaintext: 'first', encryptedValue: 'encrypted-first' },
@@ -1508,6 +1574,57 @@ describe('incompleteness diagnostics', () => {
     )
   })
 
+  /**
+   * `reason` says what tripped; without this the line says nothing about where, which is the
+   * difference between a signal you can act on and one you can only count.
+   */
+  it('carries a caller-supplied structural detail onto the reported line', () => {
+    const registry = new ResolvedSecretTraceRegistry([], scope)
+
+    registry.markIncomplete('structural-input-root-unprojected', {
+      detail: { blockType: 'api', tool: 'http_request', inputPath: 'body.payload' },
+    })
+
+    expect(mockLogger.error).toHaveBeenCalledWith(
+      'Resolved secret registry marked incomplete',
+      expect.objectContaining({
+        reason: 'structural-input-root-unprojected',
+        blockType: 'api',
+        tool: 'http_request',
+        inputPath: 'body.payload',
+      })
+    )
+  })
+
+  /** A detail key must never displace the fields every one of these lines is read by. */
+  /**
+   * The detail type names its fields, so none of these is expressible without a cast. The runtime
+   * guarantee is asserted anyway because the payload is assembled in two places — `reason` is
+   * added a level above, where the caller's spread order cannot reach it — and a line whose
+   * `reason` disagrees with the level it was logged at is worse than one carrying no detail.
+   */
+  it('does not let a detail shadow the canonical fields', () => {
+    const registry = new ResolvedSecretTraceRegistry([], scope)
+
+    registry.markIncomplete('structural-input-root-unprojected', {
+      detail: {
+        reason: 'spoofed',
+        origin: 'spoofed',
+        scopeWorkspaceId: 'spoofed',
+        activeEntryCount: 'spoofed',
+      } as never,
+    })
+
+    expect(mockLogger.error).toHaveBeenCalledWith(
+      'Resolved secret registry marked incomplete',
+      expect.objectContaining({
+        reason: 'structural-input-root-unprojected',
+        scopeWorkspaceId: 'workspace-1',
+        activeEntryCount: 0,
+      })
+    )
+  })
+
   it('names the guard that tripped rather than reporting unspecified', () => {
     const registry = new ResolvedSecretTraceRegistry([], scope)
 
@@ -1598,8 +1715,6 @@ describe('incompleteness diagnostics', () => {
     'client-tool-execution-untrusted',
     'client-tool-content-unavailable',
     'knowledge-result-provenance-unavailable',
-    'knowledge-response-capacity-exceeded',
-    'memory-crossing-capacity-exceeded',
     'table-result-provenance-unavailable',
     'mounted-file-provenance-unavailable',
     'workspace-file-provenance-unknown',

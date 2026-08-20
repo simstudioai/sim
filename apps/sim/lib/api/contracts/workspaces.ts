@@ -19,6 +19,12 @@ export const workspaceSchema = z.object({
   role: z.string().optional(),
   membershipId: z.string().optional(),
   permissions: workspacePermissionSchema.nullable().optional(),
+  /**
+   * The viewer holds admin here through their organization role rather than a
+   * permission row, so they cannot leave. Optional because not every workspace
+   * response builder resolves organization standing.
+   */
+  isOrgAdmin: z.boolean().optional(),
   billedAccountUserId: z.string().nullable().optional(),
   allowPersonalApiKeys: z.boolean().optional(),
   inviteMembersEnabled: z.boolean().optional(),
@@ -94,6 +100,7 @@ export const workspaceUserSchema = z.object({
   isExternal: z.boolean(),
   joinedAt: z.string(),
   roleSource: z.enum(['owner', 'explicit', 'org-admin']),
+  isOrgAdmin: z.boolean(),
   isBilledAccount: z.boolean(),
 })
 

@@ -5,7 +5,6 @@ import {
   SIM_TRIGGER_PROVIDER,
   SIM_WORKSPACE_EVENT_TRIGGER_ID,
 } from '@/lib/workspace-events/constants'
-import { readWorkspaceWorkflowOptions } from '@/triggers/editor-state'
 import type { TriggerConfig } from '@/triggers/types'
 
 export const simWorkspaceEventTrigger: TriggerConfig = {
@@ -44,14 +43,14 @@ export const simWorkspaceEventTrigger: TriggerConfig = {
       id: 'workflowIds',
       title: 'Workflows',
       type: 'dropdown',
+      selectorKey: 'sim.workflows',
+      selectorExcludeSelf: true,
       multiSelect: true,
-      options: [],
       placeholder: 'All workflows',
       description: 'Only fire for these workflows. Leave empty to watch every workflow.',
       required: false,
       mode: 'trigger',
       // A subscriber never receives events about itself, so exclude it.
-      fetchOptions: () => readWorkspaceWorkflowOptions({ excludeActiveWorkflow: true }),
     },
     {
       id: 'consecutiveFailures',

@@ -157,6 +157,28 @@ describe('table-view mutations signal collaborators', () => {
     expect(mockSignalTableViewsChanged).toHaveBeenCalledWith('table-1')
   })
 
+  it.each([
+    { existingTotal: 0, isDefault: true },
+    { existingTotal: 1, isDefault: false },
+  ])(
+    'creates a view with isDefault=$isDefault when $existingTotal views already exist',
+    async ({ existingTotal, isDefault }) => {
+      queueTableRows(tableViews, [{ total: existingTotal }])
+      dbChainMockFns.returning.mockResolvedValueOnce([{ ...viewRow, isDefault }])
+
+      await createTableView({
+        tableId: 'table-1',
+        workspaceId: 'ws-1',
+        name: 'My View',
+        config: {},
+        userId: 'user-1',
+        columns,
+      })
+
+      expect(dbChainMockFns.values).toHaveBeenCalledWith(expect.objectContaining({ isDefault }))
+    }
+  )
+
   it('updateTableView signals when the target view exists', async () => {
     queueTableRows(tableViews, [{ id: 'view-1' }]) // the in-transaction existence pre-check
     dbChainMockFns.returning.mockResolvedValueOnce([viewRow]) // the update returning
@@ -205,6 +227,7 @@ describe('table-view mutations signal collaborators', () => {
   })
 
   it('deleteTableView signals when a row was actually deleted', async () => {
+    queueTableRows(tableViews, [{ id: 'view-1' }, { id: 'view-2' }]) // the in-lock sibling check
     dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'view-1' }])
 
     const deleted = await deleteTableView('view-1', 'table-1')
@@ -215,11 +238,22 @@ describe('table-view mutations signal collaborators', () => {
   })
 
   it('deleteTableView does NOT signal when nothing was deleted', async () => {
-    dbChainMockFns.returning.mockResolvedValueOnce([])
+    queueTableRows(tableViews, [{ id: 'view-1' }])
 
     const deleted = await deleteTableView('missing', 'table-1')
 
     expect(deleted).toBe(false)
+    expect(dbChainMockFns.delete).not.toHaveBeenCalled()
+    expect(mockSignalTableViewsChanged).not.toHaveBeenCalled()
+  })
+
+  it('deleteTableView refuses to delete the last remaining view', async () => {
+    queueTableRows(tableViews, [{ id: 'view-1' }])
+
+    await expect(deleteTableView('view-1', 'table-1')).rejects.toThrow(
+      'A table must keep at least one saved view'
+    )
+    expect(dbChainMockFns.delete).not.toHaveBeenCalled()
     expect(mockSignalTableViewsChanged).not.toHaveBeenCalled()
   })
 })

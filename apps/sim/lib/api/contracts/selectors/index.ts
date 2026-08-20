@@ -12,6 +12,10 @@ import {
   bigQueryTablesSelectorContract,
 } from '@/lib/api/contracts/selectors/bigquery'
 import {
+  bitbucketRepositoriesSelectorContract,
+  bitbucketWorkspacesSelectorContract,
+} from '@/lib/api/contracts/selectors/bitbucket'
+import {
   calcomEventTypesSelectorContract,
   calcomSchedulesSelectorContract,
 } from '@/lib/api/contracts/selectors/calcom'
@@ -120,6 +124,7 @@ export * from '@/lib/api/contracts/selectors/airtable'
 export * from '@/lib/api/contracts/selectors/asana'
 export * from '@/lib/api/contracts/selectors/attio'
 export * from '@/lib/api/contracts/selectors/bigquery'
+export * from '@/lib/api/contracts/selectors/bitbucket'
 export * from '@/lib/api/contracts/selectors/calcom'
 export * from '@/lib/api/contracts/selectors/clickup'
 export * from '@/lib/api/contracts/selectors/cloudwatch'
@@ -153,6 +158,8 @@ export const selectorContractsByPath = {
   '/api/tools/attio/lists': attioListsSelectorContract,
   '/api/tools/google_bigquery/datasets': bigQueryDatasetsSelectorContract,
   '/api/tools/google_bigquery/tables': bigQueryTablesSelectorContract,
+  '/api/tools/bitbucket/workspaces': bitbucketWorkspacesSelectorContract,
+  '/api/tools/bitbucket/repositories': bitbucketRepositoriesSelectorContract,
   '/api/tools/calcom/event-types': calcomEventTypesSelectorContract,
   '/api/tools/calcom/schedules': calcomSchedulesSelectorContract,
   '/api/tools/clickup/workspaces': clickupWorkspacesSelectorContract,

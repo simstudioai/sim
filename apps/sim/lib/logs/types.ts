@@ -230,6 +230,21 @@ export const PERSISTED_WORKFLOW_EXECUTION_STATUSES = [
 export type PersistedWorkflowExecutionStatus =
   (typeof PERSISTED_WORKFLOW_EXECUTION_STATUSES)[number]
 
+/**
+ * In-flight statuses a crashed worker can strand, which the stale-execution
+ * cron terminalizes. `pending` and `paused` are excluded: both are written as
+ * the resting state of a run waiting on a resume, so sweeping them would fail
+ * live work. Each status here needs its own partial index on
+ * `workflow_execution_logs` — the sweep runs one status per pass so it can use
+ * them.
+ */
+export const STALE_SWEEPABLE_EXECUTION_STATUSES = [
+  'running',
+  'redacting',
+] as const satisfies readonly PersistedWorkflowExecutionStatus[]
+
+export type StaleSweepableExecutionStatus = (typeof STALE_SWEEPABLE_EXECUTION_STATUSES)[number]
+
 export interface CompletedWorkflowExecutionLog extends WorkflowExecutionLog {
   persistedStatus: PersistedWorkflowExecutionStatus
 }
@@ -272,6 +287,23 @@ export interface TraceSpan {
   output?: Record<string, unknown>
   childWorkflowSnapshotId?: string
   childWorkflowId?: string
+  /**
+   * For a custom-block span: the child run's own execution id, in the SOURCE
+   * workspace. Only this opaque handle is persisted — the child's spans are
+   * joined at read time by `hydrateChildTraces`, after the viewer has been
+   * authorized against that workspace.
+   */
+  childExecutionId?: string
+  /**
+   * Set by read-time hydration on a span carrying {@link childExecutionId}:
+   * whether the viewer was allowed to see the child run, whether it still exists,
+   * and — for `truncated` — whether hydration simply never attempted it (past the
+   * nesting/row cap, or the lookup failed). `truncated` must never be conflated
+   * with an empty child: a boundary span with no children and no marker is
+   * indistinguishable from a leaf block, which would render a partial trace as a
+   * complete one. Never persisted — it describes one viewer's read, not the run.
+   */
+  childTraceAccess?: 'granted' | 'denied' | 'missing' | 'truncated'
   model?: string
   cost?: {
     input?: number

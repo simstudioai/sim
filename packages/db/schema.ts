@@ -513,6 +513,12 @@ export const workflowExecutionLogs = pgTable(
     runningExecutionDeadlineIdx: index('workflow_execution_logs_running_deadline_idx')
       .on(table.executionDeadlineAt)
       .where(sql`${table.status} = 'running' AND ${table.executionDeadlineAt} IS NOT NULL`),
+    redactingStartedAtIdx: index('workflow_execution_logs_redacting_started_at_idx')
+      .on(table.startedAt)
+      .where(sql`status = 'redacting'`),
+    redactingExecutionDeadlineIdx: index('workflow_execution_logs_redacting_deadline_idx')
+      .on(table.executionDeadlineAt)
+      .where(sql`${table.status} = 'redacting' AND ${table.executionDeadlineAt} IS NOT NULL`),
     completedEndedAtIdx: index('workflow_execution_logs_completed_ended_at_idx')
       .on(table.endedAt, table.workspaceId, table.executionId)
       .where(
@@ -1794,6 +1800,12 @@ export const workspaceForkResourceTypeEnum = pgEnum('workspace_fork_resource_typ
   'mcp_server',
   /** Workflow-publishing MCP server identity (fork shell copy), for attachment sync. */
   'workflow_mcp_server',
+  /**
+   * Published custom block (deploy-as-block). Mapped, never copied: a custom block is
+   * org-scoped and binds a workflow in the PUBLISHER's workspace, so an environment fork
+   * repoints its placed blocks at the environment's own block rather than duplicating one.
+   */
+  'custom_block',
   'custom_tool',
   'skill',
 ])
@@ -3831,6 +3843,16 @@ export const usageLog = pgTable(
         table.cost
       )
       .where(sql`${table.billingEntityType} IS NOT NULL`),
+    billingEntityCreatedAtCostIdx: index('usage_log_billing_entity_created_at_cost_idx')
+      .on(
+        table.billingEntityType,
+        table.billingEntityId,
+        table.createdAt,
+        table.userId,
+        table.source,
+        table.cost
+      )
+      .where(sql`${table.billingEntityType} IS NOT NULL`),
     billingScopeAllOrNone: check(
       'usage_log_billing_scope_all_or_none',
       sql`(
@@ -4268,6 +4290,11 @@ export const asyncJobs = pgTable(
     scheduleProcessingStartedAtIdx: index('async_jobs_schedule_processing_started_at_idx')
       .on(table.startedAt, table.id)
       .where(sql`${table.type} = 'schedule-execution' AND ${table.status} = 'processing'`),
+    scheduleUnreconciledTerminalIdx: index('async_jobs_schedule_unreconciled_terminal_idx')
+      .on(table.updatedAt, table.id)
+      .where(
+        sql`${table.type} = 'schedule-execution' AND ${table.status} IN ('completed', 'failed', 'cancelled') AND COALESCE(${table.metadata} ->> 'scheduleReconciled', 'false') <> 'true'`
+      ),
   })
 )
 
@@ -4496,10 +4523,10 @@ export const userTableRowSecretProvenance = pgTable(
 )
 
 /**
- * Saved presets for a user-defined table — a named filter + sort + column layout.
+ * Saved views for a user-defined table — a named filter + sort + column layout.
  * Workspace-shared: anyone who can read the table sees every view, and `write` is
- * required to create, update, or delete one. The absence of a view is the built-in
- * "All" state, so a table is always reachable unfiltered without a seeded row.
+ * required to create, update, or delete one. New tables are seeded with one default
+ * view; legacy tables without one temporarily retain the built-in "All" fallback.
  *
  * A dedicated table rather than a key on `user_table_definitions.metadata`: that
  * column is written read-modify-write with a shallow merge, so a stale snapshot

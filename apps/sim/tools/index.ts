@@ -954,6 +954,24 @@ const MAX_REQUEST_BODY_SIZE_BYTES = 10 * 1024 * 1024 // 10MB
 const MAX_TOOL_RESPONSE_BODY_BYTES = 10 * 1024 * 1024 // 10MB
 
 /**
+ * Headroom added to an internal route's requested timeout before it becomes the
+ * transport deadline.
+ *
+ * A `timeout` param bounds the work the route was asked to do — the code a
+ * sandbox runs, the upstream call a proxy route makes. The fetch around it also
+ * pays authentication, body parsing, workspace authorization, worker
+ * acquisition, and response serialization, none of which that budget was sized
+ * for. Arming the client with the bare number makes the caller give up at the
+ * same instant the route's own deadline fires, so the route can never win the
+ * race and report which part actually ran long; the caller sees an
+ * unattributable `Request timed out` instead.
+ *
+ * Sized above the isolated-vm worker's own 10s startup budget so a cold worker
+ * spawn stays inside the transport deadline rather than aborting it.
+ */
+const INTERNAL_ROUTE_TRANSPORT_OVERHEAD_MS = 30_000
+
+/**
  * User-friendly error message for body size limit exceeded
  */
 const BODY_SIZE_LIMIT_ERROR_MESSAGE =
@@ -2540,9 +2558,11 @@ async function executeToolRequest(
           let didTimeout = false
           // With a caller/execution abort signal present, the plan-based timeout bounds the call and
           // this only acts as a ceiling; without one, keep the tighter default as the hang safety net.
-          const timeout =
-            requestParams.timeout ||
-            (signal ? getMaxExecutionTimeout() : DEFAULT_EXECUTION_TIMEOUT_MS)
+          const timeout = requestParams.timeout
+            ? requestParams.timeout + INTERNAL_ROUTE_TRANSPORT_OVERHEAD_MS
+            : signal
+              ? getMaxExecutionTimeout()
+              : DEFAULT_EXECUTION_TIMEOUT_MS
           const timeoutId = setTimeout(() => {
             didTimeout = true
             controller.abort(new DOMException('timeout', 'AbortError'))

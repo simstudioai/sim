@@ -464,6 +464,9 @@ function UnsupportedToolBadge({ message }: { message: string }) {
   )
 }
 
+const EMPTY_COMBOBOX_GROUPS: ComboboxOptionGroup[] = []
+const EMPTY_COMBOBOX_OPTIONS: ComboboxOption[] = []
+
 export const ToolInput = memo(function ToolInput({
   blockId,
   subBlockId,
@@ -1403,6 +1406,7 @@ export const ToolInput = memo(function ToolInput({
    * @returns Array of option groups for the combobox component
    */
   const toolGroups = useMemo((): ComboboxOptionGroup[] => {
+    if (!open) return EMPTY_COMBOBOX_GROUPS
     const groups: ComboboxOptionGroup[] = []
 
     // MCP Server drill-down: when navigated into a server, show only its tools
@@ -1681,6 +1685,7 @@ export const ToolInput = memo(function ToolInput({
 
     return groups
   }, [
+    open,
     mcpServerDrilldown,
     customTools,
     availableMcpTools,
@@ -1705,7 +1710,7 @@ export const ToolInput = memo(function ToolInput({
   return (
     <div className='w-full space-y-2'>
       <Combobox
-        options={[]}
+        options={EMPTY_COMBOBOX_OPTIONS}
         groups={toolGroups}
         placeholder='Add tool...'
         /* Every list this picker offers — blocks, operations, MCP and custom

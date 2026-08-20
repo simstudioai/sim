@@ -823,7 +823,8 @@ export interface PostHogEventMap {
   enterprise_subscription_created: {
     reference_id: string
     seats: number
-    monthly_price: number
+    invoice_amount: number
+    billing_interval: 'month' | 'year'
     currency: string
   }
 

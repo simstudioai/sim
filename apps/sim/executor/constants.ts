@@ -4,6 +4,7 @@ import {
 } from '@sim/workflow-types/workflow'
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
 import type { LoopType, ParallelType } from '@/lib/workflows/types'
+import { isCustomBlockType } from '@/blocks/custom/build-config'
 
 /**
  * Runtime-injected keys for trigger blocks that should be hidden from logs/display.
@@ -312,6 +313,27 @@ export function isMetadataOnlyBlockType(blockType: string | undefined): boolean 
 
 export function isWorkflowBlockType(blockType: string | undefined): boolean {
   return blockType === BlockType.WORKFLOW || blockType === BlockType.WORKFLOW_INPUT
+}
+
+/**
+ * Internal marker carrying a custom block's child execution id from the workflow
+ * handler out to the block executor, which lifts it onto the block log and strips
+ * it before the output reaches workflow state. Underscore-prefixed so
+ * `filterOutputForLog` drops it from every display and log projection.
+ */
+export const CHILD_EXECUTION_ID_OUTPUT_KEY = '_childExecutionId'
+
+/**
+ * Whether a block runs another workflow underneath it, and therefore owns a
+ * nested subtree in the trace/terminal — a workflow block, or a custom block
+ * whose source run the viewer has been authorized to see.
+ *
+ * Deliberately wider than {@link isWorkflowBlockType}, which stays narrow because
+ * it also gates whether the child workflow's NAME may be attached to an error —
+ * something a custom block's consumer must never receive.
+ */
+export function isSubExecutionBlockType(blockType: string | undefined): boolean {
+  return isWorkflowBlockType(blockType) || isCustomBlockType(blockType)
 }
 
 export function isSentinelBlockType(blockType: string | undefined): boolean {

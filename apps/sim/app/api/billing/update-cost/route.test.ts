@@ -88,6 +88,7 @@ const ACCOUNT_BILLING_DECISION = {
   billingPeriod: {
     start: '2026-07-01T00:00:00.000Z',
     end: '2026-08-01T00:00:00.000Z',
+    source: 'reporting' as const,
   },
 }
 
@@ -418,6 +419,7 @@ describe('POST /api/billing/update-cost — workspaceId attribution', () => {
         billingPeriod: {
           start: new Date('2026-07-01T00:00:00.000Z'),
           end: new Date('2026-08-01T00:00:00.000Z'),
+          source: 'reporting',
         },
       })
     )
@@ -431,6 +433,7 @@ describe('POST /api/billing/update-cost — workspaceId attribution', () => {
         expectedBillingPeriod: {
           start: new Date('2026-07-01T00:00:00.000Z'),
           end: new Date('2026-08-01T00:00:00.000Z'),
+          source: 'reporting',
         },
       }
     )
@@ -660,6 +663,7 @@ describe('POST /api/billing/update-cost — workspaceId attribution', () => {
         expectedBillingPeriod: {
           start: new Date('2026-07-01T00:00:00.000Z'),
           end: new Date('2026-08-01T00:00:00.000Z'),
+          source: 'reporting',
         },
       }
     )

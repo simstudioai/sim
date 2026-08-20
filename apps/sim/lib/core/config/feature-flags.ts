@@ -136,11 +136,10 @@ const FEATURE_FLAGS = {
   'table-views': {
     description:
       'Saved table views (named filter/sort/column-visibility presets) plus the column show/hide ' +
-      'menu, in the table-detail options bar. UI-only gate: resolved in the table page (server) ' +
-      "and passed down, so the table falls back to today's Filter/Sort bar when off. The routes " +
-      'and the table_views table ship ungated — they are inert with no UI to call them, and a view ' +
-      'saved during a rollout must survive the flag being toggled back off. Embedded (mothership) ' +
-      'tables render without views regardless, since no server context resolves the flag there. ' +
+      'menu. UI-only gate: resolved server-side for table-detail and embedded tables, then passed ' +
+      "down so both surfaces fall back to today's Filter/Sort behavior when off. The routes and " +
+      'the table_views table ship ungated, and new or forked tables still seed their view data, so ' +
+      'a saved view survives the flag being toggled off and can be restored when it is re-enabled. ' +
       'Off-AppConfig falls back to TABLE_VIEWS.',
     fallback: 'TABLE_VIEWS',
   },

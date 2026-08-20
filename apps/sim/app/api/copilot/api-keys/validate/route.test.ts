@@ -52,6 +52,7 @@ const ATTRIBUTION = {
   billingPeriod: {
     start: '2026-07-01T00:00:00.000Z',
     end: '2026-08-01T00:00:00.000Z',
+    source: 'reporting' as const,
   },
   payerSubscription: null,
 }
@@ -63,6 +64,7 @@ const ACCOUNT_BILLING_DECISION = {
   billingPeriod: {
     start: '2026-07-01T00:00:00.000Z',
     end: '2026-08-01T00:00:00.000Z',
+    source: 'reporting' as const,
   },
 }
 
@@ -174,6 +176,7 @@ describe('POST /api/copilot/api-keys/validate billing protocols', () => {
       billingPeriod: {
         start: new Date(ACCOUNT_BILLING_DECISION.billingPeriod.start),
         end: new Date(ACCOUNT_BILLING_DECISION.billingPeriod.end),
+        source: ACCOUNT_BILLING_DECISION.billingPeriod.source,
       },
     })
     mockGetUserEntityPermissions.mockResolvedValue('read')
@@ -387,11 +390,16 @@ describe('POST /api/copilot/api-keys/validate billing protocols', () => {
     )
 
     expect(res.status).toBe(200)
-    expect(mockCheckServerSideUsageLimits).toHaveBeenCalledWith('user-1', ACCOUNT_SUBSCRIPTION)
+    expect(mockCheckServerSideUsageLimits).toHaveBeenCalledWith(
+      'user-1',
+      ACCOUNT_SUBSCRIPTION,
+      expect.objectContaining({ billingEntity: ACCOUNT_BILLING_DECISION.billingEntity })
+    )
     expect(mockCheckAttributedUsageLimits).not.toHaveBeenCalled()
     expect(mockResolveBillingAttribution).not.toHaveBeenCalled()
     expect(mockGetUserEntityPermissions).not.toHaveBeenCalled()
     expect(mockGetWorkspaceBillingSettings).not.toHaveBeenCalled()
+    expect(mockSerializeAccountBillingDecisionHeader).toHaveBeenCalledWith(ACCOUNT_BILLING_DECISION)
     expect(res.headers.get('x-sim-billing-account-decision')).toBe('serialized-account-decision')
   })
 
@@ -407,7 +415,11 @@ describe('POST /api/copilot/api-keys/validate billing protocols', () => {
     )
 
     expect(res.status).toBe(200)
-    expect(mockCheckServerSideUsageLimits).toHaveBeenCalledWith('user-1', ACCOUNT_SUBSCRIPTION)
+    expect(mockCheckServerSideUsageLimits).toHaveBeenCalledWith(
+      'user-1',
+      ACCOUNT_SUBSCRIPTION,
+      expect.objectContaining({ billingEntity: ACCOUNT_BILLING_DECISION.billingEntity })
+    )
   })
 
   it('fails direct-v1 admission closed when its payer cannot be resolved', async () => {

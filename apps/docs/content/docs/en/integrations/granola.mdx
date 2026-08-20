@@ -1,6 +1,6 @@
 ---
 title: Granola
-description: Access meeting notes and transcripts from Granola
+description: Access meeting notes, transcripts, and audit events from Granola
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -25,7 +25,7 @@ In Sim, the Granola integration allows your agents to pull meeting notes, summar
 
 ## Usage Instructions
 
-Integrate Granola into your workflow to retrieve meeting notes, summaries, attendees, and transcripts.
+Integrate Granola into your workflow to retrieve meeting notes, summaries, attendees, and transcripts, review workspace audit events, and manage webhook endpoints. Granola can also trigger workflows when notes are generated, edited, or shared with you.
 
 
 
@@ -51,7 +51,7 @@ Lists meeting notes from Granola with optional date filters and pagination.
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `notes` | json | List of meeting notes |
+| `notes` | array | List of meeting notes |
 |   ↳ `id` | string | Note ID |
 |   ↳ `title` | string | Note title |
 |   ↳ `ownerName` | string | Note owner name |
@@ -86,10 +86,10 @@ Retrieves a specific meeting note from Granola by ID, including summary, attende
 | `webUrl` | string | URL to view the note in Granola |
 | `summaryText` | string | Plain text summary of the meeting |
 | `summaryMarkdown` | string | Markdown-formatted summary of the meeting |
-| `attendees` | json | Meeting attendees |
+| `attendees` | array | Meeting attendees |
 |   ↳ `name` | string | Attendee name |
 |   ↳ `email` | string | Attendee email |
-| `folders` | json | Folders the note belongs to |
+| `folders` | array | Folders the note belongs to |
 |   ↳ `id` | string | Folder ID |
 |   ↳ `name` | string | Folder name |
 | `calendarEventTitle` | string | Calendar event title |
@@ -97,14 +97,43 @@ Retrieves a specific meeting note from Granola by ID, including summary, attende
 | `calendarEventId` | string | Calendar event ID |
 | `scheduledStartTime` | string | Scheduled start time |
 | `scheduledEndTime` | string | Scheduled end time |
-| `invitees` | json | Calendar event invitee emails |
-| `transcript` | json | Meeting transcript entries \(only if requested\) |
+| `invitees` | array | Calendar event invitee emails |
+| `transcript` | array | Meeting transcript entries \(only if requested\) |
 |   ↳ `speaker` | string | Speaker source \(microphone or speaker\) |
+|   ↳ `speakerAttribution` | string | Who spoke relative to the note owner: "me" for the note-taker, "them" for other participants. Null when attribution is unknown. |
 |   ↳ `speakerLabel` | string | Diarization label for the speaker \(e.g., Speaker A\) |
 |   ↳ `speakerName` | string | Resolved name of the identified speaker, when available |
 |   ↳ `text` | string | Transcript text |
 |   ↳ `startTime` | string | Segment start time |
 |   ↳ `endTime` | string | Segment end time |
+
+### Granola Get Transcript
+
+Retrieves a meeting transcript from Granola one page at a time, including when Get Note reports the transcript is too large to return inline.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Granola API key |
+| `noteId` | string | Yes | The note ID \(e.g., not_1d3tmYTlCICgjy\) |
+| `cursor` | string | No | Pagination cursor from a previous response |
+| `pageSize` | number | No | Number of transcript items per page \(1-100, default 50\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `transcript` | array | Transcript items for this page |
+|   ↳ `speaker` | string | Audio source of the speaker \(microphone or speaker\) |
+|   ↳ `speakerAttribution` | string | Who spoke relative to the note owner: "me" for the note-taker, "them" for other participants. Null when attribution is unknown. |
+|   ↳ `speakerLabel` | string | Anonymous diarization label for the speaker \(e.g., Speaker A\) |
+|   ↳ `speakerName` | string | Resolved name of the identified speaker, when available |
+|   ↳ `text` | string | Transcript text |
+|   ↳ `startTime` | string | Segment start time |
+|   ↳ `endTime` | string | Segment end time |
+| `hasMore` | boolean | Whether another page of transcript items is available |
+| `cursor` | string | Pagination cursor for the next page |
 
 ### Granola List Folders
 
@@ -122,11 +151,256 @@ Lists folders from Granola, sorted alphabetically, with pagination.
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `folders` | json | List of folders |
+| `folders` | array | List of folders |
 |   ↳ `id` | string | Folder ID |
 |   ↳ `name` | string | Folder name |
 |   ↳ `parentFolderId` | string | Parent folder ID, or null for top-level folders |
 | `hasMore` | boolean | Whether more folders are available |
 | `cursor` | string | Pagination cursor for the next page |
 
+### Granola List Audit Events
+
+Lists workspace audit events from Granola, with optional action and date filters. Events are returned in collection order and retained for one year.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Granola API key |
+| `action` | string | No | Return only events with this exact action, or actions beginning with it followed by a dot \(e.g., "workspace" matches workspace.member_added\). Lowercase. |
+| `occurredAfter` | string | No | Return events that occurred after this date \(ISO 8601\). Must fall within the one-year retention window. |
+| `occurredBefore` | string | No | Return events that occurred before this date \(ISO 8601\). Must fall within the one-year retention window. |
+| `cursor` | string | No | Pagination cursor from a previous response |
+| `pageSize` | number | No | Number of audit events per page \(1-30, default 10\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `events` | array | List of audit events |
+|   ↳ `id` | string | Audit event ID |
+|   ↳ `action` | string | The recorded action \(e.g., workspace.member_added\). Treat as an open set — actions are added over time. |
+|   ↳ `occurredAt` | string | When the action happened |
+|   ↳ `collectedAt` | string | When Granola recorded the event. Events are returned in this order, so page on it rather than on occurredAt. |
+|   ↳ `actorType` | string | Who performed the action: user, api_key, system, or anonymous |
+|   ↳ `actorId` | string | User ID of the actor, when the actor is a resolvable user |
+|   ↳ `actorEmail` | string | Email of the acting user, when the account still exists |
+|   ↳ `data` | json | Action-specific details. Field names are the ones Granola records internally, so they are camelCase. |
+|   ↳ `ipAddress` | string | IP address the request came from, when recorded |
+|   ↳ `userAgent` | string | User agent of the client that made the request, when recorded |
+|   ↳ `clientVersion` | string | Granola client version that made the request, when recorded |
+| `hasMore` | boolean | Whether more audit events are available. A page can hold fewer than pageSize events and still not be the last one. |
+| `cursor` | string | Pagination cursor for the next page |
+
+### Granola Create Webhook Endpoint
+
+Registers an HTTPS URL in Granola to receive note event deliveries. The signing secret is returned only by this operation and cannot be retrieved later.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Granola API key |
+| `url` | string | Yes | The publicly reachable HTTPS URL to deliver events to. Private network addresses are rejected. |
+| `scopes` | string | Yes | Which notes to receive events for, comma-separated: personal, public. With a workspace API key pass exactly "workspace". |
+| `events` | string | No | Event names to subscribe to, comma-separated: note.generated, note.edited, note.access_granted. Omit to subscribe to all events. |
+| `folderIds` | string | No | Restrict delivery to notes in these folders or their subfolders, comma-separated folder IDs \(max 100\). Omit for every note matching scopes. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Webhook endpoint ID |
+| `url` | string | The HTTPS URL deliveries are sent to |
+| `urlRedacted` | boolean | Whether the returned URL was reduced to its origin because the caller is not the endpoint creator |
+| `events` | array | Event names this endpoint is subscribed to |
+| `folderIds` | array | Folder IDs delivery is restricted to, or an empty array when unrestricted |
+| `scopes` | array | Which notes this endpoint receives events for |
+| `createdByName` | string | Name of the user who created the endpoint |
+| `createdByEmail` | string | Email of the user who created the endpoint |
+| `enabled` | boolean | Whether deliveries are active |
+| `createdAt` | string | Creation timestamp |
+| `signingSecret` | string | Secret for verifying delivery signatures \(Standard Webhooks HMAC-SHA256\). Returned only here — store it securely. |
+
+### Granola List Webhook Endpoints
+
+Lists the Granola webhook endpoints the API key can manage. A personal key sees the endpoints it created; a workspace admin sees every endpoint in the workspace. Signing secrets are never included.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Granola API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `webhookEndpoints` | array | List of webhook endpoints |
+|   ↳ `id` | string | Webhook endpoint ID |
+|   ↳ `url` | string | The HTTPS URL deliveries are sent to, reduced to its origin when urlRedacted is true |
+|   ↳ `urlRedacted` | boolean | Whether the URL was reduced to its origin because the caller is not the endpoint creator |
+|   ↳ `events` | array | Event names this endpoint is subscribed to |
+|   ↳ `folderIds` | array | Folder IDs delivery is restricted to, or an empty array when unrestricted |
+|   ↳ `scopes` | array | Which notes this endpoint receives events for |
+|   ↳ `createdByName` | string | Name of the user who created the endpoint |
+|   ↳ `createdByEmail` | string | Email of the user who created the endpoint |
+|   ↳ `enabled` | boolean | Whether deliveries are active |
+|   ↳ `createdAt` | string | Creation timestamp |
+
+### Granola Update Webhook Endpoint
+
+Updates a Granola webhook endpoint. Each supplied field replaces its current value; omitted fields are left unchanged. Use enabled to pause or resume deliveries.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Granola API key |
+| `webhookEndpointId` | string | Yes | The webhook endpoint ID \(e.g., whe_2mKr8fQxLp7Ta3\) |
+| `url` | string | No | New HTTPS URL to deliver events to. Omit to leave unchanged. |
+| `scopes` | string | No | Replacement scopes, comma-separated: personal, public. Omit to leave unchanged. A workspace-managed endpoint accepts only "workspace". |
+| `events` | string | No | Replacement event subscriptions, comma-separated: note.generated, note.edited, note.access_granted. Omit to leave unchanged. |
+| `folderIds` | string | No | Replacement folder filter, comma-separated folder IDs \(max 100\). Pass "\[\]" to remove the filter. Omit to leave unchanged. |
+| `enabled` | boolean | No | Pause \(false\) or resume \(true\) deliveries. Events that occur while paused are not delivered later. Omit to leave unchanged. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Webhook endpoint ID |
+| `url` | string | The HTTPS URL deliveries are sent to |
+| `urlRedacted` | boolean | Whether the returned URL was reduced to its origin because the caller is not the endpoint creator |
+| `events` | array | Event names this endpoint is subscribed to |
+| `folderIds` | array | Folder IDs delivery is restricted to, or an empty array when unrestricted |
+| `scopes` | array | Which notes this endpoint receives events for |
+| `createdByName` | string | Name of the user who created the endpoint |
+| `createdByEmail` | string | Email of the user who created the endpoint |
+| `enabled` | boolean | Whether deliveries are active |
+| `createdAt` | string | Creation timestamp |
+
+### Granola Delete Webhook Endpoint
+
+Deletes a Granola webhook endpoint by ID, stopping its event deliveries immediately.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Granola API key |
+| `webhookEndpointId` | string | Yes | The webhook endpoint ID \(e.g., whe_2mKr8fQxLp7Ta3\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | ID of the deleted webhook endpoint |
+| `deleted` | boolean | Whether the endpoint was deleted |
+
+
+
+## Triggers
+
+A **Trigger** is a block that starts a workflow when an event happens in this service.
+
+### Granola Events
+
+Trigger workflow on any Granola note event
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Your Granola API key. Used to register the webhook endpoint on deploy and remove it on undeploy. |
+| `scopes` | string | No | Comma-separated scopes deciding which notes send events: personal, public. With a Workspace API key pass exactly "workspace". Defaults to "personal, public". |
+| `folderIds` | string | No | Optional comma-separated folder IDs \(max 100\). Deliveries are restricted to notes in these folders or their subfolders. Leave blank for every note matching the scopes. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `event_id` | string | Unique ID for the event. Retries of the same delivery reuse it. |
+| `event_type` | string | Which event occurred: note.generated, note.edited, or note.access_granted. |
+| `note_id` | string | ID of the note the event is about \(e.g., not_1d3tmYTlCICgjy\). Fetch it with the Get Note operation. |
+| `occurred_at` | string | ISO 8601 timestamp of when the event occurred. |
+| `changed_fields` | json | Note fields that changed. Present on note.edited events \(currently always \["summary"\]\); null otherwise. |
+| `payload` | json | Full raw webhook body as delivered by Granola. |
+
+
+---
+
+### Granola Note Access Granted
+
+Trigger workflow when a Granola note is shared with you, directly or via a folder
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Your Granola API key. Used to register the webhook endpoint on deploy and remove it on undeploy. |
+| `scopes` | string | No | Comma-separated scopes deciding which notes send events: personal, public. With a Workspace API key pass exactly "workspace". Defaults to "personal, public". |
+| `folderIds` | string | No | Optional comma-separated folder IDs \(max 100\). Deliveries are restricted to notes in these folders or their subfolders. Leave blank for every note matching the scopes. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `event_id` | string | Unique ID for the event. Retries of the same delivery reuse it. |
+| `event_type` | string | Which event occurred: note.generated, note.edited, or note.access_granted. |
+| `note_id` | string | ID of the note the event is about \(e.g., not_1d3tmYTlCICgjy\). Fetch it with the Get Note operation. |
+| `occurred_at` | string | ISO 8601 timestamp of when the event occurred. |
+| `changed_fields` | json | Note fields that changed. Present on note.edited events \(currently always \["summary"\]\); null otherwise. |
+| `payload` | json | Full raw webhook body as delivered by Granola. |
+
+
+---
+
+### Granola Note Edited
+
+Trigger workflow when a Granola note summary is edited or regenerated
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Your Granola API key. Used to register the webhook endpoint on deploy and remove it on undeploy. |
+| `scopes` | string | No | Comma-separated scopes deciding which notes send events: personal, public. With a Workspace API key pass exactly "workspace". Defaults to "personal, public". |
+| `folderIds` | string | No | Optional comma-separated folder IDs \(max 100\). Deliveries are restricted to notes in these folders or their subfolders. Leave blank for every note matching the scopes. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `event_id` | string | Unique ID for the event. Retries of the same delivery reuse it. |
+| `event_type` | string | Which event occurred: note.generated, note.edited, or note.access_granted. |
+| `note_id` | string | ID of the note the event is about \(e.g., not_1d3tmYTlCICgjy\). Fetch it with the Get Note operation. |
+| `occurred_at` | string | ISO 8601 timestamp of when the event occurred. |
+| `changed_fields` | json | Note fields that changed. Present on note.edited events \(currently always \["summary"\]\); null otherwise. |
+| `payload` | json | Full raw webhook body as delivered by Granola. |
+
+
+---
+
+### Granola Note Generated
+
+Trigger workflow when the first AI summary for a Granola note is generated
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Your Granola API key. Used to register the webhook endpoint on deploy and remove it on undeploy. |
+| `scopes` | string | No | Comma-separated scopes deciding which notes send events: personal, public. With a Workspace API key pass exactly "workspace". Defaults to "personal, public". |
+| `folderIds` | string | No | Optional comma-separated folder IDs \(max 100\). Deliveries are restricted to notes in these folders or their subfolders. Leave blank for every note matching the scopes. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `event_id` | string | Unique ID for the event. Retries of the same delivery reuse it. |
+| `event_type` | string | Which event occurred: note.generated, note.edited, or note.access_granted. |
+| `note_id` | string | ID of the note the event is about \(e.g., not_1d3tmYTlCICgjy\). Fetch it with the Get Note operation. |
+| `occurred_at` | string | ISO 8601 timestamp of when the event occurred. |
+| `changed_fields` | json | Note fields that changed. Present on note.edited events \(currently always \["summary"\]\); null otherwise. |
+| `payload` | json | Full raw webhook body as delivered by Granola. |
 

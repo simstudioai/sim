@@ -20,7 +20,7 @@ export const GET = withRouteHandler(
     })
     if (!parsed.success) return parsed.response
     try {
-      const organization = await getDashboardOrganization(parsed.data.params.id)
+      const organization = await getDashboardOrganization(parsed.data.params.id, parsed.data.query)
       return organization ? singleResponse(organization) : notFoundResponse('Organization')
     } catch (error) {
       logger.error('Failed to get dashboard organization', { error })
