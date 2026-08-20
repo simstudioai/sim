@@ -23,15 +23,22 @@ const BACKGROUND_COLOR = '#c1c1c1'
 /** The title's ink, dropped back so a secondary line reads as caption rather than headline. */
 const MUTED_INK_COLOR = 'rgba(81, 81, 81, 0.72)'
 
-const TITLE_FONT_SIZE = {
-  large: 110,
-  medium: 96,
-  small: 85,
-} as const
+/** Tried largest-first; the first size whose title wraps within `COVER_MAX_TITLE_LINES` wins. */
+const TITLE_FONT_SIZES = [110, 96, 85] as const
 const SUBTITLE_FONT_SIZE = 30
-const TITLE_BOX_WIDTH = 1020
+const ELLIPSIS = '\u2026'
 /** Average glyph width as a fraction of font size, for this weight/family — used to pack words into lines. */
 const CHAR_WIDTH_EM = 0.42
+
+/** Width the title and its caption are laid out into, leaving the right third of the card open. */
+export const COVER_TITLE_BOX_WIDTH = 1020
+/**
+ * Titles here are file names a viewer chose, so nothing upstream bounds their
+ * length. Past three lines the block runs off the bottom of the fixed canvas
+ * and reads as a paragraph rather than a headline, so the layout steps the
+ * type down and then truncates rather than growing.
+ */
+export const COVER_MAX_TITLE_LINES = 3
 
 /**
  * Söhne Kräftig (weight 500), the typeface of the reference cover template, as
@@ -70,7 +77,7 @@ const HEADER_STYLE = {
 const FOOTER_STYLE = {
   display: 'flex',
   flexDirection: 'column',
-  width: `${TITLE_BOX_WIDTH}px`,
+  width: `${COVER_TITLE_BOX_WIDTH}px`,
   /** Compensates for Satori adding extra invisible leading below the last line instead of splitting it evenly. */
   transform: 'translateY(14px)',
 } satisfies CSSProperties
@@ -90,14 +97,22 @@ const SUBTITLE_STYLE = {
   lineHeight: 1.2,
 } satisfies CSSProperties
 
-function getTitleFontSize(title: string): number {
-  if (title.length > 45) return TITLE_FONT_SIZE.small
-  if (title.length > 30) return TITLE_FONT_SIZE.medium
-  return TITLE_FONT_SIZE.large
-}
-
 function estimateWidthEm(text: string): number {
   return text.length * CHAR_WIDTH_EM
+}
+
+/** Estimated rendered width of `text` in pixels, at `fontSize`, in the cover typeface. */
+export function measureCoverText(text: string, fontSize: number): number {
+  return estimateWidthEm(text) * fontSize
+}
+
+/** Trims `text` from the right until it plus an ellipsis fits `maxWidthEm`. */
+function withEllipsis(text: string, maxWidthEm: number): string {
+  let kept = text
+  while (kept && estimateWidthEm(kept + ELLIPSIS) > maxWidthEm) {
+    kept = kept.slice(0, -1)
+  }
+  return kept + ELLIPSIS
 }
 
 /**
@@ -161,9 +176,9 @@ function withHardSpaces(text: string): string {
   return text.replace(/ /g, '\u00a0')
 }
 
-/** Greedily packs words into lines that fit `TITLE_BOX_WIDTH` at `fontSize`. */
+/** Greedily packs words into lines that fit `COVER_TITLE_BOX_WIDTH` at `fontSize`. */
 function wrapTitleLines(title: string, fontSize: number): string[] {
-  const maxWidthEm = TITLE_BOX_WIDTH / fontSize
+  const maxWidthEm = COVER_TITLE_BOX_WIDTH / fontSize
   const lines: string[] = []
   let current = ''
 
@@ -235,9 +250,55 @@ interface CoverOgImageProps {
   subtitle?: string
 }
 
+interface CoverLayout {
+  fontSize: number
+  lines: string[]
+  subtitle: string | null
+}
+
+/**
+ * Largest type size at which the title fits `COVER_MAX_TITLE_LINES`, with the
+ * overflow truncated at the smallest step, and a caption clipped to one line.
+ *
+ * Separate from the render so the bound is assertable: every string this
+ * returns has to sit inside the fixed canvas, and both inputs — a file name
+ * and a workspace/owner pair — are supplied by whoever created the share.
+ */
+export function layoutCover({ title, subtitle }: CoverOgImageProps): CoverLayout {
+  const smallest = TITLE_FONT_SIZES[TITLE_FONT_SIZES.length - 1]
+  let fontSize = smallest
+  let lines: string[] = []
+
+  for (const step of TITLE_FONT_SIZES) {
+    fontSize = step
+    lines = wrapTitleLines(title, step)
+    if (lines.length <= COVER_MAX_TITLE_LINES) break
+  }
+
+  if (lines.length > COVER_MAX_TITLE_LINES) {
+    const maxWidthEm = COVER_TITLE_BOX_WIDTH / smallest
+    lines = lines.slice(0, COVER_MAX_TITLE_LINES)
+    lines[lines.length - 1] = withEllipsis(lines[lines.length - 1], maxWidthEm)
+  }
+
+  return { fontSize, lines, subtitle: subtitle ? fitCaption(subtitle) : null }
+}
+
+/**
+ * Clips a caption to a single line. Because `withHardSpaces` leaves Satori no
+ * break opportunities, an over-long caption would otherwise run straight off
+ * the right edge instead of wrapping.
+ */
+function fitCaption(subtitle: string): string {
+  const maxWidthEm = COVER_TITLE_BOX_WIDTH / SUBTITLE_FONT_SIZE
+  const fitted =
+    estimateWidthEm(subtitle) <= maxWidthEm ? subtitle : withEllipsis(subtitle, maxWidthEm)
+  return withHardSpaces(fitted)
+}
+
 /** Renders the brandbook cover template for a single title. */
-export function createCoverOgImage({ title, subtitle }: CoverOgImageProps) {
-  const fontSize = getTitleFontSize(title)
+export function createCoverOgImage(props: CoverOgImageProps) {
+  const { fontSize, lines, subtitle } = layoutCover(props)
 
   return new ImageResponse(
     <div style={CONTAINER_STYLE}>
@@ -248,11 +309,11 @@ export function createCoverOgImage({ title, subtitle }: CoverOgImageProps) {
 
       <div style={FOOTER_STYLE}>
         <div style={{ ...TITLE_STYLE, fontSize }}>
-          {wrapTitleLines(title, fontSize).map((line, index) => (
+          {lines.map((line, index) => (
             <span key={index}>{line}</span>
           ))}
         </div>
-        {subtitle ? <span style={SUBTITLE_STYLE}>{withHardSpaces(subtitle)}</span> : null}
+        {subtitle ? <span style={SUBTITLE_STYLE}>{subtitle}</span> : null}
       </div>
     </div>,
     {
