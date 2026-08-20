@@ -697,6 +697,7 @@ export const ToolInput = memo(function ToolInput({
 
   const customBlockOverlayVersion = useCustomBlockOverlayVersion()
   const toolBlocks = useMemo(() => {
+    if (!open) return []
     const allToolBlocks = getAllBlocks().filter(isAgentToolBlock)
     /* An empty option list means the block declares no selectable operation, so
        there is nothing to gate — only a wholly denied one leaves the picker. */
@@ -705,7 +706,7 @@ export const ToolInput = memo(function ToolInput({
       const { options, denied } = getOperationChoices(block)
       return options.length === 0 || options.some((option) => !denied.has(option.id))
     })
-  }, [filterBlocks, customBlockOverlayVersion, getOperationChoices])
+  }, [filterBlocks, customBlockOverlayVersion, getOperationChoices, open])
 
   const hasBackfilledRef = useRef(false)
   useEffect(() => {
@@ -1403,6 +1404,7 @@ export const ToolInput = memo(function ToolInput({
    * @returns Array of option groups for the combobox component
    */
   const toolGroups = useMemo((): ComboboxOptionGroup[] => {
+    if (!open) return []
     const groups: ComboboxOptionGroup[] = []
 
     // MCP Server drill-down: when navigated into a server, show only its tools
@@ -1681,6 +1683,7 @@ export const ToolInput = memo(function ToolInput({
 
     return groups
   }, [
+    open,
     mcpServerDrilldown,
     customTools,
     availableMcpTools,

@@ -21,6 +21,8 @@ import {
 import {
   filterAndCap,
   GROUP_HEADING_CLASSNAME,
+  MAX_RESULTS_PER_GROUP,
+  sliceGroupsToLimit,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/search-modal/utils'
 import {
   CMDK_ITEM_GAP_CLASS,
@@ -139,6 +141,7 @@ export function ConnectionBlockSelector({ id, data }: NodeProps<ConnectionBlockS
   const [search, setSearch] = useState('')
   const [selectedValue, setSelectedValue] = useState('')
   const [recentSelections, setRecentSelections] = useState<RecentSelection[]>([])
+  const [browseLimit, setBrowseLimit] = useState(MAX_RESULTS_PER_GROUP)
   const deferredSearch = useDeferredValue(search)
   const isSearching = deferredSearch.trim().length > 0
   const recentStorageKey = `${RECENT_SELECTION_STORAGE_PREFIX}:${workspaceId}`
@@ -260,6 +263,11 @@ export function ConnectionBlockSelector({ id, data }: NodeProps<ConnectionBlockS
     () => availableTools.filter((tool) => !recentSelectionKeys.has(`tool:${tool.id}`)),
     [availableTools, recentSelectionKeys]
   )
+  const [visibleBrowseBlocks, visibleBrowseTools] = useMemo(
+    () => sliceGroupsToLimit([browseBlocks, browseTools], browseLimit),
+    [browseBlocks, browseLimit, browseTools]
+  )
+  const hasMoreBrowseResults = browseLimit < browseBlocks.length + browseTools.length
 
   const dispatchSelection = useCallback(
     (type: string, resultType: 'block' | 'tool' | 'tool_operation', presetOperation?: string) => {
@@ -480,11 +488,22 @@ export function ConnectionBlockSelector({ id, data }: NodeProps<ConnectionBlockS
                 )}
                 <BlocksGroup items={popularBlocks} onSelect={handleBlockSelect} heading='Popular' />
                 <BlocksGroup
-                  items={browseBlocks}
+                  items={visibleBrowseBlocks}
                   onSelect={handleBlockSelect}
                   heading='All blocks'
                 />
-                <ToolsGroup items={browseTools} onSelect={handleToolSelect} />
+                <ToolsGroup items={visibleBrowseTools} onSelect={handleToolSelect} />
+                {hasMoreBrowseResults && (
+                  <div className='px-2 py-1.5'>
+                    <Button
+                      variant='ghost'
+                      className='nodrag nopan h-8 w-full text-[var(--text-secondary)]'
+                      onClick={() => setBrowseLimit((current) => current + MAX_RESULTS_PER_GROUP)}
+                    >
+                      Show more
+                    </Button>
+                  </div>
+                )}
               </>
             )}
           </CommandFadedList>

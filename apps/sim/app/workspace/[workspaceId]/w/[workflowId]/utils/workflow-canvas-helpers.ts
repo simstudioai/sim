@@ -1,10 +1,62 @@
 import { BLOCK_DIMENSIONS, CONTAINER_DIMENSIONS, getNoteBlockHeight } from '@sim/workflow-renderer'
+import { isEqual } from 'es-toolkit'
 import type { Edge, Node } from 'reactflow'
 import { TriggerUtils } from '@/lib/workflows/triggers/triggers'
 import { clampPositionToContainer } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/node-position-utils'
 import type { BlockState } from '@/stores/workflows/workflow/types'
 
 export const SUBFLOW_DROP_TARGET_CLASS = 'subflow-node-drop-target'
+
+interface ArrowNavigationEvent {
+  key: string
+  repeat: boolean
+  metaKey: boolean
+  ctrlKey: boolean
+  altKey: boolean
+  shiftKey: boolean
+}
+
+export function getArrowNavigationDirection(event: ArrowNavigationEvent): -1 | 1 | null {
+  if (event.repeat || event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return null
+  if (event.key === 'ArrowRight' || event.key === 'ArrowDown') return 1
+  if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') return -1
+  return null
+}
+
+function containsDerivedValues<T extends object>(current: T, derived: T): boolean {
+  return Object.entries(derived).every(([key, value]) => isEqual(current[key as keyof T], value))
+}
+
+/** Reuses unchanged React Flow node objects while carrying local selection forward. */
+export function reconcileCanvasNodes(currentNodes: Node[], derivedNodes: Node[]): Node[] {
+  const currentById = new Map(currentNodes.map((node) => [node.id, node]))
+  let changed = currentNodes.length !== derivedNodes.length
+  const nextNodes = derivedNodes.map((derivedNode, index) => {
+    const currentNode = currentById.get(derivedNode.id)
+    const nextNode = { ...derivedNode, selected: currentNode?.selected ?? false }
+    if (currentNodes[index]?.id !== derivedNode.id) changed = true
+    if (currentNode && containsDerivedValues(currentNode, nextNode)) return currentNode
+    changed = true
+    return nextNode
+  })
+
+  return changed ? nextNodes : currentNodes
+}
+
+/** Reuses unchanged React Flow edge objects after graph-level derivation reruns. */
+export function reconcileCanvasEdges(currentEdges: Edge[], derivedEdges: Edge[]): Edge[] {
+  const currentById = new Map(currentEdges.map((edge) => [edge.id, edge]))
+  let changed = currentEdges.length !== derivedEdges.length
+  const nextEdges = derivedEdges.map((derivedEdge, index) => {
+    const currentEdge = currentById.get(derivedEdge.id)
+    if (currentEdges[index]?.id !== derivedEdge.id) changed = true
+    if (currentEdge && isEqual(currentEdge, derivedEdge)) return currentEdge
+    changed = true
+    return derivedEdge
+  })
+
+  return changed ? nextEdges : currentEdges
+}
 
 /**
  * Collects all descendant block IDs for container blocks (loop/parallel) in the given set.

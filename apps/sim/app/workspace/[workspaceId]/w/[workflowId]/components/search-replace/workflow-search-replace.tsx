@@ -110,6 +110,21 @@ function createActiveSearchTarget(
 }
 
 export function WorkflowSearchReplace() {
+  const { isOpen, open } = useWorkflowSearchReplaceStore(
+    useShallow((state) => ({ isOpen: state.isOpen, open: state.open }))
+  )
+
+  useRegisterGlobalCommands([
+    createCommand({
+      id: 'open-workflow-search-replace',
+      handler: open,
+    }),
+  ])
+
+  return isOpen ? <WorkflowSearchReplacePanel /> : null
+}
+
+function WorkflowSearchReplacePanel() {
   const params = useParams()
   const workspaceId = params.workspaceId as string | undefined
   const routeWorkflowId = params.workflowId as string | undefined
@@ -143,26 +158,22 @@ export function WorkflowSearchReplace() {
   >({})
 
   const {
-    isOpen,
     query,
     replacement: textReplacement,
     activeMatchId,
     position,
     close,
-    open,
     setPosition,
     setQuery,
     setReplacement,
     setActiveMatchId,
   } = useWorkflowSearchReplaceStore(
     useShallow((state) => ({
-      isOpen: state.isOpen,
       query: state.query,
       replacement: state.replacement,
       activeMatchId: state.activeMatchId,
       position: state.position,
       close: state.close,
-      open: state.open,
       setPosition: state.setPosition,
       setQuery: state.setQuery,
       setReplacement: state.setReplacement,
@@ -170,11 +181,11 @@ export function WorkflowSearchReplace() {
     }))
   )
   const prevQueryRef = useRef(query)
-  const prevIsOpenRef = useRef(false)
+  const isFirstMatchSyncRef = useRef(true)
   const afterReplaceIndexRef = useRef<number | null>(null)
-  const { data: workspaceCredentials } = useWorkspaceCredentials({ workspaceId, enabled: isOpen })
-  const { data: customTools = [] } = useCustomTools(isOpen && workspaceId ? workspaceId : '')
-  const { mcpTools } = useMcpTools(isOpen && workspaceId ? workspaceId : '')
+  const { data: workspaceCredentials } = useWorkspaceCredentials({ workspaceId })
+  const { data: customTools = [] } = useCustomTools(workspaceId ?? '')
+  const { mcpTools } = useMcpTools(workspaceId ?? '')
   const mcpToolNamesById = useMemo(() => {
     const names = new Map<string, string>()
     for (const t of mcpTools) {
@@ -182,19 +193,6 @@ export function WorkflowSearchReplace() {
     }
     return names
   }, [mcpTools])
-
-  useRegisterGlobalCommands([
-    createCommand({
-      id: 'open-workflow-search-replace',
-      handler: () => {
-        open()
-        requestAnimationFrame(() => {
-          searchInputRef.current?.focus()
-          searchInputRef.current?.select()
-        })
-      },
-    }),
-  ])
 
   const searchBlocks = useMemo(
     () =>
@@ -267,10 +265,16 @@ export function WorkflowSearchReplace() {
   )
 
   useEffect(() => {
-    if (!isOpen) return
     searchInputRef.current?.focus()
     searchInputRef.current?.select()
-  }, [isOpen])
+  }, [])
+
+  useEffect(
+    () => () => {
+      usePanelEditorSearchStore.getState().setActiveSearchTarget(null)
+    },
+    []
+  )
 
   const panelHeight = isReplaceExpanded
     ? SEARCH_PANEL_EXPANDED_HEIGHT
@@ -288,7 +292,7 @@ export function WorkflowSearchReplace() {
   })
 
   useFloatBoundarySync({
-    isOpen,
+    isOpen: true,
     position: actualPosition,
     width: SEARCH_PANEL_WIDTH,
     height: panelHeight,
@@ -384,14 +388,8 @@ export function WorkflowSearchReplace() {
   }
 
   useEffect(() => {
-    if (!isOpen) {
-      prevIsOpenRef.current = false
-      usePanelEditorSearchStore.getState().setActiveSearchTarget(null)
-      return
-    }
-
-    const justOpened = !prevIsOpenRef.current
-    prevIsOpenRef.current = true
+    const justOpened = isFirstMatchSyncRef.current
+    isFirstMatchSyncRef.current = false
     const queryChanged = prevQueryRef.current !== query
     prevQueryRef.current = query
 
@@ -422,9 +420,7 @@ export function WorkflowSearchReplace() {
     usePanelEditorSearchStore
       .getState()
       .setActiveSearchTarget(createActiveSearchTarget(activeHydratedMatch, query))
-  }, [activeMatchId, handleSelectMatch, hydratedMatches, isOpen, query, setActiveMatchId])
-
-  if (!isOpen) return null
+  }, [activeMatchId, handleSelectMatch, hydratedMatches, query, setActiveMatchId])
 
   const handleMoveActiveMatch = (delta: number) => {
     if (hydratedMatches.length === 0) return

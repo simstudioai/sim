@@ -84,6 +84,7 @@ import {
   computeClampedPositionUpdates,
   estimateBlockDimensions,
   filterProtectedBlocks,
+  getArrowNavigationDirection,
   getClampedPositionForNode,
   getDescendantBlockIds,
   getEdgeSelectionContextId,
@@ -94,6 +95,8 @@ import {
   isEdgeProtected,
   isInEditableElement,
   isPositionalTriggerBlock,
+  reconcileCanvasEdges,
+  reconcileCanvasNodes,
   resolveSelectionConflicts,
   SUBFLOW_DROP_TARGET_CLASS,
   shouldHighlightContainerDropTarget,
@@ -3004,14 +3007,7 @@ const WorkflowContent = React.memo(
         return
       }
 
-      // Preserve existing selection state
-      setDisplayNodes((currentNodes) => {
-        const selectedIds = new Set(currentNodes.filter((n) => n.selected).map((n) => n.id))
-        return derivedNodes.map((node) => ({
-          ...node,
-          selected: selectedIds.has(node.id),
-        }))
-      })
+      setDisplayNodes((currentNodes) => reconcileCanvasNodes(currentNodes, derivedNodes))
     }, [derivedNodes, blocks, pendingSelection, clearPendingSelection])
 
     /** Pans viewport to pending blocks once they have valid dimensions. */
@@ -4561,10 +4557,8 @@ const WorkflowContent = React.memo(
       if (embedded) return
 
       const handleArrowNavigation = (event: KeyboardEvent) => {
-        if (event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return
-        const isNext = event.key === 'ArrowRight' || event.key === 'ArrowDown'
-        const isPrev = event.key === 'ArrowLeft' || event.key === 'ArrowUp'
-        if (!isNext && !isPrev) return
+        const direction = getArrowNavigationDirection(event)
+        if (direction === null) return
 
         const target = event.target as HTMLElement | null
         if (
@@ -4595,8 +4589,7 @@ const WorkflowContent = React.memo(
         event.preventDefault()
         event.stopPropagation()
 
-        const nextNode =
-          ordered[(currentIndex + (isNext ? 1 : -1) + ordered.length) % ordered.length]
+        const nextNode = ordered[(currentIndex + direction + ordered.length) % ordered.length]
 
         setDisplayNodes((currentNodes) =>
           resolveSelectionConflicts(
@@ -4646,11 +4639,14 @@ const WorkflowContent = React.memo(
     )
 
     /** Stable delete handler to avoid creating new function references per edge. */
+    const edgeDeleteStateRef = useRef({ edges, blocks })
+    edgeDeleteStateRef.current = { edges, blocks }
     const handleEdgeDelete = useCallback(
       (edgeId: string) => {
+        const { edges: currentEdges, blocks: currentBlocks } = edgeDeleteStateRef.current
         // Prevent removing edges targeting protected blocks
-        const edge = edges.find((e) => e.id === edgeId)
-        if (edge && isEdgeProtected(edge, blocks)) {
+        const edge = currentEdges.find((candidate) => candidate.id === edgeId)
+        if (edge && isEdgeProtected(edge, currentBlocks)) {
           toast({ message: 'Cannot remove connections to locked blocks' })
           return
         }
@@ -4666,7 +4662,7 @@ const WorkflowContent = React.memo(
           return next
         })
       },
-      [removeEdge, edges, blocks]
+      [removeEdge]
     )
 
     /*
@@ -4723,13 +4719,14 @@ const WorkflowContent = React.memo(
     const editorOpenBlockId = usePanelEditorStore((state) => state.currentBlockId)
     const panelActiveTab = usePanelStore((state) => state.activeTab)
 
+    const previousEdgesWithSelectionRef = useRef<Edge[]>([])
     const edgesWithSelection = useMemo(() => {
       const nodeMap = new Map(displayNodes.map((n) => [n.id, n]))
       /* Indexed once: this memo re-runs on every drag frame, and scanning the
          selection array twice per edge is O(edges x selection) per frame. */
       const selectedNodeIdSet = new Set(selectedNodeIds)
 
-      return edgesForDisplay.map((edge) => {
+      const derivedEdges = edgesForDisplay.map((edge) => {
         const sourceNode = nodeMap.get(edge.source)
         const targetNode = nodeMap.get(edge.target)
         const parentLoopId = sourceNode?.parentId || targetNode?.parentId
@@ -4780,6 +4777,12 @@ const WorkflowContent = React.memo(
           },
         }
       })
+      const reconciledEdges = reconcileCanvasEdges(
+        previousEdgesWithSelectionRef.current,
+        derivedEdges
+      )
+      previousEdgesWithSelectionRef.current = reconciledEdges
+      return reconciledEdges
     }, [
       edgesForDisplay,
       displayNodes,
