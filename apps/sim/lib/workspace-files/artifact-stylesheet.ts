@@ -208,7 +208,10 @@ export const SIM_ARTIFACT_STYLESHEET = `
 }
 
 * { box-sizing: border-box; scrollbar-width: thin; }
-html { scroll-behavior: smooth; scroll-padding-top: 72px; }
+/* scrollbar-gutter keeps the centered column from shifting when content
+   length toggles the viewport scrollbar (e.g. switching between a long and a
+   short tab). */
+html { scroll-behavior: smooth; scroll-padding-top: 72px; scrollbar-gutter: stable; }
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
   * { transition: none !important; animation: none !important; }
@@ -492,7 +495,10 @@ button.page-tab:hover { color: var(--text-body); }
 .art-cols > .rail { display: none; }
 @media (min-width: 800px) {
   .art-cols { grid-template-columns: minmax(0, 760px) fit-content(268px); justify-content: center; }
-  .art-cols > .rail[data-rail="toc"] { display: block; position: sticky; top: 68px; align-self: start; max-height: calc(100vh - 6rem); overflow-y: auto; }
+  /* Fixed width, not content-sized: in a tabbed doc the longest TOC entry
+     differs per tab, and a column that resizes re-centers the whole grid on
+     every switch. */
+  .art-cols > .rail[data-rail="toc"] { display: block; position: sticky; top: 68px; align-self: start; max-height: calc(100vh - 6rem); overflow-y: auto; width: 268px; }
 }
 /* Rails scroll invisibly, like the docs — no scrollbar chrome beside the
    TOC; the absolutely-positioned clerk track SVGs also can't tip the box
@@ -901,7 +907,10 @@ export const SIM_ARTIFACT_SHELL = `<script>
         tocItems.appendChild(a)
         tocLinks.push(a)
       }
-      right.style.display = headings.length === 0 ? 'none' : ''
+      // In a tabbed doc an empty rail stays (its fixed column holds the grid
+      // steady across switches); only an untabbed page drops it entirely.
+      const tabbed = main.querySelector('[data-tab-panel]') !== null
+      right.style.display = headings.length === 0 && !tabbed ? 'none' : ''
       refresh()
     }
     document.addEventListener('sim-tab-change', populateToc)

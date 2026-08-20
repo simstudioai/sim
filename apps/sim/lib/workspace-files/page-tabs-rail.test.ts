@@ -1,6 +1,7 @@
 /**
  * @vitest-environment node
  */
+import { sleep } from '@sim/utils/helpers'
 import { JSDOM } from 'jsdom'
 import { describe, expect, it } from 'vitest'
 import { renderSimPageDocument } from '@/lib/workspace-files/page-document'
@@ -40,7 +41,7 @@ const domOptions = {
   },
 }
 
-const tick = () => new Promise((resolve) => setTimeout(resolve, 60))
+const tick = () => sleep(60)
 
 describe('in-document tabs drive the on-this-page rail', () => {
   it('scopes the rail to the active tab and rebuilds it on switch', async () => {
