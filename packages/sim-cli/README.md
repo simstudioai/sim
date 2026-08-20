@@ -12,9 +12,9 @@ Full documentation: **https://docs.sim.ai/cli**
 
 ## Profiles
 
-Profiles work like the AWS CLI: one identity and one set of defaults per named
-profile, selected with `-P`, `--profile`, or `SIM_PROFILE`. This is what lets you keep
-production and a local dev stack side by side without re-authenticating.
+Profiles work like the AWS CLI and are selected with `-P`, `--profile`, or
+`SIM_PROFILE`. A profile normally owns one identity and one set of defaults; a
+workspace profile can instead share a stored identity through `auth_profile`.
 
 Non-secret settings live in `~/.sim/config`:
 
@@ -27,6 +27,10 @@ output = table
 [profile dev]
 endpoint = http://localhost:3000
 workspace = ws_local
+
+[profile acme]
+auth_profile = default
+workspace = ws_acme
 ```
 
 Keys live in `~/.sim/credentials`, written `0600`:
@@ -45,7 +49,8 @@ The section-naming asymmetry — `[profile dev]` in config, `[dev]` in credentia
 ```bash
 sim configure --set-endpoint http://localhost:3000 --profile dev
 sim configure --set-workspace ws_local --profile dev
-sim profiles          # list them; * marks the active one
+sim profiles                                      # list them; * marks the active one
+sim profile add acme --workspace ws_acme          # share the active stored login
 sim whoami            # resolved values, where each came from, and whether they work
 ```
 
@@ -62,7 +67,7 @@ Each setting resolves independently, first match wins:
 indefinitely) and `SIM_DEBUG=1` traces requests to stderr. Node ignores
 `HTTPS_PROXY` unless `NODE_USE_ENV_PROXY=1` is also set, on Node 22.21+ or
 24.5+; the CLI warns when a proxy is configured but will not be used.
-| 3 | `~/.sim/config` / `~/.sim/credentials` for the selected profile |
+| 3 | `~/.sim/config` for the selected profile and credentials for its `auth_profile`, when set |
 | 4 | Built-in default (`https://www.sim.ai`, `table`) |
 
 Formats are listed under [Output formats](#output-formats).
@@ -112,8 +117,11 @@ the key can access.
 `sim login --workspace <id>` preselects a workspace in the picker, and an
 existing profile's workspace preselects itself on re-login.
 
-`sim logout` removes the stored key. It does not revoke it — do that in
-Settings → API keys.
+`sim logout` removes the stored key. A shared workspace profile cannot remove
+its authentication profile's key; use `sim logout --all --profile <name>` to
+remove only the workspace profile. An authentication profile cannot be removed
+entirely while workspace profiles reference it. Logging out does not revoke a
+key — do that in Settings → API keys.
 
 ## Commands
 
@@ -147,6 +155,7 @@ sim logs get <runId>
 sim audit-logs list --organization <organizationId> [--all-workspaces]
 sim audit-logs get <id> --organization <organizationId>
 
+sim workspaces list
 sim workspaces get
 sim workspaces members
 

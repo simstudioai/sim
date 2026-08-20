@@ -80,6 +80,21 @@ describe('skill operation registry', () => {
     ).toThrow(/does not represent a human subject/)
   })
 
+  it('allows workspace keys to read editor rosters but keeps roster mutations personal', () => {
+    expect(skillOperations.listEditors).toMatchObject({
+      minimumRole: 'read',
+      workspaceApiKey: 'allow',
+      principalKinds: ['session', 'personal_api_key', 'workspace_api_key'],
+    })
+    for (const operation of [skillOperations.grantEditor, skillOperations.revokeEditor]) {
+      expect(operation).toMatchObject({
+        minimumRole: 'read',
+        workspaceApiKey: 'deny',
+        principalKinds: ['session', 'personal_api_key'],
+      })
+    }
+  })
+
   it('uses unique stable operation IDs', () => {
     const ids = Object.values(skillOperations).map((operation) => operation.id)
     expect(new Set(ids).size).toBe(ids.length)

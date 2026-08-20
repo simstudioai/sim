@@ -35,6 +35,7 @@ export const DOCS_MANIFEST: readonly string[] = [
   'cli/logs.mdx',
   'cli/mcp-servers.mdx',
   'cli/output.mdx',
+  'cli/profiles.mdx',
   'cli/reference.mdx',
   'cli/scripting.mdx',
   'cli/secrets.mdx',

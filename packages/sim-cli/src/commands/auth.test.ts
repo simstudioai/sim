@@ -5,9 +5,12 @@ const mocks = vi.hoisted(() => ({
   buildApprovalUrl: vi.fn(() => 'https://sim.ai/cli/auth?code=ABCD'),
   createAuthRequest: vi.fn(() => ({ pairing: 'ABCD', verifier: 'verifier' })),
   createInterface: vi.fn(),
+  deleteProfile: vi.fn(() => ({ config: false, credentials: false })),
+  listAuthenticationDependents: vi.fn<() => string[]>(() => []),
   listProfiles: vi.fn<() => string[]>(() => []),
   request: vi.fn(),
   readCredentialsProfile: vi.fn<() => Record<string, string>>(() => ({})),
+  resolveAuthenticationProfileName: vi.fn((profile: string) => profile),
   pollForKey: vi.fn(async () => ({
     apiKey: 'sim-key',
     scope: 'platform' as const,
@@ -38,20 +41,25 @@ vi.mock('../auth/device-flow', () => ({
   pollForKey: mocks.pollForKey,
 }))
 vi.mock('../config/index', () => ({
+  configPath: () => '/tmp/sim-config',
   credentialsPath: () => '/tmp/sim-credentials',
-  deleteProfile: vi.fn(),
+  DEFAULT_PROFILE: 'default',
+  deleteProfile: mocks.deleteProfile,
+  listAuthenticationDependents: mocks.listAuthenticationDependents,
   listProfiles: mocks.listProfiles,
   readCredentialsProfile: mocks.readCredentialsProfile,
+  resolveAuthenticationProfileName: mocks.resolveAuthenticationProfileName,
   writeConfigProfile: mocks.writeConfigProfile,
   writeCredentialsProfile: mocks.writeCredentialsProfile,
 }))
 vi.mock('../context', () => ({
+  globalsOf: (command: Command) => command.optsWithGlobals(),
   profileFrom: mocks.profileFrom,
   clientFrom: () => ({ client: { request: mocks.request }, profile: mocks.profileFrom() }),
 }))
 
 import { SimApiError } from '../http/client'
-import { loginCommand, profilesCommand, whoamiCommand } from './auth'
+import { loginCommand, logoutCommand, profilesCommand, whoamiCommand } from './auth'
 
 const originalIsTTY = Object.getOwnPropertyDescriptor(process.stdin, 'isTTY')
 
@@ -71,11 +79,27 @@ async function whoami(...args: string[]): Promise<void> {
   await root.parseAsync(['node', 'sim', 'whoami', ...args])
 }
 
+async function profiles(...args: string[]): Promise<void> {
+  const root = new Command('sim')
+    .exitOverride()
+    .option('-P, --profile <name>')
+    .option('-w, --workspace <id>')
+  root.addCommand(profilesCommand())
+  await root.parseAsync(['node', 'sim', 'profiles', ...args])
+}
+
+async function logout(...args: string[]): Promise<void> {
+  const root = new Command('sim').exitOverride().option('-P, --profile <name>')
+  root.addCommand(logoutCommand())
+  await root.parseAsync(['node', 'sim', 'logout', ...args])
+}
+
 describe('login command', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.listProfiles.mockReturnValue([])
     mocks.readCredentialsProfile.mockReturnValue({})
+    mocks.resolveAuthenticationProfileName.mockImplementation((profile) => profile)
     mocks.profileFrom.mockReturnValue({
       name: 'default',
       endpoint: 'https://sim.ai',
@@ -113,6 +137,29 @@ describe('login command', () => {
 
     expect(mocks.createInterface).not.toHaveBeenCalled()
     expect(mocks.createAuthRequest).toHaveBeenCalledOnce()
+  })
+
+  it('refuses to replace authentication through a shared workspace profile', async () => {
+    setInteractive(false)
+    mocks.profileFrom.mockReturnValue({
+      name: 'acme',
+      endpoint: 'https://sim.ai',
+      apiKey: 'sim-key',
+      workspaceId: 'ws_acme',
+      output: 'table',
+      sources: {
+        endpoint: 'config',
+        apiKey: 'credentials',
+        workspaceId: 'config',
+        output: 'default',
+      },
+    })
+    mocks.resolveAuthenticationProfileName.mockReturnValue('default')
+
+    await expect(login()).rejects.toThrow(
+      'Profile "acme" shares authentication with "default". Run: sim login --profile default'
+    )
+    expect(mocks.createAuthRequest).not.toHaveBeenCalled()
   })
 
   it('requires --yes before overwriting non-interactively', async () => {
@@ -203,8 +250,261 @@ describe('login command', () => {
 })
 
 describe('profiles command', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    setInteractive(false)
+    mocks.listProfiles.mockReturnValue([])
+    mocks.readCredentialsProfile.mockReturnValue({ api_key: 'stored-key' })
+    mocks.resolveAuthenticationProfileName.mockImplementation((profile) => profile)
+    mocks.profileFrom.mockReturnValue({
+      name: 'default',
+      endpoint: 'https://sim.ai',
+      apiKey: 'stored-key',
+      workspaceId: 'ws_default',
+      output: 'table',
+      sources: {
+        endpoint: 'config',
+        apiKey: 'credentials',
+        workspaceId: 'config',
+        output: 'default',
+      },
+    })
+    mocks.request.mockResolvedValue({
+      data: { id: 'ws_acme', name: 'Acme', memberCount: 3 },
+    })
+    mocks.createInterface.mockReturnValue({
+      question: vi.fn(async () => '1'),
+      close: vi.fn(),
+    })
+    vi.spyOn(console, 'log').mockImplementation(() => {})
+  })
+
+  afterEach(() => {
+    if (originalIsTTY) Object.defineProperty(process.stdin, 'isTTY', originalIsTTY)
+    else Reflect.deleteProperty(process.stdin, 'isTTY')
+  })
+
   it('accepts the singular profile alias', () => {
     expect(profilesCommand().alias()).toBe('profile')
+  })
+
+  it('keeps the existing bare profiles command as the list shortcut', async () => {
+    mocks.listProfiles.mockReturnValue(['default'])
+
+    await profiles()
+
+    expect(console.log).toHaveBeenCalledWith(expect.stringContaining('default'))
+  })
+
+  it('adds a validated workspace profile using the active stored login', async () => {
+    await profiles('add', 'acme', '--workspace', 'ws_acme')
+
+    expect(mocks.request).toHaveBeenCalledWith('/api/v2/workspaces/ws_acme', { method: 'GET' })
+    expect(mocks.writeConfigProfile).toHaveBeenCalledWith('acme', {
+      auth_profile: 'default',
+      workspace: 'ws_acme',
+    })
+    expect(mocks.writeCredentialsProfile).not.toHaveBeenCalled()
+  })
+
+  it('does not write a profile when the active key cannot reach the workspace', async () => {
+    mocks.request.mockRejectedValue(new SimApiError('Workspace not found', 404))
+
+    await expect(profiles('add', 'acme', '--workspace', 'ws_missing')).rejects.toThrow(
+      'Workspace not found'
+    )
+    expect(mocks.writeConfigProfile).not.toHaveBeenCalled()
+  })
+
+  it('flattens an active workspace profile to its canonical authentication profile', async () => {
+    mocks.profileFrom.mockReturnValue({
+      name: 'engineering',
+      endpoint: 'https://sim.ai',
+      apiKey: 'stored-key',
+      workspaceId: 'ws_engineering',
+      output: 'table',
+      sources: {
+        endpoint: 'config',
+        apiKey: 'credentials',
+        workspaceId: 'config',
+        output: 'default',
+      },
+    })
+    mocks.resolveAuthenticationProfileName.mockReturnValue('corporate')
+
+    await profiles('add', 'finance', '--workspace', 'ws_acme')
+
+    expect(mocks.writeConfigProfile).toHaveBeenCalledWith('finance', {
+      auth_profile: 'corporate',
+      workspace: 'ws_acme',
+    })
+  })
+
+  it('refuses to persist a profile from an environment-only key', async () => {
+    mocks.profileFrom.mockReturnValue({
+      name: 'default',
+      endpoint: 'https://sim.ai',
+      apiKey: 'environment-key',
+      workspaceId: null,
+      output: 'table',
+      sources: {
+        endpoint: 'default',
+        apiKey: 'env',
+        workspaceId: 'unset',
+        output: 'default',
+      },
+    })
+
+    await expect(profiles('add', 'acme', '--workspace', 'ws_acme')).rejects.toThrow(
+      'the active API key is not stored'
+    )
+    expect(mocks.request).not.toHaveBeenCalled()
+    expect(mocks.writeConfigProfile).not.toHaveBeenCalled()
+  })
+
+  it('refuses to persist a profile from an ephemeral endpoint override', async () => {
+    mocks.profileFrom.mockReturnValue({
+      name: 'default',
+      endpoint: 'https://temporary.example',
+      apiKey: 'stored-key',
+      workspaceId: null,
+      output: 'table',
+      sources: {
+        endpoint: 'env',
+        apiKey: 'credentials',
+        workspaceId: 'unset',
+        output: 'default',
+      },
+    })
+
+    await expect(profiles('add', 'acme', '--workspace', 'ws_acme')).rejects.toThrow(
+      'the active endpoint comes from env'
+    )
+    expect(mocks.request).not.toHaveBeenCalled()
+  })
+
+  it('requires an explicit workspace outside an interactive terminal', async () => {
+    await expect(profiles('add', 'acme')).rejects.toThrow(
+      'Pass --workspace <id> when creating a profile non-interactively.'
+    )
+    expect(mocks.request).not.toHaveBeenCalled()
+  })
+
+  it('offers every accessible workspace in an interactive picker', async () => {
+    setInteractive(true)
+    const question = vi.fn(async () => '2')
+    const close = vi.fn()
+    mocks.createInterface.mockReturnValue({ question, close })
+    mocks.request.mockResolvedValue({
+      data: [
+        { id: 'ws_acme', name: 'Acme' },
+        { id: 'ws_beta', name: 'Beta' },
+      ],
+      nextCursor: null,
+    })
+
+    await profiles('add', 'beta')
+
+    expect(mocks.request).toHaveBeenCalledWith('/api/v2/workspaces', {
+      method: 'GET',
+      query: { sortBy: 'name', sortOrder: 'asc', limit: 100, cursor: null },
+    })
+    expect(question).toHaveBeenCalledWith('Choose a workspace [1-2]: ')
+    expect(close).toHaveBeenCalledOnce()
+    expect(mocks.writeConfigProfile).toHaveBeenCalledWith('beta', {
+      auth_profile: 'default',
+      workspace: 'ws_beta',
+    })
+  })
+
+  it('caps the interactive workspace roster before prompting', async () => {
+    setInteractive(true)
+    mocks.request.mockResolvedValue({
+      data: Array.from({ length: 1001 }, (_, index) => ({
+        id: `ws_${index}`,
+        name: `Workspace ${index}`,
+      })),
+      nextCursor: null,
+    })
+
+    await expect(profiles('add', 'large')).rejects.toThrow(
+      'more than 1000 workspaces, which is too many to show interactively'
+    )
+    expect(mocks.createInterface).not.toHaveBeenCalled()
+    expect(mocks.writeConfigProfile).not.toHaveBeenCalled()
+  })
+
+  it('does not overwrite an existing profile', async () => {
+    mocks.listProfiles.mockReturnValue(['acme'])
+
+    await expect(profiles('add', 'acme', '--workspace', 'ws_acme')).rejects.toThrow(
+      'Profile "acme" already exists.'
+    )
+    expect(mocks.request).not.toHaveBeenCalled()
+  })
+
+  it('lists a shared profile as authenticated by its referenced profile', async () => {
+    mocks.listProfiles.mockReturnValue(['acme', 'default'])
+    mocks.resolveAuthenticationProfileName.mockImplementation((profile) =>
+      profile === 'acme' ? 'default' : profile
+    )
+
+    await profiles('list')
+
+    const output = vi.mocked(console.log).mock.calls.flat().join('\n')
+    expect(output).toContain('acme  (auth: default)')
+    expect(output).not.toContain('acme  (no key)')
+  })
+})
+
+describe('logout command', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.listAuthenticationDependents.mockReturnValue([])
+    mocks.resolveAuthenticationProfileName.mockImplementation((profile) => profile)
+    mocks.readCredentialsProfile.mockReturnValue({ api_key: 'stored-key' })
+    mocks.profileFrom.mockReturnValue({
+      name: 'acme',
+      endpoint: 'https://sim.ai',
+      apiKey: 'stored-key',
+      workspaceId: 'ws_acme',
+      output: 'table',
+      sources: {
+        endpoint: 'config',
+        apiKey: 'credentials',
+        workspaceId: 'config',
+        output: 'default',
+      },
+    })
+    vi.spyOn(console, 'log').mockImplementation(() => {})
+  })
+
+  it('does not remove a key through a shared workspace profile', async () => {
+    mocks.resolveAuthenticationProfileName.mockReturnValue('default')
+
+    await expect(logout()).rejects.toThrow(
+      'Log out of the authentication profile instead: sim logout --profile default'
+    )
+    expect(mocks.writeCredentialsProfile).not.toHaveBeenCalled()
+  })
+
+  it('removes only the selected alias under --all', async () => {
+    mocks.deleteProfile.mockReturnValue({ config: true, credentials: false })
+
+    await logout('--all', '--profile', 'acme')
+
+    expect(mocks.deleteProfile).toHaveBeenCalledWith('acme')
+    expect(mocks.resolveAuthenticationProfileName).not.toHaveBeenCalled()
+    expect(mocks.writeCredentialsProfile).not.toHaveBeenCalled()
+  })
+
+  it('refuses to remove an authentication profile while workspace profiles use it', async () => {
+    mocks.listAuthenticationDependents.mockReturnValue(['acme', 'beta'])
+
+    await expect(logout('--all', '--profile', 'default')).rejects.toThrow(
+      'Cannot remove authentication profile "default" because it is used by: acme, beta.'
+    )
+    expect(mocks.deleteProfile).not.toHaveBeenCalled()
   })
 })
 
