@@ -42,6 +42,31 @@ export const LIMIT_MAX = 100
 const tokenCache = new Map<string, { token: string; expiresAt: number }>()
 const TOKEN_CACHE_TTL_MS = 5 * 60 * 1000
 
+/**
+ * Ceiling on distinct credential pairs held at once.
+ *
+ * The cache is process-wide, so on a long-lived worker serving many CB Insights
+ * accounts it would otherwise grow with the cumulative number of accounts seen.
+ */
+const TOKEN_CACHE_MAX_ENTRIES = 128
+
+/**
+ * Drops expired entries, then the oldest surviving ones if still over the cap.
+ *
+ * Map iteration is insertion-ordered, so the first surviving key is the least
+ * recently authorized — evicting it costs at most one extra token exchange.
+ */
+function pruneTokenCache(): void {
+  const now = Date.now()
+  for (const [key, entry] of tokenCache) {
+    if (entry.expiresAt <= now) tokenCache.delete(key)
+  }
+  for (const key of tokenCache.keys()) {
+    if (tokenCache.size <= TOKEN_CACHE_MAX_ENTRIES) break
+    tokenCache.delete(key)
+  }
+}
+
 async function credentialDigest(clientId: string, clientSecret: string): Promise<string> {
   const bytes = new TextEncoder().encode(`${clientId}:${clientSecret}`)
   const digest = await crypto.subtle.digest('SHA-256', bytes)
@@ -140,12 +165,19 @@ async function getToken(
 
   const token = await authorize(clientId, clientSecret, signal)
   tokenCache.set(key, { token, expiresAt: Date.now() + TOKEN_CACHE_TTL_MS })
+  /* Pruned after the insert so the cap bounds the cache including this entry. */
+  pruneTokenCache()
   return token
 }
 
 /** Clears every cached token. Exported for tests. */
 export function resetCbInsightsTokenCache(): void {
   tokenCache.clear()
+}
+
+/** Current number of cached tokens. Exported for tests. */
+export function cbInsightsTokenCacheSize(): number {
+  return tokenCache.size
 }
 
 interface CbInsightsRequestSpec {
@@ -253,9 +285,7 @@ export function requireOrgIds(value: unknown): number[] {
     raw = [value]
   }
 
-  const orgIds = raw
-    .map((entry) => (typeof entry === 'number' ? entry : Number(String(entry).trim())))
-    .filter((entry) => Number.isInteger(entry) && entry > 0)
+  const orgIds = toPositiveIntegers(raw, 'orgIds')
 
   if (orgIds.length === 0) {
     throw new Error('CB Insights "orgIds" must contain at least one positive integer')
@@ -264,6 +294,36 @@ export function requireOrgIds(value: unknown): number[] {
     throw new Error(`CB Insights accepts at most ${MAX_ORG_IDS} organization IDs per request`)
   }
   return orgIds
+}
+
+/**
+ * Converts every entry to a positive integer, rejecting the whole list if any
+ * entry is not one.
+ *
+ * Dropping the bad entries instead would run the request against a silently
+ * narrower set — a typo in an ID list would spend credits on the wrong
+ * organizations, or quietly widen a filtered search, and still report success.
+ */
+function toPositiveIntegers(entries: readonly unknown[], paramName: string): number[] {
+  const invalid: string[] = []
+  const ids: number[] = []
+
+  for (const entry of entries) {
+    const label = typeof entry === 'number' ? String(entry) : String(entry).trim()
+    const parsed = typeof entry === 'number' ? entry : Number(label)
+    if (!Number.isInteger(parsed) || parsed <= 0) {
+      invalid.push(label)
+      continue
+    }
+    ids.push(parsed)
+  }
+
+  if (invalid.length > 0) {
+    throw new Error(
+      `CB Insights "${paramName}" must contain only positive integers (invalid: ${invalid.join(', ')})`
+    )
+  }
+  return ids
 }
 
 /** Coerces a numeric param and clamps it into the documented [1, 100] range. */
@@ -307,14 +367,18 @@ export function parseListParam(value: unknown, paramName: string): unknown[] | u
   return [value]
 }
 
-/** Parses a list of IDs, keeping only positive integers. */
+/**
+ * Parses an optional list of IDs, rejecting any entry that is not a positive
+ * integer.
+ *
+ * An unset filter is fine and returns undefined; a filter the caller *did* set
+ * but mistyped is not, because dropping it would silently widen the search
+ * rather than narrow it — and the wider search still spends credits.
+ */
 export function parseIdListParam(value: unknown, paramName: string): number[] | undefined {
   const entries = parseListParam(value, paramName)
   if (!entries) return undefined
-  const ids = entries
-    .map((entry) => (typeof entry === 'number' ? entry : Number(String(entry).trim())))
-    .filter((entry) => Number.isInteger(entry) && entry > 0)
-  return ids.length > 0 ? ids : undefined
+  return toPositiveIntegers(entries, paramName)
 }
 
 /** Parses a list of free-text values. */

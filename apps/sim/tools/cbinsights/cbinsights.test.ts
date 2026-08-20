@@ -10,7 +10,7 @@ import { cbinsightsListFundingsTool } from '@/tools/cbinsights/list_fundings'
 import { cbinsightsLookupOrganizationsTool } from '@/tools/cbinsights/lookup_organizations'
 import { cbinsightsRagTool } from '@/tools/cbinsights/rag'
 import { cbinsightsSearchFirmographicsTool } from '@/tools/cbinsights/search_firmographics'
-import { resetCbInsightsTokenCache } from '@/tools/cbinsights/utils'
+import { cbInsightsTokenCacheSize, resetCbInsightsTokenCache } from '@/tools/cbinsights/utils'
 
 const CREDS = { clientId: 'id', clientSecret: 'secret' }
 
@@ -133,6 +133,30 @@ describe('cbinsights authorization', () => {
   })
 })
 
+describe('cbinsights token cache', () => {
+  /*
+   * The cache is process-wide. Without a bound, a long-lived worker serving many
+   * CB Insights accounts would grow with the cumulative number of accounts seen.
+   */
+  it('stays bounded as distinct credential pairs accumulate', async () => {
+    const responses = []
+    for (let index = 0; index < 200; index++) {
+      responses.push({ body: { token: `jwt-${index}` } }, { body: { orgs: [] } })
+    }
+    mockFetch(responses)
+
+    for (let index = 0; index < 200; index++) {
+      await cbinsightsLookupOrganizationsTool.directExecution!({
+        clientId: `id-${index}`,
+        clientSecret: 'secret',
+        names: 'a',
+      } as never)
+    }
+
+    expect(cbInsightsTokenCacheSize()).toBeLessThanOrEqual(128)
+  })
+})
+
 describe('cbinsights request building', () => {
   it('rejects a lookup with no search parameter', async () => {
     mockFetch([AUTH_OK])
@@ -184,6 +208,42 @@ describe('cbinsights request building', () => {
     await expect(
       cbinsightsListFundingsTool.directExecution!({ ...CREDS, orgIds } as never)
     ).rejects.toThrow(/at most 100 organization IDs/)
+  })
+
+  /*
+   * Dropping the bad entries instead would run against a silently narrower set:
+   * a typo would spend credits on the wrong organizations and still report
+   * success. Both reviewers flagged this independently.
+   */
+  it('rejects a required ID list containing an invalid entry rather than dropping it', async () => {
+    mockFetch([AUTH_OK])
+    await expect(
+      cbinsightsListFundingsTool.directExecution!({
+        ...CREDS,
+        orgIds: '129410, notanid, 1034157',
+      } as never)
+    ).rejects.toThrow(/must contain only positive integers \(invalid: notanid\)/)
+  })
+
+  it('rejects a mistyped optional filter rather than silently widening the search', async () => {
+    mockFetch([AUTH_OK])
+    await expect(
+      cbinsightsSearchFirmographicsTool.directExecution!({
+        ...CREDS,
+        keyword: 'fintech',
+        sectorIds: 'four',
+      } as never)
+    ).rejects.toThrow(/"sectorIds" must contain only positive integers/)
+  })
+
+  it('still treats an unset optional filter as absent', async () => {
+    mockFetch([AUTH_OK, { body: { orgs: [] } }])
+    await cbinsightsSearchFirmographicsTool.directExecution!({
+      ...CREDS,
+      keyword: 'fintech',
+      sectorIds: '',
+    } as never)
+    expect(JSON.parse(String(calls[1].init.body))).toEqual({ keyword: 'fintech' })
   })
 
   it('rejects a non-integer organization ID rather than interpolating it into the path', async () => {
