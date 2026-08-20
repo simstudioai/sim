@@ -51,6 +51,7 @@ export const DOCS_MANIFEST: readonly string[] = [
   'getting-started.mdx',
   'integrations.mdx',
   'integrations/a2a.mdx',
+  'integrations/affinity.mdx',
   'integrations/agentmail.mdx',
   'integrations/agentphone.mdx',
   'integrations/agiloft.mdx',
