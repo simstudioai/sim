@@ -65,7 +65,15 @@ export async function isOrganizationBYOKEntitledCached(organizationId: string): 
     if (cached.value !== null && cached.expiresAt > Date.now()) return cached.value
   }
 
-  const inflight = resolveOrganizationPlan(organizationId).then(
+  /**
+   * `onError: 'throw'` is load-bearing. Without it a billing-read outage
+   * resolves to `false` exactly like a real plan lapse, and the entry below
+   * would pin the gate shut for the whole TTL — every inheriting run silently
+   * falling back to a metered hosted key. Throwing keeps the failure out of the
+   * cache so the next resolution retries; `getBYOKKey` still fails closed for
+   * the one call that saw it.
+   */
+  const inflight = resolveOrganizationPlan(organizationId, { onError: 'throw' }).then(
     (entitled) => {
       entitlementCache.set(organizationId, {
         value: entitled,

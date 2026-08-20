@@ -462,7 +462,21 @@ async function resolveOrganizationEnterprisePlan(organizationId: string): Promis
  * {@link resolveOrganizationEnterprisePlan}, which gates the Enterprise-only
  * tier. A billing-blocked organization resolves false either way.
  */
-export async function resolveOrganizationPlan(organizationId: string): Promise<boolean> {
+interface ResolveOrganizationPlanOptions {
+  /**
+   * What a billing-read failure resolves to. `'return-false'` (default) fails
+   * closed, which is what a one-shot gate wants. A caller that *caches* the
+   * answer must pass `'throw'`: a swallowed failure is indistinguishable from a
+   * real plan lapse, so caching it would hold the gate shut for the whole TTL
+   * over what may be a momentary outage.
+   */
+  onError?: 'return-false' | 'throw'
+}
+
+export async function resolveOrganizationPlan(
+  organizationId: string,
+  options: ResolveOrganizationPlanOptions = {}
+): Promise<boolean> {
   try {
     if (!isBillingEnabled) {
       return true
@@ -486,6 +500,9 @@ export async function resolveOrganizationPlan(organizationId: string): Promise<b
     return !!orgSub && checkOrgPlan(orgSub)
   } catch (error) {
     logger.error('Error checking organization plan status', { error, organizationId })
+    if (options.onError === 'throw') {
+      throw error
+    }
     return false
   }
 }

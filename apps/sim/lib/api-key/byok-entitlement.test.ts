@@ -92,6 +92,20 @@ describe('organization BYOK entitlement', () => {
     expect(mockResolveOrganizationPlan).toHaveBeenCalledTimes(2)
   })
 
+  /**
+   * The rejection path only exists in production because the cached read asks
+   * for it. `resolveOrganizationPlan` otherwise maps a billing outage to
+   * `false` — indistinguishable from a real lapse — and caching that would hold
+   * the gate shut for the full TTL, silently metering every inheriting run.
+   */
+  it('asks billing to throw rather than report an outage as unentitled', async () => {
+    await isOrganizationBYOKEntitledCached(ORGANIZATION_ID)
+
+    expect(mockResolveOrganizationPlan).toHaveBeenCalledWith(ORGANIZATION_ID, {
+      onError: 'throw',
+    })
+  })
+
   it('does not cache a rejection, so a transient failure cannot pin the gate shut', async () => {
     mockResolveOrganizationPlan.mockRejectedValueOnce(new Error('billing read failed'))
 
