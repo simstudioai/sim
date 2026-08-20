@@ -182,10 +182,11 @@ describe('knowledge and files request-slice strictness', () => {
    * A count, so a document that stopped listing its routes cannot make every
    * assertion below pass vacuously. It rises when a route gains a slice: it went
    * 45 → 63 when the knowledge and files endpoints that take no query params
-   * started saying so with `noInputSchema` instead of omitting `query`.
+   * started saying so with `noInputSchema` instead of omitting `query`, and
+   * 63 → 64 when the upload-session read was added.
    */
   it('sweeps every documented query and body slice', () => {
-    expect(slices.length).toBe(63)
+    expect(slices.length).toBe(64)
   })
 
   it.each(slices)('%s rejects an undeclared key', (_name, schema) => {

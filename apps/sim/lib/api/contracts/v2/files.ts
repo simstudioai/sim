@@ -628,6 +628,20 @@ export const v2CreateFileUploadContract = defineRouteContract({
   response: { mode: 'json', schema: v2DataResponse(v2CreateFileUploadDataSchema), status: 201 },
 })
 
+/**
+ * Reads an upload session's current state so a caller can resume or abandon a
+ * transfer it did not finish. Carries the same signed control token as the
+ * other control legs: a session read is re-authorized exactly like a mutation.
+ */
+export const v2GetFileUploadContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/v2/files/uploads/[uploadId]',
+  params: v2FileUploadParamsSchema,
+  query: v2FileUploadWorkspaceQuerySchema,
+  headers: v2UploadTokenHeadersSchema,
+  response: { mode: 'json', schema: v2DataResponse(v2FileUploadSchema) },
+})
+
 export const v2AbortFileUploadContract = defineRouteContract({
   method: 'DELETE',
   path: '/api/v2/files/uploads/[uploadId]',

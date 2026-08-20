@@ -12,6 +12,7 @@ import {
   v2DownloadFileContract,
   v2GetFileContract,
   v2GetFileShareContract,
+  v2GetFileUploadContract,
   v2ListFileFoldersContract,
   v2ListFilesContract,
   v2MoveFileItemsContract,
@@ -210,6 +211,42 @@ const declaredRoutes = [
         'CreateFileUploadResponse',
         'Create file upload response',
         'Upload session, signed control token, and transfer strategy.'
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2GetFileUploadContract,
+    filesOperation({
+      operationId: 'getFileUpload',
+      summary: 'Get File Upload',
+      description: `Read an upload session's current state — whether it is still accepting bytes, has finalized into a file, or has failed. Use it to decide whether an interrupted transfer can be resumed or should be abandoned. Like every other upload control leg it requires the signed upload token, and is re-authorized against the workspace on each call. ${HEAD_MIRRORS_GET}`,
+      errors: RESOURCE_CONFLICT_ERRORS,
+      success: { description: 'Current upload-session state.' },
+    }),
+    {
+      params: documentedSchema(
+        v2GetFileUploadContract.params,
+        'GetFileUploadParams',
+        'Get upload path parameters',
+        'Upload session selected for reading.'
+      ),
+      query: documentedSchema(
+        v2GetFileUploadContract.query,
+        'GetFileUploadQuery',
+        'Get upload query',
+        'Workspace scope for the upload session.'
+      ),
+      headers: documentedSchema(
+        v2GetFileUploadContract.headers,
+        'GetFileUploadHeaders',
+        'Get upload headers',
+        'Signed upload control token.'
+      ),
+      response: documentedSchema(
+        v2GetFileUploadContract.response.schema,
+        'FileUploadResponse',
+        'File upload response',
+        'Current upload-session state.'
       ),
     }
   ),

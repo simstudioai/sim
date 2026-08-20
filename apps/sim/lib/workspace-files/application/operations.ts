@@ -164,6 +164,18 @@ export const fileOperations = {
     workspaceApiKey: 'allow',
     ...UPLOAD_PRINCIPAL_POLICY,
   }),
+  /**
+   * Reading an upload session's current state. Distinct from `uploadCancel`,
+   * which is the only other resource-id upload control today: cancelling is a
+   * `write`, and asking whether a session is still alive or already finalized
+   * must not require permission to destroy it.
+   */
+  uploadRead: defineWorkspaceOperation({
+    id: 'files.upload.read',
+    minimumRole: 'read',
+    workspaceApiKey: 'allow',
+    ...UPLOAD_PRINCIPAL_POLICY,
+  }),
   uploadParts: defineWorkspaceOperation({
     id: 'files.upload.parts',
     minimumRole: 'write',
