@@ -1,4 +1,4 @@
-import { foldSearchWhitespace } from '@sim/utils/string'
+import { foldSearchWhitespace, projectEscapedMarkdownForSearch } from '@sim/utils/string'
 import type { Element, Root, Text } from 'hast'
 
 /**
@@ -81,13 +81,37 @@ export function forEachNoteSearchOccurrence(
  * How many occurrences of `query` start before `offset` in `content` — the
  * ordinal of the occurrence that starts there.
  */
+/**
+ * Visits every occurrence of `query` in a note's markdown SOURCE, reporting each
+ * start in source coordinates.
+ *
+ * Matches against the text the markdown renders as, exactly as the search index
+ * does for a field declaring `searchTextFormat: 'markdown'` — the card has to
+ * agree with the panel about what counts as an occurrence, or the ordinal it is
+ * handed points at a different hit than the one the user is on.
+ */
+export function forEachNoteSourceOccurrence(
+  content: string,
+  query: string,
+  visit: (sourceStart: number) => void
+): void {
+  const projection = projectEscapedMarkdownForSearch(content)
+  forEachNoteSearchOccurrence(projection.text, query, (start) => {
+    visit(projection.starts[start])
+  })
+}
+
+/**
+ * How many occurrences of `query` start before `offset` in `content` — the
+ * ordinal of the occurrence that starts there. Both are source coordinates.
+ */
 export function countNoteSearchOccurrencesBefore(
   content: string,
   query: string,
   offset: number
 ): number {
   let count = 0
-  forEachNoteSearchOccurrence(content, query, (start) => {
+  forEachNoteSourceOccurrence(content, query, (start) => {
     if (start < offset) count += 1
   })
   return count

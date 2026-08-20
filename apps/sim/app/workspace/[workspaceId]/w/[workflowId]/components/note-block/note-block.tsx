@@ -4,6 +4,7 @@ import {
   countNoteSearchOccurrencesBefore,
   DEFAULT_NOTE_COLOR,
   estimateNoteBlockHeight,
+  forEachNoteSourceOccurrence,
   getNoteStringValue,
   isNoteColor,
   NoteBlockView,
@@ -171,9 +172,15 @@ export const NoteBlock = memo(function NoteBlock({
       }
     }
 
-    return content.toLowerCase().includes(query.toLowerCase())
-      ? { query, occurrenceIndex: 0 }
-      : null
+    /* Asked through the same scan that will do the marking, rather than a local
+       `includes`: a bare comparison skips the whitespace fold, so a query the
+       indexer matched across a newline or a non-breaking space would read as
+       absent here and the card would paint nothing while the panel counted it. */
+    let occurs = false
+    forEachNoteSourceOccurrence(content, query, () => {
+      occurs = true
+    })
+    return occurs ? { query, occurrenceIndex: 0 } : null
   }, [content, isSearchTargetBlock, searchTarget])
 
   /**
@@ -240,8 +247,16 @@ export const NoteBlock = memo(function NoteBlock({
   const searchExpandedRef = useRef(false)
   const hasSearchMatch = searchHighlight !== null || nameSearchRange !== null
   useEffect(() => {
+    /* Losing edit rights already force-collapses the card during render. Drop the latch with it,
+       or regaining them would hit the early return below and leave a deep match clipped in the
+       compact body until the active match moved. */
+    if (!canEditNote) {
+      searchExpandedRef.current = false
+      return
+    }
+
     if (hasSearchMatch) {
-      if (searchExpandedRef.current || isExpandedRef.current || !canEditNote) return
+      if (searchExpandedRef.current || isExpandedRef.current) return
       searchExpandedRef.current = true
       setIsExpanded(true)
       return

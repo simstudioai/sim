@@ -19,63 +19,6 @@ const CODE_OR_PLAIN_LINK_REGEX =
 const HTTP_URL_REGEX = /^https?:\/\/\S+$/i
 
 /**
- * Alternates an inline code span with a single underscore that has a letter or digit on both sides.
- *
- * CommonMark's intraword rule means such an underscore can neither open nor close emphasis, so the
- * serializer's backslash before it carries no meaning \u2014 it just writes `SB\_ACTION\_ROUTER\_SECRET`
- * into the document. That is ugly in the file, and it silently breaks workflow search, which matches
- * against the stored markdown rather than the rendered text: searching `SB_ACTION` finds nothing in
- * a note whose stored form has a backslash the reader never sees.
- *
- * Code is excluded because the serializer emits it verbatim: a `\_` inside a span is the author's own
- * backslash, not an escape this may drop. The span branch matches a backtick RUN and requires a run of
- * the same length to close it, per CommonMark \u2014 a fixed single-backtick pattern would read ``` ``a`b`` ```
- * as `` `a` `` plus loose text and rewrite the interior. Fenced blocks are handled a line at a time by
- * {@link unescapeIntrawordUnderscores}, which is the only way to honour a fence of any length.
- *
- * The flanking character is a capture group rather than a lookbehind: lookbehind only landed in
- * Safari 16.4, and an unsupported one throws when the pattern is constructed \u2014 taking the whole editor
- * module with it. The group is consumed and put back, and the lookahead is not, so runs like `A\_B\_C`
- * still match on every pair.
- */
-const CODE_SPAN_OR_INTRAWORD_ESCAPED_UNDERSCORE =
-  /(`+)((?:[^`]|(?!\1)`)*?)\1(?!`)|([\p{L}\p{N}])\\_(?=[\p{L}\p{N}])/gu
-
-/**
- * Drops the meaningless backslash before an intraword underscore, outside code.
- *
- * Fenced blocks are skipped a line at a time, tracking the opening delimiter the same way
- * {@link stripEmptyListItemLines} does: a fence is three OR MORE backticks or tildes and is closed
- * only by a run of the same character at least as long, so a `````` ```` `````-fenced block wrapping
- * ``` ``` ``` stays code throughout. Matching a fixed ``` pair instead would end the region early and
- * hand the rest of the author's code to the rewrite.
- */
-function unescapeIntrawordUnderscores(markdown: string): string {
-  const lines = markdown.split('\n')
-  let fence: string | null = null
-
-  for (let i = 0; i < lines.length; i++) {
-    if (fence) {
-      if (closesFence(lines[i], fence)) fence = null
-      continue
-    }
-
-    const delimiter = opensFence(lines[i])
-    if (delimiter) {
-      fence = delimiter
-      continue
-    }
-
-    lines[i] = lines[i].replace(
-      CODE_SPAN_OR_INTRAWORD_ESCAPED_UNDERSCORE,
-      (match, ticks, _span, flank) => (ticks === undefined ? `${flank}_` : match)
-    )
-  }
-
-  return lines.join('\n')
-}
-
-/**
  * Collapses an autolinked destination back to its bare form: our normalizing serializer rewrites a bare
  * URL or `<url>` autolink to `[url](url)` and a bare email to `[a@b.com](mailto:a@b.com)`, which churns
  * every README's links into explicit-link syntax on the first save. When the visible text already equals
@@ -167,38 +110,6 @@ export function normalizeLinkHref(href: string): string {
 const EMPTY_LIST_ITEM_LINE = /^([ \t]*)(?:[-*+]|\d+[.)])[ \t]*$/
 /** A fenced code-block delimiter (``` or ~~~), used to leave code interiors untouched. */
 const FENCE_DELIMITER = /^[ \t]*(`{3,}|~{3,})/
-/**
- * A line carrying nothing but a delimiter run — the only thing that CLOSES a fence.
- *
- * An OPENING fence may be followed by an info string (` ```python `), so opening is matched with
- * {@link FENCE_DELIMITER}; a closing one may be followed only by whitespace. Treating any
- * delimiter-prefixed line as a close ends the block at an interior line like ` ```example ` inside
- * a `````` ```` ``````-fence, and every cleanup below then processes the rest of the author's code
- * as prose.
- */
-const CLOSING_FENCE = /^[ \t]*(`{3,}|~{3,})[ \t]*$/
-/**
- * Leading blockquote markers, which every line of a fence inside a quote or a `[!NOTE]` callout
- * carries. The serializer writes those (` > ```js `), so a walk that only recognises a bare fence
- * never enters code state there and rewrites the block's interior as prose.
- */
-const BLOCKQUOTE_PREFIX = /^[ \t]*(?:>[ \t]?)*/
-
-/** The line with any blockquote markers removed, so a quoted fence reads like a bare one. */
-function unquote(line: string): string {
-  return line.replace(BLOCKQUOTE_PREFIX, '')
-}
-
-/** The delimiter run that OPENS a fence on this line, quoted or not, or undefined. */
-function opensFence(line: string): string | undefined {
-  return unquote(line).match(FENCE_DELIMITER)?.[1]
-}
-
-/** Whether `line` closes a fence opened with `fence`: same character, and at least as long. */
-function closesFence(line: string, fence: string): boolean {
-  const delimiter = unquote(line).match(CLOSING_FENCE)?.[1]
-  return Boolean(delimiter && delimiter[0] === fence[0] && delimiter.length >= fence.length)
-}
 /** Leading indentation of a line, used to detect whether an empty list item has indented children. */
 const LEADING_INDENT = /^[ \t]*/
 
@@ -224,12 +135,12 @@ function stripEmptyListItemLines(markdown: string): string {
   let fence: string | null = null
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i]
+    const delimiter = line.match(FENCE_DELIMITER)?.[1]
     if (fence) {
       kept.push(line)
-      if (closesFence(line, fence)) fence = null
+      if (delimiter && delimiter[0] === fence[0] && delimiter.length >= fence.length) fence = null
       continue
     }
-    const delimiter = opensFence(line)
     if (delimiter) {
       fence = delimiter
       kept.push(line)
@@ -260,8 +171,7 @@ function stripEmptyListItemLines(markdown: string): string {
 /**
  * Cleans up serializer output: drops empty list-item marker lines that would otherwise corrupt on
  * round-trip ({@link stripEmptyListItemLines}), restores callout markers the serializer
- * backslash-escapes (`> \[!NOTE\]` → `> [!NOTE]`), drops the equally unnecessary escape on an
- * intraword underscore ({@link unescapeIntrawordUnderscores}), and collapses trailing blank lines to a single
+ * backslash-escapes (`> \[!NOTE\]` → `> [!NOTE]`), and collapses trailing blank lines to a single
  * newline. Interior blank runs are NOT collapsed here — blank lines inside a fenced code block (or a
  * verbatim raw-markdown-snippet) are significant, and a global collapse would corrupt them. An interior
  * run between top-level blocks is significant too: it is how an empty paragraph is written, and
@@ -274,8 +184,6 @@ function stripEmptyListItemLines(markdown: string): string {
  */
 export function postProcessSerializedMarkdown(markdown: string): string {
   return collapseAutolinkedUrls(
-    unescapeIntrawordUnderscores(
-      stripEmptyListItemLines(markdown).replace(ESCAPED_CALLOUT_REGEX, '$1[!$2]')
-    )
+    stripEmptyListItemLines(markdown).replace(ESCAPED_CALLOUT_REGEX, '$1[!$2]')
   ).replace(/\n+$/, '\n')
 }

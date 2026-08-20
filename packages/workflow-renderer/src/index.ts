@@ -27,6 +27,7 @@ export {
 export { getNoteStringValue, isNoteContentEmpty } from './note/note-content'
 export {
   countNoteSearchOccurrencesBefore,
+  forEachNoteSourceOccurrence,
   type NoteSearchHighlight,
   type NoteSearchRange,
 } from './note/note-search-highlight'

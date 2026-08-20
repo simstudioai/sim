@@ -181,3 +181,61 @@ export function formatQuotedNameList(names: string[], maxListed: number): string
 export function foldSearchWhitespace(value: string): string {
   return value.replace(/\s/g, ' ')
 }
+
+/**
+ * ASCII punctuation a backslash may escape in markdown, per CommonMark. A
+ * backslash before anything else is a literal backslash.
+ */
+const MARKDOWN_ESCAPABLE = new Set('!"#$%&\'()*+,-./:;<=>?@[\\]^_`{|}~')
+
+/**
+ * `text` with an index back into the string it came from.
+ *
+ * `starts` has one more entry than `text` has characters: `starts[i]` is where
+ * projected character `i` begins in the source, and `starts[text.length]` is
+ * the source length. A projected range `[s, e)` therefore maps to the source
+ * range `[starts[s], starts[e])` — including any backslash the projection
+ * consumed, so a caller rewriting that span never leaves one stranded.
+ */
+export interface SearchTextProjection {
+  text: string
+  starts: number[]
+}
+
+/**
+ * Projects markdown onto the text it renders as, for MATCHING only.
+ *
+ * The rich-text editor's serializer backslash-escapes every markdown-significant
+ * character in prose, so a note the reader sees as `SB_ACTION` is stored as
+ * `SB\_ACTION`. Searching what is on screen has to see through that.
+ *
+ * Deliberately a total, structure-free function: it does not try to know which
+ * spans are code. Undoing an escape that a code fence would have kept literal
+ * only ever changes which text a search highlights — no caller writes this
+ * back — whereas a rewriter making the same mistake would corrupt the file.
+ * That asymmetry is why the escape is undone here rather than at serialization.
+ */
+export function projectEscapedMarkdownForSearch(value: string): SearchTextProjection {
+  if (!value.includes('\\')) {
+    return { text: value, starts: identityStarts(value.length) }
+  }
+
+  let text = ''
+  const starts: number[] = []
+
+  for (let index = 0; index < value.length; index += 1) {
+    const isEscape = value[index] === '\\' && MARKDOWN_ESCAPABLE.has(value[index + 1] ?? '')
+    starts.push(index)
+    if (isEscape) index += 1
+    text += value[index]
+  }
+  starts.push(value.length)
+
+  return { text, starts }
+}
+
+function identityStarts(length: number): number[] {
+  const starts: number[] = new Array(length + 1)
+  for (let index = 0; index <= length; index += 1) starts[index] = index
+  return starts
+}

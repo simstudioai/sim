@@ -98,32 +98,6 @@ describe('markdown-fidelity utils', () => {
     expect(postProcessSerializedMarkdown('> \\[!NOTE\\]\n> hi')).toBe('> [!NOTE]\n> hi')
   })
 
-  /*
-   * A closing fence carries nothing but its delimiter run; a line that merely STARTS with one is
-   * content. Matching the prefix alone ends the block at an interior line like ` ````example `,
-   * after which the rest of the author's code is cleaned up as prose and its backslashes vanish.
-   *
-   * Exercised directly rather than through `roundTrip` on purpose: the serializer always opens a
-   * block with one more delimiter than the longest run inside it, so its own output cannot reach
-   * this shape and a round-trip test of it would pass either way. Relying on that choice staying
-   * true is an unstated coupling — this keeps the guard honest on any input.
-   */
-  it('does not close a fence on a delimiter-prefixed content line', () => {
-    const input = '````\nx = a\\_b\n````example\ny = c\\_d\n````\n'
-    expect(postProcessSerializedMarkdown(input)).toBe(input)
-  })
-
-  it('does not close a tilde fence on a delimiter-prefixed content line', () => {
-    const input = '~~~~\n~~~~note\ny = c\\_d\n~~~~\n'
-    expect(postProcessSerializedMarkdown(input)).toBe(input)
-  })
-
-  it('still closes a fence on a bare delimiter run with trailing spaces', () => {
-    expect(postProcessSerializedMarkdown('````\nx = a\\_b\n````  \ny = c\\_d\n')).toBe(
-      '````\nx = a\\_b\n````  \ny = c_d\n'
-    )
-  })
-
   it('restores escaped callout markers in nested blockquotes', () => {
     expect(postProcessSerializedMarkdown('> > \\[!WARNING\\]\n> > hi')).toBe(
       '> > [!WARNING]\n> > hi'
@@ -201,13 +175,6 @@ describe('editor markdown round-trip', () => {
     'highlight nested in bold': '**bold ==mark== here**',
     'highlight in list': '- ==a== item',
     'highlight with interior equals': 'x ==a=b== y',
-    'intraword underscores': 'SB_ACTION_ROUTER_SECRET',
-    'env token with underscores': '{{TE_SERET}} and {{OPENAI_API_KEY}}',
-    'underscore emphasis': 'an _italic_ word',
-    'underscore bold': 'a __bold__ word',
-    'mixed underscores': '_em_ then SNAKE_CASE_NAME then _em again_',
-    'escaped underscore in code': '```py\nx = a\\_b\n```',
-    'escaped underscore in inline code': 'call `a\\_b` here',
   }
 
   for (const [name, input] of Object.entries(cases)) {
@@ -235,63 +202,6 @@ describe('editor markdown round-trip', () => {
 
   it('keeps GFM callout markers unescaped', () => {
     expect(roundTrip('> [!NOTE]\n> Heads up')).toContain('[!NOTE]')
-  })
-
-  /*
-   * The serializer escapes every underscore, but CommonMark's intraword rule means one flanked by
-   * letters or digits can neither open nor close emphasis. The escape is therefore invisible to a
-   * reader and load-bearing for nobody — while workflow search matches the STORED markdown, so a
-   * stray backslash made `SB_ACTION` unfindable in a note that plainly showed it.
-   */
-  it('writes an intraword underscore without a backslash', () => {
-    expect(roundTrip('SB_ACTION_ROUTER_SECRET')).toBe('SB_ACTION_ROUTER_SECRET')
-    expect(roundTrip('{{TE_SERET}}')).toBe('{{TE_SERET}}')
-  })
-
-  /* Emphasis itself normalises to asterisks, which is pre-existing and fine. What must survive
-     is the distinction: a literal underscore pair keeps its escape, so re-parsing cannot turn
-     the user's text into emphasis. */
-  it('still escapes an underscore that would open or close emphasis', () => {
-    expect(roundTrip('an _italic_ word')).toBe('an *italic* word')
-    expect(roundTrip('literal \\_not emphasis\\_ here')).toContain('\\_')
-  })
-
-  /* Code is emitted verbatim, so a backslash inside it is the author's own character and not an
-     escape to drop. Unescaping blind would silently rewrite people's code. */
-  it('leaves a backslash-underscore inside code alone', () => {
-    expect(roundTrip('```py\nx = a\\_b\n```')).toContain('a\\_b')
-    expect(roundTrip('call `a\\_b` here')).toContain('a\\_b')
-  })
-
-  /* A fence is three OR MORE delimiters, closed only by a run at least as long, and an inline span
-     opens and closes on backtick runs of equal length. Recognising just the shortest form ends the
-     code region early and hands the rest of the author's code to the rewrite. */
-  it('leaves code alone in a longer fence', () => {
-    expect(roundTrip('````\nx = a\\_b\n```\nstill code y = c\\_d\n````')).toContain('a\\_b')
-    expect(roundTrip('````\nx = a\\_b\n```\nstill code y = c\\_d\n````')).toContain('c\\_d')
-  })
-
-  it('leaves code alone in a tilde fence', () => {
-    expect(roundTrip('~~~~\nx = a\\_b\n~~~~')).toContain('a\\_b')
-  })
-
-  it('leaves code alone in a multi-backtick inline span', () => {
-    expect(roundTrip('call ``a\\_b`c`` here')).toContain('a\\_b')
-  })
-
-  /* Unlike the fence-length cases, this one is reachable: the serializer really does write a
-     quoted fence as ` > ```js `, so a walk that only recognises a bare fence never enters code
-     state and rewrites the block's interior as prose. */
-  it('leaves code alone inside a blockquoted fence', () => {
-    expect(roundTrip('> ```js\n> x = a\\_b\n> ```')).toContain('a\\_b')
-  })
-
-  it('leaves code alone inside a callout fence', () => {
-    expect(roundTrip('> [!NOTE]\n> ```js\n> x = a\\_b\n> ```')).toContain('a\\_b')
-  })
-
-  it('still unescapes prose inside a blockquote', () => {
-    expect(roundTrip('> SB_ACTION_ROUTER_SECRET')).toContain('SB_ACTION_ROUTER_SECRET')
   })
 
   it('preserves an image url (does not drop the src)', () => {
