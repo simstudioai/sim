@@ -1,13 +1,17 @@
-import type { ApplicationOperation } from '@/lib/core/application'
+import { defineOperation } from '@/lib/core/application'
 
 /**
  * Operations a credential performs on itself.
  *
  * They carry no workspace scope and no role: the resource *is* the
- * authenticated key, so holding it is the whole authorization story. That policy
- * is enforced where it can actually hold — `v2ApiKeyAuth` on the route and the
- * principal guard in the use case — rather than restated as inert data here.
+ * authenticated key, so holding it is the whole authorization story. What is
+ * left — which kinds of principal may hold that resource — is declared here as
+ * data through {@link defineOperation}, so the policy is inspectable rather
+ * than hand-rolled inside the use case.
  */
 export const v2MetaOperations = {
-  read: { id: 'meta.capabilities.read' },
-} as const satisfies Record<string, ApplicationOperation>
+  read: defineOperation({
+    id: 'meta.capabilities.read',
+    principalKinds: ['personal_api_key', 'workspace_api_key'],
+  }),
+} as const

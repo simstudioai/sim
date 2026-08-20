@@ -467,6 +467,13 @@ export type V2UpdateCredentialQuery = z.output<typeof v2UpdateCredentialQuerySch
  * creation rejects, and so every secret member keeps its `writeOnly` marking.
  * `providerId` is deliberately absent: the provider is a property of the stored
  * credential, and changing it would describe a different credential.
+ *
+ * Whether the secret fields are *applicable* cannot be decided here, and this
+ * schema deliberately does not try: only a service-account credential stores a
+ * rotatable secret, and the credential's type is known only once the row is
+ * loaded, so there is no discriminant in the request to key a union on. The
+ * refusal lives in `updateCredentialRecord`, which answers a `validation`
+ * failure — a `400` on every surface — rather than dropping the field.
  */
 export const v2UpdateCredentialBodySchema = z
   .object({

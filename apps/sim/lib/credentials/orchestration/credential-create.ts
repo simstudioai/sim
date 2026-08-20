@@ -653,12 +653,17 @@ export function isProviderOutageCode(code: string | undefined): boolean {
   return code !== undefined && PROVIDER_OUTAGE_CODES.has(code)
 }
 
-/** HTTP status for a credential orchestration failure, shared by every route surface. */
+/**
+ * HTTP status for a credential orchestration failure, shared by every route
+ * surface. A provider outage is `503`, as {@link PROVIDER_OUTAGE_CODES} says —
+ * the same status the internal and v2 credential error policies render, each
+ * with a `Retry-After`.
+ */
 export function statusForCredentialOrchestrationError(
   code: CredentialOrchestrationErrorCode | undefined,
   options: { providerUnavailable?: boolean } = {}
 ): number {
-  if (options.providerUnavailable) return 502
+  if (options.providerUnavailable) return 503
   if (code === 'validation') return 400
   if (code === 'forbidden') return 403
   if (code === 'not_found') return 404

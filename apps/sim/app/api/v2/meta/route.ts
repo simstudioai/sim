@@ -35,7 +35,11 @@ export const GET = defineV2JsonRoute({
   gate: 'exempt',
   rateLimit: v2RateLimits.publicApi,
   errorPolicy: v2OrchestrationErrorPolicy,
-  mapInput: () => ({}),
+  mapInput: (_request, credential) => ({
+    rolloutUserId: credential.rolloutUserId,
+    keyType: credential.keyType,
+    expiresAt: credential.keyExpiresAt,
+  }),
   useCase: readV2ApiCapabilities,
   present: ({ v2Enabled, keyType, expiresAt }) => ({
     data: { v2Enabled, keyType, expiresAt: expiresAt?.toISOString() ?? null },

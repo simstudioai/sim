@@ -25,6 +25,13 @@ export interface V2ApiKeyAuthContext {
   rateLimitSubjectIds: readonly [string, ...string[]]
   rateLimitSubscription: RateLimitSubscription | null
   keyType: 'personal' | 'workspace'
+  /**
+   * When the authenticated key expires, or `null` when it never does — read
+   * from the same row `requireValidRow` has just checked, so no surface has to
+   * go back to the API-key table for it. `/api/v2/meta` reports it, and the
+   * application layer must never query `api_key` itself to find it out.
+   */
+  keyExpiresAt: Date | null
 }
 
 export class V2ApiKeyUnauthenticatedError extends Error {
@@ -72,6 +79,7 @@ export async function authenticateV2ApiKey(
       rateLimitSubjectIds: [`user:${ANONYMOUS_USER_ID}`],
       rateLimitSubscription: null,
       keyType: 'personal',
+      keyExpiresAt: null,
     }
   }
   if (!apiKeyHeader) {
@@ -106,6 +114,7 @@ export async function authenticateV2ApiKey(
         ? { plan: subscription.plan, referenceId: subscription.referenceId }
         : null,
       keyType: 'personal',
+      keyExpiresAt: row.expiresAt,
     }
   }
 
@@ -128,5 +137,6 @@ export async function authenticateV2ApiKey(
         }
       : null,
     keyType: 'workspace',
+    keyExpiresAt: row.expiresAt,
   }
 }

@@ -16,7 +16,11 @@ import {
   type V2ApiKeyAuthContext,
   V2ApiKeyUnauthenticatedError,
 } from '@/lib/api/server/routes/v2-api-key-auth'
-import { type ParseRequestOptions, parseRequest } from '@/lib/api/server/validation'
+import {
+  type ParsedRequest,
+  type ParseRequestOptions,
+  parseRequest,
+} from '@/lib/api/server/validation'
 import type { ApplicationOperation, OperationUseCase } from '@/lib/core/application'
 import { getRateLimit, RateLimiter, type SubscriptionPlan } from '@/lib/core/rate-limiter'
 import { getClientIp } from '@/lib/core/utils/request'
@@ -297,6 +301,30 @@ async function enforceV2PreAuthIpLimit(request: NextRequest): Promise<NextRespon
  */
 export type V2RolloutGatePolicy = 'enforced' | 'exempt'
 
+/** The one contract path whose purpose justifies skipping the rollout gate. */
+const V2_GATE_EXEMPT_PATH = '/api/v2/meta'
+
+/**
+ * Refuses `gate: 'exempt'` on any contract but `GET /api/v2/meta`, at module
+ * load rather than in review.
+ *
+ * The exemption's justification is not "some route needs it" but "this endpoint
+ * reports the gate's own decision, and a gated version could never do that", so
+ * it is a property of one path. Checked here because the alternative — sweeping
+ * route sources for the literal `gate: 'exempt'` — reads text, and text is
+ * evaded by a `const GATE = 'exempt'` or by any indirection at all.
+ */
+function requireGateExemptionIsMeta(
+  contract: JsonApiRouteContract,
+  gate: V2RolloutGatePolicy | undefined
+): void {
+  if (gate === 'exempt' && contract.path !== V2_GATE_EXEMPT_PATH) {
+    throw new Error(
+      `Route ${contract.method} ${contract.path} declares gate: 'exempt', which is reserved for ${V2_GATE_EXEMPT_PATH}`
+    )
+  }
+}
+
 async function admitAuthenticatedV2Request(
   request: NextRequest,
   operation: ApplicationOperation,
@@ -330,18 +358,39 @@ async function admitAuthenticatedV2Request(
   return limited ? { success: false, response: limited } : { success: true, auth }
 }
 
-export async function admitV2Request(
+async function admitGatedV2Request(
   request: NextRequest,
   operation: ApplicationOperation,
   authPolicy: typeof v2ApiKeyAuth,
   rateLimitPolicy: V2RateLimitPolicy,
-  gatePolicy: V2RolloutGatePolicy = 'enforced'
+  gatePolicy: V2RolloutGatePolicy
 ): Promise<
   { success: true; auth: V2ApiKeyAuthContext } | { success: false; response: NextResponse }
 > {
   const preAuthResponse = await enforceV2PreAuthIpLimit(request)
   if (preAuthResponse) return { success: false, response: preAuthResponse }
   return admitAuthenticatedV2Request(request, operation, authPolicy, rateLimitPolicy, gatePolicy)
+}
+
+/**
+ * Admission for a v2 route the builders do not cover — a documented special
+ * route such as the resume leg.
+ *
+ * It takes no gate argument, and that omission is the point: with one, any raw
+ * route could pass `'exempt'` and un-gate itself without ever writing the
+ * builder option a reviewer looks for. The rollout exemption therefore has
+ * exactly one door, {@link defineV2JsonRoute}'s `gate`, which in turn accepts it
+ * for exactly one contract path.
+ */
+export async function admitV2Request(
+  request: NextRequest,
+  operation: ApplicationOperation,
+  authPolicy: typeof v2ApiKeyAuth,
+  rateLimitPolicy: V2RateLimitPolicy
+): Promise<
+  { success: true; auth: V2ApiKeyAuthContext } | { success: false; response: NextResponse }
+> {
+  return admitGatedV2Request(request, operation, authPolicy, rateLimitPolicy, 'enforced')
 }
 
 export async function admitOptionalV2Request(
@@ -358,8 +407,27 @@ export async function admitOptionalV2Request(
   return admitAuthenticatedV2Request(request, operation, authPolicy, rateLimitPolicy)
 }
 
+/**
+ * What `mapInput` learns about the authenticated credential.
+ *
+ * Deliberately not the whole {@link V2ApiKeyAuthContext}: it carries the
+ * principal, and a route mapping identity into use-case input would be routing
+ * an authorization decision around the application boundary. These three are
+ * facts about the credential rather than about who holds it —
+ * `rolloutUserId` is the subject the `v2-api` gate is keyed on and is rollout
+ * context only, never an authorization principal.
+ *
+ * One route reads it: `GET /api/v2/meta`, whose resource *is* the calling key.
+ */
+export interface V2CredentialFacts {
+  readonly keyType: 'personal' | 'workspace'
+  readonly keyExpiresAt: Date | null
+  readonly rolloutUserId: string
+}
+
 interface V2JsonRouteOptions<C extends JsonApiRouteContract, O extends ApplicationOperation, I, R>
-  extends JsonRouteDefinition<C, O, I, R> {
+  extends Omit<JsonRouteDefinition<C, O, I, R>, 'mapInput'> {
+  mapInput(input: ParsedRequest<C>, credential: V2CredentialFacts): I
   auth: typeof v2ApiKeyAuth
   rateLimit: V2RateLimitPolicy
   errorPolicy: V2ErrorPolicy
@@ -422,6 +490,7 @@ export function defineV2JsonRoute<
     options.operation,
     options.useCase.operation
   )
+  requireGateExemptionIsMeta(options.contract, options.gate)
   requireHeadAuthorizableUseCase(options.contract, options.headSafe, options.useCase)
 
   const wrapped = withRouteHandler<JsonRouteContext | undefined>(
@@ -432,12 +501,12 @@ export function defineV2JsonRoute<
         )
       }
 
-      const admission = await admitV2Request(
+      const admission = await admitGatedV2Request(
         request,
         options.operation,
         options.auth,
         options.rateLimit,
-        options.gate
+        options.gate ?? 'enforced'
       )
       if (!admission.success) return admission.response
       const { auth } = admission
@@ -461,10 +530,16 @@ export function defineV2JsonRoute<
       })
       if (!parsed.success) return parsed.response
 
+      const credentialFacts: V2CredentialFacts = {
+        keyType: auth.keyType,
+        keyExpiresAt: auth.keyExpiresAt,
+        rolloutUserId: auth.rolloutUserId,
+      }
+
       if (request.method === 'HEAD' && options.headSafe === false) {
         let input: I
         try {
-          input = options.mapInput(parsed.data)
+          input = options.mapInput(parsed.data, credentialFacts)
         } catch (error) {
           const response = options.errorPolicy.render(error)
           if (response) return response
@@ -480,7 +555,7 @@ export function defineV2JsonRoute<
       }
 
       try {
-        const input = options.mapInput(parsed.data)
+        const input = options.mapInput(parsed.data, credentialFacts)
         const result = await options.useCase.execute({
           principal: auth.principal,
           input,

@@ -50,9 +50,22 @@ export const mcpServerOperations = {
     workspaceApiKey: 'deny',
     ...HUMAN_PRINCIPAL_POLICY,
   }),
+  /**
+   * `admin`, not `write`, because the body carries `isPublic`. A public server
+   * answers `/api/mcp/serve/{serverId}` with no Sim credential, so flipping it
+   * removes the authentication requirement from every workflow the server
+   * publishes — the same authority `workflows.public_api.update` reserves for
+   * admins. `create_server` already accepts `isPublic` at `admin`, so a lower
+   * role here would only mean the cheaper path to the same grant.
+   *
+   * Copilot stays a principal, unlike `workflows.public_api.update`: this
+   * family already admits it at `admin` for `create_server`, which grants the
+   * identical visibility, so denying it only for the update would leave the
+   * grant reachable while breaking the shipped rename tool.
+   */
   updateWorkflowDeploymentServer: defineWorkspaceOperation({
     id: 'mcp_servers.workflow_deployments.update_server',
-    minimumRole: 'write',
+    minimumRole: 'admin',
     workspaceApiKey: 'deny',
     ...HUMAN_PRINCIPAL_POLICY,
   }),
