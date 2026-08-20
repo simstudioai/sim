@@ -1,0 +1,24 @@
+---
+title: Enrichments
+description: Manage enrichments — every subcommand, argument, and flag
+---
+
+import { CommandTable } from '@/components/ui/command-table'
+
+Every command below also accepts the [global options](/cli/commands#global-options).
+
+## List enrichments
+
+```bash
+sim enrichments list [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--search <value>` | No | Case-insensitive substring match against the enrichment name. |
+
+</CommandTable>

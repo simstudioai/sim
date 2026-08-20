@@ -23,6 +23,7 @@ import {
   PROVIDER_DEFINITIONS,
   SIM_AUTO_MODEL_ID,
 } from '@/providers/models'
+import { deriveHostedApiKeySupport } from '@/tools/hosted-api-key'
 import type { ToolConfig, ToolHostingCondition } from '@/tools/types'
 
 /** The service-account alternative to OAuth for a service, when it offers one. */
@@ -1095,7 +1096,10 @@ export function serializeIntegrationSchema(
       // field and load it" matches the callable tool and the block's tools.access.
       id: tool.id,
       name: tool.name,
-      description: getCopilotToolDescription(tool, { isHosted: hosted }),
+      description: getCopilotToolDescription(tool, {
+        isHosted: hosted,
+        hostedApiKey: deriveHostedApiKeySupport(tool.hosting),
+      }),
       version: tool.version,
       auth,
       oauth:

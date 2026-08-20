@@ -121,6 +121,8 @@ vi.mock('@/blocks/registry', () => ({
   })),
   getAllBlocks: vi.fn(() => []),
   getLatestBlock: vi.fn(() => undefined),
+  /** Catalog projections read a block's presentation meta; the real one returns undefined for unknown types. */
+  getBlockMeta: vi.fn(() => undefined),
   /** Mirrors the real module's accessor; without it consumers get "not a function". */
   getBlockRegistry: vi.fn(() => ({})),
   getBlockByToolName: vi.fn((toolName: string) =>

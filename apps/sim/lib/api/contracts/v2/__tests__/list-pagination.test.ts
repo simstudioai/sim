@@ -47,6 +47,7 @@ import {
 const PAGED_LISTS = [
   'GET /api/v2/audit-logs',
   'GET /api/v2/billing/logs',
+  'GET /api/v2/blocks',
   'GET /api/v2/credentials',
   'GET /api/v2/custom-tools',
   'GET /api/v2/files',
@@ -59,6 +60,7 @@ const PAGED_LISTS = [
   'GET /api/v2/tables',
   'GET /api/v2/tables/[tableId]/rows',
   'POST /api/v2/tables/[tableId]/query',
+  'GET /api/v2/tools',
   'GET /api/v2/workflows',
   'GET /api/v2/workflows/[id]/runs',
   'GET /api/v2/workflows/[id]/versions',
@@ -80,12 +82,19 @@ const PAGED_LISTS = [
  *   not appear here.
  * - The credential-provider catalog is bounded by the code-defined OAuth and
  *   service-account registries.
+ * - The connector-type and enrichment catalogs are bounded the same way, by the
+ *   code-defined connector-meta and enrichment registries. The block and tool
+ *   catalogs are NOT — a workspace adds blocks by deploying workflows as blocks,
+ *   and there are ~5,000 tool ids — which is why those two are paged and do not
+ *   appear here.
  * - A knowledge base has a fixed number of tag slots, so its tag vocabulary
  *   cannot grow past them.
  * - A table's saved views and its dispatchable groups are capped per table.
  */
 const FULL_SET_LISTS = [
+  'GET /api/v2/connector-types',
   'GET /api/v2/credentials/providers',
+  'GET /api/v2/enrichments',
   'GET /api/v2/files/folders',
   'GET /api/v2/knowledge/[id]/tags',
   'GET /api/v2/knowledge/folders',
@@ -130,6 +139,15 @@ const CURSOR_BINDINGS: Record<string, readonly string[]> = {
     'endDate',
   ],
   'GET /api/v2/billing/logs': ['source', 'workspaceId', 'period', 'startDate', 'endDate'],
+  'GET /api/v2/blocks': [
+    'workspaceId',
+    'search',
+    'category',
+    'capability',
+    'source',
+    'sortBy',
+    'sortOrder',
+  ],
   'GET /api/v2/credentials': ['workspaceId', 'type', 'providerId', 'search', 'sortBy', 'sortOrder'],
   'GET /api/v2/custom-tools': ['workspaceId', 'search', 'sortBy', 'sortOrder'],
   'GET /api/v2/files': [
@@ -173,6 +191,14 @@ const CURSOR_BINDINGS: Record<string, readonly string[]> = {
   'GET /api/v2/tables': ['workspaceId', 'folderPath', 'search', 'sortBy', 'sortOrder'],
   'GET /api/v2/tables/[tableId]/rows': [],
   'POST /api/v2/tables/[tableId]/query': ['predicate', 'sort'],
+  'GET /api/v2/tools': [
+    'workspaceId',
+    'search',
+    'hostedApiKey',
+    'oauthProvider',
+    'sortBy',
+    'sortOrder',
+  ],
   'GET /api/v2/workflows': [
     'workspaceId',
     'folderPath',

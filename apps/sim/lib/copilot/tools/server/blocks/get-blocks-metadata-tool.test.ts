@@ -17,10 +17,8 @@ vi.mock('@/lib/integrations/availability.server', () => ({
   isIntegrationDeploymentAvailableForVisibility: mockIsIntegrationDeploymentAvailable,
 }))
 
-import {
-  computeBlockLevelInputs,
-  getBlocksMetadataServerTool,
-} from '@/lib/copilot/tools/server/blocks/get-blocks-metadata-tool'
+import { computeBlockLevelInputs } from '@/lib/catalog/projection/block-detail'
+import { getBlocksMetadataServerTool } from '@/lib/copilot/tools/server/blocks/get-blocks-metadata-tool'
 import { MothershipBlock } from '@/blocks/blocks/mothership'
 
 describe('get blocks metadata', () => {
