@@ -1,4 +1,5 @@
 import { CLIENT_CREDENTIAL_ACCOUNT_REQUIRED_FIELDS } from '@/lib/credentials/client-credential-accounts/descriptors'
+import { PLAID_SERVICE_ACCOUNT_REQUIRED_FIELDS } from '@/lib/credentials/plaid-service-account-form'
 import { TOKEN_SERVICE_ACCOUNT_REQUIRED_FIELDS } from '@/lib/credentials/token-service-accounts/descriptors'
 import {
   ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID,
@@ -39,7 +40,7 @@ export const SERVICE_ACCOUNT_REQUIRED_FIELDS: Record<string, readonly ServiceAcc
   [GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID]: ['serviceAccountJson'],
   [ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID]: ['apiToken', 'domain'],
   [SLACK_CUSTOM_BOT_PROVIDER_ID]: ['signingSecret', 'botToken'],
-  [PLAID_SERVICE_ACCOUNT_PROVIDER_ID]: ['clientId', 'clientSecret', 'environment', 'accessToken'],
+  [PLAID_SERVICE_ACCOUNT_PROVIDER_ID]: PLAID_SERVICE_ACCOUNT_REQUIRED_FIELDS,
   ...TOKEN_SERVICE_ACCOUNT_REQUIRED_FIELDS,
   ...CLIENT_CREDENTIAL_ACCOUNT_REQUIRED_FIELDS,
 }

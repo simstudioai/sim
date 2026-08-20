@@ -12,31 +12,47 @@ import {
 } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { isApiClientError } from '@/lib/api/client/errors'
-import { PLAID_SERVICE_ACCOUNT_PROVIDER_ID } from '@/lib/oauth/types'
+import {
+  isPlaidServiceAccountEnvironment,
+  PLAID_SERVICE_ACCOUNT_FORM,
+  PLAID_SERVICE_ACCOUNT_REQUIRED_FIELDS,
+  type PlaidServiceAccountEnvironment,
+  type PlaidServiceAccountFormFieldId,
+} from '@/lib/credentials/plaid-service-account-form'
 import {
   useCreateWorkspaceCredential,
   useUpdateWorkspaceCredential,
 } from '@/hooks/queries/credentials'
 
 const logger = createLogger('PlaidServiceAccountModal')
-const PLAID_DOCS_URL = 'https://docs.sim.ai/integrations/plaid'
 
-type PlaidEnvironment = 'production' | 'sandbox'
-
-const PLAID_ERROR_MESSAGES: Record<string, string> = {
-  invalid_credentials:
-    "We couldn't authenticate this Plaid Item. Check that the client ID, environment secret, and Item access token all belong to the selected environment.",
-  provider_unavailable: "We couldn't reach Plaid to verify this credential. Try again in a moment.",
-  duplicate_display_name: 'A credential with that name already exists in this workspace.',
+interface PlaidFormValues {
+  environment: PlaidServiceAccountEnvironment | ''
+  clientId: string
+  clientSecret: string
+  accessToken: string
 }
 
-const FALLBACK_ERROR_MESSAGE = "We couldn't add this Plaid Item credential. Try again in a moment."
+const EMPTY_PLAID_FORM_VALUES: PlaidFormValues = {
+  environment: '',
+  clientId: '',
+  clientSecret: '',
+  accessToken: '',
+}
+
+const PLAID_SECRET_INPUT_NAMES: Partial<Record<PlaidServiceAccountFormFieldId, string>> = {
+  clientSecret: 'plaid_client_secret',
+  accessToken: 'plaid_item_access_token',
+}
 
 function messageForPlaidError(error: unknown): string {
-  if (isApiClientError(error) && error.code && PLAID_ERROR_MESSAGES[error.code]) {
-    return PLAID_ERROR_MESSAGES[error.code]
+  if (isApiClientError(error) && error.code) {
+    const messages = PLAID_SERVICE_ACCOUNT_FORM.errorMessages
+    if (Object.hasOwn(messages, error.code)) {
+      return messages[error.code as keyof typeof messages]
+    }
   }
-  return FALLBACK_ERROR_MESSAGE
+  return PLAID_SERVICE_ACCOUNT_FORM.fallbackErrorMessage
 }
 
 interface PlaidServiceAccountModalProps {
@@ -64,10 +80,7 @@ export function PlaidServiceAccountModal({
   initialDescription,
   onCreated,
 }: PlaidServiceAccountModalProps) {
-  const [environment, setEnvironment] = useState<PlaidEnvironment | ''>('')
-  const [clientId, setClientId] = useState('')
-  const [clientSecret, setClientSecret] = useState('')
-  const [accessToken, setAccessToken] = useState('')
+  const [values, setValues] = useState<PlaidFormValues>(EMPTY_PLAID_FORM_VALUES)
   const [displayName, setDisplayName] = useState(initialDisplayName ?? '')
   const [description, setDescription] = useState(initialDescription ?? '')
   const [error, setError] = useState<string | null>(null)
@@ -79,35 +92,37 @@ export function PlaidServiceAccountModal({
     if (open) return
     // Reconnect deliberately restates every secret; stored values are never
     // returned to or prefilled in the browser.
-    setEnvironment('')
-    setClientId('')
-    setClientSecret('')
-    setAccessToken('')
+    setValues(EMPTY_PLAID_FORM_VALUES)
     setDisplayName(initialDisplayName ?? '')
     setDescription(initialDescription ?? '')
     setError(null)
   }, [open, initialDisplayName, initialDescription])
 
-  const trimmedClientId = clientId.trim()
-  const trimmedClientSecret = clientSecret.trim()
-  const trimmedAccessToken = accessToken.trim()
   const isPending = createCredential.isPending || updateCredential.isPending
   const isDisabled =
-    !environment || !trimmedClientId || !trimmedClientSecret || !trimmedAccessToken || isPending
+    PLAID_SERVICE_ACCOUNT_REQUIRED_FIELDS.some((field) => !values[field].trim()) || isPending
 
-  const clearError = () => {
+  const setField = (id: PlaidServiceAccountFormFieldId, value: string) => {
+    if (id === 'environment') {
+      setValues((current) => ({
+        ...current,
+        environment: isPlaidServiceAccountEnvironment(value) ? value : '',
+      }))
+    } else {
+      setValues((current) => ({ ...current, [id]: value }))
+    }
     if (error) setError(null)
   }
 
   const handleSubmit = async () => {
     setError(null)
-    if (isDisabled || !environment) return
+    if (isDisabled || !values.environment) return
 
     const secretFields = {
-      environment,
-      clientId: trimmedClientId,
-      clientSecret: trimmedClientSecret,
-      accessToken: trimmedAccessToken,
+      environment: values.environment,
+      clientId: values.clientId.trim(),
+      clientSecret: values.clientSecret.trim(),
+      accessToken: values.accessToken.trim(),
     }
     const trimmedDisplayName = displayName.trim()
     // On reconnect, omit an untouched name so the server can update a
@@ -130,7 +145,7 @@ export function PlaidServiceAccountModal({
         const created = await createCredential.mutateAsync({
           workspaceId,
           type: 'service_account',
-          providerId: PLAID_SERVICE_ACCOUNT_PROVIDER_ID,
+          providerId: PLAID_SERVICE_ACCOUNT_FORM.providerId,
           ...secretFields,
           displayName: submittedDisplayName,
           description: description.trim() || undefined,
@@ -148,99 +163,80 @@ export function PlaidServiceAccountModal({
     <ChipModal
       open={open}
       onOpenChange={onOpenChange}
-      srTitle={`${credentialId ? 'Reconnect' : 'Add'} ${serviceName} Item credential`}
+      srTitle={`${credentialId ? 'Reconnect' : 'Add'} ${serviceName} ${PLAID_SERVICE_ACCOUNT_FORM.connectNoun}`}
     >
       <ChipModalHeader icon={ServiceIcon} onClose={() => onOpenChange(false)}>
-        {credentialId ? 'Reconnect' : 'Add'} {serviceName} Item credential
+        {credentialId ? 'Reconnect' : 'Add'} {serviceName} {PLAID_SERVICE_ACCOUNT_FORM.connectNoun}
       </ChipModalHeader>
       <ChipModalBody>
-        <ChipModalField
-          type='dropdown'
-          title='Environment'
-          value={environment || undefined}
-          onChange={(value) => {
-            setEnvironment(value as PlaidEnvironment)
-            clearError()
-          }}
-          options={[
-            { value: 'production', label: 'Production' },
-            { value: 'sandbox', label: 'Sandbox' },
-          ]}
-          placeholder='Select the Plaid environment'
-          align='start'
-          required
-          hint='Use the environment that issued both the secret and Item access token.'
-        />
+        {PLAID_SERVICE_ACCOUNT_FORM.fields.map((field) => {
+          const value = values[field.id]
 
-        <ChipModalField
-          type='input'
-          title='Client ID'
-          value={clientId}
-          onChange={(value) => {
-            setClientId(value)
-            clearError()
-          }}
-          placeholder='Paste your Plaid client ID'
-          autoComplete='off'
-          required
-        />
+          if (field.options) {
+            return (
+              <ChipModalField
+                key={field.id}
+                type='dropdown'
+                title={field.label}
+                value={value || undefined}
+                onChange={(next) => setField(field.id, next)}
+                options={[...field.options]}
+                placeholder={field.placeholder}
+                align='start'
+                required
+                hint={field.hint}
+              />
+            )
+          }
 
-        <ChipModalField
-          type='custom'
-          title='Secret'
-          required
-          hint='Paste the secret for the selected environment.'
-        >
-          {(aria) => (
-            <SecretInput
-              {...aria}
-              value={clientSecret}
-              onChange={(value) => {
-                setClientSecret(value)
-                clearError()
-              }}
-              placeholder='Paste your Plaid secret'
-              name='plaid_client_secret'
-              autoComplete='new-password'
-              autoCorrect='off'
-              autoCapitalize='off'
-              data-lpignore='true'
-              data-form-type='other'
+          if (field.secret) {
+            return (
+              <ChipModalField
+                key={field.id}
+                type='custom'
+                title={field.label}
+                required
+                hint={field.hint}
+              >
+                {(aria) => (
+                  <SecretInput
+                    {...aria}
+                    value={value}
+                    onChange={(next) => setField(field.id, next)}
+                    placeholder={field.placeholder}
+                    name={PLAID_SECRET_INPUT_NAMES[field.id]}
+                    autoComplete='new-password'
+                    autoCorrect='off'
+                    autoCapitalize='off'
+                    data-lpignore='true'
+                    data-form-type='other'
+                  />
+                )}
+              </ChipModalField>
+            )
+          }
+
+          return (
+            <ChipModalField
+              key={field.id}
+              type='input'
+              title={field.label}
+              value={value}
+              onChange={(next) => setField(field.id, next)}
+              placeholder={field.placeholder}
+              autoComplete='off'
+              required
+              hint={field.hint}
             />
-          )}
-        </ChipModalField>
-
-        <ChipModalField
-          type='custom'
-          title='Item access token'
-          required
-          hint='This long-lived token is specific to one linked Plaid Item.'
-        >
-          {(aria) => (
-            <SecretInput
-              {...aria}
-              value={accessToken}
-              onChange={(value) => {
-                setAccessToken(value)
-                clearError()
-              }}
-              placeholder='access-production-… or access-sandbox-…'
-              name='plaid_item_access_token'
-              autoComplete='new-password'
-              autoCorrect='off'
-              autoCapitalize='off'
-              data-lpignore='true'
-              data-form-type='other'
-            />
-          )}
-        </ChipModalField>
+          )
+        })}
 
         <ChipModalField
           type='input'
           title='Display name'
           value={displayName}
           onChange={setDisplayName}
-          placeholder='Defaults to the verified Plaid Item ID'
+          placeholder={PLAID_SERVICE_ACCOUNT_FORM.displayNamePlaceholder}
           autoComplete='off'
         />
 
@@ -261,7 +257,8 @@ export function PlaidServiceAccountModal({
         secondaryActions={[
           {
             label: 'Setup guide',
-            onClick: () => window.open(PLAID_DOCS_URL, '_blank', 'noopener,noreferrer'),
+            onClick: () =>
+              window.open(PLAID_SERVICE_ACCOUNT_FORM.docsUrl, '_blank', 'noopener,noreferrer'),
           },
         ]}
         primaryAction={{
@@ -270,8 +267,8 @@ export function PlaidServiceAccountModal({
               ? 'Reconnecting…'
               : 'Adding…'
             : credentialId
-              ? 'Reconnect Item credential'
-              : 'Add Item credential',
+              ? `Reconnect ${PLAID_SERVICE_ACCOUNT_FORM.connectNoun}`
+              : `Add ${PLAID_SERVICE_ACCOUNT_FORM.connectNoun}`,
           onClick: handleSubmit,
           disabled: isDisabled,
         }}

@@ -7,6 +7,10 @@ import {
   type ClientCredentialAccountField,
 } from '@/lib/credentials/client-credential-accounts/descriptors'
 import {
+  PLAID_SERVICE_ACCOUNT_FORM,
+  type PlaidServiceAccountFormField,
+} from '@/lib/credentials/plaid-service-account-form'
+import {
   TOKEN_SERVICE_ACCOUNT_DESCRIPTORS,
   type TokenServiceAccountField,
 } from '@/lib/credentials/token-service-accounts/descriptors'
@@ -90,10 +94,9 @@ interface ServiceAccountDescriptor {
 const GOOGLE_SERVICE_ACCOUNT_DOCS_URL = 'https://docs.sim.ai/integrations/google-service-account'
 const ATLASSIAN_SERVICE_ACCOUNT_DOCS_URL =
   'https://docs.sim.ai/integrations/atlassian-service-account'
-const PLAID_DOCS_URL = 'https://docs.sim.ai/integrations/plaid'
 
 function providerField(
-  field: TokenServiceAccountField | ClientCredentialAccountField
+  field: TokenServiceAccountField | ClientCredentialAccountField | PlaidServiceAccountFormField
 ): CredentialProviderField {
   return {
     id: field.id,
@@ -185,50 +188,11 @@ function getServiceAccountDescriptor(providerId: string): ServiceAccountDescript
   }
   if (providerId === PLAID_SERVICE_ACCOUNT_PROVIDER_ID) {
     return {
-      name: 'Plaid Item credential',
-      description:
-        'Connect one Plaid Item with your Plaid application credentials and Item access token.',
-      docsUrl: PLAID_DOCS_URL,
-      helpText:
-        'The Item access token is long-lived and specific to one linked Item. Create another credential for each Item.',
-      fields: [
-        {
-          id: 'environment',
-          label: 'Environment',
-          placeholder: 'Select the Plaid environment',
-          required: true,
-          secret: false,
-          multiline: false,
-          options: [
-            { value: 'production', label: 'Production' },
-            { value: 'sandbox', label: 'Sandbox' },
-          ],
-        },
-        {
-          id: 'clientId',
-          label: 'Client ID',
-          placeholder: 'Paste your Plaid client ID',
-          required: true,
-          secret: false,
-          multiline: false,
-        },
-        {
-          id: 'clientSecret',
-          label: 'Secret',
-          placeholder: 'Paste the secret for the selected environment',
-          required: true,
-          secret: true,
-          multiline: false,
-        },
-        {
-          id: 'accessToken',
-          label: 'Item access token',
-          placeholder: 'access-production-… or access-sandbox-…',
-          required: true,
-          secret: true,
-          multiline: false,
-        },
-      ],
+      name: `${PLAID_SERVICE_ACCOUNT_FORM.serviceLabel} ${PLAID_SERVICE_ACCOUNT_FORM.connectNoun}`,
+      description: PLAID_SERVICE_ACCOUNT_FORM.catalogDescription,
+      docsUrl: PLAID_SERVICE_ACCOUNT_FORM.docsUrl,
+      helpText: PLAID_SERVICE_ACCOUNT_FORM.helpText,
+      fields: PLAID_SERVICE_ACCOUNT_FORM.fields.map(providerField),
     }
   }
 

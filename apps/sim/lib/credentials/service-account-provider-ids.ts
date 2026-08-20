@@ -2,6 +2,7 @@ import {
   getClientCredentialAccountDescriptor,
   isClientCredentialAccountProviderId,
 } from '@/lib/credentials/client-credential-accounts/descriptors'
+import { PLAID_SERVICE_ACCOUNT_FORM } from '@/lib/credentials/plaid-service-account-form'
 import {
   getTokenServiceAccountDescriptor,
   isTokenServiceAccountProviderId,
@@ -74,7 +75,9 @@ export function getServiceAccountGatingBlockType(providerId: string): string | n
  */
 export function getServiceAccountConnectNoun(providerId: string): string {
   if (providerId === SLACK_CUSTOM_BOT_PROVIDER_ID) return 'custom bot'
-  if (providerId === PLAID_SERVICE_ACCOUNT_PROVIDER_ID) return 'Item credential'
+  if (providerId === PLAID_SERVICE_ACCOUNT_PROVIDER_ID) {
+    return PLAID_SERVICE_ACCOUNT_FORM.connectNoun
+  }
   const descriptor =
     getTokenServiceAccountDescriptor(providerId) ?? getClientCredentialAccountDescriptor(providerId)
   return descriptor?.connectNoun ?? 'service account'
