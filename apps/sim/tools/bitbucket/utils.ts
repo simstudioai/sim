@@ -316,6 +316,58 @@ export function validateBitbucketOpaqueUrl(value: string): string {
   return parsed.toString()
 }
 
+/**
+ * Bitbucket resolves workspace and repository slugs case-insensitively but echoes the canonical
+ * lowercase form in `next` links, redirect `Location` headers, and merge task URLs. Binding those
+ * back to the caller's slug must therefore ignore case, or a mixed-case slug that Bitbucket just
+ * accepted fails on the follow-up request.
+ *
+ * Only those two segments are canonicalized, so only those two are folded. Fixed API literals and
+ * repository file paths compare verbatim, keeping a malformed path a deterministic local failure
+ * rather than one deferred to Bitbucket. Hex revisions are folded by their own dedicated check.
+ */
+function isBitbucketSlugSegment(segments: string[], index: number): boolean {
+  return segments[0] === '2.0' && segments[1] === 'repositories' && (index === 2 || index === 3)
+}
+
+function bitbucketSegmentsMatch(candidate: string[], expected: string[]): boolean {
+  if (candidate.length !== expected.length) return false
+  return expected.every(
+    (segment, index) =>
+      candidate[index] === segment ||
+      (isBitbucketSlugSegment(expected, index) && equalsIgnoreCase(candidate[index], segment))
+  )
+}
+
+/** Compares two absolute API paths segment-wise under the slug-only case rule above. */
+function bitbucketPathsMatch(candidatePath: string, expectedPath: string): boolean {
+  return bitbucketSegmentsMatch(
+    candidatePath.replace(/^\//, '').split('/'),
+    expectedPath.replace(/^\//, '').split('/')
+  )
+}
+
+/** True when `candidatePath` begins with every segment of `expectedPrefix`, same case rule. */
+function bitbucketPathHasPrefix(candidatePath: string, expectedPrefix: string): boolean {
+  const expected = expectedPrefix.replace(/^\//, '').replace(/\/$/, '').split('/')
+  const candidate = candidatePath.replace(/^\//, '').split('/')
+  return (
+    candidate.length > expected.length &&
+    bitbucketSegmentsMatch(candidate.slice(0, expected.length), expected)
+  )
+}
+
+export function equalsIgnoreCase(a: string, b: string): boolean {
+  return a.toLowerCase() === b.toLowerCase()
+}
+
+export function bitbucketRepositoryPathHasPrefix(
+  candidatePath: string,
+  expectedPrefix: string
+): boolean {
+  return bitbucketPathHasPrefix(candidatePath, expectedPrefix)
+}
+
 export type BitbucketPullRequestRedirectKind = 'diff' | 'diffstat'
 
 export function validateBitbucketPullRequestRedirect(
@@ -327,7 +379,7 @@ export function validateBitbucketPullRequestRedirect(
   const validated = validateBitbucketOpaqueUrl(value)
   const parsed = new URL(validated)
   const expectedPrefix = `/2.0${bitbucketRepositoryPath(workspaceSlug, repoSlug)}/${kind}/`
-  const encodedSpec = parsed.pathname.startsWith(expectedPrefix)
+  const encodedSpec = bitbucketPathHasPrefix(parsed.pathname, expectedPrefix)
     ? parsed.pathname.slice(expectedPrefix.length)
     : ''
   if (!encodedSpec) {
@@ -417,12 +469,15 @@ export function bitbucketApiUrl(
       const prefixSegments = decodePath(prefix)
       if (
         candidateSegments.length <= prefixSegments.length ||
-        !prefixSegments.every((segment, index) => candidateSegments[index] === segment)
+        !bitbucketSegmentsMatch(candidateSegments.slice(0, prefixSegments.length), prefixSegments)
       ) {
         throw new Error('nextUrl does not belong to this Bitbucket list endpoint')
       }
       const revisionAndPath = candidateSegments.slice(prefixSegments.length)
-      if (options.nextRevision === undefined || revisionAndPath[0] !== options.nextRevision) {
+      if (
+        options.nextRevision === undefined ||
+        !equalsIgnoreCase(revisionAndPath[0], options.nextRevision)
+      ) {
         throw new Error('nextUrl does not preserve the requested Bitbucket revision')
       }
       const expectedSuffix = decodePath(options.nextPathSuffix ?? '')
@@ -433,7 +488,7 @@ export function bitbucketApiUrl(
       ) {
         throw new Error('nextUrl does not preserve the requested Bitbucket directory path')
       }
-    } else if (candidatePath.replace(/\/$/, '') !== exactPath) {
+    } else if (!bitbucketPathsMatch(candidatePath.replace(/\/$/, ''), exactPath)) {
       throw new Error('nextUrl does not belong to this Bitbucket list endpoint')
     }
     return validated

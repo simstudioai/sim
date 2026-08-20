@@ -101,6 +101,42 @@ describe('Bitbucket path and pagination safety', () => {
     }
   })
 
+  it('accepts a canonical-cased cursor for a mixed-case slug but not a re-cased file path', () => {
+    const canonical = 'https://api.bitbucket.org/2.0/repositories/acme/demo/commits?page=2'
+    expect(bitbucketApiUrl('/repositories/ACME/Demo/commits', { nextUrl: canonical })).toBe(
+      canonical
+    )
+
+    const revision = '0123456789abcdef0123456789abcdef01234567'
+    expect(
+      bitbucketApiUrl(`/repositories/ACME/Demo/src/${revision.toUpperCase()}/src/dir`, {
+        nextUrl: `https://api.bitbucket.org/2.0/repositories/acme/demo/src/${revision}/src/dir?page=2`,
+        nextPathPrefix: '/repositories/ACME/Demo/src',
+        nextPathSuffix: 'src/dir',
+        nextRevision: revision.toUpperCase(),
+      })
+    ).toBe(`https://api.bitbucket.org/2.0/repositories/acme/demo/src/${revision}/src/dir?page=2`)
+
+    for (const recased of [
+      'https://api.bitbucket.org/2.0/Repositories/acme/demo/commits?page=2',
+      'https://api.bitbucket.org/2.0/repositories/acme/demo/Commits?page=2',
+    ]) {
+      expect(
+        () => bitbucketApiUrl('/repositories/ACME/Demo/commits', { nextUrl: recased }),
+        recased
+      ).toThrow(/does not belong to this Bitbucket list endpoint/)
+    }
+
+    expect(() =>
+      bitbucketApiUrl(`/repositories/acme/demo/src/${revision}/src/Dir`, {
+        nextUrl: `https://api.bitbucket.org/2.0/repositories/acme/demo/src/${revision}/src/dir?page=2`,
+        nextPathPrefix: '/repositories/acme/demo/src',
+        nextPathSuffix: 'src/Dir',
+        nextRevision: revision,
+      })
+    ).toThrow(/does not preserve the requested Bitbucket directory path/)
+  })
+
   it('binds directory cursors to the selected repository path', () => {
     const revision = '0123456789abcdef0123456789abcdef01234567'
     const next = `https://api.bitbucket.org/2.0/repositories/acme/demo/src/${revision}/src/my%20dir?page=2`
