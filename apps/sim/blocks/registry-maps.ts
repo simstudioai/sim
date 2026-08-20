@@ -1,4 +1,5 @@
 import { A2ABlock } from '@/blocks/blocks/a2a'
+import { AffinityBlock, AffinityBlockMeta } from '@/blocks/blocks/affinity'
 import { AgentBlock } from '@/blocks/blocks/agent'
 import { AgentMailBlock, AgentMailBlockMeta } from '@/blocks/blocks/agentmail'
 import { AgentPhoneBlock, AgentPhoneBlockMeta } from '@/blocks/blocks/agentphone'
@@ -367,6 +368,7 @@ import type { BlockConfig, BlockMeta } from '@/blocks/types'
 /** All block configs keyed by block type. The execution source of truth. */
 export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   a2a: A2ABlock,
+  affinity: AffinityBlock,
   agent: AgentBlock,
   agentmail: AgentMailBlock,
   agentphone: AgentPhoneBlock,
@@ -716,6 +718,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
  * index). The toolbar and search modal read block *configs*, not metas.
  */
 export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
+  affinity: AffinityBlockMeta,
   agentmail: AgentMailBlockMeta,
   agentphone: AgentPhoneBlockMeta,
   agiloft: AgiloftBlockMeta,
