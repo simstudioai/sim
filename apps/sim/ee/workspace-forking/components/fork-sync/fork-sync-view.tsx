@@ -260,6 +260,7 @@ function DependentSelector({
             onChange={() => {}}
             disabled
             placeholder={CUSTOM_BLOCK_UNSUPPORTED_HINT}
+            aria-label={field.title}
           />
         )
       default:

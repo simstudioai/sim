@@ -9,6 +9,7 @@ import {
   CUSTOM_BLOCK_BOOLEAN_UNSET,
   customBlockBooleanOptions,
   customBlockInputControl,
+  isForkSyncConfigurableField,
 } from '@/ee/workspace-forking/components/fork-sync/custom-block-input-control'
 
 describe('customBlockInputControl', () => {
@@ -47,6 +48,31 @@ describe('customBlockInputControl', () => {
   it('falls back to a plain input for an unknown or absent type', () => {
     expect(customBlockInputControl('something-new')).toBe('input')
     expect(customBlockInputControl(undefined)).toBe('input')
+  })
+})
+
+describe('isForkSyncConfigurableField', () => {
+  it('excludes a custom block’s file input from the Sync gate', () => {
+    // The modal renders it disabled, so a REQUIRED one could never be satisfied: Sync would
+    // stay off forever while the hint told the user to set it in a workflow they can only
+    // reach by syncing. The sync no longer clears the field, so skipping the gate is safe.
+    expect(isForkSyncConfigurableField({ parentKind: 'custom-block', fieldType: 'file[]' })).toBe(
+      false
+    )
+  })
+
+  it('still gates every custom-block input that HAS a control', () => {
+    for (const fieldType of ['string', 'number', 'boolean', 'object', 'array']) {
+      expect(isForkSyncConfigurableField({ parentKind: 'custom-block', fieldType })).toBe(true)
+    }
+  })
+
+  it('leaves every other parent kind gated', () => {
+    // Only custom-block inputs classify their own control here; a selector-backed dependent
+    // is always configurable.
+    for (const parentKind of ['credential', 'knowledge-base', 'table'] as const) {
+      expect(isForkSyncConfigurableField({ parentKind, fieldType: 'file[]' })).toBe(true)
+    }
   })
 })
 

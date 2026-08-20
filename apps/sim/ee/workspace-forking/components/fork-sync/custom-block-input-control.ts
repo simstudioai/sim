@@ -1,3 +1,4 @@
+import type { ForkDependentReconfig } from '@/lib/api/contracts/workspace-fork'
 import { subBlockTypeForField } from '@/blocks/custom/build-config'
 
 /**
@@ -74,3 +75,23 @@ export function customBlockBooleanOptions(required: boolean) {
  * untouched (see `replaceCustomBlockInputs`), so the field is safe to leave alone.
  */
 export const CUSTOM_BLOCK_UNSUPPORTED_HINT = 'Uploaded in the workflow — kept as configured there'
+
+/**
+ * Whether the sync modal can actually put a value in this field.
+ *
+ * The Sync gate demands a value for every REQUIRED dependent, which is right for a field the
+ * user can fill and a deadlock for one they cannot: a required `file[]` renders as a disabled
+ * control, so the gate could never be satisfied and Sync stayed off forever — with the hint
+ * telling the user to go set it in a workflow they could not reach.
+ *
+ * Excluding it is safe because the sync no longer clears it. The target keeps whatever it has
+ * (see `replaceCustomBlockInputs`), and a genuinely missing value is still caught by the
+ * block's own required-field validation at run/deploy time — the same fallback every other
+ * unconfigured required field relies on.
+ */
+export function isForkSyncConfigurableField(
+  field: Pick<ForkDependentReconfig, 'parentKind' | 'fieldType'>
+): boolean {
+  if (field.parentKind !== 'custom-block') return true
+  return customBlockInputControl(field.fieldType) !== 'unsupported'
+}
