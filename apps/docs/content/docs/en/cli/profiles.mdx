@@ -1,0 +1,42 @@
+---
+title: Profiles
+description: List profiles or add a workspace profile that shares a stored login — every subcommand, argument, and flag
+---
+
+import { CommandTable } from '@/components/ui/command-table'
+
+`sim profiles` is also spelled `sim profile`.
+
+Every command below also accepts the [global options](/cli/commands#global-options).
+
+## List configured profiles
+
+```bash
+sim profiles list
+```
+
+## Add a workspace profile that shares the active stored login
+
+```bash
+sim profiles add <name> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `name` | Yes | Name for the new profile |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `-w, --workspace <id>` | No | Existing workspace to use; omit for an interactive picker. |
+
+</CommandTable>

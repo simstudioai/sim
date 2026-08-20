@@ -253,10 +253,11 @@ describe('POST /api/v2/credentials', () => {
         type: 'service_account',
         providerId: 'zoom-service-account',
         displayName: 'Zoom account',
-        clientId: 'client-id',
-        clientSecret: 'client-secret',
-        certificateId: undefined,
-        orgId: 'account-id',
+        credentials: JSON.stringify({
+          clientId: 'client-id',
+          clientSecret: 'client-secret',
+          orgId: 'account-id',
+        }),
       }),
     })
     const response = await POST(request)
@@ -277,7 +278,6 @@ describe('POST /api/v2/credentials', () => {
       principal: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' },
       input: {
         workspaceId: WORKSPACE_ID,
-        type: 'service_account',
         providerId: 'zoom-service-account',
         displayName: 'Zoom account',
         description: undefined,
@@ -308,12 +308,78 @@ describe('POST /api/v2/credentials', () => {
           workspaceId: WORKSPACE_ID,
           type: 'service_account',
           providerId: 'made-up-service-account',
-          serviceAccountJson: '{}',
+          credentials: JSON.stringify({ serviceAccountJson: '{}' }),
         }),
       })
     )
 
     expect(response.status).toBe(400)
+    expect(mocks.create).not.toHaveBeenCalled()
+  })
+
+  it('rejects flattened provider fields before the use case', async () => {
+    const response = await POST(
+      new NextRequest('http://localhost:3000/api/v2/credentials', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          workspaceId: WORKSPACE_ID,
+          type: 'service_account',
+          providerId: 'zoom-service-account',
+          clientId: 'client-id',
+          clientSecret: 'client-secret',
+          orgId: 'account-id',
+        }),
+      })
+    )
+
+    expect(response.status).toBe(400)
+    expect(mocks.create).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['malformed JSON', '{'],
+    ['a JSON array', '[]'],
+    ['an unsupported field', JSON.stringify({ extra: 'not-accepted' })],
+  ])('rejects credentials containing %s before the use case', async (_label, credentials) => {
+    const response = await POST(
+      new NextRequest('http://localhost:3000/api/v2/credentials', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          workspaceId: WORKSPACE_ID,
+          type: 'service_account',
+          providerId: 'zoom-service-account',
+          credentials,
+        }),
+      })
+    )
+
+    expect(response.status).toBe(400)
+    expect(mocks.create).not.toHaveBeenCalled()
+  })
+
+  it('rejects missing provider fields inside credentials before the use case', async () => {
+    const response = await POST(
+      new NextRequest('http://localhost:3000/api/v2/credentials', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          workspaceId: WORKSPACE_ID,
+          type: 'service_account',
+          providerId: 'zoom-service-account',
+          credentials: JSON.stringify({ clientId: 'client-id', clientSecret: 'client-secret' }),
+        }),
+      })
+    )
+
+    expect(response.status).toBe(400)
+    expect(await response.json()).toMatchObject({
+      error: {
+        code: 'BAD_REQUEST',
+        details: [{ path: ['credentials', 'orgId'] }],
+      },
+    })
     expect(mocks.create).not.toHaveBeenCalled()
   })
 })

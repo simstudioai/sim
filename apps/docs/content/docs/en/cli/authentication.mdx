@@ -53,6 +53,20 @@ sim workflows list --workspace ws_other
 `sim login --workspace <id>` preselects a workspace in the picker, and
 re-logging into an existing profile preselects the one already configured.
 
+To save another workspace without minting or copying another personal key, add
+a workspace profile:
+
+```bash
+sim workspaces list
+sim profile add acme --workspace ws_acme
+sim --profile acme whoami
+```
+
+The new profile stores `auth_profile = default` and its own workspace. Omit
+`--workspace` in an interactive terminal to choose from the workspaces the
+active key can access; scripts must provide the workspace ID explicitly. The
+picker is capped at 1,000 entries and asks for an explicit ID above that.
+
 ## Checking who you are
 
 ```bash
@@ -75,6 +89,12 @@ logging in again.
 sim logout           # remove the stored key
 sim logout --all     # remove the profile entirely, including its settings
 ```
+
+A workspace profile that shares authentication cannot remove the shared key.
+Remove only that local profile with `sim logout --all --profile <name>`, or log
+out of the authentication profile named by the error message. Removing an
+authentication profile entirely is refused until its workspace profiles are
+removed, so it cannot leave dangling references.
 
 <Callout type="warn">
 `sim logout` removes the key from disk but does **not** revoke it. Revoke keys in
@@ -116,9 +136,9 @@ jobs:
           SIM_WORKSPACE: ${{ vars.SIM_WORKSPACE }}
 ```
 
-## Several accounts at once
+## Several accounts and workspaces
 
-Each profile holds one identity and one set of defaults:
+Use separate logins for separate identities or deployments:
 
 ```bash
 sim login --profile dev --endpoint http://localhost:3000
@@ -126,6 +146,16 @@ sim login --profile prod
 
 sim workflows list --profile dev
 sim workflows list --profile prod
+```
+
+Use workspace profiles when one personal key should target several workspaces:
+
+```bash
+sim profile add marketing --workspace ws_marketing
+sim profile add support --workspace ws_support
+
+sim workflows list --profile marketing
+sim workflows list --profile support
 ```
 
 See [Configuration](/cli/configuration) for how profiles are stored and resolved.

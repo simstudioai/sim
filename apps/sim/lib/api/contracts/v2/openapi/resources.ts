@@ -45,12 +45,16 @@ import {
   v2CreateSkillContract,
   v2DeleteSkillContract,
   v2GetSkillContract,
+  v2GrantSkillEditorContract,
+  v2ListSkillEditorsContract,
   v2ListSkillsContract,
+  v2RevokeSkillEditorContract,
   v2UpdateSkillContract,
 } from '@/lib/api/contracts/v2/skills'
 import {
   v2GetWorkspaceContract,
   v2ListWorkspaceMembersContract,
+  v2ListWorkspacesContract,
 } from '@/lib/api/contracts/v2/workspaces'
 import {
   defineOpenApiDocument,
@@ -135,6 +139,13 @@ const SKILL_SUMMARY_EXAMPLE = {
 const SKILL_EXAMPLE = {
   ...SKILL_SUMMARY_EXAMPLE,
   content: '# Refund policy\n\nAlways check the order date first.',
+} as const
+
+const SKILL_EDITOR_EXAMPLE = {
+  email: 'jane@example.com',
+  name: 'Jane Smith',
+  image: null,
+  isWorkspaceAdmin: false,
 } as const
 
 const CUSTOM_TOOL_DECLARATION_EXAMPLE = {
@@ -278,6 +289,32 @@ function resourceOperation(
 }
 
 const declaredRoutes = [
+  defineOpenApiRoute(
+    v2ListWorkspacesContract,
+    resourceOperation('Workspaces', {
+      operationId: 'listWorkspaces',
+      summary: 'List Workspaces',
+      description:
+        'List active workspaces available to the API key with opaque cursor pagination. A personal API key sees every accessible workspace that permits personal API keys; a workspace API key sees only its bound workspace.',
+      errors: RESOURCE_ERRORS,
+      success: { description: 'Public metadata for workspaces available to the API key.' },
+    }),
+    {
+      query: documentedSchema(
+        v2ListWorkspacesContract.query,
+        'ListWorkspacesQuery',
+        'List workspaces query',
+        'Sorting and pagination controls for accessible workspaces.'
+      ),
+      response: documentedSchema(
+        v2ListWorkspacesContract.response.schema,
+        'ListWorkspacesResponse',
+        'List workspaces response',
+        'Public metadata for workspaces available to the API key.',
+        [{ data: [WORKSPACE_EXAMPLE], nextCursor: null }]
+      ),
+    }
+  ),
   defineOpenApiRoute(
     v2GetWorkspaceContract,
     resourceOperation('Workspaces', {
@@ -685,6 +722,107 @@ const declaredRoutes = [
     }
   ),
   defineOpenApiRoute(
+    v2ListSkillEditorsContract,
+    resourceOperation('Skills', {
+      operationId: 'listSkillEditors',
+      summary: 'List Skill Editors',
+      description:
+        'List explicit skill editors and workspace administrators with opaque cursor pagination. Internal user and membership identifiers are never returned.',
+      errors: RESOURCE_ERRORS,
+      success: { description: 'Users who can edit the skill.' },
+    }),
+    {
+      params: documentedSchema(
+        v2ListSkillEditorsContract.params,
+        'ListSkillEditorsParams',
+        'List skill editors path parameters',
+        'Skill whose editor roster should be listed.'
+      ),
+      query: documentedSchema(
+        v2ListSkillEditorsContract.query,
+        'ListSkillEditorsQuery',
+        'List skill editors query',
+        'Workspace, sorting, and pagination controls for the editor roster.'
+      ),
+      response: documentedSchema(
+        v2ListSkillEditorsContract.response.schema,
+        'ListSkillEditorsResponse',
+        'List skill editors response',
+        'Public identity fields for users who can edit the skill.',
+        [{ data: [SKILL_EDITOR_EXAMPLE], nextCursor: null }]
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2GrantSkillEditorContract,
+    resourceOperation('Skills', {
+      operationId: 'grantSkillEditor',
+      summary: 'Grant Skill Editor',
+      description: `Grant editor access to a current workspace member by email. The caller must already be a skill editor or workspace administrator. Workspace administrators already have derived editor access and cannot receive an explicit grant. A retried existing grant returns 200; a newly created grant returns 201. ${WORKSPACE_API_KEY_DENIED}`,
+      errors: RESOURCE_ERRORS,
+      success: {
+        byStatus: {
+          200: { description: 'The workspace member was already a skill editor.' },
+          201: { description: 'The skill editor grant was created.' },
+        },
+      },
+    }),
+    {
+      query: v2GrantSkillEditorContract.query,
+      params: documentedSchema(
+        v2GrantSkillEditorContract.params,
+        'GrantSkillEditorParams',
+        'Grant skill editor path parameters',
+        'Skill whose editor roster should be changed.'
+      ),
+      body: documentedSchema(
+        v2GrantSkillEditorContract.body,
+        'GrantSkillEditorRequest',
+        'Grant skill editor request',
+        'Workspace scope and email of the member to grant.',
+        [{ workspaceId: WORKSPACE_ID, email: SKILL_EDITOR_EXAMPLE.email }]
+      ),
+      response: documentedSchema(
+        v2GrantSkillEditorContract.response.schema,
+        'GrantSkillEditorResponse',
+        'Grant skill editor response',
+        'Public identity fields for the editor.',
+        [{ data: SKILL_EDITOR_EXAMPLE }]
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2RevokeSkillEditorContract,
+    resourceOperation('Skills', {
+      operationId: 'revokeSkillEditor',
+      summary: 'Revoke Skill Editor',
+      description: `Revoke an explicit editor grant by email. The caller must already be a skill editor or workspace administrator. Workspace administrators have derived access that cannot be revoked. ${WORKSPACE_API_KEY_DENIED}`,
+      errors: RESOURCE_ERRORS,
+      success: { description: 'The explicit editor grant was revoked.' },
+    }),
+    {
+      params: documentedSchema(
+        v2RevokeSkillEditorContract.params,
+        'RevokeSkillEditorParams',
+        'Revoke skill editor path parameters',
+        'Skill whose editor roster should be changed.'
+      ),
+      query: documentedSchema(
+        v2RevokeSkillEditorContract.query,
+        'RevokeSkillEditorQuery',
+        'Revoke skill editor query',
+        'Workspace scope and email whose explicit grant should be revoked.'
+      ),
+      response: documentedSchema(
+        v2RevokeSkillEditorContract.response.schema,
+        'RevokeSkillEditorResponse',
+        'Revoke skill editor response',
+        'Acknowledgement that the explicit editor grant was revoked.',
+        [{ data: { email: SKILL_EDITOR_EXAMPLE.email, revoked: true } }]
+      ),
+    }
+  ),
+  defineOpenApiRoute(
     v2ListCustomToolsContract,
     resourceOperation('Custom Tools', {
       operationId: 'listCustomTools',
@@ -903,7 +1041,7 @@ const declaredRoutes = [
     resourceOperation('Credentials', {
       operationId: 'createServiceAccountCredential',
       summary: 'Create Service-Account Credential',
-      description: `Verify and store one service-account credential. Use provider discovery to select a service-account provider and submit its required fields. Secret fields are write-only and are never returned. A retried source match returns the existing credential with 200; a newly created credential returns 201. ${WORKSPACE_API_KEY_DENIED}`,
+      description: `Verify and store one service-account credential. Use provider discovery to select a service-account provider, then encode its required fields as the JSON object string in credentials. The credentials string is write-only and is never returned. A retried source match returns the existing credential with 200; a newly created credential returns 201. ${WORKSPACE_API_KEY_DENIED}`,
       errors: RESOURCE_CONFLICT_ERRORS,
       success: {
         byStatus: {
@@ -918,16 +1056,15 @@ const declaredRoutes = [
         v2CreateServiceAccountCredentialContract.body,
         'CreateServiceAccountCredentialRequest',
         'Create service-account credential request',
-        'Provider identifier, optional display metadata, and the write-only fields declared by provider discovery.',
+        'Provider identifier, optional display metadata, and a write-only JSON object string containing the fields declared by provider discovery.',
         [
           {
             workspaceId: WORKSPACE_ID,
             type: 'service_account',
             providerId: 'zoom-service-account',
             displayName: 'Zoom automation',
-            clientId: 'YOUR_CLIENT_ID',
-            clientSecret: 'YOUR_CLIENT_SECRET',
-            orgId: 'YOUR_ACCOUNT_ID',
+            credentials:
+              '{"clientId":"YOUR_CLIENT_ID","clientSecret":"YOUR_CLIENT_SECRET","orgId":"YOUR_ACCOUNT_ID"}',
           },
         ]
       ),

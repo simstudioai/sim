@@ -1,6 +1,11 @@
 import { z } from 'zod'
 import { workspaceCredentialRoleSchema } from '@/lib/api/contracts/credentials'
-import { noInputSchema, nonEmptyIdSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
+import {
+  missingFieldError,
+  noInputSchema,
+  nonEmptyIdSchema,
+  workspaceIdSchema,
+} from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import {
   v2CursorListResponse,
@@ -285,74 +290,109 @@ export const v2CreateCredentialConnectionContract = defineRouteContract({
   },
 })
 
-const v2ServiceAccountSecretFieldsShape = {
-  serviceAccountJson: z
-    .string()
-    .min(1)
-    .max(65_536)
-    .optional()
-    .describe('Write-only Google service-account JSON key.')
-    .meta({ writeOnly: true }),
-  apiToken: z
-    .string()
-    .trim()
-    .min(1)
-    .max(8192)
-    .optional()
-    .describe('Write-only provider API token.')
-    .meta({ writeOnly: true }),
-  domain: z.string().trim().min(1).max(2048).optional().describe('Provider account domain.'),
-  signingSecret: z
-    .string()
-    .trim()
-    .min(1)
-    .max(8192)
-    .optional()
-    .describe('Write-only webhook signing secret.')
-    .meta({ writeOnly: true }),
-  botToken: z
-    .string()
-    .trim()
-    .min(1)
-    .max(8192)
-    .optional()
-    .describe('Write-only bot token.')
-    .meta({ writeOnly: true }),
-  clientId: z.string().trim().min(1).max(512).optional().describe('OAuth client identifier.'),
-  clientSecret: z
-    .string()
-    .trim()
-    .min(1)
-    .max(1024)
-    .optional()
-    .describe('Write-only OAuth client secret.')
-    .meta({ writeOnly: true }),
-  certificateId: z
-    .string()
-    .trim()
-    .min(1)
-    .max(512)
-    .optional()
-    .describe('Provider certificate mapping identifier.'),
-  orgId: z.string().trim().min(1).max(255).optional().describe('Provider organization ID.'),
-  dataCenter: z.string().trim().min(1).max(32).optional().describe('Provider data center.'),
-  authMethod: z
-    .string()
-    .trim()
-    .min(1)
-    .max(64)
-    .optional()
-    .describe('Provider authentication method.'),
-  privateKey: z
-    .string()
-    .trim()
-    .min(1)
-    .max(8192)
-    .optional()
-    .describe('Write-only PEM private key.')
-    .meta({ writeOnly: true }),
-  username: z.string().trim().min(1).max(255).optional().describe('Provider run-as username.'),
-} as const
+const v2ServiceAccountCredentialFieldsSchema = z
+  .object({
+    serviceAccountJson: z
+      .string()
+      .min(1)
+      .max(65_536)
+      .optional()
+      .describe('Write-only Google service-account JSON key.')
+      .meta({ writeOnly: true }),
+    apiToken: z
+      .string()
+      .trim()
+      .min(1)
+      .max(8192)
+      .optional()
+      .describe('Write-only provider API token.')
+      .meta({ writeOnly: true }),
+    domain: z.string().trim().min(1).max(2048).optional().describe('Provider account domain.'),
+    signingSecret: z
+      .string()
+      .trim()
+      .min(1)
+      .max(8192)
+      .optional()
+      .describe('Write-only webhook signing secret.')
+      .meta({ writeOnly: true }),
+    botToken: z
+      .string()
+      .trim()
+      .min(1)
+      .max(8192)
+      .optional()
+      .describe('Write-only bot token.')
+      .meta({ writeOnly: true }),
+    clientId: z.string().trim().min(1).max(512).optional().describe('OAuth client identifier.'),
+    clientSecret: z
+      .string()
+      .trim()
+      .min(1)
+      .max(1024)
+      .optional()
+      .describe('Write-only OAuth client secret.')
+      .meta({ writeOnly: true }),
+    certificateId: z
+      .string()
+      .trim()
+      .min(1)
+      .max(512)
+      .optional()
+      .describe('Provider certificate mapping identifier.'),
+    orgId: z.string().trim().min(1).max(255).optional().describe('Provider organization ID.'),
+    dataCenter: z.string().trim().min(1).max(32).optional().describe('Provider data center.'),
+    authMethod: z
+      .string()
+      .trim()
+      .min(1)
+      .max(64)
+      .optional()
+      .describe('Provider authentication method.'),
+    privateKey: z
+      .string()
+      .trim()
+      .min(1)
+      .max(8192)
+      .optional()
+      .describe('Write-only PEM private key.')
+      .meta({ writeOnly: true }),
+    username: z.string().trim().min(1).max(255).optional().describe('Provider run-as username.'),
+  })
+  .strict()
+
+type V2ServiceAccountCredentialFields = z.output<typeof v2ServiceAccountCredentialFieldsSchema>
+
+const v2ServiceAccountCredentialsJsonSchema = z
+  .string({ error: missingFieldError('credentials is required') })
+  .min(1, 'credentials cannot be empty')
+  .max(131_072, 'credentials must be at most 131072 characters')
+  .describe(
+    'Write-only JSON object string containing the fields declared by credential-provider discovery.'
+  )
+  .meta({ writeOnly: true })
+  .transform((value, ctx): V2ServiceAccountCredentialFields => {
+    let parsed: unknown
+    try {
+      parsed = JSON.parse(value)
+    } catch {
+      ctx.addIssue({ code: 'custom', message: 'credentials must be valid JSON' })
+      return z.NEVER
+    }
+
+    if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      ctx.addIssue({ code: 'custom', message: 'credentials must be a JSON object' })
+      return z.NEVER
+    }
+
+    const result = v2ServiceAccountCredentialFieldsSchema.safeParse(parsed)
+    if (result.success) return result.data
+
+    for (const issue of result.error.issues) {
+      ctx.addIssue({ code: 'custom', path: issue.path, message: issue.message })
+    }
+    return z.NEVER
+  })
 
 export const v2CreateServiceAccountCredentialBodySchema = z
   .object({
@@ -382,7 +422,7 @@ export const v2CreateServiceAccountCredentialBodySchema = z
       .uuid('id must be a valid UUID')
       .optional()
       .describe('Required only when provider discovery requests a client-generated ID.'),
-    ...v2ServiceAccountSecretFieldsShape,
+    credentials: v2ServiceAccountCredentialsJsonSchema,
   })
   .strict()
   .superRefine((body, ctx) => {
@@ -402,10 +442,10 @@ export const v2CreateServiceAccountCredentialBodySchema = z
       })
     }
     for (const field of getServiceAccountRequiredFields(body.providerId)) {
-      if (!body[field]) {
+      if (!body.credentials[field]) {
         ctx.addIssue({
           code: 'custom',
-          path: [field],
+          path: ['credentials', field],
           message: `${field} is required for ${body.providerId} credentials`,
         })
       }
