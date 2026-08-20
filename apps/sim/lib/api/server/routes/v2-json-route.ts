@@ -287,11 +287,22 @@ async function enforceV2PreAuthIpLimit(request: NextRequest): Promise<NextRespon
     : v2RateLimitError({ ...abuseLimit, limit: V2_PREAUTH_IP_LIMIT.maxTokens })
 }
 
+/**
+ * Whether the `v2-api` rollout gate runs for a route.
+ *
+ * `'enforced'` is the default and the only correct answer for a route that
+ * serves workspace data. `'exempt'` exists for the one route whose purpose is to
+ * *report* the gate's decision — see the `gate` option on
+ * {@link defineV2JsonRoute}.
+ */
+export type V2RolloutGatePolicy = 'enforced' | 'exempt'
+
 async function admitAuthenticatedV2Request(
   request: NextRequest,
   operation: ApplicationOperation,
   authPolicy: typeof v2ApiKeyAuth,
-  rateLimitPolicy: V2RateLimitPolicy
+  rateLimitPolicy: V2RateLimitPolicy,
+  gatePolicy: V2RolloutGatePolicy = 'enforced'
 ): Promise<
   { success: true; auth: V2ApiKeyAuthContext } | { success: false; response: NextResponse }
 > {
@@ -305,13 +316,15 @@ async function admitAuthenticatedV2Request(
     throw new V2RouteInfrastructureError('authentication', error)
   }
 
-  let gate
-  try {
-    gate = await v2ApiGateError(auth.rolloutUserId)
-  } catch (error) {
-    throw new V2RouteInfrastructureError('rollout_gate', error)
+  if (gatePolicy === 'enforced') {
+    let gate
+    try {
+      gate = await v2ApiGateError(auth.rolloutUserId)
+    } catch (error) {
+      throw new V2RouteInfrastructureError('rollout_gate', error)
+    }
+    if (gate) return { success: false, response: gate }
   }
-  if (gate) return { success: false, response: gate }
 
   const limited = await rateLimitPolicy.enforce(request, auth, operation)
   return limited ? { success: false, response: limited } : { success: true, auth }
@@ -321,13 +334,14 @@ export async function admitV2Request(
   request: NextRequest,
   operation: ApplicationOperation,
   authPolicy: typeof v2ApiKeyAuth,
-  rateLimitPolicy: V2RateLimitPolicy
+  rateLimitPolicy: V2RateLimitPolicy,
+  gatePolicy: V2RolloutGatePolicy = 'enforced'
 ): Promise<
   { success: true; auth: V2ApiKeyAuthContext } | { success: false; response: NextResponse }
 > {
   const preAuthResponse = await enforceV2PreAuthIpLimit(request)
   if (preAuthResponse) return { success: false, response: preAuthResponse }
-  return admitAuthenticatedV2Request(request, operation, authPolicy, rateLimitPolicy)
+  return admitAuthenticatedV2Request(request, operation, authPolicy, rateLimitPolicy, gatePolicy)
 }
 
 export async function admitOptionalV2Request(
@@ -366,6 +380,23 @@ interface V2JsonRouteOptions<C extends JsonApiRouteContract, O extends Applicati
    * {@link requireHeadAuthorizableUseCase}.
    */
   headSafe?: boolean
+  /**
+   * Whether the `v2-api` rollout gate runs. Defaults to `'enforced'`, which is
+   * correct for every route that serves workspace data.
+   *
+   * `'exempt'` is for the one route that exists to *report* the gate's decision:
+   * `GET /api/v2/meta`. The gate and the unknown-path catch-all answer
+   * byte-identical 404s so an ungated caller cannot tell "not in the rollout
+   * cohort" from "no such endpoint", and a gated `/api/v2/meta` would inherit
+   * exactly that ambiguity — leaving a caller no way to learn why every other
+   * endpoint is answering 404. Exempting it does not weaken the concealment:
+   * authentication still runs first, so the fact is disclosed only to a caller
+   * who has already proved it holds the credential the fact is about. That is
+   * the whole justification, and it is why the exemption is a typed option on
+   * this builder — the sweep in `v2-json-route.test.ts` asserts exactly one
+   * route uses it — rather than a route-local rollout policy.
+   */
+  gate?: V2RolloutGatePolicy
   parseOptions?: Omit<ParseRequestOptions, 'validationErrorResponse'>
   beforeParse?(args: {
     request: NextRequest
@@ -405,7 +436,8 @@ export function defineV2JsonRoute<
         request,
         options.operation,
         options.auth,
-        options.rateLimit
+        options.rateLimit,
+        options.gate
       )
       if (!admission.success) return admission.response
       const { auth } = admission

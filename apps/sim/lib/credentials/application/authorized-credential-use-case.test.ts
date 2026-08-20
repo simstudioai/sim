@@ -6,6 +6,7 @@ import { defineWorkspaceOperation } from '@/lib/core/application'
 import {
   CredentialAccessRequiredError,
   defineAuthorizedCredentialUseCase,
+  requireManageableCredentialType,
 } from '@/lib/credentials/application/authorized-credential-use-case'
 import { defineCredentialOperation } from '@/lib/credentials/application/operations'
 
@@ -119,4 +120,61 @@ describe('defineAuthorizedCredentialUseCase', () => {
       mocks.getActor.mock.invocationCallOrder[0]
     )
   })
+})
+
+/**
+ * The table each credential-scoped operation applies before it mutates.
+ *
+ * The API-key row is the one with teeth: `v2CredentialTypeSchema` publishes only
+ * `oauth | service_account` and `toV2Credential` throws on anything else, so an
+ * `env_*` row reaching a public credential route would be a caller-reachable
+ * 500 rather than a refusal.
+ */
+describe('requireManageableCredentialType', () => {
+  const sessionPrincipal = { kind: 'session' as const, userId: 'user-1', sessionId: 'session-1' }
+  const apiKeyPrincipal = {
+    kind: 'personal_api_key' as const,
+    userId: 'user-1',
+    keyId: 'key-1',
+  }
+  const delegatedPrincipal = {
+    kind: 'delegated' as const,
+    service: 'copilot' as const,
+    subject: { kind: 'session' as const, userId: 'user-1', sessionId: 'session-1' },
+  }
+
+  const credentialOfType = (type: string) => ({ type }) as Pick<typeof credential, 'type'>
+
+  it.each(['oauth', 'service_account', 'env_workspace', 'env_personal'])(
+    'lets a session manage a %s credential',
+    (type) => {
+      expect(() =>
+        requireManageableCredentialType(sessionPrincipal, credentialOfType(type))
+      ).not.toThrow()
+    }
+  )
+
+  it.each(['oauth', 'service_account'])('lets an API key manage a %s credential', (type) => {
+    expect(() =>
+      requireManageableCredentialType(apiKeyPrincipal, credentialOfType(type))
+    ).not.toThrow()
+  })
+
+  it.each(['env_workspace', 'env_personal'])(
+    'refuses an API key on a %s credential the public schema cannot express',
+    (type) => {
+      expect(() =>
+        requireManageableCredentialType(apiKeyPrincipal, credentialOfType(type))
+      ).toThrowError(/Only oauth, service_account credentials can be managed by this caller/)
+    }
+  )
+
+  it.each(['service_account', 'env_workspace', 'env_personal'])(
+    'confines Copilot to oauth, refusing %s',
+    (type) => {
+      expect(() =>
+        requireManageableCredentialType(delegatedPrincipal, credentialOfType(type))
+      ).toThrowError(/Only oauth credentials can be managed by this caller/)
+    }
+  )
 })

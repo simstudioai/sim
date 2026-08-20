@@ -1,6 +1,8 @@
 /**
  * @vitest-environment node
  */
+import { readdirSync, readFileSync } from 'node:fs'
+import path from 'node:path'
 import type { PersonalApiKeyPrincipal } from '@sim/auth/principal'
 import {
   MockV2ApiKeyUnauthenticatedError,
@@ -34,6 +36,7 @@ import type { V2ApiKeyAuthContext } from '@/lib/api/server/routes/v2-api-key-aut
 import {
   defineV2JsonRoute,
   type V2ErrorPolicy,
+  type V2RolloutGatePolicy,
   v2ApiKeyAuth,
   v2HeadAuthorizationResponse,
   v2OrchestrationErrorPolicy,
@@ -94,6 +97,7 @@ interface HandlerOverrides {
   present?: (result: Result) => { data: { value: string } } | Promise<{ data: { value: string } }>
   statusForResult?: (result: Result) => number
   parseOptions?: Omit<ParseRequestOptions, 'validationErrorResponse'>
+  gate?: V2RolloutGatePolicy
 }
 
 function createHandler(overrides: HandlerOverrides = {}) {
@@ -118,6 +122,7 @@ function createHandler(overrides: HandlerOverrides = {}) {
     onSuccess: overrides.onSuccess,
     statusForResult: overrides.statusForResult,
     parseOptions: overrides.parseOptions,
+    gate: overrides.gate,
   })
 }
 
@@ -828,5 +833,77 @@ describe('defineV2JsonRoute presentation', () => {
         body: { value: 'ok' },
       })
     )
+  })
+})
+
+/**
+ * The rollout gate is centralized on the builder so a route cannot invent its
+ * own rollout policy. `gate: 'exempt'` is the single typed hole in that, and it
+ * exists for `GET /api/v2/meta` alone — the endpoint whose whole job is to
+ * report the gate's decision, which a gated version could never do.
+ */
+describe('defineV2JsonRoute rollout gate policy', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    v2RouteMocks.authenticate.mockResolvedValue(auth)
+    v2RouteMocks.gate.mockResolvedValue(null)
+    v2RouteMocks.preauthRate.mockResolvedValue({ allowed: true, remaining: 599, resetAt })
+    v2RouteMocks.operationRate.mockResolvedValue(allowedRate)
+  })
+
+  it('enforces the gate by default', async () => {
+    await createHandler()(request())
+
+    expect(v2RouteMocks.gate).toHaveBeenCalledWith(auth.rolloutUserId)
+  })
+
+  it('skips the gate entirely when the route declares itself exempt', async () => {
+    v2RouteMocks.gate.mockResolvedValue(
+      NextResponse.json({ error: { code: 'NOT_FOUND', message: 'Not found' } }, { status: 404 })
+    )
+
+    const response = await createHandler({ gate: 'exempt' })(request())
+
+    expect(response.status).toBe(201)
+    expect(v2RouteMocks.gate).not.toHaveBeenCalled()
+  })
+
+  it('still authenticates and rate-limits an exempt route', async () => {
+    v2RouteMocks.authenticate.mockRejectedValueOnce(
+      new MockV2ApiKeyUnauthenticatedError('API key required')
+    )
+
+    const unauthenticated = await createHandler({ gate: 'exempt' })(request())
+    expect(unauthenticated.status).toBe(401)
+
+    v2RouteMocks.operationRate.mockResolvedValue({ allowed: false, remaining: 0, resetAt })
+    const limited = await createHandler({ gate: 'exempt' })(request())
+    expect(limited.status).toBe(429)
+  })
+})
+
+/**
+ * The exemption is a hole in the rollout concealment, justified only for the one
+ * endpoint that reports the concealed fact to the caller it is about. A second
+ * exempt route would be a silent widening, so the count is pinned rather than
+ * left to review.
+ */
+describe('v2 rollout-gate exemptions', () => {
+  const V2_ROUTES_DIR = path.resolve(import.meta.dirname, '../../../../app/api/v2')
+
+  function routeFiles(directory: string): string[] {
+    return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+      const entryPath = path.join(directory, entry.name)
+      if (entry.isDirectory()) return routeFiles(entryPath)
+      return entry.name === 'route.ts' ? [entryPath] : []
+    })
+  }
+
+  it('is declared by exactly one route, GET /api/v2/meta', () => {
+    const exempt = routeFiles(V2_ROUTES_DIR).filter((file) =>
+      readFileSync(file, 'utf8').includes("gate: 'exempt'")
+    )
+
+    expect(exempt.map((file) => path.relative(V2_ROUTES_DIR, file))).toEqual(['meta/route.ts'])
   })
 })
