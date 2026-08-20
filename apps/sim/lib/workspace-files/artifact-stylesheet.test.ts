@@ -68,6 +68,19 @@ describe('buildHtmlPreviewDocument', () => {
     }
   })
 
+  // A page file streams in as source; until the frontmatter closes it cannot
+  // compile, and a reader must never see raw source in its place.
+  it('holds the empty themed shell for page source that does not compile yet', () => {
+    const partial = '---\ntitle: Elder Guide\nlede: Still stre'
+    const built = buildHtmlPreviewDocument(partial)
+    expect(built).not.toContain('Still stre')
+    expect(built).toContain('--surface-active')
+  })
+
+  it('still shows a bespoke raw-HTML document as-is', () => {
+    expect(buildHtmlPreviewDocument(PLAIN)).toContain('<p>hi</p>')
+  })
+
   // The stylesheet is a floor, not a ceiling: a page that wants its own design
   // still wins, so it must land before the page's own <style>.
   it('injects the stylesheet ahead of the page styles', () => {

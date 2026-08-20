@@ -181,6 +181,13 @@ export function buildHtmlPreviewDocument(
   // appends. Raw HTML (bespoke and legacy stored-compiled pages) skips this.
   if (isSimPageSource(content)) {
     content = compileSimPage(content, { workspaceId })
+  } else if (content.trimStart().startsWith('---')) {
+    // Page source that does not compile yet — frontmatter still streaming in,
+    // or a malformed header. Never show a reader raw source: hold the empty
+    // themed shell (the marker pulls the stylesheet in below) until a
+    // compilable snapshot arrives.
+    content =
+      '<!DOCTYPE html><html><head><meta name="sim-artifact"><title>Page</title></head><body></body></html>'
   }
   const headInjection = [
     '<meta charset="utf-8">',
@@ -427,6 +434,11 @@ const HtmlPreview = memo(function HtmlPreview({
           key={resumeNonce}
           srcDoc={wrappedContent}
           sandbox='allow-scripts'
+          /* The wildcard is required: the sandboxed frame's origin is opaque,
+             so an origin-keyed allowlist can never match it. Browsers without
+             wildcard delegation fall back to the shell's selection-command
+             copy path. */
+          allow='clipboard-write *'
           referrerPolicy='no-referrer'
           title='HTML Preview'
           className='h-full w-full border-0 bg-[var(--surface-2)]'
