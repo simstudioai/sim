@@ -76,13 +76,8 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
     const access = await checkWorkspaceAccess(params.workspaceId, userId)
     if (!access.hasAccess) {
-      return new NextResponse(`${header}\n`, {
-        status: 200,
-        headers: {
-          'Content-Type': 'text/csv; charset=utf-8',
-          'Content-Disposition': 'attachment; filename="logs-export.csv"',
-          'Cache-Control': 'no-cache',
-        },
+      return new NextResponse('Forbidden', {
+        status: 403,
       })
     }
 

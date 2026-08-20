@@ -380,7 +380,7 @@ export const bedrockProvider: ProviderConfig = {
       temperature: Number.parseFloat(String(request.temperature ?? 0.7)),
     }
     if (request.maxTokens != null) {
-      inferenceConfig.maxTokens = Number.parseInt(String(request.maxTokens))
+      inferenceConfig.maxTokens = Number.parseInt(String(request.maxTokens), 10)
     }
 
     /**
