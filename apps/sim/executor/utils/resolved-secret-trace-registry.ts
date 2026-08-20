@@ -141,8 +141,13 @@ function reportIncompleteness(
   details: Record<string, unknown>
 ): void {
   if (BY_DESIGN_INCOMPLETENESS_REASONS.has(reason)) return
-  if (ORIGINATING_FAULT_REASONS.has(reason)) logger.error(message, { reason, ...details })
-  else logger.warn(message, { reason, ...details })
+  /**
+   * `reason` is written last so no detail can displace it. It is the field these lines are
+   * queried and alerted on, and it also selects the level above — a payload whose `reason` says
+   * one thing while the level was chosen from another is worse than no detail at all.
+   */
+  if (ORIGINATING_FAULT_REASONS.has(reason)) logger.error(message, { ...details, reason })
+  else logger.warn(message, { ...details, reason })
 }
 
 /**
@@ -300,17 +305,32 @@ interface MarkIncompleteContext {
    * production latch naming no guard at all.
    */
   origin?: string
-  /**
-   * Structural facts locating where a guard tripped: the block, the tool, the input path, the class
-   * of failure. `reason` says what went wrong and this says where, which is the difference between
-   * a line you can act on and one you can only count.
-   *
-   * Names and types only — never a value, and never a caught error's message. Code that throws
-   * while coercing an input routinely quotes that input back (`JSON.parse` names the text it
-   * rejected), and an input reaching one of these guards may still hold a resolved secret. That is
-   * the same promise `reason` already makes about this log, restated where it is easy to break.
-   */
-  detail?: Record<string, string>
+  detail?: MarkIncompleteDetail
+}
+
+/**
+ * Structural facts locating where a guard tripped. `reason` says what went wrong and this says
+ * where, which is the difference between a line you can act on and one you can only count.
+ *
+ * Named fields rather than an open record, for the reason `reason` itself is a closed union: a
+ * shape a caller can extend freely cannot be aggregated, and — because these merge into the
+ * reported payload — an open record also lets a caller land a key that a reader takes to mean
+ * something else, `origin` and `reason` being the two that carry the most weight here.
+ *
+ * Names and types only — never a value, and never a caught error's message. Code that throws while
+ * coercing an input routinely quotes that input back (`JSON.parse` names the text it rejected), and
+ * an input reaching one of these guards may still hold a resolved secret. That is the same promise
+ * `reason` already makes about this log, restated where it is easy to break.
+ */
+interface MarkIncompleteDetail {
+  /** Block type id, e.g. `api`. */
+  blockType?: string
+  /** Tool id, e.g. `http_request`. */
+  tool?: string
+  /** Dotted input path within the block's inputs, e.g. `body.payload`. */
+  inputPath?: string
+  /** Error class only, e.g. `SyntaxError` — never the thrown message. */
+  failure?: string
 }
 
 export interface ImportResolvedSecretTraceProvenanceOptions {

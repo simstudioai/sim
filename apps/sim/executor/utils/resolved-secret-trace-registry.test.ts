@@ -1597,16 +1597,31 @@ describe('incompleteness diagnostics', () => {
   })
 
   /** A detail key must never displace the fields every one of these lines is read by. */
+  /**
+   * The detail type names its fields, so none of these is expressible without a cast. The runtime
+   * guarantee is asserted anyway because the payload is assembled in two places — `reason` is
+   * added a level above, where the caller's spread order cannot reach it — and a line whose
+   * `reason` disagrees with the level it was logged at is worse than one carrying no detail.
+   */
   it('does not let a detail shadow the canonical fields', () => {
     const registry = new ResolvedSecretTraceRegistry([], scope)
 
     registry.markIncomplete('structural-input-root-unprojected', {
-      detail: { scopeWorkspaceId: 'spoofed', activeEntryCount: 'spoofed' },
+      detail: {
+        reason: 'spoofed',
+        origin: 'spoofed',
+        scopeWorkspaceId: 'spoofed',
+        activeEntryCount: 'spoofed',
+      } as never,
     })
 
     expect(mockLogger.error).toHaveBeenCalledWith(
       'Resolved secret registry marked incomplete',
-      expect.objectContaining({ scopeWorkspaceId: 'workspace-1', activeEntryCount: 0 })
+      expect.objectContaining({
+        reason: 'structural-input-root-unprojected',
+        scopeWorkspaceId: 'workspace-1',
+        activeEntryCount: 0,
+      })
     )
   })
 
