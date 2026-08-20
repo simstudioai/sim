@@ -1,21 +1,18 @@
 #!/usr/bin/env bun
 /**
- * Prevents newly introduced overly precise numeric values in literal SVG icon
- * `d` attributes.
+ * Prevents overly precise numeric values in literal SVG icon `d` attributes.
  *
- * Two decimal places are enough for the reusable icons covered here: additional
- * digits increase shipped source without a visible benefit. Paths already in the
- * target branch are grandfathered by exact content, while new paths and edits to
- * old paths must satisfy the limit or carry a reasoned local exception.
+ * Three decimal places are enough for the reusable icons covered here: additional
+ * digits increase shipped source without a visible benefit. Every path must
+ * satisfy the limit or carry a reasoned local exception.
  *
  * Scope is intentionally limited to the shared app/docs icon catalogs and EMCN
  * icon components. SVG transforms, view boxes, dynamic path expressions, and
  * page-specific artwork are not inspected because their safe precision depends
  * on context.
  *
- * Run against the intended merge target: `bun run check:icon-path-precision staging`
+ * Run with `bun run check:icon-path-precision`.
  */
-import { createHash } from 'node:crypto'
 import { readdir, readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -27,11 +24,10 @@ const STATIC_ICON_FILES = [
   path.join(ROOT, 'apps/docs/components/icons.tsx'),
   path.join(ROOT, 'apps/sim/components/icons.tsx'),
 ]
-const STATIC_ICON_PATHS = STATIC_ICON_FILES.map((file) => normalizedRelativePath(file))
 const SVG_NUMBER_PATTERN = /[+-]?(?:(?:\d+\.\d*)|(?:\.\d+)|(?:\d+))(?:[eE][+-]?\d+)?/g
 const PRECISION_EXCEPTION_DIRECTIVE = 'svg-path-precision-exception:'
 
-export const MAX_ICON_PATH_FRACTION_DIGITS = 2
+export const MAX_ICON_PATH_FRACTION_DIGITS = 3
 
 interface ParsedPrecisionException {
   line: number
@@ -49,7 +45,6 @@ export interface PrecisionCandidate {
   file: string
   icon: string
   line: number
-  pathHash: string
   maxFractionDigits: number
   offendingNumbers: string[]
 }
@@ -261,10 +256,6 @@ export function effectiveFractionDigits(numberLiteral: string): number {
   return Math.max(writtenFractionDigits, exponentFractionDigits)
 }
 
-function hashPath(pathValue: string): string {
-  return createHash('sha256').update(pathValue).digest('hex')
-}
-
 function normalizedRelativePath(file: string): string {
   return path.relative(ROOT, file).split(path.sep).join('/')
 }
@@ -296,7 +287,7 @@ export function analyzeIconSource(source: string, file: string): IconPrecisionAn
         invalidExceptions.push({
           file: normalizedFile,
           line: literalPath.exception.line,
-          message: 'Exception is unnecessary because this path uses at most two decimal places.',
+          message: 'Exception is unnecessary because this path uses at most three decimal places.',
         })
       } else {
         continue
@@ -308,7 +299,6 @@ export function analyzeIconSource(source: string, file: string): IconPrecisionAn
       file: normalizedFile,
       icon: literalPath.icon,
       line: literalPath.line,
-      pathHash: hashPath(literalPath.value),
       maxFractionDigits: Math.max(...preciseNumbers.map(effectiveFractionDigits)),
       offendingNumbers: [...new Set(preciseNumbers)].slice(0, 4),
     })
@@ -321,60 +311,12 @@ export function findPrecisionCandidates(source: string, file: string): Precision
   return analyzeIconSource(source, file).candidates
 }
 
-export function findNewPrecisionCandidates(
-  current: PrecisionCandidate[],
-  base: PrecisionCandidate[]
-): PrecisionCandidate[] {
-  const allowedCounts = new Map<string, number>()
-  for (const candidate of base) {
-    allowedCounts.set(candidate.pathHash, (allowedCounts.get(candidate.pathHash) ?? 0) + 1)
-  }
-
-  const seenCounts = new Map<string, number>()
-  return current.filter((candidate) => {
-    const seen = (seenCounts.get(candidate.pathHash) ?? 0) + 1
-    seenCounts.set(candidate.pathHash, seen)
-    return seen > (allowedCounts.get(candidate.pathHash) ?? 0)
-  })
-}
-
 async function currentIconFiles(): Promise<string[]> {
   const emcnIcons = (await readdir(EMCN_ICONS_DIRECTORY))
     .filter((file) => file.endsWith('.tsx'))
     .sort()
     .map((file) => path.join(EMCN_ICONS_DIRECTORY, file))
   return [...STATIC_ICON_FILES, ...emcnIcons]
-}
-
-function gitOutput(arguments_: string[]): string {
-  const result = Bun.spawnSync(['git', ...arguments_], {
-    cwd: ROOT,
-    stdout: 'pipe',
-    stderr: 'pipe',
-  })
-  if (result.exitCode !== 0) {
-    const error = new TextDecoder().decode(result.stderr).trim()
-    throw new Error(`git ${arguments_.join(' ')} failed: ${error}`)
-  }
-  return new TextDecoder().decode(result.stdout)
-}
-
-function baseIconPaths(baseCommit: string): string[] {
-  const output = gitOutput([
-    'ls-tree',
-    '-r',
-    '--name-only',
-    baseCommit,
-    '--',
-    ...STATIC_ICON_PATHS,
-    'packages/emcn/src/icons',
-  ])
-  return output
-    .split('\n')
-    .filter(
-      (file) =>
-        STATIC_ICON_PATHS.includes(file) || /^packages\/emcn\/src\/icons\/.*\.tsx$/.test(file)
-    )
 }
 
 async function scanCurrentFiles(files: string[]): Promise<IconPrecisionAnalysis> {
@@ -388,15 +330,6 @@ async function scanCurrentFiles(files: string[]): Promise<IconPrecisionAnalysis>
   return { candidates, invalidExceptions }
 }
 
-function scanBaseFiles(baseCommit: string, files: string[]): PrecisionCandidate[] {
-  const candidates: PrecisionCandidate[] = []
-  for (const file of files) {
-    const source = gitOutput(['show', `${baseCommit}:${file}`])
-    candidates.push(...findPrecisionCandidates(source, path.join(ROOT, file)))
-  }
-  return candidates
-}
-
 function printCandidate(candidate: PrecisionCandidate): void {
   console.error(
     `  ${candidate.file}:${candidate.line} (${candidate.icon}) — ${candidate.maxFractionDigits} fractional digits`
@@ -405,18 +338,13 @@ function printCandidate(candidate: PrecisionCandidate): void {
 }
 
 async function main(): Promise<void> {
-  const [baseRef, ...unknownArguments] = process.argv.slice(2)
-  if (!baseRef || unknownArguments.length > 0 || baseRef.startsWith('-')) {
-    console.error('Usage: bun run check:icon-path-precision <base-ref>')
-    console.error('Example: bun run check:icon-path-precision staging')
+  if (process.argv.length > 2) {
+    console.error('Usage: bun run check:icon-path-precision')
     process.exit(1)
   }
 
-  const baseCommit = gitOutput(['rev-parse', '--verify', `${baseRef}^{commit}`]).trim()
   const files = await currentIconFiles()
   const current = await scanCurrentFiles(files)
-  const baseCandidates = scanBaseFiles(baseCommit, baseIconPaths(baseCommit))
-  const newCandidates = findNewPrecisionCandidates(current.candidates, baseCandidates)
 
   if (current.invalidExceptions.length > 0) {
     console.error(
@@ -427,13 +355,13 @@ async function main(): Promise<void> {
     }
   }
 
-  if (newCandidates.length > 0) {
+  if (current.candidates.length > 0) {
     console.error(
-      `\nFound ${newCandidates.length} new or changed icon path(s) with more than ${MAX_ICON_PATH_FRACTION_DIGITS} fractional digits compared with ${baseRef}:\n`
+      `\nFound ${current.candidates.length} icon path(s) with more than ${MAX_ICON_PATH_FRACTION_DIGITS} fractional digits:\n`
     )
-    for (const candidate of newCandidates) printCandidate(candidate)
+    for (const candidate of current.candidates) printCandidate(candidate)
     console.error(
-      '\nRound only numeric values inside the literal d attribute to at most two decimal places.'
+      '\nRound only numeric values inside the literal d attribute to at most three decimal places.'
     )
     console.error(
       'If extra precision is visibly necessary, place this reasoned exception immediately before that path:'
@@ -446,12 +374,12 @@ async function main(): Promise<void> {
     )
   }
 
-  if (current.invalidExceptions.length > 0 || newCandidates.length > 0) {
+  if (current.invalidExceptions.length > 0 || current.candidates.length > 0) {
     process.exit(1)
   }
 
   console.log(
-    `✓ No new overly precise icon paths compared with ${baseRef} (${files.length} current icon files checked).`
+    `✓ All literal icon paths use at most three decimal places (${files.length} files checked).`
   )
 }
 

@@ -2,21 +2,20 @@ import { describe, expect, it } from 'vitest'
 import {
   analyzeIconSource,
   effectiveFractionDigits,
-  findNewPrecisionCandidates,
   findPrecisionCandidates,
 } from './check-icon-path-precision'
 
 const FIXTURE_PATH = '/repo/packages/emcn/src/icons/fixture.tsx'
 
 describe('icon path precision audit', () => {
-  it('accepts the two-decimal boundary and ignores geometry outside literal paths', () => {
+  it('accepts the three-decimal boundary and ignores geometry outside literal paths', () => {
     const source = `
       const dynamicPath = 'M0.1234 1'
       const unrelated = "d='M0.1234 1'"
       export function SafeIcon() {
         return (
           <svg viewBox='0 0 10.1234 10' transform='scale(0.16624)'>
-            <path d='M.5 1.20L1.2e1 2' />
+            <path d='M.5 1.200L1.2e1 2' />
             <path d={dynamicPath} />
           </svg>
         )
@@ -29,10 +28,10 @@ describe('icon path precision audit', () => {
     })
   })
 
-  it('finds ordinary decimals and exponents finer than a hundredth', () => {
+  it('finds ordinary decimals and exponents finer than a thousandth', () => {
     const source = `
       export function PreciseIcon() {
-        return <svg><path d='M0.123 1e-3L2.34 5' /></svg>
+        return <svg><path d='M0.1234 1e-4L2.345 5' /></svg>
       }
     `
 
@@ -40,8 +39,8 @@ describe('icon path precision audit', () => {
     expect(candidates).toHaveLength(1)
     expect(candidates[0]).toMatchObject({
       icon: 'PreciseIcon',
-      maxFractionDigits: 3,
-      offendingNumbers: ['0.123', '1e-3'],
+      maxFractionDigits: 4,
+      offendingNumbers: ['0.1234', '1e-4'],
     })
     expect(effectiveFractionDigits('2.13949e-05')).toBe(10)
   })
@@ -51,8 +50,8 @@ describe('icon path precision audit', () => {
       export function ExpressionIcon() {
         return (
           <svg>
-            <path d={'M0.123 1'} />
-            <path d={\`M2.345 3\`} />
+            <path d={'M0.1234 1'} />
+            <path d={\`M2.3456 3\`} />
           </svg>
         )
       }
@@ -84,7 +83,7 @@ describe('icon path precision audit', () => {
   it('rejects exceptions without a reason and exceptions on already-clean paths', () => {
     const missingReason = `
       export function PreciseIcon() {
-        return <svg>{/** svg-path-precision-exception: */}<path d='M0.123 1' /></svg>
+        return <svg>{/** svg-path-precision-exception: */}<path d='M0.1234 1' /></svg>
       }
     `
     const unnecessary = `
@@ -102,31 +101,7 @@ describe('icon path precision audit', () => {
     expect(unnecessaryAnalysis.invalidExceptions[0]?.message).toContain('unnecessary')
   })
 
-  it('grandfathers exact paths from the target branch but rejects additions and edits', () => {
-    const base = `
-      export function LegacyIcon() {
-        return <svg><path d='M0.123 1' /></svg>
-      }
-    `
-    const unchanged = findPrecisionCandidates(base, FIXTURE_PATH)
-    expect(findNewPrecisionCandidates(unchanged, unchanged)).toEqual([])
-
-    const duplicate = `
-      export function LegacyIcon() {
-        return <svg><path d='M0.123 1' /><path d='M0.123 1' /></svg>
-      }
-    `
-    expect(
-      findNewPrecisionCandidates(findPrecisionCandidates(duplicate, FIXTURE_PATH), unchanged)
-    ).toHaveLength(1)
-
-    const changed = base.replace('0.123', '0.1234')
-    expect(
-      findNewPrecisionCandidates(findPrecisionCandidates(changed, FIXTURE_PATH), unchanged)
-    ).toHaveLength(1)
-  })
-
-  it('requires a committed exception to remain while its precise path remains', () => {
+  it('requires a reasoned exception to remain while its precise path remains', () => {
     const excepted = `
       export function PreciseBrandIcon() {
         return (
@@ -143,8 +118,6 @@ describe('icon path precision audit', () => {
     )
 
     expect(findPrecisionCandidates(excepted, FIXTURE_PATH)).toEqual([])
-    expect(
-      findNewPrecisionCandidates(findPrecisionCandidates(exceptionRemoved, FIXTURE_PATH), [])
-    ).toHaveLength(1)
+    expect(findPrecisionCandidates(exceptionRemoved, FIXTURE_PATH)).toHaveLength(1)
   })
 })

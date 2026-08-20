@@ -17,7 +17,6 @@ import path from 'node:path'
 const EXCLUDED: Record<string, string> = {
   'check:audits': 'this runner',
   'check:migrations': 'needs a git base ref argument',
-  'check:icon-path-precision': 'needs a git base ref argument',
   'check:api-validation': 'superseded by the :strict variant, which this runner does run',
 }
 
