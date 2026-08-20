@@ -405,6 +405,7 @@ export const listTableRows = defineAuthorizedTableUseCase({
           offset: cursor?.offset,
           includeTotal: false,
           withExecutions: input.includeRunState ?? false,
+          runStateBudgetBytes: TABLE_LIMITS.MAX_ROW_RUN_STATE_BYTES,
         },
         requestId(input)
       )
@@ -469,6 +470,7 @@ export const queryTableRows = defineAuthorizedTableUseCase({
           offset: cursor?.offset,
           includeTotal: input.includeTotal ?? false,
           withExecutions: input.includeRunState ?? false,
+          runStateBudgetBytes: TABLE_LIMITS.MAX_ROW_RUN_STATE_BYTES,
         },
         requestId(input)
       )

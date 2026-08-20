@@ -61,10 +61,17 @@ const MAX_FILE_SIZE = MAX_KNOWLEDGE_DOCUMENT_FILE_SIZE
  */
 function documentCursorFilters(
   knowledgeBaseId: string,
-  query: { enabledFilter?: string; search?: string; tagFilters?: string }
+  query: { workspaceId: string; enabledFilter?: string; search?: string; tagFilters?: string }
 ) {
   const parsed = parseV2KnowledgeTagFiltersParam(query.tagFilters)
   return cursorScopeKey(cursorRoute(v2ListKnowledgeDocumentsContract, { id: knowledgeBaseId }), {
+    // Kept in the fingerprint despite being asserted scope rather than a filter.
+    // Dropping it is defensible in the abstract and free in effect — the value
+    // is constant for any one sequence — but it changes the fingerprint, so
+    // every cursor minted before the change is refused with a message telling
+    // the caller they altered a filter they never sent. A constant costs
+    // nothing to keep; a compatibility break to remove it buys nothing.
+    workspaceId: query.workspaceId,
     enabledFilter: query.enabledFilter,
     search: query.search,
     tagFilters: parsed.success

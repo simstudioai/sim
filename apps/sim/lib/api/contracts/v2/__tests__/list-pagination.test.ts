@@ -173,6 +173,11 @@ const CURSOR_BINDINGS: Record<string, readonly string[]> = {
   ],
   'GET /api/v2/knowledge': ['workspaceId', 'folderPath', 'search', 'sortBy', 'sortOrder'],
   'GET /api/v2/knowledge/[id]/documents': [
+    // Asserted scope rather than a filter, but this list shipped before the
+    // distinction was drawn. The value is constant for any one sequence, so
+    // keeping it costs nothing; removing it would refuse every cursor already
+    // in flight. The chunks list below is new, so it starts out unbound.
+    'workspaceId',
     'enabledFilter',
     'search',
     'tagFilters',
@@ -296,10 +301,6 @@ const CURSOR_BOUND_PATH_PARAMS: Record<string, readonly string[]> = {
  * correctness gain.
  */
 const UNBOUND_PARAMS: Record<string, Record<string, string>> = {
-  'GET /api/v2/knowledge/[id]/documents': {
-    workspaceId:
-      'Asserted scope, not a filter: the sequence is one knowledge base, named by the path. A mismatched workspace is refused by authorization before paging.',
-  },
   'GET /api/v2/knowledge/[id]/documents/[documentId]/chunks': {
     workspaceId:
       'Asserted scope, not a filter: the sequence is one document, named by the path. A mismatched workspace is refused by authorization before paging.',

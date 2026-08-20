@@ -659,6 +659,7 @@ describe('row query and upsert application semantics', () => {
         offset: undefined,
         includeTotal: false,
         withExecutions: false,
+        runStateBudgetBytes: TABLE_LIMITS.MAX_ROW_RUN_STATE_BYTES,
       },
       expect.any(String)
     )

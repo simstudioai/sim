@@ -281,15 +281,42 @@ describe('queryRows byte budget', () => {
    * ceiling of its own, so the drain has to carry a byte budget rather than have
    * one measured over an already-materialized result.
    */
-  it('hands the run-state drain its own byte budget', async () => {
+  it('hands the run-state drain the budget its caller asked for', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([])
+    dbChainMockFns.limit.mockResolvedValueOnce([row(1, 8), row(2, 8)])
+
+    await queryRows(
+      TABLE,
+      {
+        limit: 5,
+        includeTotal: false,
+        withExecutions: true,
+        runStateBudgetBytes: TABLE_LIMITS.MAX_ROW_RUN_STATE_BYTES,
+      },
+      'req-1'
+    )
+
+    expect(mockLoadExecutionsByRow).toHaveBeenCalledWith(expect.anything(), ['row_1', 'row_2'], {
+      budgetBytes: TABLE_LIMITS.MAX_ROW_RUN_STATE_BYTES,
+    })
+  })
+
+  /**
+   * Only the public reads publish a `413` for the sidecar. The first-party grid
+   * reads run state at five times the row limit with no such contract, so a
+   * budget there turns a large page into a hard failure where it used to render.
+   */
+  it('leaves the drain unbounded for a caller that asked for no budget', async () => {
     dbChainMockFns.limit.mockResolvedValueOnce([])
     dbChainMockFns.limit.mockResolvedValueOnce([row(1, 8), row(2, 8)])
 
     await queryRows(TABLE, { limit: 5, includeTotal: false, withExecutions: true }, 'req-1')
 
-    expect(mockLoadExecutionsByRow).toHaveBeenCalledWith(expect.anything(), ['row_1', 'row_2'], {
-      budgetBytes: TABLE_LIMITS.MAX_ROW_RUN_STATE_BYTES,
-    })
+    expect(mockLoadExecutionsByRow).toHaveBeenCalledWith(
+      expect.anything(),
+      ['row_1', 'row_2'],
+      undefined
+    )
   })
 
   it('returns an entire under-budget result past the former batch safety limit', async () => {

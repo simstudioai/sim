@@ -317,6 +317,19 @@ export const CLI_CONTRACT: CliContract = {
   duplicateWorkflow: {
     flags: { folderPath: FOLDER_PATH_FLAG },
   },
+  // Graph writes. None is delete-shaped by name, so neither destructive sweep
+  // reaches them, yet each can discard work: a state replace overwrites the
+  // whole draft with no conflict detection, an operations batch carries a
+  // `delete` arm, and a variables patch replaces the set.
+  replaceWorkflowState: {
+    confirm: 'This replaces the entire draft graph and cannot be undone.',
+  },
+  applyWorkflowOperations: {
+    confirm: 'This edits the draft graph, and a delete operation removes blocks and their edges.',
+  },
+  applyWorkflowVariables: {
+    confirm: 'This replaces the workflow’s variables and cannot be undone.',
+  },
   moveWorkflows: {
     flags: {
       workflowIds: { name: 'workflow', list: true },

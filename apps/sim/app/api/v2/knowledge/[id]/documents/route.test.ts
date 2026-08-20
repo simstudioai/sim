@@ -432,12 +432,18 @@ describe('GET /api/v2/knowledge/[id]/documents', () => {
   })
 
   /**
-   * `workspaceId` is asserted scope, not a filter: the sequence is the one
-   * knowledge base the path names, and a workspace that does not own it is
-   * refused by authorization long before paging. Binding it would refuse a page
-   * that did not move — the same reading the table-row lists record.
+   * `workspaceId` is asserted scope rather than a filter, so binding it into the
+   * fingerprint is redundant on the merits — the sequence is the one knowledge
+   * base the path names, and a workspace that does not own it is refused by
+   * authorization long before paging.
+   *
+   * It stays bound anyway, because this list shipped with it bound. Unbinding
+   * changes the fingerprint, and every cursor already in flight would be refused
+   * with a message telling the caller they changed a filter they never sent. The
+   * chunks list is new in the same change and starts out unbound, which is where
+   * the cleaner reading applies without a compatibility cost.
    */
-  it('resumes a cursor under a different asserted workspace, leaving that to authorization', async () => {
+  it('refuses a cursor replayed under a different asserted workspace', async () => {
     const minted = await list(`workspaceId=${WORKSPACE_ID}&limit=1&search=support`)
     const { nextCursor } = await minted.json()
 
@@ -446,12 +452,8 @@ describe('GET /api/v2/knowledge/[id]/documents', () => {
       `workspaceId=workspace-2&limit=1&search=support&cursor=${encodeURIComponent(nextCursor)}`
     )
 
-    expect(resumed.status).toBe(200)
-    expect(mockListDocuments).toHaveBeenCalledWith({
-      principal: PRINCIPAL,
-      input: expect.objectContaining({ assertedWorkspaceId: 'workspace-2', offset: 1 }),
-      request: expect.anything(),
-    })
+    expect(resumed.status).toBe(400)
+    expect(mockListDocuments).not.toHaveBeenCalled()
   })
 
   it('resumes a cursor replayed under the filters it was minted with', async () => {

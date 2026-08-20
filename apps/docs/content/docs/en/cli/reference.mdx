@@ -4402,6 +4402,7 @@ sim workflows operations create <id> [options]
 | `--no-atomic` | No | Send --atomic as false. |
 | `--layout <value>` | No | Whether to reposition blocks the batch touched. `targeted` (default) nudges only the affected subgraph; `none` leaves every position exactly as supplied. Accepted values: `targeted`, `none`. |
 | `--set-block-enabled <json\|@file>` | No | Blocks to enable or disable, applied after `operations`. Disabling a loop or parallel cascades to its unlocked descendants; enabling a block whose container is disabled is declined. (JSON, or @path / @- to read a file or stdin). |
+| `-y, --yes` | Yes | Confirm this destructive operation. |
 
 </CommandTable>
 
@@ -4430,6 +4431,7 @@ sim workflows variables update <id> [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--operations <json\|@file>` | Yes | Variable changes to apply, in order. (JSON, or @path / @- to read a file or stdin). |
+| `-y, --yes` | Yes | Confirm this destructive operation. |
 
 </CommandTable>
 
@@ -4940,6 +4942,7 @@ sim workflows state update <id> [options]
 | `--loops <json\|@file>` | No | Ignored on write: loop containers are recomputed from `blocks`. (JSON, or @path / @- to read a file or stdin). |
 | `--parallels <json\|@file>` | No | Ignored on write: parallel containers are recomputed from `blocks`. (JSON, or @path / @- to read a file or stdin). |
 | `--variables <json\|@file>` | No | Replacement variable set. Omit to leave the stored variables untouched. (JSON, or @path / @- to read a file or stdin). |
+| `-y, --yes` | Yes | Confirm this destructive operation. |
 
 </CommandTable>
 
