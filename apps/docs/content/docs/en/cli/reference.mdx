@@ -4396,7 +4396,7 @@ sim workflows operations create <id> [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--operations <json\|@file>` | Yes | Edits to apply, in a single batch. (JSON, or @path / @- to read a file or stdin). |
-| `--atomic` | No | Fail the whole batch when any operation is declined. The default applies what it can and reports the rest in `skipped`; `true` writes nothing and answers `409` instead. |
+| `--atomic` | No | Fail the whole batch when any operation is declined or any block input would be dropped. The default applies what it can and reports the rest in `skipped` and `inputValidationErrors`; `true` writes nothing and answers `409` instead. |
 | `--no-atomic` | No | Send --atomic as false. |
 | `--layout <value>` | No | Whether to reposition blocks the batch touched. `targeted` (default) nudges only the affected subgraph; `none` leaves every position exactly as supplied. Accepted values: `targeted`, `none`. |
 | `--set-block-enabled <json\|@file>` | No | Blocks to enable or disable, applied after `operations`. Disabling a loop or parallel cascades to its unlocked descendants; enabling a block whose container is disabled is declined. (JSON, or @path / @- to read a file or stdin). |
@@ -4802,7 +4802,7 @@ sim workflows run <id> [options]
 | `--select-output <value...>` | No | Return blockName.field values (e.g. agent_1.content); missing fields are omitted (space-separated, or @path / @- with one value per line). |
 | `--include-file-base64` | No | Inline eligible output files as base64 content. Rejected when `async` is true. |
 | `--no-include-file-base64` | No | Send --include-file-base64 as false. |
-| `--base64-max-bytes <value>` | No | Maximum total bytes of file content to inline as base64. Rejected when `async` is true. |
+| `--base64-max-bytes <value>` | No | Maximum total bytes of file content to inline as base64, lowering but never raising the server limit of 16 MiB. Rejected when `async` is true. |
 | `--follow` | No | Stream the run as it happens; progress on stderr, result on stdout. The stream reports only success and output, so the result omits the run id and timings a non-streaming run returns. |
 | `--include-thinking` | No | Show model reasoning while following (requires --follow). |
 | `--include-tool-calls` | No | Show tool calls while following (requires --follow). |

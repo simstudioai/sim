@@ -141,16 +141,18 @@ describe('moveWorkflowsBulk', () => {
     expect(mocks.audit).not.toHaveBeenCalled()
   })
 
-  it('rejects a principal kind the operation does not accept, before canonical workspace loading', async () => {
+  it('rejects a delegated service the operation does not accept, before canonical loading', async () => {
     await expect(
       moveWorkflowsBulk.execute({
         principal: {
-          kind: 'credential_group_enrollment',
+          kind: 'delegated',
+          serviceId: 'executor',
+          subjectUserId: 'user-1',
           workspaceId: 'workspace-1',
-          credentialGroupId: 'group-1',
-          enrollmentId: 'enrollment-1',
-          email: 'someone@example.com',
-          invitationTokenHash: 'hash',
+          delegationId: 'delegation-1',
+          audience: 'sim:workflows',
+          issuedAt: new Date('2026-01-01T00:00:00Z'),
+          expiresAt: new Date('2026-01-01T01:00:00Z'),
         },
         input: { workspaceId: 'workspace-1', workflowIds: ['workflow-1'], folderId: null },
       })

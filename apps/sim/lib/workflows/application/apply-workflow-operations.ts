@@ -28,7 +28,10 @@ import {
   DEFAULT_VERTICAL_SPACING,
 } from '@/lib/workflows/autolayout/constants'
 import { checkNeedsRedeployment } from '@/lib/workflows/deployment-status'
-import { decideBlockEnablement } from '@/lib/workflows/editing/block-enablement'
+import {
+  type BlockEnablementRefusal,
+  decideBlockEnablement,
+} from '@/lib/workflows/editing/block-enablement'
 import { applyOperationsToWorkflowState } from '@/lib/workflows/editing/engine'
 import {
   collectWorkflowFieldIssues,
@@ -41,6 +44,7 @@ import {
   type EditWorkflowOperation,
   isDeferredSkippedItem,
   type SkippedItem,
+  type SkippedItemType,
   type ValidationError,
 } from '@/lib/workflows/editing/types'
 import {
@@ -59,12 +63,6 @@ import { normalizeWorkflowState } from '@/stores/workflows/workflow/validation'
 
 const logger = createLogger('ApplyWorkflowOperations')
 
-/**
- * A batch the caller asked to be all-or-nothing that could not be applied whole.
- *
- * Carries the declined operations so a pipeline can act on them without a second
- * request; the surface renders them as `409` with `error.details`.
- */
 /** One enable/disable request riding along with an edit batch. */
 export interface WorkflowBlockEnabledChange {
   blockId: string
@@ -144,6 +142,36 @@ async function loadStoredGraph(workflowId: string): Promise<Record<string, unkno
 }
 
 /**
+ * How many of the engine's skips charge against the operation batch.
+ *
+ * The enablement slice appends to the same array, and a deferred forward
+ * reference is not a refusal at all, so neither may be subtracted from the
+ * operation count.
+ */
+function countOperationSkips(skippedItems: readonly SkippedItem[]): number {
+  let count = 0
+  for (const item of skippedItems) {
+    if (item.operationType !== 'set_block_enabled' && !isDeferredSkippedItem(item)) count += 1
+  }
+  return count
+}
+
+/**
+ * How each enablement refusal maps onto the machine-readable skip enum. Kept as
+ * a total `Record` so a new refusal reason fails to compile until it is
+ * classified, and kept aligned with `BLOCK_ENABLEMENT_REFUSAL_CODES`, which
+ * makes the same three-way distinction for the single-toggle operation.
+ */
+const BLOCK_ENABLEMENT_SKIPPED_ITEM_TYPES: Record<
+  BlockEnablementRefusal['reason'],
+  SkippedItemType
+> = {
+  not_found: 'block_not_found',
+  locked: 'block_locked',
+  disabled_ancestor: 'disabled_ancestor',
+}
+
+/**
  * Applies the enable/disable slice of a batch in memory.
  *
  * A refusal is recorded as a skipped item rather than thrown, so the slice
@@ -161,7 +189,7 @@ function applyBlockEnabledChanges(
     const decision = decideBlockEnablement(current, change.blockId, change.enabled)
     if (decision.outcome === 'refused') {
       skippedItems.push({
-        type: decision.refusal.reason === 'not_found' ? 'block_not_found' : 'block_locked',
+        type: BLOCK_ENABLEMENT_SKIPPED_ITEM_TYPES[decision.refusal.reason],
         operationType: 'set_block_enabled',
         blockId: change.blockId,
         reason: decision.refusal.message,
@@ -252,30 +280,34 @@ export const applyWorkflowOperations = defineAuthorizedWorkflowUseCase({
     )
     validationErrors.push(...credentialErrors)
 
+    /**
+     * Counted directly rather than as `operations - skipped`. The enablement
+     * slice pushes its own refusals into the same `skippedItems` array, so
+     * subtracting the whole array from the operation count charged enablement
+     * refusals against operations and could go negative.
+     */
+    const appliedOperations = filteredOperations.length - countOperationSkips(skippedItems)
+
     const enablement = applyBlockEnabledChanges(
       modifiedGraph.blocks as Record<string, BlockState>,
       input.blockEnabledChanges ?? [],
       skippedItems
     )
     modifiedGraph.blocks = enablement.blocks
+    const applied = appliedOperations + enablement.applied
 
     const unresolvedReferences: WorkflowLintUnresolvedReference[] = []
     for (const collect of [collectUnresolvedReferences, collectUnresolvedAgentToolReferences]) {
       try {
+        // Reported only through `lint`. `collectUnresolvedReferences` is
+        // read-only, so the values it flags stay persisted — pushing them into
+        // `inputValidationErrors` as well would double-report them, and falsely,
+        // since that field means "dropped rather than persisted".
         const references = await collect(modifiedGraph, {
           userId: subjectUserId,
           workspaceId: context.workspaceId,
         })
         unresolvedReferences.push(...references)
-        validationErrors.push(
-          ...references.map((reference) => ({
-            blockId: reference.blockId,
-            blockType: reference.blockType ?? 'unknown',
-            field: reference.field,
-            value: reference.value,
-            error: reference.reason,
-          }))
-        )
       } catch (error) {
         logger.warn('Reference resolution lint failed', {
           workflowId: context.workflowId,
@@ -294,8 +326,15 @@ export const applyWorkflowOperations = defineAuthorizedWorkflowUseCase({
 
     const genuineSkippedItems = skippedItems.filter((item) => !isDeferredSkippedItem(item))
     const deferredItems = skippedItems.filter(isDeferredSkippedItem)
-    if (input.atomic && genuineSkippedItems.length > 0) {
-      throw new WorkflowOperationsNotAppliedError(genuineSkippedItems)
+    /**
+     * A dropped input refuses the batch as surely as a declined operation does.
+     * `preValidateCredentialInputs` and the engine both delete fields rather
+     * than fail, so an atomic batch that only reads `skipped` would commit a
+     * block whose credential or API key was silently stripped — the opposite of
+     * what all-or-nothing promises.
+     */
+    if (input.atomic && (genuineSkippedItems.length > 0 || validationErrors.length > 0)) {
+      throw new WorkflowOperationsNotAppliedError(genuineSkippedItems, validationErrors)
     }
 
     const finalGraph = validation.sanitizedState || modifiedGraph
@@ -311,6 +350,12 @@ export const applyWorkflowOperations = defineAuthorizedWorkflowUseCase({
       parallels: generateParallelBlocks(blocks),
     }
 
+    /**
+     * `notes` is assigned after the graph-lint spread and that is safe: notes
+     * are this layer's to produce. `lintEditedWorkflowState` returns
+     * {@link WorkflowLintResult}, which declares no `notes` member, so the
+     * assignment can never discard a finding the linter made.
+     */
     const lint: WorkflowLintReport = {
       ...lintEditedWorkflowState(graph),
       fieldIssues: collectWorkflowFieldIssues(graph.blocks),
@@ -325,8 +370,6 @@ export const applyWorkflowOperations = defineAuthorizedWorkflowUseCase({
       attributedUserId: subjectUserId,
       state: { blocks: graph.blocks, edges: graph.edges },
     })
-
-    const applied = filteredOperations.length - genuineSkippedItems.length + enablement.applied
 
     logger.info('Applied workflow operations', {
       workflowId: context.workflowId,
@@ -343,7 +386,7 @@ export const applyWorkflowOperations = defineAuthorizedWorkflowUseCase({
       workspaceId: context.workspaceId,
       graph,
       operationCount: input.operations.length,
-      applied: Math.max(applied, 0),
+      applied,
       skipped: genuineSkippedItems,
       deferred: deferredItems,
       inputValidationErrors: validationErrors,

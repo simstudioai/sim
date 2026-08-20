@@ -32,6 +32,13 @@ export interface ReadWorkflowGraphResult {
  * Records **no** semantic audit, deliberately. This is the pollable read; the
  * audited, portable, sanitized one is `workflows.export`, and auditing here
  * would force `headSafe: false` and make the endpoint unusable for polling.
+ *
+ * Existence is decided by the workflow row alone, never by the block rows.
+ * `loadWorkflowFromNormalizedTables` answers `null` for a workflow with zero
+ * blocks, and a blockless draft is a legitimate state a client can reach — a
+ * `PUT /state` of `{ blocks: {}, edges: [] }` writes exactly that. Reading it
+ * back as `not_found` would break the read-modify-write round trip the graph
+ * schema promises, so the null is projected as an empty graph instead.
  */
 export const readWorkflowGraph = defineAuthorizedWorkflowUseCase({
   operation: workflowOperations.read,
@@ -42,7 +49,7 @@ export const readWorkflowGraph = defineAuthorizedWorkflowUseCase({
     }),
   async execute({ context }): Promise<ReadWorkflowGraphResult> {
     const snapshot = await loadWorkflowReadSnapshot(context.workflowId, context.workspaceId)
-    if (!snapshot.workflowRecord || !snapshot.normalizedData) {
+    if (!snapshot.workflowRecord) {
       throw new OrchestrationError('not_found', 'Workflow not found')
     }
     // The column has carried three shapes over time (JSON string, legacy array,
@@ -54,10 +61,10 @@ export const readWorkflowGraph = defineAuthorizedWorkflowUseCase({
     return {
       workflowId: context.workflowId,
       workspaceId: context.workspaceId,
-      blocks: snapshot.normalizedData.blocks as Record<string, BlockState>,
-      edges: (snapshot.normalizedData.edges ?? []) as WorkflowState['edges'],
-      loops: snapshot.normalizedData.loops ?? {},
-      parallels: snapshot.normalizedData.parallels ?? {},
+      blocks: (snapshot.normalizedData?.blocks ?? {}) as Record<string, BlockState>,
+      edges: (snapshot.normalizedData?.edges ?? []) as WorkflowState['edges'],
+      loops: snapshot.normalizedData?.loops ?? {},
+      parallels: snapshot.normalizedData?.parallels ?? {},
       variables: variables ?? {},
     }
   },

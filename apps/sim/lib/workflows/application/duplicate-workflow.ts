@@ -1,6 +1,7 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
 import { type Principal, resolvePrincipalAttribution } from '@sim/auth/principal'
 import { db } from '@sim/db'
+import { principalAuditSource } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { MAX_FOLDERS_PER_WORKSPACE } from '@/lib/folders/constants'
@@ -70,13 +71,17 @@ export const duplicateWorkflow = defineAuthorizedWorkflowUseCase({
       folderPath: workflowFolderPathForId(resolution.index, duplicated.folderId),
     }
   },
-  projectAudit: ({ context, result }) => ({
+  projectAudit: ({ principal, context, result }) => ({
     action: AuditAction.WORKFLOW_DUPLICATED,
     resourceType: AuditResourceType.WORKFLOW,
     resourceId: result.id,
     resourceName: result.name,
     description: `Duplicated workflow "${context.workflow.name}" as "${result.name}"`,
-    metadata: { sourceWorkflowId: context.workflowId, workspaceId: context.workspaceId },
+    metadata: {
+      sourceWorkflowId: context.workflowId,
+      workspaceId: context.workspaceId,
+      source: principalAuditSource(principal),
+    },
   }),
   afterSuccess: ({ result }) => notifyWorkflowUpdated(result.id),
 })

@@ -89,9 +89,31 @@ describe('replaceWorkflowState', () => {
     mocks.needsRedeployment.mockResolvedValue(true)
   })
 
-  it('writes through the shared persistence primitive and reports redeployment drift', async () => {
+  /**
+   * Two things this pins that a same-shape input and output cannot: the write
+   * carries the **sanitized** graph, not the caller's body, and the reported
+   * counts come from what was persisted, not from what was asked for. The
+   * fixture deliberately makes the two differ.
+   */
+  it('writes the sanitized graph and counts what was persisted, not what was sent', async () => {
+    const DROPPED_BLOCK = { ...BLOCK, id: 'block-2', name: 'Dropped' }
+    const DROPPED_EDGE = { id: 'edge-9', source: 'block-1', target: 'block-2' }
+    mocks.validate.mockReturnValue({
+      valid: true,
+      errors: [],
+      warnings: ['Dropped block "block-2"'],
+      sanitizedState: { blocks: { 'block-1': BLOCK }, edges: [], loops: {}, parallels: {} },
+    })
+
     await expect(
-      replaceWorkflowState.execute({ principal: sessionPrincipal, input })
+      replaceWorkflowState.execute({
+        principal: sessionPrincipal,
+        input: {
+          workflowId: 'workflow-1',
+          blocks: { 'block-1': BLOCK, 'block-2': DROPPED_BLOCK },
+          edges: [DROPPED_EDGE],
+        },
+      })
     ).resolves.toMatchObject({
       workflowId: 'workflow-1',
       blocksCount: 1,
@@ -99,13 +121,12 @@ describe('replaceWorkflowState', () => {
       needsRedeployment: true,
     })
 
-    expect(mocks.replace).toHaveBeenCalledWith(
-      expect.objectContaining({
-        workflowId: 'workflow-1',
-        workspaceId: 'workspace-1',
-        attributedUserId: 'user-1',
-      })
-    )
+    expect(mocks.replace).toHaveBeenCalledWith({
+      workflowId: 'workflow-1',
+      workspaceId: 'workspace-1',
+      attributedUserId: 'user-1',
+      state: { blocks: { 'block-1': BLOCK }, edges: [], variables: undefined },
+    })
   })
 
   it('derives the audit source from the acting principal and notifies after it', async () => {

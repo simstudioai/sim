@@ -1,5 +1,5 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
-import type { Principal } from '@sim/auth/principal'
+import { type Principal, resolvePrincipalAttribution } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
@@ -20,10 +20,9 @@ import {
   type BlockEnablementRefusal,
   decideBlockEnablement,
 } from '@/lib/workflows/editing/block-enablement'
-import {
-  loadWorkflowFromNormalizedTables,
-  saveWorkflowToNormalizedTables,
-} from '@/lib/workflows/persistence/utils'
+import { replaceWorkflowNormalizedState } from '@/lib/workflows/persistence/replace-normalized-state'
+import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
+import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
 
 const logger = createLogger('UpdateWorkflowContent')
 const MAX_WORKFLOW_VARIABLE_OPERATIONS = 100
@@ -230,86 +229,77 @@ export interface SetWorkflowBlockEnabledInput extends WorkflowContentInput {
   enabled: boolean
 }
 
+/**
+ * Toggles one block, or a container and its unlocked descendants.
+ *
+ * The write goes through {@link replaceWorkflowNormalizedState}, the same door
+ * `replaceWorkflowState` and `applyWorkflowOperations` use, so this toggle
+ * cannot acquire different persistence behavior by being a different entry
+ * point: it gets the same state preparation, the same row-locked replace
+ * transaction, the same `lastSynced` stamp, and the same custom-tool
+ * extraction. Writing the graph here directly was how those diverged.
+ */
 export const setWorkflowBlockEnabled = defineAuthorizedWorkflowUseCase({
   operation: workflowOperations.setBlockEnabled,
   resolveContext: resolveWorkflowContentContext<SetWorkflowBlockEnabledInput>,
-  async execute({ input, context }) {
+  async execute({ principal, input, context }) {
     await requireMutableWorkflow(context.workflowId)
-    return db.transaction(async (tx) => {
-      const [active] = await tx
-        .select({ id: workflow.id, name: workflow.name })
-        .from(workflow)
-        .where(
-          and(
-            eq(workflow.id, context.workflowId),
-            eq(workflow.workspaceId, context.workspaceId),
-            isNull(workflow.archivedAt)
-          )
-        )
-        .limit(1)
-        .for('update')
-      if (!active) throw new OrchestrationError('not_found', 'Workflow not found')
 
-      const normalized = await loadWorkflowFromNormalizedTables(context.workflowId, tx)
-      if (!normalized) {
-        throw new OrchestrationError(
-          'validation',
-          `Workflow ${context.workflowId} has no normalized state`
-        )
-      }
-      const currentState: WorkflowState = {
-        blocks: normalized.blocks as Record<string, BlockState>,
-        edges: normalized.edges || [],
-        loops: normalized.loops || {},
-        parallels: normalized.parallels || {},
-        lastSaved: Date.now(),
-      }
-      const decision = decideBlockEnablement(currentState.blocks, input.blockId, input.enabled)
-      if (decision.outcome === 'refused') {
-        throw new OrchestrationError(
-          BLOCK_ENABLEMENT_REFUSAL_CODES[decision.refusal.reason],
-          decision.refusal.reason === 'not_found'
-            ? `Block ${input.blockId} not found in workflow ${context.workflowId}`
-            : decision.refusal.message
-        )
-      }
-      if (decision.outcome === 'unchanged') {
-        return {
-          changed: false,
-          workflowName: active.name,
-          affectedBlockIds: decision.affectedBlockIds,
-          state: currentState,
-        }
-      }
-
-      const nextState: WorkflowState = {
-        ...currentState,
-        blocks: decision.blocks,
-        lastSaved: Date.now(),
-      }
-      const saveResult = await saveWorkflowToNormalizedTables(context.workflowId, nextState, tx)
-      if (!saveResult.success) {
-        throw new Error(saveResult.error || 'Failed to save workflow state')
-      }
-      const [updated] = await tx
-        .update(workflow)
-        .set({ lastSynced: new Date(), updatedAt: new Date() })
-        .where(
-          and(
-            eq(workflow.id, context.workflowId),
-            eq(workflow.workspaceId, context.workspaceId),
-            isNull(workflow.archivedAt)
-          )
-        )
-        .returning({ id: workflow.id })
-      if (!updated) throw new OrchestrationError('not_found', 'Workflow not found')
+    const normalized = await loadWorkflowFromNormalizedTables(context.workflowId)
+    if (!normalized) {
+      throw new OrchestrationError(
+        'validation',
+        `Workflow ${context.workflowId} has no normalized state`
+      )
+    }
+    const currentState: WorkflowState = {
+      blocks: normalized.blocks as Record<string, BlockState>,
+      edges: normalized.edges || [],
+      loops: normalized.loops || {},
+      parallels: normalized.parallels || {},
+      lastSaved: Date.now(),
+    }
+    const decision = decideBlockEnablement(currentState.blocks, input.blockId, input.enabled)
+    if (decision.outcome === 'refused') {
+      throw new OrchestrationError(
+        BLOCK_ENABLEMENT_REFUSAL_CODES[decision.refusal.reason],
+        decision.refusal.reason === 'not_found'
+          ? `Block ${input.blockId} not found in workflow ${context.workflowId}`
+          : decision.refusal.message
+      )
+    }
+    if (decision.outcome === 'unchanged') {
       return {
-        changed: true,
-        workflowName: active.name,
+        changed: false,
+        workflowName: context.workflow.name,
         affectedBlockIds: decision.affectedBlockIds,
-        state: nextState,
+        state: currentState,
       }
+    }
+
+    const attribution = resolvePrincipalAttribution(principal, {
+      workspaceBillingOwnerUserId: context.billedAccountUserId,
     })
+    const persisted = await replaceWorkflowNormalizedState({
+      workflowId: context.workflowId,
+      workspaceId: context.workspaceId,
+      attributedUserId: attribution.attributedUserId,
+      state: { blocks: decision.blocks, edges: currentState.edges },
+    })
+
+    const blocks = persisted.state.blocks as Record<string, BlockState>
+    return {
+      changed: true,
+      workflowName: context.workflow.name,
+      affectedBlockIds: decision.affectedBlockIds,
+      state: {
+        blocks,
+        edges: persisted.state.edges,
+        loops: generateLoopBlocks(blocks),
+        parallels: generateParallelBlocks(blocks),
+        lastSaved: Date.now(),
+      } satisfies WorkflowState,
+    }
   },
   projectAudit: ({ principal, input, context, result }) =>
     result.changed

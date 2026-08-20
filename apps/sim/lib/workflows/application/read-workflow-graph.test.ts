@@ -107,11 +107,31 @@ describe('readWorkflowGraph', () => {
     expect(mocks.recordAudit).not.toHaveBeenCalled()
   })
 
-  it('is not found when the workflow has no normalized state', async () => {
+  /**
+   * A `PUT /state` of `{ blocks: {}, edges: [] }` deletes every block row, and
+   * the loader answers `null` for a blockless workflow. Existence is the
+   * workflow row's to decide, so the round trip has to close on an empty graph
+   * rather than a 404 the list endpoint contradicts.
+   */
+  it('reads a blockless draft back as an empty graph, not as not found', async () => {
     mocks.loadSnapshot.mockResolvedValue({
       workflowRecord: { id: 'workflow-1', variables: null },
       normalizedData: null,
     })
+
+    await expect(readWorkflowGraph.execute({ principal, input })).resolves.toEqual({
+      workflowId: 'workflow-1',
+      workspaceId: 'workspace-1',
+      blocks: {},
+      edges: [],
+      loops: {},
+      parallels: {},
+      variables: {},
+    })
+  })
+
+  it('is not found when the workflow row is gone', async () => {
+    mocks.loadSnapshot.mockResolvedValue({ workflowRecord: null, normalizedData: null })
 
     await expect(readWorkflowGraph.execute({ principal, input })).rejects.toMatchObject({
       code: 'not_found',
@@ -136,9 +156,33 @@ describe('readWorkflowGraph', () => {
     expect(mocks.resolveContext).not.toHaveBeenCalled()
   })
 
-  it('answers the authorization phase without loading the graph', async () => {
-    await readWorkflowGraph.authorize?.({ principal, input })
+  /**
+   * The `HEAD` existence-leak guard. `defineV2JsonRoute` answers a head-safe
+   * probe by calling `authorize()` alone, so an absent or permissive
+   * `authorize` would turn every `HEAD` into an unauthenticated existence
+   * oracle. Both halves are asserted: it must exist, it must refuse a principal
+   * without the role, and it must reach that verdict without reading the graph.
+   */
+  describe('authorize', () => {
+    it('is exposed by the use case', () => {
+      expect(typeof readWorkflowGraph.authorize).toBe('function')
+    })
 
-    expect(mocks.loadSnapshot).not.toHaveBeenCalled()
+    it('refuses a principal without the minimum role, and never loads the graph', async () => {
+      mocks.resolvePermission.mockResolvedValue(null)
+
+      await expect(readWorkflowGraph.authorize!({ principal, input })).rejects.toMatchObject({
+        code: 'forbidden',
+      })
+
+      expect(mocks.loadSnapshot).not.toHaveBeenCalled()
+    })
+
+    it('admits an authorized principal without loading the graph', async () => {
+      await expect(readWorkflowGraph.authorize!({ principal, input })).resolves.toBeUndefined()
+
+      expect(mocks.resolveContext).toHaveBeenCalledOnce()
+      expect(mocks.loadSnapshot).not.toHaveBeenCalled()
+    })
   })
 })

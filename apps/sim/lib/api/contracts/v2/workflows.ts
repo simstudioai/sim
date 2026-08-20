@@ -1217,15 +1217,22 @@ export const v2ExecuteWorkflowBodySchema = z
       .boolean()
       .optional()
       .describe('Inline eligible output files as base64 content. Rejected when `async` is true.'),
-    /** Caps inline base64 file hydration; bounded (v1 leaves it unbounded). */
+    /**
+     * Caps inline base64 file hydration; bounded (v1 leaves it unbounded).
+     * Shares the run-read ceiling so the two halves of the same round trip
+     * cannot disagree about how much a caller may inline.
+     */
     base64MaxBytes: z
       .number()
       .int()
-      .positive()
-      .max(10 * 1024 * 1024)
+      .positive('base64MaxBytes must be at least 1')
+      .max(
+        MAX_INLINE_MATERIALIZATION_BYTES,
+        `base64MaxBytes cannot exceed ${MAX_INLINE_MATERIALIZATION_BYTES}`
+      )
       .optional()
       .describe(
-        'Maximum total bytes of file content to inline as base64. Rejected when `async` is true.'
+        'Maximum total bytes of file content to inline as base64, lowering but never raising the server limit of 16 MiB. Rejected when `async` is true.'
       ),
   })
   .strict()
@@ -1702,7 +1709,10 @@ export const v2GetWorkflowRunContract = defineRouteContract({
         .number()
         .int()
         .min(1, 'base64MaxBytes must be at least 1')
-        .max(MAX_INLINE_MATERIALIZATION_BYTES)
+        .max(
+          MAX_INLINE_MATERIALIZATION_BYTES,
+          `base64MaxBytes cannot exceed ${MAX_INLINE_MATERIALIZATION_BYTES}`
+        )
         .optional()
         .describe(
           'Per-file inline ceiling, lowering but never raising the server limit of 16 MiB.'
@@ -2474,7 +2484,7 @@ export const v2ApplyWorkflowOperationsBodySchema = z
       .optional()
       .default(false)
       .describe(
-        'Fail the whole batch when any operation is declined. The default applies what it can and reports the rest in `skipped`; `true` writes nothing and answers `409` instead.'
+        'Fail the whole batch when any operation is declined or any block input would be dropped. The default applies what it can and reports the rest in `skipped` and `inputValidationErrors`; `true` writes nothing and answers `409` instead.'
       ),
     layout: z
       .enum(['targeted', 'none'])
@@ -2530,18 +2540,96 @@ const v2WorkflowInputValidationErrorSchema = z
     description: 'One block input that was dropped rather than persisted.',
   })
 
+const v2WorkflowLintBlockRefSchema = z.object({
+  blockId: z.string().describe('Block the finding is about.'),
+  blockName: z.string().nullable().describe('Display name of the block, when it has one.'),
+  blockType: z.string().nullable().describe('Registered type of the block, when it has one.'),
+})
+
 const v2WorkflowLintSchema = z
   .object({
-    unresolvedReferences: z
+    sources: z
+      .array(v2WorkflowLintBlockRefSchema)
+      .describe(
+        'Blocks with no incoming edge. A trigger block is naturally a source; anything else here is unreachable.'
+      ),
+    sinks: z.array(v2WorkflowLintBlockRefSchema).describe('Blocks with no outgoing edge.'),
+    orphanBlocks: z
+      .array(v2WorkflowLintBlockRefSchema)
+      .describe('Blocks with neither an incoming nor an outgoing edge.'),
+    emptyOutgoingPorts: z
+      .array(
+        v2WorkflowLintBlockRefSchema.extend({
+          handle: z.string().describe('Source handle with nothing connected to it.'),
+          label: z.string().describe('Human-readable name of the port.'),
+        })
+      )
+      .describe('Branch and container ports that lead nowhere.'),
+    invalidBranchPorts: z
+      .array(
+        v2WorkflowLintBlockRefSchema.extend({
+          sourceHandle: z.string().describe('Source handle that does not match the block.'),
+          reason: z.string().describe('Why the handle is not valid for this block.'),
+        })
+      )
+      .describe('Condition and router edges whose source handle names no real branch.'),
+    invalidConnectionTargets: z
       .array(
         z.object({
-          blockId: z.string().describe('Block holding the reference.'),
-          blockType: z.string().nullable().describe('Type of the block holding the reference.'),
+          sourceBlockId: z.string().describe('Block the edge leaves.'),
+          sourceBlockName: z.string().nullable().describe('Display name of the source block.'),
+          sourceHandle: z.string().nullable().describe('Handle the edge leaves from.'),
+          targetBlockId: z.string().describe('Block the edge points at.'),
+          reason: z.string().describe('Why the target is not a legal destination.'),
+        })
+      )
+      .describe('Edges pointing at a block that cannot legally receive them.'),
+    fieldIssues: z
+      .array(
+        v2WorkflowLintBlockRefSchema.extend({
+          missingRequiredFields: z
+            .array(z.string())
+            .describe('Required sub-block fields that resolve empty in the active mode.'),
+          inactiveModeValues: z
+            .array(
+              z.object({
+                canonicalId: z
+                  .string()
+                  .describe('Canonical parameter the two sub-block modes share.'),
+                activeMemberId: z
+                  .string()
+                  .nullable()
+                  .describe('Sub-block the runtime reads, where the value should live.'),
+                inactiveMemberId: z
+                  .string()
+                  .describe('Sub-block holding the stranded value, which the runtime ignores.'),
+                kind: z
+                  .enum(['credential', 'resource', 'other'])
+                  .describe('What kind of value is stranded.'),
+              })
+            )
+            .describe('Values stranded on the inactive member of a canonical pair.'),
+        })
+      )
+      .describe(
+        'Per-block configuration problems. The most actionable part of the report for a headless graph builder: a block missing a required field will fail at run time.'
+      ),
+    unresolvedReferences: z
+      .array(
+        v2WorkflowLintBlockRefSchema.extend({
           field: z.string().describe('Sub-block field holding the reference.'),
+          value: z
+            .union([z.string(), z.array(z.string())])
+            .describe('The reference, or references, that did not resolve.'),
+          kind: z
+            .enum(['credential', 'resource', 'custom-tool', 'mcp-tool', 'skill'])
+            .describe('What kind of entity the reference was expected to name.'),
           reason: z.string().describe('Why the reference does not resolve.'),
         })
       )
-      .describe('Credential, resource, tool, and skill references that do not resolve.'),
+      .describe(
+        'Credential, resource, tool, and skill references that do not resolve. These values are still persisted; they are reported, not dropped.'
+      ),
     notes: z.array(z.string()).describe('Advisory notes about the report itself.'),
   })
   .meta({
@@ -2564,7 +2652,9 @@ export const v2ApplyWorkflowOperationsDataSchema = v2WorkflowGraphWriteResultSch
       ),
     inputValidationErrors: z
       .array(v2WorkflowInputValidationErrorSchema)
-      .describe('Block inputs that were dropped. The rest of the operation still applied.'),
+      .describe(
+        'Block inputs that were dropped rather than persisted, and only those. The rest of the operation still applied. References that merely fail to resolve stay persisted and are reported in `lint.unresolvedReferences` instead.'
+      ),
     lint: v2WorkflowLintSchema,
   })
   .meta({

@@ -399,6 +399,7 @@ type ApplyWorkflowOperationsResponseRef0 = {
     | 'retry_not_supported'
     | 'duplicate_trigger'
     | 'duplicate_single_instance_block'
+    | 'disabled_ancestor'
   operationType: string
   blockId: string
   reason: string
@@ -413,10 +414,61 @@ type ApplyWorkflowOperationsResponseRef1 = {
 }
 
 type ApplyWorkflowOperationsResponseRef2 = {
+  sources: Array<{
+    blockId: string
+    blockName: string | null
+    blockType: string | null
+  }>
+  sinks: Array<{
+    blockId: string
+    blockName: string | null
+    blockType: string | null
+  }>
+  orphanBlocks: Array<{
+    blockId: string
+    blockName: string | null
+    blockType: string | null
+  }>
+  emptyOutgoingPorts: Array<{
+    blockId: string
+    blockName: string | null
+    blockType: string | null
+    handle: string
+    label: string
+  }>
+  invalidBranchPorts: Array<{
+    blockId: string
+    blockName: string | null
+    blockType: string | null
+    sourceHandle: string
+    reason: string
+  }>
+  invalidConnectionTargets: Array<{
+    sourceBlockId: string
+    sourceBlockName: string | null
+    sourceHandle: string | null
+    targetBlockId: string
+    reason: string
+  }>
+  fieldIssues: Array<{
+    blockId: string
+    blockName: string | null
+    blockType: string | null
+    missingRequiredFields: Array<string>
+    inactiveModeValues: Array<{
+      canonicalId: string
+      activeMemberId: string | null
+      inactiveMemberId: string
+      kind: 'credential' | 'resource' | 'other'
+    }>
+  }>
   unresolvedReferences: Array<{
     blockId: string
+    blockName: string | null
     blockType: string | null
     field: string
+    value: string | Array<string>
+    kind: 'credential' | 'resource' | 'custom-tool' | 'mcp-tool' | 'skill'
     reason: string
   }>
   notes: Array<string>
@@ -8508,7 +8560,7 @@ export const V2_OPERATIONS = {
         kind: 'boolean',
         default: false,
         describe:
-          'Fail the whole batch when any operation is declined. The default applies what it can and reports the rest in `skipped`; `true` writes nothing and answers `409` instead.',
+          'Fail the whole batch when any operation is declined or any block input would be dropped. The default applies what it can and reports the rest in `skipped` and `inputValidationErrors`; `true` writes nothing and answers `409` instead.',
       },
       layout: {
         kind: 'enum',
@@ -10040,7 +10092,7 @@ export const V2_OPERATIONS = {
       base64MaxBytes: {
         kind: 'integer',
         describe:
-          'Maximum total bytes of file content to inline as base64. Rejected when `async` is true.',
+          'Maximum total bytes of file content to inline as base64, lowering but never raising the server limit of 16 MiB. Rejected when `async` is true.',
       },
     },
   },

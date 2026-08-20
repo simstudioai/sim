@@ -39,6 +39,27 @@ const SKIPPED = {
   reason: 'Name taken',
 }
 
+const DROPPED_INPUT = {
+  blockId: 'block-2',
+  blockType: 'agent',
+  field: 'credential',
+  value: 'cred-9',
+  error: 'Invalid credential ID',
+}
+
+/** An empty report, with every field the contract publishes. */
+const LINT = {
+  sources: [],
+  sinks: [],
+  orphanBlocks: [],
+  emptyOutgoingPorts: [],
+  invalidBranchPorts: [],
+  invalidConnectionTargets: [],
+  fieldIssues: [],
+  unresolvedReferences: [],
+  notes: [],
+}
+
 const auth = {
   principal: { kind: 'personal_api_key' as const, userId: 'user-1', keyId: 'personal-key-1' },
   rolloutUserId: 'user-1',
@@ -79,7 +100,7 @@ describe('/api/v2/workflows/[id]/operations', () => {
       skipped: [],
       deferred: [],
       inputValidationErrors: [],
-      lint: { unresolvedReferences: [], notes: [] },
+      lint: LINT,
       warnings: [],
       needsRedeployment: true,
     })
@@ -105,7 +126,7 @@ describe('/api/v2/workflows/[id]/operations', () => {
         skipped: [],
         deferred: [],
         inputValidationErrors: [],
-        lint: { unresolvedReferences: [], notes: [] },
+        lint: LINT,
         warnings: [],
         needsRedeployment: true,
       },
@@ -152,9 +173,29 @@ describe('/api/v2/workflows/[id]/operations', () => {
       error: {
         code: 'CONFLICT',
         message:
-          '1 operation(s) could not be applied and atomic was requested; nothing was written',
-        details: { code: 'OPERATIONS_NOT_APPLIED', skipped: [SKIPPED] },
+          '1 operation(s) could not be applied and 0 input(s) would have been dropped; atomic was requested, so nothing was written',
+        details: { code: 'OPERATIONS_NOT_APPLIED', skipped: [SKIPPED], droppedInputs: [] },
       },
+    })
+  })
+
+  /**
+   * A stripped credential refuses the batch too, and the caller needs to see
+   * which field went — a `skipped` list alone would say only "0 operations
+   * declined" while the credential silently vanished.
+   */
+  it('carries the dropped inputs of a refused atomic batch', async () => {
+    mocks.applyWorkflowOperations.mockRejectedValue(
+      new WorkflowOperationsNotAppliedError([], [DROPPED_INPUT] as never)
+    )
+
+    const response = await POST(request({ operations: [ADD], atomic: true }), routeContext)
+
+    expect(response.status).toBe(409)
+    expect((await response.json()).error.details).toEqual({
+      code: 'OPERATIONS_NOT_APPLIED',
+      skipped: [],
+      droppedInputs: [DROPPED_INPUT],
     })
   })
 
@@ -181,6 +222,85 @@ describe('/api/v2/workflows/[id]/operations', () => {
     )
 
     expect(response.status).toBe(400)
+    expect(mocks.applyWorkflowOperations).not.toHaveBeenCalled()
+  })
+
+  /**
+   * `fieldIssues` is the most actionable half of the report for a headless
+   * graph builder — a block missing a required field fails at run time — and
+   * the `kind` discriminator is what lets a client branch on an unresolved
+   * reference instead of string-matching `reason`. Both were dropped.
+   */
+  it('publishes the full lint report, not just unresolved reference prose', async () => {
+    const FIELD_ISSUE = {
+      blockId: 'block-2',
+      blockName: 'Triage',
+      blockType: 'agent',
+      missingRequiredFields: ['systemPrompt'],
+      inactiveModeValues: [
+        {
+          canonicalId: 'model',
+          activeMemberId: 'model',
+          inactiveMemberId: 'modelAdvanced',
+          kind: 'other',
+        },
+      ],
+    }
+    const SINK = { blockId: 'block-2', blockName: 'Triage', blockType: 'agent' }
+    mocks.applyWorkflowOperations.mockResolvedValue({
+      workflowId: WORKFLOW_ID,
+      workflowName: 'Daily digest',
+      workspaceId: 'workspace-1',
+      graph: { blocks: {}, edges: [], loops: {}, parallels: {} },
+      operationCount: 1,
+      applied: 1,
+      skipped: [],
+      deferred: [],
+      inputValidationErrors: [],
+      lint: {
+        ...LINT,
+        sinks: [SINK],
+        fieldIssues: [FIELD_ISSUE],
+        unresolvedReferences: [
+          {
+            blockId: 'block-2',
+            blockName: 'Triage',
+            blockType: 'agent',
+            field: 'credential',
+            value: 'cred-9',
+            kind: 'credential',
+            reason: 'Not accessible',
+          },
+        ],
+      },
+      warnings: [],
+      needsRedeployment: true,
+    })
+
+    const response = await POST(request({ operations: [ADD] }), routeContext)
+
+    expect(response.status).toBe(200)
+    const { lint } = (await response.json()).data
+    expect(lint.sinks).toEqual([SINK])
+    expect(lint.fieldIssues).toEqual([FIELD_ISSUE])
+    expect(lint.unresolvedReferences[0].kind).toBe('credential')
+    expect(lint.unresolvedReferences[0].value).toBe('cred-9')
+  })
+
+  /**
+   * `baseGraph` is Copilot's alone: it substitutes the authoritative graph with
+   * one the caller supplies, which the use case honours only for a `delegated`
+   * principal. The v2 body is `.strict()`, so it must never reach the use case
+   * from an API key at all.
+   */
+  it('rejects baseGraph in a v2 body', async () => {
+    const response = await POST(
+      request({ operations: [ADD], baseGraph: { blocks: {}, edges: [] } }),
+      routeContext
+    )
+
+    expect(response.status).toBe(400)
+    expect((await response.json()).error.code).toBe('BAD_REQUEST')
     expect(mocks.applyWorkflowOperations).not.toHaveBeenCalled()
   })
 

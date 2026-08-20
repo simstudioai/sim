@@ -67,6 +67,12 @@ describe('validateSelectorIds', () => {
     expect(result.warning).toContain('Shared Gmail [cred-2]')
   })
 
+  /**
+   * The mocked `where` hands back the row whatever predicate it is given, so
+   * the returned value proves nothing on its own. What has to be asserted is
+   * the predicate: the admin branch drops the credential-membership clause,
+   * and the member branch keeps it.
+   */
   it('lets a derived workspace admin reference shared credentials without membership', async () => {
     mockCheckWorkspaceAccess.mockResolvedValueOnce({ canAdmin: true })
     dbChainMockFns.where.mockResolvedValueOnce([{ credentialId: 'shared-cred', accountId: null }])
@@ -78,5 +84,30 @@ describe('validateSelectorIds', () => {
 
     expect(result).toEqual({ valid: ['shared-cred'], invalid: [] })
     expect(dbChainMockFns.select).toHaveBeenCalledTimes(1)
+    expect(membershipClauseOf(dbChainMockFns.where.mock.calls[0][0])).toBeUndefined()
+  })
+
+  it('still requires credential membership for a non-admin member', async () => {
+    dbChainMockFns.where.mockResolvedValueOnce([{ credentialId: 'shared-cred', accountId: null }])
+
+    await validateSelectorIds('oauth-input', ['shared-cred'], {
+      userId: 'member-user',
+      workspaceId: 'workspace-1',
+    })
+
+    expect(membershipClauseOf(dbChainMockFns.where.mock.calls[0][0])).toMatchObject({
+      type: 'isNotNull',
+    })
   })
 })
+
+/**
+ * The second argument of the outer `and(...)` the query is filtered by. The
+ * mocked drizzle helpers record their arguments verbatim, so the membership
+ * clause is either an `isNotNull` node or `undefined`.
+ */
+function membershipClauseOf(predicate: unknown): unknown {
+  const node = predicate as { type?: string; args?: unknown[] }
+  expect(node.type).toBe('and')
+  return node.args?.[1]
+}

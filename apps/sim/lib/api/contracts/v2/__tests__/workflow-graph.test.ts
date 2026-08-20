@@ -86,6 +86,81 @@ describe('v2WorkflowGraphSchema', () => {
   })
 })
 
+/** An empty report carrying every field the lint schema requires. */
+const EMPTY_LINT = {
+  sources: [],
+  sinks: [],
+  orphanBlocks: [],
+  emptyOutgoingPorts: [],
+  invalidBranchPorts: [],
+  invalidConnectionTargets: [],
+  fieldIssues: [],
+  unresolvedReferences: [],
+  notes: [],
+}
+
+/** A report exercising every finding kind the lint schema publishes. */
+const FULL_LINT = {
+  sources: [{ blockId: 'block-1', blockName: 'Start', blockType: 'starter' }],
+  sinks: [{ blockId: 'block-2', blockName: 'Triage', blockType: 'agent' }],
+  orphanBlocks: [{ blockId: 'block-3', blockName: null, blockType: null }],
+  emptyOutgoingPorts: [
+    {
+      blockId: 'loop-1',
+      blockName: 'Loop',
+      blockType: 'loop',
+      handle: 'loop-start-source',
+      label: 'loop-start-source',
+    },
+  ],
+  invalidBranchPorts: [
+    {
+      blockId: 'cond-1',
+      blockName: 'Check',
+      blockType: 'condition',
+      sourceHandle: 'condition-gone',
+      reason: 'No such branch',
+    },
+  ],
+  invalidConnectionTargets: [
+    {
+      sourceBlockId: 'block-1',
+      sourceBlockName: 'Start',
+      sourceHandle: null,
+      targetBlockId: 'block-9',
+      reason: 'Target is inside a container',
+    },
+  ],
+  fieldIssues: [
+    {
+      blockId: 'block-2',
+      blockName: 'Triage',
+      blockType: 'agent',
+      missingRequiredFields: ['systemPrompt'],
+      inactiveModeValues: [
+        {
+          canonicalId: 'model',
+          activeMemberId: 'model',
+          inactiveMemberId: 'modelAdvanced',
+          kind: 'other',
+        },
+      ],
+    },
+  ],
+  unresolvedReferences: [
+    {
+      blockId: 'block-2',
+      blockName: 'Triage',
+      blockType: 'agent',
+      field: 'credential',
+      value: 'cred-9',
+      kind: 'credential',
+      reason: 'Not accessible',
+    },
+  ],
+  notes: ['lint note'],
+}
+
 describe('v2ApplyWorkflowOperationsDataSchema', () => {
   /** The published skip vocabulary is the engine's, so a new reason cannot ship undocumented. */
   it('publishes every reason the engine can decline an operation for', () => {
@@ -98,9 +173,33 @@ describe('v2ApplyWorkflowOperationsDataSchema', () => {
         skipped: [{ type, operationType: 'add', blockId: 'block-1', reason: 'because' }],
         deferred: [],
         inputValidationErrors: [],
-        lint: { unresolvedReferences: [], notes: [] },
+        lint: EMPTY_LINT,
       })
       expect(result.success, `skip type ${type} is not published`).toBe(true)
     }
+  })
+
+  /**
+   * The lint report is what a headless builder acts on. Publishing only
+   * `unresolvedReferences` dropped ~75% of it, `fieldIssues` — the blocks
+   * missing a required field — most of all.
+   */
+  it('publishes every field of the lint report the use case produces', () => {
+    const result = v2ApplyWorkflowOperationsDataSchema.safeParse({
+      id: 'workflow-1',
+      warnings: [],
+      needsRedeployment: false,
+      applied: 1,
+      skipped: [],
+      deferred: [],
+      inputValidationErrors: [],
+      lint: FULL_LINT,
+    })
+
+    expect(result.error?.issues ?? []).toEqual([])
+    // The response schema is `.parse`d on the way out, so a field it does not
+    // declare is silently stripped rather than rejected. Assert the parsed
+    // output, not just that the input was accepted.
+    expect(result.data?.lint).toEqual(FULL_LINT)
   })
 })
