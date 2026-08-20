@@ -1,6 +1,6 @@
 /** @vitest-environment jsdom */
 import { describe, expect, it } from 'vitest'
-import { SIM_ARTIFACT_SHELL } from '@/lib/workspace-files/artifact-stylesheet'
+import { SIM_ARTIFACT_SHELL, simTokenOverrides } from '@/lib/workspace-files/artifact-stylesheet'
 import { compileSimPage } from '@/lib/workspace-files/page-compile'
 
 function runShell(source: string) {
@@ -37,5 +37,22 @@ describe('shell layout decisions', () => {
     expect(
       document.querySelector('.page-actions .pa-nav[aria-label="Previous page"]')?.classList
     ).toContain('is-disabled')
+  })
+})
+
+describe('simTokenOverrides', () => {
+  // The overrides pin the app's LIVE token values — which are one theme's
+  // palette. Scoping them to the app's current theme is what keeps the
+  // page's own light/dark toggle alive: pinning both `[data-theme]` states
+  // (the pre-fix behavior) froze the preview on the app's palette no matter
+  // what the toggle set.
+  it('pins the live tokens only under the current app theme', () => {
+    document.documentElement.style.setProperty('--bg', '#123456')
+    const block = simTokenOverrides('light')
+    expect(block).toContain(':root[data-theme="light"]')
+    expect(block).toContain('--bg:#123456')
+    expect(block).not.toContain('[data-theme="dark"]')
+    expect(block).not.toMatch(/(^|\{|,):root[,{]/)
+    document.documentElement.style.removeProperty('--bg')
   })
 })
