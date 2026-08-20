@@ -15417,6 +15417,389 @@
       "tags": ["sales-engagement", "project-management"]
     },
     {
+      "type": "pitchbook",
+      "slug": "pitchbook",
+      "name": "PitchBook",
+      "description": "Look up private market data on companies, deals, investors, funds, and people",
+      "longDescription": "Integrates the PitchBook Public API into the workflow. Search and pull profiles across companies, deals, investors, people, funds, limited partners, and service providers, including financing history, valuations, cap tables, debt and lenders, fund performance and commitments, patents, and credit analysis news. Also reports API credit usage and the lookup-table codes the search filters expect. Every call consumes PitchBook API credits.",
+      "bgColor": "#1D5080",
+      "iconName": "PitchBookIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/pitchbook",
+      "operations": [
+        {
+          "name": "Search All Entities",
+          "description": "Search across every PitchBook entity type at once by name, PitchBook ID, website, or ticker. Use this to resolve a company, investor, or fund to its PitchBook ID before calling a profile operation."
+        },
+        {
+          "name": "Shared Search",
+          "description": "Extract the names and PitchBook IDs behind an Advanced Search shared from the PitchBook platform, using the search ID and hash from the shared link"
+        },
+        {
+          "name": "Get Entity People",
+          "description": "Retrieve the people at an entity: primary contact, current and former team, and current and former board members"
+        },
+        {
+          "name": "Get Entity Locations",
+          "description": "Retrieve the headquarters and every alternate office on record for an entity"
+        },
+        {
+          "name": "Get Entity Affiliates",
+          "description": "Retrieve the affiliated entities linked to an entity and how each is related"
+        },
+        {
+          "name": "Get Entity News",
+          "description": "Retrieve recent news articles PitchBook has associated with an entity"
+        },
+        {
+          "name": "Get Entity Updates",
+          "description": "Check which entity datasets changed in a window, so a sync only refetches what moved"
+        },
+        {
+          "name": "Search Companies",
+          "description": "Search PitchBook for companies by name, location, industry, funding, deal activity, and more"
+        },
+        {
+          "name": "Get Company Bio",
+          "description": "Retrieve the core profile of a company: names, description, HQ, status, headcount, total raised, and social links"
+        },
+        {
+          "name": "Get Company Industries",
+          "description": "Retrieve the industry classification, verticals, keywords, and emerging spaces assigned to a company"
+        },
+        {
+          "name": "Get Company Investors",
+          "description": "Retrieve every investor in a company, current and former, with the type of investor and when they invested"
+        },
+        {
+          "name": "Get Company Active Investors",
+          "description": "Retrieve only the investors currently holding a position in a company"
+        },
+        {
+          "name": "Get Company Deals",
+          "description": "Retrieve every deal a company has been involved in, in chronological order with its deal type"
+        },
+        {
+          "name": "Get Company Latest Financing",
+          "description": "Retrieve a company most recent financing round: date, size, type, and last known valuation"
+        },
+        {
+          "name": "Get Company Latest Debt Financing",
+          "description": "Retrieve a company most recent debt financing, including each debt instrument raised"
+        },
+        {
+          "name": "Get Company Latest Financials",
+          "description": "Retrieve the most recent reported financials for a private company: revenue, net income, EBITDA, assets, and debt"
+        },
+        {
+          "name": "Get Company Financials History",
+          "description": "Retrieve reported financials for a private company across every available fiscal period. Annual data is returned by default."
+        },
+        {
+          "name": "Get Similar Companies",
+          "description": "Retrieve companies PitchBook scores as similar to a given company, flagging which are direct competitors"
+        },
+        {
+          "name": "Get VC Exit Predictions",
+          "description": "Retrieve PitchBook machine-learning exit predictions for a VC-backed company. Requires at least two funding rounds in the past six years."
+        },
+        {
+          "name": "Get Company Social Analytics",
+          "description": "Retrieve web and social growth and size metrics for a company, with percentile ranks"
+        },
+        {
+          "name": "Get Company Service Providers",
+          "description": "Retrieve the current and former general service providers engaged by a company"
+        },
+        {
+          "name": "Get Company Deal Service Providers",
+          "description": "Retrieve the service providers that worked on a company deals, and what each was hired for"
+        },
+        {
+          "name": "Get Company Updates",
+          "description": "Check which company datasets changed in a window, so a sync only refetches what moved"
+        },
+        {
+          "name": "Search Company Patents",
+          "description": "Search the patents held by a company by status, filing and publication date, authority, and CPC classification"
+        },
+        {
+          "name": "Get Patent Detail",
+          "description": "Retrieve the full record for a single patent: title, status, dates, assignees, inventors, citations, and claim counts"
+        },
+        {
+          "name": "Search Deals",
+          "description": "Search PitchBook for deals by company, investor, deal type, size, date, and valuation"
+        },
+        {
+          "name": "Get Deal Bio",
+          "description": "Retrieve the summary of a deal: company, date, size, status, type, and which detail datasets are available for it"
+        },
+        {
+          "name": "Get Deal Detail",
+          "description": "Retrieve the full detail of a deal: synopsis, percent acquired, round, invested capital, ownership, debt, and stock split"
+        },
+        {
+          "name": "Get Deal Valuation",
+          "description": "Retrieve the pre-money and post-money valuation recorded for a deal"
+        },
+        {
+          "name": "Get Deal Multiples",
+          "description": "Retrieve the valuation multiples for a deal against revenue, EBITDA, EBIT, cash flow, and net income"
+        },
+        {
+          "name": "Get Deal Investors",
+          "description": "Retrieve the investors, sellers, and exiting investors on a deal, including who led it"
+        },
+        {
+          "name": "Get Deal Stock Info",
+          "description": "Retrieve the share terms of a deal: price per share, shares acquired, and the preference, dividend, and voting rights attached"
+        },
+        {
+          "name": "Get Deal Cap Table",
+          "description": "Retrieve the cap table as of a deal, one row per stock series with its terms and ownership"
+        },
+        {
+          "name": "Get Deal Tranches",
+          "description": "Retrieve the tranches a deal was funded in, with each tranche date, size, and investors"
+        },
+        {
+          "name": "Get Deal Debt and Lenders",
+          "description": "Retrieve the debt raised in a deal and the lenders behind it, with rate, maturity, seniority, and covenant terms"
+        },
+        {
+          "name": "Get Deal Service Providers",
+          "description": "Retrieve the service providers that worked on a deal and which party each represented"
+        },
+        {
+          "name": "Get Deal Updates",
+          "description": "Check which deal datasets changed in a window, so a sync only refetches what moved"
+        },
+        {
+          "name": "Search Investors",
+          "description": "Search PitchBook for investors by type, location, assets under management, fund profile, and deal activity"
+        },
+        {
+          "name": "Get Investor Bio",
+          "description": "Retrieve the core profile of an investor: names, description, HQ, type, AUM, dry powder, and headcount"
+        },
+        {
+          "name": "Get Investor Investments",
+          "description": "Retrieve every investment an investor has made, active and exited, with the deals that opened and closed each position"
+        },
+        {
+          "name": "Get Investor Active Investments",
+          "description": "Retrieve only the positions an investor still holds"
+        },
+        {
+          "name": "Get Investor Funds",
+          "description": "Retrieve the funds an investor manages, with open and closed counts and the min, median, and max fund size"
+        },
+        {
+          "name": "Get Investor Last Closed Fund",
+          "description": "Retrieve the most recently closed fund raised by an investor, with its size, type, and vintage"
+        },
+        {
+          "name": "Get Investor Preferences",
+          "description": "Retrieve what an investor targets: check size, deal size, valuation, revenue, geography, industry, and deal type preferences"
+        },
+        {
+          "name": "Get Investor Board Seats",
+          "description": "Retrieve the board seats an investor holds and previously held across its portfolio"
+        },
+        {
+          "name": "Get Investor Service Providers",
+          "description": "Retrieve the current and former general service providers engaged by an investor"
+        },
+        {
+          "name": "Get Investor Deal Service Providers",
+          "description": "Retrieve the service providers that worked on an investor deals, and what each was hired for"
+        },
+        {
+          "name": "Get Investor Updates",
+          "description": "Check which investor datasets changed in a window, so a sync only refetches what moved"
+        },
+        {
+          "name": "Search People",
+          "description": "Search PitchBook for people by name, employer, position, education, and location"
+        },
+        {
+          "name": "Get Person Bio",
+          "description": "Retrieve the profile of a person: name, biography, LinkedIn, primary employer, position, and office"
+        },
+        {
+          "name": "Get Person Contact",
+          "description": "Retrieve the direct contact details on file for a person"
+        },
+        {
+          "name": "Get Person History",
+          "description": "Retrieve a person full history: education, company roles, board seats, deal roles, and fund roles"
+        },
+        {
+          "name": "Search Funds",
+          "description": "Search PitchBook for funds by manager, type, size, vintage, and performance"
+        },
+        {
+          "name": "Get Fund Bio",
+          "description": "Retrieve the profile of a fund: managers, vintage, status, type, size, target, location, and team"
+        },
+        {
+          "name": "Get Fund Performance",
+          "description": "Retrieve the most recent reported returns for a fund: IRR, DPI, RVPI, TVPI, NAV, and benchmark quartile"
+        },
+        {
+          "name": "Get Fund Benchmark",
+          "description": "Retrieve the peer benchmark for a fund: benchmark IRR, DPI, TVPI, RVPI, and the funds it is drawn from"
+        },
+        {
+          "name": "Get Fund Cash Flows",
+          "description": "Retrieve contributed, distributed, and remaining value for a fund as of a specific quarter"
+        },
+        {
+          "name": "Get Fund Investments",
+          "description": "Retrieve every investment a fund has made, active and exited, with the deals that opened and closed each position"
+        },
+        {
+          "name": "Get Fund Active Investments",
+          "description": "Retrieve only the portfolio positions a fund still holds"
+        },
+        {
+          "name": "Get Fund Commitments",
+          "description": "Retrieve the limited partners committed to a fund, with commitment date, size, status, and type"
+        },
+        {
+          "name": "Get Fund Preferences",
+          "description": "Retrieve what a fund targets: check size, valuation, geography, industry, vertical, and deal type preferences"
+        },
+        {
+          "name": "Get Fund Team",
+          "description": "Retrieve the active and former people on a fund team"
+        },
+        {
+          "name": "Get Fund Updates",
+          "description": "Check which fund datasets changed in a window, so a sync only refetches what moved"
+        },
+        {
+          "name": "Search Limited Partners",
+          "description": "Search PitchBook for limited partners by type, location, assets under management, and commitment activity"
+        },
+        {
+          "name": "Get Limited Partner Bio",
+          "description": "Retrieve the profile of a limited partner: names, description, type, assets under management, and staff"
+        },
+        {
+          "name": "Get LP Commitments",
+          "description": "Retrieve every fund commitment a limited partner has made, with date, size, status, and the managers behind each fund"
+        },
+        {
+          "name": "Get LP Commitment Totals",
+          "description": "Retrieve a limited partner commitments rolled up by fund type, both active and all-time"
+        },
+        {
+          "name": "Get LP Commitment Preferences",
+          "description": "Retrieve what a limited partner commits to: preferred commitment size, fund types, and geographies"
+        },
+        {
+          "name": "Get LP Actual Allocations",
+          "description": "Retrieve a limited partner reported asset allocation across cash, equities, fixed income, private equity, real estate, and alternatives"
+        },
+        {
+          "name": "Get LP Target Allocations",
+          "description": "Retrieve a limited partner target allocation ranges per asset class, in both value and percentage terms"
+        },
+        {
+          "name": "Get LP Service Providers",
+          "description": "Retrieve the current and former service providers engaged by a limited partner"
+        },
+        {
+          "name": "Get LP Updates",
+          "description": "Check which limited partner datasets changed in a window, so a sync only refetches what moved"
+        },
+        {
+          "name": "Search Service Providers",
+          "description": "Search PitchBook for service providers by type, location, and the deals they have worked on"
+        },
+        {
+          "name": "Get Service Provider Bio",
+          "description": "Retrieve the profile of a service provider: names, types, description, and how many companies, deals, investors, funds, and limited partners it has serviced"
+        },
+        {
+          "name": "Get Serviced Companies",
+          "description": "Retrieve the companies a service provider currently and formerly serves"
+        },
+        {
+          "name": "Get Serviced Deals",
+          "description": "Retrieve the deals a service provider worked on and what it was hired for on each"
+        },
+        {
+          "name": "Get Serviced Investors",
+          "description": "Retrieve the investors a service provider currently and formerly serves"
+        },
+        {
+          "name": "Get Serviced Funds",
+          "description": "Retrieve the funds a service provider has worked with and the service provided to each"
+        },
+        {
+          "name": "Get Serviced Limited Partners",
+          "description": "Retrieve the limited partners a service provider currently and formerly serves"
+        },
+        {
+          "name": "Get Service Provider Updates",
+          "description": "Check which service provider datasets changed in a window, so a sync only refetches what moved"
+        },
+        {
+          "name": "Search Credit News",
+          "description": "Search PitchBook credit analysis news by author, region, asset class, topic, issuer, lender, sponsor, and date"
+        },
+        {
+          "name": "Get Recent Credit News",
+          "description": "Retrieve the most recently published credit analysis articles and their descriptions, without article bodies"
+        },
+        {
+          "name": "Get Credit News Article",
+          "description": "Retrieve one credit analysis article in full, including its body text, authors, topics, and the issuer, lender, and sponsor it covers"
+        },
+        {
+          "name": "Get Credit News Articles in Bulk",
+          "description": "Retrieve many credit analysis articles in full in a single call, reporting which IDs were found, missing, or duplicated"
+        },
+        {
+          "name": "Get Contracts History",
+          "description": "Retrieve the API contracts on the account with their pricing model, term, and credit balances"
+        },
+        {
+          "name": "Get Credit History",
+          "description": "Retrieve API credit usage and remaining balance per contract, for up to the last 90 days"
+        },
+        {
+          "name": "Get Usage Report",
+          "description": "Retrieve how many API calls were made and how many credits they charged, for up to the last 90 days"
+        },
+        {
+          "name": "Get Cost of Calls",
+          "description": "Retrieve the credit cost of every API endpoint under a given pricing model, for first-time and refresh calls"
+        },
+        {
+          "name": "List Lookup Tables",
+          "description": "List the lookup tables backing the search endpoints. Use this to find which table holds the codes a search filter expects."
+        },
+        {
+          "name": "Get Lookup Table Codes",
+          "description": "Retrieve the codes in one or more lookup tables. These are the codes the search filters expect, such as INDUSTRY or VERTICAL."
+        },
+        {
+          "name": "List Sandbox Entities",
+          "description": "List the entities a sandbox API key is allowed to query, so test workflows have real IDs to run against"
+        }
+      ],
+      "operationCount": 91,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "analytics",
+      "tags": ["enrichment", "data-analytics"]
+    },
+    {
       "type": "polymarket",
       "slug": "polymarket",
       "name": "Polymarket",
