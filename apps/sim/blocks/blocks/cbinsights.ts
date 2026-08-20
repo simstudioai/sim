@@ -71,7 +71,7 @@ export const CbInsightsBlock: BlockConfig<CbInsightsResponse> = {
   docsLink: 'https://docs.sim.ai/integrations/cbinsights',
   category: 'tools',
   integrationType: IntegrationType.Sales,
-  bgColor: '#003366',
+  bgColor: '#FFFFFF',
   icon: CbInsightsIcon,
   authMode: AuthMode.ApiKey,
   canvasPresentation: {
