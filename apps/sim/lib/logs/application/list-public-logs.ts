@@ -1,14 +1,12 @@
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { MATERIALIZE_CONCURRENCY, mapWithConcurrency } from '@/lib/core/utils/concurrency'
-import { loadActiveFolderPathIndex, resolveFolderPathFilter } from '@/lib/folders/queries'
 import { logOperations } from '@/lib/logs/application/operations'
 import { materializeExecutionDataForDisplay } from '@/lib/logs/execution/trace-store'
+import { resolveLogFolderScope } from '@/lib/logs/folder-scope'
 import type { LogFilters } from '@/lib/logs/public-filters'
-import { listPublicWorkflowLogs } from '@/lib/logs/public-queries'
+import { listPublicWorkflowLogs, type PublicLogListRow } from '@/lib/logs/public-queries'
 import { loadActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
-
-type PublicLogRow = Awaited<ReturnType<typeof listPublicWorkflowLogs>>['data'][number]
 
 export interface ListPublicLogsInput {
   workspaceId: string
@@ -18,10 +16,11 @@ export interface ListPublicLogsInput {
   includeFullDetails: boolean
   includeFinalOutput: boolean
   includeTraceSpans: boolean
+  includeJobRuns: boolean
 }
 
 export interface PublicLogApplicationItem {
-  log: PublicLogRow
+  log: PublicLogListRow
   executionData?: Record<string, unknown>
 }
 
@@ -42,37 +41,30 @@ export const listPublicLogs = defineAuthorizedWorkspaceUseCase({
   },
   authorizationOptions: {},
   execute: async ({ principal, input, context }): Promise<ListPublicLogsResult> => {
-    const folderIndex = input.folderPaths
-      ? await loadActiveFolderPathIndex(context.workspaceId, 'workflow')
-      : null
-    /**
-     * A path naming no active folder contributes nothing to the scope instead of
-     * failing the read, so `folderPaths=/live,/deleted` still returns the `/live`
-     * runs and `folderPaths=/deleted` alone returns an empty page. See
-     * {@link resolveFolderPathFilter} for why a filter's miss is an empty set.
-     */
-    const resolvedFolderIds = input.folderPaths?.flatMap((path) => {
-      if (!folderIndex) return []
-      const filter = resolveFolderPathFilter(folderIndex, path)
-      return filter.kind === 'folder' ? [filter.folderId] : []
-    })
+    const folderScope = input.folderPaths
+      ? await resolveLogFolderScope(context.workspaceId, input.folderPaths)
+      : undefined
 
-    const folderIds = resolvedFolderIds?.filter(
-      (folderId): folderId is string => typeof folderId === 'string'
-    )
-    const includesRoot = resolvedFolderIds?.includes(null) ?? false
     const needsMaterialization = input.includeFinalOutput || input.includeTraceSpans
     const { data, nextCursor } = await listPublicWorkflowLogs({
-      filters: { ...input.filters, workspaceId: context.workspaceId, folderIds },
+      filters: { ...input.filters, workspaceId: context.workspaceId },
       limit: input.limit,
       includeExecutionData: needsMaterialization,
-      folderScope: input.folderPaths ? { includesRoot, folderIds: folderIds ?? [] } : undefined,
+      folderScope,
+      includeJobRuns: input.includeJobRuns,
     })
 
     const userId = principal.kind === 'personal_api_key' ? principal.userId : undefined
+    /**
+     * Job runs carry no materializable execution data on this surface: their
+     * `execution_data` is a job envelope rather than a workflow trace, and
+     * `materializeExecutionDataForDisplay` is keyed on a workflow. They pass
+     * through unmaterialized rather than being handed a shape that does not
+     * describe them.
+     */
     const items = needsMaterialization
       ? await mapWithConcurrency(data, MATERIALIZE_CONCURRENCY, async (log) => {
-          if (!log.executionData) return { log }
+          if (log.kind !== 'workflow' || !log.executionData) return { log }
           return {
             log,
             executionData: await materializeExecutionDataForDisplay(

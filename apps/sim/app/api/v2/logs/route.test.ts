@@ -411,6 +411,124 @@ describe('GET /api/v2/logs', () => {
     expect(mocks.execute).not.toHaveBeenCalled()
   })
 
+  it.each([['status=error'], ['workflowName=support'], ['includeJobRuns=true']])(
+    'refuses a cursor replayed under a changed %s',
+    async (param) => {
+      mocks.execute.mockResolvedValueOnce({
+        items: [{ log, executionData: null }],
+        nextCursor: Buffer.from(
+          JSON.stringify({ startedAt: log.startedAt.toISOString(), id: 'run-1', order: 'desc' })
+        ).toString('base64'),
+        includeFullDetails: false,
+        includeFinalOutput: false,
+        includeTraceSpans: false,
+      })
+      const firstPage = await (
+        await GET(new NextRequest(`http://localhost:3000/api/v2/logs?workspaceId=${WORKSPACE_ID}`))
+      ).json()
+      mocks.execute.mockClear()
+
+      const response = await GET(
+        new NextRequest(
+          `http://localhost:3000/api/v2/logs?workspaceId=${WORKSPACE_ID}&${param}&cursor=${encodeURIComponent(firstPage.nextCursor)}`
+        )
+      )
+
+      expect(response.status).toBe(400)
+      expect(mocks.execute).not.toHaveBeenCalled()
+    }
+  )
+
+  it('rejects a status outside the persisted vocabulary and echoes the valid set', async () => {
+    const response = await GET(
+      new NextRequest(`http://localhost:3000/api/v2/logs?workspaceId=${WORKSPACE_ID}&status=done`)
+    )
+
+    expect(response.status).toBe(400)
+    const body = await response.json()
+    expect(body.error.message).toContain('"completed"')
+    expect(mocks.execute).not.toHaveBeenCalled()
+  })
+
+  it('forwards a status list as the persisted statuses the filter matches on', async () => {
+    const response = await GET(
+      new NextRequest(
+        `http://localhost:3000/api/v2/logs?workspaceId=${WORKSPACE_ID}&status=failed,completed`
+      )
+    )
+
+    expect(response.status).toBe(200)
+    expect(mocks.execute).toHaveBeenCalledWith(
+      expect.objectContaining({
+        input: expect.objectContaining({
+          filters: expect.objectContaining({ statuses: ['completed', 'failed'] }),
+        }),
+      })
+    )
+  })
+
+  it('rejects a workflowName past the search bound before it reaches an unindexed scan', async () => {
+    const response = await GET(
+      new NextRequest(
+        `http://localhost:3000/api/v2/logs?workspaceId=${WORKSPACE_ID}&workflowName=${'a'.repeat(201)}`
+      )
+    )
+
+    expect(response.status).toBe(400)
+    expect(mocks.execute).not.toHaveBeenCalled()
+  })
+
+  /**
+   * A job run and a workflow run whose workflow was deleted both report
+   * `workflowId: null`, so the discriminator is the only thing separating them.
+   */
+  it('projects a job run under its own kind with a derived status', async () => {
+    mocks.execute.mockResolvedValueOnce({
+      items: [
+        {
+          log: {
+            kind: 'job',
+            id: 'job-row-1',
+            executionId: 'job-1',
+            workspaceId: WORKSPACE_ID,
+            level: 'error',
+            trigger: 'mothership',
+            startedAt: new Date('2026-08-06T00:00:00Z'),
+            endedAt: new Date('2026-08-06T00:00:02Z'),
+            totalDurationMs: 2000,
+            cost: { total: 0.5 },
+          },
+        },
+      ],
+      nextCursor: null,
+      includeFullDetails: true,
+      includeFinalOutput: false,
+      includeTraceSpans: false,
+    })
+
+    const response = await GET(
+      new NextRequest(
+        `http://localhost:3000/api/v2/logs?workspaceId=${WORKSPACE_ID}&includeJobRuns=true&details=full`
+      )
+    )
+
+    expect(response.status).toBe(200)
+    expect((await response.json()).data[0]).toEqual({
+      kind: 'job',
+      runId: 'job-1',
+      workflowId: null,
+      deploymentVersionId: null,
+      status: 'failed',
+      level: 'error',
+      trigger: 'mothership',
+      startedAt: '2026-08-06T00:00:00.000Z',
+      endedAt: '2026-08-06T00:00:02.000Z',
+      totalDurationMs: 2000,
+      cost: { total: 0.5 },
+      files: null,
+    })
+  })
+
   it('projects typed folder errors', async () => {
     mocks.execute.mockRejectedValueOnce(new OrchestrationError('not_found', 'Folder not found'))
 

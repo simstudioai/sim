@@ -1,5 +1,7 @@
-import { workflow, workflowExecutionLogs } from '@sim/db/schema'
+import { jobExecutionLogs, workflow, workflowExecutionLogs } from '@sim/db/schema'
 import { and, asc, desc, eq, gte, inArray, lte, type SQL, sql } from 'drizzle-orm'
+import { escapeLikePattern } from '@/lib/api/list-query'
+import type { PersistedWorkflowExecutionStatus } from '@/lib/logs/types'
 
 /** Query filters shared by the v1 and v2 public log adapters. */
 export interface LogFilters {
@@ -19,6 +21,16 @@ export interface LogFilters {
    */
   triggers?: string[]
   level?: 'info' | 'error'
+  /**
+   * Persisted execution statuses to include, matched against the same column the
+   * responses report. Deliberately not derived from `level` + `ended_at` the way
+   * the first-party list's `running`/`pending` pseudo-levels are: a filter that
+   * selected on a different rule than the field it names would answer with rows
+   * whose reported status is not the one asked for.
+   */
+  statuses?: PersistedWorkflowExecutionStatus[]
+  /** Case-insensitive substring of the run's workflow name. */
+  workflowName?: string
   startDate?: Date
   endDate?: Date
   executionId?: string
@@ -73,6 +85,16 @@ export function buildLogFilters(filters: LogFilters): SQL<unknown> {
     conditions.push(eq(workflowExecutionLogs.level, filters.level))
   }
 
+  if (filters.statuses && filters.statuses.length > 0) {
+    conditions.push(inArray(workflowExecutionLogs.status, filters.statuses))
+  }
+
+  // Workflow name filter — unindexed ILIKE, so the term is length-bounded at the
+  // contract boundary. Wildcards in the term are escaped so `%` matches itself.
+  if (filters.workflowName) {
+    conditions.push(sql`${workflow.name} ILIKE ${`%${escapeLikePattern(filters.workflowName)}%`}`)
+  }
+
   // Date range filters
   if (filters.startDate) {
     conditions.push(gte(workflowExecutionLogs.startedAt, filters.startDate))
@@ -125,4 +147,91 @@ export function getOrderBy(order: 'desc' | 'asc' = 'desc') {
   return order === 'desc'
     ? [desc(workflowExecutionLogs.startedAt), desc(workflowExecutionLogs.id)]
     : [asc(workflowExecutionLogs.startedAt), asc(workflowExecutionLogs.id)]
+}
+
+/**
+ * Whether a filter set can select job runs at all.
+ *
+ * `job_execution_logs` has no workflow, no folder, no model projection, and no
+ * comparable persisted status, so a filter naming any of those cannot be
+ * satisfied by a job row. The honest answer is to drop the whole branch rather
+ * than to silently ignore the filter for half the sequence — the first-party
+ * list makes the same call in `list-logs.ts`, and letting one filter mean two
+ * different things per branch is a wrong answer, not a partial one.
+ */
+export function jobLogsSelectable(filters: LogFilters): boolean {
+  return (
+    !filters.workflowIds &&
+    !filters.folderIds &&
+    !filters.workflowName &&
+    !filters.model &&
+    !filters.statuses
+  )
+}
+
+/**
+ * The job-run half of a unioned public log page.
+ *
+ * Only the filters `job_execution_logs` can actually answer are applied; callers
+ * gate the branch on {@link jobLogsSelectable} first, so anything this builder
+ * does not translate is a filter no job row could have matched.
+ */
+export function buildJobLogFilters(filters: LogFilters): SQL<unknown> {
+  const conditions: SQL<unknown>[] = [eq(jobExecutionLogs.workspaceId, filters.workspaceId)]
+
+  if (filters.cursor) {
+    const cursorDate = new Date(filters.cursor.startedAt)
+    const comparison =
+      filters.order === 'asc'
+        ? sql`(${jobExecutionLogs.startedAt}, ${jobExecutionLogs.id}) > (${sql.param(cursorDate, jobExecutionLogs.startedAt)}, ${filters.cursor.id})`
+        : sql`(${jobExecutionLogs.startedAt}, ${jobExecutionLogs.id}) < (${sql.param(cursorDate, jobExecutionLogs.startedAt)}, ${filters.cursor.id})`
+    conditions.push(comparison)
+  }
+
+  if (filters.triggers && filters.triggers.length > 0 && !filters.triggers.includes('all')) {
+    conditions.push(inArray(jobExecutionLogs.trigger, filters.triggers))
+  }
+
+  if (filters.level) {
+    conditions.push(eq(jobExecutionLogs.level, filters.level))
+  }
+
+  if (filters.startDate) {
+    conditions.push(gte(jobExecutionLogs.startedAt, filters.startDate))
+  }
+
+  if (filters.endDate) {
+    conditions.push(lte(jobExecutionLogs.startedAt, filters.endDate))
+  }
+
+  if (filters.executionId) {
+    conditions.push(eq(jobExecutionLogs.executionId, filters.executionId))
+  }
+
+  if (filters.minDurationMs !== undefined) {
+    conditions.push(gte(jobExecutionLogs.totalDurationMs, filters.minDurationMs))
+  }
+
+  if (filters.maxDurationMs !== undefined) {
+    conditions.push(lte(jobExecutionLogs.totalDurationMs, filters.maxDurationMs))
+  }
+
+  // Job cost is a jsonb document rather than the indexed numeric projection the
+  // workflow logs carry, so the bound is compared against the extracted total.
+  if (filters.minCost !== undefined) {
+    conditions.push(sql`(${jobExecutionLogs.cost}->>'total')::numeric >= ${filters.minCost}`)
+  }
+
+  if (filters.maxCost !== undefined) {
+    conditions.push(sql`(${jobExecutionLogs.cost}->>'total')::numeric <= ${filters.maxCost}`)
+  }
+
+  return and(...conditions)!
+}
+
+/** `getOrderBy`'s job-log twin, on the same `(startedAt, id)` tuple the cursor compares. */
+export function getJobOrderBy(order: 'desc' | 'asc' = 'desc') {
+  return order === 'desc'
+    ? [desc(jobExecutionLogs.startedAt), desc(jobExecutionLogs.id)]
+    : [asc(jobExecutionLogs.startedAt), asc(jobExecutionLogs.id)]
 }

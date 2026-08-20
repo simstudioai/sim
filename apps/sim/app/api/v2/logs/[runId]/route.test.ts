@@ -71,7 +71,15 @@ describe('GET /api/v2/logs/[runId]', () => {
     mocks.execute.mockResolvedValue({
       log,
       workflowFolderPath: '/agents',
-      executionData: { traceSpans: [], finalOutput: { ok: true } },
+      executionData: {
+        traceSpans: [],
+        finalOutput: { ok: true },
+        workflowInput: { ticketId: 'T-1' },
+      },
+      costLedger: {
+        total: 0.01,
+        items: [{ category: 'model', description: 'gpt-5', cost: 0.01 }],
+      },
     })
   })
 
@@ -107,6 +115,62 @@ describe('GET /api/v2/logs/[runId]', () => {
 
     expect(response.status).toBe(200)
     expect((await response.json()).data).toMatchObject({ runId: 'run-1', status: 'paused' })
+  })
+
+  it('itemizes the run cost alongside its total', async () => {
+    const response = await GET(new NextRequest('http://localhost:3000/api/v2/logs/run-1'), {
+      params: Promise.resolve({ runId: 'run-1' }),
+    })
+
+    expect((await response.json()).data.cost).toEqual({
+      total: 0.01,
+      items: [{ category: 'model', description: 'gpt-5', cost: 0.01 }],
+    })
+  })
+
+  /**
+   * `null` and `[]` are different answers: `null` means no ledger exists for the
+   * run at all, where `[]` would claim a ledger that itemizes to nothing.
+   */
+  it('reports a missing ledger as null rather than as an empty item list', async () => {
+    mocks.execute.mockResolvedValueOnce({
+      log,
+      workflowFolderPath: '/agents',
+      executionData: { traceSpans: [], finalOutput: null },
+      costLedger: null,
+    })
+
+    const response = await GET(new NextRequest('http://localhost:3000/api/v2/logs/run-1'), {
+      params: Promise.resolve({ runId: 'run-1' }),
+    })
+
+    expect((await response.json()).data.cost).toEqual({ total: 0.01, items: null })
+  })
+
+  it('returns the input the run was triggered with', async () => {
+    const response = await GET(new NextRequest('http://localhost:3000/api/v2/logs/run-1'), {
+      params: Promise.resolve({ runId: 'run-1' }),
+    })
+
+    expect((await response.json()).data.workflowInput).toEqual({ ticketId: 'T-1' })
+  })
+
+  it('reports a run that recorded no input as null rather than omitting the field', async () => {
+    mocks.execute.mockResolvedValueOnce({
+      log,
+      workflowFolderPath: '/agents',
+      executionData: { traceSpans: [], finalOutput: null },
+      costLedger: null,
+    })
+
+    const body = await (
+      await GET(new NextRequest('http://localhost:3000/api/v2/logs/run-1'), {
+        params: Promise.resolve({ runId: 'run-1' }),
+      })
+    ).json()
+
+    expect(body.data).toHaveProperty('workflowInput')
+    expect(body.data.workflowInput).toBeNull()
   })
 
   it('conceals canonical workspace authorization as log not-found', async () => {

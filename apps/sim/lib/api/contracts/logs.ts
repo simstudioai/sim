@@ -44,8 +44,36 @@ export const logDetailQuerySchema = z.object({
   workspaceId: z.string().min(1),
 })
 
+/**
+ * Largest number of time buckets the dashboard stats read will build.
+ *
+ * The bound is load-bearing, not cosmetic. `segmentCount` reaches
+ * `buildDashboardStats` as the length of two densely materialized arrays — one
+ * per workflow, one for the workspace aggregate — so an unbounded value
+ * allocates without limit, and `0` divides by zero when the segment width is
+ * derived from it. Both were reachable from the query string.
+ */
+export const MAX_STATS_SEGMENT_COUNT = 500
+
+/**
+ * Largest number of per-workflow series the dashboard stats read will return.
+ *
+ * `workflows` carries one entry per workflow that ran in the window, each with
+ * `segmentCount` segments, so the response grows with the workspace rather than
+ * with anything the caller asked for. Entries past the cap are dropped from
+ * `workflows` only — the workspace aggregates are computed from every row first,
+ * so the totals stay exact — and the truncation is reported rather than silent.
+ */
+export const MAX_STATS_WORKFLOWS = 200
+
 export const statsQueryParamsSchema = logFilterQuerySchema.extend({
-  segmentCount: z.coerce.number().optional().default(72),
+  segmentCount: z.coerce
+    .number()
+    .int('segmentCount must be a whole number')
+    .min(1, 'segmentCount must be at least 1')
+    .max(MAX_STATS_SEGMENT_COUNT, `segmentCount cannot exceed ${MAX_STATS_SEGMENT_COUNT}`)
+    .optional()
+    .default(72),
 })
 
 const workflowSummarySchema = z

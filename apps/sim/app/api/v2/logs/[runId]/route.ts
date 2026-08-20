@@ -19,7 +19,7 @@ export const GET = defineV2JsonRoute({
   errorPolicy: v2LogErrorPolicies.concealDetailAuthorization,
   mapInput: ({ params }) => ({ runId: params.runId }),
   useCase: getPublicLog,
-  present: ({ log, workflowFolderPath, executionData }) => {
+  present: ({ log, workflowFolderPath, executionData, costLedger }) => {
     const detail: V2LogDetail = {
       runId: log.executionId,
       workflowId: log.workflowId,
@@ -45,7 +45,11 @@ export const GET = defineV2JsonRoute({
       workflowState: log.workflowState,
       traceSpans: traceSpansSchema.parse(executionData.traceSpans ?? []),
       finalOutput: executionData.finalOutput ?? null,
-      cost: log.costTotal != null ? { total: Number(log.costTotal) } : null,
+      cost:
+        log.costTotal != null
+          ? { total: Number(log.costTotal), items: costLedger?.items ?? null }
+          : null,
+      workflowInput: executionData.workflowInput ?? null,
       createdAt: log.createdAt.toISOString(),
     }
     return { data: detail }

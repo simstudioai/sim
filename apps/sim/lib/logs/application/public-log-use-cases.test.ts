@@ -98,6 +98,7 @@ const workspaceContext = {
   billedAccountUserId: 'billing-owner-1',
 }
 const log = {
+  kind: 'workflow' as const,
   executionId: 'run-1',
   workspaceId: 'workspace-1',
   workflowId: 'workflow-1',
@@ -310,6 +311,7 @@ describe('public log application use cases', () => {
         includeFullDetails: false,
         includeFinalOutput: false,
         includeTraceSpans: true,
+        includeJobRuns: false,
       },
     })
 
@@ -342,12 +344,13 @@ describe('public log application use cases', () => {
         includeFullDetails: false,
         includeFinalOutput: false,
         includeTraceSpans: false,
+        includeJobRuns: false,
       },
     })
 
     expect(mocks.listLogs).toHaveBeenCalledWith(
       expect.objectContaining({
-        filters: expect.objectContaining({ workspaceId: 'workspace-1', folderIds: ['folder-1'] }),
+        filters: expect.objectContaining({ workspaceId: 'workspace-1' }),
         folderScope: { includesRoot: false, folderIds: ['folder-1'] },
       })
     )
@@ -371,6 +374,7 @@ describe('public log application use cases', () => {
         includeFullDetails: false,
         includeFinalOutput: false,
         includeTraceSpans: false,
+        includeJobRuns: false,
       },
     })
 
@@ -391,11 +395,90 @@ describe('public log application use cases', () => {
         includeFullDetails: false,
         includeFinalOutput: false,
         includeTraceSpans: false,
+        includeJobRuns: false,
       },
     })
 
     expect(mocks.listLogs).toHaveBeenCalledWith(
       expect.objectContaining({ folderScope: { includesRoot: false, folderIds: ['folder-1'] } })
+    )
+  })
+
+  it('forwards the job-run union flag to the query', async () => {
+    await listPublicLogs.execute({
+      principal: workspacePrincipal,
+      input: {
+        workspaceId: 'workspace-1',
+        filters: {},
+        limit: 50,
+        includeFullDetails: false,
+        includeFinalOutput: false,
+        includeTraceSpans: false,
+        includeJobRuns: true,
+      },
+    })
+
+    expect(mocks.listLogs).toHaveBeenCalledWith(expect.objectContaining({ includeJobRuns: true }))
+  })
+
+  /**
+   * A job run's `execution_data` is a job envelope rather than a workflow trace,
+   * and the display projection is keyed on a workflow, so it passes through
+   * unmaterialized instead of being handed a shape that does not describe it.
+   */
+  it('does not materialize a job run', async () => {
+    mocks.listLogs.mockResolvedValueOnce({
+      data: [{ kind: 'job', executionId: 'job-1', executionData: { pointer: true } }],
+      nextCursor: null,
+    })
+
+    const result = await listPublicLogs.execute({
+      principal: workspacePrincipal,
+      input: {
+        workspaceId: 'workspace-1',
+        filters: {},
+        limit: 50,
+        includeFullDetails: false,
+        includeFinalOutput: true,
+        includeTraceSpans: false,
+        includeJobRuns: true,
+      },
+    })
+
+    expect(mocks.materialize).not.toHaveBeenCalled()
+    expect(result.items[0].executionData).toBeUndefined()
+  })
+
+  it("covers a selected folder's whole subtree", async () => {
+    mocks.loadFolders.mockResolvedValueOnce({
+      idByPath: new Map([
+        ['/agents', 'folder-1'],
+        ['/agents/nested', 'folder-2'],
+      ]),
+      pathById: new Map([
+        ['folder-1', '/agents'],
+        ['folder-2', '/agents/nested'],
+      ]),
+    })
+
+    await listPublicLogs.execute({
+      principal: workspacePrincipal,
+      input: {
+        workspaceId: 'workspace-1',
+        filters: {},
+        folderPaths: ['/agents'],
+        limit: 50,
+        includeFullDetails: false,
+        includeFinalOutput: false,
+        includeTraceSpans: false,
+        includeJobRuns: false,
+      },
+    })
+
+    expect(mocks.listLogs).toHaveBeenCalledWith(
+      expect.objectContaining({
+        folderScope: { includesRoot: false, folderIds: ['folder-1', 'folder-2'] },
+      })
     )
   })
 

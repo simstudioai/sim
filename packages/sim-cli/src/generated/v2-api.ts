@@ -3134,12 +3134,66 @@ type GetLogResponseRef1 = {
   finalOutput: unknown | null
   cost: {
     total: number
+    items: Array<{
+      category: 'fixed' | 'model' | 'tool'
+      description: string
+      cost: number
+      inputTokens?: number
+      outputTokens?: number
+    }> | null
   } | null
+  workflowInput: unknown | null
   createdAt: string
 }
 
 export type GetLogResponse = {
   data: GetLogResponseRef1
+}
+
+/** `GET /api/v2/logs/stats` */
+export type GetLogStatsQuery = {
+  workspaceId: string
+  workflowIds?: string
+  folderPaths?: string
+  triggers?: string
+  level?: 'info' | 'error'
+  startDate?: string
+  endDate?: string
+  segmentCount?: number
+}
+
+type GetLogStatsResponseRef0 = {
+  workflowId: string
+  workflowName: string
+  segments: Array<GetLogStatsResponseRef1>
+  totalExecutions: number
+  totalSuccessful: number
+  overallSuccessRate: number
+}
+
+type GetLogStatsResponseRef1 = {
+  timestamp: string
+  totalExecutions: number
+  successfulExecutions: number
+  avgDurationMs: number
+}
+
+type GetLogStatsResponseRef2 = {
+  workflows: Array<GetLogStatsResponseRef0>
+  workflowsTruncated: boolean
+  aggregateSegments: Array<GetLogStatsResponseRef1>
+  totalRuns: number
+  totalErrors: number
+  avgLatency: number
+  timeBounds: {
+    start: string
+    end: string
+  }
+  segmentMs: number
+}
+
+export type GetLogStatsResponse = {
+  data: GetLogStatsResponseRef2
 }
 
 /** `GET /api/v2/mcp-servers/[id]` */
@@ -4333,11 +4387,15 @@ export type ListLogsQuery = {
   limit?: number
   cursor?: string
   order?: 'asc' | 'desc'
+  status?: string
+  workflowName?: string
+  includeJobRuns?: boolean
   runId?: string
   folderPaths?: string
 }
 
 type ListLogsResponseRef0 = {
+  kind: 'workflow' | 'job'
   runId: string
   workflowId: string | null
   deploymentVersionId: string | null
@@ -4918,6 +4976,107 @@ type MoveWorkflowsResponseRef0 = {
 
 export type MoveWorkflowsResponse = {
   data: MoveWorkflowsResponseRef0
+}
+
+/** `POST /api/v2/logs/query` */
+export type QueryLogsQuery = Record<string, unknown>
+
+type QueryLogsBodyRef0 = string
+
+export type QueryLogsBody = {
+  workspaceId: string
+  workflowIds?: Array<string>
+  folderPaths?: Array<QueryLogsBodyRef0>
+  triggers?: Array<string>
+  level?: 'info' | 'error'
+  status?: Array<
+    'pending' | 'running' | 'paused' | 'redacting' | 'completed' | 'failed' | 'cancelled'
+  >
+  workflowName?: string
+  runId?: string
+  startDate?: string
+  endDate?: string
+  minDurationMs?: number
+  maxDurationMs?: number
+  minCost?: number
+  maxCost?: number
+  model?: string
+  sortBy?: 'startedAt' | 'durationMs' | 'cost' | 'status'
+  sortOrder?: 'asc' | 'desc'
+  limit?: number
+  cursor?: string
+}
+
+type QueryLogsResponseRef0 = {
+  kind: 'workflow' | 'job'
+  runId: string
+  workflowId: string | null
+  deploymentVersionId: string | null
+  status: 'pending' | 'running' | 'paused' | 'redacting' | 'completed' | 'failed' | 'cancelled'
+  level: string
+  trigger: string
+  startedAt: string
+  endedAt: string | null
+  totalDurationMs: number | null
+  cost: {
+    total: number
+  } | null
+  files: Array<unknown> | null
+  workflow?: {
+    id: string | null
+    name: string
+    description: string | null
+    deleted: boolean
+  }
+  finalOutput?: unknown
+  traceSpans?: Array<QueryLogsResponseRef1>
+}
+
+type QueryLogsResponseRef1 = {
+  id: string
+  name: string
+  type: string
+  duration?: number
+  durationMs?: number
+  startTime?: string
+  endTime?: string
+  status?: string
+  errorHandled?: boolean
+  errorType?: string
+  errorMessage?: string
+  blockId?: string
+  input?: unknown
+  output?: unknown
+  tokens?:
+    | number
+    | {
+        total?: number
+        input?: number
+        output?: number
+      }
+  cost?: {
+    total?: number
+    input?: number
+    output?: number
+    toolCost?: number
+  }
+  relativeStartMs?: number
+  toolCalls?: Array<{
+    id?: string
+    name?: string
+    arguments?: unknown
+    result?: unknown
+    error?: string
+    startTime?: string
+    endTime?: string
+    duration?: number
+  }>
+  children?: Array<QueryLogsResponseRef1>
+}
+
+export type QueryLogsResponse = {
+  data: Array<QueryLogsResponseRef0>
+  nextCursor: string | null
 }
 
 /** `POST /api/v2/tables/[tableId]/query` */
@@ -8019,6 +8178,55 @@ export const V2_OPERATIONS = {
     responseMode: 'json',
     summary: 'Get Log',
   },
+  getLogStats: {
+    method: 'GET',
+    path: '/api/v2/logs/stats',
+    pathParams: [] as const,
+    responseMode: 'json',
+    summary: 'Get Log Statistics',
+    query: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace whose execution statistics to summarize.',
+      },
+      workflowIds: {
+        kind: 'string',
+        describe: 'Comma-separated workflow identifiers to include. An empty entry is rejected.',
+      },
+      folderPaths: {
+        kind: 'string',
+        describe:
+          'Comma-separated workflow folder paths to include. A path covers its whole subtree. A path that names no folder narrows the result to nothing, so the response is an empty page rather than an error.',
+      },
+      triggers: {
+        kind: 'string',
+        describe:
+          'Comma-separated trigger types to include. An empty entry is rejected. The vocabulary is open, so an unrecognized member selects no runs; the literal `all` disables this filter.',
+      },
+      level: {
+        kind: 'enum',
+        values: ['info', 'error'] as const,
+        describe: 'Severity level to include.',
+      },
+      startDate: {
+        kind: 'string',
+        describe:
+          'Only include runs started at or after this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected, as is year `0000`, which names no storable instant.',
+      },
+      endDate: {
+        kind: 'string',
+        describe:
+          'Only include runs started at or before this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected, as is year `0000`, which names no storable instant.',
+      },
+      segmentCount: {
+        kind: 'integer',
+        default: 72,
+        describe:
+          'Number of equal time buckets to divide the window into, from 1 to 500. Buckets are never narrower than one minute, so a short window yields fewer distinct instants than requested.',
+      },
+    },
+  },
   getMcpServer: {
     method: 'GET',
     path: '/api/v2/mcp-servers/[id]',
@@ -8885,6 +9093,21 @@ export const V2_OPERATIONS = {
         describe:
           'Sort direction by execution start time. This list is sortable only by execution start time, so it takes `order` in place of `sortBy`/`sortOrder`, which it rejects.',
       },
+      status: {
+        kind: 'string',
+        describe:
+          'Comma-separated execution statuses to include, from `pending` | `running` | `paused` | `redacting` | `completed` | `failed` | `cancelled`. An empty entry is rejected. ANDed with `level`, which reports severity rather than lifecycle.',
+      },
+      workflowName: {
+        kind: 'string',
+        describe:
+          "Case-insensitive substring match against the run's workflow name. Runs whose workflow has been deleted match nothing, because the name is no longer joinable.",
+      },
+      includeJobRuns: {
+        kind: 'boolean',
+        describe:
+          'Whether Chat and Sim-agent job runs join the sequence alongside workflow runs. Job runs report `kind: "job"`, carry no `workflow` summary, and never carry a cost ledger. They are dropped entirely — not partially matched — whenever a filter they cannot answer is set (`workflowIds`, `workflowName`, `folderPaths`, `model`, or `status`), so a filter never means two different things across the union.',
+      },
       runId: { kind: 'string', describe: 'Exact run identifier to match.' },
       folderPaths: {
         kind: 'string',
@@ -9433,6 +9656,101 @@ export const V2_OPERATIONS = {
         kind: 'string',
         required: true,
         describe: 'Destination folder path; `/` moves the workflows to the workspace root.',
+      },
+    },
+  },
+  queryLogs: {
+    method: 'POST',
+    path: '/api/v2/logs/query',
+    pathParams: [] as const,
+    responseMode: 'json',
+    summary: 'Search Logs',
+    body: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace whose execution logs should be returned.',
+      },
+      workflowIds: { kind: 'array', describe: 'Workflow identifiers to include.' },
+      folderPaths: {
+        kind: 'array',
+        describe:
+          'Workflow folder paths to include. A path covers its whole subtree, so `/prod` also selects runs in `/prod/nested`. A path that names no folder narrows the result to nothing, so the response is an empty page rather than an error.',
+      },
+      triggers: {
+        kind: 'array',
+        describe:
+          'Trigger types to include. Matched exactly and case-sensitively against an open vocabulary, so an unrecognized member selects no runs rather than failing. The literal `all` is a sentinel that disables this filter.',
+      },
+      level: {
+        kind: 'enum',
+        values: ['info', 'error'] as const,
+        describe: 'Severity level to include.',
+      },
+      status: {
+        kind: 'array',
+        describe: 'Execution statuses to include, matched against the reported `status` field.',
+      },
+      workflowName: {
+        kind: 'string',
+        describe:
+          "Case-insensitive substring match against the run's workflow name. Runs whose workflow has been deleted match nothing, because the name is no longer joinable.",
+      },
+      runId: { kind: 'string', describe: 'Exact run identifier to match.' },
+      startDate: {
+        kind: 'string',
+        describe:
+          'Only include runs started at or after this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected, as is year `0000`, which names no storable instant.',
+      },
+      endDate: {
+        kind: 'string',
+        describe:
+          'Only include runs started at or before this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected, as is year `0000`, which names no storable instant.',
+      },
+      minDurationMs: {
+        kind: 'integer',
+        describe:
+          'Minimum total execution duration in milliseconds. Whole milliseconds from 0 to 2147483647; the stored duration is a 32-bit integer, so a fractional or out-of-range bound is rejected.',
+      },
+      maxDurationMs: {
+        kind: 'integer',
+        describe:
+          'Maximum total execution duration in milliseconds. Whole milliseconds from 0 to 2147483647; the stored duration is a 32-bit integer, so a fractional or out-of-range bound is rejected.',
+      },
+      minCost: {
+        kind: 'number',
+        describe:
+          'Minimum execution cost in USD, from 0 to 1000000. A run is never charged a negative amount, so a negative bound is rejected rather than treated as a filter that matches every run.',
+      },
+      maxCost: {
+        kind: 'number',
+        describe:
+          'Maximum execution cost in USD, from 0 to 1000000. A run is never charged a negative amount, so a negative bound is rejected rather than treated as a filter that matches every run.',
+      },
+      model: { kind: 'string', describe: 'AI model used during execution.' },
+      sortBy: {
+        kind: 'enum',
+        values: ['startedAt', 'durationMs', 'cost', 'status'] as const,
+        default: 'startedAt',
+        describe:
+          'Column to order by. `durationMs` and `cost` are null until a run settles; those runs order as though the value were below every recorded one, so they trail an ascending page and lead a descending one.',
+      },
+      sortOrder: {
+        kind: 'enum',
+        values: ['asc', 'desc'] as const,
+        default: 'desc',
+        describe: 'Sort direction.',
+      },
+      limit: {
+        kind: 'integer',
+        default: 50,
+        describe:
+          'Maximum log entries per page. Must be a whole number from 1 to 100. Defaults to 50.',
+      },
+      cursor: {
+        kind: 'string',
+        describe:
+          'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
       },
     },
   },

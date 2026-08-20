@@ -56,7 +56,8 @@ vi.mock('@/lib/workspaces/permissions/utils', () => ({
 }))
 
 import type { ListLogsParams } from './list-logs'
-import { decodeCursor, listLogs } from './list-logs'
+import { listLogs } from './list-logs'
+import { decodeLogSortCursor } from './sort-cursor'
 
 afterAll(resetDbChainMock)
 
@@ -178,7 +179,7 @@ describe('listLogs', () => {
 
     expect(result.data).toHaveLength(1)
     expect(result.nextCursor).not.toBeNull()
-    const decoded = decodeCursor(result.nextCursor!)
+    const decoded = decodeLogSortCursor(result.nextCursor!)
     expect(decoded?.id).toBe('log-a')
   })
 
