@@ -8,7 +8,7 @@ import {
 import { credential } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getActiveWorkflowContext } from '@sim/platform-authz/workflow'
-import { getErrorMessage } from '@sim/utils/errors'
+import { describeError, getErrorMessage, getPostgresConstraintName } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import {
   loadWorkflowFromNormalizedTablesRaw,
@@ -619,7 +619,10 @@ export async function saveWorkflowToNormalizedTables(
     })
   } catch (error) {
     const message = getErrorMessage(error, 'Failed to save workflow state')
-    logger.error(`Error saving workflow ${workflowId} to normalized tables:`, error)
+    logger.error(`Error saving workflow ${workflowId} to normalized tables:`, error, {
+      cause: describeError(error),
+      constraint: getPostgresConstraintName(error),
+    })
     return { success: false, error: message }
   }
 }

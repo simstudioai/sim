@@ -705,6 +705,9 @@ export function filterDisallowedTools(
  * The LLM may generate human-readable IDs like "web_search" or "research_agent"
  * which need to be converted to proper UUIDs for database compatibility.
  *
+ * Runs in two passes: every id is claimed before any reference is rewritten, so a
+ * reference can point at an id claimed by a later operation.
+ *
  * Returns the normalized operations and a mapping from old IDs to new UUIDs.
  */
 export function normalizeBlockIdsInOperations(operations: EditWorkflowOperation[]): {
@@ -714,14 +717,48 @@ export function normalizeBlockIdsInOperations(operations: EditWorkflowOperation[
   const logger = createLogger('EditWorkflowServerTool')
   const idMapping = new Map<string, string>()
 
-  // First pass: collect all non-UUID block_ids from add/insert operations
+  const claimId = (id: string | undefined) => {
+    if (!id || isValidUuid(id)) return
+    if (idMapping.has(id)) {
+      /*
+       * Two declarations share one handle. References naming it are already
+       * ambiguous, so both resolve to whichever block is written last. Warned
+       * rather than disambiguated because splitting them needs ids minted per
+       * declaration site, which the flat reference mapping cannot express.
+       */
+      logger.warn('Duplicate block handle in edit batch; declarations will collapse', { id })
+      return
+    }
+    const newId = generateId()
+    idMapping.set(id, newId)
+    logger.debug('Normalizing block ID', { oldId: id, newId })
+  }
+
+  /**
+   * Children arrive keyed by the model's own handle under `params.nestedNodes`,
+   * and containers nest arbitrarily deep. Every level must be claimed here or the
+   * handle is persisted verbatim as `workflow_blocks.id`, which is a global
+   * primary key — a name another workflow already stored collides on insert.
+   *
+   * Only reached for `add`/`insert_into_subflow`. `edit` also creates children via
+   * `mergeNestedNodesForParent`, but there a child matching an existing block by
+   * *name* keeps that block's id, so claiming its handle would repoint sibling
+   * references at an id no block was created under. That path needs the id minted
+   * at creation with an alias recorded for reference resolution, not a wider gate
+   * here.
+   */
+  const claimNestedNodeIds = (nestedNodes: Record<string, any> | undefined) => {
+    if (!nestedNodes) return
+    for (const [childId, childBlock] of Object.entries(nestedNodes)) {
+      claimId(childId)
+      claimNestedNodeIds(childBlock?.nestedNodes)
+    }
+  }
+
   for (const op of operations) {
     if (op.operation_type === 'add' || op.operation_type === 'insert_into_subflow') {
-      if (op.block_id && !isValidUuid(op.block_id)) {
-        const newId = generateId()
-        idMapping.set(op.block_id, newId)
-        logger.debug('Normalizing block ID', { oldId: op.block_id, newId })
-      }
+      claimId(op.block_id)
+      claimNestedNodeIds(op.params?.nestedNodes)
     }
   }
 
@@ -740,7 +777,52 @@ export function normalizeBlockIdsInOperations(operations: EditWorkflowOperation[
     return idMapping.get(id) ?? id
   }
 
-  // Second pass: update all references to use new UUIDs
+  const normalizeConnections = (connections: Record<string, any>): Record<string, any> => {
+    const normalizedConnections: Record<string, any> = {}
+    for (const [handle, targets] of Object.entries<any>(connections)) {
+      if (typeof targets === 'string') {
+        normalizedConnections[handle] = replaceId(targets)
+      } else if (Array.isArray(targets)) {
+        normalizedConnections[handle] = targets.map((t) => {
+          if (typeof t === 'string') return replaceId(t)
+          if (t && typeof t === 'object' && t.block) {
+            return { ...t, block: replaceId(t.block) }
+          }
+          return t
+        })
+      } else if (targets && typeof targets === 'object' && targets.block) {
+        normalizedConnections[handle] = { ...targets, block: replaceId(targets.block) }
+      } else {
+        normalizedConnections[handle] = targets
+      }
+    }
+    return normalizedConnections
+  }
+
+  /**
+   * A child's `connections` may name sibling children, not just top-level blocks,
+   * so nested references resolve through the same flat id mapping.
+   */
+  const normalizeNestedNodes = (nestedNodes: Record<string, any>): Record<string, any> => {
+    const normalizedNestedNodes: Record<string, any> = {}
+    for (const [childId, childBlock] of Object.entries<any>(nestedNodes)) {
+      const newChildId = replaceId(childId) ?? childId
+      normalizedNestedNodes[newChildId] =
+        childBlock && typeof childBlock === 'object'
+          ? {
+              ...childBlock,
+              ...(childBlock.connections && {
+                connections: normalizeConnections(childBlock.connections),
+              }),
+              ...(childBlock.nestedNodes && {
+                nestedNodes: normalizeNestedNodes(childBlock.nestedNodes),
+              }),
+            }
+          : childBlock
+    }
+    return normalizedNestedNodes
+  }
+
   const normalizedOperations = operations.map((op) => {
     const normalized: EditWorkflowOperation = {
       ...op,
@@ -755,37 +837,12 @@ export function normalizeBlockIdsInOperations(operations: EditWorkflowOperation[
         normalized.params.subflowId = replaceId(normalized.params.subflowId)
       }
 
-      // Update connection references
       if (normalized.params.connections) {
-        const normalizedConnections: Record<string, any> = {}
-        for (const [handle, targets] of Object.entries(normalized.params.connections)) {
-          if (typeof targets === 'string') {
-            normalizedConnections[handle] = replaceId(targets)
-          } else if (Array.isArray(targets)) {
-            normalizedConnections[handle] = targets.map((t) => {
-              if (typeof t === 'string') return replaceId(t)
-              if (t && typeof t === 'object' && t.block) {
-                return { ...t, block: replaceId(t.block) }
-              }
-              return t
-            })
-          } else if (targets && typeof targets === 'object' && (targets as any).block) {
-            normalizedConnections[handle] = { ...targets, block: replaceId((targets as any).block) }
-          } else {
-            normalizedConnections[handle] = targets
-          }
-        }
-        normalized.params.connections = normalizedConnections
+        normalized.params.connections = normalizeConnections(normalized.params.connections)
       }
 
-      // Update nestedNodes block IDs
       if (normalized.params.nestedNodes) {
-        const normalizedNestedNodes: Record<string, any> = {}
-        for (const [childId, childBlock] of Object.entries(normalized.params.nestedNodes)) {
-          const newChildId = replaceId(childId) ?? childId
-          normalizedNestedNodes[newChildId] = childBlock
-        }
-        normalized.params.nestedNodes = normalizedNestedNodes
+        normalized.params.nestedNodes = normalizeNestedNodes(normalized.params.nestedNodes)
       }
     }
 
