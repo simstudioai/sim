@@ -1,23 +1,32 @@
+import { subBlockTypeForField } from '@/blocks/custom/build-config'
+
 /**
- * Which control the sync modal renders for a repointed custom block's input, derived from the
- * field type its Start block declares.
+ * Which control the sync modal renders for a repointed custom block's input.
  *
- * Mirrors `subBlockTypeForField` in `@/blocks/custom/build-config`, which decides the same thing
- * for the canvas — a field the user configures here must read and behave the way it will once
- * the block is open in the editor.
+ * Derived from `subBlockTypeForField` — the same function that decides what the field becomes
+ * on the canvas — rather than re-reading the raw field type. The modal cannot reuse the canvas
+ * sub-block renderer (that one is bound to the workflow store, by workflow and block id), so it
+ * draws its own controls; taking the field's KIND from one place is what stops the two drifting
+ * when a field type is added. Re-deriving it is how `file[]` came to render as a text box.
+ *
+ * `unsupported` is a real outcome, not a fallback: a `file[]` input is an upload on the canvas,
+ * and there is nothing meaningful to type for it here. A text box would write a plain string
+ * into a field that expects file references.
  */
-export type CustomBlockInputControl = 'switch' | 'textarea' | 'input'
+export type CustomBlockInputControl = 'switch' | 'textarea' | 'input' | 'unsupported'
 
 export function customBlockInputControl(fieldType: string | undefined): CustomBlockInputControl {
-  switch (fieldType) {
-    // Stored as a real boolean on the canvas (its sub-block is a `switch`), so it must be
-    // toggled here rather than typed — a text field would persist the string `'true'`.
-    case 'boolean':
+  switch (subBlockTypeForField(fieldType ?? '')) {
+    // Stored as a real boolean on the canvas, so it must be toggled rather than typed — a text
+    // field would persist the string `'true'`.
+    case 'switch':
       return 'switch'
-    // Authored as JSON and parsed by the executor before the child receives it.
-    case 'object':
-    case 'array':
+    // A JSON editor on the canvas. The modal has no editor, but the value is the same JSON
+    // string either way and the executor parses it before the child receives it.
+    case 'code':
       return 'textarea'
+    case 'file-upload':
+      return 'unsupported'
     default:
       return 'input'
   }
@@ -58,3 +67,6 @@ const BOOLEAN_OPTIONAL_OPTIONS = [
 export function customBlockBooleanOptions(required: boolean) {
   return required ? BOOLEAN_VALUE_OPTIONS : BOOLEAN_OPTIONAL_OPTIONS
 }
+
+/** Shown in place of a control for a field the sync modal cannot configure. */
+export const CUSTOM_BLOCK_UNSUPPORTED_HINT = 'Set in the workflow — files cannot be configured here'

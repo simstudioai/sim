@@ -6,8 +6,9 @@ import {
   ChevronDown,
   Chip,
   ChipCombobox,
-  ChipModalField,
+  ChipInput,
   ChipSwitch,
+  ChipTextarea,
   CollapsibleCard,
   cn,
   FieldDivider,
@@ -34,6 +35,7 @@ import {
 } from '@/ee/workspace-forking/components/fork-sync/cleared-refs-list'
 import { forkRefKey } from '@/ee/workspace-forking/components/fork-sync/copy-reconciliation'
 import {
+  CUSTOM_BLOCK_UNSUPPORTED_HINT,
   customBlockBooleanOptions,
   customBlockInputControl,
 } from '@/ee/workspace-forking/components/fork-sync/custom-block-input-control'
@@ -221,33 +223,54 @@ function DependentSelector({
   const effectiveValue = (f: ForkDependentReconfig) => effectiveValueIn(f, reconfig)
   if (isCustomBlockInput) {
     // Not a selector: there is no parent resource to browse and no options to fetch, just the
-    // target block's own declared input. Rendered as a plain field so the user types the value
-    // the repointed block should run with. Structured types get a textarea because their value
-    // is JSON, matching how `subBlockTypeForField` renders them on the canvas.
+    // target block's own declared input. Renders a BARE control, like `DependentFieldSelector`
+    // does — the row wrapper above already draws the field's label and required marker, so a
+    // labelled `ChipModalField` printed the title twice.
     const setValue = (value: string) =>
       setReconfig((current) => ({ ...current, [dependentKey(field)]: value }))
     const value = effectiveValue(field)
-    const shared = { title: field.title, required: field.required }
     switch (customBlockInputControl(field.fieldType)) {
       case 'switch':
         return (
-          <ChipModalField {...shared} type='custom'>
-            <ChipSwitch
-              options={customBlockBooleanOptions(field.required)}
-              // Passed through unmapped: an unset field is `''`, which matches neither
-              // segment, so the switch renders with nothing selected. Coercing it to False
-              // would show a required flag as configured while the Sync gate still reads it
-              // as empty — the display-versus-gate split this whole carve-out exists to avoid.
-              value={value}
-              onChange={setValue}
-              aria-label={field.title}
-            />
-          </ChipModalField>
+          <ChipSwitch
+            options={customBlockBooleanOptions(field.required)}
+            // Passed through unmapped: an unset field is `''`, which matches neither segment,
+            // so the switch renders with nothing selected. Coercing it to False would show a
+            // required flag as configured while the Sync gate still reads it as empty.
+            value={value}
+            onChange={setValue}
+            aria-label={field.title}
+          />
         )
       case 'textarea':
-        return <ChipModalField {...shared} type='textarea' value={value} onChange={setValue} />
+        return (
+          <ChipTextarea
+            className='w-full'
+            value={value}
+            onChange={(event) => setValue(event.target.value)}
+            rows={3}
+            placeholder={`Enter ${field.title} as JSON`}
+          />
+        )
+      case 'unsupported':
+        return (
+          <ChipInput
+            className='w-full'
+            value=''
+            onChange={() => {}}
+            disabled
+            placeholder={CUSTOM_BLOCK_UNSUPPORTED_HINT}
+          />
+        )
       default:
-        return <ChipModalField {...shared} type='input' value={value} onChange={setValue} />
+        return (
+          <ChipInput
+            className='w-full'
+            value={value}
+            onChange={(event) => setValue(event.target.value)}
+            placeholder={`Enter ${field.title}`}
+          />
+        )
     }
   }
 
