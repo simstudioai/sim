@@ -6,7 +6,7 @@ import { resolveLogFolderScope } from '@/lib/logs/folder-scope'
 import type { LogFilters } from '@/lib/logs/public-filters'
 import {
   type PublicLogSortField,
-  type PublicWorkflowLogListRow,
+  type PublicWorkflowLogQueryRow,
   queryPublicWorkflowLogs,
 } from '@/lib/logs/public-queries'
 import { loadActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
@@ -22,7 +22,7 @@ export interface QueryPublicLogsInput {
 }
 
 export interface QueryPublicLogsResult {
-  logs: PublicWorkflowLogListRow[]
+  logs: PublicWorkflowLogQueryRow[]
   nextCursorKeys: CursorKey[] | null
 }
 

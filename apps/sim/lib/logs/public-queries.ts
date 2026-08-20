@@ -11,6 +11,7 @@ import {
 import { and, eq, sql } from 'drizzle-orm'
 import {
   type CursorKey,
+  decimalKey,
   type KeysetKey,
   keysetColumns,
   keysetPage,
@@ -268,18 +269,45 @@ export type PublicLogSortField = (typeof PUBLIC_LOG_SORT_FIELDS)[number]
 const UNSETTLED_SORT_VALUE = -1
 
 /**
+ * {@link UNSETTLED_SORT_VALUE} as the `numeric` cursor key spells it.
+ *
+ * `cost_total` is an unconstrained `numeric`, so its keyset travels as the digit
+ * string Postgres returned rather than as a JS number — see {@link decimalKey}.
+ * The sentinel has to be written the same way or an unsettled anchor could not
+ * be bound back.
+ */
+const UNSETTLED_COST_VALUE = String(UNSETTLED_SORT_VALUE)
+
+/**
+ * The sortable read's row: the list row minus the run's execution data, which
+ * that read does not select — it returns the summary projection only.
+ */
+export type PublicWorkflowLogQueryRow = Omit<PublicWorkflowLogListRow, 'executionData'>
+
+/**
+ * The columns the sortable keyset compares on — every row shape it pages carries
+ * these, whether or not it also selects the run's execution data.
+ */
+type PublicLogKeysetRow = Pick<
+  PublicWorkflowLogListRow,
+  'id' | 'status' | 'startedAt' | 'totalDurationMs' | 'costTotal'
+>
+
+/**
  * The keyset for one sort field, always ending in `id`.
  *
  * The trailing unique key is what separates rows that tie on the leading column
  * — every one of these columns can tie, `status` on most of a page — so without
  * it the page boundary repeats or drops the tied rows.
  */
-function publicLogKeyset(sortBy: PublicLogSortField): KeysetKey<PublicWorkflowLogListRow>[] {
-  const idKey = textKey<PublicWorkflowLogListRow>(workflowExecutionLogs.id, (row) => row.id)
+function publicLogKeyset<Row extends PublicLogKeysetRow>(
+  sortBy: PublicLogSortField
+): KeysetKey<Row>[] {
+  const idKey = textKey<Row>(workflowExecutionLogs.id, (row) => row.id)
   switch (sortBy) {
     case 'durationMs':
       return [
-        numberKey<PublicWorkflowLogListRow>(
+        numberKey<Row>(
           sql`COALESCE(${workflowExecutionLogs.totalDurationMs}, ${UNSETTLED_SORT_VALUE})`,
           (row) => row.totalDurationMs ?? UNSETTLED_SORT_VALUE
         ),
@@ -287,25 +315,16 @@ function publicLogKeyset(sortBy: PublicLogSortField): KeysetKey<PublicWorkflowLo
       ]
     case 'cost':
       return [
-        numberKey<PublicWorkflowLogListRow>(
+        decimalKey<Row>(
           sql`COALESCE(${workflowExecutionLogs.costTotal}, ${UNSETTLED_SORT_VALUE})`,
-          (row) => (row.costTotal == null ? UNSETTLED_SORT_VALUE : Number(row.costTotal))
+          (row) => row.costTotal ?? UNSETTLED_COST_VALUE
         ),
         idKey,
       ]
     case 'status':
-      return [
-        textKey<PublicWorkflowLogListRow>(workflowExecutionLogs.status, (row) => row.status),
-        idKey,
-      ]
+      return [textKey<Row>(workflowExecutionLogs.status, (row) => row.status), idKey]
     default:
-      return [
-        timestampKey<PublicWorkflowLogListRow>(
-          workflowExecutionLogs.startedAt,
-          (row) => row.startedAt
-        ),
-        idKey,
-      ]
+      return [timestampKey<Row>(workflowExecutionLogs.startedAt, (row) => row.startedAt), idKey]
   }
 }
 
@@ -346,7 +365,6 @@ export async function queryPublicWorkflowLogs(input: QueryPublicWorkflowLogsInpu
       totalDurationMs: workflowExecutionLogs.totalDurationMs,
       costTotal: workflowExecutionLogs.costTotal,
       files: workflowExecutionLogs.files,
-      executionData: sql`null`,
       workflowName: workflow.name,
       workflowDescription: workflow.description,
       workflowFolderId: workflow.folderId,

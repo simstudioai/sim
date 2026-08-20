@@ -32,7 +32,9 @@ import { PERSISTED_WORKFLOW_EXECUTION_STATUSES } from '@/lib/logs/types'
 const v2LogCostSchema = z
   .object({ total: z.number().describe('Total execution cost in USD.') })
   .nullable()
-  .describe('Cost charged for the run, or null when unavailable.')
+  .describe(
+    'Cost charged for the run, or null when the run has neither a recorded total nor an itemized ledger.'
+  )
 
 const v2CostLedgerItemSchema = z
   .object({
@@ -239,7 +241,12 @@ export const v2LogDetailSchema = z
     workflowState: v2LogWorkflowStateSchema,
     /** Materialized block-level execution trace spans. */
     traceSpans: traceSpansSchema.describe('Materialized block-level execution trace spans.'),
-    /** Materialized final output, when the execution produced one. */
+    /**
+     * Both `.describe()` calls survive and both are required: the inner one
+     * documents the `unknown` branch of the nullable union, which the OpenAPI
+     * generator refuses to emit undescribed, and the outer one documents the
+     * union itself. Collapsing them to one fails `generate:openapi`.
+     */
     finalOutput: z
       .unknown()
       .describe('Materialized final workflow output value.')
@@ -247,6 +254,7 @@ export const v2LogDetailSchema = z
       .describe('Materialized final workflow output, or null when none was produced.'),
     cost: v2LogDetailCostSchema,
     // untyped-response: workflow input is the caller-supplied trigger payload, which has no server-side schema
+    /** Doubly described for the reason `finalOutput` above is. */
     workflowInput: z
       .unknown()
       .describe('Caller-supplied trigger payload for the run.')
@@ -344,7 +352,7 @@ function v2CostBoundSchema(field: 'minCost' | 'maxCost', bound: 'Minimum' | 'Max
  * malformed list into a narrower filter and reports nothing, which on a log
  * search reads as "those runs do not exist".
  */
-function v2CommaListSchema(field: 'workflowIds' | 'triggers' | 'status', description: string) {
+function v2CommaListSchema(field: 'workflowIds' | 'triggers', description: string) {
   return z
     .string()
     .describe(description)

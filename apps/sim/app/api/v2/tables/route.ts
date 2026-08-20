@@ -19,7 +19,12 @@ function tableCursorFilters(query: {
 }) {
   return cursorScopeKey(cursorRoute(v2ListTablesContract), {
     workspaceId: query.workspaceId,
-    scope: query.scope,
+    // Stamped only when it is not the default. `scope` carries
+    // `.default('active')`, so it is always present on the parsed query;
+    // binding it unconditionally would put a constant in every fingerprint and
+    // reject every cursor minted before the field existed — including on
+    // callers who never sent it.
+    scope: query.scope === 'active' ? undefined : query.scope,
     folderPath: query.folderPath,
     search: query.search,
   })

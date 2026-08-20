@@ -147,6 +147,49 @@ describe('GET /api/v2/logs/[runId]', () => {
     expect((await response.json()).data.cost).toEqual({ total: 0.01, items: null })
   })
 
+  /**
+   * `cost_total` is a backfilled projection, so a run that predates the backfill
+   * has a real `usage_log` ledger and no projected total. Keying `cost` on the
+   * projection reported `cost: null` for exactly those runs — the contract's
+   * spelling for "no cost information at all" — and made `items` unreachable
+   * for the runs the ledger exists to explain.
+   */
+  it('falls back to the ledger total when the projected total is missing', async () => {
+    mocks.execute.mockResolvedValueOnce({
+      log: { ...log, costTotal: null },
+      workflowFolderPath: '/agents',
+      executionData: { traceSpans: [], finalOutput: null },
+      costLedger: {
+        total: 0.03,
+        items: [{ category: 'model', description: 'gpt-5', cost: 0.03 }],
+      },
+    })
+
+    const response = await GET(new NextRequest('http://localhost:3000/api/v2/logs/run-1'), {
+      params: Promise.resolve({ runId: 'run-1' }),
+    })
+
+    expect((await response.json()).data.cost).toEqual({
+      total: 0.03,
+      items: [{ category: 'model', description: 'gpt-5', cost: 0.03 }],
+    })
+  })
+
+  it('reports null cost only when neither the projection nor a ledger exists', async () => {
+    mocks.execute.mockResolvedValueOnce({
+      log: { ...log, costTotal: null },
+      workflowFolderPath: '/agents',
+      executionData: { traceSpans: [], finalOutput: null },
+      costLedger: null,
+    })
+
+    const response = await GET(new NextRequest('http://localhost:3000/api/v2/logs/run-1'), {
+      params: Promise.resolve({ runId: 'run-1' }),
+    })
+
+    expect((await response.json()).data.cost).toBeNull()
+  })
+
   it('returns the input the run was triggered with', async () => {
     const response = await GET(new NextRequest('http://localhost:3000/api/v2/logs/run-1'), {
       params: Promise.resolve({ runId: 'run-1' }),

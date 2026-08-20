@@ -52,8 +52,11 @@ export const logDetailQuerySchema = z.object({
  * The bound is load-bearing, not cosmetic. `segmentCount` reaches
  * `buildDashboardStats` as the length of two densely materialized arrays — one
  * per workflow, one for the workspace aggregate — so an unbounded value
- * allocates without limit, and `0` divides by zero when the segment width is
- * derived from it. Both were reachable from the query string.
+ * allocates without limit: `1e9` is a genuine 500. The lower bound is the
+ * quieter half — `0` does not throw, it makes `segmentMs` `Infinity` and every
+ * segment array empty, which serializes as `null` and hands the dashboard a
+ * shaped response with nothing in it. Both were reachable from the query
+ * string.
  */
 export const MAX_STATS_SEGMENT_COUNT = 500
 

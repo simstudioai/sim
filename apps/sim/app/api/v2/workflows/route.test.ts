@@ -30,6 +30,9 @@ vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
 vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
 vi.mock('@/app/api/v2/lib/gate', () => v2GateModuleMock)
 
+import { v2ListWorkflowsContract } from '@/lib/api/contracts/v2/workflows'
+import { cursorRoute, cursorScopeKey } from '@/lib/api/cursor-binding'
+import { writeSortedCursor } from '@/app/api/v2/lib/response'
 import { GET, POST } from '@/app/api/v2/workflows/route'
 
 const WORKSPACE_ID = 'workspace-1'
@@ -212,6 +215,39 @@ describe('/api/v2/workflows', () => {
     const response = await GET(
       new NextRequest(
         `http://localhost/api/v2/workflows?workspaceId=${WORKSPACE_ID}&deployedOnly=true&cursor=${encodeURIComponent(firstPage.nextCursor)}`
+      )
+    )
+
+    expect(response.status).toBe(200)
+    expect(mocks.listWorkflows).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        input: expect.objectContaining({ cursorKeys: [1, WORKFLOW.id] }),
+      })
+    )
+  })
+
+  /**
+   * `scope` carries `.default('active')`, so it is present on every parsed
+   * query. Stamping it unconditionally would put a constant in every
+   * fingerprint and refuse every cursor minted before the param existed, with
+   * the misleading "cursor does not match the requested filters" message — a
+   * caller that changed nothing would be told it changed a filter. The default
+   * must therefore contribute nothing to the scope.
+   */
+  it('resumes a cursor minted before scope entered the binding', async () => {
+    const legacyCursor = writeSortedCursor(
+      [1, WORKFLOW.id],
+      'position',
+      'asc',
+      cursorScopeKey(cursorRoute(v2ListWorkflowsContract), {
+        workspaceId: WORKSPACE_ID,
+        deployedOnly: false,
+      })
+    ) as string
+
+    const response = await GET(
+      new NextRequest(
+        `http://localhost/api/v2/workflows?workspaceId=${WORKSPACE_ID}&cursor=${encodeURIComponent(legacyCursor)}`
       )
     )
 

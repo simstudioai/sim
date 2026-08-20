@@ -1,5 +1,6 @@
 import { workflow } from '@sim/db/schema'
 import { inArray, isNull, or, type SQL, sql } from 'drizzle-orm'
+import { MAX_FOLDERS_PER_WORKSPACE } from '@/lib/folders/constants'
 import { ROOT_FOLDER_PATH } from '@/lib/folders/paths'
 import { loadActiveFolderPathIndex, resolveFolderPathFilter } from '@/lib/folders/queries'
 
@@ -33,12 +34,20 @@ export interface LogFolderScope {
  * A path naming no active folder contributes nothing rather than failing the
  * read, matching {@link resolveFolderPathFilter}'s miss semantics: a filter's
  * miss is an empty set, not a 404.
+ *
+ * Capped at {@link MAX_FOLDERS_PER_WORKSPACE} like every other reader that
+ * materializes the tree. An uncapped read is unbounded in a workspace that is
+ * already over the ceiling, and a truncated index is worse than a refusal here:
+ * a missing descendant silently narrows the filter, which on a log search reads
+ * as "those runs do not exist".
  */
 export async function resolveLogFolderScope(
   workspaceId: string,
   paths: string[]
 ): Promise<LogFolderScope> {
-  const folderIndex = await loadActiveFolderPathIndex(workspaceId, 'workflow')
+  const folderIndex = await loadActiveFolderPathIndex(workspaceId, 'workflow', undefined, {
+    maxRows: MAX_FOLDERS_PER_WORKSPACE,
+  })
   const folderIds = new Set<string>()
   let includesRoot = false
 
