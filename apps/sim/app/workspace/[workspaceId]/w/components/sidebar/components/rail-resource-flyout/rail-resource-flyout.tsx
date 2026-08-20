@@ -26,14 +26,29 @@ import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
 const TABLE_META = FOLDERED_RESOURCE_HEADERS.table
 const FILE_META = FOLDERED_RESOURCE_HEADERS.file
 
+/**
+ * A list is usable only once it has resolved for THIS workspace. Every list here keeps the
+ * previous workspace's rows as placeholder data across a switch, and a tree built from one
+ * workspace's resources against another's folders resolves no folder id at all — which the
+ * builder reads as "archived out from under it" and files the whole list at the root. So the
+ * rows wait for both queries rather than render a shape that is wrong and then jumps.
+ *
+ * `isPlaceholderData` is what separates that from a real result; a pending-only check is the
+ * exact gate `tables.tsx` warns against. An error settles a query without resolving it, and is
+ * deliberately not held here: the flyout then renders flat, which still reaches every row.
+ */
+function isResolving(query: { isPending: boolean; isPlaceholderData: boolean }): boolean {
+  return query.isPending || query.isPlaceholderData
+}
+
 export function TablesRailFlyout({ workspaceId }: { workspaceId: string }) {
   const params = useParams()
-  const { data: tables, isPending: isTablesPending } = useTablesList(workspaceId)
-  const { data: folders, isPending: isFoldersPending } = useFolders(workspaceId, {
-    resourceType: 'table',
-  })
+  const tablesQuery = useTablesList(workspaceId)
+  const foldersQuery = useFolders(workspaceId, { resourceType: 'table' })
   const pinnedTableIds = usePinnedIds(workspaceId, 'table')
   const pinnedFolderIds = usePinnedIds(workspaceId, 'folder')
+  const { data: tables } = tablesQuery
+  const { data: folders } = foldersQuery
 
   const entries = useMemo(
     () =>
@@ -52,7 +67,7 @@ export function TablesRailFlyout({ workspaceId }: { workspaceId: string }) {
       entries={entries}
       icon={TABLE_META.rootIcon}
       currentItemId={typeof params.tableId === 'string' ? params.tableId : undefined}
-      isLoading={isTablesPending || isFoldersPending}
+      isLoading={isResolving(tablesQuery) || isResolving(foldersQuery)}
       emptyLabel='No tables yet'
     />
   )
@@ -60,10 +75,12 @@ export function TablesRailFlyout({ workspaceId }: { workspaceId: string }) {
 
 export function FilesRailFlyout({ workspaceId }: { workspaceId: string }) {
   const params = useParams()
-  const { data: files, isPending: isFilesPending } = useWorkspaceFiles(workspaceId)
-  const { data: folders, isPending: isFoldersPending } = useWorkspaceFileFolders(workspaceId)
+  const filesQuery = useWorkspaceFiles(workspaceId)
+  const foldersQuery = useWorkspaceFileFolders(workspaceId)
   const pinnedFileIds = usePinnedIds(workspaceId, 'file')
   const pinnedFolderIds = usePinnedIds(workspaceId, 'folder')
+  const { data: files } = filesQuery
+  const { data: folders } = foldersQuery
 
   const entries = useMemo(
     () =>
@@ -82,7 +99,7 @@ export function FilesRailFlyout({ workspaceId }: { workspaceId: string }) {
       entries={entries}
       icon={FILE_META.rootIcon}
       currentItemId={typeof params.fileId === 'string' ? params.fileId : undefined}
-      isLoading={isFilesPending || isFoldersPending}
+      isLoading={isResolving(filesQuery) || isResolving(foldersQuery)}
       emptyLabel='No files yet'
     />
   )
