@@ -256,8 +256,8 @@ export function Table({
   const [{ sort: sortColumn, dir: sortDirection, view: activeViewId }, setTableParams] =
     useQueryStates(tableDetailParsers, tableDetailUrlKeys)
 
-  // Read-only mirrors for the resolve effect: it must know whether the user has
-  // already applied a filter / hidden columns without re-running when they change.
+  // Read-only mirrors for the resolve effect and replaceFilter's echo check:
+  // both must read the current values without re-running when they change.
   const filterRef = useRef(filter)
   filterRef.current = filter
   const hiddenColumnsRef = useRef(hiddenColumns)
@@ -418,9 +418,13 @@ export function Table({
    * this an open panel keeps showing the rules of the filter it replaced.
    *
    * The remount discards an unapplied draft, which is the point — the rules on
-   * screen must be the rules in effect.
+   * screen must be the rules in effect. An incoming filter identical to the
+   * current one is skipped entirely: the resolve effect re-applies the config
+   * after this client's own autosave settles, and letting that echo remount an
+   * open panel would wipe keystrokes typed since the flush and steal focus.
    */
   const replaceFilter = useCallback((next: TablePredicate | null) => {
+    if (JSON.stringify(next) === JSON.stringify(filterRef.current)) return
     setFilter(next)
     setFilterSeed((seed) => seed + 1)
   }, [])
@@ -588,11 +592,7 @@ export function Table({
         // `sort` rides the same host URL, so when the view id is inherited the
         // sort beside it is too — not local work, and it must not suppress the
         // default view's own sort.
-        const keep = inheritedParams
-          ? { ...localWork(), sort: false }
-          : legacyAllWithDefault
-            ? undefined
-            : localWork()
+        const keep = inheritedParams ? { ...localWork(), sort: false } : localWork()
         if (defaultView) {
           appliedViewRevisionRef.current = getTableViewRevision(defaultView)
           setTableParams({ view: defaultView.id })
@@ -864,6 +864,10 @@ export function Table({
 
   const handleDeleteView = useCallback(
     (viewId: string) => {
+      if (views.some((view) => view.id === viewId && view.isDefault)) {
+        toast.error('Set another view as default before deleting this view')
+        return
+      }
       deleteViewMutation.mutate(viewId, {
         onSuccess: () => {
           if (viewId !== activeViewId) return

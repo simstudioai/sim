@@ -1,3 +1,8 @@
+/**
+ * @vitest-environment jsdom
+ */
+import { act } from 'react'
+import { createRoot } from 'react-dom/client'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
 import type { TableViewWire } from '@/lib/api/contracts/tables'
@@ -12,6 +17,13 @@ const DEFAULT_VIEW: TableViewWire = {
   createdBy: 'user-1',
   createdAt: new Date('2026-08-15T01:00:00.000Z'),
   updatedAt: new Date('2026-08-15T01:00:00.000Z'),
+}
+
+const SAVED_VIEW: TableViewWire = {
+  ...DEFAULT_VIEW,
+  id: 'view-saved',
+  name: 'Saved',
+  isDefault: false,
 }
 
 function renderMenu(views: TableViewWire[], activeViewId: string | null): string {
@@ -41,5 +53,31 @@ describe('ViewsMenu', () => {
 
     expect(markup).toContain('All')
     expect(markup).not.toContain('>View<')
+  })
+
+  it('only offers deletion for non-default views', () => {
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const root = createRoot(container)
+
+    act(() => {
+      root.render(
+        <ViewsMenu
+          views={[DEFAULT_VIEW, SAVED_VIEW]}
+          activeViewId={DEFAULT_VIEW.id}
+          onSelect={vi.fn()}
+          onRename={vi.fn()}
+          onDelete={vi.fn()}
+          onNewView={vi.fn()}
+          canEdit
+        />
+      )
+    })
+    act(() => container.querySelector<HTMLButtonElement>('button[aria-label="Views"]')?.click())
+
+    expect(document.body.querySelectorAll('button[aria-label="Delete"]')).toHaveLength(1)
+
+    act(() => root.unmount())
+    container.remove()
   })
 })

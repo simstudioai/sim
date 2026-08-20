@@ -156,11 +156,15 @@ export const ViewsMenu = memo(function ViewsMenu({
                         label: 'Rename',
                         onClick: () => runAndClose(() => onRename(view.id)),
                       },
-                      {
-                        icon: Trash,
-                        label: 'Delete',
-                        onClick: () => runAndClose(() => onDelete(view.id)),
-                      },
+                      ...(!view.isDefault
+                        ? [
+                            {
+                              icon: Trash,
+                              label: 'Delete',
+                              onClick: () => runAndClose(() => onDelete(view.id)),
+                            },
+                          ]
+                        : []),
                     ]
                   : undefined
               }
