@@ -246,6 +246,73 @@ describe('cbinsights request building', () => {
     expect(JSON.parse(String(calls[1].init.body))).toEqual({ keyword: 'fintech' })
   })
 
+  /*
+   * An empty segment is a separator artifact, not a value — dropping it cannot
+   * change which organizations are requested. The required and optional paths
+   * must agree, or the same typing succeeds on one operation and fails on
+   * another.
+   */
+  it('tolerates a trailing or doubled comma identically on both paths', async () => {
+    mockFetch([AUTH_OK, { body: { orgs: [] } }, { body: { orgs: [] } }])
+
+    await cbinsightsListFundingsTool.directExecution!({
+      ...CREDS,
+      orgIds: '129410, 1034157,',
+    } as never)
+    expect(JSON.parse(String(calls[1].init.body)).orgIds).toEqual([129410, 1034157])
+
+    await cbinsightsSearchFirmographicsTool.directExecution!({
+      ...CREDS,
+      sectorIds: '1,,2',
+    } as never)
+    expect(JSON.parse(String(calls[2].init.body)).sectorIds).toEqual([1, 2])
+  })
+
+  it('rejects a mistyped numeric bound rather than dropping it', async () => {
+    mockFetch([AUTH_OK])
+    await expect(
+      cbinsightsSearchFirmographicsTool.directExecution!({
+        ...CREDS,
+        keyword: 'fintech',
+        minCurrentHeadcount: 'fifty',
+      } as never)
+    ).rejects.toThrow(/"minCurrentHeadcount" must be a number/)
+  })
+
+  /*
+   * The guard measures the filters alone. Paging or sort slipping past it would
+   * issue an unfiltered search over the whole database — and still bill for it.
+   */
+  it('refuses a firmographics search carrying only paging or sort', async () => {
+    mockFetch([AUTH_OK])
+    await expect(
+      cbinsightsSearchFirmographicsTool.directExecution!({
+        ...CREDS,
+        limit: 100,
+        nextPageToken: 'tok',
+        sortField: 'mosaicOverall',
+      } as never)
+    ).rejects.toThrow(/at least one search parameter/)
+  })
+
+  it('still sends paging and sort alongside a real filter', async () => {
+    mockFetch([AUTH_OK, { body: { orgs: [] } }])
+    await cbinsightsSearchFirmographicsTool.directExecution!({
+      ...CREDS,
+      keyword: 'fintech',
+      limit: 25,
+      nextPageToken: 'tok',
+      sortField: 'mosaicOverall',
+    } as never)
+
+    expect(JSON.parse(String(calls[1].init.body))).toEqual({
+      keyword: 'fintech',
+      limit: 25,
+      nextPageToken: 'tok',
+      sort: { field: 'mosaicOverall', direction: 'desc' },
+    })
+  })
+
   it('rejects a non-integer organization ID rather than interpolating it into the path', async () => {
     mockFetch([AUTH_OK])
     await expect(

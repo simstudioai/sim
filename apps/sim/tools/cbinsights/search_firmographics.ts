@@ -307,7 +307,7 @@ export const cbinsightsSearchFirmographicsTool: ToolConfig<
   request: { url: () => '', method: 'POST', headers: () => ({}) },
 
   directExecution: async (params, signal) => {
-    const body = compactBody({
+    const filters = compactBody({
       keyword: params.keyword?.trim(),
       orgIds: parseIdListParam(params.orgIds, 'orgIds'),
       orgNames: parseStringListParam(params.orgNames, 'orgNames'),
@@ -338,18 +338,46 @@ export const cbinsightsSearchFirmographicsTool: ToolConfig<
         params.lastFundingRoundCategoryIds,
         'lastFundingRoundCategoryIds'
       ),
-      minCurrentHeadcount: parseIntegerParam(params.minCurrentHeadcount),
-      maxCurrentHeadcount: parseIntegerParam(params.maxCurrentHeadcount),
-      minTotalFundingInMillions: parseNumberParam(params.minTotalFundingInMillions),
-      maxTotalFundingInMillions: parseNumberParam(params.maxTotalFundingInMillions),
-      minValuationInMillions: parseNumberParam(params.minValuationInMillions),
-      maxValuationInMillions: parseNumberParam(params.maxValuationInMillions),
+      minCurrentHeadcount: parseIntegerParam(params.minCurrentHeadcount, 'minCurrentHeadcount'),
+      maxCurrentHeadcount: parseIntegerParam(params.maxCurrentHeadcount, 'maxCurrentHeadcount'),
+      minTotalFundingInMillions: parseNumberParam(
+        params.minTotalFundingInMillions,
+        'minTotalFundingInMillions'
+      ),
+      maxTotalFundingInMillions: parseNumberParam(
+        params.maxTotalFundingInMillions,
+        'maxTotalFundingInMillions'
+      ),
+      minValuationInMillions: parseNumberParam(
+        params.minValuationInMillions,
+        'minValuationInMillions'
+      ),
+      maxValuationInMillions: parseNumberParam(
+        params.maxValuationInMillions,
+        'maxValuationInMillions'
+      ),
       minLastFundingDate: params.minLastFundingDate?.trim(),
       maxLastFundingDate: params.maxLastFundingDate?.trim(),
       vcBacked: parseBooleanParam(params.vcBacked),
-      limit: clampLimit(params.limit),
-      nextPageToken: params.nextPageToken,
     })
+
+    /*
+     * The guard has to measure the *filters* alone. Folding limit, the page
+     * token, or the sort into the same object would let a request carrying only
+     * paging past it — which is an unfiltered search over the whole database,
+     * and it still spends credits.
+     */
+    if (Object.keys(filters).length === 0) {
+      throw new Error('CB Insights firmographics search requires at least one search parameter')
+    }
+
+    const body: Record<string, unknown> = {
+      ...filters,
+      ...compactBody({
+        limit: clampLimit(params.limit),
+        nextPageToken: params.nextPageToken,
+      }),
+    }
 
     /* The API takes one sort object; the block exposes it as two plain fields
        so neither has to be typed as JSON. */
@@ -359,10 +387,6 @@ export const cbinsightsSearchFirmographicsTool: ToolConfig<
         field: sortField,
         direction: params.sortDirection === 'asc' ? 'asc' : 'desc',
       }
-    }
-
-    if (Object.keys(body).length === 0) {
-      throw new Error('CB Insights firmographics search requires at least one search parameter')
     }
 
     return cbInsightsRequest<{

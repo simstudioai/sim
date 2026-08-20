@@ -279,7 +279,7 @@ export function requireOrgIds(value: unknown): number[] {
       }
       raw = parsed
     } else {
-      raw = trimmed.split(',')
+      raw = splitCommaList(trimmed)
     }
   } else if (value !== undefined && value !== null) {
     raw = [value]
@@ -335,6 +335,23 @@ export function clampLimit(value: unknown): number | undefined {
 }
 
 /**
+ * Splits a hand-typed comma list, discarding empty segments.
+ *
+ * An empty segment is a separator artifact — a trailing comma, or a double one —
+ * and carries no value, so dropping it cannot change *which* records are
+ * requested. That is the opposite of dropping a mistyped entry like `notanid`,
+ * which silently discards an ID the caller meant to include. Both the required
+ * and the optional paths route through here so the same typing produces the same
+ * result on every operation.
+ */
+function splitCommaList(value: string): string[] {
+  return value
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter((entry) => entry !== '')
+}
+
+/**
  * Parses a JSON-array param that may arrive already parsed, tolerating a bare
  * comma-separated list for the flat ID filters.
  */
@@ -346,10 +363,7 @@ export function parseListParam(value: unknown, paramName: string): unknown[] | u
     const trimmed = value.trim()
     if (trimmed === '') return undefined
     if (!trimmed.startsWith('[')) {
-      const entries = trimmed
-        .split(',')
-        .map((entry) => entry.trim())
-        .filter(Boolean)
+      const entries = splitCommaList(trimmed)
       return entries.length > 0 ? entries : undefined
     }
     let parsed: unknown
@@ -389,16 +403,25 @@ export function parseStringListParam(value: unknown, paramName: string): string[
   return values.length > 0 ? values : undefined
 }
 
-/** Coerces an optional numeric filter, dropping a value that is not a number. */
-export function parseNumberParam(value: unknown): number | undefined {
+/**
+ * Coerces an optional numeric filter, rejecting a value that is not a number.
+ *
+ * Dropping it would widen the search rather than narrow it — a mistyped headcount
+ * or valuation bound would silently disappear and the broader query would still
+ * spend credits. Same reasoning as the ID lists.
+ */
+export function parseNumberParam(value: unknown, paramName: string): number | undefined {
   if (value === undefined || value === null || value === '') return undefined
-  const parsed = typeof value === 'number' ? value : Number(value)
-  return Number.isFinite(parsed) ? parsed : undefined
+  const parsed = typeof value === 'number' ? value : Number(String(value).trim())
+  if (!Number.isFinite(parsed)) {
+    throw new Error(`CB Insights "${paramName}" must be a number (received "${String(value)}")`)
+  }
+  return parsed
 }
 
-/** Coerces an optional integer filter. */
-export function parseIntegerParam(value: unknown): number | undefined {
-  const parsed = parseNumberParam(value)
+/** Coerces an optional integer filter, rejecting a value that is not a number. */
+export function parseIntegerParam(value: unknown, paramName: string): number | undefined {
+  const parsed = parseNumberParam(value, paramName)
   return parsed === undefined ? undefined : Math.trunc(parsed)
 }
 
