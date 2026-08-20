@@ -17,16 +17,17 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 1. In the [Plaid Dashboard](https://dashboard.plaid.com/), copy the application **client ID** and the secret for the environment you will use.
 2. Create the Item through Plaid Link in your application and exchange its public token on your server. Plaid public tokens expire after 30 minutes. The resulting Item access token is long-lived until it is revoked or rotated and must not be embedded in client-side application code or stored in workflow state. Enter it only in Sim's credential form, which sends it to the authenticated credential API for validation and encryption and does not return it. For Sandbox testing, create and exchange a Sandbox public token through Plaid's server-side Sandbox API.
-3. Connect a Plaid Item from **Integrations**, or add a Plaid block and open **Plaid Item**. Enter the environment, client ID, matching secret, and Item access token. Sim verifies the values with Plaid `/item/get`, encrypts them, and gives workflows only the credential's opaque ID. Create one credential per Item.
+3. Add a Plaid block and open its **Plaid Item** field to create or select a credential. Enter the environment, client ID, matching secret, and Item access token. Sim verifies the values with Plaid `/item/get`, encrypts them, and gives workflows only the credential's opaque ID. Create one credential per Item.
 
 ## Usage notes
 
-- Select the stored Plaid Item once per block. Reconnect the credential after rotating the Plaid access token or environment secret; the opaque credential ID stays the same for existing workflows. Deleting the Sim credential removes only the local encrypted copy and does not revoke or remove the Item at Plaid.
+- Select the stored Plaid Item once per block. Reconnect after rotating the Item access token or app credentials for that same Item and environment; use a new credential for a different Item or environment. The opaque credential ID stays the same for existing workflows. Deleting the Sim credential removes only the local encrypted copy and does not revoke or remove the Item at Plaid.
+- Plaid Item credentials are workspace credentials and are available according to workspace credential permissions. Use dedicated, access-controlled workflows for Auth and Identity data.
 - Transaction Sync returns one page per call. Preserve `nextCursor` and continue while `hasMore` is true. If Plaid returns `TRANSACTIONS_SYNC_MUTATION_DURING_PAGINATION`, discard that batch and restart from the cursor where the batch began. A cursor belongs to its account-filter stream; start with no cursor after changing the account filter.
 - Account fields offer single- and multi-account selectors backed by the selected Item. Institution lookup offers searchable results and hydrates a saved selection by ID. Advanced manual fields remain available for account or institution IDs that cannot be loaded in the editor. Account filters are optional and default to all accounts on the Item.
 - Institution search returns at most ten matches. The Search Institutions action remains available when you need its full institution records or want to supply non-US country codes and product filters.
 - Get Balances usually completes in under ten seconds but can take 30 seconds or more. `minLastUpdatedDatetime` is an RFC 3339 date-time and is required by Plaid only for certain Capital One non-depository requests.
-- Get Auth returns full account and routing identifiers. Use them only with an approved non-Plaid-partner payment processor. Sim hides the `numbers` field from execution-log display; never write it to tables, files, messages, or other durable outputs.
+- Get Auth account and routing numbers, and Get Identity personally identifiable information, are standard tool outputs. They can enter workflow and execution state, downstream blocks, Agent or model context, and requests to the configured model provider. `hiddenFromDisplay` suppresses only the Get Auth source block's `numbers` field from log display; it does not enforce non-persistence or prevent downstream access. Send Auth numbers only to an approved non-Plaid-partner payment processor, and do not route Auth or Identity data to Agents, models, or durable sinks unless that transmission and retention are explicitly approved.
 - Plaid Sandbox is useful for contract testing but does not reproduce all Production institution behavior. Product access, optional fields, consent, and institution-specific errors still need Production validation.
 {/* MANUAL-CONTENT-END */}
 
@@ -48,10 +49,10 @@ Incrementally sync transactions for a linked Item. Omit the cursor on the first 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `cursor` | string | No | Cursor from a previous sync \(nextCursor\); omit to start from the beginning |
-| `count` | number | No | Number of updates to fetch per page \(1-500, default 100\) |
+| `count` | number | No | Number of updates to fetch per page \(Plaid requires 1-500; default 100\) |
 | `accountId` | string | No | Scope the sync \(and cursor\) to a single account ID |
 | `includeOriginalDescription` | boolean | No | Include the unmodified original_description from the institution |
-| `daysRequested` | number | No | Days of history to request \(1-730, default 90\). Only applies before Transactions is initialized on the Item |
+| `daysRequested` | number | No | Days of history to request \(Plaid allows 1-730; default 90\). Only applies before Transactions is initialized on the Item |
 
 #### Output
 
@@ -154,7 +155,7 @@ List the accounts linked to an Item with their names, types, and balances. Balan
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accountIds` | string | No | Comma-separated account IDs to filter to \(defaults to all accounts; Sim safety limit 500\) |
+| `accountIds` | string | No | Comma-separated account IDs to filter to \(defaults to all accounts\) |
 
 #### Output
 
@@ -187,7 +188,7 @@ Get real-time balances for the accounts linked to an Item. The live institution 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accountIds` | string | No | Comma-separated account IDs to filter to \(defaults to all accounts; Sim safety limit 500\) |
+| `accountIds` | string | No | Comma-separated account IDs to filter to \(defaults to all accounts\) |
 | `minLastUpdatedDatetime` | string | No | Oldest acceptable balance timestamp \(ISO 8601\). Only required for Capital One non-depository accounts |
 
 #### Output
@@ -221,7 +222,7 @@ Get account-holder identity information (names, emails, phone numbers, and addre
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accountIds` | string | No | Comma-separated account IDs to filter to \(defaults to all accounts; Sim safety limit 500\) |
+| `accountIds` | string | No | Comma-separated account IDs to filter to \(defaults to all accounts\) |
 
 #### Output
 
@@ -272,7 +273,7 @@ Get account and routing numbers for depository accounts linked to an Item (ACH f
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accountIds` | string | No | Comma-separated account IDs to filter to \(defaults to all accounts; Sim safety limit 500\) |
+| `accountIds` | string | No | Comma-separated account IDs to filter to \(defaults to all eligible Auth accounts\) |
 
 #### Output
 
@@ -372,7 +373,7 @@ Search financial institutions supported by Plaid by name, returning at most 10
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `query` | string | Yes | Institution name to search for, e.g. 'Chase' |
-| `countryCodes` | string | No | Comma-separated ISO country codes to search in \(defaults to 'US'\) |
+| `countryCodes` | string | No | Comma-separated Plaid-supported country codes to search in \(defaults to 'US'\) |
 | `products` | string | No | Comma-separated products the institutions must support, e.g. 'transactions,auth' |
 
 #### Output
@@ -399,7 +400,7 @@ Get details for a financial institution by its Plaid institution ID
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `institutionId` | string | Yes | Plaid institution ID, e.g. 'ins_109508' |
-| `countryCodes` | string | No | Comma-separated ISO country codes \(defaults to 'US'\) |
+| `countryCodes` | string | No | Comma-separated Plaid-supported country codes \(defaults to 'US'\) |
 
 #### Output
 

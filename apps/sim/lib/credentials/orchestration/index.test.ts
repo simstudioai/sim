@@ -226,21 +226,23 @@ describe('performUpdateCredential — service-account secret rotation', () => {
     expect(updatePayload().displayName).toBe('New Team')
   })
 
-  it('re-labels a Plaid credential when reconnect points it at a different Item', async () => {
+  it('rotates Plaid app credentials for the same Item and environment', async () => {
     mockCredential({
       providerId: 'plaid-service-account',
       displayName: 'Plaid ins_old (item-old)',
     })
     mockStoredBlob({
       type: 'plaid_service_account',
+      providerId: 'plaid-service-account',
       itemId: 'item-old',
       institutionId: 'ins_old',
+      environment: 'production',
     })
     mockVerifyAndBuildServiceAccountSecret.mockResolvedValue({
       providerId: 'plaid-service-account',
       encryptedServiceAccountKey: 'new-cipher',
-      displayName: 'Plaid ins_new (item-new)',
-      auditMetadata: { plaidItemId: 'item-new' },
+      displayName: 'Plaid ins_old (item-old)',
+      auditMetadata: { plaidItemId: 'item-old', plaidEnvironment: 'production' },
     })
 
     await performUpdateCredential({
@@ -261,7 +263,126 @@ describe('performUpdateCredential — service-account secret rotation', () => {
         accessToken: 'access-production-new',
       })
     )
-    expect(updatePayload().displayName).toBe('Plaid ins_new (item-new)')
+    expect(updatePayload().encryptedServiceAccountKey).toBe('new-cipher')
+    expect(updatePayload()).not.toHaveProperty('displayName')
+  })
+
+  it('still verifies stored Plaid identity when reconnect includes a display name', async () => {
+    mockCredential({ providerId: 'plaid-service-account', displayName: 'Billing Item' })
+    mockStoredBlob({
+      type: 'plaid_service_account',
+      providerId: 'plaid-service-account',
+      itemId: 'item-old',
+      environment: 'production',
+    })
+    mockVerifyAndBuildServiceAccountSecret.mockResolvedValue({
+      providerId: 'plaid-service-account',
+      encryptedServiceAccountKey: 'new-cipher',
+      displayName: 'Plaid Item item-old',
+      auditMetadata: { plaidItemId: 'item-old', plaidEnvironment: 'production' },
+    })
+
+    const result = await performUpdateCredential({
+      credentialId: 'cred-1',
+      userId: 'user-1',
+      displayName: 'Renamed billing Item',
+      clientId: 'client-id',
+      clientSecret: 'new-secret',
+      environment: 'production',
+      accessToken: 'access-production-new',
+    })
+
+    expect(result.success).toBe(true)
+    expect(mockDecryptSecret).toHaveBeenCalledOnce()
+    expect(updatePayload().displayName).toBe('Renamed billing Item')
+  })
+
+  it.each([
+    ['item-new', 'production'],
+    ['item-old', 'sandbox'],
+  ] as const)('rejects a Plaid reconnect for Item %s in %s', async (itemId, environment) => {
+    mockCredential({ providerId: 'plaid-service-account', displayName: 'Plaid Item item-old' })
+    mockStoredBlob({
+      type: 'plaid_service_account',
+      providerId: 'plaid-service-account',
+      itemId: 'item-old',
+      environment: 'production',
+    })
+    mockVerifyAndBuildServiceAccountSecret.mockResolvedValue({
+      providerId: 'plaid-service-account',
+      encryptedServiceAccountKey: 'new-cipher',
+      displayName: `Plaid Item ${itemId}`,
+      auditMetadata: { plaidItemId: itemId, plaidEnvironment: environment },
+    })
+
+    const result = await performUpdateCredential({
+      credentialId: 'cred-1',
+      userId: 'user-1',
+      clientId: 'client-id',
+      clientSecret: 'new-secret',
+      environment: 'production',
+      accessToken: 'access-production-new',
+    })
+
+    expect(result).toMatchObject({ success: false, errorCode: 'validation' })
+    expect(result.error).toContain('different Plaid Item or environment')
+    expect(dbChainMockFns.set).not.toHaveBeenCalled()
+  })
+
+  it('classifies unreadable stored Plaid material as a reconnect validation failure', async () => {
+    mockCredential({ providerId: 'plaid-service-account', displayName: 'Plaid Item item-old' })
+    queueTableRows(schemaMock.credential, [{ key: 'stored-cipher' }])
+    mockDecryptSecret.mockResolvedValue({ decrypted: 'not-json' })
+
+    const result = await performUpdateCredential({
+      credentialId: 'cred-1',
+      userId: 'user-1',
+      clientId: 'client-id',
+      clientSecret: 'new-secret',
+      environment: 'production',
+      accessToken: 'access-production-new',
+    })
+
+    expect(result).toMatchObject({ success: false, errorCode: 'validation' })
+    expect(result.error).toContain('stored Plaid Item identity')
+    expect(mockVerifyAndBuildServiceAccountSecret).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    null,
+    {},
+    {
+      type: 'plaid_service_account',
+      providerId: 'plaid-service-account',
+      itemId: 'item-old',
+    },
+  ])('fails closed when the stored Plaid identity is malformed: %j', async (storedBlob) => {
+    mockCredential({ providerId: 'plaid-service-account', displayName: 'Plaid Item item-old' })
+    if (storedBlob === null) {
+      queueTableRows(schemaMock.credential, [{ key: null }])
+    } else {
+      mockStoredBlob(storedBlob)
+    }
+    mockVerifyAndBuildServiceAccountSecret.mockResolvedValue({
+      providerId: 'plaid-service-account',
+      encryptedServiceAccountKey: 'new-cipher',
+      displayName: 'Plaid Item item-old',
+      auditMetadata: { plaidItemId: 'item-old', plaidEnvironment: 'production' },
+    })
+
+    const result = await performUpdateCredential({
+      credentialId: 'cred-1',
+      userId: 'user-1',
+      clientId: 'client-id',
+      clientSecret: 'new-secret',
+      environment: 'production',
+      accessToken: 'access-production-new',
+    })
+
+    expect(result).toMatchObject({ success: false, errorCode: 'validation' })
+    expect(result.error).toContain('stored Plaid Item identity')
+    expect(mockVerifyAndBuildServiceAccountSecret).not.toHaveBeenCalled()
+    expect(dbChainMockFns.set).not.toHaveBeenCalled()
   })
 
   it('merges the rebuilt secret audit metadata into the CREDENTIAL_UPDATED entry', async () => {

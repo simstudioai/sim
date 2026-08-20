@@ -42,7 +42,7 @@ export const plaidSyncTransactionsTool: ToolConfig<
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Number of updates to fetch per page (1-500, default 100)',
+      description: 'Number of updates to fetch per page (Plaid requires 1-500; default 100)',
     },
     accountId: {
       type: 'string',
@@ -61,7 +61,7 @@ export const plaidSyncTransactionsTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Days of history to request (1-730, default 90). Only applies before Transactions is initialized on the Item',
+        'Days of history to request (Plaid allows 1-730; default 90). Only applies before Transactions is initialized on the Item',
     },
   },
 
@@ -71,7 +71,7 @@ export const plaidSyncTransactionsTool: ToolConfig<
     headers: () => ({ 'Content-Type': 'application/json' }),
     body: (params) =>
       buildPlaidInternalBody('plaid_sync_transactions', params, {
-        cursor: toPlaidOptionalString(params.cursor, 'cursor', { maxLength: 256 }),
+        cursor: toPlaidOptionalString(params.cursor, 'cursor'),
         count: toPlaidOptionalNumber(params.count, 'count', {
           integer: true,
           min: 1,
@@ -96,9 +96,6 @@ export const plaidSyncTransactionsTool: ToolConfig<
     const added = requirePlaidArrayField(data, 'added', 'transaction sync.added')
     const modified = requirePlaidArrayField(data, 'modified', 'transaction sync.modified')
     const removed = requirePlaidArrayField(data, 'removed', 'transaction sync.removed')
-    if (added.length + modified.length + removed.length > 500) {
-      throw new Error('transaction sync must contain at most 500 updates')
-    }
     return {
       success: true,
       output: {

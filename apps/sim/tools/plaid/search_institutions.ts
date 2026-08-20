@@ -38,7 +38,7 @@ export const plaidSearchInstitutionsTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: "Comma-separated ISO country codes to search in (defaults to 'US')",
+      description: "Comma-separated Plaid-supported country codes to search in (defaults to 'US')",
     },
     products: {
       type: 'string',

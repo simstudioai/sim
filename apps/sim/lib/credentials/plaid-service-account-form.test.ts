@@ -15,7 +15,7 @@ describe('Plaid service-account form metadata', () => {
   it('declares the complete credential bundle in display order', () => {
     expect(PLAID_SERVICE_ACCOUNT_FORM.fields).toMatchObject([
       { id: 'environment', secret: false, options: expect.any(Array) },
-      { id: 'clientId', secret: false },
+      { id: 'clientId', secret: true },
       { id: 'clientSecret', secret: true },
       { id: 'accessToken', secret: true },
     ])
@@ -40,7 +40,7 @@ describe('Plaid service-account form metadata', () => {
       PLAID_SERVICE_ACCOUNT_FORM.connectNoun
     )
     expect(PLAID_SERVICE_ACCOUNT_FORM.catalogDescription).toBe(
-      'Connect one Plaid Item with your Plaid application credentials and Item access token.'
+      'Connect one workspace credential for a Plaid Item using application credentials and an Item access token.'
     )
   })
 })

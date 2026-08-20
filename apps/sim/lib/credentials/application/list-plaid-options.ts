@@ -23,6 +23,26 @@ function institutionLabel(name: string): string {
   return truncate(name, 512, '…')
 }
 
+export function plaidAccountMatchesEligibility(
+  account: ReturnType<typeof mapPlaidAccount>,
+  eligibility: 'all' | 'auth' | 'transactions'
+): boolean {
+  if (eligibility === 'all') return true
+  if (eligibility === 'auth') {
+    return (
+      account.type === 'depository' &&
+      (account.subtype === 'checking' ||
+        account.subtype === 'savings' ||
+        account.subtype === 'cash management')
+    )
+  }
+  return (
+    account.type === 'depository' ||
+    account.type === 'credit' ||
+    (account.type === 'loan' && (account.subtype === 'student' || account.subtype === 'mortgage'))
+  )
+}
+
 export const listPlaidOptions = defineAuthorizedCredentialUseCase({
   operation: credentialOperations.read,
   resolveContext: ({ input }: { input: ListPlaidOptionsInput }) =>
@@ -72,12 +92,12 @@ export const listPlaidOptions = defineAuthorizedCredentialUseCase({
 
     if (input.body.kind === 'accounts') {
       const accounts = requirePlaidArrayField(response, 'accounts', 'accounts.accounts')
-      if (accounts.length > 500) throw new PlaidGatewayError('Plaid returned too many accounts')
+      const eligibility = input.body.eligibility ?? 'all'
       return {
-        options: accounts.map((value, index) => {
-          const account = mapPlaidAccount(value, `accounts.accounts[${index}]`)
-          return { id: account.account_id, label: accountLabel(account) }
-        }),
+        options: accounts
+          .map((value, index) => mapPlaidAccount(value, `accounts.accounts[${index}]`))
+          .filter((account) => plaidAccountMatchesEligibility(account, eligibility))
+          .map((account) => ({ id: account.account_id, label: accountLabel(account) })),
       }
     }
 

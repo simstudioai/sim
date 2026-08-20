@@ -30,7 +30,7 @@ export const plaidGetAuthTool: ToolConfig<PlaidGetAuthParams, PlaidGetAuthRespon
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Comma-separated account IDs to filter to (defaults to all accounts; Sim safety limit 500)',
+        'Comma-separated account IDs to filter to (defaults to all eligible Auth accounts)',
     },
   },
 
@@ -49,7 +49,7 @@ export const plaidGetAuthTool: ToolConfig<PlaidGetAuthParams, PlaidGetAuthRespon
 
   transformResponse: async (response) => {
     const data = await plaidRecord(response, 'auth')
-    const accounts = requirePlaidArrayField(data, 'accounts', 'auth.accounts', 500)
+    const accounts = requirePlaidArrayField(data, 'accounts', 'auth.accounts')
     return {
       success: true,
       output: {

@@ -152,13 +152,17 @@ describe('buildSelectorContextFromBlock', () => {
     ).toBe('advanced-team')
   })
 
-  it('exposes Plaid country codes to the institution selector', () => {
+  it('exposes Plaid operation, country codes, and the canonical credential to selectors', () => {
     const ctx = buildSelectorContextFromBlock('plaid', {
       operation: { id: 'operation', type: 'dropdown', value: 'search_institutions' },
+      credential: { id: 'credential', type: 'oauth-input', value: 'plaid-credential-1' },
       countryCodes: { id: 'countryCodes', type: 'short-input', value: 'US,CA' },
     })
 
+    expect(ctx.operation).toBe('search_institutions')
+    expect(ctx.oauthCredential).toBe('plaid-credential-1')
     expect(ctx.countryCodes).toBe('US,CA')
+    expect((ctx as Record<string, unknown>).plaidCredentialId).toBeUndefined()
   })
 
   it('should ignore subblock keys not in SELECTOR_CONTEXT_FIELDS', () => {
@@ -168,7 +172,7 @@ describe('buildSelectorContextFromBlock', () => {
     })
 
     expect((ctx as Record<string, unknown>).query).toBeUndefined()
-    expect((ctx as Record<string, unknown>).operation).toBeUndefined()
+    expect(ctx.operation).toBe('search')
   })
 })
 

@@ -179,7 +179,7 @@ export const PlaidBlock: BlockConfig<PlaidResponse> = {
       canonicalParamId: 'accountIds',
       multiSelect: true,
       placeholder: 'Filter by linked accounts',
-      dependsOn: ['credential'],
+      dependsOn: ['credential', 'operation'],
       mode: 'basic',
       condition: { field: 'operation', value: ACCOUNT_FILTER_OPERATIONS },
     },
@@ -222,7 +222,7 @@ export const PlaidBlock: BlockConfig<PlaidResponse> = {
       serviceId: 'plaid',
       canonicalParamId: 'accountId',
       placeholder: 'Scope the sync to one account',
-      dependsOn: ['credential'],
+      dependsOn: ['credential', 'operation'],
       mode: 'basic',
       condition: { field: 'operation', value: 'sync_transactions' },
     },
@@ -337,7 +337,7 @@ export const PlaidBlock: BlockConfig<PlaidResponse> = {
     },
     institutionId: { type: 'string', description: 'Plaid institution ID' },
     query: { type: 'string', description: 'Institution name to search for' },
-    countryCodes: { type: 'string', description: 'Comma-separated ISO country codes' },
+    countryCodes: { type: 'string', description: 'Comma-separated Plaid-supported country codes' },
     products: { type: 'string', description: 'Comma-separated products institutions must support' },
     accountIds: { type: 'string', description: 'Comma-separated account IDs filter' },
     accountId: {
@@ -349,7 +349,7 @@ export const PlaidBlock: BlockConfig<PlaidResponse> = {
       description: 'Oldest acceptable balance timestamp (ISO 8601)',
     },
     cursor: { type: 'string', description: 'Transaction sync cursor from a previous run' },
-    count: { type: 'string', description: 'Transaction sync page size (1-500)' },
+    count: { type: 'string', description: 'Transaction sync page size (Plaid requires 1-500)' },
     includeOriginalDescription: {
       type: 'boolean',
       description: 'Include the unmodified transaction description from the institution',
@@ -370,7 +370,8 @@ export const PlaidBlock: BlockConfig<PlaidResponse> = {
     count: { type: 'number', description: 'Number of records returned' },
     numbers: {
       type: 'json',
-      description: 'Account and routing numbers grouped by scheme (ach, eft, international, bacs)',
+      description:
+        'Sensitive account and routing numbers grouped by scheme; hiddenFromDisplay suppresses only source-block log display',
       hiddenFromDisplay: true,
     },
     item: { type: 'json', description: 'Item metadata including institution and enabled products' },
@@ -417,7 +418,7 @@ export const PlaidBlockMeta = {
       icon: PlaidIcon,
       title: 'Plaid ACH payment setup',
       prompt:
-        'Build a workflow that checks account verification status, fetches account and routing numbers only for an eligible linked Plaid Item, passes them directly to an approved non-Plaid-partner payment processor, and never logs or persists the numbers.',
+        'Build an access-controlled workflow that checks account verification status, fetches account and routing numbers only for an eligible linked Plaid Item, and sends them only to an approved non-Plaid-partner payment processor. Do not route the values to an Agent or durable sink unless that transmission or retention is explicitly approved.',
       modules: ['workflows'],
       category: 'operations',
       tags: ['automation'],

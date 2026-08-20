@@ -26,8 +26,7 @@ export const plaidGetBalancesTool: ToolConfig<PlaidGetBalancesParams, PlaidGetBa
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description:
-        'Comma-separated account IDs to filter to (defaults to all accounts; Sim safety limit 500)',
+      description: 'Comma-separated account IDs to filter to (defaults to all accounts)',
     },
     minLastUpdatedDatetime: {
       type: 'string',
@@ -55,7 +54,7 @@ export const plaidGetBalancesTool: ToolConfig<PlaidGetBalancesParams, PlaidGetBa
 
   transformResponse: async (response) => {
     const data = await plaidRecord(response, 'balances')
-    const accounts = requirePlaidArrayField(data, 'accounts', 'balances.accounts', 500)
+    const accounts = requirePlaidArrayField(data, 'accounts', 'balances.accounts')
     const mapped = accounts.map((account, index) =>
       mapPlaidAccount(account, `balances.accounts[${index}]`)
     )

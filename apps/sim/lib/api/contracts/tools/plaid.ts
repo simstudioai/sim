@@ -3,9 +3,35 @@ import type { ContractBodyInput, ContractJsonResponse } from '@/lib/api/contract
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
 const credentialIdSchema = z.string().trim().min(1).max(512)
-const shortTextSchema = z.string().trim().min(1).max(256)
-const countryCodesSchema = z.array(z.string().length(2)).min(1).max(20)
-const accountIdsSchema = z.array(shortTextSchema).min(1).max(500)
+const providerTextSchema = z.string().trim().min(1)
+export const PLAID_SUPPORTED_COUNTRY_CODES = [
+  'US',
+  'GB',
+  'ES',
+  'NL',
+  'FR',
+  'IE',
+  'CA',
+  'DE',
+  'IT',
+  'PL',
+  'DK',
+  'NO',
+  'SE',
+  'EE',
+  'LT',
+  'LV',
+  'PT',
+  'BE',
+  'AT',
+  'FI',
+] as const
+export type PlaidSupportedCountryCode = (typeof PLAID_SUPPORTED_COUNTRY_CODES)[number]
+const countryCodesSchema = z
+  .array(z.enum(PLAID_SUPPORTED_COUNTRY_CODES))
+  .min(1)
+  .max(PLAID_SUPPORTED_COUNTRY_CODES.length)
+const accountIdsSchema = z.array(providerTextSchema).min(1)
 
 const baseShape = {
   credentialId: credentialIdSchema,
@@ -32,9 +58,9 @@ export const plaidOperationBodySchema = z.discriminatedUnion('operation', [
       operation: z.literal('plaid_sync_transactions'),
       input: z
         .object({
-          cursor: z.string().max(256).optional(),
+          cursor: z.string().optional(),
           count: z.number().int().min(1).max(500).optional(),
-          account_id: shortTextSchema.optional(),
+          account_id: providerTextSchema.optional(),
           include_original_description: z.boolean().optional(),
           days_requested: z.number().int().min(1).max(730).optional(),
         })
@@ -47,9 +73,9 @@ export const plaidOperationBodySchema = z.discriminatedUnion('operation', [
       operation: z.literal('plaid_search_institutions'),
       input: z
         .object({
-          query: z.string().trim().min(1).max(256),
+          query: providerTextSchema,
           country_codes: countryCodesSchema,
-          products: z.array(shortTextSchema).max(50).optional(),
+          products: z.array(providerTextSchema).optional(),
         })
         .strict(),
     })
@@ -60,7 +86,7 @@ export const plaidOperationBodySchema = z.discriminatedUnion('operation', [
       operation: z.literal('plaid_get_institution'),
       input: z
         .object({
-          institution_id: shortTextSchema,
+          institution_id: providerTextSchema,
           country_codes: countryCodesSchema,
         })
         .strict(),

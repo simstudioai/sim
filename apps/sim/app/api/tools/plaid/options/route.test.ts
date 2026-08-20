@@ -65,7 +65,7 @@ describe('POST /api/tools/plaid/options', () => {
     expect(mockExecute).not.toHaveBeenCalled()
   })
 
-  it('rejects malformed and overlong selector requests before execution', async () => {
+  it('rejects malformed selector requests before execution', async () => {
     expect((await POST(request({ ...body, unexpected: true }))).status).toBe(400)
     expect(
       (
@@ -73,13 +73,32 @@ describe('POST /api/tools/plaid/options', () => {
           request({
             ...body,
             kind: 'institution_search',
-            query: 'x'.repeat(257),
-            country_codes: ['US'],
+            query: 'Bank',
+            country_codes: ['ZZ'],
           })
         )
       ).status
     ).toBe(400)
     expect(mockExecute).not.toHaveBeenCalled()
+  })
+
+  it('accepts long provider identifiers within the route byte ceiling', async () => {
+    const query = 'x'.repeat(10_001)
+    const response = await POST(
+      request({
+        ...body,
+        kind: 'institution_search',
+        query,
+        country_codes: ['US'],
+      })
+    )
+
+    expect(response.status).toBe(200)
+    expect(mockExecute).toHaveBeenCalledWith(
+      expect.objectContaining({
+        input: { body: expect.objectContaining({ query }), signal: expect.any(AbortSignal) },
+      })
+    )
   })
 
   it.each([

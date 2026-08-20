@@ -40,7 +40,7 @@ export const PLAID_SERVICE_ACCOUNT_FORM_FIELDS: readonly PlaidServiceAccountForm
     id: 'clientId',
     label: 'Client ID',
     placeholder: 'Paste your Plaid client ID',
-    secret: false,
+    secret: true,
   },
   {
     id: 'clientSecret',
@@ -63,10 +63,10 @@ export const PLAID_SERVICE_ACCOUNT_FORM = {
   serviceLabel: 'Plaid',
   connectNoun: 'Item credential',
   catalogDescription:
-    'Connect one Plaid Item with your Plaid application credentials and Item access token.',
+    'Connect one workspace credential for a Plaid Item using application credentials and an Item access token.',
   docsUrl: 'https://docs.sim.ai/integrations/plaid',
   helpText:
-    'The Item access token is long-lived and specific to one linked Item. Create another credential for each Item.',
+    'This workspace credential is available according to workspace credential permissions. The Item access token is long-lived and specific to one linked Item; create another credential for each Item.',
   displayNamePlaceholder: 'Defaults to the verified Plaid Item ID',
   fields: PLAID_SERVICE_ACCOUNT_FORM_FIELDS,
   errorMessages: {

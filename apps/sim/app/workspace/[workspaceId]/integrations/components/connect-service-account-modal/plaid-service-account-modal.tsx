@@ -41,6 +41,7 @@ const EMPTY_PLAID_FORM_VALUES: PlaidFormValues = {
 }
 
 const PLAID_SECRET_INPUT_NAMES: Partial<Record<PlaidServiceAccountFormFieldId, string>> = {
+  clientId: 'plaid_client_id',
   clientSecret: 'plaid_client_secret',
   accessToken: 'plaid_item_access_token',
 }
@@ -51,6 +52,13 @@ function messageForPlaidError(error: unknown): string {
     if (Object.hasOwn(messages, error.code)) {
       return messages[error.code as keyof typeof messages]
     }
+  }
+  if (
+    isApiClientError(error) &&
+    (error.message.includes('different Plaid Item or environment') ||
+      error.message.includes('stored Plaid Item identity'))
+  ) {
+    return error.message
   }
   return PLAID_SERVICE_ACCOUNT_FORM.fallbackErrorMessage
 }
@@ -126,7 +134,7 @@ export function PlaidServiceAccountModal({
     }
     const trimmedDisplayName = displayName.trim()
     // On reconnect, omit an untouched name so the server can update a
-    // provider-derived label if the replacement token belongs to another Item.
+    // provider-derived label if the same Item's verified institution metadata changed.
     // A deliberately edited name remains authoritative.
     const submittedDisplayName =
       !credentialId || trimmedDisplayName !== (initialDisplayName ?? '').trim()

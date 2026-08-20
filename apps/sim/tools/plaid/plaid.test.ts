@@ -101,11 +101,14 @@ describe('PlaidBlock tools.config.params', () => {
       selectorKey: 'plaid.accounts',
       canonicalParamId: 'accountIds',
       multiSelect: true,
-      dependsOn: ['credential'],
+      dependsOn: ['credential', 'operation'],
     })
     expect(
       PlaidBlock.subBlocks.find((subBlock) => subBlock.id === 'manualAccountIds')
     ).toMatchObject({ canonicalParamId: 'accountIds', mode: 'advanced' })
+    expect(
+      PlaidBlock.subBlocks.find((subBlock) => subBlock.id === 'accountIdSelector')
+    ).toMatchObject({ dependsOn: ['credential', 'operation'] })
     expect(
       PlaidBlock.subBlocks.find((subBlock) => subBlock.id === 'institutionSelector')
     ).toMatchObject({
@@ -262,11 +265,9 @@ describe('plaid_sync_transactions request body', () => {
     ).toThrow('count must be a valid number')
   })
 
-  it('rejects invalid count, cursor, and boolean values on direct tool calls', () => {
+  it('rejects invalid count and boolean values while accepting provider cursors', () => {
     expect(() => body({ ...runtimeCreds, count: 0 })).toThrow('count must be at least 1')
-    expect(() => body({ ...runtimeCreds, cursor: 'x'.repeat(257) })).toThrow(
-      'cursor must be at most 256 characters'
-    )
+    expect(body({ ...runtimeCreds, cursor: 'x'.repeat(10_001) }).input.cursor).toHaveLength(10_001)
     expect(() =>
       body({
         ...runtimeCreds,
@@ -348,14 +349,9 @@ describe('Plaid endpoint success contracts', () => {
   })
 
   it.each([
-    ['accounts', plaidGetAccountsTool, { accounts: Array(501).fill(account) }, 'accounts.accounts'],
-    ['balances', plaidGetBalancesTool, { accounts: Array(501).fill(account) }, 'balances.accounts'],
-    [
-      'identity',
-      plaidGetIdentityTool,
-      { accounts: Array(501).fill({ ...account, owners: [] }) },
-      'identity.accounts',
-    ],
+    ['accounts', plaidGetAccountsTool, { accounts: Array(501).fill(account) }],
+    ['balances', plaidGetBalancesTool, { accounts: Array(501).fill(account) }],
+    ['identity', plaidGetIdentityTool, { accounts: Array(501).fill({ ...account, owners: [] }) }],
     [
       'auth',
       plaidGetAuthTool,
@@ -363,32 +359,32 @@ describe('Plaid endpoint success contracts', () => {
         accounts: Array(501).fill(account),
         numbers: { ach: [], eft: [], international: [], bacs: [] },
       },
-      'auth.accounts',
     ],
-  ])('bounds %s responses before normalizing them', async (_label, tool, response, path) => {
-    await expect(transform(tool, response)).rejects.toThrow(
-      `${path} must contain at most 500 items`
-    )
-  })
+  ])(
+    'accepts %s responses beyond the removed arbitrary item cap',
+    async (_label, tool, response) => {
+      const result = await transform(tool, response)
+      expect(result.output.accounts).toHaveLength(501)
+    }
+  )
 
-  it('bounds institution and combined transaction-sync collections', async () => {
+  it('retains Plaid institution search bounds without capping transaction updates', async () => {
     await expect(
       transform(plaidSearchInstitutionsTool, { institutions: Array(11).fill(institution) })
     ).rejects.toThrow('institution search.institutions must contain at most 10 items')
 
-    await expect(
-      transform(plaidSyncTransactionsTool, {
-        added: [],
-        modified: [],
-        removed: Array.from({ length: 501 }, (_, index) => ({
-          transaction_id: `txn_${index}`,
-          account_id: 'acc_1',
-        })),
-        next_cursor: '',
-        has_more: false,
-        transactions_update_status: 'HISTORICAL_UPDATE_COMPLETE',
-      })
-    ).rejects.toThrow('transaction sync must contain at most 500 updates')
+    const syncResult = await transform(plaidSyncTransactionsTool, {
+      added: [],
+      modified: [],
+      removed: Array.from({ length: 501 }, (_, index) => ({
+        transaction_id: `txn_${index}`,
+        account_id: 'acc_1',
+      })),
+      next_cursor: '',
+      has_more: false,
+      transactions_update_status: 'HISTORICAL_UPDATE_COMPLETE',
+    })
+    expect(syncResult.output.removed).toHaveLength(501)
   })
 
   it('requires every Auth number scheme even when each is legitimately empty', async () => {

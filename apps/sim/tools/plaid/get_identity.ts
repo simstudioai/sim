@@ -28,8 +28,7 @@ export const plaidGetIdentityTool: ToolConfig<PlaidGetIdentityParams, PlaidGetId
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description:
-        'Comma-separated account IDs to filter to (defaults to all accounts; Sim safety limit 500)',
+      description: 'Comma-separated account IDs to filter to (defaults to all accounts)',
     },
   },
 
@@ -48,7 +47,7 @@ export const plaidGetIdentityTool: ToolConfig<PlaidGetIdentityParams, PlaidGetId
 
   transformResponse: async (response) => {
     const data = await plaidRecord(response, 'identity')
-    const accounts = requirePlaidArrayField(data, 'accounts', 'identity.accounts', 500)
+    const accounts = requirePlaidArrayField(data, 'accounts', 'identity.accounts')
     const mapped = accounts.map((account, index) =>
       mapPlaidIdentityAccount(account, `identity.accounts[${index}]`)
     )

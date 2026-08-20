@@ -1,4 +1,8 @@
-import type { PlaidOperationBody } from '@/lib/api/contracts/tools/plaid'
+import {
+  PLAID_SUPPORTED_COUNTRY_CODES,
+  type PlaidOperationBody,
+  type PlaidSupportedCountryCode,
+} from '@/lib/api/contracts/tools/plaid'
 import type {
   PlaidAccount,
   PlaidAccountBalances,
@@ -19,28 +23,7 @@ import type {
   PlaidTransactionLocation,
 } from '@/tools/plaid/types'
 
-const PLAID_COUNTRY_CODES = new Set([
-  'US',
-  'GB',
-  'ES',
-  'NL',
-  'FR',
-  'IE',
-  'CA',
-  'DE',
-  'IT',
-  'PL',
-  'DK',
-  'NO',
-  'SE',
-  'EE',
-  'LT',
-  'LV',
-  'PT',
-  'BE',
-  'AT',
-  'FI',
-])
+const PLAID_COUNTRY_CODES = new Set<string>(PLAID_SUPPORTED_COUNTRY_CODES)
 
 export const plaidCredentialParamFields = {
   plaidCredentialId: {
@@ -120,55 +103,34 @@ export function toPlaidOptionalBoolean(
   throw new Error(`${fieldLabel} must be true or false`)
 }
 
-/**
- * Normalizes a bounded selector array or advanced comma-separated list.
- */
-export function splitPlaidList(
-  value: unknown,
-  fieldLabel = 'Plaid list',
-  constraints: { maxCharacters?: number; maxItems?: number } = {}
-): string[] | undefined {
+/** Normalizes a selector array or advanced comma-separated list. */
+export function splitPlaidList(value: unknown, fieldLabel = 'Plaid list'): string[] | undefined {
   if (value == null || (typeof value === 'string' && value.trim() === '')) return undefined
   const source = Array.isArray(value) ? value : [value]
   if (!source.every((item): item is string => typeof item === 'string')) {
     throw new Error(`${fieldLabel} must be a string or an array of strings`)
   }
-  const maxCharacters = constraints.maxCharacters ?? 10_000
-  const maxItems = constraints.maxItems ?? 500
-  const characterCount = source.reduce((total, item) => total + item.length, 0)
-  if (characterCount > maxCharacters) {
-    throw new Error(`${fieldLabel} must be at most ${maxCharacters} characters`)
-  }
   const items = source
     .flatMap((item) => item.split(','))
     .map((item) => item.trim())
     .filter(Boolean)
-  if (items.length > maxItems) {
-    throw new Error(`${fieldLabel} must contain at most ${maxItems} values`)
-  }
   return items.length > 0 ? items : undefined
 }
 
 /** Parses and validates Plaid's closed request country-code enum. */
-export function parsePlaidCountryCodes(value: unknown): string[] {
-  const codes = (
-    splitPlaidList(value, 'countryCodes', { maxCharacters: 1_000, maxItems: 20 }) ?? ['US']
-  ).map((code) => code.toUpperCase())
+export function parsePlaidCountryCodes(value: unknown): PlaidSupportedCountryCode[] {
+  const codes = (splitPlaidList(value, 'countryCodes') ?? ['US']).map((code) => code.toUpperCase())
+  if (codes.length > PLAID_COUNTRY_CODES.size) {
+    throw new Error(`countryCodes must contain at most ${PLAID_COUNTRY_CODES.size} values`)
+  }
   const invalid = codes.find((code) => !PLAID_COUNTRY_CODES.has(code))
   if (invalid) throw new Error(`countryCodes contains unsupported Plaid country code: ${invalid}`)
-  return codes
+  return codes as PlaidSupportedCountryCode[]
 }
 
-/** Parses bounded open-world Plaid product identifiers. */
+/** Parses open-world Plaid product identifiers without guessing provider limits. */
 export function parsePlaidProducts(value: unknown, fieldLabel: string): string[] | undefined {
-  const products = splitPlaidList(value, fieldLabel, {
-    maxCharacters: 5_000,
-    maxItems: 50,
-  })?.map((product) => product.toLowerCase())
-  if (!products?.length) return undefined
-  const invalid = products.find((product) => !/^[a-z][a-z0-9_]{0,63}$/.test(product))
-  if (invalid) throw new Error(`${fieldLabel} contains an invalid Plaid product: ${invalid}`)
-  return products
+  return splitPlaidList(value, fieldLabel)?.map((product) => product.toLowerCase())
 }
 
 /** Reads a required input string and applies wire-level length constraints. */

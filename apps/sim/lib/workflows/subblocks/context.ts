@@ -14,7 +14,7 @@ import {
  */
 export const SELECTOR_CONTEXT_FIELDS = new Set<keyof SelectorContext>([
   'oauthCredential',
-  'plaidCredentialId',
+  'operation',
   'countryCodes',
   'domain',
   'teamId',

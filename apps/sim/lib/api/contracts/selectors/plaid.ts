@@ -1,11 +1,16 @@
 import { z } from 'zod'
+import { PLAID_SUPPORTED_COUNTRY_CODES } from '@/lib/api/contracts/tools/plaid'
 import type { ContractBodyInput, ContractJsonResponse } from '@/lib/api/contracts/types'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
 const credentialIdSchema = z.string().trim().min(1).max(512)
 const workspaceIdSchema = z.string().trim().min(1).max(512)
-const shortTextSchema = z.string().trim().min(1).max(256)
-const countryCodesSchema = z.array(z.string().length(2)).min(1).max(20)
+const providerTextSchema = z.string().trim().min(1)
+const countryCodesSchema = z
+  .array(z.enum(PLAID_SUPPORTED_COUNTRY_CODES))
+  .min(1)
+  .max(PLAID_SUPPORTED_COUNTRY_CODES.length)
+const accountEligibilitySchema = z.enum(['all', 'auth', 'transactions'])
 
 export const plaidOptionsBodySchema = z.discriminatedUnion('kind', [
   z
@@ -13,6 +18,7 @@ export const plaidOptionsBodySchema = z.discriminatedUnion('kind', [
       kind: z.literal('accounts'),
       workspaceId: workspaceIdSchema,
       credentialId: credentialIdSchema,
+      eligibility: accountEligibilitySchema.optional(),
     })
     .strict(),
   z
@@ -20,7 +26,7 @@ export const plaidOptionsBodySchema = z.discriminatedUnion('kind', [
       kind: z.literal('institution_search'),
       workspaceId: workspaceIdSchema,
       credentialId: credentialIdSchema,
-      query: z.string().trim().min(1).max(256),
+      query: providerTextSchema,
       country_codes: countryCodesSchema,
     })
     .strict(),
@@ -29,19 +35,19 @@ export const plaidOptionsBodySchema = z.discriminatedUnion('kind', [
       kind: z.literal('institution_detail'),
       workspaceId: workspaceIdSchema,
       credentialId: credentialIdSchema,
-      institution_id: shortTextSchema,
+      institution_id: providerTextSchema,
       country_codes: countryCodesSchema,
     })
     .strict(),
 ])
 
 export const plaidOptionSchema = z.object({
-  id: shortTextSchema,
+  id: providerTextSchema,
   label: z.string().trim().min(1).max(512),
 })
 
 export const plaidOptionsResponseSchema = z.object({
-  options: z.array(plaidOptionSchema).max(500),
+  options: z.array(plaidOptionSchema),
 })
 
 export const plaidOptionsContract = defineRouteContract({

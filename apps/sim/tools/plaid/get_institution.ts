@@ -33,7 +33,7 @@ export const plaidGetInstitutionTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: "Comma-separated ISO country codes (defaults to 'US')",
+      description: "Comma-separated Plaid-supported country codes (defaults to 'US')",
     },
   },
 

@@ -56,12 +56,10 @@ describe('splitPlaidList', () => {
     )
   })
 
-  it('bounds work before splitting large direct-call input', () => {
-    expect(() => splitPlaidList('x'.repeat(10_001))).toThrow(
-      'Plaid list must be at most 10000 characters'
-    )
-    expect(() => splitPlaidList(Array.from({ length: 501 }, () => 'x').join(','))).toThrow(
-      'Plaid list must contain at most 500 values'
+  it('does not guess provider identifier or list-size limits', () => {
+    expect(splitPlaidList('x'.repeat(10_001))).toEqual(['x'.repeat(10_001)])
+    expect(splitPlaidList(Array.from({ length: 501 }, (_, index) => `id-${index}`))).toHaveLength(
+      501
     )
   })
 })
@@ -75,12 +73,10 @@ describe('Plaid request enums and formats', () => {
     )
   })
 
-  it('accepts bounded open-world product identifiers', () => {
+  it('accepts open-world product identifiers without guessing provider syntax', () => {
     expect(parsePlaidProducts('transactions, AUTH', 'products')).toEqual(['transactions', 'auth'])
     expect(parsePlaidProducts('made_up', 'products')).toEqual(['made_up'])
-    expect(() => parsePlaidProducts('not-valid!', 'products')).toThrow(
-      'products contains an invalid Plaid product: not-valid!'
-    )
+    expect(parsePlaidProducts('future-product!', 'products')).toEqual(['future-product!'])
   })
 
   it('accepts RFC3339 date-times with numeric offsets', () => {

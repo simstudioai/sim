@@ -14,17 +14,27 @@ type PlaidSelectorKey = Extract<SelectorKey, 'plaid.accounts' | 'plaid.instituti
 
 function requirePlaidContext(context: SelectorContext, key: PlaidSelectorKey) {
   if (!context.workspaceId) throw new Error(`Missing workspace ID for ${key} selector`)
-  if (!context.plaidCredentialId) throw new Error(`Missing Plaid credential for ${key} selector`)
+  if (!context.oauthCredential) throw new Error(`Missing Plaid credential for ${key} selector`)
   return {
     workspaceId: context.workspaceId,
-    credentialId: context.plaidCredentialId,
+    credentialId: context.oauthCredential,
   }
+}
+
+function plaidAccountEligibility(operation: string | undefined): 'all' | 'auth' | 'transactions' {
+  if (operation === 'get_auth') return 'auth'
+  if (operation === 'sync_transactions') return 'transactions'
+  return 'all'
 }
 
 async function fetchAccountOptions(args: SelectorQueryArgs): Promise<SelectorOption[]> {
   const scope = requirePlaidContext(args.context, 'plaid.accounts')
   const data = await requestJson(plaidOptionsContract, {
-    body: { kind: 'accounts', ...scope },
+    body: {
+      kind: 'accounts',
+      ...scope,
+      eligibility: plaidAccountEligibility(args.context.operation),
+    },
     signal: args.signal,
   })
   return data.options
@@ -48,9 +58,10 @@ export const plaidSelectors = {
       'selectors',
       'plaid.accounts',
       context.workspaceId ?? 'none',
-      context.plaidCredentialId ?? 'none',
+      context.oauthCredential ?? 'none',
+      plaidAccountEligibility(context.operation),
     ],
-    enabled: ({ context }) => Boolean(context.workspaceId && context.plaidCredentialId),
+    enabled: ({ context }) => Boolean(context.workspaceId && context.oauthCredential),
     fetchList: fetchAccountOptions,
     fetchById: async (args: SelectorQueryArgs) => {
       if (!args.detailId) return null
@@ -66,14 +77,14 @@ export const plaidSelectors = {
       'selectors',
       'plaid.institutions',
       context.workspaceId ?? 'none',
-      context.plaidCredentialId ?? 'none',
+      context.oauthCredential ?? 'none',
       plaidCountryQueryKey(context.countryCodes),
       search ?? 'none',
       detailId ?? 'none',
     ],
     enabled: ({ context, search, detailId }) =>
       Boolean(
-        context.workspaceId && context.plaidCredentialId && (search?.trim() || detailId?.trim())
+        context.workspaceId && context.oauthCredential && (search?.trim() || detailId?.trim())
       ),
     fetchList: async ({ context, search, signal }: SelectorQueryArgs) => {
       const scope = requirePlaidContext(context, 'plaid.institutions')

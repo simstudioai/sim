@@ -233,7 +233,7 @@ describe('listCredentialProviderCatalog', () => {
             { value: 'sandbox', label: 'Sandbox' },
           ],
         },
-        { id: 'clientId', required: true, secret: false },
+        { id: 'clientId', required: true, secret: true },
         { id: 'clientSecret', required: true, secret: true },
         { id: 'accessToken', required: true, secret: true },
       ],

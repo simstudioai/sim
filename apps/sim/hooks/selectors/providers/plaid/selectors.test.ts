@@ -18,7 +18,8 @@ function args(overrides: Partial<SelectorQueryArgs> = {}): SelectorQueryArgs {
     key: 'plaid.accounts',
     context: {
       workspaceId: 'workspace-1',
-      plaidCredentialId: 'credential-1',
+      oauthCredential: 'credential-1',
+      operation: 'get_accounts',
     },
     ...overrides,
   }
@@ -34,10 +35,11 @@ describe('Plaid selectors', () => {
       'plaid.accounts',
       'workspace-1',
       'credential-1',
+      'all',
     ])
     expect(
       accounts.enabled?.(
-        args({ context: { workspaceId: 'workspace-1', plaidCredentialId: undefined } })
+        args({ context: { workspaceId: 'workspace-1', oauthCredential: undefined } })
       )
     ).toBe(false)
   })
@@ -55,10 +57,54 @@ describe('Plaid selectors', () => {
           kind: 'accounts',
           workspaceId: 'workspace-1',
           credentialId: 'credential-1',
+          eligibility: 'all',
         },
       })
     )
     expect(JSON.stringify(mockRequestJson.mock.calls)).not.toContain('accessToken')
+  })
+
+  it.each([
+    ['get_auth', 'auth'],
+    ['sync_transactions', 'transactions'],
+  ] as const)('scopes %s account options to %s eligibility', async (operation, eligibility) => {
+    mockRequestJson.mockResolvedValue({ options: [] })
+    const scoped = args({
+      context: { workspaceId: 'workspace-1', oauthCredential: 'credential-1', operation },
+    })
+
+    expect(accounts.getQueryKey(scoped)).toContain(eligibility)
+    await accounts.fetchList?.(scoped)
+    expect(mockRequestJson).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ body: expect.objectContaining({ eligibility }) })
+    )
+  })
+
+  it('hydrates only an eligible saved account for the current operation', async () => {
+    const authArgs = args({
+      context: {
+        workspaceId: 'workspace-1',
+        oauthCredential: 'credential-1',
+        operation: 'get_auth',
+      },
+      detailId: 'acc-checking',
+    })
+    mockRequestJson.mockResolvedValue({
+      options: [{ id: 'acc-checking', label: 'Checking ••••0000' }],
+    })
+
+    await expect(accounts.fetchById?.(authArgs)).resolves.toEqual({
+      id: 'acc-checking',
+      label: 'Checking ••••0000',
+    })
+    await expect(
+      accounts.fetchById?.({ ...authArgs, detailId: 'acc-ineligible' })
+    ).resolves.toBeNull()
+    expect(mockRequestJson).toHaveBeenLastCalledWith(
+      expect.anything(),
+      expect.objectContaining({ body: expect.objectContaining({ eligibility: 'auth' }) })
+    )
   })
 
   it('uses search for institution lists and get-by-id for selected-value hydration', async () => {
@@ -97,7 +143,7 @@ describe('Plaid selectors', () => {
       search: 'bank',
       context: {
         workspaceId: 'workspace-1',
-        plaidCredentialId: 'credential-1',
+        oauthCredential: 'credential-1',
         countryCodes: ' ca, gb ',
       },
     })
@@ -133,7 +179,7 @@ describe('Plaid selectors', () => {
           search: 'bank',
           context: {
             workspaceId: 'workspace-1',
-            plaidCredentialId: 'credential-1',
+            oauthCredential: 'credential-1',
             countryCodes: 'ZZ',
           },
         })

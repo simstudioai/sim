@@ -58,6 +58,23 @@ describe('clearCredentialInValue', () => {
     expect(value.value[1].params.credential).toBe(OTHER)
   })
 
+  it('clears the exact Plaid Agent parameter without wildcard credential-key matching', () => {
+    const input = {
+      params: {
+        plaidCredentialId: TARGET,
+        someCredentialId: TARGET,
+        otherPlaidCredentialId: OTHER,
+      },
+    }
+    const result = clearCredentialInValue(input, TARGET)
+    expect(result.changed).toBe(true)
+    expect((result.value as typeof input).params).toEqual({
+      plaidCredentialId: '',
+      someCredentialId: TARGET,
+      otherPlaidCredentialId: OTHER,
+    })
+  })
+
   it('walks workflow_blocks-style keyed subBlocks structure', () => {
     const input = {
       credential: { id: 'credential', value: TARGET },
