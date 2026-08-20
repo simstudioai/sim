@@ -219,4 +219,39 @@ describe('microsoftTeamsHandler formatInput (outgoing webhook channelData)', () 
       teamsChannelId: 'channel-1',
     })
   })
+
+  describe('handleChallenge', () => {
+    function challengeRequest(method: string): NextRequest {
+      return new NextRequest(
+        'https://app.example.com/api/webhooks/trigger/abc?validationToken=token-123',
+        { method }
+      )
+    }
+
+    it('echoes the validation token for the POST Microsoft Graph sends', async () => {
+      const response = microsoftTeamsHandler.handleChallenge!(
+        {},
+        challengeRequest('POST'),
+        'teams-challenge-post',
+        'abc'
+      )
+
+      expect(response?.status).toBe(200)
+      await expect(response?.text()).resolves.toBe('token-123')
+    })
+
+    it.each(['GET', 'PUT', 'PATCH', 'DELETE'])(
+      'ignores a validationToken query parameter on a %s delivery',
+      (method) => {
+        expect(
+          microsoftTeamsHandler.handleChallenge!(
+            {},
+            challengeRequest(method),
+            'teams-challenge-other-method',
+            'abc'
+          )
+        ).toBeNull()
+      }
+    )
+  })
 })

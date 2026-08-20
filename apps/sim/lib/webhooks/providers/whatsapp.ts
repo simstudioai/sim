@@ -202,6 +202,8 @@ async function handleWhatsAppVerification(
         )
       )
 
+    let candidates = 0
+
     for (const row of webhooks) {
       const wh = row.webhook
       const providerConfig = (wh.providerConfig as Record<string, unknown>) || {}
@@ -210,6 +212,8 @@ async function handleWhatsAppVerification(
       if (!verificationToken) {
         continue
       }
+
+      candidates++
 
       if (safeCompare(token, verificationToken as string)) {
         logger.info(`[${requestId}] WhatsApp verification successful for webhook ${wh.id}`)
@@ -220,6 +224,15 @@ async function handleWhatsAppVerification(
           },
         })
       }
+    }
+
+    /**
+     * A path with no WhatsApp webhook expecting a token is not a failed verification: the
+     * `hub.*` parameters belong to whoever owns that path. Fall through so the delivery is
+     * routed normally instead of answering 403 for someone else's query parameters.
+     */
+    if (candidates === 0) {
+      return null
     }
 
     logger.warn(`[${requestId}] No matching WhatsApp verification token found`)

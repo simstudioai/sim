@@ -2,7 +2,7 @@
  * @vitest-environment node
  */
 import { createHmac } from 'node:crypto'
-import { dbChainMock, schemaMock } from '@sim/testing'
+import { dbChainMock, queueTableRows, schemaMock } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -263,6 +263,42 @@ describe('WhatsApp webhook provider', () => {
     expect(input.mediaId).toBeUndefined()
     expect(input.mediaMimeType).toBeUndefined()
     expect(input.caption).toBeUndefined()
+  })
+
+  describe('handleChallenge', () => {
+    function verificationRequest(): NextRequest {
+      return new NextRequest(
+        'http://localhost/api/webhooks/trigger/abc?hub.mode=subscribe&hub.verify_token=t&hub.challenge=c'
+      )
+    }
+
+    it('falls through when no WhatsApp webhook on the path expects a token', async () => {
+      queueTableRows(schemaMock.webhook, [])
+
+      const response = await whatsappHandler.handleChallenge!(
+        {},
+        verificationRequest(),
+        'wa-challenge-no-webhook',
+        'abc'
+      )
+
+      expect(response).toBeNull()
+    })
+
+    it('still fails verification when a WhatsApp webhook expects a different token', async () => {
+      queueTableRows(schemaMock.webhook, [
+        { webhook: { id: 'wh_1', providerConfig: { verificationToken: 'other' } } },
+      ])
+
+      const response = await whatsappHandler.handleChallenge!(
+        {},
+        verificationRequest(),
+        'wa-challenge-token-mismatch',
+        'abc'
+      )
+
+      expect(response?.status).toBe(403)
+    })
   })
 
   it('ignores a media type whose payload object is missing', async () => {
