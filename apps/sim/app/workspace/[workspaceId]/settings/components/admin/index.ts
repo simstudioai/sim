@@ -1,1 +1,0 @@
-export { Admin } from './admin'
