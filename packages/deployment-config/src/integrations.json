@@ -9801,8 +9801,8 @@
       "type": "granola",
       "slug": "granola",
       "name": "Granola",
-      "description": "Access meeting notes and transcripts from Granola",
-      "longDescription": "Integrate Granola into your workflow to retrieve meeting notes, summaries, attendees, and transcripts.",
+      "description": "Access meeting notes, transcripts, and audit events from Granola",
+      "longDescription": "Integrate Granola into your workflow to retrieve meeting notes, summaries, attendees, and transcripts, review workspace audit events, and manage webhook endpoints. Granola can also trigger workflows when notes are generated, edited, or shared with you.",
       "bgColor": "#B2C147",
       "iconName": "GranolaIcon",
       "docsUrl": "https://docs.sim.ai/integrations/granola",
@@ -9816,13 +9816,58 @@
           "description": "Retrieves a specific meeting note from Granola by ID, including summary, attendees, calendar event details, and optionally the transcript."
         },
         {
+          "name": "Get Transcript",
+          "description": "Retrieves a meeting transcript from Granola one page at a time, including when Get Note reports the transcript is too large to return inline."
+        },
+        {
           "name": "List Folders",
           "description": "Lists folders from Granola, sorted alphabetically, with pagination."
+        },
+        {
+          "name": "List Audit Events",
+          "description": "Lists workspace audit events from Granola, with optional action and date filters. Events are returned in collection order and retained for one year."
+        },
+        {
+          "name": "Create Webhook Endpoint",
+          "description": "Registers an HTTPS URL in Granola to receive note event deliveries. The signing secret is returned only by this operation and cannot be retrieved later."
+        },
+        {
+          "name": "List Webhook Endpoints",
+          "description": "Lists the Granola webhook endpoints the API key can manage. A personal key sees the endpoints it created; a workspace admin sees every endpoint in the workspace. Signing secrets are never included."
+        },
+        {
+          "name": "Update Webhook Endpoint",
+          "description": "Updates a Granola webhook endpoint. Each supplied field replaces its current value; omitted fields are left unchanged. Use enabled to pause or resume deliveries."
+        },
+        {
+          "name": "Delete Webhook Endpoint",
+          "description": "Deletes a Granola webhook endpoint by ID, stopping its event deliveries immediately."
         }
       ],
-      "operationCount": 3,
-      "triggers": [],
-      "triggerCount": 0,
+      "operationCount": 9,
+      "triggers": [
+        {
+          "id": "granola_note_generated",
+          "name": "Granola Note Generated",
+          "description": "Trigger workflow when the first AI summary for a Granola note is generated"
+        },
+        {
+          "id": "granola_note_edited",
+          "name": "Granola Note Edited",
+          "description": "Trigger workflow when a Granola note summary is edited or regenerated"
+        },
+        {
+          "id": "granola_note_access_granted",
+          "name": "Granola Note Access Granted",
+          "description": "Trigger workflow when a Granola note is shared with you, directly or via a folder"
+        },
+        {
+          "id": "granola_webhook",
+          "name": "Granola Events",
+          "description": "Trigger workflow on any Granola note event"
+        }
+      ],
+      "triggerCount": 4,
       "authType": "api-key",
       "category": "tools",
       "integrationType": "productivity",

@@ -1936,7 +1936,17 @@ import {
   grainListTeamsTool,
   grainListViewsTool,
 } from '@/tools/grain'
-import { granolaGetNoteTool, granolaListFoldersTool, granolaListNotesTool } from '@/tools/granola'
+import {
+  granolaCreateWebhookEndpointTool,
+  granolaDeleteWebhookEndpointTool,
+  granolaGetNoteTool,
+  granolaGetTranscriptTool,
+  granolaListAuditEventsTool,
+  granolaListFoldersTool,
+  granolaListNotesTool,
+  granolaListWebhookEndpointsTool,
+  granolaUpdateWebhookEndpointTool,
+} from '@/tools/granola'
 import {
   greenhouseGetApplicationTool,
   greenhouseGetCandidateTool,
@@ -5775,7 +5785,13 @@ export const tools: Record<string, ToolConfig> = {
   greenhouse_list_job_stages: greenhouseListJobStagesTool,
   granola_list_notes: granolaListNotesTool,
   granola_get_note: granolaGetNoteTool,
+  granola_get_transcript: granolaGetTranscriptTool,
   granola_list_folders: granolaListFoldersTool,
+  granola_list_audit_events: granolaListAuditEventsTool,
+  granola_create_webhook_endpoint: granolaCreateWebhookEndpointTool,
+  granola_list_webhook_endpoints: granolaListWebhookEndpointsTool,
+  granola_update_webhook_endpoint: granolaUpdateWebhookEndpointTool,
+  granola_delete_webhook_endpoint: granolaDeleteWebhookEndpointTool,
   guardrails_validate: guardrailsValidateTool,
   hex_cancel_run: hexCancelRunTool,
   hex_create_collection: hexCreateCollectionTool,
