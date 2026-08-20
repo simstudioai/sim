@@ -53,14 +53,18 @@ const MAX_FILE_SIZE = MAX_KNOWLEDGE_DOCUMENT_FILE_SIZE
  * filter with the stored definition's type and never reads the caller's, so
  * stating it or omitting it selects the same documents. A scope part the query
  * ignores refuses a cursor for a page that did not move.
+ *
+ * `workspaceId` is dropped for the same reason as on the sibling chunk list:
+ * the sequence is one knowledge base, named by the path param this already
+ * binds, and the query's workspace is asserted scope that authorization refuses
+ * before paging rather than a filter that can select a different sequence.
  */
 function documentCursorFilters(
   knowledgeBaseId: string,
-  query: { workspaceId: string; enabledFilter?: string; search?: string; tagFilters?: string }
+  query: { enabledFilter?: string; search?: string; tagFilters?: string }
 ) {
   const parsed = parseV2KnowledgeTagFiltersParam(query.tagFilters)
   return cursorScopeKey(cursorRoute(v2ListKnowledgeDocumentsContract, { id: knowledgeBaseId }), {
-    workspaceId: query.workspaceId,
     enabledFilter: query.enabledFilter,
     search: query.search,
     tagFilters: parsed.success

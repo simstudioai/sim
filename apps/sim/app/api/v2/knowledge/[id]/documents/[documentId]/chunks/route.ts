@@ -30,16 +30,23 @@ export const revalidate = 0
  */
 const noPublicContentProvenance = () => undefined
 
-/** Every param that changes which chunks, in which order, this list returns. */
+/**
+ * Every param that changes which chunks, in which order, this list returns.
+ *
+ * `workspaceId` is not one of them. The sequence is one document, named by the
+ * two path params the route already binds; the query's workspace is asserted
+ * scope, and any value but the owning workspace is refused by authorization
+ * before paging. That is the same reading the structurally identical table-row
+ * lists record, and it is declared alongside them in `list-pagination.test.ts`.
+ */
 function chunkCursorFilters(
   knowledgeBaseId: string,
   documentId: string,
-  query: { workspaceId: string; enabled: string; search?: string }
+  query: { enabled: string; search?: string }
 ) {
   return cursorScopeKey(
     cursorRoute(v2ListKnowledgeChunksContract, { id: knowledgeBaseId, documentId }),
     {
-      workspaceId: query.workspaceId,
       enabled: query.enabled,
       search: query.search,
     }

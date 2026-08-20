@@ -52,7 +52,10 @@ import {
   performRestoreKnowledgeBase,
   performUpdateKnowledgeBase,
 } from '@/lib/knowledge/orchestration'
-import type { KnowledgeOrchestrationResult } from '@/lib/knowledge/orchestration/shared'
+import type {
+  KnowledgeOperationSource,
+  KnowledgeOrchestrationResult,
+} from '@/lib/knowledge/orchestration/shared'
 import {
   createAuthorizedKnowledgeBase,
   deleteKnowledgeBase,
@@ -109,7 +112,13 @@ export interface ListArchivedKnowledgeBasesResult {
 }
 
 export interface RestoreKnowledgeBaseInput extends ReadKnowledgeBaseInput {
-  source?: string
+  /**
+   * Which surface asked for the restore. Required, unlike its optional siblings
+   * on the sibling inputs: this one reaches the orchestration call as well as
+   * the audit projection, and a default there would attribute one surface's
+   * restore to another.
+   */
+  source: KnowledgeOperationSource
 }
 
 export interface RestoreKnowledgeBaseResult extends KnowledgeBaseResult {
@@ -488,7 +497,7 @@ export const restoreKnowledgeBase = defineAuthorizedKnowledgeUseCase({
       const outcome = await performRestoreKnowledgeBase({
         knowledgeBaseId: context.knowledgeBaseId,
         userId: resolveKnowledgeAttributedUserId(principal, context),
-        source: 'api',
+        source: input.source,
         recordSemanticAudit: false,
         ...(request ? { request } : {}),
       })

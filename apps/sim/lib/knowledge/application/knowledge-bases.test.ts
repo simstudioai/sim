@@ -569,6 +569,33 @@ describe('knowledge base application use cases', () => {
     )
   })
 
+  /**
+   * The orchestration call and the audit projection must agree on which surface
+   * asked: the internal route restores as `ui` and the public one as `api`, and
+   * a literal in the orchestration call would attribute both to whichever one
+   * it names.
+   */
+  it.each([['ui' as const], ['api' as const], ['agent' as const]])(
+    'restores with the calling surface, not a fixed one (%s)',
+    async (source) => {
+      await restoreKnowledgeBase.execute({
+        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+        input: { knowledgeBaseId: 'knowledge-1', assertedWorkspaceId: 'workspace-1', source },
+      })
+
+      expect(mocks.performRestore).toHaveBeenCalledWith(expect.objectContaining({ source }))
+    }
+  )
+
+  it('carries the internal surface through the shared restore use case', async () => {
+    await restoreInternalKnowledgeBase.execute({
+      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      input: { knowledgeBaseId: 'knowledge-1' },
+    })
+
+    expect(mocks.performRestore).toHaveBeenCalledWith(expect.objectContaining({ source: 'ui' }))
+  })
+
   it('answers an already-active knowledge base without restoring or auditing it', async () => {
     mocks.resolveArchivedKnowledgeBase.mockResolvedValue({
       ...context,
@@ -584,7 +611,11 @@ describe('knowledge base application use cases', () => {
 
     const result = await restoreKnowledgeBase.execute({
       principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
-      input: { knowledgeBaseId: 'knowledge-1', assertedWorkspaceId: 'workspace-1' },
+      input: {
+        knowledgeBaseId: 'knowledge-1',
+        assertedWorkspaceId: 'workspace-1',
+        source: 'api',
+      },
     })
 
     expect(result.restored).toBe(false)

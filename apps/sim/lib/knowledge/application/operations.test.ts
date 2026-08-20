@@ -117,6 +117,28 @@ describe('knowledge operation registry', () => {
     }
   })
 
+  /**
+   * Archive, restore, and the archived list are one recoverable loop. A
+   * principal that may run the first two but not the third can restore only the
+   * ids it recorded before archiving, so the discovery read carries the policy
+   * of the writes it exists to serve.
+   */
+  it('keeps the archived list reachable by every principal that may archive and restore', () => {
+    expect(knowledgeOperations.listArchived.workspaceApiKey).toBe(
+      knowledgeOperations.restore.workspaceApiKey
+    )
+    expect(knowledgeOperations.listArchived.principalKinds).toEqual(
+      knowledgeOperations.restore.principalKinds
+    )
+    expect(knowledgeOperations.listArchived.principalKinds).toContain('workspace_api_key')
+    expect(
+      permissionSatisfies(
+        knowledgeOperations.restore.minimumRole,
+        knowledgeOperations.listArchived.minimumRole
+      )
+    ).toBe(true)
+  })
+
   it('allows delegated callers only on semantic knowledge and document operations', () => {
     expect(knowledgeOperations.list.principalKinds).toContain('delegated')
     expect(knowledgeOperations.search.principalKinds).toContain('delegated')

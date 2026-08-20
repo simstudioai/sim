@@ -173,7 +173,6 @@ const CURSOR_BINDINGS: Record<string, readonly string[]> = {
   ],
   'GET /api/v2/knowledge': ['workspaceId', 'folderPath', 'search', 'sortBy', 'sortOrder'],
   'GET /api/v2/knowledge/[id]/documents': [
-    'workspaceId',
     'enabledFilter',
     'search',
     'tagFilters',
@@ -181,7 +180,6 @@ const CURSOR_BINDINGS: Record<string, readonly string[]> = {
     'sortOrder',
   ],
   'GET /api/v2/knowledge/[id]/documents/[documentId]/chunks': [
-    'workspaceId',
     'enabled',
     'search',
     'sortBy',
@@ -298,6 +296,14 @@ const CURSOR_BOUND_PATH_PARAMS: Record<string, readonly string[]> = {
  * correctness gain.
  */
 const UNBOUND_PARAMS: Record<string, Record<string, string>> = {
+  'GET /api/v2/knowledge/[id]/documents': {
+    workspaceId:
+      'Asserted scope, not a filter: the sequence is one knowledge base, named by the path. A mismatched workspace is refused by authorization before paging.',
+  },
+  'GET /api/v2/knowledge/[id]/documents/[documentId]/chunks': {
+    workspaceId:
+      'Asserted scope, not a filter: the sequence is one document, named by the path. A mismatched workspace is refused by authorization before paging.',
+  },
   'GET /api/v2/logs': {
     details: 'Selects how much of each row is rendered, not which rows are in the sequence.',
     includeTraceSpans: 'Response shaping only; the row set and its order are unchanged.',

@@ -131,6 +131,28 @@ describe('DELETE /api/v2/knowledge/[id]/documents/[documentId]/tags', () => {
   })
 
   /**
+   * The contract pins `action`, so the domain's whole-vocabulary branch is
+   * unreachable from here — but the presenter used to re-check the domain's
+   * reported branch and throw, which would have answered 500 after the delete
+   * had already committed. Reading the branch back from the parsed request
+   * keeps the check at the type level, where it costs nothing at runtime.
+   */
+  it('answers the request it parsed, never faulting on the domain result', async () => {
+    mockDeleteDefinitions.mockResolvedValue({ action: 'all', count: 3 })
+
+    const response = await DELETE(
+      new NextRequest(`${URL_BASE}?workspaceId=${WORKSPACE_ID}`, {
+        method: 'DELETE',
+        headers: { 'x-api-key': 'secret' },
+      }),
+      context
+    )
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({ data: { action: 'cleanup', count: 3 } })
+  })
+
+  /**
    * `action: 'all'` deletes every tag definition on the knowledge base, not the
    * document's. Reaching a whole-vocabulary wipe from a document-scoped path is
    * the destruction this contract exists to keep unreachable.

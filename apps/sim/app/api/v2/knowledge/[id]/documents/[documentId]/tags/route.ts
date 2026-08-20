@@ -66,10 +66,13 @@ export const DELETE = defineV2JsonRoute({
     action: query.action,
   }),
   useCase: deleteKnowledgeDocumentTagDefinitions,
-  present: ({ action, count }) => {
-    if (action !== 'cleanup') {
-      throw new Error('Whole-knowledge-base tag deletion is not exposed on the public API')
-    }
-    return { data: { action, count } }
-  },
+  /**
+   * `action` is read back from the parsed request rather than from the domain
+   * result. The domain reports the branch it took as `'cleanup' | 'all'`, but
+   * this route only ever asks for the branch the contract pins, so re-deriving
+   * it from `query` keeps the presenter exhaustive at the type level: widening
+   * the contract's `action` literal stops compiling against the response
+   * schema instead of throwing a 500 after the delete has already committed.
+   */
+  present: ({ count }, { query }) => ({ data: { action: query.action, count } }),
 })
