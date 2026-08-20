@@ -7,12 +7,12 @@ export interface HarmonicContact {
   firstName: string | null
   lastName: string | null
   headline: string | null
-  currentTitles: string[]
-  currentCompanyNames: string[]
-  currentCompanyUrns: string[]
+  currentTitles: string[] | null
+  currentCompanyNames: string[] | null
+  currentCompanyUrns: string[] | null
   primaryEmail: string | null
-  emails: string[]
-  phoneNumbers: string[]
+  emails: string[] | null
+  phoneNumbers: string[] | null
   linkedinUrl: string | null
   formattedLocation: string | null
   city: string | null
@@ -30,15 +30,15 @@ export interface HarmonicPageInfo {
 }
 
 export interface HarmonicSavedSearch {
-  savedSearchId: number | null
-  savedSearchUrn: string | null
-  name: string | null
+  savedSearchId: number
+  savedSearchUrn: string
+  name: string
   isPrivate: boolean | null
-  savedSearchType: string | null
-  userSavedSearchType: string | null
-  creatorUrn: string | null
-  createdAt: string | null
-  updatedAt: string | null
+  savedSearchType: 'PERSONS'
+  userSavedSearchType: string
+  creatorUrn: string
+  createdAt: string
+  updatedAt: string
 }
 
 export interface HarmonicContactMetadata {
@@ -114,7 +114,7 @@ export interface HarmonicSavedSearchOutput {
 }
 
 interface HarmonicAuthParams {
-  apiKey: string
+  accessToken: string
 }
 
 export interface HarmonicSearchPeopleScoutParams extends HarmonicAuthParams {
@@ -130,7 +130,7 @@ export interface HarmonicGetPeopleSavedSearchResultsParams extends HarmonicAuthP
 }
 
 export interface HarmonicBatchGetPeopleParams extends HarmonicAuthParams {
-  personIds?: number[] | string
+  personIds?: Array<number | string> | string
   personUrns?: string[] | string
 }
 
@@ -175,27 +175,32 @@ export const HARMONIC_CONTACT_OUTPUT_PROPERTIES = {
   headline: { type: 'string', nullable: true, description: 'LinkedIn headline or current title' },
   currentTitles: {
     type: 'array',
+    nullable: true,
     description: 'Current job titles',
     items: { type: 'string', description: 'Job title' },
   },
   currentCompanyNames: {
     type: 'array',
+    nullable: true,
     description: 'Current company names',
     items: { type: 'string', description: 'Company name' },
   },
   currentCompanyUrns: {
     type: 'array',
+    nullable: true,
     description: 'Current Harmonic company URNs',
     items: { type: 'string', description: 'Company URN' },
   },
   primaryEmail: { type: 'string', nullable: true, description: 'Primary known email address' },
   emails: {
     type: 'array',
+    nullable: true,
     description: 'Known email addresses',
     items: { type: 'string', description: 'Email address' },
   },
   phoneNumbers: {
     type: 'array',
+    nullable: true,
     description: 'Known phone numbers',
     items: { type: 'string', description: 'Phone number' },
   },
@@ -220,17 +225,16 @@ export const HARMONIC_PAGE_INFO_OUTPUT_PROPERTIES = {
 } as const satisfies Record<string, OutputProperty>
 
 export const HARMONIC_SAVED_SEARCH_OUTPUT_PROPERTIES = {
-  savedSearchId: { type: 'number', nullable: true, description: 'Saved search ID' },
-  savedSearchUrn: { type: 'string', nullable: true, description: 'Saved search URN' },
-  name: { type: 'string', nullable: true, description: 'Saved search name' },
+  savedSearchId: { type: 'number', description: 'Saved search ID' },
+  savedSearchUrn: { type: 'string', description: 'Saved search URN' },
+  name: { type: 'string', description: 'Saved search name' },
   isPrivate: { type: 'boolean', nullable: true, description: 'Whether the search is private' },
-  savedSearchType: { type: 'string', nullable: true, description: 'Saved search entity type' },
+  savedSearchType: { type: 'string', description: 'Saved search entity type (PERSONS)' },
   userSavedSearchType: {
     type: 'string',
-    nullable: true,
     description: 'User-facing saved search type',
   },
-  creatorUrn: { type: 'string', nullable: true, description: 'Creator user URN' },
-  createdAt: { type: 'string', nullable: true, description: 'Creation timestamp' },
-  updatedAt: { type: 'string', nullable: true, description: 'Last update timestamp' },
+  creatorUrn: { type: 'string', description: 'Creator user URN' },
+  createdAt: { type: 'string', description: 'Creation timestamp' },
+  updatedAt: { type: 'string', description: 'Last update timestamp' },
 } as const satisfies Record<string, OutputProperty>

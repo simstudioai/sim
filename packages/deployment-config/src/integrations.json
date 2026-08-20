@@ -10157,7 +10157,7 @@
       "slug": "harmonic",
       "name": "Harmonic",
       "description": "Search and enrich private-market contacts",
-      "longDescription": "Use Harmonic Scout to find people with natural-language criteria, retrieve team-visible people saved searches, and hydrate person identifiers into normalized contacts for downstream tables, CRM, scoring, and outreach workflows.",
+      "longDescription": "Connect a reusable Harmonic team API key, use Scout to find people with natural-language criteria, select team-visible people saved searches, and hydrate person identifiers into normalized contacts for downstream tables, CRM, scoring, and outreach workflows.",
       "bgColor": "#FFFFFF",
       "iconName": "HarmonicIcon",
       "docsUrl": "https://docs.sim.ai/integrations/harmonic",

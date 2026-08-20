@@ -8,15 +8,70 @@ import type {
   HarmonicSavedSearch,
   HarmonicSavedSearchOutput,
   HarmonicScoutPerson,
-  HarmonicSocialMetadata,
 } from '@/tools/harmonic/types'
 
 export const HARMONIC_API_BASE = 'https://api.harmonic.ai'
 export const HARMONIC_PAGE_SIZE_DEFAULT = 50
 export const HARMONIC_PAGE_SIZE_MAX = 100
 export const HARMONIC_BATCH_PEOPLE_MAX = 500
+export const HARMONIC_PERSON_INCLUDE_FIELDS = [
+  'entity_urn',
+  'id',
+  'full_name',
+  'first_name',
+  'last_name',
+  'profile_picture_url',
+  'contact',
+  'location',
+  'socials',
+  'experience',
+  'linkedin_headline',
+  'current_company_urns',
+  'is_redacted',
+] as const
 
 const PERSON_URN_PATTERN = /^urn:harmonic:person:[^\s]+$/
+const SAVED_SEARCH_URN_PATTERN = /^urn:harmonic:saved_search:[^\s]+$/
+const USER_URN_PATTERN = /^urn:harmonic:user:[^\s]+$/
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+const SAFE_DECIMAL_INTEGER_PATTERN = /^-?\d+$/
+const RFC3339_DATE_TIME_PATTERN =
+  /^(\d{4})-(\d{2})-(\d{2})[Tt](\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(?:([Zz])|([+-])(\d{2}):(\d{2}))$/
+/** UTC dates that ended in a leap second, through IERS Bulletin C 72 (July 2026). */
+const KNOWN_UTC_LEAP_SECOND_DATES = new Set([
+  '1972-06-30',
+  '1972-12-31',
+  '1973-12-31',
+  '1974-12-31',
+  '1975-12-31',
+  '1976-12-31',
+  '1977-12-31',
+  '1978-12-31',
+  '1979-12-31',
+  '1981-06-30',
+  '1982-06-30',
+  '1983-06-30',
+  '1985-06-30',
+  '1987-12-31',
+  '1989-12-31',
+  '1990-12-31',
+  '1992-06-30',
+  '1993-06-30',
+  '1994-06-30',
+  '1995-12-31',
+  '1997-06-30',
+  '1998-12-31',
+  '2005-12-31',
+  '2008-12-31',
+  '2012-06-30',
+  '2015-06-30',
+  '2016-12-31',
+])
+const HARMONIC_USER_SAVED_SEARCH_TYPES = new Set([
+  'USER_CREATED',
+  'GENERATED_FROM_PREFERENCES',
+  'TEMPLATE_FROM_PREFERENCES',
+])
 
 /**
  * Scout returns `content` as an object matching this schema when the request succeeds.
@@ -52,11 +107,11 @@ export const HARMONIC_SCOUT_PEOPLE_SCHEMA = {
 } as const
 
 export function harmonicHeaders(
-  apiKey: string,
+  accessToken: string,
   options: { json?: boolean } = {}
 ): Record<string, string> {
   return {
-    apikey: apiKey,
+    apikey: accessToken,
     Accept: 'application/json',
     ...(options.json ? { 'Content-Type': 'application/json' } : {}),
   }
@@ -98,8 +153,8 @@ function uniqueStrings(values: unknown[]): string[] {
   return result
 }
 
-function stringArray(value: unknown): string[] {
-  return Array.isArray(value) ? uniqueStrings(value) : []
+function nullableStringArray(value: unknown): string[] | null {
+  return Array.isArray(value) ? uniqueStrings(value) : null
 }
 
 function personUrn(value: unknown): string | null {
@@ -111,6 +166,114 @@ function requirePersonUrn(value: unknown, paramName: string): string {
   const normalized = personUrn(value)
   if (!normalized) {
     throw new Error(`Harmonic "${paramName}" must contain only person URNs`)
+  }
+  return normalized
+}
+
+function requirePersonId(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isSafeInteger(value)) return value
+  if (typeof value === 'string' && UUID_PATTERN.test(value)) return null
+  throw new Error('Harmonic returned a person record with an invalid ID')
+}
+
+function requireSavedSearchUrn(value: unknown): string {
+  const normalized = asString(value)
+  if (!normalized || !SAVED_SEARCH_URN_PATTERN.test(normalized)) {
+    throw new Error('Harmonic returned a people saved search with an invalid entity URN')
+  }
+  return normalized
+}
+
+function requireSavedSearchString(value: unknown, field: string): string {
+  const normalized = asString(value)
+  if (!normalized) {
+    throw new Error(`Harmonic returned a people saved search without a valid ${field}`)
+  }
+  return normalized
+}
+
+function requireUserUrn(value: unknown): string {
+  const normalized = requireSavedSearchString(value, 'creator')
+  if (!USER_URN_PATTERN.test(normalized)) {
+    throw new Error('Harmonic returned a people saved search with an invalid creator URN')
+  }
+  return normalized
+}
+
+function requireUserSavedSearchType(value: unknown): string {
+  const normalized = requireSavedSearchString(value, 'user_saved_search_type')
+  if (!HARMONIC_USER_SAVED_SEARCH_TYPES.has(normalized)) {
+    throw new Error(
+      'Harmonic returned a people saved search with an invalid user_saved_search_type'
+    )
+  }
+  return normalized
+}
+
+function requireSavedSearchTimestamp(value: unknown, field: string): string {
+  const normalized = requireSavedSearchString(value, field)
+  const match = RFC3339_DATE_TIME_PATTERN.exec(normalized)
+  if (!match) {
+    throw new Error(`Harmonic returned a people saved search with an invalid ${field}`)
+  }
+
+  const [
+    ,
+    yearText,
+    monthText,
+    dayText,
+    hourText,
+    minuteText,
+    secondText,
+    utcDesignator,
+    offsetSign,
+    offsetHourText,
+    offsetMinuteText,
+  ] = match
+  const year = Number(yearText)
+  const month = Number(monthText)
+  const day = Number(dayText)
+  const hour = Number(hourText)
+  const minute = Number(minuteText)
+  const second = Number(secondText)
+  const offsetHour = offsetHourText === undefined ? 0 : Number(offsetHourText)
+  const offsetMinute = offsetMinuteText === undefined ? 0 : Number(offsetMinuteText)
+  const isLeapYear = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0)
+  const daysInMonth = [31, isLeapYear ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+
+  if (
+    month < 1 ||
+    month > 12 ||
+    day < 1 ||
+    day > daysInMonth[month - 1] ||
+    hour > 23 ||
+    minute > 59 ||
+    second > 60 ||
+    offsetHour > 23 ||
+    offsetMinute > 59
+  ) {
+    throw new Error(`Harmonic returned a people saved search with an invalid ${field}`)
+  }
+
+  if (second === 60) {
+    if (year < 1972) {
+      throw new Error(`Harmonic returned a people saved search with an invalid ${field}`)
+    }
+    const offsetMinutes = utcDesignator
+      ? 0
+      : (offsetSign === '-' ? -1 : 1) * (offsetHour * 60 + offsetMinute)
+    const precedingUtcSecond = new Date(
+      Date.UTC(year, month - 1, day, hour, minute, 59) - offsetMinutes * 60_000
+    )
+    const leapSecondDate = precedingUtcSecond.toISOString().slice(0, 10)
+    if (
+      precedingUtcSecond.getUTCHours() !== 23 ||
+      precedingUtcSecond.getUTCMinutes() !== 59 ||
+      precedingUtcSecond.getUTCSeconds() !== 59 ||
+      !KNOWN_UTC_LEAP_SECOND_DATES.has(leapSecondDate)
+    ) {
+      throw new Error(`Harmonic returned a people saved search with an invalid ${field}`)
+    }
   }
   return normalized
 }
@@ -132,35 +295,45 @@ function parseArrayParam(value: unknown, paramName: string): unknown[] {
   throw new Error(`Harmonic "${paramName}" must be a JSON array`)
 }
 
+function parseSafeDecimalInteger(value: unknown, paramName: string): number {
+  let parsed: number
+  if (typeof value === 'number') {
+    parsed = value
+  } else if (typeof value === 'string') {
+    const normalized = value.trim()
+    if (!SAFE_DECIMAL_INTEGER_PATTERN.test(normalized)) {
+      throw new Error(`Harmonic "${paramName}" must be a safe decimal integer`)
+    }
+    parsed = Number(normalized)
+  } else {
+    throw new Error(`Harmonic "${paramName}" must be a safe decimal integer`)
+  }
+
+  if (!Number.isSafeInteger(parsed)) {
+    throw new Error(`Harmonic "${paramName}" must be a safe decimal integer`)
+  }
+  return parsed
+}
+
+function normalizePersonUrns(values: unknown[], paramName: string): string[] {
+  return [...new Set(values.map((urn) => requirePersonUrn(urn, paramName)))]
+}
+
+function normalizePersonIds(values: unknown[]): number[] {
+  return [...new Set(values.map((id) => parseSafeDecimalInteger(id, 'personIds')))]
+}
+
 export function parsePersonUrns(value: unknown, paramName = 'personUrns'): string[] {
-  return uniqueStrings(
-    parseArrayParam(value, paramName).map((urn) => requirePersonUrn(urn, paramName))
-  )
+  return normalizePersonUrns(parseArrayParam(value, paramName), paramName)
 }
 
 export function parsePersonIds(value: unknown): number[] {
-  const ids = parseArrayParam(value, 'personIds').map((id) => {
-    const normalized = typeof id === 'string' ? id.trim() : id
-    const parsed =
-      typeof normalized === 'number'
-        ? normalized
-        : typeof normalized === 'string' && normalized
-          ? Number(normalized)
-          : Number.NaN
-    if (!Number.isInteger(parsed)) {
-      throw new Error('Harmonic "personIds" must contain only integer IDs')
-    }
-    return parsed
-  })
-  return [...new Set(ids)]
+  return normalizePersonIds(parseArrayParam(value, 'personIds'))
 }
 
 export function clampPageSize(value: unknown): number {
   if (value === undefined || value === null || value === '') return HARMONIC_PAGE_SIZE_DEFAULT
-  const parsed = typeof value === 'number' ? value : Number(value)
-  if (!Number.isInteger(parsed)) {
-    throw new Error('Harmonic "size" must be an integer')
-  }
+  const parsed = parseSafeDecimalInteger(value, 'size')
   return Math.min(Math.max(parsed, 1), HARMONIC_PAGE_SIZE_MAX)
 }
 
@@ -187,67 +360,109 @@ export function buildBatchGetPeopleBody(
   personIds: unknown,
   personUrns: unknown
 ): Record<string, unknown> {
-  const ids = parsePersonIds(personIds)
-  const urns = parsePersonUrns(personUrns)
-  const total = ids.length + urns.length
-  if (total === 0) {
+  const rawIds = parseArrayParam(personIds, 'personIds')
+  const rawUrns = parseArrayParam(personUrns, 'personUrns')
+  const rawTotal = rawIds.length + rawUrns.length
+  if (rawTotal === 0) {
     throw new Error('Harmonic Batch Get People requires at least one person ID or person URN')
   }
-  if (total > HARMONIC_BATCH_PEOPLE_MAX) {
+  if (rawTotal > HARMONIC_BATCH_PEOPLE_MAX) {
     throw new Error(`Harmonic Batch Get People accepts at most ${HARMONIC_BATCH_PEOPLE_MAX} people`)
   }
-  return { ids, urns }
+
+  return {
+    ids: normalizePersonIds(rawIds),
+    urns: normalizePersonUrns(rawUrns, 'personUrns'),
+    include_fields: [...HARMONIC_PERSON_INCLUDE_FIELDS],
+  }
 }
 
-function currentExperience(raw: HarmonicPersonOutput): HarmonicExperienceMetadata[] {
-  return Array.isArray(raw.experience)
-    ? raw.experience.filter((experience) => experience?.is_current_position === true)
-    : []
+function currentExperience(raw: HarmonicPersonOutput): HarmonicExperienceMetadata[] | null {
+  if (!Array.isArray(raw.experience)) return null
+  return raw.experience.filter((experience) => experience?.is_current_position === true)
+}
+
+function normalizeLinkedinProfileUrl(value: unknown): string | null {
+  const rawUrl = asString(value)
+  if (!rawUrl) return null
+
+  try {
+    const url = new URL(rawUrl)
+    const hostname = url.hostname.toLowerCase()
+    const isLinkedinHost = hostname === 'linkedin.com' || hostname.endsWith('.linkedin.com')
+    const [, profileKind, profileSlug] = url.pathname.split('/')
+
+    if (
+      url.protocol !== 'https:' ||
+      url.username ||
+      url.password ||
+      url.port ||
+      !isLinkedinHost ||
+      (profileKind !== 'in' && profileKind !== 'pub') ||
+      !profileSlug
+    ) {
+      return null
+    }
+
+    url.search = ''
+    url.hash = ''
+    return url.toString()
+  } catch {
+    return null
+  }
 }
 
 function linkedinUrl(socials: HarmonicPersonOutput['socials']): string | null {
-  if (!socials) return null
-  for (const [network, metadata] of Object.entries(socials)) {
-    const url = asString((metadata as HarmonicSocialMetadata | undefined)?.url)
-    if (url && (network.toLowerCase().includes('linkedin') || url.includes('linkedin.com'))) {
-      return url
-    }
+  const socialRecord = asRecord(socials)
+  if (!socialRecord) return null
+
+  for (const metadata of Object.values(socialRecord)) {
+    const normalized = normalizeLinkedinProfileUrl(asRecord(metadata)?.url)
+    if (normalized) return normalized
   }
   return null
 }
 
 export function normalizePerson(raw: HarmonicPersonOutput): HarmonicContact {
-  const contact = asRecord(raw.contact) ?? {}
+  const normalizedPersonId = requirePersonId(raw.id)
+  const contact = asRecord(raw.contact)
   const location = (asRecord(raw.location) ?? {}) as HarmonicLocationMetadata
   const experiences = currentExperience(raw)
-  const primaryEmail = asString(contact.primary_email)
-  const emails = uniqueStrings([
-    primaryEmail,
-    ...stringArray(contact.emails),
-    ...stringArray(contact.exec_emails),
-  ])
-  const currentTitles = uniqueStrings(experiences.map((experience) => experience.title))
-  const currentCompanyNames = uniqueStrings(
-    experiences.map((experience) => experience.company_name)
-  )
-  const currentCompanyUrns = uniqueStrings([
-    ...stringArray(raw.current_company_urns),
-    ...experiences.map((experience) => experience.company),
-  ]).filter((urn) => urn.startsWith('urn:harmonic:company:'))
+  const primaryEmail = asString(contact?.primary_email)
+  const contactEmails = nullableStringArray(contact?.emails)
+  const executiveEmails = nullableStringArray(contact?.exec_emails)
+  const emails =
+    primaryEmail || contactEmails !== null || executiveEmails !== null
+      ? uniqueStrings([primaryEmail, ...(contactEmails ?? []), ...(executiveEmails ?? [])])
+      : null
+  const currentTitles = experiences
+    ? uniqueStrings(experiences.map((experience) => experience.title))
+    : null
+  const currentCompanyNames = experiences
+    ? uniqueStrings(experiences.map((experience) => experience.company_name))
+    : null
+  const personCompanyUrns = nullableStringArray(raw.current_company_urns)
+  const currentCompanyUrns =
+    personCompanyUrns !== null || experiences !== null
+      ? uniqueStrings([
+          ...(personCompanyUrns ?? []),
+          ...(experiences ?? []).map((experience) => experience.company),
+        ]).filter((urn) => urn.startsWith('urn:harmonic:company:'))
+      : null
 
   return {
     personUrn: personUrn(raw.entity_urn),
-    personId: asNumber(raw.id),
+    personId: normalizedPersonId,
     fullName: asString(raw.full_name),
     firstName: asString(raw.first_name),
     lastName: asString(raw.last_name),
-    headline: asString(raw.linkedin_headline),
+    headline: asString(raw.linkedin_headline) ?? currentTitles?.[0] ?? null,
     currentTitles,
     currentCompanyNames,
     currentCompanyUrns,
     primaryEmail,
     emails,
-    phoneNumbers: stringArray(contact.phone_numbers),
+    phoneNumbers: nullableStringArray(contact?.phone_numbers),
     linkedinUrl: linkedinUrl(raw.socials),
     formattedLocation: asString(location.address_formatted) ?? asString(location.location),
     city: asString(location.city),
@@ -273,13 +488,13 @@ export function normalizeScoutPerson(raw: HarmonicScoutPerson): HarmonicContact 
     firstName: null,
     lastName: null,
     headline: title,
-    currentTitles: title ? [title] : [],
-    currentCompanyNames: company ? [company] : [],
-    currentCompanyUrns: [],
+    currentTitles: title ? [title] : null,
+    currentCompanyNames: company ? [company] : null,
+    currentCompanyUrns: null,
     primaryEmail: email,
-    emails: email ? [email] : [],
-    phoneNumbers: [],
-    linkedinUrl: asString(raw.linkedin_url),
+    emails: email ? [email] : null,
+    phoneNumbers: null,
+    linkedinUrl: normalizeLinkedinProfileUrl(raw.linkedin_url),
     formattedLocation: asString(raw.location),
     city: null,
     state: null,
@@ -291,26 +506,51 @@ export function normalizeScoutPerson(raw: HarmonicScoutPerson): HarmonicContact 
 }
 
 export function normalizePageInfo(value: unknown): HarmonicPageInfo | null {
+  if (value === undefined || value === null) return null
   const pageInfo = asRecord(value) as HarmonicPaginationMetadata | null
-  if (!pageInfo) return null
+  if (!pageInfo) throw new Error('Harmonic returned invalid page_info metadata')
+  if (typeof pageInfo.has_next !== 'boolean') {
+    throw new Error('Harmonic returned page_info without a boolean has_next value')
+  }
+
+  const cursor = (cursorValue: unknown, field: string): string | null => {
+    if (cursorValue === undefined || cursorValue === null) return null
+    if (typeof cursorValue !== 'string') {
+      throw new Error(`Harmonic returned page_info.${field} with a non-string cursor`)
+    }
+    return cursorValue
+  }
+
   return {
-    nextCursor: asOpaqueString(pageInfo.next),
-    currentCursor: asOpaqueString(pageInfo.current),
-    hasNext: pageInfo.has_next === true,
+    nextCursor: cursor(pageInfo.next, 'next'),
+    currentCursor: cursor(pageInfo.current, 'current'),
+    hasNext: pageInfo.has_next,
   }
 }
 
 export function normalizeSavedSearch(raw: HarmonicSavedSearchOutput): HarmonicSavedSearch {
+  if (raw.type !== 'PERSONS') {
+    throw new Error('Harmonic returned a saved search that does not target people')
+  }
+
+  if (typeof raw.id !== 'number' || !Number.isSafeInteger(raw.id)) {
+    throw new Error('Harmonic returned a people saved search with an invalid numeric ID')
+  }
+  const savedSearchId = raw.id
+  const savedSearchUrn = requireSavedSearchUrn(raw.entity_urn)
+  const name = asString(raw.name)
+  if (!name) throw new Error('Harmonic returned a people saved search without a name')
+
   return {
-    savedSearchId: asNumber(raw.id),
-    savedSearchUrn: asString(raw.entity_urn),
-    name: asString(raw.name),
+    savedSearchId,
+    savedSearchUrn,
+    name,
     isPrivate: asBoolean(raw.is_private),
-    savedSearchType: asString(raw.type),
-    userSavedSearchType: asString(raw.user_saved_search_type),
-    creatorUrn: asString(raw.creator),
-    createdAt: asString(raw.created_at),
-    updatedAt: asString(raw.updated_at),
+    savedSearchType: 'PERSONS',
+    userSavedSearchType: requireUserSavedSearchType(raw.user_saved_search_type),
+    creatorUrn: requireUserUrn(raw.creator),
+    createdAt: requireSavedSearchTimestamp(raw.created_at, 'created_at'),
+    updatedAt: requireSavedSearchTimestamp(raw.updated_at, 'updated_at'),
   }
 }
 

@@ -21,14 +21,15 @@ export const harmonicBatchGetPeopleTool: ToolConfig<
   description:
     'Fetch full Harmonic person profiles for up to 500 combined numeric IDs and person URNs.',
   version: '1.0.0',
-  errorExtractor: ErrorExtractorId.STANDARD_MESSAGE,
+  oauth: { required: true, provider: 'harmonic' },
+  errorExtractor: ErrorExtractorId.HARMONIC_ERRORS,
 
   params: {
-    apiKey: {
+    accessToken: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Harmonic team API key, sent in the apikey header',
+      visibility: 'hidden',
+      description: 'Harmonic credential resolved by the connected account',
     },
     personIds: {
       type: 'json',
@@ -47,7 +48,7 @@ export const harmonicBatchGetPeopleTool: ToolConfig<
   request: {
     url: `${HARMONIC_API_BASE}/persons/batchGet`,
     method: 'POST',
-    headers: (params) => harmonicHeaders(params.apiKey, { json: true }),
+    headers: (params) => harmonicHeaders(params.accessToken, { json: true }),
     body: (params) => buildBatchGetPeopleBody(params.personIds, params.personUrns),
   },
 

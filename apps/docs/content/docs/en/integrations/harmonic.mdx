@@ -15,14 +15,15 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 ### Authentication
 
-This integration uses a Harmonic **team API key**, sent only in the `apikey` request header. It does not use OAuth. You need an existing Harmonic workspace with API access; ask your Harmonic workspace administrator or [Harmonic support](mailto:support@harmonic.ai) for the team key, then paste it into the block's **Harmonic API Key** field.
+This integration uses a reusable Harmonic **team API key** connection. It does not use delegated OAuth. You need an existing Harmonic workspace with API access; ask your Harmonic workspace administrator or [Harmonic support](mailto:support@harmonic.ai) for the team key, then create a Harmonic connection from the block's **Harmonic Account** field. Sim validates and stores the key once, then sends it only in Harmonic's `apikey` request header. The same connection can be reused across Harmonic blocks and replaced or revoked from the credentials settings.
 
 ### Working with people data
 
 - **Scout search:** **Search People with Scout** uses an integration-owned schema so every successful request returns the same normalized contact fields. Scout task errors, timeouts, interruptions, and malformed structured results stop the workflow instead of returning an ambiguous partial result.
-- **Saved searches:** A team API key can read only saved searches shared with the team. Make a private people search shared in the Harmonic console before retrieving it through the API. Follow `pageInfo.nextCursor` while `pageInfo.hasNext` is true.
+- **Saved searches:** A team API key can read only saved searches shared with the team. Make a private people search shared in the Harmonic console, then choose it with the basic selector. Advanced mode accepts a numeric saved-search ID or full URN when a search is not shown. Follow `pageInfo.nextCursor` while `pageInfo.hasNext` is true.
 - **URN-only rows:** Saved-search pages may contain person URNs without full profiles. Pass `personUrns` to **Batch Get People** to hydrate them into the common contact shape.
-- **Downstream workflows:** Pass `contacts` directly into Sim tables, scoring or approval steps, and other integrations such as a CRM. Every contact-producing action uses the same camelCase output shape.
+- **Downstream workflows:** Pass `contacts` directly into Sim tables, scoring or approval steps, and other integrations such as a CRM. Every contact-producing action uses the same camelCase output shape. A nullable array means Harmonic did not return that collection for the record; an empty array means Harmonic returned the collection with no values.
+- **Large batches:** Batch Get People accepts at most 500 combined IDs and URNs and requests only the fields used by the normalized contact output. Exceptionally large profiles can still exceed Sim's response limit; retry with smaller batches if that occurs.
 - **Workspace and list APIs:** This first version intentionally omits Harmonic's retiring V1 workspace and people-list endpoints. Harmonic says those APIs stop serving traffic on November 5, 2026 and already fail after a workspace completes its V2 migration. See Harmonic's [Workspace API migration guide](https://console.harmonic.ai/docs/api-reference/workspace/migration) for the V2 GraphQL replacement.
 
 Harmonic recommends no more than 100 saved-search results per page. Its general API limit is 10 requests per second, while Scout task creation is limited to 10 requests per minute and 100 per hour. Endpoint and field availability can also depend on your Harmonic subscription.
@@ -33,7 +34,7 @@ Harmonic does not publish a webhook-registration contract for this workflow surf
 
 ## Usage Instructions
 
-Use Harmonic Scout to find people with natural-language criteria, retrieve team-visible people saved searches, and hydrate person identifiers into normalized contacts for downstream tables, CRM, scoring, and outreach workflows.
+Connect a reusable Harmonic team API key, use Scout to find people with natural-language criteria, select team-visible people saved searches, and hydrate person identifiers into normalized contacts for downstream tables, CRM, scoring, and outreach workflows.
 
 
 
@@ -47,7 +48,6 @@ Ask Harmonic Scout to find people using natural language and return a stable, wo
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Harmonic team API key, sent in the apikey header |
 | `query` | string | Yes | Natural-language people research request, e.g. "Find forward-deployed engineers in enterprise software" |
 
 #### Output
@@ -87,7 +87,6 @@ List the team-shared Harmonic saved searches that target people. Use a returned 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Harmonic team API key, sent in the apikey header |
 
 #### Output
 
@@ -98,7 +97,7 @@ List the team-shared Harmonic saved searches that target people. Use a returned 
 |   ↳ `savedSearchUrn` | string | Saved search URN |
 |   ↳ `name` | string | Saved search name |
 |   ↳ `isPrivate` | boolean | Whether the search is private |
-|   ↳ `savedSearchType` | string | Saved search entity type |
+|   ↳ `savedSearchType` | string | Saved search entity type \(PERSONS\) |
 |   ↳ `userSavedSearchType` | string | User-facing saved search type |
 |   ↳ `creatorUrn` | string | Creator user URN |
 |   ↳ `createdAt` | string | Creation timestamp |
@@ -113,7 +112,6 @@ Get one page of a Harmonic people saved search. Full records become contacts; UR
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Harmonic team API key, sent in the apikey header |
 | `savedSearchId` | string | Yes | People saved-search ID or full Harmonic saved-search URN |
 | `size` | number | No | Results to return, 1-100 \(default 50\) |
 | `cursor` | string | No | Opaque next-page cursor from a previous response |
@@ -158,7 +156,6 @@ Fetch full Harmonic person profiles for up to 500 combined numeric IDs and perso
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Harmonic team API key, sent in the apikey header |
 | `personIds` | json | No | Array of numeric Harmonic person IDs; may be a JSON-array string |
 | `personUrns` | json | No | Array of Harmonic person URNs; may be a JSON-array string |
 

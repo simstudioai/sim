@@ -25,14 +25,15 @@ export const harmonicSearchPeopleScoutTool: ToolConfig<
   description:
     'Ask Harmonic Scout to find people using natural language and return a stable, workflow-ready contacts table.',
   version: '1.0.0',
-  errorExtractor: ErrorExtractorId.STANDARD_MESSAGE,
+  oauth: { required: true, provider: 'harmonic' },
+  errorExtractor: ErrorExtractorId.HARMONIC_ERRORS,
 
   params: {
-    apiKey: {
+    accessToken: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Harmonic team API key, sent in the apikey header',
+      visibility: 'hidden',
+      description: 'Harmonic credential resolved by the connected account',
     },
     query: {
       type: 'string',
@@ -46,7 +47,7 @@ export const harmonicSearchPeopleScoutTool: ToolConfig<
   request: {
     url: `${HARMONIC_API_BASE}/scout/tasks/wait`,
     method: 'POST',
-    headers: (params) => harmonicHeaders(params.apiKey, { json: true }),
+    headers: (params) => harmonicHeaders(params.accessToken, { json: true }),
     body: (params) => buildScoutBody(params.query),
     modelInput: {
       mode: 'project',

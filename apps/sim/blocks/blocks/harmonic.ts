@@ -23,14 +23,9 @@ function isHarmonicOperation(value: unknown): value is HarmonicOperation {
   return (HARMONIC_OPERATIONS as readonly unknown[]).includes(value)
 }
 
-function parseOptionalJson(value: unknown): unknown {
+function optionalValue(value: unknown): unknown {
   if (value === undefined || value === null || value === '') return undefined
-  return typeof value === 'string' ? JSON.parse(value) : value
-}
-
-function toOptionalNumber(value: unknown): number | undefined {
-  if (value === undefined || value === null || value === '') return undefined
-  return Number(value)
+  return value
 }
 
 export const HarmonicBlock: BlockConfig = {
@@ -38,7 +33,7 @@ export const HarmonicBlock: BlockConfig = {
   name: 'Harmonic',
   description: 'Search and enrich private-market contacts',
   longDescription:
-    'Use Harmonic Scout to find people with natural-language criteria, retrieve team-visible people saved searches, and hydrate person identifiers into normalized contacts for downstream tables, CRM, scoring, and outreach workflows.',
+    'Connect a reusable Harmonic team API key, use Scout to find people with natural-language criteria, select team-visible people saved searches, and hydrate person identifiers into normalized contacts for downstream tables, CRM, scoring, and outreach workflows.',
   docsLink: 'https://docs.sim.ai/integrations/harmonic',
   category: 'tools',
   integrationType: IntegrationType.Sales,
@@ -52,7 +47,11 @@ export const HarmonicBlock: BlockConfig = {
         harmonic_search_people_scout: [{ text: 'Search people for', field: 'query', core: true }],
         harmonic_list_people_saved_searches: ['List people saved searches'],
         harmonic_get_people_saved_search_results: [
-          { text: 'Read contacts from saved search', field: 'savedSearchId', core: true },
+          {
+            text: 'Read contacts from saved search',
+            field: ['savedSearchSelector', 'savedSearchIdManual'],
+            core: true,
+          },
         ],
         harmonic_batch_get_people: [
           'Get people in batch',
@@ -64,6 +63,26 @@ export const HarmonicBlock: BlockConfig = {
   },
 
   subBlocks: [
+    {
+      id: 'credential',
+      title: 'Harmonic Account',
+      type: 'oauth-input',
+      serviceId: 'harmonic',
+      credentialKind: 'service-account',
+      canonicalParamId: 'oauthCredential',
+      mode: 'basic',
+      placeholder: 'Select Harmonic credential',
+      required: true,
+    },
+    {
+      id: 'manualCredential',
+      title: 'Harmonic Account',
+      type: 'short-input',
+      canonicalParamId: 'oauthCredential',
+      mode: 'advanced',
+      placeholder: 'Enter credential ID',
+      required: true,
+    },
     {
       id: 'operation',
       title: 'Operation',
@@ -83,15 +102,6 @@ export const HarmonicBlock: BlockConfig = {
       value: () => 'harmonic_search_people_scout',
     },
     {
-      id: 'apiKey',
-      title: 'Harmonic API Key',
-      type: 'short-input',
-      placeholder: 'Enter your Harmonic team API key',
-      password: true,
-      required: true,
-      paramVisibility: 'user-only',
-    },
-    {
       id: 'query',
       title: 'Search Query',
       canvasNoun: 'a search query',
@@ -103,11 +113,28 @@ export const HarmonicBlock: BlockConfig = {
       paramVisibility: 'user-or-llm',
     },
     {
-      id: 'savedSearchId',
+      id: 'savedSearchSelector',
+      title: 'Saved Search',
+      canvasNoun: 'a saved search',
+      type: 'project-selector',
+      serviceId: 'harmonic',
+      selectorKey: 'harmonic.savedSearches',
+      canonicalParamId: 'savedSearchId',
+      placeholder: 'Select a people saved search',
+      dependsOn: ['credential'],
+      mode: 'basic',
+      condition: { field: 'operation', value: 'harmonic_get_people_saved_search_results' },
+      required: { field: 'operation', value: 'harmonic_get_people_saved_search_results' },
+      paramVisibility: 'user-or-llm',
+    },
+    {
+      id: 'savedSearchIdManual',
       title: 'Saved Search ID or URN',
       canvasNoun: 'a saved search',
       type: 'short-input',
+      canonicalParamId: 'savedSearchId',
       placeholder: 'Saved search ID or urn:harmonic:saved_search:...',
+      mode: 'advanced',
       condition: { field: 'operation', value: 'harmonic_get_people_saved_search_results' },
       required: { field: 'operation', value: 'harmonic_get_people_saved_search_results' },
       paramVisibility: 'user-or-llm',
@@ -194,16 +221,21 @@ export const HarmonicBlock: BlockConfig = {
 
         return {
           operation: undefined,
-          apiKey: params.apiKey,
+          apiKey: undefined,
+          credential: undefined,
+          manualCredential: undefined,
+          savedSearchSelector: undefined,
+          savedSearchIdManual: undefined,
+          oauthCredential: params.oauthCredential,
           query: operation === 'harmonic_search_people_scout' ? params.query : undefined,
           savedSearchId:
             operation === 'harmonic_get_people_saved_search_results'
               ? params.savedSearchId
               : undefined,
-          size: isPaged ? toOptionalNumber(params.size) : undefined,
-          cursor: isPaged ? params.cursor || undefined : undefined,
-          personIds: isBatchGet ? parseOptionalJson(params.personIds) : undefined,
-          personUrns: isBatchGet ? parseOptionalJson(params.personUrns) : undefined,
+          size: isPaged ? optionalValue(params.size) : undefined,
+          cursor: isPaged ? optionalValue(params.cursor) : undefined,
+          personIds: isBatchGet ? optionalValue(params.personIds) : undefined,
+          personUrns: isBatchGet ? optionalValue(params.personUrns) : undefined,
         }
       },
     },
@@ -211,13 +243,23 @@ export const HarmonicBlock: BlockConfig = {
 
   inputs: {
     operation: { type: 'string', description: 'Harmonic operation to perform' },
+    oauthCredential: {
+      type: 'string',
+      description: 'Reusable Harmonic team API-key credential',
+    },
+    query: { type: 'string', description: 'Natural-language Harmonic Scout people query' },
+    savedSearchId: { type: 'string', description: 'People saved-search ID or full URN' },
+    personIds: { type: 'array', description: 'Numeric Harmonic person IDs to retrieve' },
+    personUrns: { type: 'array', description: 'Harmonic person URNs to retrieve' },
+    size: { type: 'number', description: 'Saved-search page size, clamped to 1-100' },
+    cursor: { type: 'string', description: 'Opaque saved-search pagination cursor' },
   },
 
   outputs: {
     contacts: {
-      type: 'json',
+      type: 'array',
       description:
-        'Normalized contacts with personUrn, personId, fullName, firstName, lastName, headline, currentTitles, currentCompanyNames, currentCompanyUrns, primaryEmail, emails, phoneNumbers, linkedinUrl, formattedLocation, city, state, country, profilePictureUrl, summary, and isRedacted',
+        'Normalized contacts with personUrn, personId, fullName, firstName, lastName, headline, currentTitles, currentCompanyNames, currentCompanyUrns, primaryEmail, emails, phoneNumbers, linkedinUrl, formattedLocation, city, state, country, profilePictureUrl, summary, and isRedacted; unavailable array fields are null',
       condition: { field: 'operation', value: [...CONTACT_OPERATIONS] },
     },
     taskId: {
@@ -243,13 +285,13 @@ export const HarmonicBlock: BlockConfig = {
       },
     },
     savedSearches: {
-      type: 'json',
+      type: 'array',
       description:
         'People saved searches with savedSearchId, savedSearchUrn, name, isPrivate, savedSearchType, userSavedSearchType, creatorUrn, createdAt, and updatedAt',
       condition: { field: 'operation', value: 'harmonic_list_people_saved_searches' },
     },
     personUrns: {
-      type: 'json',
+      type: 'array',
       description: 'Harmonic person URNs returned by the saved search',
       condition: { field: 'operation', value: 'harmonic_get_people_saved_search_results' },
     },

@@ -211,6 +211,42 @@ const ERROR_EXTRACTORS: ErrorExtractorConfig[] = [
     extract: (errorInfo) => errorInfo?.data?.message,
   },
   {
+    id: 'harmonic-errors',
+    description:
+      'Harmonic API message errors and FastAPI validation detail arrays without echoed request input',
+    examples: ['Harmonic'],
+    extract: (errorInfo) => {
+      const data = errorInfo?.data
+      if (!data || typeof data !== 'object' || Array.isArray(data)) return undefined
+
+      const message = typeof data.message === 'string' ? data.message.trim() : ''
+      if (message) return message
+
+      if (!Array.isArray(data.detail)) return undefined
+      const details = data.detail
+        .map((entry: unknown) => {
+          if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return ''
+          const validation = entry as { loc?: unknown; msg?: unknown }
+          const detail = typeof validation.msg === 'string' ? validation.msg.trim() : ''
+          if (!detail) return ''
+
+          const location = Array.isArray(validation.loc)
+            ? validation.loc
+                .filter(
+                  (segment): segment is string | number =>
+                    typeof segment === 'string' || typeof segment === 'number'
+                )
+                .map(String)
+            : []
+          const fieldPath = location[0] === 'body' ? location.slice(1) : location
+          return fieldPath.length > 0 ? `${fieldPath.join('.')}: ${detail}` : detail
+        })
+        .filter(Boolean)
+
+      return details.length > 0 ? details.join('; ') : undefined
+    },
+  },
+  {
     id: 'soap-fault',
     description: 'SOAP/XML fault string patterns',
     examples: ['SOAP APIs', 'Legacy XML services'],
@@ -430,6 +466,7 @@ export const ErrorExtractorId = {
   ERRORS_ARRAY_STRING: 'errors-array-string',
   TELEGRAM_DESCRIPTION: 'telegram-description',
   STANDARD_MESSAGE: 'standard-message',
+  HARMONIC_ERRORS: 'harmonic-errors',
   SOAP_FAULT: 'soap-fault',
   OAUTH_ERROR_DESCRIPTION: 'oauth-error-description',
   NESTED_ERROR_OBJECT: 'nested-error-object',

@@ -7,7 +7,10 @@ import { harmonicBatchGetPeopleTool } from '@/tools/harmonic/batch_get_people'
 import { harmonicGetPeopleSavedSearchResultsTool } from '@/tools/harmonic/get_people_saved_search_results'
 import { harmonicListPeopleSavedSearchesTool } from '@/tools/harmonic/list_people_saved_searches'
 import { harmonicSearchPeopleScoutTool } from '@/tools/harmonic/search_people_scout'
-import { HARMONIC_SCOUT_PEOPLE_SCHEMA } from '@/tools/harmonic/utils'
+import {
+  HARMONIC_PERSON_INCLUDE_FIELDS,
+  HARMONIC_SCOUT_PEOPLE_SCHEMA,
+} from '@/tools/harmonic/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const allTools = [
@@ -129,22 +132,24 @@ describe('Harmonic authentication and registry-facing contracts', () => {
     }
   })
 
-  it('keeps every API key user-only and sends it only in the apikey header', () => {
+  it('uses the connected Harmonic credential only in the apikey header', () => {
     for (const tool of allTools) {
-      expect(tool.params.apiKey).toMatchObject({ required: true, visibility: 'user-only' })
-      const headers = tool.request.headers({ apiKey: 'team-secret' } as never)
+      expect(tool.oauth).toEqual({ required: true, provider: 'harmonic' })
+      expect(tool.params.accessToken).toMatchObject({ required: true, visibility: 'hidden' })
+      expect(tool.params).not.toHaveProperty('apiKey')
+      const headers = tool.request.headers({ accessToken: 'team-secret' } as never)
       expect(headers.apikey).toBe('team-secret')
       expect(headers.Authorization).toBeUndefined()
     }
 
     const requestSamples: Array<[ToolConfig, Record<string, unknown>]> = [
-      [harmonicSearchPeopleScoutTool, { apiKey: 'team-secret', query: 'find FDEs' }],
-      [harmonicListPeopleSavedSearchesTool, { apiKey: 'team-secret' }],
+      [harmonicSearchPeopleScoutTool, { accessToken: 'team-secret', query: 'find FDEs' }],
+      [harmonicListPeopleSavedSearchesTool, { accessToken: 'team-secret' }],
       [
         harmonicGetPeopleSavedSearchResultsTool,
-        { apiKey: 'team-secret', savedSearchId: 'urn:harmonic:saved_search:1' },
+        { accessToken: 'team-secret', savedSearchId: 'urn:harmonic:saved_search:1' },
       ],
-      [harmonicBatchGetPeopleTool, { apiKey: 'team-secret', personIds: [1] }],
+      [harmonicBatchGetPeopleTool, { accessToken: 'team-secret', personIds: [1] }],
     ]
     for (const [tool, params] of requestSamples) {
       expect(buildUrl(tool, params)).not.toContain('team-secret')
@@ -153,8 +158,8 @@ describe('Harmonic authentication and registry-facing contracts', () => {
     }
   })
 
-  it('uses the deterministic standard message extractor for Harmonic errors', () => {
-    for (const tool of allTools) expect(tool.errorExtractor).toBe('standard-message')
+  it('extracts Harmonic message and FastAPI validation errors without echoed input', () => {
+    for (const tool of allTools) expect(tool.errorExtractor).toBe('harmonic-errors')
     expect(
       extractErrorMessage(
         {
@@ -164,12 +169,40 @@ describe('Harmonic authentication and registry-facing contracts', () => {
         harmonicBatchGetPeopleTool.errorExtractor
       )
     ).toBe('Authentication required. Include either an api key or a JWT.')
+
+    const validationMessage = extractErrorMessage(
+      {
+        status: 422,
+        data: {
+          detail: [
+            {
+              type: 'int_parsing',
+              loc: ['body', 'ids', 0],
+              msg: 'Input should be a valid integer',
+              input: 'private-body-value',
+            },
+            {
+              type: 'string_pattern_mismatch',
+              loc: ['body', 'urns', 1],
+              msg: 'String should match the person URN pattern',
+              input: 'private-urn-value',
+            },
+          ],
+        },
+      },
+      harmonicBatchGetPeopleTool.errorExtractor
+    )
+    expect(validationMessage).toBe(
+      'ids.0: Input should be a valid integer; urns.1: String should match the person URN pattern'
+    )
+    expect(validationMessage).not.toContain('private-body-value')
+    expect(validationMessage).not.toContain('private-urn-value')
   })
 
-  it('does not expose the API key in local validation errors', () => {
+  it('does not expose the resolved credential in local validation errors', () => {
     let validationError: unknown
     try {
-      buildBody(harmonicBatchGetPeopleTool, { apiKey: 'team-secret' })
+      buildBody(harmonicBatchGetPeopleTool, { accessToken: 'team-secret' })
     } catch (error) {
       validationError = error
     }
@@ -182,7 +215,7 @@ describe('Harmonic authentication and registry-facing contracts', () => {
 describe('Harmonic Scout', () => {
   it('sends the exact fixed structured-output schema and projects only the natural-language query', () => {
     const body = buildBody(harmonicSearchPeopleScoutTool, {
-      apiKey: 'secret',
+      accessToken: 'secret',
       query: '  Find FDEs in enterprise software  ',
     })
     expect(buildUrl(harmonicSearchPeopleScoutTool, {})).toBe(
@@ -210,7 +243,7 @@ describe('Harmonic Scout', () => {
     expect(modelInput?.mode).toBe('project')
     expect(
       modelInput?.mode === 'project' &&
-        modelInput.select({ apiKey: 'secret', query: 'Find FDEs' } as never)
+        modelInput.select({ accessToken: 'secret', query: 'Find FDEs' } as never)
     ).toEqual({ query: 'Find FDEs' })
   })
 
@@ -247,10 +280,10 @@ describe('Harmonic Scout', () => {
       headline: 'Forward Deployed Engineer',
       currentTitles: ['Forward Deployed Engineer'],
       currentCompanyNames: ['Enterprise Co'],
-      currentCompanyUrns: [],
+      currentCompanyUrns: null,
       primaryEmail: 'grace@example.com',
       emails: ['grace@example.com'],
-      phoneNumbers: [],
+      phoneNumbers: null,
       linkedinUrl: 'https://linkedin.com/in/grace',
       formattedLocation: 'New York, NY',
       city: null,
@@ -259,6 +292,57 @@ describe('Harmonic Scout', () => {
       profilePictureUrl: null,
       summary: 'Builds enterprise deployment systems.',
       isRedacted: null,
+    })
+  })
+
+  it('accepts only canonical HTTPS LinkedIn profile URLs and strips query fragments', async () => {
+    const urls = [
+      'https://www.linkedin.com/in/safe-person?trk=public_profile#about',
+      'https://uk.linkedin.com/pub/legacy-person/1/2/3?tracking=1',
+      'https://www.linkedin.com:443/in/default-port?tracking=1',
+      'https://evil.example/linkedin.com/in/path-bypass',
+      'https://linkedin.com.evil.example/in/suffix-bypass',
+      'https://evil-linkedin.com/in/lookalike',
+      'https://linkedin.com@evil.example/in/credentials-bypass',
+      'https://user:password@www.linkedin.com/in/credentialed',
+      'https://www.linkedin.com:8443/in/nondefault-port',
+      'http://www.linkedin.com/in/insecure',
+      'https://www.linkedin.com/company/not-a-person',
+      'not a url',
+    ]
+    const result = await harmonicSearchPeopleScoutTool.transformResponse!(
+      jsonResponse({
+        task_id: 'task-linkedin',
+        status: 'success',
+        content: {
+          people: urls.map((linkedin_url, index) => ({
+            name: `Person ${index}`,
+            linkedin_url,
+          })),
+        },
+      })
+    )
+
+    expect(result.output.contacts.map((contact) => contact.linkedinUrl)).toEqual([
+      'https://www.linkedin.com/in/safe-person',
+      'https://uk.linkedin.com/pub/legacy-person/1/2/3',
+      'https://www.linkedin.com/in/default-port',
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+    ])
+    expect(result.output.contacts[0]).toMatchObject({
+      currentTitles: null,
+      currentCompanyNames: null,
+      currentCompanyUrns: null,
+      emails: null,
+      phoneNumbers: null,
     })
   })
 
@@ -324,6 +408,83 @@ describe('Harmonic people retrieval', () => {
     expect(result.output.savedSearches[0]).not.toHaveProperty('query')
   })
 
+  const validPeopleSavedSearch = {
+    id: 1,
+    entity_urn: 'urn:harmonic:saved_search:1',
+    name: 'People',
+    type: 'PERSONS',
+    creator: 'urn:harmonic:user:1',
+    user_saved_search_type: 'USER_CREATED',
+    created_at: '2026-01-01T00:00:00Z',
+    updated_at: '2026-01-02T00:00:00Z',
+  }
+
+  it.each([
+    ['id', '1'],
+    ['entity_urn', 'urn:harmonic:company:1'],
+    ['name', '   '],
+    ['creator', 'urn:harmonic:company:1'],
+    ['user_saved_search_type', 'UNKNOWN'],
+    ['created_at', 'yesterday'],
+    ['created_at', '2026-02-31T12:34:56Z'],
+    ['created_at', '2026-01-01T00:00:60Z'],
+    ['created_at', '2025-12-31T23:59:60Z'],
+    ['created_at', '0072-06-30T23:59:60Z'],
+    ['created_at', '0072-07-01T00:59:60+01:00'],
+    ['updated_at', '2026-01-02'],
+  ])('rejects a malformed required PERSONS saved-search %s', async (field, invalidValue) => {
+    const row = { ...validPeopleSavedSearch, [field]: invalidValue }
+    await expect(
+      harmonicListPeopleSavedSearchesTool.transformResponse!(jsonResponse([row]))
+    ).rejects.toThrow(/saved search/)
+  })
+
+  it.each([
+    'id',
+    'entity_urn',
+    'name',
+    'creator',
+    'user_saved_search_type',
+    'created_at',
+    'updated_at',
+  ])('rejects an omitted required PERSONS saved-search %s', async (field) => {
+    const row: Record<string, unknown> = { ...validPeopleSavedSearch }
+    delete row[field]
+    await expect(
+      harmonicListPeopleSavedSearchesTool.transformResponse!(jsonResponse([row]))
+    ).rejects.toThrow(/saved search/)
+  })
+
+  it('accepts RFC 3339 lowercase separators and leap seconds', async () => {
+    const result = await harmonicListPeopleSavedSearchesTool.transformResponse!(
+      jsonResponse([
+        {
+          ...validPeopleSavedSearch,
+          created_at: '2026-01-01t00:00:00z',
+          updated_at: '2016-12-31T23:59:60Z',
+        },
+      ])
+    )
+
+    expect(result.output.savedSearches[0]).toMatchObject({
+      createdAt: '2026-01-01t00:00:00z',
+      updatedAt: '2016-12-31T23:59:60Z',
+    })
+  })
+
+  it('accepts an actual leap second represented with a numeric offset', async () => {
+    const result = await harmonicListPeopleSavedSearchesTool.transformResponse!(
+      jsonResponse([
+        {
+          ...validPeopleSavedSearch,
+          updated_at: '2017-01-01T00:59:60+01:00',
+        },
+      ])
+    )
+
+    expect(result.output.savedSearches[0].updatedAt).toBe('2017-01-01T00:59:60+01:00')
+  })
+
   it('caps page size, preserves opaque cursors, and safely encodes path IDs', () => {
     const url = new URL(
       buildUrl(harmonicGetPeopleSavedSearchResultsTool, {
@@ -345,7 +506,54 @@ describe('Harmonic people retrieval', () => {
     ).toBe('1')
     expect(() =>
       buildUrl(harmonicGetPeopleSavedSearchResultsTool, { savedSearchId: '1', size: 3.5 })
-    ).toThrow(/must be an integer/)
+    ).toThrow(/safe decimal integer/)
+
+    for (const size of [
+      true,
+      [5],
+      ' ',
+      '1e2',
+      '0x10',
+      Number.MAX_SAFE_INTEGER + 1,
+      Number.POSITIVE_INFINITY,
+    ]) {
+      expect(() =>
+        buildUrl(harmonicGetPeopleSavedSearchResultsTool, { savedSearchId: '1', size })
+      ).toThrow(/safe decimal integer/)
+    }
+  })
+
+  it('validates page_info strictly while preserving opaque cursor bytes', async () => {
+    const result = await harmonicGetPeopleSavedSearchResultsTool.transformResponse!(
+      jsonResponse({
+        results: [],
+        page_info: { next: '', current: ' opaque/+ cursor ', has_next: false },
+      })
+    )
+    expect(result.output.pageInfo).toEqual({
+      nextCursor: '',
+      currentCursor: ' opaque/+ cursor ',
+      hasNext: false,
+    })
+
+    for (const page_info of [
+      'not-an-object',
+      {},
+      { has_next: 'false' },
+      { has_next: true, next: 42 },
+      { has_next: false, current: {} },
+    ]) {
+      await expect(
+        harmonicGetPeopleSavedSearchResultsTool.transformResponse!(
+          jsonResponse({ results: [], page_info })
+        )
+      ).rejects.toThrow(/page_info/)
+    }
+
+    const withoutPageInfo = await harmonicGetPeopleSavedSearchResultsTool.transformResponse!(
+      jsonResponse({ results: [] })
+    )
+    expect(withoutPageInfo.output.pageInfo).toBeNull()
   })
 
   it('normalizes full profiles while preserving URN-only saved-search results', async () => {
@@ -387,6 +595,47 @@ describe('Harmonic people retrieval', () => {
     })
   })
 
+  it('never trusts social map keys and returns only a later safe LinkedIn profile URL', async () => {
+    const result = await harmonicBatchGetPeopleTool.transformResponse!(
+      jsonResponse([
+        {
+          ...personFixture,
+          socials: {
+            LINKEDIN: { url: 'https://evil.example/linkedin.com/in/phishing' },
+            OTHER: {
+              url: 'https://www.linkedin.com/in/ada-safe?trk=provider#experience',
+            },
+          },
+        },
+      ])
+    )
+
+    expect(result.output.contacts[0].linkedinUrl).toBe('https://www.linkedin.com/in/ada-safe')
+  })
+
+  it('falls back to the first current title when the LinkedIn headline is unavailable', async () => {
+    const result = await harmonicBatchGetPeopleTool.transformResponse!(
+      jsonResponse([{ ...personFixture, linkedin_headline: null }])
+    )
+    expect(result.output.contacts[0].headline).toBe('Forward Deployed Engineer')
+  })
+
+  it.each([undefined, 'not-a-uuid', 1.5, Number.MAX_SAFE_INTEGER + 1])(
+    'rejects a full person with invalid required ID %s',
+    async (id) => {
+      const person = { entity_urn: 'urn:harmonic:person:invalid-id', id }
+
+      await expect(
+        harmonicBatchGetPeopleTool.transformResponse!(jsonResponse([person]))
+      ).rejects.toThrow(/invalid ID/)
+      await expect(
+        harmonicGetPeopleSavedSearchResultsTool.transformResponse!(
+          jsonResponse({ results: [person] })
+        )
+      ).rejects.toThrow(/invalid ID/)
+    }
+  )
+
   it('fails closed if a people saved search returns another entity type', async () => {
     await expect(
       harmonicGetPeopleSavedSearchResultsTool.transformResponse!(
@@ -402,12 +651,15 @@ describe('Harmonic people retrieval', () => {
   })
 
   it('accepts parsed or JSON-string batch identifiers and enforces the 500-person limit', () => {
-    expect(
-      buildBody(harmonicBatchGetPeopleTool, {
-        personIds: '[1,"2",1]',
-        personUrns: ['urn:harmonic:person:3'],
-      })
-    ).toEqual({ ids: [1, 2], urns: ['urn:harmonic:person:3'] })
+    const body = buildBody(harmonicBatchGetPeopleTool, {
+      personIds: '[1,"2",1]',
+      personUrns: ['urn:harmonic:person:3'],
+    })
+    expect(body).toEqual({
+      ids: [1, 2],
+      urns: ['urn:harmonic:person:3'],
+      include_fields: HARMONIC_PERSON_INCLUDE_FIELDS,
+    })
 
     expect(() => buildBody(harmonicBatchGetPeopleTool, {})).toThrow(/at least one/)
     expect(() =>
@@ -416,8 +668,28 @@ describe('Harmonic people retrieval', () => {
       })
     ).toThrow(/at most 500/)
     expect(() =>
+      buildBody(harmonicBatchGetPeopleTool, {
+        personIds: Array.from({ length: 501 }, () => 1),
+      })
+    ).toThrow(/at most 500/)
+    expect(() =>
       buildBody(harmonicBatchGetPeopleTool, { personUrns: ['urn:harmonic:company:1'] })
     ).toThrow(/person URNs/)
+
+    for (const id of [
+      true,
+      [5],
+      ' ',
+      '1e2',
+      '0x10',
+      1.5,
+      Number.POSITIVE_INFINITY,
+      Number.MAX_SAFE_INTEGER + 1,
+    ]) {
+      expect(() => buildBody(harmonicBatchGetPeopleTool, { personIds: [id] })).toThrow(
+        /safe decimal integer/
+      )
+    }
   })
 
   it('returns the shared contact shape from Batch Get People', async () => {
@@ -436,6 +708,17 @@ describe('Harmonic people retrieval', () => {
     expect(Object.keys(result.output.contacts[0])).toEqual(
       Object.keys(harmonicBatchGetPeopleTool.outputs!.contacts.items!.properties!)
     )
+    for (const field of [
+      'currentTitles',
+      'currentCompanyNames',
+      'currentCompanyUrns',
+      'emails',
+      'phoneNumbers',
+    ]) {
+      expect(harmonicBatchGetPeopleTool.outputs!.contacts.items!.properties?.[field].nullable).toBe(
+        true
+      )
+    }
     expect(result.output.contacts[1]).toEqual({
       personUrn: 'urn:harmonic:person:redacted',
       personId: null,
@@ -443,12 +726,12 @@ describe('Harmonic people retrieval', () => {
       firstName: null,
       lastName: null,
       headline: null,
-      currentTitles: [],
-      currentCompanyNames: [],
-      currentCompanyUrns: [],
+      currentTitles: null,
+      currentCompanyNames: null,
+      currentCompanyUrns: null,
       primaryEmail: null,
-      emails: [],
-      phoneNumbers: [],
+      emails: null,
+      phoneNumbers: null,
       linkedinUrl: null,
       formattedLocation: null,
       city: null,

@@ -25,14 +25,15 @@ export const harmonicGetPeopleSavedSearchResultsTool: ToolConfig<
   description:
     'Get one page of a Harmonic people saved search. Full records become contacts; URN-only rows are exposed for Batch Get People.',
   version: '1.0.0',
-  errorExtractor: ErrorExtractorId.STANDARD_MESSAGE,
+  oauth: { required: true, provider: 'harmonic' },
+  errorExtractor: ErrorExtractorId.HARMONIC_ERRORS,
 
   params: {
-    apiKey: {
+    accessToken: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Harmonic team API key, sent in the apikey header',
+      visibility: 'hidden',
+      description: 'Harmonic credential resolved by the connected account',
     },
     savedSearchId: {
       type: 'string',
@@ -64,7 +65,7 @@ export const harmonicGetPeopleSavedSearchResultsTool: ToolConfig<
         params.cursor
       ),
     method: 'GET',
-    headers: (params) => harmonicHeaders(params.apiKey),
+    headers: (params) => harmonicHeaders(params.accessToken),
   },
 
   transformResponse: async (response) => {

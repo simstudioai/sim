@@ -45,11 +45,14 @@ describe('HarmonicBlock', () => {
             : [output.condition.value]
           return values.includes(operation)
         })
-        .map(([name]) => name)
+        .map(([name, output]) => [name, output.type])
 
-      expect(new Set(blockOutputs), `${operation} block outputs`).toEqual(
-        new Set(Object.keys(tool.outputs ?? {}))
-      )
+      const toolOutputs = Object.entries(tool.outputs ?? {}).map(([name, output]) => [
+        name,
+        output.type === 'object' ? 'json' : output.type,
+      ])
+
+      expect(new Map(blockOutputs), `${operation} block outputs`).toEqual(new Map(toolOutputs))
     }
   })
 
@@ -78,34 +81,112 @@ describe('HarmonicBlock', () => {
     )
   })
 
-  it('keeps the API key password-protected and user-only', () => {
-    const apiKey = HarmonicBlock.subBlocks.find((subBlock) => subBlock.id === 'apiKey')
-    expect(apiKey).toMatchObject({ password: true, required: true, paramVisibility: 'user-only' })
+  it('uses one reusable service-account credential with a canonical manual fallback', () => {
+    const credential = HarmonicBlock.subBlocks.find((subBlock) => subBlock.id === 'credential')
+    const manualCredential = HarmonicBlock.subBlocks.find(
+      (subBlock) => subBlock.id === 'manualCredential'
+    )
+
+    expect(credential).toMatchObject({
+      type: 'oauth-input',
+      serviceId: 'harmonic',
+      credentialKind: 'service-account',
+      canonicalParamId: 'oauthCredential',
+      mode: 'basic',
+      required: true,
+    })
+    expect(manualCredential).toMatchObject({
+      type: 'short-input',
+      canonicalParamId: 'oauthCredential',
+      mode: 'advanced',
+      required: true,
+    })
+    expect(HarmonicBlock.subBlocks.some((subBlock) => subBlock.id === 'apiKey')).toBe(false)
   })
 
-  it('never hides a required field behind advanced mode', () => {
-    const advancedRequired = HarmonicBlock.subBlocks
-      .filter((subBlock) => subBlock.mode === 'advanced' && subBlock.required)
-      .map((subBlock) => subBlock.id)
+  it('pairs saved-search discovery with a canonical manual ID or URN fallback', () => {
+    const selector = HarmonicBlock.subBlocks.find(
+      (subBlock) => subBlock.id === 'savedSearchSelector'
+    )
+    const manual = HarmonicBlock.subBlocks.find((subBlock) => subBlock.id === 'savedSearchIdManual')
 
-    expect(advancedRequired).toEqual([])
+    expect(selector).toMatchObject({
+      type: 'project-selector',
+      serviceId: 'harmonic',
+      selectorKey: 'harmonic.savedSearches',
+      canonicalParamId: 'savedSearchId',
+      dependsOn: ['credential'],
+      mode: 'basic',
+    })
+    expect(manual).toMatchObject({
+      type: 'short-input',
+      canonicalParamId: 'savedSearchId',
+      mode: 'advanced',
+    })
   })
 
-  it('forwards only the Scout query and API key for natural-language search', () => {
+  it('declares the complete canonical input contract with precise types', () => {
+    expect(HarmonicBlock.inputs).toEqual({
+      operation: { type: 'string', description: 'Harmonic operation to perform' },
+      oauthCredential: {
+        type: 'string',
+        description: 'Reusable Harmonic team API-key credential',
+      },
+      query: { type: 'string', description: 'Natural-language Harmonic Scout people query' },
+      savedSearchId: { type: 'string', description: 'People saved-search ID or full URN' },
+      personIds: { type: 'array', description: 'Numeric Harmonic person IDs to retrieve' },
+      personUrns: { type: 'array', description: 'Harmonic person URNs to retrieve' },
+      size: { type: 'number', description: 'Saved-search page size, clamped to 1-100' },
+      cursor: { type: 'string', description: 'Opaque saved-search pagination cursor' },
+    })
+  })
+
+  it('uses advanced required fields only as canonical fallbacks for required basic fields', () => {
+    const advancedRequired = HarmonicBlock.subBlocks.filter(
+      (subBlock) => subBlock.mode === 'advanced' && subBlock.required
+    )
+
+    expect(advancedRequired.map((subBlock) => subBlock.id)).toEqual([
+      'manualCredential',
+      'savedSearchIdManual',
+    ])
+    for (const advanced of advancedRequired) {
+      expect(advanced.canonicalParamId).toBeTruthy()
+      expect(
+        HarmonicBlock.subBlocks.some(
+          (subBlock) =>
+            subBlock.mode === 'basic' &&
+            subBlock.required &&
+            subBlock.canonicalParamId === advanced.canonicalParamId
+        )
+      ).toBe(true)
+    }
+  })
+
+  it('forwards only the Scout query and reusable credential for natural-language search', () => {
     const params = resolve({
       operation: 'harmonic_search_people_scout',
-      apiKey: 'team-key',
+      oauthCredential: 'credential-id',
+      apiKey: 'retired-inline-key',
       query: 'Find FDEs in enterprise software',
       savedSearchId: 'stale-search',
+      savedSearchSelector: 'stale-selector-value',
+      savedSearchIdManual: 'stale-manual-value',
       personIds: '[22]',
       personUrns: '["urn:harmonic:person:22"]',
       size: '50',
       cursor: 'stale-cursor',
     })
 
-    expect(params).toMatchObject({ apiKey: 'team-key', query: 'Find FDEs in enterprise software' })
+    expect(params).toMatchObject({
+      oauthCredential: 'credential-id',
+      query: 'Find FDEs in enterprise software',
+    })
+    expect(params.apiKey).toBeUndefined()
     expect(params.operation).toBeUndefined()
     expect(params.savedSearchId).toBeUndefined()
+    expect(params.savedSearchSelector).toBeUndefined()
+    expect(params.savedSearchIdManual).toBeUndefined()
     expect(params.personIds).toBeUndefined()
     expect(params.personUrns).toBeUndefined()
     expect(params.size).toBeUndefined()
@@ -115,18 +196,18 @@ describe('HarmonicBlock', () => {
   it('coerces pagination only for paged reads', () => {
     const savedSearch = resolve({
       operation: 'harmonic_get_people_saved_search_results',
-      apiKey: 'team-key',
+      oauthCredential: 'credential-id',
       savedSearchId: 'urn:harmonic:saved_search:123',
       size: '75',
       cursor: 'opaque-token',
     })
     expect(savedSearch.savedSearchId).toBe('urn:harmonic:saved_search:123')
-    expect(savedSearch.size).toBe(75)
+    expect(savedSearch.size).toBe('75')
     expect(savedSearch.cursor).toBe('opaque-token')
 
     const list = resolve({
       operation: 'harmonic_list_people_saved_searches',
-      apiKey: 'team-key',
+      oauthCredential: 'credential-id',
       size: '75',
       cursor: 'opaque-token',
     })
@@ -134,19 +215,19 @@ describe('HarmonicBlock', () => {
     expect(list.cursor).toBeUndefined()
   })
 
-  it('parses batch identifiers from JSON strings and preserves resolved arrays', () => {
+  it('passes batch identifier strings to the secret-safe tool boundary and preserves arrays', () => {
     const parsed = resolve({
       operation: 'harmonic_batch_get_people',
-      apiKey: 'team-key',
+      oauthCredential: 'credential-id',
       personIds: '[22,1690]',
       personUrns: '["urn:harmonic:person:44"]',
     })
-    expect(parsed.personIds).toEqual([22, 1690])
-    expect(parsed.personUrns).toEqual(['urn:harmonic:person:44'])
+    expect(parsed.personIds).toBe('[22,1690]')
+    expect(parsed.personUrns).toBe('["urn:harmonic:person:44"]')
 
     const direct = resolve({
       operation: 'harmonic_batch_get_people',
-      apiKey: 'team-key',
+      oauthCredential: 'credential-id',
       personIds: [22],
       personUrns: ['urn:harmonic:person:44'],
     })
@@ -154,14 +235,14 @@ describe('HarmonicBlock', () => {
     expect(direct.personUrns).toEqual(['urn:harmonic:person:44'])
   })
 
-  it('surfaces malformed JSON instead of forwarding an ambiguous value', () => {
-    expect(() =>
+  it('does not parse malformed batch JSON before the secret-safe tool boundary', () => {
+    expect(
       resolve({
         operation: 'harmonic_batch_get_people',
-        apiKey: 'team-key',
+        oauthCredential: 'credential-id',
         personUrns: '[not-json]',
-      })
-    ).toThrow(SyntaxError)
+      }).personUrns
+    ).toBe('[not-json]')
   })
 
   it('declares stable contact outputs for every contact-producing operation', () => {
@@ -177,6 +258,10 @@ describe('HarmonicBlock', () => {
     )
     expect(HarmonicBlock.outputs.contacts.description).toContain('personUrn')
     expect(HarmonicBlock.outputs.contacts.description).toContain('linkedinUrl')
+    expect(HarmonicBlock.outputs.contacts.type).toBe('array')
+    expect(HarmonicBlock.outputs.savedSearches.type).toBe('array')
+    expect(HarmonicBlock.outputs.personUrns.type).toBe('array')
+    expect(HarmonicBlock.outputs.pageInfo.type).toBe('json')
   })
 
   it('ships research-grounded metadata with concrete templates and skills', () => {
