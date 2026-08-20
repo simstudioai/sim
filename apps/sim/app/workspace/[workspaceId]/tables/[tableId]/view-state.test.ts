@@ -6,9 +6,32 @@ import type { TableViewWire } from '@/lib/api/contracts/tables'
 import { ALL_VIEW_PARAM } from '@/app/workspace/[workspaceId]/tables/[tableId]/search-params'
 import {
   getTableViewRevision,
+  resolveTableViewConfig,
   resolveTableViewSelection,
   shouldApplyTableViewRevision,
 } from '@/app/workspace/[workspaceId]/tables/[tableId]/view-state'
+
+describe('resolveTableViewConfig', () => {
+  it('inherits layout metadata when an ungated default view is still empty', () => {
+    const metadata = {
+      columnWidths: { 'column-1': 240 },
+      columnOrder: ['column-1'],
+      pinnedColumns: ['column-1'],
+      hiddenColumns: ['column-2'],
+    }
+
+    expect(resolveTableViewConfig(metadata, {})).toEqual(metadata)
+  })
+
+  it('lets explicitly stored view fields override the metadata baseline', () => {
+    expect(
+      resolveTableViewConfig(
+        { columnWidths: { 'column-1': 240 }, pinnedColumns: ['column-1'] },
+        { columnWidths: { 'column-1': 180 }, pinnedColumns: [] }
+      )
+    ).toEqual({ columnWidths: { 'column-1': 180 }, pinnedColumns: [] })
+  })
+})
 
 const DEFAULT_VIEW: TableViewWire = {
   id: 'view-default',

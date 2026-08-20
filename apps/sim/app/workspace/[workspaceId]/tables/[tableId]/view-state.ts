@@ -1,10 +1,23 @@
 import type { TableViewWire } from '@/lib/api/contracts/tables'
+import type { TableMetadata, TableViewConfig } from '@/lib/table'
 import { ALL_VIEW_PARAM } from '@/app/workspace/[workspaceId]/tables/[tableId]/search-params'
 
 export interface TableViewSelection {
   selectedView: TableViewWire | null
   defaultView: TableViewWire | null
   activeView: TableViewWire | null
+}
+
+/**
+ * For fields shared with table metadata, a persisted view owns only what it has
+ * stored. Missing fields inherit values written before table views were enabled.
+ */
+export function resolveTableViewConfig(
+  metadata: TableMetadata | null | undefined,
+  viewConfig: TableViewConfig | null
+): TableViewConfig | null {
+  if (!viewConfig) return null
+  return { ...(metadata ?? {}), ...viewConfig }
 }
 
 /**

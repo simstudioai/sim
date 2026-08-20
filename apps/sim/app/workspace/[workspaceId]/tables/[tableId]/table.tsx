@@ -5,6 +5,7 @@ import { Chip, ChipConfirmModal, toast } from '@sim/emcn'
 import { Download, Lock, Pencil, Trash, Upload } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { isEqual } from 'es-toolkit'
 import { useParams, useRouter } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
 import { usePostHog } from 'posthog-js/react'
@@ -41,6 +42,7 @@ import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/provide
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import {
   getTableViewRevision,
+  resolveTableViewConfig,
   resolveTableViewSelection,
   shouldApplyTableViewRevision,
   type TableViewRevision,
@@ -379,6 +381,7 @@ export function Table({
     tableId,
     queryOptions,
   })
+  const tableAvailable = tableData !== undefined
   const createViewMutation = useCreateTableView({ workspaceId, tableId })
   const updateViewMutation = useUpdateTableView({ workspaceId, tableId })
   const updateMetadataMutation = useUpdateTableMetadata({ workspaceId, tableId })
@@ -387,6 +390,10 @@ export function Table({
   /** Resolve the default synchronously so the grid, autosave owner, and menu all
    *  agree before the URL effect records the adopted view id. */
   const { selectedView, defaultView, activeView } = resolveTableViewSelection(views, activeViewId)
+  const activeViewConfig = useMemo(
+    () => resolveTableViewConfig(tableData?.metadata, activeView?.config ?? null),
+    [tableData?.metadata, activeView?.config]
+  )
 
   const [viewModal, setViewModal] = useState<ViewModalState>(null)
   /** Which persisted view revision last seeded the local filter/sort/hidden state.
@@ -424,7 +431,7 @@ export function Table({
    * open panel would wipe keystrokes typed since the flush and steal focus.
    */
   const replaceFilter = useCallback((next: TablePredicate | null) => {
-    if (JSON.stringify(next) === JSON.stringify(filterRef.current)) return
+    if (isEqual(next, filterRef.current)) return
     setFilter(next)
     setFilterSeed((seed) => seed + 1)
   }, [])
@@ -458,12 +465,8 @@ export function Table({
   const layoutSnapshotRef = useRef<(() => TableMetadata) | null>(null)
   const readLayout = useCallback((): TableMetadata => layoutSnapshotRef.current?.() ?? {}, [])
 
-  /** Layout KEYS the user changed before the views query settled, when there was
-   *  no owner to write to. Values aren't recorded — the grid holds them live —
-   *  but the keys are, so a settle to All persists only what was touched. A full
-   *  snapshot would also carry keys the grid hasn't seeded yet (e.g. pins while
-   *  the slower detail query is still in flight) and wipe them in metadata. */
-  const pendingLayoutKeysRef = useRef<Set<keyof TableMetadata> | null>(null)
+  /** Layout patch the user committed before the views query identified its owner. */
+  const pendingLayoutPatchRef = useRef<TableMetadata | null>(null)
 
   /** Whether the resolve effect has decided the initial owner — including the
    *  terminal-error fallback to All. Until then a write that reads "All" might
@@ -473,31 +476,24 @@ export function Table({
   /**
    * Resolves that pending layout once the resolve effect has picked an owner.
    *
-   * Settling on All re-seeds nothing — `viewLayoutKey` never changed — so the
-   * user's resize is still on screen and has to be persisted or it silently
-   * disappears on refresh. Adopting a view instead re-seeds the grid from that
-   * view's config, which already replaced the gesture on screen, so it is dropped.
-   *
    * Called from the resolve effect rather than keyed on the URL selection:
-   * default adoption is resolved synchronously before that URL catches up, and
-   * an independent effect could flush to All in exactly the case that must drop.
+   * default adoption is resolved synchronously before that URL catches up.
    */
   const resolvePendingLayout = useCallback(
-    (adoptedView: boolean) => {
-      const keys = pendingLayoutKeysRef.current
-      pendingLayoutKeysRef.current = null
-      if (!keys || keys.size === 0) return
-      if (adoptedView || !userPermissions.canEdit) return
-      const live = readLayout()
-      const patch: TableMetadata = {}
-      if (keys.has('columnWidths') && live.columnWidths) patch.columnWidths = live.columnWidths
-      if (keys.has('columnOrder') && live.columnOrder) patch.columnOrder = live.columnOrder
-      if (keys.has('pinnedColumns') && live.pinnedColumns) {
-        patch.pinnedColumns = live.pinnedColumns
+    (viewId: string | null) => {
+      const patch = pendingLayoutPatchRef.current
+      pendingLayoutPatchRef.current = null
+      if (!patch || !userPermissions.canEdit) return
+      if (viewId) {
+        updateViewMutation.mutate(
+          { viewId, configPatch: patch },
+          { onError: (error) => toast.error(getErrorMessage(error, 'Failed to save layout')) }
+        )
+        return
       }
-      if (Object.keys(patch).length > 0) updateMetadataMutation.mutate(patch)
+      updateMetadataMutation.mutate(patch)
     },
-    [userPermissions.canEdit, readLayout]
+    [userPermissions.canEdit]
   )
 
   /** What the user has already set by hand when the first view resolves. */
@@ -568,10 +564,10 @@ export function Table({
     // through — the list is still resolvable.
     if (viewsErrored && !viewsAvailable) {
       ownerResolvedRef.current = true
-      resolvePendingLayout(false)
+      resolvePendingLayout(null)
       return
     }
-    if (!viewsAvailable) return
+    if (!viewsAvailable || !tableAvailable) return
     ownerResolvedRef.current = true
     if (appliedViewRevisionRef.current === undefined) {
       // Embedded tables bind these parsers to the HOST page's URL, which the
@@ -597,8 +593,8 @@ export function Table({
           appliedViewRevisionRef.current = getTableViewRevision(defaultView)
           setTableParams({ view: defaultView.id })
           preserveViewState(defaultView.id, keep)
-          applyViewConfig(defaultView.config, keep)
-          resolvePendingLayout(true)
+          applyViewConfig(resolveTableViewConfig(tableData?.metadata, defaultView.config), keep)
+          resolvePendingLayout(defaultView.id)
           flushPendingViewConfig(defaultView.id)
           return
         }
@@ -607,12 +603,12 @@ export function Table({
         // exception: nothing about them refers to this table, so they're cleared.
         appliedViewRevisionRef.current = getTableViewRevision(null)
         if (inheritedParams) setTableParams({ view: ALL_VIEW_PARAM, sort: null, dir: null })
-        resolvePendingLayout(false)
+        resolvePendingLayout(null)
         return
       }
       if (activeViewId === ALL_VIEW_PARAM) {
         appliedViewRevisionRef.current = getTableViewRevision(null)
-        resolvePendingLayout(false)
+        resolvePendingLayout(null)
         return
       }
       // A `?view=` that resolves to nothing adopts the persisted default when
@@ -620,15 +616,15 @@ export function Table({
       const viewToAdopt = selectedView ?? defaultView
       const keep = localWork()
       appliedViewRevisionRef.current = getTableViewRevision(viewToAdopt)
-      resolvePendingLayout(viewToAdopt !== null)
+      resolvePendingLayout(viewToAdopt?.id ?? null)
       if (selectedView) {
         preserveViewState(selectedView.id, keep)
-        applyViewConfig(selectedView.config, keep)
+        applyViewConfig(resolveTableViewConfig(tableData?.metadata, selectedView.config), keep)
         flushPendingViewConfig(selectedView.id)
       } else if (defaultView) {
         setTableParams({ view: defaultView.id })
         preserveViewState(defaultView.id, keep)
-        applyViewConfig(defaultView.config, keep)
+        applyViewConfig(resolveTableViewConfig(tableData?.metadata, defaultView.config), keep)
         flushPendingViewConfig(defaultView.id)
       } else {
         // Nothing to apply, but the URL still names a view that no longer exists.
@@ -654,7 +650,7 @@ export function Table({
       preservedViewStateRef.current = null
       appliedViewRevisionRef.current = getTableViewRevision(defaultView)
       setTableParams({ view: defaultView?.id ?? ALL_VIEW_PARAM })
-      applyViewConfig(defaultView?.config ?? null)
+      applyViewConfig(resolveTableViewConfig(tableData?.metadata, defaultView?.config ?? null))
       return
     }
 
@@ -683,16 +679,18 @@ export function Table({
       pendingCreatedViewIdRef.current = null
     }
     const keep = preserved?.viewId === nextViewId ? preserved.keep : undefined
-    applyViewConfig(activeView?.config ?? null, keep)
+    applyViewConfig(activeViewConfig, keep)
     if (activeView) flushPendingViewConfig(activeView.id)
   }, [
     viewsEnabled,
     viewsAvailable,
     viewsErrored,
+    tableAvailable,
     views,
     selectedView,
     defaultView,
     activeView,
+    activeViewConfig,
     activeViewId,
     embedded,
     sortColumn,
@@ -702,6 +700,7 @@ export function Table({
     resolvePendingLayout,
     preserveViewState,
     flushPendingViewConfig,
+    tableData?.metadata,
   ])
 
   /**
@@ -810,12 +809,9 @@ export function Table({
         return
       }
       // Owner reads "All", but the resolve effect hasn't confirmed that yet —
-      // record the touched keys; `resolvePendingLayout` decides at settle.
+      // retain the exact gesture so adoption can save it to the selected owner.
       if (!ownerResolvedRef.current) {
-        pendingLayoutKeysRef.current ??= new Set()
-        for (const key of Object.keys(patch) as (keyof TableMetadata)[]) {
-          pendingLayoutKeysRef.current.add(key)
-        }
+        pendingLayoutPatchRef.current = { ...pendingLayoutPatchRef.current, ...patch }
         return
       }
       updateMetadataMutation.mutate(patch)
@@ -1555,7 +1551,7 @@ export function Table({
         onSelectionChange={onSelectionChange}
         queryOptions={queryOptions}
         hiddenColumns={effectiveHiddenColumns}
-        viewLayout={activeView?.config ?? null}
+        viewLayout={activeViewConfig}
         viewLayoutKey={activeView?.id ?? null}
         // Always bound while views are enabled: the router reads the owner at
         // call time (buffer / view / All-metadata), so no binding gap can send a
