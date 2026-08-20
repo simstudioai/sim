@@ -90,6 +90,21 @@ function buildOption(spec: ChartSpec, rows: Array<Record<string, unknown>> | nul
   if (spec.title && option.title === undefined) {
     option.title = { text: spec.title }
   }
+  // Gentle layout defaults — fill in ONLY what the spec leaves unset. A title
+  // and a legend both default to the top edge and overlap; when both are
+  // present and the legend declares no position, drop it below the title.
+  const legend = option.legend
+  if (
+    option.title !== undefined &&
+    legend !== null &&
+    typeof legend === 'object' &&
+    !Array.isArray(legend)
+  ) {
+    const positioned = legend as Record<string, unknown>
+    if (positioned.top === undefined && positioned.bottom === undefined) {
+      positioned.top = 32
+    }
+  }
   return option as EChartsOption
 }
 
@@ -210,10 +225,17 @@ export const ChartPreview = memo(function ChartPreview({
   }
 
   const waitingOnRows = Boolean(tableSource) && !rowsQuery.data
+  // Width-driven aspect box, not full-bleed: a chart stretched to the whole
+  // panel height is unreadable in a tall resource pane. ECharts follows the
+  // box through the ResizeObserver above.
   return (
-    <div className='relative min-h-0 flex-1'>
-      {(!echartsLib || waitingOnRows) && <PreviewLoadingFrame className='h-full flex-1' />}
-      <div ref={containerRef} className='size-full min-h-[320px]' />
+    <div className='min-h-0 flex-1 overflow-auto p-6'>
+      <div className='relative mx-auto w-full max-w-[1024px]'>
+        {(!echartsLib || waitingOnRows) && (
+          <PreviewLoadingFrame className='absolute inset-0 z-10' />
+        )}
+        <div ref={containerRef} className='aspect-[16/10] min-h-[280px] w-full' />
+      </div>
     </div>
   )
 })
