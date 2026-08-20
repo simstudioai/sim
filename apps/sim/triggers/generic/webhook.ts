@@ -133,7 +133,24 @@ export const genericWebhookTrigger: TriggerConfig = {
     },
   ],
 
-  outputs: {},
+  /**
+   * Body fields stay undeclared because a generic webhook receives whatever JSON the caller
+   * sends. The request metadata below is known ahead of time, so it can be offered for reference.
+   */
+  outputs: {
+    method: {
+      type: 'string',
+      description: 'HTTP method of the request (GET, POST, PUT, PATCH or DELETE)',
+    },
+    query: {
+      type: 'object',
+      description: 'Query parameters from the request URL',
+    },
+    headers: {
+      type: 'object',
+      description: 'Request headers, excluding the ones that carry credentials',
+    },
+  },
 
   webhook: {
     method: 'POST',
