@@ -241,10 +241,33 @@ export async function cbInsightsRequest<T>(
   }
 }
 
+/**
+ * Accepts only a plain run of decimal digits.
+ *
+ * `Number` is far more permissive than an ID field should be: it reads `0x10`
+ * as 16 and `1e2` as 100, so a pasted value in either notation would resolve to
+ * a real but unintended organization and the request would spend credits on it.
+ */
+const DECIMAL_ID = /^\d+$/
+
+/** Coerces one entry to a positive integer ID, or returns null if it is not one. */
+function toOrgId(value: unknown): number | null {
+  if (typeof value === 'number') {
+    return Number.isInteger(value) && value > 0 ? value : null
+  }
+  if (typeof value !== 'string') return null
+
+  const trimmed = value.trim()
+  if (!DECIMAL_ID.test(trimmed)) return null
+
+  const parsed = Number(trimmed)
+  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : null
+}
+
 /** Validates the organization ID a path-scoped endpoint interpolates. */
 export function requireOrgId(value: unknown): number {
-  const parsed = typeof value === 'number' ? value : Number(String(value ?? '').trim())
-  if (!Number.isInteger(parsed) || parsed <= 0) {
+  const parsed = toOrgId(value)
+  if (parsed === null) {
     throw new Error(
       `CB Insights "orgId" must be a positive integer (received "${String(value ?? '')}")`
     )
@@ -309,10 +332,9 @@ function toPositiveIntegers(entries: readonly unknown[], paramName: string): num
   const ids: number[] = []
 
   for (const entry of entries) {
-    const label = typeof entry === 'number' ? String(entry) : String(entry).trim()
-    const parsed = typeof entry === 'number' ? entry : Number(label)
-    if (!Number.isInteger(parsed) || parsed <= 0) {
-      invalid.push(label)
+    const parsed = toOrgId(entry)
+    if (parsed === null) {
+      invalid.push(typeof entry === 'string' ? entry.trim() : String(entry))
       continue
     }
     ids.push(parsed)

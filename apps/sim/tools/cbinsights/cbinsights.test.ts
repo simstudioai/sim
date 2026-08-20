@@ -313,6 +313,40 @@ describe('cbinsights request building', () => {
     })
   })
 
+  /*
+   * `Number` reads "0x10" as 16 and "1e2" as 100, so either notation would
+   * resolve to a real but unintended organization and bill for it. An ID field
+   * should only accept a plain run of digits.
+   */
+  it.each(['0x10', '1e2', '12.5', 'true', '', ' '])(
+    'rejects the alternate numeric notation %j in an ID list',
+    async (entry) => {
+      mockFetch([AUTH_OK])
+      await expect(
+        cbinsightsGetOrgOutlookTool.directExecution!({ ...CREDS, orgId: entry } as never)
+      ).rejects.toThrow(/"orgId" must be a positive integer/)
+    }
+  )
+
+  it('still accepts a plain decimal ID, with or without padding', async () => {
+    mockFetch([AUTH_OK, { body: {} }, { body: {} }])
+    await cbinsightsGetOrgOutlookTool.directExecution!({ ...CREDS, orgId: '  129410  ' } as never)
+    expect(calls[1].url).toContain('/organizations/129410/outlook')
+
+    await cbinsightsGetOrgOutlookTool.directExecution!({ ...CREDS, orgId: 129410 } as never)
+    expect(calls[2].url).toContain('/organizations/129410/outlook')
+  })
+
+  it('rejects an alternate numeric notation inside a bulk ID list', async () => {
+    mockFetch([AUTH_OK])
+    await expect(
+      cbinsightsListFundingsTool.directExecution!({
+        ...CREDS,
+        orgIds: '129410, 0x10',
+      } as never)
+    ).rejects.toThrow(/must contain only positive integers \(invalid: 0x10\)/)
+  })
+
   it('rejects a non-integer organization ID rather than interpolating it into the path', async () => {
     mockFetch([AUTH_OK])
     await expect(
