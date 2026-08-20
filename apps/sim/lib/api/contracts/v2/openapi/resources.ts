@@ -1,4 +1,12 @@
 import {
+  v2GetBlockContract,
+  v2GetToolContract,
+  v2ListBlocksContract,
+  v2ListConnectorTypesContract,
+  v2ListEnrichmentsContract,
+  v2ListToolsContract,
+} from '@/lib/api/contracts/v2/catalog'
+import {
   v2CreateCredentialConnectionContract,
   v2CreateServiceAccountCredentialContract,
   v2DeleteCredentialContract,
@@ -245,6 +253,7 @@ type ResourceTag =
   | 'Custom Tools'
   | 'Credentials'
   | 'Secrets'
+  | 'Catalog'
 
 function resourceOperation(
   tag: ResourceTag,
@@ -276,6 +285,145 @@ function resourceOperation(
     success,
   }
 }
+
+const BLOCK_SUMMARY_EXAMPLE = {
+  id: 'slack',
+  name: 'Slack',
+  description: 'Send messages and read channels in Slack.',
+  category: 'tools',
+  integrationType: 'communication',
+  source: 'builtin',
+  authMode: 'oauth',
+  triggerAllowed: true,
+  triggerCapable: true,
+  triggerIds: ['slack_webhook'],
+  toolIds: ['slack_message', 'slack_canvas_read'],
+  operationIds: ['send', 'read'],
+  preview: false,
+  docsLink: 'https://docs.sim.ai/tools/slack',
+  tags: ['messaging'],
+} as const
+
+const BLOCK_DETAIL_EXAMPLE = {
+  ...BLOCK_SUMMARY_EXAMPLE,
+  inputSchema: [
+    {
+      id: 'operation',
+      type: 'dropdown',
+      title: 'Operation',
+      required: true,
+      options: [
+        { id: 'send', label: 'Send message' },
+        { id: 'read', label: 'Read messages' },
+      ],
+    },
+  ],
+  operationInputSchema: {
+    send: [{ id: 'text', type: 'long-input', title: 'Message', required: true }],
+  },
+  inputDefinitions: {
+    channel: { type: 'string', description: 'Channel to post into.' },
+  },
+  operations: {
+    send: {
+      toolId: 'slack_message',
+      toolName: 'Slack Send Message',
+      description: 'Send a message to a Slack channel.',
+      inputs: { text: { type: 'string', required: true, description: 'Message body.' } },
+      outputs: { ts: { type: 'string', description: 'Message timestamp.' } },
+      inputSchema: [{ id: 'text', type: 'long-input', title: 'Message', required: true }],
+    },
+  },
+  tools: [
+    {
+      id: 'slack_message',
+      name: 'Slack Send Message',
+      description: 'Send a message to a Slack channel.',
+      version: '1.0.0',
+      hostedApiKey: 'none',
+      oauth: { required: true, provider: 'slack', requiredScopes: ['chat:write'] },
+      params: { text: { type: 'string', required: true, description: 'Message body.' } },
+      outputs: { ts: { type: 'string', description: 'Message timestamp.' } },
+    },
+  ],
+  triggers: [
+    {
+      id: 'slack_webhook',
+      outputs: { text: { type: 'string', description: 'Message text.' } },
+      configFields: {
+        channels: { type: 'short-input', required: false, title: 'Channels' },
+      },
+    },
+  ],
+  outputs: { ts: { type: 'string', description: 'Message timestamp.' } },
+} as const
+
+const TOOL_SUMMARY_EXAMPLE = {
+  id: 'slack_message',
+  name: 'Slack Send Message',
+  description: 'Send a message to a Slack channel.',
+  version: '1.0.0',
+  hostedApiKey: 'none',
+  oauth: { required: true, provider: 'slack', requiredScopes: ['chat:write'] },
+} as const
+
+const TOOL_DETAIL_EXAMPLE = {
+  ...TOOL_SUMMARY_EXAMPLE,
+  params: {
+    channel: { type: 'string', required: true, description: 'Channel ID to post into.' },
+    text: { type: 'string', required: true, description: 'Message body.' },
+  },
+  outputs: { ts: { type: 'string', description: 'Message timestamp.' } },
+} as const
+
+const CONNECTOR_TYPE_EXAMPLE = {
+  connectorType: 'google_drive',
+  name: 'Google Drive',
+  description: 'Sync documents from a Google Drive folder.',
+  version: '1.0.0',
+  auth: {
+    mode: 'oauth',
+    provider: 'google-drive',
+    requiredScopes: ['https://www.googleapis.com/auth/drive.readonly'],
+  },
+  configFields: [
+    {
+      id: 'folderSelector',
+      title: 'Folder',
+      type: 'selector',
+      selectorKey: 'google-drive-folder',
+      mimeType: 'application/vnd.google-apps.folder',
+      mode: 'basic',
+      canonicalParamId: 'folderId',
+      required: true,
+    },
+    {
+      id: 'manualFolderId',
+      title: 'Folder ID',
+      type: 'short-input',
+      placeholder: 'Enter the folder ID',
+      mode: 'advanced',
+      canonicalParamId: 'folderId',
+    },
+  ],
+  supportsIncrementalSync: true,
+  tagDefinitions: [{ id: 'owner', displayName: 'Owner', fieldType: 'text' }],
+} as const
+
+const ENRICHMENT_EXAMPLE = {
+  id: 'work-email',
+  name: 'Work email',
+  description: 'Find a person’s work email from their name and company.',
+  inputs: [
+    { id: 'fullName', name: 'Full name', type: 'string', required: true },
+    { id: 'domain', name: 'Company domain', type: 'string', required: true },
+  ],
+  outputs: [{ id: 'email', name: 'Work email', type: 'string' }],
+  providers: [
+    { id: 'hunter', label: 'Hunter', toolId: 'hunter_email_finder' },
+    { id: 'pdl', label: 'People Data Labs', toolId: 'peopledatalabs_person_enrich' },
+  ],
+} as const
 
 const declaredRoutes = [
   defineOpenApiRoute(
@@ -1105,6 +1253,172 @@ const declaredRoutes = [
       ),
     }
   ),
+  defineOpenApiRoute(
+    v2ListBlocksContract,
+    resourceOperation('Catalog', {
+      operationId: 'listBlocks',
+      summary: 'List Blocks',
+      description:
+        'List the blocks available in a workspace, built-in and workspace-deployed alike, discriminated by `source`. Availability is caller-specific: the workspace’s integration allowlist, the organization’s revealed preview blocks, and the deployment’s allowlist all narrow the result. Use `capability=trigger` for the blocks that can start a workflow. Summaries name their tools and operations by id — resolve one with Get Block or Get Tool.',
+      errors: RESOURCE_ERRORS,
+      success: { description: 'A page of blocks available in the workspace.' },
+    }),
+    {
+      query: documentedSchema(
+        v2ListBlocksContract.query,
+        'ListBlocksQuery',
+        'List blocks query',
+        'Workspace scope, catalog filters, sort, and pagination.'
+      ),
+      response: documentedSchema(
+        v2ListBlocksContract.response.schema,
+        'ListBlocksResponse',
+        'List blocks response',
+        'Blocks available in the workspace.',
+        [{ data: [BLOCK_SUMMARY_EXAMPLE], nextCursor: null }]
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2GetBlockContract,
+    resourceOperation('Catalog', {
+      operationId: 'getBlock',
+      summary: 'Get Block',
+      description:
+        'Read one block’s full configuration shape: its fields and their conditions, its operations with the tool each runs, every tool’s parameters and outputs, and its triggers. A block this caller cannot see answers 404, identically to one that does not exist.',
+      errors: RESOURCE_ERRORS,
+      success: { description: 'The block.' },
+    }),
+    {
+      params: documentedSchema(
+        v2GetBlockContract.params,
+        'GetBlockParams',
+        'Get block path parameters',
+        'Block selected for retrieval.'
+      ),
+      query: documentedSchema(
+        v2GetBlockContract.query,
+        'GetBlockQuery',
+        'Get block query',
+        'Workspace whose availability rules are applied.'
+      ),
+      response: documentedSchema(
+        v2GetBlockContract.response.schema,
+        'GetBlockResponse',
+        'Get block response',
+        'One block with its fields, operations, tools, and triggers.',
+        [{ data: BLOCK_DETAIL_EXAMPLE }]
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2ListToolsContract,
+    resourceOperation('Catalog', {
+      operationId: 'listTools',
+      summary: 'List Tools',
+      description:
+        'List the built-in tools available in a workspace. Built-in tools only: a workspace’s MCP tools are discovered per server on List MCP Server Tools, and its code-backed custom tools are on List Custom Tools. A tool is available when a block the caller can see exposes it, so the same allowlist and visibility rules as List Blocks apply.',
+      errors: RESOURCE_ERRORS,
+      success: { description: 'A page of built-in tools available in the workspace.' },
+    }),
+    {
+      query: documentedSchema(
+        v2ListToolsContract.query,
+        'ListToolsQuery',
+        'List tools query',
+        'Workspace scope, tool filters, sort, and pagination.'
+      ),
+      response: documentedSchema(
+        v2ListToolsContract.response.schema,
+        'ListToolsResponse',
+        'List tools response',
+        'Built-in tools available in the workspace.',
+        [{ data: [TOOL_SUMMARY_EXAMPLE], nextCursor: null }]
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2GetToolContract,
+    resourceOperation('Catalog', {
+      operationId: 'getTool',
+      summary: 'Get Tool',
+      description:
+        'Read one built-in tool’s declared parameters and outputs. An unversioned name resolves to the newest version — `gmail_send` answers with `gmail_send_v2` — and the returned `id` is always the resolved one, so a caller can see which version it got.',
+      errors: RESOURCE_ERRORS,
+      success: { description: 'The tool.' },
+    }),
+    {
+      params: documentedSchema(
+        v2GetToolContract.params,
+        'GetToolParams',
+        'Get tool path parameters',
+        'Tool selected for retrieval. An unversioned name resolves to the newest version.'
+      ),
+      query: documentedSchema(
+        v2GetToolContract.query,
+        'GetToolQuery',
+        'Get tool query',
+        'Workspace whose availability rules are applied.'
+      ),
+      response: documentedSchema(
+        v2GetToolContract.response.schema,
+        'GetToolResponse',
+        'Get tool response',
+        'One built-in tool with its parameters and outputs.',
+        [{ data: TOOL_DETAIL_EXAMPLE }]
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2ListConnectorTypesContract,
+    resourceOperation('Catalog', {
+      operationId: 'listConnectorTypes',
+      summary: 'List Connector Types',
+      description: `List every knowledge-base connector type and the source configuration each accepts. Two properties of a config field decide how its value is sent and are not inferable from the rest: a field with \`multi: true\` stores a \`string[]\` rather than a \`string\`, and a \`canonicalParamId\` links a picker field to a manual-entry field that write the SAME configuration key — send exactly one of the pair, keyed by \`canonicalParamId\` rather than by the field's own \`id\`. ${FULL_SET_LIST}`,
+      errors: RESOURCE_ERRORS,
+      success: { description: 'The connector-type catalog.' },
+    }),
+    {
+      query: documentedSchema(
+        v2ListConnectorTypesContract.query,
+        'ListConnectorTypesQuery',
+        'List connector types query',
+        'Workspace scope and optional connector-name search.'
+      ),
+      response: documentedSchema(
+        v2ListConnectorTypesContract.response.schema,
+        'ListConnectorTypesResponse',
+        'List connector types response',
+        'Knowledge-base connector types and their configuration fields.',
+        [{ data: [CONNECTOR_TYPE_EXAMPLE], nextCursor: null }]
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2ListEnrichmentsContract,
+    resourceOperation('Catalog', {
+      operationId: 'listEnrichments',
+      summary: 'List Enrichments',
+      description: `List every code-defined table enrichment, the per-row inputs it needs, the columns it fills, and the providers it draws from. Providers are listed in the order they are attempted: the first to return a non-empty result fills the cell. ${FULL_SET_LIST}`,
+      errors: RESOURCE_ERRORS,
+      success: { description: 'The enrichment catalog.' },
+    }),
+    {
+      query: documentedSchema(
+        v2ListEnrichmentsContract.query,
+        'ListEnrichmentsQuery',
+        'List enrichments query',
+        'Workspace scope and optional enrichment-name search.'
+      ),
+      response: documentedSchema(
+        v2ListEnrichmentsContract.response.schema,
+        'ListEnrichmentsResponse',
+        'List enrichments response',
+        'Table enrichments and their provider cascades.',
+        [{ data: [ENRICHMENT_EXAMPLE], nextCursor: null }]
+      ),
+    }
+  ),
 ] as const
 
 const routes = declaredRoutes.map(withRequestBodyErrors)
@@ -1114,7 +1428,7 @@ export const resourcesOpenApiDocument = defineOpenApiDocument({
   info: {
     title: 'Sim API v2 — Workspace Resources',
     description:
-      'Version 2 of the Sim REST API for workspace metadata, members, MCP servers, skills, custom tools, credentials, and write-only secrets.',
+      'Version 2 of the Sim REST API for workspace metadata, members, MCP servers, skills, custom tools, credentials, write-only secrets, and the block, tool, connector-type, and enrichment catalogs.',
     version: '2.0.0',
     contact: {
       name: 'Sim Support',
@@ -1152,6 +1466,11 @@ export const resourcesOpenApiDocument = defineOpenApiDocument({
     {
       name: 'Secrets',
       description: 'Set and manage write-only workspace and personal secret values.',
+    },
+    {
+      name: 'Catalog',
+      description:
+        'Discover the blocks, built-in tools, knowledge-base connector types, and table enrichments available in a workspace.',
     },
   ],
   security: V2_API_KEY_SECURITY,

@@ -214,6 +214,70 @@ sim billing logs [options]
 
 </CommandTable>
 
+## sim blocks
+
+### sim blocks get
+
+Get Block
+
+```bash
+sim blocks get <blockId>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `blockId` | Yes | Block type identifier. |
+
+</CommandTable>
+
+### sim blocks list
+
+List Blocks
+
+```bash
+sim blocks list [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--search <value>` | No | Case-insensitive substring match against the block id, name, and description. |
+| `--category <value>` | No | Restrict to one toolbar category. Accepted values: `blocks`, `tools`, `triggers`. |
+| `--capability <value>` | No | Restrict to blocks that can start a workflow — the `triggers` category, blocks declaring `triggerAllowed`, and blocks with trigger-mode fields. Accepted values: `trigger`. |
+| `--source <value>` | No | Restrict to shipped blocks or to this workspace’s deployed custom blocks. Accepted values: `builtin`, `custom`. |
+| `--sort-by <value>` | No | Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order. Accepted values: `id`, `name`, `category`. |
+| `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+
+</CommandTable>
+
+## sim connector-types
+
+### sim connector-types list
+
+List Connector Types
+
+```bash
+sim connector-types list [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--search <value>` | No | Case-insensitive substring match against the connector name. |
+
+</CommandTable>
+
 ## sim credentials
 
 Also spelled `sim credential`.
@@ -482,6 +546,26 @@ sim custom-tools update <id> [options]
 | `--title <value>` | No | New display title for the tool. |
 | `--schema <json\|@file>` | No | OpenAI function schema: &#123;"type":"function","function":&#123;"name":"...","parameters":&#123;"type":"object","properties":&#123;&#125;&#125;&#125;&#125; (JSON, or @path / @- to read a file or stdin). |
 | `--code <value>` | No | Replacement tool implementation. |
+
+</CommandTable>
+
+## sim enrichments
+
+### sim enrichments list
+
+List Enrichments
+
+```bash
+sim enrichments list [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--search <value>` | No | Case-insensitive substring match against the enrichment name. |
 
 </CommandTable>
 
@@ -3096,6 +3180,49 @@ sim tables mkdir <path>
 | Argument | Required | Description |
 | --- | --- | --- |
 | `path` | Yes | Folder path to create; the leading / is optional |
+
+</CommandTable>
+
+## sim tools
+
+### sim tools get
+
+Get Tool
+
+```bash
+sim tools get <toolId>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `toolId` | Yes | Tool identifier. An unversioned name resolves to the newest version, and the response echoes the resolved id. |
+
+</CommandTable>
+
+### sim tools list
+
+List Tools
+
+```bash
+sim tools list [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--search <value>` | No | Case-insensitive substring match against the tool id, name, and description. |
+| `--hosted-api-key <value>` | No | Restrict to tools by how their API key is supplied. Accepted values: `always`, `conditional`, `none`. |
+| `--oauth-provider <value>` | No | Restrict to tools that authenticate against this OAuth service. |
+| `--sort-by <value>` | No | Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order. Accepted values: `id`, `name`. |
+| `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
 
 </CommandTable>
 

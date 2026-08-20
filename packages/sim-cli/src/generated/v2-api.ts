@@ -2497,6 +2497,204 @@ export type GetBillingStatusResponse = {
   data: GetBillingStatusResponseRef0
 }
 
+/** `GET /api/v2/blocks/[blockId]` */
+export type GetBlockParams = {
+  blockId: string
+}
+
+export type GetBlockQuery = {
+  workspaceId: string
+}
+
+type GetBlockResponseRef0 = {
+  id: string
+  type: string
+  title?: string
+  required?: boolean
+  requiredWhen?: GetBlockResponseRef1
+  description?: string
+  placeholder?: string
+  mode?: string
+  hidden?: boolean
+  condition?: GetBlockResponseRef1
+  options?: Array<{
+    id: string
+    label?: string
+    hasIcon?: boolean
+  }>
+  min?: number
+  max?: number
+  step?: number
+  integer?: boolean
+  rows?: number
+  password?: boolean
+  multiSelect?: boolean
+  language?: string
+  generationType?: string
+  serviceId?: string
+  requiredScopes?: Array<string>
+  mimeType?: string
+  acceptedTypes?: string
+  multiple?: boolean
+  maxSize?: number
+  connectionDroppable?: boolean
+  columns?: Array<string>
+  dependsOn?:
+    | Array<string>
+    | {
+        all?: Array<string>
+        any?: Array<string>
+      }
+  canonicalParamId?: string
+  defaultValue?: string | number | boolean | Record<string, unknown> | Array<unknown>
+  hasComputedDefault?: boolean
+}
+
+type GetBlockResponseRef1 = {
+  field: string
+  value: string | number | boolean | Array<string | number | boolean>
+  not?: boolean
+  and?: {
+    field: string
+    value?: string | number | boolean | Array<string | number | boolean>
+    not?: boolean
+  }
+}
+
+type GetBlockResponseRef2 = {
+  type: string
+  required?: boolean
+  visibility?: string
+  description?: string
+  default?: unknown
+  items?: unknown
+  schema?: unknown
+}
+
+type GetBlockResponseRef3 = {
+  type: string
+  description?: string
+  optional?: boolean
+  nullable?: boolean
+  properties?: Record<string, unknown>
+  items?: {
+    type: string
+    description?: string
+    properties?: Record<string, unknown>
+  }
+  fileConfig?: {
+    mimeType?: string
+    extension?: string
+  }
+}
+
+type GetBlockResponseRef4 = {
+  id: string
+  name: string
+  description: string
+  version?: string
+  hostedApiKey: 'always' | 'conditional' | 'none'
+  oauth?: {
+    required: boolean
+    provider: string
+    requiredScopes?: Array<string>
+  }
+  params: Record<string, GetBlockResponseRef5>
+  outputs: Record<string, GetBlockResponseRef3>
+}
+
+type GetBlockResponseRef5 = {
+  type: string
+  required?: boolean
+  visibility?: string
+  description?: string
+  default?: unknown
+  items?: unknown
+}
+
+type GetBlockResponseRef6 = {
+  id: string
+  name: string
+  description: string
+  longDescription?: string
+  category: string
+  integrationType?: string
+  source: 'builtin' | 'custom'
+  authMode?: string
+  triggerAllowed: boolean
+  triggerCapable: boolean
+  triggerIds: Array<string>
+  toolIds: Array<string>
+  operationIds: Array<string>
+  preview: boolean
+  sunset?: {
+    status: 'legacy' | 'deprecated'
+    replacedBy?: string
+  }
+  docsLink?: string
+  tags: Array<string>
+  bestPractices?: string
+  inputSchema: Array<GetBlockResponseRef0>
+  operationInputSchema: Record<string, Array<GetBlockResponseRef0>>
+  inputDefinitions: Record<
+    string,
+    {
+      type: string
+      description?: string
+      schema?: unknown
+    }
+  >
+  operations: Record<
+    string,
+    {
+      toolId?: string
+      toolName?: string
+      description?: string
+      inputs: Record<string, GetBlockResponseRef2>
+      outputs: Record<string, GetBlockResponseRef3>
+      inputSchema: Array<GetBlockResponseRef0>
+    }
+  >
+  tools: Array<GetBlockResponseRef4>
+  triggers: Array<{
+    id: string
+    outputs: Record<
+      string,
+      {
+        type: string
+        description?: string
+      }
+    >
+    configFields: Record<
+      string,
+      {
+        type: string
+        required: boolean
+        title?: string
+        description?: string
+        placeholder?: string
+        default?: unknown
+        options?: Array<{
+          id: string
+          label: string
+        }>
+        condition?: GetBlockResponseRef1
+      }
+    >
+  }>
+  outputs: Record<
+    string,
+    {
+      type: string
+      description?: string
+    }
+  >
+}
+
+export type GetBlockResponse = {
+  data: GetBlockResponseRef6
+}
+
 /** `GET /api/v2/custom-tools/[id]` */
 export type GetCustomToolParams = {
   id: string
@@ -3012,6 +3210,60 @@ export type GetTableViewResponse = {
   data: GetTableViewResponseRef1
 }
 
+/** `GET /api/v2/tools/[toolId]` */
+export type GetToolParams = {
+  toolId: string
+}
+
+export type GetToolQuery = {
+  workspaceId: string
+}
+
+type GetToolResponseRef0 = {
+  type: string
+  required?: boolean
+  visibility?: string
+  description?: string
+  default?: unknown
+  items?: unknown
+}
+
+type GetToolResponseRef1 = {
+  type: string
+  description?: string
+  optional?: boolean
+  nullable?: boolean
+  properties?: Record<string, unknown>
+  items?: {
+    type: string
+    description?: string
+    properties?: Record<string, unknown>
+  }
+  fileConfig?: {
+    mimeType?: string
+    extension?: string
+  }
+}
+
+type GetToolResponseRef2 = {
+  id: string
+  name: string
+  description: string
+  version?: string
+  hostedApiKey: 'always' | 'conditional' | 'none'
+  oauth?: {
+    required: boolean
+    provider: string
+    requiredScopes?: Array<string>
+  }
+  params: Record<string, GetToolResponseRef0>
+  outputs: Record<string, GetToolResponseRef1>
+}
+
+export type GetToolResponse = {
+  data: GetToolResponseRef2
+}
+
 /** `GET /api/v2/workflows/[id]` */
 export type GetWorkflowParams = {
   id: string
@@ -3314,6 +3566,108 @@ export type ListBillingLogsResponse = {
   nextCursor: string | null
 }
 
+/** `GET /api/v2/blocks` */
+export type ListBlocksQuery = {
+  workspaceId: string
+  search?: string
+  category?: 'blocks' | 'tools' | 'triggers'
+  capability?: 'trigger'
+  source?: 'builtin' | 'custom'
+  sortBy?: 'id' | 'name' | 'category'
+  sortOrder?: 'asc' | 'desc'
+  limit?: number
+  cursor?: string
+}
+
+type ListBlocksResponseRef0 = {
+  id: string
+  name: string
+  description: string
+  longDescription?: string
+  category: string
+  integrationType?: string
+  source: 'builtin' | 'custom'
+  authMode?: string
+  triggerAllowed: boolean
+  triggerCapable: boolean
+  triggerIds: Array<string>
+  toolIds: Array<string>
+  operationIds: Array<string>
+  preview: boolean
+  sunset?: {
+    status: 'legacy' | 'deprecated'
+    replacedBy?: string
+  }
+  docsLink?: string
+  tags: Array<string>
+}
+
+export type ListBlocksResponse = {
+  data: Array<ListBlocksResponseRef0>
+  nextCursor: string | null
+}
+
+/** `GET /api/v2/connector-types` */
+export type ListConnectorTypesQuery = {
+  workspaceId: string
+  search?: string
+}
+
+type ListConnectorTypesResponseRef0 = {
+  connectorType: string
+  name: string
+  description: string
+  version: string
+  auth:
+    | {
+        mode: 'oauth'
+        provider: string
+        requiredScopes?: Array<string>
+      }
+    | {
+        mode: 'apiKey'
+        label?: string
+        placeholder?: string
+        optional: boolean
+      }
+  configFields: Array<ListConnectorTypesResponseRef1>
+  supportsIncrementalSync: boolean
+  tagDefinitions: Array<{
+    id: string
+    displayName: string
+    fieldType: 'text' | 'number' | 'date' | 'boolean'
+  }>
+}
+
+type ListConnectorTypesResponseRef1 = {
+  id: string
+  title: string
+  type: 'short-input' | 'dropdown' | 'selector'
+  placeholder?: string
+  required?: boolean
+  description?: string
+  options?: Array<{
+    id: string
+    label: string
+  }>
+  selectorKey?: string
+  mimeType?: string
+  dependsOn?:
+    | Array<string>
+    | {
+        all?: Array<string>
+        any?: Array<string>
+      }
+  mode?: 'basic' | 'advanced'
+  canonicalParamId?: string
+  multi?: boolean
+}
+
+export type ListConnectorTypesResponse = {
+  data: Array<ListConnectorTypesResponseRef0>
+  nextCursor: string | null
+}
+
 /** `GET /api/v2/credentials/providers` */
 export type ListCredentialProvidersQuery = {
   workspaceId: string
@@ -3428,6 +3782,40 @@ type ListCustomToolsResponseRef0 = {
 
 export type ListCustomToolsResponse = {
   data: Array<ListCustomToolsResponseRef0>
+  nextCursor: string | null
+}
+
+/** `GET /api/v2/enrichments` */
+export type ListEnrichmentsQuery = {
+  workspaceId: string
+  search?: string
+}
+
+type ListEnrichmentsResponseRef0 = {
+  id: string
+  name: string
+  description: string
+  inputs: Array<{
+    id: string
+    name: string
+    type: 'string' | 'number' | 'boolean'
+    required?: boolean
+    description?: string
+  }>
+  outputs: Array<{
+    id: string
+    name: string
+    type: 'string' | 'number' | 'currency' | 'boolean' | 'date' | 'json' | 'select'
+  }>
+  providers: Array<{
+    id: string
+    label: string
+    toolId: string
+  }>
+}
+
+export type ListEnrichmentsResponse = {
+  data: Array<ListEnrichmentsResponseRef0>
   nextCursor: string | null
 }
 
@@ -3986,6 +4374,36 @@ type ListTableViewsResponseRef1 = {
 
 export type ListTableViewsResponse = {
   data: Array<ListTableViewsResponseRef0>
+  nextCursor: string | null
+}
+
+/** `GET /api/v2/tools` */
+export type ListToolsQuery = {
+  workspaceId: string
+  search?: string
+  hostedApiKey?: 'always' | 'conditional' | 'none'
+  oauthProvider?: string
+  sortBy?: 'id' | 'name'
+  sortOrder?: 'asc' | 'desc'
+  limit?: number
+  cursor?: string
+}
+
+type ListToolsResponseRef0 = {
+  id: string
+  name: string
+  description: string
+  version?: string
+  hostedApiKey: 'always' | 'conditional' | 'none'
+  oauth?: {
+    required: boolean
+    provider: string
+    requiredScopes?: Array<string>
+  }
+}
+
+export type ListToolsResponse = {
+  data: Array<ListToolsResponseRef0>
   nextCursor: string | null
 }
 
@@ -6987,6 +7405,22 @@ export const V2_OPERATIONS = {
       },
     },
   },
+  getBlock: {
+    method: 'GET',
+    path: '/api/v2/blocks/[blockId]',
+    pathParams: ['blockId'] as const,
+    pathParamDocs: { blockId: 'Block type identifier.' },
+    responseMode: 'json',
+    summary: 'Get Block',
+    query: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe:
+          'Workspace whose integration allowlist, revealed preview blocks, and deployed custom blocks decide what this catalog contains.',
+      },
+    },
+  },
   getCustomTool: {
     method: 'GET',
     path: '/api/v2/custom-tools/[id]',
@@ -7161,6 +7595,25 @@ export const V2_OPERATIONS = {
     summary: 'Get View',
     query: {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the table.' },
+    },
+  },
+  getTool: {
+    method: 'GET',
+    path: '/api/v2/tools/[toolId]',
+    pathParams: ['toolId'] as const,
+    pathParamDocs: {
+      toolId:
+        'Tool identifier. An unversioned name resolves to the newest version, and the response echoes the resolved id.',
+    },
+    responseMode: 'json',
+    summary: 'Get Tool',
+    query: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe:
+          'Workspace whose integration allowlist, revealed preview blocks, and deployed custom blocks decide what this catalog contains.',
+      },
     },
   },
   getWorkflow: {
@@ -7345,6 +7798,84 @@ export const V2_OPERATIONS = {
       },
     },
   },
+  listBlocks: {
+    method: 'GET',
+    path: '/api/v2/blocks',
+    pathParams: [] as const,
+    responseMode: 'json',
+    summary: 'List Blocks',
+    query: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe:
+          'Workspace whose integration allowlist, revealed preview blocks, and deployed custom blocks decide what this catalog contains.',
+      },
+      search: {
+        kind: 'string',
+        describe: 'Case-insensitive substring match against the block id, name, and description.',
+      },
+      category: {
+        kind: 'enum',
+        values: ['blocks', 'tools', 'triggers'] as const,
+        describe: 'Restrict to one toolbar category.',
+      },
+      capability: {
+        kind: 'enum',
+        values: ['trigger'] as const,
+        describe:
+          'Restrict to blocks that can start a workflow — the `triggers` category, blocks declaring `triggerAllowed`, and blocks with trigger-mode fields.',
+      },
+      source: {
+        kind: 'enum',
+        values: ['builtin', 'custom'] as const,
+        describe: 'Restrict to shipped blocks or to this workspace’s deployed custom blocks.',
+      },
+      sortBy: {
+        kind: 'enum',
+        values: ['id', 'name', 'category'] as const,
+        default: 'id',
+        describe:
+          'Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.',
+      },
+      sortOrder: {
+        kind: 'enum',
+        values: ['asc', 'desc'] as const,
+        default: 'asc',
+        describe: 'Sort direction.',
+      },
+      limit: {
+        kind: 'integer',
+        default: 50,
+        describe:
+          'Maximum blocks to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
+      },
+      cursor: {
+        kind: 'string',
+        describe:
+          'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+      },
+    },
+  },
+  listConnectorTypes: {
+    method: 'GET',
+    path: '/api/v2/connector-types',
+    pathParams: [] as const,
+    responseMode: 'json',
+    summary: 'List Connector Types',
+    query: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe:
+          'Workspace whose integration allowlist, revealed preview blocks, and deployed custom blocks decide what this catalog contains.',
+      },
+      search: {
+        kind: 'string',
+        describe: 'Case-insensitive substring match against the connector name.',
+      },
+    },
+  },
   listCredentialProviders: {
     method: 'GET',
     path: '/api/v2/credentials/providers',
@@ -7452,6 +7983,25 @@ export const V2_OPERATIONS = {
         kind: 'string',
         describe:
           'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+      },
+    },
+  },
+  listEnrichments: {
+    method: 'GET',
+    path: '/api/v2/enrichments',
+    pathParams: [] as const,
+    responseMode: 'json',
+    summary: 'List Enrichments',
+    query: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe:
+          'Workspace whose integration allowlist, revealed preview blocks, and deployed custom blocks decide what this catalog contains.',
+      },
+      search: {
+        kind: 'string',
+        describe: 'Case-insensitive substring match against the enrichment name.',
       },
     },
   },
@@ -8082,6 +8632,58 @@ export const V2_OPERATIONS = {
     summary: 'List Views',
     query: {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the table.' },
+    },
+  },
+  listTools: {
+    method: 'GET',
+    path: '/api/v2/tools',
+    pathParams: [] as const,
+    responseMode: 'json',
+    summary: 'List Tools',
+    query: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe:
+          'Workspace whose integration allowlist, revealed preview blocks, and deployed custom blocks decide what this catalog contains.',
+      },
+      search: {
+        kind: 'string',
+        describe: 'Case-insensitive substring match against the tool id, name, and description.',
+      },
+      hostedApiKey: {
+        kind: 'enum',
+        values: ['always', 'conditional', 'none'] as const,
+        describe: 'Restrict to tools by how their API key is supplied.',
+      },
+      oauthProvider: {
+        kind: 'string',
+        describe: 'Restrict to tools that authenticate against this OAuth service.',
+      },
+      sortBy: {
+        kind: 'enum',
+        values: ['id', 'name'] as const,
+        default: 'id',
+        describe:
+          'Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.',
+      },
+      sortOrder: {
+        kind: 'enum',
+        values: ['asc', 'desc'] as const,
+        default: 'asc',
+        describe: 'Sort direction.',
+      },
+      limit: {
+        kind: 'integer',
+        default: 50,
+        describe:
+          'Maximum tools to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
+      },
+      cursor: {
+        kind: 'string',
+        describe:
+          'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+      },
     },
   },
   listWorkflowFolders: {

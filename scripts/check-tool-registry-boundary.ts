@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 /**
- * Fails if a workspace route can reach the executable tool registry, or if any
- * route's module graph grows past its recorded baseline.
+ * Fails if a guarded entry can reach the executable tool registry, or if any
+ * entry's module graph grows past its recorded baseline.
  *
  * `@/tools/registry` is a barrel over 4,300+ tools whose `ToolConfig`s hold
  * closures (`request.headers`, `transformResponse`, `directExecution`). Those
@@ -45,26 +45,80 @@ const APP = join(ROOT, 'apps/sim')
 /** Module no client-reachable entry may reach. */
 const FORBIDDEN = join(APP, 'tools/registry.ts')
 
-/**
- * Root the guard walks: every `page.tsx` and `layout.tsx` under the workspace app.
- *
- * Discovered rather than listed. A hardcoded list goes stale silently — the
- * first version of this guard named `app/workspace/layout.tsx` as "the shared
- * shell", but that file only wraps `SocketProvider`; the real shell is
- * `app/workspace/[workspaceId]/layout.tsx`, which was never checked.
- *
- * Layouts must be enumerated separately because Next.js composes them by
- * convention — a page does not `import` its layout, so walking pages alone never
- * reaches layout modules even though every route pays for them.
- */
-const ENTRY_ROOT = 'app/workspace'
-const ENTRY_FILENAMES = new Set(['page.tsx', 'layout.tsx'])
+interface EntrySource {
+  /** Directory under `apps/sim` the entries are discovered in. */
+  root: string
+  /** Filenames that count as entries inside it. */
+  filenames: ReadonlySet<string>
+  /** Why this subtree must stay registry-free, printed when the root disappears. */
+  reason: string
+}
 
-function collectEntries(dir: string, found: string[] = []): string[] {
+const PAGE_ENTRY_FILENAMES = new Set(['page.tsx', 'layout.tsx'])
+const ROUTE_ENTRY_FILENAMES = new Set(['route.ts'])
+
+/**
+ * Subtrees the guard walks, each discovered rather than listed file by file.
+ * Discovery is what keeps a subtree honest: the first version of this guard
+ * named `app/workspace/layout.tsx` as "the shared shell", but that file only
+ * wraps `SocketProvider` — the real shell is
+ * `app/workspace/[workspaceId]/layout.tsx`, which was never checked. Layouts are
+ * enumerated separately from pages because Next.js composes them by convention:
+ * a page does not `import` its layout, so walking pages alone never reaches
+ * layout modules even though every route pays for them.
+ *
+ * API routes are covered per subtree rather than wholesale. 122 of the ~1,130
+ * route files legitimately reach the registry — every execute, deploy, import,
+ * and webhook path runs tools — so a blanket route rule would be an allowlist
+ * with 122 entries, which is not a rule. What earns a subtree a place here is
+ * that it *serves* tool and block metadata: reading `params`, `outputs`, `name`,
+ * or existence is exactly the set `@/tools/metadata` covers, so reaching the
+ * registry from one is always a mistake, and one that costs ~4,700 modules of
+ * server bundle and cold start per route.
+ */
+const ENTRY_SOURCES: readonly EntrySource[] = [
+  {
+    root: 'app/workspace',
+    filenames: PAGE_ENTRY_FILENAMES,
+    reason: 'client-reachable workspace pages and layouts',
+  },
+  {
+    root: 'app/api/v2/blocks',
+    filenames: ROUTE_ENTRY_FILENAMES,
+    reason: 'the public block catalog, which reads block metadata only',
+  },
+  {
+    root: 'app/api/v2/tools',
+    filenames: ROUTE_ENTRY_FILENAMES,
+    reason: 'the public tool catalog, which reads tool metadata only',
+  },
+  {
+    root: 'app/api/v2/connector-types',
+    filenames: ROUTE_ENTRY_FILENAMES,
+    reason: 'the public connector-type catalog',
+  },
+  {
+    root: 'app/api/v2/enrichments',
+    filenames: ROUTE_ENTRY_FILENAMES,
+    reason: 'the public enrichment catalog',
+  },
+  {
+    root: 'lib/catalog/projection',
+    filenames: new Set(['index.ts']),
+    reason:
+      'the shared catalog projection, which any surface — including a client component — may import',
+  },
+]
+
+function collectEntries(
+  dir: string,
+  filenames: ReadonlySet<string>,
+  found: string[] = []
+): string[] {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     const full = join(dir, entry.name)
-    if (entry.isDirectory()) collectEntries(full, found)
-    else if (ENTRY_FILENAMES.has(entry.name)) found.push(relative(APP, full))
+    if (entry.isDirectory()) collectEntries(full, filenames, found)
+    else if (filenames.has(entry.name)) found.push(relative(APP, full))
   }
   return found
 }
@@ -433,18 +487,25 @@ function main() {
   const failures: string[] = []
   let ratchetFailures = 0
 
-  const entryRoot = join(APP, ENTRY_ROOT)
-  if (!existsSync(entryRoot)) {
-    console.error(`❌ ${ENTRY_ROOT} no longer exists — update ENTRY_ROOT in this script.`)
-    process.exit(1)
+  const discovered: string[] = []
+  for (const source of ENTRY_SOURCES) {
+    const entryRoot = join(APP, source.root)
+    if (!existsSync(entryRoot)) {
+      console.error(
+        `❌ ${source.root} no longer exists — it guarded ${source.reason}. Update ENTRY_SOURCES.`
+      )
+      process.exit(1)
+    }
+    const found = collectEntries(entryRoot, source.filenames)
+    if (found.length === 0) {
+      console.error(
+        `❌ No entries found under ${source.root}. Refusing to pass vacuously over ${source.reason}.`
+      )
+      process.exit(1)
+    }
+    discovered.push(...found)
   }
-  const entries = collectEntries(entryRoot).sort()
-  if (entries.length === 0) {
-    console.error(
-      `❌ No page/layout entries found under ${ENTRY_ROOT}. Refusing to pass vacuously.`
-    )
-    process.exit(1)
-  }
+  const entries = [...new Set(discovered)].sort()
 
   const walked = new Map<string, Walk>()
   for (const entry of entries) {
@@ -463,7 +524,7 @@ function main() {
 
   if (update) {
     const baseline: Baseline = {
-      generatedFrom: `${ENTRY_ROOT} page/layout module graphs`,
+      generatedFrom: ENTRY_SOURCES.map((source) => source.root).join(', '),
       tolerance: { modules: TOLERANCE_MODULES, percent: TOLERANCE_PERCENT },
       entries: {},
     }
@@ -540,7 +601,7 @@ function main() {
 
   if (failures.length > 0) {
     console.error(
-      `\n${failures.length} route(s) reach the executable tool registry, which adds ~4,700 modules to each.`
+      `\n${failures.length} entr(ies) reach the executable tool registry, which adds ~4,700 modules to each.`
     )
     console.error(
       'Read the metadata instead: `@/tools/metadata` (params), `@/tools/metadata-outputs`'
@@ -553,9 +614,8 @@ function main() {
 
   if (failures.length > 0 || ratchetFailures > 0) process.exit(1)
 
-  console.log(`✓ tool registry stays out of ${entries.length} workspace page/layout graphs`)
-  if (check)
-    console.log(`✓ ${entries.length} page/layout graphs within their module-count baseline`)
+  console.log(`✓ tool registry stays out of ${entries.length} guarded entry graphs`)
+  if (check) console.log(`✓ ${entries.length} entry graphs within their module-count baseline`)
 }
 
 main()

@@ -1,4 +1,5 @@
 import rawMetadata from '@/tools/generated/tool-metadata'
+import type { HostedApiKeySupport } from '@/tools/hosted-api-key'
 import { resolveToolId } from '@/tools/tool-ids'
 import type { OAuthConfig, ToolConfig } from '@/tools/types'
 
@@ -28,6 +29,12 @@ export interface ToolMetadata {
   version?: string
   params: ToolConfig['params']
   oauth?: OAuthConfig
+  /**
+   * Whether Sim supplies this tool's API key. Derived from the tool's `hosting`
+   * config, which is itself excluded from the artifact because it holds
+   * closures — see `@/tools/hosted-api-key`.
+   */
+  hostedApiKey?: HostedApiKeySupport
 }
 
 /**
