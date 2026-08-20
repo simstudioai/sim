@@ -78,7 +78,7 @@ function renderFailure(error: unknown): void {
     }
   }
   console.error(
-    `\n  ${theme.muted('Your progress is saved — re-run')} ${theme.command('npx @sim/setup')} ${theme.muted('to pick up where you left off.')}`
+    `\n  ${theme.muted('Your progress is saved — re-run')} ${theme.command('npx sim-setup')} ${theme.muted('to pick up where you left off.')}`
   )
 }
 

@@ -10,7 +10,7 @@ function readPackageVersion(): string {
     !('version' in metadata) ||
     typeof metadata.version !== 'string'
   ) {
-    throw new Error('@sim/setup package metadata is missing a valid version')
+    throw new Error('sim-setup package metadata is missing a valid version')
   }
   return metadata.version
 }

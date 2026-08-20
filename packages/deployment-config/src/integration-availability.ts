@@ -90,7 +90,7 @@ function resolveOAuthIntegrationAvailability(
   }
 
   const oauth = inspectOAuthClientCapability(capabilityId, values)
-  const setupCommand = `npx @sim/setup add integration ${capabilityId}`
+  const setupCommand = `npx sim-setup add integration ${capabilityId}`
   const serviceAccountAvailable = Boolean(
     serviceAccount &&
       serviceAccount.deploymentRequirement !== 'preview-gated' &&

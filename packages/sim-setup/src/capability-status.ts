@@ -38,7 +38,7 @@ export interface CapabilityStatusIssue {
 interface FeatureStatusBase<TId extends SetupStatusFeatureId> {
   id: TId
   label: string
-  setupCommand: `npx @sim/setup add ${TId}`
+  setupCommand: `npx sim-setup add ${TId}`
   state: CapabilityStatusState
   issue?: CapabilityStatusIssue
 }
@@ -143,7 +143,7 @@ function featureMetadata<TId extends SetupStatusFeatureId>(id: TId) {
   return {
     id,
     label: definition.label,
-    setupCommand: `npx @sim/setup add ${id}` as const,
+    setupCommand: `npx sim-setup add ${id}` as const,
   }
 }
 

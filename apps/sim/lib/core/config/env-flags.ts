@@ -411,7 +411,7 @@ const sandboxProvider = inspectCapability(SANDBOX_CAPABILITY, env).providerId
  *
  * The browser cannot inspect provider credentials, so
  * `NEXT_PUBLIC_SANDBOXES_ENABLED` is its readiness projection. Set the public
- * value only after this server-side check succeeds; `npx @sim/setup doctor`
+ * value only after this server-side check succeeds; `npx sim-setup doctor`
  * reports mismatches in either direction.
  */
 export const isRemoteSandboxEnabled =

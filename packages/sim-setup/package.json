@@ -1,5 +1,5 @@
 {
-  "name": "@sim/setup",
+  "name": "sim-setup",
   "version": "1.0.0",
   "description": "Set up and manage a self-hosted Sim installation",
   "type": "module",

@@ -113,7 +113,7 @@ function checkFiles(ctx: CheckContext): Finding[] {
         group: 'files',
         status: 'fail',
         message: 'no env files found',
-        fix: 'run: npx @sim/setup',
+        fix: 'run: npx sim-setup',
       },
     ]
   }
@@ -135,7 +135,7 @@ function checkFiles(ctx: CheckContext): Finding[] {
       message: `${rel(file)} is missing`,
       fix: canSeed
         ? `run doctor --fix to seed it from apps/${target === 'db' ? '../packages/db' : target}/.env.example + apps/sim/.env`
-        : 'run: npx @sim/setup',
+        : 'run: npx sim-setup',
       autofix: canSeed
         ? () => {
             const keys = target === 'db' ? ['DATABASE_URL'] : [...SHARED_KEYS]
@@ -559,7 +559,7 @@ async function checkDatabase(sim: EnvFile): Promise<Finding[]> {
         group: 'live',
         status: 'fail',
         message: `database unreachable: ${probe.error}`,
-        fix: 'start Postgres (npx @sim/setup can manage a pgvector container) or fix DATABASE_URL',
+        fix: 'start Postgres (npx sim-setup can manage a pgvector container) or fix DATABASE_URL',
       })
     } else {
       findings.push({

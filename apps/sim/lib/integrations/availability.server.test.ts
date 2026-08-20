@@ -50,7 +50,7 @@ describe('integration availability', () => {
       oauthAvailable: true,
       serviceAccountAvailable: false,
       missingFields: [],
-      setupCommand: 'npx @sim/setup add integration slack',
+      setupCommand: 'npx sim-setup add integration slack',
     })
   })
 
@@ -60,7 +60,7 @@ describe('integration availability', () => {
       oauthAvailable: false,
       serviceAccountAvailable: true,
       missingFields: ['NOTION_CLIENT_ID', 'NOTION_CLIENT_SECRET'],
-      setupCommand: 'npx @sim/setup add integration notion',
+      setupCommand: 'npx sim-setup add integration notion',
     })
   })
 
@@ -77,7 +77,7 @@ describe('integration availability', () => {
     expect(availabilityFor('x')).toMatchObject({
       state: 'unavailable',
       oauthAvailable: false,
-      setupCommand: 'npx @sim/setup add integration x',
+      setupCommand: 'npx sim-setup add integration x',
     })
   })
 
@@ -87,7 +87,7 @@ describe('integration availability', () => {
       oauthAvailable: false,
       serviceAccountAvailable: false,
       missingFields: ['SLACK_CLIENT_SECRET'],
-      setupCommand: 'npx @sim/setup add integration slack',
+      setupCommand: 'npx sim-setup add integration slack',
     })
   })
 
@@ -158,7 +158,7 @@ describe('integration availability', () => {
       state: 'unavailable',
       serviceAccountAvailable: false,
       missingFields: ['TRELLO_API_KEY'],
-      setupCommand: 'npx @sim/setup add integration trello',
+      setupCommand: 'npx sim-setup add integration trello',
     })
     expect(availabilityFor('trello', { TRELLO_API_KEY: 'trello-key' })).toMatchObject({
       state: 'ready',
@@ -181,7 +181,7 @@ describe('integration availability', () => {
 
     for (const integration of availability) {
       if (!integration.setupCommand) continue
-      const capabilityId = integration.setupCommand.replace('npx @sim/setup add integration ', '')
+      const capabilityId = integration.setupCommand.replace('npx sim-setup add integration ', '')
       expect(Object.hasOwn(OAUTH_CLIENT_CAPABILITIES, capabilityId)).toBe(true)
     }
   })

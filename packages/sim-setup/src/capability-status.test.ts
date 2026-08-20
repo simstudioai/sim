@@ -38,7 +38,7 @@ describe('env capability status', () => {
     expect(status.features.sandbox).toEqual({
       id: 'sandbox',
       label: 'Function sandboxes',
-      setupCommand: 'npx @sim/setup add sandbox',
+      setupCommand: 'npx sim-setup add sandbox',
       state: 'default',
       providerId: 'disabled',
     })

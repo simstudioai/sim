@@ -330,7 +330,7 @@ export function renderSetupStatusReport(report: SetupStatusReport): string {
   const representedOAuthClients = new Set(
     deploymentIntegrations.flatMap((integration) => {
       if (!integration.setupCommand) return []
-      return [integration.setupCommand.replace('npx @sim/setup add integration ', '')]
+      return [integration.setupCommand.replace('npx sim-setup add integration ', '')]
     })
   )
   const additionalOAuthClients = Object.values(report.capabilityStatus.oauthClients.clients).filter(
@@ -357,7 +357,7 @@ export async function runSetupStatus(): Promise<number> {
   console.log(`\n${theme.heading('◆ Sim setup status')}\n`)
   if (sources.length === 0) {
     console.log(` ${glyph.fail} No local-dev, Docker Compose, or Helm configuration detected.`)
-    console.log(`   ${theme.muted('run: npx @sim/setup')}`)
+    console.log(`   ${theme.muted('run: npx sim-setup')}`)
     return 1
   }
 

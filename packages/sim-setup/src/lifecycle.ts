@@ -301,8 +301,8 @@ function start(install: Install): void {
     p.note(
       [
         `open ${APP_SIGNUP_URL}`,
-        'follow logs:  npx @sim/setup logs',
-        'stop:         npx @sim/setup stop',
+        'follow logs:  npx sim-setup logs',
+        'stop:         npx sim-setup stop',
       ].join('\n'),
       'Running'
     )
@@ -313,10 +313,9 @@ function start(install: Install): void {
     for (const name of names) dockerRun(['start', name], `docker start ${name} failed`)
     if (names.length) p.log.step(`Started ${names.join(', ')}`)
     p.note(
-      [
-        'start the dev server:  bun run dev:full',
-        'stop DB/Redis:         npx @sim/setup stop',
-      ].join('\n'),
+      ['start the dev server:  bun run dev:full', 'stop DB/Redis:         npx sim-setup stop'].join(
+        '\n'
+      ),
       'Ready'
     )
     return
@@ -331,7 +330,7 @@ function stop(install: Install): void {
     dockerRun(composeArgs(install, 'stop'), 'docker compose stop failed', install.dir)
     spin.stop('Containers stopped (data kept)')
     p.note(
-      ['start again:  npx @sim/setup start', 'remove:       npx @sim/setup down'].join('\n'),
+      ['start again:  npx sim-setup start', 'remove:       npx sim-setup down'].join('\n'),
       'Stopped'
     )
     return
@@ -351,7 +350,7 @@ function stop(install: Install): void {
     [
       `scale down:  kubectl --context ${c} -n ${K8S_NAMESPACE} scale deploy --all --replicas=0`,
       `scale up:    kubectl --context ${c} -n ${K8S_NAMESPACE} scale deploy --all --replicas=1`,
-      'tear down:   npx @sim/setup down',
+      'tear down:   npx sim-setup down',
     ].join('\n'),
     'Kubernetes'
   )
@@ -420,8 +419,8 @@ function update(install: Install): void {
   p.note(
     [
       `version: ${theme.command(`SIM_VERSION in ${path.join(install.dir, '.env')}`)} (latest when unset)`,
-      `check:   ${theme.command('npx @sim/setup status')}`,
-      `logs:    ${theme.command('npx @sim/setup logs')}`,
+      `check:   ${theme.command('npx sim-setup status')}`,
+      `logs:    ${theme.command('npx sim-setup logs')}`,
     ].join('\n'),
     'Update complete'
   )
@@ -534,7 +533,7 @@ async function reset(install: Install | null): Promise<void> {
     }
     p.log.step(`Uninstalled ${K8S_RELEASE}`)
   }
-  p.note(`start fresh with ${theme.command('npx @sim/setup')}`, 'Reset complete')
+  p.note(`start fresh with ${theme.command('npx sim-setup')}`, 'Reset complete')
 }
 
 async function status(): Promise<void> {
@@ -555,7 +554,7 @@ async function status(): Promise<void> {
   if (installs.length === 0) {
     console.log(
       docker
-        ? ` ${glyph.warn} No Sim install detected — run ${theme.command('npx @sim/setup')}.`
+        ? ` ${glyph.warn} No Sim install detected — run ${theme.command('npx sim-setup')}.`
         : ` ${glyph.warn} No install detected, but that may just be Docker being down.`
     )
     return
@@ -585,7 +584,7 @@ export async function runLifecycle(command: LifecycleCommand): Promise<void> {
 
   const install = await resolveInstall(installs)
   if (!install) {
-    p.log.warn(`No Sim install detected. Run ${theme.command('npx @sim/setup')} first.`)
+    p.log.warn(`No Sim install detected. Run ${theme.command('npx sim-setup')} first.`)
     return
   }
   switch (command) {

@@ -72,7 +72,7 @@ export async function promptCopilotKey(existing?: string): Promise<string | null
     // Both halves, because the caller writes the opt-out for a null key: a
     // hand-set credential alone restores capability while Chat stays hidden.
     p.log.warn(
-      'No key received — re-run npx @sim/setup to retry, or set COPILOT_API_KEY and NEXT_PUBLIC_CHAT_DISABLED=false yourself.'
+      'No key received — re-run npx sim-setup to retry, or set COPILOT_API_KEY and NEXT_PUBLIC_CHAT_DISABLED=false yourself.'
     )
     return null
   }
@@ -96,7 +96,7 @@ export function chatFlagValues(copilotKey: string | null): Record<string, string
  *
  *   SIM_CLI_AUTH_ORIGIN=https://www.staging.sim.ai \
  *   SIM_AGENT_API_URL=https://www.staging.copilot.sim.ai \
- *   npx @sim/setup
+ *   npx sim-setup
  *
  * The two belong together — SIM_CLI_AUTH_ORIGIN decides where the Chat key is
  * minted, SIM_AGENT_API_URL decides which backend validates it, and a key from

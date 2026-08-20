@@ -24,7 +24,7 @@ async function setupIntegration(
   vars: Map<string, string>
 ): Promise<Record<string, string>> {
   if (!requestedId) {
-    throw new Error('Missing integration id. Example: npx @sim/setup add integration slack')
+    throw new Error('Missing integration id. Example: npx sim-setup add integration slack')
   }
   const providerId = resolveOAuthClientCapabilityId(requestedId)
   if (!providerId) {
@@ -131,30 +131,30 @@ export function resolveFeatureSetupDestination(
   sources: readonly ConfigurationSource[]
 ): FeatureSetupDestination {
   if (sources.length === 0) {
-    throw new Error('No Sim configuration was detected. Run npx @sim/setup first.')
+    throw new Error('No Sim configuration was detected. Run npx sim-setup first.')
   }
 
   const managed = sources.filter((source) => source.managedByCurrentCheckout)
   if (managed.length === 0) {
     throw new Error(
-      'No effective configuration is safely writable by this checkout. Process overrides, higher-precedence development env files, external Compose projects, and Helm releases must be updated at their source. Run npx @sim/setup config for the detected sources.'
+      'No effective configuration is safely writable by this checkout. Process overrides, higher-precedence development env files, external Compose projects, and Helm releases must be updated at their source. Run npx sim-setup config for the detected sources.'
     )
   }
   if (managed.length > 1) {
     throw new Error(
-      `More than one effective configuration is writable by this checkout (${managed.map((source) => source.label).join(', ')}). Run npx @sim/setup config and remove the ambiguity before configuring a feature.`
+      `More than one effective configuration is writable by this checkout (${managed.map((source) => source.label).join(', ')}). Run npx sim-setup config and remove the ambiguity before configuring a feature.`
     )
   }
 
   const source = managed[0]
   if (!source.values) {
     throw new Error(
-      `${source.label} is managed by this checkout, but its effective environment could not be resolved. Run npx @sim/setup config and fix the reported source error first.`
+      `${source.label} is managed by this checkout, but its effective environment could not be resolved. Run npx sim-setup config and fix the reported source error first.`
     )
   }
   if (source.kind === 'helm') {
     throw new Error(
-      'Helm configuration cannot be updated by npx @sim/setup add. Update the release Secret or values and upgrade the release.'
+      'Helm configuration cannot be updated by npx sim-setup add. Update the release Secret or values and upgrade the release.'
     )
   }
 

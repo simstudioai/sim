@@ -1,9 +1,9 @@
-# @sim/setup
+# sim-setup
 
 Set up and manage a self-hosted Sim installation.
 
 ```bash
-npx @sim/setup
+npx sim-setup
 ```
 
 Outside a Sim source checkout, the command creates a Docker Compose installation using published

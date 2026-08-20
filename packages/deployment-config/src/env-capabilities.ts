@@ -343,7 +343,7 @@ export function defineCapability<const TDefinition extends CapabilityDefinition>
 
 /** Returns the canonical command for configuring a runtime capability. */
 export function getCapabilitySetupCommand(definition: CapabilityDefinition): string {
-  return `npx @sim/setup add ${definition.id}`
+  return `npx sim-setup add ${definition.id}`
 }
 
 interface RequirementInspection {
@@ -1429,7 +1429,7 @@ export function inspectOAuthClientCapability(
     return {
       state: 'absent',
       missingFields: [],
-      setupCommand: `npx @sim/setup add integration ${providerId}`,
+      setupCommand: `npx sim-setup add integration ${providerId}`,
     }
   }
 
@@ -1437,7 +1437,7 @@ export function inspectOAuthClientCapability(
   return {
     state: present.length === 0 ? 'absent' : present.length === fields.length ? 'ready' : 'partial',
     missingFields: fields.filter((key) => readOAuthClientFieldValue(values, key) === null),
-    setupCommand: `npx @sim/setup add integration ${providerId}`,
+    setupCommand: `npx sim-setup add integration ${providerId}`,
   }
 }
 

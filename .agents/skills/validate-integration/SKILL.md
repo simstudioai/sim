@@ -300,7 +300,7 @@ block's generated `oauthServiceId` through the shared deployment capability cata
 - [ ] Every field listed by that capability exists in `apps/sim/lib/core/config/env.ts`
 - [ ] Every capability field has the correct `text` or `secret` entry in `OAUTH_CLIENT_SETUP_FIELDS`; no CLI naming heuristic is required
 - [ ] Shared Google/Microsoft service IDs resolve to their provider capability rather than duplicate entries
-- [ ] `npx @sim/setup add integration <capabilityId>` is the command emitted by availability; the CLI has only the exhaustive input-mode projection, not a second runtime provider definition
+- [ ] `npx sim-setup add integration <capabilityId>` is the command emitted by availability; the CLI has only the exhaustive input-mode projection, not a second runtime provider definition
 - [ ] If the canonical OAuth service declares `serviceAccountProviderId`,
       the generated `SERVICE_ACCOUNT_PROVIDER_BY_OAUTH_SERVICE_ID[serviceId]` has the same provider ID
 - [ ] The service-account `deploymentRequirement` matches how that credential actually works:
