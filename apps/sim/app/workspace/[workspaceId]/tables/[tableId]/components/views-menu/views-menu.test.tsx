@@ -190,6 +190,12 @@ describe('ViewsMenu', () => {
     expect(onSetDefault).not.toHaveBeenCalled()
     expect(document.body.querySelector('[data-native-surface-overlay]')).not.toBeNull()
 
+    // jsdom does not simulate pointer-events hit-testing, so assert the override
+    // directly: without it a disabled pin is pointer-events-none and a real click
+    // falls through the overlay to the row, selecting the view and closing the menu.
+    expect(defaultPin).toHaveClass('disabled:pointer-events-auto')
+    expect(setDefaultPin).toHaveClass('disabled:pointer-events-auto')
+
     act(() => root.unmount())
     container.remove()
   })

@@ -278,7 +278,11 @@ function ViewRow({ label, isActive, onSelect, defaultState, actions }: ViewRowPr
               aria-label={defaultState.isDefault ? 'Current default view' : 'Set as default'}
               title={defaultState.isDefault ? 'Current default view' : 'Set as default'}
               disabled={!defaultState.onSetDefault}
-              className='pointer-events-auto'
+              // A disabled Button defaults to pointer-events-none, which would let
+              // clicks fall through this pointer-events-none overlay to the row and
+              // select the view. Keeping the pin hit-testable swallows the click —
+              // disabled buttons dispatch no click events — and shows its title.
+              className='pointer-events-auto disabled:pointer-events-auto'
               onClick={(event) => {
                 event.preventDefault()
                 event.stopPropagation()
