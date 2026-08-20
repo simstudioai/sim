@@ -2,7 +2,7 @@ import { createLogger } from '@sim/logger'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import { getSlackBotCredential } from '@/lib/oauth/credential-service'
-import { findWebhooksByRoutingKey } from '@/lib/webhooks/processor'
+import { findWebhooksByRoutingKey, type WebhookDispatchResult } from '@/lib/webhooks/processor'
 import { verifySlackRequestSignature } from '@/lib/webhooks/providers/slack'
 import { LEGACY_SLACK_CUSTOM_BOT_INGRESS_MODE } from '@/lib/webhooks/slack-custom-ingress-constants'
 import { dispatchSlackWebhooks } from '@/lib/webhooks/slack-dispatch'
@@ -99,15 +99,14 @@ export async function dispatchSlackCustomBotCredential({
   request,
   requestId,
   receivedAt,
-}: DispatchSlackCustomBotOptions): Promise<number> {
+}: DispatchSlackCustomBotOptions): Promise<WebhookDispatchResult[]> {
   const webhooks = await findWebhooksByRoutingKey(credentialId, requestId, 'slack')
   if (webhooks.length === 0) {
     logger.info(
       `[${requestId}] No active trigger for bot credential ${credentialId}; nothing to run`
     )
-    return 0
+    return []
   }
 
-  await dispatchSlackWebhooks(webhooks, { body, request, requestId, receivedAt })
-  return webhooks.length
+  return dispatchSlackWebhooks(webhooks, { body, request, requestId, receivedAt })
 }

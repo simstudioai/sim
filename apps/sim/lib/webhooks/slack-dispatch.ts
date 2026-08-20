@@ -3,6 +3,7 @@ import type { NextRequest } from 'next/server'
 import {
   dispatchResolvedWebhookTarget,
   type findWebhooksByRoutingKey,
+  type WebhookDispatchResult,
 } from '@/lib/webhooks/processor'
 import { resolveSlackEventKey } from '@/lib/webhooks/providers/slack'
 
@@ -25,11 +26,12 @@ interface DispatchSlackWebhooksOptions {
 export async function dispatchSlackWebhooks(
   webhooks: Awaited<ReturnType<typeof findWebhooksByRoutingKey>>,
   { body, request, requestId, receivedAt }: DispatchSlackWebhooksOptions
-): Promise<void> {
+): Promise<WebhookDispatchResult[]> {
   const payload = body as Record<string, unknown>
   const slackRequestTimestamp = request.headers.get('x-slack-request-timestamp')
   const parsedTimestampMs = slackRequestTimestamp ? Number(slackRequestTimestamp) * 1000 : undefined
   const triggerTimestampMs = Number.isFinite(parsedTimestampMs) ? parsedTimestampMs : undefined
+  const results: WebhookDispatchResult[] = []
 
   for (const { webhook: foundWebhook, workflow: foundWorkflow } of webhooks) {
     const result = await dispatchResolvedWebhookTarget(foundWebhook, foundWorkflow, body, request, {
@@ -52,5 +54,8 @@ export async function dispatchSlackWebhooks(
         botId: rawEvent?.bot_id,
       })
     }
+    results.push(result)
   }
+
+  return results
 }
