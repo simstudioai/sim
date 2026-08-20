@@ -98,8 +98,6 @@ const FOOTER_STYLE = {
   display: 'flex',
   flexDirection: 'column',
   width: `${COVER_TITLE_BOX_WIDTH}px`,
-  /** Compensates for Satori adding extra invisible leading below the last line instead of splitting it evenly. */
-  transform: 'translateY(14px)',
 } satisfies CSSProperties
 const TITLE_STYLE = {
   display: 'flex',
@@ -107,6 +105,13 @@ const TITLE_STYLE = {
   fontWeight: 500,
   color: INK_COLOR,
   lineHeight: 1.1,
+  /**
+   * Compensates for Satori adding extra invisible leading below the last line
+   * instead of splitting it evenly. It belongs on the title block, not on the
+   * footer: on the footer it would drag the caption 14px toward the bottom
+   * padding too, and the caption has no such leading to correct for.
+   */
+  transform: 'translateY(14px)',
 } satisfies CSSProperties
 const SUBTITLE_STYLE = {
   display: 'flex',
