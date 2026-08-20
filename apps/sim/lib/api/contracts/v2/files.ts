@@ -756,7 +756,7 @@ export const v2ReadFileTextQuerySchema = z
       .number()
       .int()
       .min(1, 'maxBytes must be at least 1')
-      .max(MAX_TEXT_EXTRACTION_BYTES)
+      .max(MAX_TEXT_EXTRACTION_BYTES, `maxBytes cannot exceed ${MAX_TEXT_EXTRACTION_BYTES}`)
       .optional()
       .describe(
         'Optional ceiling on the source bytes fed to the parser, lowering but never raising the server limit.'

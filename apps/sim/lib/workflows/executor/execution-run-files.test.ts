@@ -127,6 +127,74 @@ describe('describeWorkflowRunFiles', () => {
     ).rejects.toMatchObject({ code: 'payload_too_large' })
   })
 
+  /**
+   * The per-file ceiling bounds one file; without an aggregate ceiling a run with
+   * many files multiplied it by the file count and the response was unbounded.
+   */
+  it('rejects an inline set whose total exceeds the response ceiling', async () => {
+    const files = filesMap([
+      runFile({ id: 'file_a', name: 'a.pdf', size: 9 * 1024 * 1024 }),
+      runFile({ id: 'file_b', name: 'b.pdf', size: 9 * 1024 * 1024 }),
+    ])
+
+    await expect(
+      describeWorkflowRunFiles(files, {
+        workflowId: WORKFLOW_ID,
+        runId: RUN_ID,
+        includeBase64: true,
+      })
+    ).rejects.toMatchObject({
+      code: 'payload_too_large',
+      message: expect.stringContaining(
+        `/api/v2/workflows/${WORKFLOW_ID}/runs/${RUN_ID}/files/file_b`
+      ),
+    })
+    expect(mocks.downloadFile).not.toHaveBeenCalled()
+  })
+
+  /** A recorded size that understates the object must not slip past the ceiling. */
+  it('rejects when the bytes actually read exceed the response ceiling', async () => {
+    mocks.downloadFile.mockResolvedValue(Buffer.alloc(9 * 1024 * 1024))
+    const files = filesMap([
+      runFile({ id: 'file_a', name: 'a.pdf', size: 1 }),
+      runFile({ id: 'file_b', name: 'b.pdf', size: 1 }),
+    ])
+
+    await expect(
+      describeWorkflowRunFiles(files, {
+        workflowId: WORKFLOW_ID,
+        runId: RUN_ID,
+        includeBase64: true,
+      })
+    ).rejects.toMatchObject({ code: 'payload_too_large' })
+  })
+
+  it('bounds how many inline reads are in flight at once', async () => {
+    let inFlight = 0
+    let peak = 0
+    mocks.downloadFile.mockImplementation(async () => {
+      inFlight += 1
+      peak = Math.max(peak, inFlight)
+      await Promise.resolve()
+      inFlight -= 1
+      return Buffer.from('pdf')
+    })
+    const files = filesMap(
+      Array.from({ length: 20 }, (_, index) =>
+        runFile({ id: `file_${index}`, name: `${index}.pdf`, size: 3 })
+      )
+    )
+
+    await describeWorkflowRunFiles(files, {
+      workflowId: WORKFLOW_ID,
+      runId: RUN_ID,
+      includeBase64: true,
+    })
+
+    expect(mocks.downloadFile).toHaveBeenCalledTimes(20)
+    expect(peak).toBeLessThanOrEqual(4)
+  })
+
   it('builds the download path from the run identifiers', () => {
     expect(workflowRunFileDownloadPath('wf-9', 'run-9', 'file-9')).toBe(
       '/api/v2/workflows/wf-9/runs/run-9/files/file-9'

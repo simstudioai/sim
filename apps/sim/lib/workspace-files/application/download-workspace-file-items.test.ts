@@ -134,6 +134,13 @@ describe('downloadWorkspaceFileItems', () => {
     { label: 'multiple files', fileIds: ['f1', 'f2'], folderIds: [] },
     { label: 'a folder', fileIds: [], folderIds: ['folder-1'] },
     { label: 'a file and folder', fileIds: ['f1'], folderIds: ['folder-1'] },
+    { label: 'a folder path', fileIds: [], folderIds: [], folderPaths: ['/Reports'] },
+    {
+      label: 'a file and folder path',
+      fileIds: ['f1'],
+      folderIds: [],
+      folderPaths: ['/Reports'],
+    },
   ])('denies a file-scoped delegated principal selecting $label before listing', async (input) => {
     await expect(
       downloadWorkspaceFileItems.execute({

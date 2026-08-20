@@ -99,13 +99,15 @@ export interface DeleteWorkspaceFileFolderResult {
   path?: string
 }
 
-export interface RestoreWorkspaceFileFolderInput {
+/**
+ * Addresses exactly one archived folder — by internal id, or by the canonical
+ * path an archived-scope list reports. The two selectors are mutually exclusive
+ * by construction: a caller supplying neither, or both, is a compile error rather
+ * than a `validation` failure raised after the operation has already authorized.
+ */
+export type RestoreWorkspaceFileFolderInput = {
   workspaceId: string
-  /** Internal folder id. Surfaces that address folders by path send `path` instead. */
-  folderId?: string
-  /** Canonical path of the archived folder, as reported by an archived-scope list. */
-  path?: string
-}
+} & ({ folderId: string; path?: never } | { folderId?: never; path: string })
 
 export interface RestoreWorkspaceFileFolderResult {
   folder: WorkspaceFileFolderRecord
@@ -281,7 +283,6 @@ async function executeRestoreWorkspaceFileFolder(args: {
     args.input.path !== undefined
       ? await findArchivedFolderIdByPath(args.context.workspaceId, args.input.path)
       : args.input.folderId
-  if (!folderId) throw new OrchestrationError('validation', 'Folder ID is required')
   return restoreWorkspaceFileFolder(args.context.workspaceId, folderId)
 }
 

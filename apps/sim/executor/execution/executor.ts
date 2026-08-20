@@ -645,6 +645,7 @@ export class DAGExecutor {
       resolution: startResolution,
       workflowInput: this.workflowInput,
       runMetadata: this.contextExtensions.startRunMetadata,
+      workspaceId: this.contextExtensions.workspaceId,
     })
 
     state.setBlockState(startResolution.block.id, {

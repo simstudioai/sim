@@ -1,5 +1,9 @@
 import { isRecordLike } from '@sim/utils/object'
-import { isInternalFileUrl, parseInternalFileUrl } from '@/lib/uploads/utils/file-utils'
+import {
+  extractWorkspaceIdFromStorageKey,
+  isInternalFileUrl,
+  parseInternalFileUrl,
+} from '@/lib/uploads/utils/file-utils'
 import {
   classifyStartBlockType,
   resolveStartCandidates,
@@ -334,18 +338,25 @@ function getRawInputCandidate(workflowInput: unknown): unknown {
  * Normalizes one caller-supplied file object into the executor's canonical
  * {@link UserFile}, or returns `null` when the shape is not usable.
  *
- * The storage `key` and `context` are derived **only** by parsing a validated
- * internal `/api/files/serve/...` URL; a caller-supplied `key` or `context` is
- * discarded rather than trusted. A storage key names a specific tenant's bytes,
- * so honoring one from a request body would make this normalizer an
- * attacker-authorable source of storage addresses. Every byte-reading consumer
- * re-authorizes the key before reading, but accepting it here would leave that
- * safety entirely downstream, where a future consumer can omit it with no
- * compile-time signal. Files that carry no recoverable internal URL are
- * rejected instead of being normalized around an asserted key.
+ * Nothing in the caller's payload is trusted to name storage bytes. A supplied
+ * `key` or `context` is discarded, and the key parsed out of the file's internal
+ * `/api/files/serve/...` URL is not trusted either: that URL is the same request
+ * body, and {@link isInternalFileUrl} deliberately matches the path prefix on any
+ * host, so a caller can author any key it likes there.
+ *
+ * The key is therefore accepted only when its own layout names the workspace this
+ * execution runs in — `workspace/{workspaceId}/…` or `execution/{workspaceId}/…`.
+ * Key layouts that name no workspace (`kb/`, `chat/`, `copilot/`, the
+ * world-readable prefixes) prove no ownership and are rejected, as is every file
+ * when the execution carries no workspace at all. A storage key names a specific
+ * tenant's bytes, so honoring a cross-tenant one here would make this normalizer
+ * an attacker-authorable source of storage addresses. Byte-reading consumers
+ * re-authorize downstream, but accepting an unowned key here would leave that
+ * safety entirely to them, where a future consumer can omit it with no
+ * compile-time signal.
  */
-function normalizeStartFile(file: unknown): UserFile | null {
-  if (!isRecordLike(file)) {
+function normalizeStartFile(file: unknown, workspaceId: string | undefined): UserFile | null {
+  if (!isRecordLike(file) || !workspaceId) {
     return null
   }
 
@@ -362,6 +373,9 @@ function normalizeStartFile(file: unknown): UserFile | null {
   if (url && isInternalFileUrl(url)) {
     try {
       const parsed = parseInternalFileUrl(url)
+      if (extractWorkspaceIdFromStorageKey(parsed.key) !== workspaceId) {
+        return null
+      }
       key = parsed.key
       context = parsed.context
     } catch {
@@ -385,7 +399,10 @@ function normalizeStartFile(file: unknown): UserFile | null {
   }
 }
 
-function getFilesFromWorkflowInput(workflowInput: unknown): UserFile[] | undefined {
+function getFilesFromWorkflowInput(
+  workflowInput: unknown,
+  workspaceId: string | undefined
+): UserFile[] | undefined {
   if (!isRecordLike(workflowInput)) {
     return undefined
   }
@@ -394,7 +411,7 @@ function getFilesFromWorkflowInput(workflowInput: unknown): UserFile[] | undefin
     return undefined
   }
 
-  const normalizedFiles = files.map(normalizeStartFile)
+  const normalizedFiles = files.map((file) => normalizeStartFile(file, workspaceId))
   if (normalizedFiles.every((file): file is UserFile => Boolean(file))) {
     return normalizedFiles
   }
@@ -403,9 +420,10 @@ function getFilesFromWorkflowInput(workflowInput: unknown): UserFile[] | undefin
 
 function mergeFilesIntoOutput(
   output: NormalizedBlockOutput,
-  workflowInput: unknown
+  workflowInput: unknown,
+  workspaceId: string | undefined
 ): NormalizedBlockOutput {
-  const files = getFilesFromWorkflowInput(workflowInput)
+  const files = getFilesFromWorkflowInput(workflowInput, workspaceId)
   if (files) {
     output.files = files
   } else if (isRecordLike(workflowInput) && Object.hasOwn(workflowInput, 'files')) {
@@ -469,7 +487,7 @@ function buildUnifiedStartOutput(
     output.conversationId = undefined
   }
 
-  return mergeFilesIntoOutput(output, workflowInput)
+  return output
 }
 
 function buildApiOrInputOutput(finalInput: unknown, workflowInput: unknown): NormalizedBlockOutput {
@@ -482,7 +500,7 @@ function buildApiOrInputOutput(finalInput: unknown, workflowInput: unknown): Nor
       }
     : { input: finalInput }
 
-  return mergeFilesIntoOutput(output, workflowInput)
+  return output
 }
 
 function buildChatOutput(workflowInput: unknown): NormalizedBlockOutput {
@@ -497,7 +515,7 @@ function buildChatOutput(workflowInput: unknown): NormalizedBlockOutput {
     output.conversationId = conversationId
   }
 
-  return mergeFilesIntoOutput(output, workflowInput)
+  return output
 }
 
 function buildLegacyStarterOutput(
@@ -524,7 +542,7 @@ function buildLegacyStarterOutput(
     output.conversationId = ensureString(conversationId)
   }
 
-  return mergeFilesIntoOutput(output, workflowInput)
+  return output
 }
 
 function buildManualTriggerOutput(
@@ -539,7 +557,7 @@ function buildManualTriggerOutput(
     output.input = getRawInputCandidate(workflowInput)
   }
 
-  return mergeFilesIntoOutput(output, workflowInput)
+  return output
 }
 
 function buildIntegrationTriggerOutput(
@@ -567,7 +585,7 @@ function buildIntegrationTriggerOutput(
     }
   }
 
-  return mergeFilesIntoOutput(output, workflowInput)
+  return output
 }
 
 function extractSubBlocks(block: SerializedBlock): Record<string, unknown> | undefined {
@@ -593,6 +611,11 @@ export interface StartBlockOutputOptions {
   workflowInput: unknown
   /** Trusted, server-built run metadata. Only applied when the block's toggle is on. */
   runMetadata?: StartBlockRunMetadata
+  /**
+   * Workspace this execution runs in. Caller-supplied Start files are admitted
+   * only when their storage key names this workspace; absent it, none are.
+   */
+  workspaceId?: string
 }
 
 function assertNoMetadataInputFormatField(
@@ -665,6 +688,8 @@ export function buildStartBlockOutput(options: StartBlockOutputOptions): Normali
     default:
       output = buildManualTriggerOutput(finalInput, workflowInput)
   }
+
+  output = mergeFilesIntoOutput(output, workflowInput, options.workspaceId)
 
   if (runMetadataEnabled) {
     // The metadata key is server-owned when the toggle is on: any caller-supplied

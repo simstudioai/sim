@@ -2,6 +2,7 @@ import { db } from '@sim/db'
 import { workflowExecutionLogs } from '@sim/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { collectUserFilesById } from '@/lib/core/utils/user-file'
 import { MAX_INLINE_MATERIALIZATION_BYTES } from '@/lib/execution/payloads/limits'
 import { materializeExecutionData } from '@/lib/logs/execution/trace-store'
@@ -113,6 +114,27 @@ export interface WorkflowRunFileDescriptor {
   base64: string | null
 }
 
+/**
+ * Aggregate ceiling on the bytes one response inlines. The per-file cap bounds a
+ * single file, but a run can produce many: without this, `includeFileBase64`
+ * multiplied that cap by the file count and the response was unbounded.
+ */
+const MAX_INLINE_RUN_FILE_TOTAL_BYTES = MAX_INLINE_MATERIALIZATION_BYTES
+
+/**
+ * Bound on concurrent inline byte reads. Each read may pull up to the per-file
+ * cap, so reading every file at once is a memory spike proportional to the run's
+ * file count rather than to this pool.
+ */
+const INLINE_RUN_FILE_CONCURRENCY = 4
+
+function inlineTotalExceededError(fileName: string, downloadPath: string): OrchestrationError {
+  return new OrchestrationError(
+    'payload_too_large',
+    `Inlining this run's files exceeds the ${formatFileSize(MAX_INLINE_RUN_FILE_TOTAL_BYTES)} response limit at "${fileName}"; request the run without file contents and download each file, starting with GET ${downloadPath}`
+  )
+}
+
 export interface DescribeWorkflowRunFilesOptions {
   workflowId: string
   runId: string
@@ -133,6 +155,12 @@ export interface DescribeWorkflowRunFilesOptions {
  * an acting user to re-check per-file ownership, because there is no
  * user-scoped question left to ask: the bytes are this run's own output and the
  * run has already been bound to the caller's workspace.
+ *
+ * Hydration is bounded twice over: by {@link MAX_INLINE_RUN_FILE_TOTAL_BYTES}
+ * across the whole response — checked against declared sizes before any read and
+ * again against the bytes actually returned, in case a recorded size understates
+ * the object — and by {@link INLINE_RUN_FILE_CONCURRENCY} on how many reads are
+ * in flight at once.
  */
 export async function describeWorkflowRunFiles(
   filesById: Map<string, UserFile>,
@@ -142,39 +170,49 @@ export async function describeWorkflowRunFiles(
     options.base64MaxBytes ?? MAX_INLINE_MATERIALIZATION_BYTES,
     MAX_INLINE_MATERIALIZATION_BYTES
   )
+  const files = Array.from(filesById.values())
+  const describe = (file: UserFile, base64: string | null): WorkflowRunFileDescriptor => ({
+    id: file.id,
+    name: file.name,
+    size: file.size,
+    type: file.type,
+    downloadPath: workflowRunFileDownloadPath(options.workflowId, options.runId, file.id),
+    base64,
+  })
 
-  return Promise.all(
-    Array.from(filesById.values(), async (file) => {
-      const downloadPath = workflowRunFileDownloadPath(options.workflowId, options.runId, file.id)
-      if (!options.includeBase64) {
-        return {
-          id: file.id,
-          name: file.name,
-          size: file.size,
-          type: file.type,
-          downloadPath,
-          base64: null,
-        }
-      }
-      if (file.size > cap) {
-        throw new OrchestrationError(
-          'payload_too_large',
-          `File "${file.name}" (${formatFileSize(file.size)}) exceeds the ${formatFileSize(cap)} inline limit; download it with GET ${downloadPath}`
-        )
-      }
-      const content = await downloadFile({
-        key: file.key,
-        context: inferContextFromKey(file.key),
-        maxBytes: cap,
-      })
-      return {
-        id: file.id,
-        name: file.name,
-        size: file.size,
-        type: file.type,
-        downloadPath,
-        base64: content.toString('base64'),
-      }
+  if (!options.includeBase64) {
+    return files.map((file) => describe(file, null))
+  }
+
+  let declaredBytes = 0
+  for (const file of files) {
+    const downloadPath = workflowRunFileDownloadPath(options.workflowId, options.runId, file.id)
+    if (file.size > cap) {
+      throw new OrchestrationError(
+        'payload_too_large',
+        `File "${file.name}" (${formatFileSize(file.size)}) exceeds the ${formatFileSize(cap)} inline limit; download it with GET ${downloadPath}`
+      )
+    }
+    declaredBytes += file.size
+    if (declaredBytes > MAX_INLINE_RUN_FILE_TOTAL_BYTES) {
+      throw inlineTotalExceededError(file.name, downloadPath)
+    }
+  }
+
+  let inlinedBytes = 0
+  return mapWithConcurrency(files, INLINE_RUN_FILE_CONCURRENCY, async (file) => {
+    const content = await downloadFile({
+      key: file.key,
+      context: inferContextFromKey(file.key),
+      maxBytes: cap,
     })
-  )
+    inlinedBytes += content.length
+    if (inlinedBytes > MAX_INLINE_RUN_FILE_TOTAL_BYTES) {
+      throw inlineTotalExceededError(
+        file.name,
+        workflowRunFileDownloadPath(options.workflowId, options.runId, file.id)
+      )
+    }
+    return describe(file, content.toString('base64'))
+  })
 }

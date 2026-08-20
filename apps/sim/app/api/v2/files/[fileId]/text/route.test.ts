@@ -30,6 +30,7 @@ vi.mock('@/app/api/v2/lib/gate', () => v2GateModuleMock)
 
 import { NoWorkspaceAccessError } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { MAX_TEXT_EXTRACTION_BYTES } from '@/lib/uploads/utils/file-utils'
 import { GET } from '@/app/api/v2/files/[fileId]/text/route'
 
 const WORKSPACE_ID = '6fc7631d-88cd-46f8-9f0a-d4764daef7f8'
@@ -148,13 +149,17 @@ describe('GET /api/v2/files/[fileId]/text', () => {
     expect(mocks.readText).not.toHaveBeenCalled()
   })
 
-  it('rejects a maxBytes above the server ceiling', async () => {
+  it('rejects a maxBytes above the server ceiling and echoes the bound', async () => {
     const response = await GET(
       textRequest(`workspaceId=${WORKSPACE_ID}&maxBytes=${500 * 1024 * 1024}`),
       context
     )
+    const body = await response.json()
 
     expect(response.status).toBe(400)
+    expect(JSON.stringify(body.error.details)).toContain(
+      `maxBytes cannot exceed ${MAX_TEXT_EXTRACTION_BYTES}`
+    )
     expect(mocks.readText).not.toHaveBeenCalled()
   })
 

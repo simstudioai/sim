@@ -44,6 +44,12 @@ export const readWorkflowRun = defineAuthorizedWorkflowUseCase({
        * output, so a caller that did not ask for output gets `null` rather than
        * a list it did not request. Derived from the run's own recording, which
        * is also where the download endpoint re-derives each storage key.
+       *
+       * This re-reads the run rather than reusing what the status read already
+       * loaded, and must: the status read materializes execution data *for
+       * display*, a projection that strips `key` and `context` — exactly the
+       * fields a file descriptor needs — and it also answers from the job queue
+       * for runs that have no log row yet.
        */
       let files: WorkflowRunFileDescriptor[] | null = null
       if (input.includeOutput) {

@@ -190,9 +190,17 @@ async function resolveDownloadContext({ input }: { input: DownloadWorkspaceFileI
   if (!context) throw new OrchestrationError('not_found', 'Workspace not found')
   const fileIds = [...new Set(input.fileIds)]
   const folderIds = [...new Set(input.folderIds)]
+  const folderPaths = [...new Set(input.folderPaths ?? [])]
+  /**
+   * The authorization resource is the single file only when the request is that
+   * one file. A folder — addressed by id or by path — pulls in files the caller
+   * never named, so the request is scoped to the workspace instead.
+   */
+  const addressesOnlyOneFile =
+    fileIds.length === 1 && folderIds.length === 0 && folderPaths.length === 0
   return {
     ...context,
-    fileId: fileIds.length === 1 && folderIds.length === 0 ? fileIds[0] : undefined,
+    fileId: addressesOnlyOneFile ? fileIds[0] : undefined,
   }
 }
 
