@@ -19,6 +19,7 @@ import {
   GoogleAdsIcon,
   GoogleBigQueryIcon,
   GoogleCalendarIcon,
+  GoogleChatIcon,
   GoogleContactsIcon,
   GoogleDocsIcon,
   GoogleDriveIcon,
@@ -285,6 +286,27 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'https://www.googleapis.com/auth/admin.directory.group.member',
         ],
         serviceAccountProviderId: 'google-service-account',
+      },
+      /**
+       * Deliberately declares no `serviceAccountProviderId`, unlike every sibling
+       * Google service. A Google service-account JWT cannot reach user-scoped Chat
+       * data without domain-wide delegation, so offering service-account auth here
+       * would surface a credential path that always fails. Enterprises that
+       * authenticate other Google connectors through a delegated service account must
+       * attach a per-user OAuth credential for Chat.
+       */
+      'google-chat': {
+        name: 'Google Chat',
+        description: 'Read Google Chat spaces and messages the signed-in user can access.',
+        providerId: 'google-chat',
+        icon: GoogleChatIcon,
+        baseProviderIcon: GoogleIcon,
+        scopes: [
+          'https://www.googleapis.com/auth/userinfo.email',
+          'https://www.googleapis.com/auth/userinfo.profile',
+          'https://www.googleapis.com/auth/chat.spaces.readonly',
+          'https://www.googleapis.com/auth/chat.messages.readonly',
+        ],
       },
       'google-meet': {
         name: 'Google Meet',
