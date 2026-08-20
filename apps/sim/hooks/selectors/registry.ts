@@ -8,6 +8,7 @@ import { clickupSelectors } from '@/hooks/selectors/providers/clickup/selectors'
 import { cloudwatchSelectors } from '@/hooks/selectors/providers/cloudwatch/selectors'
 import { confluenceSelectors } from '@/hooks/selectors/providers/confluence/selectors'
 import { googleSelectors } from '@/hooks/selectors/providers/google/selectors'
+import { hubspotSelectors } from '@/hooks/selectors/providers/hubspot/selectors'
 import { jiraSelectors } from '@/hooks/selectors/providers/jira/selectors'
 import { jsmSelectors } from '@/hooks/selectors/providers/jsm/selectors'
 import { knowledgeSelectors } from '@/hooks/selectors/providers/knowledge/selectors'
@@ -43,6 +44,7 @@ export const selectorRegistry = {
   ...confluenceSelectors,
   ...jsmSelectors,
   ...googleSelectors,
+  ...hubspotSelectors,
   ...microsoftSelectors,
   ...notionSelectors,
   ...pipedriveSelectors,

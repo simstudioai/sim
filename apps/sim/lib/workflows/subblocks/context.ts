@@ -42,6 +42,9 @@ export const SELECTOR_CONTEXT_FIELDS = new Set<keyof SelectorContext>([
   'database',
   'schema',
   'workspaceSlug',
+  'objectType',
+  'customObjectTypeId',
+  'pipelineId',
 ])
 
 /**

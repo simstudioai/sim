@@ -20,6 +20,11 @@ export type SelectorKey =
   | 'clickup.lists'
   | 'confluence.spaces'
   | 'google.tasks.lists'
+  | 'hubspot.lists'
+  | 'hubspot.owners'
+  | 'hubspot.pipelines'
+  | 'hubspot.pipelineStages'
+  | 'hubspot.properties'
   | 'jsm.requestTypes'
   | 'jsm.serviceDesks'
   | 'microsoft.planner.plans'
@@ -125,6 +130,16 @@ export interface SelectorContext {
   orgId?: string
   /** Bitbucket Cloud workspace slug that scopes repository discovery. */
   workspaceSlug?: string
+  /**
+   * HubSpot CRM object the pickers are scoped to (`contact` | `deal` | … | `custom`). Left
+   * unset until the user picks one; the selectors apply HubSpot's own `contact` default so an
+   * untouched dropdown still lists properties for what it visibly shows.
+   */
+  objectType?: string
+  /** HubSpot custom object type id (e.g. `2-12345`), used when `objectType` is `custom`. */
+  customObjectTypeId?: string
+  /** HubSpot pipeline whose stages a stage picker enumerates. */
+  pipelineId?: string
 }
 
 export interface SelectorQueryArgs {

@@ -40,6 +40,7 @@ export function buildClickUpTriggerSubBlocks(triggerId: string): SubBlockConfig[
       id: 'triggerCredentials',
       title: 'ClickUp Account',
       type: 'oauth-input',
+      canonicalParamId: 'oauthCredential',
       serviceId: 'clickup',
       requiredScopes: [],
       mode: 'trigger',
@@ -50,17 +51,12 @@ export function buildClickUpTriggerSubBlocks(triggerId: string): SubBlockConfig[
       id: 'triggerWorkspaceId',
       title: 'Workspace',
       type: 'dropdown',
+      selectorKey: 'clickup.workspaces',
       placeholder: 'Select a workspace',
       description: 'The ClickUp Workspace the webhook is registered in',
       required: true,
-      options: [],
       mode: 'trigger',
       condition: { field: 'selectedTriggerId', value: triggerId },
-      fetchOptions: fetchWorkspaceOptions,
-      fetchOptionById: async (blockId: string, optionId: string) => {
-        const workspaces = await fetchWorkspaceOptions(blockId)
-        return workspaces.find((workspace) => workspace.id === optionId) ?? null
-      },
     },
     {
       id: 'triggerSpaceId',
