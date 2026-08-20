@@ -1243,6 +1243,88 @@
         }
       }
     },
+    "/api/v2/files/{fileId}/permanent": {
+      "delete": {
+        "operationId": "permanentlyDeleteFile",
+        "summary": "Permanently Delete File",
+        "description": "Irreversibly destroy an archived file's row and its stored bytes. `DELETE /api/v2/files/{fileId}` only archives — its bytes are never removed — so this is the second half of a deliberate two-step: a file that is not already archived answers `409` naming the archive step. There is no undo, and no restore path afterwards. Requires the `admin` role, which also places it out of reach of workspace API keys.",
+        "tags": ["Files"],
+        "parameters": [
+          {
+            "name": "fileId",
+            "in": "path",
+            "required": true,
+            "description": "File identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_-]+$",
+              "description": "File identifier."
+            }
+          },
+          {
+            "name": "workspaceId",
+            "in": "query",
+            "required": true,
+            "description": "Workspace that owns the archived file.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "description": "Workspace that owns the archived file."
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The file was destroyed.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FilePermanentDeletionResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
     "/api/v2/files/{fileId}/restore": {
       "post": {
         "operationId": "restoreFile",
@@ -3474,6 +3556,44 @@
             "name": "renamed.csv"
           }
         ]
+      },
+      "V2FilePermanentDeletion": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "description": "Identifier of the destroyed file."
+          },
+          "deleted": {
+            "type": "boolean",
+            "const": true,
+            "description": "Always true; the row no longer exists."
+          },
+          "objectDeleted": {
+            "type": "boolean",
+            "description": "Whether the stored bytes were removed along with the row. False means the object outlived its row and awaits the storage sweep; the file is gone either way and the request does not need retrying."
+          }
+        },
+        "required": ["id", "deleted", "objectDeleted"],
+        "additionalProperties": false,
+        "title": "Permanent file deletion result",
+        "description": "Outcome of irreversibly destroying an archived workspace file."
+      },
+      "FilePermanentDeletionResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2FilePermanentDeletion"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Permanent file deletion response",
+        "description": "Outcome of irreversibly destroying an archived workspace file."
       },
       "V2RestoreFileResponse": {
         "type": "object",

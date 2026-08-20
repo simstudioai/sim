@@ -186,10 +186,11 @@ describe('knowledge and files request-slice strictness', () => {
    * 63 → 64 when the upload-session read was added, and 64 → 66 when archive
    * extraction added a query and a body slice, and 66 → 67 with the file-text
    * read's query, 67 → 69 with folder restore's query and body, and 69 → 70
-   * with the bulk zip download's query.
+   * with the bulk zip download's query, and 70 → 71 with permanent delete's
+   * query.
    */
   it('sweeps every documented query and body slice', () => {
-    expect(slices.length).toBe(70)
+    expect(slices.length).toBe(71)
   })
 
   it.each(slices)('%s rejects an undeclared key', (_name, schema) => {

@@ -18,6 +18,7 @@ import {
   v2ListFileFoldersContract,
   v2ListFilesContract,
   v2MoveFileItemsContract,
+  v2PermanentlyDeleteFileContract,
   v2ReadFileTextContract,
   v2RelocateFileFolderContract,
   v2RenameFileContract,
@@ -548,6 +549,37 @@ const declaredRoutes = [
         'File response',
         'A single workspace file.',
         [{ data: FILE_EXAMPLE }]
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2PermanentlyDeleteFileContract,
+    filesOperation({
+      operationId: 'permanentlyDeleteFile',
+      summary: 'Permanently Delete File',
+      description:
+        "Irreversibly destroy an archived file's row and its stored bytes. `DELETE /api/v2/files/{fileId}` only archives — its bytes are never removed — so this is the second half of a deliberate two-step: a file that is not already archived answers `409` naming the archive step. There is no undo, and no restore path afterwards. Requires the `admin` role, which also places it out of reach of workspace API keys.",
+      errors: [...RESOURCE_CONFLICT_ERRORS],
+      success: { description: 'The file was destroyed.' },
+    }),
+    {
+      params: documentedSchema(
+        v2PermanentlyDeleteFileContract.params,
+        'PermanentlyDeleteFileParams',
+        'Permanent delete path parameters',
+        'Archived file selected for destruction.'
+      ),
+      query: documentedSchema(
+        v2PermanentlyDeleteFileContract.query,
+        'PermanentlyDeleteFileQuery',
+        'Permanent delete query',
+        'Workspace scope for the archived file.'
+      ),
+      response: documentedSchema(
+        v2PermanentlyDeleteFileContract.response.schema,
+        'FilePermanentDeletionResponse',
+        'Permanent file deletion response',
+        'Outcome of irreversibly destroying an archived workspace file.'
       ),
     }
   ),

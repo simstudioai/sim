@@ -122,6 +122,21 @@ export const fileOperations = {
     workspaceApiKey: 'allow',
     ...ALL_COPILOT_PRINCIPAL_POLICY,
   }),
+  /**
+   * Irreversible destruction of an archived file's row and stored bytes.
+   *
+   * `admin` because the act cannot be undone and, unlike every other file
+   * mutation, leaves nothing to restore. That role forces `workspaceApiKey:
+   * 'deny'` — the workspace-key ceiling is `write`, and `defineWorkspaceOperation`
+   * rejects a workspace-key operation above it — which is the desired policy
+   * anyway: unattended credentials should not be able to destroy bytes.
+   */
+  deletePermanent: defineWorkspaceOperation({
+    id: 'files.delete_permanent',
+    minimumRole: 'admin',
+    workspaceApiKey: 'deny',
+    principalKinds: ['session', 'personal_api_key'],
+  }),
   restore: defineWorkspaceOperation({
     id: 'files.restore',
     minimumRole: 'write',
