@@ -468,11 +468,20 @@ export async function resolveOrganizationPlan(organizationId: string): Promise<b
       return true
     }
 
-    if (await isOrganizationBillingBlocked(organizationId)) {
+    /**
+     * The block state and the subscription row are independent reads, so they
+     * go out together — this runs on the workflow execution path, where a
+     * second serial round trip is per-block latency. A blocked organization
+     * pays for one subscription read it does not use, which is the rare case.
+     */
+    const [blocked, orgSub] = await Promise.all([
+      isOrganizationBillingBlocked(organizationId),
+      getOrganizationSubscriptionUsable(organizationId),
+    ])
+
+    if (blocked) {
       return false
     }
-
-    const orgSub = await getOrganizationSubscriptionUsable(organizationId)
 
     return !!orgSub && checkOrgPlan(orgSub)
   } catch (error) {

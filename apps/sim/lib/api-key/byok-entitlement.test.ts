@@ -1,0 +1,115 @@
+/**
+ * @vitest-environment node
+ */
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+const { mockResolveOrganizationPlan, mockIsHosted } = vi.hoisted(() => ({
+  mockResolveOrganizationPlan: vi.fn(),
+  mockIsHosted: { value: true },
+}))
+
+vi.mock('@/lib/billing/core/subscription', () => ({
+  resolveOrganizationPlan: mockResolveOrganizationPlan,
+}))
+
+vi.mock('@/lib/core/config/env-flags', () => ({
+  get isHosted() {
+    return mockIsHosted.value
+  },
+}))
+
+import {
+  isOrganizationBYOKEntitled,
+  isOrganizationBYOKEntitledCached,
+  resetOrganizationBYOKEntitlementCache,
+} from '@/lib/api-key/byok-entitlement'
+
+const ORGANIZATION_ID = 'org-1'
+
+describe('organization BYOK entitlement', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetOrganizationBYOKEntitlementCache()
+    mockIsHosted.value = true
+    mockResolveOrganizationPlan.mockResolvedValue(true)
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('reads the plan fresh on the authoritative path so an upgrade is never withheld', async () => {
+    await expect(isOrganizationBYOKEntitled(ORGANIZATION_ID)).resolves.toBe(true)
+    await expect(isOrganizationBYOKEntitled(ORGANIZATION_ID)).resolves.toBe(true)
+
+    expect(mockResolveOrganizationPlan).toHaveBeenCalledTimes(2)
+  })
+
+  it('serves the execution path from cache within the TTL and re-resolves after it', async () => {
+    vi.useFakeTimers()
+
+    await expect(isOrganizationBYOKEntitledCached(ORGANIZATION_ID)).resolves.toBe(true)
+    await expect(isOrganizationBYOKEntitledCached(ORGANIZATION_ID)).resolves.toBe(true)
+    expect(mockResolveOrganizationPlan).toHaveBeenCalledTimes(1)
+
+    vi.advanceTimersByTime(59_000)
+    await expect(isOrganizationBYOKEntitledCached(ORGANIZATION_ID)).resolves.toBe(true)
+    expect(mockResolveOrganizationPlan).toHaveBeenCalledTimes(1)
+
+    vi.advanceTimersByTime(2_000)
+    mockResolveOrganizationPlan.mockResolvedValue(false)
+    await expect(isOrganizationBYOKEntitledCached(ORGANIZATION_ID)).resolves.toBe(false)
+    expect(mockResolveOrganizationPlan).toHaveBeenCalledTimes(2)
+  })
+
+  it('collapses concurrent resolutions into one query set', async () => {
+    let release: (value: boolean) => void = () => {}
+    mockResolveOrganizationPlan.mockReturnValue(
+      new Promise<boolean>((resolve) => {
+        release = resolve
+      })
+    )
+
+    const inflight = Promise.all([
+      isOrganizationBYOKEntitledCached(ORGANIZATION_ID),
+      isOrganizationBYOKEntitledCached(ORGANIZATION_ID),
+      isOrganizationBYOKEntitledCached(ORGANIZATION_ID),
+    ])
+
+    release(true)
+
+    await expect(inflight).resolves.toEqual([true, true, true])
+    expect(mockResolveOrganizationPlan).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps organizations in separate cache entries', async () => {
+    mockResolveOrganizationPlan.mockImplementation(async (id: string) => id === ORGANIZATION_ID)
+
+    await expect(isOrganizationBYOKEntitledCached(ORGANIZATION_ID)).resolves.toBe(true)
+    await expect(isOrganizationBYOKEntitledCached('org-2')).resolves.toBe(false)
+    await expect(isOrganizationBYOKEntitledCached(ORGANIZATION_ID)).resolves.toBe(true)
+
+    expect(mockResolveOrganizationPlan).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not cache a rejection, so a transient failure cannot pin the gate shut', async () => {
+    mockResolveOrganizationPlan.mockRejectedValueOnce(new Error('billing read failed'))
+
+    await expect(isOrganizationBYOKEntitledCached(ORGANIZATION_ID)).rejects.toThrow(
+      'billing read failed'
+    )
+
+    mockResolveOrganizationPlan.mockResolvedValue(true)
+    await expect(isOrganizationBYOKEntitledCached(ORGANIZATION_ID)).resolves.toBe(true)
+    expect(mockResolveOrganizationPlan).toHaveBeenCalledTimes(2)
+  })
+
+  it('never consults billing off hosted, on either path', async () => {
+    mockIsHosted.value = false
+
+    await expect(isOrganizationBYOKEntitled(ORGANIZATION_ID)).resolves.toBe(false)
+    await expect(isOrganizationBYOKEntitledCached(ORGANIZATION_ID)).resolves.toBe(false)
+
+    expect(mockResolveOrganizationPlan).not.toHaveBeenCalled()
+  })
+})

@@ -2,7 +2,7 @@ import { db } from '@sim/db'
 import { organizationBYOKKeys, workspace, workspaceBYOKKeys } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, asc, eq, notExists } from 'drizzle-orm'
-import { isOrganizationBYOKEntitled } from '@/lib/api-key/byok-entitlement'
+import { isOrganizationBYOKEntitledCached } from '@/lib/api-key/byok-entitlement'
 import { getRotatingApiKey } from '@/lib/core/config/api-keys'
 import { env } from '@/lib/core/config/env'
 import { isHosted } from '@/lib/core/config/env-flags'
@@ -17,7 +17,15 @@ const logger = createLogger('BYOKKeys')
 export interface BYOKKeyResult {
   apiKey: string
   isBYOK: true
+  /**
+   * Which pool the key came from. A workspace key and an inherited organization
+   * key are indistinguishable to the caller otherwise, which makes "why did this
+   * run use a key I never set on this workspace?" unanswerable from the logs.
+   */
+  scope: BYOKKeyScopeName
 }
+
+export type BYOKKeyScopeName = 'workspace' | 'organization'
 
 const rotationCounters = new Map<string, number>()
 
@@ -51,14 +59,15 @@ async function decryptBYOKPool(
   keys: readonly EncryptedBYOKKey[],
   rotationPoolKey: string,
   providerId: BYOKProviderId,
-  scope: BYOKKeyScope
+  scope: BYOKKeyScope,
+  scopeName: BYOKKeyScopeName
 ): Promise<BYOKKeyResult | null> {
   const startIndex = nextRotationIndex(rotationPoolKey, keys.length)
   for (let offset = 0; offset < keys.length; offset++) {
     const key = keys[(startIndex + offset) % keys.length]
     try {
       const { decrypted } = await decryptSecret(key.encryptedApiKey)
-      return { apiKey: decrypted, isBYOK: true }
+      return { apiKey: decrypted, isBYOK: true, scope: scopeName }
     } catch (error) {
       logger.error('Failed to decrypt BYOK key, skipping', {
         ...scope,
@@ -78,8 +87,11 @@ async function decryptBYOKPool(
  * lookup may inherit the live organization pool, which is entitlement-gated
  * before any organization key is rotated or decrypted.
  *
- * The key list is read fresh every call (not cached): BYOK is not a hot query,
- * and reading fresh keeps revocation immediate across ECS tasks.
+ * The key list is read fresh every call (not cached), which keeps revocation
+ * immediate across ECS tasks. The organization *entitlement* is the one thing
+ * that is cached, because this runs once per agent block and once per tool call
+ * — see `isOrganizationBYOKEntitledCached` for why bounded staleness is safe on
+ * a billing gate but not on key material.
  */
 export async function getBYOKKey(
   workspaceId: string | undefined | null,
@@ -102,9 +114,13 @@ export async function getBYOKKey(
       .orderBy(asc(workspaceBYOKKeys.createdAt), asc(workspaceBYOKKeys.id))
 
     if (workspaceKeys.length) {
-      return decryptBYOKPool(workspaceKeys, `${workspaceId}:${providerId}`, providerId, {
-        workspaceId,
-      })
+      return decryptBYOKPool(
+        workspaceKeys,
+        `${workspaceId}:${providerId}`,
+        providerId,
+        { workspaceId },
+        'workspace'
+      )
     }
 
     const organizationKeys = await db
@@ -142,7 +158,7 @@ export async function getBYOKKey(
     }
 
     const organizationId = organizationKeys[0].organizationId
-    if (!(await isOrganizationBYOKEntitled(organizationId))) {
+    if (!(await isOrganizationBYOKEntitledCached(organizationId))) {
       return null
     }
 
@@ -150,7 +166,8 @@ export async function getBYOKKey(
       organizationKeys,
       `organization:${organizationId}:${providerId}`,
       providerId,
-      { workspaceId, organizationId }
+      { workspaceId, organizationId },
+      'organization'
     )
   } catch (error) {
     logger.error('Failed to get BYOK key', { workspaceId, providerId, error })
@@ -158,12 +175,17 @@ export async function getBYOKKey(
   }
 }
 
+/**
+ * `scope` is present only when the key came from a stored BYOK pool; a
+ * Sim-hosted, env, or caller-supplied key has no scope. Declared rather than
+ * dropped so the returned type matches what a BYOK branch actually hands back.
+ */
 export async function getApiKeyWithBYOK(
   provider: string,
   model: string,
   workspaceId: string | undefined | null,
   userProvidedKey?: string
-): Promise<{ apiKey: string; isBYOK: boolean }> {
+): Promise<{ apiKey: string; isBYOK: boolean; scope?: BYOKKeyScopeName }> {
   const isOllamaModel =
     provider === 'ollama' || useProvidersStore.getState().providers.ollama.models.includes(model)
   if (isOllamaModel) {
@@ -189,7 +211,7 @@ export async function getApiKeyWithBYOK(
     if (workspaceId) {
       const byokResult = await getBYOKKey(workspaceId, 'fireworks')
       if (byokResult) {
-        logger.info('Using BYOK key for Fireworks', { model, workspaceId })
+        logger.info('Using BYOK key for Fireworks', { model, workspaceId, scope: byokResult.scope })
         return byokResult
       }
     }
@@ -238,7 +260,11 @@ export async function getApiKeyWithBYOK(
     if (workspaceId) {
       const byokResult = await getBYOKKey(workspaceId, 'together')
       if (byokResult) {
-        logger.info('Using BYOK key for Together AI', { model, workspaceId })
+        logger.info('Using BYOK key for Together AI', {
+          model,
+          workspaceId,
+          scope: byokResult.scope,
+        })
         return byokResult
       }
     }
@@ -257,7 +283,7 @@ export async function getApiKeyWithBYOK(
     if (workspaceId) {
       const byokResult = await getBYOKKey(workspaceId, 'baseten')
       if (byokResult) {
-        logger.info('Using BYOK key for Baseten', { model, workspaceId })
+        logger.info('Using BYOK key for Baseten', { model, workspaceId, scope: byokResult.scope })
         return byokResult
       }
     }
@@ -277,7 +303,11 @@ export async function getApiKeyWithBYOK(
     if (workspaceId) {
       const byokResult = await getBYOKKey(workspaceId, 'ollama-cloud')
       if (byokResult) {
-        logger.info('Using BYOK key for Ollama Cloud', { model, workspaceId })
+        logger.info('Using BYOK key for Ollama Cloud', {
+          model,
+          workspaceId,
+          scope: byokResult.scope,
+        })
         return byokResult
       }
     }
@@ -329,7 +359,7 @@ export async function getApiKeyWithBYOK(
     if (isModelHosted || isMistralModel) {
       const byokResult = await getBYOKKey(workspaceId, byokProviderId)
       if (byokResult) {
-        logger.info('Using BYOK key', { provider, model, workspaceId })
+        logger.info('Using BYOK key', { provider, model, workspaceId, scope: byokResult.scope })
         return byokResult
       }
       logger.debug('No BYOK key found, falling back', { provider, model, workspaceId })

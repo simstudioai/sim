@@ -14,7 +14,7 @@ vi.mock('@/lib/core/security/encryption', () => ({
 }))
 
 vi.mock('@/lib/api-key/byok-entitlement', () => ({
-  isOrganizationBYOKEntitled: mockIsOrganizationBYOKEntitled,
+  isOrganizationBYOKEntitledCached: mockIsOrganizationBYOKEntitled,
 }))
 
 vi.mock('@/lib/core/config/api-keys', () => ({
@@ -107,6 +107,7 @@ describe('getBYOKKey', () => {
       expect(await getBYOKKey(workspaceId, 'openai')).toEqual({
         apiKey: 'decrypted-key-1',
         isBYOK: true,
+        scope: 'workspace',
       })
     }
   })
@@ -166,6 +167,7 @@ describe('getBYOKKey', () => {
     expect(await getBYOKKey(workspaceId, 'openai')).toEqual({
       apiKey: 'decrypted-key-2',
       isBYOK: true,
+      scope: 'workspace',
     })
   })
 
@@ -197,6 +199,7 @@ describe('getBYOKKey', () => {
     await expect(getBYOKKey(workspaceId, 'openai')).resolves.toEqual({
       apiKey: 'decrypted-org-key-1',
       isBYOK: true,
+      scope: 'organization',
     })
 
     expect(dbChainMockFns.innerJoin).toHaveBeenCalledWith(
@@ -255,6 +258,7 @@ describe('getBYOKKey', () => {
     await expect(getBYOKKey(workspaceId, 'openai')).resolves.toEqual({
       apiKey: 'decrypted-workspace-key',
       isBYOK: true,
+      scope: 'workspace',
     })
 
     expect(dbChainMockFns.orderBy).toHaveBeenCalledTimes(1)
@@ -273,10 +277,12 @@ describe('getBYOKKey', () => {
     await expect(getBYOKKey(workspaceId, 'openai')).resolves.toEqual({
       apiKey: 'decrypted-workspace-openai',
       isBYOK: true,
+      scope: 'workspace',
     })
     await expect(getBYOKKey(workspaceId, 'anthropic')).resolves.toEqual({
       apiKey: 'decrypted-org-anthropic',
       isBYOK: true,
+      scope: 'organization',
     })
 
     expect(mockIsOrganizationBYOKEntitled).toHaveBeenCalledTimes(1)
@@ -325,6 +331,7 @@ describe('getBYOKKey', () => {
     await expect(getBYOKKey(workspaceId, 'openai')).resolves.toEqual({
       apiKey: 'decrypted-org-key-1',
       isBYOK: true,
+      scope: 'organization',
     })
   })
 
@@ -367,10 +374,12 @@ describe('getBYOKKey', () => {
     await expect(getBYOKKey(uniqueWorkspaceId(), 'openai')).resolves.toEqual({
       apiKey: 'decrypted-org-key-1',
       isBYOK: true,
+      scope: 'organization',
     })
     await expect(getBYOKKey(uniqueWorkspaceId(), 'openai')).resolves.toEqual({
       apiKey: 'decrypted-org-key-2',
       isBYOK: true,
+      scope: 'organization',
     })
   })
 
@@ -389,10 +398,12 @@ describe('getBYOKKey', () => {
     await expect(getBYOKKey(sharedId, 'openai')).resolves.toEqual({
       apiKey: 'decrypted-workspace-key-1',
       isBYOK: true,
+      scope: 'workspace',
     })
     await expect(getBYOKKey(uniqueWorkspaceId(), 'openai')).resolves.toEqual({
       apiKey: 'decrypted-org-key-1',
       isBYOK: true,
+      scope: 'organization',
     })
   })
 
@@ -408,10 +419,12 @@ describe('getBYOKKey', () => {
     await expect(getBYOKKey(workspaceId, 'openai')).resolves.toEqual({
       apiKey: 'decrypted-org-key-before',
       isBYOK: true,
+      scope: 'organization',
     })
     await expect(getBYOKKey(workspaceId, 'openai')).resolves.toEqual({
       apiKey: 'decrypted-org-key-after',
       isBYOK: true,
+      scope: 'organization',
     })
 
     expect(mockIsOrganizationBYOKEntitled).toHaveBeenCalledTimes(2)
@@ -429,6 +442,7 @@ describe('getBYOKKey', () => {
     await expect(getBYOKKey(workspaceId, 'openai')).resolves.toEqual({
       apiKey: 'decrypted-org-key',
       isBYOK: true,
+      scope: 'organization',
     })
     await expect(getBYOKKey(workspaceId, 'openai')).resolves.toBeNull()
 
@@ -472,7 +486,7 @@ describe('getApiKeyWithBYOK for Fireworks', () => {
 
     const result = await getApiKeyWithBYOK('fireworks', HOSTED_POOL_MODEL, uniqueWorkspaceId())
 
-    expect(result).toEqual({ apiKey: 'decrypted-key-1', isBYOK: true })
+    expect(result).toEqual({ apiKey: 'decrypted-key-1', isBYOK: true, scope: 'workspace' })
     expect(mockGetRotatingApiKey).not.toHaveBeenCalled()
   })
 
