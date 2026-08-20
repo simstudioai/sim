@@ -120,12 +120,21 @@ export const updateWebhookEndpointTool: ToolConfig<
       description:
         'Whether the returned URL was reduced to its origin because the caller is not the endpoint creator',
     },
-    events: { type: 'json', description: 'Event names this endpoint is subscribed to' },
-    folderIds: {
-      type: 'json',
-      description: 'Folder IDs delivery is restricted to, or an empty array when unrestricted',
+    events: {
+      type: 'array',
+      description: 'Event names this endpoint is subscribed to',
+      items: { type: 'string' },
     },
-    scopes: { type: 'json', description: 'Which notes this endpoint receives events for' },
+    folderIds: {
+      type: 'array',
+      description: 'Folder IDs delivery is restricted to, or an empty array when unrestricted',
+      items: { type: 'string' },
+    },
+    scopes: {
+      type: 'array',
+      description: 'Which notes this endpoint receives events for',
+      items: { type: 'string' },
+    },
     createdByName: {
       type: 'string',
       description: 'Name of the user who created the endpoint',

@@ -70,7 +70,15 @@ function verifyGranolaSignature(
  * Trigger fields are free text, so both forms are accepted.
  */
 function parseList(value: unknown): string[] {
-  if (Array.isArray(value)) return value.map((entry) => String(entry).trim()).filter(Boolean)
+  const split = (entry: unknown) =>
+    String(entry)
+      .split(',')
+      .map((part) => part.trim())
+      .filter(Boolean)
+
+  /* Trigger config can arrive array-wrapped rather than split, so an entry may still
+     hold a comma-separated list; split inside entries as well as across them. */
+  if (Array.isArray(value)) return value.flatMap(split)
   if (typeof value !== 'string') return []
 
   const trimmed = value.trim()
@@ -80,17 +88,14 @@ function parseList(value: unknown): string[] {
     try {
       const parsed: unknown = JSON.parse(trimmed)
       if (Array.isArray(parsed)) {
-        return parsed.map((entry) => String(entry).trim()).filter(Boolean)
+        return parsed.flatMap(split)
       }
     } catch {
       /* Fall through to comma-separated parsing. */
     }
   }
 
-  return trimmed
-    .split(',')
-    .map((entry) => entry.trim())
-    .filter(Boolean)
+  return split(trimmed)
 }
 
 /** Turn a Granola API failure into a message worth showing on the deploy dialog. */

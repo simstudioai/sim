@@ -63,15 +63,18 @@ export const listFoldersTool: ToolConfig<GranolaListFoldersParams, GranolaListFo
 
   outputs: {
     folders: {
-      type: 'json',
+      type: 'array',
       description: 'List of folders',
-      properties: {
-        id: { type: 'string', description: 'Folder ID' },
-        name: { type: 'string', description: 'Folder name' },
-        parentFolderId: {
-          type: 'string',
-          description: 'Parent folder ID, or null for top-level folders',
-          optional: true,
+      items: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', description: 'Folder ID' },
+          name: { type: 'string', description: 'Folder name' },
+          parentFolderId: {
+            type: 'string',
+            description: 'Parent folder ID, or null for top-level folders',
+            optional: true,
+          },
         },
       },
     },

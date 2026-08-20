@@ -114,54 +114,57 @@ export const listAuditEventsTool: ToolConfig<
 
   outputs: {
     events: {
-      type: 'json',
+      type: 'array',
       description: 'List of audit events',
-      properties: {
-        id: { type: 'string', description: 'Audit event ID' },
-        action: {
-          type: 'string',
-          description:
-            'The recorded action (e.g., workspace.member_added). Treat as an open set — actions are added over time.',
-        },
-        occurredAt: { type: 'string', description: 'When the action happened' },
-        collectedAt: {
-          type: 'string',
-          description:
-            'When Granola recorded the event. Events are returned in this order, so page on it rather than on occurredAt.',
-        },
-        actorType: {
-          type: 'string',
-          description: 'Who performed the action: user, api_key, system, or anonymous',
-        },
-        actorId: {
-          type: 'string',
-          description: 'User ID of the actor, when the actor is a resolvable user',
-          optional: true,
-        },
-        actorEmail: {
-          type: 'string',
-          description: 'Email of the acting user, when the account still exists',
-          optional: true,
-        },
-        data: {
-          type: 'json',
-          description:
-            'Action-specific details. Field names are the ones Granola records internally, so they are camelCase.',
-        },
-        ipAddress: {
-          type: 'string',
-          description: 'IP address the request came from, when recorded',
-          optional: true,
-        },
-        userAgent: {
-          type: 'string',
-          description: 'User agent of the client that made the request, when recorded',
-          optional: true,
-        },
-        clientVersion: {
-          type: 'string',
-          description: 'Granola client version that made the request, when recorded',
-          optional: true,
+      items: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', description: 'Audit event ID' },
+          action: {
+            type: 'string',
+            description:
+              'The recorded action (e.g., workspace.member_added). Treat as an open set — actions are added over time.',
+          },
+          occurredAt: { type: 'string', description: 'When the action happened' },
+          collectedAt: {
+            type: 'string',
+            description:
+              'When Granola recorded the event. Events are returned in this order, so page on it rather than on occurredAt.',
+          },
+          actorType: {
+            type: 'string',
+            description: 'Who performed the action: user, api_key, system, or anonymous',
+          },
+          actorId: {
+            type: 'string',
+            description: 'User ID of the actor, when the actor is a resolvable user',
+            optional: true,
+          },
+          actorEmail: {
+            type: 'string',
+            description: 'Email of the acting user, when the account still exists',
+            optional: true,
+          },
+          data: {
+            type: 'json',
+            description:
+              'Action-specific details. Field names are the ones Granola records internally, so they are camelCase.',
+          },
+          ipAddress: {
+            type: 'string',
+            description: 'IP address the request came from, when recorded',
+            optional: true,
+          },
+          userAgent: {
+            type: 'string',
+            description: 'User agent of the client that made the request, when recorded',
+            optional: true,
+          },
+          clientVersion: {
+            type: 'string',
+            description: 'Granola client version that made the request, when recorded',
+            optional: true,
+          },
         },
       },
     },

@@ -61,7 +61,14 @@ export async function throwGranolaError(response: Response): Promise<never> {
  */
 export function toStringList(value: unknown): string[] {
   if (Array.isArray(value)) {
-    return value.map((entry) => String(entry).trim()).filter(Boolean)
+    /* An entry can itself still hold a comma-separated list when a single free-text
+       value was array-wrapped upstream, so split inside entries too. */
+    return value.flatMap((entry) =>
+      String(entry)
+        .split(',')
+        .map((part) => part.trim())
+        .filter(Boolean)
+    )
   }
   if (typeof value !== 'string') return []
 
@@ -72,7 +79,12 @@ export function toStringList(value: unknown): string[] {
     try {
       const parsed: unknown = JSON.parse(trimmed)
       if (Array.isArray(parsed)) {
-        return parsed.map((entry) => String(entry).trim()).filter(Boolean)
+        return parsed.flatMap((entry) =>
+          String(entry)
+            .split(',')
+            .map((part) => part.trim())
+            .filter(Boolean)
+        )
       }
     } catch {
       /* Fall through to comma-separated parsing. */

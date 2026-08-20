@@ -51,7 +51,7 @@ Lists meeting notes from Granola with optional date filters and pagination.
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `notes` | json | List of meeting notes |
+| `notes` | array | List of meeting notes |
 |   ↳ `id` | string | Note ID |
 |   ↳ `title` | string | Note title |
 |   ↳ `ownerName` | string | Note owner name |
@@ -86,10 +86,10 @@ Retrieves a specific meeting note from Granola by ID, including summary, attende
 | `webUrl` | string | URL to view the note in Granola |
 | `summaryText` | string | Plain text summary of the meeting |
 | `summaryMarkdown` | string | Markdown-formatted summary of the meeting |
-| `attendees` | json | Meeting attendees |
+| `attendees` | array | Meeting attendees |
 |   ↳ `name` | string | Attendee name |
 |   ↳ `email` | string | Attendee email |
-| `folders` | json | Folders the note belongs to |
+| `folders` | array | Folders the note belongs to |
 |   ↳ `id` | string | Folder ID |
 |   ↳ `name` | string | Folder name |
 | `calendarEventTitle` | string | Calendar event title |
@@ -97,8 +97,8 @@ Retrieves a specific meeting note from Granola by ID, including summary, attende
 | `calendarEventId` | string | Calendar event ID |
 | `scheduledStartTime` | string | Scheduled start time |
 | `scheduledEndTime` | string | Scheduled end time |
-| `invitees` | json | Calendar event invitee emails |
-| `transcript` | json | Meeting transcript entries \(only if requested\) |
+| `invitees` | array | Calendar event invitee emails |
+| `transcript` | array | Meeting transcript entries \(only if requested\) |
 |   ↳ `speaker` | string | Speaker source \(microphone or speaker\) |
 |   ↳ `speakerAttribution` | string | Who spoke relative to the note owner: "me" for the note-taker, "them" for other participants. Null when attribution is unknown. |
 |   ↳ `speakerLabel` | string | Diarization label for the speaker \(e.g., Speaker A\) |
@@ -124,7 +124,7 @@ Retrieves a meeting transcript from Granola one page at a time, including when G
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `transcript` | json | Transcript items for this page |
+| `transcript` | array | Transcript items for this page |
 |   ↳ `speaker` | string | Audio source of the speaker \(microphone or speaker\) |
 |   ↳ `speakerAttribution` | string | Who spoke relative to the note owner: "me" for the note-taker, "them" for other participants. Null when attribution is unknown. |
 |   ↳ `speakerLabel` | string | Anonymous diarization label for the speaker \(e.g., Speaker A\) |
@@ -151,7 +151,7 @@ Lists folders from Granola, sorted alphabetically, with pagination.
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `folders` | json | List of folders |
+| `folders` | array | List of folders |
 |   ↳ `id` | string | Folder ID |
 |   ↳ `name` | string | Folder name |
 |   ↳ `parentFolderId` | string | Parent folder ID, or null for top-level folders |
@@ -177,7 +177,7 @@ Lists workspace audit events from Granola, with optional action and date filters
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `events` | json | List of audit events |
+| `events` | array | List of audit events |
 |   ↳ `id` | string | Audit event ID |
 |   ↳ `action` | string | The recorded action \(e.g., workspace.member_added\). Treat as an open set — actions are added over time. |
 |   ↳ `occurredAt` | string | When the action happened |
@@ -213,9 +213,9 @@ Registers an HTTPS URL in Granola to receive note event deliveries. The signing 
 | `id` | string | Webhook endpoint ID |
 | `url` | string | The HTTPS URL deliveries are sent to |
 | `urlRedacted` | boolean | Whether the returned URL was reduced to its origin because the caller is not the endpoint creator |
-| `events` | json | Event names this endpoint is subscribed to |
-| `folderIds` | json | Folder IDs delivery is restricted to, or an empty array when unrestricted |
-| `scopes` | json | Which notes this endpoint receives events for |
+| `events` | array | Event names this endpoint is subscribed to |
+| `folderIds` | array | Folder IDs delivery is restricted to, or an empty array when unrestricted |
+| `scopes` | array | Which notes this endpoint receives events for |
 | `createdByName` | string | Name of the user who created the endpoint |
 | `createdByEmail` | string | Email of the user who created the endpoint |
 | `enabled` | boolean | Whether deliveries are active |
@@ -236,13 +236,13 @@ Lists the Granola webhook endpoints the API key can manage. A personal key sees 
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `webhookEndpoints` | json | List of webhook endpoints |
+| `webhookEndpoints` | array | List of webhook endpoints |
 |   ↳ `id` | string | Webhook endpoint ID |
 |   ↳ `url` | string | The HTTPS URL deliveries are sent to, reduced to its origin when urlRedacted is true |
 |   ↳ `urlRedacted` | boolean | Whether the URL was reduced to its origin because the caller is not the endpoint creator |
-|   ↳ `events` | json | Event names this endpoint is subscribed to |
-|   ↳ `folderIds` | json | Folder IDs delivery is restricted to, or an empty array when unrestricted |
-|   ↳ `scopes` | json | Which notes this endpoint receives events for |
+|   ↳ `events` | array | Event names this endpoint is subscribed to |
+|   ↳ `folderIds` | array | Folder IDs delivery is restricted to, or an empty array when unrestricted |
+|   ↳ `scopes` | array | Which notes this endpoint receives events for |
 |   ↳ `createdByName` | string | Name of the user who created the endpoint |
 |   ↳ `createdByEmail` | string | Email of the user who created the endpoint |
 |   ↳ `enabled` | boolean | Whether deliveries are active |
@@ -271,9 +271,9 @@ Updates a Granola webhook endpoint. Each supplied field replaces its current val
 | `id` | string | Webhook endpoint ID |
 | `url` | string | The HTTPS URL deliveries are sent to |
 | `urlRedacted` | boolean | Whether the returned URL was reduced to its origin because the caller is not the endpoint creator |
-| `events` | json | Event names this endpoint is subscribed to |
-| `folderIds` | json | Folder IDs delivery is restricted to, or an empty array when unrestricted |
-| `scopes` | json | Which notes this endpoint receives events for |
+| `events` | array | Event names this endpoint is subscribed to |
+| `folderIds` | array | Folder IDs delivery is restricted to, or an empty array when unrestricted |
+| `scopes` | array | Which notes this endpoint receives events for |
 | `createdByName` | string | Name of the user who created the endpoint |
 | `createdByEmail` | string | Email of the user who created the endpoint |
 | `enabled` | boolean | Whether deliveries are active |

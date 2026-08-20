@@ -35,7 +35,7 @@ export const granolaTriggerOptions = [
  */
 export function granolaSetupInstructions(eventLabel: string): string {
   const instructions = [
-    'Create a Granola API key in <strong>Settings &gt; Connectors &gt; Granola API</strong>. See the <a href="https://docs.granola.ai/help-center/sharing/integrations/granola-api" target="_blank" rel="noopener noreferrer">Granola API documentation</a> for details.',
+    'In the Granola desktop app, go to <strong>Settings → Connectors → API keys</strong> and click <strong>Create new key</strong>, selecting the note access scopes the key should include. See the <a href="https://docs.granola.ai/help-center/sharing/integrations/granola-api" target="_blank" rel="noopener noreferrer">Granola API documentation</a> for details.',
     'Paste the key into the <strong>API Key</strong> field below. Webhooks require a Granola Business or Enterprise plan.',
     'Choose the <strong>Scopes</strong> that match the notes you want events for. Use <code>workspace</code> on its own if the key is a Workspace API key.',
     'Optionally restrict deliveries to specific folders with <strong>Folder IDs</strong>.',

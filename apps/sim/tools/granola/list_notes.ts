@@ -100,15 +100,18 @@ export const listNotesTool: ToolConfig<GranolaListNotesParams, GranolaListNotesR
 
   outputs: {
     notes: {
-      type: 'json',
+      type: 'array',
       description: 'List of meeting notes',
-      properties: {
-        id: { type: 'string', description: 'Note ID' },
-        title: { type: 'string', description: 'Note title' },
-        ownerName: { type: 'string', description: 'Note owner name' },
-        ownerEmail: { type: 'string', description: 'Note owner email' },
-        createdAt: { type: 'string', description: 'Creation timestamp' },
-        updatedAt: { type: 'string', description: 'Last update timestamp' },
+      items: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', description: 'Note ID' },
+          title: { type: 'string', description: 'Note title' },
+          ownerName: { type: 'string', description: 'Note owner name' },
+          ownerEmail: { type: 'string', description: 'Note owner email' },
+          createdAt: { type: 'string', description: 'Creation timestamp' },
+          updatedAt: { type: 'string', description: 'Last update timestamp' },
+        },
       },
     },
     hasMore: {

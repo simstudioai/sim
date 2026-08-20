@@ -50,38 +50,51 @@ export const listWebhookEndpointsTool: ToolConfig<
 
   outputs: {
     webhookEndpoints: {
-      type: 'json',
+      type: 'array',
       description: 'List of webhook endpoints',
-      properties: {
-        id: { type: 'string', description: 'Webhook endpoint ID' },
-        url: {
-          type: 'string',
-          description:
-            'The HTTPS URL deliveries are sent to, reduced to its origin when urlRedacted is true',
+      items: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', description: 'Webhook endpoint ID' },
+          url: {
+            type: 'string',
+            description:
+              'The HTTPS URL deliveries are sent to, reduced to its origin when urlRedacted is true',
+          },
+          urlRedacted: {
+            type: 'boolean',
+            description:
+              'Whether the URL was reduced to its origin because the caller is not the endpoint creator',
+          },
+          events: {
+            type: 'array',
+            description: 'Event names this endpoint is subscribed to',
+            items: { type: 'string' },
+          },
+          folderIds: {
+            type: 'array',
+            description:
+              'Folder IDs delivery is restricted to, or an empty array when unrestricted',
+            items: { type: 'string' },
+          },
+          scopes: {
+            type: 'array',
+            description: 'Which notes this endpoint receives events for',
+            items: { type: 'string' },
+          },
+          createdByName: {
+            type: 'string',
+            description: 'Name of the user who created the endpoint',
+            optional: true,
+          },
+          createdByEmail: {
+            type: 'string',
+            description: 'Email of the user who created the endpoint',
+            optional: true,
+          },
+          enabled: { type: 'boolean', description: 'Whether deliveries are active' },
+          createdAt: { type: 'string', description: 'Creation timestamp' },
         },
-        urlRedacted: {
-          type: 'boolean',
-          description:
-            'Whether the URL was reduced to its origin because the caller is not the endpoint creator',
-        },
-        events: { type: 'json', description: 'Event names this endpoint is subscribed to' },
-        folderIds: {
-          type: 'json',
-          description: 'Folder IDs delivery is restricted to, or an empty array when unrestricted',
-        },
-        scopes: { type: 'json', description: 'Which notes this endpoint receives events for' },
-        createdByName: {
-          type: 'string',
-          description: 'Name of the user who created the endpoint',
-          optional: true,
-        },
-        createdByEmail: {
-          type: 'string',
-          description: 'Email of the user who created the endpoint',
-          optional: true,
-        },
-        enabled: { type: 'boolean', description: 'Whether deliveries are active' },
-        createdAt: { type: 'string', description: 'Creation timestamp' },
       },
     },
   },

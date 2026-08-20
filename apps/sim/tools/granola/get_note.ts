@@ -113,19 +113,25 @@ export const getNoteTool: ToolConfig<GranolaGetNoteParams, GranolaGetNoteRespons
       optional: true,
     },
     attendees: {
-      type: 'json',
+      type: 'array',
       description: 'Meeting attendees',
-      properties: {
-        name: { type: 'string', description: 'Attendee name' },
-        email: { type: 'string', description: 'Attendee email' },
+      items: {
+        type: 'object',
+        properties: {
+          name: { type: 'string', description: 'Attendee name' },
+          email: { type: 'string', description: 'Attendee email' },
+        },
       },
     },
     folders: {
-      type: 'json',
+      type: 'array',
       description: 'Folders the note belongs to',
-      properties: {
-        id: { type: 'string', description: 'Folder ID' },
-        name: { type: 'string', description: 'Folder name' },
+      items: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', description: 'Folder ID' },
+          name: { type: 'string', description: 'Folder name' },
+        },
       },
     },
     calendarEventTitle: {
@@ -145,32 +151,39 @@ export const getNoteTool: ToolConfig<GranolaGetNoteParams, GranolaGetNoteRespons
       optional: true,
     },
     scheduledEndTime: { type: 'string', description: 'Scheduled end time', optional: true },
-    invitees: { type: 'json', description: 'Calendar event invitee emails' },
+    invitees: {
+      type: 'array',
+      description: 'Calendar event invitee emails',
+      items: { type: 'string' },
+    },
     transcript: {
-      type: 'json',
+      type: 'array',
       description: 'Meeting transcript entries (only if requested)',
       optional: true,
-      properties: {
-        speaker: { type: 'string', description: 'Speaker source (microphone or speaker)' },
-        speakerAttribution: {
-          type: 'string',
-          description:
-            'Who spoke relative to the note owner: "me" for the note-taker, "them" for other participants. Null when attribution is unknown.',
-          optional: true,
+      items: {
+        type: 'object',
+        properties: {
+          speaker: { type: 'string', description: 'Speaker source (microphone or speaker)' },
+          speakerAttribution: {
+            type: 'string',
+            description:
+              'Who spoke relative to the note owner: "me" for the note-taker, "them" for other participants. Null when attribution is unknown.',
+            optional: true,
+          },
+          speakerLabel: {
+            type: 'string',
+            description: 'Diarization label for the speaker (e.g., Speaker A)',
+            optional: true,
+          },
+          speakerName: {
+            type: 'string',
+            description: 'Resolved name of the identified speaker, when available',
+            optional: true,
+          },
+          text: { type: 'string', description: 'Transcript text' },
+          startTime: { type: 'string', description: 'Segment start time' },
+          endTime: { type: 'string', description: 'Segment end time' },
         },
-        speakerLabel: {
-          type: 'string',
-          description: 'Diarization label for the speaker (e.g., Speaker A)',
-          optional: true,
-        },
-        speakerName: {
-          type: 'string',
-          description: 'Resolved name of the identified speaker, when available',
-          optional: true,
-        },
-        text: { type: 'string', description: 'Transcript text' },
-        startTime: { type: 'string', description: 'Segment start time' },
-        endTime: { type: 'string', description: 'Segment end time' },
       },
     },
   },

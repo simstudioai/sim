@@ -361,9 +361,17 @@ export const GranolaBlock: BlockConfig = {
       type: 'json',
       description: 'List of meeting notes (id, title, ownerName, ownerEmail, createdAt, updatedAt)',
     },
-    hasMore: { type: 'boolean', description: 'Whether more notes are available' },
+    hasMore: {
+      type: 'boolean',
+      description:
+        'Whether another page is available, for whichever listing ran — notes, folders, audit events, or transcript items',
+    },
     cursor: { type: 'string', description: 'Pagination cursor for next page' },
-    id: { type: 'string', description: 'Note ID' },
+    id: {
+      type: 'string',
+      description:
+        'Note ID for Get Note, or the webhook endpoint ID for the create, update, and delete webhook endpoint operations',
+    },
     title: { type: 'string', description: 'Note title' },
     ownerName: { type: 'string', description: 'Note owner name' },
     ownerEmail: { type: 'string', description: 'Note owner email' },
@@ -392,7 +400,7 @@ export const GranolaBlock: BlockConfig = {
     events: {
       type: 'json',
       description:
-        'Audit events (id, action, occurredAt, collectedAt, actorType, actorId, actorEmail, data, ipAddress, userAgent, clientVersion)',
+        'Audit events (id, action, occurredAt, collectedAt, actorType, actorId, actorEmail, data, ipAddress, userAgent, clientVersion) for List Audit Events, or the subscribed webhook event names for the create and update webhook endpoint operations',
     },
     webhookEndpoints: {
       type: 'json',

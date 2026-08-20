@@ -92,32 +92,35 @@ export const getTranscriptTool: ToolConfig<
 
   outputs: {
     transcript: {
-      type: 'json',
+      type: 'array',
       description: 'Transcript items for this page',
-      properties: {
-        speaker: {
-          type: 'string',
-          description: 'Audio source of the speaker (microphone or speaker)',
+      items: {
+        type: 'object',
+        properties: {
+          speaker: {
+            type: 'string',
+            description: 'Audio source of the speaker (microphone or speaker)',
+          },
+          speakerAttribution: {
+            type: 'string',
+            description:
+              'Who spoke relative to the note owner: "me" for the note-taker, "them" for other participants. Null when attribution is unknown.',
+            optional: true,
+          },
+          speakerLabel: {
+            type: 'string',
+            description: 'Anonymous diarization label for the speaker (e.g., Speaker A)',
+            optional: true,
+          },
+          speakerName: {
+            type: 'string',
+            description: 'Resolved name of the identified speaker, when available',
+            optional: true,
+          },
+          text: { type: 'string', description: 'Transcript text' },
+          startTime: { type: 'string', description: 'Segment start time' },
+          endTime: { type: 'string', description: 'Segment end time' },
         },
-        speakerAttribution: {
-          type: 'string',
-          description:
-            'Who spoke relative to the note owner: "me" for the note-taker, "them" for other participants. Null when attribution is unknown.',
-          optional: true,
-        },
-        speakerLabel: {
-          type: 'string',
-          description: 'Anonymous diarization label for the speaker (e.g., Speaker A)',
-          optional: true,
-        },
-        speakerName: {
-          type: 'string',
-          description: 'Resolved name of the identified speaker, when available',
-          optional: true,
-        },
-        text: { type: 'string', description: 'Transcript text' },
-        startTime: { type: 'string', description: 'Segment start time' },
-        endTime: { type: 'string', description: 'Segment end time' },
       },
     },
     hasMore: {
