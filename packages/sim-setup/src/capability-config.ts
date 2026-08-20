@@ -896,6 +896,10 @@ export const OAUTH_CLIENT_SETUP_FIELDS = {
     AIRTABLE_CLIENT_ID: { input: 'text' },
     AIRTABLE_CLIENT_SECRET: { input: 'secret' },
   },
+  bitbucket: {
+    BITBUCKET_CLIENT_ID: { input: 'text' },
+    BITBUCKET_CLIENT_SECRET: { input: 'secret' },
+  },
   notion: {
     NOTION_CLIENT_ID: { input: 'text' },
     NOTION_CLIENT_SECRET: { input: 'secret' },

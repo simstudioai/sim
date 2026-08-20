@@ -127,6 +127,7 @@ The same variables also power "Sign in with Microsoft".
 | ClickUp | `CLICKUP_CLIENT_ID` / `CLICKUP_CLIENT_SECRET` | `clickup` |
 | Monday | `MONDAY_CLIENT_ID` / `MONDAY_CLIENT_SECRET` | `monday` |
 | Airtable | `AIRTABLE_CLIENT_ID` / `AIRTABLE_CLIENT_SECRET` | `airtable` |
+| Bitbucket | `BITBUCKET_CLIENT_ID` / `BITBUCKET_CLIENT_SECRET` | `bitbucket` |
 | HubSpot | `HUBSPOT_CLIENT_ID` / `HUBSPOT_CLIENT_SECRET` | `hubspot` |
 | Salesforce | `SALESFORCE_CLIENT_ID` / `SALESFORCE_CLIENT_SECRET` | `salesforce` |
 | Pipedrive | `PIPEDRIVE_CLIENT_ID` / `PIPEDRIVE_CLIENT_SECRET` | `pipedrive` |
@@ -145,6 +146,13 @@ The same variables also power "Sign in with Microsoft".
 | Reddit | `REDDIT_CLIENT_ID` / `REDDIT_CLIENT_SECRET` | `reddit` |
 | Spotify | `SPOTIFY_CLIENT_ID` / `SPOTIFY_CLIENT_SECRET` | `spotify` |
 | TikTok | `TIKTOK_CLIENT_ID` / `TIKTOK_CLIENT_SECRET` | `tiktok` |
+
+For Bitbucket, create an OAuth consumer and register
+`https://<your-domain>/api/auth/oauth2/callback/bitbucket` as its callback URL. Bitbucket fixes
+permissions on the consumer instead of narrowing them per authorization request. Enable exactly
+Account read, Repositories read/write, Pull requests read/write, and Pipelines read/write
+(`account`, `repository`, `repository:write`, `pullrequest`, `pullrequest:write`, `pipeline`, and
+`pipeline:write`). Webhook permission is not required for the integration-only release.
 
 ### Services with a different flow
 

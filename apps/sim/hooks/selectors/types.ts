@@ -10,6 +10,8 @@ export type SelectorKey =
   | 'attio.objects'
   | 'bigquery.datasets'
   | 'bigquery.tables'
+  | 'bitbucket.workspaces'
+  | 'bitbucket.repositories'
   | 'calcom.eventTypes'
   | 'calcom.schedules'
   | 'clickup.workspaces'
@@ -121,6 +123,8 @@ export interface SelectorContext {
   schema?: string
   /** Zoho Desk organization (portal) id — the `orgId` header every Desk call but `/organizations` requires. */
   orgId?: string
+  /** Bitbucket Cloud workspace slug that scopes repository discovery. */
+  workspaceSlug?: string
 }
 
 export interface SelectorQueryArgs {
