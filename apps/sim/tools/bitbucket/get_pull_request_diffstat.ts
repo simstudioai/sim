@@ -60,7 +60,7 @@ export const bitbucketGetPullRequestDiffstatTool: ToolConfig<
     const initialUrl = pullRequestDiffstatUrl(params)
     const headers = bitbucketHeaders(params.accessToken)
     let response: Response
-    if (params.nextUrl) {
+    if (params.nextUrl !== undefined) {
       const continuation = validateBitbucketPullRequestRedirect(
         params.nextUrl,
         params.workspaceSlug,

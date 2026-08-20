@@ -185,6 +185,12 @@ describe('Bitbucket pull request request builders', () => {
         state: 'CLOSED',
       } as unknown as BitbucketListPullRequestsParams)
     ).toThrow(/state must be one of/)
+    expect(() =>
+      requestUrl(bitbucketListPullRequestsTool, {
+        ...PULL_REQUEST_PARAMS,
+        q: false,
+      } as unknown as BitbucketListPullRequestsParams)
+    ).toThrow(/q must be a non-empty string/)
   })
 
   it('builds the complete documented create-pull-request body', () => {
@@ -443,6 +449,7 @@ describe('Bitbucket merge lifecycle', () => {
       'https://api.bitbucket.org/2.0/repositories/acme%20team/sdk%2Fcore/pullrequests/7/merge?async=true'
     )
     expect(requestBody(bitbucketMergePullRequestTool, params)).toEqual({
+      type: 'pullrequest',
       merge_strategy: 'squash_fast_forward',
       message: 'Ship it',
       close_source_branch: false,
@@ -566,7 +573,9 @@ describe('Bitbucket merge lifecycle', () => {
       bitbucketGetMergeTaskStatusTool.transformResponse!(
         Response.json({ task_status: 'PENDING', merge_result: RAW_PULL_REQUEST })
       )
-    ).rejects.toThrow(/unexpected merge_result/)
+    ).resolves.toMatchObject({
+      output: { taskStatus: 'PENDING', mergeResult: null },
+    })
   })
 
   it('surfaces merge conflicts and failed merge checks from structured Bitbucket errors', async () => {

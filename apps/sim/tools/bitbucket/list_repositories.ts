@@ -18,7 +18,7 @@ import {
   normalizeBitbucketPage,
   normalizeBitbucketRepository,
 } from '@/tools/bitbucket/utils'
-import { optionalBitbucketEnum } from '@/tools/bitbucket/validation'
+import { optionalBitbucketEnum, optionalBitbucketString } from '@/tools/bitbucket/validation'
 import type { ToolConfig } from '@/tools/types'
 
 const BITBUCKET_REPOSITORY_ROLES = ['admin', 'contributor', 'member', 'owner'] as const
@@ -63,12 +63,14 @@ export const bitbucketListRepositoriesTool: ToolConfig<
   request: {
     url: (params) => {
       const role = optionalBitbucketEnum(params.role, 'role', BITBUCKET_REPOSITORY_ROLES)
+      const q = optionalBitbucketString(params.q, 'q')
+      const sort = optionalBitbucketString(params.sort, 'sort')
       return bitbucketApiUrl(
         `/repositories/${encodeBitbucketSegment(params.workspaceSlug, 'workspaceSlug')}`,
         {
           nextUrl: params.nextUrl,
           pageLen: params.pageLen,
-          query: { role, q: params.q, sort: params.sort },
+          query: { role, q, sort },
         }
       )
     },

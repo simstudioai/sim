@@ -78,8 +78,6 @@ export const bitbucketGetMergeTaskStatusTool: ToolConfig<
       const result = record(data.merge_result)
       if (!result) throw new Error('Bitbucket successful merge task omitted merge_result')
       mergeResult = normalizeBitbucketPullRequest(result)
-    } else if (data.merge_result !== undefined && data.merge_result !== null) {
-      throw new Error('Bitbucket pending merge task returned an unexpected merge_result')
     }
 
     return {

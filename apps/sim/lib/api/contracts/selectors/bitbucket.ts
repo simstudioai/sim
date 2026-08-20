@@ -115,7 +115,7 @@ const bitbucketRepositoryProviderSchema = z
   .object({
     slug: bitbucketRepositorySlugSchema.optional(),
     uuid: bitbucketUuidSchema,
-    name: bitbucketNameSchema,
+    name: bitbucketNameSchema.optional(),
     full_name: bitbucketNameSchema,
   })
   .passthrough()

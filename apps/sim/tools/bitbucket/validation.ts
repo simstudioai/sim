@@ -1,5 +1,13 @@
 const BITBUCKET_SHA1_PATTERN = /^[0-9a-f]{40}$/i
 
+export function optionalBitbucketString(value: unknown, name: string): string | undefined {
+  if (value === undefined) return undefined
+  if (typeof value !== 'string' || value.trim().length === 0) {
+    throw new Error(`${name} must be a non-empty string`)
+  }
+  return value
+}
+
 export function optionalBitbucketBoolean(value: unknown, name: string): boolean | undefined {
   if (value === undefined) return undefined
   if (typeof value !== 'boolean') throw new Error(`${name} must be a boolean`)

@@ -32,7 +32,8 @@ vi.mock('@/lib/oauth/credential-service', () => ({
 import { POST } from '@/app/api/tools/bitbucket/repositories/route'
 
 const URL = 'http://localhost:3000/api/tools/bitbucket/repositories'
-const FIRST_PAGE_URL = 'https://api.bitbucket.org/2.0/repositories/acme-platform?pagelen=100'
+const FIRST_PAGE_URL =
+  'https://api.bitbucket.org/2.0/repositories/acme-platform?pagelen=100&fields=values.slug%2Cvalues.uuid%2Cvalues.name%2Cvalues.full_name%2Cnext'
 const SECOND_PAGE_URL =
   'https://api.bitbucket.org/2.0/repositories/acme-platform?page=2&pagelen=100'
 const REQUEST_BODY = {
@@ -190,7 +191,6 @@ describe('POST /api/tools/bitbucket/repositories', () => {
         values: [
           {
             uuid: '{repository-uuid}',
-            name: 'Payments API',
             full_name: 'acme-platform/payments-api',
             links: { html: { href: 'https://bitbucket.org/acme-platform/payments-api' } },
           },
@@ -214,7 +214,7 @@ describe('POST /api/tools/bitbucket/repositories', () => {
         {
           slug: 'payments-api',
           uuid: '{repository-uuid}',
-          name: 'Payments API',
+          name: 'payments-api',
           fullName: 'acme-platform/payments-api',
         },
       ],

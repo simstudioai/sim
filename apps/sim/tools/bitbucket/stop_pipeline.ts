@@ -33,7 +33,12 @@ export const bitbucketStopPipelineTool: ToolConfig<
     method: 'POST',
     headers: (params) => bitbucketHeaders(params.accessToken),
   },
-  transformResponse: async () => ({ success: true, output: { stopped: true } }),
+  transformResponse: async (response) => {
+    if (response.status !== 204) {
+      throw new Error(`Bitbucket pipeline stop returned unexpected HTTP ${response.status}`)
+    }
+    return { success: true, output: { stopped: true } }
+  },
   outputs: { stopped: { type: 'boolean', description: 'Whether the stop request succeeded' } },
   errorExtractor: BITBUCKET_ERROR_EXTRACTOR,
 }

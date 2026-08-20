@@ -18,6 +18,7 @@ import {
   normalizeBitbucketBranch,
   normalizeBitbucketPage,
 } from '@/tools/bitbucket/utils'
+import { optionalBitbucketString } from '@/tools/bitbucket/validation'
 import type { ToolConfig } from '@/tools/types'
 
 export const bitbucketListBranchesTool: ToolConfig<
@@ -46,15 +47,18 @@ export const bitbucketListBranchesTool: ToolConfig<
     ...BITBUCKET_PAGINATION_PARAMS,
   },
   request: {
-    url: (params) =>
-      bitbucketApiUrl(
+    url: (params) => {
+      const q = optionalBitbucketString(params.q, 'q')
+      const sort = optionalBitbucketString(params.sort, 'sort')
+      return bitbucketApiUrl(
         `${bitbucketRepositoryPath(params.workspaceSlug, params.repoSlug)}/refs/branches`,
         {
           nextUrl: params.nextUrl,
           pageLen: params.pageLen,
-          query: { q: params.q, sort: params.sort },
+          query: { q, sort },
         }
-      ),
+      )
+    },
     method: 'GET',
     headers: (params) => bitbucketHeaders(params.accessToken),
     retry: BITBUCKET_READ_RETRY,

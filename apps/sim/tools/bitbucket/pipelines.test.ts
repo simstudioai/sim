@@ -142,7 +142,18 @@ describe('Bitbucket pipeline request builders', () => {
         ...REPOSITORY_PARAMS,
         sort: { malformed: true },
       } as unknown as BitbucketListPipelinesParams)
-    ).toThrow(/query parameter sort must be a string, number, or boolean/)
+    ).toThrow(/sort must be a non-empty string/)
+    for (const [field, value] of [
+      ['refName', false],
+      ['selectorPattern', 7],
+    ] as const) {
+      expect(() =>
+        requestUrl(bitbucketListPipelinesTool, {
+          ...REPOSITORY_PARAMS,
+          [field]: value,
+        } as unknown as BitbucketListPipelinesParams)
+      ).toThrow(new RegExp(`${field} must be a non-empty string`))
+    }
     expect(() =>
       requestUrl(bitbucketListPipelinesTool, {
         ...REPOSITORY_PARAMS,
@@ -359,6 +370,11 @@ describe('Bitbucket pipeline response normalization', () => {
       new Response(null, { status: 204 })
     )
     expect(result).toEqual({ success: true, output: { stopped: true } })
+    for (const status of [200, 202, 205]) {
+      await expect(
+        bitbucketStopPipelineTool.transformResponse!(new Response(null, { status }))
+      ).rejects.toThrow(`unexpected HTTP ${status}`)
+    }
   })
 
   it('builds and transforms paginated pipeline steps', async () => {

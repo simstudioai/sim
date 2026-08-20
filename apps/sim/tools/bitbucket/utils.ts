@@ -155,6 +155,17 @@ function readOptionalStringArray(
   )
 }
 
+function readOptionalStringOrArray(
+  record: JsonRecord,
+  key: string,
+  context: string
+): string[] | null {
+  const value = record[key]
+  if (value === undefined) return null
+  if (typeof value === 'string') return [value]
+  return readOptionalStringArray(record, key, context)
+}
+
 function readNullableNumber(record: JsonRecord, key: string, context: string): number | null {
   const value = record[key]
   if (value === undefined || value === null) return null
@@ -310,7 +321,16 @@ export function validateBitbucketPullRequestRedirect(
   const validated = validateBitbucketOpaqueUrl(value)
   const parsed = new URL(validated)
   const expectedPrefix = `/2.0${bitbucketRepositoryPath(workspaceSlug, repoSlug)}/${kind}/`
-  if (!parsed.pathname.startsWith(expectedPrefix)) {
+  const encodedRevspec = parsed.pathname.startsWith(expectedPrefix)
+    ? parsed.pathname.slice(expectedPrefix.length)
+    : ''
+  let decodedRevspec = ''
+  try {
+    decodedRevspec = decodeURIComponent(encodedRevspec)
+  } catch {
+    throw new Error(`Bitbucket ${kind} redirect contained invalid path encoding`)
+  }
+  if (!encodedRevspec || encodedRevspec.includes('/') || decodedRevspec.includes('/')) {
     throw new Error(`Bitbucket ${kind} redirect did not target this repository's ${kind} endpoint`)
   }
   return parsed.toString()
@@ -345,7 +365,7 @@ export function bitbucketApiUrl(
     nextRevision?: string
   } = {}
 ): string {
-  if (options.nextUrl) {
+  if (options.nextUrl !== undefined) {
     const validated = validateBitbucketOpaqueUrl(options.nextUrl)
     const decodePath = (pathname: string): string[] => {
       const withoutLeadingSlash = pathname.startsWith('/') ? pathname.slice(1) : pathname
@@ -553,7 +573,7 @@ export function normalizeBitbucketBranch(value: unknown): BitbucketBranch {
 
 export function normalizeBitbucketDirectoryEntry(value: unknown): BitbucketDirectoryEntry {
   const data = requireResourceRecord(value, 'directory entry')
-  const attributes = readOptionalStringArray(data, 'attributes', 'directory entry')
+  const attributes = readOptionalStringOrArray(data, 'attributes', 'directory entry')
   return {
     type: readRequiredString(data, 'type', 'directory entry'),
     path: readString(data, 'path'),
@@ -575,7 +595,7 @@ export function normalizeBitbucketFileMetadata(value: unknown): BitbucketFileMet
   if (type !== 'commit_file') {
     throw new Error('Bitbucket file metadata.type must be commit_file')
   }
-  const attributes = readOptionalStringArray(data, 'attributes', 'file metadata')
+  const attributes = readOptionalStringOrArray(data, 'attributes', 'file metadata')
   return {
     type,
     path: readString(data, 'path'),
@@ -959,6 +979,24 @@ function decodeUtf8Prefix(
   }
 }
 
+function sliceUnicodePrefix(text: string, maxCodeUnits: number): string {
+  if (text.length <= maxCodeUnits) return text
+  let end = maxCodeUnits
+  const last = text.charCodeAt(end - 1)
+  const next = text.charCodeAt(end)
+  if (last >= 0xd800 && last <= 0xdbff && next >= 0xdc00 && next <= 0xdfff) end -= 1
+  return text.slice(0, end)
+}
+
+function sliceUnicodeSuffix(text: string, maxCodeUnits: number): string {
+  if (text.length <= maxCodeUnits) return text
+  let start = text.length - maxCodeUnits
+  const first = text.charCodeAt(start)
+  const previous = text.charCodeAt(start - 1)
+  if (first >= 0xdc00 && first <= 0xdfff && previous >= 0xd800 && previous <= 0xdbff) start += 1
+  return text.slice(start)
+}
+
 export async function bitbucketRawHead(
   response: Response,
   maxCharacters: number | undefined,
@@ -995,7 +1033,7 @@ export async function bitbucketRawHead(
       ? (range?.total ?? null)
       : (contentLength ?? (clipped ? null : bytes.byteLength))
   return {
-    content: text?.slice(0, limit) ?? null,
+    content: text === null ? null : sliceUnicodePrefix(text, limit),
     binary: effectiveBinary,
     truncated:
       effectiveBinary === true
@@ -1016,10 +1054,14 @@ export async function bitbucketRawTail(
 ): Promise<{ log: string; truncated: boolean; totalBytes: number | null }> {
   const limit = bitbucketMaxCharacters(maxCharacters, true)
   const range = response.status === 206 ? requireContentRange(response) : null
-  if (range && (range.total === null || range.end !== range.total - 1)) {
+  if (range !== null && range.total !== null && range.end !== range.total - 1) {
     throw new Error('Bitbucket 206 log response must describe a suffix of the complete log')
   }
-  const byteLimit = limit * 4
+  const retainedByteLimit = limit * 4
+  const byteLimit =
+    response.status === 206
+      ? Math.max(retainedByteLimit, BITBUCKET_MIN_LOG_RANGE_BYTES)
+      : retainedByteLimit
   const read =
     response.status === 206
       ? await readBoundedBytes(response, byteLimit)
@@ -1031,7 +1073,7 @@ export async function bitbucketRawTail(
   const firstBreak = partialStart ? text.indexOf('\n') : -1
   const completeLines = firstBreak === -1 ? text : text.slice(firstBreak + 1)
   return {
-    log: completeLines.slice(-limit),
+    log: sliceUnicodeSuffix(completeLines, limit),
     truncated: partialStart || completeLines.length > limit,
     totalBytes:
       response.status === 206

@@ -112,6 +112,7 @@ export const bitbucketMergePullRequestTool: ToolConfig<
         'closeSourceBranch'
       )
       return {
+        type: 'pullrequest',
         ...(mergeStrategy !== undefined ? { merge_strategy: mergeStrategy } : {}),
         ...(message !== undefined ? { message } : {}),
         ...(closeSourceBranch !== undefined ? { close_source_branch: closeSourceBranch } : {}),

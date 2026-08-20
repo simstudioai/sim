@@ -185,4 +185,34 @@ describe('resolveBitbucketPullRequestRedirect', () => {
     )
     expect(order).toEqual(['cancel', 'close'])
   })
+
+  it('rejects redirect statuses other than the documented 302', async () => {
+    const cancel = vi.fn().mockResolvedValue(undefined)
+    const close = vi.fn().mockResolvedValue(undefined)
+    mockCreatePinnedFetchWithDispatcher.mockReturnValue({
+      fetch: vi.fn().mockResolvedValue({
+        status: 307,
+        headers: {
+          get: (name: string) =>
+            name.toLowerCase() === 'location'
+              ? 'https://api.bitbucket.org/2.0/repositories/acme/demo/diff/main..feature'
+              : null,
+        },
+        body: { cancel },
+      }),
+      dispatcher: { close },
+    })
+
+    await expect(
+      resolveBitbucketPullRequestRedirect(
+        'https://api.bitbucket.org/2.0/repositories/acme/demo/pullrequests/7/diff',
+        'acme',
+        'demo',
+        'diff',
+        { Authorization: 'Bearer placeholder' }
+      )
+    ).rejects.toThrow(/documented redirect/)
+    expect(cancel).toHaveBeenCalledOnce()
+    expect(close).toHaveBeenCalledOnce()
+  })
 })

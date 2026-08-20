@@ -188,7 +188,7 @@ export async function resolveBitbucketPullRequestRedirect(
 
   if (initialStatus === null) throw new Error(`Bitbucket ${kind} redirect request failed`)
 
-  if (![301, 302, 303, 307, 308].includes(initialStatus)) {
+  if (initialStatus !== 302) {
     throw new Error(`Bitbucket ${kind} endpoint did not return its documented redirect`)
   }
   if (!location) throw new Error(`Bitbucket ${kind} redirect omitted the Location header`)

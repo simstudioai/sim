@@ -19,7 +19,7 @@ import {
   normalizeBitbucketPage,
   normalizeBitbucketWorkspaceAccess,
 } from '@/tools/bitbucket/utils'
-import { optionalBitbucketBoolean } from '@/tools/bitbucket/validation'
+import { optionalBitbucketBoolean, optionalBitbucketString } from '@/tools/bitbucket/validation'
 import type { ToolConfig } from '@/tools/types'
 
 export const bitbucketListWorkspacesTool: ToolConfig<
@@ -50,10 +50,11 @@ export const bitbucketListWorkspacesTool: ToolConfig<
   request: {
     url: (params) => {
       const administrator = optionalBitbucketBoolean(params.administrator, 'administrator')
+      const sort = optionalBitbucketString(params.sort, 'sort')
       return bitbucketApiUrl('/user/workspaces', {
         nextUrl: params.nextUrl,
         pageLen: params.pageLen,
-        query: { sort: params.sort, administrator },
+        query: { sort, administrator },
       })
     },
     method: 'GET',

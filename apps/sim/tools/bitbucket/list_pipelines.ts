@@ -18,7 +18,11 @@ import {
   normalizeBitbucketPage,
   normalizeBitbucketPipeline,
 } from '@/tools/bitbucket/utils'
-import { optionalBitbucketEnum, optionalBitbucketSha1 } from '@/tools/bitbucket/validation'
+import {
+  optionalBitbucketEnum,
+  optionalBitbucketSha1,
+  optionalBitbucketString,
+} from '@/tools/bitbucket/validation'
 import type { ToolConfig } from '@/tools/types'
 
 const BITBUCKET_PIPELINE_LIST_REF_TYPES = ['BRANCH', 'TAG', 'ANNOTATED_TAG'] as const
@@ -122,6 +126,9 @@ export const bitbucketListPipelinesTool: ToolConfig<
       )
       const status = optionalBitbucketEnum(params.status, 'status', BITBUCKET_PIPELINE_STATUSES)
       const commitHash = optionalBitbucketSha1(params.commitHash, 'commitHash')
+      const refName = optionalBitbucketString(params.refName, 'refName')
+      const selectorPattern = optionalBitbucketString(params.selectorPattern, 'selectorPattern')
+      const sort = optionalBitbucketString(params.sort, 'sort')
       return bitbucketApiUrl(
         `${bitbucketRepositoryPath(params.workspaceSlug, params.repoSlug)}/pipelines`,
         {
@@ -129,13 +136,13 @@ export const bitbucketListPipelinesTool: ToolConfig<
           pageLen: params.pageLen,
           query: {
             'target.ref_type': refType,
-            'target.ref_name': params.refName,
+            'target.ref_name': refName,
             'target.commit.hash': commitHash,
             'target.selector.type': selectorType,
-            'target.selector.pattern': params.selectorPattern,
+            'target.selector.pattern': selectorPattern,
             trigger_type: triggerType,
             status,
-            sort: params.sort,
+            sort,
           },
         }
       )

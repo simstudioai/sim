@@ -20,7 +20,7 @@ import {
   normalizeBitbucketDirectoryEntry,
   normalizeBitbucketPage,
 } from '@/tools/bitbucket/utils'
-import { requireBitbucketSha1 } from '@/tools/bitbucket/validation'
+import { optionalBitbucketString, requireBitbucketSha1 } from '@/tools/bitbucket/validation'
 import type { ToolConfig } from '@/tools/types'
 
 export const bitbucketListDirectoryTool: ToolConfig<
@@ -64,12 +64,14 @@ export const bitbucketListDirectoryTool: ToolConfig<
     url: (params) => {
       const directoryPath = encodeBitbucketRepositoryPath(params.path ?? '', true)
       const commit = requireBitbucketSha1(params.commit, 'commit')
+      const q = optionalBitbucketString(params.q, 'q')
+      const sort = optionalBitbucketString(params.sort, 'sort')
       return bitbucketApiUrl(
         `${bitbucketRepositoryPath(params.workspaceSlug, params.repoSlug)}/src/${encodeBitbucketSegment(commit, 'commit')}/${directoryPath}`,
         {
           nextUrl: params.nextUrl,
           pageLen: params.pageLen,
-          query: { q: params.q, sort: params.sort },
+          query: { q, sort },
           nextPathPrefix: `${bitbucketRepositoryPath(params.workspaceSlug, params.repoSlug)}/src`,
           nextPathSuffix: directoryPath,
           nextRevision: commit,

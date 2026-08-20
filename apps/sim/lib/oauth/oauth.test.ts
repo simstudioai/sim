@@ -218,6 +218,27 @@ describe('Bitbucket OAuth Connector', () => {
     expect(uuidIdentity?.email).toBe('bitbucket-uuid-456@connectors.sim.invalid')
     expect(uuidIdentity?.name).toBe('grace')
   })
+
+  it('bounds Bitbucket user-info responses and supplies a provider deadline', async () => {
+    const getUserInfo = getBitbucketConnector().getUserInfo
+    if (!getUserInfo) throw new Error('Bitbucket connector must define getUserInfo')
+    const mockFetch = vi.fn(async (_url: string, init?: RequestInit) => {
+      expect(init?.signal).toBeInstanceOf(AbortSignal)
+      return new Response('{}', {
+        headers: {
+          'content-length': String(1024 * 1024 + 1),
+          'content-type': 'application/json',
+        },
+      })
+    })
+
+    await expect(
+      withMockFetch(mockFetch, () =>
+        getUserInfo(getOAuth2Tokens({ access_token: 'bitbucket_access_token' }))
+      )
+    ).resolves.toBeNull()
+    expect(mockFetch).toHaveBeenCalledOnce()
+  })
 })
 
 describe('OAuth Token Refresh', () => {

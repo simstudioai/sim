@@ -1531,14 +1531,20 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
       },
       getUserInfo: async (tokens) => {
         try {
+          const signal = AbortSignal.timeout(15_000)
           const response = await fetch('https://api.bitbucket.org/2.0/user', {
             headers: {
               Authorization: `Bearer ${tokens.accessToken}`,
             },
+            signal,
           })
 
           if (!response.ok) {
-            await response.text().catch(() => {})
+            await readResponseTextWithLimit(response, {
+              maxBytes: 1024 * 1024,
+              label: 'Bitbucket OAuth user info error response',
+              signal,
+            }).catch(() => {})
             logger.error('Error fetching Bitbucket user info:', {
               status: response.status,
               statusText: response.statusText,
@@ -1546,7 +1552,11 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
             return null
           }
 
-          const data: BitbucketCurrentUserResponse = await response.json()
+          const data = await readResponseJsonWithLimit<BitbucketCurrentUserResponse>(response, {
+            maxBytes: 1024 * 1024,
+            label: 'Bitbucket OAuth user info response',
+            signal,
+          })
           const stableId = data.account_id ?? data.uuid
           if (!stableId) {
             logger.error('Bitbucket user info did not include an account_id or uuid')

@@ -231,6 +231,13 @@ describe('Bitbucket workspace and repository tools', () => {
         role: 'reader',
       } as unknown as BitbucketListRepositoriesParams)
     ).toThrow(/role must be one of/)
+    expect(() =>
+      requestUrl(bitbucketListRepositoriesTool, {
+        accessToken: 'oauth-token',
+        workspaceSlug: 'team',
+        q: 0,
+      } as unknown as BitbucketListRepositoriesParams)
+    ).toThrow(/q must be a non-empty string/)
   })
 
   it('rejects a repository cursor from another workspace', () => {
@@ -573,7 +580,9 @@ describe('Bitbucket source tools', () => {
       bitbucketGetFileMetadataTool.transformResponse!(
         Response.json({ type: 'commit_file', path: 'src/index.ts', attributes: 'binary' })
       )
-    ).rejects.toThrow(/metadata\.attributes must be an array when present/)
+    ).resolves.toMatchObject({
+      output: { file: { attributes: ['binary'], isBinary: true } },
+    })
     await expect(
       bitbucketGetFileMetadataTool.transformResponse!(
         Response.json({ type: 'commit_file', path: 'src/index.ts', attributes: ['binary', 7] })
@@ -621,6 +630,11 @@ describe('Bitbucket source tools', () => {
       new Response(null, { status: 204 })
     )
     expect(result).toEqual({ success: true, output: { deleted: true } })
+    for (const status of [200, 202, 205]) {
+      await expect(
+        bitbucketDeleteBranchTool.transformResponse!(new Response(null, { status }))
+      ).rejects.toThrow(`unexpected HTTP ${status}`)
+    }
   })
 
   it('preflights file metadata and returns no raw bytes for a documented binary file', async () => {

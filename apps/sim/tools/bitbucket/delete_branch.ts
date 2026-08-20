@@ -33,7 +33,12 @@ export const bitbucketDeleteBranchTool: ToolConfig<
     method: 'DELETE',
     headers: (params) => bitbucketHeaders(params.accessToken),
   },
-  transformResponse: async () => ({ success: true, output: { deleted: true } }),
+  transformResponse: async (response) => {
+    if (response.status !== 204) {
+      throw new Error(`Bitbucket branch deletion returned unexpected HTTP ${response.status}`)
+    }
+    return { success: true, output: { deleted: true } }
+  },
   outputs: { deleted: { type: 'boolean', description: 'Whether the branch was deleted' } },
   errorExtractor: BITBUCKET_ERROR_EXTRACTOR,
 }

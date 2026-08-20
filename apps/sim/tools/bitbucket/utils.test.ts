@@ -91,6 +91,14 @@ describe('Bitbucket path and pagination safety', () => {
         nextUrl: 'https://api.bitbucket.org/2.0/repositories/acme/demo/pipelines?page=2',
       })
     ).toThrow(/does not belong/)
+
+    for (const nextUrl of [false, 0, null, {}]) {
+      expect(() =>
+        bitbucketApiUrl('/repositories/acme/demo/commits', {
+          nextUrl: nextUrl as never,
+        })
+      ).toThrow(/nextUrl must be a non-empty string/)
+    }
   })
 
   it('binds directory cursors to the selected repository path', () => {
@@ -158,6 +166,14 @@ describe('Bitbucket path and pagination safety', () => {
     expect(() =>
       validateBitbucketPullRequestRedirect(
         'https://api.bitbucket.org/2.0/repositories/acme/other/diff/main..feature',
+        'acme',
+        'demo',
+        'diff'
+      )
+    ).toThrow(/did not target/)
+    expect(() =>
+      validateBitbucketPullRequestRedirect(
+        'https://api.bitbucket.org/2.0/repositories/acme/demo/diff/main..feature/extra',
         'acme',
         'demo',
         'diff'
@@ -256,6 +272,13 @@ describe('Bitbucket envelopes and errors', () => {
         attributes: [],
       })
     ).toMatchObject({ attributes: [], isBinary: false })
+    expect(
+      normalizeBitbucketFileMetadata({
+        type: 'commit_file',
+        path: 'binary.dat',
+        attributes: 'binary',
+      })
+    ).toMatchObject({ attributes: ['binary'], isBinary: true })
     expect(() =>
       normalizeBitbucketFileMetadata({
         type: 'commit_file',
@@ -308,6 +331,19 @@ describe('Bitbucket bounded raw content', () => {
       fullBytes: text.length,
       contentType: 'text/plain;charset=UTF-8',
     })
+  })
+
+  it('does not split an astral character at a retained prefix boundary', async () => {
+    const text = 'ab😀cd'
+    const result = await bitbucketRawHead(
+      new Response(text, { headers: { 'Content-Length': String(Buffer.byteLength(text)) } }),
+      3,
+      false
+    )
+
+    expect(result.content).toBe('ab')
+    expect(result.content).not.toMatch(/[\ud800-\udfff]/)
+    expect(result.truncated).toBe(true)
   })
 
   it.each([
@@ -394,13 +430,55 @@ describe('Bitbucket bounded raw content', () => {
 
   it.each([
     ['missing Content-Range', {}, 'abc'],
-    ['unknown total', { 'Content-Range': 'bytes 7-9/*' }, 'abc'],
     ['non-suffix range', { 'Content-Range': 'bytes 0-2/10' }, 'abc'],
     ['body mismatch', { 'Content-Range': 'bytes 7-9/10' }, 'ab'],
   ])('rejects a 206 log tail with %s', async (_name, headers, body) => {
     await expect(
       bitbucketRawTail(new Response(body, { status: 206, headers }), 100)
     ).rejects.toThrow(/Content-Range|suffix|body does not match/)
+  })
+
+  it('accepts an internally consistent unknown-total log suffix', async () => {
+    const result = await bitbucketRawTail(
+      new Response('abc', {
+        status: 206,
+        headers: { 'Content-Range': 'bytes 7-9/*' },
+      }),
+      100
+    )
+
+    expect(result).toEqual({ log: 'abc', truncated: true, totalBytes: null })
+  })
+
+  it('accepts the minimum 4 KiB suffix response before trimming a small requested tail', async () => {
+    const body = `${'x'.repeat(4_080)}\nDONE😀\n`
+    const bytes = Buffer.byteLength(body)
+    const result = await bitbucketRawTail(
+      new Response(body, {
+        status: 206,
+        headers: { 'Content-Range': `bytes 1000-${999 + bytes}/${1000 + bytes}` },
+      }),
+      100
+    )
+
+    expect(result.log.endsWith('DONE😀\n')).toBe(true)
+    expect(result.log.length).toBeLessThanOrEqual(100)
+    expect(result.truncated).toBe(true)
+  })
+
+  it('does not split an astral character at a retained suffix boundary', async () => {
+    const body = 'ab😀cd'
+    const bytes = Buffer.byteLength(body)
+    const result = await bitbucketRawTail(
+      new Response(body, {
+        status: 206,
+        headers: { 'Content-Range': `bytes 0-${bytes - 1}/${bytes}` },
+      }),
+      3
+    )
+
+    expect(result.log).toBe('cd')
+    expect(result.log).not.toMatch(/[\ud800-\udfff]/)
   })
 
   it('keeps a bounded tail when the server ignores Range', async () => {

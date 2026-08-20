@@ -18,7 +18,7 @@ import {
   normalizeBitbucketPage,
   normalizeBitbucketPullRequest,
 } from '@/tools/bitbucket/utils'
-import { optionalBitbucketEnum } from '@/tools/bitbucket/validation'
+import { optionalBitbucketEnum, optionalBitbucketString } from '@/tools/bitbucket/validation'
 import type { ToolConfig } from '@/tools/types'
 
 const BITBUCKET_PULL_REQUEST_STATES = ['OPEN', 'MERGED', 'DECLINED', 'SUPERSEDED'] as const
@@ -57,12 +57,14 @@ export const bitbucketListPullRequestsTool: ToolConfig<
   request: {
     url: (params) => {
       const state = optionalBitbucketEnum(params.state, 'state', BITBUCKET_PULL_REQUEST_STATES)
+      const q = optionalBitbucketString(params.q, 'q')
+      const sort = optionalBitbucketString(params.sort, 'sort')
       return bitbucketApiUrl(
         `${bitbucketRepositoryPath(params.workspaceSlug, params.repoSlug)}/pullrequests`,
         {
           nextUrl: params.nextUrl,
           pageLen: params.pageLen,
-          query: { state, q: params.q, sort: params.sort },
+          query: { state, q, sort },
         }
       )
     },

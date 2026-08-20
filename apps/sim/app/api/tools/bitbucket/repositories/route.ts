@@ -19,6 +19,7 @@ export const dynamic = 'force-dynamic'
 const logger = createLogger('BitbucketRepositoriesAPI')
 const BITBUCKET_PROVIDER_ID = 'bitbucket'
 const BITBUCKET_REPOSITORIES_URL = 'https://api.bitbucket.org/2.0/repositories'
+const BITBUCKET_REPOSITORY_FIELDS = 'values.slug,values.uuid,values.name,values.full_name,next'
 const SELECTOR_REQUEST_MAX_BYTES = 8 * 1024
 const PROVIDER_RESPONSE_MAX_BYTES = 1024 * 1024
 
@@ -98,9 +99,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     )
   }
 
-  const providerUrl =
-    cursor ??
-    `${BITBUCKET_REPOSITORIES_URL}/${encodeURIComponent(workspaceSlug)}?pagelen=${BITBUCKET_SELECTOR_PAGE_SIZE}`
+  const firstPage = new URL(`${BITBUCKET_REPOSITORIES_URL}/${encodeURIComponent(workspaceSlug)}`)
+  firstPage.searchParams.set('pagelen', String(BITBUCKET_SELECTOR_PAGE_SIZE))
+  firstPage.searchParams.set('fields', BITBUCKET_REPOSITORY_FIELDS)
+  const providerUrl = cursor ?? firstPage.toString()
 
   let response: Response
   try {
@@ -160,7 +162,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     repositories: page.data.values.map((repository) => ({
       slug: repository.slug,
       uuid: repository.uuid,
-      name: repository.name,
+      name: repository.name ?? repository.slug,
       fullName: repository.full_name,
     })),
     ...(page.data.next ? { nextCursor: page.data.next } : {}),

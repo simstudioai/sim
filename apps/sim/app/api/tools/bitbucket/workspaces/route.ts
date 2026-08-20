@@ -19,7 +19,8 @@ export const dynamic = 'force-dynamic'
 const logger = createLogger('BitbucketWorkspacesAPI')
 const BITBUCKET_PROVIDER_ID = 'bitbucket'
 const BITBUCKET_WORKSPACES_URL = 'https://api.bitbucket.org/2.0/user/workspaces'
-const BITBUCKET_WORKSPACE_FIELDS = '+values.workspace.name'
+const BITBUCKET_WORKSPACE_FIELDS =
+  'values.administrator,values.workspace.slug,values.workspace.uuid,values.workspace.name,next'
 const SELECTOR_REQUEST_MAX_BYTES = 8 * 1024
 const PROVIDER_RESPONSE_MAX_BYTES = 1024 * 1024
 
@@ -101,10 +102,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
   const firstPage = new URL(BITBUCKET_WORKSPACES_URL)
   firstPage.searchParams.set('pagelen', String(BITBUCKET_SELECTOR_PAGE_SIZE))
-  /**
-   * The current endpoint returns a `workspace_base` by default, whose documented
-   * sample omits `name`; additive fields keep the default shape and request it.
-   */
   firstPage.searchParams.set('fields', BITBUCKET_WORKSPACE_FIELDS)
   const providerUrl = cursor ?? firstPage.toString()
 

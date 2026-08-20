@@ -33,7 +33,7 @@ import { POST } from '@/app/api/tools/bitbucket/workspaces/route'
 
 const URL = 'http://localhost:3000/api/tools/bitbucket/workspaces'
 const FIRST_PAGE_URL =
-  'https://api.bitbucket.org/2.0/user/workspaces?pagelen=100&fields=%2Bvalues.workspace.name'
+  'https://api.bitbucket.org/2.0/user/workspaces?pagelen=100&fields=values.administrator%2Cvalues.workspace.slug%2Cvalues.workspace.uuid%2Cvalues.workspace.name%2Cnext'
 const SECOND_PAGE_URL = 'https://api.bitbucket.org/2.0/user/workspaces?page=2&pagelen=100'
 const REQUEST_BODY = { credential: 'credential-1', workflowId: 'workflow-1' } as const
 
