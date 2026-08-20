@@ -7269,6 +7269,44 @@ export function GoogleGroupsIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
+/**
+ * Google Chat product mark: a hollow four-colour speech bubble with a chamfered
+ * upper-right corner, traced from the official 2023 icon
+ * (https://commons.wikimedia.org/wiki/File:Google_Chat_icon_(2023).svg) and
+ * using the shared Google Workspace two-tone palette the other Google marks in
+ * this file already carry.
+ */
+export function GoogleChatIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...props} xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 311 320'>
+      <path
+        fill='#0066da'
+        d='M76.37 0.51L76.38 76.98L0 76.96L0 20.77Q0.85 14.81 3.53 10.76Q10.14 0.74 22.75 0.67Q49.41 0.53 76.37 0.51Z'
+      />
+      <path
+        fill='#fbbc04'
+        d='M76.37 0.51L233.79 0.53A1.61 1.57 -26.7 0 1 234.71 0.82L235.08 1.09Q234.92 1.15 234.81 1.22Q234.64 1.31 234.64 1.5L234.62 77.01Q234.6 77.01 234.57 77.01L76.41 77.01Q76.4 77 76.38 76.98L76.37 0.51Z'
+      />
+      <path
+        fill='#ea4335'
+        d='M235.08 1.09L310.53 76.77L234.62 77.01L234.64 1.5Q234.64 1.31 234.81 1.22Q234.92 1.15 235.08 1.09Z'
+      />
+      <path
+        fill='#2684fc'
+        d='M0 76.96L76.38 76.98Q76.4 77 76.41 77.01L76.43 182.69L0 182.67L0 76.96Z'
+      />
+      <path
+        fill='#00ac47'
+        d='M310.53 76.77L311 77.11L311 239.01Q308.34 253.54 295.94 257.78Q291.52 259.3 282.91 259.28Q227.02 259.19 169.99 259.11Q161.71 259.1 153.19 259.23Q152.72 259.24 152.39 259.57Q124.49 287.34 96.39 315.59C93.52 318.48 90.27 320.09 86.15 319.48Q80.39 318.63 77.66 313.54Q76.51 311.38 76.49 305.66Q76.42 282.47 76.44 259.13L76.43 220.85L114.21 183.07A1.79 1.77 22.3 0 1 115.47 182.55L233.77 182.59A0.83 0.83 0 0 0 234.6 181.76L234.57 77.01Q234.6 77.01 234.62 77.01L310.53 76.77Z'
+      />
+      <path
+        fill='#00832d'
+        d='M76.43 182.69L76.43 220.85L76.44 259.13Q52.47 259.27 28.91 259.22Q19.09 259.2 14.76 257.68Q2.62 253.44 0 238.88L0 182.67L76.43 182.69Z'
+      />
+    </svg>
+  )
+}
+
 export function GoogleMeetIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg {...props} xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 87.5 72'>

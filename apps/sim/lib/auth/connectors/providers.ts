@@ -568,6 +568,43 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
     },
 
     {
+      providerId: 'google-chat',
+      clientId: env.GOOGLE_CLIENT_ID as string,
+      clientSecret: env.GOOGLE_CLIENT_SECRET as string,
+      discoveryUrl: 'https://accounts.google.com/.well-known/openid-configuration',
+      accessType: 'offline',
+      scopes: getCanonicalScopesForProvider('google-chat'),
+      prompt: 'consent',
+      redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/google-chat`,
+      getUserInfo: async (tokens) => {
+        try {
+          const response = await fetch('https://openidconnect.googleapis.com/v1/userinfo', {
+            headers: { Authorization: `Bearer ${tokens.accessToken}` },
+          })
+          if (!response.ok) {
+            await response.text().catch(() => {})
+            logger.error('Failed to fetch Google user info', { status: response.status })
+            throw new Error(`Failed to fetch Google user info: ${response.statusText}`)
+          }
+          const profile = await response.json()
+          const now = new Date()
+          return {
+            id: `${profile.sub}-${generateId()}`,
+            name: profile.name || 'Google User',
+            email: profile.email,
+            image: profile.picture || undefined,
+            emailVerified: profile.email_verified || false,
+            createdAt: now,
+            updatedAt: now,
+          }
+        } catch (error) {
+          logger.error('Error in Google getUserInfo', { error })
+          throw error
+        }
+      },
+    },
+
+    {
       providerId: 'google-meet',
       clientId: env.GOOGLE_CLIENT_ID as string,
       clientSecret: env.GOOGLE_CLIENT_SECRET as string,
