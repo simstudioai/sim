@@ -68,5 +68,9 @@ export function customBlockBooleanOptions(required: boolean) {
   return required ? BOOLEAN_VALUE_OPTIONS : BOOLEAN_OPTIONAL_OPTIONS
 }
 
-/** Shown in place of a control for a field the sync modal cannot configure. */
-export const CUSTOM_BLOCK_UNSUPPORTED_HINT = 'Set in the workflow — files cannot be configured here'
+/**
+ * Shown in place of a control for a field the sync modal cannot configure. States what the
+ * sync does rather than what the modal can't: the target's uploaded files are carried across
+ * untouched (see `replaceCustomBlockInputs`), so the field is safe to leave alone.
+ */
+export const CUSTOM_BLOCK_UNSUPPORTED_HINT = 'Uploaded in the workflow — kept as configured there'

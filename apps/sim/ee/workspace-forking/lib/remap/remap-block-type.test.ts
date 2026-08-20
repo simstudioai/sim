@@ -3,8 +3,10 @@
  */
 import { describe, expect, it } from 'vitest'
 import {
+  customBlockInputStorageKey,
   type ForkReferenceResolver,
   remapForkBlockType,
+  replaceCustomBlockInputs,
   scanWorkflowReferences,
 } from '@/ee/workspace-forking/lib/remap/remap-references'
 
@@ -115,5 +117,81 @@ describe('scanWorkflowReferences with custom blocks', () => {
       emptyResolver
     )
     expect(scan.unmapped).toHaveLength(1)
+  })
+})
+
+describe('replaceCustomBlockInputs target carry-over', () => {
+  /** The source block's inputs, keyed by the SOURCE block's field ids. */
+  const sourceSubBlocks = {
+    workflowId: { value: 'wf-prod' },
+    invoice: { value: 'from prod' },
+  }
+  const key = (fieldType: string, fieldId: string) =>
+    customBlockInputStorageKey(UAT_BLOCK, fieldType, fieldId)
+
+  it('keeps an input the modal cannot configure when the target is already this block', () => {
+    // A `file[]` input is an upload on the canvas, so it never has a stored override. Before
+    // the carry-over every sync rebuilt the block without it and silently dropped the files.
+    const result = replaceCustomBlockInputs(
+      sourceSubBlocks,
+      new Map([[key('string', 'vendor'), 'Acme']]),
+      UAT_BLOCK,
+      {
+        type: UAT_BLOCK,
+        subBlocks: {
+          attachments: { value: ['uat-file-1'] },
+          vendor: { value: 'stale' },
+        },
+      }
+    )
+    expect(result.attachments).toEqual({ value: ['uat-file-1'] })
+    // A configured value still wins over the target's own.
+    expect(result.vendor).toEqual({ value: 'Acme' })
+  })
+
+  it('carries nothing over when the target currently holds a DIFFERENT custom block', () => {
+    // The target's field ids describe another workflow's Start fields; keeping them is exactly
+    // the orphaning this function exists to prevent.
+    const result = replaceCustomBlockInputs(sourceSubBlocks, undefined, UAT_BLOCK, {
+      type: 'custom_block_someotherxyz',
+      subBlocks: { attachments: { value: ['other-file'] } },
+    })
+    expect(result.attachments).toBeUndefined()
+  })
+
+  it('carries nothing over for a non-custom target block', () => {
+    const result = replaceCustomBlockInputs(sourceSubBlocks, undefined, UAT_BLOCK, {
+      type: 'agent',
+      subBlocks: { systemPrompt: { value: 'hello' } },
+    })
+    expect(result.systemPrompt).toBeUndefined()
+  })
+
+  it('lets an explicitly emptied field clear the target value', () => {
+    // `''` is a stored override, not an absent one — so clearing a field in the modal is a
+    // real edit rather than a silent no-op.
+    const result = replaceCustomBlockInputs(
+      sourceSubBlocks,
+      new Map([[key('string', 'vendor'), '']]),
+      UAT_BLOCK,
+      { type: UAT_BLOCK, subBlocks: { vendor: { value: 'previous' } } }
+    )
+    expect(result.vendor).toEqual({ value: '' })
+  })
+
+  it('takes reserved wiring from the source, never the target', () => {
+    // `workflowId`/`inputMapping` are recomputed by the serializer; the target's copy is stale
+    // the moment the mapping changes.
+    const result = replaceCustomBlockInputs(sourceSubBlocks, undefined, UAT_BLOCK, {
+      type: UAT_BLOCK,
+      subBlocks: { workflowId: { value: 'wf-stale-uat' } },
+    })
+    expect(result.workflowId).toEqual({ value: 'wf-prod' })
+  })
+
+  it('still drops the source block-keyed inputs with no target to carry over', () => {
+    const result = replaceCustomBlockInputs(sourceSubBlocks, undefined, UAT_BLOCK)
+    expect(result.invoice).toBeUndefined()
+    expect(result.workflowId).toEqual({ value: 'wf-prod' })
   })
 })

@@ -8,7 +8,6 @@ import {
   ChipCombobox,
   ChipInput,
   ChipSwitch,
-  ChipTextarea,
   CollapsibleCard,
   cn,
   FieldDivider,
@@ -39,6 +38,7 @@ import {
   customBlockBooleanOptions,
   customBlockInputControl,
 } from '@/ee/workspace-forking/components/fork-sync/custom-block-input-control'
+import { CustomBlockInputField } from '@/ee/workspace-forking/components/fork-sync/custom-block-input-field'
 import { DependentFieldSelector } from '@/ee/workspace-forking/components/fork-sync/dependent-field-selector'
 import {
   applyDependentRepick,
@@ -244,12 +244,12 @@ function DependentSelector({
         )
       case 'textarea':
         return (
-          <ChipTextarea
-            className='w-full'
+          <CustomBlockInputField
+            field={field}
             value={value}
-            onChange={(event) => setValue(event.target.value)}
-            rows={3}
-            placeholder={`Enter ${field.title} as JSON`}
+            onChange={setValue}
+            targetWorkspaceId={workspaceId}
+            multiline
           />
         )
       case 'unsupported':
@@ -264,11 +264,11 @@ function DependentSelector({
         )
       default:
         return (
-          <ChipInput
-            className='w-full'
+          <CustomBlockInputField
+            field={field}
             value={value}
-            onChange={(event) => setValue(event.target.value)}
-            placeholder={`Enter ${field.title}`}
+            onChange={setValue}
+            targetWorkspaceId={workspaceId}
           />
         )
     }

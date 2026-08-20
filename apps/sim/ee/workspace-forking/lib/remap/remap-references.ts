@@ -299,15 +299,36 @@ export function parseCustomBlockInputStorageKey(key: string): ParsedCustomBlockI
  * skipped, so re-pointing a block twice never carries the first target's values into the
  * second. Reserved wiring (`workflowId`/`inputMapping`) is preserved untouched: those are
  * computed value-fns the serializer recomputes and never carries forward.
+ *
+ * `targetCurrent` is the block the sync is about to overwrite. When it is ALREADY the mapped
+ * type — the normal state of every sync after the one that set the mapping — its own values
+ * seed the result and the configured ones are layered on top. That is what stops a re-sync
+ * wiping an input the modal cannot offer a control for: a `file[]` field is an upload on the
+ * canvas, so it is only ever set there, and rebuilding the block from the stored overrides
+ * alone would blank it every single time. It also means a field the user simply left alone in
+ * the modal keeps the target's value rather than being cleared; a field they explicitly
+ * emptied stores `''`, which is an override and still wins.
+ *
+ * The type equality check is the whole safety property. Under a DIFFERENT current type the
+ * target's values are keyed by another block's field ids, which is exactly the orphaning this
+ * function exists to prevent — so nothing is carried over.
  */
 export function replaceCustomBlockInputs(
   subBlocks: SubBlockRecord,
   values: ReadonlyMap<string, string> | undefined,
-  targetType: string
+  targetType: string,
+  targetCurrent?: { type: string; subBlocks: SubBlockRecord }
 ): SubBlockRecord {
   const next: SubBlockRecord = {}
   for (const [key, subBlock] of Object.entries(subBlocks)) {
     if (RESERVED_PARAMS.has(key)) next[key] = subBlock
+  }
+  if (targetCurrent?.type === targetType) {
+    for (const [key, subBlock] of Object.entries(targetCurrent.subBlocks)) {
+      // Reserved wiring is taken from the SOURCE block above: it is recomputed by the
+      // serializer, and the target's copy is stale the moment the mapping changes.
+      if (!RESERVED_PARAMS.has(key)) next[key] = subBlock
+    }
   }
   for (const [key, value] of values ?? []) {
     const parsed = parseCustomBlockInputStorageKey(key)
