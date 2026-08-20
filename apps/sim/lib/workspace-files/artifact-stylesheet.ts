@@ -30,7 +30,7 @@ export function usesSimArtifactStyles(content: string): boolean {
  * time keeps `globals.css` the single definition: change it and every page
  * follows on next render, with no build step and nothing for CI to check.
  */
-const ARTIFACT_TOKENS = [
+export const ARTIFACT_TOKENS = [
   '--bg',
   '--surface-1',
   '--surface-2',
@@ -110,9 +110,53 @@ export function simTokenOverrides(theme: 'dark' | 'light'): string {
  * system stack (pages live inside the app, and Inter read as foreign next to
  * emcn/sim chrome). The docs' geometry survives; only the face differs.
  */
+/**
+ * The dark palette, mirrored from globals.css and emitted under BOTH dark
+ * selectors (the prefers-color-scheme fallback and the explicit
+ * data-theme="dark" stamp) from this single constant — two hand-maintained
+ * copies is how the badge colors already diverged between them. The
+ * mirror-vs-app sync is enforced by artifact-stylesheet.test.ts, which parses
+ * globals.css and fails naming any token that drifts.
+ */
+const DARK_TOKEN_DECLARATIONS = `
+  --bg: #1b1b1b;
+  --surface-1: #1e1e1e;
+  --surface-2: #232323;
+  --surface-3: #242424;
+  --surface-4: #292929;
+  --surface-5: #363636;
+  --surface-hover: #262626;
+  --surface-active: #2c2c2c;
+  --border: #444444;
+  --text-primary: #e6e6e6;
+  --text-secondary: #cccccc;
+  --text-body: #c1c1c1;
+  --text-muted: #6e6e6e;
+  --text-icon: #969696;
+  --text-error: #ef4444;
+  --brand-accent: #33c482;
+  --brand-secondary: #33b4ff;
+  --warning: #ff6600;
+  --badge-success-bg: rgba(34, 197, 94, 0.2);
+  --badge-success-text: #86efac;
+  --badge-orange-bg: rgba(249, 115, 22, 0.2);
+  --badge-orange-text: #fdba74;
+  --badge-error-bg: #551a1a;
+  --badge-error-text: #fca5a5;
+  --badge-gray-bg: #3a3a3a;
+  --badge-gray-text: #a8a8a8;
+  --badge-blue-bg: rgba(59, 130, 246, 0.2);
+  --badge-blue-text: #93c5fd;
+  --badge-purple-bg: rgba(168, 85, 247, 0.2);
+  --badge-purple-text: #d8b4fe;
+  --text-icon-muted: #949494;
+  --code-bg: #1f1f1f;
+  --code-surface: var(--code-bg);
+  --selection-bg: #264f78;`
+
 export const SIM_ARTIFACT_STYLESHEET = `
 :root {
-  --bg: #ffffff;
+  --bg: #fefefe;
   --surface-1: #fbfbfb;
   --surface-2: #ffffff;
   --surface-3: #f7f7f7;
@@ -157,68 +201,10 @@ export const SIM_ARTIFACT_STYLESHEET = `
   --text-md: 16px;
 }
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --bg: #1b1b1b;
-    --surface-1: #1e1e1e;
-    --surface-2: #232323;
-    --surface-3: #242424;
-    --surface-4: #2c2c2c;
-    --surface-5: #363636;
-    --surface-hover: #262626;
-    --surface-active: #2c2c2c;
-    --border: #444444;
-    --text-primary: #e6e6e6;
-    --text-secondary: #cccccc;
-    --text-body: #c1c1c1;
-    --text-muted: #6e6e6e;
-    --text-icon: #969696;
-    --warning: #ff6600;
-    --badge-success-bg: rgba(34, 197, 94, 0.2);
-    --badge-success-text: #86efac;
-    --badge-orange-bg: rgba(249, 115, 22, 0.2);
-    --badge-orange-text: #fdba74;
-    --badge-error-bg: #551a1a;
-    --badge-error-text: #fca5a5;
-    --badge-gray-bg: #3a3a3a;
-    --badge-gray-text: #a8a8a8;
-    --text-icon-muted: #949494;
-    --code-bg: #1f1f1f;
-    --code-surface: var(--code-bg);
-    --selection-bg: #264f78;
+  :root:not([data-theme="light"]) {${DARK_TOKEN_DECLARATIONS}
   }
 }
-:root[data-theme="dark"] {
-  --badge-success-bg: rgba(34, 197, 94, 0.2);
-  --badge-success-text: #86efac;
-  --badge-orange-bg: rgba(249, 115, 22, 0.2);
-  --badge-orange-text: #fdba74;
-  --badge-error-bg: #551a1a;
-  --badge-error-text: #fca5a5;
-  --badge-gray-bg: #3a3a3a;
-  --badge-gray-text: #a8a8a8;
-  --badge-blue-bg: rgba(59, 130, 246, 0.2);
-  --badge-blue-text: #93c5fd;
-  --badge-purple-bg: rgba(168, 85, 247, 0.2);
-  --badge-purple-text: #d8b4fe;
-  --bg: #1b1b1b;
-  --surface-1: #1e1e1e;
-  --surface-2: #232323;
-  --surface-3: #242424;
-  --surface-4: #2c2c2c;
-  --surface-5: #363636;
-  --surface-hover: #262626;
-  --surface-active: #2c2c2c;
-  --border: #444444;
-  --text-primary: #e6e6e6;
-  --text-secondary: #cccccc;
-  --text-body: #c1c1c1;
-  --text-muted: #6e6e6e;
-  --text-icon: #969696;
-  --warning: #ff6600;
-  --text-icon-muted: #949494;
-  --code-bg: #1f1f1f;
-  --code-surface: var(--code-bg);
-  --selection-bg: #264f78;
+:root[data-theme="dark"] {${DARK_TOKEN_DECLARATIONS}
 }
 
 * { box-sizing: border-box; scrollbar-width: thin; }

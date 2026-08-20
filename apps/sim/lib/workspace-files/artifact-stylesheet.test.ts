@@ -1,8 +1,12 @@
 /**
  * @vitest-environment node
  */
+
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
+  ARTIFACT_TOKENS,
   SIM_ARTIFACT_SHELL,
   SIM_ARTIFACT_STYLESHEET,
   simTokenOverrides,
@@ -207,5 +211,77 @@ describe('docs fidelity', () => {
 describe('simTokenOverrides', () => {
   it('emits nothing off the browser, leaving the sheet fallbacks in place', () => {
     expect(simTokenOverrides('light')).toBe('')
+  })
+})
+
+/** Extracts the body of the first block whose opening selector matches. */
+function cssBlock(css: string, start: RegExp): string {
+  const match = start.exec(css)
+  if (!match) throw new Error(`selector not found: ${start}`)
+  const open = css.indexOf('{', match.index) + 1
+  let depth = 1
+  let end = open
+  while (depth > 0) {
+    const ch = css[end]
+    if (ch === '{') depth += 1
+    if (ch === '}') depth -= 1
+    end += 1
+  }
+  return css.slice(open, end - 1)
+}
+
+/** First declaration per token, comments stripped, whitespace normalized. */
+function tokenMap(block: string): Map<string, string> {
+  const map = new Map<string, string>()
+  for (const decl of block.matchAll(/(--[\w-]+)\s*:\s*([^;]+);/g)) {
+    const value = decl[2]
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .toLowerCase()
+    if (!map.has(decl[1])) map.set(decl[1], value)
+  }
+  return map
+}
+
+// The sheet's token values are MIRRORS of globals.css — the surfaces the live
+// overrides cannot reach (downloaded/shared/standalone documents, and the
+// theme the app is not currently in) render from them. A silent retune of
+// globals.css is invisible until a shared page looks off-brand; this makes it
+// a named test failure instead.
+describe('token mirrors stay in sync with globals.css', () => {
+  const globals = readFileSync(join(process.cwd(), 'app/_styles/globals.css'), 'utf8')
+  const appLight = tokenMap(cssBlock(globals, /:root,\s*\n\s*\.light\s*\{/))
+  const appDark = tokenMap(cssBlock(globals, /\n {2}\.dark\s*\{/))
+  const sheetLight = tokenMap(cssBlock(SIM_ARTIFACT_STYLESHEET, /^:root \{/))
+  const sheetMediaDark = tokenMap(
+    cssBlock(SIM_ARTIFACT_STYLESHEET, /:root:not\(\[data-theme="light"\]\)\s*\{/)
+  )
+  const sheetAttrDark = tokenMap(
+    cssBlock(SIM_ARTIFACT_STYLESHEET, /:root\[data-theme="dark"\]\s*\{/)
+  )
+
+  it('mirrors every consumed token in both themes', () => {
+    const drift: string[] = []
+    for (const token of ARTIFACT_TOKENS) {
+      const appLightValue = appLight.get(token)
+      const appDarkValue = appDark.get(token)
+      if (!appLightValue || !appDarkValue) {
+        drift.push(
+          `${token}: not defined in globals.css (light=${appLightValue}, dark=${appDarkValue})`
+        )
+        continue
+      }
+      if (sheetLight.get(token) !== appLightValue) {
+        drift.push(`${token} light: sheet=${sheetLight.get(token)} app=${appLightValue}`)
+      }
+      if (sheetMediaDark.get(token) !== appDarkValue) {
+        drift.push(`${token} dark(media): sheet=${sheetMediaDark.get(token)} app=${appDarkValue}`)
+      }
+      if (sheetAttrDark.get(token) !== appDarkValue) {
+        drift.push(`${token} dark(stamp): sheet=${sheetAttrDark.get(token)} app=${appDarkValue}`)
+      }
+    }
+    expect(drift).toEqual([])
   })
 })
