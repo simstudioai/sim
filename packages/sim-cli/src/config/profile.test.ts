@@ -6,8 +6,10 @@ import { configPath, credentialsPath } from './paths'
 import {
   DEFAULT_ENDPOINT,
   deleteProfile,
+  listAuthenticationDependents,
   listProfiles,
   OUTPUT_FORMATS,
+  resolveAuthenticationProfileName,
   resolveProfile,
   writeConfigProfile,
   writeCredentialsProfile,
@@ -69,6 +71,88 @@ describe('profile resolution', () => {
       workspaceId: 'ws_b',
       apiKey: 'key_b',
     })
+  })
+
+  it('keeps existing profiles self-authenticating when auth_profile is absent', () => {
+    writeConfigProfile('dev', { endpoint: 'https://dev.example', workspace: 'ws_dev' })
+    writeCredentialsProfile('dev', 'key_dev')
+
+    expect(resolveAuthenticationProfileName('dev')).toBe('dev')
+    expect(resolveProfile({ profile: 'dev' })).toMatchObject({
+      endpoint: 'https://dev.example',
+      workspaceId: 'ws_dev',
+      apiKey: 'key_dev',
+    })
+  })
+
+  it('shares only authentication and endpoint through auth_profile', () => {
+    writeConfigProfile('default', {
+      endpoint: 'https://sim.example',
+      workspace: 'ws_default',
+      output: 'yaml',
+    })
+    writeCredentialsProfile('default', 'key_default')
+    writeConfigProfile('acme', {
+      auth_profile: 'default',
+      workspace: 'ws_acme',
+      output: 'json',
+    })
+
+    expect(resolveAuthenticationProfileName('acme')).toBe('default')
+    expect(resolveProfile({ profile: 'acme' })).toMatchObject({
+      name: 'acme',
+      endpoint: 'https://sim.example',
+      workspaceId: 'ws_acme',
+      output: 'json',
+      apiKey: 'key_default',
+      sources: {
+        endpoint: 'config',
+        workspaceId: 'config',
+        output: 'config',
+        apiKey: 'credentials',
+      },
+    })
+  })
+
+  it('fails fast on empty, missing, self-referential, or chained auth profiles', () => {
+    writeConfigProfile('empty', { auth_profile: '' })
+    expect(() => resolveProfile({ profile: 'empty' })).toThrow(
+      'Profile "empty" has an empty auth_profile.'
+    )
+
+    writeConfigProfile('missing', { auth_profile: 'gone' })
+    expect(() => resolveProfile({ profile: 'missing' })).toThrow(
+      'Profile "missing" references missing auth_profile "gone".'
+    )
+
+    writeConfigProfile('self', { auth_profile: 'self' })
+    expect(() => resolveProfile({ profile: 'self' })).toThrow(
+      'Profile "self" cannot use itself as auth_profile.'
+    )
+
+    writeConfigProfile('base', { auth_profile: 'root' })
+    writeCredentialsProfile('root', 'key_root')
+    writeConfigProfile('chained', { auth_profile: 'base' })
+    expect(() => resolveProfile({ profile: 'chained' })).toThrow(
+      'Profile "chained" references auth_profile "base", which also has auth_profile set.'
+    )
+  })
+
+  it('rejects ambiguous local authentication settings on a shared profile', () => {
+    writeCredentialsProfile('default', 'key_default')
+    writeConfigProfile('endpoint-alias', {
+      auth_profile: 'default',
+      endpoint: 'https://other.example',
+    })
+    expect(() => resolveProfile({ profile: 'endpoint-alias' })).toThrow(
+      'Profile "endpoint-alias" cannot set both auth_profile and endpoint.'
+    )
+
+    writeConfigProfile('key-alias', { auth_profile: 'default' })
+    writeCredentialsProfile('key-alias', 'key_alias')
+    expect(() => resolveProfile({ profile: 'key-alias' })).toThrow(
+      'Profile "key-alias" cannot set both auth_profile and its own API key.'
+    )
   })
 
   it('lets a flag beat the environment, and the environment beat the file', () => {
@@ -184,6 +268,16 @@ describe('profile resolution', () => {
     writeCredentialsProfile('ci', 'key')
 
     expect(listProfiles()).toEqual(['ci', 'default', 'dev'])
+  })
+
+  it('lists direct authentication dependents without treating a bad self-reference as one', () => {
+    writeCredentialsProfile('default', 'key')
+    writeConfigProfile('acme', { auth_profile: 'default', workspace: 'ws_acme' })
+    writeConfigProfile('beta', { auth_profile: 'default', workspace: 'ws_beta' })
+    writeConfigProfile('broken', { auth_profile: 'broken' })
+
+    expect(listAuthenticationDependents('default')).toEqual(['acme', 'beta'])
+    expect(listAuthenticationDependents('broken')).toEqual([])
   })
 
   it('deletes a profile from both files', () => {

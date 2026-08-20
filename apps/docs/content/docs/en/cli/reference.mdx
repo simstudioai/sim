@@ -80,16 +80,6 @@ sim whoami [options]
 
 </CommandTable>
 
-## sim profiles
-
-List the profiles defined in the config and credentials files
-
-```bash
-sim profiles
-```
-
-Also available as `sim profile`.
-
 ## sim configure
 
 Set a profile's endpoint, default workspace, or output format
@@ -108,6 +98,46 @@ sim configure [options]
 | `--set-workspace <id>` | No | Default workspace for workspace-scoped commands. |
 | `--set-output <format>` | No | Default output format (table \| json \| yaml \| text). |
 | `--unset <key...>` | No | Remove settings (endpoint, workspace, output). |
+
+</CommandTable>
+
+## sim profiles
+
+Also spelled `sim profile`.
+
+### sim profiles list
+
+List configured profiles
+
+```bash
+sim profiles list
+```
+
+### sim profiles add
+
+Add a workspace profile that shares the active stored login
+
+```bash
+sim profiles add <name> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `name` | Yes | Name for the new profile |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `-w, --workspace <id>` | No | Existing workspace to use; omit for an interactive picker. |
 
 </CommandTable>
 

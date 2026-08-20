@@ -18,6 +18,7 @@ with -P, --profile, or SIM_PROFILE.
 
 Examples:
   $ sim login                                    Authorize the default profile
+  $ sim profile add acme --workspace ws_123      Reuse that login for a workspace
   $ sim login --profile dev --endpoint http://localhost:3000
   $ sim workflows list
   $ sim logs list --level error --limit 20
