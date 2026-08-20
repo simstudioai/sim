@@ -24,6 +24,23 @@ export async function listApiKeys(workspaceId: string) {
     .orderBy(apiKeyTable.createdAt)
 }
 
+/**
+ * The expiry of one API key, or `null` when it never expires.
+ *
+ * An absent row also reports `null` rather than throwing: the only caller reads
+ * the key it has just authenticated, and the one identity that authenticates
+ * without a row is the `isAuthDisabled` development principal, which has no
+ * expiry to report.
+ */
+export async function getApiKeyExpiry(keyId: string): Promise<Date | null> {
+  const [row] = await db
+    .select({ expiresAt: apiKeyTable.expiresAt })
+    .from(apiKeyTable)
+    .where(eq(apiKeyTable.id, keyId))
+    .limit(1)
+  return row?.expiresAt ?? null
+}
+
 export interface ApiKeyAuthOptions {
   userId?: string
   workspaceId?: string

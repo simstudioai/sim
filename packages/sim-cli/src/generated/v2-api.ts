@@ -3678,6 +3678,19 @@ export type GetMcpServerResponse = {
   data: GetMcpServerResponseRef0
 }
 
+/** `GET /api/v2/meta` */
+export type GetMetaQuery = Record<string, unknown>
+
+type GetMetaResponseRef0 = {
+  v2Enabled: boolean
+  keyType: 'personal' | 'workspace'
+  expiresAt: string | null
+}
+
+export type GetMetaResponse = {
+  data: GetMetaResponseRef0
+}
+
 /** `GET /api/v2/knowledge/[id]/tags/next-slot` */
 export type GetNextKnowledgeTagSlotParams = {
   id: string
@@ -6879,6 +6892,50 @@ export type UndeployWorkflowResponse = {
   data: UndeployWorkflowResponseRef4
 }
 
+/** `PATCH /api/v2/credentials/[credentialId]` */
+export type UpdateCredentialParams = {
+  credentialId: string
+}
+
+export type UpdateCredentialQuery = {
+  workspaceId: string
+}
+
+export type UpdateCredentialBody = {
+  displayName?: string
+  description?: string | null
+  serviceAccountJson?: string
+  apiToken?: string
+  domain?: string
+  signingSecret?: string
+  botToken?: string
+  clientId?: string
+  clientSecret?: string
+  certificateId?: string
+  orgId?: string
+  dataCenter?: string
+  authMethod?: string
+  privateKey?: string
+  username?: string
+}
+
+type UpdateCredentialResponseRef0 = {
+  id: string
+  type: 'oauth' | 'service_account'
+  displayName: string
+  description: string | null
+  providerId: string | null
+  accountId: string | null
+  hasServiceAccountKey: boolean
+  role: 'admin' | 'member'
+  createdAt: string
+  updatedAt: string
+}
+
+export type UpdateCredentialResponse = {
+  data: UpdateCredentialResponseRef0
+}
+
 /** `PATCH /api/v2/custom-tools/[id]` */
 export type UpdateCustomToolParams = {
   id: string
@@ -8853,7 +8910,7 @@ export const V2_OPERATIONS = {
     method: 'DELETE',
     path: '/api/v2/credentials/[credentialId]',
     pathParams: ['credentialId'] as const,
-    pathParamDocs: { credentialId: 'Credential to disconnect.' },
+    pathParamDocs: { credentialId: 'Credential to update or disconnect.' },
     responseMode: 'json',
     summary: 'Disconnect Credential',
     query: {
@@ -9618,6 +9675,13 @@ export const V2_OPERATIONS = {
         describe: 'Workspace that owns the MCP server.',
       },
     },
+  },
+  getMeta: {
+    method: 'GET',
+    path: '/api/v2/meta',
+    pathParams: [] as const,
+    responseMode: 'json',
+    summary: 'Get API Capabilities',
   },
   getNextKnowledgeTagSlot: {
     method: 'GET',
@@ -11789,6 +11853,44 @@ export const V2_OPERATIONS = {
     pathParamDocs: { id: 'Unique workflow identifier.' },
     responseMode: 'json',
     summary: 'Undeploy Workflow',
+  },
+  updateCredential: {
+    method: 'PATCH',
+    path: '/api/v2/credentials/[credentialId]',
+    pathParams: ['credentialId'] as const,
+    pathParamDocs: { credentialId: 'Credential to update or disconnect.' },
+    responseMode: 'json',
+    summary: 'Update Credential',
+    query: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace expected to own the credential.',
+      },
+    },
+    body: {
+      displayName: { kind: 'string', describe: 'New name shown for the credential in Sim.' },
+      description: {
+        kind: 'string',
+        describe: 'New credential description. Send null to clear the stored one.',
+      },
+      serviceAccountJson: {
+        kind: 'string',
+        describe: 'Write-only Google service-account JSON key.',
+      },
+      apiToken: { kind: 'string', describe: 'Write-only provider API token.' },
+      domain: { kind: 'string', describe: 'Provider account domain.' },
+      signingSecret: { kind: 'string', describe: 'Write-only webhook signing secret.' },
+      botToken: { kind: 'string', describe: 'Write-only bot token.' },
+      clientId: { kind: 'string', describe: 'OAuth client identifier.' },
+      clientSecret: { kind: 'string', describe: 'Write-only OAuth client secret.' },
+      certificateId: { kind: 'string', describe: 'Provider certificate mapping identifier.' },
+      orgId: { kind: 'string', describe: 'Provider organization ID.' },
+      dataCenter: { kind: 'string', describe: 'Provider data center.' },
+      authMethod: { kind: 'string', describe: 'Provider authentication method.' },
+      privateKey: { kind: 'string', describe: 'Write-only PEM private key.' },
+      username: { kind: 'string', describe: 'Provider run-as username.' },
+    },
   },
   updateCustomTool: {
     method: 'PATCH',

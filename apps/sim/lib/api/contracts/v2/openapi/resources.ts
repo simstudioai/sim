@@ -12,6 +12,7 @@ import {
   v2DeleteCredentialContract,
   v2ListCredentialProvidersContract,
   v2ListCredentialsContract,
+  v2UpdateCredentialContract,
 } from '@/lib/api/contracts/v2/credentials'
 import {
   v2CreateCustomToolContract,
@@ -28,6 +29,7 @@ import {
   v2ListMcpServerToolsContract,
   v2UpdateMcpServerContract,
 } from '@/lib/api/contracts/v2/mcp-servers'
+import { v2GetMetaContract } from '@/lib/api/contracts/v2/meta'
 import {
   documentedSchema,
   type ErrorResponseId,
@@ -247,6 +249,7 @@ const SECRET_EXAMPLE = {
 } as const
 
 type ResourceTag =
+  | 'Meta'
   | 'Workspaces'
   | 'MCP Servers'
   | 'Skills'
@@ -425,7 +428,41 @@ const ENRICHMENT_EXAMPLE = {
   ],
 } as const
 
+/**
+ * `GET /api/v2/meta` resolves no workspace and no resource, so it cannot emit
+ * the `403` every workspace-scoped operation can, nor a `404`. A documented
+ * status an operation cannot emit is worse than none.
+ */
+const META_ERRORS = [
+  'BadRequest',
+  'Unauthorized',
+  'RateLimited',
+  'InternalError',
+  'ServiceUnavailable',
+] as const satisfies readonly ErrorResponseId[]
+
 const declaredRoutes = [
+  defineOpenApiRoute(
+    v2GetMetaContract,
+    resourceOperation('Meta', {
+      operationId: 'getApiMeta',
+      summary: 'Get API Capabilities',
+      description:
+        'Report facts about the calling API key: whether it is in the v2 rollout cohort, whether it is personal or workspace-scoped, and when it expires. Every other v2 endpoint answers 404 both when the path does not exist and when your credential is not in the rollout cohort; call this endpoint to tell the two apart. It is the one v2 endpoint the rollout gate does not apply to, and it still requires a valid key.',
+      errors: META_ERRORS,
+      success: { description: 'Rollout and lifecycle facts about the calling key.' },
+    }),
+    {
+      query: v2GetMetaContract.query,
+      response: documentedSchema(
+        v2GetMetaContract.response.schema,
+        'GetApiMetaResponse',
+        'API capabilities response',
+        'Rollout cohort, key type, and expiry for the calling key.',
+        [{ data: { v2Enabled: true, keyType: 'personal', expiresAt: null } }]
+      ),
+    }
+  ),
   defineOpenApiRoute(
     v2GetWorkspaceContract,
     resourceOperation('Workspaces', {
@@ -1115,6 +1152,44 @@ const declaredRoutes = [
     }
   ),
   defineOpenApiRoute(
+    v2UpdateCredentialContract,
+    resourceOperation('Credentials', {
+      operationId: 'updateCredential',
+      summary: 'Update Credential',
+      description: `Rotate a service-account credential's secret material, or rename it. Send only the fields to change: an omitted field is left unchanged, and \`description: null\` clears the stored description. Secret fields are write-only and are never returned. The provider re-verifies replacement secret material before it replaces the stored secret, so a rejected secret leaves the stored one untouched and answers \`400\` with the provider's code in \`error.details.providerErrorCode\`; a provider that cannot be reached answers \`503\`. The credential ID is preserved, so every workflow, deployment, paused run, knowledge connector, and webhook that references it keeps working — which disconnecting and re-creating does not. Credential admin access is required. ${WORKSPACE_API_KEY_DENIED}`,
+      errors: RESOURCE_CONFLICT_ERRORS,
+      success: { description: 'The updated credential without secret material.' },
+    }),
+    {
+      params: documentedSchema(
+        v2UpdateCredentialContract.params,
+        'UpdateCredentialParams',
+        'Update credential path parameters',
+        'Credential selected for update.'
+      ),
+      query: documentedSchema(
+        v2UpdateCredentialContract.query,
+        'UpdateCredentialQuery',
+        'Update credential query',
+        'Workspace expected to own the credential.'
+      ),
+      body: documentedSchema(
+        v2UpdateCredentialContract.body,
+        'UpdateCredentialRequest',
+        'Update credential request',
+        'Replacement display metadata and the write-only fields declared by provider discovery.',
+        [{ clientSecret: 'YOUR_ROTATED_CLIENT_SECRET' }]
+      ),
+      response: documentedSchema(
+        v2UpdateCredentialContract.response.schema,
+        'UpdateCredentialResponse',
+        'Update credential response',
+        'Updated credential metadata without secret material.',
+        [{ data: CREDENTIAL_EXAMPLE }]
+      ),
+    }
+  ),
+  defineOpenApiRoute(
     v2DeleteCredentialContract,
     resourceOperation('Credentials', {
       operationId: 'deleteCredential',
@@ -1428,7 +1503,7 @@ export const resourcesOpenApiDocument = defineOpenApiDocument({
   info: {
     title: 'Sim API v2 — Workspace Resources',
     description:
-      'Version 2 of the Sim REST API for workspace metadata, members, MCP servers, skills, custom tools, credentials, write-only secrets, and the block, tool, connector-type, and enrichment catalogs.',
+      'Version 2 of the Sim REST API for API-key capabilities, workspace metadata, members, MCP servers, skills, custom tools, credentials, write-only secrets, and the block, tool, connector-type, and enrichment catalogs.',
     version: '2.0.0',
     contact: {
       name: 'Sim Support',
@@ -1442,6 +1517,10 @@ export const resourcesOpenApiDocument = defineOpenApiDocument({
   },
   servers: [{ url: 'https://www.sim.ai', description: 'Production' }],
   tags: [
+    {
+      name: 'Meta',
+      description: 'Discover what the calling API key can reach.',
+    },
     {
       name: 'Workspaces',
       description: 'Read workspace metadata and its effective member roster.',
@@ -1461,7 +1540,7 @@ export const resourcesOpenApiDocument = defineOpenApiDocument({
     {
       name: 'Credentials',
       description:
-        'Discover providers, create service-account credentials, connect or reconnect OAuth accounts, disconnect credentials, and list connections without secret material.',
+        'Discover providers, create service-account credentials, connect or reconnect OAuth accounts, rotate secret material in place, disconnect credentials, and list connections without secret material.',
     },
     {
       name: 'Secrets',

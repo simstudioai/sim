@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Sim API v2 — Workspace Resources",
-    "description": "Version 2 of the Sim REST API for workspace metadata, members, MCP servers, skills, custom tools, credentials, write-only secrets, and the block, tool, connector-type, and enrichment catalogs.",
+    "description": "Version 2 of the Sim REST API for API-key capabilities, workspace metadata, members, MCP servers, skills, custom tools, credentials, write-only secrets, and the block, tool, connector-type, and enrichment catalogs.",
     "version": "2.0.0",
     "contact": {
       "name": "Sim Support",
@@ -22,6 +22,10 @@
   ],
   "tags": [
     {
+      "name": "Meta",
+      "description": "Discover what the calling API key can reach."
+    },
+    {
       "name": "Workspaces",
       "description": "Read workspace metadata and its effective member roster."
     },
@@ -39,7 +43,7 @@
     },
     {
       "name": "Credentials",
-      "description": "Discover providers, create service-account credentials, connect or reconnect OAuth accounts, disconnect credentials, and list connections without secret material."
+      "description": "Discover providers, create service-account credentials, connect or reconnect OAuth accounts, rotate secret material in place, disconnect credentials, and list connections without secret material."
     },
     {
       "name": "Secrets",
@@ -56,6 +60,52 @@
     }
   ],
   "paths": {
+    "/api/v2/meta": {
+      "get": {
+        "operationId": "getApiMeta",
+        "summary": "Get API Capabilities",
+        "description": "Report facts about the calling API key: whether it is in the v2 rollout cohort, whether it is personal or workspace-scoped, and when it expires. Every other v2 endpoint answers 404 both when the path does not exist and when your credential is not in the rollout cohort; call this endpoint to tell the two apart. It is the one v2 endpoint the rollout gate does not apply to, and it still requires a valid key.",
+        "tags": ["Meta"],
+        "responses": {
+          "200": {
+            "description": "Rollout and lifecycle facts about the calling key.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetApiMetaResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
     "/api/v2/workspaces/{workspaceId}": {
       "get": {
         "operationId": "getWorkspace",
@@ -1958,6 +2008,99 @@
       }
     },
     "/api/v2/credentials/{credentialId}": {
+      "patch": {
+        "operationId": "updateCredential",
+        "summary": "Update Credential",
+        "description": "Rotate a service-account credential's secret material, or rename it. Send only the fields to change: an omitted field is left unchanged, and `description: null` clears the stored description. Secret fields are write-only and are never returned. The provider re-verifies replacement secret material before it replaces the stored secret, so a rejected secret leaves the stored one untouched and answers `400` with the provider's code in `error.details.providerErrorCode`; a provider that cannot be reached answers `503`. The credential ID is preserved, so every workflow, deployment, paused run, knowledge connector, and webhook that references it keeps working — which disconnecting and re-creating does not. Credential admin access is required. A workspace API key is rejected with `403`; use a personal API key.",
+        "tags": ["Credentials"],
+        "parameters": [
+          {
+            "name": "credentialId",
+            "in": "path",
+            "required": true,
+            "description": "Credential to update or disconnect.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255,
+              "description": "Credential to update or disconnect."
+            }
+          },
+          {
+            "name": "workspaceId",
+            "in": "query",
+            "required": true,
+            "description": "Workspace expected to own the credential.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "description": "Workspace expected to own the credential."
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Replacement display metadata and the write-only fields declared by provider discovery.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateCredentialRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated credential without secret material.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpdateCredentialResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      },
       "delete": {
         "operationId": "deleteCredential",
         "summary": "Disconnect Credential",
@@ -1968,12 +2111,12 @@
             "name": "credentialId",
             "in": "path",
             "required": true,
-            "description": "Credential to disconnect.",
+            "description": "Credential to update or disconnect.",
             "schema": {
               "type": "string",
               "minLength": 1,
               "maxLength": 255,
-              "description": "Credential to disconnect."
+              "description": "Credential to update or disconnect."
             }
           },
           {
@@ -3238,6 +3381,59 @@
             "error": {
               "code": "BAD_REQUEST",
               "message": "The request is invalid."
+            }
+          }
+        ]
+      },
+      "V2Meta": {
+        "type": "object",
+        "properties": {
+          "v2Enabled": {
+            "type": "boolean",
+            "description": "Whether this credential is in the v2 rollout cohort. When false, every other v2 endpoint answers 404 for this credential."
+          },
+          "keyType": {
+            "type": "string",
+            "enum": ["personal", "workspace"],
+            "description": "Whether the calling key carries the full authority of its owner across their workspaces, or is scoped to one workspace."
+          },
+          "expiresAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ISO 8601 timestamp when the calling key expires, or null when it never does."
+          }
+        },
+        "required": ["v2Enabled", "keyType", "expiresAt"],
+        "additionalProperties": false,
+        "title": "API capabilities",
+        "description": "Rollout and lifecycle facts about the calling API key."
+      },
+      "GetApiMetaResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2Meta"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "API capabilities response",
+        "description": "Rollout cohort, key type, and expiry for the calling key.",
+        "examples": [
+          {
+            "data": {
+              "v2Enabled": true,
+              "keyType": "personal",
+              "expiresAt": null
             }
           }
         ]
@@ -5625,6 +5821,150 @@
         ],
         "title": "Create credential connection body",
         "description": "For a new connection, provide providerId and displayName. For a reconnect, provide only credentialId; the existing display name is preserved."
+      },
+      "UpdateCredentialResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2Credential"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Update credential response",
+        "description": "Updated credential metadata without secret material.",
+        "examples": [
+          {
+            "data": {
+              "id": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
+              "type": "service_account",
+              "displayName": "Zoom service account",
+              "description": null,
+              "providerId": "zoom-service-account",
+              "accountId": null,
+              "hasServiceAccountKey": true,
+              "role": "admin",
+              "createdAt": "2026-06-01T09:14:00.000Z",
+              "updatedAt": "2026-06-20T14:02:11.000Z"
+            }
+          }
+        ]
+      },
+      "UpdateCredentialRequest": {
+        "type": "object",
+        "properties": {
+          "displayName": {
+            "description": "New name shown for the credential in Sim.",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          },
+          "description": {
+            "description": "New credential description. Send null to clear the stored one.",
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "serviceAccountJson": {
+            "description": "Write-only Google service-account JSON key.",
+            "writeOnly": true,
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 65536
+          },
+          "apiToken": {
+            "description": "Write-only provider API token.",
+            "writeOnly": true,
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 8192
+          },
+          "domain": {
+            "description": "Provider account domain.",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2048
+          },
+          "signingSecret": {
+            "description": "Write-only webhook signing secret.",
+            "writeOnly": true,
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 8192
+          },
+          "botToken": {
+            "description": "Write-only bot token.",
+            "writeOnly": true,
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 8192
+          },
+          "clientId": {
+            "description": "OAuth client identifier.",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512
+          },
+          "clientSecret": {
+            "description": "Write-only OAuth client secret.",
+            "writeOnly": true,
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024
+          },
+          "certificateId": {
+            "description": "Provider certificate mapping identifier.",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512
+          },
+          "orgId": {
+            "description": "Provider organization ID.",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          },
+          "dataCenter": {
+            "description": "Provider data center.",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 32
+          },
+          "authMethod": {
+            "description": "Provider authentication method.",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "privateKey": {
+            "description": "Write-only PEM private key.",
+            "writeOnly": true,
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 8192
+          },
+          "username": {
+            "description": "Provider run-as username.",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          }
+        },
+        "additionalProperties": false,
+        "title": "Update credential request",
+        "description": "Replacement display metadata and the write-only fields declared by provider discovery.",
+        "examples": [
+          {
+            "clientSecret": "YOUR_ROTATED_CLIENT_SECRET"
+          }
+        ]
       },
       "V2CredentialDeleteData": {
         "type": "object",

@@ -429,7 +429,7 @@ export const v2CreateServiceAccountCredentialContract = defineRouteContract({
 
 export const v2CredentialParamsSchema = z
   .object({
-    credentialId: nonEmptyIdSchema.max(255).describe('Credential to disconnect.'),
+    credentialId: nonEmptyIdSchema.max(255).describe('Credential to update or disconnect.'),
   })
   .strict()
 
@@ -449,6 +449,67 @@ export const v2CredentialDeleteDataSchema = z
     title: 'Delete credential data',
     description: 'Credential disconnection acknowledgement.',
   })
+
+export const v2UpdateCredentialQuerySchema = z
+  .object({
+    workspaceId: workspaceIdSchema.describe('Workspace expected to own the credential.'),
+  })
+  .strict()
+export type V2UpdateCredentialQuery = z.output<typeof v2UpdateCredentialQuerySchema>
+
+/**
+ * Merge-patch semantics: an absent field is left unchanged, and `description:
+ * null` clears the stored description. Deliberately `PATCH` rather than `PUT` —
+ * omitting a secret field leaves the stored secret in place rather than clearing
+ * it, so the body is never a complete representation of the credential.
+ *
+ * Reuses the create body's secret shape so a rotation cannot accept a field a
+ * creation rejects, and so every secret member keeps its `writeOnly` marking.
+ * `providerId` is deliberately absent: the provider is a property of the stored
+ * credential, and changing it would describe a different credential.
+ */
+export const v2UpdateCredentialBodySchema = z
+  .object({
+    displayName: z
+      .string()
+      .trim()
+      .min(1, 'displayName cannot be empty')
+      .max(255, 'displayName must be at most 255 characters')
+      .optional()
+      .describe('New name shown for the credential in Sim.'),
+    description: z
+      .string()
+      .trim()
+      .max(500, 'description must be at most 500 characters')
+      .nullable()
+      .optional()
+      .describe('New credential description. Send null to clear the stored one.'),
+    ...v2ServiceAccountSecretFieldsShape,
+  })
+  .strict()
+  .superRefine((body, ctx) => {
+    if (Object.values(body).every((value) => value === undefined)) {
+      ctx.addIssue({
+        code: 'custom',
+        message:
+          'Provide at least one of displayName, description, or a service-account secret field',
+      })
+    }
+  })
+export type V2UpdateCredentialBody = z.input<typeof v2UpdateCredentialBodySchema>
+
+/** Rotates secret material or renames a credential while preserving its ID. */
+export const v2UpdateCredentialContract = defineRouteContract({
+  method: 'PATCH',
+  path: '/api/v2/credentials/[credentialId]',
+  params: v2CredentialParamsSchema,
+  query: v2UpdateCredentialQuerySchema,
+  body: v2UpdateCredentialBodySchema,
+  response: {
+    mode: 'json',
+    schema: v2DataResponse(v2CredentialSchema),
+  },
+})
 
 export const v2DeleteCredentialContract = defineRouteContract({
   method: 'DELETE',
