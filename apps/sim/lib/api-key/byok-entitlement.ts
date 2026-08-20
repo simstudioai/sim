@@ -1,31 +1,28 @@
+import { LRUCache } from 'lru-cache'
 import { resolveOrganizationPlan } from '@/lib/billing/core/subscription'
 import { isHosted } from '@/lib/core/config/env-flags'
 
 /**
- * How long a resolved entitlement stays usable on the execution path. Staleness
- * fails in the harmless direction: a lapsed organization keeps using its own
- * provider key for at most this long, which costs Sim a little metering and
- * never charges anyone wrongly. The key material itself is never cached — see
- * `getBYOKKey`, which reads the key rows fresh so revocation is immediate.
+ * How long a resolved entitlement stays usable on the execution path. Matches
+ * `SESSION_POLICY_CACHE_TTL_MS`, the other org-keyed policy gate cached this
+ * way. Staleness fails in the harmless direction: a lapsed organization keeps
+ * using its own provider key for at most this long, which costs Sim a little
+ * metering and never charges anyone wrongly. The key material itself is never
+ * cached — `getBYOKKey` reads the key rows fresh so revocation is immediate.
  */
-const ENTITLEMENT_TTL_MS = 60_000
+export const ORGANIZATION_BYOK_ENTITLEMENT_TTL_MS = 60 * 1000
 
 /**
- * Upper bound on cached organizations per process. Entries are two words each,
- * so this exists only to keep a long-lived worker from growing without limit
- * when it serves many organizations. Insertion order is eviction order.
+ * Caches the in-flight promise rather than the resolved boolean, following
+ * `lib/copilot/entitlements.ts`. Storing the promise is what makes concurrent
+ * callers collapse onto one resolution: a parallel or loop block resolving N
+ * items issues one query set instead of N, with no separate in-flight
+ * bookkeeping. `LRUCache` supplies the TTL and the size bound.
  */
-const ENTITLEMENT_CACHE_MAX_ENTRIES = 1_000
-
-interface CachedEntitlement {
-  /** Last resolved value, or `null` while the first resolution is in flight. */
-  value: boolean | null
-  expiresAt: number
-  /** Shared in-flight resolution, so concurrent blocks issue one query set. */
-  inflight: Promise<boolean> | null
-}
-
-const entitlementCache = new Map<string, CachedEntitlement>()
+const entitlementCache = new LRUCache<string, Promise<boolean>>({
+  max: 500,
+  ttl: ORGANIZATION_BYOK_ENTITLEMENT_TTL_MS,
+})
 
 /**
  * Authoritative organization BYOK entitlement, read fresh.
@@ -56,52 +53,43 @@ export async function isOrganizationBYOKEntitled(organizationId: string): Promis
  * plan change to appear, which is true of a workflow run and false of the
  * settings page.
  */
-export async function isOrganizationBYOKEntitledCached(organizationId: string): Promise<boolean> {
-  if (!isHosted) return false
+export function isOrganizationBYOKEntitledCached(organizationId: string): Promise<boolean> {
+  if (!isHosted) return Promise.resolve(false)
 
   const cached = entitlementCache.get(organizationId)
-  if (cached) {
-    if (cached.inflight) return cached.inflight
-    if (cached.value !== null && cached.expiresAt > Date.now()) return cached.value
-  }
+  if (cached) return cached
 
   /**
-   * `onError: 'throw'` is load-bearing. Without it a billing-read outage
-   * resolves to `false` exactly like a real plan lapse, and the entry below
-   * would pin the gate shut for the whole TTL — every inheriting run silently
-   * falling back to a metered hosted key. Throwing keeps the failure out of the
-   * cache so the next resolution retries; `getBYOKKey` still fails closed for
-   * the one call that saw it.
+   * `onError: 'throw'` is load-bearing: the resolver otherwise maps a failed
+   * billing read to `false`, indistinguishable from a real plan lapse, and a
+   * cached `false` would silently meter every inheriting run for the whole TTL.
    */
-  const inflight = resolveOrganizationPlan(organizationId, { onError: 'throw' }).then(
-    (entitled) => {
-      entitlementCache.set(organizationId, {
-        value: entitled,
-        expiresAt: Date.now() + ENTITLEMENT_TTL_MS,
-        inflight: null,
-      })
-      return entitled
-    },
-    (error) => {
-      entitlementCache.delete(organizationId)
-      throw error
-    }
-  )
+  const resolution = resolveOrganizationPlan(organizationId, { onError: 'throw' })
+  entitlementCache.set(organizationId, resolution)
 
-  if (entitlementCache.size >= ENTITLEMENT_CACHE_MAX_ENTRIES) {
-    const oldest = entitlementCache.keys().next()
-    if (!oldest.done) entitlementCache.delete(oldest.value)
-  }
-  entitlementCache.set(organizationId, {
-    value: cached?.value ?? null,
-    expiresAt: 0,
-    inflight,
-  })
+  /**
+   * Caching the promise means a rejected one would stay cached for the full TTL
+   * — the neighbour in `copilot/entitlements.ts` never has to think about this
+   * because its evaluators swallow their own errors. Evicting on rejection is
+   * what keeps a momentary billing outage from pinning the gate shut. The
+   * caller still sees the rejection through `resolution`; `getBYOKKey` catches
+   * it and falls back for that one call.
+   */
+  resolution.catch(() => entitlementCache.delete(organizationId))
 
-  return inflight
+  return resolution
 }
 
-/** Drops every cached entitlement. Test seam; never called in production code. */
+/**
+ * Drops every cached entitlement. Test seam; never called in production code.
+ *
+ * There is deliberately no per-organization invalidator, unlike
+ * `invalidateSessionPolicyCache`. That one works because the route that mutates
+ * the policy runs in the same process that reads it. Entitlement changes arrive
+ * on a Stripe webhook, which lands in one process while the readers are
+ * per-worker — an invalidator there would look like it made plan changes
+ * immediate when it only cleared one process. The TTL is the real mechanism.
+ */
 export function resetOrganizationBYOKEntitlementCache(): void {
   entitlementCache.clear()
 }
