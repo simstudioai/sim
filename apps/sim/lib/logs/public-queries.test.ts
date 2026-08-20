@@ -157,6 +157,24 @@ describe('unioned public log page', () => {
     expect(dbChainMockFns.from).toHaveBeenCalledTimes(1)
   })
 
+  // The public surface carries its folder filter in `folderScope`, never in
+  // `filters.folderIds`, so asserting on `jobLogsSelectable` alone cannot see
+  // this case: a folder-scoped page would union in every job run in the
+  // workspace while reporting itself as scoped.
+  it('skips the job read when the page is scoped to a folder', async () => {
+    queueTableRows(schemaMock.workflowExecutionLogs, [])
+
+    await listPublicWorkflowLogs({
+      filters: { workspaceId: 'workspace-1' },
+      folderScope: { folderIds: ['folder-1'], includesRoot: false },
+      limit: 50,
+      includeExecutionData: false,
+      includeJobRuns: true,
+    })
+
+    expect(dbChainMockFns.from).toHaveBeenCalledTimes(1)
+  })
+
   it('tags every row with the table it came from', async () => {
     queueTableRows(schemaMock.workflowExecutionLogs, [
       { id: 'w-1', startedAt: new Date('2026-08-06T00:00:02Z') },

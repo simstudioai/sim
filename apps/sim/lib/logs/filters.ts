@@ -165,6 +165,7 @@ function buildDateConditions(
 }
 
 function buildSearchConditions(params: {
+  workspaceId: string
   search?: string
   workflowName?: string
   folderName?: string
@@ -195,7 +196,10 @@ function buildSearchConditions(params: {
   if (params.folderName) {
     const folderTerm = `%${params.folderName}%`
     conditions.push(
-      sql`${workflow.folderId} IN (SELECT ${folder.id} FROM ${folder} WHERE ${folder.name} ILIKE ${folderTerm} AND ${folder.deletedAt} IS NULL)`
+      // Scoped to the workspace and to workflow folders: `folder` holds every
+      // resource kind for every tenant, so an unscoped subquery is a full-table
+      // ILIKE on each search and matches ids it can never legitimately return.
+      sql`${workflow.folderId} IN (SELECT ${folder.id} FROM ${folder} WHERE ${folder.name} ILIKE ${folderTerm} AND ${folder.workspaceId} = ${params.workspaceId} AND ${folder.resourceType} = 'workflow' AND ${folder.deletedAt} IS NULL)`
     )
   }
 
@@ -309,6 +313,7 @@ export function buildFilterConditions(
   if (endCondition) conditions.push(endCondition)
 
   const searchConditions = buildSearchConditions({
+    workspaceId: params.workspaceId,
     search: params.search,
     workflowName: params.workflowName,
     folderName: params.folderName,

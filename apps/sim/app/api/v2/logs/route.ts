@@ -81,7 +81,12 @@ function logCursorFilters(query: {
     order: query.order,
     status: unorderedScopePart(query.status),
     workflowName: query.workflowName,
-    includeJobRuns: query.includeJobRuns,
+    // Stamped only when it is on. `includeJobRuns` carries `.default(false)`, so
+    // it is always present on the parsed query; binding it unconditionally would
+    // put a constant in every fingerprint and reject every cursor minted before
+    // the field existed — including on unfiltered walks, which is precisely what
+    // `folderScopeVersion` above is careful not to do.
+    includeJobRuns: query.includeJobRuns || undefined,
   })
 }
 

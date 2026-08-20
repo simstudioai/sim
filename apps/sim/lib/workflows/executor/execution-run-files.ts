@@ -7,6 +7,7 @@ import { MAX_INLINE_MATERIALIZATION_BYTES } from '@/lib/execution/payloads/limit
 import { materializeExecutionData } from '@/lib/logs/execution/trace-store'
 import { downloadFile } from '@/lib/uploads/core/storage-service'
 import { formatFileSize, inferContextFromKey } from '@/lib/uploads/utils/file-utils'
+import { isRunOutputFileKey } from '@/lib/workflows/executor/run-file-scope'
 import type { UserFile } from '@/executor/types'
 
 /** Run states whose recorded output is final and therefore safe to address. */
@@ -31,10 +32,15 @@ export interface WorkflowRunFiles {
  * The set is derived from the run's own recorded execution data, materialized
  * but deliberately *not* projected for display: the display projection strips
  * `key` and `context` (see `USER_FILE_DISPLAY_FIELDS`), which are exactly the
- * fields a byte read needs. Because the mapping from file id to storage key is
- * rebuilt here from the recording on every call, a caller can name a file only
- * by an id the run itself emitted — it can never supply, influence, or probe a
- * storage key.
+ * fields a byte read needs.
+ *
+ * Rebuilding the id→key mapping from the recording is necessary but not
+ * sufficient: the recording itself contains caller-supplied input echoed
+ * verbatim by the start block, so it can carry a `UserFile` naming any storage
+ * key. Every entry is therefore filtered through {@link isRunOutputFileKey},
+ * which admits only keys under this run's own execution prefix. Downstream byte
+ * reads rely on that filter — they perform no per-file authorization of their
+ * own, because after it there is no key left that is not this run's output.
  *
  * Returns `null` when no log row exists for the run.
  */
@@ -74,11 +80,19 @@ export async function getWorkflowRunFiles(
     }
   )
 
-  return {
-    terminal: true,
+  const scope = {
     workspaceId: logRow.workspaceId,
-    filesById: collectUserFilesById(materialized),
+    workflowId: logRow.workflowId,
+    executionId: logRow.executionId,
   }
+  const filesById = new Map<string, UserFile>()
+  for (const [id, file] of collectUserFilesById(materialized)) {
+    if (isRunOutputFileKey(file.key, scope)) {
+      filesById.set(id, file)
+    }
+  }
+
+  return { terminal: true, workspaceId: logRow.workspaceId, filesById }
 }
 
 /** Public path a caller uses to fetch one run file's bytes. */

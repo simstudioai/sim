@@ -19,9 +19,23 @@ function normalizeType(type: string): string {
   return type.replace(/-/g, '_')
 }
 
+/**
+ * Reads a registry entry by its own key only.
+ *
+ * `BLOCK_REGISTRY` is an object literal with an intact prototype, so a bare
+ * bracket lookup answers `constructor`, `toString`, `valueOf` and friends with
+ * an inherited function. Those are truthy and carry no `type`, so every
+ * consumer downstream treats them as a block and throws on the first field it
+ * reads — a caller-supplied string turning into a 500. `getToolMetadata` guards
+ * the same way for the same reason.
+ */
+function ownBlock(type: string): BlockConfig | undefined {
+  return Object.hasOwn(BLOCK_REGISTRY, type) ? BLOCK_REGISTRY[type] : undefined
+}
+
 /** Get the block config for a single block type. Falls back to the custom-block overlay. */
 export function getBlock(type: string): BlockConfig | undefined {
-  return BLOCK_REGISTRY[type] ?? BLOCK_REGISTRY[normalizeType(type)] ?? resolveOverlayBlock(type)
+  return ownBlock(type) ?? ownBlock(normalizeType(type)) ?? resolveOverlayBlock(type)
 }
 
 /**

@@ -211,7 +211,14 @@ export async function listPublicWorkflowLogs(
 export async function listPublicWorkflowLogs(
   input: ListPublicWorkflowLogsInput
 ): Promise<{ data: PublicLogListRow[]; nextCursor: string | null }> {
-  const includeJobRuns = Boolean(input.includeJobRuns) && jobLogsSelectable(input.filters)
+  // `folderScope` is checked separately from `jobLogsSelectable`, which reads
+  // `filters.folderIds`. The public surface never sets that field — its input
+  // type omits it and carries the folder filter in `folderScope` instead — so
+  // gating on the filters alone let a folder-scoped page union in every job run
+  // in the workspace, which is the "one filter means two different things
+  // across the union" answer the guard exists to refuse.
+  const includeJobRuns =
+    Boolean(input.includeJobRuns) && !input.folderScope && jobLogsSelectable(input.filters)
 
   const [workflowRows, jobRows] = await Promise.all([
     readWorkflowLogRows(input),
