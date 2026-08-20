@@ -749,30 +749,11 @@ describe('executeTool Function', () => {
       },
     })
 
-    const oversized = new Response('too large', {
-      status: 200,
-      headers: {
-        'content-length': String(10 * 1024 * 1024 + 1),
-        'content-type': 'text/plain',
-      },
-    })
-    mockSecureFetchWithPinnedIP.mockResolvedValueOnce({
-      ok: true,
-      status: oversized.status,
-      statusText: oversized.statusText,
-      headers: {
-        get: (name: string) => oversized.headers.get(name),
-        toRecord: () => Object.fromEntries(oversized.headers.entries()),
-      },
-      body: oversized.body,
-    })
-
-    const rejected = await executeTool('bitbucket_get_pipeline_step_log', params, {
-      skipPostProcess: true,
-    })
-
-    expect(rejected.success).toBe(false)
-    expect(rejected.error).toContain('Tool response size limit exceeded (10MB)')
+    expect(mockSecureFetchWithPinnedIP).toHaveBeenCalledWith(
+      expect.stringContaining('/pipelines/%7Bpipeline%7D/steps/%7Bstep%7D/log'),
+      '93.184.216.34',
+      expect.objectContaining({ maxResponseBytes: 16 * 1024 * 1024 })
+    )
   })
 
   it('retries transient database failures during permission preflight', async () => {

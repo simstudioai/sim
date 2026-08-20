@@ -20,13 +20,19 @@ import type {
 import type { ToolRetryConfig } from '@/tools/types'
 
 export const BITBUCKET_API_BASE = 'https://api.bitbucket.org/2.0'
-export const BITBUCKET_ERROR_EXTRACTOR = 'nested-error-object'
+export const BITBUCKET_ERROR_EXTRACTOR = 'bitbucket-errors'
 export const BITBUCKET_DEFAULT_MAX_CHARACTERS = 100_000
 export const BITBUCKET_MAX_CHARACTERS = 500_000
 export const BITBUCKET_DEFAULT_LOG_CHARACTERS = 20_000
 export const BITBUCKET_MAX_LOG_CHARACTERS = 200_000
 export const BITBUCKET_MIN_LOG_RANGE_BYTES = 4_096
 export const BITBUCKET_RAW_TRANSFER_MAX_BYTES = 10 * 1024 * 1024
+/**
+ * Step logs are read as a suffix `Range`, but a storage backend may answer `200` with the whole
+ * log, which `readRollingTailBytes` then walks to keep only the tail. The secure transport enqueues
+ * without backpressure, so this budget caps peak resident bytes for such a read, not just transfer.
+ */
+export const BITBUCKET_LOG_TRANSFER_MAX_BYTES = 16 * 1024 * 1024
 
 export const BITBUCKET_READ_RETRY: ToolRetryConfig = {
   enabled: true,
@@ -359,8 +365,13 @@ export async function assertBitbucketResponseOk(response: Response): Promise<voi
   let message = errorBody
   try {
     const parsed: unknown = JSON.parse(errorBody)
-    const record = asRecord(parsed)
-    message = readString(readRecord(record, 'error'), 'message') ?? errorBody
+    const error = readRecord(asRecord(parsed), 'error')
+    const summary = readString(error, 'message')
+    const detail = readString(error, 'detail')
+    message =
+      summary && detail && detail !== summary
+        ? `${summary}: ${detail}`
+        : (summary ?? detail ?? errorBody)
   } catch {
     message = errorBody
   }
@@ -722,10 +733,10 @@ export function normalizeBitbucketCommitStatus(value: unknown): BitbucketCommitS
   const data = requireResourceRecord(value, 'commit status')
   return {
     type: readRequiredString(data, 'type', 'commit status'),
-    key: readRequiredString(data, 'key', 'commit status'),
+    key: readString(data, 'key'),
     refName: readString(data, 'refname'),
     url: readString(data, 'url'),
-    state: readRequiredString(data, 'state', 'commit status'),
+    state: readString(data, 'state'),
     name: readString(data, 'name'),
     description: readString(data, 'description'),
     createdOn: readString(data, 'created_on'),
@@ -1083,11 +1094,15 @@ export async function bitbucketRawTail(
   if (range) assertContentRangeBody(range, read.bytes.byteLength, clipped)
   const partialStart = (range !== null && range.start > 0) || clipped
   const text = decodeUtf8Tail(read.bytes, partialStart)
-  const firstBreak = partialStart ? text.indexOf('\n') : -1
-  const completeLines = firstBreak === -1 ? text : text.slice(firstBreak + 1)
+  const bounded = sliceUnicodeSuffix(text, limit)
+  const droppedPrefixLength = text.length - bounded.length
+  const startsMidLine =
+    droppedPrefixLength > 0 ? text.charCodeAt(droppedPrefixLength - 1) !== 0x0a : partialStart
+  const firstBreak = startsMidLine ? bounded.indexOf('\n') : -1
+  const trimmed = firstBreak === -1 ? bounded : bounded.slice(firstBreak + 1)
   return {
-    log: sliceUnicodeSuffix(completeLines, limit),
-    truncated: partialStart || completeLines.length > limit,
+    log: trimmed.length === 0 ? bounded : trimmed,
+    truncated: partialStart || droppedPrefixLength > 0 || firstBreak !== -1,
     totalBytes:
       response.status === 206
         ? (range?.total ?? null)

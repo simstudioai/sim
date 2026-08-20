@@ -65,7 +65,8 @@ const SAMPLE_VALUES: Record<string, unknown> = {
   destinationBranch: 'main',
   description: 'Adds bounded log diagnostics.',
   reviewerAccountIds: '{reviewer-a}, {reviewer-b}',
-  closeSourceBranch: 'true',
+  createCloseSourceBranch: 'true',
+  mergeCloseSourceBranch: 'true',
   draft: 'true',
   mergeStrategy: 'squash',
   message: 'Merge pull request 42',
@@ -294,6 +295,20 @@ describe('BitbucketBlock', () => {
     expect(() => buildRequestUrl('bitbucket_decline_pull_request', { prId })).toThrow(/prId/)
   })
 
+  it('does not let a create-pull-request close setting reach a merge', () => {
+    const merged = buildRequestBody('bitbucket_merge_pull_request', {
+      createCloseSourceBranch: 'true',
+      mergeCloseSourceBranch: '',
+    }) as Record<string, unknown>
+    expect(merged).not.toHaveProperty('close_source_branch')
+
+    const created = buildRequestBody('bitbucket_create_pull_request', {
+      createCloseSourceBranch: '',
+      mergeCloseSourceBranch: 'true',
+    }) as Record<string, unknown>
+    expect(created).not.toHaveProperty('close_source_branch')
+  })
+
   it('does not turn a malformed optional parent ID into a top-level comment', () => {
     expect(() =>
       buildRequestBody('bitbucket_create_pull_request_comment', { parentId: { id: 7 } })
@@ -303,7 +318,7 @@ describe('BitbucketBlock', () => {
   it('preserves explicit false booleans and rejects other present boolean shapes', () => {
     expect(
       buildRequestBody('bitbucket_create_pull_request', {
-        closeSourceBranch: false,
+        createCloseSourceBranch: false,
         draft: 'false',
       })
     ).toMatchObject({ close_source_branch: false, draft: false })

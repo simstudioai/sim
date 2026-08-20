@@ -356,10 +356,10 @@ export interface BitbucketComment {
 
 export interface BitbucketCommitStatus {
   type: string
-  key: string
+  key: string | null
   refName: string | null
   url: string | null
-  state: string
+  state: string | null
   name: string | null
   description: string | null
   createdOn: string | null
@@ -730,14 +730,14 @@ export const BITBUCKET_COMMENT_OUTPUT_PROPERTIES: Record<string, ToolOutputPrope
 
 export const BITBUCKET_COMMIT_STATUS_OUTPUT_PROPERTIES: Record<string, ToolOutputProperty> = {
   type: { type: 'string', description: 'Bitbucket commit-status object type' },
-  key: { type: 'string', description: 'Vendor-unique status key' },
+  key: { type: 'string', description: 'Vendor-unique status key', nullable: true },
   refName: {
     type: 'string',
     description: 'Reference name at status creation time',
     nullable: true,
   },
   url: { type: 'string', description: 'External build URL', nullable: true },
-  state: { type: 'string', description: 'Commit status state' },
+  state: { type: 'string', description: 'Commit status state', nullable: true },
   name: { type: 'string', description: 'Build name', nullable: true },
   description: { type: 'string', description: 'Build description', nullable: true },
   createdOn: { type: 'string', description: 'Creation timestamp', nullable: true },

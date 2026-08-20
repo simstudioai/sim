@@ -22,8 +22,11 @@ const bitbucketSlugSchema = z
 const bitbucketWorkspaceUuidPattern =
   /^(?:\{[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i
 
+/** Bitbucket workspace ids are alphanumeric with hyphens and underscores only. */
+const bitbucketWorkspaceSlugPattern = /^[a-z0-9][a-z0-9_-]*$/i
+
 const bitbucketWorkspaceSlugSchema = bitbucketSlugSchema.refine(
-  (slug) => !slug.includes('/') && !bitbucketWorkspaceUuidPattern.test(slug),
+  (slug) => bitbucketWorkspaceSlugPattern.test(slug) && !bitbucketWorkspaceUuidPattern.test(slug),
   'Bitbucket workspace must be identified by its slug, not a UUID or path'
 )
 
@@ -66,7 +69,8 @@ export function isBitbucketWorkspacesCursor(value: string): boolean {
  */
 export function isBitbucketRepositoriesCursor(value: string, workspaceSlug: string): boolean {
   const url = parseBitbucketApiCursor(value)
-  return url?.pathname === `${BITBUCKET_REPOSITORIES_PATH}/${encodeURIComponent(workspaceSlug)}`
+  const expected = `${BITBUCKET_REPOSITORIES_PATH}/${encodeURIComponent(workspaceSlug)}`
+  return url?.pathname.toLowerCase() === expected.toLowerCase()
 }
 
 const bitbucketCursorSchema = z

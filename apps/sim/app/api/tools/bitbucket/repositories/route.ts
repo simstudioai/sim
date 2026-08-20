@@ -145,11 +145,14 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     )
   }
 
+  const expectedFullNamePrefix = workspaceSlug.toLowerCase()
   const page = bitbucketRepositoryProviderPageSchema.safeParse(providerBody)
   if (
     !page.success ||
     (page.data.next && !isBitbucketRepositoriesCursor(page.data.next, workspaceSlug)) ||
-    page.data.values.some((repository) => !repository.full_name.startsWith(`${workspaceSlug}/`))
+    page.data.values.some(
+      (repository) => !repository.full_name.toLowerCase().startsWith(`${expectedFullNamePrefix}/`)
+    )
   ) {
     logger.warn('Bitbucket returned a malformed repository page', { workspaceSlug })
     return NextResponse.json(

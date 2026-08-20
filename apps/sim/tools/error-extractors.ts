@@ -244,6 +244,21 @@ const ERROR_EXTRACTORS: ErrorExtractorConfig[] = [
     },
   },
   {
+    id: 'bitbucket-errors',
+    description:
+      'Bitbucket error envelope: {type:"error", error:{message, detail}}. `message` is the class of failure and `detail` names the offending branch, file, or property, which the bare message does not',
+    examples: ['Bitbucket Cloud REST API v2'],
+    extract: (errorInfo) => {
+      const error = errorInfo?.data?.error
+      if (!error || typeof error !== 'object') return undefined
+      const message = typeof error.message === 'string' ? error.message.trim() : ''
+      const detail = typeof error.detail === 'string' ? error.detail.trim() : ''
+      if (!message) return detail || undefined
+      if (!detail || detail === message) return message
+      return `${message}: ${detail}`
+    },
+  },
+  {
     id: 'dynatrace-errors',
     description:
       'Dynatrace ErrorEnvelope: {error: {code, message, constraintViolations[]}}. The violations name the offending selector or parameter, which the bare message does not',
@@ -418,6 +433,7 @@ export const ErrorExtractorId = {
   SOAP_FAULT: 'soap-fault',
   OAUTH_ERROR_DESCRIPTION: 'oauth-error-description',
   NESTED_ERROR_OBJECT: 'nested-error-object',
+  BITBUCKET_ERRORS: 'bitbucket-errors',
   DYNATRACE_ERRORS: 'dynatrace-errors',
   SMARTLEAD_ERRORS: 'smartlead-errors',
   POSTHOG_ERRORS: 'posthog-errors',

@@ -5,7 +5,7 @@ export function optionalBitbucketString(value: unknown, name: string): string | 
   if (typeof value !== 'string' || value.trim().length === 0) {
     throw new Error(`${name} must be a non-empty string`)
   }
-  return value
+  return value.trim()
 }
 
 export function optionalBitbucketBoolean(value: unknown, name: string): boolean | undefined {

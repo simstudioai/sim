@@ -1485,7 +1485,7 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
       responseType: 'code',
       pkce: false,
       authentication: 'basic',
-      accessTokenExpiresIn: 3600,
+      accessTokenExpiresIn: 7200,
       redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/bitbucket`,
       getToken: async ({ code, redirectURI }) => {
         const basicAuth = Buffer.from(

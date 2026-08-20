@@ -61,9 +61,11 @@ export const bitbucketGetMergeTaskStatusTool: ToolConfig<
   transformResponse: async (response) => {
     const data = await bitbucketJson(response)
     if (data.type === 'error') {
-      const message = stringField(record(data.error)?.message)
-      if (!message?.trim()) throw new Error('Bitbucket returned a malformed merge task error')
-      throw new Error(message)
+      const error = record(data.error)
+      const message = stringField(error?.message)?.trim()
+      if (!message) throw new Error('Bitbucket returned a malformed merge task error')
+      const detail = stringField(error?.detail)?.trim()
+      throw new Error(detail && detail !== message ? `${message}: ${detail}` : message)
     }
 
     const taskStatus = data.task_status

@@ -1,7 +1,7 @@
 /**
  * @vitest-environment node
  */
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { bitbucketGetPipelineTool } from '@/tools/bitbucket/get_pipeline'
 import { bitbucketGetPipelineStepLogTool } from '@/tools/bitbucket/get_pipeline_step_log'
 import { bitbucketListPipelineStepsTool } from '@/tools/bitbucket/list_pipeline_steps'
@@ -17,6 +17,13 @@ import type {
 } from '@/tools/bitbucket/types'
 import type { ToolConfig } from '@/tools/types'
 
+const serverMocks = vi.hoisted(() => ({
+  secureBitbucketRead: vi.fn(),
+  secureBitbucketPullRequestRedirect: vi.fn(),
+}))
+
+vi.mock('@/tools/bitbucket/utils.server', () => serverMocks)
+
 const REPOSITORY_PARAMS = {
   accessToken: 'oauth-token',
   workspaceSlug: 'acme team',
@@ -24,6 +31,20 @@ const REPOSITORY_PARAMS = {
 } as const
 
 const COMMIT_SHA = 'abcdef0123456789abcdef0123456789abcdef01'
+
+/**
+ * Drives the live step-log path: the tool reads through the byte-capped server transport, so a
+ * test supplies the provider response there rather than to the unreachable request fallback.
+ */
+async function runStepLog(
+  response: Response,
+  params: BitbucketGetPipelineStepLogParams
+): Promise<{ output: { log: string; truncated: boolean; totalBytes: number | null } }> {
+  serverMocks.secureBitbucketRead.mockResolvedValueOnce(response)
+  return (await bitbucketGetPipelineStepLogTool.directExecution!(params)) as {
+    output: { log: string; truncated: boolean; totalBytes: number | null }
+  }
+}
 
 const RAW_USER = {
   uuid: '{user-1}',
@@ -429,7 +450,7 @@ describe('Bitbucket pipeline step logs', () => {
 
   it('trims the partial leading line of a ranged log and reports total bytes', async () => {
     const body = 'ise\nFAILED: expected 1 to be 2\n'
-    const result = await bitbucketGetPipelineStepLogTool.transformResponse!(
+    const result = await runStepLog(
       new Response(body, {
         status: 206,
         headers: { 'Content-Range': 'bytes 969-999/1000' },
@@ -445,7 +466,7 @@ describe('Bitbucket pipeline step logs', () => {
 
   it('locally retains only the useful tail when Range is ignored', async () => {
     const body = `${'noise line\n'.repeat(20)}FAILED\n`
-    const result = await bitbucketGetPipelineStepLogTool.transformResponse!(
+    const result = await runStepLog(
       new Response(body, { headers: { 'Content-Length': String(Buffer.byteLength(body)) } }),
       {
         ...REPOSITORY_PARAMS,
@@ -455,7 +476,7 @@ describe('Bitbucket pipeline step logs', () => {
       }
     )
     expect(result.output).toEqual({
-      log: 'ne\nFAILED\n',
+      log: 'FAILED\n',
       truncated: true,
       totalBytes: Buffer.byteLength(body),
     })
@@ -463,12 +484,73 @@ describe('Bitbucket pipeline step logs', () => {
 
   it('rejects log caps outside the supported range', async () => {
     await expect(
-      bitbucketGetPipelineStepLogTool.transformResponse!(new Response('log'), {
+      runStepLog(new Response('log'), {
         ...REPOSITORY_PARAMS,
         pipelineUuid: '{pipeline-1}',
         stepUuid: '{step-1}',
         maxCharacters: 0,
       })
     ).rejects.toThrow(/maxCharacters must be an integer between 1 and 200000/)
+  })
+})
+
+describe('Bitbucket pipeline step log transfer boundary', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  const LOG_PARAMS = {
+    ...REPOSITORY_PARAMS,
+    pipelineUuid: '{pipeline-1}',
+    stepUuid: '{step-1}',
+    maxCharacters: 10,
+  }
+
+  it('reads through the capped server path instead of the buffered tool request', async () => {
+    serverMocks.secureBitbucketRead.mockResolvedValue(new Response('done\n'))
+
+    await bitbucketGetPipelineStepLogTool.directExecution!(LOG_PARAMS)
+
+    const [url, headers, maxBytes, options] = serverMocks.secureBitbucketRead.mock.calls[0]
+    expect(url).toContain('/pipelines/%7Bpipeline-1%7D/steps/%7Bstep-1%7D/log')
+    expect(headers.Range).toBe('bytes=-4096')
+    expect(maxBytes).toBe(16 * 1024 * 1024)
+    expect(options.stripAuthOnRedirect).toBe(true)
+  })
+
+  it('treats an unsatisfiable range over an empty log as an empty log, not a failure', async () => {
+    serverMocks.secureBitbucketRead.mockResolvedValue(
+      new Response('', { status: 416, headers: { 'Content-Range': 'bytes */0' } })
+    )
+
+    const result = await bitbucketGetPipelineStepLogTool.directExecution!(LOG_PARAMS)
+
+    expect(result).toEqual({
+      success: true,
+      output: { log: '', truncated: false, totalBytes: 0 },
+    })
+  })
+
+  it('still surfaces genuine step-log failures', async () => {
+    serverMocks.secureBitbucketRead.mockResolvedValue(
+      Response.json({ error: { message: 'No such step' } }, { status: 404 })
+    )
+
+    await expect(bitbucketGetPipelineStepLogTool.directExecution!(LOG_PARAMS)).rejects.toThrow(
+      /No such step/
+    )
+  })
+
+  it('does not report an empty log when a 416 came from something other than an empty log', async () => {
+    serverMocks.secureBitbucketRead.mockResolvedValue(
+      Response.json(
+        { error: { message: 'Range rejected', detail: 'proxy does not support ranges' } },
+        { status: 416, headers: { 'Content-Range': 'bytes */12345' } }
+      )
+    )
+
+    await expect(bitbucketGetPipelineStepLogTool.directExecution!(LOG_PARAMS)).rejects.toThrow(
+      /Range rejected: proxy does not support ranges/
+    )
   })
 })

@@ -276,6 +276,38 @@ describe('POST /api/tools/bitbucket/repositories', () => {
     expect(response.status).toBe(502)
   })
 
+  it('accepts a case-mismatched workspace slug the way Bitbucket itself resolves it', async () => {
+    mockFetch.mockResolvedValueOnce(
+      providerResponse({
+        values: [
+          {
+            slug: 'sdk-core',
+            uuid: '{repo-1}',
+            name: 'SDK Core',
+            full_name: 'acme-platform/sdk-core',
+          },
+        ],
+        next: 'https://api.bitbucket.org/2.0/repositories/acme-platform?page=2',
+      })
+    )
+
+    const response = await POST(request({ ...REQUEST_BODY, workspaceSlug: 'ACME-Platform' }), {})
+
+    expect(response.status).toBe(200)
+    expect(await json(response)).toMatchObject({
+      repositories: [{ slug: 'sdk-core', fullName: 'acme-platform/sdk-core' }],
+    })
+  })
+
+  it('rejects a workspace slug containing dot segments before it reaches Bitbucket', async () => {
+    for (const workspaceSlug of ['.', '..', 'acme.platform']) {
+      const response = await POST(request({ ...REQUEST_BODY, workspaceSlug }), {})
+
+      expect(response.status, workspaceSlug).toBe(400)
+      expect(mockFetch).not.toHaveBeenCalled()
+    }
+  })
+
   it('rejects a provider next link that crosses the selected workspace', async () => {
     mockFetch.mockResolvedValueOnce(
       providerResponse({

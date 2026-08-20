@@ -114,7 +114,7 @@ function getBitbucketConnector() {
 }
 
 describe('Bitbucket OAuth Connector', () => {
-  it('uses the canonical endpoints, scopes, Basic auth, and one-hour expiry', () => {
+  it('uses the canonical endpoints, scopes, Basic auth, and two-hour expiry', () => {
     expect(getBitbucketConnector()).toMatchObject({
       providerId: 'bitbucket',
       authorizationUrl: 'https://bitbucket.org/site/oauth2/authorize',
@@ -132,7 +132,7 @@ describe('Bitbucket OAuth Connector', () => {
       responseType: 'code',
       pkce: false,
       authentication: 'basic',
-      accessTokenExpiresIn: 3600,
+      accessTokenExpiresIn: 7200,
       redirectURI: 'http://localhost:3000/api/auth/oauth2/callback/bitbucket',
     })
   })

@@ -599,15 +599,25 @@ export const BitbucketBlock: BlockConfig = {
       placeholder: 'Comma-separated Bitbucket user UUIDs',
     },
     {
-      id: 'closeSourceBranch',
+      id: 'createCloseSourceBranch',
       title: 'Close Source Branch',
       type: 'dropdown',
       mode: 'advanced',
-      condition: {
-        field: 'operation',
-        value: ['bitbucket_create_pull_request', 'bitbucket_merge_pull_request'],
-      },
+      condition: { field: 'operation', value: 'bitbucket_create_pull_request' },
       options: [
+        { label: 'Unset', id: '' },
+        { label: 'No', id: 'false' },
+        { label: 'Yes', id: 'true' },
+      ],
+    },
+    {
+      id: 'mergeCloseSourceBranch',
+      title: 'Close Source Branch',
+      type: 'dropdown',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'bitbucket_merge_pull_request' },
+      options: [
+        { label: 'Unset', id: '' },
         { label: 'No', id: 'false' },
         { label: 'Yes', id: 'true' },
       ],
@@ -955,7 +965,10 @@ export const BitbucketBlock: BlockConfig = {
               destinationBranch: optionalString(params.destinationBranch, 'destinationBranch'),
               description: optionalText(params.description, 'description'),
               reviewerUuids: stringList(params.reviewerAccountIds, 'reviewerAccountIds'),
-              closeSourceBranch: optionalBoolean(params.closeSourceBranch, 'closeSourceBranch'),
+              closeSourceBranch: optionalBoolean(
+                params.createCloseSourceBranch,
+                'createCloseSourceBranch'
+              ),
               draft: optionalBoolean(params.draft, 'draft'),
             }
           case 'bitbucket_merge_pull_request':
@@ -964,7 +977,10 @@ export const BitbucketBlock: BlockConfig = {
               prId: optionalInteger(params.prId, 'prId'),
               mergeStrategy: optionalString(params.mergeStrategy, 'mergeStrategy'),
               message: optionalText(params.message, 'message'),
-              closeSourceBranch: optionalBoolean(params.closeSourceBranch, 'closeSourceBranch'),
+              closeSourceBranch: optionalBoolean(
+                params.mergeCloseSourceBranch,
+                'mergeCloseSourceBranch'
+              ),
             }
           case 'bitbucket_get_pull_request_merge_task_status':
             return {
@@ -1045,8 +1061,18 @@ export const BitbucketBlock: BlockConfig = {
     sourceBranch: { type: 'string', description: 'Pull request source branch' },
     destinationBranch: { type: 'string', description: 'Pull request destination branch' },
     description: { type: 'string', description: 'Pull request description' },
-    reviewerAccountIds: { type: 'array', description: 'Reviewer Bitbucket user UUIDs' },
-    closeSourceBranch: { type: 'boolean', description: 'Whether to close the source branch' },
+    reviewerAccountIds: {
+      type: 'string',
+      description: 'Comma-separated reviewer Bitbucket user UUIDs',
+    },
+    createCloseSourceBranch: {
+      type: 'boolean',
+      description: 'Whether to close the source branch after the pull request merges',
+    },
+    mergeCloseSourceBranch: {
+      type: 'boolean',
+      description: 'Whether to close the source branch as part of this merge',
+    },
     draft: { type: 'boolean', description: 'Whether to create a draft pull request' },
     mergeStrategy: { type: 'string', description: 'Pull request merge strategy' },
     message: { type: 'string', description: 'Merge commit message' },

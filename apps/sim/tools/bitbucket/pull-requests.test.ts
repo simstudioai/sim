@@ -427,13 +427,19 @@ describe('Bitbucket pull request response normalization', () => {
       )
     ).rejects.toThrow(/pull request\.type must be a non-empty string/)
 
-    for (const field of ['type', 'key', 'state'] as const) {
-      await expect(
-        bitbucketListPullRequestCommitStatusesTool.transformResponse!(
-          Response.json({ values: [{ ...RAW_COMMIT_STATUS, [field]: undefined }] })
-        )
-      ).rejects.toThrow(new RegExp(`commit status\\.${field} must be a non-empty string`))
-    }
+    await expect(
+      bitbucketListPullRequestCommitStatusesTool.transformResponse!(
+        Response.json({ values: [{ ...RAW_COMMIT_STATUS, type: undefined }] })
+      )
+    ).rejects.toThrow(/commit status\.type must be a non-empty string/)
+
+    const partial = await bitbucketListPullRequestCommitStatusesTool.transformResponse!(
+      Response.json({
+        values: [{ ...RAW_COMMIT_STATUS, key: undefined, state: undefined }, RAW_COMMIT_STATUS],
+      })
+    )
+    expect(partial.output.items).toHaveLength(2)
+    expect(partial.output.items[0]).toMatchObject({ key: null, state: null })
   })
 })
 

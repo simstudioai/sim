@@ -486,6 +486,28 @@ describe('Bitbucket bounded raw content', () => {
     expect(result.log).not.toMatch(/[\ud800-\udfff]/)
   })
 
+  it('never empties the log when the retained window holds one long line', async () => {
+    const body = `${'x'.repeat(400)}\n`
+    const result = await bitbucketRawTail(
+      new Response(body, { headers: { 'Content-Length': String(Buffer.byteLength(body)) } }),
+      100
+    )
+
+    expect(result.log).toBe(`${'x'.repeat(99)}\n`)
+    expect(result.truncated).toBe(true)
+  })
+
+  it('returns the fragment when the retained window contains no line break at all', async () => {
+    const body = 'y'.repeat(400)
+    const result = await bitbucketRawTail(
+      new Response(body, { headers: { 'Content-Length': String(Buffer.byteLength(body)) } }),
+      100
+    )
+
+    expect(result.log).toBe('y'.repeat(100))
+    expect(result.truncated).toBe(true)
+  })
+
   it('keeps a bounded tail when the server ignores Range', async () => {
     const body = `${'noise line\n'.repeat(20)}FAILED\n`
     const result = await bitbucketRawTail(
@@ -493,9 +515,9 @@ describe('Bitbucket bounded raw content', () => {
       10
     )
 
-    expect(result.log).toHaveLength(10)
-    expect(result.log).toBe('ne\nFAILED\n')
-    expect(result.log.endsWith('FAILED\n')).toBe(true)
+    expect(result.log).toBe('FAILED\n')
+    expect(result.log.startsWith('ne')).toBe(false)
+    expect(result.log.length).toBeLessThanOrEqual(10)
     expect(result).toMatchObject({ truncated: true, totalBytes: Buffer.byteLength(body) })
   })
 })
