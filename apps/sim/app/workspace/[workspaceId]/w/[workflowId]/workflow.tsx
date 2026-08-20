@@ -4638,15 +4638,16 @@ const WorkflowContent = React.memo(
       [blocks, getNodes]
     )
 
+    const latestEdgesRef = useRef(edges)
+    latestEdgesRef.current = edges
+    const latestBlocksRef = useRef(blocks)
+    latestBlocksRef.current = blocks
     /** Stable delete handler to avoid creating new function references per edge. */
-    const edgeDeleteStateRef = useRef({ edges, blocks })
-    edgeDeleteStateRef.current = { edges, blocks }
     const handleEdgeDelete = useCallback(
       (edgeId: string) => {
-        const { edges: currentEdges, blocks: currentBlocks } = edgeDeleteStateRef.current
         // Prevent removing edges targeting protected blocks
-        const edge = currentEdges.find((candidate) => candidate.id === edgeId)
-        if (edge && isEdgeProtected(edge, currentBlocks)) {
+        const edge = latestEdgesRef.current.find((candidate) => candidate.id === edgeId)
+        if (edge && isEdgeProtected(edge, latestBlocksRef.current)) {
           toast({ message: 'Cannot remove connections to locked blocks' })
           return
         }
@@ -4777,6 +4778,10 @@ const WorkflowContent = React.memo(
           },
         }
       })
+      /* Deliberately impure: referential stability across renders needs the
+         previous result, and no state-shaped alternative exists. Safe because
+         reconciliation is idempotent — re-running it on its own output returns
+         that output by reference, so a discarded render cannot corrupt it. */
       const reconciledEdges = reconcileCanvasEdges(
         previousEdgesWithSelectionRef.current,
         derivedEdges

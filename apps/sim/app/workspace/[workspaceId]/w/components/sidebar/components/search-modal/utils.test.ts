@@ -14,19 +14,7 @@ import {
   scoreActions,
   scoreAndSort,
   scoreSectionItems,
-  sliceGroupsToLimit,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/search-modal/utils'
-
-describe('sliceGroupsToLimit', () => {
-  it('bounds an ordered browse catalog across groups without reordering it', () => {
-    const blocks = Array.from({ length: 40 }, (_, index) => `block-${index}`)
-    const tools = Array.from({ length: 40 }, (_, index) => `tool-${index}`)
-
-    expect(sliceGroupsToLimit([blocks, tools], 50)).toEqual([blocks, tools.slice(0, 10)])
-    expect(blocks).toHaveLength(40)
-    expect(tools).toHaveLength(40)
-  })
-})
 
 describe('getActionGroupLabel', () => {
   const action = {

@@ -35,16 +35,6 @@ export type SearchSection = (typeof SEARCH_SECTIONS)[number]
  */
 export const CANVAS_SECTIONS = ['blocks', 'triggers', 'tools', 'toolOperations'] as const
 
-/** Takes one ordered prefix across adjacent browse groups. */
-export function sliceGroupsToLimit<T>(groups: T[][], limit: number): T[][] {
-  let remaining = Math.max(0, limit)
-  return groups.map((group) => {
-    const visible = group.slice(0, remaining)
-    remaining -= visible.length
-    return visible
-  })
-}
-
 export interface IntegrationSearchItem {
   id: string
   name: string

@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { type RefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Button, cn, Input, toast } from '@sim/emcn'
 import { ChevronDown, ChevronRight, ChevronUp, X } from '@sim/emcn/icons'
 import { useParams } from 'next/navigation'
@@ -113,18 +113,27 @@ export function WorkflowSearchReplace() {
   const { isOpen, open } = useWorkflowSearchReplaceStore(
     useShallow((state) => ({ isOpen: state.isOpen, open: state.open }))
   )
+  const focusSearchInputRef = useRef<(() => void) | null>(null)
 
   useRegisterGlobalCommands([
     createCommand({
       id: 'open-workflow-search-replace',
-      handler: open,
+      handler: () => {
+        open()
+        focusSearchInputRef.current?.()
+      },
     }),
   ])
 
-  return isOpen ? <WorkflowSearchReplacePanel /> : null
+  return isOpen ? <WorkflowSearchReplacePanel focusRef={focusSearchInputRef} /> : null
 }
 
-function WorkflowSearchReplacePanel() {
+interface WorkflowSearchReplacePanelProps {
+  /** Lets the shortcut re-select the query while the panel is already open. */
+  focusRef: RefObject<(() => void) | null>
+}
+
+function WorkflowSearchReplacePanel({ focusRef }: WorkflowSearchReplacePanelProps) {
   const params = useParams()
   const workspaceId = params.workspaceId as string | undefined
   const routeWorkflowId = params.workflowId as string | undefined
@@ -180,8 +189,7 @@ function WorkflowSearchReplacePanel() {
       setActiveMatchId: state.setActiveMatchId,
     }))
   )
-  const prevQueryRef = useRef(query)
-  const isFirstMatchSyncRef = useRef(true)
+  const prevQueryRef = useRef<string | null>(null)
   const afterReplaceIndexRef = useRef<number | null>(null)
   const { data: workspaceCredentials } = useWorkspaceCredentials({ workspaceId })
   const { data: customTools = [] } = useCustomTools(workspaceId ?? '')
@@ -265,16 +273,17 @@ function WorkflowSearchReplacePanel() {
   )
 
   useEffect(() => {
-    searchInputRef.current?.focus()
-    searchInputRef.current?.select()
-  }, [])
-
-  useEffect(
-    () => () => {
+    const focusSearchInput = () => {
+      searchInputRef.current?.focus()
+      searchInputRef.current?.select()
+    }
+    focusSearchInput()
+    focusRef.current = focusSearchInput
+    return () => {
+      focusRef.current = null
       usePanelEditorSearchStore.getState().setActiveSearchTarget(null)
-    },
-    []
-  )
+    }
+  }, [focusRef])
 
   const panelHeight = isReplaceExpanded
     ? SEARCH_PANEL_EXPANDED_HEIGHT
@@ -388,8 +397,6 @@ function WorkflowSearchReplacePanel() {
   }
 
   useEffect(() => {
-    const justOpened = isFirstMatchSyncRef.current
-    isFirstMatchSyncRef.current = false
     const queryChanged = prevQueryRef.current !== query
     prevQueryRef.current = query
 
@@ -404,7 +411,7 @@ function WorkflowSearchReplacePanel() {
       const replaceIndex = afterReplaceIndexRef.current
       afterReplaceIndexRef.current = null
 
-      if (queryChanged || justOpened) {
+      if (queryChanged) {
         handleSelectMatch(hydratedMatches[0].id)
       } else if (replaceIndex !== null) {
         handleSelectMatch(hydratedMatches[Math.min(replaceIndex, hydratedMatches.length - 1)].id)

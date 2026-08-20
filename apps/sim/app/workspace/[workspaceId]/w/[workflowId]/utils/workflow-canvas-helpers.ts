@@ -7,14 +7,10 @@ import type { BlockState } from '@/stores/workflows/workflow/types'
 
 export const SUBFLOW_DROP_TARGET_CLASS = 'subflow-node-drop-target'
 
-interface ArrowNavigationEvent {
-  key: string
-  repeat: boolean
-  metaKey: boolean
-  ctrlKey: boolean
-  altKey: boolean
-  shiftKey: boolean
-}
+type ArrowNavigationEvent = Pick<
+  KeyboardEvent,
+  'key' | 'repeat' | 'metaKey' | 'ctrlKey' | 'altKey' | 'shiftKey'
+>
 
 export function getArrowNavigationDirection(event: ArrowNavigationEvent): -1 | 1 | null {
   if (event.repeat || event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return null
@@ -23,39 +19,62 @@ export function getArrowNavigationDirection(event: ArrowNavigationEvent): -1 | 1
   return null
 }
 
+/**
+ * A derivation that changed nothing must produce no new reference at any level,
+ * so React Flow can skip the subtree. Reuse is decided by identity after
+ * projection, which also catches a pure reorder: a reused item landing at a
+ * different index breaks the positional sweep.
+ */
+function reconcileById<T extends { id: string }>(
+  current: T[],
+  derived: T[],
+  project: (derivedItem: T, currentItem: T | undefined) => T,
+  isReusable: (currentItem: T, nextItem: T) => boolean
+): T[] {
+  const currentById = new Map<string, T>()
+  for (const item of current) currentById.set(item.id, item)
+
+  const next = derived.map((derivedItem) => {
+    const currentItem = currentById.get(derivedItem.id)
+    const nextItem = project(derivedItem, currentItem)
+    return currentItem && isReusable(currentItem, nextItem) ? currentItem : nextItem
+  })
+
+  const unchanged =
+    next.length === current.length && next.every((item, index) => item === current[index])
+  return unchanged ? current : next
+}
+
+/**
+ * Subset comparison, deliberately asymmetric: React Flow writes `width`,
+ * `height`, `positionAbsolute` and `dragging` onto the node objects it owns, so
+ * a symmetric `isEqual` against a freshly derived node would never match and no
+ * node would ever be reused. Only the keys the derivation itself produces are
+ * compared.
+ */
 function containsDerivedValues<T extends object>(current: T, derived: T): boolean {
-  return Object.entries(derived).every(([key, value]) => isEqual(current[key as keyof T], value))
+  for (const key of Object.keys(derived) as (keyof T)[]) {
+    if (!isEqual(current[key], derived[key])) return false
+  }
+  return true
 }
 
 /** Reuses unchanged React Flow node objects while carrying local selection forward. */
 export function reconcileCanvasNodes(currentNodes: Node[], derivedNodes: Node[]): Node[] {
-  const currentById = new Map(currentNodes.map((node) => [node.id, node]))
-  let changed = currentNodes.length !== derivedNodes.length
-  const nextNodes = derivedNodes.map((derivedNode, index) => {
-    const currentNode = currentById.get(derivedNode.id)
-    const nextNode = { ...derivedNode, selected: currentNode?.selected ?? false }
-    if (currentNodes[index]?.id !== derivedNode.id) changed = true
-    if (currentNode && containsDerivedValues(currentNode, nextNode)) return currentNode
-    changed = true
-    return nextNode
-  })
-
-  return changed ? nextNodes : currentNodes
+  return reconcileById(
+    currentNodes,
+    derivedNodes,
+    (derivedNode, currentNode) => ({ ...derivedNode, selected: currentNode?.selected ?? false }),
+    containsDerivedValues
+  )
 }
 
-/** Reuses unchanged React Flow edge objects after graph-level derivation reruns. */
+/**
+ * Reuses unchanged React Flow edge objects after graph-level derivation reruns.
+ * Edges carry no React Flow-written fields, so a plain `isEqual` is symmetric-safe.
+ */
 export function reconcileCanvasEdges(currentEdges: Edge[], derivedEdges: Edge[]): Edge[] {
-  const currentById = new Map(currentEdges.map((edge) => [edge.id, edge]))
-  let changed = currentEdges.length !== derivedEdges.length
-  const nextEdges = derivedEdges.map((derivedEdge, index) => {
-    const currentEdge = currentById.get(derivedEdge.id)
-    if (currentEdges[index]?.id !== derivedEdge.id) changed = true
-    if (currentEdge && isEqual(currentEdge, derivedEdge)) return currentEdge
-    changed = true
-    return derivedEdge
-  })
-
-  return changed ? nextEdges : currentEdges
+  return reconcileById(currentEdges, derivedEdges, (derivedEdge) => derivedEdge, isEqual)
 }
 
 /**

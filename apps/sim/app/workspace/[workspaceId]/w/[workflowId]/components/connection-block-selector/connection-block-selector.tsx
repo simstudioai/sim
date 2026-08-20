@@ -29,8 +29,6 @@ import {
 import {
   filterAndCap,
   GROUP_HEADING_CLASSNAME,
-  MAX_RESULTS_PER_GROUP,
-  sliceGroupsToLimit,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/search-modal/utils'
 import {
   CMDK_ITEM_GAP_CLASS,
@@ -56,6 +54,7 @@ const SELECTOR_ACTION_MENU_AMPLITUDE = 7
 const RECENT_SELECTION_LIMIT = 3
 const RECENT_SELECTION_STORAGE_PREFIX = 'sim:connection-block-selector:recent'
 const BROWSE_PREFETCH_MARGIN_PX = 640
+const BROWSE_PAGE_SIZE = 50
 const POPULAR_BLOCK_TYPES = [
   'agent',
   'function',
@@ -64,6 +63,11 @@ const POPULAR_BLOCK_TYPES = [
   'knowledge',
   'memory',
 ] as const
+
+/** Ordered prefix that reuses the source array once `count` covers all of it. */
+function takePrefix<T>(items: T[], count: number): T[] {
+  return count >= items.length ? items : items.slice(0, Math.max(0, count))
+}
 
 const SELECTOR_PORTS: WorkflowBorderPort[] = [
   {
@@ -151,7 +155,7 @@ export function ConnectionBlockSelector({ id, data }: NodeProps<ConnectionBlockS
   const [search, setSearch] = useState('')
   const [selectedValue, setSelectedValue] = useState('')
   const [recentSelections, setRecentSelections] = useState<RecentSelection[]>([])
-  const [browseLimit, setBrowseLimit] = useState(MAX_RESULTS_PER_GROUP)
+  const [browseLimit, setBrowseLimit] = useState(BROWSE_PAGE_SIZE)
   const deferredSearch = useDeferredValue(search)
   const isSearching = deferredSearch.trim().length > 0
   const recentStorageKey = `${RECENT_SELECTION_STORAGE_PREFIX}:${workspaceId}`
@@ -273,30 +277,31 @@ export function ConnectionBlockSelector({ id, data }: NodeProps<ConnectionBlockS
     () => availableTools.filter((tool) => !recentSelectionKeys.has(`tool:${tool.id}`)),
     [availableTools, recentSelectionKeys]
   )
-  const [visibleBrowseBlocks, visibleBrowseTools] = useMemo(
-    () => sliceGroupsToLimit([browseBlocks, browseTools], browseLimit),
-    [browseBlocks, browseLimit, browseTools]
+  const visibleBrowseBlocks = useMemo(
+    () => takePrefix(browseBlocks, browseLimit),
+    [browseBlocks, browseLimit]
+  )
+  const visibleBrowseTools = useMemo(
+    () => takePrefix(browseTools, browseLimit - browseBlocks.length),
+    [browseBlocks.length, browseLimit, browseTools]
   )
   const hasMoreBrowseResults = browseLimit < browseBlocks.length + browseTools.length
 
   /**
-   * Keep the initial commit bounded, then extend the catalog before the user
-   * reaches its end. Rendering every cmdk item up front caused the original
-   * frame spike, while a manual pagination control exposed that constraint in
-   * the UI. Prefetching near the viewport preserves continuous scrolling and
-   * cmdk's native keyboard navigation without mounting the whole catalog.
+   * Mounting every cmdk item up front caused the frame spike; a manual "show
+   * more" control would leak that constraint into the UI. Prefetching near the
+   * viewport keeps scrolling continuous and cmdk's keyboard navigation intact.
    */
   useEffect(() => {
     const list = listRef.current
     const sentinel = browseSentinelRef.current
     if (isSearching || !hasMoreBrowseResults || !list || !sentinel) return
 
-    const browseResultCount = browseBlocks.length + browseTools.length
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (!entry.isIntersecting) return
         startTransition(() => {
-          setBrowseLimit((current) => Math.min(current + MAX_RESULTS_PER_GROUP, browseResultCount))
+          setBrowseLimit((current) => current + BROWSE_PAGE_SIZE)
         })
       },
       {
@@ -307,7 +312,7 @@ export function ConnectionBlockSelector({ id, data }: NodeProps<ConnectionBlockS
 
     observer.observe(sentinel)
     return () => observer.disconnect()
-  }, [browseBlocks.length, browseTools.length, hasMoreBrowseResults, isSearching])
+  }, [hasMoreBrowseResults, isSearching])
 
   const dispatchSelection = useCallback(
     (type: string, resultType: 'block' | 'tool' | 'tool_operation', presetOperation?: string) => {
