@@ -184,6 +184,46 @@ describe('TableFilter', () => {
     })
   })
 
+  it('keeps a deferred condition applied while another rule is removed', () => {
+    const onChange = vi.fn()
+    renderFilter(onChange, {
+      any: [
+        { all: [{ field: 'col-name', op: 'eq', value: 'Ada' }] },
+        {
+          all: [
+            { field: 'col-name', op: 'isEmpty' },
+            { field: 'col-name', op: 'eq', value: 'Linus' },
+          ],
+        },
+      ],
+    })
+
+    const operatorTrigger = Array.from(container.querySelectorAll('button')).find(
+      (button) => button.textContent?.trim() === 'is empty'
+    )
+    act(() => {
+      operatorTrigger?.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, button: 0 }))
+    })
+    const equalsOption = Array.from(
+      document.querySelectorAll<HTMLElement>('[role="menuitem"]')
+    ).find((item) => item.textContent?.trim() === 'equals')
+    act(() => equalsOption?.click())
+
+    expect(onChange).not.toHaveBeenCalled()
+
+    const removeButtons = container.querySelectorAll<HTMLButtonElement>(
+      'button[aria-label="Remove filter"]'
+    )
+    act(() => removeButtons[2]?.click())
+
+    expect(onChange).toHaveBeenCalledWith({
+      any: [
+        { all: [{ field: 'col-name', op: 'eq', value: 'Ada' }] },
+        { all: [{ field: 'col-name', op: 'isEmpty' }] },
+      ],
+    })
+  })
+
   it('loads a saved OR filter verbatim without an unsolicited autosave', () => {
     const onChange = vi.fn()
     renderFilter(onChange, {

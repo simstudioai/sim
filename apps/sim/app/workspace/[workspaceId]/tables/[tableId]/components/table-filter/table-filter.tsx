@@ -59,6 +59,7 @@ export function TableFilter({
   onClose,
 }: TableFilterProps) {
   const lastAppliedFilterRef = useRef<string | undefined>(undefined)
+  const deferredAppliedRulesRef = useRef<Map<string, FilterRule>>(new Map())
   const [rules, setRules] = useState<FilterRule[]>(() => {
     const fromFilter = predicateToFilterRules(filter)
     return fromFilter.length > 0 ? fromFilter : [createRule(columns)]
@@ -75,15 +76,39 @@ export function TableFilter({
 
   const applyRules = useCallback(
     (update: (current: FilterRule[]) => FilterRule[], deferIncompleteRuleId?: string) => {
-      const nextRules = update(rulesRef.current)
+      const currentRules = rulesRef.current
+      const nextRules = update(currentRules)
       rulesRef.current = nextRules
       setRules(nextRules)
       if (!autoApply) return
 
       const deferredRule = nextRules.find((rule) => rule.id === deferIncompleteRuleId)
-      if (deferredRule && !isCompleteRule(deferredRule)) return
+      if (deferredRule && !isCompleteRule(deferredRule)) {
+        const previouslyAppliedRule = currentRules.find((rule) => rule.id === deferredRule.id)
+        if (previouslyAppliedRule && isCompleteRule(previouslyAppliedRule)) {
+          const deferredRules = deferredAppliedRulesRef.current
+          if (!deferredRules.has(deferredRule.id)) {
+            deferredRules.set(deferredRule.id, previouslyAppliedRule)
+          }
+        }
+      }
 
-      const nextFilter = toAppliedPredicate(nextRules, columns, true)
+      const nextRulesById = new Map(nextRules.map((rule) => [rule.id, rule]))
+      for (const [id] of deferredAppliedRulesRef.current) {
+        const nextRule = nextRulesById.get(id)
+        if (!nextRule || isCompleteRule(nextRule)) {
+          deferredAppliedRulesRef.current.delete(id)
+        }
+      }
+
+      const appliedRules = nextRules.map((rule) => {
+        const deferredRule = deferredAppliedRulesRef.current.get(rule.id)
+        return deferredRule && !isCompleteRule(rule)
+          ? { ...deferredRule, logicalOperator: rule.logicalOperator }
+          : rule
+      })
+
+      const nextFilter = toAppliedPredicate(appliedRules, columns, true)
       const signature = JSON.stringify(nextFilter)
       if (signature === lastAppliedFilterRef.current) return
       lastAppliedFilterRef.current = signature
