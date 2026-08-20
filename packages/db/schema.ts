@@ -4490,10 +4490,10 @@ export const userTableRowSecretProvenance = pgTable(
 )
 
 /**
- * Saved presets for a user-defined table — a named filter + sort + column layout.
+ * Saved views for a user-defined table — a named filter + sort + column layout.
  * Workspace-shared: anyone who can read the table sees every view, and `write` is
- * required to create, update, or delete one. The absence of a view is the built-in
- * "All" state, so a table is always reachable unfiltered without a seeded row.
+ * required to create, update, or delete one. New tables are seeded with one default
+ * view; legacy tables without one temporarily retain the built-in "All" fallback.
  *
  * A dedicated table rather than a key on `user_table_definitions.metadata`: that
  * column is written read-modify-write with a shallow merge, so a stale snapshot

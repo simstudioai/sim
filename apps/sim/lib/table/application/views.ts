@@ -198,13 +198,17 @@ export const deleteTableViewUseCase = defineAuthorizedTableUseCase({
         'not_found',
         'View not found on this table — call table_views with operation "list_views" for valid view ids'
       )
-    const deleted = await deleteTableView(input.viewId, context.table.id, context.workspaceId)
-    if (!deleted)
-      throw new OrchestrationError(
-        'not_found',
-        'View not found on this table — call table_views with operation "list_views" for valid view ids'
-      )
-    return { viewId: input.viewId, viewName: existing.name, table: context.table }
+    try {
+      const deleted = await deleteTableView(input.viewId, context.table.id, context.workspaceId)
+      if (!deleted)
+        throw new OrchestrationError(
+          'not_found',
+          'View not found on this table — call table_views with operation "list_views" for valid view ids'
+        )
+      return { viewId: input.viewId, viewName: existing.name, table: context.table }
+    } catch (error) {
+      rethrowViewError(error)
+    }
   },
   projectAudit({ result }) {
     return {

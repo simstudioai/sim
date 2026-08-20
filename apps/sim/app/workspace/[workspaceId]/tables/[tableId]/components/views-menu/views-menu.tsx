@@ -2,6 +2,7 @@
 
 import { memo, useEffect, useRef, useState } from 'react'
 import {
+  Button,
   ChipChevronDown,
   chipContentLabelClass,
   chipVariants,
@@ -13,26 +14,28 @@ import {
   PopoverItem,
   PopoverSection,
 } from '@sim/emcn'
-import { Check, Pencil, Plus, Trash } from '@sim/emcn/icons'
+import { Check, Pencil, Pin, Plus, Trash } from '@sim/emcn/icons'
 import type { TableViewWire } from '@/lib/api/contracts/tables'
+import { resolveTableViewSelection } from '@/app/workspace/[workspaceId]/tables/[tableId]/view-state'
 
-/** Label for the built-in unfiltered state. Not a stored row — `null` view id. */
+/** Legacy label for tables that do not yet have a persisted default view. */
 export const ALL_ROWS_VIEW_LABEL = 'All'
 
 /** Matches the breadcrumb location popover's hover-intent grace period. */
 const POPOVER_CLOSE_DELAY_MS = 120
 
 /** Rendered width of one action button (`p-1` + `size-3` glyph) plus its `gap-0.5`.
- *  The row reserves `actions.length` of these, so keep it in step with the button
+ *  The row reserves `actionCount` of these, so keep it in step with the button
  *  classes below — the overlay is absolutely positioned and can't size the spacer. */
 const VIEW_ACTION_SLOT_PX = 22
 
 interface ViewsMenuProps {
   views: TableViewWire[]
-  /** `null` selects the built-in "All" state. */
+  /** `null` selects the legacy "All" state while a table awaits backfill. */
   activeViewId: string | null
   onSelect: (viewId: string | null) => void
   onRename: (viewId: string) => void
+  onSetDefault: (viewId: string) => void
   onDelete: (viewId: string) => void
   /** Starts a blank view — named first, configured after. */
   onNewView: () => void
@@ -41,8 +44,8 @@ interface ViewsMenuProps {
 }
 
 /**
- * View switcher for the table options bar. Reads "View" until one is selected,
- * then carries the active view's name.
+ * View switcher for the table options bar. Carries the active view's name, or
+ * resolves an absent selection to the persisted default while the URL catches up.
  *
  * Opens on hover-intent like the header's breadcrumb location popover, so the
  * list of views is discoverable without a click.
@@ -52,6 +55,7 @@ export const ViewsMenu = memo(function ViewsMenu({
   activeViewId,
   onSelect,
   onRename,
+  onSetDefault,
   onDelete,
   onNewView,
   canEdit,
@@ -59,8 +63,9 @@ export const ViewsMenu = memo(function ViewsMenu({
   const [open, setOpen] = useState(false)
   const closeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const activeView = activeViewId ? views.find((view) => view.id === activeViewId) : undefined
-  const label = activeView?.name ?? 'View'
+  const { activeView, defaultView } = resolveTableViewSelection(views, activeViewId)
+  const hasDefaultView = defaultView !== null
+  const label = activeView?.name ?? ALL_ROWS_VIEW_LABEL
 
   const cancelScheduledClose = () => {
     if (closeTimeoutRef.current) {
@@ -127,23 +132,35 @@ export const ViewsMenu = memo(function ViewsMenu({
         )}
         onMouseEnter={openPopover}
         onMouseLeave={scheduleClose}
+        onFocusCapture={cancelScheduledClose}
       >
         <PopoverSection className='px-1.5 py-0.5 text-[var(--text-muted)] text-xs'>
           Views
         </PopoverSection>
         <div className='flex flex-col gap-0.5'>
-          <ViewRow
-            label={ALL_ROWS_VIEW_LABEL}
-            isActive={activeViewId === null}
-            onSelect={() => runAndClose(() => onSelect(null))}
-          />
+          {!hasDefaultView && (
+            <ViewRow
+              label={ALL_ROWS_VIEW_LABEL}
+              isActive={activeViewId === null}
+              onSelect={() => runAndClose(() => onSelect(null))}
+            />
+          )}
           {views.map((view) => (
             <ViewRow
               key={view.id}
               label={view.name}
               isActive={view.id === activeViewId}
-              isDefault={view.isDefault}
               onSelect={() => runAndClose(() => onSelect(view.id))}
+              defaultState={{
+                isDefault: view.isDefault,
+                onSetDefault:
+                  canEdit && !view.isDefault
+                    ? () => {
+                        cancelScheduledClose()
+                        onSetDefault(view.id)
+                      }
+                    : undefined,
+              }}
               actions={
                 canEdit
                   ? [
@@ -152,11 +169,15 @@ export const ViewsMenu = memo(function ViewsMenu({
                         label: 'Rename',
                         onClick: () => runAndClose(() => onRename(view.id)),
                       },
-                      {
-                        icon: Trash,
-                        label: 'Delete',
-                        onClick: () => runAndClose(() => onDelete(view.id)),
-                      },
+                      ...(!view.isDefault
+                        ? [
+                            {
+                              icon: Trash,
+                              label: 'Delete',
+                              onClick: () => runAndClose(() => onDelete(view.id)),
+                            },
+                          ]
+                        : []),
                     ]
                   : undefined
               }
@@ -188,11 +209,16 @@ interface ViewRowAction {
   onClick: () => void
 }
 
+interface ViewRowDefaultState {
+  isDefault: boolean
+  onSetDefault?: () => void
+}
+
 interface ViewRowProps {
   label: string
   isActive: boolean
-  isDefault?: boolean
   onSelect: () => void
+  defaultState?: ViewRowDefaultState
   actions?: ViewRowAction[]
 }
 
@@ -202,7 +228,9 @@ interface ViewRowProps {
  * on hover via opacity, not `display`) so the name never reflows or sits
  * underneath them.
  */
-function ViewRow({ label, isActive, isDefault, onSelect, actions }: ViewRowProps) {
+function ViewRow({ label, isActive, onSelect, defaultState, actions }: ViewRowProps) {
+  const actionCount = (actions?.length ?? 0) + (defaultState ? 1 : 0)
+
   return (
     <div className='group/view relative flex items-center'>
       <PopoverItem
@@ -214,39 +242,56 @@ function ViewRow({ label, isActive, isDefault, onSelect, actions }: ViewRowProps
           {isActive && <Check className='size-3 text-[var(--text-icon)]' />}
         </span>
         <span className='min-w-0 flex-1 truncate text-left'>{label}</span>
-        {isDefault && (
-          <span className='shrink-0 text-[var(--text-muted)] text-micro group-hover/view:hidden'>
-            Default
-          </span>
-        )}
-        {actions && (
+        {actionCount > 0 && (
           <span
             aria-hidden
             className='shrink-0'
-            style={{ width: actions.length * VIEW_ACTION_SLOT_PX }}
+            style={{ width: actionCount * VIEW_ACTION_SLOT_PX }}
           />
         )}
       </PopoverItem>
-      {actions && (
-        <div className='pointer-events-none absolute right-1.5 flex items-center gap-0.5 opacity-0 transition-opacity group-hover/view:pointer-events-auto group-hover/view:opacity-100'>
-          {actions.map((action) => (
-            <button
+      {actionCount > 0 && (
+        <div className='pointer-events-none absolute right-1.5 flex items-center gap-0.5'>
+          {actions?.map((action) => (
+            <Button
               key={action.label}
               type='button'
+              variant='quiet'
+              size='icon'
               aria-label={action.label}
               title={action.label}
-              // The row behind is a select-the-view target; without stopping
-              // propagation every action would also switch to that view.
               onClick={(event) => {
                 event.preventDefault()
                 event.stopPropagation()
                 action.onClick()
               }}
-              className='rounded-md p-1 text-[var(--text-icon)] transition-colors hover-hover:bg-[var(--surface-active)] hover-hover:text-[var(--text-body)]'
+              className='pointer-events-none opacity-0 transition-[background-color,color,opacity] group-focus-within/view:pointer-events-auto group-focus-within/view:opacity-100 group-hover/view:pointer-events-auto group-hover/view:opacity-100'
             >
               <action.icon className='size-3' />
-            </button>
+            </Button>
           ))}
+          {defaultState && (
+            <Button
+              type='button'
+              variant='quiet'
+              size='icon'
+              aria-label={defaultState.isDefault ? 'Current default view' : 'Set as default'}
+              title={defaultState.isDefault ? 'Current default view' : 'Set as default'}
+              disabled={!defaultState.onSetDefault}
+              // A disabled Button defaults to pointer-events-none, which would let
+              // clicks fall through this pointer-events-none overlay to the row and
+              // select the view. Keeping the pin hit-testable swallows the click —
+              // disabled buttons dispatch no click events — and shows its title.
+              className='pointer-events-auto disabled:pointer-events-auto'
+              onClick={(event) => {
+                event.preventDefault()
+                event.stopPropagation()
+                defaultState.onSetDefault?.()
+              }}
+            >
+              <Pin className={cn('size-3', defaultState.isDefault && 'fill-current')} />
+            </Button>
+          )}
         </div>
       )}
     </div>
