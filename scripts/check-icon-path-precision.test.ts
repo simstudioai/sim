@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
-  comparePrecisionBaseline,
-  createPrecisionBaseline,
+  analyzeIconSource,
   effectiveFractionDigits,
+  findNewPrecisionCandidates,
   findPrecisionCandidates,
 } from './check-icon-path-precision'
 
@@ -23,7 +23,10 @@ describe('icon path precision audit', () => {
       }
     `
 
-    expect(findPrecisionCandidates(source, FIXTURE_PATH)).toEqual([])
+    expect(analyzeIconSource(source, FIXTURE_PATH)).toEqual({
+      candidates: [],
+      invalidExceptions: [],
+    })
   })
 
   it('finds ordinary decimals and exponents finer than a hundredth', () => {
@@ -58,59 +61,90 @@ describe('icon path precision audit', () => {
     expect(findPrecisionCandidates(source, FIXTURE_PATH)).toHaveLength(2)
   })
 
-  it('ratchets exact legacy paths and rejects new duplicates', () => {
-    const original = `
+  it('accepts a reasoned TSDoc exception on the immediately following path', () => {
+    const source = `
+      export function PreciseBrandIcon() {
+        return (
+          <svg>
+            {/**
+             * svg-path-precision-exception: Rounding visibly distorts the provider-authored mark.
+             */}
+            <path d='M0.1234 1' />
+          </svg>
+        )
+      }
+    `
+
+    expect(analyzeIconSource(source, FIXTURE_PATH)).toEqual({
+      candidates: [],
+      invalidExceptions: [],
+    })
+  })
+
+  it('rejects exceptions without a reason and exceptions on already-clean paths', () => {
+    const missingReason = `
+      export function PreciseIcon() {
+        return <svg>{/** svg-path-precision-exception: */}<path d='M0.123 1' /></svg>
+      }
+    `
+    const unnecessary = `
+      export function CleanIcon() {
+        return <svg>{/** svg-path-precision-exception: Keep detail. */}<path d='M0.12 1' /></svg>
+      }
+    `
+
+    const missingReasonAnalysis = analyzeIconSource(missingReason, FIXTURE_PATH)
+    expect(missingReasonAnalysis.candidates).toHaveLength(1)
+    expect(missingReasonAnalysis.invalidExceptions[0]?.message).toContain('specific reason')
+
+    const unnecessaryAnalysis = analyzeIconSource(unnecessary, FIXTURE_PATH)
+    expect(unnecessaryAnalysis.candidates).toEqual([])
+    expect(unnecessaryAnalysis.invalidExceptions[0]?.message).toContain('unnecessary')
+  })
+
+  it('grandfathers exact paths from the target branch but rejects additions and edits', () => {
+    const base = `
       export function LegacyIcon() {
         return <svg><path d='M0.123 1' /></svg>
       }
     `
-    const originalCandidates = findPrecisionCandidates(original, FIXTURE_PATH)
-    const baseline = createPrecisionBaseline(originalCandidates)
-
-    expect(comparePrecisionBaseline(originalCandidates, baseline)).toEqual({
-      unbaselined: [],
-      staleBaseline: [],
-    })
+    const unchanged = findPrecisionCandidates(base, FIXTURE_PATH)
+    expect(findNewPrecisionCandidates(unchanged, unchanged)).toEqual([])
 
     const duplicate = `
       export function LegacyIcon() {
         return <svg><path d='M0.123 1' /><path d='M0.123 1' /></svg>
       }
     `
-    const comparison = comparePrecisionBaseline(
-      findPrecisionCandidates(duplicate, FIXTURE_PATH),
-      baseline
-    )
-    expect(comparison.unbaselined).toHaveLength(1)
-    expect(comparison.staleBaseline).toEqual([])
+    expect(
+      findNewPrecisionCandidates(findPrecisionCandidates(duplicate, FIXTURE_PATH), unchanged)
+    ).toHaveLength(1)
+
+    const changed = base.replace('0.123', '0.1234')
+    expect(
+      findNewPrecisionCandidates(findPrecisionCandidates(changed, FIXTURE_PATH), unchanged)
+    ).toHaveLength(1)
   })
 
-  it('makes the baseline stale when legacy debt is changed or removed', () => {
-    const original = `
-      export function LegacyIcon() {
-        return <svg><path d='M0.123 1' /></svg>
+  it('requires a committed exception to remain while its precise path remains', () => {
+    const excepted = `
+      export function PreciseBrandIcon() {
+        return (
+          <svg>
+            {/** svg-path-precision-exception: Rounding visibly distorts the brand mark. */}
+            <path d='M0.1234 1' />
+          </svg>
+        )
       }
     `
-    const baseline = createPrecisionBaseline(findPrecisionCandidates(original, FIXTURE_PATH))
-    const changed = `
-      export function LegacyIcon() {
-        return <svg><path d='M0.1234 1' /></svg>
-      }
-    `
-
-    const changedComparison = comparePrecisionBaseline(
-      findPrecisionCandidates(changed, FIXTURE_PATH),
-      baseline
+    const exceptionRemoved = excepted.replace(
+      '{/** svg-path-precision-exception: Rounding visibly distorts the brand mark. */}',
+      ''
     )
-    expect(changedComparison.unbaselined).toHaveLength(1)
-    expect(changedComparison.staleBaseline).toHaveLength(1)
 
-    const cleaned = original.replace('0.123', '0.12')
-    const cleanedComparison = comparePrecisionBaseline(
-      findPrecisionCandidates(cleaned, FIXTURE_PATH),
-      baseline
-    )
-    expect(cleanedComparison.unbaselined).toEqual([])
-    expect(cleanedComparison.staleBaseline).toHaveLength(1)
+    expect(findPrecisionCandidates(excepted, FIXTURE_PATH)).toEqual([])
+    expect(
+      findNewPrecisionCandidates(findPrecisionCandidates(exceptionRemoved, FIXTURE_PATH), [])
+    ).toHaveLength(1)
   })
 })

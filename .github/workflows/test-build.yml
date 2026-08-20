@@ -123,6 +123,16 @@ jobs:
       - name: Repo audits
         run: bun run check:audits
 
+      - name: Check SVG icon path precision
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            BASE_REF="origin/${{ github.base_ref }}"
+            git fetch --depth=1 origin "${{ github.base_ref }}" 2>/dev/null || true
+          else
+            BASE_REF="HEAD~1"
+          fi
+          bun run check:icon-path-precision "$BASE_REF"
+
       - name: Migration safety (zero-downtime) audit
         run: |
           if [ "${{ github.event_name }}" = "pull_request" ]; then
