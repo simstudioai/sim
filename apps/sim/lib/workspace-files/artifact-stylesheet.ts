@@ -452,6 +452,16 @@ figcaption { font-size: 0.875em; line-height: 1.4285714; color: var(--text-prima
 }
 a.page-tab:hover { color: var(--text-body); opacity: 1; }
 .page-tab.is-active { color: var(--text-primary); font-weight: 500; border-bottom-color: var(--text-primary); }
+/* In the docs layout the tab row is chrome under the sticky top bar (the
+   shell repositions it out of the content column): it sticks with the bar so
+   tabs stay reachable deep in a page. The negative margin consumes the bar's
+   own margin so the two sticky rows sit flush; the padded background keeps
+   scrolled content from showing through the seam. */
+.page[data-layout="docs"] > .page-tabs {
+  position: sticky; top: 52px; z-index: 4;
+  margin: -0.5rem 0 0; padding-top: 0.65rem;
+  background: var(--bg);
+}
 /* In-document tabs render as buttons (client-side switch, one file) — same
    chrome as the linked set tabs. */
 button.page-tab { background: none; border-top: 0; border-left: 0; border-right: 0; font: inherit; font-size: var(--text-sm); cursor: pointer; }
@@ -802,6 +812,12 @@ export const SIM_ARTIFACT_SHELL = `<script>
       mid.appendChild(main)
     }
     cols.append(mid, right)
+
+    // The tab row is chrome, not article content: it sits full-width under
+    // the top bar (the docs' own placement), not inside the content column
+    // above the h1.
+    const pageTabs = page.querySelector('.page-tabs')
+    if (pageTabs) page.insertBefore(pageTabs, cols)
 
     // Clerk track geometry (fumadocs clerk.js): one path threading every item,
     // vertical through each and a cubic easing across depth changes.
