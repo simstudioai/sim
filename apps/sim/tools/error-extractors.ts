@@ -299,6 +299,24 @@ const ERROR_EXTRACTORS: ErrorExtractorConfig[] = [
     },
   },
   {
+    id: 'crunchbase-errors',
+    description:
+      'Crunchbase Data API error envelope: a top-level JSON array of {status, code, message}. Nothing else in this registry reads a bare array, so without it a rejected key or malformed predicate reports only its HTTP status',
+    examples: ['Crunchbase'],
+    extract: (errorInfo) => {
+      const entries = Array.isArray(errorInfo?.data) ? errorInfo.data : undefined
+      if (!entries?.length) return undefined
+
+      const messages = entries
+        .map((entry: { message?: unknown }) =>
+          typeof entry?.message === 'string' ? entry.message.trim() : ''
+        )
+        .filter(Boolean)
+
+      return messages.length > 0 ? messages.join('; ') : undefined
+    },
+  },
+  {
     id: 'splunk-errors',
     description:
       'Splunk REST message envelope: {messages: [{type, text}]}. Under the output_mode=json every Splunk request pins, this is where a rejected SPL string explains itself — without it the failure reports only the HTTP status text',
@@ -403,6 +421,7 @@ export const ErrorExtractorId = {
   DYNATRACE_ERRORS: 'dynatrace-errors',
   SMARTLEAD_ERRORS: 'smartlead-errors',
   POSTHOG_ERRORS: 'posthog-errors',
+  CRUNCHBASE_ERRORS: 'crunchbase-errors',
   SPLUNK_ERRORS: 'splunk-errors',
   PLAIN_TEXT_DATA: 'plain-text-data',
   HTTP_STATUS_TEXT: 'http-status-text',

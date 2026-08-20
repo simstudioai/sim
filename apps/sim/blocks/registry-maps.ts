@@ -48,6 +48,7 @@ import { ConvexBlock, ConvexBlockMeta } from '@/blocks/blocks/convex'
 import { CredentialBlock } from '@/blocks/blocks/credential'
 import { CredentialGroupBlock } from '@/blocks/blocks/credential-group'
 import { CrowdStrikeBlock, CrowdStrikeBlockMeta } from '@/blocks/blocks/crowdstrike'
+import { CrunchbaseBlock, CrunchbaseBlockMeta } from '@/blocks/blocks/crunchbase'
 import { CursorBlock, CursorBlockMeta, CursorV2Block } from '@/blocks/blocks/cursor'
 import { DagsterBlock, DagsterBlockMeta } from '@/blocks/blocks/dagster'
 import { DatabricksBlock, DatabricksBlockMeta } from '@/blocks/blocks/databricks'
@@ -409,6 +410,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   credential: CredentialBlock,
   credential_group: CredentialGroupBlock,
   crowdstrike: CrowdStrikeBlock,
+  crunchbase: CrunchbaseBlock,
   cursor: CursorBlock,
   cursor_v2: CursorV2Block,
   dagster: DagsterBlock,
@@ -745,6 +747,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   context_dev: ContextDevBlockMeta,
   convex: ConvexBlockMeta,
   crowdstrike: CrowdStrikeBlockMeta,
+  crunchbase: CrunchbaseBlockMeta,
   cursor: CursorBlockMeta,
   dagster: DagsterBlockMeta,
   databricks: DatabricksBlockMeta,
