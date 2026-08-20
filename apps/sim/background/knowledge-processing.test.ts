@@ -92,7 +92,8 @@ describe('knowledge processing worker', () => {
         actorUserId: 'external-admin',
         workspaceId: 'workspace-1',
         billingAttribution: BILLING_ATTRIBUTION,
-      }
+      },
+      BASE_PAYLOAD.requestId
     )
   })
 
@@ -133,7 +134,8 @@ describe('knowledge processing worker', () => {
         billingScope: 'non-workspace',
         actorUserId: 'legacy-owner',
         workspaceId: null,
-      }
+      },
+      BASE_PAYLOAD.requestId
     )
   })
 })
