@@ -1,8 +1,13 @@
 import { readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
-import type { ModalChatCompletionParams, ModalChatCompletionResponse } from '@/tools/modal/types'
+import type {
+  ModalChatCompletionApiResponse,
+  ModalChatCompletionParams,
+  ModalChatCompletionResponse,
+} from '@/tools/modal/types'
 import {
   extractModalError,
   MAX_MODAL_RESPONSE_BODY_BYTES,
+  MODAL_SHARED_INFERENCE_URL,
   modalOpenAiUrl,
   modalProxyAuthHeaders,
   toOptionalNumber,
@@ -21,10 +26,11 @@ export const modalChatCompletionTool: ToolConfig<
   params: {
     endpointUrl: {
       type: 'string',
-      required: true,
+      required: false,
+      default: MODAL_SHARED_INFERENCE_URL,
       visibility: 'user-or-llm',
       description:
-        'Endpoint URL from the Modal dashboard or `modal endpoint list`. Use https://inference.us-west.modal.direct for Shared Endpoints',
+        'Endpoint URL from the Modal dashboard or `modal endpoint list`. Defaults to https://inference.us-west.modal.direct, which routes to Shared Endpoints on the model ID',
     },
     model: {
       type: 'string',
@@ -85,7 +91,8 @@ export const modalChatCompletionTool: ToolConfig<
         content: params.content,
       }),
     },
-    url: (params) => modalOpenAiUrl(params.endpointUrl, '/chat/completions'),
+    url: (params) =>
+      modalOpenAiUrl(params.endpointUrl?.trim() || MODAL_SHARED_INFERENCE_URL, '/chat/completions'),
     method: 'POST',
     headers: (params) => ({
       'Content-Type': 'application/json',
@@ -98,7 +105,7 @@ export const modalChatCompletionTool: ToolConfig<
       }
       messages.push({ role: 'user', content: params.content })
 
-      const body: Record<string, any> = { model: params.model, messages }
+      const body: Record<string, unknown> = { model: params.model, messages }
 
       const maxTokens = toOptionalNumber(params.maxTokens)
       if (maxTokens !== undefined) body.max_tokens = maxTokens
@@ -116,7 +123,7 @@ export const modalChatCompletionTool: ToolConfig<
       throw new Error(await extractModalError(response, 'Modal chat completion failed'))
     }
 
-    const data = await readResponseJsonWithLimit<any>(response, {
+    const data = await readResponseJsonWithLimit<ModalChatCompletionApiResponse>(response, {
       maxBytes: MAX_MODAL_RESPONSE_BODY_BYTES,
       label: 'Modal chat completion response body',
     })

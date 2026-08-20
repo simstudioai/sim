@@ -109,13 +109,19 @@ describe('ModalBlock', () => {
     expect(params).not.toHaveProperty('topP')
   })
 
-  it('leaves the endpoint URL unset on list models so the shared inference default applies', () => {
-    expect(buildParams({ operation: 'list_models', endpointUrl: '' })).not.toHaveProperty(
-      'endpointUrl'
-    )
+  it('leaves a blank endpoint URL unset so the shared inference default applies', () => {
+    for (const operation of ['list_models', 'chat_completion']) {
+      expect(buildParams({ operation, endpointUrl: '' })).not.toHaveProperty('endpointUrl')
+      expect(
+        buildParams({ operation, endpointUrl: 'https://my-endpoint.modal.direct' })
+      ).toMatchObject({ endpointUrl: 'https://my-endpoint.modal.direct' })
+    }
+  })
+
+  it('never marks the endpoint URL required, matching the skill that says to leave it empty', () => {
     expect(
-      buildParams({ operation: 'list_models', endpointUrl: 'https://my-endpoint.modal.direct' })
-    ).toMatchObject({ endpointUrl: 'https://my-endpoint.modal.direct' })
+      ModalBlock.subBlocks.find((subBlock) => subBlock.id === 'endpointUrl')?.required
+    ).toBeUndefined()
   })
 
   it('requires the token pair only where Modal always authenticates', () => {

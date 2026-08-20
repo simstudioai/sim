@@ -1,6 +1,6 @@
 import { truncate } from '@sim/utils/string'
 import { readResponseTextWithLimit } from '@/lib/core/utils/stream-limits'
-import type { ModalModelSummary, ModalProxyTokenParams } from '@/tools/modal/types'
+import type { ModalApiModel, ModalModelSummary, ModalProxyTokenParams } from '@/tools/modal/types'
 
 /**
  * Shared Endpoints are reachable through this host and routed on the OpenAI
@@ -144,7 +144,7 @@ export function toOptionalNumber(value: unknown): number | undefined {
 }
 
 /** Maps a raw OpenAI-compatible model entry to the normalized summary shape. */
-export function mapModalModel(model: Record<string, any>): ModalModelSummary {
+export function mapModalModel(model: ModalApiModel | null | undefined): ModalModelSummary {
   return {
     id: model?.id ?? '',
     object: model?.object ?? null,

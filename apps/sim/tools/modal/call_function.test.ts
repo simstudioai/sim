@@ -3,17 +3,16 @@
  */
 import { describe, expect, it } from 'vitest'
 import { modalCallFunctionTool } from '@/tools/modal/call_function'
+import type { ModalCallFunctionParams } from '@/tools/modal/types'
 
 const transform = modalCallFunctionTool.transformResponse!
-const buildUrl = modalCallFunctionTool.request.url as (params: Record<string, any>) => string
+const buildUrl = modalCallFunctionTool.request.url as (params: ModalCallFunctionParams) => string
 const buildHeaders = modalCallFunctionTool.request.headers as (
-  params: Record<string, any>
+  params: ModalCallFunctionParams
 ) => Record<string, string>
-const buildBody = modalCallFunctionTool.request.body as (
-  params: Record<string, any>
-) => unknown | undefined
+const buildBody = modalCallFunctionTool.request.body as (params: ModalCallFunctionParams) => unknown
 const resolveMethod = modalCallFunctionTool.request.method as (
-  params: Record<string, any>
+  params: ModalCallFunctionParams
 ) => string
 
 describe('modalCallFunctionTool request', () => {

@@ -31,6 +31,36 @@ export interface ModalListModelsParams extends ModalProxyTokenParams {
   endpointUrl?: string
 }
 
+/**
+ * Wire shapes served by a Modal Endpoint's OpenAI-compatible `/v1` API. Every
+ * field is optional because the payload comes from whichever inference engine
+ * backs the endpoint — the readers stay defensive, and these types exist so a
+ * future change to that mapping is caught by the compiler.
+ */
+export interface ModalApiModel {
+  id?: string | null
+  object?: string | null
+  created?: number | null
+  owned_by?: string | null
+}
+
+export interface ModalListModelsApiResponse {
+  data?: ModalApiModel[] | null
+}
+
+export interface ModalChatCompletionApiResponse {
+  model?: string | null
+  choices?: Array<{
+    message?: { content?: string | null } | null
+    finish_reason?: string | null
+  }> | null
+  usage?: {
+    prompt_tokens?: number | null
+    completion_tokens?: number | null
+    total_tokens?: number | null
+  } | null
+}
+
 export interface ModalCallFunctionResponse extends ToolResponse {
   output: {
     data: unknown

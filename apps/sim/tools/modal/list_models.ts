@@ -1,5 +1,9 @@
 import { readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
-import type { ModalListModelsParams, ModalListModelsResponse } from '@/tools/modal/types'
+import type {
+  ModalListModelsApiResponse,
+  ModalListModelsParams,
+  ModalListModelsResponse,
+} from '@/tools/modal/types'
 import {
   extractModalError,
   MAX_MODAL_RESPONSE_BODY_BYTES,
@@ -55,7 +59,7 @@ export const modalListModelsTool: ToolConfig<ModalListModelsParams, ModalListMod
       throw new Error(await extractModalError(response, 'Failed to list Modal models'))
     }
 
-    const data = await readResponseJsonWithLimit<any>(response, {
+    const data = await readResponseJsonWithLimit<ModalListModelsApiResponse>(response, {
       maxBytes: MAX_MODAL_RESPONSE_BODY_BYTES,
       label: 'Modal models response body',
     })

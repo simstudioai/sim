@@ -135,7 +135,6 @@ export const ModalBlock: BlockConfig = {
       type: 'short-input',
       placeholder: MODAL_SHARED_INFERENCE_URL,
       condition: { field: 'operation', value: ENDPOINT_OPERATIONS },
-      required: { field: 'operation', value: 'chat_completion' },
     },
     {
       id: 'model',
@@ -216,7 +215,7 @@ export const ModalBlock: BlockConfig = {
             if (rest.requestHeaders) baseParams.headers = rest.requestHeaders
             break
           case 'chat_completion':
-            baseParams.endpointUrl = rest.endpointUrl
+            if (rest.endpointUrl) baseParams.endpointUrl = rest.endpointUrl
             baseParams.model = rest.model
             baseParams.content = rest.content
             if (rest.systemPrompt) baseParams.systemPrompt = rest.systemPrompt

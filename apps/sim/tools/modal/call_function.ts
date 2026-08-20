@@ -111,7 +111,7 @@ export const modalCallFunctionTool: ToolConfig<ModalCallFunctionParams, ModalCal
         if (params.body === undefined || BODYLESS_METHODS.has(resolveMethod(params)))
           return undefined
         if (typeof params.body === 'string') return params.body
-        return params.body as Record<string, any>
+        return params.body as Record<string, unknown>
       },
     },
 
