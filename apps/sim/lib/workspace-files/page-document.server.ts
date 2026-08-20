@@ -1,10 +1,5 @@
-import type { Principal } from '@sim/auth/principal'
 import { downloadFile } from '@/lib/uploads/core/storage-service'
 import { getFileMetadataById } from '@/lib/uploads/server/metadata'
-import {
-  injectChartHydration,
-  resolveChartFileRefs,
-} from '@/lib/workspace-files/page-chart-hydrate.server'
 import { renderSimPageDocument } from '@/lib/workspace-files/page-document'
 
 /** Images past this size stay as URL references rather than bloating the document. */
@@ -23,15 +18,9 @@ const IMAGE_SRC = /src="[^"]*\/api\/files\/view\/([^"]+)"/g
  */
 export async function renderSimPageDocumentWithAssets(
   source: string,
-  options: { workspaceId?: string; principal?: Principal }
+  options: { workspaceId?: string }
 ): Promise<string> {
-  // Chart references resolve per serve — a table-backed chart reads the
-  // table's CURRENT rows under the viewer's authorization, so in-app views
-  // stay live while a downloaded copy freezes this serve's data. The
-  // hydration runtime is inlined last so the document stays self-contained.
-  const documentHtml = await injectChartHydration(
-    await resolveChartFileRefs(renderSimPageDocument(source, options), options)
-  )
+  const documentHtml = renderSimPageDocument(source, options)
   const ids = [...new Set([...documentHtml.matchAll(IMAGE_SRC)].map((match) => match[1]))]
   if (ids.length === 0 || !options.workspaceId) return documentHtml
 

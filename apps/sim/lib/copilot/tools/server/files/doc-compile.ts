@@ -108,9 +108,12 @@ const FILE_HELPER_RE =
 // The doc source is user/LLM-controlled, so bound how much it can pull into the
 // sandbox by BYTES (per file and total) — an authenticated member must not be
 // able to force very large workspace downloads to be base64-held in-process per
-// compile. There is deliberately no count cap: a deck rebuild references every
-// extracted image across the whole source (references accumulate over slides),
-// and the byte caps already bound the volume.
+// compile. The count cap is deliberately GENEROUS: a deck rebuild references
+// every extracted image across the whole source (asset extraction ships at most
+// 200 media files), so real documents sit far under it — it exists only so the
+// per-reference metadata lookups stay bounded against a source stuffed with
+// thousands of id-like strings, which the byte caps alone cannot bound.
+const MAX_REFERENCED_INPUTS = 500
 const MAX_STAGED_FILE_BYTES = 25 * 1024 * 1024
 const MAX_STAGED_TOTAL_BYTES = 50 * 1024 * 1024
 
@@ -147,7 +150,8 @@ function referencedImageIdentities(
  * image-helper call sites and the legacy `/home/user/inputs/<id>` path. Matching
  * is scoped to the helper calls (not bare id-like strings in slide text), and the
  * caller skips any id that does not resolve to a real file, so over-matching is
- * harmless.
+ * harmless. Retention stops at one over the reference cap: callers need only
+ * distinguish no references, an admissible set, and an oversized set.
  */
 export function collectReferencedFileIds(source: string): Set<string> {
   const ids = new Set<string>()
@@ -155,6 +159,7 @@ export function collectReferencedFileIds(source: string): Set<string> {
     for (const match of source.matchAll(re)) {
       if (match[1]) {
         ids.add(match[1])
+        if (ids.size > MAX_REFERENCED_INPUTS) return ids
       }
     }
   }
@@ -167,6 +172,13 @@ async function resolveReferencedImages(
   principal: Principal,
   ids = collectReferencedFileIds(source)
 ): Promise<ReferencedImageResolution> {
+  if (ids.size > MAX_REFERENCED_INPUTS) {
+    // User-fixable, not transient: each reference costs a metadata read, so an
+    // oversized set is refused before any resolution work starts.
+    throw new DocCompileUserError(
+      `More than ${MAX_REFERENCED_INPUTS} referenced input files; maximum is ${MAX_REFERENCED_INPUTS}. Reference fewer files.`
+    )
+  }
   if (ids.size === 0) {
     return { images: [], referenceCount: 0 }
   }

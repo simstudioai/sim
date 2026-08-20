@@ -431,13 +431,7 @@ export async function downloadServableFileFromStorage(
         ? (parseWorkspaceFileKey(userFile.key) ?? undefined)
         : undefined
       return {
-        buffer: Buffer.from(
-          await renderSimPageDocumentWithAssets(text, {
-            workspaceId,
-            principal: options.filePrincipal,
-          }),
-          'utf8'
-        ),
+        buffer: Buffer.from(await renderSimPageDocumentWithAssets(text, { workspaceId }), 'utf8'),
         contentType: 'text/html',
       }
     }

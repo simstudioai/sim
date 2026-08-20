@@ -104,7 +104,8 @@ export const extractDocAssetsServerTool: BaseServerTool<
       // poppler/pdfplumber toolchain (same environment that compiles docs).
       const extracted =
         ext === 'pdf' ? await extractPdfAssets(content) : await extractDocAssets(content, ext)
-      if (extracted.media.length > MAX_MEDIA_FILES) {
+      const totalMediaCount = extracted.media.length
+      if (totalMediaCount > MAX_MEDIA_FILES) {
         extracted.media = extracted.media.slice(0, MAX_MEDIA_FILES)
       }
 
@@ -172,6 +173,7 @@ export const extractDocAssetsServerTool: BaseServerTool<
         source: params.path,
         destination,
         mediaCount: extracted.media.length,
+        droppedMediaCount: totalMediaCount - extracted.media.length,
         format: extracted.theme.format,
       })
 
@@ -194,9 +196,15 @@ export const extractDocAssetsServerTool: BaseServerTool<
       const layoutNote = wroteLayout
         ? `, plus layout.json (${unit}-by-${unit} text and asset layout)`
         : ''
+      // Never report a truncated set as complete: theme/layout may reference
+      // media that was not written.
+      const truncationNote =
+        totalMediaCount > extracted.media.length
+          ? ` NOTE: the document holds ${totalMediaCount} media files; only the first ${extracted.media.length} were extracted — theme/layout references beyond that were not written.`
+          : ''
       return {
         success: true,
-        message: `Extracted ${extracted.media.length} asset file(s) and theme.json (${themeSummary || 'no theme data found'})${layoutNote} from "${sourceName}" into ${destination}/`,
+        message: `Extracted ${extracted.media.length} asset file(s) and theme.json (${themeSummary || 'no theme data found'})${layoutNote} from "${sourceName}" into ${destination}/${truncationNote}`,
         themePath: written[0]?.vfsPath,
         theme: extracted.theme,
         files: written,

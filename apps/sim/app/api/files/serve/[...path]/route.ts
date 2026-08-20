@@ -22,7 +22,7 @@ import { resolveStoredFileContext } from '@/lib/uploads/server/metadata'
 import { inferContextFromKey } from '@/lib/uploads/utils/file-utils'
 import { internalWorkspaceFileServeAuth } from '@/lib/workspace-files/api'
 import { readWorkspaceFileContentByKey } from '@/lib/workspace-files/application/read-workspace-file-content-by-key'
-import { isSimPageSource } from '@/lib/workspace-files/page-compile'
+import { isSimPageSource, SIM_PAGE_CONTENT_TYPE } from '@/lib/workspace-files/page-compile'
 import { renderSimPageDocumentWithAssets } from '@/lib/workspace-files/page-document.server'
 import { verifyFileAccess } from '@/app/api/files/authorization'
 import {
@@ -78,27 +78,34 @@ async function resolveServableBytes(params: {
   options: ServeOptions
   ownerKey: string | undefined
   filePrincipal?: Principal
+  /** The stored record's content type, where the caller has the record. */
+  fileType?: string
   signal: AbortSignal | undefined
 }): Promise<{ buffer: Buffer; contentType: string }> {
-  const { buffer, filename, storageKey, workspaceId, options, ownerKey, filePrincipal, signal } =
-    params
+  const {
+    buffer,
+    filename,
+    storageKey,
+    workspaceId,
+    options,
+    ownerKey,
+    filePrincipal,
+    fileType,
+    signal,
+  } = params
   if (options.raw) return { buffer, contentType: getContentType(filename) }
 
-  // The pdf model for pages: a `.html` file stores its SOURCE (frontmatter +
+  // The pdf model for pages: a page file stores its SOURCE (frontmatter +
   // markdown + sim: fences) and serving compiles it to the rendered document,
   // the same way a .pdf key stores its script and serves the binary. Raw
   // requests above still return the source; bespoke/legacy HTML falls through
-  // untouched.
-  if (filename.toLowerCase().endsWith('.html')) {
+  // untouched. Sim pages store an EXTENSIONLESS name — the record type marks
+  // them; legacy pages still carry .html.
+  if (fileType === SIM_PAGE_CONTENT_TYPE || filename.toLowerCase().endsWith('.html')) {
     const text = buffer.toString('utf8')
     if (isSimPageSource(text)) {
       return {
-        buffer: Buffer.from(
-          // The principal lets referenced table-backed charts read CURRENT
-          // rows under the viewer's own authorization on every serve.
-          await renderSimPageDocumentWithAssets(text, { workspaceId, principal: filePrincipal }),
-          'utf8'
-        ),
+        buffer: Buffer.from(await renderSimPageDocumentWithAssets(text, { workspaceId }), 'utf8'),
         contentType: 'text/html',
       }
     }
@@ -293,6 +300,7 @@ async function handleWorkspaceFile(
     options,
     ownerKey,
     filePrincipal: principal,
+    fileType: file.type,
     signal: request.signal,
   })
 

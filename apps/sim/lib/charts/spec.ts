@@ -1,11 +1,16 @@
 /**
- * The `.chart` document contract, shared by the file viewer (client) and the
- * sim-page chart embed (server): parsing/validation and the table-source
- * shaping (group → aggregate → pivot). Pure JSON-in/JSON-out — no React, no
- * echarts.
+ * The `.chart` document contract for the file viewer: parsing/validation and
+ * the table-source shaping (group → aggregate → pivot). Pure JSON-in/JSON-out
+ * — no React, no echarts.
  */
 
 import { getErrorMessage } from '@sim/utils/errors'
+import { getColumnId } from '@/lib/table/column-keys'
+import type { ColumnDefinition } from '@/lib/table/types'
+
+/** Hard cap on rows a table-backed chart pulls per read; the spec's `limit` clamps under it. */
+export const CHART_ROWS_MAX = 5000
+export const CHART_ROWS_DEFAULT = 1000
 
 export type ChartAggregateOp = 'sum' | 'avg' | 'min' | 'max' | 'count'
 
@@ -94,6 +99,27 @@ export function parseChartSpec(content: string): { spec?: ChartSpec; error?: str
     }
   }
   return { spec: doc as unknown as ChartSpec }
+}
+
+/**
+ * Table rows arrive keyed by column ID (an opaque uuid); chart specs — like
+ * the mothership table tool and the public API — speak column NAMES. Remap so
+ * `encode`/dimension references in the option match what the author sees in
+ * the table UI.
+ */
+export function mapRowsToColumnNames(
+  rows: Array<{ data: Record<string, unknown> }>,
+  columns: Array<Pick<ColumnDefinition, 'id' | 'name'>>
+): Array<Record<string, unknown>> {
+  const nameByStorageKey = new Map<string, string>()
+  for (const col of columns) nameByStorageKey.set(getColumnId(col), col.name)
+  return rows.map((row) => {
+    const out: Record<string, unknown> = {}
+    for (const [key, value] of Object.entries(row.data)) {
+      out[nameByStorageKey.get(key) ?? key] = value
+    }
+    return out
+  })
 }
 
 function aggregateValues(

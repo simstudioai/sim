@@ -108,12 +108,31 @@ describe('collectReferencedFileIds', () => {
     expect(collectReferencedFileIds(`slide.addText('hello', { x: 1, y: 1 })`)).toEqual(new Set())
   })
 
-  it('has no reference-count limit — a large deck rebuild references every extracted image', () => {
-    const ids = collectReferencedFileIds(referencedFileSource(100))
+  it('retains a full deck rebuild — every extracted image plus headroom fits the cap', () => {
+    const ids = collectReferencedFileIds(referencedFileSource(500))
 
-    expect(ids.size).toBe(100)
+    expect(ids.size).toBe(500)
     expect(ids.has('file-0')).toBe(true)
-    expect(ids.has('file-99')).toBe(true)
+    expect(ids.has('file-499')).toBe(true)
+  })
+
+  it('stops collecting at the one-over-cap sentinel', () => {
+    const ids = collectReferencedFileIds(referencedFileSource(2000))
+
+    expect(ids.size).toBe(501)
+  })
+
+  it('rejects an over-cap reference set before resolving any file metadata', async () => {
+    await expect(
+      compileDoc({
+        source: referencedFileSource(501),
+        fileName: 'report.pdf',
+        workspaceId: 'workspace-1',
+        filePrincipal: FILE_PRINCIPAL,
+      })
+    ).rejects.toThrow('More than 500 referenced input files; maximum is 500')
+    expect(readWorkspaceFileMetadataMock).not.toHaveBeenCalled()
+    expect(executeInSandboxMock).not.toHaveBeenCalled()
   })
 
   it('compiles referenced bytes and returns their canonical contributor identity', async () => {

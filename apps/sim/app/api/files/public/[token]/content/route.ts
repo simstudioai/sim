@@ -12,7 +12,7 @@ import { enforcePublicFileRateLimit } from '@/lib/public-shares/rate-limit'
 import { resolveActiveShareByToken } from '@/lib/public-shares/share-manager'
 import { downloadFile } from '@/lib/uploads/core/storage-service'
 import { resolveServableImageBytes } from '@/lib/uploads/server/image-derivative'
-import { isSimPageSource } from '@/lib/workspace-files/page-compile'
+import { isSimPageSource, SIM_PAGE_CONTENT_TYPE } from '@/lib/workspace-files/page-compile'
 import { renderSimPageDocumentWithAssets } from '@/lib/workspace-files/page-document.server'
 import {
   createErrorResponse,
@@ -92,7 +92,10 @@ export const GET = withRouteHandler(
         buffer = servable.buffer
         contentType = servable.contentType
       } else if (
-        file.originalName.toLowerCase().endsWith('.html') &&
+        // Sim pages store an extensionless name — the record type marks them;
+        // legacy pages still carry .html.
+        (file.contentType === SIM_PAGE_CONTENT_TYPE ||
+          file.originalName.toLowerCase().endsWith('.html')) &&
         isSimPageSource(raw.toString('utf8'))
       ) {
         // The pdf model for pages: the stored .html is source; a share serves

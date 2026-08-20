@@ -156,13 +156,13 @@ describe('docs fidelity', () => {
     expect(SIM_ARTIFACT_STYLESHEET).not.toContain('.grid')
   })
 
-  it('keeps the sidebar pill metrics from the docs sidebar', () => {
-    expect(SIM_ARTIFACT_STYLESHEET).toContain('padding: 5px 0.5rem')
-    expect(SIM_ARTIFACT_STYLESHEET).toContain('line-height: 20px')
+  // The sidebar left the shell; nothing should keep its pill styles alive.
+  it('carries no sidebar rail styles', () => {
+    expect(SIM_ARTIFACT_STYLESHEET).not.toContain('data-rail="nav"')
   })
 
-  // Inter leads the stack; each surface injects the matching @font-face.
-  // Pages live inside the app: the PLATFORM stack, not the docs' webfont.
+  // Pages live inside the app: the PLATFORM stack, not the docs' webfont —
+  // Inter next to emcn/sim chrome read as foreign.
   it('uses the platform font stack', () => {
     expect(SIM_ARTIFACT_STYLESHEET).toContain('--font-sans: ui-sans-serif, -apple-system')
     expect(SIM_ARTIFACT_STYLESHEET).not.toContain('"Inter"')
@@ -206,6 +206,6 @@ describe('docs fidelity', () => {
 
 describe('simTokenOverrides', () => {
   it('emits nothing off the browser, leaving the sheet fallbacks in place', () => {
-    expect(simTokenOverrides()).toBe('')
+    expect(simTokenOverrides('light')).toBe('')
   })
 })

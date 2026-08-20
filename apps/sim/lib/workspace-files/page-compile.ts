@@ -1,7 +1,6 @@
 import { JSON_SCHEMA, load } from 'js-yaml'
 import { marked } from 'marked'
 import { z } from 'zod'
-import { renderChartFenceMarkup } from '@/lib/charts/fence'
 
 /**
  * Compiler for agent-authored `.html` pages.
@@ -332,20 +331,6 @@ function compileBody(source: string, diagnostics?: string[]): string {
           html.push(`<figure>${body.trim()}${figcaption}</figure>`)
         } else {
           diagnostics?.push('sim:diagram block skipped: its body must be a complete <svg> element')
-        }
-      } else if (kind === 'chart') {
-        let rendered: string | null = null
-        try {
-          rendered = renderChartFenceMarkup(loadYaml(body), caption)
-        } catch {
-          rendered = null
-        }
-        if (rendered !== null) {
-          html.push(rendered)
-        } else {
-          diagnostics?.push(
-            'sim:chart block skipped: body must be JSON/YAML with an ECharts "option" object (optional "rows", "height") or a {"file": "<chart file id>"} reference'
-          )
         }
       } else {
         const renderer = FENCE_RENDERERS[kind]

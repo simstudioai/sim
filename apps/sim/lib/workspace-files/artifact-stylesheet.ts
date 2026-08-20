@@ -67,12 +67,15 @@ const ARTIFACT_TOKENS = [
 ] as const
 
 /**
- * A `:root` block rebinding the tokens to the app's live values, or empty off
- * the browser (SSR, tests) where the sheet's own mirrors stand in. The selector
- * list matches the specificity of the sheet's `[data-theme]` fallback blocks,
- * and this block is injected after the sheet, so it wins.
+ * A block rebinding the tokens to the app's live values, or empty off the
+ * browser (SSR, tests) where the sheet's own mirrors stand in. Scoped to the
+ * app's CURRENT theme only: the computed values ARE that theme's palette, so
+ * pinning them under both `[data-theme]` states would freeze the page's own
+ * theme toggle — flipping the attribute must fall back to the sheet's palette
+ * for the other theme. `:root[data-theme=...]` outranks the sheet's bare
+ * `:root` block, so injection order relative to the sheet does not matter.
  */
-export function simTokenOverrides(): string {
+export function simTokenOverrides(theme: 'dark' | 'light'): string {
   if (typeof window === 'undefined' || typeof document === 'undefined') return ''
   const computed = getComputedStyle(document.documentElement)
   const declarations = ARTIFACT_TOKENS.map((token) => {
@@ -80,7 +83,7 @@ export function simTokenOverrides(): string {
     return value ? `${token}:${value}` : ''
   }).filter(Boolean)
   if (declarations.length === 0) return ''
-  return `:root,:root[data-theme="dark"],:root[data-theme="light"]{${declarations.join(';')}}`
+  return `:root[data-theme="${theme}"]{${declarations.join(';')}}`
 }
 
 /**
@@ -96,19 +99,16 @@ export function simTokenOverrides(): string {
  * - tables: global.css "Tables — clean divider-based style" (no outer chrome,
  *   th 600 on --text-primary over a --border rule, td on --text-secondary
  *   over --surface-active rules, last row bare, 0.5rem 0.75rem cells, 14px).
- * - sidebar items: global.css sidebar overrides (14px/20px, 5px 8px = 30px
- *   pill, rounded-lg, weight 400, --surface-hover / --surface-active).
- * - clerk TOC: global.css #nd-toc overrides (13px links at weight 430 muted,
- *   470 primary when active, 480 title) over fumadocs' clerk geometry.
+ * - clerk TOC: global.css #nd-toc overrides (13px links, muted, primary when
+ *   active) over fumadocs' clerk geometry.
  * - callout: fumadocs callout.js (rounded-xl bordered card, 14px, a rounded
  *   2px color bar down the start edge) with the docs' shadow removal.
- * - layout: global.css --spacing-fd-container 1400px, --fd-sidebar-width
- *   300px, TOC column 268px, --content-gap 2.25rem.
- * The docs' webfont (Inter under --font-geist-sans) leads --font-sans; each
- * surface injects the matching @font-face (see lib/workspace-files/page-font
- * — the app-served URL for standalone documents, a host-fetched data: URI
- * for the sandboxed preview), falling back to the system stack until it
- * loads.
+ * - layout: global.css --spacing-fd-container 1400px, TOC column 268px,
+ *   --content-gap 2.25rem. There is no left sidebar — the TOC is the page's
+ *   only navigation rail.
+ * The face is the PLATFORM's, not the docs' webfont: --font-sans is the
+ * system stack (pages live inside the app, and Inter read as foreign next to
+ * emcn/sim chrome). The docs' geometry survives; only the face differs.
  */
 export const SIM_ARTIFACT_STYLESHEET = `
 :root {
@@ -390,19 +390,6 @@ figcaption { font-size: 0.875em; line-height: 1.4285714; color: var(--text-prima
 .faq details > :not(summary) { padding: 0 1rem; }
 .faq details > :last-child { padding-bottom: 0.9rem; margin-bottom: 0; }
 
-/* sim:chart — a hydrated ECharts canvas (the inline runtime boots every
-   figure); the placeholder shows pre-hydration and for unresolved refs. */
-.sim-chart { margin: 1.5rem 0; }
-.sim-chart .sim-chart-canvas { width: 100%; }
-.sim-chart-placeholder {
-  border: 1px dashed var(--border);
-  border-radius: 0.75rem;
-  padding: 2.5rem 1rem;
-  text-align: center;
-  color: var(--text-muted);
-  font-size: var(--text-sm);
-}
-
 /* The fumadocs callout: a rounded-xl bordered card at 14px with a rounded
    2px color bar down the start edge (the docs strip its shadow). */
 .callout {
@@ -500,24 +487,11 @@ figcaption { font-size: 0.875em; line-height: 1.4285714; color: var(--text-prima
 .art-cols > .rail::-webkit-scrollbar { display: none; }
 .toc-track, .toc-thumb { display: block; }
 .rail ol, .rail ul { list-style: none; margin: 0; padding: 0; }
-.rail a[hidden] { display: none; }
 /* Chrome links are navigation, not prose: no underline weight or hover fade. */
 .rail a, .page-nav-card { font-weight: 400; transition: none; }
 .rail a:hover, .page-nav-card:hover { opacity: 1; }
 
-/* Left rail: the docs sidebar's 30px pill items — 14px/20px type, 5px 8px
-   padding, rounded-lg, weight 400, hover/active surfaces, no underline. The
-   group label mirrors the sidebar separators: 12px, normal weight, muted. */
-/* Set navigation: docs-style groups with the current page's sections nested. */
 .rail[data-rail="toc"] { min-width: 150px; }
-  font-size: var(--text-sm);
-  line-height: 20px;
-  padding: 5px 0.5rem;
-  border-radius: 0.5rem;
-  font-weight: 400;
-  color: var(--text-body);
-  text-decoration: none;
-}
 
 /* Right rail: the clerk TOC. Title at 13px/480 with the text glyph; links at
    13px/430 muted, hover body, active primary at 470 — the docs' #nd-toc
@@ -593,26 +567,36 @@ figcaption { font-size: 0.875em; line-height: 1.4285714; color: var(--text-prima
 .codeblock pre { border: none; border-radius: 0; margin: 0; background: transparent; }
 
 /* Steps — the docs' numbered timeline: a muted numbered circle per step,
-   a hairline connector between them, title + content beside. */
+   ONE continuous hairline rail behind the circles, title + content beside.
+   Per-step segments with gaps around each circle read as a broken line the
+   moment step bodies vary in height; a full-height rail that the opaque
+   circles paint over is what the docs render. */
 .steps { list-style: none; margin: 1.25rem 0; padding: 0; }
-.step { --step-marker: 28px; position: relative; display: flex; gap: 1rem; padding-bottom: 1.9rem; }
+.step { --step-marker: 28px; position: relative; display: flex; gap: 1rem; padding-bottom: 1.75rem; }
 .step:last-child { padding-bottom: 0.25rem; }
-/* The connector derives from the marker size, so it stays dead-centered
-   under the circle no matter what the marker measures. */
+/* The rail spans the whole step, dead-centered under the circle; the last
+   step draws none, so the line ends AT the final circle. */
 .step::before {
   content: ''; position: absolute; left: calc(var(--step-marker) / 2 - 0.5px);
-  top: calc(var(--step-marker) + 4px); bottom: 4px;
+  top: 0; bottom: 0;
   width: 1px; background: var(--border);
 }
 .step:last-child::before { display: none; }
 .step-marker {
+  /* Positioned so it paints OVER the rail; opaque fill is what hides the
+     line passing behind the circle. */
+  position: relative;
   flex-shrink: 0; width: var(--step-marker); height: var(--step-marker); border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
   background: var(--surface-5); color: var(--text-muted);
   font-size: var(--text-small); font-weight: 500;
 }
+/* 3px optically centers the title's ~22px line box on the 28px circle. */
 .step-body { min-width: 0; padding-top: 3px; }
 .step-title { font-weight: 500; color: var(--text-primary); margin-bottom: 0.4rem; }
+/* The body's trailing paragraph margin would compound with the step's own
+   padding into an oversized gap. */
+.step-body > :last-child { margin-bottom: 0; }
 
 /* Code tabs — the docs' grouped code block: mono tab chips in the header,
    one pane visible at a time. */

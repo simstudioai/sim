@@ -1,7 +1,6 @@
 /**
- * Shared ECharts option assembly for Sim chart surfaces — the `.chart` file
- * viewer (client) and the sim-page `sim:chart` SSR renderer (server). Pure:
- * no React, no echarts import, JSON-in/JSON-out.
+ * ECharts option assembly for the `.chart` file viewer. Pure: no React, no
+ * echarts import, JSON-in/JSON-out.
  *
  * Chrome layout is Sim-owned, content is spec-owned. Models reliably produce
  * colliding title/legend placements, so the renderer pins the title top-left

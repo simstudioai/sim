@@ -24,9 +24,12 @@ import { ZoomablePreview } from './zoomable-preview'
 type PreviewType = 'markdown' | 'html' | 'csv' | 'svg' | 'mermaid' | 'chart' | null
 
 const PREVIEWABLE_MIME_TYPES: Record<string, PreviewType> = {
+  // Sim pages store an EXTENSIONLESS name — without this mapping the record
+  // type resolves to no preview at all and the viewer renders a blank pane
+  // (including the live compile-as-it-streams view).
+  'text/x-sim-page': 'html',
   'text/markdown': 'markdown',
   'text/html': 'html',
-  'text/x-sim-page': 'html',
   'text/csv': 'csv',
   'image/svg+xml': 'svg',
   'text/x-mermaid': 'mermaid',
@@ -187,7 +190,7 @@ export function buildHtmlPreviewDocument(
     // token overrides follow the sheet so the app's live values beat its
     // fallbacks, and the shell follows both.
     usesSimArtifactStyles(content)
-      ? `<style>${SIM_ARTIFACT_STYLESHEET}</style><style>${simTokenOverrides()}</style>${SIM_ARTIFACT_SHELL}`
+      ? `<style>${SIM_ARTIFACT_STYLESHEET}</style><style>${simTokenOverrides(theme)}</style>${SIM_ARTIFACT_SHELL}`
       : '',
     HTML_PREVIEW_BOOTSTRAP,
   ].join('')
@@ -347,6 +350,16 @@ const HtmlPreview = memo(function HtmlPreview({
       if (href.startsWith('/workspace/')) {
         router.push(href)
       } else if (/^https?:\/\//i.test(href)) {
+        // The server-compiled document absolutizes workspace links (so a
+        // DOWNLOADED copy reaches Sim) — recognize our own origin and route
+        // in-app rather than spawning a new tab of the whole app.
+        try {
+          const url = new URL(href)
+          if (url.origin === window.location.origin && url.pathname.startsWith('/workspace/')) {
+            router.push(`${url.pathname}${url.search}${url.hash}`)
+            return
+          }
+        } catch {}
         window.open(href, '_blank', 'noopener,noreferrer')
       }
     }
