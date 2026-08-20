@@ -718,6 +718,90 @@
         }
       }
     },
+    "/api/v2/files/{fileId}/extract": {
+      "post": {
+        "operationId": "extractFile",
+        "summary": "Extract File Archive",
+        "description": "Unzip a `.zip` archive into a new folder beside it and answer counts plus the destination path. The extracted files are deliberately not returned — a large archive would materialize thousands of objects into one response — so page `GET /api/v2/files?folderPath=...` for the contents. Extraction is slow: an archive near the size ceiling can run for minutes. Only one extraction of a given archive runs at a time; a concurrent attempt answers `409`. Archives past the size ceiling, and extractions that outrun their time budget, answer `413`.",
+        "tags": ["Files"],
+        "parameters": [
+          {
+            "name": "fileId",
+            "in": "path",
+            "required": true,
+            "description": "File identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_-]+$",
+              "description": "File identifier."
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Workspace scope for the archive.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExtractFileBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Counts and destination folder for the extracted archive.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileExtractionResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
     "/api/v2/files/{fileId}": {
       "get": {
         "operationId": "downloadFile",
@@ -2927,6 +3011,61 @@
             "partNumbers": [1, 2]
           }
         ]
+      },
+      "V2FileExtraction": {
+        "type": "object",
+        "properties": {
+          "folderPath": {
+            "type": "string",
+            "title": "Folder path",
+            "description": "Canonical path of the folder the archive was extracted into. May differ from the archive name when a sibling folder already claimed it.",
+            "maxLength": 4096
+          },
+          "extractedFileCount": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "description": "Number of files written into the destination folder."
+          },
+          "skippedFileCount": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "description": "Number of archive entries skipped as unsafe, empty, or noise."
+          }
+        },
+        "required": ["folderPath", "extractedFileCount", "skippedFileCount"],
+        "additionalProperties": false,
+        "title": "Archive extraction result",
+        "description": "Outcome of unzipping a workspace archive."
+      },
+      "FileExtractionResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2FileExtraction"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Archive extraction response",
+        "description": "Counts and destination folder for the extracted archive."
+      },
+      "ExtractFileBody": {
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "Workspace that owns the archive."
+          }
+        },
+        "required": ["workspaceId"],
+        "additionalProperties": false,
+        "title": "Extract archive body",
+        "description": "Workspace scope for the archive."
       },
       "V2DeleteFileResult": {
         "type": "object",

@@ -10,6 +10,7 @@ import {
   v2DeleteFileContract,
   v2DeleteFileFolderContract,
   v2DownloadFileContract,
+  v2ExtractFileContract,
   v2GetFileContract,
   v2GetFileShareContract,
   v2GetFileUploadContract,
@@ -363,6 +364,38 @@ const declaredRoutes = [
         'FileUploadResponse',
         'File upload response',
         'Current upload-session state.'
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2ExtractFileContract,
+    filesOperation({
+      operationId: 'extractFile',
+      summary: 'Extract File Archive',
+      description:
+        'Unzip a `.zip` archive into a new folder beside it and answer counts plus the destination path. The extracted files are deliberately not returned — a large archive would materialize thousands of objects into one response — so page `GET /api/v2/files?folderPath=...` for the contents. Extraction is slow: an archive near the size ceiling can run for minutes. Only one extraction of a given archive runs at a time; a concurrent attempt answers `409`. Archives past the size ceiling, and extractions that outrun their time budget, answer `413`.',
+      errors: [...RESOURCE_CONFLICT_ERRORS, 'PayloadTooLarge'],
+      success: { description: 'Counts and destination folder for the extracted archive.' },
+    }),
+    {
+      params: documentedSchema(
+        v2ExtractFileContract.params,
+        'ExtractFileParams',
+        'Extract archive path parameters',
+        'Archive selected for extraction.'
+      ),
+      query: v2ExtractFileContract.query,
+      body: documentedSchema(
+        v2ExtractFileContract.body,
+        'ExtractFileBody',
+        'Extract archive body',
+        'Workspace scope for the archive.'
+      ),
+      response: documentedSchema(
+        v2ExtractFileContract.response.schema,
+        'FileExtractionResponse',
+        'Archive extraction response',
+        'Counts and destination folder for the extracted archive.'
       ),
     }
   ),

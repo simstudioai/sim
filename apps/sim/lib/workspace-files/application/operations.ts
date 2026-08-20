@@ -59,11 +59,23 @@ export const fileOperations = {
     workspaceApiKey: 'allow',
     ...ALL_COPILOT_PRINCIPAL_POLICY,
   }),
+  /**
+   * Unzipping an archive into a folder beside it.
+   *
+   * Reachable by API keys because extraction grants no capability those keys
+   * lack: every file it writes could be created one at a time through
+   * `files.create` and `files.upload.create`, both already `workspaceApiKey:
+   * 'allow'` at the same `write` role. Extraction only makes it one call, so
+   * the previous `['session']` restriction read as an artifact of the UI having
+   * been its only caller rather than a decided policy. Delegated services stay
+   * out: no copilot or executor caller exists today and admitting one is a
+   * separate decision.
+   */
   extractArchive: defineWorkspaceOperation({
     id: 'files.extract_archive',
     minimumRole: 'write',
-    workspaceApiKey: 'deny',
-    principalKinds: ['session'],
+    workspaceApiKey: 'allow',
+    principalKinds: ['session', 'personal_api_key', 'workspace_api_key'],
   }),
   updateContent: defineWorkspaceOperation({
     id: 'files.update_content',

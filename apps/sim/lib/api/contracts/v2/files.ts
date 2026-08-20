@@ -714,6 +714,57 @@ export const v2DeleteFileContract = defineRouteContract({
   },
 })
 
+export const v2ExtractFileBodySchema = z
+  .object({
+    workspaceId: workspaceIdSchema.describe('Workspace that owns the archive.'),
+  })
+  .strict()
+export type V2ExtractFileBody = z.input<typeof v2ExtractFileBodySchema>
+
+/**
+ * Counts plus the destination path, deliberately not the extracted files.
+ *
+ * A large archive would otherwise materialize thousands of file objects into
+ * one response body — the same unbounded-materialization hazard the list
+ * endpoints exist to avoid. The caller pages
+ * `GET /api/v2/files?folderPath=...` instead.
+ */
+export const v2ExtractFileDataSchema = z
+  .object({
+    folderPath: v2FolderPathSchema.describe(
+      'Canonical path of the folder the archive was extracted into. May differ from the archive name when a sibling folder already claimed it.'
+    ),
+    extractedFileCount: z
+      .number()
+      .int()
+      .nonnegative()
+      .describe('Number of files written into the destination folder.'),
+    skippedFileCount: z
+      .number()
+      .int()
+      .nonnegative()
+      .describe('Number of archive entries skipped as unsafe, empty, or noise.'),
+  })
+  .strict()
+  .meta({
+    id: 'V2FileExtraction',
+    title: 'Archive extraction result',
+    description: 'Outcome of unzipping a workspace archive.',
+  })
+export type V2FileExtraction = z.output<typeof v2ExtractFileDataSchema>
+
+export const v2ExtractFileContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/v2/files/[fileId]/extract',
+  query: noInputSchema,
+  params: v2FileParamsSchema,
+  body: v2ExtractFileBodySchema,
+  response: {
+    mode: 'json',
+    schema: v2DataResponse(v2ExtractFileDataSchema),
+  },
+})
+
 export const v2RestoreFileContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/files/[fileId]/restore',
