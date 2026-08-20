@@ -2,10 +2,7 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
-import {
-  parseChartSpec,
-  shapeTableRows,
-} from '@/app/workspace/[workspaceId]/files/components/file-viewer/chart-preview'
+import { parseChartSpec, shapeTableRows } from '@/lib/charts/spec'
 
 const rows = [
   { month: '2024-01', region: 'NA', revenue: 100, conversion: 4 },

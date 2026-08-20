@@ -93,7 +93,12 @@ async function resolveServableBytes(params: {
     const text = buffer.toString('utf8')
     if (isSimPageSource(text)) {
       return {
-        buffer: Buffer.from(await renderSimPageDocumentWithAssets(text, { workspaceId }), 'utf8'),
+        buffer: Buffer.from(
+          // The principal lets referenced table-backed charts read CURRENT
+          // rows under the viewer's own authorization on every serve.
+          await renderSimPageDocumentWithAssets(text, { workspaceId, principal: filePrincipal }),
+          'utf8'
+        ),
         contentType: 'text/html',
       }
     }

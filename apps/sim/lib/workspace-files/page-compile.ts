@@ -1,6 +1,7 @@
 import { JSON_SCHEMA, load } from 'js-yaml'
 import { marked } from 'marked'
 import { z } from 'zod'
+import { renderChartFenceMarkup } from '@/lib/charts/fence'
 
 /**
  * Compiler for agent-authored `.html` pages.
@@ -300,24 +301,6 @@ export function isSimPageSource(content: string): boolean {
  * page helps nobody); the skip is reported through `diagnostics` instead,
  * which the file-editing tool surfaces back to the authoring agent.
  */
-/**
- * `sim:chart` renders through a PLUGGABLE renderer so this module stays
- * importable from client bundles without dragging echarts along. The
- * server-side SSR module (page-chart-ssr.server.ts) self-registers on import;
- * an unregistered environment (client live preview) renders a placeholder —
- * the stored/served compile is always server-side and gets the real SVG.
- */
-export type ChartFenceRenderer = (payload: unknown, caption: string) => string | null
-
-let chartFenceRenderer: ChartFenceRenderer | null = null
-
-export function registerChartFenceRenderer(renderer: ChartFenceRenderer): void {
-  chartFenceRenderer = renderer
-}
-
-const CHART_PLACEHOLDER =
-  '<figure class="sim-chart"><div class="sim-chart-placeholder">Chart — renders when the page is saved</div></figure>'
-
 function compileBody(source: string, diagnostics?: string[]): string {
   const lines = source.split('\n')
   const html: string[] = []
@@ -351,22 +334,18 @@ function compileBody(source: string, diagnostics?: string[]): string {
           diagnostics?.push('sim:diagram block skipped: its body must be a complete <svg> element')
         }
       } else if (kind === 'chart') {
-        if (chartFenceRenderer === null) {
-          html.push(CHART_PLACEHOLDER)
+        let rendered: string | null = null
+        try {
+          rendered = renderChartFenceMarkup(loadYaml(body), caption)
+        } catch {
+          rendered = null
+        }
+        if (rendered !== null) {
+          html.push(rendered)
         } else {
-          let rendered: string | null = null
-          try {
-            rendered = chartFenceRenderer(loadYaml(body), caption)
-          } catch {
-            rendered = null
-          }
-          if (rendered !== null) {
-            html.push(rendered)
-          } else {
-            diagnostics?.push(
-              'sim:chart block skipped: body must be JSON/YAML with an ECharts "option" object (optional "rows", "height")'
-            )
-          }
+          diagnostics?.push(
+            'sim:chart block skipped: body must be JSON/YAML with an ECharts "option" object (optional "rows", "height") or a {"file": "<chart file id>"} reference'
+          )
         }
       } else {
         const renderer = FENCE_RENDERERS[kind]

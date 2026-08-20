@@ -33,7 +33,7 @@ import {
   type RawFileInput,
   resolveTrustedFileContext,
 } from '@/lib/uploads/utils/file-utils'
-import { isSimPageSource } from '@/lib/workspace-files/page-compile'
+import { isSimPageSource, SIM_PAGE_CONTENT_TYPE } from '@/lib/workspace-files/page-compile'
 import { renderSimPageDocumentWithAssets } from '@/lib/workspace-files/page-document.server'
 import { verifyFileAccess } from '@/app/api/files/authorization'
 import type { UserFile } from '@/executor/types'
@@ -420,17 +420,24 @@ export async function downloadServableFileFromStorage(
     maxBytes: options.maxBytes,
   })
 
-  // The pdf model for pages: a `.html` file stores its source and downloads
+  // The pdf model for pages: a page file stores its source and downloads
   // resolve to the fully styled compiled document, like a .pdf key resolving
-  // to its binary.
-  if (userFile.name.toLowerCase().endsWith('.html')) {
+  // to its binary. Sim pages store an extensionless name (the record type
+  // marks them); legacy pages still carry .html.
+  if (userFile.name.toLowerCase().endsWith('.html') || userFile.type === SIM_PAGE_CONTENT_TYPE) {
     const text = buffer.toString('utf8')
     if (isSimPageSource(text)) {
       const workspaceId = userFile.key
         ? (parseWorkspaceFileKey(userFile.key) ?? undefined)
         : undefined
       return {
-        buffer: Buffer.from(await renderSimPageDocumentWithAssets(text, { workspaceId }), 'utf8'),
+        buffer: Buffer.from(
+          await renderSimPageDocumentWithAssets(text, {
+            workspaceId,
+            principal: options.filePrincipal,
+          }),
+          'utf8'
+        ),
         contentType: 'text/html',
       }
     }

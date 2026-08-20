@@ -14,6 +14,7 @@ import {
 } from '@/lib/workspace-files/artifact-stylesheet'
 import { compileSimPage, isSimPageSource } from '@/lib/workspace-files/page-compile'
 import { useHorizontalWheelScroll } from '@/app/workspace/[workspaceId]/files/components/file-viewer/use-horizontal-wheel-scroll'
+import { useWorkspaceFileBinary } from '@/hooks/queries/workspace-files'
 import { ChartPreview } from './chart-preview'
 import { type CsvImportFileDescriptor, useCsvTruncationImport } from './csv-import'
 import { DataTable } from './data-table'
@@ -80,7 +81,15 @@ export const PreviewPanel = memo(function PreviewPanel({
   const previewType = resolvePreviewType(mimeType, filename)
 
   if (previewType === 'html')
-    return <HtmlPreview content={content} isStreaming={isStreaming} workspaceId={workspaceId} />
+    return (
+      <HtmlPreview
+        content={content}
+        isStreaming={isStreaming}
+        workspaceId={workspaceId}
+        fileId={fileId}
+        fileKey={fileKey}
+      />
+    )
   if (previewType === 'csv')
     return (
       <CsvPreview
@@ -291,16 +300,35 @@ const HtmlPreview = memo(function HtmlPreview({
   content,
   isStreaming,
   workspaceId,
+  fileId,
+  fileKey,
 }: {
   content: string
   isStreaming?: boolean
   workspaceId?: string
+  fileId?: string
+  fileKey?: string
 }) {
   const { resolvedTheme } = useTheme()
   const router = useRouter()
   const batchedContent = useStreamBatchedValue(content, isStreaming === true, 2000)
+  // A SAVED sim page prefers the server-compiled document — the pptx/docx
+  // model: the serve route resolves chart references (reading a table's
+  // CURRENT rows under the viewer's authorization) and inlines the chart
+  // runtime, and reopening/refocusing refetches, so the page recompiles on
+  // reload. While it loads — and always while streaming/editing — the client
+  // compile below stands in, with chart figures as placeholders.
+  const isSavedPage =
+    Boolean(fileId && fileKey && workspaceId) && isStreaming !== true && isSimPageSource(content)
+  const served = useWorkspaceFileBinary(workspaceId ?? '', fileId ?? '', fileKey ?? '', {
+    enabled: isSavedPage,
+  })
+  const servedHtml = useMemo(
+    () => (isSavedPage && served.data ? new TextDecoder().decode(served.data) : null),
+    [isSavedPage, served.data]
+  )
   const builtContent = buildHtmlPreviewDocument(
-    batchedContent,
+    servedHtml ?? batchedContent,
     resolvedTheme === 'dark' ? 'dark' : 'light',
     workspaceId
   )

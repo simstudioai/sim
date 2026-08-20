@@ -390,12 +390,10 @@ figcaption { font-size: 0.875em; line-height: 1.4285714; color: var(--text-prima
 .faq details > :not(summary) { padding: 0 1rem; }
 .faq details > :last-child { padding-bottom: 0.9rem; margin-bottom: 0; }
 
-/* sim:chart — SSR'd ECharts SVGs, one per theme, swapped by the same
-   data-theme stamp the rest of the sheet keys on. The SVG carries a fixed
-   viewport; scale it to the text column. */
+/* sim:chart — a hydrated ECharts canvas (the inline runtime boots every
+   figure); the placeholder shows pre-hydration and for unresolved refs. */
 .sim-chart { margin: 1.5rem 0; }
-.sim-chart svg { max-width: 100%; height: auto; display: block; margin: 0 auto; }
-.sim-chart .sim-chart-dark { display: none; }
+.sim-chart .sim-chart-canvas { width: 100%; }
 .sim-chart-placeholder {
   border: 1px dashed var(--border);
   border-radius: 0.75rem;
@@ -404,12 +402,6 @@ figcaption { font-size: 0.875em; line-height: 1.4285714; color: var(--text-prima
   color: var(--text-muted);
   font-size: var(--text-sm);
 }
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .sim-chart .sim-chart-light { display: none; }
-  :root:not([data-theme="light"]) .sim-chart .sim-chart-dark { display: block; }
-}
-[data-theme="dark"] .sim-chart .sim-chart-light { display: none; }
-[data-theme="dark"] .sim-chart .sim-chart-dark { display: block; }
 
 /* The fumadocs callout: a rounded-xl bordered card at 14px with a rounded
    2px color bar down the start edge (the docs strip its shadow). */
