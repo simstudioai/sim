@@ -11,7 +11,7 @@ import {
   bitbucketHeaders,
   bitbucketJson,
   bitbucketPullRequestPath,
-  equalsIgnoreCase,
+  bitbucketRepositoryPathHasPrefix,
   normalizeBitbucketPullRequest,
   validateBitbucketOpaqueUrl,
 } from '@/tools/bitbucket/utils'
@@ -53,7 +53,7 @@ function mergeTaskLocation(
   )
   const parsed = new URL(taskUrl)
   const expectedPrefix = `/2.0${bitbucketPullRequestPath(params.workspaceSlug, params.repoSlug, params.prId)}/merge/task-status/`
-  if (!equalsIgnoreCase(parsed.pathname.slice(0, expectedPrefix.length), expectedPrefix)) {
+  if (!bitbucketRepositoryPathHasPrefix(parsed.pathname, expectedPrefix)) {
     throw new Error('Bitbucket merge task Location did not match the requested pull request')
   }
   const taskId = decodeURIComponent(parsed.pathname.slice(expectedPrefix.length))

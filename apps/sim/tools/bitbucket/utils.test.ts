@@ -117,6 +117,16 @@ describe('Bitbucket path and pagination safety', () => {
       })
     ).toBe(`https://api.bitbucket.org/2.0/repositories/acme/demo/src/${revision}/src/dir?page=2`)
 
+    for (const recased of [
+      'https://api.bitbucket.org/2.0/Repositories/acme/demo/commits?page=2',
+      'https://api.bitbucket.org/2.0/repositories/acme/demo/Commits?page=2',
+    ]) {
+      expect(
+        () => bitbucketApiUrl('/repositories/ACME/Demo/commits', { nextUrl: recased }),
+        recased
+      ).toThrow(/does not belong to this Bitbucket list endpoint/)
+    }
+
     expect(() =>
       bitbucketApiUrl(`/repositories/acme/demo/src/${revision}/src/Dir`, {
         nextUrl: `https://api.bitbucket.org/2.0/repositories/acme/demo/src/${revision}/src/dir?page=2`,
