@@ -93,7 +93,7 @@ export interface PerformCreateCredentialResult {
   errorCode?: CredentialOrchestrationErrorCode
   /** Provider-specific code (e.g. Atlassian `invalid_credentials`) for client message mapping. */
   providerErrorCode?: string
-  /** A provider outage rather than a rejected secret — callers surface 502, not 400. */
+  /** A provider outage rather than a rejected secret — callers surface 503, not 400. */
   providerUnavailable?: boolean
   credential?: CredentialRow
   /** False when an existing credential matched the source and was returned instead. */
