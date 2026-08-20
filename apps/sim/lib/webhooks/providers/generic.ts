@@ -14,6 +14,79 @@ import { verifyTokenAuth } from '@/lib/webhooks/providers/utils'
 
 const logger = createLogger('WebhookProvider:Generic')
 
+/**
+ * Headers withheld from the workflow input because they carry credentials. Exposing one would
+ * copy the secret into execution logs and trace spans, where it outlives the request. The
+ * webhook's own `secretHeaderName` is withheld on top of this list, per webhook.
+ *
+ * A denylist rather than an allowlist, because arbitrary custom headers being usable is the
+ * point of the feature.
+ */
+const CREDENTIAL_HEADER_NAMES = new Set([
+  'authorization',
+  'proxy-authorization',
+  'cookie',
+  'set-cookie',
+  'x-api-key',
+  'x-auth-token',
+  'x-sim-idempotency-key',
+])
+
+/** Request headers for the workflow input, minus the ones that carry credentials. */
+function exposedHeaders(
+  headers: Record<string, string>,
+  secretHeaderName?: string
+): Record<string, string> {
+  const withheld = secretHeaderName?.toLowerCase()
+  const exposed: Record<string, string> = {}
+
+  for (const [name, value] of Object.entries(headers)) {
+    const lowerName = name.toLowerCase()
+    if (CREDENTIAL_HEADER_NAMES.has(lowerName) || lowerName === withheld) continue
+    exposed[lowerName] = value
+  }
+
+  return exposed
+}
+
+/**
+ * Merge request metadata into the body under reserved keys. The body keeps precedence per key,
+ * so a payload that already carries a field of that name resolves exactly as it did before.
+ */
+function mergeRequestData(
+  body: unknown,
+  requestData: Record<string, Record<string, string>>,
+  requestId: string
+): unknown {
+  const entries = Object.entries(requestData).filter(([, value]) => Object.keys(value).length > 0)
+
+  if (entries.length === 0) {
+    return body
+  }
+
+  if (!isRecordLike(body)) {
+    logger.warn(
+      `[${requestId}] Dropping webhook request metadata: the body is not an object, so there is no field to merge it into`,
+      { keys: entries.map(([key]) => key) }
+    )
+    return body
+  }
+
+  const merged: Record<string, unknown> = { ...body }
+
+  for (const [key, value] of entries) {
+    if (key in body) {
+      logger.warn(
+        `[${requestId}] Dropping webhook ${key}: the body already defines a "${key}" field`
+      )
+      continue
+    }
+    merged[key] = value
+  }
+
+  return merged
+}
+
 export const genericHandler: WebhookProviderHandler = {
   acceptsGetDelivery: true,
 
@@ -88,30 +161,28 @@ export const genericHandler: WebhookProviderHandler = {
   },
 
   /**
-   * Expose query parameters under a reserved `query` key alongside the body fields.
-   * The body keeps precedence so payloads that already carry their own `query` field
-   * resolve exactly as they did before.
+   * Expose query parameters and request headers under reserved `query` and `headers` keys
+   * alongside the body fields.
    */
-  async formatInput({ body, query, requestId }: FormatInputContext): Promise<FormatInputResult> {
-    if (Object.keys(query).length === 0) {
-      return { input: body }
-    }
+  async formatInput({
+    body,
+    headers,
+    query,
+    webhook,
+    requestId,
+  }: FormatInputContext): Promise<FormatInputResult> {
+    const providerConfig = (webhook.providerConfig as Record<string, unknown> | null) ?? {}
 
-    if (!isRecordLike(body)) {
-      logger.warn(
-        `[${requestId}] Dropping query parameters: webhook body is not an object, so there is no field to merge them into`
-      )
-      return { input: body }
+    return {
+      input: mergeRequestData(
+        body,
+        {
+          query,
+          headers: exposedHeaders(headers, providerConfig.secretHeaderName as string | undefined),
+        },
+        requestId
+      ),
     }
-
-    if ('query' in body) {
-      logger.warn(
-        `[${requestId}] Dropping query parameters: webhook body already defines a "query" field`
-      )
-      return { input: body }
-    }
-
-    return { input: { ...body, query } }
   },
 
   async processInputFiles({

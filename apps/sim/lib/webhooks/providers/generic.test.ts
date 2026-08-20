@@ -5,12 +5,22 @@ import { describe, expect, it } from 'vitest'
 import { genericHandler } from '@/lib/webhooks/providers/generic'
 import type { FormatInputContext } from '@/lib/webhooks/providers/types'
 
-function context(body: unknown, query: Record<string, string>): FormatInputContext {
+function context(
+  body: unknown,
+  query: Record<string, string>,
+  options: { headers?: Record<string, string>; secretHeaderName?: string } = {}
+): FormatInputContext {
   return {
-    webhook: { id: 'webhook-id', provider: 'generic' },
+    webhook: {
+      id: 'webhook-id',
+      provider: 'generic',
+      providerConfig: options.secretHeaderName
+        ? { secretHeaderName: options.secretHeaderName }
+        : {},
+    },
     workflow: { id: 'workflow-id', userId: 'user-id' },
     body,
-    headers: {},
+    headers: options.headers ?? {},
     query,
     requestId: 'req-1',
   }
@@ -52,6 +62,61 @@ describe('genericHandler.formatInput', () => {
   it('leaves non-object bodies untouched', async () => {
     const body = [{ event: 'a' }]
     const result = await genericHandler.formatInput?.(context(body, { srcId: '123' }))
+
+    expect(result?.input).toEqual(body)
+  })
+
+  it('exposes request headers under "headers" with lowercased names', async () => {
+    const result = await genericHandler.formatInput?.(
+      context({ event: 'test' }, {}, { headers: { 'X-Event-Name': 'created' } })
+    )
+
+    expect(result?.input).toEqual({
+      event: 'test',
+      headers: { 'x-event-name': 'created' },
+    })
+  })
+
+  it('withholds headers that carry credentials', async () => {
+    const result = await genericHandler.formatInput?.(
+      context(
+        {},
+        {},
+        {
+          headers: {
+            authorization: 'Bearer secret',
+            cookie: 'session=secret',
+            'x-api-key': 'secret',
+            'x-sim-idempotency-key': 'abc',
+            'x-event-name': 'created',
+          },
+        }
+      )
+    )
+
+    expect(result?.input).toEqual({ headers: { 'x-event-name': 'created' } })
+  })
+
+  it("withholds the webhook's own configured secret header", async () => {
+    const result = await genericHandler.formatInput?.(
+      context(
+        {},
+        {},
+        {
+          headers: { 'X-Secret-Key': 'secret', 'x-event-name': 'created' },
+          secretHeaderName: 'X-Secret-Key',
+        }
+      )
+    )
+
+    expect(result?.input).toEqual({ headers: { 'x-event-name': 'created' } })
+  })
+
+  it('keeps a body field named "headers" instead of overwriting it', async () => {
+    const body = { headers: 'user typed this' }
+    const result = await genericHandler.formatInput?.(
+      context(body, {}, { headers: { 'x-event-name': 'created' } })
+    )
 
     expect(result?.input).toEqual(body)
   })
