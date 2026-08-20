@@ -220,11 +220,19 @@ export const workflowOperations = {
     workspaceApiKey: 'deny',
     ...HUMAN_WORKFLOW_PRINCIPAL_POLICY,
   }),
+  /**
+   * Toggling unauthenticated public execution is an admin-role change a human
+   * key-holder may legitimately make from a script, so personal API keys are
+   * accepted alongside sessions. Workspace keys stay denied and Copilot is not
+   * a principal here: the operation removes the authentication requirement from
+   * a deployed workflow, which needs an accountable human rather than a machine
+   * credential or an agent acting on a prompt.
+   */
   updatePublicApi: defineWorkspaceOperation({
     id: 'workflows.public_api.update',
     minimumRole: 'admin',
     workspaceApiKey: 'deny',
-    principalKinds: ['session'],
+    principalKinds: ['session', 'personal_api_key'],
   }),
   activateVersion: defineWorkspaceOperation({
     id: 'workflows.versions.activate',

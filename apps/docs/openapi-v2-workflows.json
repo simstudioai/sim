@@ -1205,6 +1205,300 @@
             "$ref": "#/components/responses/ServiceUnavailable"
           }
         }
+      },
+      "patch": {
+        "operationId": "updateWorkflowVersionV2",
+        "summary": "Update Workflow Version",
+        "description": "Relabel a deployment version. Merge-patch shaped: an omitted key is unchanged and `description: null` clears the release note. Metadata only — the pinned graph is immutable, and this never changes which version is live. Promote a version with `POST /workflows/{id}/versions/{version}/activate`.",
+        "tags": ["Workflows"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Unique workflow identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Unique workflow identifier."
+            }
+          },
+          {
+            "name": "version",
+            "in": "path",
+            "required": true,
+            "description": "Numeric deployment version.",
+            "schema": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 2147483647,
+              "description": "Numeric deployment version.",
+              "examples": [3]
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Merge-patch body for the mutable metadata of a deployment version.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateWorkflowVersionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated version metadata.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpdateWorkflowVersionResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/workflows/{id}/versions/{version}/activate": {
+      "post": {
+        "operationId": "activateWorkflowVersion",
+        "summary": "Activate Workflow Version",
+        "description": "Promote an existing deployment version to live. Activation is asynchronous; inspect `isDeployed` and `latestDeploymentAttempt` for current state. Unlike `rollback`, the target is named by the path and the workflow need not already be deployed. A workspace API key is rejected with `403`; use a personal API key.",
+        "tags": ["Workflows"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Unique workflow identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Unique workflow identifier."
+            }
+          },
+          {
+            "name": "version",
+            "in": "path",
+            "required": true,
+            "description": "Numeric deployment version.",
+            "schema": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 2147483647,
+              "description": "Numeric deployment version.",
+              "examples": [3]
+            }
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "description": "No body. The version to promote is named by the request path.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ActivateWorkflowVersionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The accepted activation attempt.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActivateWorkflowVersionResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "423": {
+            "$ref": "#/components/responses/Locked"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/workflows/{id}/versions/{version}/revert": {
+      "post": {
+        "operationId": "revertWorkflowVersion",
+        "summary": "Revert Workflow To Version",
+        "description": "Overwrite the editable draft with the graph pinned by a deployment version, discarding every unsaved edit. This is the most destructive operation in the deployment family and it does **not** change what is live — to move production, use `activate` or `rollback`, both of which leave the draft alone. Pass `active` as the version to discard draft edits and return to the live graph. A workspace API key is rejected with `403`; use a personal API key.",
+        "tags": ["Workflows"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Unique workflow identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Unique workflow identifier."
+            }
+          },
+          {
+            "name": "version",
+            "in": "path",
+            "required": true,
+            "description": "Numeric deployment version, or `active` for the currently live version.",
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 2147483647
+                },
+                {
+                  "type": "string",
+                  "const": "active"
+                }
+              ],
+              "description": "Numeric deployment version, or `active` for the currently live version.",
+              "examples": [3, "active"]
+            }
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "description": "No body. The version to load into the draft is named by the request path.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RevertWorkflowVersionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The draft after it was overwritten.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RevertWorkflowVersionResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "423": {
+            "$ref": "#/components/responses/Locked"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
       }
     },
     "/api/v2/workflows/{id}/deployment": {
@@ -1260,6 +1554,87 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      },
+      "patch": {
+        "operationId": "updateWorkflowPublicApi",
+        "summary": "Update Workflow Public API Access",
+        "description": "Enable or disable unauthenticated public execution of the deployed workflow. While enabled, anyone holding the execution URL can run the workflow without an API key. An organization that forbids public sharing refuses this with `403` and `PUBLIC_SHARING_NOT_ALLOWED`. A workspace API key is rejected with `403`; use a personal API key.",
+        "tags": ["Workflows"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Unique workflow identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Unique workflow identifier.",
+              "examples": ["3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36"]
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Enable or disable unauthenticated public execution of the deployed workflow.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateWorkflowPublicApiRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated public API setting.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpdateWorkflowPublicApiResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "423": {
+            "$ref": "#/components/responses/Locked"
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"
@@ -5555,6 +5930,97 @@
           }
         ]
       },
+      "WorkflowVersionMetadata": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991,
+            "description": "Monotonically increasing deployment version number."
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Version label, or null when unset."
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Version release note, or null when unset."
+          }
+        },
+        "required": ["version", "name", "description"],
+        "additionalProperties": false,
+        "title": "Workflow version metadata",
+        "description": "Mutable label and release note of a deployment version."
+      },
+      "UpdateWorkflowVersionResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/WorkflowVersionMetadata"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Update workflow version response",
+        "description": "The deployment version metadata after the update.",
+        "examples": [
+          {
+            "data": {
+              "version": 3,
+              "name": "Escalation routing",
+              "description": "Adds the priority escalation branch."
+            }
+          }
+        ]
+      },
+      "UpdateWorkflowVersionRequest": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "description": "New label for the deployment version.",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "description": {
+            "description": "New release note for the deployment version, or null to clear it.",
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 50000
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "title": "Update workflow version request",
+        "description": "Merge-patch body for the mutable metadata of a deployment version.",
+        "examples": [
+          {
+            "name": "Escalation routing",
+            "description": "Adds the priority escalation branch."
+          }
+        ]
+      },
       "ActiveDeploymentSummary": {
         "type": "object",
         "properties": {
@@ -5702,6 +6168,194 @@
         "title": "Deployment operation error",
         "description": "Failure details for a deployment lifecycle operation."
       },
+      "RollbackResult": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique workflow identifier.",
+            "examples": ["3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36"]
+          },
+          "isDeployed": {
+            "type": "boolean",
+            "description": "Whether a workflow version is currently live and available for API execution."
+          },
+          "deployedAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ISO 8601 timestamp associated with the deployment, or null when unavailable.",
+            "format": "date-time",
+            "examples": ["2026-06-12T10:30:00.000Z"]
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Non-fatal synchronization warnings. Empty when there is nothing to report."
+          },
+          "activeDeployment": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ActiveDeploymentSummary"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Currently live deployment version, or null while no version is active."
+          },
+          "latestDeploymentAttempt": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DeploymentOperationSummary"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Most recent deployment lifecycle attempt, or null when none is available."
+          },
+          "version": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991,
+            "description": "Deployment version selected for re-activation."
+          }
+        },
+        "required": [
+          "id",
+          "isDeployed",
+          "deployedAt",
+          "warnings",
+          "activeDeployment",
+          "latestDeploymentAttempt",
+          "version"
+        ],
+        "additionalProperties": false,
+        "title": "Rollback result",
+        "description": "Rollback attempt accepted for processing. Activation is asynchronous; inspect `isDeployed` and `latestDeploymentAttempt` for current state."
+      },
+      "ActivateWorkflowVersionResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/RollbackResult"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Activate workflow version response",
+        "description": "Current deployment state after accepting the activation attempt.",
+        "examples": [
+          {
+            "data": {
+              "id": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36",
+              "isDeployed": false,
+              "deployedAt": null,
+              "warnings": [],
+              "activeDeployment": null,
+              "latestDeploymentAttempt": {
+                "id": "depop_01J8ZK4RX5N7Y3S0U8D6E1W2",
+                "deploymentVersionId": "depver_01J8ZK4RX5N7Y3S0U8D6E1W3",
+                "version": 3,
+                "action": "activate",
+                "status": "activating",
+                "isCurrent": true,
+                "readiness": {
+                  "webhooks": "ready",
+                  "schedules": "ready",
+                  "mcp": "not_applicable"
+                },
+                "requestedAt": "2026-06-12T10:30:00.000Z",
+                "activatedAt": null,
+                "error": null
+              },
+              "version": 3
+            }
+          }
+        ]
+      },
+      "ActivateWorkflowVersionRequest": {
+        "default": {},
+        "title": "Activate workflow version request",
+        "description": "No body. The version to promote is named by the request path.",
+        "examples": [{}],
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      },
+      "RevertWorkflowVersionResult": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique workflow identifier."
+          },
+          "version": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "string",
+                "const": "active"
+              }
+            ],
+            "description": "Deployment version loaded into the draft, or `active` for the live version."
+          },
+          "lastSaved": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "description": "Epoch milliseconds at which the overwritten draft was saved."
+          }
+        },
+        "required": ["id", "version", "lastSaved"],
+        "additionalProperties": false,
+        "title": "Revert workflow version result",
+        "description": "The draft after it was overwritten by a deployment version."
+      },
+      "RevertWorkflowVersionResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/RevertWorkflowVersionResult"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Revert workflow version response",
+        "description": "The draft after it was overwritten by the deployment version.",
+        "examples": [
+          {
+            "data": {
+              "id": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36",
+              "version": 3,
+              "lastSaved": 1765535400000
+            }
+          }
+        ]
+      },
+      "RevertWorkflowVersionRequest": {
+        "default": {},
+        "title": "Revert workflow version request",
+        "description": "No body. The version to load into the draft is named by the request path.",
+        "examples": [{}],
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      },
       "WorkflowDeployment": {
         "type": "object",
         "properties": {
@@ -5816,6 +6470,62 @@
                 "error": null
               }
             }
+          }
+        ]
+      },
+      "WorkflowPublicApiSettings": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique workflow identifier."
+          },
+          "isPublicApi": {
+            "type": "boolean",
+            "description": "Whether the deployed workflow accepts unauthenticated public API execution."
+          }
+        },
+        "required": ["id", "isPublicApi"],
+        "additionalProperties": false,
+        "title": "Workflow public API settings",
+        "description": "Whether a deployed workflow is executable without an API key."
+      },
+      "UpdateWorkflowPublicApiResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/WorkflowPublicApiSettings"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Update workflow public API response",
+        "description": "Public API access after the update.",
+        "examples": [
+          {
+            "data": {
+              "id": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36",
+              "isPublicApi": true
+            }
+          }
+        ]
+      },
+      "UpdateWorkflowPublicApiRequest": {
+        "type": "object",
+        "properties": {
+          "isPublicApi": {
+            "type": "boolean",
+            "description": "Whether the deployed workflow should accept unauthenticated public API execution."
+          }
+        },
+        "required": ["isPublicApi"],
+        "additionalProperties": false,
+        "title": "Update workflow public API request",
+        "description": "Enable or disable unauthenticated public execution of the deployed workflow.",
+        "examples": [
+          {
+            "isPublicApi": true
           }
         ]
       },
@@ -6057,80 +6767,6 @@
             }
           }
         ]
-      },
-      "RollbackResult": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "description": "Unique workflow identifier.",
-            "examples": ["3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36"]
-          },
-          "isDeployed": {
-            "type": "boolean",
-            "description": "Whether a workflow version is currently live and available for API execution."
-          },
-          "deployedAt": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "ISO 8601 timestamp associated with the deployment, or null when unavailable.",
-            "format": "date-time",
-            "examples": ["2026-06-12T10:30:00.000Z"]
-          },
-          "warnings": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            },
-            "description": "Non-fatal synchronization warnings. Empty when there is nothing to report."
-          },
-          "activeDeployment": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/ActiveDeploymentSummary"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Currently live deployment version, or null while no version is active."
-          },
-          "latestDeploymentAttempt": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/DeploymentOperationSummary"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Most recent deployment lifecycle attempt, or null when none is available."
-          },
-          "version": {
-            "type": "integer",
-            "exclusiveMinimum": 0,
-            "maximum": 9007199254740991,
-            "description": "Deployment version selected for re-activation."
-          }
-        },
-        "required": [
-          "id",
-          "isDeployed",
-          "deployedAt",
-          "warnings",
-          "activeDeployment",
-          "latestDeploymentAttempt",
-          "version"
-        ],
-        "additionalProperties": false,
-        "title": "Rollback result",
-        "description": "Rollback attempt accepted for processing. Activation is asynchronous; inspect `isDeployed` and `latestDeploymentAttempt` for current state."
       },
       "RollbackWorkflowResponse": {
         "type": "object",

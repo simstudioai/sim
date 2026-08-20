@@ -3445,9 +3445,171 @@ sim tools list [options]
 
 </CommandTable>
 
+## sim workflow-mcp-servers
+
+### sim workflow-mcp-servers create
+
+Create Workflow MCP Server
+
+```bash
+sim workflow-mcp-servers create [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--name <value>` | Yes | Server display name, shown to connecting MCP clients. |
+| `--description <value>` | No | Optional server description. |
+| `--is-public` | No | Whether the server answers MCP clients without a Sim API key. Defaults to false — a public server executes the workflows it publishes for anyone holding its URL. |
+| `--no-is-public` | No | Send --is-public as false. |
+| `--workflow-ids <json\|@file>` | No | Deployed workflows to publish as tools on the new server. (JSON, or @path / @- to read a file or stdin). |
+
+</CommandTable>
+
+### sim workflow-mcp-servers delete
+
+Delete Workflow MCP Server
+
+```bash
+sim workflow-mcp-servers delete <serverId>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `serverId` | Yes | Unique workflow-MCP server identifier. |
+
+</CommandTable>
+
+### sim workflow-mcp-servers tools create
+
+Publish Workflow As MCP Tool
+
+```bash
+sim workflow-mcp-servers tools create <serverId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `serverId` | Yes | Unique workflow-MCP server identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--workflow-id <value>` | Yes | Deployed workflow to publish. The workflow must already be deployed. |
+| `--tool-name <value>` | No | Name MCP clients call. Normalized to the MCP tool-name grammar, and derived from the workflow name when omitted. |
+| `--tool-description <value>` | No | Description shown to MCP clients. Derived from the workflow name when omitted. |
+| `--parameter-descriptions <json\|@file>` | No | Per-field description overrides applied to the schema generated from the deployed workflow inputs. A name matching no input field is ignored. (JSON, or @path / @- to read a file or stdin). |
+
+</CommandTable>
+
+### sim workflow-mcp-servers tools delete
+
+Unpublish Workflow MCP Tool
+
+```bash
+sim workflow-mcp-servers tools delete <serverId> <workflowId>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `serverId` | Yes | Unique workflow-MCP server identifier. |
+| `workflowId` | Yes | Workflow published as a tool on this server. |
+
+</CommandTable>
+
+### sim workflow-mcp-servers list
+
+List Workflow MCP Servers
+
+```bash
+sim workflow-mcp-servers list [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--sort-by <value>` | No | Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order. Accepted values: `name`, `createdAt`, `updatedAt`. |
+| `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+
+</CommandTable>
+
+### sim workflow-mcp-servers update
+
+Update Workflow MCP Server
+
+```bash
+sim workflow-mcp-servers update <serverId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `serverId` | Yes | Unique workflow-MCP server identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--name <value>` | No | Server display name, shown to connecting MCP clients. |
+| `--description <value>` | No | New server description, or null to clear it. |
+| `--is-public` | No | Whether the server answers MCP clients without a Sim API key. |
+| `--no-is-public` | No | Send --is-public as false. |
+
+</CommandTable>
+
 ## sim workflows
 
 Also spelled `sim workflow`.
+
+### sim workflows activate create
+
+Activate Workflow Version
+
+```bash
+sim workflows activate create <id> <version>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `id` | Yes | Unique workflow identifier. |
+| `version` | Yes | Numeric deployment version. |
+
+</CommandTable>
 
 ### sim workflows operations create
 
@@ -3938,6 +4100,34 @@ sim workflows deployment status <id>
 
 </CommandTable>
 
+### sim workflows deployment update
+
+Update Workflow Public API Access
+
+```bash
+sim workflows deployment update <id> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `id` | Yes | Unique workflow identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--is-public-api <true\|false>` | Yes | Whether the deployed workflow should accept unauthenticated public API execution. Accepted values: `true`, `false`. |
+
+</CommandTable>
+
 ### sim workflows state list
 
 Get Workflow State
@@ -4035,6 +4225,36 @@ sim workflows versions list <id> [options]
 
 </CommandTable>
 
+### sim workflows versions update
+
+Update Workflow Version
+
+```bash
+sim workflows versions update <id> <version> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `id` | Yes | Unique workflow identifier. |
+| `version` | Yes | Numeric deployment version. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--name <value>` | No | New label for the deployment version. |
+| `--description <value>` | No | New release note for the deployment version, or null to clear it. |
+
+</CommandTable>
+
 ### sim workflows import
 
 Import Workflow
@@ -4115,6 +4335,25 @@ sim workflows restore create <id>
 | Argument | Required | Description |
 | --- | --- | --- |
 | `id` | Yes | Unique workflow identifier. |
+
+</CommandTable>
+
+### sim workflows revert create
+
+Revert Workflow To Version
+
+```bash
+sim workflows revert create <id> <version>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `id` | Yes | Unique workflow identifier. |
+| `version` | Yes | Numeric deployment version, or `active` for the currently live version. |
 
 </CommandTable>
 

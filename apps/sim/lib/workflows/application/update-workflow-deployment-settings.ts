@@ -1,8 +1,9 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
-import type { Principal } from '@sim/auth/principal'
+import { type Principal, requirePrincipalSubjectUserId } from '@sim/auth/principal'
 import { db, workflow } from '@sim/db'
 import { assertWorkflowMutable, WorkflowLockedError } from '@sim/platform-authz/workflow'
 import { eq } from 'drizzle-orm'
+import { ForbiddenOperationError } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { notifyWorkflowUpdated } from '@/lib/realtime/notify'
 import { defineAuthorizedWorkflowUseCase } from '@/lib/workflows/application/authorized-workflow-use-case'
@@ -34,20 +35,21 @@ export const updateWorkflowPublicApi = defineAuthorizedWorkflowUseCase({
       assertedWorkspaceId: assertedWorkflowWorkspaceId(principal, input.assertedWorkspaceId),
     }),
   async execute({ principal, input, context }) {
-    if (principal.kind !== 'session') {
-      throw new Error('Workflow public API settings require a session principal')
-    }
+    const actingUserId = requirePrincipalSubjectUserId(principal)
     try {
       await assertWorkflowMutable(context.workflowId)
       if (input.isPublicApi) {
-        await validatePublicApiAllowed(principal.userId, context.workspaceId)
+        await validatePublicApiAllowed(actingUserId, context.workspaceId)
       }
     } catch (error) {
       if (error instanceof WorkflowLockedError) {
         throw new OrchestrationError('locked', error.message)
       }
       if (error instanceof PublicApiNotAllowedError) {
-        throw new OrchestrationError('forbidden', 'Public API access is disabled')
+        throw new ForbiddenOperationError(
+          'PUBLIC_SHARING_NOT_ALLOWED',
+          'Public API access is disabled'
+        )
       }
       throw error
     }

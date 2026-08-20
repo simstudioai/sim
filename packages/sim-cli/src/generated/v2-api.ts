@@ -111,6 +111,61 @@ export type AbortKnowledgeDocumentUploadResponse = {
   data: AbortKnowledgeDocumentUploadResponseRef1
 }
 
+/** `POST /api/v2/workflows/[id]/versions/[version]/activate` */
+export type ActivateWorkflowVersionParams = {
+  id: string
+  version: number
+}
+
+export type ActivateWorkflowVersionQuery = Record<string, unknown>
+
+export type ActivateWorkflowVersionBody = Record<string, unknown>
+
+type ActivateWorkflowVersionResponseRef0 = {
+  deploymentVersionId: string
+  version: number
+  deployedAt: string
+}
+
+type ActivateWorkflowVersionResponseRef1 = {
+  id: string
+  deploymentVersionId: string
+  version: number
+  action: 'deploy' | 'activate'
+  status: 'preparing' | 'activating' | 'active' | 'failed' | 'superseded'
+  isCurrent: boolean
+  readiness: ActivateWorkflowVersionResponseRef2
+  requestedAt: string
+  activatedAt?: string | null
+  error?: ActivateWorkflowVersionResponseRef3 | null
+}
+
+type ActivateWorkflowVersionResponseRef2 = {
+  webhooks: 'pending' | 'ready' | 'not_applicable'
+  schedules: 'pending' | 'ready' | 'not_applicable'
+  mcp: 'pending' | 'ready' | 'not_applicable'
+}
+
+type ActivateWorkflowVersionResponseRef3 = {
+  code: string
+  message: string
+  retryable: boolean
+}
+
+type ActivateWorkflowVersionResponseRef4 = {
+  id: string
+  isDeployed: boolean
+  deployedAt: string | null
+  warnings: Array<string>
+  activeDeployment: ActivateWorkflowVersionResponseRef0 | null
+  latestDeploymentAttempt: ActivateWorkflowVersionResponseRef1 | null
+  version: number
+}
+
+export type ActivateWorkflowVersionResponse = {
+  data: ActivateWorkflowVersionResponseRef4
+}
+
 /** `POST /api/v2/tables/[tableId]/columns` */
 export type AddTableColumnParams = {
   tableId: string
@@ -1954,6 +2009,31 @@ export type CreateWorkflowFolderResponse = {
   data: CreateWorkflowFolderResponseRef0
 }
 
+/** `POST /api/v2/workflow-mcp-servers` */
+export type CreateWorkflowMcpServerQuery = Record<string, unknown>
+
+export type CreateWorkflowMcpServerBody = {
+  workspaceId: string
+  name: string
+  description?: string
+  isPublic?: boolean
+  workflowIds?: Array<string>
+}
+
+type CreateWorkflowMcpServerResponseRef0 = {
+  id: string
+  name: string
+  description: string | null
+  isPublic: boolean
+  mcpServerUrl: string
+  createdAt: string
+  updatedAt: string
+}
+
+export type CreateWorkflowMcpServerResponse = {
+  data: CreateWorkflowMcpServerResponseRef0
+}
+
 /** `DELETE /api/v2/credentials/[credentialId]` */
 export type DeleteCredentialParams = {
   credentialId: string
@@ -2465,6 +2545,22 @@ export type DeleteWorkflowGroupResponse = {
   data: DeleteWorkflowGroupResponseRef0
 }
 
+/** `DELETE /api/v2/workflow-mcp-servers/[serverId]` */
+export type DeleteWorkflowMcpServerParams = {
+  serverId: string
+}
+
+export type DeleteWorkflowMcpServerQuery = Record<string, unknown>
+
+type DeleteWorkflowMcpServerResponseRef0 = {
+  id: string
+  deleted: true
+}
+
+export type DeleteWorkflowMcpServerResponse = {
+  data: DeleteWorkflowMcpServerResponseRef0
+}
+
 /** `POST /api/v2/workflows/[id]/deploy` */
 export type DeployWorkflowParams = {
   id: string
@@ -2520,6 +2616,40 @@ type DeployWorkflowResponseRef4 = {
 
 export type DeployWorkflowResponse = {
   data: DeployWorkflowResponseRef4
+}
+
+/** `POST /api/v2/workflow-mcp-servers/[serverId]/tools` */
+export type DeployWorkflowMcpToolParams = {
+  serverId: string
+}
+
+export type DeployWorkflowMcpToolQuery = Record<string, unknown>
+
+export type DeployWorkflowMcpToolBody = {
+  workflowId: string
+  toolName?: string
+  toolDescription?: string
+  parameterDescriptions?: Array<{
+    name: string
+    description: string
+  }>
+}
+
+type DeployWorkflowMcpToolResponseRef0 = {
+  id: string
+  serverId: string
+  workflowId: string
+  toolName: string
+  toolDescription: string | null
+  mcpServerUrl: string
+  apiEndpoint: string
+  updated: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+export type DeployWorkflowMcpToolResponse = {
+  data: DeployWorkflowMcpToolResponseRef0
 }
 
 /** `GET /api/v2/files/[fileId]` */
@@ -5066,6 +5196,32 @@ export type ListWorkflowGroupsResponse = {
   nextCursor: string | null
 }
 
+/** `GET /api/v2/workflow-mcp-servers` */
+export type ListWorkflowMcpServersQuery = {
+  workspaceId: string
+  sortBy?: 'name' | 'createdAt' | 'updatedAt'
+  sortOrder?: 'asc' | 'desc'
+  limit?: number
+  cursor?: string
+}
+
+type ListWorkflowMcpServersResponseRef0 = {
+  id: string
+  name: string
+  description: string | null
+  isPublic: boolean
+  mcpServerUrl: string
+  createdAt: string
+  updatedAt: string
+  toolCount: number
+  toolNames: Array<string>
+}
+
+export type ListWorkflowMcpServersResponse = {
+  data: Array<ListWorkflowMcpServersResponseRef0>
+  nextCursor: string | null
+}
+
 /** `GET /api/v2/workflows/[id]/runs` */
 export type ListWorkflowRunsParams = {
   id: string
@@ -5912,6 +6068,26 @@ export type ResumeWorkflowResponse =
       data: ResumeWorkflowResponseRef2
     }
 
+/** `POST /api/v2/workflows/[id]/versions/[version]/revert` */
+export type RevertWorkflowVersionParams = {
+  id: string
+  version: number | 'active'
+}
+
+export type RevertWorkflowVersionQuery = Record<string, unknown>
+
+export type RevertWorkflowVersionBody = Record<string, unknown>
+
+type RevertWorkflowVersionResponseRef0 = {
+  id: string
+  version: number | 'active'
+  lastSaved: number
+}
+
+export type RevertWorkflowVersionResponse = {
+  data: RevertWorkflowVersionResponseRef0
+}
+
 /** `POST /api/v2/workflows/[id]/rollback` */
 export type RollbackWorkflowParams = {
   id: string
@@ -6233,6 +6409,25 @@ type UndeployWorkflowResponseRef4 = {
 
 export type UndeployWorkflowResponse = {
   data: UndeployWorkflowResponseRef4
+}
+
+/** `DELETE /api/v2/workflow-mcp-servers/[serverId]/tools/[workflowId]` */
+export type UndeployWorkflowMcpToolParams = {
+  serverId: string
+  workflowId: string
+}
+
+export type UndeployWorkflowMcpToolQuery = Record<string, unknown>
+
+type UndeployWorkflowMcpToolResponseRef0 = {
+  id: string
+  serverId: string
+  workflowId: string
+  deleted: true
+}
+
+export type UndeployWorkflowMcpToolResponse = {
+  data: UndeployWorkflowMcpToolResponseRef0
 }
 
 /** `PATCH /api/v2/custom-tools/[id]` */
@@ -7008,6 +7203,76 @@ export type UpdateWorkflowGroupResponse = {
   data: UpdateWorkflowGroupResponseRef1
 }
 
+/** `PATCH /api/v2/workflow-mcp-servers/[serverId]` */
+export type UpdateWorkflowMcpServerParams = {
+  serverId: string
+}
+
+export type UpdateWorkflowMcpServerQuery = Record<string, unknown>
+
+export type UpdateWorkflowMcpServerBody = {
+  name?: string
+  description?: string | null
+  isPublic?: boolean
+}
+
+type UpdateWorkflowMcpServerResponseRef0 = {
+  id: string
+  name: string
+  description: string | null
+  isPublic: boolean
+  mcpServerUrl: string
+  createdAt: string
+  updatedAt: string
+}
+
+export type UpdateWorkflowMcpServerResponse = {
+  data: UpdateWorkflowMcpServerResponseRef0
+}
+
+/** `PATCH /api/v2/workflows/[id]/deployment` */
+export type UpdateWorkflowPublicApiParams = {
+  id: string
+}
+
+export type UpdateWorkflowPublicApiQuery = Record<string, unknown>
+
+export type UpdateWorkflowPublicApiBody = {
+  isPublicApi: boolean
+}
+
+type UpdateWorkflowPublicApiResponseRef0 = {
+  id: string
+  isPublicApi: boolean
+}
+
+export type UpdateWorkflowPublicApiResponse = {
+  data: UpdateWorkflowPublicApiResponseRef0
+}
+
+/** `PATCH /api/v2/workflows/[id]/versions/[version]` */
+export type UpdateWorkflowVersionParams = {
+  id: string
+  version: number
+}
+
+export type UpdateWorkflowVersionQuery = Record<string, unknown>
+
+export type UpdateWorkflowVersionBody = {
+  name?: string
+  description?: string | null
+}
+
+type UpdateWorkflowVersionResponseRef0 = {
+  version: number
+  name: string | null
+  description: string | null
+}
+
+export type UpdateWorkflowVersionResponse = {
+  data: UpdateWorkflowVersionResponseRef0
+}
+
 /** `POST /api/v2/knowledge/[id]/documents` */
 export type UploadKnowledgeDocumentParams = {
   id: string
@@ -7155,6 +7420,14 @@ export const V2_OPERATIONS = {
         describe: 'Workspace that owns the knowledge base.',
       },
     },
+  },
+  activateWorkflowVersion: {
+    method: 'POST',
+    path: '/api/v2/workflows/[id]/versions/[version]/activate',
+    pathParams: ['id', 'version'] as const,
+    pathParamDocs: { id: 'Unique workflow identifier.', version: 'Numeric deployment version.' },
+    responseMode: 'json',
+    summary: 'Activate Workflow Version',
   },
   addTableColumn: {
     method: 'POST',
@@ -7985,6 +8258,36 @@ export const V2_OPERATIONS = {
       path: { kind: 'string', required: true, describe: 'Path of the folder to create.' },
     },
   },
+  createWorkflowMcpServer: {
+    method: 'POST',
+    path: '/api/v2/workflow-mcp-servers',
+    pathParams: [] as const,
+    responseMode: 'json',
+    summary: 'Create Workflow MCP Server',
+    body: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace in which to publish the server.',
+      },
+      name: {
+        kind: 'string',
+        required: true,
+        describe: 'Server display name, shown to connecting MCP clients.',
+      },
+      description: { kind: 'string', describe: 'Optional server description.' },
+      isPublic: {
+        kind: 'boolean',
+        default: false,
+        describe:
+          'Whether the server answers MCP clients without a Sim API key. Defaults to false — a public server executes the workflows it publishes for anyone holding its URL.',
+      },
+      workflowIds: {
+        kind: 'array',
+        describe: 'Deployed workflows to publish as tools on the new server.',
+      },
+    },
+  },
   deleteCredential: {
     method: 'DELETE',
     path: '/api/v2/credentials/[credentialId]',
@@ -8317,6 +8620,14 @@ export const V2_OPERATIONS = {
       groupId: { kind: 'string', required: true, describe: 'Workflow group to delete.' },
     },
   },
+  deleteWorkflowMcpServer: {
+    method: 'DELETE',
+    path: '/api/v2/workflow-mcp-servers/[serverId]',
+    pathParams: ['serverId'] as const,
+    pathParamDocs: { serverId: 'Unique workflow-MCP server identifier.' },
+    responseMode: 'json',
+    summary: 'Delete Workflow MCP Server',
+  },
   deployWorkflow: {
     method: 'POST',
     path: '/api/v2/workflows/[id]/deploy',
@@ -8329,6 +8640,35 @@ export const V2_OPERATIONS = {
       description: {
         kind: 'string',
         describe: 'Optional release note for the deployment version.',
+      },
+    },
+  },
+  deployWorkflowMcpTool: {
+    method: 'POST',
+    path: '/api/v2/workflow-mcp-servers/[serverId]/tools',
+    pathParams: ['serverId'] as const,
+    pathParamDocs: { serverId: 'Unique workflow-MCP server identifier.' },
+    responseMode: 'json',
+    summary: 'Publish Workflow As MCP Tool',
+    body: {
+      workflowId: {
+        kind: 'string',
+        required: true,
+        describe: 'Deployed workflow to publish. The workflow must already be deployed.',
+      },
+      toolName: {
+        kind: 'string',
+        describe:
+          'Name MCP clients call. Normalized to the MCP tool-name grammar, and derived from the workflow name when omitted.',
+      },
+      toolDescription: {
+        kind: 'string',
+        describe: 'Description shown to MCP clients. Derived from the workflow name when omitted.',
+      },
+      parameterDescriptions: {
+        kind: 'array',
+        describe:
+          'Per-field description overrides applied to the schema generated from the deployed workflow inputs. A name matching no input field is ignored.',
       },
     },
   },
@@ -9929,6 +10269,44 @@ export const V2_OPERATIONS = {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the table.' },
     },
   },
+  listWorkflowMcpServers: {
+    method: 'GET',
+    path: '/api/v2/workflow-mcp-servers',
+    pathParams: [] as const,
+    responseMode: 'json',
+    summary: 'List Workflow MCP Servers',
+    query: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace whose published MCP servers to list.',
+      },
+      sortBy: {
+        kind: 'enum',
+        values: ['name', 'createdAt', 'updatedAt'] as const,
+        default: 'createdAt',
+        describe:
+          'Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.',
+      },
+      sortOrder: {
+        kind: 'enum',
+        values: ['asc', 'desc'] as const,
+        default: 'desc',
+        describe: 'Sort direction.',
+      },
+      limit: {
+        kind: 'integer',
+        default: 50,
+        describe:
+          'Maximum workflow-MCP servers to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
+      },
+      cursor: {
+        kind: 'string',
+        describe:
+          'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+      },
+    },
+  },
   listWorkflowRuns: {
     method: 'GET',
     path: '/api/v2/workflows/[id]/runs',
@@ -10401,6 +10779,17 @@ export const V2_OPERATIONS = {
       input: { kind: 'unknown', describe: 'Input supplied to the paused workflow block.' },
     },
   },
+  revertWorkflowVersion: {
+    method: 'POST',
+    path: '/api/v2/workflows/[id]/versions/[version]/revert',
+    pathParams: ['id', 'version'] as const,
+    pathParamDocs: {
+      id: 'Unique workflow identifier.',
+      version: 'Numeric deployment version, or `active` for the currently live version.',
+    },
+    responseMode: 'json',
+    summary: 'Revert Workflow To Version',
+  },
   rollbackWorkflow: {
     method: 'POST',
     path: '/api/v2/workflows/[id]/rollback',
@@ -10573,6 +10962,17 @@ export const V2_OPERATIONS = {
     pathParamDocs: { id: 'Unique workflow identifier.' },
     responseMode: 'json',
     summary: 'Undeploy Workflow',
+  },
+  undeployWorkflowMcpTool: {
+    method: 'DELETE',
+    path: '/api/v2/workflow-mcp-servers/[serverId]/tools/[workflowId]',
+    pathParams: ['serverId', 'workflowId'] as const,
+    pathParamDocs: {
+      serverId: 'Unique workflow-MCP server identifier.',
+      workflowId: 'Workflow published as a tool on this server.',
+    },
+    responseMode: 'json',
+    summary: 'Unpublish Workflow MCP Tool',
   },
   updateCustomTool: {
     method: 'PATCH',
@@ -10908,6 +11308,53 @@ export const V2_OPERATIONS = {
           "Workflow-group producer type. Must match the group's stored type — a group's producer cannot be changed after creation.",
       },
       autoRun: { kind: 'boolean', describe: 'Replacement automatic-run setting.' },
+    },
+  },
+  updateWorkflowMcpServer: {
+    method: 'PATCH',
+    path: '/api/v2/workflow-mcp-servers/[serverId]',
+    pathParams: ['serverId'] as const,
+    pathParamDocs: { serverId: 'Unique workflow-MCP server identifier.' },
+    responseMode: 'json',
+    summary: 'Update Workflow MCP Server',
+    body: {
+      name: { kind: 'string', describe: 'Server display name, shown to connecting MCP clients.' },
+      description: { kind: 'string', describe: 'New server description, or null to clear it.' },
+      isPublic: {
+        kind: 'boolean',
+        describe: 'Whether the server answers MCP clients without a Sim API key.',
+      },
+    },
+  },
+  updateWorkflowPublicApi: {
+    method: 'PATCH',
+    path: '/api/v2/workflows/[id]/deployment',
+    pathParams: ['id'] as const,
+    pathParamDocs: { id: 'Unique workflow identifier.' },
+    responseMode: 'json',
+    summary: 'Update Workflow Public API Access',
+    body: {
+      isPublicApi: {
+        kind: 'boolean',
+        required: true,
+        describe:
+          'Whether the deployed workflow should accept unauthenticated public API execution.',
+      },
+    },
+  },
+  updateWorkflowVersion: {
+    method: 'PATCH',
+    path: '/api/v2/workflows/[id]/versions/[version]',
+    pathParams: ['id', 'version'] as const,
+    pathParamDocs: { id: 'Unique workflow identifier.', version: 'Numeric deployment version.' },
+    responseMode: 'json',
+    summary: 'Update Workflow Version',
+    body: {
+      name: { kind: 'string', describe: 'New label for the deployment version.' },
+      description: {
+        kind: 'string',
+        describe: 'New release note for the deployment version, or null to clear it.',
+      },
     },
   },
   uploadKnowledgeDocument: {

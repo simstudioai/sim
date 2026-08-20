@@ -65,6 +65,7 @@ const PAGED_LISTS = [
   'GET /api/v2/workflows',
   'GET /api/v2/workflows/[id]/runs',
   'GET /api/v2/workflows/[id]/versions',
+  'GET /api/v2/workflow-mcp-servers',
   'GET /api/v2/workspaces/[workspaceId]/members',
 ] as const
 
@@ -239,6 +240,7 @@ const CURSOR_BINDINGS: Record<string, readonly string[]> = {
   ],
   'GET /api/v2/workflows/[id]/runs': ['status', 'trigger', 'startDate', 'endDate', 'order'],
   'GET /api/v2/workflows/[id]/versions': [],
+  'GET /api/v2/workflow-mcp-servers': ['workspaceId', 'sortBy', 'sortOrder'],
   'GET /api/v2/workspaces/[workspaceId]/members': [],
 }
 

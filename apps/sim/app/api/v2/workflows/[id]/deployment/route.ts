@@ -1,8 +1,12 @@
-import { v2GetWorkflowDeploymentContract } from '@/lib/api/contracts/v2/workflows'
+import {
+  v2GetWorkflowDeploymentContract,
+  v2UpdateWorkflowPublicApiContract,
+} from '@/lib/api/contracts/v2/workflows'
 import { defineV2JsonRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/routes'
 import { v2WorkflowErrorPolicies } from '@/lib/workflows/api'
 import { readWorkflowDeploymentStatus } from '@/lib/workflows/application/deployments'
 import { workflowOperations } from '@/lib/workflows/application/operations'
+import { updateWorkflowPublicApi } from '@/lib/workflows/application/update-workflow-deployment-settings'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -43,5 +47,33 @@ export const GET = defineV2JsonRoute({
       activeDeployment: result.activeDeployment ?? null,
       latestDeploymentAttempt: result.latestDeploymentAttempt ?? null,
     },
+  }),
+})
+
+/**
+ * PATCH /api/v2/workflows/[id]/deployment — public API access.
+ *
+ * Enabling this removes the authentication requirement from the deployed
+ * workflow: anyone holding the URL can execute it. It is therefore an admin
+ * operation restricted to human principals, and an organization that forbids
+ * public sharing refuses it with `PUBLIC_SHARING_NOT_ALLOWED`.
+ *
+ * It shares a path with the deployment read rather than taking one of its own
+ * because the flag is deployment state — `GET` on this path is where a caller
+ * looks to see what a deploy currently exposes.
+ */
+export const PATCH = defineV2JsonRoute({
+  contract: v2UpdateWorkflowPublicApiContract,
+  auth: v2ApiKeyAuth,
+  operation: workflowOperations.updatePublicApi,
+  rateLimit: v2RateLimits.publicApi,
+  errorPolicy: v2WorkflowErrorPolicies.concealWorkflowAuthorization,
+  mapInput: ({ params, body }) => ({
+    workflowId: params.id,
+    isPublicApi: body.isPublicApi,
+  }),
+  useCase: updateWorkflowPublicApi,
+  present: (result) => ({
+    data: { id: result.workflowId, isPublicApi: result.isPublicApi },
   }),
 })

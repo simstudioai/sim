@@ -10,6 +10,7 @@ import {
   deployWorkflowMcpTool,
   undeployWorkflowMcpTool,
 } from '@/lib/mcp/application/workflow-deployments'
+import { buildWorkflowMcpApiEndpoint, buildWorkflowMcpServerUrl } from '@/lib/mcp/urls'
 import {
   deployWorkflowChat,
   undeployWorkflowChat,
@@ -17,10 +18,6 @@ import {
 import { deployWorkflow, undeployWorkflow } from '@/lib/workflows/application/deployments'
 import type { DeployApiParams, DeployChatParams, DeployMcpParams } from '../param-types'
 import { getCopilotDeploymentIdempotencyKey, getHistoricalDeploymentAttemptError } from './context'
-
-function buildWorkflowApiEndpoint(baseUrl: string, workflowId: string): string {
-  return `${baseUrl}/api/v2/workflows/${workflowId}/execute`
-}
 
 function buildWorkflowRunStatusEndpoint(
   baseUrl: string,
@@ -160,7 +157,7 @@ export async function executeDeployApi(
         return { success: false, error: result.error || 'Failed to undeploy workflow' }
       }
       const baseUrl = getBaseUrl()
-      const apiEndpoint = buildWorkflowApiEndpoint(baseUrl, workflowId)
+      const apiEndpoint = buildWorkflowMcpApiEndpoint(workflowId)
       return {
         success: true,
         output: {
@@ -227,7 +224,7 @@ export async function executeDeployApi(
     }
 
     const baseUrl = getBaseUrl()
-    const apiEndpoint = buildWorkflowApiEndpoint(baseUrl, workflowId)
+    const apiEndpoint = buildWorkflowMcpApiEndpoint(workflowId)
     const apiConfig = buildWorkflowApiConfig(baseUrl, apiEndpoint)
     const apiExamples = buildWorkflowApiExamples(baseUrl, apiEndpoint)
     const isDeployed = Boolean(result.activeDeployment)
@@ -288,7 +285,7 @@ export async function executeDeployChat(
         assertedWorkspaceId: context.workspaceId,
       })
       const baseUrl = getBaseUrl()
-      const apiEndpoint = buildWorkflowApiEndpoint(baseUrl, workflowId)
+      const apiEndpoint = buildWorkflowMcpApiEndpoint(workflowId)
       const apiConfig = buildWorkflowApiConfig(baseUrl, apiEndpoint)
       const apiExamples = buildWorkflowApiExamples(baseUrl, apiEndpoint)
       return {
@@ -381,7 +378,7 @@ export async function executeDeployChat(
     })
 
     const baseUrl = getBaseUrl()
-    const apiEndpoint = buildWorkflowApiEndpoint(baseUrl, workflowId)
+    const apiEndpoint = buildWorkflowMcpApiEndpoint(workflowId)
     const apiConfig = buildWorkflowApiConfig(baseUrl, apiEndpoint)
     const apiExamples = buildWorkflowApiExamples(baseUrl, apiEndpoint)
     return {
@@ -498,8 +495,8 @@ export async function executeDeployMcp(
       parameterDescriptions: params.parameterDescriptions,
     })
     const baseUrl = getBaseUrl()
-    const mcpServerUrl = `${baseUrl}/api/mcp/serve/${serverId}`
-    const apiEndpoint = buildWorkflowApiEndpoint(baseUrl, workflowId)
+    const mcpServerUrl = buildWorkflowMcpServerUrl(serverId)
+    const apiEndpoint = buildWorkflowMcpApiEndpoint(workflowId)
     const clientExamples = buildMcpClientExamples(result.server.name, mcpServerUrl)
     const toolId = result.tool.id
     const toolName = result.tool.toolName
@@ -606,7 +603,7 @@ export async function executeRedeploy(
       return { success: false, error: unconfirmedDeploymentError }
     }
     const baseUrl = getBaseUrl()
-    const apiEndpoint = buildWorkflowApiEndpoint(baseUrl, workflowId)
+    const apiEndpoint = buildWorkflowMcpApiEndpoint(workflowId)
     const apiConfig = buildWorkflowApiConfig(baseUrl, apiEndpoint)
     const apiExamples = buildWorkflowApiExamples(baseUrl, apiEndpoint)
     const isDeployed = Boolean(result.activeDeployment)

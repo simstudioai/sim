@@ -13,12 +13,41 @@ import {
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  resolvePermission: vi.fn(),
-  resolveWorkflowContext: vi.fn(),
-  getWorkflowDeploymentSummary: vi.fn(),
-  checkNeedsRedeployment: vi.fn(),
+const { MockPublicApiNotAllowedError, mocks } = vi.hoisted(() => {
+  class MockPublicApiNotAllowedError extends Error {}
+  return {
+    MockPublicApiNotAllowedError,
+    mocks: {
+      resolvePermission: vi.fn(),
+      resolveWorkflowContext: vi.fn(),
+      getWorkflowDeploymentSummary: vi.fn(),
+      checkNeedsRedeployment: vi.fn(),
+      validatePublicApiAllowed: vi.fn(),
+      updatePublicApiRow: vi.fn(),
+      audit: vi.fn(),
+      notifyUpdated: vi.fn(),
+    },
+  }
+})
+
+vi.mock('@sim/audit', () => ({
+  AuditAction: { WORKFLOW_PUBLIC_API_TOGGLED: 'workflow.public_api_toggled' },
+  AuditResourceType: { WORKFLOW: 'workflow' },
+  recordAudit: mocks.audit,
 }))
+vi.mock('@sim/db', () => ({
+  db: {
+    update: () => ({
+      set: () => ({ where: () => ({ returning: () => mocks.updatePublicApiRow() }) }),
+    }),
+  },
+  workflow: {},
+}))
+vi.mock('@/ee/access-control/utils/permission-check', () => ({
+  PublicApiNotAllowedError: MockPublicApiNotAllowedError,
+  validatePublicApiAllowed: mocks.validatePublicApiAllowed,
+}))
+vi.mock('@/lib/realtime/notify', () => ({ notifyWorkflowUpdated: mocks.notifyUpdated }))
 
 vi.mock('@sim/platform-authz/workspace', () => ({
   permissionSatisfies: (actual: string | null, required: string) => {
@@ -46,7 +75,7 @@ vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
 vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
 vi.mock('@/app/api/v2/lib/gate', () => v2GateModuleMock)
 
-import { GET } from '@/app/api/v2/workflows/[id]/deployment/route'
+import { GET, PATCH } from '@/app/api/v2/workflows/[id]/deployment/route'
 
 const auth = {
   principal: {
@@ -200,6 +229,123 @@ describe('GET /api/v2/workflows/[id]/deployment', () => {
     v2RouteMocks.authenticate.mockRejectedValueOnce(new MockV2ApiKeyUnauthenticatedError())
 
     const response = await get()
+
+    expect(response.status).toBe(401)
+    expect((await response.json()).error.code).toBe('UNAUTHORIZED')
+  })
+})
+
+const workspaceKeyAuth = {
+  principal: {
+    kind: 'workspace_api_key' as const,
+    workspaceId: 'workspace-1',
+    keyId: 'workspace-key-1',
+  },
+  rolloutUserId: 'user-1',
+  rateLimitSubjectIds: ['api-key:workspace-key-1'] as const,
+  rateLimitSubscription: null,
+  keyType: 'workspace' as const,
+}
+
+async function patch(body: unknown) {
+  const request = new NextRequest('http://localhost/api/v2/workflows/workflow-1/deployment', {
+    method: 'PATCH',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  return PATCH(request, { params: Promise.resolve({ id: 'workflow-1' }) })
+}
+
+describe('PATCH /api/v2/workflows/[id]/deployment', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    v2RouteMocks.authenticate.mockResolvedValue(auth)
+    v2RouteMocks.gate.mockResolvedValue(null)
+    v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
+    v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
+    mocks.resolvePermission.mockResolvedValue('admin')
+    mocks.resolveWorkflowContext.mockResolvedValue(workflowContext)
+    mocks.validatePublicApiAllowed.mockResolvedValue(undefined)
+    mocks.updatePublicApiRow.mockResolvedValue([{ id: 'workflow-1' }])
+  })
+
+  /**
+   * The widening this route depends on: the operation used to accept sessions
+   * only, which made a personal key — the same accountable human — a 403.
+   */
+  it('accepts a personal API key and checks the sharing policy for the acting human', async () => {
+    const response = await patch({ isPublicApi: true })
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({ data: { id: 'workflow-1', isPublicApi: true } })
+    expect(mocks.validatePublicApiAllowed).toHaveBeenCalledWith('user-1', 'workspace-1')
+    expect(mocks.audit).toHaveBeenCalledTimes(1)
+    expect(mocks.notifyUpdated).toHaveBeenCalledWith('workflow-1')
+  })
+
+  it('does not consult the sharing policy when disabling public access', async () => {
+    const response = await patch({ isPublicApi: false })
+
+    expect(response.status).toBe(200)
+    expect((await response.json()).data.isPublicApi).toBe(false)
+    expect(mocks.validatePublicApiAllowed).not.toHaveBeenCalled()
+  })
+
+  it('names the sharing refusal with an actionable forbidden code', async () => {
+    mocks.validatePublicApiAllowed.mockRejectedValue(
+      new MockPublicApiNotAllowedError('not allowed')
+    )
+
+    const response = await patch({ isPublicApi: true })
+
+    expect(response.status).toBe(403)
+    const body = await response.json()
+    expect(body.error.details.code).toBe('PUBLIC_SHARING_NOT_ALLOWED')
+    expect(body.error.message).toBe('Public API access is disabled')
+    expect(mocks.audit).not.toHaveBeenCalled()
+  })
+
+  it('rejects a workspace API key before canonical loading', async () => {
+    v2RouteMocks.authenticate.mockResolvedValue(workspaceKeyAuth)
+
+    const response = await patch({ isPublicApi: true })
+
+    expect(response.status).toBe(403)
+    expect(mocks.resolveWorkflowContext).not.toHaveBeenCalled()
+  })
+
+  it('refuses a caller below workspace admin with 403', async () => {
+    mocks.resolvePermission.mockResolvedValue('write')
+
+    const response = await patch({ isPublicApi: true })
+
+    expect(response.status).toBe(403)
+    expect((await response.json()).error.details.code).toBe('INSUFFICIENT_WORKSPACE_ROLE')
+    expect(mocks.updatePublicApiRow).not.toHaveBeenCalled()
+  })
+
+  it('conceals a workflow the caller cannot reach as 404', async () => {
+    mocks.resolvePermission.mockResolvedValue(null)
+
+    const response = await patch({ isPublicApi: true })
+
+    expect(response.status).toBe(404)
+    expect((await response.json()).error.code).toBe('NOT_FOUND')
+    expect(mocks.updatePublicApiRow).not.toHaveBeenCalled()
+  })
+
+  it('rejects a body that names no setting', async () => {
+    const response = await patch({})
+
+    expect(response.status).toBe(400)
+    expect((await response.json()).error.code).toBe('BAD_REQUEST')
+    expect(mocks.updatePublicApiRow).not.toHaveBeenCalled()
+  })
+
+  it('rejects an unauthenticated request', async () => {
+    v2RouteMocks.authenticate.mockRejectedValueOnce(new MockV2ApiKeyUnauthenticatedError())
+
+    const response = await patch({ isPublicApi: true })
 
     expect(response.status).toBe(401)
     expect((await response.json()).error.code).toBe('UNAUTHORIZED')
