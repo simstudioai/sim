@@ -635,6 +635,13 @@ export function Table({
       return
     }
 
+    /** Creating a view updates the query cache before nuqs commits its URL id.
+     *  Keep the blank view already applied in the success handler during that
+     *  gap instead of briefly reapplying the previously selected view. */
+    if (pendingCreatedViewIdRef.current && activeViewId !== pendingCreatedViewIdRef.current) {
+      return
+    }
+
     // The id resolved, so any create race for it is over.
     if (selectedView && pendingCreatedViewIdRef.current === selectedView.id) {
       pendingCreatedViewIdRef.current = null
@@ -672,11 +679,6 @@ export function Table({
     }
     if (activeView && (activeViewId === null || activeViewId === ALL_VIEW_PARAM)) {
       setTableParams({ view: activeView.id })
-    }
-    // Navigating away ends any create race — without this a reconcile on the
-    // destination could fall back to the still-pending created id.
-    if (pendingCreatedViewIdRef.current && pendingCreatedViewIdRef.current !== nextViewId) {
-      pendingCreatedViewIdRef.current = null
     }
     const keep = preserved?.viewId === nextViewId ? preserved.keep : undefined
     applyViewConfig(activeViewConfig, keep)
@@ -716,19 +718,6 @@ export function Table({
     [columns.length, hiddenColumns, liveColumnIds]
   )
 
-  /**
-   * Drops a sort whose column was deleted by clearing the URL, rather than masking
-   * it in a derived value: `queryOptions` feeds the query that produces `columns`,
-   * so a pruned sort can't flow back into it without a cycle. Clearing keeps one
-   * source of truth, so the rows query and the active-view autosave cannot
-   * disagree about whether a sort is active.
-   */
-  useEffect(() => {
-    if (!sortColumn || columns.length === 0) return
-    if (liveColumnIds.has(sortColumn)) return
-    setTableParams({ sort: null, dir: null })
-  }, [sortColumn, columns.length, liveColumnIds, setTableParams])
-
   /** Rename targets a live view rather than a snapshot, so a concurrent rename or
    *  delete can't leave the modal editing stale data. */
   const renamingView =
@@ -759,7 +748,7 @@ export function Table({
    */
   const persistActiveViewConfig = useCallback(
     (configPatch: TableViewConfig) => {
-      if (!userPermissions.canEdit) return
+      if (!viewsEnabled || !userPermissions.canEdit) return
       const viewId = activeView?.id ?? pendingCreatedViewIdRef.current
       if (!viewId) {
         if (!ownerResolvedRef.current) {
@@ -779,8 +768,21 @@ export function Table({
         }
       )
     },
-    [activeView?.id, userPermissions.canEdit, releasePersistedViewState]
+    [viewsEnabled, activeView?.id, userPermissions.canEdit, releasePersistedViewState]
   )
+
+  /**
+   * Drops a sort whose column was deleted from both the URL and its persisted
+   * view. `queryOptions` feeds the query that produces `columns`, so clearing the
+   * source of truth avoids a dependency cycle and prevents the dead sort from
+   * returning on reload.
+   */
+  useEffect(() => {
+    if (!sortColumn || columns.length === 0) return
+    if (liveColumnIds.has(sortColumn)) return
+    setTableParams({ sort: null, dir: null })
+    persistActiveViewConfig({ sort: null })
+  }, [sortColumn, columns.length, liveColumnIds, setTableParams, persistActiveViewConfig])
 
   /** Column order/width/pinning auto-saves into the active view as the user drags.
    *  Sent as a `configPatch` so the server merges it — two overlapping layout writes must
