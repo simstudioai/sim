@@ -98,7 +98,16 @@ export function parseChartSpec(content: string): { spec?: ChartSpec; error?: str
       return { error: '"source.type" must be "static" or "table"' }
     }
   }
-  return { spec: doc as unknown as ChartSpec }
+  // Built explicitly from the validated fields — no blanket cast, and no
+  // unvalidated extra keys riding along on the parsed spec.
+  return {
+    spec: {
+      schema_version: 1,
+      title: typeof doc.title === 'string' ? doc.title : undefined,
+      source,
+      option: doc.option as Record<string, unknown>,
+    },
+  }
 }
 
 /**
