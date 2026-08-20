@@ -114,6 +114,46 @@ describe('indexWorkflowSearchMatches', () => {
     expect(blockNameMatches[0]?.fieldTitle).toBe('Block name')
   })
 
+  it('matches a block name containing a non-breaking space against a typed space', () => {
+    const workflow = {
+      blocks: {
+        'nbsp-1': {
+          id: 'nbsp-1',
+          type: 'function',
+          name: 'Load\u00a0Prompt',
+          position: { x: 0, y: 0 },
+          subBlocks: {},
+          outputs: {},
+          enabled: true,
+        },
+      },
+    } as ReturnType<typeof createSearchReplaceWorkflowFixture>
+
+    const matches = indexWorkflowSearchMatches({
+      workflow,
+      query: 'load prompt',
+      mode: 'text',
+      blockConfigs: SEARCH_REPLACE_BLOCK_CONFIGS,
+    })
+
+    const blockNameMatches = matches.filter((match) => match.target.kind === 'block-name')
+    // The raw value keeps the original characters so replacements stay exact.
+    expect(blockNameMatches.map((match) => match.rawValue)).toEqual(['Load\u00a0Prompt'])
+  })
+
+  it('ignores accidental leading/trailing whitespace in the query', () => {
+    const workflow = createSearchReplaceWorkflowFixture()
+
+    const matches = indexWorkflowSearchMatches({
+      workflow,
+      query: ' agent ',
+      mode: 'text',
+      blockConfigs: SEARCH_REPLACE_BLOCK_CONFIGS,
+    })
+
+    expect(matches.some((match) => match.target.kind === 'block-name')).toBe(true)
+  })
+
   it('does not include block-name matches in resource-only mode', () => {
     const workflow = createSearchReplaceWorkflowFixture()
 

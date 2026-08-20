@@ -108,30 +108,29 @@ describe('collectReferencedFileIds', () => {
     expect(collectReferencedFileIds(`slide.addText('hello', { x: 1, y: 1 })`)).toEqual(new Set())
   })
 
-  it('retains all references at the remote staging limit', () => {
-    const ids = collectReferencedFileIds(referencedFileSource(20))
+  it('retains a full deck rebuild — every extracted image plus headroom fits the cap', () => {
+    const ids = collectReferencedFileIds(referencedFileSource(500))
 
-    expect(ids.size).toBe(20)
-    expect(ids.has('file-19')).toBe(true)
+    expect(ids.size).toBe(500)
+    expect(ids.has('file-0')).toBe(true)
+    expect(ids.has('file-499')).toBe(true)
   })
 
-  it('stops collecting at the one-over-limit sentinel', () => {
-    const ids = collectReferencedFileIds(referencedFileSource(100))
+  it('stops collecting at the one-over-cap sentinel', () => {
+    const ids = collectReferencedFileIds(referencedFileSource(2000))
 
-    expect(ids.size).toBe(21)
-    expect(ids.has('file-20')).toBe(true)
-    expect(ids.has('file-21')).toBe(false)
+    expect(ids.size).toBe(501)
   })
 
-  it('rejects remote compilation at 21 references before resolving file metadata', async () => {
+  it('rejects an over-cap reference set before resolving any file metadata', async () => {
     await expect(
       compileDoc({
-        source: referencedFileSource(21),
+        source: referencedFileSource(501),
         fileName: 'report.pdf',
         workspaceId: 'workspace-1',
         filePrincipal: FILE_PRINCIPAL,
       })
-    ).rejects.toThrow('More than 20 referenced input files; maximum is 20')
+    ).rejects.toThrow('More than 500 referenced input files; maximum is 500')
     expect(readWorkspaceFileMetadataMock).not.toHaveBeenCalled()
     expect(executeInSandboxMock).not.toHaveBeenCalled()
   })

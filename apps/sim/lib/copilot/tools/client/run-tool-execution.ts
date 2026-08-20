@@ -69,6 +69,13 @@ function resolveTriggerBlockId(params: Record<string, unknown>): string | undefi
     : undefined
 }
 
+/** The execute endpoint's "this tool call is already bound to another run" body. */
+function isWorkflowExecutionConflict(responseBody: unknown): boolean {
+  return (
+    isPlainRecord(responseBody) && responseBody.code === COPILOT_WORKFLOW_EXECUTION_CONFLICT_CODE
+  )
+}
+
 async function enqueueAsyncWorkflowRun(
   toolCallId: string,
   workflowId: string,
@@ -119,6 +126,18 @@ async function enqueueAsyncWorkflowRun(
         : requestedExecutionId
     acceptanceIsAmbiguous =
       isPlainRecord(responseBody) && responseBody.code === 'ASYNC_ENQUEUE_AMBIGUOUS'
+
+    // Someone else — another tab, or the server's own fallback — already owns
+    // this tool call. Stay silent so the winner reports the result; reporting
+    // an error here would overwrite a run that is happily in flight. Mirrors
+    // the streamed path's handling of the same conflict.
+    if (response.status === 409 && isWorkflowExecutionConflict(responseBody)) {
+      logger.info('[RunTool] Ignoring duplicate async workflow launch', {
+        toolCallId,
+        workflowId,
+      })
+      return
+    }
 
     if (!response.ok && !acceptanceIsAmbiguous) {
       const responseError =
@@ -662,11 +681,20 @@ async function doExecuteRunTool(
       logger.error('[RunTool] Workflow execution threw', { toolCallId, toolName, error: msg })
       const failedExecutionId =
         useExecutionStore.getState().getCurrentExecutionId(targetWorkflowId) ?? executionId
+      // Carry the real failure through instead of the generic "Workflow execution
+      // failed." — the agent can only correct a bad request (a rejected binding,
+      // an undeployed workflow) if it is told what was wrong.
+      const failureCode = isExecutionStreamHttpError(err) ? err.code : undefined
       await reportCompletion(
         toolCallId,
         MothershipStreamV1ToolOutcome.error,
-        getWorkflowToolCompletionMessage(MothershipStreamV1ToolOutcome.error),
-        undefined,
+        msg,
+        {
+          success: false,
+          workflowId: targetWorkflowId,
+          error: msg,
+          ...(failureCode ? { code: failureCode } : {}),
+        },
         failedExecutionId
       )
     }

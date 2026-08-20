@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
-import { FunctionExecute, UserTable } from '@/lib/copilot/generated/tool-catalog-v1'
+import { RunFunction, UserTable } from '@/lib/copilot/generated/tool-catalog-v1'
 import { CopilotOutputFileOutcome } from '@/lib/copilot/generated/trace-attribute-values-v1'
 import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
 import { TraceEvent } from '@/lib/copilot/generated/trace-events-v1'
@@ -27,7 +27,7 @@ import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secr
 const logger = createLogger('CopilotToolResultFiles')
 const MAX_OUTPUT_FILE_PROVENANCE_REPRESENTATIONS = 10_000
 
-export const OUTPUT_PATH_TOOLS: Set<string> = new Set([FunctionExecute.id, UserTable.id])
+export const OUTPUT_PATH_TOOLS: Set<string> = new Set([RunFunction.id, UserTable.id])
 
 export type OutputFormat = 'json' | 'csv' | 'txt' | 'md' | 'html'
 
@@ -48,12 +48,12 @@ export const FORMAT_TO_CONTENT_TYPE: Record<OutputFormat, string> = {
 }
 
 /**
- * Unwraps the `function_execute` response envelope `{ result, stdout }` so the
+ * Unwraps the `run_function` response envelope `{ result, stdout }` so the
  * rest of the serialization code works on the user's actual payload (a string,
  * array, object, etc.) instead of JSON-stringifying the envelope itself.
  *
  * Only unwraps when both keys are present — that's the unique shape of
- * `function_execute` (see `apps/sim/tools/function/types.ts` `CodeExecutionOutput`).
+ * `run_function` (see `apps/sim/tools/function/types.ts` `CodeExecutionOutput`).
  * `user_table` returns `{ data, message, success }` which is left alone.
  */
 export function unwrapFunctionExecuteOutput(output: unknown): unknown {
@@ -67,7 +67,7 @@ export function unwrapFunctionExecuteOutput(output: unknown): unknown {
 
 /**
  * Try to pull a flat array of row-objects out of an already-unwrapped tool
- * payload. Callers are responsible for stripping any `function_execute`
+ * payload. Callers are responsible for stripping any `run_function`
  * envelope first (via {@link unwrapFunctionExecuteOutput}) — this function
  * does not re-unwrap, so a user payload that coincidentally has `result` and
  * `stdout` keys is not mistaken for another envelope.

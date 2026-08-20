@@ -625,8 +625,10 @@ export async function getBoundWorkspaceFileSecretProvenance(
         eq(workspaceFiles.id, identity.fileId),
         eq(workspaceFiles.key, identity.key),
         eq(workspaceFiles.workspaceId, workspaceId),
-        eq(workspaceFiles.context, identity.context),
-        isNull(workspaceFiles.deletedAt)
+        eq(workspaceFiles.context, identity.context)
+        // Deliberately no deletedAt filter: `id` alone pins the exact row, and
+        // recently-deleted/ reads are a real surface — excluding soft-deleted
+        // rows made every archived file read as provenance-unknown and refused.
       )
     )
     .limit(1)

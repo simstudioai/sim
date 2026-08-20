@@ -27,6 +27,7 @@ const mocks = vi.hoisted(() => ({
   recordKnowledgeBaseFileOwnership: vi.fn(),
   recordAudit: vi.fn(),
   captureServerEvent: vi.fn(),
+  getDocumentTagDefinitions: vi.fn(),
 }))
 
 vi.mock('@sim/audit', () => ({
@@ -69,6 +70,10 @@ vi.mock('@/lib/knowledge/documents/service', () => ({
   updateDocument: mocks.updateDocument,
   processDocumentsWithQueue: mocks.processQueue,
   getProcessingConfig: mocks.getProcessingConfig,
+}))
+
+vi.mock('@/lib/knowledge/tags/service', () => ({
+  getDocumentTagDefinitions: mocks.getDocumentTagDefinitions,
 }))
 
 vi.mock('@/lib/knowledge/orchestration/documents', () => ({
@@ -546,6 +551,123 @@ describe('knowledge document application use cases', () => {
         }),
       })
     )
+  })
+
+  it('resolves typed tag-definition assignments into document tag slots', async () => {
+    mocks.getDocumentTagDefinitions.mockResolvedValueOnce([
+      {
+        id: 'category-tag',
+        knowledgeBaseId: 'knowledge-1',
+        tagSlot: 'tag1',
+        displayName: 'Category',
+        fieldType: 'text',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+      {
+        id: 'priority-tag',
+        knowledgeBaseId: 'knowledge-1',
+        tagSlot: 'number1',
+        displayName: 'Priority',
+        fieldType: 'number',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+      {
+        id: 'reviewed-tag',
+        knowledgeBaseId: 'knowledge-1',
+        tagSlot: 'boolean1',
+        displayName: 'Reviewed',
+        fieldType: 'boolean',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    ])
+
+    await updateKnowledgeDocument.execute({
+      principal: {
+        kind: 'delegated',
+        serviceId: 'copilot',
+        subjectUserId: 'shared-user',
+        workspaceId: 'workspace-1',
+        delegationId: 'tool-call-1',
+        audience: 'sim:knowledge',
+        issuedAt: new Date(),
+        expiresAt: new Date(Date.now() + 60_000),
+        resourceScope: {},
+      },
+      input: {
+        knowledgeBaseId: 'knowledge-1',
+        documentId: 'document-1',
+        assertedWorkspaceId: 'workspace-1',
+        tagValues: [
+          { tagDefinitionId: 'category-tag', value: 'support' },
+          { tagDefinitionId: 'priority-tag', value: 2 },
+          { tagDefinitionId: 'reviewed-tag', value: false },
+        ],
+        source: 'agent',
+      },
+    })
+
+    expect(mocks.updateDocument).toHaveBeenCalledWith(
+      'document-1',
+      {
+        filename: undefined,
+        enabled: undefined,
+        tag1: 'support',
+        number1: '2',
+        boolean1: 'false',
+      },
+      expect.any(String)
+    )
+    expect(mocks.recordAudit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        metadata: expect.objectContaining({
+          tagDefinitionIds: ['category-tag', 'priority-tag', 'reviewed-tag'],
+        }),
+      })
+    )
+  })
+
+  it('rejects a tag value that does not match its definition type', async () => {
+    mocks.getDocumentTagDefinitions.mockResolvedValueOnce([
+      {
+        id: 'priority-tag',
+        knowledgeBaseId: 'knowledge-1',
+        tagSlot: 'number1',
+        displayName: 'Priority',
+        fieldType: 'number',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    ])
+
+    await expect(
+      updateKnowledgeDocument.execute({
+        principal: {
+          kind: 'delegated',
+          serviceId: 'copilot',
+          subjectUserId: 'shared-user',
+          workspaceId: 'workspace-1',
+          delegationId: 'tool-call-1',
+          audience: 'sim:knowledge',
+          issuedAt: new Date(),
+          expiresAt: new Date(Date.now() + 60_000),
+          resourceScope: {},
+        },
+        input: {
+          knowledgeBaseId: 'knowledge-1',
+          documentId: 'document-1',
+          assertedWorkspaceId: 'workspace-1',
+          tagValues: [{ tagDefinitionId: 'priority-tag', value: 'urgent' }],
+        },
+      })
+    ).rejects.toMatchObject({
+      code: 'validation',
+      message: 'Tag "Priority" expects a number value, but received "urgent"',
+    })
+
+    expect(mocks.updateDocument).not.toHaveBeenCalled()
   })
 
   it('propagates document infrastructure failures without audit', async () => {

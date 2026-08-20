@@ -30,7 +30,7 @@ vi.mock('@/lib/table/application/rows', () => ({
   ProjectedWireRowsValidationError: class ProjectedWireRowsValidationError extends Error {},
 }))
 
-import { FunctionExecute, Read as ReadTool } from '@/lib/copilot/generated/tool-catalog-v1'
+import { Read as ReadTool, RunFunction } from '@/lib/copilot/generated/tool-catalog-v1'
 import { projectToolResultForCopilot } from '@/lib/copilot/request/tools/resolved-secret-result'
 import {
   maybeWriteOutputToTable,
@@ -94,7 +94,7 @@ describe('automatic Copilot tool-output table persistence', () => {
     ]
 
     const result = await maybeWriteOutputToTable(
-      FunctionExecute.id,
+      RunFunction.id,
       { outputTable: 'table-1' },
       { success: true, output: { result: rows } },
       context
@@ -129,7 +129,7 @@ describe('automatic Copilot tool-output table persistence', () => {
     const runtimeRows = [{ name: 'secret-value', status: 'literal' }]
 
     const result = await maybeWriteOutputToTable(
-      FunctionExecute.id,
+      RunFunction.id,
       { outputTable: 'table-1' },
       { success: true, output: { result: runtimeRows } },
       buildContext({ resolvedSecretTraceRegistry: registry })
@@ -159,7 +159,7 @@ describe('automatic Copilot tool-output table persistence', () => {
     registry.markIncomplete('unspecified')
 
     await maybeWriteOutputToTable(
-      FunctionExecute.id,
+      RunFunction.id,
       { outputTable: 'table-1' },
       { success: true, output: { result: [{ name: 'unknown' }] } },
       buildContext({ resolvedSecretTraceRegistry: registry })
@@ -179,7 +179,7 @@ describe('automatic Copilot tool-output table persistence', () => {
     )
 
     const result = await maybeWriteOutputToTable(
-      FunctionExecute.id,
+      RunFunction.id,
       { outputTable: 'table-1' },
       { success: true, output: { result: [{ wrong: true }] } },
       buildContext()
@@ -199,7 +199,7 @@ describe('automatic Copilot tool-output table persistence', () => {
     mocks.executeReplace.mockRejectedValueOnce(new Error('database duplicate: secret-value'))
 
     const result = await maybeWriteOutputToTable(
-      FunctionExecute.id,
+      RunFunction.id,
       { outputTable: 'table-1' },
       { success: true, output: { result: [{ name: 'secret-value' }] } },
       buildContext({ resolvedSecretTraceRegistry: registry })
@@ -217,7 +217,7 @@ describe('automatic Copilot tool-output table persistence', () => {
 
   it('rejects read-only Copilot execution before any application command', async () => {
     const result = await maybeWriteOutputToTable(
-      FunctionExecute.id,
+      RunFunction.id,
       { outputTable: 'table-1' },
       { success: true, output: { result: [{ name: 'Ada' }] } },
       buildContext({ userPermission: 'read' })
@@ -232,7 +232,7 @@ describe('automatic Copilot tool-output table persistence', () => {
     mocks.executeReplace.mockResolvedValueOnce({ table, deletedCount: 1, insertedCount: 1 })
 
     const result = await maybeWriteOutputToTable(
-      FunctionExecute.id,
+      RunFunction.id,
       { outputTable: 'table-1' },
       { success: true, output: { result: [{ name: 'Ada' }, { name: 'Grace' }] } },
       buildContext()

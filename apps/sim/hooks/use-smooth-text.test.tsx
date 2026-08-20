@@ -4,7 +4,7 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { useSmoothText } from '@/hooks/use-smooth-text'
+import { snapAllSmoothText, useSmoothText } from '@/hooks/use-smooth-text'
 
 interface ProbeProps {
   content: string
@@ -87,5 +87,39 @@ describe('useSmoothText — streaming that begins on an already-open document', 
     const h = renderSmoothText({ content: 'Hello', isStreaming: true })
     expect(h.value()).toBe('')
     h.unmount()
+  })
+})
+
+describe('snapAllSmoothText — user Stop must end the paced reveal instantly', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('reveals the full backlog immediately when snapped mid-stream', () => {
+    const probe = renderSmoothText({ content: '', isStreaming: true })
+    probe.rerender({ content: 'The quick brown fox jumps over the lazy dog. '.repeat(4) })
+    // Paced reveal has not caught up (fake timers hold the frame loop).
+    expect(probe.value().length).toBeLessThan(180)
+
+    act(() => {
+      snapAllSmoothText()
+    })
+    expect(probe.value()).toBe('The quick brown fox jumps over the lazy dog. '.repeat(4))
+    probe.unmount()
+  })
+
+  it('is one-shot: a later stream paces normally again', () => {
+    const probe = renderSmoothText({ content: '', isStreaming: true })
+    act(() => {
+      snapAllSmoothText()
+    })
+    probe.rerender({
+      content: 'Fresh streaming text that should reveal gradually, not snap. '.repeat(3),
+    })
+    expect(probe.value().length).toBeLessThan(180)
+    probe.unmount()
   })
 })

@@ -190,6 +190,10 @@ describe('initialUrlSuggestionIndex', () => {
     expect(initialUrlSuggestionIndex('https://sim.ai', 3)).toBeNull()
   })
 
+  it('selects the exact search row after typing on an existing page', () => {
+    expect(initialUrlSuggestionIndex('https://sim.ai', 3, 'what is the best')).toBe(0)
+  })
+
   it('selects nothing when there are no suggestions', () => {
     expect(initialUrlSuggestionIndex('', 0)).toBeNull()
   })

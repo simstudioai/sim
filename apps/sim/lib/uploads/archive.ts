@@ -443,7 +443,7 @@ export async function decompressArchiveBufferToWorkspaceFiles(
   // Uploads themselves can still fail mid-loop (storage/DB errors, quota crossed
   // by another writer), so a failure rolls back every file written so far *and*
   // every folder this call materialized — callers and their retries must never
-  // observe a partial tree. Leftover folders are not cosmetic: `materialize_file`
+  // observe a partial tree. Leftover folders are not cosmetic: `save_upload`
   // refuses to re-extract into a root folder that still has any child, so a
   // half-extracted tree would make every retry fail until a human deletes it.
   const folderIdCache = new Map<string, string | null>()

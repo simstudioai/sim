@@ -11,7 +11,7 @@ import {
   useState,
 } from 'react'
 import { cn } from '@sim/emcn'
-import { Read as ReadTool, WorkspaceFile } from '@/lib/copilot/generated/tool-catalog-v1'
+import { PrepareFileEdit, Read as ReadTool } from '@/lib/copilot/generated/tool-catalog-v1'
 import { isToolHiddenInUi } from '@/lib/copilot/tools/client/hidden-tools'
 import { resolveToolDisplay } from '@/lib/copilot/tools/client/store-utils'
 import { ClientToolCallState } from '@/lib/copilot/tools/client/tool-call-state'
@@ -127,7 +127,7 @@ const SUBAGENT_KEYS = new Set(Object.keys(SUBAGENT_LABELS))
  * group is absorbed so it doesn't render as a separate Mothership entry.
  */
 const SUBAGENT_DISPATCH_TOOLS: Record<string, string> = {
-  [FILE_SUBAGENT_ID]: WorkspaceFile.id,
+  [FILE_SUBAGENT_ID]: PrepareFileEdit.id,
 }
 
 function isToolResultRead(params?: Record<string, unknown>): boolean {
@@ -380,6 +380,7 @@ function parseBlocksWithSpanTree(blocks: ContentBlock[]): MessageSegment[] {
       const dispatchToolName = SUBAGENT_DISPATCH_TOOLS[block.content]
       if (dispatchToolName) absorbDispatchTool(dispatchToolName, block.parentSpanId)
       const g = ensureSpanGroup(block.content, block.spanId, block.parentSpanId)
+      if (block.subagentName) g.agentLabel = block.subagentName
       if (block.endedAt !== undefined) {
         // Persisted backend path: the lane was stamped closed (endedAt) without
         // a separate subagent_end block (the Sim backend stamps endedAt only;
@@ -623,6 +624,7 @@ function parseBlocksLegacy(blocks: ContentBlock[]): MessageSegment[] {
       }
       groupsByKey.delete(groupKey('mothership', undefined))
       const { group: g } = ensureGroup(key, block.parentToolCallId)
+      if (block.subagentName) g.agentLabel = block.subagentName
       if (inheritedDelegation) g.isDelegating = true
       g.isOpen = true
       activeGroupKey = resolveGroupKey(key, block.parentToolCallId)

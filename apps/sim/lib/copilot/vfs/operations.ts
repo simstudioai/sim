@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { truncate } from '@sim/utils/string'
 import micromatch from 'micromatch'
+import { decodeVfsSegmentSafe } from '@/lib/copilot/vfs/path-utils'
 import {
   isNonGreppablePlaceholder,
   type PlaceholderKind,
@@ -107,15 +108,30 @@ export interface ReadResult {
 
 /**
  * Micromatch options tuned to match the prior in-house glob: `bash: false` so a single `*`
- * never crosses path slashes (required for `files` + star + `meta.json` style paths). `nobrace`
- * and `noext` disable brace and extglob expansion like the old builder. Uses `micromatch` for
+ * never crosses path slashes (required for `files` + star + `meta.json` style paths). Brace
+ * expansion is ON — `workflows/{A,B}/**` and `*.{png,md}` are the natural way to batch a
+ * glob, and with `nobrace` they silently matched nothing, which reads as "no such files".
+ * `noext` still disables extglob expansion like the old builder. Uses `micromatch` for
  * well-tested `**` and edge cases instead of a custom `RegExp`.
  */
+/**
+ * Matching is decode-normalized: canonical keys are percent-encoded, but the
+ * model routinely writes the decoded display form ("Elder v2"). Comparing both
+ * sides decoded makes scope/glob matching tolerant of the encoding difference
+ * while canonical (encoded) inputs behave exactly as before. Returned paths
+ * are always the canonical encoded keys.
+ */
+function decodePathForMatch(path: string): string {
+  return path
+    .split('/')
+    .map((segment) => decodeVfsSegmentSafe(segment))
+    .join('/')
+}
+
 const VFS_GLOB_OPTIONS: micromatch.Options = {
   bash: false,
   dot: false,
   windows: false,
-  nobrace: true,
   noext: true,
 }
 
@@ -139,14 +155,19 @@ function splitLinesForGrep(content: string): string[] {
  */
 export function pathWithinGrepScope(filePath: string, scope: string): boolean {
   const scopeUsesStarOrQuestionGlob = /[*?]/.test(scope)
+  const decodedPath = decodePathForMatch(filePath)
+  const decodedScope = decodePathForMatch(scope)
   if (scopeUsesStarOrQuestionGlob) {
-    return micromatch.isMatch(filePath, scope, VFS_GLOB_OPTIONS)
+    return (
+      micromatch.isMatch(filePath, scope, VFS_GLOB_OPTIONS) ||
+      micromatch.isMatch(decodedPath, decodedScope, VFS_GLOB_OPTIONS)
+    )
   }
-  const base = scope.replace(/\/+$/, '')
+  const base = decodedScope.replace(/\/+$/, '')
   if (base === '') {
     return true
   }
-  return filePath === base || filePath.startsWith(`${base}/`)
+  return decodedPath === base || decodedPath.startsWith(`${base}/`)
 }
 
 /**
@@ -275,15 +296,22 @@ export function glob(files: Map<string, string>, pattern: string): string[] {
     }
   }
 
+  const decodedPattern = decodePathForMatch(pattern)
   for (const filePath of files.keys()) {
     if (filePath.endsWith('/.folder')) continue
-    if (micromatch.isMatch(filePath, pattern, VFS_GLOB_OPTIONS)) {
+    if (
+      micromatch.isMatch(filePath, pattern, VFS_GLOB_OPTIONS) ||
+      micromatch.isMatch(decodePathForMatch(filePath), decodedPattern, VFS_GLOB_OPTIONS)
+    ) {
       result.add(filePath)
     }
   }
 
   for (const dir of directories) {
-    if (micromatch.isMatch(dir, pattern, VFS_GLOB_OPTIONS)) {
+    if (
+      micromatch.isMatch(dir, pattern, VFS_GLOB_OPTIONS) ||
+      micromatch.isMatch(decodePathForMatch(dir), decodedPattern, VFS_GLOB_OPTIONS)
+    ) {
       result.add(dir)
     }
   }

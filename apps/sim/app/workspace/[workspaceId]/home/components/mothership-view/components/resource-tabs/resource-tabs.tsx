@@ -243,9 +243,9 @@ const ResourceTabItem = memo(function ResourceTabItem({
       >
         {config.renderTabIcon(resource, 'mr-1.5 size-[14px]')}
         {displayName}
-        {hasActivity && !isActive && (
+        {hasActivity && !isActive && !isHovered && (
           <span
-            className='ml-1 size-1.5 shrink-0 rounded-full bg-[var(--brand-primary)]'
+            className='-translate-y-1/2 absolute top-1/2 right-[9px] size-1.5 rounded-full bg-[var(--brand-primary)]'
             aria-label='Background activity'
           />
         )}

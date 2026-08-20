@@ -9,6 +9,7 @@ import type { PlaceholderInfo } from '../model/nodes/base-node'
 import type { TextBody } from '../model/nodes/shape-node'
 import { angleToDeg, emuToPx, pctToDecimal } from '../parser/units'
 import { SafeXmlNode } from '../parser/xml-parser'
+import { cssFontStack } from '../utils/font-stack'
 import type { RenderContext } from './render-context'
 import { resolveColor, resolveColorToCss } from './style-resolver'
 
@@ -640,7 +641,7 @@ export function renderTextBody(
       const bulletSpan = document.createElement('span')
       bulletSpan.textContent = `${bulletPrefix} `
       if (merged.bulletFont) {
-        bulletSpan.style.fontFamily = merged.bulletFont
+        bulletSpan.style.fontFamily = cssFontStack(merged.bulletFont)
       }
       // Bullet color: 1) explicit buClr from list style, 2) paragraph defRPr, 3) first run's color (so bullet matches text), 4) cell/fallback
       let bulletColor: string | undefined
@@ -891,12 +892,12 @@ export function renderTextBody(
         ? runStyle.fontFamily
         : (options?.cellTextFontFamily ?? runStyle.fontFamily)
       if (effectiveFont) {
-        element.style.fontFamily = `"${effectiveFont}"`
+        element.style.fontFamily = cssFontStack(effectiveFont)
       } else {
         // Fallback to theme minor font
         const fallback = ctx.theme.minorFont.latin || ctx.theme.minorFont.ea
         if (fallback) {
-          element.style.fontFamily = `"${fallback}"`
+          element.style.fontFamily = cssFontStack(fallback)
         }
       }
 

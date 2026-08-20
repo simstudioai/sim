@@ -9,7 +9,7 @@ import { getToolEntry, isClientExecuted, isKnownTool, isSimExecuted } from './ro
 import type { ToolExecutionContext, ToolExecutionResult, ToolHandler } from './types'
 
 const logger = createLogger('ToolExecutor')
-const FUNCTION_EXECUTE_TOOL_ID = 'function_execute'
+const FUNCTION_EXECUTE_TOOL_ID = 'run_function'
 const DEFAULT_FUNCTION_EXECUTE_TIMEOUT_SECONDS = 10
 const MILLISECONDS_PER_SECOND = 1000
 

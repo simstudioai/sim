@@ -668,3 +668,85 @@ export async function deleteTableView(
   }
   return deleted
 }
+
+/**
+ * All of a workspace's views in one query, keyed by tableId — the snapshot
+ * materializer's shape (per-table listTableViews would be N queries). Configs
+ * are returned RAW (id-domain, unpruned); callers translate/prune with each
+ * table's own columns.
+ */
+export async function listTableViewsByWorkspace(
+  workspaceId: string
+): Promise<Map<string, Array<typeof tableViews.$inferSelect>>> {
+  const rows = await db
+    .select()
+    .from(tableViews)
+    .where(eq(tableViews.workspaceId, workspaceId))
+    .orderBy(asc(tableViews.createdAt), asc(tableViews.id))
+  const byTable = new Map<string, Array<typeof tableViews.$inferSelect>>()
+  for (const row of rows) {
+    const list = byTable.get(row.tableId) ?? []
+    list.push(row)
+    byTable.set(row.tableId, list)
+  }
+  return byTable
+}
+
+function mapPredicateFields(
+  node: PredicateNode,
+  mapField: (field: string) => string
+): PredicateNode {
+  if ('all' in node) return { all: node.all.map((child) => mapPredicateFields(child, mapField)) }
+  if ('any' in node) return { any: node.any.map((child) => mapPredicateFields(child, mapField)) }
+  const leaf = node as Predicate
+  return { ...leaf, field: mapField(leaf.field) }
+}
+
+/**
+ * Stored (id-domain) view config → the column-NAME domain agents speak.
+ * Unknown ids pass through unchanged, mirroring pruneViewConfig's philosophy
+ * for filters: surfacing a stale reference beats silently widening the view.
+ */
+export function viewConfigIdsToNames(
+  config: TableViewConfig,
+  columns: ColumnDefinition[]
+): TableViewConfig {
+  const nameById = new Map(columns.map((col) => [getColumnId(col), col.name]))
+  const toName = (field: string) => nameById.get(field) ?? field
+  const out: TableViewConfig = { ...config }
+  if (config.filter) out.filter = mapPredicateFields(config.filter, toName) as typeof config.filter
+  if (config.sort) out.sort = config.sort.map((s) => ({ ...s, field: toName(s.field) }))
+  if (config.hiddenColumns) out.hiddenColumns = config.hiddenColumns.map(toName)
+  return out
+}
+
+/**
+ * Agent-supplied (name-domain) view config → the id-domain stored shape.
+ * Unknown column names are an error — a saved view with a dangling reference
+ * is exactly the artifact this translation exists to prevent.
+ */
+export function viewConfigNamesToIds(
+  config: TableViewConfig,
+  columns: ColumnDefinition[]
+): TableViewConfig {
+  const idByName = new Map(columns.map((col) => [col.name, getColumnId(col)]))
+  const unknown = new Set<string>()
+  const toId = (field: string) => {
+    const id = idByName.get(field)
+    if (!id) {
+      unknown.add(field)
+      return field
+    }
+    return id
+  }
+  const out: TableViewConfig = { ...config }
+  if (config.filter) out.filter = mapPredicateFields(config.filter, toId) as typeof config.filter
+  if (config.sort) out.sort = config.sort.map((s) => ({ ...s, field: toId(s.field) }))
+  if (config.hiddenColumns) out.hiddenColumns = config.hiddenColumns.map(toId)
+  if (unknown.size > 0) {
+    throw new TableViewValidationError(
+      `Unknown column(s): ${[...unknown].join(', ')}. Use exact column names from get_schema.`
+    )
+  }
+  return out
+}

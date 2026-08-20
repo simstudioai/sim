@@ -3,19 +3,19 @@ import { isRecordLike } from '@sim/utils/object'
 import { z } from 'zod'
 import { getBlockVisibilityForCopilot } from '@/lib/copilot/block-visibility'
 import {
-  CreateFile,
-  DownloadToWorkspaceFile,
+  CreateEmptyFile,
+  DownloadFile,
   Ffmpeg,
   GenerateAudio,
   GenerateImage,
   GenerateVideo,
-  KnowledgeBase,
   ManageCredential,
   ManageCustomTool,
-  ManageMcpTool,
+  ManageKnowledgeBase,
+  ManageMcpConnection,
   ManageSkill,
+  PrepareFileEdit,
   UserTable,
-  WorkspaceFile,
 } from '@/lib/copilot/generated/tool-catalog-v1'
 import { copilotToolCanWrite } from '@/lib/copilot/tools/permissions'
 import {
@@ -25,11 +25,12 @@ import {
 } from '@/lib/copilot/tools/server/base-tool'
 import { getBlocksMetadataServerTool } from '@/lib/copilot/tools/server/blocks/get-blocks-metadata-tool'
 import { getTriggerBlocksServerTool } from '@/lib/copilot/tools/server/blocks/get-trigger-blocks'
-import { searchDocumentationServerTool } from '@/lib/copilot/tools/server/docs/search-documentation'
+import { searchDocsServerTool } from '@/lib/copilot/tools/server/docs/search-docs'
 import { enrichmentRunServerTool } from '@/lib/copilot/tools/server/enrichment/enrichment-run'
 import { createFileServerTool } from '@/lib/copilot/tools/server/files/create-file'
 import { downloadToWorkspaceFileServerTool } from '@/lib/copilot/tools/server/files/download-to-workspace-file'
 import { editContentServerTool } from '@/lib/copilot/tools/server/files/edit-content'
+import { extractDocAssetsServerTool } from '@/lib/copilot/tools/server/files/extract-doc-assets'
 import {
   createFileFolderServerTool,
   listFileFoldersServerTool,
@@ -49,6 +50,12 @@ import { generateAudioServerTool } from '@/lib/copilot/tools/server/media/genera
 import { generateVideoServerTool } from '@/lib/copilot/tools/server/media/generate-video'
 import { searchOnlineServerTool } from '@/lib/copilot/tools/server/other/search-online'
 import { queryUserTableServerTool } from '@/lib/copilot/tools/server/table/query-user-table'
+import { tableAutomationsServerTool } from '@/lib/copilot/tools/server/table/table-automations'
+import { tableColumnsServerTool } from '@/lib/copilot/tools/server/table/table-columns'
+import { tableEnrichmentsServerTool } from '@/lib/copilot/tools/server/table/table-enrichments'
+import { tableManageServerTool } from '@/lib/copilot/tools/server/table/table-manage'
+import { tableRowsServerTool } from '@/lib/copilot/tools/server/table/table-rows'
+import { tableViewsServerTool } from '@/lib/copilot/tools/server/table/table-views'
 import { userTableServerTool } from '@/lib/copilot/tools/server/table/user-table'
 import { getCredentialsServerTool } from '@/lib/copilot/tools/server/user/get-credentials'
 import { setEnvironmentVariablesServerTool } from '@/lib/copilot/tools/server/user/set-environment-variables'
@@ -86,7 +93,7 @@ const VISIBILITY_GATED_TOOLS = new Set([
 ])
 
 const WRITE_ACTIONS: Record<string, string[]> = {
-  [KnowledgeBase.id]: [
+  [ManageKnowledgeBase.id]: [
     'create',
     'add_file',
     'update',
@@ -129,19 +136,19 @@ const WRITE_ACTIONS: Record<string, string[]> = {
     'add_enrichment',
   ],
   [ManageCustomTool.id]: ['add', 'edit', 'delete'],
-  [ManageMcpTool.id]: ['add', 'edit', 'delete'],
+  [ManageMcpConnection.id]: ['add', 'edit', 'delete'],
   [ManageSkill.id]: ['add', 'edit', 'delete'],
   [ManageCredential.id]: ['rename', 'delete'],
-  [WorkspaceFile.id]: ['create', 'append', 'update', 'delete', 'rename', 'patch'],
+  [PrepareFileEdit.id]: ['create', 'append', 'update', 'delete', 'rename', 'patch'],
   [editContentServerTool.name]: ['*'],
-  [CreateFile.id]: ['*'],
+  [CreateEmptyFile.id]: ['*'],
   rename_file: ['*'],
   [shareFileServerTool.name]: ['*'],
   move_file: ['*'],
   create_file_folder: ['*'],
   rename_file_folder: ['*'],
   move_file_folder: ['*'],
-  [DownloadToWorkspaceFile.id]: ['*'],
+  [DownloadFile.id]: ['*'],
   [GenerateImage.id]: ['generate'],
   [GenerateVideo.id]: ['generate'],
   [GenerateAudio.id]: ['generate'],
@@ -164,7 +171,7 @@ const baseServerToolRegistry: Record<string, BaseServerTool> = {
   [getTriggerBlocksServerTool.name]: getTriggerBlocksServerTool,
   [editWorkflowServerTool.name]: editWorkflowServerTool,
   [queryLogsServerTool.name]: queryLogsServerTool,
-  [searchDocumentationServerTool.name]: searchDocumentationServerTool,
+  [searchDocsServerTool.name]: searchDocsServerTool,
   [searchOnlineServerTool.name]: searchOnlineServerTool,
   [setEnvironmentVariablesServerTool.name]: setEnvironmentVariablesServerTool,
   [getCredentialsServerTool.name]: getCredentialsServerTool,
@@ -173,6 +180,12 @@ const baseServerToolRegistry: Record<string, BaseServerTool> = {
   [enrichmentRunServerTool.name]: enrichmentRunServerTool,
   [userTableServerTool.name]: userTableServerTool,
   [queryUserTableServerTool.name]: queryUserTableServerTool,
+  [tableManageServerTool.name]: tableManageServerTool,
+  [tableRowsServerTool.name]: tableRowsServerTool,
+  [tableColumnsServerTool.name]: tableColumnsServerTool,
+  [tableAutomationsServerTool.name]: tableAutomationsServerTool,
+  [tableEnrichmentsServerTool.name]: tableEnrichmentsServerTool,
+  [tableViewsServerTool.name]: tableViewsServerTool,
   [workspaceFileServerTool.name]: workspaceFileServerTool,
   [editContentServerTool.name]: editContentServerTool,
   [createFileServerTool.name]: createFileServerTool,
@@ -184,6 +197,7 @@ const baseServerToolRegistry: Record<string, BaseServerTool> = {
   [renameFileFolderServerTool.name]: renameFileFolderServerTool,
   [moveFileFolderServerTool.name]: moveFileFolderServerTool,
   [downloadToWorkspaceFileServerTool.name]: downloadToWorkspaceFileServerTool,
+  [extractDocAssetsServerTool.name]: extractDocAssetsServerTool,
   [generateImageServerTool.name]: generateImageServerTool,
   [generateVideoServerTool.name]: generateVideoServerTool,
   [generateAudioServerTool.name]: generateAudioServerTool,

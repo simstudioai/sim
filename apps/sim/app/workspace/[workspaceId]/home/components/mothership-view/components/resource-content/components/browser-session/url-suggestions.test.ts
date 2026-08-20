@@ -2,6 +2,9 @@ import type { BrowserKnownSession, BrowserSessionEvidence } from '@sim/browser-p
 import type { BrowserCredentialMetadata, BrowserSiteInfo } from '@sim/desktop-bridge'
 import { describe, expect, it } from 'vitest'
 import {
+  buildOmniboxSuggestions,
+  googleSearchUrl,
+  isSearchQueryInput,
   mergeSuggestionSources,
   moveActiveIndex,
   rankSuggestions,
@@ -418,6 +421,65 @@ describe('rankSuggestions', () => {
     rankSuggestions(corpus, '')
 
     expect(corpus).toEqual(original)
+  })
+})
+
+describe('buildOmniboxSuggestions', () => {
+  it('leads with the exact search, keeps matching sites, then adds live completions', () => {
+    const results = buildOmniboxSuggestions(
+      [suggestion('mail.google.com', 100, 'Gmail')],
+      'gmail',
+      ['gmail login', 'gmail account']
+    )
+
+    expect(results.map((result) => [result.kind, result.url])).toEqual([
+      ['search', googleSearchUrl('gmail')],
+      ['site', 'https://mail.google.com'],
+      ['search', googleSearchUrl('gmail login')],
+      ['search', googleSearchUrl('gmail account')],
+    ])
+  })
+
+  it('does not send URL-looking input through search completions', () => {
+    const results = buildOmniboxSuggestions([suggestion('github.com', 100)], 'github.com', [
+      'github.com login',
+    ])
+
+    expect(results).toHaveLength(1)
+    expect(results[0]).toMatchObject({ kind: 'site', hostname: 'github.com' })
+  })
+
+  it('deduplicates completions and caps the combined dropdown', () => {
+    const results = buildOmniboxSuggestions(
+      [],
+      'sim ai',
+      ['sim ai', 'SIM AI', 'sim ai workflow', 'sim ai agents'],
+      2
+    )
+
+    expect(results.map((result) => result.kind === 'search' && result.query)).toEqual([
+      'sim ai',
+      'sim ai workflow',
+    ])
+  })
+
+  it('keeps an empty omnibox local-only', () => {
+    const results = buildOmniboxSuggestions([suggestion('github.com', 100)], '', [
+      'ignored remote completion',
+    ])
+
+    expect(results).toHaveLength(1)
+    expect(results[0]).toMatchObject({ kind: 'site', hostname: 'github.com' })
+  })
+})
+
+describe('isSearchQueryInput', () => {
+  it('distinguishes searches from navigable addresses', () => {
+    expect(isSearchQueryInput('what is the best browser')).toBe(true)
+    expect(isSearchQueryInput('electron')).toBe(true)
+    expect(isSearchQueryInput('sim.ai/docs')).toBe(false)
+    expect(isSearchQueryInput('https://sim.ai')).toBe(false)
+    expect(isSearchQueryInput('localhost:3000')).toBe(false)
   })
 })
 

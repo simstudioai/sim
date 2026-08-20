@@ -525,7 +525,7 @@ describe('decompressArchiveBufferToWorkspaceFiles', () => {
   })
 
   it('rolls back the folders it created when an upload fails mid-extraction', async () => {
-    // `materialize_file` refuses to re-extract into a root folder that still has any
+    // `save_upload` refuses to re-extract into a root folder that still has any
     // child, so a folder left behind by a failed run turns every retry into
     // "already extracted" until a human deletes the tree by hand.
     const buffer = await buildZip({ 'a/one.txt': 'first', 'b/two.txt': 'second' })

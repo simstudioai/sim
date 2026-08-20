@@ -16,6 +16,8 @@ import {
   MothershipStreamV1ToolPhase,
   type MothershipStreamV1ToolResultPayload,
 } from '@/lib/copilot/generated/mothership-stream-v1'
+import { CopilotDegradedReason } from '@/lib/copilot/generated/trace-attribute-values-v1'
+import { recordDegraded } from '@/lib/copilot/request/metrics'
 import { markToolResultSeen } from '@/lib/copilot/request/sse-utils'
 import { setTerminalToolCallState } from '@/lib/copilot/request/tool-call-state'
 import type {
@@ -149,17 +151,37 @@ export function abortPendingToolIfStreamDead(
   if (!options.abortSignal?.aborted && !context.wasAborted) {
     return false
   }
-  toolCall.status = MothershipStreamV1ToolOutcome.cancelled
-  toolCall.endTime = Date.now()
+  const abortReason = options.abortSignal?.aborted
+    ? String(options.abortSignal.reason ?? 'unknown')
+    : undefined
+  // Go through the canonical terminal helper rather than stamping status by
+  // hand: it also writes `result`, and everything downstream that reads a
+  // finished tool call requires one. Leaving it unset made this call look
+  // terminal-but-incomplete, which the subagent join turned into a thrown
+  // "missing result" error that killed the whole turn.
+  setTerminalToolCallState(toolCall, {
+    status: MothershipStreamV1ToolOutcome.cancelled,
+    error: 'Tool was not dispatched because its stream had already been aborted',
+  })
   markToolResultSeen(toolCallId)
+  // Sim's logs do not reach Loki and the trace span below is collected
+  // in-process but never exported, so the counter is the only signal that
+  // survives to somewhere queryable.
+  recordDegraded(CopilotDegradedReason.StreamDeadBeforeDispatch)
+  logger.warn('Cancelled tool call before dispatch: stream already aborted', {
+    toolCallId,
+    toolName: toolCall.name,
+    reason: 'stream_dead_before_dispatch',
+    abortSignalAborted: options.abortSignal?.aborted ?? false,
+    ...(abortReason ? { abortReason } : {}),
+    wasAborted: context.wasAborted ?? false,
+  })
   const toolSpan = context.trace.startSpan(toolCall.name || 'unknown_tool', 'tool.execute', {
     toolCallId,
     toolName: toolCall.name,
     cancelReason: 'stream_dead_before_dispatch',
     abortSignalAborted: options.abortSignal?.aborted ?? false,
-    abortReason: options.abortSignal?.aborted
-      ? String(options.abortSignal.reason ?? 'unknown')
-      : undefined,
+    abortReason,
     wasAborted: context.wasAborted ?? false,
   })
   context.trace.endSpan(toolSpan, 'cancelled')
@@ -176,6 +198,7 @@ export function getToolCallUI(data: MothershipStreamV1ToolCallDescriptor): {
   simExecutable: boolean
   internal: boolean
   hidden: boolean
+  inbandOwned: boolean
 } {
   const raw = toRecord(data.ui)
   return {
@@ -184,6 +207,7 @@ export function getToolCallUI(data: MothershipStreamV1ToolCallDescriptor): {
     simExecutable: data.executor === MothershipStreamV1ToolExecutor.sim,
     internal: raw.internal === true,
     hidden: raw.hidden === true,
+    inbandOwned: raw.inbandOwned === true,
   }
 }
 

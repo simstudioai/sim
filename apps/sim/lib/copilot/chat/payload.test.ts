@@ -368,7 +368,7 @@ describe('buildCopilotRequestPayload', () => {
           content: [
             'File "payroll.xlsx" (application/octet-stream, 1 bytes) uploaded.',
             'Read with: read("uploads/payroll.xlsx")',
-            'To save permanently: materialize_file(fileName: "payroll.xlsx")',
+            'To save permanently: save_upload(fileName: "payroll.xlsx")',
           ].join('\n'),
         },
       ])
@@ -410,7 +410,7 @@ describe('buildCopilotRequestPayload', () => {
           content: [
             'File "photo.png" (image/png, 10 bytes) uploaded.',
             'Read with: read("uploads/photo.png")',
-            'To save permanently: materialize_file(fileName: "photo.png")',
+            'To save permanently: save_upload(fileName: "photo.png")',
           ].join('\n'),
         },
       ])

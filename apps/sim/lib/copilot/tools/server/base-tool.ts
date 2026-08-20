@@ -16,7 +16,7 @@ export interface ServerToolContext {
   messageId?: string
   /**
    * The invoking subagent's channel id (its outer tool_use id). Used to scope
-   * the workspace_file -> edit_content intent handoff to a single file subagent
+   * the prepare_file_edit -> apply_file_edit intent handoff to a single file subagent
    * so two file agents writing concurrently never consume each other's pending
    * intent. Undefined for main-agent tool calls (which never overlap).
    */

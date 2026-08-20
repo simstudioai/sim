@@ -2,14 +2,14 @@ import { useEffect, useMemo, useState } from 'react'
 import { isPlainRecord } from '@sim/utils/object'
 import { ShimmerText } from '@/components/ui'
 import {
-  BrowserRequestTakeover,
   CallIntegrationTool,
+  PrepareFileEdit,
   Read as ReadTool,
   Terminal as TerminalTool,
   Wait as WaitTool,
-  WorkspaceFile,
 } from '@/lib/copilot/generated/tool-catalog-v1'
 import { getReadTargetBlock } from '@/lib/copilot/tools/client/read-block'
+import { RETIRED_BROWSER_REQUEST_TAKEOVER_ID } from '@/lib/copilot/tools/retired-tools'
 import { extractStreamingStringArgument } from '@/lib/copilot/tools/streaming-args'
 import { getToolStatusDisplayTitle, getWaitCountdownTitle } from '@/lib/copilot/tools/tool-display'
 import { BrandIcon } from '@/blocks/brand-icon'
@@ -138,7 +138,7 @@ export function ToolCallItem({
   }, [toolName, params, streamingArgs])
 
   const liveWorkspaceFileTitle = useMemo(() => {
-    if (toolName !== WorkspaceFile.id || !streamingArgs) return null
+    if (toolName !== PrepareFileEdit.id || !streamingArgs) return null
     const titleMatch = streamingArgs.match(/"title"\s*:\s*"([^"]+)"/)
     if (!titleMatch?.[1]) return null
     const opMatch = streamingArgs.match(/"operation"\s*:\s*"(\w+)"/)
@@ -168,7 +168,7 @@ export function ToolCallItem({
 
   const displayState = resolveToolDisplayState(status)
   const isExecuting = displayState === 'spinner'
-  const isBrowserTakeover = toolName === BrowserRequestTakeover.id
+  const isBrowserTakeover = toolName === RETIRED_BROWSER_REQUEST_TAKEOVER_ID
 
   const isCountingDown = toolName === WaitTool.id && isExecuting
   const elapsedMs = useElapsedMs(isCountingDown, startedAt)
@@ -236,14 +236,16 @@ export function ToolCallItem({
   }
 
   return (
-    <div className='flex items-center gap-[6px] pl-6'>
+    <div className='flex min-w-0 items-center gap-[6px] pl-6'>
       {BlockIcon && <BrandIcon icon={BlockIcon} className='size-[14px] flex-shrink-0' />}
       {isExecuting ? (
-        <ShimmerText className='text-[13px] [--shimmer-rest:var(--text-secondary)]'>
+        <ShimmerText className='min-w-0 truncate text-[13px] leading-[18px] [--shimmer-rest:var(--text-secondary)]'>
           {title}
         </ShimmerText>
       ) : (
-        <span className='text-[13px] text-[var(--text-secondary)]'>{title}</span>
+        <span className='min-w-0 truncate text-[13px] text-[var(--text-secondary)] leading-[18px]'>
+          {title}
+        </span>
       )}
     </div>
   )

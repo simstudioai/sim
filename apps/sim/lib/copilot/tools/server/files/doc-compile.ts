@@ -106,11 +106,14 @@ const FILE_HELPER_RE =
   /\b(?:getFileBase64|addImage|drawImage)\(\s*(?:[A-Za-z_$][\w$]*\s*,\s*)?['"]([A-Za-z0-9_-]+)['"]/g
 
 // The doc source is user/LLM-controlled, so bound how much it can pull into the
-// sandbox: each `/home/user/inputs/<id>` reference is only ~35 bytes, so the
-// source-size cap alone does not bound staging. These caps prevent an
-// authenticated member from forcing thousands of (or very large) workspace files
-// to be downloaded and base64-held in-process per compile request.
-const MAX_STAGED_INPUTS = 20
+// sandbox by BYTES (per file and total) — an authenticated member must not be
+// able to force very large workspace downloads to be base64-held in-process per
+// compile. The count cap is deliberately GENEROUS: a deck rebuild references
+// every extracted image across the whole source (asset extraction ships at most
+// 200 media files), so real documents sit far under it — it exists only so the
+// per-reference metadata lookups stay bounded against a source stuffed with
+// thousands of id-like strings, which the byte caps alone cannot bound.
+const MAX_REFERENCED_INPUTS = 500
 const MAX_STAGED_FILE_BYTES = 25 * 1024 * 1024
 const MAX_STAGED_TOTAL_BYTES = 50 * 1024 * 1024
 
@@ -147,8 +150,8 @@ function referencedImageIdentities(
  * image-helper call sites and the legacy `/home/user/inputs/<id>` path. Matching
  * is scoped to the helper calls (not bare id-like strings in slide text), and the
  * caller skips any id that does not resolve to a real file, so over-matching is
- * harmless. Retention stops at one over the remote staging limit: callers need
- * only distinguish no references, an admissible set, and an oversized set.
+ * harmless. Retention stops at one over the reference cap: callers need only
+ * distinguish no references, an admissible set, and an oversized set.
  */
 export function collectReferencedFileIds(source: string): Set<string> {
   const ids = new Set<string>()
@@ -156,7 +159,7 @@ export function collectReferencedFileIds(source: string): Set<string> {
     for (const match of source.matchAll(re)) {
       if (match[1]) {
         ids.add(match[1])
-        if (ids.size > MAX_STAGED_INPUTS) return ids
+        if (ids.size > MAX_REFERENCED_INPUTS) return ids
       }
     }
   }
@@ -169,9 +172,11 @@ async function resolveReferencedImages(
   principal: Principal,
   ids = collectReferencedFileIds(source)
 ): Promise<ReferencedImageResolution> {
-  if (ids.size > MAX_STAGED_INPUTS) {
-    throw new Error(
-      `More than ${MAX_STAGED_INPUTS} referenced input files; maximum is ${MAX_STAGED_INPUTS}. Reference fewer files.`
+  if (ids.size > MAX_REFERENCED_INPUTS) {
+    // User-fixable, not transient: each reference costs a metadata read, so an
+    // oversized set is refused before any resolution work starts.
+    throw new DocCompileUserError(
+      `More than ${MAX_REFERENCED_INPUTS} referenced input files; maximum is ${MAX_REFERENCED_INPUTS}. Reference fewer files.`
     )
   }
   if (ids.size === 0) {
@@ -207,12 +212,6 @@ async function stageReferencedImages(
   workspaceId: string,
   principal: Principal
 ): Promise<SandboxFile[]> {
-  if (resolution.referenceCount > MAX_STAGED_INPUTS) {
-    throw new Error(
-      `More than ${MAX_STAGED_INPUTS} referenced input files; maximum is ${MAX_STAGED_INPUTS}. Reference fewer files.`
-    )
-  }
-
   const files: SandboxFile[] = []
   let totalBytes = 0
   for (const { fileId, record } of resolution.images) {
@@ -225,8 +224,8 @@ async function stageReferencedImages(
       continue
     }
     if (totalBytes + (record.size ?? 0) > MAX_STAGED_TOTAL_BYTES) {
-      throw new Error(
-        `Referenced input files exceed the ${MAX_STAGED_TOTAL_BYTES} byte staging budget.`
+      throw new DocCompileUserError(
+        `Referenced input files exceed the ${Math.round(MAX_STAGED_TOTAL_BYTES / (1024 * 1024))} MB total staging budget (the whole document's references count). Use smaller/compressed copies of the largest images.`
       )
     }
     const content = await readWorkspaceFileContent.execute({
@@ -263,8 +262,10 @@ async function stageReferencedImages(
     // outside the catch above so it fails the compile rather than being skipped.
     totalBytes += buffer.length
     if (totalBytes > MAX_STAGED_TOTAL_BYTES) {
-      throw new Error(
-        `Referenced input files exceed the ${MAX_STAGED_TOTAL_BYTES} byte staging budget.`
+      // A user-fixable condition, not a transient failure: retrying with the
+      // same references can never succeed — the images must shrink.
+      throw new DocCompileUserError(
+        `Referenced input files exceed the ${Math.round(MAX_STAGED_TOTAL_BYTES / (1024 * 1024))} MB total staging budget (the whole document's references count). Use smaller/compressed copies of the largest images.`
       )
     }
     files.push({
@@ -358,7 +359,7 @@ async function compileDocViaE2BPython(
 // `pptx`/`docx` instances, geometry constants, and fileId-based image helpers
 // (reading staged /home/user/inputs/<id> files). pptx also gets `iconImage`
 // (react-icons → sharp → PNG), which only works here because the E2B sandbox is
-// a full Linux VM. The agent's edit_content source runs inside an async IIFE so
+// a full Linux VM. The agent's apply_file_edit source runs inside an async IIFE so
 // top-level await (addImage/iconImage) works; the finalizer writes the binary.
 const PPTX_NODE_PREAMBLE = `
 const PptxGenJS = require('pptxgenjs');
@@ -608,7 +609,7 @@ export async function loadCompiledDocByExt(
   const fmt = await getE2BDocFormat(`x.${ext}`)
   if (!fmt) return null
   const referencedFileIds = collectReferencedFileIds(source)
-  if (referencedFileIds.size > MAX_STAGED_INPUTS || !options.filePrincipal) {
+  if (!options.filePrincipal) {
     if (referencedFileIds.size === 0) {
       const buffer = await loadCompiledDoc(workspaceId, source, fmt.ext)
       return buffer ? { buffer, contentType: fmt.contentType } : null

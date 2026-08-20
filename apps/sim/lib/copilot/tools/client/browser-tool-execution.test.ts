@@ -436,3 +436,38 @@ describe('executeBrowserToolOnClient', () => {
     })
   })
 })
+
+describe('pre-dispatch drops still resolve the waiter', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockReportCompletion.mockResolvedValue(undefined)
+  })
+
+  it('reports an error confirmation for a stale event instead of hanging the turn', async () => {
+    const staleTs = new Date(Date.now() - 10 * 60 * 1000).toISOString()
+    executeBrowserToolOnClient('stale-call-1', 'browser_list_sessions', {}, 'chat-scope-1', staleTs)
+    await sleep(0)
+
+    expect(mockExecuteBrowserTool).not.toHaveBeenCalled()
+    expect(mockReportCompletion).toHaveBeenCalledWith(
+      'stale-call-1',
+      'error',
+      expect.stringContaining('too late'),
+      expect.objectContaining({ staleEvent: true })
+    )
+  })
+
+  it('reports an error confirmation when no chat scope exists', async () => {
+    useBrowserSessionStore.setState({ activeScopeId: null })
+    executeBrowserToolOnClient('no-scope-1', 'browser_list_sessions', {}, undefined)
+    await sleep(0)
+
+    expect(mockExecuteBrowserTool).not.toHaveBeenCalled()
+    expect(mockReportCompletion).toHaveBeenCalledWith(
+      'no-scope-1',
+      'error',
+      expect.stringContaining('no active browser session'),
+      expect.anything()
+    )
+  })
+})

@@ -2,7 +2,7 @@ import { createLogger } from '@sim/logger'
 import { parse as csvParse } from 'csv-parse/sync'
 import { executeCopilotReplaceProjectedWireRows } from '@/lib/copilot/application/table-commands'
 import { messageForCopilotTableError } from '@/lib/copilot/auth/table-delegation'
-import { FunctionExecute, Read as ReadTool } from '@/lib/copilot/generated/tool-catalog-v1'
+import { Read as ReadTool, RunFunction } from '@/lib/copilot/generated/tool-catalog-v1'
 import { CopilotTableOutcome } from '@/lib/copilot/generated/trace-attribute-values-v1'
 import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
 import { TraceEvent } from '@/lib/copilot/generated/trace-events-v1'
@@ -68,7 +68,7 @@ export async function maybeWriteOutputToTable(
   result: ToolCallResult,
   context: ExecutionContext
 ): Promise<ToolCallResult> {
-  if (toolName !== FunctionExecute.id) return result
+  if (toolName !== RunFunction.id) return result
   if (!result.success || !result.output) return result
   const outputTable = params?.outputTable as string | undefined
   if (!outputTable) return result

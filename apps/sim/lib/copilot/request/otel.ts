@@ -10,6 +10,7 @@ import {
   TraceFlags,
   trace,
 } from '@opentelemetry/api'
+import { setRequestTraceId } from '@sim/logger'
 import { describeError, toError } from '@sim/utils/errors'
 import { RequestTraceV1Outcome } from '@/lib/copilot/generated/request-trace-v1'
 import {
@@ -459,6 +460,11 @@ export function startCopilotOtelRoot(
     (spanContext.traceId && spanContext.traceId.length === 32 ? spanContext.traceId : '')
   span.setAttribute(TraceAttr.RequestId, requestId)
   span.setAttribute(TraceAttr.SimRequestId, requestId)
+  // Stamp the trace id onto the route's log context so every sim log line in
+  // this request greps by the same id the Go copilot logs as trace_id.
+  if (spanContext.traceId && spanContext.traceId.length === 32) {
+    setRequestTraceId(spanContext.traceId)
+  }
   const rootContext = trace.setSpan(parentContext, carrierSpan)
 
   let finished = false
@@ -572,6 +578,9 @@ export async function withCopilotOtelContext<T>(
   if (resolvedRequestId) {
     span.setAttribute(TraceAttr.RequestId, resolvedRequestId)
     span.setAttribute(TraceAttr.SimRequestId, resolvedRequestId)
+  }
+  if (spanContext.traceId && spanContext.traceId.length === 32) {
+    setRequestTraceId(spanContext.traceId)
   }
   const otelContext = trace.setSpan(parentContext, carrierSpan)
   let terminalStatusSet = false

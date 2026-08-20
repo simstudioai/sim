@@ -2,7 +2,7 @@
 
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { cn } from '@sim/emcn'
-import { PanelLeft } from '@sim/emcn/icons'
+import { ArrowLeft, ArrowRight, PanelLeft } from '@sim/emcn/icons'
 import { usePathname } from 'next/navigation'
 import { getDesktopBridge } from '@/lib/desktop'
 import { applyDesktopTitleBarMode, type DesktopTitleBarMode } from '@/app/_shell/desktop-title-bar'
@@ -84,6 +84,69 @@ interface WorkspaceChromeProps {
   children: React.ReactNode
   /** Cookie-derived collapse state from the server layout; seeds the sidebar's first render. */
   initialSidebarCollapsed?: boolean
+}
+
+/** Chromium Navigation API slice (absent from TS lib.dom). */
+type ChromiumNavigation = EventTarget & { canGoBack: boolean; canGoForward: boolean }
+
+const LANE_NAV_BUTTON =
+  'flex size-[var(--desktop-title-bar-control-size)] items-center justify-center rounded-lg transition-colors disabled:pointer-events-none disabled:opacity-40 hover-hover:bg-[var(--surface-active)]'
+const LANE_NAV_ICON = 'size-[var(--desktop-title-bar-control-icon-size)] text-[var(--text-icon)]'
+
+/**
+ * Back/forward history arrows in the desktop title-bar lane, right of the
+ * sidebar toggle. Only the macOS shell sets the inset attribute, so the web
+ * app never shows them; the shell's renderer is Chromium, so the Navigation
+ * API is always there for the arrow state.
+ */
+function TitleBarHistoryNav() {
+  const [can, setCan] = useState({ back: false, forward: false })
+
+  useEffect(() => {
+    const nav = (window as { navigation?: ChromiumNavigation }).navigation
+    if (!nav) return
+    let disposed = false
+    // currententrychange dispatches SYNCHRONOUSLY from the history mutation
+    // that caused it, which can originate inside another component's
+    // useInsertionEffect (style libraries navigate during commit). Scheduling
+    // state there is forbidden ("useInsertionEffect must not schedule
+    // updates"), so the update defers to a microtask, which flushes after
+    // the commit's synchronous work unwinds.
+    const sync = () => {
+      queueMicrotask(() => {
+        if (!disposed) setCan({ back: nav.canGoBack, forward: nav.canGoForward })
+      })
+    }
+    sync()
+    nav.addEventListener('currententrychange', sync)
+    return () => {
+      disposed = true
+      nav.removeEventListener('currententrychange', sync)
+    }
+  }, [])
+
+  return (
+    <div className='absolute top-[var(--desktop-title-bar-control-offset)] left-[calc(var(--desktop-title-bar-inset-x)+var(--desktop-title-bar-control-size)+4px)] z-30 hidden h-[var(--desktop-title-bar-control-size)] items-center gap-[2px] [-webkit-app-region:no-drag] [[data-sim-desktop-title-bar=inset]_&]:flex'>
+      <button
+        type='button'
+        aria-label='Back'
+        disabled={!can.back}
+        onClick={() => window.history.back()}
+        className={LANE_NAV_BUTTON}
+      >
+        <ArrowLeft className={LANE_NAV_ICON} />
+      </button>
+      <button
+        type='button'
+        aria-label='Forward'
+        disabled={!can.forward}
+        onClick={() => window.history.forward()}
+        className={LANE_NAV_BUTTON}
+      >
+        <ArrowRight className={LANE_NAV_ICON} />
+      </button>
+    </div>
+  )
 }
 
 function isFullscreenPath(pathname: string | null): boolean {
@@ -374,6 +437,7 @@ export function WorkspaceChrome({
           </SidebarTooltip>
         </div>
       )}
+      {!isFullscreen && <TitleBarHistoryNav />}
     </div>
   )
 }

@@ -213,6 +213,13 @@ describe('AgentGroup browser takeover', () => {
     })
 
     expect(container.querySelector('.animate-stream-fade-in')).toBeNull()
+    // Groups never auto-expand: the answered question lives inside the
+    // collapsed log until the user opens it manually.
+    const headerToggle = container.querySelector('button[class*="group/agent"]')
+    expect(headerToggle).not.toBeNull()
+    act(() => {
+      headerToggle?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    })
     const resumedLog = container.querySelector('[data-state="open"]')
     const answeredQuestion = container.querySelector('[data-takeover-answer="true"]')
     expect(answeredQuestion?.textContent).toContain(reason)
@@ -220,5 +227,79 @@ describe('AgentGroup browser takeover', () => {
     expect(resumedLog?.contains(answeredQuestion)).toBe(true)
 
     act(() => root.unmount())
+  })
+})
+
+describe('AgentGroup nested status line', () => {
+  let container: HTMLDivElement
+  let root: Root
+
+  beforeEach(() => {
+    container = document.createElement('div')
+    document.body.appendChild(container)
+    root = createRoot(container)
+  })
+
+  afterEach(() => {
+    act(() => root.unmount())
+    container.remove()
+  })
+
+  const namedTool = (
+    displayTitle: string,
+    status: ToolCallStatus,
+    startedAt?: number
+  ): AgentGroupItem => ({
+    type: 'tool',
+    data: {
+      id: `${displayTitle}-${startedAt ?? 0}`,
+      toolName: 'grep',
+      displayTitle,
+      status,
+      startedAt,
+    },
+  })
+
+  const render = (items: AgentGroupItem[]) => {
+    act(() => {
+      root.render(
+        createElement(AgentGroup, {
+          agentName: 'workflow',
+          agentLabel: 'Workflow Agent',
+          items,
+          isStreaming: true,
+          isLaneOpen: true,
+        })
+      )
+    })
+    return container.textContent ?? ''
+  }
+
+  it("shows a nested agent's running tool instead of the parent's finished one", () => {
+    const header = render([
+      namedTool('Reading workflow', 'success' as ToolCallStatus, 1),
+      group([namedTool('Deploying Invoice Sync as API', 'executing' as ToolCallStatus, 2)]),
+    ])
+    expect(header).toContain('Workflow Agent — Deploying Invoice Sync as API')
+  })
+
+  it('counts running tools across depths with the + n suffix', () => {
+    const header = render([
+      namedTool('Reading workflow', 'executing' as ToolCallStatus, 1),
+      group([
+        namedTool('Deploying Invoice Sync as API', 'executing' as ToolCallStatus, 3),
+        namedTool('Checking deployment status', 'executing' as ToolCallStatus, 2),
+      ]),
+    ])
+    // Latest start wins; the other two running become the overflow count.
+    expect(header).toContain('Deploying Invoice Sync as API + 2')
+  })
+
+  it('falls back to the last tool at any depth when nothing is running', () => {
+    const header = render([
+      namedTool('Reading workflow', 'success' as ToolCallStatus, 1),
+      group([namedTool('Deploying Invoice Sync as API', 'success' as ToolCallStatus, 2)]),
+    ])
+    expect(header).toContain('Workflow Agent — Deploying Invoice Sync as API')
   })
 })
