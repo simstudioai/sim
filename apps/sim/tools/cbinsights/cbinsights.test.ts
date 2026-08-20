@@ -328,6 +328,21 @@ describe('cbinsights request building', () => {
     }
   )
 
+  it('rejects a numeric ID past the precision limit on both input shapes', async () => {
+    mockFetch([AUTH_OK])
+    await expect(
+      cbinsightsGetOrgOutlookTool.directExecution!({ ...CREDS, orgId: 1e20 } as never)
+    ).rejects.toThrow(/"orgId" must be a positive integer/)
+
+    mockFetch([AUTH_OK])
+    await expect(
+      cbinsightsGetOrgOutlookTool.directExecution!({
+        ...CREDS,
+        orgId: '12345678901234567890',
+      } as never)
+    ).rejects.toThrow(/"orgId" must be a positive integer/)
+  })
+
   it('still accepts a plain decimal ID, with or without padding', async () => {
     mockFetch([AUTH_OK, { body: {} }, { body: {} }])
     await cbinsightsGetOrgOutlookTool.directExecution!({ ...CREDS, orgId: '  129410  ' } as never)

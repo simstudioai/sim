@@ -252,8 +252,11 @@ const DECIMAL_ID = /^\d+$/
 
 /** Coerces one entry to a positive integer ID, or returns null if it is not one. */
 function toOrgId(value: unknown): number | null {
+  /* Safe, not merely integral: JSON parsing has already rounded anything past
+     the precision limit, so accepting it would target a different ID than the
+     one supplied. The string branch below applies the same bound. */
   if (typeof value === 'number') {
-    return Number.isInteger(value) && value > 0 ? value : null
+    return Number.isSafeInteger(value) && value > 0 ? value : null
   }
   if (typeof value !== 'string') return null
 
