@@ -9,6 +9,7 @@ import {
   WorkflowLockedError,
 } from '@sim/platform-authz/workflow'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
+import { principalAuditSource } from '@/lib/core/application'
 import { asOrchestrationError, OrchestrationError } from '@/lib/core/orchestration/types'
 import { notifyWorkflowUpdated } from '@/lib/realtime/notify'
 import { defineAuthorizedWorkflowUseCase } from '@/lib/workflows/application/authorized-workflow-use-case'
@@ -157,7 +158,7 @@ export const moveWorkflowsBulk = defineAuthorizedWorkflowUseCase({
 
     return { moved, failed, folderId, changes }
   },
-  projectAudit: ({ result }) =>
+  projectAudit: ({ principal, result }) =>
     result.changes.map((change) => ({
       action: AuditAction.WORKFLOW_UPDATED,
       resourceType: AuditResourceType.WORKFLOW,
@@ -167,6 +168,7 @@ export const moveWorkflowsBulk = defineAuthorizedWorkflowUseCase({
       metadata: {
         previousFolderId: change.previousFolderId,
         folderId: result.folderId,
+        source: principalAuditSource(principal),
       },
     })),
   afterSuccess: async ({ result }) => {

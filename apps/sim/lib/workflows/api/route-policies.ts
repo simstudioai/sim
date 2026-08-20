@@ -36,7 +36,8 @@ export const v2WorkflowErrorPolicies = {
    * {@link v2WorkflowErrorPolicies.concealWorkflowAuthorization} does, and adds
    * the one refusal an edit batch has structured detail for: an `atomic` batch
    * that could not be applied whole answers `409` carrying the declined
-   * operations, so a pipeline can act on them without a second request.
+   * operations and the block inputs that would have been dropped, so a pipeline
+   * can act on both without a second request.
    */
   concealWorkflowGraphAuthorization: createV2ResourceConcealmentPolicy({
     notFoundMessage: 'Workflow not found',
@@ -45,6 +46,7 @@ export const v2WorkflowErrorPolicies = {
         return v2ErrorForOrchestration(error.code, error.message, {
           code: 'OPERATIONS_NOT_APPLIED',
           skipped: error.skipped,
+          droppedInputs: error.droppedInputs,
         })
       }
       return v2CaughtOrchestrationError(error)

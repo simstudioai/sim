@@ -111,7 +111,14 @@ describe('/api/v2/workflows/[id]/state', () => {
     expect(await response.json()).toEqual({ data: GRAPH })
   })
 
-  it('answers a HEAD through the GET without a body', async () => {
+  /**
+   * Next aliases a missing `HEAD` export onto `GET`, so the handler runs with
+   * `request.method === 'HEAD'`. The route is declared head-safe, which means
+   * the probe must run the read and produce the same representation the `GET`
+   * would — not the bodiless `v2HeadNoEffect` short-circuit a `headSafe: false`
+   * route answers with, which would make the endpoint useless for polling.
+   */
+  it('answers a HEAD through the GET with the same representation', async () => {
     const response = await GET(
       new NextRequest(`http://localhost/api/v2/workflows/${WORKFLOW_ID}/state`, {
         method: 'HEAD',
@@ -120,7 +127,38 @@ describe('/api/v2/workflows/[id]/state', () => {
     )
 
     expect(response.status).toBe(200)
+    expect(response.headers.get('Cache-Control')).toBe('private, no-store')
+    expect(await response.json()).toEqual({ data: GRAPH })
     expect(mocks.readWorkflowGraph).toHaveBeenCalledOnce()
+  })
+
+  /**
+   * The blockless-draft round trip: `PUT { blocks: {}, edges: [] }` is the
+   * contract's own published example, and the graph schema promises the read
+   * that follows it closes.
+   */
+  it('reads a blockless draft back as an empty graph', async () => {
+    const empty = { blocks: {}, edges: [], loops: {}, parallels: {}, variables: {} }
+    mocks.readWorkflowGraph.mockResolvedValue({
+      workflowId: WORKFLOW_ID,
+      workspaceId: 'workspace-1',
+      ...empty,
+    })
+
+    const response = await GET(
+      new NextRequest(`http://localhost/api/v2/workflows/${WORKFLOW_ID}/state`),
+      routeContext
+    )
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({ data: empty })
+  })
+
+  it('accepts the published empty-graph example', async () => {
+    const response = await PUT(putRequest({ blocks: {}, edges: [] }), routeContext)
+
+    expect(response.status).toBe(200)
+    expect(mocks.replaceWorkflowState).toHaveBeenCalledOnce()
   })
 
   it('rejects an undeclared query param', async () => {

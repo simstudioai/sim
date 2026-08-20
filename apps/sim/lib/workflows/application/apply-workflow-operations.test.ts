@@ -67,7 +67,14 @@ vi.mock('@/lib/workflows/editing/validation', () => ({
 }))
 vi.mock('@/lib/workflows/editing/lint', () => ({
   collectWorkflowFieldIssues: () => [],
-  lintEditedWorkflowState: () => ({ sources: [], sinks: [], orphans: [] }),
+  lintEditedWorkflowState: () => ({
+    sources: [],
+    sinks: [],
+    orphanBlocks: [],
+    emptyOutgoingPorts: [],
+    invalidBranchPorts: [],
+    invalidConnectionTargets: [],
+  }),
 }))
 vi.mock('@/lib/billing/core/subscription', () => ({
   hasWorkspaceSandboxAccess: mocks.sandboxAccess,
@@ -384,17 +391,10 @@ describe('applyWorkflowOperations', () => {
     expect(mocks.loadNormalized).not.toHaveBeenCalled()
   })
 
-  it('rejects a principal kind the operation does not accept before canonical loading', async () => {
+  it('rejects a workspace API key, which this operation denies, before canonical loading', async () => {
     await expect(
       applyWorkflowOperations.execute({
-        principal: {
-          kind: 'credential_group_enrollment',
-          workspaceId: 'workspace-1',
-          credentialGroupId: 'group-1',
-          enrollmentId: 'enrollment-1',
-          email: 'someone@example.com',
-          invitationTokenHash: 'hash',
-        },
+        principal: { kind: 'workspace_api_key', workspaceId: 'workspace-1', keyId: 'ws-key-1' },
         input: { workflowId: 'workflow-1', operations },
       })
     ).rejects.toMatchObject({ code: 'forbidden' })
@@ -418,5 +418,139 @@ describe('applyWorkflowOperations', () => {
 
     expect(mocks.replace).not.toHaveBeenCalled()
     expect(mocks.recordAudit).not.toHaveBeenCalled()
+  })
+
+  /**
+   * The enablement slice appends its refusals to the same `skippedItems` array
+   * the engine uses, so subtracting that array from the operation count charged
+   * enablement refusals against operations — and could go negative, which
+   * `Math.max` then hid.
+   */
+  it('does not charge enablement refusals against the operation count', async () => {
+    mocks.applyOperations.mockReturnValue({
+      state: graph({
+        'block-1': { ...BLOCK, locked: true },
+        'block-2': { ...BLOCK, id: 'block-2', locked: true },
+      }),
+      validationErrors: [],
+      skippedItems: [],
+    })
+
+    const result = await applyWorkflowOperations.execute({
+      principal: sessionPrincipal,
+      input: {
+        workflowId: 'workflow-1',
+        operations,
+        blockEnabledChanges: [
+          { blockId: 'block-1', enabled: false },
+          { blockId: 'block-2', enabled: false },
+        ],
+      },
+    })
+
+    expect(result.applied).toBe(1)
+    expect(result.skipped).toHaveLength(2)
+  })
+
+  /**
+   * `disabled_ancestor` is one of the three protection rules and has its own
+   * member of the published skip enum; reporting it as `block_locked` told a
+   * client to unlock a block that was never locked.
+   */
+  it('names a disabled container as the reason rather than calling the block locked', async () => {
+    mocks.applyOperations.mockReturnValue({
+      state: graph({
+        'loop-1': { ...BLOCK, id: 'loop-1', type: 'loop', enabled: false },
+        'block-1': { ...BLOCK, enabled: false, data: { parentId: 'loop-1' } },
+      }),
+      validationErrors: [],
+      skippedItems: [],
+    })
+
+    const result = await applyWorkflowOperations.execute({
+      principal: sessionPrincipal,
+      input: {
+        workflowId: 'workflow-1',
+        operations,
+        blockEnabledChanges: [{ blockId: 'block-1', enabled: true }],
+      },
+    })
+
+    expect(result.skipped).toEqual([
+      expect.objectContaining({ type: 'disabled_ancestor', operationType: 'set_block_enabled' }),
+    ])
+  })
+
+  /**
+   * A stripped credential is a refusal too. `preValidateCredentialInputs`
+   * deletes the field rather than failing, so an atomic gate that only reads
+   * `skipped` would commit a block whose credential silently vanished.
+   */
+  it('refuses an atomic batch whose credential was stripped, and carries the dropped input', async () => {
+    const dropped = {
+      blockId: 'block-2',
+      blockType: 'agent',
+      field: 'credential',
+      value: 'cred-9',
+      error: 'Invalid credential ID',
+    }
+    mocks.preValidate.mockResolvedValue({ filteredOperations: operations, errors: [dropped] })
+
+    const failure = await applyWorkflowOperations
+      .execute({
+        principal: sessionPrincipal,
+        input: { workflowId: 'workflow-1', operations, atomic: true },
+      })
+      .catch((error: unknown) => error)
+
+    expect(failure).toBeInstanceOf(WorkflowOperationsNotAppliedError)
+    expect((failure as WorkflowOperationsNotAppliedError).droppedInputs).toEqual([dropped])
+    expect(mocks.replace).not.toHaveBeenCalled()
+  })
+
+  /**
+   * `collectUnresolvedReferences` is read-only: the values it flags stay
+   * persisted. Reporting them as `inputValidationErrors` — documented as inputs
+   * "dropped rather than persisted" — double-reported them, and falsely.
+   */
+  it('reports an unresolved reference only in lint, never as a dropped input', async () => {
+    const reference = {
+      blockId: 'block-2',
+      blockType: 'agent',
+      field: 'credential',
+      value: 'cred-9',
+      kind: 'credential' as const,
+      reason: 'Credential not accessible',
+    }
+    mocks.collectReferences.mockResolvedValue([reference])
+
+    const result = await applyWorkflowOperations.execute({
+      principal: sessionPrincipal,
+      input: { workflowId: 'workflow-1', operations },
+    })
+
+    expect(result.lint.unresolvedReferences).toEqual([reference])
+    expect(result.inputValidationErrors).toEqual([])
+    expect(mocks.replace).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not refuse an atomic batch for a reference that stays persisted', async () => {
+    mocks.collectReferences.mockResolvedValue([
+      {
+        blockId: 'block-2',
+        blockType: 'agent',
+        field: 'credential',
+        value: 'cred-9',
+        kind: 'credential' as const,
+        reason: 'Credential not accessible',
+      },
+    ])
+
+    await expect(
+      applyWorkflowOperations.execute({
+        principal: sessionPrincipal,
+        input: { workflowId: 'workflow-1', operations, atomic: true },
+      })
+    ).resolves.toMatchObject({ applied: 1 })
   })
 })

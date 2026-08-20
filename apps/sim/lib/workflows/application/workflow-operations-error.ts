@@ -1,5 +1,5 @@
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import type { SkippedItem } from '@/lib/workflows/editing/types'
+import type { SkippedItem, ValidationError } from '@/lib/workflows/editing/types'
 
 /**
  * An `atomic` edit batch that could not be applied whole.
@@ -11,10 +11,19 @@ import type { SkippedItem } from '@/lib/workflows/editing/types'
  * one. {@link WorkflowImportError} is split out for the same reason.
  */
 export class WorkflowOperationsNotAppliedError extends OrchestrationError {
-  constructor(readonly skipped: SkippedItem[]) {
+  constructor(
+    readonly skipped: SkippedItem[],
+    /**
+     * Block inputs the batch would have dropped rather than persisted — an
+     * invalid credential or a platform-managed API key. Refusals in their own
+     * right under `atomic`, and reported separately because no operation was
+     * declined: the operation would have applied, minus a field.
+     */
+    readonly droppedInputs: ValidationError[] = []
+  ) {
     super(
       'conflict',
-      `${skipped.length} operation(s) could not be applied and atomic was requested; nothing was written`
+      `${skipped.length} operation(s) could not be applied and ${droppedInputs.length} input(s) would have been dropped; atomic was requested, so nothing was written`
     )
     this.name = 'WorkflowOperationsNotAppliedError'
   }

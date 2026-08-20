@@ -3,10 +3,20 @@ import { defineV2JsonRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/
 import { v2WorkflowErrorPolicies } from '@/lib/workflows/api'
 import { applyWorkflowOperations } from '@/lib/workflows/application/apply-workflow-operations'
 import { workflowOperations } from '@/lib/workflows/application/operations'
+import type { WorkflowLintBlockRef } from '@/lib/workflows/editing/lint'
 import { MAX_IMPORT_BODY_BYTES } from '@/lib/workflows/operations/import-workflow'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
+
+/** Projects the shared block reference every lint finding carries onto the wire shape. */
+function blockRef(ref: WorkflowLintBlockRef) {
+  return {
+    blockId: ref.blockId,
+    blockName: ref.blockName ?? null,
+    blockType: ref.blockType ?? null,
+  }
+}
 
 /**
  * Semantic edits against a workflow graph.
@@ -47,10 +57,41 @@ export const POST = defineV2JsonRoute({
         error: error.error,
       })),
       lint: {
+        sources: result.lint.sources.map(blockRef),
+        sinks: result.lint.sinks.map(blockRef),
+        orphanBlocks: result.lint.orphanBlocks.map(blockRef),
+        emptyOutgoingPorts: result.lint.emptyOutgoingPorts.map((port) => ({
+          ...blockRef(port),
+          handle: port.handle,
+          label: port.label,
+        })),
+        invalidBranchPorts: result.lint.invalidBranchPorts.map((port) => ({
+          ...blockRef(port),
+          sourceHandle: port.sourceHandle,
+          reason: port.reason,
+        })),
+        invalidConnectionTargets: result.lint.invalidConnectionTargets.map((target) => ({
+          sourceBlockId: target.sourceBlockId,
+          sourceBlockName: target.sourceBlockName ?? null,
+          sourceHandle: target.sourceHandle ?? null,
+          targetBlockId: target.targetBlockId,
+          reason: target.reason,
+        })),
+        fieldIssues: result.lint.fieldIssues.map((issue) => ({
+          ...blockRef(issue),
+          missingRequiredFields: issue.missingRequiredFields,
+          inactiveModeValues: issue.inactiveModeValues.map((value) => ({
+            canonicalId: value.canonicalId,
+            activeMemberId: value.activeMemberId ?? null,
+            inactiveMemberId: value.inactiveMemberId,
+            kind: value.kind,
+          })),
+        })),
         unresolvedReferences: result.lint.unresolvedReferences.map((reference) => ({
-          blockId: reference.blockId,
-          blockType: reference.blockType ?? null,
+          ...blockRef(reference),
           field: reference.field,
+          value: reference.value,
+          kind: reference.kind,
           reason: reference.reason,
         })),
         notes: result.lint.notes,

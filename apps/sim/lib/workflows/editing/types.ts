@@ -54,6 +54,12 @@ export const WORKFLOW_SKIPPED_ITEM_TYPES = [
   'retry_not_supported',
   'duplicate_trigger',
   'duplicate_single_instance_block',
+  /**
+   * A block was left disabled because a container above it is disabled. The
+   * engine will not enable a block its container would keep from running; the
+   * caller has to enable the container first.
+   */
+  'disabled_ancestor',
 ] as const
 
 /**

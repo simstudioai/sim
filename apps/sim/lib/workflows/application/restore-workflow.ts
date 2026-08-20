@@ -6,6 +6,7 @@ import {
   FolderLockedError,
   WorkflowLockedError,
 } from '@sim/platform-authz/workflow'
+import { principalAuditSource } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { MAX_FOLDERS_PER_WORKSPACE } from '@/lib/folders/constants'
@@ -81,13 +82,17 @@ export const restoreWorkflow = defineAuthorizedWorkflowUseCase({
       folderPath: workflowFolderPathForId(folderIndex, restored.workflow.folderId),
     }
   },
-  projectAudit: ({ context, result }) => ({
+  projectAudit: ({ principal, context, result }) => ({
     action: AuditAction.WORKFLOW_RESTORED,
     resourceType: AuditResourceType.WORKFLOW,
     resourceId: context.workflowId,
     resourceName: result.workflow.name,
     description: `Restored workflow "${result.workflow.name}"`,
-    metadata: { workflowName: result.workflow.name, workspaceId: context.workspaceId },
+    metadata: {
+      workflowName: result.workflow.name,
+      workspaceId: context.workspaceId,
+      source: principalAuditSource(principal),
+    },
   }),
   afterSuccess: ({ context }) => notifyWorkflowUpdated(context.workflowId),
 })
