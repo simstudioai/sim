@@ -2253,7 +2253,9 @@ export type DeleteChatDeploymentParams = {
   chatDeploymentId: string
 }
 
-export type DeleteChatDeploymentQuery = Record<string, unknown>
+export type DeleteChatDeploymentQuery = {
+  workspaceId: string
+}
 
 type DeleteChatDeploymentResponseRef0 = {
   id: string
@@ -3460,7 +3462,9 @@ export type GetChatDeploymentParams = {
   chatDeploymentId: string
 }
 
-export type GetChatDeploymentQuery = Record<string, unknown>
+export type GetChatDeploymentQuery = {
+  workspaceId: string
+}
 
 type GetChatDeploymentResponseRef0 = {
   primaryColor?: string
@@ -4844,10 +4848,7 @@ type ListChatDeploymentsResponseRef0 = {
   description: string
   isActive: boolean
   authType: 'public' | 'password' | 'email' | 'sso'
-  hasPassword: boolean
-  allowedEmails: Array<string>
-  customizations: ListChatDeploymentsResponseRef1
-  outputConfigs: Array<ListChatDeploymentsResponseRef2>
+  outputConfigs: Array<ListChatDeploymentsResponseRef1>
   includeThinking: boolean
   includeToolCalls: boolean
   createdAt: string
@@ -4855,12 +4856,6 @@ type ListChatDeploymentsResponseRef0 = {
 }
 
 type ListChatDeploymentsResponseRef1 = {
-  primaryColor?: string
-  welcomeMessage?: string
-  imageUrl?: string
-}
-
-type ListChatDeploymentsResponseRef2 = {
   blockId: string
   path: string
 }
@@ -7261,7 +7256,9 @@ export type UpdateChatDeploymentParams = {
   chatDeploymentId: string
 }
 
-export type UpdateChatDeploymentQuery = Record<string, unknown>
+export type UpdateChatDeploymentQuery = {
+  workspaceId: string
+}
 
 type UpdateChatDeploymentBodyRef0 = {
   primaryColor?: string
@@ -9501,6 +9498,13 @@ export const V2_OPERATIONS = {
     pathParamDocs: { chatDeploymentId: 'Unique chat deployment identifier.' },
     responseMode: 'json',
     summary: 'Delete Chat Deployment',
+    query: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns the chat deployment.',
+      },
+    },
   },
   deleteCredential: {
     method: 'DELETE',
@@ -10133,6 +10137,13 @@ export const V2_OPERATIONS = {
     pathParamDocs: { chatDeploymentId: 'Unique chat deployment identifier.' },
     responseMode: 'json',
     summary: 'Get Chat Deployment',
+    query: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns the chat deployment.',
+      },
+    },
   },
   getCustomTool: {
     method: 'GET',
@@ -12601,6 +12612,13 @@ export const V2_OPERATIONS = {
     pathParamDocs: { chatDeploymentId: 'Unique chat deployment identifier.' },
     responseMode: 'json',
     summary: 'Update Chat Deployment',
+    query: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns the chat deployment.',
+      },
+    },
     body: {
       identifier: { kind: 'string', describe: 'New URL slug for the deployed chat.' },
       title: { kind: 'string', describe: 'New title shown to visitors.' },
@@ -12613,7 +12631,7 @@ export const V2_OPERATIONS = {
         kind: 'enum',
         values: ['public', 'password', 'email', 'sso'] as const,
         describe:
-          'New visitor gate. Switching modes clears the gate the previous mode owned: a stored password is dropped when moving to `email` or `sso`, and the allow-list is dropped when moving to `password` or `public`.',
+          'New visitor gate. Switching modes clears the gate the previous mode owned: a stored password is dropped when moving to `email` or `sso`, and the allow-list is cleared when moving to `password` or `public` unless the same request supplies a replacement `allowedEmails`, which is applied after the clear.',
       },
       password: {
         kind: 'string',

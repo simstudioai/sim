@@ -1,5 +1,6 @@
 import { deleteChatContract, updateChatContract } from '@/lib/api/contracts/chats'
 import { getChatDetailContract } from '@/lib/api/contracts/deployments'
+import { getValidationErrorMessage } from '@/lib/api/server'
 import {
   defineInternalJsonRoute,
   internalRateLimits,
@@ -14,6 +15,7 @@ import {
 import { buildChatDeploymentUrl } from '@/lib/chat-deployments/urls'
 import { createInternalChatDeploymentErrorPolicy } from '@/app/api/chat/error-policy'
 import { toChatDetailResponse } from '@/app/api/chat/presenters'
+import { createErrorResponse } from '@/app/api/workflows/utils'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 120
@@ -49,6 +51,15 @@ export const PATCH = defineInternalJsonRoute({
     reason: 'Authenticated workspace UI chat updates retain their existing admission policy.',
   }),
   errorPolicy: createInternalChatDeploymentErrorPolicy('Failed to update chat deployment'),
+  parseOptions: {
+    /**
+     * The editor renders `error` verbatim, so a contract refusal has to name the
+     * field it refused — the builder default renders every 400 as the literal
+     * "Validation error" and demotes the specifics to `details`.
+     */
+    validationErrorResponse: (error) =>
+      createErrorResponse(getValidationErrorMessage(error), 400, 'VALIDATION_ERROR'),
+  },
   mapInput: ({ params, body }) => ({ chatDeploymentId: params.id, ...body }),
   useCase: updateChatDeployment,
   present: ({ deployment, chatUrl }) => ({

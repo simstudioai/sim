@@ -74,6 +74,7 @@ vi.mock('@/ee/access-control/utils/permission-check', () => {
   return { validateChatDeployAuth: mocks.validateChatDeployAuth, ChatDeployAuthNotAllowedError }
 })
 
+import { chatDeploymentOperations } from '@/lib/chat-deployments/application'
 import { DELETE, GET, PATCH } from '@/app/api/chat/manage/[id]/route'
 import { ChatDeployAuthNotAllowedError } from '@/ee/access-control/utils/permission-check'
 
@@ -170,6 +171,18 @@ describe('internal chat deployment routes', () => {
     encryptionMockFns.mockEncryptSecret.mockResolvedValue({ encrypted: 'encrypted-password' })
   })
 
+  /**
+   * The read serves the visitor gate — `allowedEmails`, `authType`,
+   * `hasPassword`, and the customization blob — which this surface has always
+   * required workspace admin for. Its siblings pin their role; this one did not,
+   * which is why a demotion to `read` went unnoticed.
+   */
+  it('keeps every chat-deployment operation an admin operation', () => {
+    expect(chatDeploymentOperations.read.minimumRole).toBe('admin')
+    expect(chatDeploymentOperations.update.minimumRole).toBe('admin')
+    expect(chatDeploymentOperations.delete.minimumRole).toBe('admin')
+  })
+
   describe('GET', () => {
     it('returns 401 when there is no session', async () => {
       authMockFns.mockGetSession.mockResolvedValue(null)
@@ -228,6 +241,17 @@ describe('internal chat deployment routes', () => {
 
       expect(response.status).toBe(404)
     })
+
+    it('refuses a workspace member below admin the gate configuration', async () => {
+      mocks.resolvePermission.mockResolvedValue('read')
+
+      const response = await GET(
+        new NextRequest(`http://localhost:3000/api/chat/manage/${CHAT_ID}`),
+        params
+      )
+
+      expect(response.status).toBe(403)
+    })
   })
 
   describe('PATCH', () => {
@@ -250,6 +274,31 @@ describe('internal chat deployment routes', () => {
         message: 'Chat deployment updated successfully',
       })
       expect(writtenValues()).toMatchObject({ title: 'New title', identifier: 'support-v2' })
+    })
+
+    /**
+     * Restored verbatim from the pre-extraction suite: the editor renders
+     * `error` directly, so a contract refusal has to name the field it refused
+     * rather than the generic "Validation error" the route builder renders by
+     * default — and body validation runs before anything reads or encrypts.
+     */
+    it('rejects a whitespace-only replacement password', async () => {
+      const response = await patch({ authType: 'password', password: '   ' })
+
+      expect(response.status).toBe(400)
+      expect((await response.json()).error).toBe('Password cannot contain only whitespace')
+      expect(mocks.getChatDeploymentWithWorkspace).not.toHaveBeenCalled()
+      expect(encryptionMockFns.mockEncryptSecret).not.toHaveBeenCalled()
+    })
+
+    it('names the field an identifier refusal rejected', async () => {
+      const response = await patch({ identifier: 'Support Chat' })
+
+      expect(response.status).toBe(400)
+      expect((await response.json()).error).toBe(
+        'Identifier can only contain lowercase letters, numbers, and hyphens'
+      )
+      expect(mocks.getChatDeploymentWithWorkspace).not.toHaveBeenCalled()
     })
 
     it('refuses to re-point the deployment at a different workflow', async () => {
@@ -571,6 +620,25 @@ describe('internal chat deployment routes', () => {
 
       expect(response.status).toBe(403)
       expect(mocks.performChatUndeploy).not.toHaveBeenCalled()
+    })
+
+    /** An infrastructure fault must not be concealed as a missing deployment. */
+    it('propagates an undeploy infrastructure failure as a 500', async () => {
+      mocks.performChatUndeploy.mockResolvedValue({
+        success: false,
+        error: 'delete from "chat" failed: connection terminated',
+      })
+
+      const response = await DELETE(
+        new NextRequest(`http://localhost:3000/api/chat/manage/${CHAT_ID}`, { method: 'DELETE' }),
+        params
+      )
+
+      expect(response.status).toBe(500)
+      const body = await response.json()
+      expect(body.error).toBe('Failed to delete chat deployment')
+      expect(JSON.stringify(body)).not.toContain('connection terminated')
+      expect(auditMockFns.mockRecordAudit).not.toHaveBeenCalled()
     })
   })
 })

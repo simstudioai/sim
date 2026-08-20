@@ -10,7 +10,7 @@ import {
   listWorkspaceChatDeployments,
 } from '@/lib/chat-deployments/queries'
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
-import { resolveActiveWorkspaceApplicationContext } from '@/lib/workflows/application/context'
+import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
 
 /**
  * Chat deployments carry an encrypted password. It is stripped here, once, so

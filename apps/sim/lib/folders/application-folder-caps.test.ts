@@ -31,7 +31,7 @@ vi.mock('@/lib/folders/queries', () => ({
     return folderId === undefined ? { kind: 'noMatch' } : { kind: 'folder', folderId }
   },
 }))
-vi.mock('@/lib/workflows/application/context', () => ({
+vi.mock('@/lib/workspaces/application/workspace-context', () => ({
   resolveActiveWorkspaceApplicationContext: mocks.resolveWorkflowWorkspace,
 }))
 vi.mock('@/lib/workflows/queries', () => ({

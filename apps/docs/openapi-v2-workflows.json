@@ -2032,7 +2032,7 @@
       "get": {
         "operationId": "listChatDeployments",
         "summary": "List Chat Deployments",
-        "description": "List the workflows a workspace has published as hosted chats. Each entry carries the public `url` a visitor uses — there is no chat subdomain, the identifier is a path segment. A stored password is never returned; `hasPassword` is all a read exposes.",
+        "description": "List the workflows a workspace has published as hosted chats. Each entry carries the public `url` a visitor uses — there is no chat subdomain, the identifier is a path segment. Entries are deliberately narrower than the detail read: `allowedEmails`, `hasPassword`, and `customizations` are available only from `GET /api/v2/chat-deployments/{chatDeploymentId}`, which requires workspace `admin`. That is what keeps this list callable at workspace `read` and by a workspace API key. A stored password is never returned by either.",
         "tags": ["Workflows"],
         "parameters": [
           {
@@ -2237,7 +2237,7 @@
       "get": {
         "operationId": "getChatDeployment",
         "summary": "Get Chat Deployment",
-        "description": "Read one chat deployment. The stored password is never returned — `hasPassword` reports only whether one is set.",
+        "description": "Read one chat deployment. The stored password is never returned — `hasPassword` reports only whether one is set. Detail carries the visitor gate — `authType`, `hasPassword`, and the `allowedEmails` allow-list — so it requires workspace `admin`, unlike the list. A workspace API key is rejected with `403`; use a personal API key.",
         "tags": ["Workflows"],
         "parameters": [
           {
@@ -2249,6 +2249,18 @@
               "type": "string",
               "minLength": 1,
               "description": "Unique chat deployment identifier."
+            }
+          },
+          {
+            "name": "workspaceId",
+            "in": "query",
+            "required": true,
+            "description": "Workspace that owns the chat deployment.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "description": "Workspace that owns the chat deployment."
             }
           }
         ],
@@ -2300,7 +2312,7 @@
       "patch": {
         "operationId": "updateChatDeployment",
         "summary": "Update Chat Deployment",
-        "description": "Update a chat deployment. Merge-patch shaped: an omitted key is unchanged, and `customizations`, `allowedEmails`, and `outputConfigs` are replaced wholesale rather than merged. Changing `authType` clears the gate the previous mode owned — a stored password does not survive a move to `email` or `sso`, and the allow-list does not survive a move to `password` or `public` — and a `password` sent alongside a non-password mode is ignored rather than stored. Like create, this republishes the workflow when its draft has drifted and answers `409` while a deployment attempt is in flight. A deployment cannot be re-pointed at a different workflow. A workspace API key is rejected with `403`; use a personal API key.",
+        "description": "Update a chat deployment. Merge-patch shaped: an omitted key is unchanged, and `customizations`, `allowedEmails`, and `outputConfigs` are replaced wholesale rather than merged. Changing `authType` clears the gate the previous mode owned — a stored password does not survive a move to `email` or `sso`, and the allow-list is cleared by a move to `password` or `public` unless the same request also supplies a replacement `allowedEmails`, which is applied after the clear — and a `password` sent alongside a non-password mode is ignored rather than stored. Like create, this republishes the workflow when its draft has drifted and answers `409` while a deployment attempt is in flight. A deployment cannot be re-pointed at a different workflow. A workspace API key is rejected with `403`; use a personal API key.",
         "tags": ["Workflows"],
         "parameters": [
           {
@@ -2312,6 +2324,18 @@
               "type": "string",
               "minLength": 1,
               "description": "Unique chat deployment identifier."
+            }
+          },
+          {
+            "name": "workspaceId",
+            "in": "query",
+            "required": true,
+            "description": "Workspace that owns the chat deployment.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "description": "Workspace that owns the chat deployment."
             }
           }
         ],
@@ -2395,6 +2419,18 @@
               "type": "string",
               "minLength": 1,
               "description": "Unique chat deployment identifier."
+            }
+          },
+          {
+            "name": "workspaceId",
+            "in": "query",
+            "required": true,
+            "description": "Workspace that owns the chat deployment.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "description": "Workspace that owns the chat deployment."
             }
           }
         ],
@@ -7623,6 +7659,185 @@
         "title": "Import workflow request",
         "description": "Portable workflow data and destination metadata for an import."
       },
+      "ChatDeploymentListItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique chat deployment identifier."
+          },
+          "workflowId": {
+            "type": "string",
+            "description": "Workflow this deployment publishes."
+          },
+          "workspaceId": {
+            "type": "string",
+            "description": "Workspace the deployment belongs to, derived from its workflow."
+          },
+          "identifier": {
+            "type": "string",
+            "description": "URL slug the deployed chat answers on. Unique across live deployments."
+          },
+          "url": {
+            "type": "string",
+            "description": "Public URL of the deployed chat. There is no chat subdomain — the identifier is a path segment.",
+            "examples": ["https://sim.ai/chat/support"]
+          },
+          "title": {
+            "type": "string",
+            "description": "Title shown to visitors."
+          },
+          "description": {
+            "type": "string",
+            "description": "Description shown to visitors. Empty when unset."
+          },
+          "isActive": {
+            "type": "boolean",
+            "description": "Whether the deployment answers requests."
+          },
+          "authType": {
+            "type": "string",
+            "enum": ["public", "password", "email", "sso"],
+            "description": "How visitors are gated: `public` (no gate), `password`, `email`, or `sso`."
+          },
+          "outputConfigs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StoredChatDeploymentOutputConfig"
+            },
+            "description": "Block outputs surfaced to visitors."
+          },
+          "includeThinking": {
+            "type": "boolean",
+            "description": "Whether visitors may receive provider thinking events. They must also opt into the streaming protocol."
+          },
+          "includeToolCalls": {
+            "type": "boolean",
+            "description": "Whether visitors may receive tool lifecycle events. They must also opt into the streaming protocol."
+          },
+          "createdAt": {
+            "type": "string",
+            "description": "ISO 8601 timestamp when the deployment was created.",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "description": "ISO 8601 timestamp when the deployment was last modified.",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "workflowId",
+          "workspaceId",
+          "identifier",
+          "url",
+          "title",
+          "description",
+          "isActive",
+          "authType",
+          "outputConfigs",
+          "includeThinking",
+          "includeToolCalls",
+          "createdAt",
+          "updatedAt"
+        ],
+        "additionalProperties": false,
+        "title": "Chat deployment list entry",
+        "description": "A workflow published as a hosted chat, without the fields the detail read gates."
+      },
+      "StoredChatDeploymentOutputConfig": {
+        "type": "object",
+        "properties": {
+          "blockId": {
+            "type": "string",
+            "description": "Block whose output the chat streams."
+          },
+          "path": {
+            "type": "string",
+            "description": "Path within that block output. Empty means the whole output."
+          }
+        },
+        "required": ["blockId", "path"],
+        "additionalProperties": false,
+        "title": "Stored chat deployment output config",
+        "description": "One block output currently surfaced to chat visitors."
+      },
+      "ChatDeploymentListResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ChatDeploymentListItem"
+            },
+            "description": "Items in the current page."
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Opaque cursor for the next page. Send it back as `cursor`; `null` means there is nothing further to fetch. Never construct one yourself."
+          }
+        },
+        "required": ["data", "nextCursor"],
+        "additionalProperties": false,
+        "title": "Chat deployment list response",
+        "description": "A cursor-paginated page of chat deployments.",
+        "examples": [
+          {
+            "data": [
+              {
+                "id": "chat_01J8ZK3QW4M6X2R9T7B5C0V2",
+                "workflowId": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36",
+                "workspaceId": "9f4c2a10-3b7e-4d58-8f6a-2c1d0e5b7a94",
+                "identifier": "support",
+                "url": "https://sim.ai/chat/support",
+                "title": "Support chat",
+                "description": "Ask about billing, onboarding, or outages.",
+                "isActive": true,
+                "authType": "public",
+                "outputConfigs": [
+                  {
+                    "blockId": "block_01J8ZK3QW4M6X2R9T7B5C0V4",
+                    "path": "content"
+                  }
+                ],
+                "includeThinking": false,
+                "includeToolCalls": false,
+                "createdAt": "2026-06-12T10:30:00.000Z",
+                "updatedAt": "2026-06-12T10:30:00.000Z"
+              }
+            ],
+            "nextCursor": null
+          }
+        ]
+      },
+      "StoredChatDeploymentCustomizations": {
+        "type": "object",
+        "properties": {
+          "primaryColor": {
+            "description": "CSS color used for the chat accent.",
+            "type": "string"
+          },
+          "welcomeMessage": {
+            "description": "First message shown to a visitor.",
+            "type": "string"
+          },
+          "imageUrl": {
+            "description": "Avatar image shown beside assistant messages.",
+            "type": "string"
+          }
+        },
+        "additionalProperties": false,
+        "title": "Stored chat deployment customizations",
+        "description": "Presentation overrides currently stored on the deployed chat."
+      },
       "ChatDeployment": {
         "type": "object",
         "properties": {
@@ -7677,12 +7892,12 @@
           },
           "customizations": {
             "description": "Presentation overrides. Unset fields fall back to platform defaults.",
-            "$ref": "#/components/schemas/ChatDeploymentCustomizations"
+            "$ref": "#/components/schemas/StoredChatDeploymentCustomizations"
           },
           "outputConfigs": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/ChatDeploymentOutputConfig"
+              "$ref": "#/components/schemas/StoredChatDeploymentOutputConfig"
             },
             "description": "Block outputs surfaced to visitors."
           },
@@ -7728,110 +7943,6 @@
         "title": "Chat deployment",
         "description": "A workflow published as a hosted chat."
       },
-      "ChatDeploymentCustomizations": {
-        "type": "object",
-        "properties": {
-          "primaryColor": {
-            "description": "CSS color used for the chat accent.",
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 64
-          },
-          "welcomeMessage": {
-            "description": "First message shown to a visitor.",
-            "type": "string",
-            "maxLength": 2000
-          },
-          "imageUrl": {
-            "description": "Avatar image shown beside assistant messages.",
-            "type": "string",
-            "maxLength": 2048
-          }
-        },
-        "additionalProperties": false,
-        "title": "Chat deployment customizations",
-        "description": "Presentation overrides for the deployed chat."
-      },
-      "ChatDeploymentOutputConfig": {
-        "type": "object",
-        "properties": {
-          "blockId": {
-            "type": "string",
-            "minLength": 1,
-            "description": "Block whose output the chat streams."
-          },
-          "path": {
-            "type": "string",
-            "minLength": 1,
-            "description": "Path within that block output."
-          }
-        },
-        "required": ["blockId", "path"],
-        "additionalProperties": false,
-        "title": "Chat deployment output config",
-        "description": "One block output surfaced to chat visitors."
-      },
-      "ChatDeploymentListResponse": {
-        "type": "object",
-        "properties": {
-          "data": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/ChatDeployment"
-            },
-            "description": "Items in the current page."
-          },
-          "nextCursor": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Opaque cursor for the next page. Send it back as `cursor`; `null` means there is nothing further to fetch. Never construct one yourself."
-          }
-        },
-        "required": ["data", "nextCursor"],
-        "additionalProperties": false,
-        "title": "Chat deployment list response",
-        "description": "A cursor-paginated page of chat deployments.",
-        "examples": [
-          {
-            "data": [
-              {
-                "id": "chat_01J8ZK3QW4M6X2R9T7B5C0V2",
-                "workflowId": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36",
-                "workspaceId": "9f4c2a10-3b7e-4d58-8f6a-2c1d0e5b7a94",
-                "identifier": "support",
-                "url": "https://sim.ai/chat/support",
-                "title": "Support chat",
-                "description": "Ask about billing, onboarding, or outages.",
-                "isActive": true,
-                "authType": "public",
-                "hasPassword": false,
-                "allowedEmails": [],
-                "customizations": {
-                  "primaryColor": "#6F3DFA",
-                  "welcomeMessage": "Hi there! How can I help?"
-                },
-                "outputConfigs": [
-                  {
-                    "blockId": "block_01J8ZK3QW4M6X2R9T7B5C0V4",
-                    "path": "content"
-                  }
-                ],
-                "includeThinking": false,
-                "includeToolCalls": false,
-                "createdAt": "2026-06-12T10:30:00.000Z",
-                "updatedAt": "2026-06-12T10:30:00.000Z"
-              }
-            ],
-            "nextCursor": null
-          }
-        ]
-      },
       "CreateChatDeploymentResponse": {
         "type": "object",
         "properties": {
@@ -7875,6 +7986,49 @@
             }
           }
         ]
+      },
+      "ChatDeploymentCustomizations": {
+        "type": "object",
+        "properties": {
+          "primaryColor": {
+            "description": "CSS color used for the chat accent.",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "welcomeMessage": {
+            "description": "First message shown to a visitor.",
+            "type": "string",
+            "maxLength": 2000
+          },
+          "imageUrl": {
+            "description": "Avatar image shown beside assistant messages.",
+            "type": "string",
+            "maxLength": 2048
+          }
+        },
+        "additionalProperties": false,
+        "title": "Chat deployment customizations",
+        "description": "Presentation overrides for the deployed chat."
+      },
+      "ChatDeploymentOutputConfig": {
+        "type": "object",
+        "properties": {
+          "blockId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Block whose output the chat streams."
+          },
+          "path": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Path within that block output."
+          }
+        },
+        "required": ["blockId", "path"],
+        "additionalProperties": false,
+        "title": "Chat deployment output config",
+        "description": "One block output surfaced to chat visitors."
       },
       "CreateChatDeploymentRequest": {
         "type": "object",
@@ -8072,7 +8226,7 @@
             "$ref": "#/components/schemas/ChatDeploymentCustomizations"
           },
           "authType": {
-            "description": "New visitor gate. Switching modes clears the gate the previous mode owned: a stored password is dropped when moving to `email` or `sso`, and the allow-list is dropped when moving to `password` or `public`.",
+            "description": "New visitor gate. Switching modes clears the gate the previous mode owned: a stored password is dropped when moving to `email` or `sso`, and the allow-list is cleared when moving to `password` or `public` unless the same request supplies a replacement `allowedEmails`, which is applied after the clear.",
             "type": "string",
             "enum": ["public", "password", "email", "sso"]
           },

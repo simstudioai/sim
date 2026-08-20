@@ -3,7 +3,6 @@ import type { CursorKey } from '@/lib/api/list-query'
 import { MAX_FOLDERS_PER_WORKSPACE } from '@/lib/folders/constants'
 import { loadActiveFolderPathIndex, resolveFolderPathFilter } from '@/lib/folders/queries'
 import { defineAuthorizedWorkflowUseCase } from '@/lib/workflows/application/authorized-workflow-use-case'
-import { resolveActiveWorkspaceApplicationContext } from '@/lib/workflows/application/context'
 import { workflowOperations } from '@/lib/workflows/application/operations'
 import {
   archivableWorkflowFolderPath,
@@ -14,6 +13,7 @@ import {
   type WorkflowSortBy,
   type WorkflowSortOrder,
 } from '@/lib/workflows/queries'
+import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
 
 const logger = createLogger('ListWorkflows')
 

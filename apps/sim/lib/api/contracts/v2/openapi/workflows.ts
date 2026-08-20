@@ -1,3 +1,4 @@
+import { omit } from '@sim/utils/object'
 import {
   v2CreateChatDeploymentContract,
   v2DeleteChatDeploymentContract,
@@ -131,6 +132,13 @@ const CHAT_DEPLOYMENT_EXAMPLE = {
   createdAt: '2026-06-12T10:30:00.000Z',
   updatedAt: '2026-06-12T10:30:00.000Z',
 } as const
+
+/** The list projection: {@link CHAT_DEPLOYMENT_EXAMPLE} without the fields the detail read gates. */
+const CHAT_DEPLOYMENT_LIST_ITEM_EXAMPLE = omit(CHAT_DEPLOYMENT_EXAMPLE, [
+  'allowedEmails',
+  'hasPassword',
+  'customizations',
+])
 
 const WORKFLOW_GRAPH_EXAMPLE = {
   blocks: {},
@@ -931,7 +939,7 @@ const declaredRoutes = [
       operationId: 'listChatDeployments',
       summary: 'List Chat Deployments',
       description:
-        'List the workflows a workspace has published as hosted chats. Each entry carries the public `url` a visitor uses — there is no chat subdomain, the identifier is a path segment. A stored password is never returned; `hasPassword` is all a read exposes.',
+        'List the workflows a workspace has published as hosted chats. Each entry carries the public `url` a visitor uses — there is no chat subdomain, the identifier is a path segment. Entries are deliberately narrower than the detail read: `allowedEmails`, `hasPassword`, and `customizations` are available only from `GET /api/v2/chat-deployments/{chatDeploymentId}`, which requires workspace `admin`. That is what keeps this list callable at workspace `read` and by a workspace API key. A stored password is never returned by either.',
       errors: RESOURCE_ERRORS,
       success: jsonSuccess('A page of chat deployments.'),
     }),
@@ -942,7 +950,7 @@ const declaredRoutes = [
         'ChatDeploymentListResponse',
         'Chat deployment list response',
         'A cursor-paginated page of chat deployments.',
-        [{ data: [CHAT_DEPLOYMENT_EXAMPLE], nextCursor: null }]
+        [{ data: [CHAT_DEPLOYMENT_LIST_ITEM_EXAMPLE], nextCursor: null }]
       ),
     }
   ),
@@ -972,8 +980,7 @@ const declaredRoutes = [
     workflowOperation({
       operationId: 'getChatDeployment',
       summary: 'Get Chat Deployment',
-      description:
-        'Read one chat deployment. The stored password is never returned — `hasPassword` reports only whether one is set.',
+      description: `Read one chat deployment. The stored password is never returned — \`hasPassword\` reports only whether one is set. Detail carries the visitor gate — \`authType\`, \`hasPassword\`, and the \`allowedEmails\` allow-list — so it requires workspace \`admin\`, unlike the list. ${WORKSPACE_API_KEY_DENIED}`,
       errors: RESOURCE_ERRORS,
       success: jsonSuccess('The chat deployment.'),
     }),
@@ -994,7 +1001,7 @@ const declaredRoutes = [
     workflowOperation({
       operationId: 'updateChatDeployment',
       summary: 'Update Chat Deployment',
-      description: `Update a chat deployment. Merge-patch shaped: an omitted key is unchanged, and \`customizations\`, \`allowedEmails\`, and \`outputConfigs\` are replaced wholesale rather than merged. Changing \`authType\` clears the gate the previous mode owned — a stored password does not survive a move to \`email\` or \`sso\`, and the allow-list does not survive a move to \`password\` or \`public\` — and a \`password\` sent alongside a non-password mode is ignored rather than stored. Like create, this republishes the workflow when its draft has drifted and answers \`409\` while a deployment attempt is in flight. A deployment cannot be re-pointed at a different workflow. ${WORKSPACE_API_KEY_DENIED}`,
+      description: `Update a chat deployment. Merge-patch shaped: an omitted key is unchanged, and \`customizations\`, \`allowedEmails\`, and \`outputConfigs\` are replaced wholesale rather than merged. Changing \`authType\` clears the gate the previous mode owned — a stored password does not survive a move to \`email\` or \`sso\`, and the allow-list is cleared by a move to \`password\` or \`public\` unless the same request also supplies a replacement \`allowedEmails\`, which is applied after the clear — and a \`password\` sent alongside a non-password mode is ignored rather than stored. Like create, this republishes the workflow when its draft has drifted and answers \`409\` while a deployment attempt is in flight. A deployment cannot be re-pointed at a different workflow. ${WORKSPACE_API_KEY_DENIED}`,
       errors: [...RESOURCE_ERRORS, 'Conflict', 'PayloadTooLarge', 'Locked'],
       success: jsonSuccess('The updated chat deployment.'),
     }),

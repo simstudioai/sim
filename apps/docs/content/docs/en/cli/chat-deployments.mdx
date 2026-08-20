@@ -124,7 +124,7 @@ sim chat-deployments update <chatDeploymentId> [options]
 | `--title <value>` | No | New title shown to visitors. |
 | `--description <value>` | No | New description shown to visitors. |
 | `--customizations <json\|@file>` | No | Replacement presentation overrides. Replaced wholesale, not merged. (JSON, or @path / @- to read a file or stdin). |
-| `--auth-type <value>` | No | New visitor gate. Switching modes clears the gate the previous mode owned: a stored password is dropped when moving to `email` or `sso`, and the allow-list is dropped when moving to `password` or `public`. Accepted values: `public`, `password`, `email`, `sso`. |
+| `--auth-type <value>` | No | New visitor gate. Switching modes clears the gate the previous mode owned: a stored password is dropped when moving to `email` or `sso`, and the allow-list is cleared when moving to `password` or `public` unless the same request supplies a replacement `allowedEmails`, which is applied after the clear. Accepted values: `public`, `password`, `email`, `sso`. |
 | `--password <value>` | No | Write-only replacement password. Ignored unless the deployment ends up `password`-gated. Omit to keep the stored one. |
 | `--allowed-emails <json\|@file>` | No | Replacement allow-list for `email` and `sso` gating. Replaced wholesale. (JSON, or @path / @- to read a file or stdin). |
 | `--output-configs <json\|@file>` | No | Replacement block outputs. Replaced wholesale. (JSON, or @path / @- to read a file or stdin). |

@@ -76,6 +76,7 @@ vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
 vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
 vi.mock('@/app/api/v2/lib/gate', () => v2GateModuleMock)
 
+import { chatDeploymentOperations, deleteChatDeployment } from '@/lib/chat-deployments/application'
 import { DELETE, GET, PATCH } from '@/app/api/v2/chat-deployments/[chatDeploymentId]/route'
 import { ChatDeployAuthNotAllowedError } from '@/ee/access-control/utils/permission-check'
 
@@ -128,13 +129,18 @@ function chatRow(overrides: Record<string, unknown> = {}) {
 
 const params = { params: Promise.resolve({ chatDeploymentId: CHAT_ID }) }
 
-async function get() {
-  return GET(new NextRequest(`http://localhost/api/v2/chat-deployments/${CHAT_ID}`), params)
+/** Every detail route asserts the workspace it believes owns the deployment. */
+function url(search = `?workspaceId=${WORKSPACE_ID}`) {
+  return `http://localhost/api/v2/chat-deployments/${CHAT_ID}${search}`
 }
 
-async function patch(body: unknown) {
+async function get(search?: string) {
+  return GET(new NextRequest(url(search)), params)
+}
+
+async function patch(body: unknown, search?: string) {
   return PATCH(
-    new NextRequest(`http://localhost/api/v2/chat-deployments/${CHAT_ID}`, {
+    new NextRequest(url(search), {
       method: 'PATCH',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(body),
@@ -143,11 +149,10 @@ async function patch(body: unknown) {
   )
 }
 
-async function del() {
-  return DELETE(
-    new NextRequest(`http://localhost/api/v2/chat-deployments/${CHAT_ID}`, { method: 'DELETE' }),
-    { params: Promise.resolve({ chatDeploymentId: CHAT_ID }) }
-  )
+async function del(search?: string) {
+  return DELETE(new NextRequest(url(search), { method: 'DELETE' }), {
+    params: Promise.resolve({ chatDeploymentId: CHAT_ID }),
+  })
 }
 
 function writtenValues(): Record<string, unknown> {
@@ -191,6 +196,17 @@ describe('/api/v2/chat-deployments/[chatDeploymentId]', () => {
     encryptionMockFns.mockEncryptSecret.mockResolvedValue({ encrypted: 'encrypted-password' })
   })
 
+  /**
+   * Detail carries the visitor gate — `allowedEmails`, `authType`,
+   * `hasPassword`, and the customization blob — which the internal editor has
+   * always required workspace admin to read.
+   */
+  it('keeps the chat-deployment read an admin operation', () => {
+    expect(chatDeploymentOperations.read.minimumRole).toBe('admin')
+    expect(chatDeploymentOperations.read.workspaceApiKey).toBe('deny')
+    expect(chatDeploymentOperations.read.principalKinds).not.toContain('workspace_api_key')
+  })
+
   describe('GET', () => {
     it('serves the deployment without its password', async () => {
       mocks.getChatDeploymentWithWorkspace.mockResolvedValue({
@@ -219,6 +235,96 @@ describe('/api/v2/chat-deployments/[chatDeploymentId]', () => {
       v2RouteMocks.authenticate.mockRejectedValueOnce(new MockV2ApiKeyUnauthenticatedError())
 
       expect((await get()).status).toBe(401)
+    })
+
+    it('refuses a workspace read-member the gate configuration with 403', async () => {
+      mocks.resolvePermission.mockResolvedValue('read')
+
+      const response = await get()
+
+      expect(response.status).toBe(403)
+      expect((await response.json()).error.details.code).toBe('INSUFFICIENT_WORKSPACE_ROLE')
+    })
+
+    it('rejects a workspace API key before canonical loading', async () => {
+      v2RouteMocks.authenticate.mockResolvedValue(workspaceKeyAuth)
+
+      const response = await get()
+
+      expect(response.status).toBe(403)
+      expect(mocks.getChatDeploymentWithWorkspace).not.toHaveBeenCalled()
+    })
+
+    it('conceals a deployment the caller asserted into the wrong workspace as 404', async () => {
+      const response = await get('?workspaceId=workspace-2')
+
+      expect(response.status).toBe(404)
+      expect((await response.json()).error.message).toBe('Chat deployment not found')
+    })
+
+    it('rejects a request that asserts no workspace', async () => {
+      const response = await get('')
+
+      expect(response.status).toBe(400)
+      expect(JSON.stringify(await response.json())).toContain('Workspace ID is required')
+      expect(mocks.getChatDeploymentWithWorkspace).not.toHaveBeenCalled()
+    })
+
+    /**
+     * `chat.customizations` and `chat.output_configs` are schemaless JSONB with
+     * several writers, so a stored key or value the published shape does not
+     * declare must be projected away rather than fail the response parse.
+     */
+    it('serves a row whose stored blobs carry undeclared keys and an empty path', async () => {
+      mocks.getChatDeploymentWithWorkspace.mockResolvedValue({
+        chat: chatRow({
+          customizations: { primaryColor: '#000', logoUrl: 'https://x/l.png', headerText: 'Hi' },
+          outputConfigs: [{ blockId: 'block-1', path: '', extra: true }],
+          allowedEmails: ['a@example.com'],
+        }),
+        workspaceId: WORKSPACE_ID,
+      })
+
+      const response = await get()
+
+      expect(response.status).toBe(200)
+      const { data } = await response.json()
+      expect(data.customizations).toEqual({ primaryColor: '#000' })
+      expect(data.outputConfigs).toEqual([{ blockId: 'block-1', path: '' }])
+      expect(data.allowedEmails).toEqual(['a@example.com'])
+    })
+
+    /** Nothing constrains the JSONB columns, so a value of the wrong type is reachable. */
+    it('serves a row whose stored blobs carry values of the wrong type', async () => {
+      mocks.getChatDeploymentWithWorkspace.mockResolvedValue({
+        chat: chatRow({
+          customizations: { primaryColor: 42, welcomeMessage: 'Hi' },
+          outputConfigs: [null, 'block-1', { path: 'output' }, { blockId: 'block-2', path: 7 }],
+          allowedEmails: ['a@example.com', 9],
+        }),
+        workspaceId: WORKSPACE_ID,
+      })
+
+      const response = await get()
+
+      expect(response.status).toBe(200)
+      const { data } = await response.json()
+      expect(data.customizations).toEqual({ welcomeMessage: 'Hi' })
+      expect(data.outputConfigs).toEqual([{ blockId: 'block-2', path: '' }])
+      expect(data.allowedEmails).toEqual(['a@example.com'])
+    })
+
+    it('serves a row whose stored blobs are not objects at all', async () => {
+      mocks.getChatDeploymentWithWorkspace.mockResolvedValue({
+        chat: chatRow({ customizations: 'legacy', outputConfigs: {}, allowedEmails: 'a@b.com' }),
+        workspaceId: WORKSPACE_ID,
+      })
+
+      const response = await get()
+
+      expect(response.status).toBe(200)
+      const { data } = await response.json()
+      expect(data).toMatchObject({ customizations: {}, outputConfigs: [], allowedEmails: [] })
     })
   })
 
@@ -421,6 +527,54 @@ describe('/api/v2/chat-deployments/[chatDeploymentId]', () => {
 
       expect(response.status).toBe(403)
       expect(mocks.getChatDeploymentWithWorkspace).not.toHaveBeenCalled()
+    })
+
+    /**
+     * `performChatUndeploy` reports infrastructure faults the same way it
+     * reports an absent chat. Rendering one of those as a `404` would tell the
+     * caller the deployment is gone while it is still serving.
+     */
+    it('propagates an undeploy infrastructure failure as a 500', async () => {
+      mocks.performChatUndeploy.mockResolvedValue({
+        success: false,
+        error: 'delete from "chat" failed: connection terminated',
+      })
+
+      const response = await del()
+
+      expect(response.status).toBe(500)
+      const body = await response.json()
+      expect(body.error.code).toBe('INTERNAL_ERROR')
+      expect(JSON.stringify(body)).not.toContain('connection terminated')
+      expect(mocks.audit).not.toHaveBeenCalled()
+    })
+
+    it('answers 404 only for a genuinely absent deployment', async () => {
+      mocks.performChatUndeploy.mockResolvedValue({
+        success: false,
+        errorCode: 'not_found',
+        error: 'Chat not found',
+      })
+
+      const response = await del()
+
+      expect(response.status).toBe(404)
+    })
+
+    /** The view boundary strips the password exactly once, in the use case. */
+    it('returns a stripped view rather than the raw deployment row', async () => {
+      mocks.getChatDeploymentWithWorkspace.mockResolvedValue({
+        chat: chatRow({ authType: 'password', password: 'encrypted-secret' }),
+        workspaceId: WORKSPACE_ID,
+      })
+
+      const { deployment } = await deleteChatDeployment.execute({
+        principal: personalKeyAuth.principal,
+        input: { chatDeploymentId: CHAT_ID, assertedWorkspaceId: WORKSPACE_ID },
+      })
+
+      expect(deployment).not.toHaveProperty('password')
+      expect(deployment.hasPassword).toBe(true)
     })
   })
 })

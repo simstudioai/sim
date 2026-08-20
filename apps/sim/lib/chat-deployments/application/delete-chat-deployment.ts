@@ -5,6 +5,7 @@ import {
   resolveActiveChatDeploymentApplicationContext,
 } from '@/lib/chat-deployments/application/context'
 import { chatDeploymentOperations } from '@/lib/chat-deployments/application/operations'
+import { toChatDeploymentView } from '@/lib/chat-deployments/application/read-chat-deployments'
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { performChatUndeploy } from '@/lib/workflows/orchestration'
@@ -49,9 +50,19 @@ export const deleteChatDeployment = defineAuthorizedWorkspaceUseCase({
       projectLegacyAudit: false,
     })
     if (!result.success) {
-      throw new OrchestrationError('not_found', result.error ?? 'Failed to delete chat deployment')
+      /**
+       * Only a genuinely absent deployment is concealed. `performChatUndeploy`
+       * also fails for infrastructure reasons, and rendering one of those as a
+       * `404` tells the caller the deployment is gone while it is still serving.
+       */
+      const message = result.error ?? 'Failed to delete chat deployment'
+      if (result.errorCode !== 'not_found') throw new Error(message)
+      throw new OrchestrationError('not_found', message)
     }
-    return { deployment: context.chatDeployment, workspaceId: context.workspaceId }
+    return {
+      deployment: toChatDeploymentView(context.chatDeployment),
+      workspaceId: context.workspaceId,
+    }
   },
   projectAudit: ({ result }) => ({
     action: AuditAction.CHAT_DELETED,

@@ -6,10 +6,12 @@ import {
   toPrincipalActor,
 } from '@sim/auth/principal'
 import { ChatIdentifierInUseError } from '@/lib/chat-deployments/application/errors'
+import { toChatDeploymentView } from '@/lib/chat-deployments/application/read-chat-deployments'
 import {
   getChatDeploymentIdOwningIdentifier,
   getLiveChatDeploymentForWorkflow,
 } from '@/lib/chat-deployments/queries'
+import { ForbiddenOperationError } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { defineAuthorizedWorkflowUseCase } from '@/lib/workflows/application/authorized-workflow-use-case'
 import { resolveActiveWorkflowApplicationContext } from '@/lib/workflows/application/context'
@@ -35,6 +37,11 @@ export interface DeployWorkflowChatInput {
   identifier?: string
   title?: string
   description?: string
+  /**
+   * Optional because only the Copilot surface accepts them: `deploy_as_chat`
+   * requires both and refuses the tool call without them, while neither HTTP
+   * create contract declares a way to send one.
+   */
   versionDescription?: string
   versionName?: string
   customizations?: ChatCustomizations
@@ -155,7 +162,7 @@ export const deployWorkflowChat = defineAuthorizedWorkflowUseCase({
         await validateChatDeployAuth(subjectUserId, context.workspaceId, authType)
       } catch (error) {
         if (error instanceof ChatDeployAuthNotAllowedError) {
-          throw new OrchestrationError('forbidden', error.message)
+          throw new ForbiddenOperationError('CHAT_AUTH_MODE_NOT_PERMITTED', error.message)
         }
         throw error
       }
@@ -189,8 +196,18 @@ export const deployWorkflowChat = defineAuthorizedWorkflowUseCase({
         ? { captureDeploymentAnalytics: false as const, captureLegacyTelemetry: false }
         : {}),
     })
-    if (!result.success || !result.chatId || !result.chatUrl) {
-      throw new OrchestrationError('validation', result.error ?? 'Failed to deploy chat')
+    if (!result.success) {
+      /**
+       * Classified by the orchestration rather than flattened to a `400`: an
+       * in-flight deployment is a `409` the caller can retry, and an invariant
+       * failure is a `500` rather than a claim that the request was malformed.
+       */
+      const message = result.error ?? 'Failed to deploy chat'
+      if (!result.errorCode || result.errorCode === 'internal') throw new Error(message)
+      throw new OrchestrationError(result.errorCode, message)
+    }
+    if (!result.chatId || !result.chatUrl) {
+      throw new Error('Chat deployment succeeded without a chat id or URL')
     }
     /**
      * Re-read the settled row so callers present what was actually stored
@@ -205,7 +222,7 @@ export const deployWorkflowChat = defineAuthorizedWorkflowUseCase({
       ...result,
       chatId: result.chatId,
       chatUrl: result.chatUrl,
-      deployment,
+      deployment: toChatDeploymentView(deployment),
       workspaceId: context.workspaceId,
       workflowId: context.workflowId,
       identifier,
@@ -256,9 +273,12 @@ export const undeployWorkflowChat = defineAuthorizedWorkflowUseCase({
       projectLegacyAudit: false,
     })
     if (!result.success) {
-      throw new OrchestrationError('not_found', result.error ?? 'Failed to undeploy chat')
+      /** Only a genuinely absent deployment is concealed; anything else propagates. */
+      const message = result.error ?? 'Failed to undeploy chat'
+      if (result.errorCode !== 'not_found') throw new Error(message)
+      throw new OrchestrationError('not_found', message)
     }
-    return { workflowId: context.workflowId, deployment }
+    return { workflowId: context.workflowId, deployment: toChatDeploymentView(deployment) }
   },
   projectAudit: ({ result }) => ({
     action: AuditAction.CHAT_DELETED,

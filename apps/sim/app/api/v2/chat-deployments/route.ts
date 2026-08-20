@@ -4,15 +4,15 @@ import {
 } from '@/lib/api/contracts/v2/chat-deployments'
 import { cursorRoute, cursorScopeKey } from '@/lib/api/cursor-binding'
 import { defineV2JsonRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/routes'
-import {
-  chatDeploymentOperations,
-  listChatDeployments,
-  toChatDeploymentView,
-} from '@/lib/chat-deployments/application'
+import { chatDeploymentOperations, listChatDeployments } from '@/lib/chat-deployments/application'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { deployWorkflowChat } from '@/lib/workflows/application/chat-deployments'
 import { workflowOperations } from '@/lib/workflows/application/operations'
-import { chatDeploymentErrorPolicy, toV2ChatDeployment } from '@/app/api/v2/chat-deployments/utils'
+import {
+  chatDeploymentErrorPolicy,
+  toV2ChatDeployment,
+  toV2ChatDeploymentListItem,
+} from '@/app/api/v2/chat-deployments/utils'
 import { readSortedCursor, writeSortedCursor } from '@/app/api/v2/lib/response'
 
 export const dynamic = 'force-dynamic'
@@ -37,6 +37,12 @@ function chatDeploymentCursorFilters(query: {
  *
  * Workspace-scoped, not creator-scoped: a chat deployment is workspace
  * property, and every write on it is authorized by workspace admin.
+ *
+ * Deliberately a narrower projection than the detail read. Discovery is a
+ * `read`-level concern, so this stays callable by any workspace member and by a
+ * workspace API key — which is only sound because the entries carry no
+ * `allowedEmails`, `hasPassword`, or `customizations`. Those live on the
+ * admin-gated detail read, so the list cannot be used to route around it.
  */
 export const GET = defineV2JsonRoute({
   contract: v2ListChatDeploymentsContract,
@@ -60,7 +66,9 @@ export const GET = defineV2JsonRoute({
   }),
   useCase: listChatDeployments,
   present: ({ deployments, nextCursorKeys }, { query }) => ({
-    data: deployments.map((deployment) => toV2ChatDeployment(deployment, query.workspaceId)),
+    data: deployments.map((deployment) =>
+      toV2ChatDeploymentListItem(deployment, query.workspaceId)
+    ),
     nextCursor: writeSortedCursor(
       nextCursorKeys,
       query.sortBy,
@@ -90,6 +98,6 @@ export const POST = defineV2JsonRoute({
   mapInput: ({ body }) => ({ ...body, requestId: generateRequestId() }),
   useCase: deployWorkflowChat,
   present: (result) => ({
-    data: toV2ChatDeployment(toChatDeploymentView(result.deployment), result.workspaceId),
+    data: toV2ChatDeployment(result.deployment, result.workspaceId),
   }),
 })

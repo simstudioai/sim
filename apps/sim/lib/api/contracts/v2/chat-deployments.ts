@@ -48,10 +48,36 @@ export const v2ChatDeploymentIdParamsSchema = z
 export type V2ChatDeploymentParams = z.output<typeof v2ChatDeploymentIdParamsSchema>
 
 /**
+ * The workspace the caller asserts the deployment belongs to.
+ *
+ * Required, like every other v2 resource-detail route: the assertion is what
+ * lets a deployment in a workspace the caller did not name be concealed as a
+ * `404` rather than authorized on the strength of the id alone.
+ */
+export const v2ChatDeploymentScopeQuerySchema = z
+  .object({
+    workspaceId: workspaceIdSchema.describe('Workspace that owns the chat deployment.'),
+  })
+  .strict()
+  .meta({
+    id: 'ChatDeploymentScopeQuery',
+    title: 'Chat deployment scope query',
+    description: 'Workspace the chat deployment is asserted to belong to.',
+  })
+export type V2ChatDeploymentScopeQuery = z.output<typeof v2ChatDeploymentScopeQuerySchema>
+
+/**
  * Strict on the nested object, not only on the body: `.strict()` binds one
  * level, so a misspelled customization key would otherwise be dropped silently
  * and the deployment would render with the default the caller thought it had
  * overridden.
+ *
+ * Request-side only. `chat.customizations` is schemaless JSONB written by
+ * surfaces with wider shapes than this one — the internal editor stores
+ * `logoUrl` and `headerText`, and the Copilot tool stores whatever it is given —
+ * so parsing a stored row against these bounds would turn a legitimate row into
+ * a `500`. The response declares {@link v2StoredChatDeploymentCustomizationsSchema}
+ * instead, and `toV2ChatDeployment` projects the blob onto it.
  */
 export const v2ChatDeploymentCustomizationsSchema = z
   .object({
@@ -79,6 +105,31 @@ export const v2ChatDeploymentCustomizationsSchema = z
     description: 'Presentation overrides for the deployed chat.',
   })
 
+/** The customization keys a stored blob may contribute to a v2 read. */
+export const V2_CHAT_DEPLOYMENT_CUSTOMIZATION_KEYS = [
+  'primaryColor',
+  'welcomeMessage',
+  'imageUrl',
+] as const satisfies readonly (keyof z.output<typeof v2ChatDeploymentCustomizationsSchema>)[]
+
+/**
+ * The read shape of {@link v2ChatDeploymentCustomizationsSchema}: same keys, no
+ * bounds and no `.strict()`. A stored value only has to be a string to be
+ * publishable, and a key this surface does not declare is dropped rather than
+ * rejected.
+ */
+export const v2StoredChatDeploymentCustomizationsSchema = z
+  .object({
+    primaryColor: z.string().optional().describe('CSS color used for the chat accent.'),
+    welcomeMessage: z.string().optional().describe('First message shown to a visitor.'),
+    imageUrl: z.string().optional().describe('Avatar image shown beside assistant messages.'),
+  })
+  .meta({
+    id: 'StoredChatDeploymentCustomizations',
+    title: 'Stored chat deployment customizations',
+    description: 'Presentation overrides currently stored on the deployed chat.',
+  })
+
 export const v2ChatDeploymentOutputConfigSchema = z
   .object({
     blockId: z
@@ -95,6 +146,25 @@ export const v2ChatDeploymentOutputConfigSchema = z
     id: 'ChatDeploymentOutputConfig',
     title: 'Chat deployment output config',
     description: 'One block output surfaced to chat visitors.',
+  })
+
+/**
+ * The read shape of {@link v2ChatDeploymentOutputConfigSchema}.
+ *
+ * `path` carries no `.min(1)`: the create path accepts an empty path — it means
+ * "the whole block output" — and `chat.output_configs` is schemaless JSONB, so
+ * requiring one on the way out would `500` every read of a deployment the
+ * create path legitimately wrote.
+ */
+export const v2StoredChatDeploymentOutputConfigSchema = z
+  .object({
+    blockId: z.string().describe('Block whose output the chat streams.'),
+    path: z.string().describe('Path within that block output. Empty means the whole output.'),
+  })
+  .meta({
+    id: 'StoredChatDeploymentOutputConfig',
+    title: 'Stored chat deployment output config',
+    description: 'One block output currently surfaced to chat visitors.',
   })
 
 export const v2ChatDeploymentSchema = z
@@ -127,11 +197,11 @@ export const v2ChatDeploymentSchema = z
       .describe(
         'Email addresses or domains admitted under `email` and `sso` gating. Empty otherwise.'
       ),
-    customizations: v2ChatDeploymentCustomizationsSchema.describe(
+    customizations: v2StoredChatDeploymentCustomizationsSchema.describe(
       'Presentation overrides. Unset fields fall back to platform defaults.'
     ),
     outputConfigs: z
-      .array(v2ChatDeploymentOutputConfigSchema)
+      .array(v2StoredChatDeploymentOutputConfigSchema)
       .describe('Block outputs surfaced to visitors.'),
     includeThinking: z
       .boolean()
@@ -158,6 +228,38 @@ export const v2ChatDeploymentSchema = z
     description: 'A workflow published as a hosted chat.',
   })
 export type V2ChatDeployment = z.output<typeof v2ChatDeploymentSchema>
+
+/**
+ * The fields a workspace-wide read does not carry.
+ *
+ * `allowedEmails` is an access-control list and `hasPassword` is an auth-posture
+ * signal, so neither belongs on a list any workspace member — or any workspace
+ * API key — can call. `customizations` follows them because it is deployment
+ * configuration rather than something a caller needs to find a deployment.
+ *
+ * They stay available on `GET /api/v2/chat-deployments/{id}`, which is gated at
+ * workspace `admin`. Narrowing the projection is what lets the list stay a
+ * `read` operation, and reachable by a workspace key, without the detail read's
+ * gate being routable around.
+ */
+const V2_CHAT_DEPLOYMENT_GATED_FIELDS = {
+  allowedEmails: true,
+  hasPassword: true,
+  customizations: true,
+} as const
+
+/**
+ * One entry in a chat-deployment list: enough to find a deployment and decide
+ * whether to fetch it, and nothing the detail read gates.
+ */
+export const v2ChatDeploymentListItemSchema = v2ChatDeploymentSchema
+  .omit(V2_CHAT_DEPLOYMENT_GATED_FIELDS)
+  .meta({
+    id: 'ChatDeploymentListItem',
+    title: 'Chat deployment list entry',
+    description: 'A workflow published as a hosted chat, without the fields the detail read gates.',
+  })
+export type V2ChatDeploymentListItem = z.output<typeof v2ChatDeploymentListItemSchema>
 
 export const v2ChatDeploymentSortFields = ['identifier', 'createdAt', 'updatedAt'] as const
 export type V2ChatDeploymentSortBy = (typeof v2ChatDeploymentSortFields)[number]
@@ -308,7 +410,7 @@ export const v2UpdateChatDeploymentBodySchema = z
     authType: chatAuthTypeSchema
       .optional()
       .describe(
-        'New visitor gate. Switching modes clears the gate the previous mode owned: a stored password is dropped when moving to `email` or `sso`, and the allow-list is dropped when moving to `password` or `public`.'
+        'New visitor gate. Switching modes clears the gate the previous mode owned: a stored password is dropped when moving to `email` or `sso`, and the allow-list is cleared when moving to `password` or `public` unless the same request supplies a replacement `allowedEmails`, which is applied after the clear.'
       ),
     password: z
       .string()
@@ -366,7 +468,7 @@ export const v2ListChatDeploymentsContract = defineRouteContract({
   query: v2ListChatDeploymentsQuerySchema,
   response: {
     mode: 'json',
-    schema: v2CursorListResponse(v2ChatDeploymentSchema),
+    schema: v2CursorListResponse(v2ChatDeploymentListItemSchema),
   },
 })
 
@@ -384,7 +486,7 @@ export const v2CreateChatDeploymentContract = defineRouteContract({
 export const v2GetChatDeploymentContract = defineRouteContract({
   method: 'GET',
   path: '/api/v2/chat-deployments/[chatDeploymentId]',
-  query: noInputSchema,
+  query: v2ChatDeploymentScopeQuerySchema,
   params: v2ChatDeploymentIdParamsSchema,
   response: {
     mode: 'json',
@@ -395,7 +497,7 @@ export const v2GetChatDeploymentContract = defineRouteContract({
 export const v2UpdateChatDeploymentContract = defineRouteContract({
   method: 'PATCH',
   path: '/api/v2/chat-deployments/[chatDeploymentId]',
-  query: noInputSchema,
+  query: v2ChatDeploymentScopeQuerySchema,
   params: v2ChatDeploymentIdParamsSchema,
   body: v2UpdateChatDeploymentBodySchema,
   response: {
@@ -407,7 +509,7 @@ export const v2UpdateChatDeploymentContract = defineRouteContract({
 export const v2DeleteChatDeploymentContract = defineRouteContract({
   method: 'DELETE',
   path: '/api/v2/chat-deployments/[chatDeploymentId]',
-  query: noInputSchema,
+  query: v2ChatDeploymentScopeQuerySchema,
   params: v2ChatDeploymentIdParamsSchema,
   response: {
     mode: 'json',
