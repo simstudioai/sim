@@ -132,7 +132,7 @@ function featureGlyph(feature: FeatureStatus): string {
 }
 
 function withoutSetupCommand(message: string): string {
-  return message.replace(/\s+Run npx @sim\/setup setup[^.]*\.$/, '')
+  return message.replace(/\s+Run npx sim-setup add [^.]*\.$/, '')
 }
 
 function setupHint(source: SetupStatusSource, command: string): string | null {

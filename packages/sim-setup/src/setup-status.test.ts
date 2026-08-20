@@ -77,6 +77,7 @@ describe('setup status', () => {
     expect(output).toContain('Email delivery: Resend')
     expect(output).toContain('SMTP_PORT')
     expect(output).toContain('configure: npx sim-setup add email')
+    expect(output).not.toContain('Run npx sim-setup add email')
     expect(output).not.toContain('resend-super-secret')
   })
 
