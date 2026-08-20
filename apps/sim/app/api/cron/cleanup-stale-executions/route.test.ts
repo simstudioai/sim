@@ -126,9 +126,8 @@ describe('stale execution cleanup deadline grace', () => {
             condition.right.getTime() === expectedThreshold.getTime()
         )
 
-      expect(deadlineComparisons).toHaveLength(3)
+      expect(deadlineComparisons).toHaveLength(2)
       expect(deadlineComparisons.map(({ right }) => right)).toEqual([
-        expectedThreshold,
         expectedThreshold,
         expectedThreshold,
       ])
@@ -166,6 +165,35 @@ describe('stale execution cleanup deadline grace', () => {
       expect(update.endedAt).toEqual(new Date('2026-08-03T12:10:00.000Z'))
     } finally {
       vi.useRealTimers()
+    }
+  })
+
+  it('sweeps redacting logs on the generic window, never the execution deadline', async () => {
+    const response = await GET(createRequest())
+
+    expect(response.status).toBe(200)
+    const redactingPredicates = dbChainMockFns.where.mock.calls
+      .map(([condition]) => flattenConditions(condition))
+      .filter((conditions) =>
+        conditions.some(
+          (condition) =>
+            condition.type === 'eq' &&
+            condition.left === workflowExecutionLogs.status &&
+            condition.right === 'redacting'
+        )
+      )
+
+    expect(redactingPredicates.length).toBeGreaterThan(0)
+    for (const conditions of redactingPredicates) {
+      expect(
+        conditions.some((condition) => condition.left === workflowExecutionLogs.executionDeadlineAt)
+      ).toBe(false)
+      expect(
+        conditions.some(
+          (condition) =>
+            condition.type === 'lt' && condition.left === workflowExecutionLogs.startedAt
+        )
+      ).toBe(true)
     }
   })
 

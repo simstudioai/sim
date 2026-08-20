@@ -474,14 +474,29 @@ function staleScheduleExecutionJobsFilter(now: Date) {
   )
 }
 
+/**
+ * Recovery cadence for an occurrence the worker never got to account for.
+ *
+ * Deployment refuses to persist a schedule without a valid cron expression
+ * (`deployScheduleBlocks` writes `validateScheduleBlock`'s `cronExpression`,
+ * and an invalid one fails the deploy), so every reachable schedule takes the
+ * cron branch and lands on its real cadence. The day fallback exists only so a
+ * row that somehow violates that invariant still advances instead of re-firing
+ * the same occurrence forever — log it, because the cadence it picks is a
+ * guess.
+ */
 function getScheduleNextRunAt(
-  schedule: { cronExpression?: string | null; timezone?: string },
+  schedule: { scheduleId?: string; cronExpression?: string | null; timezone?: string },
   now: Date
 ): Date {
-  return (
-    getNextRunFromCronExpression(schedule.cronExpression, schedule.timezone) ??
-    new Date(now.getTime() + 24 * 60 * 60 * 1000)
-  )
+  const nextRunAt = getNextRunFromCronExpression(schedule.cronExpression, schedule.timezone)
+  if (nextRunAt) return nextRunAt
+
+  logger.warn('Recovering a schedule with no cron expression; falling back to a daily cadence', {
+    scheduleId: schedule.scheduleId,
+    timezone: schedule.timezone,
+  })
+  return new Date(now.getTime() + 24 * 60 * 60 * 1000)
 }
 
 function isTerminalJobStatus(status: string): boolean {
@@ -983,15 +998,24 @@ async function recoverStaleDatabaseScheduleJobs(now: Date): Promise<void> {
       })
 
       if (disabled) disabledScheduleIds.add(payload.scheduleId)
-      if (reconciled) {
-        await tx
-          .update(asyncJobs)
-          .set({
-            metadata: buildCarrierReconciledMetadata(asyncJobs.metadata),
-            updatedAt: now,
-          })
-          .where(eq(asyncJobs.id, row.id))
-      }
+
+      /**
+       * `updatedAt` is bumped even when accounting was deferred. The batch is
+       * ordered by `updatedAt`, so a carrier that keeps failing to reconcile —
+       * a newer claim holds the schedule, or the payload carries no
+       * `scheduledFor` to match an occurrence against — would otherwise sit at
+       * the head of every tick forever and starve every other claimed carrier
+       * out of the batch. Only the reconciled marker gates retention; the bump
+       * just rotates the row to the back of the queue.
+       */
+      await tx
+        .update(asyncJobs)
+        .set(
+          reconciled
+            ? { metadata: buildCarrierReconciledMetadata(asyncJobs.metadata), updatedAt: now }
+            : { updatedAt: now }
+        )
+        .where(eq(asyncJobs.id, row.id))
     }
   })
 

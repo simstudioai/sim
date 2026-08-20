@@ -27,7 +27,10 @@ import {
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import type { DbTransaction } from '@/lib/db/types'
 import { elapsedDurationMsSql } from '@/lib/logs/execution/duration'
-import { STALE_SWEEPABLE_EXECUTION_STATUSES } from '@/lib/logs/types'
+import {
+  STALE_SWEEPABLE_EXECUTION_STATUSES,
+  type StaleSweepableExecutionStatus,
+} from '@/lib/logs/types'
 import { deleteFile } from '@/lib/uploads/core/storage-service'
 import {
   carrierNotIrrecoverableSql,
@@ -148,13 +151,28 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     let currentWorkflowBatchSize = 0
 
     try {
-      const staleExecutionTimePredicate = or(
-        lt(workflowExecutionLogs.executionDeadlineAt, staleDeadlineThreshold),
-        and(
-          isNull(workflowExecutionLogs.executionDeadlineAt),
-          lt(workflowExecutionLogs.startedAt, staleThreshold)
-        )
-      )
+      /**
+       * `running` is swept on its execution deadline plus the cleanup grace, or
+       * on the generic stale window when it has no deadline.
+       *
+       * `redacting` gets the generic window only. That status is set *after* the
+       * run finished, while a live worker masks the payload, so the execution
+       * deadline is already in the past by the time redaction starts — the
+       * deadline rule would fail a masking pass that is merely slow, and
+       * schedule recovery would read that as a failed occurrence even though
+       * the worker is about to persist `completed`. A redaction that genuinely
+       * crashed still clears within the generic window.
+       */
+      const staleExecutionTimePredicate = (status: StaleSweepableExecutionStatus) =>
+        status === 'redacting'
+          ? lt(workflowExecutionLogs.startedAt, staleThreshold)
+          : or(
+              lt(workflowExecutionLogs.executionDeadlineAt, staleDeadlineThreshold),
+              and(
+                isNull(workflowExecutionLogs.executionDeadlineAt),
+                lt(workflowExecutionLogs.startedAt, staleThreshold)
+              )
+            )
       const cleanupTimestamp = sql.param(now, workflowExecutionLogs.startedAt)
       const staleDurationMinutes = sql<number>`ROUND(
         EXTRACT(EPOCH FROM (${cleanupTimestamp} - ${workflowExecutionLogs.startedAt})) / 60
@@ -169,7 +187,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       for (const executionStatus of STALE_SWEEPABLE_EXECUTION_STATUSES) {
         const staleExecutionPredicate = and(
           eq(workflowExecutionLogs.status, executionStatus),
-          staleExecutionTimePredicate
+          staleExecutionTimePredicate(executionStatus)
         )
         while (workflowRowsConsidered < WORKFLOW_EXECUTION_MAX_ROWS_PER_RUN) {
           const limit = Math.min(
@@ -194,7 +212,18 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
                 endedAt: now,
                 executionDeadlineAt: null,
                 totalDurationMs,
-                executionData: sql`jsonb_set(
+                executionData:
+                  executionStatus === 'redacting'
+                    ? sql`jsonb_set(
+                  COALESCE(execution_data, '{}'::jsonb),
+                  ARRAY['error'],
+                  to_jsonb(
+                    ${'Execution terminated: worker timeout or crash after '}::text
+                      || ${staleDurationMinutes}::text
+                      || ' minutes'
+                  )
+                )`
+                    : sql`jsonb_set(
                   COALESCE(execution_data, '{}'::jsonb),
                   ARRAY['error'],
                   to_jsonb(

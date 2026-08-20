@@ -243,6 +243,8 @@ export const STALE_SWEEPABLE_EXECUTION_STATUSES = [
   'redacting',
 ] as const satisfies readonly PersistedWorkflowExecutionStatus[]
 
+export type StaleSweepableExecutionStatus = (typeof STALE_SWEEPABLE_EXECUTION_STATUSES)[number]
+
 export interface CompletedWorkflowExecutionLog extends WorkflowExecutionLog {
   persistedStatus: PersistedWorkflowExecutionStatus
 }

@@ -789,6 +789,49 @@ describe('Scheduled Workflow Execution API Route', () => {
     expect(mockExecuteScheduleJob).not.toHaveBeenCalled()
   })
 
+  it('rotates a deferred carrier to the back of the batch instead of starving it', async () => {
+    mockShouldExecuteInline.mockReturnValue(true)
+    const claimedAt = new Date('2025-01-01T00:00:00.000Z')
+    const newerClaim = new Date('2025-01-01T00:05:00.000Z')
+    mockProcessingCounts(0, 0)
+    orderByLimitMock.mockResolvedValueOnce([
+      {
+        id: 'completed-job-id',
+        status: 'completed',
+        payload: {
+          scheduleId: 'schedule-1',
+          workflowId: 'workflow-1',
+          executionId: 'execution-1',
+          now: claimedAt.toISOString(),
+          scheduledFor: claimedAt.toISOString(),
+        },
+      },
+    ])
+    queueTableRows(mockWorkflowExecutionLogs, [
+      { executionId: 'execution-1', workflowId: 'workflow-1', status: 'completed' },
+    ])
+    queueTableRows(mockWorkflowSchedule, [
+      {
+        archivedAt: null,
+        lastQueuedAt: newerClaim,
+        nextRunAt: claimedAt,
+        status: 'active',
+      },
+    ])
+    mockApplyScheduleSuccessUpdate.mockResolvedValueOnce(false)
+
+    await runScheduleTick('test-request-id')
+
+    const carrierWrites = dbChainMockFns.set.mock.calls
+      .map(([values]) => values as Record<string, unknown>)
+      .filter((values) => values.updatedAt instanceof Date)
+
+    expect(carrierWrites).toContainEqual({ updatedAt: expect.any(Date) })
+    expect(dbChainMockFns.set).not.toHaveBeenCalledWith(
+      expect.objectContaining({ metadata: expect.anything() })
+    )
+  })
+
   it('marks malformed terminal carriers irrecoverable so they leave the recovery batch', async () => {
     mockShouldExecuteInline.mockReturnValue(true)
     mockProcessingCounts(0, 0)
