@@ -718,6 +718,100 @@
         }
       }
     },
+    "/api/v2/files/{fileId}/text": {
+      "get": {
+        "operationId": "readFileText",
+        "summary": "Read File Text",
+        "description": "Extract a file's text. Answers `400` for a type no parser supports, naming the raw-bytes download as the escape hatch, and `413` for a file above the extraction ceiling. **`degraded: true` means text extraction did not fully succeed and the returned text may be incomplete or synthesized from the file's raw bytes. Do not treat it as authoritative content.** The legacy `.doc` and `.ppt` parsers deliberately return best-effort content rather than failing, so this flag — not an error status — is how a partial extraction is reported. `truncated` separately reports that a parser limit stopped extraction early. A `HEAD` skips the effect but is authorized exactly as the `GET` is, so it answers `400`, `401`, `403`, or `404` wherever the `GET` would and an empty `200` otherwise. Skipping the effect means skipping the read that produces the payload, so that `200` carries none of the response headers documented below — it answers whether the `GET` would be allowed, not what the `GET` would return.",
+        "tags": ["Files"],
+        "parameters": [
+          {
+            "name": "fileId",
+            "in": "path",
+            "required": true,
+            "description": "File identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_-]+$",
+              "description": "File identifier."
+            }
+          },
+          {
+            "name": "workspaceId",
+            "in": "query",
+            "required": true,
+            "description": "Workspace that owns the file.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "description": "Workspace that owns the file."
+            }
+          },
+          {
+            "name": "maxBytes",
+            "in": "query",
+            "required": false,
+            "description": "Optional ceiling on the source bytes fed to the parser, lowering but never raising the server limit.",
+            "schema": {
+              "description": "Optional ceiling on the source bytes fed to the parser, lowering but never raising the server limit.",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 26214400
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The extracted text and its extraction-quality flags.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileTextResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
     "/api/v2/files/{fileId}/extract": {
       "post": {
         "operationId": "extractFile",
@@ -3011,6 +3105,88 @@
             "partNumbers": [1, 2]
           }
         ]
+      },
+      "V2FileText": {
+        "type": "object",
+        "properties": {
+          "fileId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "description": "File the text was extracted from."
+          },
+          "name": {
+            "type": "string",
+            "description": "File name, including its extension."
+          },
+          "type": {
+            "type": "string",
+            "description": "Stored MIME type of the source file."
+          },
+          "text": {
+            "type": "string",
+            "description": "Extracted text."
+          },
+          "truncated": {
+            "type": "boolean",
+            "description": "True when a parser limit stopped extraction before the input was exhausted."
+          },
+          "degraded": {
+            "type": "boolean",
+            "description": "True when text extraction did not fully succeed and `text` may be incomplete or synthesized from the raw bytes rather than read from the document. Never treat degraded text as authoritative content."
+          },
+          "degradedReason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why extraction degraded, or null when it did not."
+          },
+          "charCount": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "description": "Length of `text` in characters."
+          },
+          "byteCount": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "description": "Source bytes read from storage before extraction."
+          }
+        },
+        "required": [
+          "fileId",
+          "name",
+          "type",
+          "text",
+          "truncated",
+          "degraded",
+          "degradedReason",
+          "charCount",
+          "byteCount"
+        ],
+        "additionalProperties": false,
+        "title": "Extracted file text",
+        "description": "Text extracted from a workspace file, with extraction-quality flags."
+      },
+      "FileTextResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2FileText"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "File text response",
+        "description": "Text extracted from a workspace file."
       },
       "V2FileExtraction": {
         "type": "object",

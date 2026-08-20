@@ -34,6 +34,7 @@ import {
   v2UploadTransferSchema,
 } from '@/lib/api/contracts/v2/uploads'
 import { MAX_WORKSPACE_FILE_SIZE } from '@/lib/uploads/shared/types'
+import { MAX_TEXT_EXTRACTION_BYTES } from '@/lib/uploads/utils/file-utils'
 
 /**
  * v2 files contracts. v2 drops the v1 `{ success, data, limits }` envelope in
@@ -677,6 +678,74 @@ export const v2DownloadFileContract = defineRouteContract({
   query: v2FileWorkspaceQuerySchema,
   response: {
     mode: 'binary',
+  },
+})
+
+export const v2ReadFileTextQuerySchema = z
+  .object({
+    workspaceId: workspaceIdSchema.describe('Workspace that owns the file.'),
+    maxBytes: z.coerce
+      .number()
+      .int()
+      .min(1, 'maxBytes must be at least 1')
+      .max(MAX_TEXT_EXTRACTION_BYTES)
+      .optional()
+      .describe(
+        'Optional ceiling on the source bytes fed to the parser, lowering but never raising the server limit.'
+      ),
+  })
+  .strict()
+export type V2ReadFileTextQuery = z.output<typeof v2ReadFileTextQuerySchema>
+
+export const v2FileTextSchema = z
+  .object({
+    fileId: workspaceFileIdSchema.describe('File the text was extracted from.'),
+    name: z.string().describe('File name, including its extension.'),
+    type: z.string().describe('Stored MIME type of the source file.'),
+    text: z.string().describe('Extracted text.'),
+    truncated: z
+      .boolean()
+      .describe('True when a parser limit stopped extraction before the input was exhausted.'),
+    degraded: z
+      .boolean()
+      .describe(
+        'True when text extraction did not fully succeed and `text` may be incomplete or synthesized from the raw bytes rather than read from the document. Never treat degraded text as authoritative content.'
+      ),
+    degradedReason: z
+      .string()
+      .nullable()
+      .describe('Why extraction degraded, or null when it did not.'),
+    charCount: z.number().int().nonnegative().describe('Length of `text` in characters.'),
+    byteCount: z
+      .number()
+      .int()
+      .nonnegative()
+      .describe('Source bytes read from storage before extraction.'),
+  })
+  .strict()
+  .meta({
+    id: 'V2FileText',
+    title: 'Extracted file text',
+    description: 'Text extracted from a workspace file, with extraction-quality flags.',
+  })
+export type V2FileText = z.output<typeof v2FileTextSchema>
+
+/**
+ * Extracts a file's text.
+ *
+ * `degraded` is a required, non-optional boolean rather than an optional flag:
+ * the legacy `doc` and `ppt` parsers return best-effort or placeholder content
+ * instead of throwing, and a client that never checks an omittable field would
+ * silently treat guessed text as extracted text.
+ */
+export const v2ReadFileTextContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/v2/files/[fileId]/text',
+  params: v2FileParamsSchema,
+  query: v2ReadFileTextQuerySchema,
+  response: {
+    mode: 'json',
+    schema: v2DataResponse(v2FileTextSchema),
   },
 })
 

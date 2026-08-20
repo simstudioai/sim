@@ -246,6 +246,16 @@ export function isGeneratedDocumentSourceType(contentType: string | undefined | 
  * orders of magnitude smaller than the document it produces, so the declared size is no
  * bound at all and the rendered bytes need a cap of their own.
  */
+/**
+ * Ceiling on the source bytes fed to a text-extraction parser.
+ *
+ * The parsers have a documented denial-of-service history, so a text read is
+ * bounded on its *input* before extraction rather than on its output after.
+ * The individual parsers keep their own guards; those must not be relaxed to
+ * make a larger ceiling usable.
+ */
+export const MAX_TEXT_EXTRACTION_BYTES = 25 * 1024 * 1024
+
 export const MAX_RENDERED_DOCUMENT_BYTES = 50 * 1024 * 1024
 
 /** True when `fileName` may be backed by a generation source rather than final bytes. */

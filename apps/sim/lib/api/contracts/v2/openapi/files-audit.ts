@@ -17,6 +17,7 @@ import {
   v2ListFileFoldersContract,
   v2ListFilesContract,
   v2MoveFileItemsContract,
+  v2ReadFileTextContract,
   v2RelocateFileFolderContract,
   v2RenameFileContract,
   v2RestoreFileContract,
@@ -364,6 +365,36 @@ const declaredRoutes = [
         'FileUploadResponse',
         'File upload response',
         'Current upload-session state.'
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2ReadFileTextContract,
+    filesOperation({
+      operationId: 'readFileText',
+      summary: 'Read File Text',
+      description: `Extract a file's text. Answers \`400\` for a type no parser supports, naming the raw-bytes download as the escape hatch, and \`413\` for a file above the extraction ceiling. **\`degraded: true\` means text extraction did not fully succeed and the returned text may be incomplete or synthesized from the file's raw bytes. Do not treat it as authoritative content.** The legacy \`.doc\` and \`.ppt\` parsers deliberately return best-effort content rather than failing, so this flag — not an error status — is how a partial extraction is reported. \`truncated\` separately reports that a parser limit stopped extraction early. ${HEAD_MIRRORS_GET}`,
+      errors: [...RESOURCE_ERRORS, 'PayloadTooLarge'],
+      success: { description: 'The extracted text and its extraction-quality flags.' },
+    }),
+    {
+      params: documentedSchema(
+        v2ReadFileTextContract.params,
+        'ReadFileTextParams',
+        'Read file text path parameters',
+        'File selected for text extraction.'
+      ),
+      query: documentedSchema(
+        v2ReadFileTextContract.query,
+        'ReadFileTextQuery',
+        'Read file text query',
+        'Workspace scope and optional source-byte ceiling.'
+      ),
+      response: documentedSchema(
+        v2ReadFileTextContract.response.schema,
+        'FileTextResponse',
+        'File text response',
+        'Text extracted from a workspace file.'
       ),
     }
   ),

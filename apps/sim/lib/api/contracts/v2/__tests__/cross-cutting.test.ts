@@ -184,10 +184,11 @@ describe('knowledge and files request-slice strictness', () => {
    * 45 → 63 when the knowledge and files endpoints that take no query params
    * started saying so with `noInputSchema` instead of omitting `query`, and
    * 63 → 64 when the upload-session read was added, and 64 → 66 when archive
-   * extraction added a query and a body slice.
+   * extraction added a query and a body slice, and 66 → 67 with the file-text
+   * read's query.
    */
   it('sweeps every documented query and body slice', () => {
-    expect(slices.length).toBe(66)
+    expect(slices.length).toBe(67)
   })
 
   it.each(slices)('%s rejects an undeclared key', (_name, schema) => {
