@@ -6,6 +6,7 @@ import type { ComponentType, SVGProps } from 'react'
 import { Library, Rocket, Table } from '@sim/emcn/icons'
 import {
   A2AIcon,
+  AffinityIcon,
   AgentMailIcon,
   AgentPhoneIcon,
   AgiloftIcon,
@@ -269,6 +270,7 @@ type IconComponent = ComponentType<SVGProps<SVGSVGElement>>
 
 export const blockTypeToIconMap: Record<string, IconComponent> = {
   a2a: A2AIcon,
+  affinity: AffinityIcon,
   agentmail: AgentMailIcon,
   agentphone: AgentPhoneIcon,
   agiloft: AgiloftIcon,
