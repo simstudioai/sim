@@ -490,7 +490,17 @@ export async function resolveOrganizationPlan(
      */
     const [blocked, orgSub] = await Promise.all([
       isOrganizationBillingBlocked(organizationId),
-      getOrganizationSubscriptionUsable(organizationId),
+      /**
+       * The subscription read soft-fails to `null` by default, which would
+       * arrive here as a perfectly ordinary "no usable subscription" and return
+       * a successful `false` — the outer catch never sees it. A caller that
+       * asked to throw needs that failure propagated too, or a cached answer
+       * would still record an outage as a plan lapse.
+       */
+      getOrganizationSubscriptionUsable(
+        organizationId,
+        options.onError === 'throw' ? { onError: 'throw' } : {}
+      ),
     ])
 
     if (blocked) {
