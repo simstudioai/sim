@@ -2,6 +2,7 @@ import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { CSSProperties } from 'react'
 import { ImageResponse } from 'next/og'
+import { parse as parseFont } from 'opentype.js'
 
 /**
  * The brandbook cover template, rendered on demand.
@@ -27,9 +28,6 @@ const MUTED_INK_COLOR = 'rgba(81, 81, 81, 0.72)'
 const TITLE_FONT_SIZES = [110, 96, 85] as const
 const SUBTITLE_FONT_SIZE = 30
 const ELLIPSIS = '\u2026'
-/** Average glyph width as a fraction of font size, for this weight/family — used to pack words into lines. */
-const CHAR_WIDTH_EM = 0.42
-
 /** Width the title and its caption are laid out into, leaving the right third of the card open. */
 export const COVER_TITLE_BOX_WIDTH = 1020
 /**
@@ -56,6 +54,28 @@ export const COVER_MAX_TITLE_LINES = 3
  */
 const titleFont = await readFile(
   join(process.cwd(), 'public', 'brand', 'fonts', 'Soehne-Kraftig.ttf')
+)
+
+/**
+ * Real advance widths for the font we actually render with.
+ *
+ * An average-glyph-width estimate is not good enough here. File names are
+ * whatever a viewer named them: a caps-heavy or wide-glyph name runs far past
+ * the average and clips off the fixed canvas, while a narrow one wraps early
+ * for no reason. Measuring against the same font Satori is handed makes the
+ * two agree by construction — including for glyphs Söhne has no coverage for
+ * (CJK, emoji), which measure and render at the same notdef advance because
+ * this is the only font in the `fonts` array.
+ *
+ * The library cover generator measures the same way and for the same reason
+ * (`scripts/generate-library-covers.tsx`); the docs route falls back to an
+ * estimate only because the edge runtime has no filesystem.
+ */
+const titleFontMetrics = parseFont(
+  titleFont.buffer.slice(
+    titleFont.byteOffset,
+    titleFont.byteOffset + titleFont.byteLength
+  ) as ArrayBuffer
 )
 
 const CONTAINER_STYLE = {
@@ -97,64 +117,30 @@ const SUBTITLE_STYLE = {
   lineHeight: 1.2,
 } satisfies CSSProperties
 
-function estimateWidthEm(text: string): number {
-  return text.length * CHAR_WIDTH_EM
+/** Whether `text` fits the title box at `fontSize`, by the font's real advance widths. */
+function fits(text: string, fontSize: number): boolean {
+  return titleFontMetrics.getAdvanceWidth(text, fontSize) <= COVER_TITLE_BOX_WIDTH
 }
 
-/** Estimated rendered width of `text` in pixels, at `fontSize`, in the cover typeface. */
-export function measureCoverText(text: string, fontSize: number): number {
-  return estimateWidthEm(text) * fontSize
-}
-
-/** Trims `text` from the right until it plus an ellipsis fits `maxWidthEm`. */
-function withEllipsis(text: string, maxWidthEm: number): string {
+/** Trims `text` from the right until it plus an ellipsis fits the title box at `fontSize`. */
+function withEllipsis(text: string, fontSize: number): string {
   let kept = text
-  while (kept && estimateWidthEm(kept + ELLIPSIS) > maxWidthEm) {
+  while (kept && !fits(kept + ELLIPSIS, fontSize)) {
     kept = kept.slice(0, -1)
   }
   return kept + ELLIPSIS
 }
 
-/**
- * Splits a single word wider than `maxWidthEm` into chunks that each fit.
- *
- * Hyphens are tried first because that is where a reader expects a compound to
- * break, and the trailing hyphen stays on the upper line. A chunk with no
- * usable hyphen falls back to a character-level split, which only a
- * pathological token reaches — and file names, the titles this renders,
- * supply plenty of them.
- */
-function splitOversizedWord(word: string, maxWidthEm: number): string[] {
+/** Greedily packs `pieces` into chunks that each fit the title box at `fontSize`. */
+function packChunks(pieces: string[], fontSize: number): string[] {
   const chunks: string[] = []
   let chunk = ''
 
-  const pieces = word.split(/(?<=-)/).flatMap((piece) => (piece.length > 1 ? [piece] : [...piece]))
   for (const piece of pieces) {
     const candidate = chunk + piece
-    if (estimateWidthEm(candidate) > maxWidthEm && chunk) {
+    if (!fits(candidate, fontSize) && chunk) {
       chunks.push(chunk)
       chunk = piece
-    } else {
-      chunk = candidate
-    }
-  }
-  if (chunk) chunks.push(chunk)
-
-  return chunks.flatMap((entry) =>
-    estimateWidthEm(entry) > maxWidthEm ? splitByCharacter(entry, maxWidthEm) : [entry]
-  )
-}
-
-/** Last-resort break for a run with no hyphen to break on — a long URL, an unbroken identifier. */
-function splitByCharacter(word: string, maxWidthEm: number): string[] {
-  const chunks: string[] = []
-  let chunk = ''
-
-  for (const char of word) {
-    const candidate = chunk + char
-    if (estimateWidthEm(candidate) > maxWidthEm && chunk) {
-      chunks.push(chunk)
-      chunk = char
     } else {
       chunk = candidate
     }
@@ -165,12 +151,29 @@ function splitByCharacter(word: string, maxWidthEm: number): string[] {
 }
 
 /**
+ * Splits a single word wider than the title box into chunks that each fit.
+ *
+ * Hyphens are tried first because that is where a reader expects a compound to
+ * break, and the trailing hyphen stays on the upper line. A chunk with no
+ * usable hyphen falls back to a character-level split — which file names, the
+ * titles this renders, reach constantly.
+ */
+function splitOversizedWord(word: string, fontSize: number): string[] {
+  const afterHyphens = packChunks(word.split(/(?<=-)/), fontSize)
+
+  return afterHyphens.flatMap((chunk) =>
+    fits(chunk, fontSize) ? [chunk] : packChunks([...chunk], fontSize)
+  )
+}
+
+/**
  * Replaces every plain space (U+0020) with U+00A0. Satori has a
  * text-measurement bug where the first plain space in a text node renders at
  * roughly double width — a non-breaking space measures correctly and reads
  * identically at these sizes, so it sidesteps the bug rather than fighting
  * Satori's own line-wrapping, which is disabled here since lines arrive
- * pre-split.
+ * pre-split. Title lines are packed with the U+00A0 already in them so that
+ * what is measured is exactly what is rendered.
  */
 function withHardSpaces(text: string): string {
   return text.replace(/ /g, '\u00a0')
@@ -178,24 +181,23 @@ function withHardSpaces(text: string): string {
 
 /** Greedily packs words into lines that fit `COVER_TITLE_BOX_WIDTH` at `fontSize`. */
 function wrapTitleLines(title: string, fontSize: number): string[] {
-  const maxWidthEm = COVER_TITLE_BOX_WIDTH / fontSize
   const lines: string[] = []
   let current = ''
 
   for (const word of title.split(' ')) {
-    if (estimateWidthEm(word) > maxWidthEm) {
+    if (!fits(word, fontSize)) {
       if (current) {
         lines.push(current)
         current = ''
       }
-      const chunks = splitOversizedWord(word, maxWidthEm)
+      const chunks = splitOversizedWord(word, fontSize)
       lines.push(...chunks.slice(0, -1))
       current = chunks[chunks.length - 1] ?? ''
       continue
     }
 
-    const candidate = current ? `${current} ${word}` : word
-    if (estimateWidthEm(candidate) > maxWidthEm && current) {
+    const candidate = current ? `${current}\u00a0${word}` : word
+    if (!fits(candidate, fontSize) && current) {
       lines.push(current)
       current = word
     } else {
@@ -204,7 +206,7 @@ function wrapTitleLines(title: string, fontSize: number): string[] {
   }
   if (current) lines.push(current)
 
-  return lines.map(withHardSpaces)
+  return lines
 }
 
 /** "sim" wordmark, no icon — the brandbook wordmark geometry the docs navbar and library covers use. */
@@ -276,9 +278,8 @@ export function layoutCover({ title, subtitle }: CoverOgImageProps): CoverLayout
   }
 
   if (lines.length > COVER_MAX_TITLE_LINES) {
-    const maxWidthEm = COVER_TITLE_BOX_WIDTH / smallest
     lines = lines.slice(0, COVER_MAX_TITLE_LINES)
-    lines[lines.length - 1] = withEllipsis(lines[lines.length - 1], maxWidthEm)
+    lines[lines.length - 1] = withEllipsis(lines[lines.length - 1], smallest)
   }
 
   return { fontSize, lines, subtitle: subtitle ? fitCaption(subtitle) : null }
@@ -290,9 +291,9 @@ export function layoutCover({ title, subtitle }: CoverOgImageProps): CoverLayout
  * the right edge instead of wrapping.
  */
 function fitCaption(subtitle: string): string {
-  const maxWidthEm = COVER_TITLE_BOX_WIDTH / SUBTITLE_FONT_SIZE
-  const fitted =
-    estimateWidthEm(subtitle) <= maxWidthEm ? subtitle : withEllipsis(subtitle, maxWidthEm)
+  const fitted = fits(subtitle, SUBTITLE_FONT_SIZE)
+    ? subtitle
+    : withEllipsis(subtitle, SUBTITLE_FONT_SIZE)
   return withHardSpaces(fitted)
 }
 
