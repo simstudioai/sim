@@ -4,7 +4,8 @@ import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import { getErrorMessage } from '@sim/utils/errors'
 import type { EChartsOption } from 'echarts'
 import { useTheme } from 'next-themes'
-import { useTableRowsSample } from '@/hooks/queries/tables'
+import { getColumnId } from '@/lib/table/column-keys'
+import { useTable, useTableRowsSample } from '@/hooks/queries/tables'
 import { PreviewLoadingFrame } from './preview-shared'
 
 /** Hard cap on rows a table-backed chart pulls; the spec's `limit` clamps under it. */
@@ -173,13 +174,29 @@ export const ChartPreview = memo(function ChartPreview({
     limit: Math.min(tableSource?.limit ?? CHART_ROWS_DEFAULT, CHART_ROWS_MAX),
     enabled: Boolean(tableSource),
   })
+  const tableQuery = useTable(tableSource ? workspaceId : undefined, tableSource?.tableId)
 
   const rows = useMemo(() => {
     if (!spec) return null
     if (spec.source?.type === 'static') return spec.source.rows ?? null
-    if (tableSource) return rowsQuery.data?.rows.map((row) => row.data) ?? null
-    return null
-  }, [spec, tableSource, rowsQuery.data])
+    if (!tableSource) return null
+    const fetched = rowsQuery.data?.rows
+    const columns = tableQuery.data?.schema.columns
+    if (!fetched || !columns) return null
+    // Row data is stored keyed by column ID (an opaque uuid); chart specs —
+    // like the mothership table tool and the public API — speak column NAMES.
+    // Remap so `encode`/dimension references in the option match what the
+    // author sees in the table UI.
+    const nameByStorageKey = new Map<string, string>()
+    for (const col of columns) nameByStorageKey.set(getColumnId(col), col.name)
+    return fetched.map((row) => {
+      const out: Record<string, unknown> = {}
+      for (const [key, value] of Object.entries(row.data)) {
+        out[nameByStorageKey.get(key) ?? key] = value
+      }
+      return out
+    })
+  }, [spec, tableSource, rowsQuery.data, tableQuery.data])
 
   const option = useMemo(() => (spec ? buildOption(spec, rows) : null), [spec, rows])
   /** Stable identity for the effect below — option is a fresh object per memo. */
@@ -224,7 +241,16 @@ export const ChartPreview = memo(function ChartPreview({
     )
   }
 
-  const waitingOnRows = Boolean(tableSource) && !rowsQuery.data
+  if (tableSource && tableQuery.isError) {
+    return (
+      <ChartErrorPanel
+        message={getErrorMessage(tableQuery.error, 'failed to read the table')}
+        content={content}
+      />
+    )
+  }
+
+  const waitingOnRows = Boolean(tableSource) && rows === null
   // Width-driven aspect box, not full-bleed: a chart stretched to the whole
   // panel height is unreadable in a tall resource pane. ECharts follows the
   // box through the ResizeObserver above.
