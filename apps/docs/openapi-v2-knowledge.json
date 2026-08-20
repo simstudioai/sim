@@ -475,7 +475,7 @@
       "get": {
         "operationId": "listArchivedKnowledgeBases",
         "summary": "List Archived Knowledge Bases",
-        "description": "List the workspace's soft-deleted knowledge bases, newest first, with search, sorting, and opaque cursor pagination. Each entry carries the `deletedAt` instant it was archived; recover one with `POST /api/v2/knowledge/{id}/restore`. A workspace API key is rejected with `403`; use a personal API key. `folderPath` is not reported: archiving a folder archives what is under it, so an archived knowledge base frequently has no active containing folder.",
+        "description": "List the workspace's soft-deleted knowledge bases, newest first, with search, sorting, and opaque cursor pagination. Each entry carries the `deletedAt` instant it was archived; recover one with `POST /api/v2/knowledge/{id}/restore`. `folderPath` is not reported: archiving a folder archives what is under it, so an archived knowledge base frequently has no active containing folder.",
         "tags": ["Knowledge Bases"],
         "parameters": [
           {
@@ -6606,13 +6606,13 @@
             "type": "integer",
             "exclusiveMinimum": 0,
             "maximum": 9007199254740991,
-            "description": "Slot table size used for the counts below. Always 7, the text-slot count, so it can exceed the real capacity of a narrower field type."
+            "description": "Total slots this field type has: 7 for text, 5 for number, 2 for date, 3 for boolean."
           },
           "availableSlots": {
             "type": "integer",
             "minimum": 0,
             "maximum": 9007199254740991,
-            "description": "Remaining slots, or 0 when the field type is exhausted."
+            "description": "Slots of this field type still free, or 0 when the field type is exhausted."
           }
         },
         "required": ["nextAvailableSlot", "fieldType", "usedSlots", "totalSlots", "availableSlots"],

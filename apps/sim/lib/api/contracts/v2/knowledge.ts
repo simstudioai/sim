@@ -802,12 +802,11 @@ export type V2ArchivedKnowledgeBase = z.output<typeof v2ArchivedKnowledgeBaseSch
  * Archived-list query.
  *
  * A sibling path rather than a `scope` param on `GET /api/v2/knowledge`: the
- * two reads bind different semantic operations (`knowledge.list` allows a
- * workspace API key, `knowledge.list_archived` denies it) and a v2 route
- * declares exactly one, so merging them would either widen the archived read's
- * authorization or need two operations behind one handler. A new filter param
- * would also have to join the main list's cursor binding, invalidating every
- * cursor already in flight.
+ * two reads bind different semantic operations (`knowledge.list` and
+ * `knowledge.list_archived`) and a v2 route declares exactly one, so merging
+ * them would need two operations behind one handler and give up separately
+ * governing either. A new filter param would also have to join the main list's
+ * cursor binding, invalidating every cursor already in flight.
  *
  * `folderPath` is absent: an archived knowledge base is not shown in a folder,
  * and filtering a trash bin by where the row used to live is not a question

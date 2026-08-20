@@ -431,6 +431,29 @@ describe('GET /api/v2/knowledge/[id]/documents', () => {
     expect(mockListDocuments).toHaveBeenCalled()
   })
 
+  /**
+   * `workspaceId` is asserted scope, not a filter: the sequence is the one
+   * knowledge base the path names, and a workspace that does not own it is
+   * refused by authorization long before paging. Binding it would refuse a page
+   * that did not move — the same reading the table-row lists record.
+   */
+  it('resumes a cursor under a different asserted workspace, leaving that to authorization', async () => {
+    const minted = await list(`workspaceId=${WORKSPACE_ID}&limit=1&search=support`)
+    const { nextCursor } = await minted.json()
+
+    mockListDocuments.mockClear()
+    const resumed = await list(
+      `workspaceId=workspace-2&limit=1&search=support&cursor=${encodeURIComponent(nextCursor)}`
+    )
+
+    expect(resumed.status).toBe(200)
+    expect(mockListDocuments).toHaveBeenCalledWith({
+      principal: PRINCIPAL,
+      input: expect.objectContaining({ assertedWorkspaceId: 'workspace-2', offset: 1 }),
+      request: expect.anything(),
+    })
+  })
+
   it('resumes a cursor replayed under the filters it was minted with', async () => {
     const minted = await list(`workspaceId=${WORKSPACE_ID}&limit=1&search=support`)
     const { nextCursor } = await minted.json()

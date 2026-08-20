@@ -35,11 +35,20 @@ export const knowledgeOperations = {
     workspaceApiKey: 'allow',
     ...ALL_PRINCIPAL_POLICY,
   }),
+  /**
+   * Lists the workspace's soft-deleted knowledge bases.
+   *
+   * Deliberately the same policy as {@link knowledgeOperations.delete} and
+   * {@link knowledgeOperations.restore}: this is the only discovery read that
+   * makes restore usable, so denying it to a principal that may archive and
+   * restore leaves that principal able to recover only the ids it happened to
+   * record itself.
+   */
   listArchived: defineWorkspaceOperation({
     id: 'knowledge.list_archived',
     minimumRole: 'read',
-    workspaceApiKey: 'deny',
-    ...HUMAN_AND_COPILOT_PRINCIPAL_POLICY,
+    workspaceApiKey: 'allow',
+    ...ALL_PRINCIPAL_POLICY,
   }),
   read: defineWorkspaceOperation({
     id: 'knowledge.read',

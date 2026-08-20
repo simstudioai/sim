@@ -37,6 +37,7 @@ import { knowledgeOperations } from '@/lib/knowledge/application/operations'
 import { GET, PATCH, POST } from '@/app/api/v2/knowledge/[id]/documents/[documentId]/chunks/route'
 
 const WORKSPACE_ID = 'workspace-1'
+const OTHER_WORKSPACE_ID = 'workspace-2'
 const PRINCIPAL = { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' } as const
 const context = { params: Promise.resolve({ id: 'kb-1', documentId: 'doc-1' }) }
 const siblingContext = { params: Promise.resolve({ id: 'kb-1', documentId: 'doc-2' }) }
@@ -152,6 +153,33 @@ describe('GET /api/v2/knowledge/[id]/documents/[documentId]/chunks', () => {
     )
 
     expect(response.status).toBe(400)
+  })
+
+  /**
+   * `workspaceId` is asserted scope, not a filter: the sequence is the one
+   * document the path names, and a workspace that does not own it is refused by
+   * authorization long before paging. Binding it into the cursor would refuse a
+   * page that did not move, which is the reading the structurally identical
+   * table-row lists already record in `list-pagination.test.ts`.
+   */
+  it('resumes a cursor under a different asserted workspace, leaving that to authorization', async () => {
+    mockListChunks.mockResolvedValue({ chunks: [CHUNK], nextCursorKeys: [0, 'chunk-1'] })
+    const nextCursor = (await (await GET(listRequest(), context)).json()).nextCursor
+
+    const response = await GET(
+      listRequest(`?workspaceId=${OTHER_WORKSPACE_ID}&cursor=${encodeURIComponent(nextCursor)}`),
+      context
+    )
+
+    expect(response.status).toBe(200)
+    expect(mockListChunks).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        input: expect.objectContaining({
+          assertedWorkspaceId: OTHER_WORKSPACE_ID,
+          cursorKeys: [0, 'chunk-1'],
+        }),
+      })
+    )
   })
 
   it('refuses a cursor replayed under a different sort', async () => {

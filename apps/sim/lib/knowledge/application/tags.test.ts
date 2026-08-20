@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   resolveDocument: vi.fn(),
   resolvePermission: vi.fn(),
   listTags: vi.fn(),
+  listAllTags: vi.fn(),
   nextSlot: vi.fn(),
   createTag: vi.fn(),
   updateTag: vi.fn(),
@@ -44,6 +45,7 @@ vi.mock('@/lib/knowledge/application/contexts', () => ({
 
 vi.mock('@/lib/knowledge/tags/service', () => ({
   getDocumentTagDefinitions: mocks.listTags,
+  getTagDefinitions: mocks.listAllTags,
   getNextAvailableSlot: mocks.nextSlot,
   createTagDefinition: mocks.createTag,
   updateTagDefinition: mocks.updateTag,
@@ -57,6 +59,7 @@ import {
   deleteKnowledgeTag,
   listKnowledgeTags,
   readKnowledgeTagUsage,
+  readNextKnowledgeTagSlot,
   saveKnowledgeDocumentTagDefinitions,
   updateKnowledgeTag,
 } from '@/lib/knowledge/application/tags'
@@ -118,6 +121,7 @@ describe('knowledge tag application use cases', () => {
     mocks.resolveTag.mockResolvedValue(tagContext)
     mocks.resolveDocument.mockResolvedValue(documentContext)
     mocks.saveTags.mockResolvedValue({ created: [], updated: [], errors: [] })
+    mocks.listAllTags.mockResolvedValue([])
   })
 
   it.each([
@@ -288,6 +292,53 @@ describe('knowledge tag application use cases', () => {
 
     expect(mocks.saveTags).not.toHaveBeenCalled()
     expect(mocks.recordAudit).not.toHaveBeenCalled()
+  })
+
+  /**
+   * `TAG_SLOT_CONFIG` gives text 7 slots but number 5, boolean 3, and date 2, so
+   * a fixed total of 7 reported free capacity a narrower field type does not
+   * have — `number` with four slots taken read as three remaining when one did.
+   */
+  it.each([
+    ['text', 7],
+    ['number', 5],
+    ['boolean', 3],
+    ['date', 2],
+  ] as const)(
+    'reports %s capacity from its own slot table, not the text one',
+    async (fieldType, maxSlots) => {
+      mocks.listAllTags.mockResolvedValue([
+        { tagSlot: `${fieldType}-slot-1`, fieldType },
+        { tagSlot: `${fieldType}-slot-2`, fieldType },
+        { tagSlot: 'tag7', fieldType: 'text-other' },
+      ])
+      mocks.nextSlot.mockResolvedValue(`${fieldType}-slot-3`)
+
+      await expect(
+        readNextKnowledgeTagSlot.execute({
+          principal: sessionPrincipal,
+          input: { knowledgeBaseId: 'knowledge-b', fieldType },
+        })
+      ).resolves.toEqual({
+        nextAvailableSlot: `${fieldType}-slot-3`,
+        fieldType,
+        usedSlots: [`${fieldType}-slot-1`, `${fieldType}-slot-2`],
+        totalSlots: maxSlots,
+        availableSlots: maxSlots - 2,
+      })
+    }
+  )
+
+  it('reports no capacity once the field type is exhausted', async () => {
+    mocks.listAllTags.mockResolvedValue([{ tagSlot: 'date1', fieldType: 'date' }])
+    mocks.nextSlot.mockResolvedValue(null)
+
+    await expect(
+      readNextKnowledgeTagSlot.execute({
+        principal: sessionPrincipal,
+        input: { knowledgeBaseId: 'knowledge-b', fieldType: 'date' },
+      })
+    ).resolves.toMatchObject({ totalSlots: 2, availableSlots: 0 })
   })
 
   it('preserves legacy bulk rename payloads whose existing slot and field type differ', async () => {

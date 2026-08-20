@@ -11,7 +11,6 @@ import { v2CursorListResponse, v2DataResponse } from '@/lib/api/contracts/v2/sha
 import {
   ALL_TAG_SLOTS,
   KNOWLEDGE_TAG_DISPLAY_NAME_MAX_LENGTH,
-  MAX_TAG_SLOTS,
   SUPPORTED_FIELD_TYPES,
   TAG_SLOT_CONFIG,
 } from '@/lib/knowledge/constants'
@@ -159,13 +158,15 @@ export const v2NextKnowledgeTagSlotDataSchema = z
       .int()
       .positive()
       .describe(
-        `Slot table size used for the counts below. Always ${MAX_TAG_SLOTS}, the text-slot count, so it can exceed the real capacity of a narrower field type.`
+        `Total slots this field type has: ${SUPPORTED_FIELD_TYPES.map(
+          (fieldType) => `${TAG_SLOT_CONFIG[fieldType].maxSlots} for ${fieldType}`
+        ).join(', ')}.`
       ),
     availableSlots: z
       .number()
       .int()
       .nonnegative()
-      .describe('Remaining slots, or 0 when the field type is exhausted.'),
+      .describe('Slots of this field type still free, or 0 when the field type is exhausted.'),
   })
   .strict()
   .meta({

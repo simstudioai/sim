@@ -201,7 +201,7 @@ const declaredRoutes = [
       operationId: 'listArchivedKnowledgeBases',
       summary: 'List Archived Knowledge Bases',
       description:
-        "List the workspace's soft-deleted knowledge bases, newest first, with search, sorting, and opaque cursor pagination. Each entry carries the `deletedAt` instant it was archived; recover one with `POST /api/v2/knowledge/{id}/restore`. A workspace API key is rejected with `403`; use a personal API key. `folderPath` is not reported: archiving a folder archives what is under it, so an archived knowledge base frequently has no active containing folder.",
+        "List the workspace's soft-deleted knowledge bases, newest first, with search, sorting, and opaque cursor pagination. Each entry carries the `deletedAt` instant it was archived; recover one with `POST /api/v2/knowledge/{id}/restore`. `folderPath` is not reported: archiving a folder archives what is under it, so an archived knowledge base frequently has no active containing folder.",
       errors: RESOURCE_ERRORS,
       success: { description: 'A page of archived knowledge bases.' },
     }),

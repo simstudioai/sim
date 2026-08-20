@@ -12,6 +12,7 @@ import {
   getFieldTypeForSlot,
   isValidSlotForFieldType,
   SUPPORTED_FIELD_TYPES,
+  TAG_SLOT_CONFIG,
 } from '@/lib/knowledge/constants'
 import {
   cleanupUnusedTagDefinitions,
@@ -226,27 +227,35 @@ export const readNextKnowledgeTagSlot = defineAuthorizedKnowledgeUseCase({
   resolveContext: ({ input }: { input: ReadNextKnowledgeTagSlotInput }) =>
     resolveActiveKnowledgeResourceContext(input),
   async execute({ input, context }) {
-    if (!(SUPPORTED_FIELD_TYPES as readonly string[]).includes(input.fieldType)) {
+    const fieldType = SUPPORTED_FIELD_TYPES.find((supported) => supported === input.fieldType)
+    if (!fieldType) {
       throw new OrchestrationError('validation', 'Invalid field type')
     }
     const existingDefinitions = await getTagDefinitions(context.knowledgeBaseId)
     const usedSlots = existingDefinitions
-      .filter((definition) => definition.fieldType === input.fieldType)
+      .filter((definition) => definition.fieldType === fieldType)
       .map((definition) => definition.tagSlot)
     const existingBySlot = new Map(
       existingDefinitions.map((definition) => [definition.tagSlot, definition])
     )
     const nextAvailableSlot = await getNextAvailableSlot(
       context.knowledgeBaseId,
-      input.fieldType,
+      fieldType,
       existingBySlot
     )
+    /**
+     * Capacity is per field type, not the text capacity for all four:
+     * `TAG_SLOT_CONFIG` gives text 7 slots but number 5, boolean 3, and date 2,
+     * so a fixed 7 overstated both the total and what remains on the other
+     * three.
+     */
+    const { maxSlots } = TAG_SLOT_CONFIG[fieldType]
     return {
       nextAvailableSlot,
-      fieldType: input.fieldType,
+      fieldType,
       usedSlots,
-      totalSlots: 7,
-      availableSlots: nextAvailableSlot ? 7 - usedSlots.length : 0,
+      totalSlots: maxSlots,
+      availableSlots: nextAvailableSlot ? maxSlots - usedSlots.length : 0,
     }
   },
 })

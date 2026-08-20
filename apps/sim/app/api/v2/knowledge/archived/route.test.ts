@@ -132,12 +132,15 @@ describe('GET /api/v2/knowledge/archived', () => {
   })
 
   /**
-   * The archived read binds `knowledge.list_archived`, which denies workspace
-   * keys, while the active list binds `knowledge.list`, which allows them. A
-   * `scope` param on one route could not express both.
+   * The archived read binds its own semantic operation rather than reaching the
+   * active list through a `scope` param: a v2 route declares exactly one
+   * operation, and the two reads are separately governable even where their
+   * current policies agree.
    */
-  it('binds a different policy from the active list', () => {
-    expect(knowledgeOperations.listArchived.workspaceApiKey).toBe('deny')
+  it('binds its own semantic operation, reachable by every credential the active list is', () => {
+    expect(knowledgeOperations.listArchived.id).toBe('knowledge.list_archived')
+    expect(knowledgeOperations.list.id).toBe('knowledge.list')
+    expect(knowledgeOperations.listArchived.workspaceApiKey).toBe('allow')
     expect(knowledgeOperations.list.workspaceApiKey).toBe('allow')
   })
 })

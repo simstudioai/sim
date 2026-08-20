@@ -170,6 +170,10 @@ export const CLI_CONTRACT: CliContract = {
     flags: {
       chunkIds: { name: 'chunk', list: true },
     },
+    // `--operation delete` reaches the same destructive path as `knowledge
+    // chunks delete`, which is confirm-gated, so the bulk form is gated too.
+    // The document batch-update above is not: it only enables or disables.
+    confirm: 'This can delete every named chunk and its embedding, and cannot be undone.',
   },
   // The document-scoped tag-definition writes act on the knowledge base's
   // vocabulary through a document, so they derive onto `knowledge tags` and

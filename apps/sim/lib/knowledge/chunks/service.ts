@@ -3,7 +3,7 @@ import { document, embedding, knowledgeBase } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { sha256Hex } from '@sim/security/hash'
 import { generateId } from '@sim/utils/id'
-import { and, eq, ilike, inArray, isNull, sql } from 'drizzle-orm'
+import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
 import {
   type KeysetKey,
   keysetColumns,
@@ -11,6 +11,7 @@ import {
   listOrderBy,
   numberKey,
   resumeKeyset,
+  searchFilter,
   textKey,
 } from '@/lib/api/list-query'
 import type { DurableSecretProvenance } from '@/lib/execution/durable-secret-provenance'
@@ -96,8 +97,9 @@ export async function queryChunks(
     conditions.push(eq(embedding.enabled, false))
   }
 
-  if (search) {
-    conditions.push(ilike(embedding.content, `%${search}%`))
+  const contentSearch = searchFilter(embedding.content, search)
+  if (contentSearch) {
+    conditions.push(contentSearch)
   }
 
   /**
