@@ -2,6 +2,7 @@ import { v2GetAuditLogContract, v2ListAuditLogsContract } from '@/lib/api/contra
 import {
   v2AbortFileUploadContract,
   v2BulkDeleteFilesContract,
+  v2BulkDownloadFilesContract,
   v2CompleteFileUploadContract,
   v2CreateFileContract,
   v2CreateFileFolderContract,
@@ -396,6 +397,28 @@ const declaredRoutes = [
         'FileTextResponse',
         'File text response',
         'Text extracted from a workspace file.'
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2BulkDownloadFilesContract,
+    filesOperation({
+      operationId: 'bulkDownloadFiles',
+      summary: 'Bulk Download Files',
+      description: `Stream a selection of workspace files as one zip. Select files by id and folders by path, each as one comma-separated parameter; a folder expands to all its descendants, and a path matching no folder is rejected rather than ignored. The selection is capped on input and again on the resolved file count and total bytes, so an over-broad selection answers \`400\` rather than streaming indefinitely. Downloading records an audit event, so it is not a safe read. ${HEAD_MIRRORS_GET} ${HEAD_OMITS_PAYLOAD_HEADERS}`,
+      errors: RESOURCE_ERRORS,
+      success: {
+        description: 'The selected files as a zip archive.',
+        headers: ['Content-Type', 'Content-Disposition'],
+        contentTypes: ['application/zip'],
+      },
+    }),
+    {
+      query: documentedSchema(
+        v2BulkDownloadFilesContract.query,
+        'BulkDownloadFilesQuery',
+        'Bulk download files query',
+        'Workspace scope and the file and folder selection to archive.'
       ),
     }
   ),

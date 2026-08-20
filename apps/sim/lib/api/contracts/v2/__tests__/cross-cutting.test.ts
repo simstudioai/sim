@@ -185,10 +185,11 @@ describe('knowledge and files request-slice strictness', () => {
    * started saying so with `noInputSchema` instead of omitting `query`, and
    * 63 → 64 when the upload-session read was added, and 64 → 66 when archive
    * extraction added a query and a body slice, and 66 → 67 with the file-text
-   * read's query, and 67 → 69 with folder restore's query and body.
+   * read's query, 67 → 69 with folder restore's query and body, and 69 → 70
+   * with the bulk zip download's query.
    */
   it('sweeps every documented query and body slice', () => {
-    expect(slices.length).toBe(69)
+    expect(slices.length).toBe(70)
   })
 
   it.each(slices)('%s rejects an undeclared key', (_name, schema) => {

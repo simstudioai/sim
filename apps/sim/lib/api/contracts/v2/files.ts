@@ -925,6 +925,52 @@ export const v2MoveFileItemsContract = defineRouteContract({
   },
 })
 
+/**
+ * Comma-separated query list, bounded so a request cannot ask the selection
+ * walk to expand an unbounded set before the zip's own file-count and byte
+ * ceilings apply.
+ *
+ * Comma-separated only: v2 rejects a query parameter sent more than once, so a
+ * repeated-parameter form would never reach this schema.
+ */
+const v2QuerySelectionListSchema = z
+  .string()
+  .optional()
+  .transform((value) =>
+    (value ?? '')
+      .split(',')
+      .map((entry) => entry.trim())
+      .filter(Boolean)
+  )
+  .pipe(z.array(z.string().min(1)).max(1000, 'Too many entries selected'))
+
+export const v2BulkDownloadFilesQuerySchema = z
+  .object({
+    workspaceId: workspaceIdSchema.describe('Workspace containing the selection.'),
+    fileIds: v2QuerySelectionListSchema.describe('File identifiers to include, comma-separated.'),
+    folderPaths: v2QuerySelectionListSchema.describe(
+      'Folder paths to include with all their descendants, comma-separated. A path that matches no folder is rejected rather than ignored.'
+    ),
+  })
+  .strict()
+export type V2BulkDownloadFilesQuery = z.output<typeof v2BulkDownloadFilesQuerySchema>
+
+/**
+ * Streams a selection of workspace files as one zip.
+ *
+ * Named `bulk-download` to match the existing `bulk-delete` sibling of the
+ * `[fileId]` segment. A static segment here permanently shadows a file whose id
+ * equals it, and `workspaceFileIdSchema` does accept `[A-Za-z0-9_-]+`; the
+ * hyphenated form is chosen because neither minted id shape — UUID v4 or
+ * `wf_<shortId>` — can ever produce it.
+ */
+export const v2BulkDownloadFilesContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/v2/files/bulk-download',
+  query: v2BulkDownloadFilesQuerySchema,
+  response: { mode: 'binary' },
+})
+
 export const v2BulkDeleteFilesContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/files/bulk-delete',
