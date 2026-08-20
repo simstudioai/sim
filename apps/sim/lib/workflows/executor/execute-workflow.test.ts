@@ -92,6 +92,12 @@ const workflow = {
   variables: {},
 }
 
+const principal = {
+  kind: 'session',
+  userId: 'actor-1',
+  sessionId: 'session-1',
+} as const
+
 describe('executeWorkflow', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -137,6 +143,18 @@ describe('executeWorkflow', () => {
     expect(safeStartMock).not.toHaveBeenCalled()
   })
 
+  it('rejects workspace execution without a principal', async () => {
+    await expect(
+      executeWorkflow(workflow, 'request-1', undefined, 'actor-1', {
+        enabled: true,
+        principal: undefined as never,
+        billingAttribution,
+      })
+    ).rejects.toThrow('Workflow execution principal is required')
+
+    expect(executeWorkflowCoreMock).not.toHaveBeenCalled()
+  })
+
   it.each([
     ['actor', { ...billingAttribution, actorUserId: 'other-actor' }],
     ['workspace', { ...billingAttribution, workspaceId: 'other-workspace' }],
@@ -144,6 +162,7 @@ describe('executeWorkflow', () => {
     await expect(
       executeWorkflow(workflow, 'request-1', undefined, 'actor-1', {
         enabled: true,
+        principal,
         billingAttribution: mismatchedAttribution,
       })
     ).rejects.toThrow('Workflow billing attribution does not match its actor and workspace')
@@ -161,6 +180,7 @@ describe('executeWorkflow', () => {
     await expect(
       executeWorkflow(workflow, 'request-1', undefined, 'actor-1', {
         enabled: true,
+        principal,
         billingAttribution: malformedAttribution,
       })
     ).rejects.toThrow('Billing attribution snapshot is missing its billing period')
@@ -171,6 +191,7 @@ describe('executeWorkflow', () => {
   it('propagates validated attribution through execution metadata to logger startup', async () => {
     await executeWorkflow(workflow, 'request-1', { prompt: 'hello' }, 'actor-1', {
       enabled: true,
+      principal,
       workflowTriggerType: 'copilot',
       billingAttribution,
     })
@@ -203,6 +224,7 @@ describe('executeWorkflow', () => {
 
     await executeWorkflow(workflow, 'request-1', { prompt: 'hello' }, 'actor-1', {
       enabled: true,
+      principal,
       billingAttribution,
       trustedInitialResolvedSecretTraceProvenance: provenance,
     })
@@ -228,6 +250,7 @@ describe('executeWorkflow', () => {
       'actor-1',
       {
         enabled: true,
+        principal,
         billingAttribution,
       }
     ).then((result) => {
@@ -258,6 +281,7 @@ describe('executeWorkflow', () => {
     let executionSettled = false
     const executionPromise = executeWorkflow(workflow, 'request-1', undefined, 'actor-1', {
       enabled: true,
+      principal,
       billingAttribution,
     }).catch((error: unknown) => {
       executionSettled = true
@@ -275,6 +299,7 @@ describe('executeWorkflow', () => {
   it('transfers post-execution ownership with successful streaming metadata', async () => {
     const result = await executeWorkflow(workflow, 'request-1', undefined, 'actor-1', {
       enabled: true,
+      principal,
       skipLoggingComplete: true,
       billingAttribution,
     })
@@ -290,6 +315,7 @@ describe('executeWorkflow', () => {
     await expect(
       executeWorkflow(workflow, 'request-1', undefined, 'actor-1', {
         enabled: true,
+        principal,
         skipLoggingComplete: true,
         billingAttribution,
       })
@@ -312,6 +338,7 @@ describe('executeWorkflow', () => {
 
     await executeWorkflow(workflow, 'request-1', { rowId: 'row-1' }, 'actor-1', {
       enabled: true,
+      principal,
       workflowTriggerType: 'table',
       billingAttribution,
       trustedExecutionCorrelation: correlation,
@@ -334,6 +361,7 @@ describe('executeWorkflow', () => {
     await expect(
       executeWorkflow(workflow, 'request-1', undefined, 'actor-1', {
         enabled: true,
+        principal,
         billingAttribution,
       })
     ).rejects.toBe(error)

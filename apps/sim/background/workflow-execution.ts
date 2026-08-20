@@ -1,3 +1,4 @@
+import { parsePrincipal, type SerializedPrincipalV1 } from '@sim/auth/principal'
 import { createLogger, runWithRequestContext } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
@@ -58,6 +59,7 @@ export function buildWorkflowCorrelation(
 
 export type WorkflowExecutionPayload = {
   workflowId: string
+  principal: SerializedPrincipalV1
   userId: string
   billingAttribution: BillingAttributionSnapshot
   workspaceId: string
@@ -99,8 +101,10 @@ export async function executeWorkflowJob(
   const correlation = buildWorkflowCorrelation(payload)
   const executionId = correlation.executionId
   const requestId = correlation.requestId
+  let principal
   let billingAttribution: BillingAttributionSnapshot
   try {
+    principal = parsePrincipal(payload.principal)
     billingAttribution = assertBillingAttributionSnapshot(payload.billingAttribution)
     if (
       billingAttribution.actorUserId !== payload.userId ||
@@ -193,6 +197,7 @@ export async function executeWorkflowJob(
           workflowId,
           workspaceId,
           userId: actorUserId,
+          principal,
           billingAttribution: preprocessResult.billingAttribution,
           sessionUserId: undefined,
           workflowUserId: workflow.userId,

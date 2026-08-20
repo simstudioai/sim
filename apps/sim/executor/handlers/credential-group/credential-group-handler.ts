@@ -83,19 +83,10 @@ function requireString(value: unknown, label: string): string {
 }
 
 function delegationOrigin(ctx: ExecutionContext): ExecutorDelegationOrigin {
-  const origin =
-    ctx.executorDelegationOrigin ??
-    (ctx.userId
-      ? {
-          subjectUserId: ctx.userId,
-          workflowId: ctx.workflowId,
-          ...(ctx.executionId ? { executionId: ctx.executionId } : {}),
-        }
-      : undefined)
-  if (!origin) {
+  if (!ctx.executorDelegationOrigin) {
     throw new Error('Credential Group operations require an authenticated workflow execution')
   }
-  return origin
+  return ctx.executorDelegationOrigin
 }
 
 export class CredentialGroupBlockHandler implements BlockHandler {
@@ -131,7 +122,6 @@ export class CredentialGroupBlockHandler implements BlockHandler {
             credentialGroupId: credentialGroupId!,
             limit: parseLimit(inputs.limit),
             cursor: parseOptionalString(inputs.cursor, 'Cursor'),
-            email: parseOptionalString(inputs.email, 'Email'),
             credentialProviderIds,
           },
         })

@@ -1,5 +1,8 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
-import type { WorkflowExecutionDelegatedPrincipal } from '@sim/auth/principal'
+import {
+  resolvePrincipalSubject,
+  type WorkflowExecutionDelegatedPrincipal,
+} from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
@@ -206,16 +209,19 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           request,
         })
 
-        captureServerEvent(
-          managedOAuthPrincipal.subjectUserId,
-          'credential_used',
-          {
-            credential_type: 'managed_oauth',
-            provider_id: toolMetadata.oauth.provider,
-            workspace_id: managedOAuthPrincipal.workspaceId,
-          },
-          { groups: { workspace: managedOAuthPrincipal.workspaceId } }
-        )
+        const managedOAuthSubject = resolvePrincipalSubject(managedOAuthPrincipal)
+        if (managedOAuthSubject?.kind === 'sim_user') {
+          captureServerEvent(
+            managedOAuthSubject.userId,
+            'credential_used',
+            {
+              credential_type: 'managed_oauth',
+              provider_id: toolMetadata.oauth.provider,
+              workspace_id: managedOAuthPrincipal.workspaceId,
+            },
+            { groups: { workspace: managedOAuthPrincipal.workspaceId } }
+          )
+        }
 
         return NextResponse.json(
           {

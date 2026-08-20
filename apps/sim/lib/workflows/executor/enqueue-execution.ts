@@ -1,3 +1,4 @@
+import { serializePrincipal, type WorkflowExecutionPrincipal } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { releaseExecutionSlot } from '@/lib/billing/calculations/usage-reservation'
@@ -22,6 +23,7 @@ export {
 export interface EnqueueWorkflowExecutionParams {
   requestId: string
   workflowId: string
+  principal: WorkflowExecutionPrincipal
   userId: string
   billingAttribution: BillingAttributionSnapshot
   workspaceId: string
@@ -69,6 +71,7 @@ export async function enqueueWorkflowExecution(
   const {
     requestId,
     workflowId,
+    principal,
     userId,
     billingAttribution,
     workspaceId,
@@ -102,6 +105,7 @@ export async function enqueueWorkflowExecution(
 
   const payload: WorkflowExecutionPayload = {
     workflowId,
+    principal: serializePrincipal(principal),
     userId,
     billingAttribution,
     workspaceId,

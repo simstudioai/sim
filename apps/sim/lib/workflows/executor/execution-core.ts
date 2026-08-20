@@ -3,6 +3,7 @@
  * This is the SINGLE source of truth for workflow execution
  */
 
+import { resolvePrincipalSubject } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { organization, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
@@ -927,6 +928,7 @@ async function executeWorkflowCoreImpl(
       ? restoredWorkflowInputProvenance
       : resolvedSecretTraceRegistry.exportCommittedProvenanceForValue(processedInput)
 
+    const principalSubject = resolvePrincipalSubject(metadata.principal)
     const contextExtensions: ContextExtensions = {
       stream: !!onStream,
       selectedOutputs,
@@ -937,6 +939,15 @@ async function executeWorkflowCoreImpl(
       allowLargeValueWorkflowScope,
       workspaceId: providedWorkspaceId,
       userId,
+      principal: metadata.principal,
+      executorDelegationOrigin: {
+        ...(principalSubject?.kind === 'sim_user'
+          ? { subjectUserId: principalSubject.userId }
+          : {}),
+        workflowId,
+        ...(executionId ? { executionId } : {}),
+        principal: metadata.principal,
+      },
       isDeployedContext: !metadata.isClientSession,
       enforceCredentialAccess: metadata.enforceCredentialAccess ?? false,
       piiBlockOutputRedaction: piiRedaction.blockOutputs,

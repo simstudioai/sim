@@ -1,3 +1,4 @@
+import type { WorkflowExecutionPrincipal } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import {
@@ -18,6 +19,7 @@ const logger = createLogger('WorkflowExecution')
 
 export interface ExecuteWorkflowOptions {
   enabled: boolean
+  principal: WorkflowExecutionPrincipal
   selectedOutputs?: string[]
   isSecureMode?: boolean
   workflowTriggerType?: 'api' | 'chat' | 'copilot' | 'table'
@@ -106,6 +108,10 @@ export async function executeWorkflow(
   if (!streamConfig?.billingAttribution) {
     throw new Error('Billing attribution is required for workspace execution')
   }
+  if (!streamConfig.principal) {
+    throw new Error('Workflow execution principal is required')
+  }
+  const principal = streamConfig.principal
   const billingAttribution = assertBillingAttributionSnapshot(streamConfig.billingAttribution)
   if (
     billingAttribution.actorUserId !== actorUserId ||
@@ -129,6 +135,7 @@ export async function executeWorkflow(
       workflowId,
       workspaceId,
       userId: actorUserId,
+      principal,
       billingAttribution,
       workflowUserId: workflow.userId,
       triggerType,

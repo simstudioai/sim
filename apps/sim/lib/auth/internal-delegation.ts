@@ -1,4 +1,7 @@
-import type { DelegatedPrincipal, WorkflowExecutionDelegatedPrincipal } from '@sim/auth/principal'
+import type {
+  BoundWorkflowExecutionDelegatedPrincipal,
+  DelegatedPrincipal,
+} from '@sim/auth/principal'
 import type { VerifiedInternalDelegation } from '@/lib/auth/internal'
 import { asOrchestrationError } from '@/lib/core/orchestration/types'
 import {
@@ -22,7 +25,7 @@ export class InvalidInternalDelegationBindingError extends Error {
 export async function bindInternalExecutorDelegation(
   claims: VerifiedInternalDelegation,
   options: BindInternalExecutorDelegationOptions
-): Promise<WorkflowExecutionDelegatedPrincipal> {
+): Promise<BoundWorkflowExecutionDelegatedPrincipal> {
   if (!options.audience.trim()) throw new Error('Internal delegation audience must not be empty')
 
   let context
@@ -43,7 +46,7 @@ export async function bindInternalExecutorDelegation(
   return {
     kind: 'delegated',
     serviceId: 'executor',
-    subjectUserId: claims.subjectUserId,
+    ...(claims.subjectUserId ? { subjectUserId: claims.subjectUserId } : {}),
     workspaceId: context.workspaceId,
     delegationId: claims.delegationId,
     audience: options.audience,
@@ -54,6 +57,7 @@ export async function bindInternalExecutorDelegation(
       kind: 'workflow_execution',
       workflowId: context.workflowId,
       ...(claims.executionId ? { executionId: claims.executionId } : {}),
+      ...(claims.principal ? { principal: claims.principal } : {}),
     },
   }
 }

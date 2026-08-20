@@ -1,3 +1,4 @@
+import type { WorkflowExecutionPrincipal } from '@sim/auth/principal'
 import type { workflow as workflowTable } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
@@ -67,6 +68,7 @@ type WorkflowRecord = typeof workflowTable.$inferSelect
  */
 export interface ExecuteWorkflowServiceParams {
   workflowId: string
+  principal: WorkflowExecutionPrincipal
   /** Authenticated user driving actor resolution in preprocessing. */
   userId: string
   input: unknown
@@ -197,6 +199,7 @@ export async function executeWorkflowService(
 ): Promise<ExecuteWorkflowServiceResult> {
   const {
     workflowId,
+    principal,
     userId,
     input,
     triggerType,
@@ -330,6 +333,7 @@ export async function executeWorkflowService(
       const enqueue = await enqueueWorkflowExecution({
         requestId,
         workflowId,
+        principal,
         userId: actorUserId,
         billingAttribution,
         workspaceId,
@@ -490,6 +494,7 @@ export async function executeWorkflowService(
               base64MaxBytes,
               abortSignal: streamAbortSignal,
               executionMode: 'stream',
+              principal,
               enforceCredentialAccess: useAuthenticatedUserAsActor,
               isPublicApiAccess,
               billingAttribution,
@@ -524,6 +529,7 @@ export async function executeWorkflowService(
       workflowId,
       workspaceId,
       userId: actorUserId,
+      principal,
       billingAttribution,
       workflowUserId: workflow.userId,
       triggerType,

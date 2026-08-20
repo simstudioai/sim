@@ -1,3 +1,4 @@
+import type { WorkflowExecutionPrincipal } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
@@ -96,6 +97,7 @@ export async function runWorkflowTool(
     abortSignal?: AbortSignal
     resolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry
     executorDelegationOrigin?: ExecutorDelegationOrigin
+    principal?: WorkflowExecutionPrincipal
     piiBlockOutputRedaction?: PiiBlockOutputRedaction
   }
 ): Promise<ToolResponse> {
