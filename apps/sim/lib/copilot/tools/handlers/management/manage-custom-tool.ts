@@ -45,7 +45,7 @@ export async function executeManageCustomTool(
    * workspace — so a caller could name another workspace and have it
    * authorized against their own. `upsertCustomTools` does no authz of its own
    * (it only scopes queries by the id it is handed), so nothing downstream
-   * caught it. Matches manage_mcp_tool and manage_skill.
+   * caught it. Matches manage_mcp_connection and manage_skill.
    */
   const workspaceId = context.workspaceId
 
@@ -250,7 +250,7 @@ export async function executeManageCustomTool(
       error:
         classified && classified.code !== 'internal'
           ? classified.message
-          : 'Failed to manage custom tool',
+          : `The ${operation ?? 'custom tool'} operation failed inside Sim. The write may or may not have landed — run operation "list" to check current state before retrying.`,
     }
   }
 }

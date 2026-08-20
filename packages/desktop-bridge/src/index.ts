@@ -233,6 +233,11 @@ export interface SimDesktopBrowserAgentApi {
   /** Read a privacy-preserving hint of websites that may have a usable session. */
   getKnownSessions(): Promise<BrowserKnownSessionsState>
   /**
+   * Live search completions for the omnibox. Optional while installed shells
+   * that predate search suggestions remain supported.
+   */
+  getSearchSuggestions?(query: string): Promise<string[]>
+  /**
    * Erase browsing data from the dedicated profile and resolve the resulting
    * session list. Pass the kinds to clear; omit for all of them. Saved
    * passwords are never included — deleting those is a separate action.
@@ -833,6 +838,8 @@ export interface DesktopPreferences {
   trayEnabled: boolean
   /** Let Chat drive the built-in agent browser on this device. */
   browserEnabled: boolean
+  /** Whether typing in the omnibox may request live Google search completions. */
+  browserSearchSuggestionsEnabled?: boolean
   /** Let Chat run commands in local shells. */
   terminalEnabled: boolean
   /**
@@ -917,6 +924,11 @@ export interface SimDesktopSettingsApi {
     key: K,
     value: DesktopPreferences[K]
   ): Promise<DesktopPreferences>
+  /**
+   * Controls whether partial omnibox queries may be sent to Google. Optional
+   * for compatibility with installed shells that predate live suggestions.
+   */
+  setBrowserSearchSuggestionsEnabled?(enabled: boolean): Promise<DesktopPreferences>
   notify(payload: DesktopNotificationPayload): Promise<boolean>
   /** Overrides the appearance requested by browser pages. */
   setBrowserTheme(theme: DesktopAppearanceTheme): Promise<DesktopPreferences>

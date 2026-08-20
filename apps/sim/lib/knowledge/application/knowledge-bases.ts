@@ -118,6 +118,7 @@ export interface RestoreKnowledgeBaseResult extends KnowledgeBaseResult {
 }
 
 export interface KnowledgeBaseCatalogTagDefinition {
+  id: string
   knowledgeBaseId: string
   tagSlot: string
   displayName: string
@@ -414,6 +415,7 @@ export const listKnowledgeBaseCatalog = defineAuthorizedKnowledgeUseCase({
         ? []
         : await db
             .select({
+              id: knowledgeBaseTagDefinitions.id,
               knowledgeBaseId: knowledgeBaseTagDefinitions.knowledgeBaseId,
               tagSlot: knowledgeBaseTagDefinitions.tagSlot,
               displayName: knowledgeBaseTagDefinitions.displayName,

@@ -45,7 +45,10 @@ const logger = createLogger('KnowledgeBaseService')
  */
 export class KnowledgeBaseConflictError extends OrchestrationError {
   constructor(name: string) {
-    super('conflict', `A knowledge base named "${name}" already exists in this workspace`)
+    super(
+      'conflict',
+      `A knowledge base named "${name}" already exists in this workspace. Names are unique across the whole workspace — folders do not namespace them — so pick a different name, or rename/delete the existing knowledge base first.`
+    )
     this.name = 'KnowledgeBaseConflictError'
   }
 }

@@ -55,7 +55,13 @@ import {
   UserInput,
   type UserInputHandle,
 } from './components'
-import { getMothershipUseChatOptions, useChat, useMothershipResize } from './hooks'
+import {
+  getMothershipUseChatOptions,
+  type ResourceEventOptions,
+  shouldActivateResourceEvent,
+  useChat,
+  useMothershipResize,
+} from './hooks'
 import type {
   FileAttachmentForApi,
   MothershipResource,
@@ -211,14 +217,14 @@ export function Home({ chatId, userName, userId, tableViewsEnabled }: HomeProps)
   const activeResourceParamRef = useRef(activeResourceParam)
   activeResourceParamRef.current = activeResourceParam
 
-  function handleResourceEvent(resourceId: string) {
-    // Agent work should always make the resource surface available, but it
-    // must never replace an existing selection. Activity in another resource
-    // stays in the background and gets an attention marker instead.
+  function handleResourceEvent(resourceId: string, options?: ResourceEventOptions) {
+    // Agent work surfaces the resource and switches to it as it is created or
+    // edited; only the browser session stays in the background behind an
+    // existing selection (see shouldActivateResourceEvent).
     if (isResourceCollapsedRef.current) setIsResourceCollapsed(false)
 
     const activeResourceId = activeResourceParamRef.current
-    if (activeResourceId && activeResourceId !== resourceId) {
+    if (!shouldActivateResourceEvent(activeResourceId, resourceId, options)) {
       setResourceActivityIds((current) => new Set(current).add(resourceId))
       return
     }
@@ -228,7 +234,10 @@ export function Home({ chatId, userName, userId, tableViewsEnabled }: HomeProps)
       next.delete(resourceId)
       return next
     })
-    if (activeResourceId !== resourceId) setActiveResourceUrl(resourceId)
+    if (activeResourceId !== resourceId) {
+      activeResourceParamRef.current = resourceId
+      setActiveResourceUrl(resourceId)
+    }
   }
 
   const {

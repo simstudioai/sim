@@ -192,7 +192,7 @@ describe('executeDeployCustomBlock', () => {
     const result = await executeDeployCustomBlock({ name: 'Enrich Lead' }, context)
 
     expect(result.success).toBe(false)
-    expect(result.error).toContain('deploy_api')
+    expect(result.error).toContain('deploy_as_api')
     expect(publishCustomBlockMock).not.toHaveBeenCalled()
   })
 

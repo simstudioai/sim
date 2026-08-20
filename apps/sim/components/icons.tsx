@@ -5152,6 +5152,97 @@ export function MondayIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
+export function ModalIcon(props: SVGProps<SVGSVGElement>) {
+  const id = useId()
+  const leftHighlight = `modal_left_highlight_${id}`
+  const leftBody = `modal_left_body_${id}`
+  const rightHighlight = `modal_right_highlight_${id}`
+  const rightBody = `modal_right_body_${id}`
+
+  return (
+    <svg {...props} viewBox='0 0 300 300' fill='none' xmlns='http://www.w3.org/2000/svg'>
+      <path
+        d='M121.683 75.25L149.997 124L91.482 224.75C90.313 226.757 88.155 228 85.817 228H32.966C31.798 228 30.678 227.691 29.697 227.131C28.716 226.57 27.891 225.758 27.302 224.75L0.877 179.25C-0.292 177.243 -0.292 174.765 0.877 172.75L57.512 75.25C58.092 74.243 58.926 73.43 59.907 72.869C60.888 72.309 62.007 72 63.176 72H116.027C118.365 72 120.523 73.243 121.692 75.25H121.683ZM299.125 172.75L242.49 75.25C241.91 74.243 241.076 73.43 240.095 72.869C239.114 72.309 237.995 72 236.826 72H183.975C181.637 72 179.479 73.243 178.311 75.25L149.997 124L208.512 224.75C209.681 226.757 211.839 228 214.177 228H267.027C268.196 228 269.316 227.691 270.297 227.131C271.278 226.57 272.103 225.758 272.692 224.75L299.117 179.25C300.286 177.243 300.286 174.765 299.117 172.75H299.125Z'
+        fill='#62DE61'
+      />
+      <path
+        d='M89.602 124H150.005L121.692 75.25C120.523 73.243 118.365 72 116.027 72H63.176C62.007 72 60.888 72.309 59.907 72.869L89.602 124Z'
+        fill={`url(#${leftHighlight})`}
+      />
+      <path
+        d='M89.602 124L59.907 72.869C58.926 73.43 58.1 74.243 57.512 75.25L0.877 172.75C-0.292 174.765 -0.292 177.235 0.877 179.25L27.302 224.75C27.883 225.758 28.716 226.57 29.697 227.131L89.594 124H89.602Z'
+        fill={`url(#${leftBody})`}
+      />
+      <path
+        d='M149.997 124H89.594L29.697 227.131C30.678 227.691 31.798 228 32.966 228H85.817C88.155 228 90.313 226.757 91.482 224.75L149.997 124Z'
+        fill='#09AF58'
+      />
+      <path
+        d='M299.125 179.25C299.706 178.243 300 177.121 300 176H240.61L210.915 227.131C211.896 227.691 213.016 228 214.185 228H267.036C269.373 228 271.531 226.757 272.7 224.75L299.125 179.25Z'
+        fill='#09AF58'
+      />
+      <path
+        d='M183.975 72C182.806 72 181.686 72.309 180.705 72.869L240.602 176H299.992C299.992 174.879 299.698 173.758 299.117 172.75L242.49 75.25C241.321 73.243 239.163 72 236.826 72H183.967H183.975Z'
+        fill={`url(#${rightHighlight})`}
+      />
+      <path
+        d='M210.907 227.131L240.602 176L180.705 72.869C179.725 73.43 178.899 74.243 178.311 75.25L149.997 124L208.512 224.75C209.093 225.758 209.926 226.57 210.907 227.131Z'
+        fill={`url(#${rightBody})`}
+      />
+      <defs>
+        <linearGradient
+          id={leftHighlight}
+          x1='127.348'
+          y1='137'
+          x2='82.956'
+          y2='59.64'
+          gradientUnits='userSpaceOnUse'
+        >
+          <stop stopColor='#BFF9B4' />
+          <stop offset='1' stopColor='#80EE64' />
+        </linearGradient>
+        <linearGradient
+          id={leftBody}
+          x1='7.048'
+          y1='214.131'
+          x2='81.128'
+          y2='85.056'
+          gradientUnits='userSpaceOnUse'
+        >
+          <stop stopColor='#80EE64' />
+          <stop offset='0.36' stopColor='#6FE562' />
+          <stop offset='0.74' stopColor='#3DCA5D' />
+          <stop offset='1' stopColor='#09AF58' />
+        </linearGradient>
+        <linearGradient
+          id={rightHighlight}
+          x1='278.103'
+          y1='188.561'
+          x2='204.022'
+          y2='59.486'
+          gradientUnits='userSpaceOnUse'
+        >
+          <stop stopColor='#BFF9B4' />
+          <stop offset='1' stopColor='#80EE64' />
+        </linearGradient>
+        <linearGradient
+          id={rightBody}
+          x1='232.804'
+          y1='214.569'
+          x2='158.724'
+          y2='85.486'
+          gradientUnits='userSpaceOnUse'
+        >
+          <stop stopColor='#80EE64' />
+          <stop offset='0.36' stopColor='#6FE562' />
+          <stop offset='0.74' stopColor='#3DCA5D' />
+          <stop offset='1' stopColor='#09AF58' />
+        </linearGradient>
+      </defs>
+    </svg>
+  )
+}
+
 export function MongoDBIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg {...props} xmlns='http://www.w3.org/2000/svg' viewBox='0 0 128 128'>

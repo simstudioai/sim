@@ -4,6 +4,7 @@
 import { tableViews } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { TABLE_LIMITS } from '@/lib/table/constants'
 import type { ColumnDefinition, TableViewConfig } from '@/lib/table/types'
 
 const { mockSignalTableViewsChanged } = vi.hoisted(() => ({
@@ -13,7 +14,6 @@ vi.mock('@/lib/table/events', () => ({
   signalTableViewsChanged: mockSignalTableViewsChanged,
 }))
 
-import { TABLE_LIMITS } from '@/lib/table/constants'
 import {
   createTableView,
   deleteTableView,
@@ -141,7 +141,6 @@ describe('table-view mutations signal collaborators', () => {
   })
 
   it('createTableView signals the table after inserting', async () => {
-    queueTableRows(tableViews, [{ total: 0 }]) // the in-lock view-count check
     dbChainMockFns.returning.mockResolvedValueOnce([viewRow])
 
     await createTableView({
@@ -292,11 +291,55 @@ describe('getTableView', () => {
   })
 })
 
-/**
- * `GET /tables/{id}/views` returns every view in one unpaginated page and
- * declares the set bounded. Nothing made that true, so the ceiling is asserted
- * on the write that could cross it.
- */
+describe('view config name/id translation', () => {
+  const columns = [
+    { id: 'col_a', name: 'status', type: 'string' },
+    { id: 'col_b', name: 'due', type: 'date' },
+  ] as never[]
+
+  it('round-trips a config between id and name domains', async () => {
+    const { viewConfigIdsToNames, viewConfigNamesToIds } = await import('@/lib/table/views/service')
+    const stored = {
+      filter: {
+        any: [
+          { field: 'col_a', op: 'eq', value: 'Open' },
+          { all: [{ field: 'col_b', op: 'isNotNull' }] },
+        ],
+      },
+      sort: [{ field: 'col_b', direction: 'desc' }],
+      hiddenColumns: ['col_a'],
+    } as never
+    const named = viewConfigIdsToNames(stored, columns as never)
+    expect(named.filter).toEqual({
+      any: [
+        { field: 'status', op: 'eq', value: 'Open' },
+        { all: [{ field: 'due', op: 'isNotNull' }] },
+      ],
+    })
+    expect(named.sort).toEqual([{ field: 'due', direction: 'desc' }])
+    expect(named.hiddenColumns).toEqual(['status'])
+    expect(viewConfigNamesToIds(named, columns as never)).toEqual(stored)
+  })
+
+  it('passes stale ids through on read but rejects unknown names on write', async () => {
+    const { viewConfigIdsToNames, viewConfigNamesToIds } = await import('@/lib/table/views/service')
+    const withStale = { filter: { all: [{ field: 'col_gone', op: 'isNull' }] } } as never
+    expect(
+      (
+        viewConfigIdsToNames(withStale, columns as never).filter as never as {
+          all: { field: string }[]
+        }
+      ).all[0].field
+    ).toBe('col_gone')
+    expect(() =>
+      viewConfigNamesToIds(
+        { filter: { all: [{ field: 'nope', op: 'isNull' }] } } as never,
+        columns as never
+      )
+    ).toThrow(/Unknown column/)
+  })
+})
+
 describe('saved-view ceiling', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -342,12 +385,6 @@ describe('saved-view ceiling', () => {
   })
 })
 
-/**
- * A saved config's column references are stored as stable column ids, but the
- * v2 wire is column-NAME-keyed like every other v2 row/data surface. The write
- * path translates; anything it cannot resolve is a caller mistake and must be
- * refused rather than stored and quietly dropped on the next read.
- */
 describe('view config column-reference normalization', () => {
   const columns: ColumnDefinition[] = [
     { id: 'col_a', name: 'Name', type: 'text' },

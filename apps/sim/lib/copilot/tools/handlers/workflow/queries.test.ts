@@ -12,7 +12,7 @@ vi.mock('@/lib/copilot/application/execute-workflow-use-case', () => ({
     getErrorMessage(error, 'Workflow operation failed'),
 }))
 
-import { executeGetBlockOutputs } from './queries'
+import { executeGetBlockOutputs } from '@/lib/copilot/tools/handlers/workflow/queries'
 
 describe('executeGetBlockOutputs', () => {
   beforeEach(() => {

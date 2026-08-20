@@ -125,7 +125,10 @@ describe('table application context', () => {
   it('conceals an asserted cross-workspace table as not found', async () => {
     await expect(
       resolveActiveTableContext({ tableId: 'table-1', assertedWorkspaceId: 'workspace-2' })
-    ).rejects.toMatchObject({ code: 'not_found', message: 'Table not found' })
+    ).rejects.toMatchObject({
+      code: 'not_found',
+      message: expect.stringContaining('not found in this workspace'),
+    })
   })
 
   it('conceals a table that does not exist at all', async () => {
@@ -133,7 +136,10 @@ describe('table application context', () => {
 
     await expect(
       resolveActiveTableContext({ tableId: 'missing', assertedWorkspaceId: 'workspace-1' })
-    ).rejects.toMatchObject({ code: 'not_found', message: 'Table not found' })
+    ).rejects.toMatchObject({
+      code: 'not_found',
+      message: expect.stringContaining('not found in this workspace'),
+    })
   })
 
   it('conceals a missing table with no asserted workspace', async () => {
@@ -141,7 +147,7 @@ describe('table application context', () => {
 
     await expect(resolveActiveTableContext({ tableId: 'missing' })).rejects.toMatchObject({
       code: 'not_found',
-      message: 'Table not found',
+      message: expect.stringContaining('not found in this workspace'),
     })
     expect(loadWorkspace).not.toHaveBeenCalled()
   })
@@ -153,7 +159,10 @@ describe('table application context', () => {
     const unhandled = await withUnhandledRejectionWatch(async () => {
       await expect(
         resolveActiveTableContext({ tableId: 'table-1', assertedWorkspaceId: 'workspace-2' })
-      ).rejects.toMatchObject({ code: 'not_found', message: 'Table not found' })
+      ).rejects.toMatchObject({
+        code: 'not_found',
+        message: expect.stringContaining('not found in this workspace'),
+      })
     })
 
     expect(unhandled).toEqual([])

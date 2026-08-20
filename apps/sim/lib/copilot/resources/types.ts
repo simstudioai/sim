@@ -20,6 +20,8 @@ export interface MothershipResource {
   id: string
   title: string
   path?: string
+  /** Saved table view to open pinned (type "table" only). */
+  viewId?: string
 }
 
 /**

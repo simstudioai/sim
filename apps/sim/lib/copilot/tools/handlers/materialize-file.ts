@@ -45,7 +45,7 @@ import { admitCreateWorkspaceFile } from '@/lib/workspace-files/application/crea
 import { readWorkspaceFileMetadata } from '@/lib/workspace-files/application/read-workspace-file-metadata'
 import { extractWorkflowMetadata } from '@/app/api/v1/admin/types'
 
-const logger = createLogger('MaterializeFile')
+const logger = createLogger('SaveUpload')
 const MAX_MATERIALIZE_NAME_RETRIES = 8
 const WORKSPACE_FILE_NAME_UNIQUE_INDEX = 'workspace_files_workspace_folder_name_active_unique'
 
@@ -102,7 +102,7 @@ async function executeSave(
   if (isArchiveFileName(displayName)) {
     return {
       success: false,
-      error: `"${fileName}" is a .zip archive — save it by extracting instead: materialize_file(fileNames: ["${fileName}"], operation: "extract") unpacks it into files/ where the contents stay readable. The raw .zip remains in uploads/ for this chat.`,
+      error: `"${fileName}" is a .zip archive — save it by extracting instead: save_upload(fileNames: ["${fileName}"], operation: "extract") unpacks it into files/ where the contents stay readable. The raw .zip remains in uploads/ for this chat.`,
     }
   }
 
@@ -256,7 +256,7 @@ async function executeImport(
   if (isArchiveFileName(row.displayName ?? row.originalName)) {
     return {
       success: false,
-      error: `"${fileName}" is a .zip archive, not a workflow JSON. Extract it first: materialize_file(fileNames: ["${fileName}"], operation: "extract").`,
+      error: `"${fileName}" is a .zip archive, not a workflow JSON. Extract it first: save_upload(fileNames: ["${fileName}"], operation: "extract").`,
     }
   }
 
@@ -553,11 +553,11 @@ export async function executeMaterializeFile(
   }
 
   if (!context.chatId) {
-    return { success: false, error: 'No chat context available for materialize_file' }
+    return { success: false, error: 'No chat context available for save_upload' }
   }
 
   if (!context.workspaceId) {
-    return { success: false, error: 'No workspace context available for materialize_file' }
+    return { success: false, error: 'No workspace context available for save_upload' }
   }
 
   const principal = resolveCopilotFilePrincipal(context)
@@ -569,7 +569,7 @@ export async function executeMaterializeFile(
   if (operation !== 'save' && operation !== 'import' && operation !== 'extract') {
     return {
       success: false,
-      error: `Unsupported materialize_file operation "${operation}". Use "save", "import", or "extract". For CSV/TSV/JSON → use the table subagent; for documents → use the knowledge subagent.`,
+      error: `Unsupported save_upload operation "${operation}". Use "save", "import", or "extract". For CSV/TSV/JSON → use the table subagent; for documents → use the knowledge subagent.`,
     }
   }
 
@@ -615,7 +615,7 @@ export async function executeMaterializeFile(
         failed.push({ fileName, error: result.error ?? 'Failed to materialize file' })
       }
     } catch (err) {
-      logger.error('materialize_file failed', {
+      logger.error('save_upload failed', {
         fileName,
         operation,
         chatId: context.chatId,

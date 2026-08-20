@@ -63,6 +63,7 @@ export function buildMenuTemplate(deps: MenuDeps): MenuItemConstructorOptions[] 
     return {
       label: number === 9 ? 'Last Tab' : `Tab ${number}`,
       accelerator: `CmdOrCtrl+${number}`,
+      visible: false,
       click: resourceShortcut(shortcut),
     }
   })
@@ -124,6 +125,22 @@ export function buildMenuTemplate(deps: MenuDeps): MenuItemConstructorOptions[] 
         win.webContents.reload()
       },
     },
+    /**
+     * Hard refresh, cache ignored. A focused Browser tab claims it first
+     * (same boundary as Reload/Close Tab); otherwise it reloads the Sim
+     * shell — the recovery lever for picking up freshly deployed client
+     * code.
+     */
+    {
+      label: 'Force Reload',
+      accelerator: 'CmdOrCtrl+Shift+R',
+      click: (_item, focusedWindow) => {
+        const win = focusedOrMain(focusedWindow)
+        if (!win || win.isDestroyed()) return
+        if (deps.handleFocusedResourceShortcut(win, 'hard-reload')) return
+        win.webContents.reloadIgnoringCache()
+      },
+    },
     { type: 'separator' },
     { label: 'Actual Size', accelerator: 'CmdOrCtrl+0', click: setZoom('reset') },
     { label: 'Zoom In', accelerator: 'CmdOrCtrl+Plus', click: setZoom('in') },
@@ -154,13 +171,6 @@ export function buildMenuTemplate(deps: MenuDeps): MenuItemConstructorOptions[] 
       label: 'File',
       submenu: [
         {
-          label: 'New Tab',
-          accelerator: 'CmdOrCtrl+T',
-          click: (_item, focusedWindow) => {
-            deps.handleFocusedResourceShortcut(focusedOrMain(focusedWindow), 'new-tab')
-          },
-        },
-        {
           label: 'New Window',
           accelerator: 'CmdOrCtrl+Shift+N',
           click: deps.newWindow,
@@ -168,8 +178,34 @@ export function buildMenuTemplate(deps: MenuDeps): MenuItemConstructorOptions[] 
         { label: 'New Chat', accelerator: 'CmdOrCtrl+N', click: deps.newChat },
         { type: 'separator' },
         {
+          label: 'Close Window',
+          accelerator: 'CmdOrCtrl+Shift+W',
+          click: (_item, focusedWindow) => {
+            const win = focusedOrMain(focusedWindow)
+            if (win && !win.isDestroyed()) win.close()
+          },
+        },
+        /**
+         * Resource-scoped shortcuts: these act on whichever Browser/Terminal
+         * panel is focused, not on the app, so they stay out of the visible
+         * File menu. The accelerators still fire — macOS registers a hidden
+         * item's accelerator (`acceleratorWorksWhenHidden` defaults to true).
+         * The numbered tab items sit flat here rather than under a "Select
+         * Tab" submenu because children of a hidden submenu do not reliably
+         * register their accelerators.
+         */
+        {
+          label: 'New Tab',
+          accelerator: 'CmdOrCtrl+T',
+          visible: false,
+          click: (_item, focusedWindow) => {
+            deps.handleFocusedResourceShortcut(focusedOrMain(focusedWindow), 'new-tab')
+          },
+        },
+        {
           label: 'Reopen Closed Tab',
           accelerator: 'CmdOrCtrl+Shift+T',
+          visible: false,
           click: (_item, focusedWindow) => {
             deps.handleFocusedResourceShortcut(focusedOrMain(focusedWindow), 'reopen-closed-tab')
           },
@@ -177,35 +213,29 @@ export function buildMenuTemplate(deps: MenuDeps): MenuItemConstructorOptions[] 
         {
           label: 'Focus Address Bar',
           accelerator: 'CmdOrCtrl+L',
+          visible: false,
           click: resourceShortcut('focus-omnibox'),
         },
-        { type: 'separator' },
         {
           label: 'Next Tab',
           accelerator: 'Ctrl+Tab',
+          visible: false,
           click: resourceShortcut('next-tab'),
         },
         {
           label: 'Previous Tab',
           accelerator: 'Ctrl+Shift+Tab',
+          visible: false,
           click: resourceShortcut('previous-tab'),
         },
-        { label: 'Select Tab', submenu: numberedTabItems },
-        { type: 'separator' },
+        ...numberedTabItems,
         {
           label: 'Close Tab',
           accelerator: 'CmdOrCtrl+W',
+          visible: false,
           click: (_item, focusedWindow) => {
             const win = focusedOrMain(focusedWindow)
             deps.handleFocusedResourceShortcut(win, 'close-tab')
-          },
-        },
-        {
-          label: 'Close Window',
-          accelerator: 'CmdOrCtrl+Shift+W',
-          click: (_item, focusedWindow) => {
-            const win = focusedOrMain(focusedWindow)
-            if (win && !win.isDestroyed()) win.close()
           },
         },
       ],

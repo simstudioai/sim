@@ -43,7 +43,7 @@ describe('createEvent', () => {
       payload: {
         previewPhase: 'file_preview_start',
         toolCallId: 'preview-1',
-        toolName: 'workspace_file',
+        toolName: 'prepare_file_edit',
       },
     })
 
@@ -56,7 +56,7 @@ describe('createEvent', () => {
       payload: {
         previewPhase: 'file_preview_start',
         toolCallId: 'preview-1',
-        toolName: 'workspace_file',
+        toolName: 'prepare_file_edit',
       },
     })
   })

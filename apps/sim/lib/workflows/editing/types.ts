@@ -51,6 +51,7 @@ export const WORKFLOW_SKIPPED_ITEM_TYPES = [
   'nested_subflow_not_allowed',
   'duplicate_block_name',
   'reserved_block_name',
+  'retry_not_supported',
   'duplicate_trigger',
   'duplicate_single_instance_block',
 ] as const

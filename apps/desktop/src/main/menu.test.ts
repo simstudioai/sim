@@ -62,20 +62,27 @@ describe('buildMenuTemplate', () => {
       'separator',
       'quit',
     ])
-    expect(submenu(template, 'File').map((item) => item.label ?? item.role ?? item.type)).toEqual([
+    const file = submenu(template, 'File')
+    expect(
+      file.filter((item) => item.visible !== false).map((item) => item.label ?? item.type)
+    ).toEqual(['New Window', 'New Chat', 'separator', 'Close Window'])
+    // Resource-scoped shortcuts stay registered but never appear in the menu.
+    expect(file.filter((item) => item.visible === false).map((item) => item.label)).toEqual([
       'New Tab',
-      'New Window',
-      'New Chat',
-      'separator',
       'Reopen Closed Tab',
       'Focus Address Bar',
-      'separator',
       'Next Tab',
       'Previous Tab',
-      'Select Tab',
-      'separator',
+      'Tab 1',
+      'Tab 2',
+      'Tab 3',
+      'Tab 4',
+      'Tab 5',
+      'Tab 6',
+      'Tab 7',
+      'Tab 8',
+      'Last Tab',
       'Close Tab',
-      'Close Window',
     ])
     expect(submenu(template, 'View').map((item) => item.label ?? item.role ?? item.type)).toEqual([
       'Search',
@@ -83,6 +90,7 @@ describe('buildMenuTemplate', () => {
       'separator',
       'Back',
       'Reload',
+      'Force Reload',
       'separator',
       'Actual Size',
       'Zoom In',
@@ -152,7 +160,6 @@ describe('buildMenuTemplate', () => {
       })
     )
     const file = submenu(template, 'File')
-    const selectTabs = submenu(file, 'Select Tab')
     const focusedWindow = new BrowserWindow()
     const invoke = (item: MenuItemConstructorOptions | undefined) =>
       (item?.click as unknown as (menuItem: unknown, browserWindow: BrowserWindow) => void)(
@@ -162,7 +169,7 @@ describe('buildMenuTemplate', () => {
 
     invoke(file.find((item) => item.accelerator === 'Ctrl+Tab'))
     invoke(file.find((item) => item.accelerator === 'Ctrl+Shift+Tab'))
-    invoke(selectTabs.find((item) => item.accelerator === 'CmdOrCtrl+9'))
+    invoke(file.find((item) => item.accelerator === 'CmdOrCtrl+9'))
 
     expect(handleFocusedResourceShortcut).toHaveBeenNthCalledWith(1, focusedWindow, 'next-tab')
     expect(handleFocusedResourceShortcut).toHaveBeenNthCalledWith(2, focusedWindow, 'previous-tab')

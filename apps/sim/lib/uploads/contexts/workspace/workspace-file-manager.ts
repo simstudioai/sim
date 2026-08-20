@@ -943,7 +943,7 @@ export async function trackChatUpload(
           if (updated.length === 0) {
             // The ownership lookup is a separate statement, so re-assert every
             // predicate here — this UPDATE is the atomic check. A concurrent
-            // `materialize_file` flips the same row to context='workspace' and
+            // `save_upload` flips the same row to context='workspace' and
             // clears chatId; matching on id alone would drag that saved file back
             // into chat scope, hiding it from the Files listing and re-exposing it
             // to the chat-delete cascade.

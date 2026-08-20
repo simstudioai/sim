@@ -60,28 +60,16 @@ export interface PerformChatDeployResult {
  * Deploys a chat: deploys the underlying workflow via `performFullDeploy`,
  * encrypts passwords, creates or updates the chat record, fires telemetry,
  * and records an audit entry. Both the chat API route and the copilot
- * `deploy_chat` tool must use this function.
+ * `deploy_as_chat` tool must use this function.
  */
 export async function performChatDeploy(
   params: ChatDeployPayload
 ): Promise<PerformChatDeployResult> {
-  const {
-    workflowId,
-    userId,
-    identifier,
-    title,
-    description = '',
-    authType = 'public',
-    password,
-    allowedEmails = [],
-    outputConfigs = [],
-    includeThinking = false,
-    includeToolCalls = false,
-  } = params
+  const { workflowId, userId, identifier, title, password } = params
 
   /**
    * Validate the password here rather than only at the HTTP boundary. The
-   * copilot `deploy_chat` tool reaches this function without going through a
+   * copilot `deploy_as_chat` tool reaches this function without going through a
    * route contract, so a whitespace-only or over-long password would otherwise
    * be encrypted and stored — and neither can ever be submitted through the
    * chat login form, permanently locking visitors out of the deployment.
@@ -93,10 +81,60 @@ export async function performChatDeploy(
     }
   }
 
+  /**
+   * Redeploys merge: any field the caller omitted keeps the existing chat's
+   * value instead of being reset to a default. Before this, a copilot
+   * `deploy_as_chat` call that changed only the title silently flipped an
+   * email/sso-protected chat back to public, wiped its allowlist and output
+   * configuration, and reset the welcome customizations — the caller had no
+   * way to know, because none of those fields were readable back. Defaults
+   * apply only when there is no existing deployment to preserve.
+   */
+  const [existingDeployment] = await db
+    .select()
+    .from(chat)
+    .where(and(eq(chat.workflowId, workflowId), isNull(chat.archivedAt)))
+    .limit(1)
+
+  const authType =
+    params.authType ??
+    (existingDeployment?.authType as ChatDeployPayload['authType'] | undefined) ??
+    'public'
+  const description =
+    params.description !== undefined ? params.description : (existingDeployment?.description ?? '')
+  const allowedEmails =
+    params.allowedEmails ?? (existingDeployment?.allowedEmails as string[] | null) ?? []
+  const outputConfigs =
+    params.outputConfigs ??
+    (existingDeployment?.outputConfigs as Array<{ blockId: string; path: string }> | null) ??
+    []
+  const includeThinking = params.includeThinking ?? existingDeployment?.includeThinking ?? false
+  const includeToolCalls = params.includeToolCalls ?? existingDeployment?.includeToolCalls ?? false
+
+  // Per-field merge (params over existing over defaults): callers routinely
+  // send a customizations object with only some fields set, and a hard default
+  // for the rest silently reset the chat's colors and welcome message.
+  const existingCustomizations =
+    existingDeployment?.customizations &&
+    typeof existingDeployment.customizations === 'object' &&
+    !Array.isArray(existingDeployment.customizations)
+      ? (existingDeployment.customizations as {
+          primaryColor?: string
+          welcomeMessage?: string
+          imageUrl?: string
+        })
+      : undefined
+  const mergedImageUrl = params.customizations?.imageUrl || existingCustomizations?.imageUrl
   const customizations = {
-    primaryColor: params.customizations?.primaryColor || 'var(--brand-hover)',
-    welcomeMessage: params.customizations?.welcomeMessage || 'Hi there! How can I help you today?',
-    ...(params.customizations?.imageUrl ? { imageUrl: params.customizations.imageUrl } : {}),
+    primaryColor:
+      params.customizations?.primaryColor ||
+      existingCustomizations?.primaryColor ||
+      'var(--brand-hover)',
+    welcomeMessage:
+      params.customizations?.welcomeMessage ||
+      existingCustomizations?.welcomeMessage ||
+      'Hi there! How can I help you today?',
+    ...(mergedImageUrl ? { imageUrl: mergedImageUrl } : {}),
   }
 
   /**
@@ -162,16 +200,10 @@ export async function performChatDeploy(
     encryptedPassword = encrypted
   }
 
-  const [existingDeployment] = await db
-    .select()
-    .from(chat)
-    .where(and(eq(chat.workflowId, workflowId), isNull(chat.archivedAt)))
-    .limit(1)
-
   /**
    * A password-protected chat must end up with a stored password. Both HTTP
    * routes already reject this; without the same guard here a copilot
-   * `deploy_chat` call could create one with no password, which fails closed at
+   * `deploy_as_chat` call could create one with no password, which fails closed at
    * login with an opaque "Authentication configuration error".
    */
   if (authType === 'password' && !encryptedPassword && !existingDeployment?.password) {
@@ -309,7 +341,7 @@ export interface PerformChatUndeployResult {
 
 /**
  * Undeploys a chat: deletes the chat record and records an audit entry.
- * Both the chat manage DELETE route and the copilot `deploy_chat` undeploy
+ * Both the chat manage DELETE route and the copilot `deploy_as_chat` undeploy
  * action must use this function.
  */
 export async function performChatUndeploy(

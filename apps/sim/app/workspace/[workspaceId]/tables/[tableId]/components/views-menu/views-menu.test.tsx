@@ -70,6 +70,7 @@ describe('ViewsMenu', () => {
     document.body.appendChild(container)
     const root = createRoot(container)
     const onSetDefault = vi.fn()
+    const onDelete = vi.fn()
 
     act(() => {
       root.render(
@@ -79,7 +80,7 @@ describe('ViewsMenu', () => {
           onSelect={vi.fn()}
           onRename={vi.fn()}
           onSetDefault={onSetDefault}
-          onDelete={vi.fn()}
+          onDelete={onDelete}
           onNewView={vi.fn()}
           canEdit
         />
@@ -87,7 +88,20 @@ describe('ViewsMenu', () => {
     })
     act(() => container.querySelector<HTMLButtonElement>('button[aria-label="Views"]')?.click())
 
-    expect(document.body.querySelectorAll('button[aria-label="Delete"]')).toHaveLength(1)
+    // The default view's Delete stays hoverable (aria-disabled, no native
+    // title) so its tooltip can explain why it is inert.
+    const deleteButtons = [
+      ...document.body.querySelectorAll<HTMLButtonElement>('button[aria-label="Delete"]'),
+    ]
+    expect(deleteButtons).toHaveLength(2)
+    const defaultDelete = deleteButtons.find(
+      (button) => button.getAttribute('aria-disabled') === 'true'
+    )
+    expect(defaultDelete).not.toBeUndefined()
+    expect(defaultDelete?.title).toBe('')
+    act(() => defaultDelete?.click())
+    expect(onDelete).not.toHaveBeenCalled()
+
     const defaultPin = document.body.querySelector<HTMLButtonElement>(
       'button[aria-label="Current default view"]'
     )

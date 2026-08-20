@@ -92,7 +92,11 @@ function toDisplayBlockBody(block: PersistedContentBlock): ContentBlock | undefi
       if (block.lifecycle === MothershipStreamV1SpanLifecycleEvent.end) {
         return { type: ContentBlockType.subagent_end }
       }
-      return { type: ContentBlockType.subagent, content: block.content }
+      return {
+        type: ContentBlockType.subagent,
+        content: block.content,
+        ...(block.name ? { subagentName: block.name } : {}),
+      }
     case MothershipStreamV1EventType.complete:
       if (block.status === MothershipStreamV1CompletionStatus.cancelled) {
         return { type: ContentBlockType.stopped }
@@ -138,17 +142,17 @@ function toDisplayContexts(
   }))
 }
 
-const WORKSPACE_FILE_TOOL = 'workspace_file'
-const EDIT_CONTENT_TOOL = 'edit_content'
+const WORKSPACE_FILE_TOOL = 'prepare_file_edit'
+const EDIT_CONTENT_TOOL = 'apply_file_edit'
 const MAIN_SPAN = 'main'
 
 /**
- * Collapses an `edit_content` write into the most-recent `workspace_file` row in
+ * Collapses an `apply_file_edit` write into the most-recent `prepare_file_edit` row in
  * the same subagent span, mirroring the live turn-model fold. The live view
  * folds these in `reduceEvent`, but the persisted transcript stores them as two
  * separate tool blocks; without this a reloaded chat splits the file write into
- * "workspace_file" + "edit_content" rows (and a refresh mid-write leaves the
- * second row spinning). The reopened row inherits the edit_content's final
+ * "prepare_file_edit" + "apply_file_edit" rows (and a refresh mid-write leaves the
+ * second row spinning). The reopened row inherits the apply_file_edit's final
  * status/result, exactly as the live single "writing" row resolves. Every other
  * block is passed through untouched, so this only affects file writes.
  */

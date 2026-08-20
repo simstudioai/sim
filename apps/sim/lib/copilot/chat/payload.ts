@@ -364,7 +364,7 @@ export async function buildCopilotRequestPayload(
           userMessageId
         )
         // Encode the read path per the percent-encoded VFS convention (matches
-        // files/ and the uploads glob output). The materialize_file `fileName`
+        // files/ and the uploads glob output). The save_upload `fileName`
         // arg stays the raw display name — the upload resolver accepts both.
         let encodedUploadName = displayName
         try {
@@ -384,11 +384,11 @@ export async function buildCopilotRequestPayload(
           lines = [
             `File "${displayName}" (${mediaType}, ${f.size} bytes) uploaded.`,
             `Read with: read("uploads/${encodedUploadName}")`,
-            `To save permanently: materialize_file(fileName: "${displayName}")`,
+            `To save permanently: save_upload(fileName: "${displayName}")`,
           ]
           if (displayName.endsWith('.json')) {
             lines.push(
-              `To import as a workflow: materialize_file(fileName: "${displayName}", operation: "import")`
+              `To import as a workflow: save_upload(fileName: "${displayName}", operation: "import")`
             )
           }
         }

@@ -615,6 +615,16 @@ export function createUserToolSchema(
         .filter(Boolean)
         .join(' ')
     }
+    // Copilot agents never see secret values, only names — so tell them the
+    // reference form works here, or they paste placeholders that fail upstream.
+    if (visibility === 'user-only' && surface === 'copilot') {
+      propertySchema.description = [
+        propertySchema.description,
+        'Accepts an environment-variable reference like {{VAR_NAME}} (see environment/variables.json), resolved server-side.',
+      ]
+        .filter(Boolean)
+        .join(' ')
+    }
     schema.properties[paramId] = propertySchema
 
     if (param.required && paramId !== hostedApiKeyParam) {

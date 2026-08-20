@@ -5,7 +5,7 @@ import { resetUrlsMock, urlsMockFns } from '@sim/testing'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { sanitizeForCopilot } from '@/lib/workflows/sanitization/json-sanitizer'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
-import { TRIGGER_WEBHOOK_URL_FIELD } from '@/triggers/constants'
+import { TRIGGER_ROUTING_FIELD, TRIGGER_WEBHOOK_URL_FIELD } from '@/triggers/constants'
 
 beforeAll(() => {
   urlsMockFns.mockGetBaseUrl.mockReturnValue('https://sim.test')
@@ -280,5 +280,47 @@ describe('sanitizeForCopilot webhook trigger URL', () => {
     )
 
     expect(result.blocks['gh-1'].inputs ?? {}).not.toHaveProperty(TRIGGER_WEBHOOK_URL_FIELD)
+  })
+})
+
+describe('sanitizeForCopilot credential-routed trigger routing', () => {
+  it('synthesizes the read-only routing note for a slack_v2 block in trigger mode', () => {
+    const result = sanitizeForCopilot(
+      makeSingleBlockWorkflow('slack-1', {
+        type: 'slack_v2',
+        name: 'Slack Trigger',
+        enabled: true,
+        triggerMode: true,
+        subBlocks: {
+          selectedTriggerId: { id: 'selectedTriggerId', type: 'short-input', value: 'slack_oauth' },
+          customBotCredential: {
+            id: 'customBotCredential',
+            type: 'oauth-input',
+            value: 'cred-123',
+          },
+        },
+      })
+    )
+
+    const routing = result.blocks['slack-1'].inputs?.[TRIGGER_ROUTING_FIELD] as
+      | Record<string, unknown>
+      | undefined
+    expect(routing?.model).toBe('credential-routed')
+    expect(routing?.selectedCredentialId).toBe('cred-123')
+    expect(String(routing?.note)).toContain('no per-workflow webhook URL')
+    expect(result.blocks['slack-1'].inputs ?? {}).not.toHaveProperty(TRIGGER_WEBHOOK_URL_FIELD)
+  })
+
+  it('omits the routing note when the block is not in trigger mode', () => {
+    const result = sanitizeForCopilot(
+      makeSingleBlockWorkflow('slack-1', {
+        type: 'slack_v2',
+        name: 'Slack Action',
+        enabled: true,
+        subBlocks: {},
+      })
+    )
+
+    expect(result.blocks['slack-1'].inputs ?? {}).not.toHaveProperty(TRIGGER_ROUTING_FIELD)
   })
 })

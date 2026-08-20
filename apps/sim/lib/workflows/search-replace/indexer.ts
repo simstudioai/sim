@@ -10,6 +10,7 @@ import {
 } from '@/lib/workflows/search-replace/json-value-fields'
 import {
   buildBlockNamesByReferencePrefix,
+  foldSearchWhitespace,
   getResourceKindForSubBlock,
   matchesSearchText,
   parseInlineReferences,
@@ -56,8 +57,14 @@ import {
   type ToolParameterConfig,
 } from '@/tools/params'
 
+/**
+ * Whitespace is folded before comparison (see {@link foldSearchWhitespace}):
+ * the fold is one-to-one, so ranges found in the normalized string index the
+ * original text correctly.
+ */
 function normalizeForSearch(value: string, caseSensitive: boolean): string {
-  return caseSensitive ? value : value.toLowerCase()
+  const folded = foldSearchWhitespace(value)
+  return caseSensitive ? folded : folded.toLowerCase()
 }
 
 function findTextRanges(value: string, query: string, caseSensitive: boolean) {
@@ -1241,7 +1248,7 @@ export function indexWorkflowSearchMatches(
 ): WorkflowSearchMatch[] {
   const {
     workflow,
-    query,
+    query: rawQuery,
     mode = 'all',
     caseSensitive = false,
     includeResourceMatchesWithoutQuery = false,
@@ -1255,6 +1262,10 @@ export function indexWorkflowSearchMatches(
     customTools,
     mcpToolNamesById,
   } = options
+
+  // Match on the trimmed query: an accidental leading/trailing space (easy to
+  // type, impossible to see in the search box) must not hide every match.
+  const query = rawQuery?.trim()
 
   const matches: WorkflowSearchMatch[] = []
   const resourceQueryEnabled = includeResourceMatchesWithoutQuery || Boolean(query)

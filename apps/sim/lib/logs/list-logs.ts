@@ -152,6 +152,10 @@ export async function listLogs(params: ListLogsParams, userId: string): Promise<
   const commonFilters = buildFilterConditions(p, { useSimpleLevelFilter: false })
   if (commonFilters) workflowConditions.push(commonFilters)
 
+  // Snapshot the filter-only conditions (no pagination cursor) so an
+  // `includeTotal` count runs over the whole filtered set, not the tail.
+  const workflowFilterConditions = [...workflowConditions]
+
   const workflowCursorCond = buildCursorCondition(workflowSortExpr, workflowExecutionLogs.id)
   if (workflowCursorCond) workflowConditions.push(workflowCursorCond)
 
@@ -211,6 +215,7 @@ export async function listLogs(params: ListLogsParams, userId: string): Promise<
     .limit(fetchSize)
 
   const jobConditions: SQL[] = [eq(jobExecutionLogs.workspaceId, p.workspaceId)]
+  let jobFilterConditions: SQL[] = jobConditions
 
   if (includeJobLogs) {
     if (p.level && p.level !== 'all') {
@@ -280,6 +285,8 @@ export async function listLogs(params: ListLogsParams, userId: string): Promise<
       )
       if (durationCond) jobConditions.push(durationCond)
     }
+
+    jobFilterConditions = [...jobConditions]
 
     const jobCursorCond = buildCursorCondition(jobSortExpr, jobExecutionLogs.id)
     if (jobCursorCond) jobConditions.push(jobCursorCond)
@@ -429,8 +436,34 @@ export async function listLogs(params: ListLogsParams, userId: string): Promise<
     nextCursor = encodeLogSortCursor({ v: cursorV, id: last.id })
   }
 
+  let total: number | undefined
+  if (p.includeTotal) {
+    const workflowCountQuery = dbReplica
+      .select({ count: sql<number>`COUNT(*)` })
+      .from(workflowExecutionLogs)
+      .leftJoin(
+        pausedExecutions,
+        eq(pausedExecutions.executionId, workflowExecutionLogs.executionId)
+      )
+      .leftJoin(
+        workflowDeploymentVersion,
+        eq(workflowDeploymentVersion.id, workflowExecutionLogs.deploymentVersionId)
+      )
+      .leftJoin(workflow, eq(workflowExecutionLogs.workflowId, workflow.id))
+      .where(and(...workflowFilterConditions))
+    const jobCountQuery = includeJobLogs
+      ? dbReplica
+          .select({ count: sql<number>`COUNT(*)` })
+          .from(jobExecutionLogs)
+          .where(and(...jobFilterConditions))
+      : Promise.resolve([{ count: 0 }])
+    const [workflowCount, jobCount] = await Promise.all([workflowCountQuery, jobCountQuery])
+    total = Number(workflowCount[0]?.count ?? 0) + Number(jobCount[0]?.count ?? 0)
+  }
+
   return {
     data: page.map((row) => row.summary),
     nextCursor,
+    ...(total !== undefined ? { total } : {}),
   }
 }

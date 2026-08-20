@@ -140,13 +140,27 @@ export function parseStructuredResourceReferences(
   return parseWorkflowSearchSubBlockResources(value, subBlockConfig, selectorContext)
 }
 
+/**
+ * Maps every Unicode whitespace character to a plain space, one-to-one.
+ * Agent-authored block names and values routinely carry non-breaking or
+ * narrow spaces that render identically to " " but never equal a typed
+ * space, silently hiding matches. The replacement is length-preserving
+ * (every `\s` character is a single UTF-16 unit), so indexes into the
+ * folded string remain valid ranges into the original.
+ */
+export function foldSearchWhitespace(value: string): string {
+  return value.replace(/\s/g, ' ')
+}
+
 export function matchesSearchText(
   candidate: string,
   query: string | undefined,
   caseSensitive = false
 ): boolean {
   if (!query) return true
-  const source = caseSensitive ? candidate : candidate.toLowerCase()
-  const target = caseSensitive ? query : query.toLowerCase()
+  const foldedCandidate = foldSearchWhitespace(candidate)
+  const foldedQuery = foldSearchWhitespace(query)
+  const source = caseSensitive ? foldedCandidate : foldedCandidate.toLowerCase()
+  const target = caseSensitive ? foldedQuery : foldedQuery.toLowerCase()
   return source.includes(target)
 }

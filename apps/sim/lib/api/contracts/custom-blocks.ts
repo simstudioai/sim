@@ -83,7 +83,7 @@ export const listCustomBlocksQuerySchema = z.object({
  * Icon URLs are rendered as org-wide `<img>` sources, so only https URLs and
  * internal file-serve paths (what the icon upload UI stores) are accepted —
  * never data:/blob:/other schemes an admin could smuggle into shared metadata.
- * Shared with the copilot deploy_custom_block handler's pass-through branch.
+ * Shared with the copilot publish_custom_block handler's pass-through branch.
  */
 export function isAllowedCustomBlockIconUrl(value: string): boolean {
   return value.startsWith('https://') || value.startsWith('/api/files/serve/')
