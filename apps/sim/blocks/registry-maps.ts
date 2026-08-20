@@ -221,6 +221,7 @@ import {
   MistralParseV2Block,
   MistralParseV3Block,
 } from '@/blocks/blocks/mistral_parse'
+import { ModalBlock, ModalBlockMeta } from '@/blocks/blocks/modal'
 import { MondayBlock, MondayBlockMeta } from '@/blocks/blocks/monday'
 import { MongoDBBlock, MongoDBBlockMeta } from '@/blocks/blocks/mongodb'
 import { MothershipBlock } from '@/blocks/blocks/mothership'
@@ -558,6 +559,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   mistral_parse: MistralParseBlock,
   mistral_parse_v2: MistralParseV2Block,
   mistral_parse_v3: MistralParseV3Block,
+  modal: ModalBlock,
   monday: MondayBlock,
   mongodb: MongoDBBlock,
   mothership: MothershipBlock,
@@ -871,6 +873,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   millionverifier: MillionVerifierBlockMeta,
   mintlify: MintlifyBlockMeta,
   mistral_parse: MistralParseBlockMeta,
+  modal: ModalBlockMeta,
   monday: MondayBlockMeta,
   mongodb: MongoDBBlockMeta,
   mssql: MSSQLBlockMeta,
