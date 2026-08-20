@@ -29,3 +29,29 @@ describe('getBlock prototype safety', () => {
     expect(block?.type).toBe('agent')
   })
 })
+
+/**
+ * The list and the detail read must agree about a type.
+ *
+ * `slack_v2` is `preview`-gated while `slack` v1 deliberately stays in the
+ * toolbar so a workspace has a Slack block during the gate. Resolving the
+ * detail to the newest version and then hiding it answered `404` for a type
+ * `GET /api/v2/blocks` was publishing in the same breath.
+ */
+describe('version resolution for a viewer', () => {
+  it.each(['slack', 'table'])(
+    'resolves %s to a version the unrevealed viewer can actually see',
+    async (type) => {
+      const { getLatestBlockForViewer, getAllBlocks } = await import('@/blocks/registry')
+
+      const detail = getLatestBlockForViewer(type)
+      const listed = getAllBlocks().find(
+        (block) =>
+          !block.hideFromToolbar && (block.type === type || block.type.startsWith(`${type}_v`))
+      )
+
+      expect(Boolean(detail)).toBe(Boolean(listed))
+      if (detail && listed) expect(detail.type).toBe(listed.type)
+    }
+  )
+})

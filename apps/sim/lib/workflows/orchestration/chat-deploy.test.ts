@@ -94,6 +94,20 @@ describe('performChatDeploy password guards', () => {
     })
   })
 
+  /**
+   * A request that can never succeed must not cost a deployment version. The
+   * email and SSO allow-list guards already refuse ahead of the deploy; this
+   * one sat behind it, so a malformed deploy burned a version and then 400'd.
+   */
+  it('refuses a passwordless password chat before deploying the workflow', async () => {
+    queueTableRows(schemaMock.chat, [])
+    mockPerformFullDeploy.mockClear()
+
+    await performChatDeploy({ ...basePayload, authType: 'password' })
+
+    expect(mockPerformFullDeploy).not.toHaveBeenCalled()
+  })
+
   it('does not create a chat from a historical active deployment attempt', async () => {
     mockGetWorkflowDeploymentSummary.mockResolvedValue({
       activeDeployment: null,

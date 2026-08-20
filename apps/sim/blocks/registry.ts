@@ -122,10 +122,47 @@ export function getAllBlocks(): BlockConfig[] {
  * {@link getBlock}.
  */
 export function getLatestBlockForViewer(type: string): BlockConfig | undefined {
-  const block = getLatestBlock(type) ?? resolveOverlayBlock(type)
-  if (!block) return undefined
   const vis = overlayVisibility()
-  return visibilityInert(vis) ? block : projectBlock(block, vis)
+  const overlay = resolveOverlayBlock(type)
+
+  for (const candidate of versionCandidates(type)) {
+    if (!effectiveHidden(candidate, vis)) {
+      return visibilityInert(vis) ? candidate : projectBlock(candidate, vis)
+    }
+  }
+
+  if (overlay && !effectiveHidden(overlay, vis)) {
+    return visibilityInert(vis) ? overlay : projectBlock(overlay, vis)
+  }
+  return undefined
+}
+
+/**
+ * Every registered version of a base type, newest first.
+ *
+ * The detail read walks these rather than taking `getLatestBlock` and hiding
+ * the result, because "newest" and "visible to this viewer" are different
+ * questions. `slack_v2` is `preview`-gated while `slack` v1 deliberately stays
+ * in the toolbar so the workspace has a Slack block at all — so resolving to
+ * the newest and then hiding it answers `404` for a type the list is
+ * simultaneously publishing. Walking down to the newest *visible* version is
+ * what makes the two agree.
+ */
+function versionCandidates(type: string): BlockConfig[] {
+  const normalized = normalizeType(type)
+  const prefix = `${normalized}_v`
+  const versioned: Array<{ version: number; config: BlockConfig }> = []
+  for (const key of Object.keys(BLOCK_REGISTRY)) {
+    if (!key.startsWith(prefix)) continue
+    const version = parseVersionSuffix(key.slice(prefix.length))
+    if (version !== undefined) versioned.push({ version, config: BLOCK_REGISTRY[key]! })
+  }
+  versioned.sort((left, right) => right.version - left.version)
+
+  const candidates = versioned.map((entry) => entry.config)
+  const base = ownBlock(normalized)
+  if (base) candidates.push(base)
+  return candidates
 }
 
 /** Find the block whose `tools.access` contains the given tool id. */

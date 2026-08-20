@@ -152,6 +152,23 @@ export async function performChatDeploy(
   }
 
   /**
+   * Refused before anything is deployed.
+   *
+   * The same condition is re-checked below once the password has been
+   * encrypted, but reaching that point costs a real workflow deployment
+   * version: a request that can never succeed would burn one and then answer
+   * `400`. Its two sibling gate guards (email and SSO allow-lists) already run
+   * ahead of the deploy; this one landed behind it.
+   */
+  if (authType === 'password' && !password && !existingDeployment?.password) {
+    return {
+      success: false,
+      error: 'Password is required when using password protection',
+      errorCode: 'validation',
+    }
+  }
+
+  /**
    * Only deploy when the draft drifted from the active version, and never
    * while another attempt is in flight — a blocked retry must not admit a
    * fresh deployment version on top of the pending one.

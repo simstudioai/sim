@@ -594,11 +594,16 @@ function serializeSubBlock(sb: SubBlockConfig): Record<string, unknown> {
   if (sb.mode) result.mode = sb.mode
   if (sb.canonicalParamId) result.canonicalParamId = sb.canonicalParamId
   if (sb.condition && typeof sb.condition !== 'function') result.condition = sb.condition
-  if (sb.dependsOn) result.dependsOn = sb.dependsOn
+  // Copied, not aliased: these are the registry's own arrays, shared by every
+  // request in the process, so publishing one puts mutable registry state a
+  // single careless consumer away from corruption. The catalog projection this
+  // serializer parallels copies every array it publishes for the same reason.
+  if (sb.dependsOn)
+    result.dependsOn = Array.isArray(sb.dependsOn) ? [...sb.dependsOn] : sb.dependsOn
 
   // Include static options arrays for dropdowns
   if (Array.isArray(sb.options)) {
-    result.options = sb.options
+    result.options = [...sb.options]
   }
 
   return result
