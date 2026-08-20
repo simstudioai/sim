@@ -449,7 +449,7 @@ export function BYOK() {
 
   const description = isOrganizationScope
     ? organizationKeys.data?.entitled === false
-      ? 'Organization keys apply to all current and future workspaces unless a workspace adds its own key. An active Enterprise plan is required to add or update them; existing keys can still be deleted.'
+      ? 'Organization keys apply to all current and future workspaces unless a workspace adds its own key. An active organization plan is required to add or update them; existing keys can still be deleted.'
       : 'Organization keys apply to all current and future workspaces unless a workspace adds its own key.'
     : inheritedStatus.isError
       ? 'Inherited key status unavailable. Refresh to try again.'

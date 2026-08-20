@@ -19,6 +19,7 @@ import {
 } from '@/lib/billing/plan-helpers'
 import {
   checkEnterprisePlan,
+  checkOrgPlan,
   checkProPlan,
   checkTeamPlan,
   ENTITLED_SUBSCRIPTION_STATUSES,
@@ -430,8 +431,7 @@ export async function isEnterpriseOrgAdminOrOwner(userId: string): Promise<boole
   }
 }
 
-/** Resolves current organization Enterprise eligibility without request memoization. */
-export async function resolveOrganizationEnterprisePlan(organizationId: string): Promise<boolean> {
+async function resolveOrganizationEnterprisePlan(organizationId: string): Promise<boolean> {
   try {
     if (!isBillingEnabled) {
       return true
@@ -450,6 +450,33 @@ export async function resolveOrganizationEnterprisePlan(organizationId: string):
     return !!orgSub && checkEnterprisePlan(orgSub)
   } catch (error) {
     logger.error('Error checking organization enterprise plan status', { error, organizationId })
+    return false
+  }
+}
+
+/**
+ * Resolves whether an organization holds a paying organization plan — Pro for
+ * Teams, Max for Teams, or Enterprise — without request memoization.
+ *
+ * Gates features every paying organization gets, as opposed to
+ * {@link resolveOrganizationEnterprisePlan}, which gates the Enterprise-only
+ * tier. A billing-blocked organization resolves false either way.
+ */
+export async function resolveOrganizationPlan(organizationId: string): Promise<boolean> {
+  try {
+    if (!isBillingEnabled) {
+      return true
+    }
+
+    if (await isOrganizationBillingBlocked(organizationId)) {
+      return false
+    }
+
+    const orgSub = await getOrganizationSubscriptionUsable(organizationId)
+
+    return !!orgSub && checkOrgPlan(orgSub)
+  } catch (error) {
+    logger.error('Error checking organization plan status', { error, organizationId })
     return false
   }
 }

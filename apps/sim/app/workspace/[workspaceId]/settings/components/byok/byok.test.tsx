@@ -232,7 +232,7 @@ describe('BYOK scope access', () => {
       'false:false:true'
     )
     expect(container.textContent).toContain(
-      'An active Enterprise plan is required to add or update them'
+      'An active organization plan is required to add or update them'
     )
 
     mocks.hostContext.current.viewer.isHostOrganizationAdmin = false

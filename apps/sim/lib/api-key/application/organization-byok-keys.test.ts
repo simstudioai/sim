@@ -220,7 +220,7 @@ describe('organization BYOK application boundary', () => {
           apiKey: 'sk-do-not-store',
         },
       })
-    ).rejects.toMatchObject({ code: 'forbidden', detailCode: 'ENTERPRISE_PLAN_REQUIRED' })
+    ).rejects.toMatchObject({ code: 'forbidden', detailCode: 'ORGANIZATION_PLAN_REQUIRED' })
 
     expect(dbChainMockFns.transaction).not.toHaveBeenCalled()
     expect(encryptionMockFns.mockEncryptSecret).not.toHaveBeenCalled()

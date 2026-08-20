@@ -97,8 +97,8 @@ function defineAuthorizedOrganizationByokUseCase<
         !(await isOrganizationBYOKEntitled(input.organizationId))
       ) {
         throw new ForbiddenOperationError(
-          'ENTERPRISE_PLAN_REQUIRED',
-          'An active Enterprise subscription is required for organization BYOK'
+          'ORGANIZATION_PLAN_REQUIRED',
+          'An active organization plan is required for organization BYOK'
         )
       }
 

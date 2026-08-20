@@ -273,7 +273,7 @@ A key is stored at one of two scopes.
 | Scope | Applies to | Who can manage | Plan |
 |-------|------------|----------------|------|
 | **Workspace** | That workspace only | Workspace **admin** | Any plan on Sim Cloud |
-| **Organization** | Every current and future workspace in the organization | Organization **admin** or **owner** | Enterprise on Sim Cloud |
+| **Organization** | Every current and future workspace in the organization | Organization **admin** or **owner** | Any organization plan on Sim Cloud — Pro for Teams, Max for Teams, or Enterprise |
 
 Organization keys let you set a provider key once instead of repeating it in every workspace. A new workspace added to the organization picks them up automatically.
 
@@ -308,7 +308,7 @@ You can store several keys per provider per scope. Requests are distributed even
 
 Deleting a workspace key makes that workspace fall back to the organization key if one exists, and to Sim's hosted keys otherwise. Deleting an organization key makes every workspace that was inheriting it fall back the same way.
 
-If your organization's Enterprise plan lapses, organization keys stop applying and those workspaces fall back to Sim's hosted keys with the multiplier. The keys are retained, and organization admins can still delete them, but adding or updating them requires an active Enterprise plan.
+If your organization's plan lapses, organization keys stop applying and those workspaces fall back to Sim's hosted keys with the multiplier. The keys are retained, and organization admins can still delete them, but adding or updating them requires an active organization plan.
 
 ## Voice Input
 
