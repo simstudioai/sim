@@ -621,27 +621,50 @@ export async function updateTableView(data: UpdateTableViewData): Promise<TableV
   return toTableView(outcome.row, data.columns)
 }
 
-/** Deleting the default simply leaves the table on "All". */
+/**
+ * Deleting the default while siblings remain simply leaves the table on "All".
+ * The last remaining view is not deletable: a table that has views keeps at
+ * least one, so it can never regress to the legacy zero-view state. Views of a
+ * hard-deleted table are removed by the FK cascade, never through this path.
+ * The sibling check and the delete share the views lock, so two racing deletes
+ * cannot both observe a sibling and drop the table to zero.
+ */
 export async function deleteTableView(
   viewId: string,
   tableId: string,
   workspaceId?: string
 ): Promise<boolean> {
-  const deleted = await db
-    .delete(tableViews)
-    .where(
-      and(
-        eq(tableViews.id, viewId),
-        eq(tableViews.tableId, tableId),
-        workspaceId ? eq(tableViews.workspaceId, workspaceId) : undefined
+  const deleted = await withTableViewsLock(tableId, async (trx) => {
+    const siblings = await trx
+      .select({ id: tableViews.id })
+      .from(tableViews)
+      .where(
+        and(
+          eq(tableViews.tableId, tableId),
+          workspaceId ? eq(tableViews.workspaceId, workspaceId) : undefined
+        )
       )
-    )
-    .returning({ id: tableViews.id })
+    if (!siblings.some((view) => view.id === viewId)) return false
+    if (siblings.length === 1) {
+      throw new TableViewValidationError('A table must keep at least one saved view')
+    }
+    const result = await trx
+      .delete(tableViews)
+      .where(
+        and(
+          eq(tableViews.id, viewId),
+          eq(tableViews.tableId, tableId),
+          workspaceId ? eq(tableViews.workspaceId, workspaceId) : undefined
+        )
+      )
+      .returning({ id: tableViews.id })
+    return result.length > 0
+  })
 
-  if (deleted.length > 0) {
+  if (deleted) {
     logger.info('Deleted table view', { tableId, viewId })
     // Only signal a real deletion — a missing view (nothing deleted) changed nothing.
     signalTableViewsChanged(tableId)
   }
-  return deleted.length > 0
+  return deleted
 }
