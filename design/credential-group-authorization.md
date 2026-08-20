@@ -1,6 +1,6 @@
 # Credential Group Authorization
 
-Status: actor-only enforcement is implemented; group-wide resource grants are proposed
+Status: actor-only enforcement and group-wide resource grants are implemented
 
 ## Purpose
 
@@ -41,7 +41,7 @@ Principal userId
   -> active enrollment with the same normalized email
 ```
 
-For Slack, the next step is:
+For Slack, the implementation resolves:
 
 ```text
 verified webhook Principal subject (slack, teamId, userId)
@@ -212,7 +212,7 @@ Managing the policy does not automatically grant the administrator permission to
 
 ## Current implementation delta
 
-The branch already:
+The branch:
 
 - threads the original Principal into Credential Group executor delegation;
 - removes caller-supplied email filtering from credential listing;
@@ -220,12 +220,10 @@ The branch already:
 - filters list pagination by that enrollment;
 - rechecks the same enrollment when resolving managed OAuth tokens;
 - fails actorless execution instead of substituting a billing or workflow owner.
+- stores and evaluates generic allow-only resource policies;
+- resolves user, workspace-role, Access Control Group, external-identity, and deployed-workflow subjects;
+- grants whole-group list and use access when an explicit policy matches;
+- binds Slack's verified provider subject to an active enrollment;
+- exposes an audited, optimistic-concurrency admin management API and structured Access tab.
 
-Remaining work is:
-
-1. Add the generic resource-policy store and evaluator.
-2. Resolve user, workspace-role, Access Control Group, and deployed-workflow subjects.
-3. Extend list authorization to actor enrollment or a `credentials.list` grant.
-4. Extend token authorization to actor ownership or a `credentials.use` grant.
-5. Bind Slack's verified nested external subject to the matching enrollment.
-6. Add admin policy management and audit surfaces.
+Knowledge Base/table resource enforcement and provenance-aware log redaction remain separate follow-up work.

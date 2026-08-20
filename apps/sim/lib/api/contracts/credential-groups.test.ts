@@ -5,6 +5,7 @@ import {
   credentialGroupEnrollmentListQuerySchema,
   credentialGroupSchema,
   inviteCredentialGroupEnrollmentsBodySchema,
+  updateCredentialGroupAccessBodySchema,
   updateCredentialGroupBodySchema,
 } from '@/lib/api/contracts/credential-groups'
 
@@ -195,5 +196,39 @@ describe('credential group contracts', () => {
     })
 
     expect(result.connections).toEqual([{ provider: 'gmail', status: 'active', count: 2 }])
+  })
+
+  it('accepts managed access subjects without exposing policy actions', () => {
+    const result = updateCredentialGroupAccessBodySchema.parse({
+      expectedRevision: 3,
+      grants: [
+        { subject: { type: 'workflow', workflowId: 'workflow-1' } },
+        { subject: { type: 'workspace_role', minimumRole: 'admin' } },
+        {
+          subject: {
+            type: 'access_control_group',
+            accessControlGroupId: 'permission-group-1',
+          },
+        },
+      ],
+    })
+
+    expect(result.grants).toHaveLength(3)
+    expect(result.grants[0]).not.toHaveProperty('actions')
+  })
+
+  it('rejects caller-supplied effects and actions', () => {
+    expect(
+      updateCredentialGroupAccessBodySchema.safeParse({
+        expectedRevision: 0,
+        grants: [
+          {
+            subject: { type: 'workflow', workflowId: 'workflow-1' },
+            effect: 'deny',
+            actions: ['credential_groups.credentials.use'],
+          },
+        ],
+      }).success
+    ).toBe(false)
   })
 })

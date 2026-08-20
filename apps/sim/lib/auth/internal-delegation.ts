@@ -8,6 +8,10 @@ import {
   resolveActiveWorkflowApplicationContext,
   resolveActiveWorkflowRunApplicationContext,
 } from '@/lib/workflows/application/context'
+import {
+  loadDeployedWorkflowState,
+  NoActiveDeploymentError,
+} from '@/lib/workflows/persistence/utils'
 
 export interface BindInternalExecutorDelegationOptions {
   audience: string
@@ -43,6 +47,36 @@ export async function bindInternalExecutorDelegation(
     throw error
   }
 
+  if (claims.currentWorkflow) {
+    let currentContext: Awaited<ReturnType<typeof resolveActiveWorkflowApplicationContext>>
+    try {
+      currentContext = await resolveActiveWorkflowApplicationContext({
+        workflowId: claims.currentWorkflow.workflowId,
+      })
+    } catch (error) {
+      if (asOrchestrationError(error)?.code === 'not_found') {
+        throw new InvalidInternalDelegationBindingError()
+      }
+      throw error
+    }
+    if (currentContext.workspaceId !== context.workspaceId) {
+      throw new InvalidInternalDelegationBindingError()
+    }
+    if (claims.currentWorkflow.mode === 'deployment') {
+      try {
+        const deployed = await loadDeployedWorkflowState(claims.currentWorkflow.workflowId)
+        if (deployed.deploymentVersionId !== claims.currentWorkflow.deploymentVersionId) {
+          throw new InvalidInternalDelegationBindingError()
+        }
+      } catch (error) {
+        if (error instanceof NoActiveDeploymentError) {
+          throw new InvalidInternalDelegationBindingError()
+        }
+        throw error
+      }
+    }
+  }
+
   return {
     kind: 'delegated',
     serviceId: 'executor',
@@ -58,6 +92,7 @@ export async function bindInternalExecutorDelegation(
       workflowId: context.workflowId,
       ...(claims.executionId ? { executionId: claims.executionId } : {}),
       ...(claims.principal ? { principal: claims.principal } : {}),
+      ...(claims.currentWorkflow ? { currentWorkflow: claims.currentWorkflow } : {}),
     },
   }
 }

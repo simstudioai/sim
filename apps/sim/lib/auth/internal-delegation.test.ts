@@ -3,14 +3,20 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockResolveWorkflow, mockResolveRun } = vi.hoisted(() => ({
+const { mockResolveWorkflow, mockResolveRun, mockLoadDeployedWorkflowState } = vi.hoisted(() => ({
   mockResolveWorkflow: vi.fn(),
   mockResolveRun: vi.fn(),
+  mockLoadDeployedWorkflowState: vi.fn(),
 }))
 
 vi.mock('@/lib/workflows/application/context', () => ({
   resolveActiveWorkflowApplicationContext: mockResolveWorkflow,
   resolveActiveWorkflowRunApplicationContext: mockResolveRun,
+}))
+
+vi.mock('@/lib/workflows/persistence/utils', () => ({
+  loadDeployedWorkflowState: mockLoadDeployedWorkflowState,
+  NoActiveDeploymentError: class NoActiveDeploymentError extends Error {},
 }))
 
 import {
@@ -39,6 +45,9 @@ describe('bindInternalExecutorDelegation', () => {
       workflowId: 'workflow-1',
       workspaceId: 'workspace-1',
       runId: 'execution-1',
+    })
+    mockLoadDeployedWorkflowState.mockResolvedValue({
+      deploymentVersionId: 'deployment-version-1',
     })
   })
 
@@ -84,6 +93,80 @@ describe('bindInternalExecutorDelegation', () => {
         executionId: 'execution-1',
       },
     })
+  })
+
+  it('binds deployed child authority to the active deployment version', async () => {
+    const currentWorkflow = {
+      workflowId: 'child-workflow',
+      mode: 'deployment' as const,
+      deploymentVersionId: 'deployment-version-1',
+    }
+
+    const principal = await bindInternalExecutorDelegation(
+      { ...claims, currentWorkflow },
+      { audience: 'sim:credential-groups' }
+    )
+
+    expect(mockResolveWorkflow).toHaveBeenNthCalledWith(1, { workflowId: 'workflow-1' })
+    expect(mockResolveWorkflow).toHaveBeenNthCalledWith(2, { workflowId: 'child-workflow' })
+    expect(mockLoadDeployedWorkflowState).toHaveBeenCalledWith('child-workflow')
+    expect(principal.delegationContext.currentWorkflow).toEqual(currentWorkflow)
+  })
+
+  it('rejects stale deployed child authority', async () => {
+    mockLoadDeployedWorkflowState.mockResolvedValue({
+      deploymentVersionId: 'deployment-version-2',
+    })
+
+    await expect(
+      bindInternalExecutorDelegation(
+        {
+          ...claims,
+          currentWorkflow: {
+            workflowId: 'child-workflow',
+            mode: 'deployment',
+            deploymentVersionId: 'deployment-version-1',
+          },
+        },
+        { audience: 'sim:credential-groups' }
+      )
+    ).rejects.toBeInstanceOf(InvalidInternalDelegationBindingError)
+  })
+
+  it('rejects current workflow authority from another workspace', async () => {
+    mockResolveWorkflow
+      .mockResolvedValueOnce({ workflowId: 'workflow-1', workspaceId: 'workspace-1' })
+      .mockResolvedValueOnce({ workflowId: 'child-workflow', workspaceId: 'workspace-2' })
+
+    await expect(
+      bindInternalExecutorDelegation(
+        {
+          ...claims,
+          currentWorkflow: { workflowId: 'child-workflow', mode: 'draft' },
+        },
+        { audience: 'sim:credential-groups' }
+      )
+    ).rejects.toBeInstanceOf(InvalidInternalDelegationBindingError)
+    expect(mockLoadDeployedWorkflowState).not.toHaveBeenCalled()
+  })
+
+  it('does not disguise current-workflow infrastructure failures as invalid credentials', async () => {
+    const infrastructureError = new Error('deployment database unavailable')
+    mockLoadDeployedWorkflowState.mockRejectedValue(infrastructureError)
+
+    await expect(
+      bindInternalExecutorDelegation(
+        {
+          ...claims,
+          currentWorkflow: {
+            workflowId: 'child-workflow',
+            mode: 'deployment',
+            deploymentVersionId: 'deployment-version-1',
+          },
+        },
+        { audience: 'sim:credential-groups' }
+      )
+    ).rejects.toBe(infrastructureError)
   })
 
   it('fails before canonical loading when the domain audience is missing', async () => {

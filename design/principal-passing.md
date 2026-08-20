@@ -197,8 +197,8 @@ Audit records can show both the invocation surface and verified subject. A Slack
 
 ## Current implementation delta
 
-The branch already carries a versioned Principal through execution metadata, workers, snapshots, nested workflows, and tool execution. It also carries verified Slack subjects and supports executor delegation without inventing a billing-owner subject. Remaining identity work is:
+The branch carries a versioned Principal through execution metadata, workers, snapshots, nested workflows, and tool execution. It also carries verified Slack subjects and supports executor delegation without inventing a billing-owner subject.
 
-1. Promote Principal plus workflow binding into the explicit execution-identity envelope.
-2. Carry canonical deployment authority into internal delegation.
-3. Distinguish root and currently executing workflow authority for subworkflows.
+Internal delegation now preserves immutable root causality separately from the current workflow. Deployed workflow authority is bound to the active deployment version at every internal application call, while resource policies retain the stable workflow ID as their key.
+
+A future cleanup can combine these currently separate trusted fields into one explicit execution-identity envelope. That is a representation cleanup, not a prerequisite for Credential Group resource-policy enforcement.

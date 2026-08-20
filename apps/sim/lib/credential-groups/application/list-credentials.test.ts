@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   getWorkspaceOwnerSubscriptionAccess: vi.fn(),
+  findPolicyGrant: vi.fn(),
   listCredentials: vi.fn(),
   loadEnrollmentAccess: vi.fn(),
   loadGroup: vi.fn(),
@@ -33,6 +34,10 @@ vi.mock('@/lib/credential-groups/credentials', () => ({
   loadCredentialGroupEnrollmentAccessForSubject: mocks.loadEnrollmentAccess,
   loadCredentialGroupCredentialListContext: mocks.loadGroup,
   MAX_CREDENTIAL_GROUP_CREDENTIAL_PAGE_SIZE: 100,
+}))
+
+vi.mock('@/lib/resource-policies/authorization', () => ({
+  findResourcePolicyGrant: mocks.findPolicyGrant,
 }))
 
 vi.mock('@/lib/workspaces/application/workspace-context', () => ({
@@ -111,6 +116,7 @@ describe('listCredentialGroupCredentials', () => {
     mocks.resolvePermission.mockResolvedValue('read')
     mocks.getWorkspaceOwnerSubscriptionAccess.mockResolvedValue({ isEnterprise: true })
     mocks.resolveCredentialGroupsAvailability.mockResolvedValue({ available: true })
+    mocks.findPolicyGrant.mockResolvedValue(null)
     mocks.loadEnrollmentAccess.mockResolvedValue({
       enrollmentId: 'enrollment-1',
       email: 'person@example.com',
@@ -222,6 +228,21 @@ describe('listCredentialGroupCredentials', () => {
       hasMore: true,
       nextCursor: 'credential-1',
     })
+  })
+
+  it('lists the entire group for a matching resource-policy grant', async () => {
+    mocks.findPolicyGrant.mockResolvedValueOnce({
+      id: 'grant-1',
+      subject: { type: 'workflow', workflowId: 'workflow-1' },
+      actions: ['credential_groups.credentials.list', 'credential_groups.credentials.use'],
+    })
+
+    await listCredentialGroupCredentials.execute({ principal: executorPrincipal(), input })
+
+    expect(mocks.loadEnrollmentAccess).not.toHaveBeenCalled()
+    expect(mocks.listCredentials).toHaveBeenCalledWith(
+      expect.objectContaining({ credentialGroupEnrollmentId: undefined })
+    )
   })
 
   it('filters by canonical providers active in the group', async () => {

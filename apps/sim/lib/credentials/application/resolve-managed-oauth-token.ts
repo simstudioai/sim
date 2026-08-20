@@ -1,7 +1,7 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { requireCredentialGroupEnrollmentAccess } from '@/lib/credential-groups/application/authorization'
+import { requireCredentialGroupCredentialAccess } from '@/lib/credential-groups/application/authorization'
 import { managedOAuthCredentialDelegationPolicy } from '@/lib/credentials/application/authorization'
 import { credentialOperations } from '@/lib/credentials/application/operations'
 import {
@@ -26,11 +26,15 @@ export const resolveManagedOAuthCredentialToken = defineAuthorizedWorkspaceUseCa
   },
   authorizationOptions: { delegation: managedOAuthCredentialDelegationPolicy },
   async authorizeResource({ principal, context }) {
-    const access = await requireCredentialGroupEnrollmentAccess(
+    const access = await requireCredentialGroupCredentialAccess(
       principal,
-      context.credentialGroupId
+      context,
+      'credential_groups.credentials.use'
     )
-    if (access.enrollmentId !== context.credentialGroupEnrollmentId) {
+    if (
+      access.scope === 'enrollment' &&
+      access.enrollmentId !== context.credentialGroupEnrollmentId
+    ) {
       throw new OrchestrationError('forbidden', 'Credential Group enrollment access required')
     }
   },

@@ -49,6 +49,7 @@ const DEPLOYED_STATE = {
   loops: {},
   parallels: {},
   variables: {},
+  deploymentVersionId: 'deployment-version-1',
 }
 
 const SESSION = {
