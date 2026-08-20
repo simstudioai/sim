@@ -170,23 +170,28 @@ describe('restoreTableUseCase', () => {
     expect(mocks.signal).toHaveBeenCalledWith(ARCHIVED.id)
   })
 
-  /** A state transition the caller asked for that did not happen is a conflict, not a no-op. */
-  it('refuses a table that is not archived, before writing anything', async () => {
+  /**
+   * Restore is idempotent: a `409` for an already-active table would make a
+   * retry after a dropped response look like a failure, and there is no state a
+   * second restore could corrupt. Matches `restoreKnowledgeBase`.
+   */
+  it('returns an already-active table unchanged, with no write and no audit', async () => {
+    const active = { ...ARCHIVED, archivedAt: null }
     mocks.resolveArchivedContext.mockResolvedValue({
       ...WORKSPACE,
       tableId: ARCHIVED.id,
-      table: { ...ARCHIVED, archivedAt: null },
+      table: active,
     })
 
-    await expect(
-      restoreTableUseCase.execute({
-        principal: PRINCIPAL,
-        input: { tableId: ARCHIVED.id, workspaceId: 'workspace-1' },
-      })
-    ).rejects.toMatchObject({ code: 'conflict' })
+    const result = await restoreTableUseCase.execute({
+      principal: PRINCIPAL,
+      input: { tableId: ARCHIVED.id, workspaceId: 'workspace-1' },
+    })
 
+    expect(result.table.archivedAt).toBeNull()
     expect(mocks.restoreTable).not.toHaveBeenCalled()
     expect(mocks.audit).not.toHaveBeenCalled()
+    expect(mocks.signal).not.toHaveBeenCalled()
   })
 
   it('refuses a caller without write permission before restoring', async () => {

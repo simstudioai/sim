@@ -611,6 +611,85 @@ describe('v2 opt-in row run state', () => {
     })
     expect(parsed.runState?.['group-1'].status).toBe('cancelled')
   })
+
+  /**
+   * `limit: 0` is the unbounded form. Paired with the sidecar it reads the whole
+   * table AND its run state before anything can refuse the result, so the pair
+   * is refused at the contract — the only place it costs nothing.
+   */
+  it('refuses the unbounded query form together with the run-state sidecar', () => {
+    const result = v2QueryRowsBodySchema.safeParse({
+      workspaceId: WORKSPACE_ID,
+      limit: 0,
+      includeRunState: true,
+    })
+
+    expect(result.success).toBe(false)
+    expect(result.error?.issues[0]).toMatchObject({
+      path: ['limit'],
+      message: expect.stringContaining('includeRunState'),
+    })
+  })
+
+  it('caps the page a run-state read may ask for', () => {
+    expect(
+      v2QueryRowsBodySchema.safeParse({
+        workspaceId: WORKSPACE_ID,
+        limit: tableContracts.V2_MAX_RUN_STATE_ROW_LIMIT + 1,
+        includeRunState: true,
+      }).success
+    ).toBe(false)
+    expect(
+      v2QueryRowsBodySchema.safeParse({
+        workspaceId: WORKSPACE_ID,
+        limit: tableContracts.V2_MAX_RUN_STATE_ROW_LIMIT,
+        includeRunState: true,
+      }).success
+    ).toBe(true)
+  })
+
+  /**
+   * One flag, one ceiling. The list read cannot express the unbounded form, so
+   * it has no `limit: 0` pair to refuse — but its page cap has to match the
+   * query read's or a caller learns the difference from a 400.
+   */
+  it('caps the list read at the same page size as the query read', () => {
+    expect(
+      v2TableRowsQuerySchema.safeParse({
+        workspaceId: WORKSPACE_ID,
+        limit: tableContracts.V2_MAX_RUN_STATE_ROW_LIMIT + 1,
+        includeRunState: 'true',
+      }).success
+    ).toBe(false)
+    expect(
+      v2TableRowsQuerySchema.safeParse({
+        workspaceId: WORKSPACE_ID,
+        limit: tableContracts.V2_MAX_RUN_STATE_ROW_LIMIT,
+        includeRunState: 'true',
+      }).success
+    ).toBe(true)
+  })
+
+  it('leaves a full-size list page alone without the sidecar', () => {
+    expect(
+      v2TableRowsQuerySchema.safeParse({
+        workspaceId: WORKSPACE_ID,
+        limit: tableContracts.V2_MAX_ROW_LIMIT,
+      }).success
+    ).toBe(true)
+  })
+
+  it('leaves the unbounded and full-size page forms alone without the sidecar', () => {
+    expect(v2QueryRowsBodySchema.safeParse({ workspaceId: WORKSPACE_ID, limit: 0 }).success).toBe(
+      true
+    )
+    expect(
+      v2QueryRowsBodySchema.safeParse({
+        workspaceId: WORKSPACE_ID,
+        limit: tableContracts.V2_MAX_ROW_LIMIT,
+      }).success
+    ).toBe(true)
+  })
 })
 
 describe('v2 batch row update contract', () => {
@@ -625,16 +704,23 @@ describe('v2 batch row update contract', () => {
     )
   })
 
-  it('refuses a batch past the bulk ceiling', () => {
-    expect(
-      v2BatchUpdateRowsBodySchema.safeParse({
-        workspaceId: WORKSPACE_ID,
-        updates: Array.from(
-          { length: TABLE_LIMITS.MAX_BULK_OPERATION_SIZE + 1 },
-          (_unused, index) => ({ rowId: `row-${index}`, data: {} })
-        ),
-      }).success
-    ).toBe(false)
+  /**
+   * The domain backstop sits at the looser Copilot ceiling, so this contract is
+   * the only thing that tells a v2 caller the bound that actually applies to
+   * it. The message has to name that number, not the backstop's.
+   */
+  it('refuses a batch past the bulk ceiling, naming the ceiling it enforces', () => {
+    const parsed = v2BatchUpdateRowsBodySchema.safeParse({
+      workspaceId: WORKSPACE_ID,
+      updates: Array.from(
+        { length: TABLE_LIMITS.MAX_BULK_OPERATION_SIZE + 1 },
+        (_unused, index) => ({ rowId: `row-${index}`, data: {} })
+      ),
+    })
+    expect(parsed.success).toBe(false)
+    expect(getValidationErrorMessage(parsed.error!, '')).toContain(
+      `Cannot update more than ${TABLE_LIMITS.MAX_BULK_OPERATION_SIZE} rows per batch`
+    )
   })
 
   /**

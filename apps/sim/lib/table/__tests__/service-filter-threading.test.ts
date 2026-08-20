@@ -36,6 +36,21 @@ vi.mock('@/lib/table/workflow-columns', () => ({
   stripGroupDeps: vi.fn(),
 }))
 
+const { mockLoadExecutionsByRow } = vi.hoisted(() => ({
+  mockLoadExecutionsByRow: vi.fn(async () => new Map()),
+}))
+
+vi.mock('@/lib/table/rows/executions', () => ({
+  applyExecutionsPatch: vi.fn((existing: unknown) => existing),
+  deriveExecClearsForDataPatch: vi.fn(() => ({
+    executionsPatch: undefined,
+    inFlightDownstreamGroups: [],
+  })),
+  loadExecutionsByRow: mockLoadExecutionsByRow,
+  loadExecutionsForRow: vi.fn(async () => ({})),
+  writeExecutionsPatch: vi.fn(async () => 'wrote'),
+}))
+
 vi.mock('@/lib/table/validation', () => ({
   validateRowSize: vi.fn(() => ({ valid: true, errors: [] })),
   validateRowAgainstSchema: vi.fn(() => ({ valid: true, errors: [] })),
@@ -259,6 +274,22 @@ describe('queryRows byte budget', () => {
 
     expect(result.rows).toHaveLength(2)
     expect(result.nextCursor).toBeNull()
+  })
+
+  /**
+   * The sidecar is a second, unbounded read: its `blockErrors` are jsonb with no
+   * ceiling of its own, so the drain has to carry a byte budget rather than have
+   * one measured over an already-materialized result.
+   */
+  it('hands the run-state drain its own byte budget', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([])
+    dbChainMockFns.limit.mockResolvedValueOnce([row(1, 8), row(2, 8)])
+
+    await queryRows(TABLE, { limit: 5, includeTotal: false, withExecutions: true }, 'req-1')
+
+    expect(mockLoadExecutionsByRow).toHaveBeenCalledWith(expect.anything(), ['row_1', 'row_2'], {
+      budgetBytes: TABLE_LIMITS.MAX_ROW_RUN_STATE_BYTES,
+    })
   })
 
   it('returns an entire under-budget result past the former batch safety limit', async () => {

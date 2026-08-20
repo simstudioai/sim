@@ -7,6 +7,7 @@ import { v2TableRowsErrorPolicy } from '@/lib/table/api/row-route-policies'
 import { tableOperations } from '@/lib/table/application/operations'
 import { readTableRowEnrichmentDetail } from '@/lib/table/application/rows'
 import { startTableRun } from '@/lib/table/application/runs'
+import { toApiEnrichmentDetail } from '@/app/api/v2/tables/utils'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -37,7 +38,7 @@ export const GET = defineV2JsonRoute({
     assertedWorkspaceId: query.workspaceId,
   }),
   useCase: readTableRowEnrichmentDetail,
-  present: ({ detail }) => ({ data: detail }),
+  present: ({ detail }) => ({ data: toApiEnrichmentDetail(detail) }),
 })
 
 export const POST = defineV2JsonRoute({

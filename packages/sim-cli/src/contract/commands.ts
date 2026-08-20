@@ -327,6 +327,7 @@ export const CLI_CONTRACT: CliContract = {
   },
   bulkDeleteTables: {
     flags: { folderPaths: FOLDER_PATHS_FLAG },
+    confirm: 'This deletes every listed table and all of their rows.',
   },
   searchKnowledge: {
     // Accepts a string or an array on the wire; the CLI always sends the array.

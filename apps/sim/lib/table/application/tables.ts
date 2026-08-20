@@ -332,8 +332,13 @@ export const deleteTableUseCase = defineAuthorizedTableUseCase({
  * cannot represent a workspace-key or delegated principal. Audit is projected
  * here instead, from the authoritative restored row.
  *
- * Restore is deliberately not gated by the delete lock — see `restoreTable` —
- * and a table that is not archived is a `conflict`, not a silent success.
+ * Restore is deliberately not gated by the delete lock — see `restoreTable`.
+ *
+ * Idempotent: a table that is already active is returned unchanged, with no
+ * restore performed and no audit entry recorded. A `409` there would make a
+ * retry after a dropped response look like a failure, and restore has no state
+ * a second call could corrupt — the same position the knowledge surface takes
+ * on its own restore.
  */
 export const restoreTableUseCase = defineAuthorizedTableUseCase({
   operation: tableOperations.restore,
@@ -343,10 +348,10 @@ export const restoreTableUseCase = defineAuthorizedTableUseCase({
       assertedWorkspaceId: input.workspaceId,
     }),
   async execute({ context }) {
-    if (!context.table.archivedAt) {
-      throw new OrchestrationError('conflict', 'Table is not archived')
+    const restored = context.table.archivedAt !== null
+    if (restored) {
+      await restoreTable(context.table.id, generateRequestId())
     }
-    await restoreTable(context.table.id, generateRequestId())
     const table = await getTableById(context.table.id)
     if (!table || table.workspaceId !== context.workspaceId) {
       throw new OrchestrationError('not_found', 'Table not found')
@@ -354,18 +359,22 @@ export const restoreTableUseCase = defineAuthorizedTableUseCase({
     const index = await loadActiveFolderPathIndex(context.workspaceId, 'table', undefined, {
       maxRows: MAX_FOLDERS_PER_WORKSPACE,
     })
-    return { table, folderPath: tableFolderPathForId(index, table.folderId) }
+    return { table, folderPath: tableFolderPathForId(index, table.folderId), restored }
   },
   projectAudit({ result }) {
-    return {
-      action: AuditAction.TABLE_RESTORED,
-      resourceType: AuditResourceType.TABLE,
-      resourceId: result.table.id,
-      resourceName: result.table.name,
-      description: `Restored table "${result.table.name}"`,
-    }
+    return result.restored
+      ? [
+          {
+            action: AuditAction.TABLE_RESTORED,
+            resourceType: AuditResourceType.TABLE,
+            resourceId: result.table.id,
+            resourceName: result.table.name,
+            description: `Restored table "${result.table.name}"`,
+          },
+        ]
+      : []
   },
   afterSuccess({ result }) {
-    signalTableSchemaChanged(result.table.id)
+    if (result.restored) signalTableSchemaChanged(result.table.id)
   },
 })

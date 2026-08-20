@@ -931,6 +931,31 @@ describe('destructive operations are gated', () => {
     'cancelTableExport',
   ])
 
+  /**
+   * Destructive operations whose verb is not `DELETE`. A bulk form is a `POST`
+   * because it carries a body, which put every one of them outside the sweep
+   * below — `tables bulk-delete` destroyed many tables ungated while deleting
+   * one required `--yes`. Enumerated by hand because no wire property
+   * distinguishes them; the sweep after this one is what keeps the list honest.
+   */
+  const DESTRUCTIVE_NON_DELETE = new Set<V2OperationName>(['bulkDeleteFiles', 'bulkDeleteTables'])
+
+  it('every destructive non-DELETE operation carries a confirmation message', () => {
+    const ungated = [...DESTRUCTIVE_NON_DELETE].filter((name) => !CLI_CONTRACT[name]?.confirm)
+    expect(ungated).toEqual([])
+  })
+
+  it('no delete-shaped non-DELETE operation escapes the enumeration', () => {
+    // A new `POST /<resource>/bulk-delete` must be classified deliberately
+    // rather than inherit the gate-free default the method filter gave it.
+    const unclassified = (Object.keys(V2_OPERATIONS) as V2OperationName[]).filter((name) => {
+      const spec = V2_OPERATIONS[name]
+      if (spec.method === 'DELETE' || DESTRUCTIVE_NON_DELETE.has(name)) return false
+      return /delete|purge|destroy|wipe|truncate/i.test(`${name} ${spec.path}`)
+    })
+    expect(unclassified).toEqual([])
+  })
+
   it('every DELETE carries a confirmation message', () => {
     // Without this, a new v2 domain arrives through generation with working
     // delete commands and no gate — which is exactly what happened when the

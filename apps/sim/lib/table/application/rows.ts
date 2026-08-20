@@ -91,35 +91,6 @@ export class TableRowsValidationError extends OrchestrationError {
   }
 }
 
-/**
- * Refusal for a read whose opt-in run-state sidecar cannot be materialized
- * within {@link TABLE_LIMITS.MAX_ROW_RUN_STATE_BYTES}.
- *
- * `payload_too_large` rather than a truncated success: the question run state
- * answers is "which of my rows errored", and a silently short answer to that is
- * wrong rather than merely incomplete.
- */
-export class TableRunStateCollectionLimitExceededError extends OrchestrationError {
-  constructor() {
-    super(
-      'payload_too_large',
-      `Run state for this page exceeds the ${TABLE_LIMITS.MAX_ROW_RUN_STATE_BYTES} byte limit; request a smaller limit or read the rows without includeRunState`
-    )
-    this.name = 'TableRunStateCollectionLimitExceededError'
-  }
-}
-
-/** Bounds the run-state sidecar a read is about to hand back. */
-function requireBoundedRunState(entries: Iterable<RowExecutions>): void {
-  let bytes = 0
-  for (const entry of entries) {
-    bytes += Buffer.byteLength(JSON.stringify(entry), 'utf8')
-    if (bytes > TABLE_LIMITS.MAX_ROW_RUN_STATE_BYTES) {
-      throw new TableRunStateCollectionLimitExceededError()
-    }
-  }
-}
-
 interface TableScopedInput {
   tableId: string
   assertedWorkspaceId?: string
@@ -131,8 +102,10 @@ interface TableScopedInput {
  *
  * The projection stays byte-identical by default: the sidecar is a second query
  * and its `blockErrors` are unbounded, so a shipped caller must never start
- * paying for it. See {@link requireBoundedRunState} for the ceiling when a
- * caller does opt in.
+ * paying for it. When a caller does opt in, the sidecar drain accumulates its
+ * own byte budget and refuses past `TABLE_LIMITS.MAX_ROW_RUN_STATE_BYTES` — the
+ * ceiling is spent inside the read rather than measured after it, so an
+ * over-budget page never gets materialized in the first place.
  */
 interface RunStateReadInput {
   includeRunState?: boolean
@@ -435,9 +408,6 @@ export const listTableRows = defineAuthorizedTableUseCase({
         },
         requestId(input)
       )
-      if (input.includeRunState) {
-        requireBoundedRunState(result.rows.map((row) => row.executions))
-      }
       return {
         table: context.table,
         rows: result.rows,
@@ -502,9 +472,6 @@ export const queryTableRows = defineAuthorizedTableUseCase({
         },
         requestId(input)
       )
-      if (input.includeRunState) {
-        requireBoundedRunState(result.rows.map((row) => row.executions))
-      }
       return {
         table: context.table,
         ...result,
@@ -580,8 +547,11 @@ export const readTableRow = defineAuthorizedTableUseCase({
   async execute({ principal, input, context }): Promise<ReadTableRowResult> {
     const row = await getRowSummaryById(context.tableId, input.rowId, context.workspaceId)
     if (!row) throw new OrchestrationError('not_found', 'Row not found')
-    const runState = input.includeRunState ? await loadExecutionsForRow(db, input.rowId) : undefined
-    if (runState) requireBoundedRunState([runState])
+    const runState = input.includeRunState
+      ? await loadExecutionsForRow(db, input.rowId, {
+          budgetBytes: TABLE_LIMITS.MAX_ROW_RUN_STATE_BYTES,
+        })
+      : undefined
     return {
       table: context.table,
       row,
@@ -1117,6 +1087,18 @@ export interface BatchUpdateTableRowsResult extends TableResult, BulkOperationRe
  * `rowId` names no row in the table, which reaches the wire as a `400` listing
  * the missing ids — a caller that sent explicit identifiers is better served by
  * a refusal it can retry than by a partial commit it has to reconcile.
+ *
+ * The upper `CSV_MAX_BATCH_SIZE` bound is a BACKSTOP NO CURRENT SURFACE
+ * REACHES, and is set to the loosest surface's ceiling on purpose so it can
+ * never contradict one. Every caller is stopped earlier, by its own ceiling:
+ * the internal and v2 contracts cap `updates` at
+ * `TABLE_LIMITS.MAX_BULK_OPERATION_SIZE` (1000) and answer a `400` naming that
+ * number, and the Copilot tool — which parses no contract — refuses past
+ * `CSV_MAX_BATCH_SIZE` (5000) with a message the model can act on. The two
+ * surfaces legitimately differ; what matters is that each caller sees the bound
+ * that actually applies to it. This one exists for a future caller that arrives
+ * with neither guard, so do not tighten it to one surface's number — that would
+ * make the other surface's accepted batches start failing here.
  */
 export const batchUpdateTableRows = defineAuthorizedTableUseCase({
   operation: tableOperations.updateRows,

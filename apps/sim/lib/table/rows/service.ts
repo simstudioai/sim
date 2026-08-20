@@ -1193,7 +1193,8 @@ export async function queryRows(
   const executionsByRow = withExecutions
     ? await loadExecutionsByRow(
         db,
-        rows.map((r) => r.id)
+        rows.map((r) => r.id),
+        { budgetBytes: TABLE_LIMITS.MAX_ROW_RUN_STATE_BYTES }
       )
     : null
 

@@ -3,6 +3,7 @@
  */
 
 import { describe, expect, it } from 'vitest'
+import { v2ApiRowSchema, v2EnrichmentRunDetailSchema } from '@/lib/api/contracts/v2/tables'
 import type { TableSchema, WorkflowGroup } from '@/lib/table/types'
 import {
   presentV2CreateTableImport,
@@ -11,7 +12,7 @@ import {
   presentV2TableImport,
   presentV2WorkflowGroup,
 } from '@/app/api/v2/tables/presenters'
-import { toApiRow } from '@/app/api/v2/tables/utils'
+import { toApiEnrichmentDetail, toApiRow } from '@/app/api/v2/tables/utils'
 
 const createdAt = new Date('2026-08-01T00:00:00.000Z')
 const importRecord = {
@@ -255,5 +256,100 @@ describe('toApiRow run state', () => {
 
   it('presents a row that has never run as an empty map, not an absent one', () => {
     expect(toApiRow(row, identity, {}).runState).toEqual({})
+  })
+
+  /**
+   * `status` is a `text` column read through a bare `as` cast, and the response
+   * schema is `.parse`d on the way out — a closed enum there turns one drifted
+   * row into a 500 on a well-formed read.
+   */
+  it('publishes a stored status the domain union does not name', () => {
+    const presented = toApiRow(row, identity, {
+      'group-1': {
+        status: 'reconciling' as never,
+        executionId: null,
+        jobId: null,
+        workflowId: 'workflow-1',
+        error: null,
+      },
+    })
+
+    expect(() => v2ApiRowSchema.parse(presented)).not.toThrow()
+    expect(v2ApiRowSchema.parse(presented).runState?.['group-1'].status).toBe('reconciling')
+  })
+})
+
+/**
+ * `tableRowExecutions.enrichmentDetails` is schemaless jsonb read back through a
+ * bare `as` cast, so every declared key is a claim about the writer rather than
+ * a property of the column.
+ */
+describe('toApiEnrichmentDetail', () => {
+  it('projects a complete blob unchanged', () => {
+    const detail = {
+      startedAt: '2026-01-01T00:00:00.000Z',
+      completedAt: '2026-01-01T00:00:01.000Z',
+      durationMs: 1000,
+      totalCost: 0.25,
+      matchedProvider: 'hunter',
+      aborted: false,
+      providers: [
+        {
+          id: 'hunter',
+          label: 'Hunter',
+          toolId: 'hunter_find_email',
+          status: 'matched' as const,
+          cost: 0.25,
+          durationMs: 900,
+          error: null,
+        },
+      ],
+    }
+
+    const presented = toApiEnrichmentDetail(detail)
+
+    expect(presented).toEqual(detail)
+    expect(() => v2EnrichmentRunDetailSchema.parse(presented)).not.toThrow()
+  })
+
+  it('answers null for a missing cascade', () => {
+    expect(toApiEnrichmentDetail(null)).toBeNull()
+  })
+
+  /** A blob written before the cascade breakdown settled is a partial answer, not a 500. */
+  it('defaults every key a drifted blob is missing', () => {
+    const presented = toApiEnrichmentDetail({
+      startedAt: '2026-01-01 00:00:00+00',
+      providers: [{ id: 'hunter', status: 'rate_limited' }],
+    } as never)
+
+    expect(presented).toEqual({
+      startedAt: '2026-01-01T00:00:00.000Z',
+      completedAt: null,
+      durationMs: 0,
+      totalCost: 0,
+      matchedProvider: null,
+      aborted: false,
+      providers: [
+        {
+          id: 'hunter',
+          label: '',
+          toolId: '',
+          status: 'rate_limited',
+          cost: 0,
+          durationMs: 0,
+          error: null,
+        },
+      ],
+    })
+    expect(() => v2EnrichmentRunDetailSchema.parse(presented)).not.toThrow()
+  })
+
+  it('drops a timestamp no date-time consumer could parse', () => {
+    const presented = toApiEnrichmentDetail({ startedAt: 'never', completedAt: 7 } as never)
+
+    expect(presented?.startedAt).toBeNull()
+    expect(presented?.completedAt).toBeNull()
+    expect(() => v2EnrichmentRunDetailSchema.parse(presented)).not.toThrow()
   })
 })

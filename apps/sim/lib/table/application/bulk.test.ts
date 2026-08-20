@@ -106,6 +106,7 @@ function tableContext(id: string, folderId: string | null = null) {
 const FOLDER_ID_BY_PATH: Record<string, string | null | undefined> = {
   '/': null,
   '/Sales': 'folder-1',
+  '/Sales/': 'folder-1',
   '/Sales/Enterprise': 'folder-2',
 }
 
@@ -553,6 +554,52 @@ describe('path-keyed bulk table selections', () => {
       'folder-1',
       'folder-2',
     ])
+  })
+
+  /**
+   * The selection deduplicates PATHS, so two spellings of one folder survive it
+   * and resolve to the same id. Left in, the batch carries that id twice while
+   * the path index is last-wins, so one of the two spellings is unreportable.
+   */
+  it('deduplicates folders that two distinct paths resolve to', async () => {
+    await bulkDeleteTables.execute({
+      principal,
+      input: {
+        assertedWorkspaceId: 'workspace-1',
+        folderKeying: 'paths' as const,
+        tableIds: [],
+        folders: ['/Sales', '/Sales/'],
+      },
+    })
+
+    expect(mocks.planFolderSelection).toHaveBeenCalledWith('workspace-1', 'table', ['folder-1'])
+  })
+
+  it('names a deduplicated folder by the first path that reached it', async () => {
+    mocks.bulkDeleteFolders.mockResolvedValue({
+      succeeded: [{ id: 'folder-1', name: 'Sales' }],
+      failed: [],
+      folderCount: 1,
+      resourceCount: 0,
+    })
+    mocks.planFolderSelection.mockResolvedValue({
+      selected: [{ id: 'folder-1', name: 'Sales' }],
+      notFound: [],
+      contained: [],
+      covered: new Set<string>(),
+    })
+
+    const result = await bulkDeleteTables.execute({
+      principal,
+      input: {
+        assertedWorkspaceId: 'workspace-1',
+        folderKeying: 'paths' as const,
+        tableIds: [],
+        folders: ['/Sales', '/Sales/'],
+      },
+    })
+
+    expect(result.deleted).toEqual([{ kind: 'folder', id: '/Sales', name: '/Sales' }])
   })
 
   /**
