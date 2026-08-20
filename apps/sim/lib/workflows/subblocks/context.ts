@@ -45,6 +45,7 @@ export const SELECTOR_CONTEXT_FIELDS = new Set<keyof SelectorContext>([
   'objectType',
   'customObjectTypeId',
   'pipelineId',
+  'environmentType',
 ])
 
 /**
@@ -92,6 +93,27 @@ export function buildSelectorContextFromBlock(
       continue
     }
     setField(subBlockId, subBlock?.value)
+  }
+
+  // A credential field IS the oauth credential, whatever the block calls its subblock. Most
+  // blocks say so with `canonicalParamId: 'oauthCredential'`, but that id is also the block's
+  // serialized param name — so requiring it would mean renaming a shipped block's param just
+  // to make its pickers resolvable, which is not a rename any picker should be able to force.
+  // Reading it off the subblock TYPE keeps the two decisions independent.
+  //
+  // Only fills a gap: a block that does declare the canonical id has already set it above,
+  // including the basic/advanced active-member resolution this loop cannot express.
+  if (!context.oauthCredential) {
+    for (const [subBlockId, subBlock] of Object.entries(subBlocks)) {
+      if (blockConfig.subBlocks.find((cfg) => cfg.id === subBlockId)?.type !== 'oauth-input') {
+        continue
+      }
+      const value = subBlock?.value
+      if (typeof value === 'string' && value) {
+        context.oauthCredential = value
+        break
+      }
+    }
   }
 
   return context

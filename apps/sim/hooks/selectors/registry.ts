@@ -13,6 +13,7 @@ import { jiraSelectors } from '@/hooks/selectors/providers/jira/selectors'
 import { jsmSelectors } from '@/hooks/selectors/providers/jsm/selectors'
 import { knowledgeSelectors } from '@/hooks/selectors/providers/knowledge/selectors'
 import { linearSelectors } from '@/hooks/selectors/providers/linear/selectors'
+import { managedAgentSelectors } from '@/hooks/selectors/providers/managed-agent/selectors'
 import { microsoftSelectors } from '@/hooks/selectors/providers/microsoft/selectors'
 import { mondaySelectors } from '@/hooks/selectors/providers/monday/selectors'
 import { netsuiteSelectors } from '@/hooks/selectors/providers/netsuite/selectors'
@@ -45,6 +46,7 @@ export const selectorRegistry = {
   ...jsmSelectors,
   ...googleSelectors,
   ...hubspotSelectors,
+  ...managedAgentSelectors,
   ...microsoftSelectors,
   ...notionSelectors,
   ...pipedriveSelectors,

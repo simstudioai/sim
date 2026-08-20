@@ -20,6 +20,10 @@ export type SelectorKey =
   | 'clickup.lists'
   | 'confluence.spaces'
   | 'google.tasks.lists'
+  | 'managedAgent.agents'
+  | 'managedAgent.environments'
+  | 'managedAgent.vaults'
+  | 'managedAgent.memoryStores'
   | 'hubspot.lists'
   | 'hubspot.owners'
   | 'hubspot.pipelines'
@@ -140,6 +144,11 @@ export interface SelectorContext {
   customObjectTypeId?: string
   /** HubSpot pipeline whose stages a stage picker enumerates. */
   pipelineId?: string
+  /**
+   * Managed Agent deployment mode (`cloud` | `self_hosted`). The two expose different fields,
+   * so an environment list is filtered to the selected mode rather than mixing them.
+   */
+  environmentType?: string
 }
 
 export interface SelectorQueryArgs {
