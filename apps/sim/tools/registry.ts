@@ -2955,6 +2955,7 @@ import {
   mintlifyTriggerUpdateTool,
 } from '@/tools/mintlify'
 import { mistralParserTool, mistralParserV2Tool, mistralParserV3Tool } from '@/tools/mistral'
+import { modalCallFunctionTool, modalChatCompletionTool, modalListModelsTool } from '@/tools/modal'
 import {
   mondayArchiveItemTool,
   mondayChangeColumnValueTool,
@@ -10546,4 +10547,7 @@ export const tools: Record<string, ToolConfig> = {
   mintlify_get_searches: mintlifyGetSearchesTool,
   mintlify_get_views: mintlifyGetViewsTool,
   mintlify_get_visitors: mintlifyGetVisitorsTool,
+  modal_call_function: modalCallFunctionTool,
+  modal_chat_completion: modalChatCompletionTool,
+  modal_list_models: modalListModelsTool,
 }

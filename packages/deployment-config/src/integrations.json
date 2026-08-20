@@ -14227,6 +14227,37 @@
       "tags": ["document-processing", "ocr"]
     },
     {
+      "type": "modal",
+      "slug": "modal",
+      "name": "Modal",
+      "description": "Call deployed Modal functions and endpoints",
+      "longDescription": "Integrate Modal into your workflow to reach the serverless compute you already run there. Invoke a deployed Web Function or Server over HTTPS with proxy-token auth, generate completions from a model served by a Modal Endpoint, and list the models a token can reach.",
+      "bgColor": "#000000",
+      "iconName": "ModalIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/modal",
+      "operations": [
+        {
+          "name": "Call Function",
+          "description": "Invoke a deployed Modal Web Function or Server over HTTPS"
+        },
+        {
+          "name": "Chat Completion",
+          "description": "Generate a chat completion from a model served by a Modal Endpoint"
+        },
+        {
+          "name": "List Models",
+          "description": "List the model IDs a Modal proxy token can reach on an endpoint"
+        }
+      ],
+      "operationCount": 3,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "ai",
+      "tags": ["llm", "cloud", "agentic"]
+    },
+    {
       "type": "monday",
       "slug": "monday",
       "name": "Monday",
