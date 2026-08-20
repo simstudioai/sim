@@ -1,0 +1,126 @@
+---
+title: Chat Deployments
+description: Manage chat deployments — every subcommand, argument, and flag
+---
+
+import { CommandTable } from '@/components/ui/command-table'
+
+Every command below also accepts the [global options](/cli/commands#global-options).
+
+## Create chat deployment
+
+```bash
+sim chat-deployments create [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--workflow-id <value>` | Yes | Workflow to publish as a chat. |
+| `--identifier <value>` | Yes | URL slug the deployed chat will answer on. Must be free across live deployments. |
+| `--title <value>` | Yes | Title shown to visitors. |
+| `--description <value>` | No | Description shown to visitors. |
+| `--customizations <json\|@file>` | No | Presentation overrides. Omitted fields take platform defaults. (JSON, or @path / @- to read a file or stdin). |
+| `--auth-type <value>` | No | How visitors are gated. `public` leaves the chat open to anyone holding the URL. Accepted values: `public`, `password`, `email`, `sso`. |
+| `--password <value>` | No | Write-only password, required when `authType` is `password`. Never readable back. |
+| `--allowed-emails <json\|@file>` | No | Email addresses or domains admitted under `email` and `sso` gating. At least one is required for those modes. (JSON, or @path / @- to read a file or stdin). |
+| `--output-configs <json\|@file>` | No | Block outputs to surface to visitors. (JSON, or @path / @- to read a file or stdin). |
+| `--include-thinking` | No | Allow visitors to receive provider thinking events. |
+| `--no-include-thinking` | No | Send --include-thinking as false. |
+| `--include-tool-calls` | No | Allow visitors to receive tool lifecycle events. |
+| `--no-include-tool-calls` | No | Send --include-tool-calls as false. |
+
+</CommandTable>
+
+## Delete chat deployment
+
+```bash
+sim chat-deployments delete <chatDeploymentId>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `chatDeploymentId` | Yes | Unique chat deployment identifier. |
+
+</CommandTable>
+
+## Get chat deployment
+
+```bash
+sim chat-deployments get <chatDeploymentId>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `chatDeploymentId` | Yes | Unique chat deployment identifier. |
+
+</CommandTable>
+
+## List chat deployments
+
+```bash
+sim chat-deployments list [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--workflow-id <value>` | No | Restrict to deployments of one workflow. |
+| `--is-active` | No | Restrict to active or inactive deployments. |
+| `--no-is-active` | No | Send --is-active as false. |
+| `--sort-by <value>` | No | Field used to sort the result. Accepted values: `identifier`, `createdAt`, `updatedAt`. |
+| `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+
+</CommandTable>
+
+## Update chat deployment
+
+```bash
+sim chat-deployments update <chatDeploymentId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `chatDeploymentId` | Yes | Unique chat deployment identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--identifier <value>` | No | New URL slug for the deployed chat. |
+| `--title <value>` | No | New title shown to visitors. |
+| `--description <value>` | No | New description shown to visitors. |
+| `--customizations <json\|@file>` | No | Replacement presentation overrides. Replaced wholesale, not merged. (JSON, or @path / @- to read a file or stdin). |
+| `--auth-type <value>` | No | New visitor gate. Switching modes clears the gate the previous mode owned: a stored password is dropped when moving to `email` or `sso`, and the allow-list is dropped when moving to `password` or `public`. Accepted values: `public`, `password`, `email`, `sso`. |
+| `--password <value>` | No | Write-only replacement password. Ignored unless the deployment ends up `password`-gated. Omit to keep the stored one. |
+| `--allowed-emails <json\|@file>` | No | Replacement allow-list for `email` and `sso` gating. Replaced wholesale. (JSON, or @path / @- to read a file or stdin). |
+| `--output-configs <json\|@file>` | No | Replacement block outputs. Replaced wholesale. (JSON, or @path / @- to read a file or stdin). |
+| `--include-thinking` | No | Allow visitors to receive thinking events. |
+| `--no-include-thinking` | No | Send --include-thinking as false. |
+| `--include-tool-calls` | No | Allow visitors to receive tool lifecycle events. |
+| `--no-include-tool-calls` | No | Send --include-tool-calls as false. |
+
+</CommandTable>

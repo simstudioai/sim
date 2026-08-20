@@ -947,6 +947,69 @@ export type CompleteTableImportResponse = {
   data: CompleteTableImportResponseRef3
 }
 
+/** `POST /api/v2/chat-deployments` */
+export type CreateChatDeploymentQuery = Record<string, unknown>
+
+type CreateChatDeploymentBodyRef0 = {
+  primaryColor?: string
+  welcomeMessage?: string
+  imageUrl?: string
+}
+
+type CreateChatDeploymentBodyRef1 = {
+  blockId: string
+  path: string
+}
+
+export type CreateChatDeploymentBody = {
+  workflowId: string
+  identifier: string
+  title: string
+  description?: string
+  customizations?: CreateChatDeploymentBodyRef0
+  authType?: 'public' | 'password' | 'email' | 'sso'
+  password?: string
+  allowedEmails?: Array<string>
+  outputConfigs?: Array<CreateChatDeploymentBodyRef1>
+  includeThinking?: boolean
+  includeToolCalls?: boolean
+}
+
+type CreateChatDeploymentResponseRef0 = {
+  primaryColor?: string
+  welcomeMessage?: string
+  imageUrl?: string
+}
+
+type CreateChatDeploymentResponseRef1 = {
+  blockId: string
+  path: string
+}
+
+type CreateChatDeploymentResponseRef2 = {
+  id: string
+  workflowId: string
+  workspaceId: string
+  identifier: string
+  url: string
+  title: string
+  description: string
+  isActive: boolean
+  authType: 'public' | 'password' | 'email' | 'sso'
+  hasPassword: boolean
+  allowedEmails: Array<string>
+  customizations: CreateChatDeploymentResponseRef0
+  outputConfigs: Array<CreateChatDeploymentResponseRef1>
+  includeThinking: boolean
+  includeToolCalls: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+export type CreateChatDeploymentResponse = {
+  data: CreateChatDeploymentResponseRef2
+}
+
 /** `POST /api/v2/credentials/connections` */
 export type CreateCredentialConnectionQuery = Record<string, unknown>
 
@@ -2032,6 +2095,22 @@ type CreateWorkflowMcpServerResponseRef0 = {
 
 export type CreateWorkflowMcpServerResponse = {
   data: CreateWorkflowMcpServerResponseRef0
+}
+
+/** `DELETE /api/v2/chat-deployments/[chatDeploymentId]` */
+export type DeleteChatDeploymentParams = {
+  chatDeploymentId: string
+}
+
+export type DeleteChatDeploymentQuery = Record<string, unknown>
+
+type DeleteChatDeploymentResponseRef0 = {
+  id: string
+  deleted: true
+}
+
+export type DeleteChatDeploymentResponse = {
+  data: DeleteChatDeploymentResponseRef0
 }
 
 /** `DELETE /api/v2/credentials/[credentialId]` */
@@ -3129,6 +3208,48 @@ type GetBlockResponseRef6 = {
 
 export type GetBlockResponse = {
   data: GetBlockResponseRef6
+}
+
+/** `GET /api/v2/chat-deployments/[chatDeploymentId]` */
+export type GetChatDeploymentParams = {
+  chatDeploymentId: string
+}
+
+export type GetChatDeploymentQuery = Record<string, unknown>
+
+type GetChatDeploymentResponseRef0 = {
+  primaryColor?: string
+  welcomeMessage?: string
+  imageUrl?: string
+}
+
+type GetChatDeploymentResponseRef1 = {
+  blockId: string
+  path: string
+}
+
+type GetChatDeploymentResponseRef2 = {
+  id: string
+  workflowId: string
+  workspaceId: string
+  identifier: string
+  url: string
+  title: string
+  description: string
+  isActive: boolean
+  authType: 'public' | 'password' | 'email' | 'sso'
+  hasPassword: boolean
+  allowedEmails: Array<string>
+  customizations: GetChatDeploymentResponseRef0
+  outputConfigs: Array<GetChatDeploymentResponseRef1>
+  includeThinking: boolean
+  includeToolCalls: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+export type GetChatDeploymentResponse = {
+  data: GetChatDeploymentResponseRef2
 }
 
 /** `GET /api/v2/custom-tools/[id]` */
@@ -4279,6 +4400,53 @@ type ListBlocksResponseRef0 = {
 
 export type ListBlocksResponse = {
   data: Array<ListBlocksResponseRef0>
+  nextCursor: string | null
+}
+
+/** `GET /api/v2/chat-deployments` */
+export type ListChatDeploymentsQuery = {
+  workspaceId: string
+  workflowId?: string
+  isActive?: boolean
+  sortBy?: 'identifier' | 'createdAt' | 'updatedAt'
+  sortOrder?: 'asc' | 'desc'
+  limit?: number
+  cursor?: string
+}
+
+type ListChatDeploymentsResponseRef0 = {
+  id: string
+  workflowId: string
+  workspaceId: string
+  identifier: string
+  url: string
+  title: string
+  description: string
+  isActive: boolean
+  authType: 'public' | 'password' | 'email' | 'sso'
+  hasPassword: boolean
+  allowedEmails: Array<string>
+  customizations: ListChatDeploymentsResponseRef1
+  outputConfigs: Array<ListChatDeploymentsResponseRef2>
+  includeThinking: boolean
+  includeToolCalls: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+type ListChatDeploymentsResponseRef1 = {
+  primaryColor?: string
+  welcomeMessage?: string
+  imageUrl?: string
+}
+
+type ListChatDeploymentsResponseRef2 = {
+  blockId: string
+  path: string
+}
+
+export type ListChatDeploymentsResponse = {
+  data: Array<ListChatDeploymentsResponseRef0>
   nextCursor: string | null
 }
 
@@ -6430,6 +6598,72 @@ export type UndeployWorkflowMcpToolResponse = {
   data: UndeployWorkflowMcpToolResponseRef0
 }
 
+/** `PATCH /api/v2/chat-deployments/[chatDeploymentId]` */
+export type UpdateChatDeploymentParams = {
+  chatDeploymentId: string
+}
+
+export type UpdateChatDeploymentQuery = Record<string, unknown>
+
+type UpdateChatDeploymentBodyRef0 = {
+  primaryColor?: string
+  welcomeMessage?: string
+  imageUrl?: string
+}
+
+type UpdateChatDeploymentBodyRef1 = {
+  blockId: string
+  path: string
+}
+
+export type UpdateChatDeploymentBody = {
+  identifier?: string
+  title?: string
+  description?: string
+  customizations?: UpdateChatDeploymentBodyRef0
+  authType?: 'public' | 'password' | 'email' | 'sso'
+  password?: string
+  allowedEmails?: Array<string>
+  outputConfigs?: Array<UpdateChatDeploymentBodyRef1>
+  includeThinking?: boolean
+  includeToolCalls?: boolean
+}
+
+type UpdateChatDeploymentResponseRef0 = {
+  primaryColor?: string
+  welcomeMessage?: string
+  imageUrl?: string
+}
+
+type UpdateChatDeploymentResponseRef1 = {
+  blockId: string
+  path: string
+}
+
+type UpdateChatDeploymentResponseRef2 = {
+  id: string
+  workflowId: string
+  workspaceId: string
+  identifier: string
+  url: string
+  title: string
+  description: string
+  isActive: boolean
+  authType: 'public' | 'password' | 'email' | 'sso'
+  hasPassword: boolean
+  allowedEmails: Array<string>
+  customizations: UpdateChatDeploymentResponseRef0
+  outputConfigs: Array<UpdateChatDeploymentResponseRef1>
+  includeThinking: boolean
+  includeToolCalls: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+export type UpdateChatDeploymentResponse = {
+  data: UpdateChatDeploymentResponseRef2
+}
+
 /** `PATCH /api/v2/custom-tools/[id]` */
 export type UpdateCustomToolParams = {
   id: string
@@ -7721,6 +7955,56 @@ export const V2_OPERATIONS = {
       },
     },
   },
+  createChatDeployment: {
+    method: 'POST',
+    path: '/api/v2/chat-deployments',
+    pathParams: [] as const,
+    responseMode: 'json',
+    summary: 'Create Chat Deployment',
+    body: {
+      workflowId: { kind: 'string', required: true, describe: 'Workflow to publish as a chat.' },
+      identifier: {
+        kind: 'string',
+        required: true,
+        describe:
+          'URL slug the deployed chat will answer on. Must be free across live deployments.',
+      },
+      title: { kind: 'string', required: true, describe: 'Title shown to visitors.' },
+      description: { kind: 'string', describe: 'Description shown to visitors.' },
+      customizations: {
+        kind: 'object',
+        describe: 'Presentation overrides. Omitted fields take platform defaults.',
+      },
+      authType: {
+        kind: 'enum',
+        values: ['public', 'password', 'email', 'sso'] as const,
+        default: 'public',
+        describe:
+          'How visitors are gated. `public` leaves the chat open to anyone holding the URL.',
+      },
+      password: {
+        kind: 'string',
+        describe:
+          'Write-only password, required when `authType` is `password`. Never readable back.',
+      },
+      allowedEmails: {
+        kind: 'array',
+        describe:
+          'Email addresses or domains admitted under `email` and `sso` gating. At least one is required for those modes.',
+      },
+      outputConfigs: { kind: 'array', describe: 'Block outputs to surface to visitors.' },
+      includeThinking: {
+        kind: 'boolean',
+        default: false,
+        describe: 'Allow visitors to receive provider thinking events.',
+      },
+      includeToolCalls: {
+        kind: 'boolean',
+        default: false,
+        describe: 'Allow visitors to receive tool lifecycle events.',
+      },
+    },
+  },
   createCredentialConnection: {
     method: 'POST',
     path: '/api/v2/credentials/connections',
@@ -8288,6 +8572,14 @@ export const V2_OPERATIONS = {
       },
     },
   },
+  deleteChatDeployment: {
+    method: 'DELETE',
+    path: '/api/v2/chat-deployments/[chatDeploymentId]',
+    pathParams: ['chatDeploymentId'] as const,
+    pathParamDocs: { chatDeploymentId: 'Unique chat deployment identifier.' },
+    responseMode: 'json',
+    summary: 'Delete Chat Deployment',
+  },
   deleteCredential: {
     method: 'DELETE',
     path: '/api/v2/credentials/[credentialId]',
@@ -8829,6 +9121,14 @@ export const V2_OPERATIONS = {
       },
     },
   },
+  getChatDeployment: {
+    method: 'GET',
+    path: '/api/v2/chat-deployments/[chatDeploymentId]',
+    pathParams: ['chatDeploymentId'] as const,
+    pathParamDocs: { chatDeploymentId: 'Unique chat deployment identifier.' },
+    responseMode: 'json',
+    summary: 'Get Chat Deployment',
+  },
   getCustomTool: {
     method: 'GET',
     path: '/api/v2/custom-tools/[id]',
@@ -9348,6 +9648,45 @@ export const V2_OPERATIONS = {
         default: 50,
         describe:
           'Maximum blocks to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
+      },
+      cursor: {
+        kind: 'string',
+        describe:
+          'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+      },
+    },
+  },
+  listChatDeployments: {
+    method: 'GET',
+    path: '/api/v2/chat-deployments',
+    pathParams: [] as const,
+    responseMode: 'json',
+    summary: 'List Chat Deployments',
+    query: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace whose chat deployments to list.',
+      },
+      workflowId: { kind: 'string', describe: 'Restrict to deployments of one workflow.' },
+      isActive: { kind: 'boolean', describe: 'Restrict to active or inactive deployments.' },
+      sortBy: {
+        kind: 'enum',
+        values: ['identifier', 'createdAt', 'updatedAt'] as const,
+        default: 'createdAt',
+        describe: 'Field used to sort the result.',
+      },
+      sortOrder: {
+        kind: 'enum',
+        values: ['asc', 'desc'] as const,
+        default: 'desc',
+        describe: 'Sort direction.',
+      },
+      limit: {
+        kind: 'integer',
+        default: 50,
+        describe:
+          'Maximum chat deployments to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
       },
       cursor: {
         kind: 'string',
@@ -10973,6 +11312,44 @@ export const V2_OPERATIONS = {
     },
     responseMode: 'json',
     summary: 'Unpublish Workflow MCP Tool',
+  },
+  updateChatDeployment: {
+    method: 'PATCH',
+    path: '/api/v2/chat-deployments/[chatDeploymentId]',
+    pathParams: ['chatDeploymentId'] as const,
+    pathParamDocs: { chatDeploymentId: 'Unique chat deployment identifier.' },
+    responseMode: 'json',
+    summary: 'Update Chat Deployment',
+    body: {
+      identifier: { kind: 'string', describe: 'New URL slug for the deployed chat.' },
+      title: { kind: 'string', describe: 'New title shown to visitors.' },
+      description: { kind: 'string', describe: 'New description shown to visitors.' },
+      customizations: {
+        kind: 'object',
+        describe: 'Replacement presentation overrides. Replaced wholesale, not merged.',
+      },
+      authType: {
+        kind: 'enum',
+        values: ['public', 'password', 'email', 'sso'] as const,
+        describe:
+          'New visitor gate. Switching modes clears the gate the previous mode owned: a stored password is dropped when moving to `email` or `sso`, and the allow-list is dropped when moving to `password` or `public`.',
+      },
+      password: {
+        kind: 'string',
+        describe:
+          'Write-only replacement password. Ignored unless the deployment ends up `password`-gated. Omit to keep the stored one.',
+      },
+      allowedEmails: {
+        kind: 'array',
+        describe: 'Replacement allow-list for `email` and `sso` gating. Replaced wholesale.',
+      },
+      outputConfigs: { kind: 'array', describe: 'Replacement block outputs. Replaced wholesale.' },
+      includeThinking: { kind: 'boolean', describe: 'Allow visitors to receive thinking events.' },
+      includeToolCalls: {
+        kind: 'boolean',
+        describe: 'Allow visitors to receive tool lifecycle events.',
+      },
+    },
   },
   updateCustomTool: {
     method: 'PATCH',
