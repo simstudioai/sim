@@ -141,14 +141,35 @@ describe('moveWorkflowsBulk', () => {
     expect(mocks.audit).not.toHaveBeenCalled()
   })
 
-  it('rejects a non-Copilot principal before canonical workspace loading', async () => {
+  it('rejects a principal kind the operation does not accept, before canonical workspace loading', async () => {
     await expect(
       moveWorkflowsBulk.execute({
-        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+        principal: {
+          kind: 'credential_group_enrollment',
+          workspaceId: 'workspace-1',
+          credentialGroupId: 'group-1',
+          enrollmentId: 'enrollment-1',
+          email: 'someone@example.com',
+          invitationTokenHash: 'hash',
+        },
         input: { workspaceId: 'workspace-1', workflowIds: ['workflow-1'], folderId: null },
       })
     ).rejects.toMatchObject({ code: 'forbidden' })
 
     expect(mocks.resolveContext).not.toHaveBeenCalled()
+  })
+
+  it('refuses folderPath and folderId together', async () => {
+    await expect(
+      moveWorkflowsBulk.execute({
+        principal,
+        input: {
+          workspaceId: 'workspace-1',
+          workflowIds: ['workflow-1'],
+          folderId: null,
+          folderPath: '/Operations',
+        },
+      })
+    ).rejects.toMatchObject({ code: 'validation' })
   })
 })

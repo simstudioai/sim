@@ -33,6 +33,15 @@ vi.mock('@/app/api/v2/lib/gate', () => v2GateModuleMock)
 import { GET, POST } from '@/app/api/v2/workflows/route'
 
 const WORKSPACE_ID = 'workspace-1'
+const SEEDED_START_BLOCK = {
+  id: 'start-1',
+  type: 'starter',
+  name: 'Start',
+  position: { x: 0, y: 0 },
+  subBlocks: {},
+  outputs: {},
+  enabled: true,
+}
 const WORKFLOW = {
   id: 'workflow-1',
   name: 'Daily digest',
@@ -86,7 +95,11 @@ describe('/api/v2/workflows', () => {
       sortBy: 'position',
       sortOrder: 'asc',
     })
-    mocks.createWorkflow.mockResolvedValue({ workflow: WORKFLOW, folderPath: '/' })
+    mocks.createWorkflow.mockResolvedValue({
+      workflow: WORKFLOW,
+      folderPath: '/',
+      normalizedState: { blocks: { 'start-1': SEEDED_START_BLOCK } },
+    })
   })
 
   it('authenticates and rate limits before parsing list input', async () => {
@@ -208,7 +221,9 @@ describe('/api/v2/workflows', () => {
     const response = await POST(request)
 
     expect(response.status).toBe(201)
-    expect((await response.json()).data.id).toBe(WORKFLOW.id)
+    const created = (await response.json()).data
+    expect(created.id).toBe(WORKFLOW.id)
+    expect(created.blocks).toEqual([{ id: 'start-1', type: 'starter', name: 'Start' }])
     expect(mocks.createWorkflow).toHaveBeenCalledWith({
       principal: personalAuth.principal,
       input: { workspaceId: WORKSPACE_ID, name: WORKFLOW.name },

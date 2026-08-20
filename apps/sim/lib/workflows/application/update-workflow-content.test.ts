@@ -128,10 +128,35 @@ describe('applyWorkflowVariableOperations', () => {
     expect(mocks.notify).not.toHaveBeenCalled()
   })
 
-  it('rejects a non-Copilot principal before canonical loading', async () => {
+  it('admits a session principal and attributes the audit row to it, not to copilot', async () => {
     await expect(
       applyWorkflowVariableOperations.execute({
         principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+        input: {
+          workflowId: 'workflow-1',
+          operations: [{ operation: 'add', name: 'threshold', type: 'number', value: '5' }],
+        },
+      })
+    ).resolves.toMatchObject({ changed: true })
+
+    expect(mocks.recordAudit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        metadata: expect.objectContaining({ source: 'session' }),
+      })
+    )
+  })
+
+  it('rejects a principal kind the operation does not accept, before canonical loading', async () => {
+    await expect(
+      applyWorkflowVariableOperations.execute({
+        principal: {
+          kind: 'credential_group_enrollment',
+          workspaceId: 'workspace-1',
+          credentialGroupId: 'group-1',
+          enrollmentId: 'enrollment-1',
+          email: 'someone@example.com',
+          invitationTokenHash: 'hash',
+        },
         input: { workflowId: 'workflow-1', operations: [] },
       })
     ).rejects.toMatchObject({ code: 'forbidden' })

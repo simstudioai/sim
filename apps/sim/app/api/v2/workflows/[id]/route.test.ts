@@ -157,7 +157,9 @@ describe('/api/v2/workflows/[id]', () => {
     const response = await DELETE(request, routeContext)
 
     expect(response.status).toBe(200)
-    expect(await response.json()).toEqual({ data: { id: WORKFLOW_ID, deleted: true } })
+    expect(await response.json()).toEqual({
+      data: { id: WORKFLOW_ID, deleted: true, archived: true },
+    })
     expect(mocks.deleteWorkflow).toHaveBeenCalledWith({
       principal: auth.principal,
       input: { workflowId: WORKFLOW_ID },

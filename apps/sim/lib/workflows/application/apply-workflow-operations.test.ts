@@ -1,0 +1,424 @@
+/**
+ * @vitest-environment node
+ */
+import { WorkflowLockedError } from '@sim/platform-authz/workflow'
+import { workflowAuthzMockFns } from '@sim/testing'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const mocks = vi.hoisted(() => ({
+  recordAudit: vi.fn(),
+  resolveContext: vi.fn(),
+  resolvePermission: vi.fn(),
+  notify: vi.fn(),
+  replace: vi.fn(),
+  validate: vi.fn(),
+  needsRedeployment: vi.fn(),
+  applyOperations: vi.fn(),
+  loadNormalized: vi.fn(),
+  normalizeState: vi.fn(),
+  sandboxAccess: vi.fn(),
+  blockVisibility: vi.fn(),
+  permissionConfig: vi.fn(),
+  preValidate: vi.fn(),
+  collectReferences: vi.fn(),
+  collectToolReferences: vi.fn(),
+}))
+
+vi.mock('@sim/audit', () => ({
+  AuditAction: { WORKFLOW_UPDATED: 'workflow.updated' },
+  AuditResourceType: { WORKFLOW: 'workflow' },
+  recordAudit: mocks.recordAudit,
+}))
+
+vi.mock('@sim/platform-authz/workspace', () => ({
+  permissionSatisfies: (actual: string | null, required: string) => {
+    const rank = { read: 1, write: 2, admin: 3 } as const
+    return (
+      actual !== null && rank[actual as keyof typeof rank] >= rank[required as keyof typeof rank]
+    )
+  },
+  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
+}))
+
+vi.mock('@/lib/workflows/application/context', () => ({
+  resolveActiveWorkflowApplicationContext: mocks.resolveContext,
+}))
+vi.mock('@/lib/realtime/notify', () => ({ notifyWorkflowUpdated: mocks.notify }))
+vi.mock('@/lib/workflows/persistence/replace-normalized-state', () => ({
+  replaceWorkflowNormalizedState: mocks.replace,
+}))
+vi.mock('@/lib/workflows/persistence/utils', () => ({
+  loadWorkflowFromNormalizedTables: mocks.loadNormalized,
+}))
+vi.mock('@/lib/workflows/sanitization/validation', () => ({
+  validateWorkflowState: mocks.validate,
+}))
+vi.mock('@/lib/workflows/deployment-status', () => ({
+  checkNeedsRedeployment: mocks.needsRedeployment,
+}))
+vi.mock('@/lib/workflows/editing/engine', () => ({
+  applyOperationsToWorkflowState: mocks.applyOperations,
+}))
+vi.mock('@/lib/workflows/editing/validation', () => ({
+  collectUnresolvedAgentToolReferences: mocks.collectToolReferences,
+  collectUnresolvedReferences: mocks.collectReferences,
+  preValidateCredentialInputs: mocks.preValidate,
+  UNRESOLVABLE_AT_LINT_NOTE: 'lint note',
+}))
+vi.mock('@/lib/workflows/editing/lint', () => ({
+  collectWorkflowFieldIssues: () => [],
+  lintEditedWorkflowState: () => ({ sources: [], sinks: [], orphans: [] }),
+}))
+vi.mock('@/lib/billing/core/subscription', () => ({
+  hasWorkspaceSandboxAccess: mocks.sandboxAccess,
+}))
+vi.mock('@/lib/core/config/block-visibility', () => ({ getBlockVisibility: mocks.blockVisibility }))
+vi.mock('@/ee/access-control/utils/permission-check', () => ({
+  getUserPermissionConfig: mocks.permissionConfig,
+}))
+vi.mock('@/blocks/visibility/server-context', () => ({
+  withBlockVisibility: (_state: unknown, run: () => unknown) => run(),
+}))
+vi.mock('@/stores/workflows/workflow/utils', () => ({
+  generateLoopBlocks: () => ({}),
+  generateParallelBlocks: () => ({}),
+}))
+vi.mock('@/stores/workflows/workflow/validation', () => ({
+  normalizeWorkflowState: mocks.normalizeState,
+}))
+vi.mock('@/lib/workflows/autolayout', () => ({
+  applyTargetedLayout: vi.fn(),
+  getTargetedLayoutImpact: () => ({
+    layoutBlockIds: [],
+    resizedBlockIds: [],
+    shiftSourceBlockIds: [],
+  }),
+  transferBlockHeights: vi.fn(),
+}))
+
+import { ForbiddenOperationError } from '@/lib/core/application'
+import {
+  applyWorkflowOperations,
+  WorkflowOperationsNotAppliedError,
+} from '@/lib/workflows/application/apply-workflow-operations'
+
+const BLOCK = {
+  id: 'block-1',
+  type: 'starter',
+  name: 'Start',
+  position: { x: 0, y: 0 },
+  subBlocks: {},
+  outputs: {},
+  enabled: true,
+}
+
+const context = {
+  workflowId: 'workflow-1',
+  workflow: { id: 'workflow-1', name: 'Daily digest', workspaceId: 'workspace-1' },
+  workspaceId: 'workspace-1',
+  workspaceOrganizationId: 'org-1',
+  allowPersonalApiKeys: true,
+  billedAccountUserId: 'billing-owner-1',
+}
+
+const sessionPrincipal = { kind: 'session' as const, userId: 'user-1', sessionId: 'session-1' }
+const copilotPrincipal = {
+  kind: 'delegated' as const,
+  serviceId: 'copilot' as const,
+  subjectUserId: 'user-1',
+  workspaceId: 'workspace-1',
+  delegationId: 'tool-call-1',
+  audience: 'sim:workflows',
+  issuedAt: new Date('2026-01-01T00:00:00Z'),
+  expiresAt: new Date('2099-01-01T00:00:00Z'),
+}
+
+const operations = [
+  {
+    operation_type: 'add' as const,
+    block_id: 'block-2',
+    params: { type: 'agent', name: 'Triage' },
+  },
+]
+
+function graph(blocks: Record<string, unknown> = { 'block-1': BLOCK }) {
+  return { blocks, edges: [], loops: {}, parallels: {} }
+}
+
+describe('applyWorkflowOperations', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.resolveContext.mockResolvedValue(context)
+    mocks.resolvePermission.mockResolvedValue('write')
+    workflowAuthzMockFns.mockAssertWorkflowMutable.mockResolvedValue(undefined)
+    mocks.sandboxAccess.mockResolvedValue(true)
+    mocks.blockVisibility.mockResolvedValue({ revealed: [], disabled: [], previewTagged: [] })
+    mocks.permissionConfig.mockResolvedValue(null)
+    mocks.loadNormalized.mockResolvedValue(graph())
+    mocks.normalizeState.mockReturnValue({ state: graph(), warnings: [] })
+    mocks.preValidate.mockResolvedValue({ filteredOperations: operations, errors: [] })
+    mocks.applyOperations.mockReturnValue({
+      state: graph(),
+      validationErrors: [],
+      skippedItems: [],
+    })
+    mocks.collectReferences.mockResolvedValue([])
+    mocks.collectToolReferences.mockResolvedValue([])
+    mocks.validate.mockReturnValue({ valid: true, errors: [], warnings: [] })
+    mocks.replace.mockResolvedValue({ warnings: [], state: graph() })
+    mocks.needsRedeployment.mockResolvedValue(true)
+  })
+
+  it('writes once, through the shared persistence primitive', async () => {
+    const result = await applyWorkflowOperations.execute({
+      principal: sessionPrincipal,
+      input: { workflowId: 'workflow-1', operations },
+    })
+
+    expect(mocks.replace).toHaveBeenCalledTimes(1)
+    expect(mocks.replace).toHaveBeenCalledWith(
+      expect.objectContaining({ workflowId: 'workflow-1', workspaceId: 'workspace-1' })
+    )
+    expect(result.applied).toBe(1)
+    expect(result.needsRedeployment).toBe(true)
+  })
+
+  it('reports declined operations rather than failing the batch', async () => {
+    mocks.applyOperations.mockReturnValue({
+      state: graph(),
+      validationErrors: [],
+      skippedItems: [
+        {
+          type: 'duplicate_block_name',
+          operationType: 'add',
+          blockId: 'block-2',
+          reason: 'Name taken',
+        },
+      ],
+    })
+
+    const result = await applyWorkflowOperations.execute({
+      principal: sessionPrincipal,
+      input: { workflowId: 'workflow-1', operations },
+    })
+
+    expect(result.skipped).toHaveLength(1)
+    expect(result.applied).toBe(0)
+    expect(mocks.replace).toHaveBeenCalledTimes(1)
+  })
+
+  it('separates self-healing deferrals from genuine failures', async () => {
+    mocks.applyOperations.mockReturnValue({
+      state: graph(),
+      validationErrors: [],
+      skippedItems: [
+        {
+          type: 'invalid_edge_target',
+          operationType: 'add',
+          blockId: 'block-2',
+          reason: 'Target not created yet',
+        },
+      ],
+    })
+
+    const result = await applyWorkflowOperations.execute({
+      principal: sessionPrincipal,
+      input: { workflowId: 'workflow-1', operations },
+    })
+
+    expect(result.skipped).toHaveLength(0)
+    expect(result.deferred).toHaveLength(1)
+  })
+
+  it('aborts an atomic batch before the write and carries the declined operations', async () => {
+    mocks.applyOperations.mockReturnValue({
+      state: graph(),
+      validationErrors: [],
+      skippedItems: [
+        {
+          type: 'block_locked',
+          operationType: 'edit',
+          blockId: 'block-1',
+          reason: 'Block is locked',
+        },
+      ],
+    })
+
+    const failure = await applyWorkflowOperations
+      .execute({
+        principal: sessionPrincipal,
+        input: { workflowId: 'workflow-1', operations, atomic: true },
+      })
+      .catch((error: unknown) => error)
+
+    expect(failure).toBeInstanceOf(WorkflowOperationsNotAppliedError)
+    expect((failure as WorkflowOperationsNotAppliedError).code).toBe('conflict')
+    expect((failure as WorkflowOperationsNotAppliedError).skipped).toHaveLength(1)
+    expect(mocks.replace).not.toHaveBeenCalled()
+    expect(mocks.recordAudit).not.toHaveBeenCalled()
+    expect(mocks.notify).not.toHaveBeenCalled()
+  })
+
+  /**
+   * The legacy tool threw a bare `Error(MAX_PLAN_REQUIRED)`, which on a public
+   * surface is an unclassified 500.
+   */
+  it('names the plan capability when the workspace cannot use sandboxes', async () => {
+    mocks.sandboxAccess.mockResolvedValue(false)
+
+    const failure = await applyWorkflowOperations
+      .execute({
+        principal: sessionPrincipal,
+        input: {
+          workflowId: 'workflow-1',
+          operations: [
+            {
+              operation_type: 'edit',
+              block_id: 'block-1',
+              params: { inputs: { sandboxId: 'sandbox-1' } },
+            },
+          ],
+        },
+      })
+      .catch((error: unknown) => error)
+
+    expect(failure).toBeInstanceOf(ForbiddenOperationError)
+    expect((failure as ForbiddenOperationError).detailCode).toBe(
+      'WORKSPACE_PLAN_CAPABILITY_REQUIRED'
+    )
+    expect(mocks.replace).not.toHaveBeenCalled()
+  })
+
+  it('honours a caller-supplied base graph only for a delegated principal', async () => {
+    const baseGraph = graph({ 'block-9': { ...BLOCK, id: 'block-9' } })
+
+    await applyWorkflowOperations.execute({
+      principal: copilotPrincipal,
+      input: { workflowId: 'workflow-1', operations, baseGraph },
+    })
+    expect(mocks.loadNormalized).not.toHaveBeenCalled()
+    expect(mocks.applyOperations).toHaveBeenCalledWith(baseGraph, operations, null)
+
+    vi.clearAllMocks()
+    mocks.resolveContext.mockResolvedValue(context)
+    mocks.resolvePermission.mockResolvedValue('write')
+    mocks.sandboxAccess.mockResolvedValue(true)
+    mocks.blockVisibility.mockResolvedValue({ revealed: [], disabled: [], previewTagged: [] })
+    mocks.permissionConfig.mockResolvedValue(null)
+    mocks.loadNormalized.mockResolvedValue(graph())
+    mocks.normalizeState.mockReturnValue({ state: graph(), warnings: [] })
+    mocks.preValidate.mockResolvedValue({ filteredOperations: operations, errors: [] })
+    mocks.applyOperations.mockReturnValue({
+      state: graph(),
+      validationErrors: [],
+      skippedItems: [],
+    })
+    mocks.collectReferences.mockResolvedValue([])
+    mocks.collectToolReferences.mockResolvedValue([])
+    mocks.validate.mockReturnValue({ valid: true, errors: [], warnings: [] })
+    mocks.replace.mockResolvedValue({ warnings: [], state: graph() })
+    mocks.needsRedeployment.mockResolvedValue(true)
+
+    await applyWorkflowOperations.execute({
+      principal: sessionPrincipal,
+      input: { workflowId: 'workflow-1', operations, baseGraph },
+    })
+    expect(mocks.loadNormalized).toHaveBeenCalledWith('workflow-1')
+    expect(mocks.applyOperations).not.toHaveBeenCalledWith(baseGraph, operations, null)
+  })
+
+  it('applies the block enablement slice and declines a locked block as a skipped item', async () => {
+    mocks.applyOperations.mockReturnValue({
+      state: graph({ 'block-1': { ...BLOCK, locked: true } }),
+      validationErrors: [],
+      skippedItems: [],
+    })
+
+    const result = await applyWorkflowOperations.execute({
+      principal: sessionPrincipal,
+      input: {
+        workflowId: 'workflow-1',
+        operations,
+        blockEnabledChanges: [{ blockId: 'block-1', enabled: false }],
+      },
+    })
+
+    expect(result.skipped).toEqual([
+      expect.objectContaining({ type: 'block_locked', operationType: 'set_block_enabled' }),
+    ])
+  })
+
+  it('projects audit from the authoritative result and notifies after it', async () => {
+    await applyWorkflowOperations.execute({
+      principal: copilotPrincipal,
+      input: { workflowId: 'workflow-1', operations },
+    })
+
+    expect(mocks.recordAudit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'workflow.updated',
+        resourceId: 'workflow-1',
+        metadata: expect.objectContaining({
+          operation: 'workflows.operations.apply',
+          op: 'apply_operations',
+          operationCount: 1,
+          appliedCount: 1,
+          skippedCount: 0,
+          source: 'copilot',
+        }),
+      })
+    )
+    expect(mocks.recordAudit).toHaveBeenCalledBefore(mocks.notify)
+  })
+
+  it('refuses a locked workflow before loading the graph', async () => {
+    workflowAuthzMockFns.mockAssertWorkflowMutable.mockRejectedValue(
+      new WorkflowLockedError('Workflow is locked')
+    )
+
+    await expect(
+      applyWorkflowOperations.execute({
+        principal: sessionPrincipal,
+        input: { workflowId: 'workflow-1', operations },
+      })
+    ).rejects.toMatchObject({ code: 'locked' })
+
+    expect(mocks.loadNormalized).not.toHaveBeenCalled()
+  })
+
+  it('rejects a principal kind the operation does not accept before canonical loading', async () => {
+    await expect(
+      applyWorkflowOperations.execute({
+        principal: {
+          kind: 'credential_group_enrollment',
+          workspaceId: 'workspace-1',
+          credentialGroupId: 'group-1',
+          enrollmentId: 'enrollment-1',
+          email: 'someone@example.com',
+          invitationTokenHash: 'hash',
+        },
+        input: { workflowId: 'workflow-1', operations },
+      })
+    ).rejects.toMatchObject({ code: 'forbidden' })
+
+    expect(mocks.resolveContext).not.toHaveBeenCalled()
+  })
+
+  it('rejects a graph the engine produced that does not validate, without writing', async () => {
+    mocks.validate.mockReturnValue({
+      valid: false,
+      errors: ['Dangling edge'],
+      warnings: [],
+    })
+
+    await expect(
+      applyWorkflowOperations.execute({
+        principal: sessionPrincipal,
+        input: { workflowId: 'workflow-1', operations },
+      })
+    ).rejects.toMatchObject({ code: 'validation' })
+
+    expect(mocks.replace).not.toHaveBeenCalled()
+    expect(mocks.recordAudit).not.toHaveBeenCalled()
+  })
+})
