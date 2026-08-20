@@ -490,7 +490,7 @@ export function BYOK() {
           ? [
               {
                 id: 'byok-scope-workspace',
-                text: 'This workspace',
+                text: 'Workspace',
                 active: effectiveScope === 'workspace',
                 onSelect: () => void setRequestedScope('workspace'),
                 disabled: isMutating,
