@@ -966,6 +966,13 @@ export const useWorkflowStore = create<WorkflowStore>()(
             logger.warn(`Cannot update layout metrics: Block ${id} not found in workflow store`)
             return state
           }
+          if (
+            block.height === dimensions.height &&
+            block.layout?.measuredWidth === dimensions.width &&
+            block.layout?.measuredHeight === dimensions.height
+          ) {
+            return state
+          }
 
           return {
             blocks: {
@@ -980,12 +987,8 @@ export const useWorkflowStore = create<WorkflowStore>()(
                 },
               },
             },
-            edges: [...state.edges],
-            loops: { ...state.loops },
           }
         })
-        get().updateLastSaved()
-        // No sync needed for layout changes, just visual
       },
 
       updateLoopCount: (loopId: string, count: number) =>
