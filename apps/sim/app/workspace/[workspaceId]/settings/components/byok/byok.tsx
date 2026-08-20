@@ -8,6 +8,7 @@ import {
   AnthropicIcon,
   BasetenIcon,
   BrandfetchIcon,
+  CohereIcon,
   ContextDevIcon,
   DatagmaIcon,
   DropcontactIcon,
@@ -38,6 +39,7 @@ import {
   TogetherIcon,
   WizaIcon,
   xAIIcon,
+  ZaiIcon,
   ZeroBounceIcon,
 } from '@/components/icons'
 import { canMutateWorkspaceSettingsSection } from '@/components/settings/navigation'
@@ -96,6 +98,20 @@ const PROVIDERS: (BYOKManagerProvider & { id: BYOKProviderId })[] = [
     icon: MistralIcon,
     description: 'LLM calls and Knowledge Base OCR',
     placeholder: 'Enter your API key',
+  },
+  {
+    id: 'zai',
+    name: 'Z.ai',
+    icon: ZaiIcon,
+    description: 'LLM calls',
+    placeholder: 'Enter your Z.ai API key',
+  },
+  {
+    id: 'cohere',
+    name: 'Cohere',
+    icon: CohereIcon,
+    description: 'Embeddings and Knowledge Base reranking',
+    placeholder: 'Enter your Cohere API key',
   },
   {
     id: 'xai',
@@ -322,6 +338,8 @@ const PROVIDER_SECTIONS: BYOKProviderSection[] = [
       'anthropic',
       'google',
       'mistral',
+      'zai',
+      'cohere',
       'xai',
       'kimi',
       'fireworks',
