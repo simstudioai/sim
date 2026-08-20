@@ -1,9 +1,5 @@
 import { isRecordLike } from '@sim/utils/object'
-import {
-  inferContextFromKey,
-  isInternalFileUrl,
-  parseInternalFileUrl,
-} from '@/lib/uploads/utils/file-utils'
+import { isInternalFileUrl, parseInternalFileUrl } from '@/lib/uploads/utils/file-utils'
 import {
   classifyStartBlockType,
   resolveStartCandidates,
@@ -334,6 +330,20 @@ function getRawInputCandidate(workflowInput: unknown): unknown {
   return workflowInput
 }
 
+/**
+ * Normalizes one caller-supplied file object into the executor's canonical
+ * {@link UserFile}, or returns `null` when the shape is not usable.
+ *
+ * The storage `key` and `context` are derived **only** by parsing a validated
+ * internal `/api/files/serve/...` URL; a caller-supplied `key` or `context` is
+ * discarded rather than trusted. A storage key names a specific tenant's bytes,
+ * so honoring one from a request body would make this normalizer an
+ * attacker-authorable source of storage addresses. Every byte-reading consumer
+ * re-authorizes the key before reading, but accepting it here would leave that
+ * safety entirely downstream, where a future consumer can omit it with no
+ * compile-time signal. Files that carry no recoverable internal URL are
+ * rejected instead of being normalized around an asserted key.
+ */
 function normalizeStartFile(file: unknown): UserFile | null {
   if (!isRecordLike(file)) {
     return null
@@ -345,26 +355,17 @@ function normalizeStartFile(file: unknown): UserFile | null {
     typeof file.url === 'string' ? file.url : typeof file.path === 'string' ? file.path : ''
   const size = typeof file.size === 'number' ? file.size : Number.NaN
   const type = typeof file.type === 'string' ? file.type : ''
-  const explicitKey = typeof file.key === 'string' ? file.key : ''
 
-  let key = explicitKey
-  let context = typeof file.context === 'string' ? file.context : undefined
+  let key = ''
+  let context: string | undefined
 
-  if (!key && url && isInternalFileUrl(url)) {
+  if (url && isInternalFileUrl(url)) {
     try {
       const parsed = parseInternalFileUrl(url)
       key = parsed.key
-      context = context || parsed.context
+      context = parsed.context
     } catch {
       return null
-    }
-  }
-
-  if (!context && key) {
-    try {
-      context = inferContextFromKey(key)
-    } catch {
-      // Older file outputs may have opaque keys; keep the file shape intact.
     }
   }
 

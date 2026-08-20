@@ -1,4 +1,3 @@
-import { z } from 'zod'
 import { v2GetAuditLogContract, v2ListAuditLogsContract } from '@/lib/api/contracts/v2/audit-logs'
 import {
   v2AbortFileUploadContract,
@@ -34,6 +33,7 @@ import {
   RESOURCE_ERRORS,
   V2_API_KEY_SECURITY,
   V2_API_KEY_SECURITY_SCHEMES,
+  V2_BINARY_DOWNLOAD_HEADERS,
   V2_COMMON_HEADERS,
   V2_ERROR_SCHEMA,
   WORKSPACE_API_KEY_DENIED,
@@ -873,34 +873,7 @@ export const filesAuditOpenApiDocument = defineOpenApiDocument({
   ],
   security: V2_API_KEY_SECURITY,
   securitySchemes: V2_API_KEY_SECURITY_SCHEMES,
-  headers: {
-    'Content-Type': {
-      schema: z.string().meta({
-        id: 'ContentTypeHeader',
-        title: 'Content type',
-        description:
-          'MIME type of the file, defaulting to application/octet-stream when the stored type is unavailable.',
-      }),
-    },
-    'Content-Disposition': {
-      schema: z.string().meta({
-        id: 'ContentDispositionHeader',
-        title: 'Content disposition',
-        description: 'Attachment disposition containing sanitized and RFC 5987 encoded filenames.',
-      }),
-    },
-    'Content-Length': {
-      schema: z
-        .string()
-        .regex(/^(0|[1-9]\d*)$/)
-        .meta({
-          id: 'ContentLengthHeader',
-          title: 'Content length',
-          description: 'File size in bytes.',
-        }),
-    },
-    ...V2_COMMON_HEADERS,
-  },
+  headers: { ...V2_BINARY_DOWNLOAD_HEADERS, ...V2_COMMON_HEADERS },
   errorSchema: V2_ERROR_SCHEMA,
   errorResponses: withErrorExamples({
     Conflict: { message: 'File already exists' },

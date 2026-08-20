@@ -5,6 +5,7 @@ import {
   FOLDER_TREE_TOO_LARGE,
   FULL_SET_LIST,
   HEAD_MIRRORS_GET,
+  HEAD_OMITS_PAYLOAD_HEADERS,
   RATE_LIMIT_HEADERS,
   RESOURCE_CONFLICT_ERRORS,
   RESOURCE_ERRORS,
@@ -12,6 +13,7 @@ import {
   RUN_RETENTION,
   V2_API_KEY_SECURITY,
   V2_API_KEY_SECURITY_SCHEMES,
+  V2_BINARY_DOWNLOAD_HEADERS,
   V2_COMMON_HEADERS,
   V2_ERROR_SCHEMA,
   WORKSPACE_API_KEY_DENIED,
@@ -26,6 +28,7 @@ import {
   v2DeleteWorkflowContract,
   v2DeleteWorkflowFolderContract,
   v2DeployWorkflowContract,
+  v2DownloadRunFileContract,
   v2ExecuteWorkflowContract,
   v2ExecuteWorkflowQueuedResponseSchema,
   v2ExecuteWorkflowSyncResponseSchema,
@@ -678,6 +681,24 @@ const declaredRoutes = [
     }
   ),
   defineOpenApiRoute(
+    v2DownloadRunFileContract,
+    workflowRunOperation({
+      operationId: 'downloadWorkflowRunFileV2',
+      summary: 'Download Workflow Run File',
+      description: `Download one file a run produced. The run resource reports the files a run emitted; address one of them by its \`id\` here. Run output carries \`/api/files/serve/...\` URLs that reject API keys, so this is the byte path out of a run for an API-key caller. Execution objects are not retained indefinitely, so a \`404\` for a file an older run produced is expected rather than a fault. ${RUN_RETENTION} Downloading records an audit event, so it is not a safe read. ${HEAD_MIRRORS_GET} ${HEAD_OMITS_PAYLOAD_HEADERS}`,
+      errors: [...RESOURCE_CONFLICT_ERRORS],
+      success: {
+        description: 'The run file bytes.',
+        headers: [...RATE_LIMIT_HEADERS, 'Content-Type', 'Content-Disposition', 'Content-Length'],
+        contentTypes: ['application/octet-stream'],
+      },
+    }),
+    {
+      params: v2DownloadRunFileContract.params,
+      query: v2DownloadRunFileContract.query,
+    }
+  ),
+  defineOpenApiRoute(
     v2ResumeWorkflowContract,
     workflowRunOperation({
       operationId: 'resumeWorkflowRunV2',
@@ -894,7 +915,7 @@ export const workflowsOpenApiDocument = defineOpenApiDocument({
   ],
   security: V2_API_KEY_SECURITY,
   securitySchemes: V2_API_KEY_SECURITY_SCHEMES,
-  headers: V2_COMMON_HEADERS,
+  headers: { ...V2_BINARY_DOWNLOAD_HEADERS, ...V2_COMMON_HEADERS },
   errorSchema: V2_ERROR_SCHEMA,
   errorResponses: ERROR_RESPONSES,
   routes,

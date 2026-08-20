@@ -1301,6 +1301,40 @@ export const v2WorkflowRunStatusSchema = z
   })
 export type V2WorkflowRunStatus = z.output<typeof v2WorkflowRunStatusSchema>
 
+export const v2DownloadRunFileParamsSchema = z
+  .object({
+    id: z.string().min(1, 'Invalid workflow ID').describe('Unique workflow identifier.'),
+    runId: v2WorkflowRunIdSchema.describe('Unique workflow run identifier.'),
+    fileId: z
+      .string()
+      .min(1, 'fileId cannot be empty')
+      .max(256, 'fileId is too long')
+      .describe('Identifier of a file the run produced, as reported by the run resource.'),
+  })
+  .meta({
+    id: 'DownloadRunFileParams',
+    title: 'Run file path parameters',
+    description: 'Workflow, run, and run-produced file selected by the request path.',
+  })
+export type V2DownloadRunFileParams = z.input<typeof v2DownloadRunFileParamsSchema>
+
+/**
+ * Downloads one file a run produced.
+ *
+ * The file is addressed by the id the run itself reported; a storage key is
+ * never accepted from the request, so this endpoint cannot be pointed at bytes
+ * the run did not produce.
+ */
+export const v2DownloadRunFileContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/v2/workflows/[id]/runs/[runId]/files/[fileId]',
+  params: v2DownloadRunFileParamsSchema,
+  query: noInputSchema,
+  response: {
+    mode: 'binary',
+  },
+})
+
 export const v2GetWorkflowRunContract = defineRouteContract({
   method: 'GET',
   path: '/api/v2/workflows/[id]/runs/[runId]',

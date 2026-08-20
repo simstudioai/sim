@@ -401,6 +401,39 @@ export const WORKSPACE_API_KEY_DENIED_AS_NOT_FOUND =
 export const RUN_RETENTION =
   "Runs are hard-deleted once they pass the payer's log retention window, so an older run is simply absent rather than reported as removed. The window is 30 days from run start on the free plan, unbounded on Pro and Team, and set per organization on Enterprise with an optional per-workspace override."
 
+/**
+ * Response headers a binary download declares on top of the common set. Shared
+ * so every document that publishes a byte-serving route describes the same
+ * three headers identically.
+ */
+export const V2_BINARY_DOWNLOAD_HEADERS = {
+  'Content-Type': {
+    schema: z.string().meta({
+      id: 'ContentTypeHeader',
+      title: 'Content type',
+      description:
+        'MIME type of the file, defaulting to application/octet-stream when the stored type is unavailable.',
+    }),
+  },
+  'Content-Disposition': {
+    schema: z.string().meta({
+      id: 'ContentDispositionHeader',
+      title: 'Content disposition',
+      description: 'Attachment disposition containing sanitized and RFC 5987 encoded filenames.',
+    }),
+  },
+  'Content-Length': {
+    schema: z
+      .string()
+      .regex(/^(0|[1-9]\d*)$/)
+      .meta({
+        id: 'ContentLengthHeader',
+        title: 'Content length',
+        description: 'File size in bytes.',
+      }),
+  },
+} as const
+
 export const V2_COMMON_HEADERS = {
   'X-RateLimit-Limit': {
     schema: z.number().int().nonnegative().meta({
