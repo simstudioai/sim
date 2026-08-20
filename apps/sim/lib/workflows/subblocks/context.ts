@@ -46,6 +46,13 @@ export const SELECTOR_CONTEXT_FIELDS = new Set<keyof SelectorContext>([
   'customObjectTypeId',
   'pipelineId',
   'environmentType',
+  'credentialGroupId',
+  'language',
+  'host',
+  'port',
+  'secure',
+  'username',
+  'password',
 ])
 
 /**

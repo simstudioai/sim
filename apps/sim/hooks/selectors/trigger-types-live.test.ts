@@ -2,15 +2,21 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
-import { fetchTriggerTypeOptions } from '@/lib/workflows/subblocks/options'
+import { getSelectorDefinition } from '@/hooks/selectors/registry'
 
 /**
  * Exercises the real block and trigger registries rather than a mock: the
- * fetcher reaches them through a lazy import specifically to avoid an
+ * selector reaches them through a lazy import specifically to avoid an
  * initialization cycle, and a mocked test cannot show that the import resolves
  * or that the registry is populated by the time the dropdown asks for options.
  */
-describe('fetchTriggerTypeOptions against the real registry', () => {
+const fetchTriggerTypeOptions = () =>
+  getSelectorDefinition('workspace.triggerTypes').fetchList!({
+    key: 'workspace.triggerTypes',
+    context: {},
+  })
+
+describe('workspace.triggerTypes against the real registry', () => {
   it('resolves the lazy import into a populated list of unique labels', async () => {
     const options = await fetchTriggerTypeOptions()
 

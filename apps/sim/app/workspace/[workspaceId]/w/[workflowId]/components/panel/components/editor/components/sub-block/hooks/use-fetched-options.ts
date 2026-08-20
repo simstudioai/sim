@@ -33,8 +33,8 @@ interface UseFetchedOptionsProps {
    * work on the canvas, and was in every case a duplicate of a selector that already existed.
    */
   selectorKey?: SelectorKey
-  fetchOptions?: (blockId: string) => Promise<FetchedOption[]>
-  fetchOptionById?: (blockId: string, optionId: string) => Promise<FetchedOption | null>
+  /** Drop the hosting workflow from the list — see `SubBlockConfig.selectorExcludeSelf`. */
+  selectorExcludeSelf?: boolean
   isPreview: boolean
   disabled: boolean
   /**
@@ -82,8 +82,7 @@ export function useFetchedOptions({
   blockId,
   dependsOnFields,
   selectorKey,
-  fetchOptions: fetchOptionsProp,
-  fetchOptionById: fetchOptionByIdProp,
+  selectorExcludeSelf,
   isPreview,
   disabled,
   valueToHydrate,
@@ -128,12 +127,14 @@ export function useFetchedOptions({
       : {}
     const merged: Record<string, { value?: unknown }> = { ...(block.subBlocks ?? {}) }
     for (const [id, value] of Object.entries(live)) merged[id] = { ...merged[id], value }
-    return buildSelectorContextFromBlock(block.type, merged, {
+    const context = buildSelectorContextFromBlock(block.type, merged, {
       workflowId: activeWorkflowId ?? undefined,
       workspaceId: workspaceId ?? undefined,
       canonicalModes: block.data?.canonicalModes,
     })
-  }, [blockId, activeWorkflowId, workspaceId])
+    if (selectorExcludeSelf && activeWorkflowId) context.excludeWorkflowId = activeWorkflowId
+    return context
+  }, [blockId, activeWorkflowId, workspaceId, selectorExcludeSelf])
 
   const selectorDefinition = selectorKey ? getSelectorDefinition(selectorKey) : undefined
 
@@ -146,7 +147,6 @@ export function useFetchedOptions({
    * new identity and the scope reset below refetches, exactly as it does for a prop fetcher.
    */
   const fetchOptions = useMemo(() => {
-    if (fetchOptionsProp) return fetchOptionsProp
     if (!selectorDefinition) return undefined
     const definition = selectorDefinition
     return async (): Promise<FetchedOption[]> => {
@@ -162,11 +162,10 @@ export function useFetchedOptions({
       return options.map((option) => ({ id: option.id, label: option.label }))
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- dependencyValues is the refetch scope
-  }, [fetchOptionsProp, selectorDefinition, readSelectorContext, dependencyValues])
+  }, [selectorDefinition, readSelectorContext, dependencyValues])
 
   /** Label hydration for a stored id, from the same definition. */
   const fetchOptionById = useMemo(() => {
-    if (fetchOptionByIdProp) return fetchOptionByIdProp
     const definition = selectorDefinition
     const fetchById = definition?.fetchById
     if (!definition || !fetchById) return undefined
@@ -176,7 +175,7 @@ export function useFetchedOptions({
       const option = await fetchById({ key: definition.key, context, detailId: optionId, signal })
       return option ? { id: option.id, label: option.label } : null
     }
-  }, [fetchOptionByIdProp, selectorDefinition, readSelectorContext])
+  }, [selectorDefinition, readSelectorContext])
 
   const [fetchedOptions, setFetchedOptions] = useState<FetchedOption[]>([])
   const [isLoadingOptions, setIsLoadingOptions] = useState(false)
@@ -204,7 +203,7 @@ export function useFetchedOptions({
     setIsLoadingOptions(true)
     setFetchError(null)
     try {
-      const options = await fetchOptions(blockId)
+      const options = await fetchOptions()
       if (requestId !== fetchRequestIdRef.current) return
       setFetchedOptions(options)
     } catch (error) {

@@ -71,13 +71,8 @@ interface ComboBoxProps {
   config: SubBlockConfig
   /** Registered selector supplying the options. The canonical source for a remote list. */
   selectorKey?: SelectorKey
-  /** Async function to fetch options dynamically */
-  fetchOptions?: (blockId: string) => Promise<Array<{ label: string; id: string }>>
-  /** Async function to fetch a single option's label by ID (for hydration) */
-  fetchOptionById?: (
-    blockId: string,
-    optionId: string
-  ) => Promise<{ label: string; id: string } | null>
+  /** Drop the hosting workflow from a `sim.workflows` list. */
+  selectorExcludeSelf?: boolean
   /** Field dependencies that trigger option refetch when changed */
   dependsOn?: SubBlockConfig['dependsOn']
 }
@@ -94,8 +89,7 @@ export const ComboBox = memo(function ComboBox({
   placeholder = 'Type or select an option...',
   config,
   selectorKey,
-  fetchOptions,
-  fetchOptionById,
+  selectorExcludeSelf,
   dependsOn,
 }: ComboBoxProps) {
   const activeSearchTarget = useActiveSearchTarget()
@@ -136,8 +130,7 @@ export const ComboBox = memo(function ComboBox({
     blockId,
     dependsOnFields,
     selectorKey,
-    fetchOptions,
-    fetchOptionById,
+    selectorExcludeSelf,
     isPreview: Boolean(isPreview),
     disabled: Boolean(disabled),
     valueToHydrate: value as string | null | undefined,
@@ -202,7 +195,7 @@ export const ComboBox = memo(function ComboBox({
     let opts: ComboBoxOption[] =
       isDynamic && normalizedFetchedOptions.length > 0 ? normalizedFetchedOptions : staticOptions
 
-    if (subBlockId === 'model' && fetchOptions && normalizedFetchedOptions.length > 0) {
+    if (subBlockId === 'model' && isDynamic && normalizedFetchedOptions.length > 0) {
       opts = opts.filter((opt) => isModelUsable(typeof opt === 'string' ? opt : opt.id))
     }
 
@@ -230,7 +223,7 @@ export const ComboBox = memo(function ComboBox({
 
     return opts
   }, [
-    fetchOptions,
+    isDynamic,
     normalizedFetchedOptions,
     staticOptions,
     hydratedOption,

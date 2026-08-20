@@ -85,6 +85,15 @@ export type SelectorKey =
   | 'monday.groups'
   | 'sim.workflows'
   | 'table.columns'
+  | 'workspace.credentialProviders'
+  | 'workspace.credentialGroups'
+  | 'workspace.credentialGroupProviders'
+  | 'workspace.secretNames'
+  | 'workspace.rawSecretNames'
+  | 'workspace.sandboxes'
+  | 'workspace.triggerTypes'
+  | 'imap.mailboxes'
+  | 'providers.openrouterEmbeddingModels'
 
 export interface SelectorOption {
   id: string
@@ -149,6 +158,19 @@ export interface SelectorContext {
    * so an environment list is filtered to the selected mode rather than mixing them.
    */
   environmentType?: string
+  /** Credential group whose per-provider filter a picker enumerates. */
+  credentialGroupId?: string
+  /** Function block runtime (`python` | `javascript` | `shell`), scoping the sandbox list. */
+  language?: string
+  /**
+   * IMAP connection parameters. `imapPassword` is a raw secret, so unlike `oauthCredential` —
+   * which is only an id — it must NEVER appear in a query key; see `imap.mailboxes`.
+   */
+  host?: string
+  port?: string
+  secure?: string
+  username?: string
+  password?: string
 }
 
 export interface SelectorQueryArgs {

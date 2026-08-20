@@ -1,38 +1,9 @@
 import { createLogger } from '@sim/logger'
 import { HubspotIcon } from '@/components/icons'
-import { requestJson } from '@/lib/api/client/request'
-import { hubspotPropertiesSelectorContract } from '@/lib/api/contracts/selectors/hubspot'
 import { getScopesForService } from '@/lib/oauth/utils'
-import { readSubBlockValue } from '@/triggers/editor-state'
 import type { TriggerConfig } from '@/triggers/types'
 
 const logger = createLogger('HubSpotPollingTrigger')
-
-/**
- * Resolves the effective object type from the subblock store. `getValue` returns `null`
- * for fields the user hasn't interacted with yet, so we fall back to the dropdown's
- * default ('contact') — otherwise the cascading property selectors render empty on
- * first render even when the dropdown visibly shows "contact".
- */
-async function resolveSelectedObjectType(blockId: string): Promise<string | null> {
-  const objectType = (await readSubBlockValue(blockId, 'objectType')) as string | null
-  const customId = (await readSubBlockValue(blockId, 'customObjectTypeId')) as string | null
-  const selected = objectType ?? 'contact'
-  if (selected === 'custom') {
-    const trimmed = customId?.trim()
-    return trimmed ? trimmed : null
-  }
-  return selected
-}
-
-async function fetchHubSpotProperties(blockId: string, objectType: string) {
-  const credentialId = (await readSubBlockValue(blockId, 'triggerCredentials')) as string | null
-  if (!credentialId) throw new Error('No HubSpot credential selected')
-  const data = await requestJson(hubspotPropertiesSelectorContract, {
-    query: { credentialId, objectType },
-  })
-  return data.properties.map((p) => ({ id: p.id, label: p.name }))
-}
 
 export const hubspotPollingTrigger: TriggerConfig = {
   id: 'hubspot_poller',

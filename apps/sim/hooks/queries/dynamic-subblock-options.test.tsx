@@ -5,8 +5,25 @@ import { act } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+
+const { mockGetSelectorDefinition } = vi.hoisted(() => ({
+  mockGetSelectorDefinition: vi.fn(),
+}))
+
+vi.mock('@/hooks/selectors/registry', () => ({
+  getSelectorDefinition: mockGetSelectorDefinition,
+}))
+
 import type { SubBlockConfig } from '@/blocks/types'
 import { useDynamicSubBlockOptionDisplayName } from '@/hooks/queries/dynamic-subblock-options'
+import type { SelectorDefinition, SelectorKey } from '@/hooks/selectors/types'
+
+/** Any registered key; the hook only uses it to look the definition up. */
+const SELECTOR_KEY = 'workspace.credentialGroups' as SelectorKey
+
+function mockDefinition(definition: Partial<SelectorDefinition>) {
+  mockGetSelectorDefinition.mockReturnValue(definition as SelectorDefinition)
+}
 
 interface HookHarness<T> {
   result: () => T
@@ -54,16 +71,16 @@ describe('useDynamicSubBlockOptionDisplayName', () => {
   })
 
   it('hydrates a stored dynamic dropdown id to its label', async () => {
-    const fetchOptionById = vi.fn(async (_blockId: string, optionId: string) => ({
-      id: optionId,
+    const fetchById = vi.fn(async ({ detailId }: { detailId?: string }) => ({
+      id: detailId as string,
       label: 'Customer support accounts',
     }))
+    mockDefinition({ key: SELECTOR_KEY, getQueryKey: () => [SELECTOR_KEY], fetchById })
     const subBlock = {
       id: 'credentialGroup',
       title: 'Credential Group',
       type: 'dropdown',
-      options: [],
-      fetchOptionById,
+      selectorKey: SELECTOR_KEY,
     } satisfies SubBlockConfig
 
     const hook = renderHookWithClient(() =>
@@ -78,21 +95,23 @@ describe('useDynamicSubBlockOptionDisplayName', () => {
 
     await waitForResult(() => expect(hook.result()).toBe('Customer support accounts'))
 
-    expect(fetchOptionById).toHaveBeenCalledWith('block-1', 'group-uuid', expect.any(AbortSignal))
+    expect(fetchById).toHaveBeenCalledWith(
+      expect.objectContaining({ detailId: 'group-uuid', context: { workspaceId: 'workspace-1' } })
+    )
   })
 
   it('summarizes every selected dynamic option without dropping ids', async () => {
-    const fetchOptionById = vi.fn(async (_blockId: string, optionId: string) => ({
-      id: optionId,
-      label: optionId === 'gmail' ? 'Gmail' : 'Slack',
+    const fetchById = vi.fn(async ({ detailId }: { detailId?: string }) => ({
+      id: detailId as string,
+      label: detailId === 'gmail' ? 'Gmail' : 'Slack',
     }))
+    mockDefinition({ key: SELECTOR_KEY, getQueryKey: () => [SELECTOR_KEY], fetchById })
     const subBlock = {
       id: 'providerFilter',
       title: 'Provider',
       type: 'dropdown',
-      options: [],
       multiSelect: true,
-      fetchOptionById,
+      selectorKey: SELECTOR_KEY,
     } satisfies SubBlockConfig
 
     const hook = renderHookWithClient(() =>

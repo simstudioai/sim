@@ -1,32 +1,5 @@
-import { createLogger } from '@sim/logger'
-import { requestJson } from '@/lib/api/client/request'
-import { clickupWorkspacesSelectorContract } from '@/lib/api/contracts/selectors/clickup'
 import type { SubBlockConfig } from '@/blocks/types'
 import { clickupSetupInstructions } from '@/triggers/clickup/utils'
-import { readSubBlockValue } from '@/triggers/editor-state'
-
-const logger = createLogger('ClickUpTriggerSubBlocks')
-
-async function fetchWorkspaceOptions(
-  blockId: string
-): Promise<Array<{ id: string; label: string }>> {
-  const credentialId = (await readSubBlockValue(blockId, 'triggerCredentials')) as string | null
-  if (!credentialId) {
-    throw new Error('No ClickUp credential selected')
-  }
-  try {
-    const data = await requestJson(clickupWorkspacesSelectorContract, {
-      body: { credential: credentialId },
-    })
-    return (data.workspaces ?? []).map((workspace) => ({
-      id: workspace.id,
-      label: workspace.name,
-    }))
-  } catch (error) {
-    logger.error('Error fetching ClickUp workspaces:', error)
-    throw error
-  }
-}
 
 /**
  * Builds the shared subBlocks for a ClickUp trigger: OAuth credentials, the

@@ -9,6 +9,7 @@ import { cloudwatchSelectors } from '@/hooks/selectors/providers/cloudwatch/sele
 import { confluenceSelectors } from '@/hooks/selectors/providers/confluence/selectors'
 import { googleSelectors } from '@/hooks/selectors/providers/google/selectors'
 import { hubspotSelectors } from '@/hooks/selectors/providers/hubspot/selectors'
+import { imapSelectors } from '@/hooks/selectors/providers/imap/selectors'
 import { jiraSelectors } from '@/hooks/selectors/providers/jira/selectors'
 import { jsmSelectors } from '@/hooks/selectors/providers/jsm/selectors'
 import { knowledgeSelectors } from '@/hooks/selectors/providers/knowledge/selectors'
@@ -26,6 +27,10 @@ import { snowflakeSelectors } from '@/hooks/selectors/providers/snowflake/select
 import { trelloSelectors } from '@/hooks/selectors/providers/trello/selectors'
 import { wealthboxSelectors } from '@/hooks/selectors/providers/wealthbox/selectors'
 import { webflowSelectors } from '@/hooks/selectors/providers/webflow/selectors'
+import {
+  providerSelectors,
+  workspaceSelectors,
+} from '@/hooks/selectors/providers/workspace/selectors'
 import { zohoDeskSelectors } from '@/hooks/selectors/providers/zoho-desk/selectors'
 import { zoomSelectors } from '@/hooks/selectors/providers/zoom/selectors'
 import type {
@@ -47,6 +52,9 @@ export const selectorRegistry = {
   ...googleSelectors,
   ...hubspotSelectors,
   ...managedAgentSelectors,
+  ...imapSelectors,
+  ...workspaceSelectors,
+  ...providerSelectors,
   ...microsoftSelectors,
   ...notionSelectors,
   ...pipedriveSelectors,
