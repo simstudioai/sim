@@ -94,7 +94,14 @@ export function resolveOperationIds(block: BlockConfig): string[] {
   return derived
 }
 
-/** Projects one block config down to its catalog summary. */
+/**
+ * Projects one block config down to its catalog summary.
+ *
+ * Every array published here is a copy. `block.triggers.available`,
+ * `block.tools.access`, and a meta's `tags` are the registry's own arrays, live
+ * for the whole process, so handing one out would put mutable registry state one
+ * careless consumer away from corrupting every later request.
+ */
 export function projectBlockSummary(block: BlockConfig): CatalogBlockSummary {
   const summary: CatalogBlockSummary = {
     id: block.type,
@@ -104,8 +111,8 @@ export function projectBlockSummary(block: BlockConfig): CatalogBlockSummary {
     source: isCustomBlockType(block.type) ? 'custom' : 'builtin',
     triggerAllowed: block.triggerAllowed === true,
     triggerCapable: isTriggerCapableBlock(block),
-    triggerIds: block.triggers?.available ?? [],
-    toolIds: block.tools?.access ?? [],
+    triggerIds: [...(block.triggers?.available ?? [])],
+    toolIds: [...(block.tools?.access ?? [])],
     operationIds: resolveOperationIds(block),
     preview: block.preview === true,
     tags: [...(getBlockMeta(block.type)?.tags ?? [])],

@@ -2,7 +2,8 @@
  * @vitest-environment node
  */
 import type { SessionPrincipal, WorkspaceApiKeyPrincipal } from '@sim/auth/principal'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing/mocks'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   loadWorkspace: vi.fn(),
@@ -14,6 +15,7 @@ const mocks = vi.hoisted(() => ({
   recordAudit: vi.fn(),
   getAllBlocks: vi.fn(),
   getBlock: vi.fn(),
+  getLatestBlockForViewer: vi.fn(),
 }))
 
 vi.mock('@/lib/workspaces/application/workspace-context', () => ({
@@ -63,6 +65,7 @@ vi.mock('@/blocks/visibility/server-context', () => ({
 vi.mock('@/blocks/registry', () => ({
   getAllBlocks: mocks.getAllBlocks,
   getBlock: mocks.getBlock,
+  getLatestBlockForViewer: mocks.getLatestBlockForViewer,
   getBlockMeta: vi.fn(() => ({ tags: ['messaging'] })),
 }))
 
@@ -173,11 +176,55 @@ const customBlock = block({
   name: 'Reports',
   description: 'Run the reports workflow.',
 })
+/** A superseded version: present in the registry, hidden from every discovery surface. */
+const confluenceV1 = block({
+  type: 'confluence',
+  name: 'Confluence',
+  hideFromToolbar: true,
+})
+const confluenceV2 = block({
+  type: 'confluence_v2',
+  name: 'Confluence',
+  description: 'Read Confluence pages.',
+})
 
-const NOTHING_GATED = {
+interface Visibility {
+  revealed: Set<string>
+  disabled: Set<string>
+  previewTagged: Set<string>
+}
+
+const NOTHING_GATED: Visibility = {
   revealed: new Set<string>(),
   disabled: new Set<string>(),
   previewTagged: new Set<string>(),
+}
+
+/** The visibility document both the gate and the registry stub below resolve against. */
+let visibility: Visibility = NOTHING_GATED
+
+function setVisibility(state: Visibility): void {
+  visibility = state
+  mocks.getBlockVisibility.mockResolvedValue(state)
+}
+
+/**
+ * Stands in for `getLatestBlockForViewer`: resolves an unversioned base type to
+ * its highest version and applies the list's " (Preview)" display suffix. Those
+ * are exactly the two behaviours the detail read used to lack, so the stub has
+ * to reproduce them or the tests below would pass against the old `getBlock`.
+ */
+function resolveLatestForViewer(type: string, registry: BlockConfig[]): BlockConfig | undefined {
+  const versionPattern = new RegExp(`^${type}_v(\\d+)$`)
+  const latestVersioned = registry
+    .filter((entry) => versionPattern.test(entry.type))
+    .sort((left, right) => left.type.localeCompare(right.type))
+    .at(-1)
+  const block = latestVersioned ?? registry.find((entry) => entry.type === type)
+  if (!block) return undefined
+  return block.preview && visibility.previewTagged.has(block.type)
+    ? { ...block, name: `${block.name} (Preview)` }
+    : block
 }
 
 const listInput = {
@@ -189,17 +236,31 @@ const listInput = {
 }
 
 describe('catalog block and tool reads', () => {
+  afterAll(resetEnvFlagsMock)
+
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.loadWorkspace.mockResolvedValue(workspaceContext)
     mocks.resolvePermission.mockResolvedValue('read')
     mocks.allowedIntegrationTypes.mockResolvedValue(null)
-    mocks.getBlockVisibility.mockResolvedValue(NOTHING_GATED)
+    setVisibility(NOTHING_GATED)
     mocks.listCustomBlocks.mockResolvedValue([])
     mocks.isDeploymentAvailable.mockReturnValue(true)
+    setEnvFlags({ isHosted: true })
     mocks.getAllBlocks.mockReturnValue([slackBlock, notionBlock, customBlock])
+    /** `isBlockTypeAccessControlExempt` reads the pure registry lookup. */
     mocks.getBlock.mockImplementation((type: string) =>
       [slackBlock, notionBlock, previewBlock, customBlock].find((entry) => entry.type === type)
+    )
+    mocks.getLatestBlockForViewer.mockImplementation((type: string) =>
+      resolveLatestForViewer(type, [
+        slackBlock,
+        notionBlock,
+        previewBlock,
+        customBlock,
+        confluenceV1,
+        confluenceV2,
+      ])
     )
   })
 
@@ -272,7 +333,7 @@ describe('catalog block and tool reads', () => {
 
   it('reveals a preview block once the visibility document names it', async () => {
     mocks.getAllBlocks.mockReturnValue([slackBlock, previewBlock])
-    mocks.getBlockVisibility.mockResolvedValue({
+    setVisibility({
       revealed: new Set(['preview_thing']),
       disabled: new Set<string>(),
       previewTagged: new Set(['preview_thing']),
@@ -283,7 +344,7 @@ describe('catalog block and tool reads', () => {
   })
 
   it('drops a kill-switched block from the list and 404s its detail', async () => {
-    mocks.getBlockVisibility.mockResolvedValue({
+    setVisibility({
       revealed: new Set<string>(),
       disabled: new Set(['notion']),
       previewTagged: new Set<string>(),
@@ -386,7 +447,7 @@ describe('catalog block and tool reads', () => {
 
   it('filters tools by how their API key is supplied', async () => {
     mocks.getAllBlocks.mockReturnValue([slackBlock, previewBlock])
-    mocks.getBlockVisibility.mockResolvedValue({
+    setVisibility({
       revealed: new Set(['preview_thing']),
       disabled: new Set<string>(),
       previewTagged: new Set<string>(),
@@ -420,6 +481,89 @@ describe('catalog block and tool reads', () => {
         input: { workspaceId: WORKSPACE_ID, toolId: 'preview_call' },
       })
     ).rejects.toMatchObject({ code: 'not_found', message: 'Tool not found' })
+  })
+
+  /**
+   * The list projects through the viewer's visibility, which renames a revealed
+   * preview block; the detail read used a bare registry lookup, which does not.
+   * A caller reading `GET /v2/blocks/preview_thing` after seeing it in the list
+   * got a different `name` for the same block.
+   */
+  it('names a revealed preview block identically in the list and its detail', async () => {
+    mocks.getAllBlocks.mockReturnValue([
+      slackBlock,
+      { ...previewBlock, name: `${previewBlock.name} (Preview)` },
+    ])
+    setVisibility({
+      revealed: new Set(['preview_thing']),
+      disabled: new Set<string>(),
+      previewTagged: new Set(['preview_thing']),
+    })
+
+    const listed = await listCatalogBlocks.execute({ principal: session, input: listInput })
+    const summary = listed.entries.find((entry) => entry.id === 'preview_thing')
+
+    const { block: detail } = await getCatalogBlock.execute({
+      principal: session,
+      input: { workspaceId: WORKSPACE_ID, blockId: 'preview_thing' },
+    })
+
+    expect(detail.name).toBe('Preview thing (Preview)')
+    expect(detail.name).toBe(summary?.name)
+  })
+
+  /**
+   * Every versioned family's base type resolves to the superseded v1, which
+   * carries `hideFromToolbar` — so `GET /v2/blocks/confluence` 404'd while the
+   * list contained `confluence_v2`.
+   */
+  it('resolves an unversioned block name to its newest version and echoes the resolved id', async () => {
+    mocks.getAllBlocks.mockReturnValue([confluenceV2])
+
+    const { block: detail } = await getCatalogBlock.execute({
+      principal: session,
+      input: { workspaceId: WORKSPACE_ID, blockId: 'confluence' },
+    })
+
+    expect(detail.id).toBe('confluence_v2')
+  })
+
+  it('orders by code unit rather than the process locale', async () => {
+    mocks.getAllBlocks.mockReturnValue([
+      block({ type: 'b_lower', name: 'apple' }),
+      block({ type: 'a_upper', name: 'Banana' }),
+    ])
+
+    const result = await listCatalogBlocks.execute({
+      principal: session,
+      input: { ...listInput, sortBy: 'name' },
+    })
+
+    /**
+     * `'Banana'.localeCompare('apple')` is negative under an en locale and
+     * positive by code unit. Pinning the code-unit answer is what makes an
+     * offset cursor name the same row on every instance, whatever its `LANG`.
+     */
+    expect(result.entries.map((entry) => entry.name)).toEqual(['Banana', 'apple'])
+  })
+
+  it('reports no hosted key on a deployment that supplies none', async () => {
+    mocks.getAllBlocks.mockReturnValue([slackBlock, previewBlock])
+    setVisibility({
+      revealed: new Set(['preview_thing']),
+      disabled: new Set<string>(),
+      previewTagged: new Set<string>(),
+    })
+    setEnvFlags({ isHosted: false })
+
+    const { tool } = await getCatalogTool.execute({
+      principal: session,
+      input: { workspaceId: WORKSPACE_ID, toolId: 'preview_call' },
+    })
+    expect(tool.hostedApiKey).toBe('none')
+
+    const listed = await listCatalogTools.execute({ principal: session, input: listInput })
+    expect(listed.entries.map((entry) => entry.hostedApiKey)).toEqual(['none', 'none'])
   })
 
   it('reads one tool with its params and outputs', async () => {

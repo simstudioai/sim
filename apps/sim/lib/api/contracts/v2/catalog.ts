@@ -356,7 +356,7 @@ export type V2ToolOutput = z.output<typeof v2ToolOutputSchema>
 const v2HostedApiKeySchema = z
   .enum(['always', 'conditional', 'none'])
   .describe(
-    'Whether Sim supplies the API key: `always`, `conditional` (only for some parameter combinations), or `none` (bring your own).'
+    'Whether Sim supplies the API key on THIS deployment: `always`, `conditional` (only for some parameter combinations), or `none` (bring your own). Self-hosted deployments supply no hosted keys, so every tool reports `none` there regardless of what it declares.'
   )
 
 const v2ToolOAuthSchema = z.object({
@@ -726,7 +726,9 @@ export const v2ListToolsQuerySchema = catalogWorkspaceQuerySchema
 export type V2ListToolsQuery = z.output<typeof v2ListToolsQuerySchema>
 
 export const v2GetBlockParamsSchema = z.object({
-  blockId: catalogIdSchema.describe('Block type identifier.'),
+  blockId: catalogIdSchema.describe(
+    'Block type identifier. An unversioned base type resolves to the newest version, and the response echoes the resolved id.'
+  ),
 })
 export type V2GetBlockParams = z.output<typeof v2GetBlockParamsSchema>
 

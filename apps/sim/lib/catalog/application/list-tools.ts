@@ -14,6 +14,7 @@ import { catalogOperations } from '@/lib/catalog/application/operations'
 import { resolveVisibleToolIds } from '@/lib/catalog/application/tool-scope'
 import { type CatalogToolSummary, projectToolSummaryById } from '@/lib/catalog/projection/tool'
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
+import { isHosted } from '@/lib/core/config/env-flags'
 import type { HostedApiKeySupport } from '@/tools/hosted-api-key'
 import { getToolIds } from '@/tools/tool-ids'
 
@@ -58,7 +59,7 @@ export const listCatalogTools = defineAuthorizedWorkspaceUseCase({
     /** `getToolIds()` hands out a frozen array — read it, never reorder it in place. */
     for (const toolId of getToolIds()) {
       if (!visibleToolIds.has(toolId)) continue
-      const summary = projectToolSummaryById(toolId)
+      const summary = projectToolSummaryById(toolId, { hostedKeys: isHosted })
       if (!summary) continue
       if (input.hostedApiKey && summary.hostedApiKey !== input.hostedApiKey) continue
       if (oauthProvider && summary.oauth?.provider.toLowerCase() !== oauthProvider) continue

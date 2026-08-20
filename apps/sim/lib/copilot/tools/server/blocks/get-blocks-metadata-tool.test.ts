@@ -20,6 +20,8 @@ vi.mock('@/lib/integrations/availability.server', () => ({
 import { computeBlockLevelInputs } from '@/lib/catalog/projection/block-detail'
 import { getBlocksMetadataServerTool } from '@/lib/copilot/tools/server/blocks/get-blocks-metadata-tool'
 import { MothershipBlock } from '@/blocks/blocks/mothership'
+import { getBlock } from '@/blocks/registry'
+import type { BlockConfig } from '@/blocks/types'
 
 describe('get blocks metadata', () => {
   beforeEach(() => {
@@ -33,6 +35,55 @@ describe('get blocks metadata', () => {
 
     expect(definitions).not.toHaveProperty('secretScope')
     expect(definitions).not.toHaveProperty('mountedSecrets')
+  })
+
+  /**
+   * A sub-block `condition` declared as a function is invoked during projection.
+   * A throwing one is an authoring defect worth surfacing, but it must cost the
+   * agent one block rather than every block it asked for — the projection call
+   * used to sit outside the per-block guard, so one bad condition emptied the
+   * whole response.
+   */
+  it('drops only the block whose projection throws', async () => {
+    const healthy = {
+      type: 'slack',
+      name: 'Slack',
+      description: 'Send messages.',
+      category: 'tools',
+      bgColor: '#000000',
+      icon: () => null,
+      subBlocks: [],
+      tools: { access: [] },
+      inputs: {},
+      outputs: {},
+    } as unknown as BlockConfig
+    const poisoned = {
+      ...healthy,
+      type: 'slack_broken',
+      name: 'Broken',
+      subBlocks: [
+        {
+          id: 'text',
+          type: 'long-input',
+          condition: () => {
+            throw new Error('condition dereferences values')
+          },
+        },
+      ],
+    } as unknown as BlockConfig
+
+    mockGetUserPermissionConfig.mockResolvedValue({ allowedIntegrations: null })
+    vi.mocked(getBlock).mockImplementation((type: string) =>
+      type === 'slack_broken' ? poisoned : healthy
+    )
+
+    const result = await getBlocksMetadataServerTool.execute(
+      { blockIds: ['slack_broken', 'slack'] },
+      { userId: 'user-1', workspaceId: 'workspace-1' }
+    )
+
+    expect(result.metadata).not.toHaveProperty('slack_broken')
+    expect(result.metadata).toHaveProperty('slack')
   })
 
   it('keeps access-control-exempt and special blocks under a restrictive allowlist', async () => {

@@ -155,12 +155,39 @@ interface ProvidersStateLike {
 }
 
 /**
+ * Thrown when an options function breaks the synchronous precondition below.
+ *
+ * Deliberately its own class so `resolveSubBlockOptions` re-throws it instead of
+ * degrading it to "no options": every registered block's options run through the
+ * `catalog-sweep` test, so this surfaces as a CI failure rather than a field that
+ * quietly stops publishing its choices.
+ */
+export class AsyncOptionsFunctionError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'AsyncOptionsFunctionError'
+  }
+}
+
+/**
  * Calls a dynamic options function with static provider data substituted for the
  * client store it would otherwise read.
  *
  * The model dropdowns read `useProvidersStore`, which has no state outside the
  * browser. Substituting the code-defined model list is what lets a server-side
  * projection publish the same options a user sees, instead of an empty list.
+ *
+ * PRECONDITION: every options function is synchronous, and this is the only
+ * reason the substitution is safe. `useProvidersStore` is a process-global, and
+ * `getState` is swapped for the duration of the call — so the window in which
+ * one caller's substitute state is visible to every other caller is exactly the
+ * synchronous body of `optionsFn`. An options function that awaited anything
+ * would widen that window across the event loop and hand its stub to unrelated
+ * requests. The substitution cannot be passed as an argument instead: the
+ * options functions call `getModelOptions()` in `@/blocks/utils`, which reads
+ * the store directly and takes no state parameter. So the precondition is
+ * enforced rather than designed away — a thenable result throws
+ * {@link AsyncOptionsFunctionError}.
  */
 function callOptionsWithFallback(
   optionsFn: () => CatalogSubBlockOption[]
@@ -188,7 +215,16 @@ function callOptionsWithFallback(
   }
 
   try {
-    return optionsFn()
+    const options = optionsFn()
+    if (typeof (options as { then?: unknown } | undefined)?.then === 'function') {
+      throw new AsyncOptionsFunctionError(
+        'A sub-block options function returned a thenable. Options functions must be ' +
+          'synchronous: the providers store is substituted process-wide for the duration of ' +
+          'the call, so an asynchronous one would expose its substitute state to every other ' +
+          'caller. Move the I/O behind a `selectorKey` instead.'
+      )
+    }
+    return options
   } finally {
     if (store?.useProvidersStore && originalGetState) {
       store.useProvidersStore.getState = originalGetState
@@ -216,7 +252,8 @@ export function resolveSubBlockOptions(
             | SubBlockConfig['options']
             | undefined)
         : subBlock.options
-  } catch {
+  } catch (error) {
+    if (error instanceof AsyncOptionsFunctionError) throw error
     return undefined
   }
 
@@ -232,6 +269,22 @@ export function resolveSubBlockOptions(
   }
 
   return normalized.length > 0 ? normalized : undefined
+}
+
+/**
+ * Copies a `dependsOn` hint.
+ *
+ * The registry's own arrays are process-global and shared by every request, so a
+ * projection that returned them would put mutable registry state one careless
+ * consumer away from corruption. Every array this module publishes is a copy for
+ * that reason.
+ */
+function copyDependsOn(dependsOn: NonNullable<SubBlockConfig['dependsOn']>): CatalogDependsOn {
+  if (Array.isArray(dependsOn)) return [...dependsOn]
+  const copied: { all?: string[]; any?: string[] } = {}
+  if (dependsOn.all) copied.all = [...dependsOn.all]
+  if (dependsOn.any) copied.any = [...dependsOn.any]
+  return copied
 }
 
 /** Assigns `key` only when `value` is neither `undefined` nor `null`. */
@@ -260,14 +313,14 @@ export function projectSubBlock(subBlock: SubBlockConfig): CatalogSubBlock {
   assignDefined(projected, 'language', subBlock.language)
   assignDefined(projected, 'generationType', subBlock.generationType)
   assignDefined(projected, 'serviceId', subBlock.serviceId)
-  assignDefined(projected, 'requiredScopes', subBlock.requiredScopes)
+  if (subBlock.requiredScopes) projected.requiredScopes = [...subBlock.requiredScopes]
   assignDefined(projected, 'mimeType', subBlock.mimeType)
   assignDefined(projected, 'acceptedTypes', subBlock.acceptedTypes)
   assignDefined(projected, 'multiple', subBlock.multiple)
   assignDefined(projected, 'maxSize', subBlock.maxSize)
   assignDefined(projected, 'connectionDroppable', subBlock.connectionDroppable)
-  assignDefined(projected, 'columns', subBlock.columns)
-  assignDefined(projected, 'dependsOn', subBlock.dependsOn)
+  if (subBlock.columns) projected.columns = [...subBlock.columns]
+  if (subBlock.dependsOn) projected.dependsOn = copyDependsOn(subBlock.dependsOn)
 
   const { required, requiredWhen } = normalizeRequired(subBlock.required)
   assignDefined(projected, 'required', required)

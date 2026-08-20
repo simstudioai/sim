@@ -86,6 +86,23 @@ function projectAuth(auth: ConnectorMeta['auth']): CatalogConnectorAuth {
   }
 }
 
+/**
+ * Copies a `dependsOn` hint.
+ *
+ * The connector registry's arrays live for the whole process, so publishing one
+ * by reference would hand every caller a mutable handle on shared state. The
+ * neighbouring `options` and `tags` projections copy for the same reason.
+ */
+function copyDependsOn(
+  dependsOn: NonNullable<ConnectorConfigField['dependsOn']>
+): NonNullable<CatalogConnectorConfigField['dependsOn']> {
+  if (Array.isArray(dependsOn)) return [...dependsOn]
+  const copied: { all?: string[]; any?: string[] } = {}
+  if (dependsOn.all) copied.all = [...dependsOn.all]
+  if (dependsOn.any) copied.any = [...dependsOn.any]
+  return copied
+}
+
 function projectConfigField(field: ConnectorConfigField): CatalogConnectorConfigField {
   const projected: CatalogConnectorConfigField = {
     id: field.id,
@@ -99,7 +116,7 @@ function projectConfigField(field: ConnectorConfigField): CatalogConnectorConfig
     projected.options = field.options.map((option) => ({ ...option }))
   if (field.selectorKey !== undefined) projected.selectorKey = field.selectorKey
   if (field.mimeType !== undefined) projected.mimeType = field.mimeType
-  if (field.dependsOn !== undefined) projected.dependsOn = field.dependsOn
+  if (field.dependsOn !== undefined) projected.dependsOn = copyDependsOn(field.dependsOn)
   if (field.mode !== undefined) projected.mode = field.mode
   if (field.canonicalParamId !== undefined) projected.canonicalParamId = field.canonicalParamId
   if (field.multi !== undefined) projected.multi = field.multi

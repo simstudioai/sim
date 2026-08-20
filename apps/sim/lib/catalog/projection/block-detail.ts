@@ -12,6 +12,7 @@ import {
   projectSubBlock,
 } from '@/lib/catalog/projection/subblock'
 import {
+  type CatalogDeployment,
   type CatalogToolDetail,
   type CatalogToolOutput,
   type CatalogToolSummary,
@@ -116,8 +117,11 @@ export interface CatalogBlockDetail extends CatalogBlockSummary {
   outputs: Record<string, CatalogBlockOutput>
 }
 
-/** How a surface renders a tool's description. Defaults to the tool's own text. */
+/** Per-surface inputs to a block detail projection. */
 export interface BlockDetailProjectionOptions {
+  /** The deployment whose hosted-key availability the projected tools report. */
+  deployment: CatalogDeployment
+  /** How this surface renders a tool's description. Defaults to the tool's own text. */
   describeTool?: (tool: CatalogToolSummary) => string
 }
 
@@ -296,12 +300,27 @@ export function projectBlockOutputs(
   return projected
 }
 
-/** Projects the triggers a block supports, with each trigger's configurable fields. */
+/**
+ * Projects the triggers a block supports, with each trigger's configurable
+ * fields.
+ *
+ * Only ids backed by a `TRIGGER_REGISTRY` entry are projected, because only
+ * those declare outputs and config fields. The universal entry points name
+ * theirs by kind instead — `start_trigger` declares `chat`, `manual` and `api`,
+ * none of which is a registered trigger definition — so those blocks
+ * legitimately publish an empty `triggers` array while `triggerCapable` and
+ * `triggerIds` on the summary carry what they can actually start. That is a
+ * routine registry shape rather than an authoring defect, so it logs at `debug`:
+ * at `warn` the five core trigger blocks emitted seven warnings on every sweep.
+ */
 export function projectBlockTriggers(block: BlockConfig): CatalogBlockTrigger[] {
   const triggers: CatalogBlockTrigger[] = []
   for (const triggerId of block.triggers?.available ?? []) {
     if (!isTriggerValid(triggerId)) {
-      logger.warn('Block declares an unregistered trigger', { blockType: block.type, triggerId })
+      logger.debug('Block names a trigger kind with no registered definition', {
+        blockType: block.type,
+        triggerId,
+      })
       continue
     }
     const trigger = getTrigger(triggerId)
@@ -367,7 +386,7 @@ function projectCustomBlockDetail(block: BlockConfig): CatalogBlockDetail {
 /** Projects one block config to its full catalog detail. */
 export function projectBlockDetail(
   block: BlockConfig,
-  options: BlockDetailProjectionOptions = {}
+  options: BlockDetailProjectionOptions
 ): CatalogBlockDetail {
   if (isCustomBlockType(block.type)) return projectCustomBlockDetail(block)
 
@@ -381,7 +400,7 @@ export function projectBlockDetail(
 
   const tools: CatalogToolDetail[] = []
   for (const toolId of block.tools?.access ?? []) {
-    const tool = projectToolDetail(toolId)
+    const tool = projectToolDetail(toolId, options.deployment)
     tools.push(
       tool
         ? { ...tool, description: describeTool(tool) }
@@ -400,7 +419,7 @@ export function projectBlockDetail(
   const operations: Record<string, CatalogBlockOperation> = {}
   for (const operationId of resolveOperationIds(block)) {
     const toolId = resolveToolIdForOperation(block, operationId)
-    const tool = toolId ? projectToolDetail(toolId) : undefined
+    const tool = toolId ? projectToolDetail(toolId, options.deployment) : undefined
 
     const inputs: CatalogBlockOperation['inputs'] = {}
     for (const [key, param] of Object.entries(tool?.params ?? {})) {
