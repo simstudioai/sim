@@ -102,6 +102,53 @@ describe('/api/v2/workflows', () => {
     })
   })
 
+  it('lists the active scope by default and forwards an explicit archived scope', async () => {
+    await GET(new NextRequest(`http://localhost/api/v2/workflows?workspaceId=${WORKSPACE_ID}`))
+    expect(mocks.listWorkflows).toHaveBeenCalledWith(
+      expect.objectContaining({ input: expect.objectContaining({ scope: 'active' }) })
+    )
+
+    await GET(
+      new NextRequest(
+        `http://localhost/api/v2/workflows?workspaceId=${WORKSPACE_ID}&scope=archived`
+      )
+    )
+    expect(mocks.listWorkflows).toHaveBeenLastCalledWith(
+      expect.objectContaining({ input: expect.objectContaining({ scope: 'archived' }) })
+    )
+  })
+
+  it('rejects a scope the surface does not serve', async () => {
+    const response = await GET(
+      new NextRequest(`http://localhost/api/v2/workflows?workspaceId=${WORKSPACE_ID}&scope=all`)
+    )
+
+    expect(response.status).toBe(400)
+    expect(mocks.listWorkflows).not.toHaveBeenCalled()
+  })
+
+  it('refuses a cursor replayed under a different scope', async () => {
+    mocks.listWorkflows.mockResolvedValueOnce({
+      workflows: [WORKFLOW],
+      nextCursorKeys: [1, WORKFLOW.id],
+      sortBy: 'position',
+      sortOrder: 'asc',
+    })
+    const first = await GET(
+      new NextRequest(`http://localhost/api/v2/workflows?workspaceId=${WORKSPACE_ID}`)
+    )
+    const { nextCursor } = await first.json()
+    expect(nextCursor).toEqual(expect.any(String))
+
+    const replayed = await GET(
+      new NextRequest(
+        `http://localhost/api/v2/workflows?workspaceId=${WORKSPACE_ID}&scope=archived&cursor=${encodeURIComponent(nextCursor)}`
+      )
+    )
+
+    expect(replayed.status).toBe(400)
+  })
+
   it('authenticates and rate limits before parsing list input', async () => {
     const response = await GET(new NextRequest('http://localhost/api/v2/workflows'))
 
