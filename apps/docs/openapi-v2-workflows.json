@@ -1392,7 +1392,7 @@
       "get": {
         "operationId": "getWorkflowRunV2",
         "summary": "Get Workflow Run",
-        "description": "Get current workflow run state, optionally including final and block outputs.",
+        "description": "Get current workflow run state, optionally including final and block outputs. With `includeOutput`, `files` lists the files the run produced, each with a `downloadPath`; add `includeFileBase64` to inline their bytes, which answers `413` naming the download path for a file above the 16 MiB inline ceiling. Because inlining reads object storage, this `GET` is not a safe read. A `HEAD` skips the effect but is authorized exactly as the `GET` is, so it answers `400`, `401`, `403`, or `404` wherever the `GET` would and an empty `200` otherwise. Skipping the effect means skipping the read that produces the payload, so that `200` carries none of the response headers documented below — it answers whether the `GET` would be allowed, not what the `GET` would return.",
         "tags": ["Workflow Runs"],
         "parameters": [
           {
@@ -1438,6 +1438,28 @@
             "schema": {
               "description": "Comma-separated block output references to include, as `blockId` or `blockId.path`. Block *names* are not resolved here — unlike the execute request, this resource reads a recorded run and matches ids only, so a name selects nothing and yields an empty `blockOutputs`.",
               "type": "string"
+            }
+          },
+          {
+            "name": "includeFileBase64",
+            "in": "query",
+            "required": false,
+            "description": "Inline each produced file's bytes as base64. Requires `includeOutput`. A file above the inline ceiling answers `413` naming its download path; fetch large files from `downloadPath` instead.",
+            "schema": {
+              "description": "Inline each produced file's bytes as base64. Requires `includeOutput`. A file above the inline ceiling answers `413` naming its download path; fetch large files from `downloadPath` instead.",
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "base64MaxBytes",
+            "in": "query",
+            "required": false,
+            "description": "Per-file inline ceiling, lowering but never raising the server limit of 16 MiB.",
+            "schema": {
+              "description": "Per-file inline ceiling, lowering but never raising the server limit of 16 MiB.",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 16777216
             }
           }
         ],
@@ -4468,6 +4490,48 @@
           }
         ]
       },
+      "V2RunFile": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Identifier to address this file by on the download endpoint."
+          },
+          "name": {
+            "type": "string",
+            "description": "File name, including its extension."
+          },
+          "size": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "description": "File size in bytes."
+          },
+          "type": {
+            "type": "string",
+            "description": "MIME type recorded for the file."
+          },
+          "downloadPath": {
+            "type": "string",
+            "description": "Path to fetch this file's bytes from, relative to the API host."
+          },
+          "base64": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Base64-encoded contents when `includeFileBase64` was requested and the file fits the inline ceiling, otherwise null."
+          }
+        },
+        "required": ["id", "name", "size", "type", "downloadPath", "base64"],
+        "additionalProperties": false,
+        "title": "Workflow run file",
+        "description": "A file produced by a workflow run."
+      },
       "WorkflowRunStatus": {
         "type": "object",
         "properties": {
@@ -4696,6 +4760,20 @@
               }
             ],
             "description": "Outputs of the blocks named by `selectedOutputs`, or null when none were requested. Gated by `selectedOutputs` alone — `includeOutput` governs `output` only."
+          },
+          "files": {
+            "anyOf": [
+              {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/V2RunFile"
+                }
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Files this run produced, or null when `includeOutput` is false. Matches the nullability of `output`."
           }
         },
         "required": [
@@ -4710,7 +4788,8 @@
           "cost",
           "error",
           "output",
-          "blockOutputs"
+          "blockOutputs",
+          "files"
         ],
         "additionalProperties": false,
         "title": "Workflow run status",
@@ -4746,7 +4825,17 @@
               "output": {
                 "result": "Ticket routed to Support"
               },
-              "blockOutputs": null
+              "blockOutputs": null,
+              "files": [
+                {
+                  "id": "file_1a2b3c",
+                  "name": "summary.pdf",
+                  "size": 20480,
+                  "type": "application/pdf",
+                  "downloadPath": "/api/v2/workflows/3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36/runs/run_8f14e45f-ceea-467f-a/files/file_1a2b3c",
+                  "base64": null
+                }
+              ]
             }
           }
         ]

@@ -17,6 +17,7 @@ const mocks = vi.hoisted(() => ({
   cancel: vi.fn(),
   capture: vi.fn(),
   readRun: vi.fn(),
+  authorizeReadRun: vi.fn(),
 }))
 
 vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
@@ -29,6 +30,7 @@ vi.mock('@/lib/workflows/application/read-workflow-run', () => ({
   readWorkflowRun: {
     operation: { id: 'workflows.runs.read' },
     execute: mocks.readRun,
+    authorize: mocks.authorizeReadRun,
   },
 }))
 
@@ -43,6 +45,7 @@ import {
   InsufficientWorkspacePermissionsError,
   NoWorkspaceAccessError,
 } from '@/lib/core/application'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { POST as cancelPost } from '@/app/api/v2/workflows/[id]/runs/[runId]/cancel/route'
 import { GET } from '@/app/api/v2/workflows/[id]/runs/[runId]/route'
 
@@ -83,6 +86,7 @@ const baseStatus = {
   error: 'Send Email: Invalid credentials',
   finalOutput: null,
   blockOutputs: null,
+  files: null,
 }
 
 /**
@@ -116,6 +120,7 @@ describe('v2 run detail and cancel adapters', () => {
     v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
     v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
     mocks.readRun.mockResolvedValue(baseStatus)
+    mocks.authorizeReadRun.mockResolvedValue(undefined)
     mocks.cancel.mockResolvedValue(successfulCancellation)
   })
 
@@ -141,9 +146,106 @@ describe('v2 run detail and cancel adapters', () => {
         runId: 'run-1',
         includeOutput: false,
         selectedOutputs: [],
+        includeFileBase64: false,
+        base64MaxBytes: undefined,
       },
       request: expect.anything(),
     })
+  })
+
+  it('emits files as null when output was not requested', async () => {
+    expect((await (await callStatus()).json()).data.files).toBeNull()
+  })
+
+  /**
+   * The byte path out of an async run: each produced file arrives with a
+   * `downloadPath` even when its bytes are not inlined.
+   */
+  it('emits run file descriptors with a download path', async () => {
+    mocks.readRun.mockResolvedValueOnce({
+      ...baseStatus,
+      status: 'completed',
+      error: null,
+      files: [
+        {
+          id: 'file_1',
+          name: 'report.pdf',
+          size: 10,
+          type: 'application/pdf',
+          downloadPath: '/api/v2/workflows/workflow-1/runs/run-1/files/file_1',
+          base64: null,
+        },
+      ],
+    })
+
+    const body = await (await callStatus('?includeOutput=true')).json()
+
+    expect(body.data.files).toEqual([
+      {
+        id: 'file_1',
+        name: 'report.pdf',
+        size: 10,
+        type: 'application/pdf',
+        downloadPath: '/api/v2/workflows/workflow-1/runs/run-1/files/file_1',
+        base64: null,
+      },
+    ])
+  })
+
+  it('forwards includeFileBase64 and its ceiling to the use case', async () => {
+    await callStatus('?includeOutput=true&includeFileBase64=true&base64MaxBytes=4096')
+
+    expect(mocks.readRun).toHaveBeenCalledWith(
+      expect.objectContaining({
+        input: expect.objectContaining({ includeFileBase64: true, base64MaxBytes: 4096 }),
+      })
+    )
+  })
+
+  it('rejects a base64MaxBytes above the inline ceiling', async () => {
+    const response = await callStatus(
+      `?includeOutput=true&includeFileBase64=true&base64MaxBytes=${64 * 1024 * 1024}`
+    )
+
+    expect(response.status).toBe(400)
+    expect(mocks.readRun).not.toHaveBeenCalled()
+  })
+
+  /** The 413 must name the download path so the caller is not left stuck. */
+  it('answers 413 naming the download path when a file exceeds the inline ceiling', async () => {
+    mocks.readRun.mockRejectedValueOnce(
+      new OrchestrationError(
+        'payload_too_large',
+        'File "report.pdf" (23.1 MB) exceeds the 16 MB inline limit; download it with GET /api/v2/workflows/workflow-1/runs/run-1/files/file_1'
+      )
+    )
+
+    const response = await callStatus('?includeOutput=true&includeFileBase64=true')
+
+    expect(response.status).toBe(413)
+    expect((await response.json()).error.message).toContain(
+      '/api/v2/workflows/workflow-1/runs/run-1/files/file_1'
+    )
+  })
+
+  /**
+   * `headSafe: false` — inlining reads object storage, so HEAD answers bodiless
+   * without running the read.
+   */
+  it('answers HEAD bodiless without reading the run', async () => {
+    const req = createMockRequest(
+      'HEAD',
+      undefined,
+      {},
+      'http://localhost:3000/api/v2/workflows/workflow-1/runs/run-1'
+    )
+    const response = await GET(req, {
+      params: Promise.resolve({ id: 'workflow-1', runId: 'run-1' }),
+    })
+
+    expect(response.status).toBe(200)
+    expect(await response.text()).toBe('')
+    expect(mocks.readRun).not.toHaveBeenCalled()
   })
 
   it('returns the queued run resource before a durable log exists', async () => {

@@ -1,8 +1,12 @@
 import { db } from '@sim/db'
 import { workflowExecutionLogs } from '@sim/db/schema'
 import { and, eq } from 'drizzle-orm'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { collectUserFilesById } from '@/lib/core/utils/user-file'
+import { MAX_INLINE_MATERIALIZATION_BYTES } from '@/lib/execution/payloads/limits'
 import { materializeExecutionData } from '@/lib/logs/execution/trace-store'
+import { downloadFile } from '@/lib/uploads/core/storage-service'
+import { formatFileSize, inferContextFromKey } from '@/lib/uploads/utils/file-utils'
 import type { UserFile } from '@/executor/types'
 
 /** Run states whose recorded output is final and therefore safe to address. */
@@ -75,4 +79,88 @@ export async function getWorkflowRunFiles(
     workspaceId: logRow.workspaceId,
     filesById: collectUserFilesById(materialized),
   }
+}
+
+/** Public path a caller uses to fetch one run file's bytes. */
+export function workflowRunFileDownloadPath(
+  workflowId: string,
+  runId: string,
+  fileId: string
+): string {
+  return `/api/v2/workflows/${workflowId}/runs/${runId}/files/${fileId}`
+}
+
+export interface WorkflowRunFileDescriptor {
+  id: string
+  name: string
+  size: number
+  type: string
+  downloadPath: string
+  base64: string | null
+}
+
+export interface DescribeWorkflowRunFilesOptions {
+  workflowId: string
+  runId: string
+  includeBase64: boolean
+  /** Inline ceiling per file. Clamped to the executor's own inline limit. */
+  base64MaxBytes?: number
+}
+
+/**
+ * Projects a run's recorded files into public descriptors.
+ *
+ * The storage `key` is deliberately absent from the descriptor: a caller
+ * addresses a file by `id` at {@link workflowRunFileDownloadPath}, and the key
+ * is re-derived server side from the recording on every request.
+ *
+ * Inline hydration reads the bytes with the key taken from that same recording,
+ * under the run authorization the caller already passed. It does not re-derive
+ * an acting user to re-check per-file ownership, because there is no
+ * user-scoped question left to ask: the bytes are this run's own output and the
+ * run has already been bound to the caller's workspace.
+ */
+export async function describeWorkflowRunFiles(
+  filesById: Map<string, UserFile>,
+  options: DescribeWorkflowRunFilesOptions
+): Promise<WorkflowRunFileDescriptor[]> {
+  const cap = Math.min(
+    options.base64MaxBytes ?? MAX_INLINE_MATERIALIZATION_BYTES,
+    MAX_INLINE_MATERIALIZATION_BYTES
+  )
+
+  return Promise.all(
+    Array.from(filesById.values(), async (file) => {
+      const downloadPath = workflowRunFileDownloadPath(options.workflowId, options.runId, file.id)
+      if (!options.includeBase64) {
+        return {
+          id: file.id,
+          name: file.name,
+          size: file.size,
+          type: file.type,
+          downloadPath,
+          base64: null,
+        }
+      }
+      if (file.size > cap) {
+        throw new OrchestrationError(
+          'payload_too_large',
+          `File "${file.name}" (${formatFileSize(file.size)}) exceeds the ${formatFileSize(cap)} inline limit; download it with GET ${downloadPath}`
+        )
+      }
+      const content = await downloadFile({
+        key: file.key,
+        context: inferContextFromKey(file.key),
+        maxBytes: cap,
+      })
+      return {
+        id: file.id,
+        name: file.name,
+        size: file.size,
+        type: file.type,
+        downloadPath,
+        base64: content.toString('base64'),
+      }
+    })
+  )
 }
