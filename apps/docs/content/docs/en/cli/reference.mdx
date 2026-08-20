@@ -1039,6 +1039,210 @@ sim files mkdir <path>
 
 Also spelled `sim kb`.
 
+### sim knowledge from-workspace-files create
+
+Index files the workspace already stores
+
+```bash
+sim knowledge from-workspace-files create <knowledgeBaseId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `knowledgeBaseId` | Yes | Unique knowledge base identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--file <value...>` | Yes | Workspace file ID or key (repeatable) (space-separated, or @path / @- with one value per line). |
+
+</CommandTable>
+
+### sim knowledge chunks batch-update
+
+Enable, disable, or delete many chunks at once
+
+```bash
+sim knowledge chunks batch-update <knowledgeBaseId> <documentId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `knowledgeBaseId` | Yes | Unique knowledge base identifier. |
+| `documentId` | Yes | Unique knowledge document identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--operation <value>` | Yes | What to do with the selected chunks. Accepted values: `enable`, `disable`, `delete`. |
+| `--chunk <value...>` | Yes | Chunks to operate on, by identifier. Ids outside the document are ignored. (space-separated, or @path / @- with one value per line). |
+
+</CommandTable>
+
+### sim knowledge chunks create
+
+Create Chunk
+
+```bash
+sim knowledge chunks create <knowledgeBaseId> <documentId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `knowledgeBaseId` | Yes | Unique knowledge base identifier. |
+| `documentId` | Yes | Unique knowledge document identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--content <value>` | Yes | Text to embed. It is embedded on write, so the chunk is searchable immediately. |
+| `--enabled` | No | Whether the new chunk participates in search. |
+| `--no-enabled` | No | Send --enabled as false. |
+
+</CommandTable>
+
+### sim knowledge chunks delete
+
+Delete Chunk
+
+```bash
+sim knowledge chunks delete <knowledgeBaseId> <documentId> <chunkId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `knowledgeBaseId` | Yes | Unique knowledge base identifier. |
+| `documentId` | Yes | Unique knowledge document identifier. |
+| `chunkId` | Yes | Unique chunk identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `-y, --yes` | Yes | Confirm this destructive operation. |
+
+</CommandTable>
+
+### sim knowledge chunks get
+
+Get Chunk
+
+```bash
+sim knowledge chunks get <knowledgeBaseId> <documentId> <chunkId>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `knowledgeBaseId` | Yes | Unique knowledge base identifier. |
+| `documentId` | Yes | Unique knowledge document identifier. |
+| `chunkId` | Yes | Unique chunk identifier. |
+
+</CommandTable>
+
+### sim knowledge chunks list
+
+List Chunks
+
+```bash
+sim knowledge chunks list <knowledgeBaseId> <documentId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `knowledgeBaseId` | Yes | Unique knowledge base identifier. |
+| `documentId` | Yes | Unique knowledge document identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--search <value>` | No | Case-insensitive substring match against chunk content. |
+| `--enabled <value>` | No | Restrict to enabled or disabled chunks. `all` returns both. Accepted values: `true`, `false`, `all`. |
+| `--sort-by <value>` | No | Field used to sort the result. Accepted values: `chunkIndex`, `tokenCount`, `enabled`. |
+| `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+
+</CommandTable>
+
+### sim knowledge chunks update
+
+Update Chunk
+
+```bash
+sim knowledge chunks update <knowledgeBaseId> <documentId> <chunkId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `knowledgeBaseId` | Yes | Unique knowledge base identifier. |
+| `documentId` | Yes | Unique knowledge document identifier. |
+| `chunkId` | Yes | Unique chunk identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--content <value>` | No | Replacement text. Changing it re-embeds the chunk and re-derives its token and character counts. |
+| `--enabled` | No | Whether the chunk participates in search. Disabling keeps it indexed. |
+| `--no-enabled` | No | Send --enabled as false. |
+
+</CommandTable>
+
 ### sim knowledge documents batch-update
 
 Enable or disable every matching document
@@ -1099,6 +1303,36 @@ sim knowledge documents delete <knowledgeBaseId> <documentId> [options]
 
 </CommandTable>
 
+### sim knowledge documents tags cleanup
+
+Remove tag definitions no document still uses
+
+```bash
+sim knowledge documents tags cleanup <knowledgeBaseId> <documentId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `knowledgeBaseId` | Yes | Unique knowledge base identifier. |
+| `documentId` | Yes | Unique knowledge document identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--action <value>` | No | Remove tag definitions no document in this knowledge base still uses. |
+| `-y, --yes` | Yes | Confirm this destructive operation. |
+
+</CommandTable>
+
 ### sim knowledge documents get
 
 Get Document
@@ -1148,6 +1382,35 @@ sim knowledge documents list <knowledgeBaseId> [options]
 | `--sort-by <value>` | No | Field used to sort the result. Sorting by `filename` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order. Accepted values: `filename`, `fileSize`, `tokenCount`, `chunkCount`, `uploadedAt`, `processingStatus`, `enabled`. |
 | `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
 | `--tag-filters <value>` | No | A JSON-encoded array of at most 10 tag filters, using the same display-name shape as knowledge search: `[&#123;"tagName":"category","operator":"eq","value":"billing"&#125;]`. Every filter must hold, including two that name the same tag. A name that is not defined in this knowledge base is rejected, never ignored. |
+
+</CommandTable>
+
+### sim knowledge documents tags save
+
+Declare the tag definitions a document’s tags need
+
+```bash
+sim knowledge documents tags save <knowledgeBaseId> <documentId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `knowledgeBaseId` | Yes | Unique knowledge base identifier. |
+| `documentId` | Yes | Unique knowledge document identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--definitions <json\|@file>` | Yes | Tag definitions: [&#123;"tagSlot":"tag1","displayName":"category","fieldType":"text"&#125;] (JSON, or @path / @- to read a file or stdin). |
 
 </CommandTable>
 
@@ -1348,6 +1611,159 @@ Also available as `sim knowledge folders mv`.
 
 </CommandTable>
 
+### sim knowledge tags create
+
+Create Tag
+
+```bash
+sim knowledge tags create <knowledgeBaseId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `knowledgeBaseId` | Yes | Unique knowledge base identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--display-name <value>` | Yes | Name tag filters and document reads use for this tag. |
+| `--field-type <value>` | No | Value type stored in the slot; it decides which slots are usable and which filter operators apply. Slot capacity per type: text 7, number 5, date 2, boolean 3. Accepted values: `text`, `number`, `date`, `boolean`. |
+| `--tag-slot <value>` | No | Slot to store the tag in. Omit to take the next free slot for the field type; a slot that does not belong to the field type, or one already in use, is rejected. Accepted values: `tag1`, `tag2`, `tag3`, `tag4`, `tag5`, `tag6`, `tag7`, `number1`, `number2`, `number3`, `number4`, `number5`, `date1`, `date2`, `boolean1`, `boolean2`, `boolean3`. |
+
+</CommandTable>
+
+### sim knowledge tags delete
+
+Delete Tag
+
+```bash
+sim knowledge tags delete <knowledgeBaseId> <tagId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `knowledgeBaseId` | Yes | Unique knowledge base identifier. |
+| `tagId` | Yes | Unique tag definition identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `-y, --yes` | Yes | Confirm this destructive operation. |
+
+</CommandTable>
+
+### sim knowledge tags next-slot
+
+Show which tag slot a create would take for a field type
+
+```bash
+sim knowledge tags next-slot <knowledgeBaseId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `knowledgeBaseId` | Yes | Unique knowledge base identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--field-type <value>` | Yes | Value type stored in the slot; it decides which slots are usable and which filter operators apply. Slot capacity per type: text 7, number 5, date 2, boolean 3. Accepted values: `text`, `number`, `date`, `boolean`. |
+
+</CommandTable>
+
+### sim knowledge tags list
+
+List Tags
+
+```bash
+sim knowledge tags list <knowledgeBaseId>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `knowledgeBaseId` | Yes | Unique knowledge base identifier. |
+
+</CommandTable>
+
+### sim knowledge tags usage
+
+Show how many documents and chunks carry each tag
+
+```bash
+sim knowledge tags usage <knowledgeBaseId>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `knowledgeBaseId` | Yes | Unique knowledge base identifier. |
+
+</CommandTable>
+
+### sim knowledge tags update
+
+Update Tag
+
+```bash
+sim knowledge tags update <knowledgeBaseId> <tagId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `knowledgeBaseId` | Yes | Unique knowledge base identifier. |
+| `tagId` | Yes | Unique tag definition identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--display-name <value>` | No | New tag display name. |
+| `--field-type <value>` | No | New value type for the tag. Accepted values: `text`, `number`, `date`, `boolean`. |
+
+</CommandTable>
+
 ### sim knowledge delete
 
 Delete Knowledge Base
@@ -1394,6 +1810,27 @@ sim knowledge get <id>
 
 </CommandTable>
 
+### sim knowledge archived list
+
+List Archived Knowledge Bases
+
+```bash
+sim knowledge archived list [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--search <value>` | No | Case-insensitive substring match against the resource name. |
+| `--sort-by <value>` | No | Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order. Accepted values: `name`, `createdAt`, `updatedAt`. |
+| `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+
+</CommandTable>
+
 ### sim knowledge list
 
 List Knowledge Bases
@@ -1416,12 +1853,12 @@ sim knowledge list [options]
 
 </CommandTable>
 
-### sim knowledge tags list
+### sim knowledge restore create
 
-List Tags
+Restore Knowledge Base
 
 ```bash
-sim knowledge tags list <knowledgeBaseId>
+sim knowledge restore create <id>
 ```
 
 **Arguments**
@@ -1430,7 +1867,7 @@ sim knowledge tags list <knowledgeBaseId>
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `knowledgeBaseId` | Yes | Unique knowledge base identifier. |
+| `id` | Yes | Unique knowledge base identifier. |
 
 </CommandTable>
 

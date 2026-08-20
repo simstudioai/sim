@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   resolveWorkspace: vi.fn(),
   loadAuthorizationWorkspace: vi.fn(),
   resolveKnowledgeBase: vi.fn(),
+  resolveArchivedKnowledgeBase: vi.fn(),
   resolvePermission: vi.fn(),
   resolveFolderPath: vi.fn(),
   createRecord: vi.fn(),
@@ -32,6 +33,7 @@ vi.mock('@sim/audit', () => ({
     KNOWLEDGE_BASE_CREATED: 'knowledge_base.created',
     KNOWLEDGE_BASE_UPDATED: 'knowledge_base.updated',
     KNOWLEDGE_BASE_DELETED: 'knowledge_base.deleted',
+    KNOWLEDGE_BASE_RESTORED: 'knowledge_base.restored',
   },
   AuditResourceType: { KNOWLEDGE_BASE: 'knowledge_base' },
   recordAudit: mocks.recordAudit,
@@ -65,6 +67,7 @@ vi.mock('@/lib/knowledge/application/contexts', () => ({
   loadKnowledgeWorkspaceAuthorizationContext: mocks.loadAuthorizationWorkspace,
   resolveKnowledgeWorkspaceContext: mocks.resolveWorkspace,
   resolveActiveKnowledgeBaseContext: mocks.resolveKnowledgeBase,
+  resolveArchivedKnowledgeBaseContext: mocks.resolveArchivedKnowledgeBase,
 }))
 
 vi.mock('@/lib/knowledge/application/folder-paths', () => ({
@@ -106,9 +109,11 @@ import {
   readInternalKnowledgeBase,
   readKnowledgeBase,
   restoreInternalKnowledgeBase,
+  restoreKnowledgeBase,
   updateInternalKnowledgeBase,
   updateKnowledgeBaseOperation,
 } from '@/lib/knowledge/application/knowledge-bases'
+import { knowledgeOperations } from '@/lib/knowledge/application/operations'
 
 const context = {
   workspaceId: 'workspace-1',
@@ -157,6 +162,17 @@ describe('knowledge base application use cases', () => {
     mocks.listVisibleRecords.mockResolvedValue([knowledgeBase])
     mocks.getRecord.mockResolvedValue(knowledgeBase)
     mocks.getRestorableRecord.mockResolvedValue(knowledgeBase)
+    mocks.resolveArchivedKnowledgeBase.mockResolvedValue({
+      ...context,
+      knowledgeBaseId: knowledgeBase.id,
+      restorableKnowledgeBase: {
+        id: knowledgeBase.id,
+        name: knowledgeBase.name,
+        workspaceId: knowledgeBase.workspaceId,
+        userId: knowledgeBase.userId,
+        deletedAt: new Date('2026-02-01T00:00:00Z'),
+      },
+    })
     mocks.performUpdate.mockResolvedValue({
       success: true,
       knowledgeBase: { ...knowledgeBase, name: 'Renamed' },
@@ -496,6 +512,14 @@ describe('knowledge base application use cases', () => {
     expect(mocks.performUpdate).not.toHaveBeenCalled()
   })
 
+  /**
+   * The internal restore delegates its workspace branch to the shared
+   * `restoreKnowledgeBase` use case, so the archived context — which is what
+   * loads the workspace with `includeArchived` — is resolved there rather than
+   * in the internal wrapper. What must stay true is that the mutation runs only
+   * after authorization, and that the shared use case suppresses the
+   * orchestration's own audit so the restore is recorded once.
+   */
   it('carries canonical scope into internal delete and restores only after authorization', async () => {
     const principal = { kind: 'session', userId: 'user-1', sessionId: 'session-1' } as const
     await deleteInternalKnowledgeBase.execute({
@@ -510,10 +534,88 @@ describe('knowledge base application use cases', () => {
     expect(mocks.performDelete).toHaveBeenCalledWith(
       expect.objectContaining({ assertedWorkspaceId: 'workspace-1' })
     )
-    expect(mocks.loadAuthorizationWorkspace).toHaveBeenLastCalledWith('workspace-1', {
-      includeArchived: true,
+    expect(mocks.resolveArchivedKnowledgeBase).toHaveBeenCalledWith({
+      knowledgeBaseId: 'knowledge-1',
+      assertedWorkspaceId: 'workspace-1',
     })
-    expect(mocks.performRestore).toHaveBeenCalledOnce()
+    expect(mocks.resolvePermission).toHaveBeenCalled()
+    expect(mocks.performRestore).toHaveBeenCalledWith(
+      expect.objectContaining({ knowledgeBaseId: 'knowledge-1', recordSemanticAudit: false })
+    )
+  })
+
+  it('restores a workspace knowledge base only after the operation authorizes', async () => {
+    mocks.resolvePermission.mockResolvedValue('read')
+
+    await expect(
+      restoreInternalKnowledgeBase.execute({
+        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+        input: { knowledgeBaseId: 'knowledge-1' },
+      })
+    ).rejects.toMatchObject({ code: 'forbidden' })
+
+    expect(mocks.performRestore).not.toHaveBeenCalled()
+  })
+
+  /**
+   * Restore is the inverse of delete, so a principal that can archive a
+   * knowledge base must be able to recover it. A tighter policy here would
+   * strand rows a workspace API key deleted.
+   */
+  it('reaches restore under the same policy as delete', () => {
+    expect(knowledgeOperations.restore.minimumRole).toBe(knowledgeOperations.delete.minimumRole)
+    expect(knowledgeOperations.restore.workspaceApiKey).toBe(
+      knowledgeOperations.delete.workspaceApiKey
+    )
+  })
+
+  it('answers an already-active knowledge base without restoring or auditing it', async () => {
+    mocks.resolveArchivedKnowledgeBase.mockResolvedValue({
+      ...context,
+      knowledgeBaseId: knowledgeBase.id,
+      restorableKnowledgeBase: {
+        id: knowledgeBase.id,
+        name: knowledgeBase.name,
+        workspaceId: knowledgeBase.workspaceId,
+        userId: knowledgeBase.userId,
+        deletedAt: null,
+      },
+    })
+
+    const result = await restoreKnowledgeBase.execute({
+      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      input: { knowledgeBaseId: 'knowledge-1', assertedWorkspaceId: 'workspace-1' },
+    })
+
+    expect(result.restored).toBe(false)
+    expect(result.knowledgeBase.id).toBe('knowledge-1')
+    expect(mocks.performRestore).not.toHaveBeenCalled()
+    expect(mocks.recordAudit).not.toHaveBeenCalled()
+  })
+
+  it('pages the archived list through the same keyset the active list uses', async () => {
+    mocks.listRecords.mockResolvedValue({ data: [knowledgeBase], nextCursorKeys: ['k', 'id'] })
+
+    const result = await listArchivedKnowledgeBases.execute({
+      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      input: {
+        workspaceId: 'workspace-1',
+        search: 'docs',
+        sortBy: 'updatedAt',
+        sortOrder: 'desc',
+        limit: 25,
+        cursorKeys: ['2026-01-01T00:00:00.000Z', 'knowledge-0'],
+      },
+    })
+
+    expect(mocks.listRecords).toHaveBeenCalledWith('workspace-1', 'archived', {
+      search: 'docs',
+      sortBy: 'updatedAt',
+      sortOrder: 'desc',
+      limit: 25,
+      cursorKeys: ['2026-01-01T00:00:00.000Z', 'knowledge-0'],
+    })
+    expect(result.nextCursorKeys).toEqual(['k', 'id'])
   })
 
   it('bounds bulk deletion before canonical workspace loading', async () => {

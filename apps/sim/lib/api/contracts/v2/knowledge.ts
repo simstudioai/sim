@@ -1,5 +1,9 @@
 import { z } from 'zod'
-import { knowledgeBaseDataSchema } from '@/lib/api/contracts/knowledge/base'
+import {
+  chunkingConfigFieldsSchema,
+  knowledgeBaseDataSchema,
+  withChunkingConfigRules,
+} from '@/lib/api/contracts/knowledge/base'
 import { documentDataSchema } from '@/lib/api/contracts/knowledge/documents'
 import {
   knowledgeBaseParamsSchema,
@@ -10,7 +14,6 @@ import { noInputSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import {
   KNOWLEDGE_TAG_FILTER_OPERATORS_BY_FIELD_TYPE,
-  v1ChunkingConfigSchema,
   v1CreateKnowledgeBaseBodySchema,
   v1KnowledgeSearchBodySchema,
   v1KnowledgeWorkspaceQuerySchema,
@@ -41,7 +44,7 @@ import {
   v2UploadTokenHeadersSchema,
   v2UploadTransferSchema,
 } from '@/lib/api/contracts/v2/uploads'
-import { DEFAULT_CHUNKING_CONFIG } from '@/lib/knowledge/constants'
+import { DEFAULT_CHUNKING_CONFIG, SUPPORTED_FIELD_TYPES } from '@/lib/knowledge/constants'
 import {
   DEFAULT_RERANKER_MODEL,
   rerankerModelSchema,
@@ -590,26 +593,58 @@ export const v2ListKnowledgeBasesQuerySchema = z
 
 export type V2ListKnowledgeBasesQuery = z.output<typeof v2ListKnowledgeBasesQuerySchema>
 
-const v2KnowledgeChunkingConfigInputSchema = v1ChunkingConfigSchema
-  .extend({
-    maxSize: v1ChunkingConfigSchema.shape.maxSize
-      .describe('Maximum chunk size in tokens.')
-      .meta({ examples: [1024] }),
-    minSize: v1ChunkingConfigSchema.shape.minSize
-      .describe('Minimum chunk size in characters.')
-      .meta({ examples: [100] }),
-    overlap: v1ChunkingConfigSchema.shape.overlap
-      .describe('Number of overlapping characters between adjacent chunks.')
-      .meta({ examples: [200] }),
-  })
-  .meta({
-    id: 'V2KnowledgeChunkingConfigInput',
-    title: 'Knowledge chunking configuration input',
-    description: 'Chunking configuration applied when processing documents.',
-  })
+/**
+ * Chunking configuration a caller may write.
+ *
+ * The five keys the read projects, so a config round-trips: the write used to
+ * accept only `maxSize`/`minSize`/`overlap`, which meant a caller could read
+ * `{"strategy":"regex", …}` and had no way to write it — and, worse, that a
+ * three-key update replaced the stored object wholesale and silently dropped a
+ * `strategy` the workflow builder had set.
+ *
+ * The cross-field rules and the `strategyOptions.separators` bounds come from
+ * the first-party {@link withChunkingConfigRules} /
+ * {@link chunkingConfigFieldsSchema} pair rather than being restated here. Each
+ * number keeps the per-field default the write shipped with, so a body naming
+ * only one of them stays accepted.
+ *
+ * The corresponding *response* schema is deliberately not tightened alongside
+ * this: `knowledge_base.chunking_config` is schemaless JSONB and a legacy row
+ * carrying a retired key would fail a strict response parse and surface as a
+ * caller-reachable 500.
+ */
+const v2KnowledgeChunkingConfigInputSchema = withChunkingConfigRules(
+  chunkingConfigFieldsSchema
+    .extend({
+      maxSize: chunkingConfigFieldsSchema.shape.maxSize
+        .default(DEFAULT_CHUNKING_CONFIG.maxSize)
+        .describe('Maximum chunk size in tokens.')
+        .meta({ examples: [1024] }),
+      minSize: chunkingConfigFieldsSchema.shape.minSize
+        .default(DEFAULT_CHUNKING_CONFIG.minSize)
+        .describe('Minimum chunk size in characters.')
+        .meta({ examples: [100] }),
+      overlap: chunkingConfigFieldsSchema.shape.overlap
+        .default(DEFAULT_CHUNKING_CONFIG.overlap)
+        .describe('Number of overlapping characters between adjacent chunks.')
+        .meta({ examples: [200] }),
+      strategy: chunkingConfigFieldsSchema.shape.strategy.describe(
+        'Chunking strategy applied during document processing. `regex` additionally requires `strategyOptions.pattern`.'
+      ),
+      strategyOptions: chunkingConfigFieldsSchema.shape.strategyOptions.describe(
+        'Strategy-specific tuning options. `strictBoundaries` is accepted only with `strategy: "regex"`.'
+      ),
+    })
+    .strict()
+).meta({
+  id: 'V2KnowledgeChunkingConfigInput',
+  title: 'Knowledge chunking configuration input',
+  description:
+    'Chunking configuration applied when processing documents. On update this object is replaced wholesale rather than merged, so a caller preserving one key must read, modify, and write the whole object back.',
+})
 
 export const v2CreateKnowledgeBaseBodySchema = v1CreateKnowledgeBaseBodySchema
-  .safeExtend({
+  .extend({
     workspaceId: workspaceIdSchema.describe('Workspace in which to create the knowledge base.'),
     name: v1CreateKnowledgeBaseBodySchema.shape.name
       .describe('Human-readable knowledge base name.')
@@ -735,6 +770,95 @@ export const v2DeleteKnowledgeBaseContract = defineRouteContract({
   response: {
     mode: 'json',
     schema: v2DataResponse(v2KnowledgeDeleteDataSchema),
+  },
+})
+
+/**
+ * An archived knowledge base — the active projection plus the instant it was
+ * archived. A caller deciding whether to restore needs to know when it went
+ * away, and `deletedAt` is never null on this list by construction.
+ *
+ * `folderPath` is dropped rather than carried. A folder path is resolved from
+ * the *active* folder tree, and archiving a folder archives the knowledge bases
+ * under it, so the containing folder of an archived base is frequently archived
+ * too and has no path to report. Restoring returns the base to whichever folder
+ * still holds its `folderId`, which the restore response reports.
+ */
+export const v2ArchivedKnowledgeBaseSchema = v2KnowledgeBaseSchema
+  .omit({ folderPath: true })
+  .extend({
+    deletedAt: v2TimestampSchema.describe(
+      'ISO 8601 timestamp when the knowledge base was archived.'
+    ),
+  })
+  .meta({
+    id: 'V2ArchivedKnowledgeBase',
+    title: 'Archived knowledge base',
+    description: 'A soft-deleted knowledge base that can still be restored.',
+  })
+export type V2ArchivedKnowledgeBase = z.output<typeof v2ArchivedKnowledgeBaseSchema>
+
+/**
+ * Archived-list query.
+ *
+ * A sibling path rather than a `scope` param on `GET /api/v2/knowledge`: the
+ * two reads bind different semantic operations (`knowledge.list` allows a
+ * workspace API key, `knowledge.list_archived` denies it) and a v2 route
+ * declares exactly one, so merging them would either widen the archived read's
+ * authorization or need two operations behind one handler. A new filter param
+ * would also have to join the main list's cursor binding, invalidating every
+ * cursor already in flight.
+ *
+ * `folderPath` is absent: an archived knowledge base is not shown in a folder,
+ * and filtering a trash bin by where the row used to live is not a question
+ * this list answers.
+ */
+export const v2ListArchivedKnowledgeBasesQuerySchema = z
+  .object({
+    workspaceId: workspaceIdSchema.describe(
+      'Workspace whose archived knowledge bases should be listed.'
+    ),
+    search: v2SearchSchema,
+    ...v2SortFields(v2KnowledgeBaseSortFields, { sortBy: 'updatedAt', sortOrder: 'desc' }),
+    ...v2PaginationFields({ description: 'Maximum archived knowledge bases to return per page.' }),
+  })
+  .strict()
+export type V2ListArchivedKnowledgeBasesQuery = z.output<
+  typeof v2ListArchivedKnowledgeBasesQuerySchema
+>
+
+export const v2ListArchivedKnowledgeBasesContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/v2/knowledge/archived',
+  query: v2ListArchivedKnowledgeBasesQuerySchema,
+  response: {
+    mode: 'json',
+    schema: v2CursorListResponse(v2ArchivedKnowledgeBaseSchema),
+  },
+})
+
+export const v2RestoreKnowledgeBaseBodySchema = z
+  .object({
+    workspaceId: workspaceIdSchema.describe('Workspace that owns the knowledge base.'),
+  })
+  .strict()
+export type V2RestoreKnowledgeBaseBody = z.input<typeof v2RestoreKnowledgeBaseBodySchema>
+
+/**
+ * Restore is idempotent: restoring a knowledge base that is already active
+ * answers `200` with its current representation rather than `409`, so a retry
+ * after a dropped response cannot look like a failure. No audit entry is
+ * recorded for that no-op.
+ */
+export const v2RestoreKnowledgeBaseContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/v2/knowledge/[id]/restore',
+  query: noInputSchema,
+  params: v2KnowledgeBaseParamsSchema,
+  body: v2RestoreKnowledgeBaseBodySchema,
+  response: {
+    mode: 'json',
+    schema: v2DataResponse(v2KnowledgeBaseSchema),
   },
 })
 
@@ -1121,6 +1245,12 @@ export const v2GetKnowledgeDocumentContract = defineRouteContract({
  */
 export const v2KnowledgeTagSchema = z
   .object({
+    id: z
+      .string()
+      .describe(
+        'Unique tag definition identifier. Address the definition with it on `PATCH` and `DELETE /api/v2/knowledge/{id}/tags/{tagId}`.'
+      )
+      .meta({ examples: ['3f0d2b18-9a41-4d6e-8c52-1b7e5a0f9c34'] }),
     displayName: z
       .string()
       .describe('Display name used by tag filters and by tag values on document reads.')
@@ -1133,7 +1263,9 @@ export const v2KnowledgeTagSchema = z
       .meta({ examples: ['tag1'] }),
     fieldType: z
       .string()
-      .describe('Value type stored in the slot; it determines the valid filter operators.')
+      .describe(
+        `Value type stored in the slot; it determines the valid filter operators. One of ${SUPPORTED_FIELD_TYPES.map((type) => `\`${type}\``).join(', ')}. Read as a plain string rather than an enum: the column is schemaless and a row written before the current set would fail a strict response parse.`
+      )
       .meta({ examples: ['text'] }),
   })
   .strict()
@@ -1461,5 +1593,82 @@ export const v2DeleteKnowledgeDocumentContract = defineRouteContract({
   response: {
     mode: 'json',
     schema: v2DataResponse(v2KnowledgeDeleteDataSchema),
+  },
+})
+
+/**
+ * Indexes files already in workspace storage.
+ *
+ * Without it a file the server already holds has to be downloaded and
+ * re-uploaded byte-for-byte through `POST /api/v2/knowledge/{id}/documents`
+ * purely to be indexed. Each reference is authorized against the *file's* own
+ * canonical context, so naming a file the caller cannot read fails that entry
+ * rather than the request.
+ */
+export const v2AddWorkspaceFilesToKnowledgeBaseBodySchema = z
+  .object({
+    workspaceId: workspaceIdSchema.describe('Workspace that owns both the files and the base.'),
+    fileReferences: z
+      .array(z.string().min(1, 'fileReferences entries cannot be empty'))
+      .min(1, 'fileReferences must contain at least one file')
+      .max(
+        MAX_V2_BULK_KNOWLEDGE_DOCUMENTS,
+        `fileReferences cannot contain more than ${MAX_V2_BULK_KNOWLEDGE_DOCUMENTS} files`
+      )
+      .describe(
+        'Workspace file identifiers or storage keys to index. Duplicates resolving to the same file are indexed once.'
+      ),
+  })
+  .strict()
+export type V2AddWorkspaceFilesToKnowledgeBaseBody = z.input<
+  typeof v2AddWorkspaceFilesToKnowledgeBaseBodySchema
+>
+
+export const v2AddedWorkspaceFileDocumentSchema = z
+  .object({
+    documentId: z.string().describe('Identifier of the queued knowledge document.'),
+    filename: z.string().describe('Filename recorded on the knowledge document.'),
+    mimeType: z.string().describe('MIME type of the source workspace file.'),
+    fileSize: z.number().int().nonnegative().describe('File size in bytes.'),
+  })
+  .strict()
+  .meta({
+    id: 'V2AddedWorkspaceFileDocument',
+    title: 'Indexed workspace file',
+    description: 'A workspace file that was queued for indexing into a knowledge base.',
+  })
+
+/**
+ * Partial success is a `200` with a populated `failed` array, not a `207`: v2
+ * has exactly two body shapes and a multi-status is neither. A reference lands
+ * in `failed` when it names no readable file, exceeds the size limit, carries an
+ * unsupported type, or carries secret provenance that blocks ingestion.
+ */
+export const v2AddWorkspaceFilesToKnowledgeBaseDataSchema = z
+  .object({
+    knowledgeBaseId: z.string().describe('Knowledge base the files were added to.'),
+    added: z
+      .array(v2AddedWorkspaceFileDocumentSchema)
+      .describe('Files queued for indexing, in request order.'),
+    failed: z
+      .array(z.string())
+      .describe('References that could not be indexed, echoed exactly as they were sent.'),
+  })
+  .strict()
+  .meta({
+    id: 'V2AddWorkspaceFilesToKnowledgeBaseData',
+    title: 'Add workspace files data',
+    description: 'Outcome of indexing workspace files into a knowledge base.',
+  })
+
+export const v2AddWorkspaceFilesToKnowledgeBaseContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/v2/knowledge/[id]/documents/from-workspace-files',
+  query: noInputSchema,
+  params: v2KnowledgeBaseParamsSchema,
+  body: v2AddWorkspaceFilesToKnowledgeBaseBodySchema,
+  response: {
+    mode: 'json',
+    schema: v2DataResponse(v2AddWorkspaceFilesToKnowledgeBaseDataSchema),
   },
 })

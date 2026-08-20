@@ -242,6 +242,35 @@ export type AddWorkflowGroupResponse = {
   data: AddWorkflowGroupResponseRef1
 }
 
+/** `POST /api/v2/knowledge/[id]/documents/from-workspace-files` */
+export type AddWorkspaceFilesToKnowledgeBaseParams = {
+  id: string
+}
+
+export type AddWorkspaceFilesToKnowledgeBaseQuery = Record<string, unknown>
+
+export type AddWorkspaceFilesToKnowledgeBaseBody = {
+  workspaceId: string
+  fileReferences: Array<string>
+}
+
+type AddWorkspaceFilesToKnowledgeBaseResponseRef0 = {
+  documentId: string
+  filename: string
+  mimeType: string
+  fileSize: number
+}
+
+type AddWorkspaceFilesToKnowledgeBaseResponseRef1 = {
+  knowledgeBaseId: string
+  added: Array<AddWorkspaceFilesToKnowledgeBaseResponseRef0>
+  failed: Array<string>
+}
+
+export type AddWorkspaceFilesToKnowledgeBaseResponse = {
+  data: AddWorkspaceFilesToKnowledgeBaseResponseRef1
+}
+
 /** `POST /api/v2/workflows/[id]/operations` */
 export type ApplyWorkflowOperationsParams = {
   id: string
@@ -406,6 +435,30 @@ type BulkDeleteFilesResponseRef0 = {
 
 export type BulkDeleteFilesResponse = {
   data: BulkDeleteFilesResponseRef0
+}
+
+/** `PATCH /api/v2/knowledge/[id]/documents/[documentId]/chunks` */
+export type BulkUpdateKnowledgeChunksParams = {
+  id: string
+  documentId: string
+}
+
+export type BulkUpdateKnowledgeChunksQuery = Record<string, unknown>
+
+export type BulkUpdateKnowledgeChunksBody = {
+  workspaceId: string
+  operation: 'enable' | 'disable' | 'delete'
+  chunkIds: Array<string>
+}
+
+type BulkUpdateKnowledgeChunksResponseRef0 = {
+  operation: 'enable' | 'disable' | 'delete'
+  processed: number
+  errors: Array<string>
+}
+
+export type BulkUpdateKnowledgeChunksResponse = {
+  data: BulkUpdateKnowledgeChunksResponseRef0
 }
 
 /** `PATCH /api/v2/knowledge/[id]/documents` */
@@ -1013,6 +1066,13 @@ type CreateKnowledgeBaseBodyRef0 = {
   maxSize?: number
   minSize?: number
   overlap?: number
+  strategy?: 'auto' | 'text' | 'regex' | 'recursive' | 'sentence' | 'token'
+  strategyOptions?: {
+    pattern?: string
+    separators?: Array<string>
+    recipe?: 'plain' | 'markdown' | 'code'
+    strictBoundaries?: boolean
+  }
 }
 
 type CreateKnowledgeBaseBodyRef1 = string
@@ -1056,6 +1116,44 @@ type CreateKnowledgeBaseResponseRef1 = {
 
 export type CreateKnowledgeBaseResponse = {
   data: CreateKnowledgeBaseResponseRef1
+}
+
+/** `POST /api/v2/knowledge/[id]/documents/[documentId]/chunks` */
+export type CreateKnowledgeChunkParams = {
+  id: string
+  documentId: string
+}
+
+export type CreateKnowledgeChunkQuery = Record<string, unknown>
+
+export type CreateKnowledgeChunkBody = {
+  workspaceId: string
+  content: string
+  enabled?: boolean
+}
+
+type CreateKnowledgeChunkResponseRef0 = {
+  id: string
+  chunkIndex: number
+  content: string
+  contentLength: number
+  tokenCount: number
+  enabled: boolean
+  startOffset: number
+  endOffset: number
+  tag1: string | null
+  tag2: string | null
+  tag3: string | null
+  tag4: string | null
+  tag5: string | null
+  tag6: string | null
+  tag7: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export type CreateKnowledgeChunkResponse = {
+  data: CreateKnowledgeChunkResponseRef0
 }
 
 /** `POST /api/v2/knowledge/[id]/documents/uploads` */
@@ -1197,6 +1295,48 @@ type CreateKnowledgeFolderResponseRef0 = {
 
 export type CreateKnowledgeFolderResponse = {
   data: CreateKnowledgeFolderResponseRef0
+}
+
+/** `POST /api/v2/knowledge/[id]/tags` */
+export type CreateKnowledgeTagParams = {
+  id: string
+}
+
+export type CreateKnowledgeTagQuery = Record<string, unknown>
+
+export type CreateKnowledgeTagBody = {
+  workspaceId: string
+  displayName: string
+  fieldType?: 'text' | 'number' | 'date' | 'boolean'
+  tagSlot?:
+    | 'tag1'
+    | 'tag2'
+    | 'tag3'
+    | 'tag4'
+    | 'tag5'
+    | 'tag6'
+    | 'tag7'
+    | 'number1'
+    | 'number2'
+    | 'number3'
+    | 'number4'
+    | 'number5'
+    | 'date1'
+    | 'date2'
+    | 'boolean1'
+    | 'boolean2'
+    | 'boolean3'
+}
+
+type CreateKnowledgeTagResponseRef0 = {
+  id: string
+  displayName: string
+  tagSlot: string
+  fieldType: string
+}
+
+export type CreateKnowledgeTagResponse = {
+  data: CreateKnowledgeTagResponseRef0
 }
 
 /** `POST /api/v2/mcp-servers` */
@@ -1942,6 +2082,26 @@ export type DeleteKnowledgeBaseResponse = {
   data: DeleteKnowledgeBaseResponseRef0
 }
 
+/** `DELETE /api/v2/knowledge/[id]/documents/[documentId]/chunks/[chunkId]` */
+export type DeleteKnowledgeChunkParams = {
+  id: string
+  documentId: string
+  chunkId: string
+}
+
+export type DeleteKnowledgeChunkQuery = {
+  workspaceId: string
+}
+
+type DeleteKnowledgeChunkResponseRef0 = {
+  id: string
+  deleted: true
+}
+
+export type DeleteKnowledgeChunkResponse = {
+  data: DeleteKnowledgeChunkResponseRef0
+}
+
 /** `DELETE /api/v2/knowledge/[id]/documents/[documentId]` */
 export type DeleteKnowledgeDocumentParams = {
   id: string
@@ -1959,6 +2119,26 @@ type DeleteKnowledgeDocumentResponseRef0 = {
 
 export type DeleteKnowledgeDocumentResponse = {
   data: DeleteKnowledgeDocumentResponseRef0
+}
+
+/** `DELETE /api/v2/knowledge/[id]/documents/[documentId]/tags` */
+export type DeleteKnowledgeDocumentTagDefinitionsParams = {
+  id: string
+  documentId: string
+}
+
+export type DeleteKnowledgeDocumentTagDefinitionsQuery = {
+  workspaceId: string
+  action?: 'cleanup'
+}
+
+type DeleteKnowledgeDocumentTagDefinitionsResponseRef0 = {
+  action: 'cleanup'
+  count: number
+}
+
+export type DeleteKnowledgeDocumentTagDefinitionsResponse = {
+  data: DeleteKnowledgeDocumentTagDefinitionsResponseRef0
 }
 
 /** `DELETE /api/v2/knowledge/folders` */
@@ -1993,6 +2173,27 @@ type DeleteKnowledgeFolderResponseRef0 = {
 
 export type DeleteKnowledgeFolderResponse = {
   data: DeleteKnowledgeFolderResponseRef0
+}
+
+/** `DELETE /api/v2/knowledge/[id]/tags/[tagId]` */
+export type DeleteKnowledgeTagParams = {
+  id: string
+  tagId: string
+}
+
+export type DeleteKnowledgeTagQuery = {
+  workspaceId: string
+}
+
+type DeleteKnowledgeTagResponseRef0 = {
+  id: string
+  tagSlot: string
+  displayName: string
+  deleted: true
+}
+
+export type DeleteKnowledgeTagResponse = {
+  data: DeleteKnowledgeTagResponseRef0
 }
 
 /** `DELETE /api/v2/mcp-servers/[id]` */
@@ -3023,6 +3224,41 @@ export type GetKnowledgeBaseResponse = {
   data: GetKnowledgeBaseResponseRef1
 }
 
+/** `GET /api/v2/knowledge/[id]/documents/[documentId]/chunks/[chunkId]` */
+export type GetKnowledgeChunkParams = {
+  id: string
+  documentId: string
+  chunkId: string
+}
+
+export type GetKnowledgeChunkQuery = {
+  workspaceId: string
+}
+
+type GetKnowledgeChunkResponseRef0 = {
+  id: string
+  chunkIndex: number
+  content: string
+  contentLength: number
+  tokenCount: number
+  enabled: boolean
+  startOffset: number
+  endOffset: number
+  tag1: string | null
+  tag2: string | null
+  tag3: string | null
+  tag4: string | null
+  tag5: string | null
+  tag6: string | null
+  tag7: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export type GetKnowledgeChunkResponse = {
+  data: GetKnowledgeChunkResponseRef0
+}
+
 /** `GET /api/v2/knowledge/[id]/documents/[documentId]` */
 export type GetKnowledgeDocumentParams = {
   id: string
@@ -3176,6 +3412,28 @@ type GetMcpServerResponseRef0 = {
 
 export type GetMcpServerResponse = {
   data: GetMcpServerResponseRef0
+}
+
+/** `GET /api/v2/knowledge/[id]/tags/next-slot` */
+export type GetNextKnowledgeTagSlotParams = {
+  id: string
+}
+
+export type GetNextKnowledgeTagSlotQuery = {
+  workspaceId: string
+  fieldType: 'text' | 'number' | 'date' | 'boolean'
+}
+
+type GetNextKnowledgeTagSlotResponseRef0 = {
+  nextAvailableSlot: string | null
+  fieldType: string
+  usedSlots: Array<string>
+  totalSlots: number
+  availableSlots: number
+}
+
+export type GetNextKnowledgeTagSlotResponse = {
+  data: GetNextKnowledgeTagSlotResponseRef0
 }
 
 /** `GET /api/v2/skills/[id]` */
@@ -3777,6 +4035,50 @@ export type ImportWorkflowResponse = {
   data: ImportWorkflowResponseRef0
 }
 
+/** `GET /api/v2/knowledge/archived` */
+export type ListArchivedKnowledgeBasesQuery = {
+  workspaceId: string
+  search?: string
+  sortBy?: 'name' | 'createdAt' | 'updatedAt'
+  sortOrder?: 'asc' | 'desc'
+  limit?: number
+  cursor?: string
+}
+
+type ListArchivedKnowledgeBasesResponseRef0 = {
+  id: string
+  name: string
+  description: string | null
+  tokenCount: number
+  embeddingModel: string
+  embeddingDimension: number
+  chunkingConfig: ListArchivedKnowledgeBasesResponseRef1
+  docCount?: number
+  connectorTypes?: Array<string>
+  createdAt: string
+  updatedAt: string
+  ownerEmail: string
+  deletedAt: string
+}
+
+type ListArchivedKnowledgeBasesResponseRef1 = {
+  maxSize: number
+  minSize: number
+  overlap: number
+  strategy?: 'auto' | 'text' | 'regex' | 'recursive' | 'sentence' | 'token'
+  strategyOptions?: {
+    pattern?: string
+    separators?: Array<string>
+    recipe?: 'plain' | 'markdown' | 'code'
+    strictBoundaries?: boolean
+  }
+}
+
+export type ListArchivedKnowledgeBasesResponse = {
+  data: Array<ListArchivedKnowledgeBasesResponseRef0>
+  nextCursor: string | null
+}
+
 /** `GET /api/v2/audit-logs` */
 export type ListAuditLogsQuery = {
   action?: string
@@ -4227,6 +4529,47 @@ export type ListKnowledgeBasesResponse = {
   nextCursor: string | null
 }
 
+/** `GET /api/v2/knowledge/[id]/documents/[documentId]/chunks` */
+export type ListKnowledgeChunksParams = {
+  id: string
+  documentId: string
+}
+
+export type ListKnowledgeChunksQuery = {
+  workspaceId: string
+  search?: string
+  enabled?: 'true' | 'false' | 'all'
+  sortBy?: 'chunkIndex' | 'tokenCount' | 'enabled'
+  sortOrder?: 'asc' | 'desc'
+  limit?: number
+  cursor?: string
+}
+
+type ListKnowledgeChunksResponseRef0 = {
+  id: string
+  chunkIndex: number
+  content: string
+  contentLength: number
+  tokenCount: number
+  enabled: boolean
+  startOffset: number
+  endOffset: number
+  tag1: string | null
+  tag2: string | null
+  tag3: string | null
+  tag4: string | null
+  tag5: string | null
+  tag6: string | null
+  tag7: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export type ListKnowledgeChunksResponse = {
+  data: Array<ListKnowledgeChunksResponseRef0>
+  nextCursor: string | null
+}
+
 /** `GET /api/v2/knowledge/[id]/documents` */
 export type ListKnowledgeDocumentsParams = {
   id: string
@@ -4304,6 +4647,7 @@ export type ListKnowledgeTagsQuery = {
 }
 
 type ListKnowledgeTagsResponseRef0 = {
+  id: string
   displayName: string
   tagSlot: string
   fieldType: string
@@ -4311,6 +4655,28 @@ type ListKnowledgeTagsResponseRef0 = {
 
 export type ListKnowledgeTagsResponse = {
   data: Array<ListKnowledgeTagsResponseRef0>
+  nextCursor: string | null
+}
+
+/** `GET /api/v2/knowledge/[id]/tags/usage` */
+export type ListKnowledgeTagUsageParams = {
+  id: string
+}
+
+export type ListKnowledgeTagUsageQuery = {
+  workspaceId: string
+}
+
+type ListKnowledgeTagUsageResponseRef0 = {
+  tagSlot: string
+  displayName: string
+  fieldType: string
+  documentCount: number
+  chunkCount: number
+}
+
+export type ListKnowledgeTagUsageResponse = {
+  data: Array<ListKnowledgeTagUsageResponseRef0>
   nextCursor: string | null
 }
 
@@ -5358,6 +5724,50 @@ export type RestoreFileResponse = {
   data: RestoreFileResponseRef0
 }
 
+/** `POST /api/v2/knowledge/[id]/restore` */
+export type RestoreKnowledgeBaseParams = {
+  id: string
+}
+
+export type RestoreKnowledgeBaseQuery = Record<string, unknown>
+
+export type RestoreKnowledgeBaseBody = {
+  workspaceId: string
+}
+
+type RestoreKnowledgeBaseResponseRef0 = {
+  maxSize: number
+  minSize: number
+  overlap: number
+  strategy?: 'auto' | 'text' | 'regex' | 'recursive' | 'sentence' | 'token'
+  strategyOptions?: {
+    pattern?: string
+    separators?: Array<string>
+    recipe?: 'plain' | 'markdown' | 'code'
+    strictBoundaries?: boolean
+  }
+}
+
+type RestoreKnowledgeBaseResponseRef1 = {
+  id: string
+  name: string
+  description: string | null
+  tokenCount: number
+  embeddingModel: string
+  embeddingDimension: number
+  chunkingConfig: RestoreKnowledgeBaseResponseRef0
+  docCount?: number
+  connectorTypes?: Array<string>
+  createdAt: string
+  updatedAt: string
+  ownerEmail: string
+  folderPath: string
+}
+
+export type RestoreKnowledgeBaseResponse = {
+  data: RestoreKnowledgeBaseResponseRef1
+}
+
 /** `POST /api/v2/workflows/[id]/restore` */
 export type RestoreWorkflowParams = {
   id: string
@@ -5601,6 +6011,60 @@ type RunTableColumnResponseRef0 = {
 
 export type RunTableColumnResponse = {
   data: RunTableColumnResponseRef0
+}
+
+/** `PUT /api/v2/knowledge/[id]/documents/[documentId]/tags` */
+export type SaveKnowledgeDocumentTagDefinitionsParams = {
+  id: string
+  documentId: string
+}
+
+export type SaveKnowledgeDocumentTagDefinitionsQuery = Record<string, unknown>
+
+type SaveKnowledgeDocumentTagDefinitionsBodyRef0 = {
+  tagSlot:
+    | 'tag1'
+    | 'tag2'
+    | 'tag3'
+    | 'tag4'
+    | 'tag5'
+    | 'tag6'
+    | 'tag7'
+    | 'number1'
+    | 'number2'
+    | 'number3'
+    | 'number4'
+    | 'number5'
+    | 'date1'
+    | 'date2'
+    | 'boolean1'
+    | 'boolean2'
+    | 'boolean3'
+  displayName: string
+  fieldType: 'text' | 'number' | 'date' | 'boolean'
+  originalDisplayName?: string
+}
+
+export type SaveKnowledgeDocumentTagDefinitionsBody = {
+  workspaceId: string
+  definitions: Array<SaveKnowledgeDocumentTagDefinitionsBodyRef0>
+}
+
+type SaveKnowledgeDocumentTagDefinitionsResponseRef0 = {
+  id: string
+  displayName: string
+  tagSlot: string
+  fieldType: string
+}
+
+type SaveKnowledgeDocumentTagDefinitionsResponseRef1 = {
+  created: Array<SaveKnowledgeDocumentTagDefinitionsResponseRef0>
+  updated: Array<SaveKnowledgeDocumentTagDefinitionsResponseRef0>
+  errors: Array<string>
+}
+
+export type SaveKnowledgeDocumentTagDefinitionsResponse = {
+  data: SaveKnowledgeDocumentTagDefinitionsResponseRef1
 }
 
 /** `POST /api/v2/knowledge/search` */
@@ -5849,6 +6313,13 @@ type UpdateKnowledgeBaseBodyRef0 = {
   maxSize?: number
   minSize?: number
   overlap?: number
+  strategy?: 'auto' | 'text' | 'regex' | 'recursive' | 'sentence' | 'token'
+  strategyOptions?: {
+    pattern?: string
+    separators?: Array<string>
+    recipe?: 'plain' | 'markdown' | 'code'
+    strictBoundaries?: boolean
+  }
 }
 
 type UpdateKnowledgeBaseBodyRef1 = string
@@ -5892,6 +6363,45 @@ type UpdateKnowledgeBaseResponseRef1 = {
 
 export type UpdateKnowledgeBaseResponse = {
   data: UpdateKnowledgeBaseResponseRef1
+}
+
+/** `PATCH /api/v2/knowledge/[id]/documents/[documentId]/chunks/[chunkId]` */
+export type UpdateKnowledgeChunkParams = {
+  id: string
+  documentId: string
+  chunkId: string
+}
+
+export type UpdateKnowledgeChunkQuery = Record<string, unknown>
+
+export type UpdateKnowledgeChunkBody = {
+  workspaceId: string
+  content?: string
+  enabled?: boolean
+}
+
+type UpdateKnowledgeChunkResponseRef0 = {
+  id: string
+  chunkIndex: number
+  content: string
+  contentLength: number
+  tokenCount: number
+  enabled: boolean
+  startOffset: number
+  endOffset: number
+  tag1: string | null
+  tag2: string | null
+  tag3: string | null
+  tag4: string | null
+  tag5: string | null
+  tag6: string | null
+  tag7: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export type UpdateKnowledgeChunkResponse = {
+  data: UpdateKnowledgeChunkResponseRef0
 }
 
 /** `PATCH /api/v2/knowledge/[id]/documents/[documentId]` */
@@ -5950,6 +6460,31 @@ type UpdateKnowledgeDocumentResponseRef1 = {
 
 export type UpdateKnowledgeDocumentResponse = {
   data: UpdateKnowledgeDocumentResponseRef0 | UpdateKnowledgeDocumentResponseRef1
+}
+
+/** `PATCH /api/v2/knowledge/[id]/tags/[tagId]` */
+export type UpdateKnowledgeTagParams = {
+  id: string
+  tagId: string
+}
+
+export type UpdateKnowledgeTagQuery = Record<string, unknown>
+
+export type UpdateKnowledgeTagBody = {
+  workspaceId: string
+  displayName?: string
+  fieldType?: 'text' | 'number' | 'date' | 'boolean'
+}
+
+type UpdateKnowledgeTagResponseRef0 = {
+  id: string
+  displayName: string
+  tagSlot: string
+  fieldType: string
+}
+
+export type UpdateKnowledgeTagResponse = {
+  data: UpdateKnowledgeTagResponseRef0
 }
 
 /** `PATCH /api/v2/mcp-servers/[id]` */
@@ -6696,6 +7231,27 @@ export const V2_OPERATIONS = {
       },
     },
   },
+  addWorkspaceFilesToKnowledgeBase: {
+    method: 'POST',
+    path: '/api/v2/knowledge/[id]/documents/from-workspace-files',
+    pathParams: ['id'] as const,
+    pathParamDocs: { id: 'Unique knowledge base identifier.' },
+    responseMode: 'json',
+    summary: 'Index Workspace Files',
+    body: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns both the files and the base.',
+      },
+      fileReferences: {
+        kind: 'array',
+        required: true,
+        describe:
+          'Workspace file identifiers or storage keys to index. Duplicates resolving to the same file are indexed once.',
+      },
+    },
+  },
   applyWorkflowOperations: {
     method: 'POST',
     path: '/api/v2/workflows/[id]/operations',
@@ -6749,6 +7305,35 @@ export const V2_OPERATIONS = {
     body: {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace containing the files.' },
       fileIds: { kind: 'array', required: true, describe: 'File identifiers to update.' },
+    },
+  },
+  bulkUpdateKnowledgeChunks: {
+    method: 'PATCH',
+    path: '/api/v2/knowledge/[id]/documents/[documentId]/chunks',
+    pathParams: ['id', 'documentId'] as const,
+    pathParamDocs: {
+      id: 'Unique knowledge base identifier.',
+      documentId: 'Unique knowledge document identifier.',
+    },
+    responseMode: 'json',
+    summary: 'Bulk Update Chunks',
+    body: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns the knowledge base.',
+      },
+      operation: {
+        kind: 'enum',
+        required: true,
+        values: ['enable', 'disable', 'delete'] as const,
+        describe: 'What to do with the selected chunks.',
+      },
+      chunkIds: {
+        kind: 'array',
+        required: true,
+        describe: 'Chunks to operate on, by identifier. Ids outside the document are ignored.',
+      },
     },
   },
   bulkUpdateKnowledgeDocuments: {
@@ -7059,6 +7644,34 @@ export const V2_OPERATIONS = {
       },
     },
   },
+  createKnowledgeChunk: {
+    method: 'POST',
+    path: '/api/v2/knowledge/[id]/documents/[documentId]/chunks',
+    pathParams: ['id', 'documentId'] as const,
+    pathParamDocs: {
+      id: 'Unique knowledge base identifier.',
+      documentId: 'Unique knowledge document identifier.',
+    },
+    responseMode: 'json',
+    summary: 'Create Chunk',
+    body: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns the knowledge base.',
+      },
+      content: {
+        kind: 'string',
+        required: true,
+        describe: 'Text to embed. It is embedded on write, so the chunk is searchable immediately.',
+      },
+      enabled: {
+        kind: 'boolean',
+        default: true,
+        describe: 'Whether the new chunk participates in search.',
+      },
+    },
+  },
   createKnowledgeDocumentUpload: {
     method: 'POST',
     path: '/api/v2/knowledge/[id]/documents/uploads',
@@ -7131,6 +7744,57 @@ export const V2_OPERATIONS = {
         describe: 'Workspace in which to create the folder.',
       },
       path: { kind: 'string', required: true, describe: 'Path of the folder to create.' },
+    },
+  },
+  createKnowledgeTag: {
+    method: 'POST',
+    path: '/api/v2/knowledge/[id]/tags',
+    pathParams: ['id'] as const,
+    pathParamDocs: { id: 'Unique knowledge base identifier.' },
+    responseMode: 'json',
+    summary: 'Create Tag',
+    body: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns the knowledge base.',
+      },
+      displayName: {
+        kind: 'string',
+        required: true,
+        describe: 'Name tag filters and document reads use for this tag.',
+      },
+      fieldType: {
+        kind: 'enum',
+        values: ['text', 'number', 'date', 'boolean'] as const,
+        default: 'text',
+        describe:
+          'Value type stored in the slot; it decides which slots are usable and which filter operators apply. Slot capacity per type: text 7, number 5, date 2, boolean 3.',
+      },
+      tagSlot: {
+        kind: 'enum',
+        values: [
+          'tag1',
+          'tag2',
+          'tag3',
+          'tag4',
+          'tag5',
+          'tag6',
+          'tag7',
+          'number1',
+          'number2',
+          'number3',
+          'number4',
+          'number5',
+          'date1',
+          'date2',
+          'boolean1',
+          'boolean2',
+          'boolean3',
+        ] as const,
+        describe:
+          'Slot to store the tag in. Omit to take the next free slot for the field type; a slot that does not belong to the field type, or one already in use, is rejected.',
+      },
     },
   },
   createMcpServer: {
@@ -7517,6 +8181,25 @@ export const V2_OPERATIONS = {
       },
     },
   },
+  deleteKnowledgeChunk: {
+    method: 'DELETE',
+    path: '/api/v2/knowledge/[id]/documents/[documentId]/chunks/[chunkId]',
+    pathParams: ['id', 'documentId', 'chunkId'] as const,
+    pathParamDocs: {
+      id: 'Unique knowledge base identifier.',
+      documentId: 'Unique knowledge document identifier.',
+      chunkId: 'Unique chunk identifier.',
+    },
+    responseMode: 'json',
+    summary: 'Delete Chunk',
+    query: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns the knowledge base.',
+      },
+    },
+  },
   deleteKnowledgeDocument: {
     method: 'DELETE',
     path: '/api/v2/knowledge/[id]/documents/[documentId]',
@@ -7532,6 +8215,29 @@ export const V2_OPERATIONS = {
         kind: 'string',
         required: true,
         describe: 'Workspace that owns the knowledge base.',
+      },
+    },
+  },
+  deleteKnowledgeDocumentTagDefinitions: {
+    method: 'DELETE',
+    path: '/api/v2/knowledge/[id]/documents/[documentId]/tags',
+    pathParams: ['id', 'documentId'] as const,
+    pathParamDocs: {
+      id: 'Unique knowledge base identifier.',
+      documentId: 'Unique knowledge document identifier.',
+    },
+    responseMode: 'json',
+    summary: 'Clean Up Document Tag Definitions',
+    query: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns the knowledge base.',
+      },
+      action: {
+        kind: 'string',
+        default: 'cleanup',
+        describe: 'Remove tag definitions no document in this knowledge base still uses.',
       },
     },
   },
@@ -7563,6 +8269,24 @@ export const V2_OPERATIONS = {
         default: 'false',
         describe:
           "Delete the folder's nested files and folders too. An empty folder deletes either way; a non-empty one needs this. The listed spellings are the whole accepted vocabulary and are case-sensitive; any other value is rejected.",
+      },
+    },
+  },
+  deleteKnowledgeTag: {
+    method: 'DELETE',
+    path: '/api/v2/knowledge/[id]/tags/[tagId]',
+    pathParams: ['id', 'tagId'] as const,
+    pathParamDocs: {
+      id: 'Unique knowledge base identifier.',
+      tagId: 'Unique tag definition identifier.',
+    },
+    responseMode: 'json',
+    summary: 'Delete Tag',
+    query: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns the knowledge base.',
       },
     },
   },
@@ -7993,6 +8717,25 @@ export const V2_OPERATIONS = {
       },
     },
   },
+  getKnowledgeChunk: {
+    method: 'GET',
+    path: '/api/v2/knowledge/[id]/documents/[documentId]/chunks/[chunkId]',
+    pathParams: ['id', 'documentId', 'chunkId'] as const,
+    pathParamDocs: {
+      id: 'Unique knowledge base identifier.',
+      documentId: 'Unique knowledge document identifier.',
+      chunkId: 'Unique chunk identifier.',
+    },
+    responseMode: 'json',
+    summary: 'Get Chunk',
+    query: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns the knowledge base.',
+      },
+    },
+  },
   getKnowledgeDocument: {
     method: 'GET',
     path: '/api/v2/knowledge/[id]/documents/[documentId]',
@@ -8031,6 +8774,28 @@ export const V2_OPERATIONS = {
         kind: 'string',
         required: true,
         describe: 'Workspace that owns the MCP server.',
+      },
+    },
+  },
+  getNextKnowledgeTagSlot: {
+    method: 'GET',
+    path: '/api/v2/knowledge/[id]/tags/next-slot',
+    pathParams: ['id'] as const,
+    pathParamDocs: { id: 'Unique knowledge base identifier.' },
+    responseMode: 'json',
+    summary: 'Get Next Tag Slot',
+    query: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns the knowledge base.',
+      },
+      fieldType: {
+        kind: 'enum',
+        required: true,
+        values: ['text', 'number', 'date', 'boolean'] as const,
+        describe:
+          'Value type stored in the slot; it decides which slots are usable and which filter operators apply. Slot capacity per type: text 7, number 5, date 2, boolean 3.',
       },
     },
   },
@@ -8213,6 +8978,48 @@ export const V2_OPERATIONS = {
       },
       name: { kind: 'string', describe: 'Override for the imported workflow name.' },
       description: { kind: 'string', describe: 'Override for the imported workflow description.' },
+    },
+  },
+  listArchivedKnowledgeBases: {
+    method: 'GET',
+    path: '/api/v2/knowledge/archived',
+    pathParams: [] as const,
+    responseMode: 'json',
+    summary: 'List Archived Knowledge Bases',
+    query: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace whose archived knowledge bases should be listed.',
+      },
+      search: {
+        kind: 'string',
+        describe: 'Case-insensitive substring match against the resource name.',
+      },
+      sortBy: {
+        kind: 'enum',
+        values: ['name', 'createdAt', 'updatedAt'] as const,
+        default: 'updatedAt',
+        describe:
+          'Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.',
+      },
+      sortOrder: {
+        kind: 'enum',
+        values: ['asc', 'desc'] as const,
+        default: 'desc',
+        describe: 'Sort direction.',
+      },
+      limit: {
+        kind: 'integer',
+        default: 50,
+        describe:
+          'Maximum archived knowledge bases to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
+      },
+      cursor: {
+        kind: 'string',
+        describe:
+          'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+      },
     },
   },
   listAuditLogs: {
@@ -8681,6 +9488,57 @@ export const V2_OPERATIONS = {
       },
     },
   },
+  listKnowledgeChunks: {
+    method: 'GET',
+    path: '/api/v2/knowledge/[id]/documents/[documentId]/chunks',
+    pathParams: ['id', 'documentId'] as const,
+    pathParamDocs: {
+      id: 'Unique knowledge base identifier.',
+      documentId: 'Unique knowledge document identifier.',
+    },
+    responseMode: 'json',
+    summary: 'List Chunks',
+    query: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns the knowledge base.',
+      },
+      search: {
+        kind: 'string',
+        describe: 'Case-insensitive substring match against chunk content.',
+      },
+      enabled: {
+        kind: 'enum',
+        values: ['true', 'false', 'all'] as const,
+        default: 'all',
+        describe: 'Restrict to enabled or disabled chunks. `all` returns both.',
+      },
+      sortBy: {
+        kind: 'enum',
+        values: ['chunkIndex', 'tokenCount', 'enabled'] as const,
+        default: 'chunkIndex',
+        describe: 'Field used to sort the result.',
+      },
+      sortOrder: {
+        kind: 'enum',
+        values: ['asc', 'desc'] as const,
+        default: 'asc',
+        describe: 'Sort direction.',
+      },
+      limit: {
+        kind: 'integer',
+        default: 50,
+        describe:
+          'Maximum chunks to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
+      },
+      cursor: {
+        kind: 'string',
+        describe:
+          'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+      },
+    },
+  },
   listKnowledgeDocuments: {
     method: 'GET',
     path: '/api/v2/knowledge/[id]/documents',
@@ -8785,6 +9643,21 @@ export const V2_OPERATIONS = {
     pathParamDocs: { id: 'Unique knowledge base identifier.' },
     responseMode: 'json',
     summary: 'List Tags',
+    query: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns the knowledge base.',
+      },
+    },
+  },
+  listKnowledgeTagUsage: {
+    method: 'GET',
+    path: '/api/v2/knowledge/[id]/tags/usage',
+    pathParams: ['id'] as const,
+    pathParamDocs: { id: 'Unique knowledge base identifier.' },
+    responseMode: 'json',
+    summary: 'List Tag Usage',
     query: {
       workspaceId: {
         kind: 'string',
@@ -9589,6 +10462,21 @@ export const V2_OPERATIONS = {
       },
     },
   },
+  restoreKnowledgeBase: {
+    method: 'POST',
+    path: '/api/v2/knowledge/[id]/restore',
+    pathParams: ['id'] as const,
+    pathParamDocs: { id: 'Unique knowledge base identifier.' },
+    responseMode: 'json',
+    summary: 'Restore Knowledge Base',
+    body: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns the knowledge base.',
+      },
+    },
+  },
   restoreWorkflow: {
     method: 'POST',
     path: '/api/v2/workflows/[id]/restore',
@@ -9670,6 +10558,29 @@ export const V2_OPERATIONS = {
       },
       excludeRowIds: { kind: 'array', describe: 'Rows excluded from a select-all run scope.' },
       limit: { kind: 'object', describe: 'Optional cap on eligible rows to run.' },
+    },
+  },
+  saveKnowledgeDocumentTagDefinitions: {
+    method: 'PUT',
+    path: '/api/v2/knowledge/[id]/documents/[documentId]/tags',
+    pathParams: ['id', 'documentId'] as const,
+    pathParamDocs: {
+      id: 'Unique knowledge base identifier.',
+      documentId: 'Unique knowledge document identifier.',
+    },
+    responseMode: 'json',
+    summary: 'Save Document Tag Definitions',
+    body: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns the knowledge base.',
+      },
+      definitions: {
+        kind: 'array',
+        required: true,
+        describe: 'Tag definitions to create or update on the knowledge base.',
+      },
     },
   },
   searchKnowledge: {
@@ -9846,6 +10757,34 @@ export const V2_OPERATIONS = {
       folderPath: { kind: 'string', describe: 'New containing-folder path.' },
     },
   },
+  updateKnowledgeChunk: {
+    method: 'PATCH',
+    path: '/api/v2/knowledge/[id]/documents/[documentId]/chunks/[chunkId]',
+    pathParams: ['id', 'documentId', 'chunkId'] as const,
+    pathParamDocs: {
+      id: 'Unique knowledge base identifier.',
+      documentId: 'Unique knowledge document identifier.',
+      chunkId: 'Unique chunk identifier.',
+    },
+    responseMode: 'json',
+    summary: 'Update Chunk',
+    body: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns the knowledge base.',
+      },
+      content: {
+        kind: 'string',
+        describe:
+          'Replacement text. Changing it re-embeds the chunk and re-derives its token and character counts.',
+      },
+      enabled: {
+        kind: 'boolean',
+        describe: 'Whether the chunk participates in search. Disabling keeps it indexed.',
+      },
+    },
+  },
   updateKnowledgeDocument: {
     method: 'PATCH',
     path: '/api/v2/knowledge/[id]/documents/[documentId]',
@@ -9888,6 +10827,30 @@ export const V2_OPERATIONS = {
         kind: 'boolean',
         describe:
           'Requeue a failed or stuck document for processing. Send it alone — no other field may accompany it — and it answers with a queue acknowledgement rather than the document.',
+      },
+    },
+  },
+  updateKnowledgeTag: {
+    method: 'PATCH',
+    path: '/api/v2/knowledge/[id]/tags/[tagId]',
+    pathParams: ['id', 'tagId'] as const,
+    pathParamDocs: {
+      id: 'Unique knowledge base identifier.',
+      tagId: 'Unique tag definition identifier.',
+    },
+    responseMode: 'json',
+    summary: 'Update Tag',
+    body: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns the knowledge base.',
+      },
+      displayName: { kind: 'string', describe: 'New tag display name.' },
+      fieldType: {
+        kind: 'enum',
+        values: ['text', 'number', 'date', 'boolean'] as const,
+        describe: 'New value type for the tag.',
       },
     },
   },

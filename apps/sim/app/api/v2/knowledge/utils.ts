@@ -1,8 +1,12 @@
 import type {
+  V2ArchivedKnowledgeBase,
   V2KnowledgeBase,
   V2KnowledgeDocumentSummary,
+  V2KnowledgeTag,
   V2KnowledgeTaggedDocument,
 } from '@/lib/api/contracts/v2/knowledge'
+import type { V2KnowledgeChunk } from '@/lib/api/contracts/v2/knowledge-chunks'
+import type { ChunkData } from '@/lib/knowledge/chunks/types'
 import { ALL_TAG_SLOTS, type AllTagSlot } from '@/lib/knowledge/constants'
 import type { DocumentTagDefinition } from '@/lib/knowledge/tags/types'
 import type { KnowledgeBaseWithCounts } from '@/lib/knowledge/types'
@@ -114,11 +118,11 @@ interface KnowledgeBaseWithFolder {
   folderPath: string
 }
 
-function serializeV2KnowledgeBase(
+/** Everything both knowledge-base projections share; only `folderPath` differs. */
+function serializeV2KnowledgeBaseCore(
   knowledgeBase: KnowledgeBaseWithCounts,
-  folderPath: string,
   ownerEmail: string
-): V2KnowledgeBase {
+): Omit<V2KnowledgeBase, 'folderPath'> {
   return {
     id: knowledgeBase.id,
     name: knowledgeBase.name,
@@ -145,7 +149,33 @@ function serializeV2KnowledgeBase(
     connectorTypes: knowledgeBase.connectorTypes,
     createdAt: knowledgeBase.createdAt.toISOString(),
     updatedAt: knowledgeBase.updatedAt.toISOString(),
-    folderPath,
+  }
+}
+
+function serializeV2KnowledgeBase(
+  knowledgeBase: KnowledgeBaseWithCounts,
+  folderPath: string,
+  ownerEmail: string
+): V2KnowledgeBase {
+  return { ...serializeV2KnowledgeBaseCore(knowledgeBase, ownerEmail), folderPath }
+}
+
+/**
+ * Serializes an archived knowledge base. `deletedAt` is what makes the row
+ * archived, so a null one means the reader was handed an active base and the
+ * caller would otherwise receive a response the contract rejects — a producer
+ * bug, not a caller-reachable failure.
+ */
+function serializeV2ArchivedKnowledgeBase(
+  knowledgeBase: KnowledgeBaseWithCounts,
+  ownerEmail: string
+): V2ArchivedKnowledgeBase {
+  if (!knowledgeBase.deletedAt) {
+    throw new Error(`Knowledge base ${knowledgeBase.id} is not archived`)
+  }
+  return {
+    ...serializeV2KnowledgeBaseCore(knowledgeBase, ownerEmail),
+    deletedAt: knowledgeBase.deletedAt.toISOString(),
   }
 }
 
@@ -176,4 +206,58 @@ export async function toV2KnowledgeBases(
       requireResolvedUserEmail(emailByUserId, knowledgeBase.userId)
     )
   )
+}
+
+/** Batch-resolves owner emails before serializing an archived knowledge-base list. */
+export async function toV2ArchivedKnowledgeBases(
+  knowledgeBases: readonly KnowledgeBaseWithCounts[]
+): Promise<V2ArchivedKnowledgeBase[]> {
+  const emailByUserId = await getUserEmailsByIds(knowledgeBases.map((base) => base.userId))
+  return knowledgeBases.map((base) =>
+    serializeV2ArchivedKnowledgeBase(base, requireResolvedUserEmail(emailByUserId, base.userId))
+  )
+}
+
+/**
+ * Serializes one chunk. Tag slots are projected as slots, and an absent slot is
+ * reported as `null` so every chunk carries the same key set.
+ */
+export function toV2KnowledgeChunk(chunk: ChunkData): V2KnowledgeChunk {
+  return {
+    id: chunk.id,
+    chunkIndex: chunk.chunkIndex,
+    content: chunk.content,
+    contentLength: chunk.contentLength,
+    tokenCount: chunk.tokenCount,
+    enabled: chunk.enabled,
+    startOffset: chunk.startOffset,
+    endOffset: chunk.endOffset,
+    tag1: chunk.tag1 ?? null,
+    tag2: chunk.tag2 ?? null,
+    tag3: chunk.tag3 ?? null,
+    tag4: chunk.tag4 ?? null,
+    tag5: chunk.tag5 ?? null,
+    tag6: chunk.tag6 ?? null,
+    tag7: chunk.tag7 ?? null,
+    createdAt: chunk.createdAt.toISOString(),
+    updatedAt: chunk.updatedAt.toISOString(),
+  }
+}
+
+/**
+ * The single v2 tag-definition projection, shared by the vocabulary list and
+ * every tag write so an added field cannot reach one and miss the others.
+ */
+export function toV2KnowledgeTag(definition: {
+  id: string
+  displayName: string
+  tagSlot: string
+  fieldType: string
+}): V2KnowledgeTag {
+  return {
+    id: definition.id,
+    displayName: definition.displayName,
+    tagSlot: definition.tagSlot,
+    fieldType: definition.fieldType,
+  }
 }

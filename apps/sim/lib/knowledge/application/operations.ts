@@ -65,6 +65,19 @@ export const knowledgeOperations = {
     workspaceApiKey: 'allow',
     ...ALL_PRINCIPAL_POLICY,
   }),
+  /**
+   * Un-archives a soft-deleted knowledge base.
+   *
+   * Deliberately the same policy as {@link knowledgeOperations.delete}: an
+   * operation's inverse must not be harder to reach than the operation, or a
+   * principal can archive a knowledge base it is then unable to recover.
+   */
+  restore: defineWorkspaceOperation({
+    id: 'knowledge.restore',
+    minimumRole: 'write',
+    workspaceApiKey: 'allow',
+    ...ALL_PRINCIPAL_POLICY,
+  }),
   bulkMoveItems: defineWorkspaceOperation({
     id: 'knowledge.bulk_move_items',
     minimumRole: 'write',

@@ -30,6 +30,7 @@ import {
   type KnowledgeWorkspaceContext,
   loadKnowledgeWorkspaceAuthorizationContext,
   resolveActiveKnowledgeBaseContext,
+  resolveArchivedKnowledgeBaseContext,
   resolveKnowledgeWorkspaceContext,
 } from '@/lib/knowledge/application/contexts'
 import {
@@ -92,8 +93,28 @@ export interface ListKnowledgeBasesResult {
   sortOrder: 'asc' | 'desc'
 }
 
+export interface ListArchivedKnowledgeBasesInput {
+  workspaceId: string
+  search?: string
+  sortBy?: 'name' | 'createdAt' | 'updatedAt'
+  sortOrder?: 'asc' | 'desc'
+  /** Page size. Omitted reads the whole archived set as one page. */
+  limit?: number
+  cursorKeys?: CursorKey[]
+}
+
 export interface ListArchivedKnowledgeBasesResult {
   knowledgeBases: KnowledgeBaseWithCounts[]
+  nextCursorKeys: CursorKey[] | null
+}
+
+export interface RestoreKnowledgeBaseInput extends ReadKnowledgeBaseInput {
+  source?: string
+}
+
+export interface RestoreKnowledgeBaseResult extends KnowledgeBaseResult {
+  /** `false` when the knowledge base was already active and nothing changed. */
+  restored: boolean
 }
 
 export interface KnowledgeBaseCatalogTagDefinition {
@@ -416,15 +437,93 @@ export const listKnowledgeBaseCatalog = defineAuthorizedKnowledgeUseCase({
   },
 })
 
+/**
+ * Lists the workspace's archived knowledge bases.
+ *
+ * Paged on the same keyset the active list uses, over the same reader — an
+ * omitted `limit` still reads the whole set, which is what the agent's
+ * recently-deleted view wants and what this returned before it took a page.
+ */
 export const listArchivedKnowledgeBases = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.listArchived,
-  resolveContext: ({ input }: { input: { workspaceId: string } }) =>
+  resolveContext: ({ input }: { input: ListArchivedKnowledgeBasesInput }) =>
     resolveKnowledgeWorkspaceContext(input),
-  async execute({ context }): Promise<ListArchivedKnowledgeBasesResult> {
+  async execute({ input, context }): Promise<ListArchivedKnowledgeBasesResult> {
+    const page = await getWorkspaceKnowledgeBases(context.workspaceId, 'archived', {
+      search: input.search,
+      sortBy: input.sortBy,
+      sortOrder: input.sortOrder,
+      limit: input.limit,
+      cursorKeys: input.cursorKeys,
+    })
+    return { knowledgeBases: page.data, nextCursorKeys: page.nextCursorKeys }
+  },
+})
+
+/**
+ * Un-archives a knowledge base and reports it as it now stands.
+ *
+ * Idempotent: a knowledge base that is already active is returned unchanged,
+ * with no restore performed and no audit entry recorded. A `409` there would
+ * make a retry after a dropped response look like a failure, and restore has no
+ * state a second call could corrupt.
+ *
+ * `performRestoreKnowledgeBase` records its own audit entry for the legacy
+ * session path, so this one suppresses it and projects the entry from the
+ * authoritative result instead — the pattern every other migrated knowledge
+ * write follows.
+ */
+export const restoreKnowledgeBase = defineAuthorizedKnowledgeUseCase({
+  operation: knowledgeOperations.restore,
+  resolveContext: ({ input }: { input: RestoreKnowledgeBaseInput }) =>
+    resolveArchivedKnowledgeBaseContext({
+      knowledgeBaseId: input.knowledgeBaseId,
+      assertedWorkspaceId: input.assertedWorkspaceId,
+    }),
+  async execute({ principal, input, context, request }): Promise<RestoreKnowledgeBaseResult> {
+    const restored = context.restorableKnowledgeBase.deletedAt !== null
+    if (restored) {
+      const outcome = await performRestoreKnowledgeBase({
+        knowledgeBaseId: context.knowledgeBaseId,
+        userId: resolveKnowledgeAttributedUserId(principal, context),
+        source: 'api',
+        recordSemanticAudit: false,
+        ...(request ? { request } : {}),
+      })
+      if (!outcome.success) {
+        throwKnowledgeOrchestrationFailure(outcome, 'Failed to restore knowledge base')
+      }
+    }
+    const knowledgeBase = await getKnowledgeBaseById(context.knowledgeBaseId)
+    if (!knowledgeBase) throw new OrchestrationError('not_found', 'Knowledge base not found')
+    const index = await loadActiveFolderPathIndex(
+      context.workspaceId,
+      'knowledge_base',
+      undefined,
+      { maxRows: MAX_KNOWLEDGE_FOLDERS_PER_WORKSPACE }
+    )
     return {
-      knowledgeBases: (await getWorkspaceKnowledgeBases(context.workspaceId, 'archived')).data,
+      knowledgeBase,
+      folderPath: knowledgeFolderPathForId(index, knowledgeBase.folderId),
+      restored,
     }
   },
+  projectAudit: ({ input, result }) =>
+    result.restored
+      ? [
+          {
+            action: AuditAction.KNOWLEDGE_BASE_RESTORED,
+            resourceType: AuditResourceType.KNOWLEDGE_BASE,
+            resourceId: result.knowledgeBase.id,
+            resourceName: result.knowledgeBase.name,
+            description: `Restored knowledge base "${result.knowledgeBase.name}"`,
+            metadata: {
+              source: input.source,
+              knowledgeBaseName: result.knowledgeBase.name,
+            },
+          },
+        ]
+      : [],
 })
 
 export const listInternalKnowledgeBases = {
@@ -735,13 +834,26 @@ export const restoreInternalKnowledgeBase = {
     requireSessionPrincipal(principal, knowledgeSessionOperations.restore.id)
     const knowledgeBase = await getRestorableKnowledgeBase(input.knowledgeBaseId)
     if (!knowledgeBase) throw new OrchestrationError('not_found', 'Knowledge base not found')
+    /**
+     * A workspace-owned knowledge base is restored through the shared
+     * application use case, so the internal and public surfaces cannot drift.
+     * The branch below is the legacy personal case: those rows belong to no
+     * workspace, so no workspace operation can authorize them and only their
+     * creator ever could.
+     */
     if (knowledgeBase.workspaceId) {
-      const context = await loadKnowledgeWorkspaceAuthorizationContext(knowledgeBase.workspaceId, {
-        includeArchived: true,
+      await restoreKnowledgeBase.execute({
+        principal,
+        input: {
+          knowledgeBaseId: knowledgeBase.id,
+          assertedWorkspaceId: knowledgeBase.workspaceId,
+          source: 'ui',
+        },
+        ...(request ? { request } : {}),
       })
-      if (!context) throw new OrchestrationError('not_found', 'Knowledge base not found')
-      await authorizeWorkspaceOperation(principal, knowledgeOperations.update, context)
-    } else if (knowledgeBase.userId !== principal.userId) {
+      return { success: true }
+    }
+    if (knowledgeBase.userId !== principal.userId) {
       throw new OrchestrationError('unauthorized', 'Unauthorized')
     }
 

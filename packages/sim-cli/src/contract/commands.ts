@@ -5,6 +5,8 @@ const TABLE_FILTER_HELP =
   'Predicate: {"all":[{"field":"status","op":"eq","value":"active"}]}; groups use all/any. Operators: eq, ne, gt, gte, lt, lte, in, nin, contains, ncontains, startsWith, endsWith, like, ilike, nlike, nilike, isEmpty, isNotEmpty, isNull, isNotNull'
 const TABLE_SORT_HELP =
   'Ordered sort keys: [{"field":"createdAt","direction":"desc"}] (direction: asc or desc)'
+const KNOWLEDGE_TAG_DEFINITIONS_HELP =
+  'Tag definitions: [{"tagSlot":"tag1","displayName":"category","fieldType":"text"}]'
 const CUSTOM_TOOL_SCHEMA_HELP =
   'OpenAI function schema: {"type":"function","function":{"name":"...","parameters":{"type":"object","properties":{}}}}'
 /**
@@ -138,6 +140,34 @@ export const CLI_CONTRACT: CliContract = {
       documentIds: { name: 'document', list: true },
       selectAll: { boolean: true, describe: 'Apply to every document in the knowledge base' },
     },
+  },
+  // Same overload again for chunks: PATCH `/chunks` is the bulk form of PATCH
+  // `/chunks/[chunkId]`.
+  bulkUpdateKnowledgeChunks: {
+    command: 'knowledge chunks batch-update',
+    describe: 'Enable, disable, or delete many chunks at once',
+    pathArgumentNames: KNOWLEDGE_BASE_PATH_ARGUMENT,
+    flags: {
+      chunkIds: { name: 'chunk', list: true },
+    },
+  },
+  // The document-scoped tag-definition writes act on the knowledge base's
+  // vocabulary through a document, so they derive onto `knowledge tags` and
+  // collide with the definition-scoped `update` and `delete`. They belong under
+  // `knowledge documents tags`, which is the path they are actually addressed by.
+  saveKnowledgeDocumentTagDefinitions: {
+    command: 'knowledge documents tags save',
+    describe: 'Declare the tag definitions a document’s tags need',
+    pathArgumentNames: KNOWLEDGE_BASE_PATH_ARGUMENT,
+    flags: {
+      definitions: { json: true, describe: KNOWLEDGE_TAG_DEFINITIONS_HELP },
+    },
+  },
+  deleteKnowledgeDocumentTagDefinitions: {
+    command: 'knowledge documents tags cleanup',
+    describe: 'Remove tag definitions no document still uses',
+    pathArgumentNames: KNOWLEDGE_BASE_PATH_ARGUMENT,
+    confirm: 'This deletes every tag definition no document in the knowledge base still uses.',
   },
   // `DELETE /workflows/[id]/deploy` is an undeploy, not a delete.
   undeployWorkflow: {
@@ -388,6 +418,52 @@ export const CLI_CONTRACT: CliContract = {
   getKnowledgeDocument: { pathArgumentNames: KNOWLEDGE_BASE_PATH_ARGUMENT },
   updateKnowledgeDocument: { pathArgumentNames: KNOWLEDGE_BASE_PATH_ARGUMENT },
   listKnowledgeTags: { pathArgumentNames: KNOWLEDGE_BASE_PATH_ARGUMENT },
+  createKnowledgeTag: { pathArgumentNames: KNOWLEDGE_BASE_PATH_ARGUMENT },
+  updateKnowledgeTag: { pathArgumentNames: KNOWLEDGE_BASE_PATH_ARGUMENT },
+  deleteKnowledgeTag: {
+    pathArgumentNames: KNOWLEDGE_BASE_PATH_ARGUMENT,
+    confirm: 'This deletes the tag and clears its values on every document and chunk.',
+  },
+  // Both derive off their trailing segment (`knowledge next-slot list`,
+  // `knowledge usage list`), which loses the `tags` group they belong to and
+  // reads as a resource the API does not have.
+  getNextKnowledgeTagSlot: {
+    command: 'knowledge tags next-slot',
+    describe: 'Show which tag slot a create would take for a field type',
+    pathArgumentNames: KNOWLEDGE_BASE_PATH_ARGUMENT,
+  },
+  listKnowledgeTagUsage: {
+    command: 'knowledge tags usage',
+    describe: 'Show how many documents and chunks carry each tag',
+    pathArgumentNames: KNOWLEDGE_BASE_PATH_ARGUMENT,
+  },
+  addWorkspaceFilesToKnowledgeBase: {
+    pathArgumentNames: KNOWLEDGE_BASE_PATH_ARGUMENT,
+    describe: 'Index files the workspace already stores',
+    flags: {
+      fileReferences: {
+        name: 'file',
+        list: true,
+        describe: 'Workspace file ID or key (repeatable)',
+      },
+    },
+  },
+  listKnowledgeChunks: {
+    pathArgumentNames: KNOWLEDGE_BASE_PATH_ARGUMENT,
+    columns: [
+      { header: 'id' },
+      { header: 'index', path: 'chunkIndex' },
+      { header: 'tokens', path: 'tokenCount' },
+      { header: 'enabled' },
+    ],
+  },
+  createKnowledgeChunk: { pathArgumentNames: KNOWLEDGE_BASE_PATH_ARGUMENT },
+  getKnowledgeChunk: { pathArgumentNames: KNOWLEDGE_BASE_PATH_ARGUMENT },
+  updateKnowledgeChunk: { pathArgumentNames: KNOWLEDGE_BASE_PATH_ARGUMENT },
+  deleteKnowledgeChunk: {
+    pathArgumentNames: KNOWLEDGE_BASE_PATH_ARGUMENT,
+    confirm: 'This deletes the chunk and its embedding.',
+  },
   listKnowledgeDocuments: {
     pathArgumentNames: KNOWLEDGE_BASE_PATH_ARGUMENT,
     columns: [

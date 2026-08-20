@@ -54,6 +54,8 @@ export const FORBIDDEN_DETAIL_CODES = [
   'MCP_SERVER_URL_NOT_ALLOWED',
   /** The workspace's plan does not include a capability the request depends on. */
   'WORKSPACE_PLAN_CAPABILITY_REQUIRED',
+  /** The resource is owned by a knowledge base connector and cannot be edited directly. */
+  'CONNECTOR_MANAGED_RESOURCE_READ_ONLY',
 ] as const
 
 export type ForbiddenDetailCode = (typeof FORBIDDEN_DETAIL_CODES)[number]
@@ -93,6 +95,8 @@ export const FORBIDDEN_DETAIL_CODE_DESCRIPTIONS: Record<ForbiddenDetailCode, str
     'The supplied MCP server URL is outside the allowed domains or resolves to an internal address.',
   WORKSPACE_PLAN_CAPABILITY_REQUIRED:
     "The workspace's plan does not include a capability this request depends on. The message names the capability; upgrading the workspace's plan is the remedy.",
+  CONNECTOR_MANAGED_RESOURCE_READ_ONLY:
+    'This resource is managed by a knowledge base connector and cannot be edited directly. Change it at the source and re-sync, or exclude the document from the connector.',
 }
 
 /**
