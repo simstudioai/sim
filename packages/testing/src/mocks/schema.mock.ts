@@ -187,6 +187,7 @@ export const schemaMock = {
     status: 'status',
     trigger: 'trigger',
     startedAt: 'startedAt',
+    executionDeadlineAt: 'executionDeadlineAt',
     endedAt: 'endedAt',
     totalDurationMs: 'totalDurationMs',
     executionData: 'executionData',
