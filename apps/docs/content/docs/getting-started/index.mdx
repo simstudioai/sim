@@ -1,0 +1,101 @@
+---
+title: Getting Started
+description: Build, test, and optimize your agentic workflows
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Card, Cards } from 'fumadocs-ui/components/card'
+import { File, Files, Folder } from 'fumadocs-ui/components/files'
+import { Step, Steps } from 'fumadocs-ui/components/steps'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import {
+  AgentIcon,
+  ApiIcon,
+  ChartBarIcon,
+  CodeIcon,
+  ConditionalIcon,
+  ConnectIcon,
+  ExaAIIcon,
+  FirecrawlIcon,
+  GmailIcon,
+  NotionIcon,
+  PerplexityIcon,
+  SlackIcon,
+} from '@/components/icons'
+
+Sim Studio is a powerful, user-friendly platform for building, testing, and optimizing your agentic workflows. This documentation will help you understand how to use the various components of Sim Studio to create sophisticated agent-based applications.
+
+<Callout type="info">
+  This guide will walk you through the essential concepts and help you get started building your
+  first workflow.
+</Callout>
+
+## Core Components
+
+Sim Studio is built around two primary components:
+
+### Blocks
+
+Blocks are the fundamental building elements of your workflows. Each block serves a specific purpose:
+
+<Files>
+  <File
+    name="Agent Block"
+    icon={<AgentIcon className="h-4 w-4" />}
+    annotation="Create AI agents using any LLM provider"
+  />
+  <File
+    name="API Block"
+    icon={<ApiIcon className="h-4 w-4" />}
+    annotation="Connect to external services and APIs"
+  />
+  <File
+    name="Condition Block"
+    icon={<ConditionalIcon className="h-4 w-4" />}
+    annotation="Add conditional branching to your workflows"
+  />
+  <File
+    name="Function Block"
+    icon={<CodeIcon className="h-4 w-4" />}
+    annotation="Execute custom JavaScript/TypeScript code"
+  />
+  <File
+    name="Evaluator Block"
+    icon={<ChartBarIcon className="h-4 w-4" />}
+    annotation="Assess responses against defined criteria"
+  />
+  <File
+    name="Router Block"
+    icon={<ConnectIcon className="h-4 w-4" />}
+    annotation="Direct workflow execution based on input analysis"
+  />
+</Files>
+
+### Tools
+
+Tools extend the capabilities of agents. They provide additional functionality for agents by enabling you to interface with your favorite data sources and take action (e.g posting on X, sending an email)
+
+<Files>
+  <File name="Gmail Tool" icon={<GmailIcon className="h-4 w-4" />} />
+  <File name="Firecrawl Tool" icon={<FirecrawlIcon className="h-4 w-4" />} />
+  <File name="Perplexity Tool" icon={<PerplexityIcon className="h-4 w-4" />} />
+  <File name="Notion Tool" icon={<NotionIcon className="h-4 w-4" />} />
+  <File name="Exa AI Tool" icon={<ExaAIIcon className="h-4 w-4" />} />
+  <File name="Slack Tool" icon={<SlackIcon className="h-4 w-4" />} />
+</Files>
+
+## Getting Started
+
+<Steps>
+  <Step title="Create a new workflow">
+    Start by creating a new workflow in the Sim Studio dashboard.
+  </Step>
+  <Step title="Add your first block">Drag and drop a block from the sidebar onto the canvas.</Step>
+  <Step title="Configure the block">
+    Set up the block's parameters and inputs according to your needs.
+  </Step>
+  <Step title="Connect blocks">
+    Create connections between blocks to define the flow of data and execution.
+  </Step>
+  <Step title="Test your workflow">Run your workflow with test inputs to verify its behavior.</Step>
+</Steps>

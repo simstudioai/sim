@@ -1,0 +1,128 @@
+---
+title: API
+description: Connect to external services through API endpoints
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Step, Steps } from 'fumadocs-ui/components/steps'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { ThemeImage } from '@/components/ui/theme-image'
+
+The API block enables you to connect your workflow to external services through HTTP requests. It supports various methods like GET, POST, PUT, DELETE, and PATCH, allowing you to interact with virtually any API endpoint.
+
+<ThemeImage
+  lightSrc="/static/light/api-light.png"
+  darkSrc="/static/dark/api-dark.png"
+  alt="API Block"
+  width={300}
+  height={175}
+/>
+
+## Overview
+
+The API block enables you to:
+
+- Make HTTP requests to external services and APIs
+- Process and transform data from external sources
+- Send data to external systems
+- Integrate with third-party platforms and services
+- Create webhooks and callbacks
+
+## Configuration Options
+
+### URL
+
+The endpoint URL for the API request. This can be:
+
+- A static URL entered directly in the block
+- A dynamic URL connected from another block's output
+- A URL with path parameters
+
+### Method
+
+Select the HTTP method for your request:
+
+- **GET**: Retrieve data from the server
+- **POST**: Send data to the server to create a resource
+- **PUT**: Update an existing resource on the server
+- **DELETE**: Remove a resource from the server
+- **PATCH**: Partially update an existing resource
+
+### Query Parameters
+
+Define key-value pairs that will be appended to the URL as query parameters. For example:
+
+```
+Key: apiKey
+Value: your_api_key_here
+
+Key: limit
+Value: 10
+```
+
+These would be added to the URL as `?apiKey=your_api_key_here&limit=10`.
+
+### Headers
+
+Configure HTTP headers for your request. Common headers include:
+
+```
+Key: Content-Type
+Value: application/json
+
+Key: Authorization
+Value: Bearer your_token_here
+```
+
+### Request Body
+
+For methods that support a request body (POST, PUT, PATCH), you can define the data to send. The body can be:
+
+- JSON data entered directly in the block
+- Data connected from another block's output
+- Dynamically generated during workflow execution
+
+## Inputs and Outputs
+
+### Inputs
+
+- **URL**: The endpoint to send the request to
+- **Method**: The HTTP method to use
+- **Query Parameters**: Key-value pairs for URL parameters
+- **Headers**: HTTP headers for the request
+- **Body**: Data to send with the request (for applicable methods)
+
+### Outputs
+
+- **Status Code**: The HTTP status code returned by the server
+- **Response Body**: The data returned by the server
+- **Headers**: Response headers from the server
+- **Error**: Any error information if the request fails
+
+## Example Usage
+
+Here's an example of how an API block might be configured to fetch weather data:
+
+```yaml
+# Example API Configuration
+url: https://api.weatherapi.com/v1/current.json
+method: GET
+params:
+  - key: key
+    value: your_api_key_here
+  - key: q
+    value: London
+  - key: aqi
+    value: no
+headers:
+  - key: Accept
+    value: application/json
+```
+
+## Best Practices
+
+- **Use environment variables for sensitive data**: Don't hardcode API keys or credentials
+- **Handle errors gracefully**: Connect error handling logic for failed requests
+- **Validate responses**: Check status codes and response formats before processing data
+- **Respect rate limits**: Be mindful of API rate limits and implement appropriate throttling
+- **Cache responses when appropriate**: For frequently accessed data that doesn't change often

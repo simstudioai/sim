@@ -1,0 +1,1 @@
+ALTER TABLE "workflow_schedule" DROP COLUMN "timezone";

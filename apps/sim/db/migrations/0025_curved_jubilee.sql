@@ -1,0 +1,1 @@
+ALTER TABLE "workflow" ALTER COLUMN "marketplace_data" DROP DEFAULT;

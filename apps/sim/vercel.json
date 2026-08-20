@@ -1,0 +1,16 @@
+{
+  "crons": [
+    {
+      "path": "/api/schedules/execute",
+      "schedule": "*/1 * * * *"
+    },
+    {
+      "path": "/api/webhooks/poll/gmail",
+      "schedule": "*/1 * * * *"
+    },
+    {
+      "path": "/api/logs/cleanup",
+      "schedule": "0 0 * * *"
+    }
+  ]
+}

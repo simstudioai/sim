@@ -1,0 +1,409 @@
+---
+title: Python SDK
+description: The official Python SDK for Sim Studio
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Card, Cards } from 'fumadocs-ui/components/card'
+import { Step, Steps } from 'fumadocs-ui/components/steps'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+
+The official Python SDK for Sim Studio allows you to execute workflows programmatically from your Python applications.
+
+<Callout type="info">
+  The Python SDK supports Python 3.8+ and provides synchronous workflow execution. All workflow executions are currently synchronous.
+</Callout>
+
+## Installation
+
+Install the SDK using pip:
+
+```bash
+pip install simstudio-sdk
+```
+
+## Quick Start
+
+Here's a simple example to get you started:
+
+```python
+from simstudio import SimStudioClient
+
+# Initialize the client
+client = SimStudioClient(
+    api_key="your-api-key-here",
+    base_url="https://simstudio.ai"  # optional, defaults to https://simstudio.ai
+)
+
+# Execute a workflow
+try:
+    result = client.execute_workflow("workflow-id")
+    print("Workflow executed successfully:", result)
+except Exception as error:
+    print("Workflow execution failed:", error)
+```
+
+## API Reference
+
+### SimStudioClient
+
+#### Constructor
+
+```python
+SimStudioClient(api_key: str, base_url: str = "https://simstudio.ai")
+```
+
+**Parameters:**
+- `api_key` (str): Your Sim Studio API key
+- `base_url` (str, optional): Base URL for the Sim Studio API
+
+#### Methods
+
+##### execute_workflow()
+
+Execute a workflow with optional input data.
+
+```python
+result = client.execute_workflow(
+    "workflow-id",
+    input_data={"message": "Hello, world!"},
+    timeout=30.0  # 30 seconds
+)
+```
+
+**Parameters:**
+- `workflow_id` (str): The ID of the workflow to execute
+- `input_data` (dict, optional): Input data to pass to the workflow
+- `timeout` (float, optional): Timeout in seconds (default: 30.0)
+
+**Returns:** `WorkflowExecutionResult`
+
+##### get_workflow_status()
+
+Get the status of a workflow (deployment status, etc.).
+
+```python
+status = client.get_workflow_status("workflow-id")
+print("Is deployed:", status.is_deployed)
+```
+
+**Parameters:**
+- `workflow_id` (str): The ID of the workflow
+
+**Returns:** `WorkflowStatus`
+
+##### validate_workflow()
+
+Validate that a workflow is ready for execution.
+
+```python
+is_ready = client.validate_workflow("workflow-id")
+if is_ready:
+    # Workflow is deployed and ready
+    pass
+```
+
+**Parameters:**
+- `workflow_id` (str): The ID of the workflow
+
+**Returns:** `bool`
+
+##### execute_workflow_sync()
+
+<Callout type="info">
+  Currently, this method is identical to `execute_workflow()` since all executions are synchronous. This method is provided for future compatibility when asynchronous execution is added.
+</Callout>
+
+Execute a workflow (currently synchronous, same as `execute_workflow()`).
+
+```python
+result = client.execute_workflow_sync(
+    "workflow-id",
+    input_data={"data": "some input"},
+    timeout=60.0
+)
+```
+
+**Parameters:**
+- `workflow_id` (str): The ID of the workflow to execute
+- `input_data` (dict, optional): Input data to pass to the workflow
+- `timeout` (float): Timeout for the initial request in seconds
+
+**Returns:** `WorkflowExecutionResult`
+
+##### set_api_key()
+
+Update the API key.
+
+```python
+client.set_api_key("new-api-key")
+```
+
+##### set_base_url()
+
+Update the base URL.
+
+```python
+client.set_base_url("https://my-custom-domain.com")
+```
+
+##### close()
+
+Close the underlying HTTP session.
+
+```python
+client.close()
+```
+
+## Data Classes
+
+### WorkflowExecutionResult
+
+```python
+@dataclass
+class WorkflowExecutionResult:
+    success: bool
+    output: Optional[Any] = None
+    error: Optional[str] = None
+    logs: Optional[List[Any]] = None
+    metadata: Optional[Dict[str, Any]] = None
+    trace_spans: Optional[List[Any]] = None
+    total_duration: Optional[float] = None
+```
+
+### WorkflowStatus
+
+```python
+@dataclass
+class WorkflowStatus:
+    is_deployed: bool
+    deployed_at: Optional[str] = None
+    is_published: bool = False
+    needs_redeployment: bool = False
+```
+
+### SimStudioError
+
+```python
+class SimStudioError(Exception):
+    def __init__(self, message: str, code: Optional[str] = None, status: Optional[int] = None):
+        super().__init__(message)
+        self.code = code
+        self.status = status
+```
+
+## Examples
+
+### Basic Workflow Execution
+
+<Steps>
+  <Step title="Initialize the client">
+    Set up the SimStudioClient with your API key.
+  </Step>
+  <Step title="Validate the workflow">
+    Check if the workflow is deployed and ready for execution.
+  </Step>
+  <Step title="Execute the workflow">
+    Run the workflow with your input data.
+  </Step>
+  <Step title="Handle the result">
+    Process the execution result and handle any errors.
+  </Step>
+</Steps>
+
+```python
+import os
+from simstudio import SimStudioClient
+
+client = SimStudioClient(api_key=os.getenv("SIMSTUDIO_API_KEY"))
+
+def run_workflow():
+    try:
+        # Check if workflow is ready
+        is_ready = client.validate_workflow("my-workflow-id")
+        if not is_ready:
+            raise Exception("Workflow is not deployed or ready")
+
+        # Execute the workflow
+        result = client.execute_workflow(
+            "my-workflow-id",
+            input_data={
+                "message": "Process this data",
+                "user_id": "12345"
+            }
+        )
+
+        if result.success:
+            print("Output:", result.output)
+            print("Duration:", result.metadata.get("duration") if result.metadata else None)
+        else:
+            print("Workflow failed:", result.error)
+            
+    except Exception as error:
+        print("Error:", error)
+
+run_workflow()
+```
+
+### Error Handling
+
+Handle different types of errors that may occur during workflow execution:
+
+```python
+from simstudio import SimStudioClient, SimStudioError
+import os
+
+client = SimStudioClient(api_key=os.getenv("SIMSTUDIO_API_KEY"))
+
+def execute_with_error_handling():
+    try:
+        result = client.execute_workflow("workflow-id")
+        return result
+    except SimStudioError as error:
+        if error.code == "UNAUTHORIZED":
+            print("Invalid API key")
+        elif error.code == "TIMEOUT":
+            print("Workflow execution timed out")
+        elif error.code == "USAGE_LIMIT_EXCEEDED":
+            print("Usage limit exceeded")
+        elif error.code == "INVALID_JSON":
+            print("Invalid JSON in request body")
+        else:
+            print(f"Workflow error: {error}")
+        raise
+    except Exception as error:
+        print(f"Unexpected error: {error}")
+        raise
+```
+
+### Context Manager Usage
+
+Use the client as a context manager to automatically handle resource cleanup:
+
+```python
+from simstudio import SimStudioClient
+import os
+
+# Using context manager to automatically close the session
+with SimStudioClient(api_key=os.getenv("SIMSTUDIO_API_KEY")) as client:
+    result = client.execute_workflow("workflow-id")
+    print("Result:", result)
+# Session is automatically closed here
+```
+
+### Batch Workflow Execution
+
+Execute multiple workflows efficiently:
+
+```python
+from simstudio import SimStudioClient
+import os
+
+client = SimStudioClient(api_key=os.getenv("SIMSTUDIO_API_KEY"))
+
+def execute_workflows_batch(workflow_data_pairs):
+    """Execute multiple workflows with different input data."""
+    results = []
+    
+    for workflow_id, input_data in workflow_data_pairs:
+        try:
+            # Validate workflow before execution
+            if not client.validate_workflow(workflow_id):
+                print(f"Skipping {workflow_id}: not deployed")
+                continue
+                
+            result = client.execute_workflow(workflow_id, input_data)
+            results.append({
+                "workflow_id": workflow_id,
+                "success": result.success,
+                "output": result.output,
+                "error": result.error
+            })
+            
+        except Exception as error:
+            results.append({
+                "workflow_id": workflow_id,
+                "success": False,
+                "error": str(error)
+            })
+    
+    return results
+
+# Example usage
+workflows = [
+    ("workflow-1", {"type": "analysis", "data": "sample1"}),
+    ("workflow-2", {"type": "processing", "data": "sample2"}),
+]
+
+results = execute_workflows_batch(workflows)
+for result in results:
+    print(f"Workflow {result['workflow_id']}: {'Success' if result['success'] else 'Failed'}")
+```
+
+### Environment Configuration
+
+Configure the client using environment variables:
+
+<Tabs items={['Development', 'Production']}>
+  <Tab value="Development">
+    ```python
+    import os
+    from simstudio import SimStudioClient
+
+    # Development configuration
+    client = SimStudioClient(
+        api_key=os.getenv("SIMSTUDIO_API_KEY"),
+        base_url=os.getenv("SIMSTUDIO_BASE_URL", "https://simstudio.ai")
+    )
+    ```
+  </Tab>
+  <Tab value="Production">
+    ```python
+    import os
+    from simstudio import SimStudioClient
+
+    # Production configuration with error handling
+    api_key = os.getenv("SIMSTUDIO_API_KEY")
+    if not api_key:
+        raise ValueError("SIMSTUDIO_API_KEY environment variable is required")
+
+    client = SimStudioClient(
+        api_key=api_key,
+        base_url=os.getenv("SIMSTUDIO_BASE_URL", "https://simstudio.ai")
+    )
+    ```
+  </Tab>
+</Tabs>
+
+## Getting Your API Key
+
+<Steps>
+  <Step title="Log in to Sim Studio">
+    Navigate to [Sim Studio](https://simstudio.ai) and log in to your account.
+  </Step>
+  <Step title="Open your workflow">
+    Navigate to the workflow you want to execute programmatically.
+  </Step>
+  <Step title="Deploy your workflow">
+    Click on "Deploy" to deploy your workflow if it hasn't been deployed yet.
+  </Step>
+  <Step title="Create or select an API key">
+    During the deployment process, select or create an API key.
+  </Step>
+  <Step title="Copy the API key">
+    Copy the API key to use in your Python application.
+  </Step>
+</Steps>
+
+<Callout type="warning">
+  Keep your API key secure and never commit it to version control. Use environment variables or secure configuration management.
+</Callout>
+
+## Requirements
+
+- Python 3.8+
+- requests >= 2.25.0
+
+## License
+
+Apache-2.0 

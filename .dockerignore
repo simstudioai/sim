@@ -1,0 +1,11 @@
+LICENSE
+NOTICE
+.prettierrc
+.prettierignore
+README.md
+.gitignore
+.husky
+.github
+.devcontainer
+.env.example
+node_modules

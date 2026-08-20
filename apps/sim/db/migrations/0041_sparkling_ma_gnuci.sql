@@ -1,0 +1,1 @@
+ALTER TABLE "settings" ADD COLUMN "email_preferences" json DEFAULT '{}' NOT NULL;

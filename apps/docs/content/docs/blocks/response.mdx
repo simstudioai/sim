@@ -1,0 +1,188 @@
+---
+title: Response
+description: Send a structured response back to API calls
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Step, Steps } from 'fumadocs-ui/components/steps'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { ThemeImage } from '@/components/ui/theme-image'
+
+The Response block is the final component in API-enabled workflows that transforms your workflow's variables into a structured HTTP response. This block serves as the endpoint that returns data, status codes, and headers back to API callers.
+
+<ThemeImage
+  lightSrc="/static/light/response-light.png"
+  darkSrc="/static/dark/response-dark.png"
+  alt="Response Block"
+  width={430}
+  height={784}
+/>
+
+<Callout type="info">
+  Response blocks are terminal blocks - they mark the end of a workflow execution and cannot have further connections.
+</Callout>
+
+## Overview
+
+The Response block serves as the final output mechanism for API workflows, enabling you to:
+
+<Steps>
+  <Step>
+    <strong>Return structured data</strong>: Transform workflow variables into JSON responses
+  </Step>
+  <Step>
+    <strong>Set HTTP status codes</strong>: Control the response status (200, 400, 500, etc.)
+  </Step>
+  <Step>
+    <strong>Configure headers</strong>: Add custom HTTP headers to the response
+  </Step>
+  <Step>
+    <strong>Reference variables</strong>: Use workflow variables dynamically in the response
+  </Step>
+</Steps>
+
+## Configuration Options
+
+### Response Data
+
+The response data is the main content that will be sent back to the API caller. This should be formatted as JSON and can include:
+
+- Static values
+- Dynamic references to workflow variables using the `<variable.name>` syntax
+- Nested objects and arrays
+- Any valid JSON structure
+
+### Status Code
+
+Set the HTTP status code for the response. Common status codes include:
+
+<Tabs items={['Success (2xx)', 'Client Error (4xx)', 'Server Error (5xx)']}>
+  <Tab>
+    <ul className="list-disc space-y-2 pl-6">
+      <li><strong>200</strong>: OK - Standard success response</li>
+      <li><strong>201</strong>: Created - Resource successfully created</li>
+      <li><strong>204</strong>: No Content - Success with no response body</li>
+    </ul>
+  </Tab>
+  <Tab>
+    <ul className="list-disc space-y-2 pl-6">
+      <li><strong>400</strong>: Bad Request - Invalid request parameters</li>
+      <li><strong>401</strong>: Unauthorized - Authentication required</li>
+      <li><strong>404</strong>: Not Found - Resource doesn't exist</li>
+      <li><strong>422</strong>: Unprocessable Entity - Validation errors</li>
+    </ul>
+  </Tab>
+  <Tab>
+    <ul className="list-disc space-y-2 pl-6">
+      <li><strong>500</strong>: Internal Server Error - Server-side error</li>
+      <li><strong>502</strong>: Bad Gateway - External service error</li>
+      <li><strong>503</strong>: Service Unavailable - Service temporarily down</li>
+    </ul>
+  </Tab>
+</Tabs>
+
+<p className="mt-4 text-sm text-gray-600 dark:text-gray-400">
+  Default status code is 200 if not specified.
+</p>
+
+### Response Headers
+
+Configure additional HTTP headers to include in the response.
+
+Headers are configured as key-value pairs:
+
+| Key | Value |
+|-----|-------|
+| Content-Type | application/json |
+| Cache-Control | no-cache |
+| X-API-Version | 1.0 |
+
+## Inputs and Outputs
+
+<Tabs items={['Inputs', 'Outputs']}>
+  <Tab>
+    <ul className="list-disc space-y-2 pl-6">
+      <li>
+        <strong>data</strong> (JSON, optional): The JSON data to send in the response body
+      </li>
+      <li>
+        <strong>status</strong> (number, optional): HTTP status code (default: 200)
+      </li>
+      <li>
+        <strong>headers</strong> (JSON, optional): Additional response headers
+      </li>
+    </ul>
+  </Tab>
+  <Tab>
+    <ul className="list-disc space-y-2 pl-6">
+      <li>
+        <strong>response</strong>: Complete response object containing:
+        <ul className="list-disc space-y-1 pl-6 mt-2">
+          <li><strong>data</strong>: The response body data</li>
+          <li><strong>status</strong>: HTTP status code</li>
+          <li><strong>headers</strong>: Response headers</li>
+        </ul>
+      </li>
+    </ul>
+  </Tab>
+</Tabs>
+
+## Variable References
+
+Use the `<variable.name>` syntax to dynamically insert workflow variables into your response:
+
+```json
+{
+  "user": {
+    "id": "<variable.userId>",
+    "name": "<variable.userName>",
+    "email": "<variable.userEmail>"
+  },
+  "query": "<variable.searchQuery>",
+  "results": "<variable.searchResults>",
+  "totalFound": "<variable.resultCount>",
+  "processingTime": "<variable.executionTime>ms"
+}
+```
+
+<Callout type="warning">
+  Variable names are case-sensitive and must match exactly with the variables available in your workflow.
+</Callout>
+
+## Example Usage
+
+Here's an example of how a Response block might be configured for a user search API:
+
+```yaml
+data: |
+  {
+    "success": true,
+    "data": {
+      "users": "<variable.searchResults>",
+      "pagination": {
+        "page": "<variable.currentPage>",
+        "limit": "<variable.pageSize>",
+        "total": "<variable.totalUsers>"
+      }
+    },
+    "query": {
+      "searchTerm": "<variable.searchTerm>",
+      "filters": "<variable.appliedFilters>"
+    },
+    "timestamp": "<variable.timestamp>"
+  }
+status: 200
+headers:
+  - key: X-Total-Count
+    value: <variable.totalUsers>
+  - key: Cache-Control
+    value: public, max-age=300
+```
+
+## Best Practices
+
+- **Use meaningful status codes**: Choose appropriate HTTP status codes that accurately reflect the outcome of the workflow
+- **Structure your responses consistently**: Maintain a consistent JSON structure across all your API endpoints for better developer experience
+- **Include relevant metadata**: Add timestamps and version information to help with debugging and monitoring
+- **Handle errors gracefully**: Use conditional logic in your workflow to set appropriate error responses with descriptive messages
+- **Validate variable references**: Ensure all referenced variables exist and contain the expected data types before the Response block executes

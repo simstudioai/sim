@@ -1,0 +1,597 @@
+'use client'
+
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { AlertCircle, Info, Loader2 } from 'lucide-react'
+import { createLogger } from '@/lib/logs/console-logger'
+import { useSidebarStore } from '@/stores/sidebar/store'
+import { ControlBar } from './components/control-bar/control-bar'
+import { Filters } from './components/filters/filters'
+import { Sidebar } from './components/sidebar/sidebar'
+import { useFilterStore } from './stores/store'
+import type { LogsResponse, WorkflowLog } from './stores/types'
+import { formatDate } from './utils/format-date'
+
+const logger = createLogger('Logs')
+const LOGS_PER_PAGE = 50
+
+const getLevelBadgeStyles = (level: string) => {
+  switch (level.toLowerCase()) {
+    case 'error':
+      return 'bg-destructive/20 text-destructive error-badge'
+    case 'warn':
+      return 'bg-warning/20 text-warning'
+    default:
+      return 'bg-secondary text-secondary-foreground'
+  }
+}
+
+const getTriggerBadgeStyles = (trigger: string) => {
+  switch (trigger.toLowerCase()) {
+    case 'manual':
+      return 'bg-secondary text-secondary-foreground'
+    case 'api':
+      return 'bg-blue-100 dark:bg-blue-950/40 text-blue-700 dark:text-blue-400'
+    case 'webhook':
+      return 'bg-orange-100 dark:bg-orange-950/40 text-orange-700 dark:text-orange-400'
+    case 'schedule':
+      return 'bg-green-100 dark:bg-green-950/40 text-green-700 dark:text-green-400'
+    case 'chat':
+      return 'bg-purple-100 dark:bg-purple-950/40 text-purple-700 dark:text-purple-400'
+    default:
+      return 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-400'
+  }
+}
+
+const selectedRowAnimation = `
+  @keyframes borderPulse {
+    0% { border-left-color: hsl(var(--primary) / 0.3) }
+    50% { border-left-color: hsl(var(--primary) / 0.7) }
+    100% { border-left-color: hsl(var(--primary) / 0.5) }
+  }
+  .selected-row {
+    animation: borderPulse 1s ease-in-out
+    border-left-color: hsl(var(--primary) / 0.5)
+  }
+`
+
+export default function Logs() {
+  const {
+    logs,
+    loading,
+    error,
+    setLogs,
+    setLoading,
+    setError,
+    page,
+    setPage,
+    hasMore,
+    setHasMore,
+    isFetchingMore,
+    setIsFetchingMore,
+    buildQueryParams,
+    timeRange,
+    level,
+    workflowIds,
+    folderIds,
+    searchQuery,
+    triggers,
+  } = useFilterStore()
+
+  const [selectedLog, setSelectedLog] = useState<WorkflowLog | null>(null)
+  const [selectedLogIndex, setSelectedLogIndex] = useState<number>(-1)
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false)
+  const selectedRowRef = useRef<HTMLTableRowElement | null>(null)
+  const loaderRef = useRef<HTMLDivElement>(null)
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
+  const { mode, isExpanded } = useSidebarStore()
+  const isSidebarCollapsed =
+    mode === 'expanded' ? !isExpanded : mode === 'collapsed' || mode === 'hover'
+
+  const executionGroups = useMemo(() => {
+    const groups: Record<string, WorkflowLog[]> = {}
+
+    // Group logs by executionId
+    logs.forEach((log) => {
+      if (log.executionId) {
+        if (!groups[log.executionId]) {
+          groups[log.executionId] = []
+        }
+        groups[log.executionId].push(log)
+      }
+    })
+
+    Object.keys(groups).forEach((executionId) => {
+      groups[executionId].sort(
+        (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+      )
+    })
+
+    return groups
+  }, [logs])
+
+  const handleLogClick = (log: WorkflowLog) => {
+    setSelectedLog(log)
+    const index = logs.findIndex((l) => l.id === log.id)
+    setSelectedLogIndex(index)
+    setIsSidebarOpen(true)
+  }
+
+  const handleNavigateNext = () => {
+    if (selectedLogIndex < logs.length - 1) {
+      const nextIndex = selectedLogIndex + 1
+      setSelectedLogIndex(nextIndex)
+      setSelectedLog(logs[nextIndex])
+    }
+  }
+
+  const handleNavigatePrev = () => {
+    if (selectedLogIndex > 0) {
+      const prevIndex = selectedLogIndex - 1
+      setSelectedLogIndex(prevIndex)
+      setSelectedLog(logs[prevIndex])
+    }
+  }
+
+  const handleCloseSidebar = () => {
+    setIsSidebarOpen(false)
+  }
+
+  useEffect(() => {
+    if (selectedRowRef.current) {
+      selectedRowRef.current.scrollIntoView({
+        behavior: 'smooth',
+        block: 'nearest',
+      })
+    }
+  }, [selectedLogIndex])
+
+  const fetchLogs = useCallback(
+    async (pageNum: number, append = false) => {
+      try {
+        if (pageNum === 1) {
+          setLoading(true)
+        } else {
+          setIsFetchingMore(true)
+        }
+
+        const queryParams = buildQueryParams(pageNum, LOGS_PER_PAGE)
+        const response = await fetch(`/api/logs?${queryParams}`)
+
+        if (!response.ok) {
+          throw new Error(`Error fetching logs: ${response.statusText}`)
+        }
+
+        const data: LogsResponse = await response.json()
+
+        setHasMore(data.data.length === LOGS_PER_PAGE && data.page < data.totalPages)
+
+        setLogs(data.data, append)
+
+        setError(null)
+      } catch (err) {
+        logger.error('Failed to fetch logs:', { err })
+        setError(err instanceof Error ? err.message : 'An unknown error occurred')
+      } finally {
+        if (pageNum === 1) {
+          setLoading(false)
+        } else {
+          setIsFetchingMore(false)
+        }
+      }
+    },
+    [setLogs, setLoading, setError, setHasMore, setIsFetchingMore, buildQueryParams]
+  )
+
+  useEffect(() => {
+    fetchLogs(1)
+  }, [fetchLogs])
+
+  // Refetch when filters change (but not on initial load)
+  const isInitialMount = useRef(true)
+  useEffect(() => {
+    if (isInitialMount.current) {
+      isInitialMount.current = false
+      return
+    }
+
+    // Reset pagination and fetch from beginning when filters change
+    setPage(1)
+    setHasMore(true)
+
+    // Fetch logs with new filters
+    const fetchWithNewFilters = async () => {
+      try {
+        setLoading(true)
+        const queryParams = buildQueryParams(1, LOGS_PER_PAGE)
+        const response = await fetch(`/api/logs?${queryParams}`)
+
+        if (!response.ok) {
+          throw new Error(`Error fetching logs: ${response.statusText}`)
+        }
+
+        const data: LogsResponse = await response.json()
+        setHasMore(data.data.length === LOGS_PER_PAGE && data.page < data.totalPages)
+        setLogs(data.data, false)
+        setError(null)
+      } catch (err) {
+        logger.error('Failed to fetch logs:', { err })
+        setError(err instanceof Error ? err.message : 'An unknown error occurred')
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchWithNewFilters()
+  }, [
+    timeRange,
+    level,
+    workflowIds,
+    folderIds,
+    searchQuery,
+    triggers,
+    setPage,
+    setHasMore,
+    setLoading,
+    setLogs,
+    setError,
+    buildQueryParams,
+  ])
+
+  const loadMoreLogs = useCallback(() => {
+    if (!isFetchingMore && hasMore) {
+      const nextPage = page + 1
+      setPage(nextPage)
+      setIsFetchingMore(true)
+      setTimeout(() => {
+        fetchLogs(nextPage, true)
+      }, 50)
+    }
+  }, [fetchLogs, isFetchingMore, hasMore, page, setPage, setIsFetchingMore])
+
+  useEffect(() => {
+    if (loading || !hasMore) return
+
+    const scrollContainer = scrollContainerRef.current
+    if (!scrollContainer) return
+
+    const handleScroll = () => {
+      if (!scrollContainer) return
+
+      const { scrollTop, scrollHeight, clientHeight } = scrollContainer
+
+      const scrollPercentage = (scrollTop / (scrollHeight - clientHeight)) * 100
+
+      if (scrollPercentage > 60 && !isFetchingMore && hasMore) {
+        loadMoreLogs()
+      }
+    }
+
+    scrollContainer.addEventListener('scroll', handleScroll)
+
+    return () => {
+      scrollContainer.removeEventListener('scroll', handleScroll)
+    }
+  }, [loading, hasMore, isFetchingMore, loadMoreLogs])
+
+  useEffect(() => {
+    const currentLoaderRef = loaderRef.current
+    const scrollContainer = scrollContainerRef.current
+
+    if (!currentLoaderRef || !scrollContainer || loading || !hasMore) return
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && !isFetchingMore) {
+          loadMoreLogs()
+        }
+      },
+      {
+        root: scrollContainer,
+        threshold: 0.1,
+        rootMargin: '200px 0px 0px 0px',
+      }
+    )
+
+    observer.observe(currentLoaderRef)
+
+    return () => {
+      observer.unobserve(currentLoaderRef)
+    }
+  }, [loading, hasMore, isFetchingMore, loadMoreLogs])
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (logs.length === 0) return
+
+      if (selectedLogIndex === -1 && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+        e.preventDefault()
+        setSelectedLogIndex(0)
+        setSelectedLog(logs[0])
+        return
+      }
+
+      if (e.key === 'ArrowUp' && !e.metaKey && !e.ctrlKey && selectedLogIndex > 0) {
+        e.preventDefault()
+        handleNavigatePrev()
+      }
+
+      if (e.key === 'ArrowDown' && !e.metaKey && !e.ctrlKey && selectedLogIndex < logs.length - 1) {
+        e.preventDefault()
+        handleNavigateNext()
+      }
+
+      if (e.key === 'Enter' && selectedLog) {
+        e.preventDefault()
+        setIsSidebarOpen(!isSidebarOpen)
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [
+    logs,
+    selectedLogIndex,
+    isSidebarOpen,
+    selectedLog,
+    handleNavigateNext,
+    handleNavigatePrev,
+    setIsSidebarOpen,
+  ])
+
+  return (
+    <div
+      className={`flex h-[100vh] flex-col transition-padding duration-200 ${isSidebarCollapsed ? 'pl-14' : 'pl-60'}`}
+    >
+      {/* Add the animation styles */}
+      <style jsx global>
+        {selectedRowAnimation}
+      </style>
+
+      <ControlBar />
+      <div className='flex flex-1 overflow-hidden'>
+        <Filters />
+        <div className='flex flex-1 flex-col overflow-hidden'>
+          {/* Table container */}
+          <div className='flex flex-1 flex-col overflow-hidden'>
+            {/* Table header - fixed */}
+            <div className='sticky top-0 z-10 border-b bg-background'>
+              <table className='w-full table-fixed'>
+                <colgroup>
+                  <col className={`${isSidebarCollapsed ? 'w-[16%]' : 'w-[19%]'}`} />
+                  <col className='w-[8%] md:w-[7%]' />
+                  <col className='w-[12%] md:w-[10%]' />
+                  <col className='hidden w-[8%] lg:table-column' />
+                  <col className='hidden w-[8%] lg:table-column' />
+                  <col
+                    className={`${isSidebarCollapsed ? 'w-auto md:w-[53%] lg:w-auto' : 'w-auto md:w-[50%] lg:w-auto'}`}
+                  />
+                  <col className='w-[8%] md:w-[10%]' />
+                </colgroup>
+                <thead>
+                  <tr>
+                    <th className='px-4 pt-2 pb-3 text-left font-medium'>
+                      <span className='text-muted-foreground text-xs leading-none'>Time</span>
+                    </th>
+                    <th className='px-4 pt-2 pb-3 text-left font-medium'>
+                      <span className='text-muted-foreground text-xs leading-none'>Status</span>
+                    </th>
+                    <th className='px-4 pt-2 pb-3 text-left font-medium'>
+                      <span className='text-muted-foreground text-xs leading-none'>Workflow</span>
+                    </th>
+                    <th className='hidden px-4 pt-2 pb-3 text-left font-medium lg:table-cell'>
+                      <span className='text-muted-foreground text-xs leading-none'>id</span>
+                    </th>
+                    <th className='hidden px-4 pt-2 pb-3 text-left font-medium lg:table-cell'>
+                      <span className='text-muted-foreground text-xs leading-none'>Trigger</span>
+                    </th>
+                    <th className='px-4 pt-2 pb-3 text-left font-medium'>
+                      <span className='text-muted-foreground text-xs leading-none'>Message</span>
+                    </th>
+                    <th className='px-4 pt-2 pb-3 text-left font-medium'>
+                      <span className='text-muted-foreground text-xs leading-none'>Duration</span>
+                    </th>
+                  </tr>
+                </thead>
+              </table>
+            </div>
+
+            {/* Table body - scrollable */}
+            <div className='flex-1 overflow-auto' ref={scrollContainerRef}>
+              {loading && page === 1 ? (
+                <div className='flex h-full items-center justify-center'>
+                  <div className='flex items-center gap-2 text-muted-foreground'>
+                    <Loader2 className='h-5 w-5 animate-spin' />
+                    <span className='text-sm'>Loading logs...</span>
+                  </div>
+                </div>
+              ) : error ? (
+                <div className='flex h-full items-center justify-center'>
+                  <div className='flex items-center gap-2 text-destructive'>
+                    <AlertCircle className='h-5 w-5' />
+                    <span className='text-sm'>Error: {error}</span>
+                  </div>
+                </div>
+              ) : logs.length === 0 ? (
+                <div className='flex h-full items-center justify-center'>
+                  <div className='flex items-center gap-2 text-muted-foreground'>
+                    <Info className='h-5 w-5' />
+                    <span className='text-sm'>No logs found</span>
+                  </div>
+                </div>
+              ) : (
+                <table className='w-full table-fixed'>
+                  <colgroup>
+                    <col className={`${isSidebarCollapsed ? 'w-[16%]' : 'w-[19%]'}`} />
+                    <col className='w-[8%] md:w-[7%]' />
+                    <col className='w-[12%] md:w-[10%]' />
+                    <col className='hidden w-[8%] lg:table-column' />
+                    <col className='hidden w-[8%] lg:table-column' />
+                    <col
+                      className={`${isSidebarCollapsed ? 'w-auto md:w-[53%] lg:w-auto' : 'w-auto md:w-[50%] lg:w-auto'}`}
+                    />
+                    <col className='w-[8%] md:w-[10%]' />
+                  </colgroup>
+                  <tbody>
+                    {logs.map((log) => {
+                      const formattedDate = formatDate(log.createdAt)
+                      const isSelected = selectedLog?.id === log.id
+                      const _isWorkflowExecutionLog =
+                        log.executionId && executionGroups[log.executionId].length === 1
+
+                      return (
+                        <tr
+                          key={log.id}
+                          ref={isSelected ? selectedRowRef : null}
+                          className={`cursor-pointer border-b transition-colors ${
+                            isSelected
+                              ? 'selected-row border-l-2 bg-accent/40 hover:bg-accent/50'
+                              : 'hover:bg-accent/30'
+                          }`}
+                          onClick={() => handleLogClick(log)}
+                        >
+                          {/* Time column */}
+                          <td className='px-4 py-3'>
+                            <div className='flex flex-col justify-center'>
+                              <div className='flex items-center font-medium text-xs'>
+                                <span>{formattedDate.formatted}</span>
+                                <span className='mx-1.5 hidden text-muted-foreground xl:inline'>
+                                  •
+                                </span>
+                                <span className='hidden text-muted-foreground xl:inline'>
+                                  {new Date(log.createdAt).toLocaleDateString('en-US', {
+                                    month: 'short',
+                                    day: 'numeric',
+                                    year: 'numeric',
+                                  })}
+                                </span>
+                              </div>
+                              <div className='mt-0.5 text-muted-foreground text-xs'>
+                                <span>{formattedDate.relative}</span>
+                              </div>
+                            </div>
+                          </td>
+
+                          {/* Level column */}
+                          <td className='px-4 py-3'>
+                            <div
+                              className={`inline-flex items-center justify-center rounded-md px-2 py-1 text-xs ${getLevelBadgeStyles(log.level)}`}
+                            >
+                              <span className='font-medium'>{log.level}</span>
+                            </div>
+                          </td>
+
+                          {/* Workflow column */}
+                          <td className='px-4 py-3'>
+                            {log.workflow && (
+                              <div
+                                className='inline-flex max-w-full items-center truncate rounded-md px-2 py-1 text-xs'
+                                style={{
+                                  backgroundColor: `${log.workflow.color}20`,
+                                  color: log.workflow.color,
+                                }}
+                                title={log.workflow.name}
+                              >
+                                <span className='truncate font-medium'>{log.workflow.name}</span>
+                              </div>
+                            )}
+                          </td>
+
+                          {/* ID column - hidden on small screens */}
+                          <td className='hidden px-4 py-3 lg:table-cell'>
+                            <div className='font-mono text-muted-foreground text-xs'>
+                              {log.executionId ? `#${log.executionId.substring(0, 4)}` : '—'}
+                            </div>
+                          </td>
+
+                          {/* Trigger column - hidden on medium screens and below */}
+                          <td className='hidden px-4 py-3 lg:table-cell'>
+                            {log.trigger && (
+                              <div
+                                className={`inline-flex items-center rounded-md px-2 py-1 text-xs ${getTriggerBadgeStyles(log.trigger)}`}
+                              >
+                                <span className='font-medium'>{log.trigger}</span>
+                              </div>
+                            )}
+                          </td>
+
+                          {/* Message column */}
+                          <td className='px-4 py-3'>
+                            <div className='truncate text-sm' title={log.message}>
+                              {log.message}
+                            </div>
+                          </td>
+
+                          {/* Duration column */}
+                          <td className='px-4 py-3'>
+                            <div className='text-muted-foreground text-xs'>
+                              {log.duration || '—'}
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    })}
+
+                    {/* Infinite scroll loader */}
+                    {hasMore && (
+                      <tr>
+                        <td colSpan={7}>
+                          <div
+                            ref={loaderRef}
+                            className='flex items-center justify-center py-2'
+                            style={{ height: '50px' }}
+                          >
+                            {isFetchingMore && (
+                              <div className='flex items-center gap-2 text-muted-foreground opacity-70'>
+                                <Loader2 className='h-4 w-4 animate-spin' />
+                                <span className='text-xs'>Loading more logs...</span>
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+
+                    {/* Footer status indicator - useful for development */}
+                    <tr className='border-t'>
+                      <td colSpan={7}>
+                        <div className='flex items-center justify-between px-4 py-2 text-muted-foreground text-xs'>
+                          <span>Showing {logs.length} logs</span>
+                          <div className='flex items-center gap-4'>
+                            {isFetchingMore ? (
+                              <div className='flex items-center gap-2' />
+                            ) : hasMore ? (
+                              <button
+                                type='button'
+                                onClick={loadMoreLogs}
+                                className='text-primary text-xs hover:underline'
+                              >
+                                Load more logs
+                              </button>
+                            ) : (
+                              <span>End of logs</span>
+                            )}
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Log Sidebar */}
+      <Sidebar
+        log={selectedLog}
+        isOpen={isSidebarOpen}
+        onClose={handleCloseSidebar}
+        onNavigateNext={handleNavigateNext}
+        onNavigatePrev={handleNavigatePrev}
+        hasNext={selectedLogIndex < logs.length - 1}
+        hasPrev={selectedLogIndex > 0}
+      />
+    </div>
+  )
+}

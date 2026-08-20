@@ -1,0 +1,1 @@
+ALTER TABLE "workflow" ADD COLUMN "collaborators" json DEFAULT '[]' NOT NULL;
