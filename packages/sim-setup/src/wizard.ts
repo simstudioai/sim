@@ -172,8 +172,8 @@ export async function runWizard(flags: WizardFlags): Promise<void> {
   p.note(
     [
       mode === 'k8s' ? `port-forward, then open ${APP_SIGNUP_URL}` : `open ${APP_SIGNUP_URL}`,
-      'manage it:  npx @sim/setup start · stop · update · status · logs',
-      'check your setup:  npx @sim/setup doctor',
+      'manage it:  npx sim-setup start · stop · update · status · logs',
+      'check your setup:  npx sim-setup doctor',
       mode === 'dev' && !startDevNow ? `start Sim:  bun run ${devScript}` : null,
     ]
       .filter(Boolean)

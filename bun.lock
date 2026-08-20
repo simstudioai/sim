@@ -620,7 +620,7 @@
       },
     },
     "packages/sim-setup": {
-      "name": "@sim/setup",
+      "name": "sim-setup",
       "version": "1.0.0",
       "bin": {
         "sim-setup": "dist/index.js",
@@ -1839,7 +1839,7 @@
 
     "@sim/security": ["@sim/security@workspace:packages/security"],
 
-    "@sim/setup": ["@sim/setup@workspace:packages/sim-setup"],
+    "sim-setup": ["sim-setup@workspace:packages/sim-setup"],
 
     "@sim/terminal-protocol": ["@sim/terminal-protocol@workspace:packages/terminal-protocol"],
 

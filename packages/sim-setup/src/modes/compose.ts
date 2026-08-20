@@ -125,7 +125,7 @@ async function ensureComposePortsFree(
   if (toCheck.length === 0) return
   if (await ensurePortsFree(toCheck)) return
   throw new SetupError(`ports ${toCheck.map((port) => `:${port}`).join('/')} are in use`, [
-    `free the ports, then re-run: ${theme.command('npx @sim/setup')}`,
+    `free the ports, then re-run: ${theme.command('npx sim-setup')}`,
     `see what holds them: ${theme.command('lsof -nP -iTCP:3000 -sTCP:LISTEN')}`,
     `stop a container publishing them: ${theme.command('docker ps')}`,
     `compose file in play: ${composeFile}`,

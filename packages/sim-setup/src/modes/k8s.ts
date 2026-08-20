@@ -174,7 +174,7 @@ async function ensureLocalContext(detection: Detection): Promise<string> {
         spin.stop(`${glyph.fail} kind cluster "sim" would not start`)
         throw new SetupError('the kind cluster "sim" exists but will not come up.', [
           `inspect it: ${theme.command('docker ps -a --filter name=sim-control-plane')}`,
-          `recreate it: ${theme.command('kind delete cluster --name sim')}, then re-run ${theme.command('npx @sim/setup')}`,
+          `recreate it: ${theme.command('kind delete cluster --name sim')}, then re-run ${theme.command('npx sim-setup')}`,
         ])
       }
       spin.stop('kind cluster "sim" started')

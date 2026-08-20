@@ -27,7 +27,7 @@
 ### Self-hosted
 
 ```bash
-npx @sim/setup
+npx sim-setup
 ```
 
 Open [http://localhost:3000](http://localhost:3000)
@@ -72,7 +72,7 @@ Open [http://localhost:3000](http://localhost:3000)
 
 **Requirements:** [Node.js 20+](https://nodejs.org/) and [Docker](https://www.docker.com/).
 
-`npx @sim/setup` is an interactive wizard that creates a small `sim/` deployment directory, provisions the database, generates secrets, writes `.env`, connects a Chat API key, and starts the published Sim images with Docker Compose. It does not clone the repository.
+`npx sim-setup` is an interactive wizard that creates a small `sim/` deployment directory, provisions the database, generates secrets, writes `.env`, connects a Chat API key, and starts the published Sim images with Docker Compose. It does not clone the repository.
 
 When it finishes, open [http://localhost:3000](http://localhost:3000).
 
@@ -81,32 +81,32 @@ Inside a cloned Sim repository, run `bun run sim-setup` to unlock the source-onl
 Reconfigure an optional capability without rerunning the full wizard:
 
 ```bash
-npx @sim/setup config
-npx @sim/setup add email
-npx @sim/setup add storage
-npx @sim/setup add sandbox
-npx @sim/setup add jobs
-npx @sim/setup add cache
-npx @sim/setup add knowledge
-npx @sim/setup add llm
-npx @sim/setup add integration slack
+npx sim-setup config
+npx sim-setup add email
+npx sim-setup add storage
+npx sim-setup add sandbox
+npx sim-setup add jobs
+npx sim-setup add cache
+npx sim-setup add knowledge
+npx sim-setup add llm
+npx sim-setup add integration slack
 ```
 
-`npx @sim/setup config` detects the effective local-dev, Docker Compose, or current-context
+`npx sim-setup config` detects the effective local-dev, Docker Compose, or current-context
 Helm configuration and reports configured, missing, or invalid capabilities and OAuth
-integrations without printing credential values. This is separate from `npx @sim/setup status`,
+integrations without printing credential values. This is separate from `npx sim-setup status`,
 which reports whether installed services are running and healthy.
 
 Manage your install from its directory:
 
 ```bash
-npx @sim/setup start | stop | restart   # bring your install up / down / cycle
-npx @sim/setup update                   # pull and apply Compose images
-npx @sim/setup status                   # what's installed and healthy
-npx @sim/setup logs                     # follow logs
-npx @sim/setup doctor                   # diagnose configuration problems
-npx @sim/setup down                     # remove containers (data kept)
-npx @sim/setup reset                    # archive .env and wipe managed data
+npx sim-setup start | stop | restart   # bring your install up / down / cycle
+npx sim-setup update                   # pull and apply Compose images
+npx sim-setup status                   # what's installed and healthy
+npx sim-setup logs                     # follow logs
+npx sim-setup doctor                   # diagnose configuration problems
+npx sim-setup down                     # remove containers (data kept)
+npx sim-setup reset                    # archive .env and wipe managed data
 ```
 
 The setup package detects how you're running and acts accordingly. Use `--dir <path>` to create or manage a deployment somewhere other than `./sim`.
@@ -115,7 +115,7 @@ Sim also supports local models via [Ollama](https://ollama.ai) and [vLLM](https:
 
 ## Chat API Keys
 
-Chat is a Sim-managed service. `npx @sim/setup` connects a Chat API key for you — sign in when it opens your browser and the key is stored automatically. To view, create, or revoke keys later, go to [sim.ai/selfhost/settings/chat-keys](https://sim.ai/selfhost/settings/chat-keys).
+Chat is a Sim-managed service. `npx sim-setup` connects a Chat API key for you — sign in when it opens your browser and the key is stored automatically. To view, create, or revoke keys later, go to [sim.ai/selfhost/settings/chat-keys](https://sim.ai/selfhost/settings/chat-keys).
 
 ## Environment Variables
 

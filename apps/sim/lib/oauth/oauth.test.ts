@@ -559,7 +559,7 @@ describe('OAuth Token Refresh', () => {
       expect(result).toEqual({
         ok: false,
         message:
-          'OAuth client monday is partially configured — missing MONDAY_CLIENT_SECRET. Run npx @sim/setup add integration monday.',
+          'OAuth client monday is partially configured — missing MONDAY_CLIENT_SECRET. Run npx sim-setup add integration monday.',
       })
       expect(mockFetch).not.toHaveBeenCalled()
     })

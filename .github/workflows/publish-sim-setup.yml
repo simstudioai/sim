@@ -155,8 +155,8 @@ jobs:
         env:
           VERSION: ${{ steps.release.outputs.version }}
         run: |
-          if bun pm view "@sim/setup@$VERSION" version > /dev/null 2>&1; then
-            echo "@sim/setup@$VERSION is already published. Bump packages/sim-setup/package.json before releasing another build." >&2
+          if bun pm view "sim-setup@$VERSION" version > /dev/null 2>&1; then
+            echo "sim-setup@$VERSION is already published. Bump packages/sim-setup/package.json before releasing another build." >&2
             exit 1
           fi
 
@@ -171,4 +171,4 @@ jobs:
         env:
           VERSION: ${{ steps.release.outputs.version }}
           NPM_TAG: ${{ steps.release.outputs.tag }}
-        run: echo "Published @sim/setup@$VERSION with the '$NPM_TAG' tag."
+        run: echo "Published sim-setup@$VERSION with the '$NPM_TAG' tag."

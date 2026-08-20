@@ -863,7 +863,7 @@ export function getCapabilitySetup(id: string): CapabilitySetupDefinition | null
 }
 
 export function getSetupCommand(id: string): string {
-  return `npx @sim/setup add ${id}`
+  return `npx sim-setup add ${id}`
 }
 
 type OAuthClientSetupFields = {

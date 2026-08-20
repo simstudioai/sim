@@ -10,7 +10,7 @@ import { FAQ } from '@/components/ui/faq'
 ## Quick Start
 
 ```bash
-npx @sim/setup
+npx sim-setup
 ```
 
 Open [http://localhost:3000](http://localhost:3000)
@@ -144,7 +144,7 @@ docker compose -f docker-compose.prod.yml logs migrations
 docker compose -f docker-compose.prod.yml logs -f cron
 
 # Upgrade: bump SIM_VERSION in .env when pinned, then
-npx @sim/setup update
+npx sim-setup update
 ```
 
 <FAQ items={[

@@ -29,7 +29,7 @@ function readManagedState(root: string): ManagedState | null {
     !('composeSha256' in parsed) ||
     typeof parsed.composeSha256 !== 'string'
   ) {
-    throw new Error(`${file} is not a valid @sim/setup managed-state file`)
+    throw new Error(`${file} is not a valid sim-setup managed-state file`)
   }
   return { schemaVersion: 1, composeSha256: parsed.composeSha256 }
 }
@@ -58,7 +58,7 @@ export function ensureProductionComposeFile(context: SetupContext = SETUP_CONTEX
 
   const bundled = packagedComposeFile()
   if (!existsSync(bundled)) {
-    throw new Error(`The @sim/setup package is missing its bundled ${COMPOSE_FILE}`)
+    throw new Error(`The sim-setup package is missing its bundled ${COMPOSE_FILE}`)
   }
   mkdirSync(context.root, { recursive: true })
   const packaged = readFileSync(bundled, 'utf8')
