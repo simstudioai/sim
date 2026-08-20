@@ -4,7 +4,7 @@
 import { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { TableViewWire } from '@/lib/api/contracts/tables'
 import { ViewsMenu } from '@/app/workspace/[workspaceId]/tables/[tableId]/components/views-menu/views-menu'
 
@@ -19,12 +19,21 @@ const DEFAULT_VIEW: TableViewWire = {
   updatedAt: new Date('2026-08-15T01:00:00.000Z'),
 }
 
-const SAVED_VIEW: TableViewWire = {
+const SECOND_VIEW: TableViewWire = {
   ...DEFAULT_VIEW,
-  id: 'view-saved',
-  name: 'Saved',
+  id: 'view-second',
+  name: 'Second view',
   isDefault: false,
 }
+
+const PRIMARY_VIEW: TableViewWire = {
+  ...DEFAULT_VIEW,
+  name: 'Primary view',
+}
+
+afterEach(() => {
+  vi.useRealTimers()
+})
 
 function renderMenu(views: TableViewWire[], activeViewId: string | null): string {
   return renderToStaticMarkup(
@@ -33,6 +42,7 @@ function renderMenu(views: TableViewWire[], activeViewId: string | null): string
       activeViewId={activeViewId}
       onSelect={vi.fn()}
       onRename={vi.fn()}
+      onSetDefault={vi.fn()}
       onDelete={vi.fn()}
       onNewView={vi.fn()}
       canEdit
@@ -55,18 +65,20 @@ describe('ViewsMenu', () => {
     expect(markup).not.toContain('>View<')
   })
 
-  it('only offers deletion for non-default views', () => {
+  it('shows filled and outline pins without a Default badge and keeps the menu open', () => {
     const container = document.createElement('div')
     document.body.appendChild(container)
     const root = createRoot(container)
+    const onSetDefault = vi.fn()
 
     act(() => {
       root.render(
         <ViewsMenu
-          views={[DEFAULT_VIEW, SAVED_VIEW]}
-          activeViewId={DEFAULT_VIEW.id}
+          views={[PRIMARY_VIEW, SECOND_VIEW]}
+          activeViewId={PRIMARY_VIEW.id}
           onSelect={vi.fn()}
           onRename={vi.fn()}
+          onSetDefault={onSetDefault}
           onDelete={vi.fn()}
           onNewView={vi.fn()}
           canEdit
@@ -76,6 +88,113 @@ describe('ViewsMenu', () => {
     act(() => container.querySelector<HTMLButtonElement>('button[aria-label="Views"]')?.click())
 
     expect(document.body.querySelectorAll('button[aria-label="Delete"]')).toHaveLength(1)
+    const defaultPin = document.body.querySelector<HTMLButtonElement>(
+      'button[aria-label="Current default view"]'
+    )
+    const setDefaultPin = document.body.querySelector<HTMLButtonElement>(
+      'button[aria-label="Set as default"]'
+    )
+
+    expect(defaultPin?.querySelector('svg')).toHaveClass('fill-current')
+    expect(setDefaultPin?.querySelector('svg')).not.toHaveClass('fill-current')
+    expect(document.body).not.toHaveTextContent('Default')
+
+    act(() => setDefaultPin?.click())
+    expect(onSetDefault).toHaveBeenCalledWith(SECOND_VIEW.id)
+    expect(document.body).toHaveTextContent('New view')
+
+    expect(defaultPin).toBeDisabled()
+    act(() => defaultPin?.click())
+    expect(onSetDefault).toHaveBeenCalledTimes(1)
+
+    act(() => root.unmount())
+    container.remove()
+  })
+
+  it('keeps the menu open when keyboard focus moves from the trigger to the default pin', () => {
+    vi.useFakeTimers()
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const root = createRoot(container)
+
+    act(() => {
+      root.render(
+        <ViewsMenu
+          views={[PRIMARY_VIEW, SECOND_VIEW]}
+          activeViewId={PRIMARY_VIEW.id}
+          onSelect={vi.fn()}
+          onRename={vi.fn()}
+          onSetDefault={vi.fn()}
+          onDelete={vi.fn()}
+          onNewView={vi.fn()}
+          canEdit
+        />
+      )
+    })
+
+    const trigger = container.querySelector<HTMLButtonElement>('button[aria-label="Views"]')
+    act(() => trigger?.focus())
+
+    const setDefaultPin = document.body.querySelector<HTMLButtonElement>(
+      'button[aria-label="Set as default"]'
+    )
+    expect(setDefaultPin).not.toBeNull()
+    act(() => {
+      setDefaultPin?.focus()
+      vi.advanceTimersByTime(121)
+    })
+
+    expect(document.activeElement).toBe(setDefaultPin)
+    expect(document.body).toHaveTextContent('New view')
+    expect(document.body.querySelector('[data-native-surface-overlay]')).not.toBeNull()
+
+    act(() => root.unmount())
+    container.remove()
+  })
+
+  it('shows disabled pins without closing the menu for read-only members', () => {
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const root = createRoot(container)
+    const onSetDefault = vi.fn()
+
+    act(() => {
+      root.render(
+        <ViewsMenu
+          views={[PRIMARY_VIEW, SECOND_VIEW]}
+          activeViewId={PRIMARY_VIEW.id}
+          onSelect={vi.fn()}
+          onRename={vi.fn()}
+          onSetDefault={onSetDefault}
+          onDelete={vi.fn()}
+          onNewView={vi.fn()}
+          canEdit={false}
+        />
+      )
+    })
+    act(() => container.querySelector<HTMLButtonElement>('button[aria-label="Views"]')?.click())
+
+    const defaultPin = document.body.querySelector<HTMLButtonElement>(
+      'button[aria-label="Current default view"]'
+    )
+    const setDefaultPin = document.body.querySelector<HTMLButtonElement>(
+      'button[aria-label="Set as default"]'
+    )
+
+    expect(defaultPin?.querySelector('svg')).toHaveClass('fill-current')
+    expect(setDefaultPin?.querySelector('svg')).not.toHaveClass('fill-current')
+    expect(setDefaultPin).toBeDisabled()
+
+    act(() => setDefaultPin?.click())
+
+    expect(onSetDefault).not.toHaveBeenCalled()
+    expect(document.body.querySelector('[data-native-surface-overlay]')).not.toBeNull()
+
+    // jsdom does not simulate pointer-events hit-testing, so assert the override
+    // directly: without it a disabled pin is pointer-events-none and a real click
+    // falls through the overlay to the row, selecting the view and closing the menu.
+    expect(defaultPin).toHaveClass('disabled:pointer-events-auto')
+    expect(setDefaultPin).toHaveClass('disabled:pointer-events-auto')
 
     act(() => root.unmount())
     container.remove()

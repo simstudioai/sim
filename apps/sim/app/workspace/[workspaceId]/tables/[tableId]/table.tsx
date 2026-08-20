@@ -121,8 +121,8 @@ interface TableProps {
   tableLocksEnabled?: boolean
   /**
    * Resolved `table-views` flag. Server-only to resolve for the same reason.
-   * Defaults to `false` so the embedded mothership table — which has no server
-   * context to resolve it — stays on today's Filter/Sort bar.
+   * Defaults to `false` so any caller that has not resolved the flag stays on
+   * today's Filter/Sort behavior.
    */
   viewsEnabled?: boolean
 }
@@ -735,6 +735,15 @@ export function Table({
     setViewModal({ mode: 'rename', viewId })
   }, [])
 
+  const handleSetDefaultView = useCallback((viewId: string) => {
+    updateViewMutation.mutate(
+      { viewId, isDefault: true },
+      {
+        onError: (error) => toast.error(getErrorMessage(error, 'Failed to set default view')),
+      }
+    )
+  }, [])
+
   const handleNewView = useCallback(() => {
     setViewModal({ mode: 'new' })
   }, [])
@@ -1175,25 +1184,34 @@ export function Table({
       active: sortColumn ? { column: sortColumn, direction: sortDirection } : null,
       onSort: handleSortColumn,
       onClear: handleClearSort,
+      keepOpenOnSelect: viewsEnabled,
     }),
-    [columnOptions, sortColumn, sortDirection, handleSortColumn, handleClearSort]
+    [columnOptions, sortColumn, sortDirection, handleSortColumn, handleClearSort, viewsEnabled]
   )
 
-  const handleFilterApply = (next: TablePredicate | null) => {
-    setFilter(next)
-    persistActiveViewConfig({ filter: next })
-  }
+  const handleFilterChange = useCallback(
+    (next: TablePredicate | null) => {
+      setFilter(next)
+      persistActiveViewConfig({ filter: next })
+    },
+    [persistActiveViewConfig]
+  )
 
-  const handleHiddenColumnsChange = (next: string[]) => {
-    setHiddenColumns(next)
-    persistActiveViewConfig({ hiddenColumns: next })
-  }
+  const handleHiddenColumnsChange = useCallback(
+    (next: string[]) => {
+      setHiddenColumns(next)
+      persistActiveViewConfig({ hiddenColumns: next })
+    },
+    [persistActiveViewConfig]
+  )
 
   /**
    * "Filter by cell value" from the grid's cell context menu. Narrows the
    * PRUNED filter, so a condition the current schema already invalidated is not
    * resurrected, and opens the panel — a silently narrowed table would leave the
-   * user no way to see what was applied.
+   * user no way to see what was applied. Persists explicitly: the reseeded
+   * panel starts signature-matched to this filter, so its gesture handlers will
+   * not emit it again.
    */
   const handleFilterByCellValue = (conditions: readonly Predicate[]) => {
     const next = withCellValueFilter(effectiveFilter, conditions)
@@ -1496,6 +1514,7 @@ export function Table({
               activeViewId={activeView?.id ?? null}
               onSelect={handleSelectView}
               onRename={handleRenameView}
+              onSetDefault={handleSetDefaultView}
               onDelete={handleDeleteView}
               onNewView={handleNewView}
               canEdit={userPermissions.canEdit}
@@ -1519,7 +1538,8 @@ export function Table({
           key={filterSeed}
           columns={columns}
           filter={effectiveFilter}
-          onApply={handleFilterApply}
+          autoApply={viewsEnabled}
+          onChange={handleFilterChange}
           onClose={() => setFilterOpen(false)}
         />
       )}

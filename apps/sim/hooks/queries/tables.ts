@@ -1579,16 +1579,33 @@ export function useUpdateTableView({ workspaceId, tableId }: RowMutationContext)
     // Keep the active view's server baseline current immediately; the refetch
     // remains the authoritative reconciliation for concurrent collaborators.
     onSuccess: (view) => {
-      queryClient.setQueryData<TableViewWire[]>(tableKeys.views(tableId), (prev) =>
-        prev?.map((existing) => {
-          if (existing.id !== view.id) return existing
-          // Layout and view controls auto-save concurrently, and their
-          // responses can arrive out of order. The DB merge is authoritative, so
-          // only let a row at least as new as the cached one win — otherwise a
-          // slower response rewinds the cache until the refetch lands.
-          return new Date(view.updatedAt) >= new Date(existing.updatedAt) ? view : existing
+      queryClient.setQueryData<TableViewWire[]>(tableKeys.views(tableId), (prev) => {
+        if (!prev) return prev
+        // Layout and view controls auto-save concurrently, and their
+        // responses can arrive out of order. The DB merge is authoritative, so
+        // only let a response at least as new as the cached row win — for
+        // installing the row AND for demoting the previous default. A stale
+        // response applies nothing; otherwise it would rewind the cache (or
+        // strip isDefault from a newer default, leaving none) until the
+        // refetch lands.
+        const cached = prev.find((existing) => existing.id === view.id)
+        const currentDefault = view.isDefault
+          ? prev.find((existing) => existing.id !== view.id && existing.isDefault)
+          : undefined
+        const responseTime = new Date(view.updatedAt)
+        if (
+          (cached && responseTime < new Date(cached.updatedAt)) ||
+          (currentDefault && responseTime < new Date(currentDefault.updatedAt))
+        ) {
+          return prev
+        }
+        return prev.map((existing) => {
+          if (view.isDefault && existing.id !== view.id && existing.isDefault) {
+            return { ...existing, isDefault: false }
+          }
+          return existing.id === view.id ? view : existing
         })
-      )
+      })
     },
     onSettled: () => {
       // A scoped mutation only needs the database write ahead of the next
