@@ -18,8 +18,8 @@ import {
   resolveFolderPathFromIndex,
 } from '@/lib/folders/queries'
 import { defineAuthorizedWorkflowUseCase } from '@/lib/workflows/application/authorized-workflow-use-case'
-import { resolveActiveWorkspaceApplicationContext } from '@/lib/workflows/application/context'
 import { workflowOperations } from '@/lib/workflows/application/operations'
+import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
 
 type WorkflowFolderRecord = typeof folder.$inferSelect
 type WorkflowFolderIndex = FolderPathIndex<WorkflowFolderRecord>

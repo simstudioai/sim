@@ -42,14 +42,14 @@ vi.mock('@sim/platform-authz/workspace', () => ({
 }))
 vi.mock('@/lib/workspaces/application/workspace-context', () => ({
   loadActiveWorkspaceApplicationContext: mocks.loadWorkspaceContext,
-}))
-vi.mock('@/lib/workflows/application/context', () => ({
-  resolveActiveWorkflowApplicationContext: mocks.resolveWorkflowContext,
   resolveActiveWorkspaceApplicationContext: async (workspaceId: string) => {
     const context = await mocks.loadWorkspaceContext(workspaceId)
     if (!context) throw new Error('Workspace not found')
     return context
   },
+}))
+vi.mock('@/lib/workflows/application/context', () => ({
+  resolveActiveWorkflowApplicationContext: mocks.resolveWorkflowContext,
 }))
 vi.mock('@/lib/chat-deployments/queries', () => ({
   listWorkspaceChatDeployments: mocks.listDeployments,
@@ -63,7 +63,12 @@ vi.mock('@/lib/workflows/orchestration', () => ({
   performChatUndeploy: vi.fn(),
 }))
 vi.mock('@/ee/access-control/utils/permission-check', () => {
-  class ChatDeployAuthNotAllowedError extends Error {}
+  class ChatDeployAuthNotAllowedError extends Error {
+    constructor() {
+      super('This chat authentication mode is not allowed')
+      this.name = 'ChatDeployAuthNotAllowedError'
+    }
+  }
   return { validateChatDeployAuth: mocks.validateChatDeployAuth, ChatDeployAuthNotAllowedError }
 })
 vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
@@ -71,6 +76,7 @@ vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
 vi.mock('@/app/api/v2/lib/gate', () => v2GateModuleMock)
 
 import { GET, POST } from '@/app/api/v2/chat-deployments/route'
+import { ChatDeployAuthNotAllowedError } from '@/ee/access-control/utils/permission-check'
 
 const WORKSPACE_ID = 'workspace-1'
 const WORKFLOW_ID = 'workflow-1'
@@ -185,7 +191,6 @@ describe('/api/v2/chat-deployments', () => {
         workspaceId: WORKSPACE_ID,
         identifier: 'support',
         url: expect.stringContaining('/chat/support'),
-        hasPassword: false,
         includeToolCalls: false,
       })
       expect(body.data[0]).not.toHaveProperty('password')
@@ -200,7 +205,41 @@ describe('/api/v2/chat-deployments', () => {
       expect(body.data[0]).not.toHaveProperty('subdomain')
     })
 
-    it('reports a stored password only as a boolean', async () => {
+    /**
+     * The list is a `read` operation reachable by a workspace API key, so it
+     * must not carry what the admin-gated detail read exists to gate. Asserted
+     * against the serialized body rather than the parsed keys, so a field
+     * reintroduced at any depth — nested under a future wrapper, say — is still
+     * caught.
+     */
+    it('omits the fields the admin-gated detail read carries', async () => {
+      mocks.listDeployments.mockResolvedValue({
+        data: [
+          chatRow({
+            authType: 'password',
+            password: 'encrypted-secret',
+            allowedEmails: ['gated@example.com'],
+            customizations: { primaryColor: '#gated', welcomeMessage: 'gated-welcome' },
+          }),
+        ],
+        nextCursorKeys: null,
+      })
+
+      const response = await get()
+      const body = await response.json()
+      const serialized = JSON.stringify(body)
+
+      expect(response.status).toBe(200)
+      expect(serialized).not.toContain('allowedEmails')
+      expect(serialized).not.toContain('hasPassword')
+      expect(serialized).not.toContain('customizations')
+      expect(serialized).not.toContain('gated@example.com')
+      expect(serialized).not.toContain('gated-welcome')
+      expect(serialized).not.toContain('encrypted-secret')
+    })
+
+    /** Narrowing must not cost discovery: the mode label and identity stay. */
+    it('still carries what a caller needs to decide whether to fetch the detail', async () => {
       mocks.listDeployments.mockResolvedValue({
         data: [chatRow({ authType: 'password', password: 'encrypted-secret' })],
         nextCursorKeys: null,
@@ -208,8 +247,15 @@ describe('/api/v2/chat-deployments', () => {
 
       const body = await (await get()).json()
 
-      expect(body.data[0].hasPassword).toBe(true)
-      expect(JSON.stringify(body)).not.toContain('encrypted-secret')
+      expect(body.data[0]).toMatchObject({
+        id: 'chat-1',
+        identifier: 'support',
+        title: 'Support chat',
+        authType: 'password',
+        isActive: true,
+        url: expect.stringContaining('/chat/support'),
+        createdAt: '2026-06-12T10:30:00.000Z',
+      })
     })
 
     it('passes the workflow and active filters to the read', async () => {
@@ -334,6 +380,21 @@ describe('/api/v2/chat-deployments', () => {
       expect(mocks.resolveWorkflowContext).not.toHaveBeenCalled()
     })
 
+    /** The same actionable code the update path already names for this refusal. */
+    it('names a blocked auth mode with an actionable forbidden code', async () => {
+      mocks.validateChatDeployAuth.mockRejectedValue(new ChatDeployAuthNotAllowedError())
+
+      const response = await post({
+        ...validBody,
+        authType: 'email',
+        allowedEmails: ['a@example.com'],
+      })
+
+      expect(response.status).toBe(403)
+      expect((await response.json()).error.details.code).toBe('CHAT_AUTH_MODE_NOT_PERMITTED')
+      expect(mocks.performChatDeploy).not.toHaveBeenCalled()
+    })
+
     it('refuses a caller below workspace admin with 403', async () => {
       mocks.resolvePermission.mockResolvedValue('write')
 
@@ -344,17 +405,55 @@ describe('/api/v2/chat-deployments', () => {
       expect(mocks.performChatDeploy).not.toHaveBeenCalled()
     })
 
-    it('reports an in-flight workflow deployment rather than admitting a second one', async () => {
+    /**
+     * The create path classifies its failures rather than flattening them: an
+     * in-flight deployment is the `409` the OpenAPI already publishes, not a
+     * claim that the caller's request was malformed.
+     */
+    it('reports an in-flight workflow deployment as a conflict', async () => {
       mocks.performChatDeploy.mockResolvedValue({
         success: false,
+        errorCode: 'conflict',
         error:
           'A workflow deployment is still preparing. Retry chat deployment after it becomes active.',
       })
 
       const response = await post(validBody)
 
-      expect(response.status).toBe(400)
+      expect(response.status).toBe(409)
       expect((await response.json()).error.message).toContain('still preparing')
+      expect(mocks.audit).not.toHaveBeenCalled()
+    })
+
+    it('reports a password the deployment cannot store as a validation error', async () => {
+      mocks.performChatDeploy.mockResolvedValue({
+        success: false,
+        errorCode: 'validation',
+        error: 'Password is required when using password protection',
+      })
+
+      const response = await post(validBody)
+
+      expect(response.status).toBe(400)
+      expect((await response.json()).error.message).toBe(
+        'Password is required when using password protection'
+      )
+    })
+
+    /** An invariant failure is the server's fault, and must not read as a bad request. */
+    it('keeps an internal invariant failure a 500 with a generic message', async () => {
+      mocks.performChatDeploy.mockResolvedValue({
+        success: false,
+        errorCode: 'internal',
+        error: 'Workflow deployment reported active without a live deployment version.',
+      })
+
+      const response = await post(validBody)
+
+      expect(response.status).toBe(500)
+      const body = await response.json()
+      expect(body.error.code).toBe('INTERNAL_ERROR')
+      expect(JSON.stringify(body)).not.toContain('live deployment version')
       expect(mocks.audit).not.toHaveBeenCalled()
     })
   })

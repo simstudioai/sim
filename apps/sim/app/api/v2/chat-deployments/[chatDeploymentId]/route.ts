@@ -23,7 +23,10 @@ export const GET = defineV2JsonRoute({
   operation: chatDeploymentOperations.read,
   rateLimit: v2RateLimits.publicApi,
   errorPolicy: chatDeploymentErrorPolicy,
-  mapInput: ({ params }) => ({ chatDeploymentId: params.chatDeploymentId }),
+  mapInput: ({ params, query }) => ({
+    chatDeploymentId: params.chatDeploymentId,
+    assertedWorkspaceId: query.workspaceId,
+  }),
   useCase: readChatDeployment,
   present: ({ deployment, workspaceId }) => ({
     data: toV2ChatDeployment(deployment, workspaceId),
@@ -34,9 +37,10 @@ export const GET = defineV2JsonRoute({
  * PATCH /api/v2/chat-deployments/[chatDeploymentId] — Update a chat deployment.
  *
  * Switching `authType` clears the gate the previous mode owned, so a stored
- * password does not survive a move to email gating and an allow-list does not
- * survive a move to public. A `password` sent alongside a non-password mode is
- * ignored rather than stored.
+ * password does not survive a move to email gating, and an allow-list is cleared
+ * by a move to public unless the same request supplies a replacement
+ * `allowedEmails` — which is applied after the clear. A `password` sent
+ * alongside a non-password mode is ignored rather than stored.
  *
  * Like create, this republishes the workflow when its draft has drifted, so it
  * inherits the same `409` while a deployment attempt is in flight.
@@ -47,9 +51,10 @@ export const PATCH = defineV2JsonRoute({
   operation: chatDeploymentOperations.update,
   rateLimit: v2RateLimits.publicApi,
   errorPolicy: chatDeploymentErrorPolicy,
-  mapInput: ({ params, body }) => ({
-    chatDeploymentId: params.chatDeploymentId,
+  mapInput: ({ params, query, body }) => ({
     ...body,
+    chatDeploymentId: params.chatDeploymentId,
+    assertedWorkspaceId: query.workspaceId,
   }),
   useCase: updateChatDeployment,
   present: ({ deployment, workspaceId }) => ({
@@ -69,7 +74,10 @@ export const DELETE = defineV2JsonRoute({
   operation: chatDeploymentOperations.delete,
   rateLimit: v2RateLimits.publicApi,
   errorPolicy: chatDeploymentErrorPolicy,
-  mapInput: ({ params }) => ({ chatDeploymentId: params.chatDeploymentId }),
+  mapInput: ({ params, query }) => ({
+    chatDeploymentId: params.chatDeploymentId,
+    assertedWorkspaceId: query.workspaceId,
+  }),
   useCase: deleteChatDeployment,
   present: ({ deployment }) => ({ data: { id: deployment.id, deleted: true as const } }),
 })

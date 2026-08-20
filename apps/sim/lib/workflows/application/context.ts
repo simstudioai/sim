@@ -4,10 +4,7 @@ import { and, eq, isNull } from 'drizzle-orm'
 import { getJobQueue } from '@/lib/core/async-jobs'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { WORKFLOW_EXECUTION_JOB_ID_PREFIX } from '@/lib/workflows/executor/execution-job-ids'
-import {
-  type ActiveWorkspaceApplicationContext,
-  loadActiveWorkspaceApplicationContext,
-} from '@/lib/workspaces/application/workspace-context'
+import { loadActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
 
 export interface ActiveWorkflowApplicationContext {
   workflowId: string
@@ -20,14 +17,6 @@ export interface ActiveWorkflowApplicationContext {
 
 export interface ActiveWorkflowRunApplicationContext extends ActiveWorkflowApplicationContext {
   runId: string
-}
-
-export async function resolveActiveWorkspaceApplicationContext(
-  workspaceId: string
-): Promise<ActiveWorkspaceApplicationContext> {
-  const context = await loadActiveWorkspaceApplicationContext(workspaceId)
-  if (!context) throw new OrchestrationError('not_found', 'Workspace not found')
-  return context
 }
 
 export async function resolveActiveWorkflowApplicationContext(input: {

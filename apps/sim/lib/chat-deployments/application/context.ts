@@ -48,8 +48,16 @@ export async function resolveActiveChatDeploymentApplicationContext(input: {
 }
 
 /**
- * Leaves scoped-principal workspace mismatches to canonical authorization so
- * they stay 403s, mirroring {@link assertedWorkflowWorkspaceId}.
+ * The workspace assertion to compare canonical scope against, or `undefined`
+ * when the principal already carries its own.
+ *
+ * A workspace API key and a delegated principal are scoped at issue time, so
+ * their mismatches are left to canonical authorization rather than compared
+ * here — and that costs nothing, because both surfaces of this domain conceal
+ * `WorkspaceApiKeyScopeAuthorizationError` and
+ * `DelegatedWorkspaceAuthorizationError` as the same not-found this function
+ * would have produced. Every other principal names its workspace per request,
+ * and a mismatch there must not reveal that the deployment exists.
  */
 export function assertedChatDeploymentWorkspaceId(
   principal: Principal,

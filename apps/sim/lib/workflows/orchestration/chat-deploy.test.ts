@@ -56,6 +56,7 @@ describe('performChatDeploy password guards', () => {
     ).resolves.toEqual({
       success: false,
       error: 'Password cannot contain only whitespace',
+      errorCode: 'validation',
     })
 
     expect(mockGetWorkflowDeploymentSummary).not.toHaveBeenCalled()
@@ -67,6 +68,7 @@ describe('performChatDeploy password guards', () => {
     ).resolves.toEqual({
       success: false,
       error: 'Password is too long',
+      errorCode: 'validation',
     })
 
     expect(mockGetWorkflowDeploymentSummary).not.toHaveBeenCalled()
@@ -78,6 +80,7 @@ describe('performChatDeploy password guards', () => {
     ).resolves.toEqual({
       success: false,
       error: 'Password cannot contain only whitespace',
+      errorCode: 'validation',
     })
   })
 
@@ -87,6 +90,7 @@ describe('performChatDeploy password guards', () => {
     await expect(performChatDeploy({ ...basePayload, authType: 'password' })).resolves.toEqual({
       success: false,
       error: 'Password is required when using password protection',
+      errorCode: 'validation',
     })
   })
 
