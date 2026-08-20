@@ -1,6 +1,7 @@
 import type { CostLedger } from '@/lib/api/contracts/logs'
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { MAX_FOLDERS_PER_WORKSPACE } from '@/lib/folders/constants'
 import { ROOT_FOLDER_PATH } from '@/lib/folders/paths'
 import { loadActiveFolderPathIndex } from '@/lib/folders/queries'
 import { logOperations } from '@/lib/logs/application/operations'
@@ -94,7 +95,14 @@ export const getPublicLog = defineAuthorizedWorkspaceUseCase({
     if (!log || log.workflowId !== context.workflowId) {
       throw new OrchestrationError('not_found', 'Log not found')
     }
-    const folderIndex = await loadActiveFolderPathIndex(context.workspaceId, 'workflow')
+    const folderIndex = await loadActiveFolderPathIndex(
+      context.workspaceId,
+      'workflow',
+      undefined,
+      {
+        maxRows: MAX_FOLDERS_PER_WORKSPACE,
+      }
+    )
     const executionData = await materializeExecutionDataForDisplay(
       log.executionData as Record<string, unknown> | null,
       {

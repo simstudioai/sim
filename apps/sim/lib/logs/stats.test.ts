@@ -1,7 +1,7 @@
 /**
  * @vitest-environment node
  */
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { buildDashboardStats, type LogStatsWindow, resolveLogStatsWindow } from '@/lib/logs/stats'
 import type { LogStatsSegmentRow } from '@/lib/logs/stats-queries'
 
@@ -159,6 +159,37 @@ describe('buildDashboardStats', () => {
     expect(stats.totalRuns).toBe(10)
     expect(stats.totalErrors).toBe(5)
     expect(stats.aggregateSegments[0].totalExecutions).toBe(10)
+  })
+
+  /**
+   * The dense `segmentCount`-length array is the expensive part, so it must be
+   * built only for the series that survive `maxWorkflows`. Densifying first and
+   * slicing after is invisible in the response — every assertion above still
+   * passes — but at the published ceilings it allocates `workflows Ã—
+   * segmentCount` segment objects to return `maxWorkflows` of them.
+   *
+   * Counted through `Date#toISOString`, which `segmentTimestamp` calls once per
+   * segment it fills in, so the count is an exact proxy for the densification
+   * work and not a wall-clock budget.
+   */
+  it('does not densify a segment series for a workflow the cap drops', () => {
+    const workflowCount = 500
+    const segmentCount = 500
+    const rows = Array.from({ length: workflowCount }, (_unused, index) =>
+      row({ workflowId: `wf-${index}`, workflowName: `Workflow ${index}` })
+    )
+    const toISOString = vi.spyOn(Date.prototype, 'toISOString')
+
+    try {
+      const { stats } = buildDashboardStats(rows, window, segmentCount, { maxWorkflows: 2 })
+
+      expect(stats.workflows).toHaveLength(2)
+      expect(stats.workflows[0].segments).toHaveLength(segmentCount)
+      expect(stats.totalRuns).toBe(workflowCount)
+      expect(toISOString.mock.calls.length).toBeLessThan(workflowCount * segmentCount * 0.1)
+    } finally {
+      toISOString.mockRestore()
+    }
   })
 
   it('reports no truncation when the cap is not reached', () => {

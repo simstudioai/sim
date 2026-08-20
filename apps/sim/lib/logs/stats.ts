@@ -71,7 +71,10 @@ export interface DashboardStatsResult {
  * applied. Truncating first would silently under-report `totalRuns`,
  * `totalErrors`, and `avgLatency` for the workspace — a wrong answer, where a
  * shortened `workflows` list paired with `workflowsTruncated: true` is merely an
- * incomplete one.
+ * incomplete one. It sums from the sparse per-workflow maps rather than from
+ * densified series, so summing over every workflow does not mean materializing
+ * one `segmentCount`-length array per workflow: only the series that survive
+ * `maxWorkflows` are ever densified.
  */
 export function buildDashboardStats(
   rows: readonly LogStatsSegmentRow[],
@@ -137,34 +140,16 @@ export function buildDashboardStats(
     }
   }
 
-  const workflows: WorkflowStats[] = []
-  for (const wf of workflowMap.values()) {
-    const segments: SegmentStats[] = []
-    for (let i = 0; i < segmentCount; i++) {
-      segments.push(
-        wf.segments.get(i) ?? {
-          timestamp: segmentTimestamp(i),
-          totalExecutions: 0,
-          successfulExecutions: 0,
-          avgDurationMs: 0,
-        }
-      )
-    }
-
-    workflows.push({
-      workflowId: wf.workflowId,
-      workflowName: wf.workflowName,
-      segments,
-      totalExecutions: wf.totalExecutions,
-      totalSuccessful: wf.totalSuccessful,
-      overallSuccessRate:
-        wf.totalExecutions > 0 ? (wf.totalSuccessful / wf.totalExecutions) * 100 : 100,
-    })
-  }
-
-  workflows.sort((a, b) => {
-    const errA = a.overallSuccessRate < 100 ? 1 - a.overallSuccessRate / 100 : 0
-    const errB = b.overallSuccessRate < 100 ? 1 - b.overallSuccessRate / 100 : 0
+  /**
+   * Ordered before the segment arrays are densified, so the sort key comes from
+   * the accumulated totals rather than from a materialized series.
+   */
+  const accumulated = [...workflowMap.values()]
+  accumulated.sort((a, b) => {
+    const rateA = a.totalExecutions > 0 ? (a.totalSuccessful / a.totalExecutions) * 100 : 100
+    const rateB = b.totalExecutions > 0 ? (b.totalSuccessful / b.totalExecutions) * 100 : 100
+    const errA = rateA < 100 ? 1 - rateA / 100 : 0
+    const errB = rateB < 100 ? 1 - rateB / 100 : 0
     if (errA !== errB) return errB - errA
     return a.workflowName.localeCompare(b.workflowName)
   })
@@ -181,8 +166,15 @@ export function buildDashboardStats(
     let segWeightedLatency = 0
     let segLatencyCount = 0
 
-    for (const wf of workflows) {
-      const seg = wf.segments[i]
+    /**
+     * Summed from the sparse per-workflow maps, over every workflow in the
+     * window rather than only the retained ones. A segment a workflow has no
+     * rows for contributes nothing, which is exactly what its densified
+     * all-zero entry contributed.
+     */
+    for (const wf of accumulated) {
+      const seg = wf.segments.get(i)
+      if (!seg) continue
       segTotal += seg.totalExecutions
       segSuccess += seg.successfulExecutions
       if (seg.avgDurationMs > 0 && seg.totalExecutions > 0) {
@@ -205,11 +197,41 @@ export function buildDashboardStats(
   }
 
   const workflowsTruncated =
-    options.maxWorkflows !== undefined && workflows.length > options.maxWorkflows
+    options.maxWorkflows !== undefined && accumulated.length > options.maxWorkflows
+  const retained = workflowsTruncated ? accumulated.slice(0, options.maxWorkflows) : accumulated
+
+  /**
+   * Densified last, and only for the series that survive `maxWorkflows`. Doing
+   * it before the cut allocates `segmentCount` entries for every workflow in
+   * the window — at the published ceilings, millions of objects to return two
+   * hundred series.
+   */
+  const workflows: WorkflowStats[] = retained.map((wf) => {
+    const segments: SegmentStats[] = []
+    for (let i = 0; i < segmentCount; i++) {
+      segments.push(
+        wf.segments.get(i) ?? {
+          timestamp: segmentTimestamp(i),
+          totalExecutions: 0,
+          successfulExecutions: 0,
+          avgDurationMs: 0,
+        }
+      )
+    }
+    return {
+      workflowId: wf.workflowId,
+      workflowName: wf.workflowName,
+      segments,
+      totalExecutions: wf.totalExecutions,
+      totalSuccessful: wf.totalSuccessful,
+      overallSuccessRate:
+        wf.totalExecutions > 0 ? (wf.totalSuccessful / wf.totalExecutions) * 100 : 100,
+    }
+  })
 
   return {
     stats: {
-      workflows: workflowsTruncated ? workflows.slice(0, options.maxWorkflows) : workflows,
+      workflows,
       aggregateSegments,
       totalRuns,
       totalErrors,

@@ -184,6 +184,32 @@ describe('GET /api/v2/logs', () => {
     }
   )
 
+  /**
+   * `includeJobRuns` carries `.default(false)`, so it is present on every parsed
+   * query. Stamping it unconditionally would put a constant in every
+   * fingerprint and refuse every cursor minted before the param existed, with
+   * the misleading "does not match the requested filters" 400 — a caller that changed
+   * nothing would be told it changed a filter. The default must therefore
+   * contribute nothing to the scope.
+   */
+  it('resumes a cursor minted before includeJobRuns entered the binding', async () => {
+    const legacyCursor = encodeScopedCursor(
+      cursorScopeKey(cursorRoute(v2ListLogsContract), { workspaceId: WORKSPACE_ID, order: 'desc' }),
+      Buffer.from(
+        JSON.stringify({ startedAt: log.startedAt.toISOString(), id: 'run-1', order: 'desc' })
+      ).toString('base64')
+    )
+
+    const response = await GET(
+      new NextRequest(
+        `http://localhost:3000/api/v2/logs?workspaceId=${WORKSPACE_ID}&cursor=${encodeURIComponent(legacyCursor)}`
+      )
+    )
+
+    expect(response.status).toBe(200)
+    expect(mocks.execute).toHaveBeenCalled()
+  })
+
   it('rejects malformed cursors after admission and before protected reads', async () => {
     const response = await GET(
       new NextRequest(

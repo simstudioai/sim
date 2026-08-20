@@ -26,7 +26,12 @@ function workflowCursorFilters(query: {
   return cursorScopeKey(cursorRoute(v2ListWorkflowsContract), {
     workspaceId: query.workspaceId,
     folderPath: query.folderPath,
-    scope: query.scope,
+    // Stamped only when it is not the default. `scope` carries
+    // `.default('active')`, so it is always present on the parsed query;
+    // binding it unconditionally would put a constant in every fingerprint and
+    // reject every cursor minted before the field existed — including on
+    // callers who never sent it.
+    scope: query.scope === 'active' ? undefined : query.scope,
     deployedOnly: query.deployedOnly,
     search: query.search,
   })

@@ -8,6 +8,7 @@ import {
   documentedSchema,
   ERROR_RESPONSES,
   type ErrorResponseId,
+  FOLDER_TREE_TOO_LARGE,
   RATE_LIMIT_HEADERS,
   RESOURCE_ERRORS,
   RUN_RETENTION,
@@ -177,8 +178,8 @@ const declaredRoutes = [
     logsOperation({
       operationId: 'listLogs',
       summary: 'List Logs',
-      description: `List workflow execution logs for a workspace with filters, selectable detail, and opaque cursor pagination. ${RUN_RETENTION}`,
-      errors: RESOURCE_ERRORS,
+      description: `List workflow execution logs for a workspace with filters, selectable detail, and opaque cursor pagination. ${RUN_RETENTION} ${FOLDER_TREE_TOO_LARGE}`,
+      errors: [...RESOURCE_ERRORS, 'PayloadTooLarge'],
       success: { description: 'A page of execution logs matching the filters.' },
     }),
     {
@@ -202,9 +203,8 @@ const declaredRoutes = [
     logsOperation({
       operationId: 'getLog',
       summary: 'Get Log',
-      description:
-        'Retrieve the diagnostic representation of a run, including its workflow snapshot, trace spans, final output, and cost. Trace spans are pruned on their own retention schedule, so an empty `traceSpans` array does not mean the run recorded none.',
-      errors: RESOURCE_ERRORS,
+      description: `Retrieve the diagnostic representation of a run, including its workflow snapshot, trace spans, final output, and cost. Trace spans are pruned on their own retention schedule, so an empty \`traceSpans\` array does not mean the run recorded none. ${FOLDER_TREE_TOO_LARGE}`,
+      errors: [...RESOURCE_ERRORS, 'PayloadTooLarge'],
       success: { description: 'The requested diagnostic log representation.' },
     }),
     {
@@ -234,8 +234,8 @@ const declaredRoutes = [
        */
       operationId: 'searchLogs',
       summary: 'Search Logs',
-      description: `Search a workspace's workflow runs with the same filters as \`GET /logs\`, ordered by start time, duration, cost, or status. This is the sortable read: \`GET /logs\` orders by start time alone, which is what its single \`order\` param means, so the additional sort columns live here rather than adding a second spelling of the direction there. Every result carries its workflow summary. Chat and Sim-agent job runs are not included — their cost is stored as a document and their status is not comparable, so they cannot participate in these orderings; use \`GET /logs?includeJobRuns=true\` for the combined start-time sequence. ${RUN_RETENTION}`,
-      errors: RESOURCE_ERRORS,
+      description: `Search a workspace's workflow runs with the same row filters as \`GET /logs\`, ordered by start time, duration, cost, or status. \`GET /logs\`'s remaining params are not accepted here: \`includeJobRuns\` because job runs cannot participate in these orderings (see below), and \`details\`, \`includeFinalOutput\`, and \`includeTraceSpans\` because this read returns the summary projection only. This is the sortable read: \`GET /logs\` orders by start time alone, which is what its single \`order\` param means, so the additional sort columns live here rather than adding a second spelling of the direction there. Every result carries its workflow summary. Chat and Sim-agent job runs are not included — their cost is stored as a document and their status is not comparable, so they cannot participate in these orderings; use \`GET /logs?includeJobRuns=true\` for the combined start-time sequence. ${RUN_RETENTION} ${FOLDER_TREE_TOO_LARGE}`,
+      errors: [...RESOURCE_ERRORS, 'PayloadTooLarge'],
       success: {
         description: 'A page of workflow runs matching the filters, in the requested order.',
       },
@@ -262,8 +262,8 @@ const declaredRoutes = [
     logsOperation({
       operationId: 'getLogStats',
       summary: 'Get Log Statistics',
-      description: `Bucketed run counts, success rate, error count, and mean latency for a workspace and for each of its workflows — the aggregate a caller would otherwise have to page every run to compute. The window spans the oldest matching run through the later of the newest matching run and now, divided into \`segmentCount\` equal buckets no narrower than one minute. A folder path covers its whole subtree. Per-workflow series are capped and \`workflowsTruncated\` reports whether the cap applied; the workspace totals are always computed from every workflow. ${RUN_RETENTION}`,
-      errors: RESOURCE_ERRORS,
+      description: `Bucketed run counts, success rate, error count, and mean latency for a workspace and for each of its workflows — the aggregate a caller would otherwise have to page every run to compute. The window spans the oldest matching run through the later of the newest matching run and now, divided into \`segmentCount\` equal buckets no narrower than one minute. A folder path covers its whole subtree. Per-workflow series are capped and \`workflowsTruncated\` reports whether the cap applied; the workspace totals are always computed from every workflow. ${RUN_RETENTION} ${FOLDER_TREE_TOO_LARGE}`,
+      errors: [...RESOURCE_ERRORS, 'PayloadTooLarge'],
       success: { description: 'Bucketed execution statistics for the workspace.' },
     }),
     {

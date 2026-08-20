@@ -296,6 +296,53 @@ describe('sortable public log query', () => {
     expect(dbChainMockFns.orderBy.mock.calls.at(-1)).toHaveLength(2)
   })
 
+  /**
+   * `cost_total` is an unconstrained `numeric`, which node-postgres returns as a
+   * string precisely because float64 cannot hold every value it can store.
+   * Minting the anchor through `Number()` narrows it, and the narrowed value is
+   * then compared back against full-precision `numeric` — so rows that differ
+   * only beyond float64 precision collapse onto one anchor and the page
+   * boundary skips or repeats them.
+   */
+  it('carries the cost anchor at full numeric precision', async () => {
+    const costTotal = '0.12345678901234567890123'
+    expect(String(Number(costTotal))).not.toBe(costTotal)
+    resetDbChainMock()
+    queueTableRows(schemaMock.workflowExecutionLogs, [
+      { id: 'w-1', costTotal, startedAt: new Date('2026-08-06T00:00:01.000Z') },
+      { id: 'w-2', costTotal, startedAt: new Date('2026-08-06T00:00:00.000Z') },
+    ])
+
+    const page = await queryPublicWorkflowLogs({
+      filters: { workspaceId: 'workspace-1' },
+      sortBy: 'cost',
+      sortOrder: 'desc',
+      cursorKeys: undefined,
+      limit: 1,
+    })
+
+    expect(page.nextCursorKeys).toEqual([costTotal, 'w-1'])
+  })
+
+  /** An unsettled run has no cost, and its sentinel has to bind back as `numeric` too. */
+  it('anchors an unsettled run on the cost sentinel', async () => {
+    resetDbChainMock()
+    queueTableRows(schemaMock.workflowExecutionLogs, [
+      { id: 'w-1', costTotal: null, startedAt: new Date('2026-08-06T00:00:01.000Z') },
+      { id: 'w-2', costTotal: null, startedAt: new Date('2026-08-06T00:00:00.000Z') },
+    ])
+
+    const page = await queryPublicWorkflowLogs({
+      filters: { workspaceId: 'workspace-1' },
+      sortBy: 'cost',
+      sortOrder: 'desc',
+      cursorKeys: undefined,
+      limit: 1,
+    })
+
+    expect(page.nextCursorKeys).toEqual(['-1', 'w-1'])
+  })
+
   it('over-fetches one row so the next page can be answered without a count', async () => {
     await query('startedAt')
 

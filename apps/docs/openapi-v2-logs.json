@@ -36,7 +36,7 @@
       "get": {
         "operationId": "listLogs",
         "summary": "List Logs",
-        "description": "List workflow execution logs for a workspace with filters, selectable detail, and opaque cursor pagination. Runs are hard-deleted once they pass the payer's log retention window, so an older run is simply absent rather than reported as removed. The window is 30 days from run start on the free plan, unbounded on Pro and Team, and set per organization on Enterprise with an optional per-workspace override.",
+        "description": "List workflow execution logs for a workspace with filters, selectable detail, and opaque cursor pagination. Runs are hard-deleted once they pass the payer's log retention window, so an older run is simply absent rather than reported as removed. The window is 30 days from run start on the free plan, unbounded on Pro and Team, and set per organization on Enterprise with an optional per-workspace override. A workspace folder tree over 10,000 folders is a `413`.",
         "tags": ["Logs"],
         "parameters": [
           {
@@ -320,6 +320,9 @@
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -336,7 +339,7 @@
       "get": {
         "operationId": "getLog",
         "summary": "Get Log",
-        "description": "Retrieve the diagnostic representation of a run, including its workflow snapshot, trace spans, final output, and cost. Trace spans are pruned on their own retention schedule, so an empty `traceSpans` array does not mean the run recorded none.",
+        "description": "Retrieve the diagnostic representation of a run, including its workflow snapshot, trace spans, final output, and cost. Trace spans are pruned on their own retention schedule, so an empty `traceSpans` array does not mean the run recorded none. A workspace folder tree over 10,000 folders is a `413`.",
         "tags": ["Logs"],
         "parameters": [
           {
@@ -387,6 +390,9 @@
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -403,7 +409,7 @@
       "post": {
         "operationId": "searchLogs",
         "summary": "Search Logs",
-        "description": "Search a workspace's workflow runs with the same filters as `GET /logs`, ordered by start time, duration, cost, or status. This is the sortable read: `GET /logs` orders by start time alone, which is what its single `order` param means, so the additional sort columns live here rather than adding a second spelling of the direction there. Every result carries its workflow summary. Chat and Sim-agent job runs are not included — their cost is stored as a document and their status is not comparable, so they cannot participate in these orderings; use `GET /logs?includeJobRuns=true` for the combined start-time sequence. Runs are hard-deleted once they pass the payer's log retention window, so an older run is simply absent rather than reported as removed. The window is 30 days from run start on the free plan, unbounded on Pro and Team, and set per organization on Enterprise with an optional per-workspace override.",
+        "description": "Search a workspace's workflow runs with the same row filters as `GET /logs`, ordered by start time, duration, cost, or status. `GET /logs`'s remaining params are not accepted here: `includeJobRuns` because job runs cannot participate in these orderings (see below), and `details`, `includeFinalOutput`, and `includeTraceSpans` because this read returns the summary projection only. This is the sortable read: `GET /logs` orders by start time alone, which is what its single `order` param means, so the additional sort columns live here rather than adding a second spelling of the direction there. Every result carries its workflow summary. Chat and Sim-agent job runs are not included — their cost is stored as a document and their status is not comparable, so they cannot participate in these orderings; use `GET /logs?includeJobRuns=true` for the combined start-time sequence. Runs are hard-deleted once they pass the payer's log retention window, so an older run is simply absent rather than reported as removed. The window is 30 days from run start on the free plan, unbounded on Pro and Team, and set per organization on Enterprise with an optional per-workspace override. A workspace folder tree over 10,000 folders is a `413`.",
         "tags": ["Logs"],
         "requestBody": {
           "required": true,
@@ -469,7 +475,7 @@
       "get": {
         "operationId": "getLogStats",
         "summary": "Get Log Statistics",
-        "description": "Bucketed run counts, success rate, error count, and mean latency for a workspace and for each of its workflows — the aggregate a caller would otherwise have to page every run to compute. The window spans the oldest matching run through the later of the newest matching run and now, divided into `segmentCount` equal buckets no narrower than one minute. A folder path covers its whole subtree. Per-workflow series are capped and `workflowsTruncated` reports whether the cap applied; the workspace totals are always computed from every workflow. Runs are hard-deleted once they pass the payer's log retention window, so an older run is simply absent rather than reported as removed. The window is 30 days from run start on the free plan, unbounded on Pro and Team, and set per organization on Enterprise with an optional per-workspace override.",
+        "description": "Bucketed run counts, success rate, error count, and mean latency for a workspace and for each of its workflows — the aggregate a caller would otherwise have to page every run to compute. The window spans the oldest matching run through the later of the newest matching run and now, divided into `segmentCount` equal buckets no narrower than one minute. A folder path covers its whole subtree. Per-workflow series are capped and `workflowsTruncated` reports whether the cap applied; the workspace totals are always computed from every workflow. Runs are hard-deleted once they pass the payer's log retention window, so an older run is simply absent rather than reported as removed. The window is 30 days from run start on the free plan, unbounded on Pro and Team, and set per organization on Enterprise with an optional per-workspace override. A workspace folder tree over 10,000 folders is a `413`.",
         "tags": ["Logs"],
         "parameters": [
           {
@@ -596,6 +602,9 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"
@@ -955,7 +964,7 @@
                 "type": "null"
               }
             ],
-            "description": "Cost charged for the run, or null when unavailable."
+            "description": "Cost charged for the run, or null when the run has neither a recorded total nor an itemized ledger."
           },
           "files": {
             "anyOf": [
