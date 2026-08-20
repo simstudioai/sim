@@ -258,6 +258,146 @@ sim blocks list [options]
 
 </CommandTable>
 
+## sim chat-deployments
+
+### sim chat-deployments create
+
+Create Chat Deployment
+
+```bash
+sim chat-deployments create [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--workflow-id <value>` | Yes | Workflow to publish as a chat. |
+| `--identifier <value>` | Yes | URL slug the deployed chat will answer on. Must be free across live deployments. |
+| `--title <value>` | Yes | Title shown to visitors. |
+| `--description <value>` | No | Description shown to visitors. |
+| `--customizations <json\|@file>` | No | Presentation overrides. Omitted fields take platform defaults. (JSON, or @path / @- to read a file or stdin). |
+| `--auth-type <value>` | No | How visitors are gated. `public` leaves the chat open to anyone holding the URL. Accepted values: `public`, `password`, `email`, `sso`. |
+| `--password <value>` | No | Write-only password, required when `authType` is `password`. Never readable back. |
+| `--allowed-emails <json\|@file>` | No | Email addresses or domains admitted under `email` and `sso` gating. At least one is required for those modes. (JSON, or @path / @- to read a file or stdin). |
+| `--output-configs <json\|@file>` | No | Block outputs to surface to visitors. (JSON, or @path / @- to read a file or stdin). |
+| `--include-thinking` | No | Allow visitors to receive provider thinking events. |
+| `--no-include-thinking` | No | Send --include-thinking as false. |
+| `--include-tool-calls` | No | Allow visitors to receive tool lifecycle events. |
+| `--no-include-tool-calls` | No | Send --include-tool-calls as false. |
+
+</CommandTable>
+
+### sim chat-deployments delete
+
+Delete Chat Deployment
+
+```bash
+sim chat-deployments delete <chatDeploymentId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `chatDeploymentId` | Yes | Unique chat deployment identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `-y, --yes` | Yes | Confirm this destructive operation. |
+
+</CommandTable>
+
+### sim chat-deployments get
+
+Get Chat Deployment
+
+```bash
+sim chat-deployments get <chatDeploymentId>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `chatDeploymentId` | Yes | Unique chat deployment identifier. |
+
+</CommandTable>
+
+### sim chat-deployments list
+
+List Chat Deployments
+
+```bash
+sim chat-deployments list [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--workflow-id <value>` | No | Restrict to deployments of one workflow. |
+| `--is-active` | No | Restrict to active or inactive deployments. |
+| `--no-is-active` | No | Send --is-active as false. |
+| `--sort-by <value>` | No | Field used to sort the result. Accepted values: `identifier`, `createdAt`, `updatedAt`. |
+| `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+
+</CommandTable>
+
+### sim chat-deployments update
+
+Update Chat Deployment
+
+```bash
+sim chat-deployments update <chatDeploymentId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `chatDeploymentId` | Yes | Unique chat deployment identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--identifier <value>` | No | New URL slug for the deployed chat. |
+| `--title <value>` | No | New title shown to visitors. |
+| `--description <value>` | No | New description shown to visitors. |
+| `--customizations <json\|@file>` | No | Replacement presentation overrides. Replaced wholesale, not merged. (JSON, or @path / @- to read a file or stdin). |
+| `--auth-type <value>` | No | New visitor gate. Switching modes clears the gate the previous mode owned: a stored password is dropped when moving to `email` or `sso`, and the allow-list is dropped when moving to `password` or `public`. Accepted values: `public`, `password`, `email`, `sso`. |
+| `--password <value>` | No | Write-only replacement password. Ignored unless the deployment ends up `password`-gated. Omit to keep the stored one. |
+| `--allowed-emails <json\|@file>` | No | Replacement allow-list for `email` and `sso` gating. Replaced wholesale. (JSON, or @path / @- to read a file or stdin). |
+| `--output-configs <json\|@file>` | No | Replacement block outputs. Replaced wholesale. (JSON, or @path / @- to read a file or stdin). |
+| `--include-thinking` | No | Allow visitors to receive thinking events. |
+| `--no-include-thinking` | No | Send --include-thinking as false. |
+| `--include-tool-calls` | No | Allow visitors to receive tool lifecycle events. |
+| `--no-include-tool-calls` | No | Send --include-tool-calls as false. |
+
+</CommandTable>
+
 ## sim connector-types
 
 ### sim connector-types list
@@ -748,6 +888,24 @@ Also available as `sim files folders mv`.
 
 </CommandTable>
 
+### sim files folders restore
+
+Restore an archived file folder
+
+```bash
+sim files folders restore <path>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `path` | Yes | Folder path as shown in the app; the leading / is optional |
+
+</CommandTable>
+
 ### sim files delete
 
 Delete File
@@ -934,12 +1092,12 @@ Also available as `sim files mv`.
 
 </CommandTable>
 
-### sim files permanent delete
+### sim files purge
 
-Permanently Delete File
+Permanently delete a file and its stored bytes
 
 ```bash
-sim files permanent delete <fileId>
+sim files purge <fileId> [options]
 ```
 
 **Arguments**
@@ -949,6 +1107,16 @@ sim files permanent delete <fileId>
 | Argument | Required | Description |
 | --- | --- | --- |
 | `fileId` | Yes | File identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `-y, --yes` | Yes | Confirm this destructive operation. |
 
 </CommandTable>
 
@@ -1008,21 +1176,21 @@ sim files rename <fileId> [options]
 
 </CommandTable>
 
-### sim files restore create
+### sim files restore
 
-Restore Folder
+Restore an archived file
 
 ```bash
-sim files restore create [options]
+sim files restore <fileId>
 ```
 
-**Options**
+**Arguments**
 
 <CommandTable>
 
-| Option | Required | Description |
+| Argument | Required | Description |
 | --- | --- | --- |
-| `--path <value>` | Yes | Path of the archived folder to restore, as reported by `GET /api/v2/files/folders?scope=archived`. |
+| `fileId` | Yes | File identifier. |
 
 </CommandTable>
 
@@ -4017,9 +4185,191 @@ sim tools list [options]
 
 </CommandTable>
 
+## sim workflow-mcp-servers
+
+### sim workflow-mcp-servers create
+
+Create Workflow MCP Server
+
+```bash
+sim workflow-mcp-servers create [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--name <value>` | Yes | Server display name, shown to connecting MCP clients. |
+| `--description <value>` | No | Optional server description. |
+| `--is-public` | No | Whether the server answers MCP clients without a Sim API key. Defaults to false — a public server executes the workflows it publishes for anyone holding its URL. |
+| `--no-is-public` | No | Send --is-public as false. |
+| `--workflow <value...>` | No | Deployed workflows to publish as tools on the new server. (space-separated, or @path / @- with one value per line). |
+
+</CommandTable>
+
+### sim workflow-mcp-servers delete
+
+Delete Workflow MCP Server
+
+```bash
+sim workflow-mcp-servers delete <serverId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `serverId` | Yes | Unique workflow-MCP server identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `-y, --yes` | Yes | Confirm this destructive operation. |
+
+</CommandTable>
+
+### sim workflow-mcp-servers tools create
+
+Publish Workflow As MCP Tool
+
+```bash
+sim workflow-mcp-servers tools create <serverId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `serverId` | Yes | Unique workflow-MCP server identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--workflow-id <value>` | Yes | Deployed workflow to publish. The workflow must already be deployed. |
+| `--tool-name <value>` | No | Name MCP clients call. Normalized to the MCP tool-name grammar, and derived from the workflow name when omitted. |
+| `--tool-description <value>` | No | Description shown to MCP clients. Derived from the workflow name when omitted. |
+| `--parameter-descriptions <json\|@file>` | No | Per-field description overrides applied to the schema generated from the deployed workflow inputs. A name matching no input field is ignored. (JSON, or @path / @- to read a file or stdin). |
+
+</CommandTable>
+
+### sim workflow-mcp-servers tools delete
+
+Unpublish Workflow MCP Tool
+
+```bash
+sim workflow-mcp-servers tools delete <serverId> <workflowId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `serverId` | Yes | Unique workflow-MCP server identifier. |
+| `workflowId` | Yes | Workflow published as a tool on this server. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `-y, --yes` | Yes | Confirm this destructive operation. |
+
+</CommandTable>
+
+### sim workflow-mcp-servers list
+
+List Workflow MCP Servers
+
+```bash
+sim workflow-mcp-servers list [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--sort-by <value>` | No | Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order. Accepted values: `name`, `createdAt`, `updatedAt`. |
+| `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+
+</CommandTable>
+
+### sim workflow-mcp-servers update
+
+Update Workflow MCP Server
+
+```bash
+sim workflow-mcp-servers update <serverId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `serverId` | Yes | Unique workflow-MCP server identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--name <value>` | No | Server display name, shown to connecting MCP clients. |
+| `--description <value>` | No | New server description, or null to clear it. |
+| `--is-public` | No | Whether the server answers MCP clients without a Sim API key. |
+| `--no-is-public` | No | Send --is-public as false. |
+
+</CommandTable>
+
 ## sim workflows
 
 Also spelled `sim workflow`.
+
+### sim workflows activate create
+
+Activate Workflow Version
+
+```bash
+sim workflows activate create <id> <version>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `id` | Yes | Unique workflow identifier. |
+| `version` | Yes | Numeric deployment version. |
+
+</CommandTable>
 
 ### sim workflows operations create
 
@@ -4513,6 +4863,34 @@ sim workflows deployment status <id>
 
 </CommandTable>
 
+### sim workflows deployment update
+
+Update Workflow Public API Access
+
+```bash
+sim workflows deployment update <id> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `id` | Yes | Unique workflow identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--is-public-api <true\|false>` | Yes | Whether the deployed workflow should accept unauthenticated public API execution. Accepted values: `true`, `false`. |
+
+</CommandTable>
+
 ### sim workflows state list
 
 Get Workflow State
@@ -4610,6 +4988,36 @@ sim workflows versions list <id> [options]
 
 </CommandTable>
 
+### sim workflows versions update
+
+Update Workflow Version
+
+```bash
+sim workflows versions update <id> <version> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `id` | Yes | Unique workflow identifier. |
+| `version` | Yes | Numeric deployment version. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--name <value>` | No | New label for the deployment version. |
+| `--description <value>` | No | New release note for the deployment version, or null to clear it. |
+
+</CommandTable>
+
 ### sim workflows import
 
 Import Workflow
@@ -4690,6 +5098,25 @@ sim workflows restore create <id>
 | Argument | Required | Description |
 | --- | --- | --- |
 | `id` | Yes | Unique workflow identifier. |
+
+</CommandTable>
+
+### sim workflows revert create
+
+Revert Workflow To Version
+
+```bash
+sim workflows revert create <id> <version>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `id` | Yes | Unique workflow identifier. |
+| `version` | Yes | Numeric deployment version, or `active` for the currently live version. |
 
 </CommandTable>
 

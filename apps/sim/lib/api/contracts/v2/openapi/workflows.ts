@@ -1,4 +1,11 @@
 import {
+  v2CreateChatDeploymentContract,
+  v2DeleteChatDeploymentContract,
+  v2GetChatDeploymentContract,
+  v2ListChatDeploymentsContract,
+  v2UpdateChatDeploymentContract,
+} from '@/lib/api/contracts/v2/chat-deployments'
+import {
   documentedSchema,
   ERROR_RESPONSES,
   type ErrorResponseId,
@@ -22,6 +29,7 @@ import {
 } from '@/lib/api/contracts/v2/openapi/shared'
 import {
   EXECUTE_OPTION_CONSTRAINTS,
+  v2ActivateWorkflowVersionContract,
   v2ApplyWorkflowOperationsContract,
   v2ApplyWorkflowVariablesContract,
   v2CancelWorkflowRunContract,
@@ -53,9 +61,12 @@ import {
   v2ResumeWorkflowContract,
   v2ResumeWorkflowQueuedResponseSchema,
   v2ResumeWorkflowSyncResponseSchema,
+  v2RevertWorkflowVersionContract,
   v2RollbackWorkflowContract,
   v2UndeployWorkflowContract,
   v2UpdateWorkflowContract,
+  v2UpdateWorkflowPublicApiContract,
+  v2UpdateWorkflowVersionContract,
 } from '@/lib/api/contracts/v2/workflows'
 import {
   defineOpenApiDocument,
@@ -99,6 +110,26 @@ const WORKFLOW_VERSION_EXAMPLE = {
   createdAt: '2026-06-12T10:30:00.000Z',
   deployedBy: 'Jane Smith',
   latestOperationStatus: 'active',
+} as const
+
+const CHAT_DEPLOYMENT_EXAMPLE = {
+  id: 'chat_01J8ZK3QW4M6X2R9T7B5C0V2',
+  workflowId: WORKFLOW_ID,
+  workspaceId: '9f4c2a10-3b7e-4d58-8f6a-2c1d0e5b7a94',
+  identifier: 'support',
+  url: 'https://sim.ai/chat/support',
+  title: 'Support chat',
+  description: 'Ask about billing, onboarding, or outages.',
+  isActive: true,
+  authType: 'public',
+  hasPassword: false,
+  allowedEmails: [],
+  customizations: { primaryColor: '#6F3DFA', welcomeMessage: 'Hi there! How can I help?' },
+  outputConfigs: [{ blockId: 'block_01J8ZK3QW4M6X2R9T7B5C0V4', path: 'content' }],
+  includeThinking: false,
+  includeToolCalls: false,
+  createdAt: '2026-06-12T10:30:00.000Z',
+  updatedAt: '2026-06-12T10:30:00.000Z',
 } as const
 
 const WORKFLOW_GRAPH_EXAMPLE = {
@@ -535,6 +566,104 @@ const declaredRoutes = [
     }
   ),
   defineOpenApiRoute(
+    v2UpdateWorkflowVersionContract,
+    workflowOperation({
+      operationId: 'updateWorkflowVersionV2',
+      summary: 'Update Workflow Version',
+      description:
+        'Relabel a deployment version. Merge-patch shaped: an omitted key is unchanged and `description: null` clears the release note. Metadata only — the pinned graph is immutable, and this never changes which version is live. Promote a version with `POST /workflows/{id}/versions/{version}/activate`.',
+      errors: RESOURCE_ERRORS,
+      success: jsonSuccess('The updated version metadata.'),
+    }),
+    {
+      query: v2UpdateWorkflowVersionContract.query,
+      params: v2UpdateWorkflowVersionContract.params,
+      body: v2UpdateWorkflowVersionContract.body,
+      response: documentedSchema(
+        v2UpdateWorkflowVersionContract.response.schema,
+        'UpdateWorkflowVersionResponse',
+        'Update workflow version response',
+        'The deployment version metadata after the update.',
+        [
+          {
+            data: {
+              version: WORKFLOW_VERSION_EXAMPLE.version,
+              name: WORKFLOW_VERSION_EXAMPLE.name,
+              description: WORKFLOW_VERSION_EXAMPLE.description,
+            },
+          },
+        ]
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2ActivateWorkflowVersionContract,
+    workflowOperation({
+      operationId: 'activateWorkflowVersion',
+      summary: 'Activate Workflow Version',
+      description: `Promote an existing deployment version to live. Activation is asynchronous; inspect \`isDeployed\` and \`latestDeploymentAttempt\` for current state. Unlike \`rollback\`, the target is named by the path and the workflow need not already be deployed. ${WORKSPACE_API_KEY_DENIED}`,
+      errors: [...RESOURCE_ERRORS, 'Conflict', 'PayloadTooLarge', 'Locked'],
+      success: jsonSuccess('The accepted activation attempt.'),
+    }),
+    {
+      query: v2ActivateWorkflowVersionContract.query,
+      params: v2ActivateWorkflowVersionContract.params,
+      body: v2ActivateWorkflowVersionContract.body,
+      response: documentedSchema(
+        v2ActivateWorkflowVersionContract.response.schema,
+        'ActivateWorkflowVersionResponse',
+        'Activate workflow version response',
+        'Current deployment state after accepting the activation attempt.',
+        [
+          {
+            data: {
+              id: WORKFLOW_ID,
+              isDeployed: false,
+              deployedAt: null,
+              warnings: [],
+              activeDeployment: null,
+              latestDeploymentAttempt: {
+                id: 'depop_01J8ZK4RX5N7Y3S0U8D6E1W2',
+                deploymentVersionId: 'depver_01J8ZK4RX5N7Y3S0U8D6E1W3',
+                version: 3,
+                action: 'activate',
+                status: 'activating',
+                isCurrent: true,
+                readiness: { webhooks: 'ready', schedules: 'ready', mcp: 'not_applicable' },
+                requestedAt: '2026-06-12T10:30:00.000Z',
+                activatedAt: null,
+                error: null,
+              },
+              version: 3,
+            },
+          },
+        ]
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2RevertWorkflowVersionContract,
+    workflowOperation({
+      operationId: 'revertWorkflowVersion',
+      summary: 'Revert Workflow To Version',
+      description: `Overwrite the editable draft with the graph pinned by a deployment version, discarding every unsaved edit. This is the most destructive operation in the deployment family and it does **not** change what is live — to move production, use \`activate\` or \`rollback\`, both of which leave the draft alone. Pass \`active\` as the version to discard draft edits and return to the live graph. ${WORKSPACE_API_KEY_DENIED}`,
+      errors: [...RESOURCE_ERRORS, 'Conflict', 'PayloadTooLarge', 'Locked'],
+      success: jsonSuccess('The draft after it was overwritten.'),
+    }),
+    {
+      query: v2RevertWorkflowVersionContract.query,
+      params: v2RevertWorkflowVersionContract.params,
+      body: v2RevertWorkflowVersionContract.body,
+      response: documentedSchema(
+        v2RevertWorkflowVersionContract.response.schema,
+        'RevertWorkflowVersionResponse',
+        'Revert workflow version response',
+        'The draft after it was overwritten by the deployment version.',
+        [{ data: { id: WORKFLOW_ID, version: 3, lastSaved: 1765535400000 } }]
+      ),
+    }
+  ),
+  defineOpenApiRoute(
     v2GetWorkflowDeploymentContract,
     workflowOperation({
       operationId: 'getWorkflowDeployment',
@@ -580,6 +709,28 @@ const declaredRoutes = [
             },
           },
         ]
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2UpdateWorkflowPublicApiContract,
+    workflowOperation({
+      operationId: 'updateWorkflowPublicApi',
+      summary: 'Update Workflow Public API Access',
+      description: `Enable or disable unauthenticated public execution of the deployed workflow. While enabled, anyone holding the execution URL can run the workflow without an API key. An organization that forbids public sharing refuses this with \`403\` and \`PUBLIC_SHARING_NOT_ALLOWED\`. ${WORKSPACE_API_KEY_DENIED}`,
+      errors: [...RESOURCE_ERRORS, 'PayloadTooLarge', 'Locked'],
+      success: jsonSuccess('The updated public API setting.'),
+    }),
+    {
+      query: v2UpdateWorkflowPublicApiContract.query,
+      params: v2UpdateWorkflowPublicApiContract.params,
+      body: v2UpdateWorkflowPublicApiContract.body,
+      response: documentedSchema(
+        v2UpdateWorkflowPublicApiContract.response.schema,
+        'UpdateWorkflowPublicApiResponse',
+        'Update workflow public API response',
+        'Public API access after the update.',
+        [{ data: { id: WORKFLOW_ID, isPublicApi: true } }]
       ),
     }
   ),
@@ -771,6 +922,113 @@ const declaredRoutes = [
             },
           },
         ]
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2ListChatDeploymentsContract,
+    workflowOperation({
+      operationId: 'listChatDeployments',
+      summary: 'List Chat Deployments',
+      description:
+        'List the workflows a workspace has published as hosted chats. Each entry carries the public `url` a visitor uses — there is no chat subdomain, the identifier is a path segment. A stored password is never returned; `hasPassword` is all a read exposes.',
+      errors: RESOURCE_ERRORS,
+      success: jsonSuccess('A page of chat deployments.'),
+    }),
+    {
+      query: v2ListChatDeploymentsContract.query,
+      response: documentedSchema(
+        v2ListChatDeploymentsContract.response.schema,
+        'ChatDeploymentListResponse',
+        'Chat deployment list response',
+        'A cursor-paginated page of chat deployments.',
+        [{ data: [CHAT_DEPLOYMENT_EXAMPLE], nextCursor: null }]
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2CreateChatDeploymentContract,
+    workflowOperation({
+      operationId: 'createChatDeployment',
+      summary: 'Create Chat Deployment',
+      description: `Publish a workflow as a hosted chat. This also deploys the workflow, because a chat serves the live version: a draft that has drifted is republished as part of the call, and a call landing while another deployment attempt is still preparing is a \`409\` rather than a second admitted version. A workflow carries at most one live chat deployment, so calling this for a workflow that already has one updates it in place. \`authType: "public"\` leaves the chat open to anyone holding the URL. ${WORKSPACE_API_KEY_DENIED}`,
+      errors: [...RESOURCE_ERRORS, 'Conflict', 'PayloadTooLarge', 'Locked'],
+      success: jsonSuccess('The published chat deployment.'),
+    }),
+    {
+      query: v2CreateChatDeploymentContract.query,
+      body: v2CreateChatDeploymentContract.body,
+      response: documentedSchema(
+        v2CreateChatDeploymentContract.response.schema,
+        'CreateChatDeploymentResponse',
+        'Create chat deployment response',
+        'The published chat deployment.',
+        [{ data: CHAT_DEPLOYMENT_EXAMPLE }]
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2GetChatDeploymentContract,
+    workflowOperation({
+      operationId: 'getChatDeployment',
+      summary: 'Get Chat Deployment',
+      description:
+        'Read one chat deployment. The stored password is never returned — `hasPassword` reports only whether one is set.',
+      errors: RESOURCE_ERRORS,
+      success: jsonSuccess('The chat deployment.'),
+    }),
+    {
+      query: v2GetChatDeploymentContract.query,
+      params: v2GetChatDeploymentContract.params,
+      response: documentedSchema(
+        v2GetChatDeploymentContract.response.schema,
+        'GetChatDeploymentResponse',
+        'Get chat deployment response',
+        'The requested chat deployment.',
+        [{ data: CHAT_DEPLOYMENT_EXAMPLE }]
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2UpdateChatDeploymentContract,
+    workflowOperation({
+      operationId: 'updateChatDeployment',
+      summary: 'Update Chat Deployment',
+      description: `Update a chat deployment. Merge-patch shaped: an omitted key is unchanged, and \`customizations\`, \`allowedEmails\`, and \`outputConfigs\` are replaced wholesale rather than merged. Changing \`authType\` clears the gate the previous mode owned — a stored password does not survive a move to \`email\` or \`sso\`, and the allow-list does not survive a move to \`password\` or \`public\` — and a \`password\` sent alongside a non-password mode is ignored rather than stored. Like create, this republishes the workflow when its draft has drifted and answers \`409\` while a deployment attempt is in flight. A deployment cannot be re-pointed at a different workflow. ${WORKSPACE_API_KEY_DENIED}`,
+      errors: [...RESOURCE_ERRORS, 'Conflict', 'PayloadTooLarge', 'Locked'],
+      success: jsonSuccess('The updated chat deployment.'),
+    }),
+    {
+      query: v2UpdateChatDeploymentContract.query,
+      params: v2UpdateChatDeploymentContract.params,
+      body: v2UpdateChatDeploymentContract.body,
+      response: documentedSchema(
+        v2UpdateChatDeploymentContract.response.schema,
+        'UpdateChatDeploymentResponse',
+        'Update chat deployment response',
+        'The chat deployment after the update.',
+        [{ data: { ...CHAT_DEPLOYMENT_EXAMPLE, title: 'Billing support' } }]
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2DeleteChatDeploymentContract,
+    workflowOperation({
+      operationId: 'deleteChatDeployment',
+      summary: 'Delete Chat Deployment',
+      description: `Stop serving a chat deployment. Its URL stops answering and the identifier becomes free again. The workflow's own deployment is untouched and stays executable through the workflow API. ${WORKSPACE_API_KEY_DENIED}`,
+      errors: RESOURCE_ERRORS,
+      success: jsonSuccess('The chat deployment was removed.'),
+    }),
+    {
+      query: v2DeleteChatDeploymentContract.query,
+      params: v2DeleteChatDeploymentContract.params,
+      response: documentedSchema(
+        v2DeleteChatDeploymentContract.response.schema,
+        'DeleteChatDeploymentResponse',
+        'Delete chat deployment response',
+        'Acknowledgement that the chat deployment was removed.',
+        [{ data: { id: CHAT_DEPLOYMENT_EXAMPLE.id, deleted: true } }]
       ),
     }
   ),

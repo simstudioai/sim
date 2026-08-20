@@ -130,6 +130,22 @@ Also available as `sim files folders mv`.
 
 </CommandTable>
 
+## Restore an archived file folder
+
+```bash
+sim files folders restore <path>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `path` | Yes | Folder path as shown in the app; the leading / is optional |
+
+</CommandTable>
+
 ## Delete file
 
 ```bash
@@ -300,10 +316,10 @@ Also available as `sim files mv`.
 
 </CommandTable>
 
-## Permanently delete file
+## Permanently delete a file and its stored bytes
 
 ```bash
-sim files permanent delete <fileId>
+sim files purge <fileId> [options]
 ```
 
 **Arguments**
@@ -313,6 +329,16 @@ sim files permanent delete <fileId>
 | Argument | Required | Description |
 | --- | --- | --- |
 | `fileId` | Yes | File identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `-y, --yes` | Yes | Confirm this destructive operation. |
 
 </CommandTable>
 
@@ -368,19 +394,19 @@ sim files rename <fileId> [options]
 
 </CommandTable>
 
-## Restore folder
+## Restore an archived file
 
 ```bash
-sim files restore create [options]
+sim files restore <fileId>
 ```
 
-**Options**
+**Arguments**
 
 <CommandTable>
 
-| Option | Required | Description |
+| Argument | Required | Description |
 | --- | --- | --- |
-| `--path <value>` | Yes | Path of the archived folder to restore, as reported by `GET /api/v2/files/folders?scope=archived`. |
+| `fileId` | Yes | File identifier. |
 
 </CommandTable>
 

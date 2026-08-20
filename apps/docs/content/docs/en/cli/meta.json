@@ -14,6 +14,7 @@
     "audit-logs",
     "billing",
     "blocks",
+    "chat-deployments",
     "connector-types",
     "credentials",
     "custom-tools",
@@ -27,6 +28,7 @@
     "skills",
     "tables",
     "tools",
+    "workflow-mcp-servers",
     "workflows",
     "workspaces",
     "reference"

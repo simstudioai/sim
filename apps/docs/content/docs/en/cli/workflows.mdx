@@ -9,6 +9,23 @@ import { CommandTable } from '@/components/ui/command-table'
 
 Every command below also accepts the [global options](/cli/commands#global-options).
 
+## Activate workflow version
+
+```bash
+sim workflows activate create <id> <version>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `id` | Yes | Unique workflow identifier. |
+| `version` | Yes | Numeric deployment version. |
+
+</CommandTable>
+
 ## Apply workflow operations
 
 ```bash
@@ -467,6 +484,32 @@ sim workflows deployment status <id>
 
 </CommandTable>
 
+## Update workflow public API access
+
+```bash
+sim workflows deployment update <id> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `id` | Yes | Unique workflow identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--is-public-api <true\|false>` | Yes | Whether the deployed workflow should accept unauthenticated public API execution. Accepted values: `true`, `false`. |
+
+</CommandTable>
+
 ## Get workflow state
 
 ```bash
@@ -556,6 +599,34 @@ sim workflows versions list <id> [options]
 
 </CommandTable>
 
+## Update workflow version
+
+```bash
+sim workflows versions update <id> <version> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `id` | Yes | Unique workflow identifier. |
+| `version` | Yes | Numeric deployment version. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--name <value>` | No | New label for the deployment version. |
+| `--description <value>` | No | New release note for the deployment version, or null to clear it. |
+
+</CommandTable>
+
 ## Import workflow
 
 ```bash
@@ -628,6 +699,23 @@ sim workflows restore create <id>
 | Argument | Required | Description |
 | --- | --- | --- |
 | `id` | Yes | Unique workflow identifier. |
+
+</CommandTable>
+
+## Revert workflow to version
+
+```bash
+sim workflows revert create <id> <version>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `id` | Yes | Unique workflow identifier. |
+| `version` | Yes | Numeric deployment version, or `active` for the currently live version. |
 
 </CommandTable>
 

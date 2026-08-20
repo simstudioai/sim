@@ -59,6 +59,14 @@ import {
   v2UpdateSkillContract,
 } from '@/lib/api/contracts/v2/skills'
 import {
+  v2CreateWorkflowMcpServerContract,
+  v2DeleteWorkflowMcpServerContract,
+  v2DeployWorkflowMcpToolContract,
+  v2ListWorkflowMcpServersContract,
+  v2UndeployWorkflowMcpToolContract,
+  v2UpdateWorkflowMcpServerContract,
+} from '@/lib/api/contracts/v2/workflow-mcp-servers'
+import {
   v2GetWorkspaceContract,
   v2ListWorkspaceMembersContract,
 } from '@/lib/api/contracts/v2/workspaces'
@@ -288,6 +296,35 @@ function resourceOperation(
     success,
   }
 }
+
+const WORKFLOW_MCP_SERVER_EXAMPLE = {
+  id: 'wfmcp_01J8ZK3QW4M6X2R9T7B5C0V2',
+  name: 'Support agents',
+  description: 'Ticket triage and escalation workflows.',
+  isPublic: false,
+  mcpServerUrl: 'https://www.sim.ai/api/mcp/serve/wfmcp_01J8ZK3QW4M6X2R9T7B5C0V2',
+  createdAt: '2026-06-12T10:30:00.000Z',
+  updatedAt: '2026-06-12T10:30:00.000Z',
+} as const
+
+const WORKFLOW_MCP_SERVER_LIST_EXAMPLE = {
+  ...WORKFLOW_MCP_SERVER_EXAMPLE,
+  toolCount: 1,
+  toolNames: ['triage_ticket'],
+} as const
+
+const WORKFLOW_MCP_TOOL_EXAMPLE = {
+  id: 'wfmcptool_01J8ZK3QW4M6X2R9T7B5C0V3',
+  serverId: WORKFLOW_MCP_SERVER_EXAMPLE.id,
+  workflowId: '3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36',
+  toolName: 'triage_ticket',
+  toolDescription: 'Execute Ticket triage workflow',
+  mcpServerUrl: WORKFLOW_MCP_SERVER_EXAMPLE.mcpServerUrl,
+  apiEndpoint: 'https://www.sim.ai/api/v2/workflows/3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36/execute',
+  updated: false,
+  createdAt: '2026-06-12T10:30:00.000Z',
+  updatedAt: '2026-06-12T10:30:00.000Z',
+} as const
 
 const BLOCK_SUMMARY_EXAMPLE = {
   id: 'slack',
@@ -710,6 +747,142 @@ const declaredRoutes = [
         'List MCP server tools response',
         'Tools exposed by the MCP server.',
         [{ data: [MCP_TOOL_EXAMPLE], nextCursor: null }]
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2ListWorkflowMcpServersContract,
+    resourceOperation('MCP Servers', {
+      operationId: 'listWorkflowMcpServers',
+      summary: 'List Workflow MCP Servers',
+      description: `List the MCP servers a workspace *publishes*. These serve deployed workflows as tools to outside MCP clients, which is the opposite direction from \`GET /api/v2/mcp-servers\` — that lists external servers Sim calls. Each entry carries the endpoint clients connect to and the tool names it exposes. ${WORKSPACE_API_KEY_DENIED}`,
+      errors: RESOURCE_ERRORS,
+      success: { description: 'A page of published MCP servers.' },
+    }),
+    {
+      query: v2ListWorkflowMcpServersContract.query,
+      response: documentedSchema(
+        v2ListWorkflowMcpServersContract.response.schema,
+        'ListWorkflowMcpServersResponse',
+        'List workflow MCP servers response',
+        'A cursor-paginated page of published MCP servers.',
+        [{ data: [WORKFLOW_MCP_SERVER_LIST_EXAMPLE], nextCursor: null }]
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2CreateWorkflowMcpServerContract,
+    resourceOperation('MCP Servers', {
+      operationId: 'createWorkflowMcpServer',
+      summary: 'Create Workflow MCP Server',
+      description: `Publish a new MCP server for a workspace, optionally seeding it with workflows to expose as tools. Every workflow named in \`workflowIds\` must already be deployed. Setting \`isPublic\` lets any MCP client holding the server URL execute the workflows it publishes without a Sim API key. ${WORKSPACE_API_KEY_DENIED}`,
+      errors: RESOURCE_CONFLICT_ERRORS,
+      success: { description: 'The published MCP server.' },
+    }),
+    {
+      query: v2CreateWorkflowMcpServerContract.query,
+      body: v2CreateWorkflowMcpServerContract.body,
+      response: documentedSchema(
+        v2CreateWorkflowMcpServerContract.response.schema,
+        'CreateWorkflowMcpServerResponse',
+        'Create workflow MCP server response',
+        'The published MCP server.',
+        [{ data: WORKFLOW_MCP_SERVER_EXAMPLE }]
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2UpdateWorkflowMcpServerContract,
+    resourceOperation('MCP Servers', {
+      operationId: 'updateWorkflowMcpServer',
+      summary: 'Update Workflow MCP Server',
+      description: `Rename, re-describe, or change the public visibility of a published MCP server. Merge-patch shaped: an omitted key is unchanged and \`description: null\` clears the description. Publishing and unpublishing the workflows it serves are separate operations on its \`tools\` sub-resource. ${WORKSPACE_API_KEY_DENIED}`,
+      errors: RESOURCE_CONFLICT_ERRORS,
+      success: { description: 'The updated MCP server.' },
+    }),
+    {
+      query: v2UpdateWorkflowMcpServerContract.query,
+      params: v2UpdateWorkflowMcpServerContract.params,
+      body: v2UpdateWorkflowMcpServerContract.body,
+      response: documentedSchema(
+        v2UpdateWorkflowMcpServerContract.response.schema,
+        'UpdateWorkflowMcpServerResponse',
+        'Update workflow MCP server response',
+        'The updated MCP server.',
+        [{ data: { ...WORKFLOW_MCP_SERVER_EXAMPLE, isPublic: true } }]
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2DeleteWorkflowMcpServerContract,
+    resourceOperation('MCP Servers', {
+      operationId: 'deleteWorkflowMcpServer',
+      summary: 'Delete Workflow MCP Server',
+      description: `Unpublish an MCP server. Every tool it served stops answering and connected clients lose the endpoint. The workflows themselves are untouched — their own deployments stay live and executable through the workflow API. ${WORKSPACE_API_KEY_DENIED}`,
+      errors: RESOURCE_ERRORS,
+      success: { description: 'The MCP server was unpublished.' },
+    }),
+    {
+      query: v2DeleteWorkflowMcpServerContract.query,
+      params: v2DeleteWorkflowMcpServerContract.params,
+      response: documentedSchema(
+        v2DeleteWorkflowMcpServerContract.response.schema,
+        'DeleteWorkflowMcpServerResponse',
+        'Delete workflow MCP server response',
+        'Acknowledgement that the MCP server was unpublished.',
+        [{ data: { id: WORKFLOW_MCP_SERVER_EXAMPLE.id, deleted: true } }]
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2DeployWorkflowMcpToolContract,
+    resourceOperation('MCP Servers', {
+      operationId: 'deployWorkflowMcpTool',
+      summary: 'Publish Workflow As MCP Tool',
+      description: `Publish a deployed workflow as a tool on an MCP server. The tool's input schema is generated from the deployed workflow's input format, so the workflow must already be deployed. Idempotent per workflow: a server carries at most one tool per workflow, so a repeat call replaces the existing tool and answers \`200\` with \`updated: true\` rather than conflicting. ${WORKSPACE_API_KEY_DENIED}`,
+      errors: RESOURCE_CONFLICT_ERRORS,
+      success: { description: 'The published tool.' },
+    }),
+    {
+      query: v2DeployWorkflowMcpToolContract.query,
+      params: v2DeployWorkflowMcpToolContract.params,
+      body: v2DeployWorkflowMcpToolContract.body,
+      response: documentedSchema(
+        v2DeployWorkflowMcpToolContract.response.schema,
+        'DeployWorkflowMcpToolResponse',
+        'Publish workflow as MCP tool response',
+        'The published tool.',
+        [{ data: WORKFLOW_MCP_TOOL_EXAMPLE }]
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2UndeployWorkflowMcpToolContract,
+    resourceOperation('MCP Servers', {
+      operationId: 'undeployWorkflowMcpTool',
+      summary: 'Unpublish Workflow MCP Tool',
+      description: `Remove a workflow from an MCP server. Addressed by workflow rather than by tool identifier, because a server carries at most one live tool per workflow. The workflow's own deployment is untouched. ${WORKSPACE_API_KEY_DENIED}`,
+      errors: RESOURCE_ERRORS,
+      success: { description: 'The tool was removed.' },
+    }),
+    {
+      query: v2UndeployWorkflowMcpToolContract.query,
+      params: v2UndeployWorkflowMcpToolContract.params,
+      response: documentedSchema(
+        v2UndeployWorkflowMcpToolContract.response.schema,
+        'UndeployWorkflowMcpToolResponse',
+        'Unpublish workflow MCP tool response',
+        'Acknowledgement that the tool was removed.',
+        [
+          {
+            data: {
+              id: WORKFLOW_MCP_TOOL_EXAMPLE.id,
+              serverId: WORKFLOW_MCP_TOOL_EXAMPLE.serverId,
+              workflowId: WORKFLOW_MCP_TOOL_EXAMPLE.workflowId,
+              deleted: true,
+            },
+          },
+        ]
       ),
     }
   ),
@@ -1527,7 +1700,8 @@ export const resourcesOpenApiDocument = defineOpenApiDocument({
     },
     {
       name: 'MCP Servers',
-      description: 'Register and manage Model Context Protocol servers.',
+      description:
+        'Register and manage the external Model Context Protocol servers Sim calls, and publish workspace workflows as MCP servers other clients call.',
     },
     {
       name: 'Skills',

@@ -48,6 +48,7 @@ const PAGED_LISTS = [
   'GET /api/v2/audit-logs',
   'GET /api/v2/billing/logs',
   'GET /api/v2/blocks',
+  'GET /api/v2/chat-deployments',
   'GET /api/v2/credentials',
   'GET /api/v2/custom-tools',
   'GET /api/v2/files',
@@ -67,6 +68,7 @@ const PAGED_LISTS = [
   'GET /api/v2/workflows',
   'GET /api/v2/workflows/[id]/runs',
   'GET /api/v2/workflows/[id]/versions',
+  'GET /api/v2/workflow-mcp-servers',
   'GET /api/v2/workspaces/[workspaceId]/members',
 ] as const
 
@@ -250,6 +252,8 @@ const CURSOR_BINDINGS: Record<string, readonly string[]> = {
   ],
   'GET /api/v2/workflows/[id]/runs': ['status', 'trigger', 'startDate', 'endDate', 'order'],
   'GET /api/v2/workflows/[id]/versions': [],
+  'GET /api/v2/workflow-mcp-servers': ['workspaceId', 'sortBy', 'sortOrder'],
+  'GET /api/v2/chat-deployments': ['workspaceId', 'workflowId', 'isActive', 'sortBy', 'sortOrder'],
   'GET /api/v2/workspaces/[workspaceId]/members': [],
 }
 

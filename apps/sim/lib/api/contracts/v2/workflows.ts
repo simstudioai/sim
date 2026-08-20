@@ -10,8 +10,10 @@ import {
   deployedWorkflowStateSchema,
   deploymentOperationSummarySchema,
   deploymentVersionNumberSchema,
+  deploymentVersionOrActiveParamsSchema,
   deploymentVersionParamsSchema,
   deploymentVersionSchema,
+  updatePublicApiBodySchema,
 } from '@/lib/api/contracts/deployments'
 import {
   booleanQueryFlagSchema,
@@ -299,6 +301,26 @@ export const v2DeploymentVersionParamsSchema = deploymentVersionParamsSchema
     id: 'WorkflowVersionParams',
     title: 'Workflow version path parameters',
     description: 'Workflow and deployment version selected by the request path.',
+  })
+
+/**
+ * Version path parameters that also accept the literal `active`. Only the
+ * revert operation takes this form: loading "whatever is live" into the draft
+ * is a meaningful request, whereas activating or relabelling the already-active
+ * version is not, so the other two keep the numeric-only schema.
+ */
+export const v2DeploymentVersionOrActiveParamsSchema = deploymentVersionOrActiveParamsSchema
+  .extend({
+    id: deploymentVersionOrActiveParamsSchema.shape.id.describe('Unique workflow identifier.'),
+    version: deploymentVersionOrActiveParamsSchema.shape.version
+      .describe('Numeric deployment version, or `active` for the currently live version.')
+      .meta({ examples: [3, 'active'] }),
+  })
+  .meta({
+    id: 'WorkflowVersionOrActiveParams',
+    title: 'Workflow version path parameters',
+    description:
+      'Workflow and deployment version selected by the request path, where the version may be the literal `active`.',
   })
 
 export const v2DeploymentStateSchema = z
@@ -847,6 +869,200 @@ export const v2RollbackWorkflowContract = defineRouteContract({
   response: {
     mode: 'json',
     schema: v2DataResponse(v2RollbackWorkflowDataSchema),
+  },
+})
+
+/**
+ * Version metadata as this surface publishes it. The label and release note are
+ * the only mutable fields of a deployment version: the pinned graph is
+ * immutable by construction, so a metadata write can never change what the
+ * version executes.
+ */
+export const v2WorkflowVersionMetadataSchema = z
+  .object({
+    version: z
+      .number()
+      .int()
+      .positive()
+      .describe('Monotonically increasing deployment version number.'),
+    name: z.string().nullable().describe('Version label, or null when unset.'),
+    description: z.string().nullable().describe('Version release note, or null when unset.'),
+  })
+  .meta({
+    id: 'WorkflowVersionMetadata',
+    title: 'Workflow version metadata',
+    description: 'Mutable label and release note of a deployment version.',
+  })
+export type V2WorkflowVersionMetadata = z.output<typeof v2WorkflowVersionMetadataSchema>
+
+/**
+ * Merge-patch shaped: an omitted key is unchanged, and `description: null`
+ * clears the release note. `name` has no null form because a version label is
+ * either set or absent and the column already stores absence as null — clearing
+ * it is expressible, but only by the internal editor, which owns the empty
+ * state. At least one key is required, because a body carrying neither is a
+ * caller mistake that would otherwise answer `200` having changed nothing.
+ */
+export const v2UpdateWorkflowVersionBodySchema = z
+  .object({
+    name: z
+      .string()
+      .trim()
+      .min(1, 'name cannot be empty')
+      .max(100, 'name must be 100 characters or less')
+      .optional()
+      .describe('New label for the deployment version.'),
+    description: z
+      .string()
+      .trim()
+      .max(50_000, 'description must be 50000 characters or less')
+      .nullable()
+      .optional()
+      .describe('New release note for the deployment version, or null to clear it.'),
+  })
+  .strict()
+  .superRefine((body, ctx) => {
+    if (body.name === undefined && body.description === undefined) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['name'],
+        message: 'At least one of name or description must be provided',
+      })
+    }
+  })
+  .meta({
+    id: 'UpdateWorkflowVersionRequest',
+    title: 'Update workflow version request',
+    description: 'Merge-patch body for the mutable metadata of a deployment version.',
+    examples: [{ name: 'Escalation routing', description: 'Adds the priority escalation branch.' }],
+  })
+export type V2UpdateWorkflowVersionBody = z.input<typeof v2UpdateWorkflowVersionBodySchema>
+
+export const v2UpdateWorkflowVersionContract = defineRouteContract({
+  method: 'PATCH',
+  path: '/api/v2/workflows/[id]/versions/[version]',
+  query: noInputSchema,
+  params: v2DeploymentVersionParamsSchema,
+  body: v2UpdateWorkflowVersionBodySchema,
+  response: {
+    mode: 'json',
+    schema: v2DataResponse(v2WorkflowVersionMetadataSchema),
+  },
+})
+
+/**
+ * Activation names its target in the path, so the body carries nothing. It is
+ * still declared — and still `.strict()` — so that a caller who sends the
+ * rollback body by mistake is told, rather than silently activating the version
+ * the path named.
+ */
+export const v2ActivateWorkflowVersionContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/v2/workflows/[id]/versions/[version]/activate',
+  query: noInputSchema,
+  params: v2DeploymentVersionParamsSchema,
+  body: noInputSchema
+    .optional()
+    .default({})
+    .meta({
+      id: 'ActivateWorkflowVersionRequest',
+      title: 'Activate workflow version request',
+      description: 'No body. The version to promote is named by the request path.',
+      examples: [{}],
+    }),
+  response: {
+    mode: 'json',
+    schema: v2DataResponse(v2RollbackWorkflowDataSchema),
+  },
+})
+
+/**
+ * Revert result. `lastSaved` is the draft's new save timestamp, which is what a
+ * collaborative editor reconciles against — the caller needs it to know its own
+ * cached draft is stale.
+ */
+export const v2RevertWorkflowVersionDataSchema = z
+  .object({
+    id: z.string().describe('Unique workflow identifier.'),
+    version: z
+      .union([z.number().int().positive(), z.literal('active')])
+      .describe('Deployment version loaded into the draft, or `active` for the live version.'),
+    lastSaved: z
+      .number()
+      .int()
+      .nonnegative()
+      .describe('Epoch milliseconds at which the overwritten draft was saved.'),
+  })
+  .meta({
+    id: 'RevertWorkflowVersionResult',
+    title: 'Revert workflow version result',
+    description: 'The draft after it was overwritten by a deployment version.',
+  })
+export type V2RevertWorkflowVersionData = z.output<typeof v2RevertWorkflowVersionDataSchema>
+
+/**
+ * `version` accepts the literal `active` in addition to a version number, so a
+ * caller can discard draft edits and return to what is live without first
+ * reading which version that is.
+ */
+export const v2RevertWorkflowVersionContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/v2/workflows/[id]/versions/[version]/revert',
+  query: noInputSchema,
+  params: v2DeploymentVersionOrActiveParamsSchema,
+  body: noInputSchema
+    .optional()
+    .default({})
+    .meta({
+      id: 'RevertWorkflowVersionRequest',
+      title: 'Revert workflow version request',
+      description: 'No body. The version to load into the draft is named by the request path.',
+      examples: [{}],
+    }),
+  response: {
+    mode: 'json',
+    schema: v2DataResponse(v2RevertWorkflowVersionDataSchema),
+  },
+})
+
+export const v2WorkflowPublicApiSchema = z
+  .object({
+    id: z.string().describe('Unique workflow identifier.'),
+    isPublicApi: z
+      .boolean()
+      .describe('Whether the deployed workflow accepts unauthenticated public API execution.'),
+  })
+  .meta({
+    id: 'WorkflowPublicApiSettings',
+    title: 'Workflow public API settings',
+    description: 'Whether a deployed workflow is executable without an API key.',
+  })
+export type V2WorkflowPublicApiSettings = z.output<typeof v2WorkflowPublicApiSchema>
+
+export const v2UpdateWorkflowPublicApiBodySchema = updatePublicApiBodySchema
+  .extend({
+    isPublicApi: updatePublicApiBodySchema.shape.isPublicApi.describe(
+      'Whether the deployed workflow should accept unauthenticated public API execution.'
+    ),
+  })
+  .strict()
+  .meta({
+    id: 'UpdateWorkflowPublicApiRequest',
+    title: 'Update workflow public API request',
+    description: 'Enable or disable unauthenticated public execution of the deployed workflow.',
+    examples: [{ isPublicApi: true }],
+  })
+export type V2UpdateWorkflowPublicApiBody = z.input<typeof v2UpdateWorkflowPublicApiBodySchema>
+
+export const v2UpdateWorkflowPublicApiContract = defineRouteContract({
+  method: 'PATCH',
+  path: '/api/v2/workflows/[id]/deployment',
+  query: noInputSchema,
+  params: v2WorkflowIdParamsSchema,
+  body: v2UpdateWorkflowPublicApiBodySchema,
+  response: {
+    mode: 'json',
+    schema: v2DataResponse(v2WorkflowPublicApiSchema),
   },
 })
 

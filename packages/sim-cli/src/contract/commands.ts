@@ -294,6 +294,19 @@ export const CLI_CONTRACT: CliContract = {
   getLogStats: {
     flags: LOG_LIST_FILTER_FLAGS,
   },
+  // Publishing a workflow for an outside agent to call, and withdrawing it.
+  createWorkflowMcpServer: {
+    flags: { workflowIds: { name: 'workflow', list: true } },
+  },
+  deleteWorkflowMcpServer: {
+    confirm: 'This deletes the MCP server, and any agent calling its tools loses access.',
+  },
+  undeployWorkflowMcpTool: {
+    confirm: 'This withdraws the tool, and any agent calling it loses access.',
+  },
+  deleteChatDeployment: {
+    confirm: 'This takes the chat deployment offline and its URL stops answering.',
+  },
   queryLogs: {
     flags: LOG_LIST_FILTER_FLAGS,
   },
@@ -686,6 +699,28 @@ export const CLI_CONTRACT: CliContract = {
     command: 'files restore',
     renamedFrom: ['files restore create'],
     describe: 'Restore an archived file',
+  },
+  // Left to derive, the folder restore lands under `files restore` and turns
+  // that leaf back into a group holding a lone `create` — the exact shape the
+  // rename above exists to remove. It belongs beside the other folder verbs.
+  restoreFileFolder: {
+    command: 'files folders restore',
+    positionals: ['path'],
+    flags: { path: FOLDER_PATH_INPUT },
+    describe: 'Restore an archived file folder',
+  },
+  permanentlyDeleteFile: {
+    command: 'files purge',
+    describe: 'Permanently delete a file and its stored bytes',
+    confirm: 'This deletes the file and its stored bytes for good. It cannot be undone.',
+  },
+  bulkDownloadFiles: {
+    command: 'files bulk-download',
+    describe: 'Download files and folders as a zip archive',
+    flags: {
+      fileIds: { list: true },
+      folderPaths: FOLDER_PATHS_FLAG,
+    },
   },
   updateFileContent: {
     command: 'files set-content',

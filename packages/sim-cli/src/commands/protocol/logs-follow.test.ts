@@ -38,6 +38,7 @@ let stderr: string[]
 
 function row(runId: string, startedAt: string): LogRow {
   return {
+    kind: 'workflow',
     runId,
     workflowId: 'wf_1',
     deploymentVersionId: null,
