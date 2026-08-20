@@ -71,6 +71,11 @@ import {
 } from '@/lib/uploads/core/storage-service'
 import { MAX_WORKSPACE_FILE_SIZE, toLegacyWorkspaceFileSize } from '@/lib/uploads/shared/types'
 import { isMarkdownFile } from '@/lib/uploads/utils/file-utils'
+import { SIM_PAGE_CONTENT_TYPE } from '@/lib/workspace-files/page-compile'
+import {
+  MAX_SIM_PAGE_UPLOAD_SNIFF_BYTES,
+  restoreSimPageSourceBuffer,
+} from '@/lib/workspace-files/page-source-embed'
 import { getWorkspaceWithOwner } from '@/lib/workspaces/permissions/utils'
 import { isUuid } from '@/executor/constants'
 import type { UserFile } from '@/executor/types'
@@ -420,6 +425,10 @@ export async function uploadWorkspaceFile(
     folderPath = folderTarget?.path ?? null
   }
   const normalizedFileName = normalizeWorkspaceFileItemName(fileName, 'File')
+  const pageRestore = restoreSimPageSourceBuffer(normalizedFileName, fileBuffer)
+  const effectiveBuffer = pageRestore?.buffer ?? fileBuffer
+  const effectiveName = pageRestore?.name ?? normalizedFileName
+  const effectiveContentType = pageRestore ? SIM_PAGE_CONTENT_TYPE : contentType
   const exactName = options?.exactName ?? false
   const storageBillingContext = await resolveStorageBillingContext(workspaceId)
 
@@ -427,8 +436,8 @@ export async function uploadWorkspaceFile(
   const maxAttempts = exactName ? 1 : MAX_UPLOAD_UNIQUE_RETRIES
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     const uniqueName = exactName
-      ? normalizedFileName
-      : await allocateUniqueWorkspaceFileName(workspaceId, normalizedFileName, folderId)
+      ? effectiveName
+      : await allocateUniqueWorkspaceFileName(workspaceId, effectiveName, folderId)
     if (exactName && (await fileExistsInWorkspace(workspaceId, uniqueName, folderId))) {
       throw new FileConflictError(uniqueName)
     }
@@ -448,9 +457,9 @@ export async function uploadWorkspaceFile(
       }
 
       const uploadResult = await uploadFile({
-        file: fileBuffer,
+        file: effectiveBuffer,
         fileName: storageKey,
-        contentType,
+        contentType: effectiveContentType,
         context: 'workspace',
         preserveKey: true,
         customKey: storageKey,
@@ -485,8 +494,8 @@ export async function uploadWorkspaceFile(
             workspaceId,
             folderId: activeFolderId,
             originalName: uniqueName,
-            contentType,
-            size: fileBuffer.length,
+            contentType: effectiveContentType,
+            size: effectiveBuffer.length,
           })
           if (!inserted) {
             throw new FileConflictError(uniqueName)
@@ -502,7 +511,7 @@ export async function uploadWorkspaceFile(
           const usage = await incrementStorageUsageForBillingContextInTx(
             tx,
             storageBillingContext,
-            fileBuffer.length
+            effectiveBuffer.length
           )
           return { inserted, updatedUsage: usage }
         })
@@ -535,7 +544,7 @@ export async function uploadWorkspaceFile(
       }
       if (getPostgresErrorCode(error) === '23505') {
         if (exactName) {
-          throw new FileConflictError(normalizedFileName)
+          throw new FileConflictError(effectiveName)
         }
         logger.warn(
           `Unique name conflict on upload (attempt ${attempt + 1}/${MAX_UPLOAD_UNIQUE_RETRIES}), retrying with a new name`
@@ -577,6 +586,45 @@ export interface RegisterUploadedWorkspaceFileResult {
   created: boolean
 }
 
+/**
+ * The storage-side page restore for presigned/multipart uploads, whose bytes
+ * are already in storage at registration time. When the object needs its
+ * compiled bytes swapped for the embedded source it is rewritten in place at
+ * the same key. Idempotent across finalize replays: after the first pass the
+ * stored object IS raw source, which resolves to the same registration
+ * without another rewrite.
+ */
+async function restoreUploadedSimPageSource(params: {
+  key: string
+  name: string
+  size: number
+}): Promise<{ contentType: string; name: string; size: number } | null> {
+  const { key, name, size } = params
+  if (!name.toLowerCase().endsWith('.html')) return null
+  if (size === 0 || size > MAX_SIM_PAGE_UPLOAD_SNIFF_BYTES) return null
+  let uploaded: Buffer
+  try {
+    uploaded = await downloadFile({ key, context: 'workspace' })
+  } catch (error) {
+    logger.warn(`Page-source sniff skipped for ${key}: ${getErrorMessage(error)}`)
+    return null
+  }
+  const restored = restoreSimPageSourceBuffer(name, uploaded)
+  if (restored === null) return null
+  if (restored.buffer !== uploaded) {
+    await uploadFile({
+      file: restored.buffer,
+      fileName: key,
+      contentType: SIM_PAGE_CONTENT_TYPE,
+      context: 'workspace',
+      preserveKey: true,
+      customKey: key,
+      persistMetadata: false,
+    })
+  }
+  return { contentType: SIM_PAGE_CONTENT_TYPE, name: restored.name, size: restored.buffer.length }
+}
+
 export async function registerUploadedWorkspaceFile(params: {
   workspaceId: string
   userId: string
@@ -604,12 +652,21 @@ export async function registerUploadedWorkspaceFile(params: {
     throw new Error(`File size exceeds maximum of ${MAX_WORKSPACE_FILE_SIZE} bytes`)
   }
 
+  const pageRestore = await restoreUploadedSimPageSource({
+    key,
+    name: normalizedOriginalName,
+    size: verifiedSize,
+  })
+  const effectiveContentType = pageRestore?.contentType ?? contentType
+  const effectiveName = pageRestore?.name ?? normalizedOriginalName
+  const effectiveSize = pageRestore?.size ?? verifiedSize
+
   const registrationIdentity = {
     workspaceId,
     userId,
     key,
-    contentType,
-    size: verifiedSize,
+    contentType: effectiveContentType,
+    size: effectiveSize,
   }
   const existing = await db.transaction(async (tx) => {
     const found = await findWorkspaceFileByRegistrationKey(tx, key)
@@ -651,11 +708,7 @@ export async function registerUploadedWorkspaceFile(params: {
   const storageBillingContext = await resolveStorageBillingContext(workspaceId)
   for (let attempt = 0; attempt < MAX_UPLOAD_UNIQUE_RETRIES; attempt++) {
     const fileId = `wf_${generateShortId()}`
-    const displayName = await allocateUniqueWorkspaceFileName(
-      workspaceId,
-      normalizedOriginalName,
-      folderId
-    )
+    const displayName = await allocateUniqueWorkspaceFileName(workspaceId, effectiveName, folderId)
 
     const finalized = await db.transaction(async (tx) => {
       await acquireFolderMutationLock(tx, workspaceId, 'file')
@@ -667,8 +720,8 @@ export async function registerUploadedWorkspaceFile(params: {
         workspaceId,
         folderId: activeFolderId,
         originalName: displayName,
-        contentType,
-        size: verifiedSize,
+        contentType: effectiveContentType,
+        size: effectiveSize,
       })
       if (!inserted) {
         const raceWinner = await findWorkspaceFileByRegistrationKey(tx, key)
@@ -697,7 +750,7 @@ export async function registerUploadedWorkspaceFile(params: {
       const updatedUsage = await incrementStorageUsageForBillingContextInTx(
         tx,
         storageBillingContext,
-        verifiedSize
+        effectiveSize
       )
       await replaceWorkspaceFileSecretProvenanceInTx(
         tx,
