@@ -1,3 +1,8 @@
+import {
+  parsePrincipal,
+  type SerializedPrincipalV1,
+  type WorkflowExecutionPrincipal,
+} from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { account, webhook } from '@sim/db/schema'
 import { createLogger, runWithRequestContext } from '@sim/logger'
@@ -44,6 +49,7 @@ import {
   resolveWebhookRecordProviderConfig,
   type WebhookEnvResolutionOptions,
 } from '@/lib/webhooks/env-resolver'
+import { assertWebhookExecutionPrincipal } from '@/lib/webhooks/execution-principal'
 import { getProviderHandler } from '@/lib/webhooks/providers'
 import {
   executeWorkflowCore,
@@ -265,6 +271,7 @@ async function processTriggerFileOutputs(
 export type WebhookExecutionPayload = {
   webhookId: string
   workflowId: string
+  principal: SerializedPrincipalV1
   userId: string
   billingAttribution: BillingAttributionSnapshot
   executionId?: string
@@ -299,7 +306,10 @@ export async function executeWebhookJob(
   const executionId = correlation.executionId
   const requestId = correlation.requestId
   let payloadBillingAttribution: BillingAttributionSnapshot
+  let principal: WorkflowExecutionPrincipal
   try {
+    principal = parsePrincipal(payload.principal)
+    assertWebhookExecutionPrincipal(principal, payload)
     payloadBillingAttribution = assertBillingAttributionSnapshot(payload.billingAttribution)
     if (
       payloadBillingAttribution.actorUserId !== payload.userId ||
@@ -356,6 +366,7 @@ export async function executeWebhookJob(
         operationStarted = true
         return await executeWebhookJobInternal(
           payload,
+          principal,
           correlation,
           timeoutController,
           admissionCompleted
@@ -480,6 +491,7 @@ async function handleExecutionResult(
 
 async function executeWebhookJobInternal(
   payload: WebhookExecutionPayload,
+  principal: WorkflowExecutionPrincipal,
   correlation: AsyncExecutionCorrelation,
   timeoutController: ReturnType<typeof createTimeoutAbortController>,
   admissionCompleted: boolean
@@ -755,6 +767,7 @@ async function executeWebhookJobInternal(
       workflowId: payload.workflowId,
       workspaceId,
       userId: actorUserId!,
+      principal,
       billingAttribution,
       sessionUserId: undefined,
       workflowUserId: workflowRecord.userId,

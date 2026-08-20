@@ -4,6 +4,7 @@ import {
   credential,
   credentialGroup,
   credentialGroupEnrollment,
+  user,
 } from '@sim/db/schema'
 import { and, asc, eq, gt, inArray, or } from 'drizzle-orm'
 
@@ -26,6 +27,11 @@ export interface CredentialGroupCredentialReference {
   providerTenantId: string | null
 }
 
+export interface CredentialGroupEnrollmentAccess {
+  enrollmentId: string
+  email: string
+}
+
 export class CredentialGroupCredentialCursorNotFoundError extends Error {
   constructor() {
     super('Credential group credential cursor not found')
@@ -38,9 +44,33 @@ interface ListCredentialGroupCredentialReferencesInput {
   credentialGroupId: string
   limit: number
   cursor?: string
-  email?: string
+  credentialGroupEnrollmentId: string
   credentialProviderIds?: string[]
   credentialGroupOptionIds: string[]
+}
+
+/** Resolves a verified Sim user's active enrollment in one Credential Group. */
+export async function loadCredentialGroupEnrollmentAccess(
+  credentialGroupId: string,
+  userId: string
+): Promise<CredentialGroupEnrollmentAccess | null> {
+  const [row] = await db
+    .select({
+      enrollmentId: credentialGroupEnrollment.id,
+      email: credentialGroupEnrollment.email,
+    })
+    .from(credentialGroupEnrollment)
+    .innerJoin(user, eq(user.normalizedEmail, credentialGroupEnrollment.email))
+    .where(
+      and(
+        eq(user.id, userId),
+        eq(user.emailVerified, true),
+        eq(credentialGroupEnrollment.credentialGroupId, credentialGroupId),
+        inArray(credentialGroupEnrollment.status, ['in_progress', 'completed'])
+      )
+    )
+    .limit(1)
+  return row ?? null
 }
 
 /** Loads the canonical group ownership needed by the application authorization boundary. */
@@ -67,7 +97,7 @@ export async function listCredentialGroupCredentialReferences({
   credentialGroupId,
   limit,
   cursor,
-  email,
+  credentialGroupEnrollmentId,
   credentialProviderIds,
   credentialGroupOptionIds,
 }: ListCredentialGroupCredentialReferencesInput): Promise<{
@@ -95,8 +125,8 @@ export async function listCredentialGroupCredentialReferences({
           eq(credential.type, 'managed_oauth'),
           eq(credential.managedOauthStatus, 'active'),
           eq(credentialGroupEnrollment.credentialGroupId, credentialGroupId),
+          eq(credentialGroupEnrollment.id, credentialGroupEnrollmentId),
           inArray(credential.credentialGroupOptionId, credentialGroupOptionIds),
-          email ? eq(credentialGroupEnrollment.email, email) : undefined,
           credentialProviderIds?.length
             ? inArray(credential.providerId, credentialProviderIds)
             : undefined,
@@ -129,8 +159,8 @@ export async function listCredentialGroupCredentialReferences({
         eq(credential.type, 'managed_oauth'),
         eq(credential.managedOauthStatus, 'active'),
         eq(credentialGroupEnrollment.credentialGroupId, credentialGroupId),
+        eq(credentialGroupEnrollment.id, credentialGroupEnrollmentId),
         inArray(credential.credentialGroupOptionId, credentialGroupOptionIds),
-        email ? eq(credentialGroupEnrollment.email, email) : undefined,
         credentialProviderIds?.length
           ? inArray(credential.providerId, credentialProviderIds)
           : undefined,

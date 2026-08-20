@@ -251,6 +251,8 @@ async function principalUserId(principal: Principal, workspaceId?: string): Prom
       }
     case 'delegated':
       throw new UploadSessionError('forbidden', 'Delegated principals cannot create uploads')
+    case 'system':
+      throw new UploadSessionError('forbidden', 'System principals cannot create uploads')
     case 'credential_group_enrollment':
       throw new UploadSessionError(
         'forbidden',

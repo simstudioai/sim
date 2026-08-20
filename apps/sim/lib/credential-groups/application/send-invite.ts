@@ -3,7 +3,10 @@ import { requirePrincipalSubjectUserId } from '@sim/auth/principal'
 import { isValidEmailSyntax, normalizeEmail } from '@sim/utils/string'
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { credentialGroupDelegationPolicy } from '@/lib/credential-groups/application/authorization'
+import {
+  credentialGroupDelegationPolicy,
+  requireCredentialGroupWorkflowSubject,
+} from '@/lib/credential-groups/application/authorization'
 import {
   requireCredentialGroupsAvailable,
   resolveCredentialGroupContext,
@@ -25,6 +28,9 @@ export const sendCredentialGroupInvite = defineAuthorizedWorkspaceUseCase({
   resolveContext: ({ input }: { input: SendCredentialGroupInviteInput }) =>
     resolveCredentialGroupContext(input.credentialGroupId),
   authorizationOptions: { delegation: credentialGroupDelegationPolicy },
+  authorizeResource({ principal }) {
+    requireCredentialGroupWorkflowSubject(principal)
+  },
   execute: async ({ principal, input, context }) => {
     if (context.status !== 'active') {
       throw new OrchestrationError('conflict', 'Credential group is disabled')

@@ -998,6 +998,12 @@ async function runWorkflowAndWriteTerminal(
           actorUserId,
           {
             enabled: true,
+            principal: {
+              kind: 'system',
+              serviceId: 'table',
+              workspaceId,
+              workflowId,
+            },
             executionMode: 'sync',
             workflowTriggerType: 'table',
             triggerBlockId: startBlock.id,

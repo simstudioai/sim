@@ -1,3 +1,4 @@
+import { parsePrincipal, serializePrincipal } from '@sim/auth/principal'
 import { normalizeStringArray } from '@/lib/core/utils/arrays'
 import { normalizeWorkflowVariables } from '@/lib/core/utils/records'
 import type { ExecutionMetadata, SerializableExecutionState } from '@/executor/execution/types'
@@ -28,7 +29,10 @@ export class ExecutionSnapshot {
 
   toJSON(): string {
     return JSON.stringify({
-      metadata: this.metadata,
+      metadata: {
+        ...this.metadata,
+        principal: serializePrincipal(this.metadata.principal),
+      },
       workflow: this.workflow,
       input: this.input,
       workflowVariables: this.workflowVariables,
@@ -38,14 +42,29 @@ export class ExecutionSnapshot {
   }
 
   static fromJSON(json: string): ExecutionSnapshot {
-    const data = JSON.parse(json)
+    const data: unknown = JSON.parse(json)
+    if (!data || typeof data !== 'object' || Array.isArray(data)) {
+      throw new Error('Execution snapshot must be an object')
+    }
+    const parsed = data as Record<string, unknown>
+    if (!parsed.metadata || typeof parsed.metadata !== 'object' || Array.isArray(parsed.metadata)) {
+      throw new Error('Execution snapshot metadata must be an object')
+    }
+    const serializedMetadata = parsed.metadata as Record<string, unknown>
+    if (serializedMetadata.principal === undefined) {
+      throw new Error('Execution snapshot metadata is missing its principal')
+    }
+    const metadata = {
+      ...serializedMetadata,
+      principal: parsePrincipal(serializedMetadata.principal),
+    } as ExecutionMetadata
     return new ExecutionSnapshot(
-      data.metadata,
-      data.workflow,
-      data.input,
-      data.workflowVariables,
-      data.selectedOutputs,
-      data.state
+      metadata,
+      parsed.workflow,
+      parsed.input,
+      parsed.workflowVariables,
+      parsed.selectedOutputs,
+      parsed.state as SerializableExecutionState | undefined
     )
   }
 }

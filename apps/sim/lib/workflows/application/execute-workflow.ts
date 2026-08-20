@@ -43,6 +43,7 @@ export const executeWorkflowOperation = defineAuthorizedWorkflowUseCase({
     })
     return executeWorkflowService({
       workflowId: context.workflowId,
+      principal,
       userId: attribution.attributedUserId,
       input: input.input,
       triggerType: 'api',

@@ -216,6 +216,17 @@ describe('executeWebhookJob fault vs error handling', () => {
   const payload: WebhookExecutionPayload = {
     webhookId: 'webhook-1',
     workflowId: 'workflow-1',
+    principal: {
+      version: 1,
+      principal: {
+        kind: 'system',
+        serviceId: 'webhook',
+        webhookId: 'webhook-1',
+        workflowId: 'workflow-1',
+        workspaceId: 'workspace-1',
+        provider: 'gmail',
+      },
+    },
     userId: 'user-1',
     billingAttribution,
     executionId: 'execution-1',
