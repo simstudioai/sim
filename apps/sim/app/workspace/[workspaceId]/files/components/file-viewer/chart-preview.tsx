@@ -12,12 +12,22 @@ import { PreviewLoadingFrame } from './preview-shared'
 const CHART_ROWS_MAX = 5000
 const CHART_ROWS_DEFAULT = 1000
 
+type ChartAggregateOp = 'sum' | 'avg' | 'min' | 'max' | 'count'
+
+const CHART_AGGREGATE_OPS = new Set<string>(['sum', 'avg', 'min', 'max', 'count'])
+
 interface ChartTableSource {
   type: 'table'
   tableId: string
   filter?: unknown
   sort?: unknown
   limit?: number
+  /** Group rows by these columns; requires `aggregate`. */
+  groupBy?: string[]
+  /** Metric column → op, computed per group. */
+  aggregate?: Record<string, ChartAggregateOp>
+  /** Fan the aggregated metric(s) out into one column per distinct value of this column. */
+  pivot?: string
 }
 
 interface ChartStaticSource {
@@ -38,7 +48,7 @@ interface ChartSpec {
   option: Record<string, unknown>
 }
 
-function parseChartSpec(content: string): { spec?: ChartSpec; error?: string } {
+export function parseChartSpec(content: string): { spec?: ChartSpec; error?: string } {
   let raw: unknown
   try {
     raw = JSON.parse(content)
@@ -64,6 +74,22 @@ function parseChartSpec(content: string): { spec?: ChartSpec; error?: string } {
       if (typeof source.tableId !== 'string' || source.tableId === '') {
         return { error: 'a table source must declare "tableId"' }
       }
+      if (source.groupBy !== undefined) {
+        if (!Array.isArray(source.groupBy) || source.groupBy.some((c) => typeof c !== 'string')) {
+          return { error: '"groupBy" must be an array of column names' }
+        }
+        if (source.aggregate === null || typeof source.aggregate !== 'object') {
+          return { error: '"groupBy" requires an "aggregate" object ({column: op})' }
+        }
+        const ops = Object.values(source.aggregate)
+        if (ops.length === 0 || ops.some((op) => !CHART_AGGREGATE_OPS.has(String(op)))) {
+          return { error: '"aggregate" ops must be sum, avg, min, max, or count' }
+        }
+      }
+      if (source.pivot !== undefined) {
+        if (typeof source.pivot !== 'string') return { error: '"pivot" must be a column name' }
+        if (!source.groupBy) return { error: '"pivot" requires "groupBy" and "aggregate"' }
+      }
     } else if (source.type === 'static') {
       if (source.rows !== undefined && !Array.isArray(source.rows)) {
         return { error: 'a static source\'s "rows" must be an array' }
@@ -73,6 +99,77 @@ function parseChartSpec(content: string): { spec?: ChartSpec; error?: string } {
     }
   }
   return { spec: doc as unknown as ChartSpec }
+}
+
+function aggregateValues(
+  rows: Array<Record<string, unknown>>,
+  column: string,
+  op: ChartAggregateOp
+): number {
+  if (op === 'count') return rows.length
+  const values = rows.map((r) => Number(r[column])).filter((n) => Number.isFinite(n))
+  if (values.length === 0) return 0
+  switch (op) {
+    case 'sum':
+      return values.reduce((a, b) => a + b, 0)
+    case 'avg':
+      return values.reduce((a, b) => a + b, 0) / values.length
+    case 'min':
+      return Math.min(...values)
+    case 'max':
+      return Math.max(...values)
+  }
+}
+
+/**
+ * Client-side shaping for table sources: group → aggregate → optionally pivot
+ * one column's distinct values into per-value columns. Groups keep first-seen
+ * order, so the source's `sort` decides the category order. This is the whole
+ * "query engine" — deliberately tiny; anything fancier belongs in a static
+ * source with precomputed rows.
+ */
+export function shapeTableRows(
+  rows: Array<Record<string, unknown>>,
+  source: ChartTableSource
+): Array<Record<string, unknown>> {
+  const { groupBy, aggregate, pivot } = source
+  if (!groupBy || groupBy.length === 0 || !aggregate) return rows
+
+  const groups = new Map<string, Array<Record<string, unknown>>>()
+  for (const row of rows) {
+    const key = groupBy.map((c) => String(row[c] ?? '')).join('\u0000')
+    const bucket = groups.get(key)
+    if (bucket) bucket.push(row)
+    else groups.set(key, [row])
+  }
+
+  const metrics = Object.entries(aggregate)
+  const out: Array<Record<string, unknown>> = []
+  for (const bucket of groups.values()) {
+    const shaped: Record<string, unknown> = {}
+    for (const c of groupBy) shaped[c] = bucket[0][c]
+    if (pivot) {
+      const byValue = new Map<string, Array<Record<string, unknown>>>()
+      for (const row of bucket) {
+        const value = String(row[pivot] ?? '')
+        const slice = byValue.get(value)
+        if (slice) slice.push(row)
+        else byValue.set(value, [row])
+      }
+      for (const [value, slice] of byValue) {
+        for (const [column, op] of metrics) {
+          const name = metrics.length === 1 ? value : `${value} ${column}`
+          shaped[name] = aggregateValues(slice, column, op)
+        }
+      }
+    } else {
+      for (const [column, op] of metrics) {
+        shaped[column] = aggregateValues(bucket, column, op)
+      }
+    }
+    out.push(shaped)
+  }
+  return out
 }
 
 /**
@@ -102,20 +199,51 @@ function buildOption(spec: ChartSpec, rows: Array<Record<string, unknown>> | nul
   if (spec.title && option.title === undefined) {
     option.title = { text: spec.title }
   }
-  // Gentle layout defaults — fill in ONLY what the spec leaves unset. A title
-  // and a legend both default to the top edge and overlap; when both are
-  // present and the legend declares no position, drop it below the title.
-  if (option.title !== undefined && option.legend !== null && typeof option.legend === 'object') {
+  // Chrome layout is Sim-owned, content is spec-owned. Models reliably
+  // produce colliding title/legend placements, so the renderer pins the
+  // title top-left and the legend top-right on one chrome row (scrollable
+  // when long), overriding any spec positions — the same split the pptx
+  // renderer makes between slide chrome and slide content.
+  const hasTitle = option.title !== null && typeof option.title === 'object'
+  if (hasTitle) {
+    const titles = Array.isArray(option.title) ? option.title : [option.title]
+    const primary = titles[0]
+    if (primary !== null && typeof primary === 'object') {
+      const t = primary as Record<string, unknown>
+      t.left = 0
+      t.top = 0
+      t.right = undefined
+      t.bottom = undefined
+    }
+    option.title = titles[0]
+  }
+  let hasLegend = false
+  if (option.legend !== null && typeof option.legend === 'object') {
     const legends = Array.isArray(option.legend) ? option.legend : [option.legend]
-    let nextTop = 32
     for (const entry of legends) {
       if (entry === null || typeof entry !== 'object') continue
-      const positioned = entry as Record<string, unknown>
-      if (positioned.top === undefined && positioned.bottom === undefined) {
-        positioned.top = nextTop
-        nextTop += 28
-      }
+      hasLegend = true
+      const l = entry as Record<string, unknown>
+      l.top = 2
+      l.right = 0
+      l.left = undefined
+      l.bottom = undefined
+      if (l.type === undefined) l.type = 'scroll'
     }
+  }
+  // Reserve a chrome row above the plot. Fill only what the spec left unset
+  // inside grid — axis-name insets remain the spec's call.
+  const chromeTop = hasTitle || hasLegend ? 48 : 16
+  if (option.grid === undefined) {
+    option.grid = { top: chromeTop, left: 12, right: 12, bottom: 12, containLabel: true }
+  } else if (
+    option.grid !== null &&
+    typeof option.grid === 'object' &&
+    !Array.isArray(option.grid)
+  ) {
+    const g = option.grid as Record<string, unknown>
+    if (g.top === undefined) g.top = chromeTop
+    if (g.containLabel === undefined) g.containLabel = true
   }
   return option as EChartsOption
 }
@@ -200,13 +328,14 @@ export const ChartPreview = memo(function ChartPreview({
     // author sees in the table UI.
     const nameByStorageKey = new Map<string, string>()
     for (const col of columns) nameByStorageKey.set(getColumnId(col), col.name)
-    return fetched.map((row) => {
+    const named = fetched.map((row) => {
       const out: Record<string, unknown> = {}
       for (const [key, value] of Object.entries(row.data)) {
         out[nameByStorageKey.get(key) ?? key] = value
       }
       return out
     })
+    return shapeTableRows(named, tableSource)
   }, [spec, tableSource, rowsQuery.data, tableQuery.data])
 
   const option = useMemo(() => (spec ? buildOption(spec, rows) : null), [spec, rows])
