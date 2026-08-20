@@ -5695,6 +5695,22 @@ export function Neo4jIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
+export function CbInsightsIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...props} viewBox='0 0 64 64' fill='none' xmlns='http://www.w3.org/2000/svg'>
+      <path d='M63.858 28.878H44V9.58h11.78A8.24 8.24 0 0 1 64 17.809v11.07z' fill='#006699' />
+      <path
+        d='M55.628 54.28H43.85V33.703h19.867V46.05c.142 4.54-3.548 8.23-8.1 8.23z'
+        fill='#ff6633'
+      />
+      <path
+        d='M20.718 33.703v-4.967h19.44V9.58H8.1c-4.54 0-8.1 3.7-8.1 8.23V46.2a8.24 8.24 0 0 0 8.231 8.231H40.3V33.703z'
+        fill='#003366'
+      />
+    </svg>
+  )
+}
+
 export function CalendlyIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg {...props} viewBox='169.28 46.16 502.57 502.57' xmlns='http://www.w3.org/2000/svg'>
