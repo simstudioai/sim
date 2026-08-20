@@ -1574,6 +1574,42 @@ describe('incompleteness diagnostics', () => {
     )
   })
 
+  /**
+   * `reason` says what tripped; without this the line says nothing about where, which is the
+   * difference between a signal you can act on and one you can only count.
+   */
+  it('carries a caller-supplied structural detail onto the reported line', () => {
+    const registry = new ResolvedSecretTraceRegistry([], scope)
+
+    registry.markIncomplete('structural-input-root-unprojected', {
+      detail: { blockType: 'api', tool: 'http_request', inputPath: 'body.payload' },
+    })
+
+    expect(mockLogger.error).toHaveBeenCalledWith(
+      'Resolved secret registry marked incomplete',
+      expect.objectContaining({
+        reason: 'structural-input-root-unprojected',
+        blockType: 'api',
+        tool: 'http_request',
+        inputPath: 'body.payload',
+      })
+    )
+  })
+
+  /** A detail key must never displace the fields every one of these lines is read by. */
+  it('does not let a detail shadow the canonical fields', () => {
+    const registry = new ResolvedSecretTraceRegistry([], scope)
+
+    registry.markIncomplete('structural-input-root-unprojected', {
+      detail: { scopeWorkspaceId: 'spoofed', activeEntryCount: 'spoofed' },
+    })
+
+    expect(mockLogger.error).toHaveBeenCalledWith(
+      'Resolved secret registry marked incomplete',
+      expect.objectContaining({ scopeWorkspaceId: 'workspace-1', activeEntryCount: 0 })
+    )
+  })
+
   it('names the guard that tripped rather than reporting unspecified', () => {
     const registry = new ResolvedSecretTraceRegistry([], scope)
 

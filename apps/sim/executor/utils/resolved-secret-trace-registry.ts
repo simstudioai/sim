@@ -300,6 +300,17 @@ interface MarkIncompleteContext {
    * production latch naming no guard at all.
    */
   origin?: string
+  /**
+   * Structural facts locating where a guard tripped: the block, the tool, the input path, the class
+   * of failure. `reason` says what went wrong and this says where, which is the difference between
+   * a line you can act on and one you can only count.
+   *
+   * Names and types only — never a value, and never a caught error's message. Code that throws
+   * while coercing an input routinely quotes that input back (`JSON.parse` names the text it
+   * rejected), and an input reaching one of these guards may still hold a resolved secret. That is
+   * the same promise `reason` already makes about this log, restated where it is easy to break.
+   */
+  detail?: Record<string, string>
 }
 
 export interface ImportResolvedSecretTraceProvenanceOptions {
@@ -1817,6 +1828,8 @@ export class ResolvedSecretTraceRegistry {
     this.modelEgressRevision += 1
     if (this.staged) return
     reportIncompleteness('Resolved secret registry marked incomplete', reason, {
+      /** Spread first so a caller's detail can never shadow the fields every line is read by. */
+      ...(context.detail ?? {}),
       ...(context.origin ? { origin: context.origin } : {}),
       scopeWorkspaceId: this.scope?.workspaceId,
       activeEntryCount: this.activeEntries.size,
