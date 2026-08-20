@@ -109,24 +109,45 @@ export const workspaceSelectors = {
     },
   },
   /** Providers represented inside ONE credential group, for its per-provider filter. */
-  'workspace.credentialGroupProviders': workspaceScoped(
-    'workspace.credentialGroupProviders',
-    async (workspaceId, context) => {
-      if (!context.credentialGroupId) return []
-      const group = (await credentialGroups(workspaceId)).find(
+  'workspace.credentialGroupProviders': {
+    ...workspaceScoped(
+      'workspace.credentialGroupProviders',
+      async (workspaceId, context) => {
+        if (!context.credentialGroupId) return []
+        const group = (await credentialGroups(workspaceId)).find(
+          (candidate) => candidate.id === context.credentialGroupId
+        )
+        if (!group) return []
+        return group.options
+          .filter((option) => option.status === 'active')
+          .map((option) => {
+            const service = getCredentialGroupProviderService(option.provider)
+            return { id: service.providerId, label: service.name }
+          })
+          .sort((a, b) => a.label.localeCompare(b.label))
+      },
+      (context) => context.credentialGroupId ?? 'none'
+    ),
+    /**
+     * Resolves one stored provider id to its service name. The field is multi-select, so the
+     * canvas card summarises several stored ids at once and needs each label before (or
+     * without) the full list — which is what `useDynamicSubBlockOptionDisplayName` asks for.
+     */
+    fetchById: async ({ context, detailId }: SelectorQueryArgs) => {
+      if (!context.workspaceId || !context.credentialGroupId || !detailId) return null
+      const group = (await credentialGroups(context.workspaceId)).find(
         (candidate) => candidate.id === context.credentialGroupId
       )
-      if (!group) return []
-      return group.options
-        .filter((option) => option.status === 'active')
-        .map((option) => {
-          const service = getCredentialGroupProviderService(option.provider)
-          return { id: service.providerId, label: service.name }
-        })
-        .sort((a, b) => a.label.localeCompare(b.label))
+      const option = group?.options.find(
+        (candidate) =>
+          candidate.status === 'active' &&
+          getCredentialGroupProviderService(candidate.provider).providerId === detailId
+      )
+      if (!option) return null
+      const service = getCredentialGroupProviderService(option.provider)
+      return { id: service.providerId, label: service.name }
     },
-    (context) => context.credentialGroupId ?? 'none'
-  ),
+  },
   /**
    * Secret NAMES the workspace can resolve. Names only — values stay server-side and are
    * injected at execution. Both halves come from the one workspace-environment response, the
