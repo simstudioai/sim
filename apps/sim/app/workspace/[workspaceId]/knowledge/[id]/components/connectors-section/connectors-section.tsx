@@ -30,6 +30,7 @@ import {
 import { createLogger } from '@sim/logger'
 import { format, formatDistanceToNow, isPast } from 'date-fns'
 import { consumeOAuthReturnContext, writeOAuthReturnContext } from '@/lib/credentials/client-state'
+import { CONNECTOR_SYNC_STALE_LOCK_TTL_MS } from '@/lib/knowledge/connectors/sync-limits'
 import { getCanonicalScopesForProvider, getProviderIdFromServiceId } from '@/lib/oauth'
 import { getMissingRequiredScopes } from '@/lib/oauth/utils'
 import { ConnectOAuthModal } from '@/app/workspace/[workspaceId]/components/connect-oauth-modal'
@@ -667,12 +668,39 @@ function ConnectorCard({
   )
 }
 
+/**
+ * How a sync-log row should read to a user.
+ *
+ * `interrupted` has no status of its own: the scheduler reclaims a stale
+ * `syncing` lock by flipping the *connector* to `error`, and never rewrites the
+ * log row, so a run killed mid-flight (deploy, OOM) stays `started` forever.
+ * Past the stale-lock TTL that row is a crashed run, not a live one.
+ */
+type SyncLogState = 'running' | 'interrupted' | 'failed' | 'completed'
+
+function getSyncLogState(log: SyncLogData, now: number): SyncLogState {
+  switch (log.status) {
+    case 'completed':
+      return 'completed'
+    case 'failed':
+      return 'failed'
+    case 'started': {
+      const ageMs = now - new Date(log.startedAt).getTime()
+      return ageMs > CONNECTOR_SYNC_STALE_LOCK_TTL_MS ? 'interrupted' : 'running'
+    }
+    default: {
+      const exhaustive: never = log.status
+      return exhaustive
+    }
+  }
+}
+
 interface SyncHistoryProps {
   logs: SyncLogData[]
   isLoading: boolean
 }
 
-function SyncHistory({ logs, isLoading }: SyncHistoryProps) {
+export function SyncHistory({ logs, isLoading }: SyncHistoryProps) {
   if (isLoading) {
     return (
       <div className='flex items-center gap-2 rounded-md bg-[var(--surface-3)] px-2 py-2 text-[var(--text-muted)] text-xs'>
@@ -690,20 +718,23 @@ function SyncHistory({ logs, isLoading }: SyncHistoryProps) {
     )
   }
 
+  const now = Date.now()
+
   return (
     <div className='flex flex-col gap-0.5'>
       {logs.map((log) => {
-        const isError = log.status === 'error' || log.status === 'failed'
-        const isRunning = log.status === 'running' || log.status === 'syncing'
+        const state = getSyncLogState(log, now)
         const totalChanges =
           log.docsAdded + log.docsUpdated + log.docsDeleted + (log.docsFailed ?? 0)
 
         return (
           <div key={log.id} className='flex items-start gap-2 rounded-md px-2 py-1.5 text-xs'>
             <div className='mt-[1px] flex-shrink-0'>
-              {isRunning ? (
+              {state === 'running' ? (
                 <Loader className='size-3 text-[var(--text-muted)]' animate />
-              ) : isError ? (
+              ) : state === 'interrupted' ? (
+                <TriangleAlert className='size-3 text-[var(--caution)]' />
+              ) : state === 'failed' ? (
                 <CircleX className='size-3 text-[var(--text-error)]' />
               ) : (
                 <CircleCheck className='size-3 text-[var(--success)]' />
@@ -715,7 +746,7 @@ function SyncHistory({ logs, isLoading }: SyncHistoryProps) {
                 <span className='text-[var(--text-muted)]'>
                   {format(new Date(log.startedAt), 'MMM d, h:mm a')}
                 </span>
-                {!isRunning && !isError && (
+                {state === 'completed' && (
                   <span className='text-[var(--text-muted)]'>
                     {totalChanges > 0 ? (
                       <>
@@ -747,10 +778,15 @@ function SyncHistory({ logs, isLoading }: SyncHistoryProps) {
                     )}
                   </span>
                 )}
-                {isRunning && <span className='text-[var(--text-muted)]'>In progress…</span>}
+                {state === 'running' && (
+                  <span className='text-[var(--text-muted)]'>In progress…</span>
+                )}
+                {state === 'interrupted' && (
+                  <span className='text-[var(--caution)]'>Interrupted</span>
+                )}
               </div>
 
-              {isError && log.errorMessage && (
+              {state === 'failed' && log.errorMessage && (
                 <span className='truncate text-[var(--text-error)]'>{log.errorMessage}</span>
               )}
             </div>
