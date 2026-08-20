@@ -1956,7 +1956,7 @@
       "get": {
         "operationId": "listFilesFolders",
         "summary": "List Folders",
-        "description": "List workspace file folders with optional parent-path filtering and sorting. The bounded set is returned in one page; `nextCursor` is always null.",
+        "description": "List workspace file folders with optional parent-path filtering and sorting. Pass `scope=archived` to list folders a recursive `DELETE` soft-deleted, which is how a caller finds a path to hand to `POST /api/v2/files/folders/restore`. The bounded set is returned in one page; `nextCursor` is always null.",
         "tags": ["Files"],
         "parameters": [
           {
@@ -2015,6 +2015,18 @@
               "description": "Sort direction.",
               "type": "string",
               "enum": ["asc", "desc"]
+            }
+          },
+          {
+            "name": "scope",
+            "in": "query",
+            "required": false,
+            "description": "Which lifecycle set to list: `active` (default) returns live folders only; `archived` returns folders a recursive `DELETE` soft-deleted, which is how a caller finds a path to hand to `POST /api/v2/files/folders/restore`. Authorization is identical for both.",
+            "schema": {
+              "default": "active",
+              "description": "Which lifecycle set to list: `active` (default) returns live folders only; `archived` returns folders a recursive `DELETE` soft-deleted, which is how a caller finds a path to hand to `POST /api/v2/files/folders/restore`. Authorization is identical for both.",
+              "type": "string",
+              "enum": ["active", "archived"]
             }
           }
         ],
@@ -2287,6 +2299,75 @@
           },
           "409": {
             "$ref": "#/components/responses/Conflict"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/files/folders/restore": {
+      "post": {
+        "operationId": "restoreFilesFolder",
+        "summary": "Restore Folder",
+        "description": "Restore a soft-deleted folder and everything archived with it. `DELETE /api/v2/files/folders` archives recursively, so this is what makes a recursive delete recoverable: without it the archived files stay visible through `GET /api/v2/files?scope=archived` but the folder structure cannot be rebuilt. Address the folder by the path reported by `GET /api/v2/files/folders?scope=archived`; a path that is not archived answers `404`.",
+        "tags": ["Files"],
+        "requestBody": {
+          "required": true,
+          "description": "Workspace scope and archived folder path.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RestoreFileFolderRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The restored folder and what it brought back.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileFolderRestoreResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"
@@ -4122,6 +4203,77 @@
         "title": "File folder list response",
         "description": "Workspace file folders in the current page."
       },
+      "V2FileFolderRestore": {
+        "type": "object",
+        "properties": {
+          "folder": {
+            "description": "The restored folder.",
+            "$ref": "#/components/schemas/V2Folder"
+          },
+          "restoredItems": {
+            "type": "object",
+            "properties": {
+              "files": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991,
+                "description": "Files restored inside the folder tree."
+              },
+              "folders": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991,
+                "description": "Folders restored, including the one addressed."
+              }
+            },
+            "required": ["files", "folders"],
+            "additionalProperties": false,
+            "description": "What the restore brought back."
+          }
+        },
+        "required": ["folder", "restoredItems"],
+        "additionalProperties": false,
+        "title": "Folder restore result",
+        "description": "The restored folder and the counts of items it brought back."
+      },
+      "FileFolderRestoreResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2FileFolderRestore"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Folder restore response",
+        "description": "The restored folder and the counts of items it brought back."
+      },
+      "NonRootFolderPathInput": {
+        "title": "Non-root folder path input",
+        "description": "Non-root folder path. A missing leading slash is normalized before validation. Segments are percent-encoded, so a folder shown as \"New folder\" is `/New%20folder`: everything outside `A-Z a-z 0-9 - _ . ~` is escaped as uppercase hex, and only that exact encoding is accepted. A trailing slash, an empty segment, and a literal `.` or `..` segment are rejected. At most 64 segments and 4096 encoded bytes.",
+        "maxLength": 4096,
+        "type": "string"
+      },
+      "RestoreFileFolderRequest": {
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "Workspace that owns the archived folder."
+          },
+          "path": {
+            "description": "Path of the archived folder to restore, as reported by `GET /api/v2/files/folders?scope=archived`.",
+            "$ref": "#/components/schemas/NonRootFolderPathInput"
+          }
+        },
+        "required": ["workspaceId", "path"],
+        "additionalProperties": false,
+        "title": "Restore file folder request",
+        "description": "Workspace scope and archived folder path."
+      },
       "FileFolderResponse": {
         "type": "object",
         "properties": {
@@ -4134,12 +4286,6 @@
         "additionalProperties": false,
         "title": "File folder response",
         "description": "A single workspace file folder."
-      },
-      "NonRootFolderPathInput": {
-        "title": "Non-root folder path input",
-        "description": "Non-root folder path. A missing leading slash is normalized before validation. Segments are percent-encoded, so a folder shown as \"New folder\" is `/New%20folder`: everything outside `A-Z a-z 0-9 - _ . ~` is escaped as uppercase hex, and only that exact encoding is accepted. A trailing slash, an empty segment, and a literal `.` or `..` segment are rejected. At most 64 segments and 4096 encoded bytes.",
-        "maxLength": 4096,
-        "type": "string"
       },
       "CreateFileFolderRequest": {
         "type": "object",

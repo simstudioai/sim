@@ -21,6 +21,7 @@ import {
   v2RelocateFileFolderContract,
   v2RenameFileContract,
   v2RestoreFileContract,
+  v2RestoreFileFolderContract,
   v2UpdateFileContentContract,
   v2UpsertFileShareContract,
 } from '@/lib/api/contracts/v2/files'
@@ -834,7 +835,7 @@ const declaredRoutes = [
     filesOperation({
       operationId: 'listFilesFolders',
       summary: 'List Folders',
-      description: `List workspace file folders with optional parent-path filtering and sorting. ${FULL_SET_LIST}`,
+      description: `List workspace file folders with optional parent-path filtering and sorting. Pass \`scope=archived\` to list folders a recursive \`DELETE\` soft-deleted, which is how a caller finds a path to hand to \`POST /api/v2/files/folders/restore\`. ${FULL_SET_LIST}`,
       errors: RESOURCE_ERRORS,
       success: { description: 'Workspace file folders.' },
     }),
@@ -850,6 +851,32 @@ const declaredRoutes = [
         'FileFolderListResponse',
         'File folder list response',
         'Workspace file folders in the current page.'
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2RestoreFileFolderContract,
+    filesOperation({
+      operationId: 'restoreFilesFolder',
+      summary: 'Restore Folder',
+      description:
+        'Restore a soft-deleted folder and everything archived with it. `DELETE /api/v2/files/folders` archives recursively, so this is what makes a recursive delete recoverable: without it the archived files stay visible through `GET /api/v2/files?scope=archived` but the folder structure cannot be rebuilt. Address the folder by the path reported by `GET /api/v2/files/folders?scope=archived`; a path that is not archived answers `404`.',
+      errors: [...RESOURCE_CONFLICT_ERRORS],
+      success: { description: 'The restored folder and what it brought back.' },
+    }),
+    {
+      query: v2RestoreFileFolderContract.query,
+      body: documentedSchema(
+        v2RestoreFileFolderContract.body,
+        'RestoreFileFolderRequest',
+        'Restore file folder request',
+        'Workspace scope and archived folder path.'
+      ),
+      response: documentedSchema(
+        v2RestoreFileFolderContract.response.schema,
+        'FileFolderRestoreResponse',
+        'Folder restore response',
+        'The restored folder and the counts of items it brought back.'
       ),
     }
   ),

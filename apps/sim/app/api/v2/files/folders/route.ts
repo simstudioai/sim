@@ -44,6 +44,7 @@ export const GET = defineV2JsonRoute({
   errorPolicy: v2FileErrorPolicies.default,
   mapInput: ({ query }) => ({
     workspaceId: query.workspaceId,
+    scope: query.scope,
     parentPath: query.parentPath,
     search: query.search,
     sortBy: query.sortBy,

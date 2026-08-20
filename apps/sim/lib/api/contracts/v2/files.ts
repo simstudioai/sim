@@ -20,6 +20,7 @@ import {
   v2FolderPathSchema,
   v2FolderSchema,
   v2ListFoldersQuerySchema,
+  v2NonRootFolderPathInputSchema,
   v2PaginationFields,
   v2RelocateFolderBodySchema,
   v2SearchSchema,
@@ -491,11 +492,78 @@ export const v2DeleteFileFolderDataSchema = z
     description: 'File-folder deletion acknowledgement and deletion counts.',
   })
 
+/**
+ * Extends the shared folder query with a lifecycle selector.
+ *
+ * Only workspace files have an archived folder set — tables, workflows, and
+ * knowledge folders do not — so `scope` is added here rather than to the shared
+ * schema, which would give three other surfaces a parameter they ignore.
+ */
+export const v2ListFileFoldersQuerySchema = v2ListFoldersQuerySchema.extend({
+  scope: v2FileScopeSchema
+    .default('active')
+    .describe(
+      'Which lifecycle set to list: `active` (default) returns live folders only; `archived` returns folders a recursive `DELETE` soft-deleted, which is how a caller finds a path to hand to `POST /api/v2/files/folders/restore`. Authorization is identical for both.'
+    ),
+})
+export type V2ListFileFoldersQuery = z.output<typeof v2ListFileFoldersQuerySchema>
+
 export const v2ListFileFoldersContract = defineRouteContract({
   method: 'GET',
   path: '/api/v2/files/folders',
-  query: v2ListFoldersQuerySchema,
+  query: v2ListFileFoldersQuerySchema,
   response: { mode: 'json', schema: v2CursorListResponse(v2FolderSchema, { paged: false }) },
+})
+
+export const v2RestoreFileFolderBodySchema = z
+  .object({
+    workspaceId: workspaceIdSchema.describe('Workspace that owns the archived folder.'),
+    path: v2NonRootFolderPathInputSchema.describe(
+      'Path of the archived folder to restore, as reported by `GET /api/v2/files/folders?scope=archived`.'
+    ),
+  })
+  .strict()
+export type V2RestoreFileFolderBody = z.input<typeof v2RestoreFileFolderBodySchema>
+
+export const v2RestoreFileFolderDataSchema = z
+  .object({
+    folder: v2FolderSchema.describe('The restored folder.'),
+    restoredItems: z
+      .object({
+        files: z.number().int().nonnegative().describe('Files restored inside the folder tree.'),
+        folders: z
+          .number()
+          .int()
+          .nonnegative()
+          .describe('Folders restored, including the one addressed.'),
+      })
+      .strict()
+      .describe('What the restore brought back.'),
+  })
+  .strict()
+  .meta({
+    id: 'V2FileFolderRestore',
+    title: 'Folder restore result',
+    description: 'The restored folder and the counts of items it brought back.',
+  })
+export type V2FileFolderRestore = z.output<typeof v2RestoreFileFolderDataSchema>
+
+/**
+ * Restores a soft-deleted folder tree.
+ *
+ * `DELETE /api/v2/files/folders` archives recursively, so without this the
+ * archived children were visible through `GET /api/v2/files?scope=archived`
+ * but the folder structure itself was unrecoverable over the API.
+ */
+export const v2RestoreFileFolderContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/v2/files/folders/restore',
+  query: noInputSchema,
+  body: v2RestoreFileFolderBodySchema,
+  response: {
+    mode: 'json',
+    schema: v2DataResponse(v2RestoreFileFolderDataSchema),
+  },
 })
 
 export const v2CreateFileFolderContract = defineRouteContract({

@@ -17,6 +17,7 @@ import type {
   CreateWorkspaceFileFolderInput,
   DeleteWorkspaceFileFolderInput,
   RestoreWorkspaceFileFolderInput,
+  RestoreWorkspaceFileFolderResult,
   UpdateWorkspaceFileFolderInput,
 } from '@/lib/workspace-files/application/workspace-file-folders'
 
@@ -90,11 +91,19 @@ export const internalFileAnalytics = {
       { groups: { workspace: input.workspaceId } }
     )
   },
-  folderRestored({ principal, input }: InternalSuccessArgs<RestoreWorkspaceFileFolderInput>) {
+  /**
+   * Reports the folder actually restored rather than the requested selector,
+   * which is a path on surfaces that address folders by path and carries no id.
+   */
+  folderRestored({
+    principal,
+    input,
+    result,
+  }: InternalSuccessArgs<RestoreWorkspaceFileFolderInput, RestoreWorkspaceFileFolderResult>) {
     captureServerEvent(
       principal.userId,
       'folder_restored',
-      { folder_id: input.folderId, workspace_id: input.workspaceId },
+      { folder_id: result.folder.id, workspace_id: input.workspaceId },
       { groups: { workspace: input.workspaceId } }
     )
   },
