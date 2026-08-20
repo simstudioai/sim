@@ -25,6 +25,7 @@ export function buildClickUpTriggerSubBlocks(triggerId: string): SubBlockConfig[
       title: 'Workspace',
       type: 'dropdown',
       selectorKey: 'clickup.workspaces',
+      dependsOn: ['triggerCredentials'],
       placeholder: 'Select a workspace',
       description: 'The ClickUp Workspace the webhook is registered in',
       required: true,

@@ -21,6 +21,9 @@ import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
+/** Shared empty list, so a selector-backed field with no static options keeps a stable identity. */
+const EMPTY_OPTIONS: DropdownOption[] = []
+
 /** Selected-value badges shown before folding the rest into a "+N" badge. */
 const MAX_VISIBLE_MULTI_SELECT_BADGES = 2
 
@@ -42,8 +45,12 @@ type DropdownOption =
  * Props for the Dropdown component
  */
 interface DropdownProps {
-  /** Static options array or function that returns options */
-  options: DropdownOption[] | ((params?: { values: Record<string, unknown> }) => DropdownOption[])
+  /**
+   * Static options, or a function deriving them from the block's own values. Absent on a
+   * selector-backed field, whose list comes from `selectorKey` instead — so this must never
+   * be read without a default.
+   */
+  options?: DropdownOption[] | ((params?: { values: Record<string, unknown> }) => DropdownOption[])
   /** Default value to select when no value is set */
   defaultValue?: string
   /** Unique identifier for the block */
@@ -143,7 +150,8 @@ export const Dropdown = memo(function Dropdown({
     activeWorkflowId ? state.workflowValues[activeWorkflowId]?.[blockId] : undefined
   )
   const evaluatedOptions = useMemo(() => {
-    return typeof options === 'function' ? options({ values: blockValues ?? {} }) : options
+    if (typeof options === 'function') return options({ values: blockValues ?? {} })
+    return options ?? EMPTY_OPTIONS
   }, [options, blockValues])
 
   const {

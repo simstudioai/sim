@@ -16,6 +16,7 @@ import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/
 import type { SubBlockConfig } from '@/blocks/types'
 import type { SelectorKey } from '@/hooks/selectors/types'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 
 /**
@@ -26,6 +27,9 @@ const ZOOM_FACTOR_BASE = 0.96
 const MIN_ZOOM = 0.1
 const MAX_ZOOM = 1
 const ZOOM_DURATION = 0
+
+/** Shared empty list, so a selector-backed field with no static options keeps a stable identity. */
+const EMPTY_OPTIONS: ComboBoxOption[] = []
 
 const CREATE_ACTION_LABEL: Record<NonNullable<SubBlockConfig['createAction']>, string> = {
   sandbox: 'Create Sandbox',
@@ -49,8 +53,12 @@ type ComboBoxOption =
  * Props for the ComboBox component
  */
 interface ComboBoxProps {
-  /** Available options for selection - can be static array or function that returns options */
-  options: ComboBoxOption[] | (() => ComboBoxOption[])
+  /**
+   * Static options, or a function deriving them from the block's own values. Absent on a
+   * selector-backed field, whose list comes from `selectorKey` instead — so this must never
+   * be read without a default.
+   */
+  options?: ComboBoxOption[] | ((params?: { values: Record<string, unknown> }) => ComboBoxOption[])
   /** Default value to use when no value is set */
   defaultValue?: string
   /** ID of the parent block */
@@ -108,15 +116,27 @@ export const ComboBox = memo(function ComboBox({
   const { isModelUsable, isLoading: isPermissionLoading } = usePermissionConfig()
 
   // Evaluate static options if provided as a function
+  // Derived option lists read the block's own values (a model's valid reasoning efforts);
+  // `dependsOn` already re-renders this control when one of those siblings changes.
+  const activeWorkflowIdForValues = useWorkflowRegistry((state) => state.activeWorkflowId)
+  const blockValues = useSubBlockStore((state) =>
+    activeWorkflowIdForValues
+      ? state.workflowValues[activeWorkflowIdForValues]?.[blockId]
+      : undefined
+  )
+
   const staticOptions = useMemo(() => {
-    const opts = typeof options === 'function' ? options() : options
+    const opts =
+      typeof options === 'function'
+        ? options({ values: blockValues ?? {} })
+        : (options ?? EMPTY_OPTIONS)
 
     if (subBlockId === 'model') {
       return opts.filter((opt) => isModelUsable(typeof opt === 'string' ? opt : opt.id))
     }
 
     return opts
-  }, [options, subBlockId, isModelUsable])
+  }, [options, blockValues, subBlockId, isModelUsable])
 
   const {
     fetchedOptions,
