@@ -513,6 +513,12 @@ export const workflowExecutionLogs = pgTable(
     runningExecutionDeadlineIdx: index('workflow_execution_logs_running_deadline_idx')
       .on(table.executionDeadlineAt)
       .where(sql`${table.status} = 'running' AND ${table.executionDeadlineAt} IS NOT NULL`),
+    redactingStartedAtIdx: index('workflow_execution_logs_redacting_started_at_idx')
+      .on(table.startedAt)
+      .where(sql`status = 'redacting'`),
+    redactingExecutionDeadlineIdx: index('workflow_execution_logs_redacting_deadline_idx')
+      .on(table.executionDeadlineAt)
+      .where(sql`${table.status} = 'redacting' AND ${table.executionDeadlineAt} IS NOT NULL`),
     completedEndedAtIdx: index('workflow_execution_logs_completed_ended_at_idx')
       .on(table.endedAt, table.workspaceId, table.executionId)
       .where(
@@ -4262,6 +4268,11 @@ export const asyncJobs = pgTable(
     scheduleProcessingStartedAtIdx: index('async_jobs_schedule_processing_started_at_idx')
       .on(table.startedAt, table.id)
       .where(sql`${table.type} = 'schedule-execution' AND ${table.status} = 'processing'`),
+    scheduleUnreconciledTerminalIdx: index('async_jobs_schedule_unreconciled_terminal_idx')
+      .on(table.updatedAt, table.id)
+      .where(
+        sql`${table.type} = 'schedule-execution' AND ${table.status} IN ('completed', 'failed', 'cancelled') AND COALESCE(${table.metadata} ->> 'scheduleReconciled', 'false') <> 'true'`
+      ),
   })
 )
 

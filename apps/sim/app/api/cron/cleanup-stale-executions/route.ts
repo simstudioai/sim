@@ -17,6 +17,7 @@ import {
   JOB_STATUS,
   MAX_JOB_DURATION_SECONDS,
   MIN_JOB_DURATION_SECONDS,
+  TERMINAL_JOB_STATUSES,
 } from '@/lib/core/async-jobs'
 import {
   getExecutionReservationTtlMs,
@@ -26,7 +27,14 @@ import {
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import type { DbTransaction } from '@/lib/db/types'
 import { elapsedDurationMsSql } from '@/lib/logs/execution/duration'
+import { STALE_SWEEPABLE_EXECUTION_STATUSES } from '@/lib/logs/types'
 import { deleteFile } from '@/lib/uploads/core/storage-service'
+import {
+  carrierNotIrrecoverableSql,
+  carrierReconciledSql,
+  SCHEDULE_CARRIER_IRRECOVERABLE_RETENTION_HOURS,
+} from '@/lib/workflows/schedules/carrier-metadata'
+import { SCHEDULE_EXECUTION_QUEUE_NAME } from '@/lib/workflows/schedules/execution-limits'
 
 const logger = createLogger('CleanupStaleExecutions')
 
@@ -152,12 +160,17 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         EXTRACT(EPOCH FROM (${cleanupTimestamp} - ${workflowExecutionLogs.startedAt})) / 60
       )::integer`
       const totalDurationMs = elapsedDurationMsSql(now)
-      for (const executionStatus of ['running', 'redacting'] as const) {
+      /**
+       * Swept one status at a time so each pass stays on its own partial index;
+       * `status IN (...)` would match neither. The row budget is shared across
+       * both passes so the per-run cap keeps meaning what its name says.
+       */
+      let workflowRowsConsidered = 0
+      for (const executionStatus of STALE_SWEEPABLE_EXECUTION_STATUSES) {
         const staleExecutionPredicate = and(
           eq(workflowExecutionLogs.status, executionStatus),
           staleExecutionTimePredicate
         )
-        let workflowRowsConsidered = 0
         while (workflowRowsConsidered < WORKFLOW_EXECUTION_MAX_ROWS_PER_RUN) {
           const limit = Math.min(
             WORKFLOW_EXECUTION_MUTATION_BATCH_SIZE,
@@ -216,16 +229,12 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
           workflowRowsConsidered += candidates.length
           if (candidates.length < limit) break
         }
+      }
 
-        if (workflowRowsConsidered >= WORKFLOW_EXECUTION_MAX_ROWS_PER_RUN) {
-          logger.info(
-            'Deferred remaining stale workflow executions after reaching the per-run cap',
-            {
-              status: executionStatus,
-              maxRowsPerRun: WORKFLOW_EXECUTION_MAX_ROWS_PER_RUN,
-            }
-          )
-        }
+      if (workflowRowsConsidered >= WORKFLOW_EXECUTION_MAX_ROWS_PER_RUN) {
+        logger.info('Deferred remaining stale workflow executions after reaching the per-run cap', {
+          maxRowsPerRun: WORKFLOW_EXECUTION_MAX_ROWS_PER_RUN,
+        })
       }
     } catch (error) {
       logger.error('Failed to clean up stale workflow executions:', {
@@ -260,7 +269,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       END`
       const staleProcessingPredicate = and(
         eq(asyncJobs.status, JOB_STATUS.PROCESSING),
-        ne(asyncJobs.type, 'schedule-execution'),
+        ne(asyncJobs.type, SCHEDULE_EXECUTION_QUEUE_NAME),
         staleProcessingDurationPredicate
       )
       const staleProcessingResult = await runBatchedMutation({
@@ -403,7 +412,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     try {
       const stalePendingPredicate = and(
         eq(asyncJobs.status, JOB_STATUS.PENDING),
-        ne(asyncJobs.type, 'schedule-execution'),
+        ne(asyncJobs.type, SCHEDULE_EXECUTION_QUEUE_NAME),
         lt(asyncJobs.createdAt, stalePendingThreshold)
       )
       const stalePendingResult = await runBatchedMutation({
@@ -445,16 +454,27 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     }
 
     const retentionThreshold = new Date(Date.now() - JOB_RETENTION_HOURS * 60 * 60 * 1000)
+    const irrecoverableCarrierRetentionThreshold = new Date(
+      Date.now() - SCHEDULE_CARRIER_IRRECOVERABLE_RETENTION_HOURS * 60 * 60 * 1000
+    )
     let asyncJobsDeleted = 0
 
     try {
       const retainedJobPredicate = and(
-        inArray(asyncJobs.status, [JOB_STATUS.COMPLETED, JOB_STATUS.FAILED, JOB_STATUS.CANCELLED]),
+        inArray(asyncJobs.status, TERMINAL_JOB_STATUSES),
         or(
-          ne(asyncJobs.type, 'schedule-execution'),
+          ne(asyncJobs.type, SCHEDULE_EXECUTION_QUEUE_NAME),
+          /**
+           * Schedule recovery owns a carrier until it stamps the reconciled
+           * marker, so retention waits for it rather than deleting an
+           * occurrence that has not been accounted for yet.
+           */
           and(
-            sql`${asyncJobs.metadata}->>'scheduleReconciled' = 'true'`,
-            sql`COALESCE(${asyncJobs.metadata}->>'scheduleRecoveryIrrecoverable', 'false') <> 'true'`
+            carrierReconciledSql(asyncJobs.metadata),
+            or(
+              carrierNotIrrecoverableSql(asyncJobs.metadata),
+              lt(asyncJobs.completedAt, irrecoverableCarrierRetentionThreshold)
+            )
           )
         ),
         lt(asyncJobs.completedAt, retentionThreshold)

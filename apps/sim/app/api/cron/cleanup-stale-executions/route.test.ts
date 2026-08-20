@@ -5,7 +5,16 @@ import { asyncJobs, tableJobs, workflowExecutionLogs } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { createMockRequest, dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { MAX_JOB_DURATION_SECONDS, MIN_JOB_DURATION_SECONDS } from '@/lib/core/async-jobs'
+import {
+  JOB_RETENTION_HOURS,
+  MAX_JOB_DURATION_SECONDS,
+  MIN_JOB_DURATION_SECONDS,
+} from '@/lib/core/async-jobs'
+import {
+  SCHEDULE_CARRIER_IRRECOVERABLE_METADATA_KEY,
+  SCHEDULE_CARRIER_IRRECOVERABLE_RETENTION_HOURS,
+  SCHEDULE_CARRIER_RECONCILED_METADATA_KEY,
+} from '@/lib/workflows/schedules/carrier-metadata'
 
 const { mockDeleteFile, mockVerifyCronAuth } = vi.hoisted(() => ({
   mockDeleteFile: vi.fn().mockResolvedValue(undefined),
@@ -60,6 +69,33 @@ function createRequest() {
     {},
     'http://localhost:3000/api/cron/cleanup-stale-executions'
   )
+}
+
+/** Recursively renders a mocked drizzle fragment, expanding nested fragments. */
+function renderSql(fragment: unknown): string {
+  if (fragment === null || fragment === undefined) return ''
+  if (typeof fragment !== 'object') return String(fragment)
+  const candidate = fragment as { rawSql?: string; strings?: string[]; values?: unknown[] }
+  if (typeof candidate.rawSql === 'string') return candidate.rawSql
+  if (!candidate.strings) return ''
+  return candidate.strings
+    .map((part, index) =>
+      index < (candidate.values?.length ?? 0)
+        ? `${part}${renderSql(candidate.values?.[index])}`
+        : part
+    )
+    .join('')
+}
+
+/** Recursively collects the non-fragment bind values of a mocked fragment. */
+function collectSqlParams(fragment: unknown): unknown[] {
+  if (!fragment || typeof fragment !== 'object') return []
+  const candidate = fragment as { values?: unknown[] }
+  if (!candidate.values) return []
+  return candidate.values.flatMap((value) => {
+    const nested = collectSqlParams(value)
+    return nested.length > 0 ? nested : [value]
+  })
 }
 
 describe('stale execution cleanup deadline grace', () => {
@@ -237,10 +273,10 @@ describe('stale execution cleanup deadline grace', () => {
       flattenConditions(condition)
     )
     const reconciliationMarker = retentionConditions.find((condition) =>
-      condition.toSQL?.().sql.includes('scheduleReconciled')
+      renderSql(condition).includes(SCHEDULE_CARRIER_RECONCILED_METADATA_KEY)
     )
 
-    expect(reconciliationMarker?.toSQL?.().params).toContain(asyncJobs.metadata)
+    expect(collectSqlParams(reconciliationMarker)).toContain(asyncJobs.metadata)
     expect(
       retentionConditions.some(
         (condition) =>
@@ -251,7 +287,23 @@ describe('stale execution cleanup deadline grace', () => {
     ).toBe(true)
   })
 
-  it('retains irrecoverable schedule carrier tombstones indefinitely', async () => {
+  it('spells carrier metadata keys as SQL literals so the partial index matches', async () => {
+    const response = await GET(createRequest())
+
+    expect(response.status).toBe(200)
+    const reconciliationMarker = dbChainMockFns.where.mock.calls
+      .flatMap(([condition]) => flattenConditions(condition))
+      .find((condition) => renderSql(condition).includes(SCHEDULE_CARRIER_RECONCILED_METADATA_KEY))
+
+    expect(renderSql(reconciliationMarker)).toContain(
+      `'${SCHEDULE_CARRIER_RECONCILED_METADATA_KEY}'`
+    )
+    expect(collectSqlParams(reconciliationMarker)).not.toContain(
+      SCHEDULE_CARRIER_RECONCILED_METADATA_KEY
+    )
+  })
+
+  it('deletes irrecoverable schedule carrier tombstones once their longer window lapses', async () => {
     const response = await GET(createRequest())
 
     expect(response.status).toBe(200)
@@ -259,11 +311,23 @@ describe('stale execution cleanup deadline grace', () => {
       flattenConditions(condition)
     )
     const irrecoverableExclusion = retentionConditions.find((condition) =>
-      condition.toSQL?.().sql.includes('scheduleRecoveryIrrecoverable')
+      renderSql(condition).includes(SCHEDULE_CARRIER_IRRECOVERABLE_METADATA_KEY)
     )
 
-    expect(irrecoverableExclusion?.toSQL?.().sql).toContain("<> 'true'")
-    expect(irrecoverableExclusion?.toSQL?.().params).toContain(asyncJobs.metadata)
+    expect(renderSql(irrecoverableExclusion)).toContain("<> 'true'")
+    expect(collectSqlParams(irrecoverableExclusion)).toContain(asyncJobs.metadata)
+
+    const tombstoneWindow = retentionConditions.filter(
+      (condition) =>
+        condition.type === 'lt' &&
+        condition.left === asyncJobs.completedAt &&
+        condition.right instanceof Date
+    )
+    const oldest = Math.min(...tombstoneWindow.map(({ right }) => (right as Date).getTime()))
+    const newest = Math.max(...tombstoneWindow.map(({ right }) => (right as Date).getTime()))
+    expect(newest - oldest).toBe(
+      (SCHEDULE_CARRIER_IRRECOVERABLE_RETENTION_HOURS - JOB_RETENTION_HOURS) * 60 * 60 * 1000
+    )
   })
 
   it('keeps table-job heartbeat cleanup independent from workflow timeout policy', async () => {
@@ -382,7 +446,7 @@ describe('stale execution cleanup deadline grace', () => {
     expect(mockDeleteFile).toHaveBeenCalledTimes(1000)
 
     const limits = dbChainMockFns.limit.mock.calls.map(([limit]) => limit)
-    expect(limits.filter((limit) => limit === 100)).toHaveLength(21)
+    expect(limits.filter((limit) => limit === 100)).toHaveLength(20)
     expect(limits.filter((limit) => limit === 1000)).toHaveLength(30)
     expect(limits.filter((limit) => limit === 2000)).toHaveLength(11)
 

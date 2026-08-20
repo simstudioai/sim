@@ -28,7 +28,12 @@ import {
   JOB_PENDING_RETENTION_HOURS,
   shouldExecuteInline,
 } from '@/lib/core/async-jobs'
-import { isAsyncJobEnqueueError, JOB_STATUS, type Job } from '@/lib/core/async-jobs/types'
+import {
+  isAsyncJobEnqueueError,
+  JOB_STATUS,
+  type Job,
+  TERMINAL_JOB_STATUSES,
+} from '@/lib/core/async-jobs/types'
 import { isRetryableInfrastructureError } from '@/lib/core/errors/retryable-infrastructure'
 import {
   getExecutionReservationTtlMs,
@@ -44,6 +49,10 @@ import {
   registerManualExecutionAborter,
   unregisterManualExecutionAborter,
 } from '@/lib/execution/manual-cancellation'
+import {
+  buildCarrierReconciledMetadata,
+  carrierNotReconciledSql,
+} from '@/lib/workflows/schedules/carrier-metadata'
 import { notifyScheduleAutoDisabled } from '@/lib/workflows/schedules/disable-notifications'
 import {
   SCHEDULE_EXECUTION_CONCURRENCY_LIMIT,
@@ -77,9 +86,6 @@ const MAX_TICK_DURATION_MS = 3 * 60 * 1000
 const STALE_SCHEDULE_CLAIM_MS = getExecutionReservationTtlMs()
 const STALE_SCHEDULE_RECOVERY_BATCH_SIZE = 100
 const DATABASE_SCHEDULE_START_TURN_WAIT_MS = 1_000
-const SCHEDULE_CARRIER_RECONCILED_METADATA_KEY = 'scheduleReconciled'
-const SCHEDULE_CARRIER_IRRECOVERABLE_METADATA_KEY = 'scheduleRecoveryIrrecoverable'
-const LEGACY_SCHEDULE_CARRIER_RECOVERY_BLOCKED_METADATA_KEY = 'scheduleRecoveryBlocked'
 type DatabaseScheduleStartResult = 'started' | 'capacity_full' | 'not_pending'
 let databaseScheduleStartTurn: Promise<void> | null = null
 
@@ -339,12 +345,11 @@ async function restoreScheduleClaim(
   requestId: string,
   currentClaim: Date,
   activeClaim: Date,
-  context: string,
-  executor: DbOrTx = db
+  context: string
 ): Promise<boolean> {
   if (currentClaim.getTime() === activeClaim.getTime()) return true
 
-  const [restored] = await executor
+  const [restored] = await db
     .update(workflowSchedule)
     .set({ lastQueuedAt: activeClaim, updatedAt: new Date() })
     .where(
@@ -413,27 +418,37 @@ function activeScheduleExecutionJobsFilter() {
   return sql`${asyncJobs.type} = 'schedule-execution' AND ${asyncJobs.status} = 'processing'`
 }
 
-function pendingScheduleExecutionJobsFilter(now: Date) {
+/**
+ * Due pending carriers, split by whether a worker has already claimed the
+ * occurrence. Untouched carriers (`attempts = 0`) are the only ones still safe
+ * to execute; claimed ones are reconciled from their persisted execution log.
+ */
+function pendingScheduleExecutionJobsFilter(now: Date, options: { claimed?: boolean } = {}) {
   return and(
     sql`${asyncJobs.type} = 'schedule-execution' AND ${asyncJobs.status} = 'pending'`,
-    eq(asyncJobs.attempts, 0),
+    options.claimed ? gt(asyncJobs.attempts, 0) : eq(asyncJobs.attempts, 0),
     or(isNull(asyncJobs.runAt), lte(asyncJobs.runAt, now))
   )
 }
 
-function claimedPendingScheduleExecutionJobsFilter(now: Date) {
-  return and(
-    sql`${asyncJobs.type} = 'schedule-execution' AND ${asyncJobs.status} = 'pending'`,
-    gt(asyncJobs.attempts, 0),
-    or(isNull(asyncJobs.runAt), lte(asyncJobs.runAt, now))
-  )
-}
+const TERMINAL_JOB_STATUS_SQL_LIST = sql.raw(
+  TERMINAL_JOB_STATUSES.map((status) => `'${status}'`).join(', ')
+)
 
+/**
+ * Terminal carriers whose schedule accounting has not been replayed yet.
+ * Schedule recovery owns these rows until the reconciled marker is stamped,
+ * which is also what releases them to async-job retention.
+ *
+ * Written entirely with SQL literals so it matches the partial index
+ * `async_jobs_schedule_unreconciled_terminal_idx` verbatim — a bound status
+ * list or metadata key defeats predicate implication and seq-scans the table.
+ */
 function unreconciledTerminalScheduleExecutionJobsFilter() {
   return and(
     sql`${asyncJobs.type} = 'schedule-execution'`,
-    inArray(asyncJobs.status, [JOB_STATUS.COMPLETED, JOB_STATUS.FAILED, JOB_STATUS.CANCELLED]),
-    sql`COALESCE(${asyncJobs.metadata}->>${SCHEDULE_CARRIER_RECONCILED_METADATA_KEY}, 'false') <> 'true'`
+    sql`${asyncJobs.status} IN (${TERMINAL_JOB_STATUS_SQL_LIST})`,
+    carrierNotReconciledSql(asyncJobs.metadata)
   )
 }
 
@@ -469,9 +484,13 @@ function getScheduleNextRunAt(
   )
 }
 
+function isTerminalJobStatus(status: string): boolean {
+  return (TERMINAL_JOB_STATUSES as readonly string[]).includes(status)
+}
+
 function classifyScheduleRecoveryEvidence(
   status: string | null,
-  logFound = status !== null
+  logFound: boolean
 ): ScheduleRecoveryEvidence {
   switch (status) {
     case 'completed':
@@ -488,10 +507,31 @@ function classifyScheduleRecoveryEvidence(
   }
 }
 
-async function getScheduleRecoveryEvidence(
-  payload: ScheduleRecoveryMetadata | null
-): Promise<ScheduleRecoveryEvidence> {
-  if (!payload?.executionId) return classifyScheduleRecoveryEvidence(null, false)
+/**
+ * Turns a carrier and its persisted execution log into the single outcome both
+ * recovery paths act on. A log belonging to another workflow counts as no
+ * evidence, and a carrier the queue already cancelled resolves as a
+ * cancellation when its execution left no log behind.
+ */
+function buildScheduleRecoveryEvidence(
+  payload: ScheduleRecoveryMetadata | null,
+  executionLog: { workflowId: string | null; status: string } | null | undefined,
+  carrierStatus: string
+): ScheduleRecoveryEvidence {
+  const ownLog =
+    executionLog && executionLog.workflowId === payload?.workflowId ? executionLog : null
+  const evidence = classifyScheduleRecoveryEvidence(ownLog?.status ?? null, Boolean(ownLog))
+
+  if (!evidence.logFound && carrierStatus === JOB_STATUS.CANCELLED) {
+    return { outcome: 'cancelled', executionStatus: null, logFound: false }
+  }
+
+  return evidence
+}
+
+/** Loads the execution log a carrier points at, for the single-carrier path. */
+async function getScheduleExecutionLog(payload: ScheduleRecoveryMetadata | null) {
+  if (!payload?.executionId) return null
 
   const [executionLog] = await db
     .select({
@@ -502,12 +542,13 @@ async function getScheduleRecoveryEvidence(
     .where(eq(workflowExecutionLogs.executionId, payload.executionId))
     .limit(1)
 
-  if (!executionLog) return classifyScheduleRecoveryEvidence(null, false)
-  if (executionLog.workflowId !== payload.workflowId) return classifyScheduleRecoveryEvidence(null)
-
-  return classifyScheduleRecoveryEvidence(executionLog.status)
+  return executionLog ?? null
 }
 
+/**
+ * Projects a recovered occurrence onto schedule accounting. Every write is
+ * claim-guarded, so a schedule someone else has since re-claimed is left alone.
+ */
 async function applyScheduleRecoveryAccounting(params: {
   payload: ScheduleRecoveryMetadata
   evidence: ScheduleRecoveryEvidence
@@ -560,6 +601,12 @@ async function applyScheduleRecoveryAccounting(params: {
   return { disabled: result.disabled, updated: result.updated }
 }
 
+/**
+ * Reconciles a recovered occurrence, retrying once through a restored claim.
+ * A worker that released the claim without advancing `nextRunAt` leaves the
+ * occurrence unaccounted for; re-taking the claim on that exact occurrence is
+ * what lets the outcome be applied instead of silently replayed.
+ */
 async function reconcileRecoveredScheduleAccounting(params: {
   payload: ScheduleRecoveryMetadata
   evidence: ScheduleRecoveryEvidence
@@ -648,6 +695,11 @@ async function markClaimedScheduleFailed(
   }
 }
 
+/**
+ * Resolves a schedule occurrence whose carrier already exists, from the
+ * carrier's persisted execution log rather than by redispatching it. Set
+ * `cancelCarrier` when the carrier is still live and must be stopped first.
+ */
 async function reconcileExistingScheduleJob(params: {
   job: Job
   schedule: DatabaseScheduleExecutionTarget
@@ -707,12 +759,11 @@ async function reconcileExistingScheduleJob(params: {
       cronExpression: schedule.cronExpression ?? undefined,
       timezone: schedule.timezone,
     } satisfies ScheduleRecoveryMetadata)
-  let evidence = validMetadata
-    ? await getScheduleRecoveryEvidence(validMetadata)
-    : classifyScheduleRecoveryEvidence(null, false)
-  if (!evidence.logFound && job.status === JOB_STATUS.CANCELLED) {
-    evidence = { outcome: 'cancelled', executionStatus: null, logFound: false }
-  }
+  const evidence = buildScheduleRecoveryEvidence(
+    validMetadata,
+    validMetadata ? await getScheduleExecutionLog(validMetadata) : null,
+    job.status
+  )
   const { disabled } = await applyScheduleRecoveryAccounting({
     payload: recoveryPayload,
     evidence,
@@ -839,7 +890,7 @@ async function recoverStaleDatabaseScheduleJobs(now: Date): Promise<void> {
       .where(
         or(
           staleScheduleExecutionJobsFilter(now),
-          claimedPendingScheduleExecutionJobsFilter(now),
+          pendingScheduleExecutionJobsFilter(now, { claimed: true }),
           unreconciledTerminalScheduleExecutionJobsFilter()
         )
       )
@@ -872,62 +923,51 @@ async function recoverStaleDatabaseScheduleJobs(now: Date): Promise<void> {
     const executionLogsById = new Map(executionLogs.map((log) => [log.executionId, log]))
 
     for (const row of claimedRows) {
-      const payload = getScheduleRecoveryMetadataFromValue(row.payload)
-      const executionLog = payload?.executionId
-        ? executionLogsById.get(payload.executionId)
-        : undefined
-      const evidence = classifyScheduleRecoveryEvidence(
-        executionLog && executionLog.workflowId === payload?.workflowId
-          ? executionLog.status
-          : null,
-        Boolean(executionLog)
+      const payload = payloads.get(row.id) ?? null
+      const recoveryEvidence = buildScheduleRecoveryEvidence(
+        payload,
+        payload?.executionId ? executionLogsById.get(payload.executionId) : null,
+        row.status
       )
-      const recoveryEvidence =
-        !evidence.logFound && row.status === JOB_STATUS.CANCELLED
-          ? { outcome: 'cancelled' as const, executionStatus: null, logFound: false }
-          : evidence
 
       const knownOutcome = recoveryEvidence.outcome !== 'indeterminate'
-      const recoveredCarrierStatus =
-        row.status === JOB_STATUS.CANCELLED
-          ? JOB_STATUS.CANCELLED
-          : knownOutcome
-            ? JOB_STATUS.COMPLETED
-            : JOB_STATUS.FAILED
-      const [settledJob] = await tx
-        .update(asyncJobs)
-        .set({
-          status: recoveredCarrierStatus,
-          completedAt: now,
-          error:
-            recoveredCarrierStatus === JOB_STATUS.CANCELLED
-              ? 'Cancelled'
-              : knownOutcome
-                ? null
-                : `Indeterminate schedule execution outcome${recoveryEvidence.executionStatus ? ` (${recoveryEvidence.executionStatus})` : ''}`,
-          output: knownOutcome
-            ? {
-                recovered: true,
-                executionId: payload?.executionId ?? null,
-                executionStatus: recoveryEvidence.executionStatus,
-              }
-            : null,
-          updatedAt: now,
-        })
-        .where(and(eq(asyncJobs.id, row.id), eq(asyncJobs.status, row.status)))
-        .returning({ id: asyncJobs.id })
 
-      if (!settledJob) continue
+      /**
+       * A carrier that already reached a terminal status recorded its own
+       * outcome; recovery only owes it schedule accounting and the reconciled
+       * marker. Rewriting it would clobber the worker's `completedAt`, error
+       * and output — which `GET /api/jobs/[jobId]` surfaces — and would flip a
+       * genuinely completed run to failed whenever its execution log has aged
+       * out. Only a carrier still in flight is settled here.
+       */
+      if (!isTerminalJobStatus(row.status)) {
+        const [settledJob] = await tx
+          .update(asyncJobs)
+          .set({
+            status: knownOutcome ? JOB_STATUS.COMPLETED : JOB_STATUS.FAILED,
+            completedAt: now,
+            error: knownOutcome
+              ? null
+              : `Indeterminate schedule execution outcome${recoveryEvidence.executionStatus ? ` (${recoveryEvidence.executionStatus})` : ''}`,
+            output: knownOutcome
+              ? {
+                  recovered: true,
+                  executionId: payload?.executionId ?? null,
+                  executionStatus: recoveryEvidence.executionStatus,
+                }
+              : null,
+            updatedAt: now,
+          })
+          .where(and(eq(asyncJobs.id, row.id), eq(asyncJobs.status, row.status)))
+          .returning({ id: asyncJobs.id })
+
+        if (!settledJob) continue
+      }
       if (!payload) {
         await tx
           .update(asyncJobs)
           .set({
-            metadata: sql`(COALESCE(${asyncJobs.metadata}, '{}'::jsonb) - ${LEGACY_SCHEDULE_CARRIER_RECOVERY_BLOCKED_METADATA_KEY}) || ${JSON.stringify(
-              {
-                [SCHEDULE_CARRIER_RECONCILED_METADATA_KEY]: true,
-                [SCHEDULE_CARRIER_IRRECOVERABLE_METADATA_KEY]: true,
-              }
-            )}::jsonb`,
+            metadata: buildCarrierReconciledMetadata(asyncJobs.metadata, { irrecoverable: true }),
             updatedAt: now,
           })
           .where(eq(asyncJobs.id, row.id))
@@ -947,11 +987,7 @@ async function recoverStaleDatabaseScheduleJobs(now: Date): Promise<void> {
         await tx
           .update(asyncJobs)
           .set({
-            metadata: sql`(COALESCE(${asyncJobs.metadata}, '{}'::jsonb) - ${LEGACY_SCHEDULE_CARRIER_RECOVERY_BLOCKED_METADATA_KEY}) || ${JSON.stringify(
-              {
-                [SCHEDULE_CARRIER_RECONCILED_METADATA_KEY]: true,
-              }
-            )}::jsonb`,
+            metadata: buildCarrierReconciledMetadata(asyncJobs.metadata),
             updatedAt: now,
           })
           .where(eq(asyncJobs.id, row.id))
@@ -1043,6 +1079,10 @@ async function tryStartDatabaseScheduleJob(jobId: string): Promise<DatabaseSched
   })
 }
 
+/**
+ * Cancels an untouched pending carrier whose schedule claim was released, and
+ * stamps it reconciled so retention can collect it.
+ */
 async function cancelReleasedPendingDatabaseScheduleCarrier(jobId: string): Promise<boolean> {
   const now = new Date()
   const [cancelled] = await db
@@ -1051,11 +1091,7 @@ async function cancelReleasedPendingDatabaseScheduleCarrier(jobId: string): Prom
       status: JOB_STATUS.CANCELLED,
       completedAt: now,
       error: 'Cancelled after schedule claim was released',
-      metadata: sql`(COALESCE(${asyncJobs.metadata}, '{}'::jsonb) - ${LEGACY_SCHEDULE_CARRIER_RECOVERY_BLOCKED_METADATA_KEY}) || ${JSON.stringify(
-        {
-          [SCHEDULE_CARRIER_RECONCILED_METADATA_KEY]: true,
-        }
-      )}::jsonb`,
+      metadata: buildCarrierReconciledMetadata(asyncJobs.metadata),
       updatedAt: now,
     })
     .where(
@@ -1283,14 +1319,9 @@ async function processScheduleItem(
   let carrierObservedOrLookupUncertain = false
 
   try {
-    let existingJob: Job | null
-    try {
-      existingJob = await jobQueue.getJob(scheduleJobId)
-      if (existingJob) carrierObservedOrLookupUncertain = true
-    } catch (error) {
-      carrierObservedOrLookupUncertain = true
-      throw error
-    }
+    carrierObservedOrLookupUncertain = true
+    const existingJob = await jobQueue.getJob(scheduleJobId)
+    if (!existingJob) carrierObservedOrLookupUncertain = false
     const delayMs = randomInt(0, SCHEDULE_JITTER_MAX_MS)
 
     if (existingJob && ['pending', 'processing'].includes(existingJob.status)) {

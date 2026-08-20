@@ -620,8 +620,11 @@ describe('Scheduled Workflow Execution API Route', () => {
 
     await runScheduleTick('test-request-id')
 
+    expect(dbChainMockFns.set).not.toHaveBeenCalledWith(
+      expect.objectContaining({ status: expect.anything() })
+    )
     expect(dbChainMockFns.set).toHaveBeenCalledWith(
-      expect.objectContaining({ status: 'cancelled', error: 'Cancelled' })
+      expect.objectContaining({ metadata: expect.anything() })
     )
     expect(mockApplyScheduleCancellationUpdate).toHaveBeenCalledOnce()
     expect(mockExecuteScheduleJob).not.toHaveBeenCalled()
@@ -651,8 +654,8 @@ describe('Scheduled Workflow Execution API Route', () => {
 
     await runScheduleTick('test-request-id')
 
-    expect(dbChainMockFns.set).toHaveBeenCalledWith(
-      expect.objectContaining({ status: 'cancelled', error: 'Cancelled' })
+    expect(dbChainMockFns.set).not.toHaveBeenCalledWith(
+      expect.objectContaining({ status: expect.anything() })
     )
     expect(mockApplyScheduleSuccessUpdate).toHaveBeenCalledOnce()
     expect(mockApplyScheduleCancellationUpdate).not.toHaveBeenCalled()
@@ -793,6 +796,30 @@ describe('Scheduled Workflow Execution API Route', () => {
       {
         id: 'malformed-job-id',
         status: 'completed',
+        payload: { workflowId: 'workflow-1' },
+      },
+    ])
+    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'malformed-job-id' }])
+
+    await runScheduleTick('test-request-id')
+
+    expect(dbChainMockFns.set).not.toHaveBeenCalledWith(
+      expect.objectContaining({ status: expect.anything() })
+    )
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({ metadata: expect.anything(), updatedAt: expect.any(Date) })
+    )
+    expect(mockApplyScheduleFailureUpdate).not.toHaveBeenCalled()
+    expect(mockExecuteScheduleJob).not.toHaveBeenCalled()
+  })
+
+  it('settles a malformed in-flight carrier before marking it irrecoverable', async () => {
+    mockShouldExecuteInline.mockReturnValue(true)
+    mockProcessingCounts(0, 0)
+    orderByLimitMock.mockResolvedValueOnce([
+      {
+        id: 'malformed-job-id',
+        status: 'processing',
         payload: { workflowId: 'workflow-1' },
       },
     ])
