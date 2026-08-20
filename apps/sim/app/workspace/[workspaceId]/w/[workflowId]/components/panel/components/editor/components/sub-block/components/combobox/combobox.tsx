@@ -14,6 +14,7 @@ import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/c
 import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/providers/active-search-target-provider'
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
 import type { SubBlockConfig } from '@/blocks/types'
+import type { SelectorKey } from '@/hooks/selectors/types'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 
@@ -68,6 +69,8 @@ interface ComboBoxProps {
   placeholder?: string
   /** Configuration for the sub-block */
   config: SubBlockConfig
+  /** Registered selector supplying the options. The canonical source for a remote list. */
+  selectorKey?: SelectorKey
   /** Async function to fetch options dynamically */
   fetchOptions?: (blockId: string) => Promise<Array<{ label: string; id: string }>>
   /** Async function to fetch a single option's label by ID (for hydration) */
@@ -90,6 +93,7 @@ export const ComboBox = memo(function ComboBox({
   disabled,
   placeholder = 'Type or select an option...',
   config,
+  selectorKey,
   fetchOptions,
   fetchOptionById,
   dependsOn,
@@ -126,10 +130,12 @@ export const ComboBox = memo(function ComboBox({
     fetchError,
     hydratedOption,
     missingOptionId,
+    isDynamic,
     refetch: refetchOptions,
   } = useFetchedOptions({
     blockId,
     dependsOnFields,
+    selectorKey,
     fetchOptions,
     fetchOptionById,
     isPreview: Boolean(isPreview),
@@ -194,7 +200,7 @@ export const ComboBox = memo(function ComboBox({
   // Merge static and fetched options - fetched options take priority when available
   const evaluatedOptions = useMemo((): ComboBoxOption[] => {
     let opts: ComboBoxOption[] =
-      fetchOptions && normalizedFetchedOptions.length > 0 ? normalizedFetchedOptions : staticOptions
+      isDynamic && normalizedFetchedOptions.length > 0 ? normalizedFetchedOptions : staticOptions
 
     if (subBlockId === 'model' && fetchOptions && normalizedFetchedOptions.length > 0) {
       opts = opts.filter((opt) => isModelUsable(typeof opt === 'string' ? opt : opt.id))

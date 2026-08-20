@@ -15,6 +15,7 @@ import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflow
 import { getBlock } from '@/blocks/registry'
 import type { SubBlockConfig } from '@/blocks/types'
 import { ResponseBlockHandler } from '@/executor/handlers/response/response-handler'
+import type { SelectorKey } from '@/hooks/selectors/types'
 import { useOperationAccess } from '@/hooks/use-operation-access'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
@@ -59,6 +60,8 @@ interface DropdownProps {
   placeholder?: string
   /** Enable multi-select mode */
   multiSelect?: boolean
+  /** Registered selector supplying the options. The canonical source for a remote list. */
+  selectorKey?: SelectorKey
   /** Async function to fetch options dynamically */
   fetchOptions?: (blockId: string) => Promise<Array<{ label: string; id: string }>>
   /** Async function to fetch a single option's label by ID (for hydration) */
@@ -94,6 +97,7 @@ export const Dropdown = memo(function Dropdown({
   disabled,
   placeholder = 'Select an option...',
   multiSelect = false,
+  selectorKey,
   fetchOptions,
   fetchOptionById,
   dependsOn,
@@ -145,10 +149,12 @@ export const Dropdown = memo(function Dropdown({
     isLoadingOptions,
     fetchError,
     hydratedOption,
+    isDynamic,
     refetch: refetchOptions,
   } = useFetchedOptions({
     blockId,
     dependsOnFields,
+    selectorKey,
     fetchOptions,
     fetchOptionById,
     isPreview: Boolean(isPreview),
@@ -175,9 +181,7 @@ export const Dropdown = memo(function Dropdown({
 
   const allOptions = useMemo(() => {
     let opts: DropdownOption[] =
-      fetchOptions && normalizedFetchedOptions.length > 0
-        ? normalizedFetchedOptions
-        : evaluatedOptions
+      isDynamic && normalizedFetchedOptions.length > 0 ? normalizedFetchedOptions : evaluatedOptions
 
     if (hydratedOption) {
       const alreadyPresent = opts.some((o) =>
@@ -189,7 +193,7 @@ export const Dropdown = memo(function Dropdown({
     }
 
     return opts
-  }, [fetchOptions, normalizedFetchedOptions, evaluatedOptions, hydratedOption])
+  }, [isDynamic, normalizedFetchedOptions, evaluatedOptions, hydratedOption])
 
   /**
    * Operation IDs whose resolved tool is denied by the caller's permission
