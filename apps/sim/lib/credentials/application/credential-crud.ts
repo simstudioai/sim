@@ -1,6 +1,7 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
 import { requirePrincipalSubjectUserId } from '@sim/auth/principal'
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
+import { getBlockVisibility } from '@/lib/core/config/block-visibility'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { canUseCredential, getCredentialActorContext } from '@/lib/credentials/access'
 import {
@@ -25,6 +26,8 @@ import {
   type VisibleWorkspaceCredential,
   type WorkspaceCredentialLookup,
 } from '@/lib/credentials/queries'
+import { getServiceAccountGatingBlockType } from '@/lib/credentials/service-account-provider-ids'
+import { createIntegrationCredentialVisibility } from '@/lib/integrations/credential-visibility.server'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { loadActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
@@ -77,6 +80,39 @@ export type ListInternalCredentialsResult =
   | { mode: 'list'; credentials: VisibleWorkspaceCredential[] }
   | { mode: 'lookup'; credential: WorkspaceCredentialLookup | null }
 
+async function filterGatedServiceAccountCredentials(
+  credentials: VisibleWorkspaceCredential[],
+  viewer: { userId: string; organizationId: string | null }
+): Promise<VisibleWorkspaceCredential[]> {
+  const gatedProviderIds = new Set(
+    credentials.flatMap(({ providerId }) => {
+      if (!providerId || !getServiceAccountGatingBlockType(providerId)) return []
+      return [providerId]
+    })
+  )
+  if (gatedProviderIds.size === 0) return credentials
+
+  const blockVisibility = await getBlockVisibility({
+    userId: viewer.userId,
+    ...(viewer.organizationId ? { orgId: viewer.organizationId } : {}),
+  })
+  const visibility = createIntegrationCredentialVisibility({
+    allowedIntegrationTypes: null,
+    blockVisibility,
+  })
+
+  return credentials.filter((credential) => {
+    const { providerId } = credential
+    if (!providerId || !gatedProviderIds.has(providerId)) return true
+    if (credential.type !== 'service_account') {
+      throw new Error(
+        `Gated service-account provider ${providerId} has credential type ${credential.type}`
+      )
+    }
+    return visibility.isCredentialVisible({ providerId, type: credential.type })
+  })
+}
+
 export const listInternalCredentials = defineAuthorizedWorkspaceUseCase({
   operation: credentialOperations.listInternal,
   resolveContext: async ({ input }: { input: ListInternalCredentialsInput }) => {
@@ -108,7 +144,11 @@ export const listInternalCredentials = defineAuthorizedWorkspaceUseCase({
       types: input.type ? [input.type] : undefined,
       providerId: input.providerId,
     })
-    return { mode: 'list', credentials: page.data }
+    const credentials = await filterGatedServiceAccountCredentials(page.data, {
+      userId,
+      organizationId: context.workspaceOrganizationId,
+    })
+    return { mode: 'list', credentials }
   },
 })
 
