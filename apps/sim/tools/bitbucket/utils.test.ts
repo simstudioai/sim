@@ -163,6 +163,11 @@ describe('Bitbucket path and pagination safety', () => {
   it('accepts PR redirects only for the requested repository and endpoint kind', () => {
     const diff = 'https://api.bitbucket.org/2.0/repositories/acme/demo/diff/main..feature'
     expect(validateBitbucketPullRequestRedirect(diff, 'acme', 'demo', 'diff')).toBe(diff)
+    const providerQualified =
+      'https://api.bitbucket.org/2.0/repositories/acme/demo/diff/source-team/source-repo:6315b3bac849%0Decdc2efc4f27?from_pullrequest_id=7&topic=true'
+    expect(validateBitbucketPullRequestRedirect(providerQualified, 'acme', 'demo', 'diff')).toBe(
+      providerQualified
+    )
     expect(() =>
       validateBitbucketPullRequestRedirect(
         'https://api.bitbucket.org/2.0/repositories/acme/other/diff/main..feature',
@@ -173,12 +178,12 @@ describe('Bitbucket path and pagination safety', () => {
     ).toThrow(/did not target/)
     expect(() =>
       validateBitbucketPullRequestRedirect(
-        'https://api.bitbucket.org/2.0/repositories/acme/demo/diff/main..feature/extra',
+        'https://api.bitbucket.org/2.0/repositories/acme/demo/diff/main..feature//extra',
         'acme',
         'demo',
         'diff'
       )
-    ).toThrow(/did not target/)
+    ).toThrow(/empty spec path segment/)
     expect(() =>
       validateBitbucketPullRequestRedirect(
         'https://api.bitbucket.org/2.0/repositories/acme/demo/diffstat/main..feature',

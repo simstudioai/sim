@@ -161,7 +161,7 @@ describe('resolveBitbucketPullRequestRedirect', () => {
       headers: {
         get: (name: string) =>
           name.toLowerCase() === 'location'
-            ? 'https://api.bitbucket.org/2.0/repositories/acme/demo/diff/main..feature'
+            ? 'https://api.bitbucket.org/2.0/repositories/acme/demo/diff/source-team/source-repo:6315b3bac849%0Decdc2efc4f27?from_pullrequest_id=7&topic=true'
             : null,
       },
       body: { cancel },
@@ -181,7 +181,7 @@ describe('resolveBitbucketPullRequestRedirect', () => {
         { targetQuery: { path: 'src/index.ts', binary: 'false' } }
       )
     ).resolves.toBe(
-      'https://api.bitbucket.org/2.0/repositories/acme/demo/diff/main..feature?path=src%2Findex.ts&binary=false'
+      'https://api.bitbucket.org/2.0/repositories/acme/demo/diff/source-team/source-repo:6315b3bac849%0Decdc2efc4f27?from_pullrequest_id=7&topic=true&path=src%2Findex.ts&binary=false'
     )
     expect(order).toEqual(['cancel', 'close'])
   })

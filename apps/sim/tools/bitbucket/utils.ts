@@ -321,17 +321,30 @@ export function validateBitbucketPullRequestRedirect(
   const validated = validateBitbucketOpaqueUrl(value)
   const parsed = new URL(validated)
   const expectedPrefix = `/2.0${bitbucketRepositoryPath(workspaceSlug, repoSlug)}/${kind}/`
-  const encodedRevspec = parsed.pathname.startsWith(expectedPrefix)
+  const encodedSpec = parsed.pathname.startsWith(expectedPrefix)
     ? parsed.pathname.slice(expectedPrefix.length)
     : ''
-  let decodedRevspec = ''
-  try {
-    decodedRevspec = decodeURIComponent(encodedRevspec)
-  } catch {
-    throw new Error(`Bitbucket ${kind} redirect contained invalid path encoding`)
-  }
-  if (!encodedRevspec || encodedRevspec.includes('/') || decodedRevspec.includes('/')) {
+  if (!encodedSpec) {
     throw new Error(`Bitbucket ${kind} redirect did not target this repository's ${kind} endpoint`)
+  }
+
+  /**
+   * Bitbucket documents the redirect target as the repository `{kind}/{spec}`
+   * endpoint. In live responses that opaque spec is repository-qualified, for
+   * example `source-workspace/source-repo:sourceHash%0DdestinationHash`, so it
+   * legitimately spans multiple URL path segments. The exact API origin and
+   * destination repository remain bound above; only the trailing spec is
+   * treated as provider-owned opaque path data.
+   */
+  for (const segment of encodedSpec.split('/')) {
+    if (!segment) {
+      throw new Error(`Bitbucket ${kind} redirect contained an empty spec path segment`)
+    }
+    try {
+      decodeURIComponent(segment)
+    } catch {
+      throw new Error(`Bitbucket ${kind} redirect contained invalid path encoding`)
+    }
   }
   return parsed.toString()
 }

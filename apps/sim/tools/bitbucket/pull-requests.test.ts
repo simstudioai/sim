@@ -713,9 +713,9 @@ describe('Bitbucket pull request diff safety', () => {
 
   it('fetches an already-validated repository diffstat cursor directly', async () => {
     const nextUrl =
-      'https://api.bitbucket.org/2.0/repositories/acme%20team/sdk%2Fcore/diffstat/main..feature?page=2'
+      'https://api.bitbucket.org/2.0/repositories/acme%20team/sdk%2Fcore/diffstat/source-team/source-repo:6315b3bac849%0Decdc2efc4f27?page=2'
     serverMocks.resolveBitbucketPullRequestRedirect.mockResolvedValueOnce(
-      'https://api.bitbucket.org/2.0/repositories/acme%20team/sdk%2Fcore/diffstat/main..feature'
+      'https://api.bitbucket.org/2.0/repositories/acme%20team/sdk%2Fcore/diffstat/source-team/source-repo:6315b3bac849%0Decdc2efc4f27'
     )
     serverMocks.secureBitbucketRead.mockResolvedValueOnce(
       Response.json({ values: [RAW_DIFFSTAT], page: 2 })
@@ -739,14 +739,14 @@ describe('Bitbucket pull request diff safety', () => {
 
   it('rejects a diffstat cursor for a different pull request revspec', async () => {
     serverMocks.resolveBitbucketPullRequestRedirect.mockResolvedValueOnce(
-      'https://api.bitbucket.org/2.0/repositories/acme%20team/sdk%2Fcore/diffstat/main..feature'
+      'https://api.bitbucket.org/2.0/repositories/acme%20team/sdk%2Fcore/diffstat/source-team/source-repo:6315b3bac849%0Decdc2efc4f27'
     )
 
     await expect(
       bitbucketGetPullRequestDiffstatTool.directExecution!({
         ...PULL_REQUEST_PARAMS,
         nextUrl:
-          'https://api.bitbucket.org/2.0/repositories/acme%20team/sdk%2Fcore/diffstat/main..unrelated?page=2',
+          'https://api.bitbucket.org/2.0/repositories/acme%20team/sdk%2Fcore/diffstat/source-team/source-repo:6315b3bac849%0Dunrelated?page=2',
       })
     ).rejects.toThrow(/does not belong to this Bitbucket pull request diffstat/)
     expect(serverMocks.secureBitbucketRead).not.toHaveBeenCalled()
