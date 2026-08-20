@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-08-18",
+  "updatedAt": "2026-08-19",
   "integrations": [
     {
       "type": "onepassword",
@@ -4899,6 +4899,81 @@
       "category": "tools",
       "integrationType": "security",
       "tags": ["identity", "monitoring", "incident-management", "automation"]
+    },
+    {
+      "type": "crunchbase",
+      "slug": "crunchbase",
+      "name": "Crunchbase",
+      "description": "Search and look up companies, people, funding rounds, and acquisitions",
+      "longDescription": "Integrates the Crunchbase Data API into the workflow. Search organizations, people, funding rounds, and acquisitions with filter predicates, reach the other 39 collections through the generic search and lookup operations, page a single related-entity card past its 100-item cap, autocomplete names into identifiers, follow the deleted-entity feed, and list the fields each collection publishes. Which collections and fields resolve depends on your Crunchbase license.",
+      "bgColor": "#0287D1",
+      "iconName": "CrunchbaseIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/crunchbase",
+      "operations": [
+        {
+          "name": "Search Organizations",
+          "description": "Search Crunchbase companies, investors, and schools with filter predicates on funding, headcount, location, category, and rank."
+        },
+        {
+          "name": "Get Organization",
+          "description": "Look up a single Crunchbase organization by permalink or UUID, returning the requested fields and related cards."
+        },
+        {
+          "name": "Search People",
+          "description": "Search Crunchbase people — founders, executives, and investors — with filter predicates on job title, organization, location, and rank."
+        },
+        {
+          "name": "Get Person",
+          "description": "Look up a single Crunchbase person by permalink or UUID, returning the requested fields and related cards."
+        },
+        {
+          "name": "Search Funding Rounds",
+          "description": "Search Crunchbase funding rounds with filter predicates on announced date, investment type, amount raised, and investors."
+        },
+        {
+          "name": "Get Funding Round",
+          "description": "Look up a single Crunchbase funding round by permalink or UUID, returning the requested fields and related cards."
+        },
+        {
+          "name": "Search Acquisitions",
+          "description": "Search Crunchbase acquisitions with filter predicates on announced date, price, acquisition type, and the companies involved."
+        },
+        {
+          "name": "Get Acquisition",
+          "description": "Look up a single Crunchbase acquisition by permalink or UUID, returning the requested fields and related cards."
+        },
+        {
+          "name": "Search Any Collection",
+          "description": "Search any Crunchbase collection — events, jobs, ipos, funds, investments, press references, layoffs, insights, predictions, and more — with filter predicates."
+        },
+        {
+          "name": "Get Any Entity",
+          "description": "Look up a single entity in any Crunchbase collection — events, jobs, ipos, funds, investments, press references, insights, predictions, and more — by permalink or UUID."
+        },
+        {
+          "name": "Get Entity Card",
+          "description": "Page through one related-entity card of a Crunchbase entity — an investor's investments, a company's founders, a round's investors — past the 100-item cap an inline card request returns."
+        },
+        {
+          "name": "Autocomplete",
+          "description": "Suggest Crunchbase entities matching a typed query, returning the permalinks and UUIDs the lookup and search operations take."
+        },
+        {
+          "name": "List Deleted Entities",
+          "description": "List entities Crunchbase has deleted, so a mirrored copy can be pruned in step with the source."
+        },
+        {
+          "name": "Get Fields Metadata",
+          "description": "List the field ids, types, and descriptions each Crunchbase collection publishes, which is how the field_ids and query predicates of the other operations are discovered."
+        }
+      ],
+      "operationCount": 14,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "sales",
+      "tags": ["enrichment", "data-analytics"]
     },
     {
       "type": "cursor_v2",
