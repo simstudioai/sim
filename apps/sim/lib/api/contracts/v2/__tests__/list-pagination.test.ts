@@ -53,6 +53,8 @@ const PAGED_LISTS = [
   'GET /api/v2/files',
   'GET /api/v2/knowledge',
   'GET /api/v2/knowledge/[id]/documents',
+  'GET /api/v2/knowledge/[id]/documents/[documentId]/chunks',
+  'GET /api/v2/knowledge/archived',
   'GET /api/v2/logs',
   'GET /api/v2/mcp-servers',
   'GET /api/v2/secrets',
@@ -88,8 +90,8 @@ const PAGED_LISTS = [
  *   catalogs are NOT — a workspace adds blocks by deploying workflows as blocks,
  *   and there are ~5,000 tool ids — which is why those two are paged and do not
  *   appear here.
- * - A knowledge base has a fixed number of tag slots, so its tag vocabulary
- *   cannot grow past them.
+ * - A knowledge base has a fixed number of tag slots, so neither its tag
+ *   vocabulary nor the usage counts derived from it can grow past them.
  * - A table's saved views and its dispatchable groups are capped per table.
  * - A table's ACTIVE run dispatches are capped by the dispatcher itself: it
  *   keeps at most a handful in flight per table and cancels the rest, so the
@@ -102,6 +104,7 @@ const FULL_SET_LISTS = [
   'GET /api/v2/enrichments',
   'GET /api/v2/files/folders',
   'GET /api/v2/knowledge/[id]/tags',
+  'GET /api/v2/knowledge/[id]/tags/usage',
   'GET /api/v2/knowledge/folders',
   'GET /api/v2/mcp-servers/[id]/tools',
   'GET /api/v2/tables/[tableId]/dispatches',
@@ -175,6 +178,14 @@ const CURSOR_BINDINGS: Record<string, readonly string[]> = {
     'sortBy',
     'sortOrder',
   ],
+  'GET /api/v2/knowledge/[id]/documents/[documentId]/chunks': [
+    'workspaceId',
+    'enabled',
+    'search',
+    'sortBy',
+    'sortOrder',
+  ],
+  'GET /api/v2/knowledge/archived': ['workspaceId', 'search', 'sortBy', 'sortOrder'],
   'GET /api/v2/logs': [
     'workspaceId',
     'workflowIds',
@@ -264,6 +275,7 @@ const CURSOR_BINDINGS: Record<string, readonly string[]> = {
  */
 const CURSOR_BOUND_PATH_PARAMS: Record<string, readonly string[]> = {
   'GET /api/v2/knowledge/[id]/documents': ['id'],
+  'GET /api/v2/knowledge/[id]/documents/[documentId]/chunks': ['id', 'documentId'],
   'GET /api/v2/tables/[tableId]/rows': ['tableId'],
   'POST /api/v2/tables/[tableId]/query': ['tableId'],
   'GET /api/v2/workflows/[id]/runs': ['id'],

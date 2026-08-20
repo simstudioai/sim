@@ -268,7 +268,7 @@ sim tables bulk-delete create [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--table-ids <json\|@file>` | No | Tables to archive, by identifier. (JSON, or @path / @- to read a file or stdin). |
-| `--folder-paths <json\|@file>` | No | Table folders to delete, by canonical path. Each cascades to everything inside it. (JSON, or @path / @- to read a file or stdin). |
+| `--folder <value...>` | No | Folder path as shown in the app; the leading / is optional (space-separated, or @path / @- with one value per line). |
 
 </CommandTable>
 
@@ -285,8 +285,8 @@ sim tables bulk-move create [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--table-ids <json\|@file>` | No | Tables to move, by identifier. (JSON, or @path / @- to read a file or stdin). |
-| `--folder-paths <json\|@file>` | No | Table folders to re-parent, by canonical path. (JSON, or @path / @- to read a file or stdin). |
-| `--target-folder-path <json\|@file>` | Yes | Destination folder path. `null` and `/` both mean the workspace root. (JSON, or @path / @- to read a file or stdin). |
+| `--folder <value...>` | No | Folder path as shown in the app; the leading / is optional (space-separated, or @path / @- with one value per line). |
+| `--to <json\|@file>` | Yes | Destination folder path; omit for root (JSON, or @path / @- to read a file or stdin). |
 
 </CommandTable>
 

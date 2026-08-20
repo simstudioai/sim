@@ -47,9 +47,9 @@ sim logs stats list [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--workflow-ids <value>` | No | Comma-separated workflow identifiers to include. An empty entry is rejected. |
-| `--folder-paths <value>` | No | Comma-separated workflow folder paths to include. A path covers its whole subtree. A path that names no folder narrows the result to nothing, so the response is an empty page rather than an error. |
-| `--triggers <value>` | No | Comma-separated trigger types to include. An empty entry is rejected. The vocabulary is open, so an unrecognized member selects no runs; the literal `all` disables this filter. |
+| `--workflow <value...>` | No | Comma-separated workflow identifiers to include. An empty entry is rejected. (space-separated, or @path / @- with one value per line). |
+| `--folder <value...>` | No | Folder path as shown in the app; the leading / is optional (space-separated, or @path / @- with one value per line). |
+| `--trigger <value...>` | No | Comma-separated trigger types to include. An empty entry is rejected. The vocabulary is open, so an unrecognized member selects no runs; the literal `all` disables this filter. (space-separated, or @path / @- with one value per line). |
 | `--level <value>` | No | Severity level to include. Accepted values: `info`, `error`. |
 | `--start-date <value>` | No | Only include runs started at or after this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected, as is year `0000`, which names no storable instant. |
 | `--end-date <value>` | No | Only include runs started at or before this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected, as is year `0000`, which names no storable instant. |
@@ -105,9 +105,9 @@ sim logs query [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--workflow-ids <json\|@file>` | No | Workflow identifiers to include. (JSON, or @path / @- to read a file or stdin). |
-| `--folder-paths <json\|@file>` | No | Workflow folder paths to include. A path covers its whole subtree, so `/prod` also selects runs in `/prod/nested`. A path that names no folder narrows the result to nothing, so the response is an empty page rather than an error. (JSON, or @path / @- to read a file or stdin). |
-| `--triggers <json\|@file>` | No | Trigger types to include. Matched exactly and case-sensitively against an open vocabulary, so an unrecognized member selects no runs rather than failing. The literal `all` is a sentinel that disables this filter. (JSON, or @path / @- to read a file or stdin). |
+| `--workflow <value...>` | No | Workflow identifiers to include. (space-separated, or @path / @- with one value per line). |
+| `--folder <value...>` | No | Folder path as shown in the app; the leading / is optional (space-separated, or @path / @- with one value per line). |
+| `--trigger <value...>` | No | Trigger types to include. Matched exactly and case-sensitively against an open vocabulary, so an unrecognized member selects no runs rather than failing. The literal `all` is a sentinel that disables this filter. (space-separated, or @path / @- with one value per line). |
 | `--level <value>` | No | Severity level to include. Accepted values: `info`, `error`. |
 | `--status <json\|@file>` | No | Execution statuses to include, matched against the reported `status` field. (JSON, or @path / @- to read a file or stdin). |
 | `--workflow-name <value>` | No | Case-insensitive substring match against the run's workflow name. Runs whose workflow has been deleted match nothing, because the name is no longer joinable. |

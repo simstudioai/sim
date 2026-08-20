@@ -43,6 +43,12 @@ export interface CreateKnowledgeTagInput extends ListKnowledgeTagsInput {
 
 export interface UpdateKnowledgeTagInput {
   tagDefinitionId: string
+  /**
+   * Knowledge base the caller addressed the definition through. Supplying it
+   * makes {@link resolveActiveKnowledgeTagContext} 404 a definition that lives
+   * in a sibling base, which is what a nested route path asserts.
+   */
+  knowledgeBaseId?: string
   assertedWorkspaceId?: string
   updates: UpdateTagDefinitionData
   source?: string

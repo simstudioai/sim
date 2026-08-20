@@ -1,5 +1,6 @@
 import {
   v2AbortKnowledgeDocumentUploadContract,
+  v2AddWorkspaceFilesToKnowledgeBaseContract,
   v2BulkUpdateKnowledgeDocumentsContract,
   v2CompleteKnowledgeDocumentUploadContract,
   v2CreateKnowledgeBaseContract,
@@ -11,23 +12,30 @@ import {
   v2DeleteKnowledgeFolderContract,
   v2GetKnowledgeBaseContract,
   v2GetKnowledgeDocumentContract,
+  v2ListArchivedKnowledgeBasesContract,
   v2ListKnowledgeBasesContract,
   v2ListKnowledgeDocumentsContract,
   v2ListKnowledgeFoldersContract,
   v2ListKnowledgeTagsContract,
   v2RelocateKnowledgeFolderContract,
+  v2RestoreKnowledgeBaseContract,
   v2SearchKnowledgeContract,
   v2UpdateKnowledgeBaseContract,
   v2UpdateKnowledgeDocumentContract,
   v2UploadKnowledgeDocumentContract,
   v2UploadKnowledgeDocumentFormSchema,
 } from '@/lib/api/contracts/v2/knowledge'
+import { knowledgeChunkOpenApiRoutes } from '@/lib/api/contracts/v2/openapi/knowledge-chunks'
+import {
+  KNOWLEDGE_BASE_ID,
+  KNOWLEDGE_WORKSPACE_ID,
+  knowledgeOperation,
+} from '@/lib/api/contracts/v2/openapi/knowledge-shared'
+import { knowledgeTagOpenApiRoutes } from '@/lib/api/contracts/v2/openapi/knowledge-tags'
 import {
   documentedSchema,
-  type ErrorResponseId,
   FOLDER_TREE_TOO_LARGE,
   FULL_SET_LIST,
-  RATE_LIMIT_HEADERS,
   RESOURCE_CONFLICT_ERRORS,
   RESOURCE_ERRORS,
   V2_API_KEY_SECURITY,
@@ -39,31 +47,9 @@ import {
   withErrorExamples,
   withRequestBodyErrors,
 } from '@/lib/api/contracts/v2/openapi/shared'
-import {
-  defineOpenApiDocument,
-  defineOpenApiRoute,
-  type OpenApiOperationMetadata,
-  type OpenApiSuccessMetadata,
-} from '@/lib/api/openapi/types'
+import { defineOpenApiDocument, defineOpenApiRoute } from '@/lib/api/openapi/types'
 
-const WORKSPACE_ID = 'a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64'
-const KNOWLEDGE_BASE_ID = '7c9e6679-7425-40de-944b-e07fc1f90ae7'
-
-function knowledgeOperation(
-  operation: Omit<OpenApiOperationMetadata, 'tags' | 'success' | 'errors'> & {
-    errors: readonly ErrorResponseId[]
-    success: OpenApiSuccessMetadata
-  }
-): OpenApiOperationMetadata {
-  return {
-    ...operation,
-    tags: ['Knowledge Bases'],
-    success: {
-      ...operation.success,
-      headers: [...(operation.success.headers ?? []), ...RATE_LIMIT_HEADERS],
-    },
-  }
-}
+const WORKSPACE_ID = KNOWLEDGE_WORKSPACE_ID
 
 const declaredRoutes = [
   defineOpenApiRoute(
@@ -183,7 +169,8 @@ const declaredRoutes = [
     knowledgeOperation({
       operationId: 'deleteKnowledgeBase',
       summary: 'Delete Knowledge Base',
-      description: 'Delete a knowledge base and its documents.',
+      description:
+        'Delete a knowledge base and its documents. This is a soft delete: list recoverable knowledge bases with `GET /api/v2/knowledge/archived` and recover one with `POST /api/v2/knowledge/{id}/restore`.',
       errors: RESOURCE_ERRORS,
       success: { description: 'Knowledge base deletion acknowledgement.' },
     }),
@@ -205,6 +192,96 @@ const declaredRoutes = [
         'V2KnowledgeDeleteResponse',
         'Knowledge deletion response',
         'Deletion acknowledgement containing the removed resource identifier.'
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2ListArchivedKnowledgeBasesContract,
+    knowledgeOperation({
+      operationId: 'listArchivedKnowledgeBases',
+      summary: 'List Archived Knowledge Bases',
+      description:
+        "List the workspace's soft-deleted knowledge bases, newest first, with search, sorting, and opaque cursor pagination. Each entry carries the `deletedAt` instant it was archived; recover one with `POST /api/v2/knowledge/{id}/restore`. A workspace API key is rejected with `403`; use a personal API key. `folderPath` is not reported: archiving a folder archives what is under it, so an archived knowledge base frequently has no active containing folder.",
+      errors: RESOURCE_ERRORS,
+      success: { description: 'A page of archived knowledge bases.' },
+    }),
+    {
+      query: documentedSchema(
+        v2ListArchivedKnowledgeBasesContract.query,
+        'ListArchivedKnowledgeBasesQuery',
+        'List archived knowledge bases query',
+        'Workspace, search, sorting, and pagination options for the archived list.'
+      ),
+      response: documentedSchema(
+        v2ListArchivedKnowledgeBasesContract.response.schema,
+        'V2ArchivedKnowledgeBaseListResponse',
+        'Archived knowledge base list response',
+        'A cursor-paginated page of archived knowledge bases.'
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2RestoreKnowledgeBaseContract,
+    knowledgeOperation({
+      operationId: 'restoreKnowledgeBase',
+      summary: 'Restore Knowledge Base',
+      description: `Un-archive a soft-deleted knowledge base along with its documents and connectors. Idempotent: a knowledge base that is already active is returned unchanged with no audit entry recorded. Restoring into an archived workspace is a \`409\`, and a knowledge base whose folder is still archived is returned to the workspace root. ${FOLDER_TREE_TOO_LARGE}`,
+      errors: RESOURCE_CONFLICT_ERRORS,
+      success: { description: 'The restored knowledge base.' },
+    }),
+    {
+      query: v2RestoreKnowledgeBaseContract.query,
+      params: documentedSchema(
+        v2RestoreKnowledgeBaseContract.params,
+        'RestoreKnowledgeBaseParams',
+        'Restore knowledge base path parameters',
+        'Knowledge base selected for restoration.'
+      ),
+      body: documentedSchema(
+        v2RestoreKnowledgeBaseContract.body,
+        'RestoreKnowledgeBaseRequest',
+        'Restore knowledge base request',
+        'Workspace scope for the knowledge base.',
+        [{ workspaceId: WORKSPACE_ID }]
+      ),
+      response: documentedSchema(
+        v2RestoreKnowledgeBaseContract.response.schema,
+        'V2KnowledgeBaseResponse',
+        'Knowledge base response',
+        'A single knowledge base.'
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2AddWorkspaceFilesToKnowledgeBaseContract,
+    knowledgeOperation({
+      operationId: 'addWorkspaceFilesToKnowledgeBase',
+      summary: 'Index Workspace Files',
+      description:
+        'Index files the workspace already stores, without re-uploading their bytes. Each reference is authorized against the file it names, so a reference the caller cannot read, one over the 100 MB document limit, or one whose type is not supported is reported in `failed` while the rest are queued — a partial outcome is a `200`, not a multi-status. Queued documents return with `processingStatus` pending; poll `GET /api/v2/knowledge/{id}/documents/{documentId}`. A workspace API key is rejected with `403`; use a personal API key.',
+      errors: [...RESOURCE_ERRORS, 'UsageLimitExceeded'],
+      success: { description: 'Files queued for indexing, with any that could not be.' },
+    }),
+    {
+      query: v2AddWorkspaceFilesToKnowledgeBaseContract.query,
+      params: documentedSchema(
+        v2AddWorkspaceFilesToKnowledgeBaseContract.params,
+        'AddWorkspaceFilesToKnowledgeBaseParams',
+        'Index workspace files path parameters',
+        'Knowledge base the files are indexed into.'
+      ),
+      body: documentedSchema(
+        v2AddWorkspaceFilesToKnowledgeBaseContract.body,
+        'AddWorkspaceFilesToKnowledgeBaseRequest',
+        'Index workspace files request',
+        'Workspace scope and the workspace file references to index.',
+        [{ workspaceId: WORKSPACE_ID, fileReferences: ['handbook.pdf'] }]
+      ),
+      response: documentedSchema(
+        v2AddWorkspaceFilesToKnowledgeBaseContract.response.schema,
+        'V2AddWorkspaceFilesToKnowledgeBaseResponse',
+        'Index workspace files response',
+        'Documents queued for indexing and references that could not be.'
       ),
     }
   ),
@@ -748,6 +825,8 @@ const declaredRoutes = [
       ),
     }
   ),
+  ...knowledgeChunkOpenApiRoutes,
+  ...knowledgeTagOpenApiRoutes,
 ] as const
 
 const routes = declaredRoutes.map(withRequestBodyErrors)

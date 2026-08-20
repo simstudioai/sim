@@ -5,6 +5,8 @@ const TABLE_FILTER_HELP =
   'Predicate: {"all":[{"field":"status","op":"eq","value":"active"}]}; groups use all/any. Operators: eq, ne, gt, gte, lt, lte, in, nin, contains, ncontains, startsWith, endsWith, like, ilike, nlike, nilike, isEmpty, isNotEmpty, isNull, isNotNull'
 const TABLE_SORT_HELP =
   'Ordered sort keys: [{"field":"createdAt","direction":"desc"}] (direction: asc or desc)'
+const KNOWLEDGE_TAG_DEFINITIONS_HELP =
+  'Tag definitions: [{"tagSlot":"tag1","displayName":"category","fieldType":"text"}]'
 const CUSTOM_TOOL_SCHEMA_HELP =
   'OpenAI function schema: {"type":"function","function":{"name":"...","parameters":{"type":"object","properties":{}}}}'
 /**
@@ -34,6 +36,26 @@ const WORKFLOW_RUN_SCOPE = {
     placeholder: 'workflowId',
     describe: 'Workflow ID',
   },
+} as const
+const FOLDER_PATHS_FLAG = { ...FOLDER_PATH_FLAG, list: true } as const
+const TARGET_FOLDER_PATH_FLAG = {
+  ...FOLDER_PATH_INPUT,
+  name: 'to',
+  describe: 'Destination folder path; omit for root',
+} as const
+/**
+ * The comma-split list filters every log read shares.
+ *
+ * `listLogs`, `getLogStats` and `queryLogs` accept the same `z.string()` fields
+ * that the route splits on commas. They live on one constant because a flag
+ * that means `--workflow` on one log command and `--workflow-ids` on the next
+ * is the exact divergence `spells one concept with one flag name` exists to
+ * catch, and nothing about that failure would point back here.
+ */
+const LOG_LIST_FILTER_FLAGS = {
+  workflowIds: { name: 'workflow', list: true },
+  folderPaths: FOLDER_PATHS_FLAG,
+  triggers: { name: 'trigger', list: true },
 } as const
 const FOLDER_COLUMN: ColumnSpec = { header: 'folder', path: 'folderPath', format: 'folder-path' }
 const FOLDER_LIST_COLUMNS: ColumnSpec[] = [
@@ -139,6 +161,34 @@ export const CLI_CONTRACT: CliContract = {
       selectAll: { boolean: true, describe: 'Apply to every document in the knowledge base' },
     },
   },
+  // Same overload again for chunks: PATCH `/chunks` is the bulk form of PATCH
+  // `/chunks/[chunkId]`.
+  bulkUpdateKnowledgeChunks: {
+    command: 'knowledge chunks batch-update',
+    describe: 'Enable, disable, or delete many chunks at once',
+    pathArgumentNames: KNOWLEDGE_BASE_PATH_ARGUMENT,
+    flags: {
+      chunkIds: { name: 'chunk', list: true },
+    },
+  },
+  // The document-scoped tag-definition writes act on the knowledge base's
+  // vocabulary through a document, so they derive onto `knowledge tags` and
+  // collide with the definition-scoped `update` and `delete`. They belong under
+  // `knowledge documents tags`, which is the path they are actually addressed by.
+  saveKnowledgeDocumentTagDefinitions: {
+    command: 'knowledge documents tags save',
+    describe: 'Declare the tag definitions a document’s tags need',
+    pathArgumentNames: KNOWLEDGE_BASE_PATH_ARGUMENT,
+    flags: {
+      definitions: { json: true, describe: KNOWLEDGE_TAG_DEFINITIONS_HELP },
+    },
+  },
+  deleteKnowledgeDocumentTagDefinitions: {
+    command: 'knowledge documents tags cleanup',
+    describe: 'Remove tag definitions no document still uses',
+    pathArgumentNames: KNOWLEDGE_BASE_PATH_ARGUMENT,
+    confirm: 'This deletes every tag definition no document in the knowledge base still uses.',
+  },
   // `DELETE /workflows/[id]/deploy` is an undeploy, not a delete.
   undeployWorkflow: {
     command: 'workflows undeploy',
@@ -195,9 +245,7 @@ export const CLI_CONTRACT: CliContract = {
   // `z.string()` that the route splits on commas. No generator can infer this.
   listLogs: {
     flags: {
-      workflowIds: { name: 'workflow', list: true },
-      folderPaths: { ...FOLDER_PATH_FLAG, list: true },
-      triggers: { name: 'trigger', list: true },
+      ...LOG_LIST_FILTER_FLAGS,
       // The `workflow` column below reads `workflow.name`, which the API only
       // sends at `full` — at its own `basic` default every row's workflow was an
       // em-dash and a run had nothing naming what ran. Asked for by default so
@@ -242,6 +290,30 @@ export const CLI_CONTRACT: CliContract = {
       { header: 'files', format: 'count' },
       { header: 'trace', path: 'traceSpans', format: 'trace-count' },
     ],
+  },
+  getLogStats: {
+    flags: LOG_LIST_FILTER_FLAGS,
+  },
+  queryLogs: {
+    flags: LOG_LIST_FILTER_FLAGS,
+  },
+  duplicateWorkflow: {
+    flags: { folderPath: FOLDER_PATH_FLAG },
+  },
+  moveWorkflows: {
+    flags: {
+      workflowIds: { name: 'workflow', list: true },
+      folderPath: FOLDER_PATH_FLAG,
+    },
+  },
+  bulkMoveTables: {
+    flags: {
+      folderPaths: FOLDER_PATHS_FLAG,
+      targetFolderPath: TARGET_FOLDER_PATH_FLAG,
+    },
+  },
+  bulkDeleteTables: {
+    flags: { folderPaths: FOLDER_PATHS_FLAG },
   },
   searchKnowledge: {
     // Accepts a string or an array on the wire; the CLI always sends the array.
@@ -388,6 +460,52 @@ export const CLI_CONTRACT: CliContract = {
   getKnowledgeDocument: { pathArgumentNames: KNOWLEDGE_BASE_PATH_ARGUMENT },
   updateKnowledgeDocument: { pathArgumentNames: KNOWLEDGE_BASE_PATH_ARGUMENT },
   listKnowledgeTags: { pathArgumentNames: KNOWLEDGE_BASE_PATH_ARGUMENT },
+  createKnowledgeTag: { pathArgumentNames: KNOWLEDGE_BASE_PATH_ARGUMENT },
+  updateKnowledgeTag: { pathArgumentNames: KNOWLEDGE_BASE_PATH_ARGUMENT },
+  deleteKnowledgeTag: {
+    pathArgumentNames: KNOWLEDGE_BASE_PATH_ARGUMENT,
+    confirm: 'This deletes the tag and clears its values on every document and chunk.',
+  },
+  // Both derive off their trailing segment (`knowledge next-slot list`,
+  // `knowledge usage list`), which loses the `tags` group they belong to and
+  // reads as a resource the API does not have.
+  getNextKnowledgeTagSlot: {
+    command: 'knowledge tags next-slot',
+    describe: 'Show which tag slot a create would take for a field type',
+    pathArgumentNames: KNOWLEDGE_BASE_PATH_ARGUMENT,
+  },
+  listKnowledgeTagUsage: {
+    command: 'knowledge tags usage',
+    describe: 'Show how many documents and chunks carry each tag',
+    pathArgumentNames: KNOWLEDGE_BASE_PATH_ARGUMENT,
+  },
+  addWorkspaceFilesToKnowledgeBase: {
+    pathArgumentNames: KNOWLEDGE_BASE_PATH_ARGUMENT,
+    describe: 'Index files the workspace already stores',
+    flags: {
+      fileReferences: {
+        name: 'file',
+        list: true,
+        describe: 'Workspace file ID or key (repeatable)',
+      },
+    },
+  },
+  listKnowledgeChunks: {
+    pathArgumentNames: KNOWLEDGE_BASE_PATH_ARGUMENT,
+    columns: [
+      { header: 'id' },
+      { header: 'index', path: 'chunkIndex' },
+      { header: 'tokens', path: 'tokenCount' },
+      { header: 'enabled' },
+    ],
+  },
+  createKnowledgeChunk: { pathArgumentNames: KNOWLEDGE_BASE_PATH_ARGUMENT },
+  getKnowledgeChunk: { pathArgumentNames: KNOWLEDGE_BASE_PATH_ARGUMENT },
+  updateKnowledgeChunk: { pathArgumentNames: KNOWLEDGE_BASE_PATH_ARGUMENT },
+  deleteKnowledgeChunk: {
+    pathArgumentNames: KNOWLEDGE_BASE_PATH_ARGUMENT,
+    confirm: 'This deletes the chunk and its embedding.',
+  },
   listKnowledgeDocuments: {
     pathArgumentNames: KNOWLEDGE_BASE_PATH_ARGUMENT,
     columns: [
@@ -554,11 +672,7 @@ export const CLI_CONTRACT: CliContract = {
     describe: 'Move files into another folder',
     flags: {
       fileIds: { list: true },
-      targetFolderPath: {
-        ...FOLDER_PATH_INPUT,
-        name: 'to',
-        describe: 'Destination folder path; omit for root',
-      },
+      targetFolderPath: TARGET_FOLDER_PATH_FLAG,
     },
   },
   renameFile: {

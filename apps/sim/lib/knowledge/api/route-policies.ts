@@ -134,6 +134,25 @@ const v2KnowledgeDocumentUploadErrorPolicy = {
   },
 } satisfies V2ErrorPolicy
 
+/**
+ * A chunk read or write whose document has not finished processing.
+ *
+ * `409`, not the internal surface's `400`: the request is well-formed and the
+ * resource state is what refuses it. Per the v2 conventions a `409` carries no
+ * `Retry-After` — waiting is not what fixes a `failed` document — so the
+ * internal policy's `retryAfter` field is deliberately not carried over. The
+ * status the document is in rides in the message, which is what tells a caller
+ * whether to poll or to requeue.
+ */
+const v2KnowledgeChunkErrorPolicy = {
+  render(error) {
+    if (error instanceof KnowledgeDocumentNotReadyError) {
+      return v2Error('CONFLICT', error.message)
+    }
+    return v2OrchestrationErrorPolicy.render(error)
+  },
+} satisfies V2ErrorPolicy
+
 export const v2KnowledgeErrorPolicies = {
   default: v2OrchestrationErrorPolicy,
   usage: v2KnowledgeUsageErrorPolicy,
@@ -144,6 +163,10 @@ export const v2KnowledgeErrorPolicies = {
   concealKnowledgeBaseUsageAuthorization: createV2ResourceConcealmentPolicy({
     notFoundMessage: 'Knowledge base not found',
     render: v2KnowledgeUsageErrorPolicy.render,
+  }),
+  concealKnowledgeChunkAuthorization: createV2ResourceConcealmentPolicy({
+    notFoundMessage: 'Knowledge base not found',
+    render: v2KnowledgeChunkErrorPolicy.render,
   }),
   concealKnowledgeBaseUploadAuthorization: createV2ResourceConcealmentPolicy({
     notFoundMessage: 'Knowledge base not found',

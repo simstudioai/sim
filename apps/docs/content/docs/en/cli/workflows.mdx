@@ -377,7 +377,7 @@ sim workflows duplicate create <id> [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--name <value>` | No | Name for the copy. Defaults to the source name, deduplicated within the folder. |
-| `--folder-path <value>` | No | Destination folder path. Defaults to the source workflow's folder. |
+| `--folder <value>` | No | Folder path as shown in the app; the leading / is optional. |
 
 </CommandTable>
 
@@ -607,8 +607,8 @@ sim workflows move create [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--workflow-ids <json\|@file>` | Yes | Workflows to move. Duplicates are collapsed. (JSON, or @path / @- to read a file or stdin). |
-| `--folder-path <value>` | Yes | Destination folder path; `/` moves the workflows to the workspace root. |
+| `--workflow <value...>` | Yes | Workflows to move. Duplicates are collapsed. (space-separated, or @path / @- with one value per line). |
+| `--folder <value>` | Yes | Folder path as shown in the app; the leading / is optional. |
 
 </CommandTable>
 
