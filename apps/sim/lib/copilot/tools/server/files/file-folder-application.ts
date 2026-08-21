@@ -1,5 +1,6 @@
 import { executeCopilotFileUseCase } from '@/lib/copilot/application/execute-file-use-case'
 import type { CopilotFileDelegationContext } from '@/lib/copilot/auth/file-delegation'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { findWorkspaceFileFolderIdByPath } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
 import { createWorkspaceFileFolderOperation } from '@/lib/workspace-files/application/workspace-file-folders'
 
@@ -13,7 +14,10 @@ export function requireCopilotWorkspace(
 ): string {
   if (!context.workspaceId) throw new Error('Copilot execution workspace is required')
   if (assertedWorkspaceId && assertedWorkspaceId !== context.workspaceId) {
-    throw new Error('Workspace ID does not match the Copilot execution workspace')
+    throw new OrchestrationError(
+      'validation',
+      'Workspace ID does not match the Copilot execution workspace'
+    )
   }
   return context.workspaceId
 }

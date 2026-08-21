@@ -4,6 +4,7 @@ import {
   SIM_ARTIFACT_STYLESHEET,
 } from '@/lib/workspace-files/artifact-stylesheet'
 import { compileSimPage } from '@/lib/workspace-files/page-compile'
+import { simPageSourceEmbedBlock } from '@/lib/workspace-files/page-source-embed'
 
 /**
  * Renders page source as a fully self-contained styled document for the
@@ -18,8 +19,10 @@ export function renderSimPageDocument(source: string, options?: { workspaceId?: 
   // downloads, and a downloaded page's links and images must reach Sim
   // the way an absolute link in a downloaded .md does.
   const compiled = compileSimPage(source, { ...options, baseUrl: getBaseUrl() })
+  // The embedded source is what lets a downloaded copy upload back as an
+  // editable page instead of frozen compiled bytes (page-source-embed.ts).
   return compiled.replace(
     '</head>',
-    `<style>${SIM_ARTIFACT_STYLESHEET}</style>${SIM_ARTIFACT_SHELL}</head>`
+    `<style>${SIM_ARTIFACT_STYLESHEET}</style>${SIM_ARTIFACT_SHELL}${simPageSourceEmbedBlock(source)}</head>`
   )
 }

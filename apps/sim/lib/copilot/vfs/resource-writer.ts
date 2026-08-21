@@ -78,7 +78,9 @@ async function resolveCreateTarget(
 
   const existing = await getWorkspaceFileByName(workspaceId, parsed.fileName, { folderId })
   if (existing) {
-    throw new Error(`File already exists at ${parsed.vfsPath}. Use mode "overwrite" to update it.`)
+    throw new Error(
+      `File already exists at ${parsed.vfsPath}. Choose a different name to keep both files, or pass mode "overwrite" only if the user wants that existing file replaced.`
+    )
   }
 
   return {
