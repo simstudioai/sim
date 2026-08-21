@@ -58,24 +58,37 @@ const CONTENT_INFLIGHT_BUDGET_BYTES = 64 * 1024 * 1024
 const MAX_PAGES = 500
 const MAX_SAFE_TITLE_LENGTH = 200
 const STALE_PROCESSING_MINUTES = 45
+/** Largest connector corpus observed in production, which sets the queue drain to beat. */
+const LARGEST_OBSERVED_CORPUS_DOCUMENTS = 7_730
+/** `document-processing-queue`'s `concurrencyLimit` — global, shared by every workspace. */
+const PROCESSING_QUEUE_CONCURRENCY = 20
+/** Wall time a typical document occupies a queue slot, parse through embedding. */
+const TYPICAL_DOCUMENT_OCCUPANCY_MINUTES = 1
+/** Headroom for the queue being shared: another tenant's backlog cuts our share of it. */
+const QUEUE_CONTENTION_FACTOR = 2
 /**
- * Grace period a document that is merely *queued* gets before the stuck-document
- * sweep may reclaim it.
+ * Grace period a document waiting on the processing queue gets before the
+ * stuck-document sweep may reclaim it.
  *
- * `STALE_PROCESSING_MINUTES` bounds a run that has already begun — `maxDuration`
- * (10m) x `maxAttempts` (3) on `knowledge-process-document` is 30 minutes, so 45
- * covers it with headroom. Queue *wait* is a different quantity: it is
- * backlog / concurrency, not run duration. `document-processing-queue` has a
- * global `concurrencyLimit` of 20 shared by every workspace, and a single large
- * connector corpus is on the order of the 2,600-document site
- * `CONNECTOR_SYNC_MAX_DURATION_SECONDS` was raised for — 130 waves of 20, which
- * at roughly a minute of occupancy per document drains in about two hours, and
- * longer while other workspaces hold slots. Four hours is about twice that
- * drain, an order of magnitude above the one-hour sync ceiling, and still well
- * under the 1,440-minute default sync interval, so a default-configured
- * connector waits no longer for recovery than it already did.
+ * Derived rather than chosen, so the next person can re-run the arithmetic with
+ * their own numbers instead of trusting this one: the sweep must not reclaim a
+ * document that a full queue drain has simply not reached yet, so the grace is
+ * that drain — corpus / concurrency x per-document occupancy — times a
+ * contention factor for the queue being shared across workspaces. At the values
+ * above that is 7,730 / 20 x 1 x 2 = 773 minutes, just under thirteen hours.
+ *
+ * Each input is measurable and should be re-measured when it moves: corpus size
+ * from the largest connector in production, concurrency from
+ * `knowledge-process-document`'s queue config, occupancy from run durations.
+ * Note the failure mode is asymmetric — too small silently re-bills live work,
+ * too large only delays recovery of documents nothing is processing — so round
+ * up, never down.
  */
-const QUEUED_DISPATCH_GRACE_MINUTES = 240
+const QUEUED_DISPATCH_GRACE_MINUTES = Math.ceil(
+  (LARGEST_OBSERVED_CORPUS_DOCUMENTS / PROCESSING_QUEUE_CONCURRENCY) *
+    TYPICAL_DOCUMENT_OCCUPANCY_MINUTES *
+    QUEUE_CONTENTION_FACTOR
+)
 const RETRY_WINDOW_DAYS = 7
 const MAX_CONSECUTIVE_FAILURES = 10
 
@@ -84,6 +97,7 @@ export interface StuckDocumentSweepCandidate {
   processingStatus: string
   processingQueuedAt: Date | null
   processingStartedAt: Date | null
+  processingCompletedAt: Date | null
   uploadedAt: Date
 }
 
@@ -99,16 +113,28 @@ export interface StuckDocumentSweepCandidate {
  * pass, so queued documents get {@link QUEUED_DISPATCH_GRACE_MINUTES} before
  * they are considered lost.
  *
- * Queue wait is measured from `processingQueuedAt`, written by every path that
- * re-dispatches an existing document — this sweep and the user-facing retry.
- * It falls back to `uploadedAt` when NULL, which covers a document dispatched
- * by the sync that created it (`uploadedAt` then sits within that sync's own
- * runtime, an over-estimate bounded by the one-hour sync ceiling) and rows
- * written before the column existed.
+ * Queue wait is measured from `processingQueuedAt`, stamped by
+ * `processDocumentsWithQueue` — the funnel every dispatch passes through — so
+ * no caller can dispatch without recording when. It falls back to `uploadedAt`
+ * when NULL, which covers rows written before the column existed.
  *
- * `failed` gets no grace. It is a terminal state: the run that produced it has
- * ended, so re-dispatching cannot duplicate live work, and it is the state the
- * user-facing retry path also operates from.
+ * `failed` is not a terminal state and gets the same grace. `processDocumentAsync`
+ * records the failure and then rethrows, so `knowledge-process-document` retries
+ * it up to `maxAttempts` (3): between attempts the row reads `failed` while a
+ * live run is scheduled to pick it up again. The gap between attempts is bounded
+ * by the queue, not by run duration — a retried run re-enters the same queue
+ * behind the same global concurrency limit — so `maxDuration` x `maxAttempts`
+ * (30 minutes) and `STALE_PROCESSING_MINUTES` are both far too short to be safe
+ * here: on the very backlog this grace exists for, the next attempt starts hours
+ * after the last one ended. `failed` is therefore aged from
+ * `processingCompletedAt`, the instant the last attempt ended, which every
+ * failure write stamps.
+ *
+ * A document whose retries genuinely exhaust is still recovered: its final
+ * failure stops moving `processingCompletedAt`, so one grace later it becomes
+ * eligible and the next sync re-dispatches it. Recovery is delayed by the grace,
+ * never lost. The user-facing retry stays immediate — it writes `pending` and
+ * dispatches without consulting the sweep at all.
  *
  * This narrows the duplicate-dispatch window; it cannot close it. A grace
  * period is a timing guarantee, and no timing guarantee is a correctness one:
@@ -126,8 +152,13 @@ export interface StuckDocumentSweepCandidate {
  */
 export function isStuckDocumentSweepEligible(doc: StuckDocumentSweepCandidate, now: Date): boolean {
   switch (doc.processingStatus) {
-    case 'failed':
-      return true
+    case 'failed': {
+      const lastAttemptEndedAt =
+        doc.processingCompletedAt ?? doc.processingQueuedAt ?? doc.uploadedAt
+      return (
+        now.getTime() - lastAttemptEndedAt.getTime() > QUEUED_DISPATCH_GRACE_MINUTES * 60 * 1000
+      )
+    }
     case 'pending': {
       const queuedAt = doc.processingQueuedAt ?? doc.uploadedAt
       return now.getTime() - queuedAt.getTime() > QUEUED_DISPATCH_GRACE_MINUTES * 60 * 1000
@@ -1473,6 +1504,7 @@ export async function executeSync(
         processingStatus: document.processingStatus,
         processingQueuedAt: document.processingQueuedAt,
         processingStartedAt: document.processingStartedAt,
+        processingCompletedAt: document.processingCompletedAt,
         uploadedAt: document.uploadedAt,
       })
       .from(document)

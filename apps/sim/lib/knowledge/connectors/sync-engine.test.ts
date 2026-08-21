@@ -713,18 +713,30 @@ describe('isStuckDocumentSweepEligible', () => {
     overrides: {
       processingQueuedAt?: Date | null
       processingStartedAt?: Date | null
+      processingCompletedAt?: Date | null
       uploadedAt?: Date
     } = {}
   ) => ({
     processingStatus,
     processingQueuedAt: overrides.processingQueuedAt ?? null,
     processingStartedAt: overrides.processingStartedAt ?? null,
+    processingCompletedAt: overrides.processingCompletedAt ?? null,
     uploadedAt: overrides.uploadedAt ?? minutesBefore(5),
   })
 
+  /**
+   * Pinned to the derivation in sync-engine (corpus 7,730 / concurrency 20 x
+   * 1 minute occupancy x 2 contention). A change to any input should fail here
+   * so it is re-checked deliberately rather than absorbed silently.
+   */
+  const GRACE_MINUTES = 773
+
   it('leaves a document dispatched by the previous sync and still queued alone', () => {
     expect(
-      isStuckDocumentSweepEligible(candidate('pending', { uploadedAt: minutesBefore(90) }), now)
+      isStuckDocumentSweepEligible(
+        candidate('pending', { uploadedAt: minutesBefore(GRACE_MINUTES - 1) }),
+        now
+      )
     ).toBe(false)
   })
 
@@ -732,7 +744,7 @@ describe('isStuckDocumentSweepEligible', () => {
     expect(
       isStuckDocumentSweepEligible(
         candidate('pending', {
-          processingQueuedAt: minutesBefore(90),
+          processingQueuedAt: minutesBefore(GRACE_MINUTES - 1),
           uploadedAt: minutesBefore(60 * 48),
         }),
         now
@@ -742,12 +754,15 @@ describe('isStuckDocumentSweepEligible', () => {
 
   it('reclaims a queued document once the grace period has passed', () => {
     expect(
-      isStuckDocumentSweepEligible(candidate('pending', { uploadedAt: minutesBefore(241) }), now)
+      isStuckDocumentSweepEligible(
+        candidate('pending', { uploadedAt: minutesBefore(GRACE_MINUTES + 1) }),
+        now
+      )
     ).toBe(true)
     expect(
       isStuckDocumentSweepEligible(
         candidate('pending', {
-          processingQueuedAt: minutesBefore(241),
+          processingQueuedAt: minutesBefore(GRACE_MINUTES + 1),
           uploadedAt: minutesBefore(60 * 48),
         }),
         now
@@ -757,15 +772,63 @@ describe('isStuckDocumentSweepEligible', () => {
 
   it('holds a queued document at the grace boundary', () => {
     expect(
-      isStuckDocumentSweepEligible(candidate('pending', { uploadedAt: minutesBefore(240) }), now)
+      isStuckDocumentSweepEligible(
+        candidate('pending', { uploadedAt: minutesBefore(GRACE_MINUTES) }),
+        now
+      )
     ).toBe(false)
   })
 
-  it('reclaims a failed document with no grace', () => {
-    expect(isStuckDocumentSweepEligible(candidate('failed'), now)).toBe(true)
+  it('leaves a failed document alone while its Trigger retries may still run', () => {
     expect(
       isStuckDocumentSweepEligible(
-        candidate('failed', { processingStartedAt: minutesBefore(1) }),
+        candidate('failed', { processingCompletedAt: minutesBefore(1) }),
+        now
+      )
+    ).toBe(false)
+  })
+
+  it('ages a failed document from its last attempt, not from its dispatch', () => {
+    expect(
+      isStuckDocumentSweepEligible(
+        candidate('failed', {
+          processingQueuedAt: minutesBefore(60 * 48),
+          processingCompletedAt: minutesBefore(1),
+          uploadedAt: minutesBefore(60 * 72),
+        }),
+        now
+      )
+    ).toBe(false)
+  })
+
+  it('reclaims a failed document once no retry of it can still be live', () => {
+    expect(
+      isStuckDocumentSweepEligible(
+        candidate('failed', { processingCompletedAt: minutesBefore(GRACE_MINUTES + 1) }),
+        now
+      )
+    ).toBe(true)
+  })
+
+  it('holds a failed document at the grace boundary', () => {
+    expect(
+      isStuckDocumentSweepEligible(
+        candidate('failed', { processingCompletedAt: minutesBefore(GRACE_MINUTES) }),
+        now
+      )
+    ).toBe(false)
+  })
+
+  it('falls back to the dispatch stamp when a failed row never recorded completion', () => {
+    expect(
+      isStuckDocumentSweepEligible(
+        candidate('failed', { processingQueuedAt: minutesBefore(1), uploadedAt: minutesBefore(1) }),
+        now
+      )
+    ).toBe(false)
+    expect(
+      isStuckDocumentSweepEligible(
+        candidate('failed', { processingQueuedAt: minutesBefore(GRACE_MINUTES + 1) }),
         now
       )
     ).toBe(true)
@@ -794,7 +857,7 @@ describe('isStuckDocumentSweepEligible', () => {
     expect(
       isStuckDocumentSweepEligible(
         candidate('pending', {
-          processingQueuedAt: minutesBefore(90),
+          processingQueuedAt: minutesBefore(GRACE_MINUTES - 1),
           processingStartedAt: minutesBefore(60 * 48),
           uploadedAt: minutesBefore(60 * 72),
         }),
