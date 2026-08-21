@@ -133,14 +133,18 @@ async function executeToolCallsBatch(
       }
 
       /*
-       * No tool-call id is passed: Gemini's function-call parts carry no
-       * model-supplied identifier, and the streaming loop has to synthesize a
-       * local one. A positional index would not survive the model re-emitting
-       * the call, so a `keyed` tool invoked through a Gemini agent falls back to
-       * a fresh token and logs the missing identity rather than deriving one
-       * that only looks stable.
+       * The RAW model id, not a synthesized one. Gemini often omits an id on a
+       * function-call part, in which case this is `undefined` and the keyed
+       * helper falls back loudly rather than deriving a token from something —
+       * a positional index, an execution-local id — that would look stable and
+       * not be.
        */
-      const { toolParams, executionParams } = prepareToolExecution(tool, args, request)
+      const { toolParams, executionParams } = prepareToolExecution(
+        tool,
+        args,
+        request,
+        part.functionCall?.id
+      )
       const { rawResponse, modelResponse } = await executeProviderTool(toolName, executionParams, {
         signal: request.abortSignal,
       })
