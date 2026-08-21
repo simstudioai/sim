@@ -1,6 +1,7 @@
 import { existsSync } from 'fs'
 import { readFile } from 'fs/promises'
 import { createLogger } from '@sim/logger'
+import { loadParseOfficeAsync } from '@/lib/file-parsers/officeparser-module'
 import type { FileParseResult, FileParser } from '@/lib/file-parsers/types'
 import { sanitizeTextForUTF8 } from '@/lib/file-parsers/utils'
 import { assertOoxmlArchiveWithinLimits } from '@/lib/file-parsers/zip-guard'
@@ -46,7 +47,7 @@ export class OpenDocumentParser implements FileParser {
      */
     assertOoxmlArchiveWithinLimits(buffer)
 
-    const { parseOfficeAsync } = await import('officeparser')
+    const parseOfficeAsync = await loadParseOfficeAsync()
 
     let extracted: string
     try {

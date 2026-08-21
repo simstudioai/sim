@@ -1,6 +1,7 @@
 import { existsSync } from 'fs'
 import { readFile } from 'fs/promises'
 import { createLogger } from '@sim/logger'
+import { loadParseOfficeAsync } from '@/lib/file-parsers/officeparser-module'
 import type { FileParseResult, FileParser } from '@/lib/file-parsers/types'
 import { sanitizeTextForUTF8 } from '@/lib/file-parsers/utils'
 import { assertOoxmlArchiveWithinLimits } from '@/lib/file-parsers/zip-guard'
@@ -41,8 +42,8 @@ export class DocParser implements FileParser {
       assertOoxmlArchiveWithinLimits(buffer)
 
       try {
-        const officeParser = await import('officeparser')
-        const result = await officeParser.parseOfficeAsync(buffer)
+        const parseOfficeAsync = await loadParseOfficeAsync()
+        const result = await parseOfficeAsync(buffer)
 
         if (result) {
           const resultString = typeof result === 'string' ? result : String(result)
