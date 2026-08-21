@@ -937,13 +937,15 @@ export async function cancelStaleDispatches(
    * abandoned row.
    */
   const abandonedBefore = new Date(staleBefore.getTime() - DISPATCH_ABSOLUTE_STALE_MS)
-  const notBeating = () =>
-    sql`COALESCE(${tableRunDispatches.heartbeatAt}, ${tableRunDispatches.requestedAt}) < ${sql.param(staleBefore, tableRunDispatches.heartbeatAt)}`
+  /** Last proof of life from the loop itself, or when it was requested. */
+  const lastBeat = sql`COALESCE(${tableRunDispatches.heartbeatAt}, ${tableRunDispatches.requestedAt})`
+  const notBeatingSince = (cutoff: Date) =>
+    sql`${lastBeat} < ${sql.param(cutoff, tableRunDispatches.heartbeatAt)}`
 
   const isStale = () =>
     and(
       inArray(tableRunDispatches.status, [...ACTIVE_DISPATCH_STATUSES]),
-      notBeating(),
+      notBeatingSince(staleBefore),
       /**
        * Cell activity spares a dispatch, but only up to a ceiling.
        *
@@ -954,13 +956,13 @@ export async function cancelStaleDispatches(
        * on a busy one, continuous auto-fired activity can keep it masked
        * indefinitely.
        *
-       * The ceiling bounds it. A live dispatch stamps its heartbeat between
+       * The ceiling bounds it a day past the stale threshold. A live dispatch stamps its heartbeat between
        * windows regardless of what its cells are doing, so only a single window
        * outliving the ceiling would be reclaimed wrongly — and no window lasts a
        * day, on any path. The right fix is a `dispatch_id` on the executions
        * row; this keeps the gap bounded until that lands.
        */
-      sql`(NOT ${hasRecentCellActivity(staleBefore)} OR COALESCE(${tableRunDispatches.heartbeatAt}, ${tableRunDispatches.requestedAt}) < ${sql.param(abandonedBefore, tableRunDispatches.heartbeatAt)})`
+      sql`(NOT ${hasRecentCellActivity(staleBefore)} OR ${notBeatingSince(abandonedBefore)})`
     )
 
   // Claimed as explicit ids first, then updated by id, so the bound is evaluated
