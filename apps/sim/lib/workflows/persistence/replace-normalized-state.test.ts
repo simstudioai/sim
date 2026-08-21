@@ -56,6 +56,9 @@ describe('replaceWorkflowNormalizedState', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
+    // The lock select must find a live row in the caller's workspace; an empty
+    // result is the archived / cross-workspace refusal, covered separately.
+    dbChainMockFns.for.mockResolvedValue([{ id: 'workflow-1' }])
     mocks.prepare.mockReturnValue({ state: PREPARED, warnings: [] })
     mocks.save.mockResolvedValue({ success: true })
     mocks.extractCustomTools.mockResolvedValue({ saved: 0, errors: [] })
@@ -142,5 +145,17 @@ describe('replaceWorkflowNormalizedState', () => {
       WorkflowStatePersistenceError
     )
     expect(mocks.extractCustomTools).not.toHaveBeenCalled()
+  })
+
+  /**
+   * The lock predicate is scoped, not just `id`: a workflow archived between the
+   * caller's authorization check and this write is refused rather than written,
+   * which is the predicate every pre-consolidation caller used.
+   */
+  it('refuses when the lock finds no live row in the workspace', async () => {
+    dbChainMockFns.for.mockResolvedValue([])
+
+    await expect(replaceWorkflowNormalizedState(input())).rejects.toThrow('Workflow not found')
+    expect(mocks.save).not.toHaveBeenCalled()
   })
 })

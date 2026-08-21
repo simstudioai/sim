@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { chatAuthTypeSchema } from '@/lib/api/contracts/chats'
+import { chatAuthTypeSchema, chatDeploymentPasswordSchema } from '@/lib/api/contracts/chats'
 import {
   booleanQueryFlagSchema,
   noInputSchema,
@@ -337,10 +337,8 @@ export const v2CreateChatDeploymentBodySchema = z
       .describe('How visitors are gated. `public` leaves the chat open to anyone holding the URL.')
       .meta({ default: 'public' }),
     /** Write-only. Reads expose `hasPassword` instead. */
-    password: z
-      .string()
+    password: chatDeploymentPasswordSchema
       .min(1, 'password cannot be empty')
-      .max(1024, 'password must be at most 1024 characters')
       .optional()
       .describe(
         'Write-only password, required when `authType` is `password`. Never readable back.'
@@ -412,10 +410,8 @@ export const v2UpdateChatDeploymentBodySchema = z
       .describe(
         'New visitor gate. Switching modes clears the gate the previous mode owned: a stored password is dropped when moving to `email` or `sso`, and the allow-list is cleared when moving to `password` or `public` unless the same request supplies a replacement `allowedEmails`, which is applied after the clear.'
       ),
-    password: z
-      .string()
+    password: chatDeploymentPasswordSchema
       .min(1, 'password cannot be empty')
-      .max(1024, 'password must be at most 1024 characters')
       .optional()
       .describe(
         'Write-only replacement password. Ignored unless the deployment ends up `password`-gated. Omit to keep the stored one.'

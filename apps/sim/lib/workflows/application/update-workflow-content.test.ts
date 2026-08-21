@@ -233,9 +233,33 @@ describe('setWorkflowBlockEnabled', () => {
       workflowId: 'workflow-1',
       workspaceId: 'workspace-1',
       attributedUserId: 'user-1',
-      state: { blocks: { 'block-1': { ...BLOCK, enabled: false } }, edges: [] },
+      state: expect.any(Function),
     })
     expect(dbChainMockFns.update).not.toHaveBeenCalled()
+  })
+
+  /**
+   * The graph is produced inside the primitive's transaction, not handed to it
+   * pre-read: the editor's own save takes the same row lock, so a graph read
+   * before the lock can be a stale copy that this write — a whole graph, not a
+   * delta — would persist over a concurrent autosave.
+   */
+  it('re-reads and re-decides inside the write transaction', async () => {
+    await setWorkflowBlockEnabled.execute({
+      principal,
+      input: { workflowId: 'workflow-1', blockId: 'block-1', enabled: false },
+    })
+
+    const { state } = mocks.replace.mock.calls[0]![0]
+    expect(typeof state).toBe('function')
+
+    mocks.loadNormalized.mockClear()
+    const tx = Symbol('tx')
+    await expect(state(tx)).resolves.toEqual({
+      blocks: { 'block-1': { ...BLOCK, enabled: false } },
+      edges: [],
+    })
+    expect(mocks.loadNormalized).toHaveBeenCalledWith('workflow-1', tx)
   })
 
   /** The returned state is what was persisted, not what was proposed. */

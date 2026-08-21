@@ -280,11 +280,42 @@ export const setWorkflowBlockEnabled = defineAuthorizedWorkflowUseCase({
     const attribution = resolvePrincipalAttribution(principal, {
       workspaceBillingOwnerUserId: context.billedAccountUserId,
     })
+    /**
+     * The graph is re-read and the toggle re-decided inside the row lock.
+     *
+     * The read above is advisory: it answers "is this a refusal or a no-op"
+     * cheaply, but a graph read outside the lock cannot be written back safely.
+     * The editor's own save takes the same lock, so between that read and this
+     * write a canvas autosave can commit — and this operation writes a whole
+     * graph, not a delta, so persisting the stale copy would discard it wholly.
+     */
     const persisted = await replaceWorkflowNormalizedState({
       workflowId: context.workflowId,
       workspaceId: context.workspaceId,
       attributedUserId: attribution.attributedUserId,
-      state: { blocks: decision.blocks, edges: currentState.edges },
+      state: async (tx) => {
+        const locked = await loadWorkflowFromNormalizedTables(context.workflowId, tx)
+        if (!locked) {
+          throw new OrchestrationError(
+            'validation',
+            `Workflow ${context.workflowId} has no normalized state`
+          )
+        }
+        const lockedBlocks = locked.blocks as Record<string, BlockState>
+        const lockedDecision = decideBlockEnablement(lockedBlocks, input.blockId, input.enabled)
+        if (lockedDecision.outcome === 'refused') {
+          throw new OrchestrationError(
+            BLOCK_ENABLEMENT_REFUSAL_CODES[lockedDecision.refusal.reason],
+            lockedDecision.refusal.reason === 'not_found'
+              ? `Block ${input.blockId} not found in workflow ${context.workflowId}`
+              : lockedDecision.refusal.message
+          )
+        }
+        return {
+          blocks: lockedDecision.outcome === 'unchanged' ? lockedBlocks : lockedDecision.blocks,
+          edges: locked.edges || [],
+        }
+      },
     })
 
     const blocks = persisted.state.blocks as Record<string, BlockState>

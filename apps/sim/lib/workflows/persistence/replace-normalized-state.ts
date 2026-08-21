@@ -1,7 +1,9 @@
 import { db } from '@sim/db'
 import { workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { eq } from 'drizzle-orm'
+import { and, eq, isNull } from 'drizzle-orm'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
+import type { DbOrTx } from '@/lib/db/types'
 import { extractAndPersistCustomTools } from '@/lib/workflows/persistence/custom-tools-persistence'
 import {
   type PreparedWorkflowState,
@@ -20,20 +22,31 @@ export class WorkflowStatePersistenceError extends Error {
   }
 }
 
+export interface ReplaceWorkflowState {
+  blocks: Record<string, BlockState>
+  edges: WorkflowState['edges']
+  variables?: Record<string, unknown>
+  lastSaved?: number
+  isDeployed?: boolean
+  deployedAt?: Date | null
+}
+
 export interface ReplaceWorkflowNormalizedStateInput {
   workflowId: string
   /** Canonical workspace the workflow belongs to; custom-tool extraction is skipped without one. */
   workspaceId: string | null
   /** Owner recorded on any custom tool this graph defines. */
   attributedUserId: string
-  state: {
-    blocks: Record<string, BlockState>
-    edges: WorkflowState['edges']
-    variables?: Record<string, unknown>
-    lastSaved?: number
-    isDeployed?: boolean
-    deployedAt?: Date | null
-  }
+  /**
+   * The graph to write, or a reader that produces it.
+   *
+   * A read-modify-write caller must pass the reader form: it runs after the row
+   * lock is taken, inside the same transaction, so a concurrent write that
+   * commits between a caller's own read and this one cannot be silently
+   * overwritten by a stale graph. Passing an already-read value is correct only
+   * when the caller composed it without reading the stored graph.
+   */
+  state: ReplaceWorkflowState | ((tx: DbOrTx) => Promise<ReplaceWorkflowState>)
   requestId?: string
 }
 
@@ -68,25 +81,45 @@ export async function replaceWorkflowNormalizedState(
   const { workflowId, workspaceId, attributedUserId, state, requestId } = input
   const logPrefix = requestId ? `[${requestId}] ` : ''
 
-  const { state: preparedState, warnings } = prepareWorkflowStateForPersistence({
-    blocks: state.blocks,
-    edges: state.edges,
-  })
-
-  const workflowState = {
-    ...preparedState,
-    lastSaved: state.lastSaved || Date.now(),
-    isDeployed: state.isDeployed || false,
-    deployedAt: state.deployedAt,
-  } as WorkflowState
+  let preparedState!: PreparedWorkflowState
+  let warnings: string[] = []
+  let workflowState!: WorkflowState
 
   const saveResult = await db.transaction(async (tx) => {
-    await tx
+    /**
+     * Scoped to the workspace and to a live row, matching the predicate the
+     * pre-consolidation callers used: a workflow archived between the caller's
+     * authorization check and this write is refused rather than written.
+     */
+    const [locked] = await tx
       .select({ id: workflow.id })
       .from(workflow)
-      .where(eq(workflow.id, workflowId))
+      .where(
+        and(
+          eq(workflow.id, workflowId),
+          workspaceId ? eq(workflow.workspaceId, workspaceId) : undefined,
+          isNull(workflow.archivedAt)
+        )
+      )
       .limit(1)
       .for('update')
+    if (!locked) {
+      throw new OrchestrationError('not_found', 'Workflow not found')
+    }
+
+    const resolved = typeof state === 'function' ? await state(tx) : state
+    const prepared = prepareWorkflowStateForPersistence({
+      blocks: resolved.blocks,
+      edges: resolved.edges,
+    })
+    preparedState = prepared.state
+    warnings = prepared.warnings
+    workflowState = {
+      ...prepared.state,
+      lastSaved: resolved.lastSaved || Date.now(),
+      isDeployed: resolved.isDeployed || false,
+      deployedAt: resolved.deployedAt,
+    } as WorkflowState
 
     const result = await saveWorkflowToNormalizedTables(workflowId, workflowState, tx)
     if (!result.success) return result
@@ -95,8 +128,8 @@ export async function replaceWorkflowNormalizedState(
       lastSynced: new Date(),
       updatedAt: new Date(),
     }
-    if (state.variables !== undefined) {
-      updateData.variables = state.variables
+    if (resolved.variables !== undefined) {
+      updateData.variables = resolved.variables
     }
 
     await tx.update(workflow).set(updateData).where(eq(workflow.id, workflowId))
