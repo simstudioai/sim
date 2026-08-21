@@ -6,6 +6,8 @@ import { describe, expect, it, vi } from 'vitest'
 vi.unmock('@/tools/registry')
 
 import { PitchBookBlock } from '@/blocks/blocks/pitchbook'
+import { ErrorExtractorId, extractErrorMessage, redactErrorData } from '@/tools/error-extractors'
+import { executeTool } from '@/tools/index'
 import RECORDED from '@/tools/pitchbook/__fixtures__/recorded-responses.json'
 import { tools } from '@/tools/registry'
 
@@ -174,6 +176,15 @@ describe('pitchbook wiring', () => {
     expect(body({ apiKey: 'k', articleIds: [11041384, 2142401] })).toEqual({
       items: [{ articleId: 11041384 }, { articleId: 2142401 }],
     })
+  })
+
+  it('rejects a non-list of article ids with a message instead of a TypeError', () => {
+    const body = bodyBuilder('pitchbook_credit_news_bulk')
+    expect(body({ apiKey: 'k', articleIds: '[11041384, 2142401]' })).toEqual({
+      items: [{ articleId: 11041384 }, { articleId: 2142401 }],
+    })
+    expect(() => body({ apiKey: 'k', articleIds: '{}' })).toThrow(/JSON array of numbers/)
+    expect(() => body({ apiKey: 'k', articleIds: ['abc'] })).toThrow(/not a number/)
   })
 
   it('builds the updates URL from whichever window field is set', () => {
@@ -385,5 +396,117 @@ describe('pitchbook wiring', () => {
     expect(bio.output.companyId).toBe('10618-03')
     expect(bio.output.website).toBeNull()
     expect(bio.output.universe).toEqual([])
+  })
+})
+
+describe('pitchbook error extraction', () => {
+  const SUBMITTED_KEY = 'pb_live_5f3c9a1e7d24'
+
+  it('never surfaces the submitted API key from a 401 body', () => {
+    const message = extractErrorMessage(
+      {
+        status: 401,
+        statusText: 'Unauthorized',
+        data: { reason: 'UNAUTHORIZED', message: `Active API key ${SUBMITTED_KEY} not found` },
+      },
+      ErrorExtractorId.PITCHBOOK_ERRORS
+    )
+
+    expect(message).not.toContain(SUBMITTED_KEY)
+    expect(message).toBe(
+      'PitchBook rejected the API key. Check that the key is active and has API access.'
+    )
+  })
+
+  it('redacts the echoed key from the body kept on the failed result', () => {
+    const redacted = redactErrorData(
+      {
+        status: 401,
+        statusText: 'Unauthorized',
+        data: { reason: 'UNAUTHORIZED', message: `Active API key ${SUBMITTED_KEY} not found` },
+      },
+      ErrorExtractorId.PITCHBOOK_ERRORS
+    )
+
+    expect(JSON.stringify(redacted)).not.toContain(SUBMITTED_KEY)
+  })
+
+  it('keeps the body intact for a non-auth failure', () => {
+    expect(
+      redactErrorData(
+        { status: 404, statusText: 'Not Found', data: { reason: 'NOT_FOUND', message: 'gone' } },
+        ErrorExtractorId.PITCHBOOK_ERRORS
+      )
+    ).toEqual({ reason: 'NOT_FOUND', message: 'gone' })
+  })
+
+  it('surfaces a non-auth error with its reason', () => {
+    expect(
+      extractErrorMessage(
+        {
+          status: 404,
+          statusText: 'Not Found',
+          data: { reason: 'NOT_FOUND', message: 'Company not found' },
+        },
+        ErrorExtractorId.PITCHBOOK_ERRORS
+      )
+    ).toBe('Company not found (NOT_FOUND)')
+  })
+
+  /**
+   * Every tool without an `errorExtractor` walks the generic chain this extractor
+   * sits in, so a 401 from an unrelated service must not be reported as a
+   * PitchBook auth failure. These bodies are ones no earlier extractor claims —
+   * a body carrying `error`/`detail` never reaches here, so it would not test it.
+   */
+  it.each([
+    ['an empty body', {}],
+    ['a bare reason', { reason: 'UNAUTHORIZED' }],
+    ['a code/title envelope', { code: 'unauthorized', title: 'Bad key' }],
+    ['an unrecognized key', { err_msg: 'nope' }],
+  ])('does not claim a foreign 401 with %s', (_label, data) => {
+    const foreign = extractErrorMessage({ status: 401, statusText: 'Unauthorized', data })
+
+    expect(foreign).not.toContain('PitchBook')
+  })
+
+  /**
+   * The direct `redactErrorData` assertions above pass even when the executor is
+   * not wired to it, so this drives the real failure path: the rejected key must
+   * not appear anywhere in the tool result, message or retained body.
+   */
+  it('keeps the rejected key out of the whole failed tool result', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          reason: 'UNAUTHORIZED',
+          message: `Active API key ${SUBMITTED_KEY} not found`,
+        }),
+        { status: 401, headers: { 'content-type': 'application/json' } }
+      )
+    )
+
+    try {
+      const result = await executeTool('pitchbook_company_bio', {
+        apiKey: SUBMITTED_KEY,
+        pbId: '10618-03',
+      })
+
+      expect(result.success).toBe(false)
+      expect(JSON.stringify(result.output ?? {})).not.toContain(SUBMITTED_KEY)
+      expect(result.error ?? '').not.toContain(SUBMITTED_KEY)
+    } finally {
+      fetchSpy.mockRestore()
+    }
+  })
+
+  it('routes every pitchbook tool through the scrubbing extractor', () => {
+    const pitchbookTools = Object.entries(tools).filter(([id]) => id.startsWith('pitchbook_'))
+
+    expect(pitchbookTools.length).toBe(91)
+    const unwired = pitchbookTools
+      .filter(([, tool]) => tool.errorExtractor !== ErrorExtractorId.PITCHBOOK_ERRORS)
+      .map(([id]) => id)
+    expect(unwired).toEqual([])
   })
 })

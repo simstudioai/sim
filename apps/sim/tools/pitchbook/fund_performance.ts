@@ -1,3 +1,4 @@
+import { ErrorExtractorId } from '@/tools/error-extractors'
 import type { PitchbookProfileParams, PitchbookResponse } from '@/tools/pitchbook/types'
 import { PITCHBOOK_API_BASE, pitchbookAuthHeaders, throwIfNotOk } from '@/tools/pitchbook/utils'
 import type { ToolConfig } from '@/tools/types'
@@ -8,6 +9,7 @@ export const pitchbookFundPerformanceTool: ToolConfig<PitchbookProfileParams, Pi
   description:
     'Retrieve the most recent reported returns for a fund: IRR, DPI, RVPI, TVPI, NAV, and benchmark quartile',
   version: '1.0.0',
+  errorExtractor: ErrorExtractorId.PITCHBOOK_ERRORS,
 
   params: {
     apiKey: {

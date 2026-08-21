@@ -1,3 +1,4 @@
+import { ErrorExtractorId } from '@/tools/error-extractors'
 import type {
   PitchbookCompanySocialAnalyticsParams,
   PitchbookResponse,
@@ -14,6 +15,7 @@ export const pitchbookCompanySocialAnalyticsTool: ToolConfig<
   description:
     'Retrieve web and social growth and size metrics for a company, with percentile ranks',
   version: '1.0.0',
+  errorExtractor: ErrorExtractorId.PITCHBOOK_ERRORS,
 
   params: {
     apiKey: {

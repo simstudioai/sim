@@ -1,3 +1,4 @@
+import { ErrorExtractorId } from '@/tools/error-extractors'
 import type {
   PitchbookLimitedPartnerSearchParams,
   PitchbookSearchResponse,
@@ -20,6 +21,7 @@ export const pitchbookLimitedPartnerSearchTool: ToolConfig<
   description:
     'Search PitchBook for limited partners by type, location, assets under management, and commitment activity',
   version: '1.0.0',
+  errorExtractor: ErrorExtractorId.PITCHBOOK_ERRORS,
 
   params: {
     apiKey: {

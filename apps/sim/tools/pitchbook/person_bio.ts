@@ -1,3 +1,4 @@
+import { ErrorExtractorId } from '@/tools/error-extractors'
 import type { PitchbookProfileParams, PitchbookResponse } from '@/tools/pitchbook/types'
 import { PITCHBOOK_API_BASE, pitchbookAuthHeaders, throwIfNotOk } from '@/tools/pitchbook/utils'
 import type { ToolConfig } from '@/tools/types'
@@ -8,6 +9,7 @@ export const pitchbookPersonBioTool: ToolConfig<PitchbookProfileParams, Pitchboo
   description:
     'Retrieve the profile of a person: name, biography, LinkedIn, primary employer, position, and office',
   version: '1.0.0',
+  errorExtractor: ErrorExtractorId.PITCHBOOK_ERRORS,
 
   params: {
     apiKey: {

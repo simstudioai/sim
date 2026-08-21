@@ -1,3 +1,4 @@
+import { ErrorExtractorId } from '@/tools/error-extractors'
 import type { PitchbookProfileParams, PitchbookResponse } from '@/tools/pitchbook/types'
 import { PITCHBOOK_API_BASE, pitchbookAuthHeaders, throwIfNotOk } from '@/tools/pitchbook/utils'
 import type { ToolConfig } from '@/tools/types'
@@ -7,6 +8,7 @@ export const pitchbookEntityLocationsTool: ToolConfig<PitchbookProfileParams, Pi
   name: 'PitchBook Entity Locations',
   description: 'Retrieve the headquarters and every alternate office on record for an entity',
   version: '1.0.0',
+  errorExtractor: ErrorExtractorId.PITCHBOOK_ERRORS,
 
   params: {
     apiKey: {

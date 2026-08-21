@@ -1,3 +1,4 @@
+import { ErrorExtractorId } from '@/tools/error-extractors'
 import type { PitchbookFundCashFlowsParams, PitchbookResponse } from '@/tools/pitchbook/types'
 import { PITCHBOOK_API_BASE, pitchbookAuthHeaders, throwIfNotOk } from '@/tools/pitchbook/utils'
 import type { ToolConfig } from '@/tools/types'
@@ -11,6 +12,7 @@ export const pitchbookFundCashFlowsTool: ToolConfig<
   description:
     'Retrieve contributed, distributed, and remaining value for a fund as of a specific quarter',
   version: '1.0.0',
+  errorExtractor: ErrorExtractorId.PITCHBOOK_ERRORS,
 
   params: {
     apiKey: {

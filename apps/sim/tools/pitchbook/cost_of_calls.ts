@@ -1,3 +1,4 @@
+import { ErrorExtractorId } from '@/tools/error-extractors'
 import type { PitchbookCostOfCallsParams, PitchbookResponse } from '@/tools/pitchbook/types'
 import { PITCHBOOK_API_BASE, pitchbookAuthHeaders, throwIfNotOk } from '@/tools/pitchbook/utils'
 import type { ToolConfig } from '@/tools/types'
@@ -8,6 +9,7 @@ export const pitchbookCostOfCallsTool: ToolConfig<PitchbookCostOfCallsParams, Pi
   description:
     'Retrieve the credit cost of every API endpoint under a given pricing model, for first-time and refresh calls',
   version: '1.0.0',
+  errorExtractor: ErrorExtractorId.PITCHBOOK_ERRORS,
 
   params: {
     apiKey: {

@@ -96,54 +96,44 @@ export const CRUNCHBASE_CARD_COLLECTIONS = [
   'people',
 ] as const
 
-/** Collections the deleted-entity feed covers. */
+/**
+ * Collections the deleted-entity feed covers.
+ *
+ * The union across the published packages, not the narrowest one — Firmographic
+ * publishes nine and Advanced Financials adds acquisitions, funding_rounds,
+ * funds, investments, and press_references. A tier-narrow allowlist rejects a
+ * request a richer license answers before it ever reaches Crunchbase.
+ */
 export const CRUNCHBASE_DELETED_COLLECTIONS = [
+  'acquisitions',
   'categories',
   'event_appearances',
   'events',
+  'funding_rounds',
+  'funds',
+  'investments',
   'ipos',
   'jobs',
   'locations',
   'organizations',
   'ownerships',
   'people',
+  'press_references',
 ] as const
 
-/** Collections the fields-metadata export covers. */
-export const CRUNCHBASE_METADATA_COLLECTIONS = [
-  'addresses',
-  'categories',
-  'category_groups',
-  'degrees',
-  'diversity_spotlights',
-  'event_appearances',
-  'events',
-  'ipos',
-  'jobs',
-  'locations',
-  'organizations',
-  'ownerships',
-  'people',
-  'principals',
-] as const
+/**
+ * Collections the fields-metadata export covers.
+ *
+ * Predictions & Insights publishes all 43, so the union is every collection.
+ */
+export const CRUNCHBASE_METADATA_COLLECTIONS = CRUNCHBASE_COLLECTIONS
 
-/** Collections the autocomplete endpoint can be constrained to. */
-export const CRUNCHBASE_AUTOCOMPLETE_COLLECTIONS = [
-  'addresses',
-  'categories',
-  'category_groups',
-  'degrees',
-  'diversity_spotlights',
-  'event_appearances',
-  'events',
-  'ipos',
-  'jobs',
-  'locations',
-  'organizations',
-  'ownerships',
-  'people',
-  'principals',
-] as const
+/**
+ * Collections the autocomplete endpoint can be constrained to.
+ *
+ * Predictions & Insights publishes all 43, so the union is every collection.
+ */
+export const CRUNCHBASE_AUTOCOMPLETE_COLLECTIONS = CRUNCHBASE_COLLECTIONS
 
 /** `limit` bounds the Search API documents (default 100). */
 export const SEARCH_LIMIT_MIN = 1
@@ -152,6 +142,14 @@ export const SEARCH_LIMIT_DEFAULT = 100
 
 /** `limit` bounds the Autocomplete API documents (default 10). */
 export const AUTOCOMPLETE_LIMIT_MAX = 25
+
+/**
+ * `limit` bound the deleted-entity feed documents (default 10).
+ *
+ * Far lower than Search's 1000, and the block shares one Limit subblock across
+ * both — a value carried over from a search would otherwise be rejected.
+ */
+export const DELETED_LIMIT_MAX = 25
 
 /** Crunchbase allows at most 25 predicates, each carrying at most 200 values. */
 export const MAX_PREDICATES = 25

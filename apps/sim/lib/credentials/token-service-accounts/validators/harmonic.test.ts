@@ -141,8 +141,6 @@ describe('Harmonic token-service-account registration', () => {
         },
       ],
       docsUrl: 'https://docs.sim.ai/integrations/harmonic',
-      helpText:
-        "Harmonic API keys belong to a team and share access to that team's saved searches.",
     })
     expect(getTokenServiceAccountValidator(HARMONIC_SERVICE_ACCOUNT_PROVIDER_ID)).toBe(
       validateHarmonicServiceAccount
