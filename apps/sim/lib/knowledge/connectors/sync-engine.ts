@@ -10,7 +10,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { randomInt } from '@sim/utils/random'
-import { and, desc, eq, gt, inArray, isNotNull, isNull, lt, ne, sql } from 'drizzle-orm'
+import { and, desc, eq, exists, gt, inArray, isNotNull, isNull, lt, ne, sql } from 'drizzle-orm'
 import { decryptApiKey } from '@/lib/api-key/crypto'
 import {
   assertBillingAttributionSnapshot,
@@ -504,6 +504,48 @@ function calculateNextSyncTime(syncIntervalMinutes: number): Date | null {
   return new Date(now + syncIntervalMinutes * 60_000 + jitterMs)
 }
 
+/** Options for a sync-log close. */
+interface CompleteSyncLogOptions {
+  /** Recorded on the row when the run is being closed as `failed`. */
+  errorMessage?: string
+  /**
+   * Connector whose sync lock this run must still hold for the close to land.
+   *
+   * Only the success path passes it. A `completed` row is the one sync-log
+   * state that is read back as evidence — {@link loadPreviousListingObservation}
+   * selects `status = 'completed'` — so it must not outlive the connector
+   * bookkeeping it corroborates. `failed` rows are never read that way, and both
+   * failure paths legitimately close a run whose lock is already gone.
+   */
+  requireSyncLockOn?: string
+}
+
+/**
+ * Matches the log row only while its run still holds the connector's sync lock.
+ *
+ * The row's own `status = 'started'` guard defers to the scheduler's sweep, but
+ * the sweep is not the only writer that can strand a live run. The
+ * knowledge-base-deleted writers clear the token unconditionally, a user pausing
+ * a connector flips it out of `syncing`, and the reaper's reclaim and its
+ * log-close are two statements that can commit apart. In each case the run's
+ * terminal connector write is refused while its log row is still `started`, so an
+ * unguarded close publishes a `completed` row for bookkeeping that was discarded.
+ *
+ * Reuses {@link stillHoldsSyncLock} rather than restating the predicate, so the
+ * log row and the connector row are written under exactly the same condition and
+ * cannot disagree. A refused close leaves the row `started`; the scheduler's
+ * sync-log sweep drains it, and that sweep is deliberately not connector-scoped,
+ * so it still closes the row on an archived connector the reclaim skips.
+ */
+function syncLogRunStillHoldsLock(connectorId: string, syncLogId: string) {
+  return exists(
+    db
+      .select({ held: sql`1` })
+      .from(knowledgeConnector)
+      .where(stillHoldsSyncLock(connectorId, syncLogId))
+  )
+}
+
 /**
  * Records a sync run's outcome on its log row.
  *
@@ -513,17 +555,24 @@ function calculateNextSyncTime(syncIntervalMinutes: number): Date | null {
  * race and produce contradictory history: the sweep marks the row `failed`,
  * then the still-running sync reports `completed` on the same row.
  *
- * A no-op on the normal path — nothing else touches the row between its
- * `started` insert and this call, so the guard only ever bites once the sweep
+ * That guard alone is a no-op on the normal path — nothing else touches the row
+ * between its `started` insert and this call — so it only bites once the sweep
  * has declared the run dead, and the sweep's verdict is the one that stands.
+ * {@link CompleteSyncLogOptions.requireSyncLockOn} covers the writers that strand
+ * a run without going through the sweep.
+ *
+ * Returns whether the close landed. False means this run no longer owns the
+ * outcome it was about to publish.
  */
 export async function completeSyncLog(
   syncLogId: string,
   status: 'completed' | 'failed',
   result: SyncResult,
-  errorMessage?: string
-): Promise<void> {
-  await db
+  options: CompleteSyncLogOptions = {}
+): Promise<boolean> {
+  const { errorMessage, requireSyncLockOn } = options
+
+  const closed = await db
     .update(knowledgeConnectorSyncLog)
     .set({
       status,
@@ -538,9 +587,15 @@ export async function completeSyncLog(
     .where(
       and(
         eq(knowledgeConnectorSyncLog.id, syncLogId),
-        eq(knowledgeConnectorSyncLog.status, 'started')
+        eq(knowledgeConnectorSyncLog.status, 'started'),
+        ...(requireSyncLockOn != null
+          ? [syncLogRunStillHoldsLock(requireSyncLockOn, syncLogId)]
+          : [])
       )
     )
+    .returning({ id: knowledgeConnectorSyncLog.id })
+
+  return closed.length > 0
 }
 
 /**
@@ -678,6 +733,45 @@ export async function writeTerminalConnectorState(
     .returning({ id: knowledgeConnector.id })
 
   return written.length > 0
+}
+
+/**
+ * Releases the sync lock on a connector that was archived out from under a
+ * running sync.
+ *
+ * `ConnectorDeletedException`'s handler is a terminal exit that wrote nothing to
+ * the connector row, leaving it `status = 'syncing'` with this run's token still
+ * on it. Nothing else can clear that: the scheduler's reclaim requires
+ * `isNull(archivedAt)` and `isNull(deletedAt)`, so the one writer able to correct
+ * a stranded lock skips exactly the rows this path creates. Both other "the
+ * target is gone" exits — the knowledge-base-deleted writers here and in the
+ * dispatch queue — already release token and lease and make the transition
+ * terminal; this makes the third behave the same way.
+ *
+ * Guarded on {@link holdsSyncLockToken} rather than {@link stillHoldsSyncLock}
+ * for the same reason the heartbeat is: the connector being archived is the
+ * precondition of this path, so requiring it to still be live would reject every
+ * write this function exists to make. Ownership alone is enough — the token
+ * proves the lock is this run's, so a replacement's lock can never be released.
+ *
+ * A no-op when the connector row was hard-deleted rather than archived, which is
+ * what a user-initiated connector delete does: there is no row left to unwedge.
+ */
+async function releaseSyncLockOnDeletedConnector(
+  connectorId: string,
+  syncLogId: string
+): Promise<void> {
+  await db
+    .update(knowledgeConnector)
+    .set({
+      status: 'error',
+      nextSyncAt: null,
+      lastSyncError: 'Connector deleted during sync',
+      syncLockToken: null,
+      syncLockLeaseAt: null,
+      updatedAt: new Date(),
+    })
+    .where(holdsSyncLockToken(connectorId, syncLogId))
 }
 
 /**
@@ -2340,7 +2434,25 @@ export async function executeSync(
       }
     }
 
-    await completeSyncLog(syncLogId, 'completed', result)
+    const logClosed = await completeSyncLog(syncLogId, 'completed', result, {
+      requireSyncLockOn: connectorId,
+    })
+
+    /**
+     * Short-circuits on exactly the condition {@link writeTerminalConnectorState}
+     * would have rejected two statements later, so the outcome is unchanged and
+     * the intervening document count is skipped. Returning here is what keeps a
+     * discarded run from publishing the `completed` row that
+     * {@link loadPreviousListingObservation} reads as corroboration.
+     */
+    if (!logClosed) {
+      logger.warn('Sync result discarded — connector was reclaimed while this run was executing', {
+        connectorId,
+        syncLogId,
+        ...result,
+      })
+      return markSyncSuperseded(result)
+    }
 
     const [{ count: actualDocCount }] = await db
       .select({ count: sql<number>`count(*)::int` })
@@ -2396,6 +2508,8 @@ export async function executeSync(
       logger.info('Connector deleted during sync, cleaning up', { connectorId })
 
       try {
+        await releaseSyncLockOnDeletedConnector(connectorId, syncLogId)
+
         // Includes pending-removal (tombstoned) docs — the connector is gone, so
         // there's no future sync left to confirm or resurrect them.
         const connectorDocs = await db
@@ -2409,7 +2523,9 @@ export async function executeSync(
           connectorId
         )
 
-        await completeSyncLog(syncLogId, 'failed', result, 'Connector deleted during sync')
+        await completeSyncLog(syncLogId, 'failed', result, {
+          errorMessage: 'Connector deleted during sync',
+        })
       } catch (cleanupError) {
         logger.error('Failed to clean up after connector deletion', {
           connectorId,
@@ -2425,7 +2541,7 @@ export async function executeSync(
     logger.error('Sync failed', { connectorId, error: errorMessage })
 
     try {
-      await completeSyncLog(syncLogId, 'failed', result, errorMessage)
+      await completeSyncLog(syncLogId, 'failed', result, { errorMessage })
 
       const failureUpdate = buildSyncFailureUpdate(
         new Date(),

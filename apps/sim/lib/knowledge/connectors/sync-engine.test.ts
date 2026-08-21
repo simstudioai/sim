@@ -2132,3 +2132,282 @@ describe('executeSync hard-delete reconciliation', () => {
     expect(beats.length).toBeGreaterThan(1)
   })
 })
+
+describe('completeSyncLog ownership guard', () => {
+  const RESULT = {
+    docsAdded: 1,
+    docsUpdated: 0,
+    docsDeleted: 0,
+    docsUnchanged: 0,
+    docsFailed: 0,
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
+  it('requires the run to still hold the connector lock when closing as completed', async () => {
+    const { completeSyncLog } = await import('@/lib/knowledge/connectors/sync-engine')
+
+    await completeSyncLog('log-1', 'completed', RESULT, { requireSyncLockOn: 'c-1' })
+
+    /**
+     * `status = 'started'` alone only defers to the sweep. A run stranded by any
+     * other writer — the knowledge-base-deleted writers, a user pausing the
+     * connector, a reclaim whose log-close committed separately — still has a
+     * `started` row, so without this it publishes a `completed` outcome whose
+     * connector bookkeeping was discarded.
+     */
+    const outerWhere = dbChainMockFns.where.mock.calls[1][0]
+    expect(hasMockCondition(outerWhere, (node: MockCondition) => node.type === 'exists')).toBe(true)
+
+    // The subquery's own predicate, built before the outer where is assembled.
+    const subqueryWhere = dbChainMockFns.where.mock.calls[0][0]
+    expect(
+      hasMockCondition(
+        subqueryWhere,
+        (node: MockCondition) =>
+          node.type === 'eq' &&
+          node.left === schemaMock.knowledgeConnector.syncLockToken &&
+          node.right === 'log-1'
+      )
+    ).toBe(true)
+    expect(
+      hasMockCondition(
+        subqueryWhere,
+        (node: MockCondition) =>
+          node.type === 'eq' &&
+          node.left === schemaMock.knowledgeConnector.status &&
+          node.right === 'syncing'
+      )
+    ).toBe(true)
+    expect(
+      hasMockCondition(
+        subqueryWhere,
+        (node: MockCondition) =>
+          node.type === 'eq' &&
+          node.left === schemaMock.knowledgeConnector.id &&
+          node.right === 'c-1'
+      )
+    ).toBe(true)
+    /**
+     * Reuses `stillHoldsSyncLock`, not ownership alone, so the log row and the
+     * connector row are written under exactly the same condition. Ownership-only
+     * would let a connector archived mid-run publish a `completed` row for a
+     * terminal write that was refused — the same mismatch, differently triggered.
+     */
+    expect(
+      hasMockCondition(
+        subqueryWhere,
+        (node: MockCondition) =>
+          node.type === 'isNull' && node.column === schemaMock.knowledgeConnector.archivedAt
+      )
+    ).toBe(true)
+  })
+
+  it('leaves both failure closes unguarded', async () => {
+    const { completeSyncLog } = await import('@/lib/knowledge/connectors/sync-engine')
+
+    /**
+     * A `failed` row is never read back as evidence —
+     * `loadPreviousListingObservation` selects `status = 'completed'` — and both
+     * failure paths legitimately close a run whose lock is already gone. The
+     * deleted-connector path in particular runs on an archived row the reaper
+     * skips, so guarding it would strand the log row instead of closing it.
+     */
+    await completeSyncLog('log-1', 'failed', RESULT, { errorMessage: 'boom' })
+
+    const where = dbChainMockFns.where.mock.calls[0][0]
+    expect(hasMockCondition(where, (node: MockCondition) => node.type === 'exists')).toBe(false)
+  })
+
+  it('reports whether the close landed', async () => {
+    const { completeSyncLog } = await import('@/lib/knowledge/connectors/sync-engine')
+
+    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'log-1' }])
+    await expect(
+      completeSyncLog('log-1', 'completed', RESULT, { requireSyncLockOn: 'c-1' })
+    ).resolves.toBe(true)
+
+    dbChainMockFns.returning.mockResolvedValueOnce([])
+    await expect(
+      completeSyncLog('log-1', 'completed', RESULT, { requireSyncLockOn: 'c-1' })
+    ).resolves.toBe(false)
+  })
+})
+
+describe('executeSync terminal exits under a lost lock', () => {
+  const CONNECTOR = {
+    id: 'c-1',
+    knowledgeBaseId: 'kb-1',
+    connectorType: 'paged',
+    credentialId: null,
+    encryptedApiKey: null,
+    sourceConfig: {},
+    syncMode: 'full',
+    syncIntervalMinutes: 1440,
+    status: 'active',
+    lastSyncAt: null,
+    lastSyncDocCount: 0,
+    consecutiveFailures: 0,
+    syncLockToken: null,
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
+  afterEach(() => {
+    resetDbChainMock()
+  })
+
+  /** Queues the connector, its knowledge base, and the lock CAS. */
+  function primeLockedRun() {
+    queueTableRows(schemaMock.knowledgeConnector, [CONNECTOR])
+    queueTableRows(schemaMock.knowledgeBase, [{ userId: 'u-1', workspaceId: 'ws-1' }])
+    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'c-1' }])
+  }
+
+  it('skips the success state write when its guarded log close is refused', async () => {
+    const { executeSync } = await import('@/lib/knowledge/connectors/sync-engine')
+
+    primeLockedRun()
+    // hasTombstonedDocs, existingDocs, tombstonedDocs, excludedDocs.
+    queueTableRows(schemaMock.document, [])
+    queueTableRows(schemaMock.document, [])
+    queueTableRows(schemaMock.document, [])
+    queueTableRows(schemaMock.document, [])
+    // The post-batch presence check: both targets are healthy, so the run
+    // reaches its success path rather than a deletion exit.
+    queueTableRows(schemaMock.knowledgeConnector, [
+      { connectorArchivedAt: null, connectorDeletedAt: null, kbDeletedAt: null },
+    ])
+    // Every later `.returning()` falls through to the empty default, so the
+    // guarded log close matches no row — the run no longer owns its outcome.
+    mockListDocuments.mockResolvedValue({ documents: [], hasMore: false })
+
+    const result = await executeSync('c-1', {
+      billingAttribution: { workspaceId: 'ws-1' } as never,
+    })
+
+    expect(result.error).toBe('sync_superseded')
+
+    /**
+     * A refused close means the run no longer owns the outcome it was about to
+     * publish, which is exactly what the terminal connector write would have
+     * rejected two statements later. Short-circuiting there keeps the reported
+     * outcome identical while skipping the intervening document count.
+     */
+    expect(dbChainMockFns.set).not.toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'active', consecutiveFailures: 0 })
+    )
+
+    // The success call site is the one that must ask for the guard.
+    expect(
+      dbChainMockFns.where.mock.calls.some((call) =>
+        hasMockCondition(call[0], (node: MockCondition) => node.type === 'exists')
+      )
+    ).toBe(true)
+  })
+
+  it('releases the lock on a connector archived out from under the run', async () => {
+    const { executeSync } = await import('@/lib/knowledge/connectors/sync-engine')
+    const { hardDeleteDocuments } = await import('@/lib/knowledge/documents/service')
+
+    primeLockedRun()
+    // hasTombstonedDocs, existingDocs, tombstonedDocs, excludedDocs.
+    queueTableRows(schemaMock.document, [])
+    queueTableRows(schemaMock.document, [])
+    queueTableRows(schemaMock.document, [])
+    queueTableRows(schemaMock.document, [])
+    // The per-batch presence check: the connector row is archived.
+    queueTableRows(schemaMock.knowledgeConnector, [
+      { connectorArchivedAt: new Date(), connectorDeletedAt: null, kbDeletedAt: null },
+    ])
+    // The leftover-document cleanup this path performs.
+    queueTableRows(schemaMock.document, [])
+    vi.mocked(hardDeleteDocuments).mockResolvedValue(0)
+
+    mockListDocuments.mockResolvedValue({
+      documents: [
+        {
+          externalId: 'ext-1',
+          title: 'ext-1',
+          content: 'body',
+          contentHash: 'h',
+          mimeType: 'text/plain',
+          metadata: {},
+        },
+      ],
+      hasMore: false,
+    })
+
+    const result = await executeSync('c-1', {
+      billingAttribution: { workspaceId: 'ws-1' } as never,
+    })
+
+    expect(result.error).toBe('Connector deleted during sync')
+
+    /**
+     * This exit wrote nothing to the connector row, leaving it `syncing` with a
+     * live token. The reaper requires `isNull(archivedAt)` and `isNull(deletedAt)`,
+     * so the one writer that could clear a stranded lock skips exactly the rows
+     * this path creates. Matches the two knowledge-base-deleted writers: release
+     * token and lease, and make the transition terminal.
+     */
+    const release = dbChainMockFns.set.mock.calls.find(
+      (call) =>
+        (call[0] as Record<string, unknown> | undefined)?.lastSyncError ===
+        'Connector deleted during sync'
+    )
+    expect(release?.[0]).toEqual(
+      expect.objectContaining({
+        status: 'error',
+        nextSyncAt: null,
+        syncLockToken: null,
+        syncLockLeaseAt: null,
+      })
+    )
+
+    /**
+     * Guarded on ownership alone, never on {@link stillHoldsSyncLock}: the
+     * connector being archived is this path's precondition, so a liveness clause
+     * would reject every write the release exists to make.
+     */
+    const releaseOrder =
+      dbChainMockFns.set.mock.invocationCallOrder[
+        dbChainMockFns.set.mock.calls.indexOf(release as never)
+      ]
+    const releaseWhereIndex = dbChainMockFns.where.mock.invocationCallOrder.findIndex(
+      (order) => order > releaseOrder
+    )
+    const releaseWhere = dbChainMockFns.where.mock.calls[releaseWhereIndex][0]
+    expect(
+      hasMockCondition(
+        releaseWhere,
+        (node: MockCondition) =>
+          node.type === 'eq' && node.left === schemaMock.knowledgeConnector.syncLockToken
+      )
+    ).toBe(true)
+    expect(
+      hasMockCondition(
+        releaseWhere,
+        (node: MockCondition) =>
+          node.type === 'isNull' && node.column === schemaMock.knowledgeConnector.archivedAt
+      )
+    ).toBe(false)
+
+    /**
+     * And this path's log close stays unguarded. Its connector is archived, so an
+     * ownership-guarded close would match nothing and leave the row `started`
+     * until the sync-log sweep mislabelled it.
+     */
+    expect(
+      dbChainMockFns.where.mock.calls.some((call) =>
+        hasMockCondition(call[0], (node: MockCondition) => node.type === 'exists')
+      )
+    ).toBe(false)
+  })
+})
