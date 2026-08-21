@@ -81,14 +81,22 @@ describe('generateCreativeWorkflowName', () => {
       expect.arrayContaining(['city-grove', 'bolt-ivy', 'cog-tree', 'gpu-moss'])
     )
     for (const excludedWord of [
+      'auto',
+      'bus',
       'cam',
+      'car',
+      'cart',
       'cell',
+      'jet',
       'nut',
       'plug',
       'rig',
       'saw',
+      'ship',
       'token',
       'train',
+      'tram',
+      'van',
       'vent',
     ]) {
       expect(machineWords.has(excludedWord)).toBe(false)
@@ -108,6 +116,7 @@ describe('generateCreativeWorkflowName', () => {
     ]) {
       expect(natureWords.has(excludedWord)).toBe(false)
     }
+    expect(names).toHaveLength(4_730)
     expect(new Set(names).size).toBe(names.length)
   })
 })
