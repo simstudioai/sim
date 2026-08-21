@@ -101,6 +101,28 @@ describe('readWorkspaceFileText', () => {
     expect(result.truncated).toBe(false)
   })
 
+  /**
+   * `parseBuffer` signals every failure as a bare `Error`, which no v2 policy
+   * classifies — so calling it unguarded turned a zero-byte upload or a
+   * mislabelled archive into a `500` on a well-formed request.
+   */
+  it('answers empty text for a zero-byte file instead of failing', async () => {
+    mocks.fetchBuffer.mockResolvedValue(Buffer.alloc(0))
+
+    const result = await readWorkspaceFileText.execute({ principal: principals[0], input: input() })
+
+    expect(result.text).toBe('')
+    expect(mocks.parseBuffer).not.toHaveBeenCalled()
+  })
+
+  it('classifies unparseable bytes as a conflict rather than an unhandled error', async () => {
+    mocks.parseBuffer.mockRejectedValue(new Error('Unsupported file type'))
+
+    await expect(
+      readWorkspaceFileText.execute({ principal: principals[0], input: input() })
+    ).rejects.toMatchObject({ code: 'conflict' })
+  })
+
   it('denies a principal below the read role', async () => {
     mocks.resolvePermission.mockResolvedValue(null)
 

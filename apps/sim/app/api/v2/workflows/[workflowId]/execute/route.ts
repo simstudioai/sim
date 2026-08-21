@@ -17,6 +17,7 @@ import {
   V2_PARSE_DEFAULTS,
   V2RouteInfrastructureError,
   v2ApiKeyAuth,
+  v2InvalidBodyResponse,
   v2RateLimits,
 } from '@/lib/api/server/routes'
 import type { V2ApiKeyPrincipal } from '@/lib/api/server/routes/v2-api-key-auth'
@@ -209,6 +210,10 @@ export const POST = withRouteHandler(
     try {
       const parsed = await parseRequest(v2ExecuteWorkflowContract, req, context, {
         ...V2_PARSE_DEFAULTS,
+        // The defaults' shared entry takes no arguments, so it can only answer 400.
+        // This route publishes 415, and only a caller still holding the request can
+        // install the media-type-aware form — see V2_PARSE_DEFAULTS' own TSDoc.
+        invalidJsonResponse: () => v2InvalidBodyResponse(req),
         maxBodyBytes: 10 * 1024 * 1024,
       })
       if (!parsed.success) return parsed.response

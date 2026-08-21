@@ -403,14 +403,17 @@ function v2CommaListSchema(field: 'workflowIds' | 'triggers', description: strin
  *
  * An id list compiles to `IN (...)`, so an unbounded one is an unbounded query
  * string, an unbounded bind-parameter list, and a plan whose cost the caller
- * rather than the server chooses. The numbers are the ones this operation
- * already enforced on its JSON-body twin before that endpoint was folded back
- * into this one; they are not new policy, they are the policy the querystring
- * spelling was missing.
+ * rather than the server chooses.
+ *
+ * The numbers came from a JSON-body variant of this read that existed only
+ * inside the change that added them and never reached the wire, so do not go
+ * looking for a shipped endpoint that enforced them — these ceilings are this
+ * list's own, and `GET /logs/stats` reuses them so the two filter dialects over
+ * the same rows cannot drift.
  */
-const V2_LOG_WORKFLOW_IDS_MAX = 200
-const V2_LOG_FOLDER_PATHS_MAX = 100
-const V2_LOG_TRIGGERS_MAX = 100
+export const V2_LOG_WORKFLOW_IDS_MAX = 200
+export const V2_LOG_FOLDER_PATHS_MAX = 100
+export const V2_LOG_TRIGGERS_MAX = 100
 
 /**
  * The `status` filter: a comma-separated list of persisted execution statuses.

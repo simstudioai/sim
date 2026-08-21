@@ -54,6 +54,33 @@ const STORED_GRAPH = {
   },
 }
 
+describe('the read shape tolerates what the write path never bounded', () => {
+  /**
+   * `workflow_blocks.name` and `.type` are bare `text()`, and the realtime
+   * rename op accepts `z.string()`, so a block renamed past 255 characters on
+   * the canvas is legal stored data. Asserting the input bound on the way out
+   * made that workflow a `500` on the one endpoint that opens it — and since
+   * `PUT /state` needs the `GET` round trip, unrepairable over v2.
+   */
+  it('reads a block whose stored name exceeds the write-side bound', () => {
+    const longName = 'x'.repeat(300)
+    const graph = structuredClone(STORED_GRAPH)
+    graph.blocks['block-1'].name = longName
+
+    expect(v2WorkflowGraphSchema.parse(graph).blocks['block-1'].name).toBe(longName)
+  })
+
+  it('still holds a write to the bound', () => {
+    const body = {
+      workspaceId: 'workspace-1',
+      blocks: { 'block-1': { ...STORED_GRAPH.blocks['block-1'], name: 'x'.repeat(300) } },
+      edges: [],
+    }
+
+    expect(v2ReplaceWorkflowStateBodySchema.safeParse(body).success).toBe(false)
+  })
+})
+
 describe('v2WorkflowGraphSchema', () => {
   /**
    * A v2 response schema is `.parse`d on the way out, so a stored member the

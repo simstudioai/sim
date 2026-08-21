@@ -31,7 +31,12 @@ function knowledgeCursorFilters(query: {
 }) {
   return cursorScopeKey(cursorRoute(v2ListKnowledgeBasesContract), {
     workspaceId: query.workspaceId,
-    scope: query.scope,
+    // Stamped only when it is not the default. `scope` carries
+    // `.default('active')`, so it is always present on the parsed query;
+    // binding it unconditionally would put a constant in every fingerprint and
+    // reject every cursor minted before the field existed — which is every
+    // cursor the deployed build handed out, since `scope` is new here.
+    scope: query.scope === 'active' ? undefined : query.scope,
     folderPath: query.folderPath,
     search: query.search,
   })

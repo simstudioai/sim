@@ -47,7 +47,7 @@ sim logs stats list [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--workflow <value...>` | No | Comma-separated workflow identifiers to include. An empty entry is rejected. (space-separated, or @path / @- with one value per line). |
+| `--workflow <value...>` | No | Comma-separated workflow identifiers to include. At most 200 entries. An empty entry is rejected. (space-separated, or @path / @- with one value per line). |
 | `--folder <value...>` | No | Folder path as shown in the app; the leading / is optional (space-separated, or @path / @- with one value per line). |
 | `--trigger <value...>` | No | Comma-separated trigger types to include. An empty entry is rejected. The vocabulary is open, so an unrecognized member selects no runs; the literal `all` disables this filter. (space-separated, or @path / @- with one value per line). |
 | `--level <value>` | No | Severity level to include. Accepted values: `info`, `error`. |

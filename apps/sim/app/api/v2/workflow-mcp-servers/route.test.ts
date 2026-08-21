@@ -251,7 +251,7 @@ describe('/api/v2/workflow-mcp-servers', () => {
     it('publishes a server and records one semantic audit entry', async () => {
       const response = await post({ workspaceId: WORKSPACE_ID, name: 'Support agents' })
 
-      expect(response.status).toBe(200)
+      expect(response.status).toBe(201)
       expect((await response.json()).data).toMatchObject({
         id: 'wfmcp-1',
         name: 'Support agents',

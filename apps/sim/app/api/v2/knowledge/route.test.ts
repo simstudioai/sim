@@ -59,9 +59,11 @@ vi.mock('@/lib/users/queries', () => ({
   requireResolvedUserEmail: (emails: Map<string, string>, userId: string) => emails.get(userId)!,
 }))
 
+import { v2ListKnowledgeBasesContract } from '@/lib/api/contracts/v2/knowledge'
 import { V2_DEFAULT_PAGE_SIZE } from '@/lib/api/contracts/v2/shared'
-import { REFILTERED_CURSOR_MESSAGE } from '@/lib/api/cursor-binding'
+import { cursorRoute, cursorScopeKey, REFILTERED_CURSOR_MESSAGE } from '@/lib/api/cursor-binding'
 import { GET, POST } from '@/app/api/v2/knowledge/route'
+import { writeSortedCursor } from '@/app/api/v2/lib/response'
 
 const WORKSPACE_ID = 'workspace-1'
 const RATE_LIMIT_OK = {
@@ -239,6 +241,38 @@ describe('/api/v2/knowledge route composition', () => {
     expect(replayed.status).toBe(400)
     expect((await replayed.json()).error.message).toBe(REFILTERED_CURSOR_MESSAGE)
     expect(mockList).not.toHaveBeenCalled()
+  })
+
+  /**
+   * `scope` carries `.default('active')`, so it is present on every parsed
+   * query — and it is new on this list. Stamping it unconditionally would put a
+   * constant in every fingerprint and refuse every cursor the deployed build
+   * handed out, reporting {@link REFILTERED_CURSOR_MESSAGE} to a caller that
+   * changed nothing. The default must contribute nothing to the scope.
+   */
+  it('resumes a cursor minted before scope entered the binding', async () => {
+    mockList.mockResolvedValue({
+      knowledgeBases: [{ knowledgeBase: buildKnowledgeBase(), folderPath: '/' }],
+      nextCursorKeys: undefined,
+      sortBy: 'name',
+      sortOrder: 'desc',
+    })
+    const legacyCursor = writeSortedCursor(
+      ['Support docs', 'kb-1'],
+      'name',
+      'desc',
+      cursorScopeKey(cursorRoute(v2ListKnowledgeBasesContract), { workspaceId: WORKSPACE_ID })
+    ) as string
+
+    const response = await GET(
+      new NextRequest(
+        `http://localhost/api/v2/knowledge?workspaceId=${WORKSPACE_ID}&sortBy=name&sortOrder=desc&cursor=${encodeURIComponent(legacyCursor)}`,
+        { headers: { 'x-api-key': 'secret' } }
+      )
+    )
+
+    expect(response.status).toBe(200)
+    expect(mockList).toHaveBeenCalled()
   })
 
   it('refuses a cursor minted under a different filter', async () => {

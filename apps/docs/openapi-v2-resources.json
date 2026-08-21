@@ -3080,7 +3080,7 @@
           }
         },
         "responses": {
-          "200": {
+          "201": {
             "description": "The published MCP server.",
             "headers": {
               "X-RateLimit-Limit": {

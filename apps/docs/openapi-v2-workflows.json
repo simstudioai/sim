@@ -4282,13 +4282,10 @@
           },
           "type": {
             "type": "string",
-            "minLength": 1,
             "description": "Registered block type."
           },
           "name": {
             "type": "string",
-            "minLength": 1,
-            "maxLength": 255,
             "description": "Block display name; must be unique within the workflow."
           },
           "position": {

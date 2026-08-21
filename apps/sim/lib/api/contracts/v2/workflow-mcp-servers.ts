@@ -364,6 +364,13 @@ export const v2CreateWorkflowMcpServerContract = defineRouteContract({
   response: {
     mode: 'json',
     schema: v2DataResponse(v2WorkflowMcpServerSchema),
+    /**
+     * A created resource, like every other v2 collection `POST` that mints one.
+     * Its sibling `POST /api/v2/mcp-servers` already answers `201`; publishing a
+     * workflow as a tool below deliberately stays `200` because re-posting an
+     * already-published workflow updates it rather than creating a second one.
+     */
+    status: 201,
   },
 })
 

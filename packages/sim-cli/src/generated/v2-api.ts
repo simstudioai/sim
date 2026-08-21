@@ -10757,12 +10757,13 @@ export const V2_OPERATIONS = {
       },
       workflowIds: {
         kind: 'string',
-        describe: 'Comma-separated workflow identifiers to include. An empty entry is rejected.',
+        describe:
+          'Comma-separated workflow identifiers to include. At most 200 entries. An empty entry is rejected.',
       },
       folderPaths: {
         kind: 'string',
         describe:
-          'Comma-separated workflow folder paths to include. A path covers its whole subtree. A path that names no folder narrows the result to nothing, so the response is an empty page rather than an error.',
+          'Comma-separated workflow folder paths to include. At most 100 entries. A path covers its whole subtree. A path that names no folder narrows the result to nothing, so the response is an empty page rather than an error.',
       },
       triggers: {
         kind: 'string',

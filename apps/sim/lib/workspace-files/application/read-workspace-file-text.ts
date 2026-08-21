@@ -1,3 +1,4 @@
+import { getErrorMessage } from '@sim/utils/errors'
 import type { AuthorizedWorkspaceUseCaseContext } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { isSupportedFileType, parseBuffer } from '@/lib/file-parsers'
@@ -96,7 +97,7 @@ async function executeReadWorkspaceFileText({
         })
       ).buffer
     : await readSourceBuffer(file, maxBytes)
-  const parsed = await parseBuffer(content, extension)
+  const parsed = await parseFileText(content, extension, file.name)
   const metadata = parsed.metadata ?? {}
 
   return {
@@ -116,6 +117,35 @@ async function executeReadWorkspaceFileText({
  * bytes that operation already authorizes, and turning them into text grants
  * no further reach. No audit is projected, matching the existing content read.
  */
+/**
+ * Turns stored bytes into text without ever answering `500`.
+ *
+ * `parseBuffer` signals every failure — an empty buffer, an unknown extension,
+ * a parser that rejects the bytes — as a bare `Error`, which no v2 error policy
+ * classifies, so calling it directly made a zero-byte upload or a mislabelled
+ * archive an unhandled `500` on a well-formed request. That is the defect class
+ * the conventions doc ranks highest.
+ *
+ * Empty bytes are not a failure: a zero-length file has no text, and answering
+ * `''` is both true and what the caller asked for. Anything else becomes a
+ * `conflict`, matching {@link resolveRenderedWorkspaceArtifact} — the request is
+ * well formed, it is the stored bytes that cannot become the representation
+ * being asked for, and the caller needs to know that retrying will not help.
+ */
+async function parseFileText(content: Buffer, extension: string, fileName: string) {
+  if (content.byteLength === 0) {
+    return { content: '', metadata: {} }
+  }
+  try {
+    return await parseBuffer(content, extension)
+  } catch (error) {
+    throw new OrchestrationError(
+      'conflict',
+      `"${fileName}" could not be read as text: ${getErrorMessage(error, 'the stored bytes could not be parsed')}`
+    )
+  }
+}
+
 export const readWorkspaceFileText = defineAuthorizedWorkspaceFileUseCase({
   operation: fileOperations.readContent,
   resolveContext: ({ input }) => resolveActiveWorkspaceFileContext(input),

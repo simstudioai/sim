@@ -118,20 +118,31 @@ export const v2LogStatsSchema = z
 
 export type V2LogStats = z.output<typeof v2LogStatsSchema>
 
+import {
+  V2_LOG_FOLDER_PATHS_MAX,
+  V2_LOG_TRIGGERS_MAX,
+  V2_LOG_WORKFLOW_IDS_MAX,
+} from '@/lib/api/contracts/v2/logs'
+
 export const v2LogStatsQuerySchema = z
   .object({
     workspaceId: workspaceIdSchema.describe('Workspace whose execution statistics to summarize.'),
     workflowIds: z
       .string()
-      .describe('Comma-separated workflow identifiers to include. An empty entry is rejected.')
+      .describe(
+        `Comma-separated workflow identifiers to include. At most ${V2_LOG_WORKFLOW_IDS_MAX} entries. An empty entry is rejected.`
+      )
       .refine((value) => value.split(',').every((entry) => entry.length > 0), {
         error: 'workflowIds must not contain an empty entry',
+      })
+      .refine((value) => value.split(',').length <= V2_LOG_WORKFLOW_IDS_MAX, {
+        error: `workflowIds cannot contain more than ${V2_LOG_WORKFLOW_IDS_MAX} entries`,
       })
       .optional(),
     folderPaths: z
       .string()
       .describe(
-        `Comma-separated workflow folder paths to include. A path covers its whole subtree. ${V2_FOLDER_FILTER_MISS}`
+        `Comma-separated workflow folder paths to include. At most ${V2_LOG_FOLDER_PATHS_MAX} entries. A path covers its whole subtree. ${V2_FOLDER_FILTER_MISS}`
       )
       .optional()
       .transform((value, ctx) => {
@@ -139,6 +150,13 @@ export const v2LogStatsQuerySchema = z
         const paths = value.split(',')
         if (paths.length === 0 || paths.some((path) => path.length === 0)) {
           ctx.addIssue({ code: 'custom', message: 'folderPaths must contain valid paths' })
+          return z.NEVER
+        }
+        if (paths.length > V2_LOG_FOLDER_PATHS_MAX) {
+          ctx.addIssue({
+            code: 'custom',
+            message: `folderPaths cannot contain more than ${V2_LOG_FOLDER_PATHS_MAX} entries`,
+          })
           return z.NEVER
         }
         const normalized: string[] = []
@@ -159,6 +177,9 @@ export const v2LogStatsQuerySchema = z
       )
       .refine((value) => value.split(',').every((entry) => entry.length > 0), {
         error: 'triggers must not contain an empty entry',
+      })
+      .refine((value) => value.split(',').length <= V2_LOG_TRIGGERS_MAX, {
+        error: `triggers cannot contain more than ${V2_LOG_TRIGGERS_MAX} entries`,
       })
       .optional(),
     level: z.enum(['info', 'error']).describe('Severity level to include.').optional(),

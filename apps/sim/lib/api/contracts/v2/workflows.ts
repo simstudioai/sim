@@ -2023,19 +2023,34 @@ const v2WorkflowBlockRetrySchema = z
   })
   .describe('Per-block retry configuration.')
 
-function workflowBlockSchema(id: string) {
+/**
+ * `stored` relaxes exactly the assertions the column cannot support, for the
+ * same reason {@link workflowVariableSchema} does.
+ *
+ * `workflow_blocks.name` and `.type` are bare `text()` (packages/db/schema.ts),
+ * and the realtime rename op accepts `z.string()`
+ * (packages/realtime-protocol/src/schemas.ts), so nothing on any write path
+ * holds a stored block to these bounds. Asserting them on the way out turned a
+ * block renamed past 255 characters on the canvas into a `500` on
+ * `GET /workflows/{workflowId}/state` — and because `PUT /state` needs that
+ * round trip, the workflow became unreadable *and* unrepairable over v2.
+ *
+ * `input` keeps them: a write is the moment the bounds can still be honoured.
+ */
+function workflowBlockSchema(id: string, mode: 'input' | 'stored' = 'input') {
+  const blockName =
+    mode === 'input'
+      ? z.string().min(1, 'block name cannot be empty').max(255, 'block name is too long')
+      : z.string()
+  const blockType = mode === 'input' ? z.string().min(1, 'block type cannot be empty') : z.string()
   return z
     .object({
       id: z
         .string()
         .min(1, 'block id cannot be empty')
         .describe('Block identifier, unique within the workflow.'),
-      type: z.string().min(1, 'block type cannot be empty').describe('Registered block type.'),
-      name: z
-        .string()
-        .min(1, 'block name cannot be empty')
-        .max(255, 'block name is too long')
-        .describe('Block display name; must be unique within the workflow.'),
+      type: blockType.describe('Registered block type.'),
+      name: blockName.describe('Block display name; must be unique within the workflow.'),
       position: v2WorkflowBlockPositionSchema,
       subBlocks: z
         .record(z.string(), v2WorkflowSubBlockSchema)
@@ -2188,7 +2203,7 @@ function workflowVariableSchema(id: string, mode: 'input' | 'stored' = 'input') 
     .meta({ id, title: 'Workflow variable', description: 'A workflow-scoped variable.' })
 }
 
-export const v2WorkflowBlockSchema = workflowBlockSchema('WorkflowBlock')
+export const v2WorkflowBlockSchema = workflowBlockSchema('WorkflowBlock', 'stored')
 export const v2WorkflowEdgeSchema = workflowEdgeSchema('WorkflowEdge')
 const v2WorkflowLoopSchema = workflowLoopSchema('WorkflowLoop')
 const v2WorkflowParallelSchema = workflowParallelSchema('WorkflowParallel')
