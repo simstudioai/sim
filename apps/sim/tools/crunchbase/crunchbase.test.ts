@@ -167,7 +167,9 @@ describe('crunchbase request building', () => {
       cardId: 'participated_investments',
       cardFieldIds: '["uuid","announced_on"]',
     })
-    expect(alreadyPresent).toContain('card_field_ids=uuid%2Cannounced_on')
+    /* Substring-matching the prefix would also pass on a list that appended
+       "identifier" anyway — only the exact value proves it was left alone. */
+    expect(new URL(alreadyPresent).searchParams.get('card_field_ids')).toBe('uuid,announced_on')
   })
 
   it('rejects both cursors on every paged endpoint, not just search', () => {
@@ -203,14 +205,43 @@ describe('crunchbase request building', () => {
     )
   })
 
-  it('rejects a collection the constrained endpoints do not accept', () => {
+  it('rejects a collection no Crunchbase package publishes', () => {
     expect(() =>
       buildUrl(crunchbaseAutocompleteTool, {
         apiKey: 'k',
         query: 'airbnb',
-        collectionIds: ['funds'],
+        collectionIds: ['unicorns'],
       })
     ).toThrow(/unsupported collection/)
+  })
+
+  it('accepts a collection only a richer package publishes', () => {
+    /* The allowlist is the union across packages, not the narrowest one — the
+       Firmographic enum omits these, so a tier-narrow list would reject a
+       request an Advanced Financials key answers. */
+    expect(
+      new URL(
+        buildUrl(crunchbaseAutocompleteTool, {
+          apiKey: 'k',
+          query: 'sequoia',
+          collectionIds: ['funds', 'funding_rounds', 'acquisitions'],
+        })
+      ).searchParams.get('collection_ids')
+    ).toBe('funds,funding_rounds,acquisitions')
+
+    expect(
+      buildUrl(crunchbaseListDeletedEntitiesTool, { apiKey: 'k', collection: 'funding_rounds' })
+    ).toBe('https://api.crunchbase.com/v4/data/deleted_entities/funding_rounds')
+  })
+
+  it('caps the deleted feed at its own documented maximum, not the search maximum', () => {
+    /* `/data/deleted_entities` documents "default = 10, max = 25" while Search
+       allows 1000, and the block shares one Limit subblock across both. */
+    expect(
+      new URL(
+        buildUrl(crunchbaseListDeletedEntitiesTool, { apiKey: 'k', limit: 1000 })
+      ).searchParams.get('limit')
+    ).toBe('25')
   })
 
   it('reads fields metadata from the /md path, not /data', () => {
