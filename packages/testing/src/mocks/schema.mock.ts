@@ -1270,6 +1270,7 @@ export const schemaMock = {
     lastSyncDocCount: 'lastSyncDocCount',
     nextSyncAt: 'nextSyncAt',
     consecutiveFailures: 'consecutiveFailures',
+    syncLockToken: 'syncLockToken',
     createdAt: 'createdAt',
     updatedAt: 'updatedAt',
     archivedAt: 'archivedAt',

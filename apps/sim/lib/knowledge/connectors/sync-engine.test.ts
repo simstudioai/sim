@@ -5,6 +5,7 @@ import {
   authOAuthUtilsMock,
   dbChainMockFns,
   drizzleOrmMock,
+  flattenMockConditions,
   hasMockCondition,
   type MockCondition,
   resetDbChainMock,
@@ -1289,7 +1290,7 @@ describe('stillHoldsSyncLock', () => {
      */
     expect(
       hasMockCondition(
-        stillHoldsSyncLock('c-1'),
+        stillHoldsSyncLock('c-1', 'run-a'),
         (node: MockCondition) =>
           node.type === 'eq' &&
           node.left === schemaMock.knowledgeConnector.status &&
@@ -1301,7 +1302,7 @@ describe('stillHoldsSyncLock', () => {
   it('still scopes to the connector and skips archived or deleted rows', async () => {
     const { stillHoldsSyncLock } = await import('@/lib/knowledge/connectors/sync-engine')
 
-    const condition = stillHoldsSyncLock('c-1')
+    const condition = stillHoldsSyncLock('c-1', 'run-a')
 
     expect(
       hasMockCondition(
@@ -1343,7 +1344,7 @@ describe('writeTerminalConnectorState', () => {
      * both terminal paths route through here and neither builds a WHERE clause,
      * so removing the guard is a single-site edit that this assertion catches.
      */
-    await writeTerminalConnectorState('c-1', { status: 'active' })
+    await writeTerminalConnectorState('c-1', 'run-a', { status: 'active' })
 
     const where = dbChainMockFns.where.mock.calls[0][0]
     expect(
@@ -1364,13 +1365,23 @@ describe('writeTerminalConnectorState', () => {
           node.right === 'c-1'
       )
     ).toBe(true)
+    // The token must be the run's own, not some other value that merely fills the slot.
+    expect(
+      hasMockCondition(
+        where,
+        (node: MockCondition) =>
+          node.type === 'eq' &&
+          node.left === schemaMock.knowledgeConnector.syncLockToken &&
+          node.right === 'run-a'
+      )
+    ).toBe(true)
   })
 
   it('passes the caller values through untouched', async () => {
     const { writeTerminalConnectorState } = await import('@/lib/knowledge/connectors/sync-engine')
 
     const values = { status: 'error', consecutiveFailures: 4, nextSyncAt: null }
-    await writeTerminalConnectorState('c-1', values)
+    await writeTerminalConnectorState('c-1', 'run-a', values)
 
     expect(dbChainMockFns.set.mock.calls[0][0]).toEqual(values)
   })
@@ -1379,10 +1390,10 @@ describe('writeTerminalConnectorState', () => {
     const { writeTerminalConnectorState } = await import('@/lib/knowledge/connectors/sync-engine')
 
     dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'c-1' }])
-    expect(await writeTerminalConnectorState('c-1', { status: 'active' })).toBe(true)
+    expect(await writeTerminalConnectorState('c-1', 'run-a', { status: 'active' })).toBe(true)
 
     dbChainMockFns.returning.mockResolvedValueOnce([])
-    expect(await writeTerminalConnectorState('c-1', { status: 'active' })).toBe(false)
+    expect(await writeTerminalConnectorState('c-1', 'run-a', { status: 'active' })).toBe(false)
   })
 })
 
@@ -1418,5 +1429,101 @@ describe('applySupersededOutcome', () => {
 
     // Those writes landed — only the connector-level bookkeeping was discarded.
     expect(applySupersededOutcome(result, false)).toMatchObject(result)
+  })
+})
+
+/**
+ * Evaluates a mocked drizzle condition tree against a plain row.
+ *
+ * The row-queue mocks return whatever was queued regardless of the predicate, so
+ * "this WHERE admits run B and rejects run A" is only observable by interpreting
+ * the condition tree the guard emits.
+ */
+function conditionMatchesRow(condition: unknown, row: Record<string, unknown>): boolean {
+  return flattenMockConditions(condition).every((node) => {
+    if (node.type === 'eq') return row[node.left as string] === node.right
+    if (node.type === 'isNull') return row[node.column as string] == null
+    throw new Error(`unhandled condition node: ${String(node.type)}`)
+  })
+}
+
+describe('sync lock ownership across a reclaim and reacquire', () => {
+  const RUN_A = 'run-a'
+  const RUN_B = 'run-b'
+
+  /** The connector row once run B has taken the lock that run A used to hold. */
+  const rowHeldByB = {
+    id: 'c-1',
+    status: 'syncing',
+    syncLockToken: RUN_B,
+    archivedAt: null,
+    deletedAt: null,
+  }
+
+  it('rejects the reclaimed run A and admits the live run B', async () => {
+    const { stillHoldsSyncLock } = await import('@/lib/knowledge/connectors/sync-engine')
+
+    /**
+     * A outlived the TTL, the reaper reclaimed its lock, and replacement B took
+     * it — so the row reads `syncing` again. Guarding on status alone matched A
+     * here and let the dead run clobber the live one, then rejected B's own
+     * write as superseded. Exactly inverted.
+     */
+    expect(conditionMatchesRow(stillHoldsSyncLock('c-1', RUN_A), rowHeldByB)).toBe(false)
+    expect(conditionMatchesRow(stillHoldsSyncLock('c-1', RUN_B), rowHeldByB)).toBe(true)
+  })
+
+  it('rejects a run whose lock was reclaimed with no replacement yet', async () => {
+    const { stillHoldsSyncLock } = await import('@/lib/knowledge/connectors/sync-engine')
+
+    const reclaimed = {
+      id: 'c-1',
+      status: 'error',
+      syncLockToken: null,
+      archivedAt: null,
+      deletedAt: null,
+    }
+
+    expect(conditionMatchesRow(stillHoldsSyncLock('c-1', RUN_A), reclaimed)).toBe(false)
+  })
+
+  it('admits the run that still holds its own lock', async () => {
+    const { stillHoldsSyncLock } = await import('@/lib/knowledge/connectors/sync-engine')
+
+    const heldByA = { ...rowHeldByB, syncLockToken: RUN_A }
+
+    expect(conditionMatchesRow(stillHoldsSyncLock('c-1', RUN_A), heldByA)).toBe(true)
+  })
+
+  it('rejects a run whose connector was paused mid-sync', async () => {
+    const { stillHoldsSyncLock } = await import('@/lib/knowledge/connectors/sync-engine')
+
+    const paused = { ...rowHeldByB, status: 'paused', syncLockToken: RUN_A }
+
+    expect(conditionMatchesRow(stillHoldsSyncLock('c-1', RUN_A), paused)).toBe(false)
+  })
+
+  it('releases the token when a run writes its terminal success state', async () => {
+    const { buildSyncSuccessUpdate } = await import('@/lib/knowledge/connectors/sync-engine')
+
+    // A stale token left behind could match a later run reusing the same id.
+    expect(buildSyncSuccessUpdate(new Date(), 1, null, null).syncLockToken).toBeNull()
+  })
+})
+
+describe('buildSyncLockAcquisition', () => {
+  it('claims the lock and stamps ownership in one payload', async () => {
+    const { buildSyncLockAcquisition } = await import('@/lib/knowledge/connectors/sync-engine')
+
+    const now = new Date('2026-08-20T00:00:00.000Z')
+    const acquisition = buildSyncLockAcquisition('run-a', now)
+
+    /**
+     * Without the token here every terminal write would fail to match its own
+     * run, so every sync would report superseded and leave the connector stuck
+     * `syncing` until the reaper cleared it.
+     */
+    expect(acquisition.syncLockToken).toBe('run-a')
+    expect(acquisition.status).toBe('syncing')
   })
 })

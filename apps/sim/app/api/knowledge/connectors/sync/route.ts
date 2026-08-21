@@ -82,6 +82,9 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         lastSyncError: STALE_LOCK_ERROR_MESSAGE,
         nextSyncAt: reclaimedNextSyncAt(),
         consecutiveFailures: reclaimedFailureCount(),
+        // Releases the reclaimed run's ownership token so its terminal write can
+        // no longer match, even before a replacement takes the lock.
+        syncLockToken: null,
         updatedAt: sql`now()`,
       })
       .where(

@@ -4329,6 +4329,15 @@ export const knowledgeConnector = pgTable(
     lastSyncDocCount: integer('last_sync_doc_count'),
     nextSyncAt: timestamp('next_sync_at'),
     consecutiveFailures: integer('consecutive_failures').notNull().default(0),
+    /**
+     * Identifies the sync run that currently holds this connector's lock.
+     *
+     * `status = 'syncing'` only says *a* run holds it. After the scheduler
+     * reclaims a stale lock and dispatches a replacement, the original run would
+     * still see `syncing` and overwrite the replacement's state. Terminal writes
+     * match this token so a run can prove the lock is still *its own*.
+     */
+    syncLockToken: text('sync_lock_token'),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
     archivedAt: timestamp('archived_at'),

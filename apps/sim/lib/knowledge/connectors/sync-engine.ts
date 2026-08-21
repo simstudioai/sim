@@ -450,25 +450,45 @@ export async function completeSyncLog(
 /**
  * Matches the connector row only while this run still holds its sync lock.
  *
- * `executeSync` sets `status = 'syncing'` when it acquires the lock, so that
- * value means "I am still the writer". Anything else means another actor took
- * the row: the scheduler's stale sweep reclaimed it to `error`/`disabled` and
- * may already have dispatched a replacement, or a user paused it. In every such
- * case this run's terminal write must not land — otherwise it clears a backoff
- * the breaker just set, un-disables a connector, or flips a paused connector
- * back to `active`.
+ * `status = 'syncing'` alone is not enough: it asserts that *a* run holds the
+ * lock, not that *this* run does. Once the scheduler reclaims a stale lock and
+ * dispatches a replacement, the replacement sets `syncing` again — so the
+ * original run would match, overwrite the replacement's in-flight state and the
+ * reclaim's bookkeeping, and then reject the replacement's own write as
+ * superseded. The dead run wins and the live one loses, which is worse than the
+ * unguarded last-write-wins it replaced.
+ *
+ * `syncLockToken` is written in the same CAS that takes the lock, so matching it
+ * proves the lock is still this run's. `status` is kept alongside as defence in
+ * depth and to cover a user pausing the connector mid-run.
  *
  * Guards both terminal paths. The failure path needs it as much as the success
  * path: a reclaimed run's failure would double-increment a counter the sweep
  * already advanced and overwrite its backoff with a shorter one.
  */
-export function stillHoldsSyncLock(connectorId: string) {
+export function stillHoldsSyncLock(connectorId: string, syncLockToken: string) {
   return and(
     eq(knowledgeConnector.id, connectorId),
     eq(knowledgeConnector.status, 'syncing'),
+    eq(knowledgeConnector.syncLockToken, syncLockToken),
     isNull(knowledgeConnector.archivedAt),
     isNull(knowledgeConnector.deletedAt)
   )
+}
+
+/**
+ * The connector row a run writes when it takes the sync lock.
+ *
+ * `syncLockToken` is set here, in the same statement as `status`, so ownership
+ * and the lock are established atomically — a token written afterwards would
+ * leave a window where a terminal write could not identify its own run.
+ */
+export function buildSyncLockAcquisition(syncLogId: string, now: Date) {
+  return {
+    status: 'syncing' as const,
+    syncLockToken: syncLogId,
+    updatedAt: now,
+  }
 }
 
 /** Columns a terminal write may set. Both paths write a subset of the same set. */
@@ -486,12 +506,13 @@ type ConnectorTerminalUpdate = Partial<typeof knowledgeConnector.$inferInsert>
  */
 export async function writeTerminalConnectorState(
   connectorId: string,
+  syncLockToken: string,
   values: ConnectorTerminalUpdate
 ): Promise<boolean> {
   const written = await db
     .update(knowledgeConnector)
     .set(values)
-    .where(stillHoldsSyncLock(connectorId))
+    .where(stillHoldsSyncLock(connectorId, syncLockToken))
     .returning({ id: knowledgeConnector.id })
 
   return written.length > 0
@@ -722,6 +743,8 @@ export function buildSyncSuccessUpdate(
     lastSyncDocCount: actualDocCount,
     nextSyncAt,
     consecutiveFailures: 0,
+    // Releases the lock so a stale token can never match a later run.
+    syncLockToken: null,
     updatedAt: now,
   }
 }
@@ -1151,9 +1174,17 @@ export async function executeSync(
   }
   const sourceConfig = connector.sourceConfig as Record<string, unknown>
 
+  /**
+   * Identifies this run for the terminal writes. Generated before the CAS and
+   * written by it, so ownership is established atomically with the lock — and
+   * reused as the sync-log row id, which makes the connector row point at the
+   * run that holds it.
+   */
+  const syncLogId = generateId()
+
   const lockResult = await db
     .update(knowledgeConnector)
-    .set({ status: 'syncing', updatedAt: new Date() })
+    .set(buildSyncLockAcquisition(syncLogId, new Date()))
     .where(
       and(
         eq(knowledgeConnector.id, connectorId),
@@ -1171,7 +1202,6 @@ export async function executeSync(
     return { ...result, error: 'sync_in_progress' }
   }
 
-  const syncLogId = generateId()
   const syncStartedAt = new Date()
   await db.insert(knowledgeConnectorSyncLog).values({
     id: syncLogId,
@@ -1985,6 +2015,7 @@ export async function executeSync(
     const now = new Date()
     const successWriteLanded = await writeTerminalConnectorState(
       connectorId,
+      syncLogId,
       buildSyncSuccessUpdate(
         now,
         actualDocCount,
@@ -2053,13 +2084,14 @@ export async function executeSync(
         })
       }
 
-      const failureWriteLanded = await writeTerminalConnectorState(connectorId, {
+      const failureWriteLanded = await writeTerminalConnectorState(connectorId, syncLogId, {
         status: disabled ? 'disabled' : 'error',
         lastSyncError: disabled
           ? 'Connector disabled after repeated sync failures. Please reconnect.'
           : errorMessage,
         nextSyncAt: nextSync,
         consecutiveFailures: failures,
+        syncLockToken: null,
         updatedAt: now,
       })
 
