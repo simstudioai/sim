@@ -12,6 +12,21 @@ export const CONNECTOR_SYNC_MAX_DURATION_SECONDS = 3600
  * MUST stay above {@link CONNECTOR_SYNC_MAX_DURATION_SECONDS}: reclaiming frees the
  * lock for another sync, so a TTL at or below the run ceiling would start a second
  * sync while the first is still writing, both racing the same documents.
+ *
+ * This is a hard ceiling for BOTH execution paths, not just the queued one. A
+ * Trigger.dev run is killed at {@link CONNECTOR_SYNC_MAX_DURATION_SECONDS}, so it
+ * is provably dead well before this. The fallback path is not: when Trigger.dev is
+ * unavailable, `dispatchSync` runs `executeSync` fire-and-forget inside the web
+ * process with no duration cap, and such a run genuinely can still be executing
+ * when this TTL expires.
+ *
+ * Treating it as dead anyway is deliberate. An unbounded background sync in a
+ * recyclable web process that has run for two hours is indistinguishable from one
+ * whose process was recycled out from under it, and the cost of guessing wrong in
+ * the other direction is a connector locked out of syncing forever. The sweep's
+ * verdict is therefore authoritative: `completeSyncLog` is guarded on
+ * `status = 'started'`, so a late finisher cannot overwrite a row already closed
+ * here, and it loses the race by design rather than by accident.
  */
 export const CONNECTOR_SYNC_STALE_LOCK_TTL_MS = CONNECTOR_SYNC_MAX_DURATION_SECONDS * 2 * 1000
 

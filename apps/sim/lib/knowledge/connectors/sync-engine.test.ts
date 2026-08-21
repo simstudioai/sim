@@ -1,7 +1,15 @@
 /**
  * @vitest-environment node
  */
-import { authOAuthUtilsMock } from '@sim/testing'
+import {
+  authOAuthUtilsMock,
+  dbChainMockFns,
+  drizzleOrmMock,
+  hasMockCondition,
+  type MockCondition,
+  resetDbChainMock,
+  schemaMock,
+} from '@sim/testing'
 import { generateShortId } from '@sim/utils/id'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
@@ -13,13 +21,7 @@ import {
 } from '@/lib/knowledge/connectors/sync-engine'
 import type { ExternalDocument } from '@/connectors/types'
 
-vi.mock('drizzle-orm', () => ({
-  and: vi.fn(),
-  eq: vi.fn(),
-  inArray: vi.fn(),
-  isNull: vi.fn(),
-  ne: vi.fn(),
-}))
+vi.mock('drizzle-orm', () => drizzleOrmMock)
 vi.mock('@/lib/knowledge/documents/service', () => ({
   hardDeleteDocuments: vi.fn(),
   isTriggerAvailable: vi.fn(),
@@ -1145,5 +1147,133 @@ describe('countNonExcludedListed', () => {
     expect(classifySuspectListing(listedDocCount, ownedDocCount)).toBe('collapsed')
     // The asymmetric numerator this replaced sees a healthy listing.
     expect(classifySuspectListing(listed.size, ownedDocCount)).toBeNull()
+  })
+})
+
+describe('countDeletionEligibleOwned', () => {
+  const doc = (id: string) => ({ id, externalId: id })
+  const excluded = (id: string) => ({ id, externalId: id, userExcluded: true })
+
+  it('does not let excluded tombstones inflate the denominator', async () => {
+    const { countDeletionEligibleOwned } = await import('@/lib/knowledge/connectors/sync-engine')
+
+    expect(countDeletionEligibleOwned([doc('a')], [excluded('t1'), excluded('t2')])).toBe(1)
+    expect(countDeletionEligibleOwned([doc('a')], [doc('t1'), excluded('t2')])).toBe(2)
+  })
+
+  it('excludes user-excluded rows from the live side too', async () => {
+    const { countDeletionEligibleOwned } = await import('@/lib/knowledge/connectors/sync-engine')
+
+    expect(countDeletionEligibleOwned([doc('a'), excluded('b')], [])).toBe(1)
+  })
+
+  it('agrees with the numerator on which population it counts', async () => {
+    const { classifySuspectListing, countDeletionEligibleOwned, countNonExcludedListed } =
+      await import('@/lib/knowledge/connectors/sync-engine')
+
+    /**
+     * 100 live + 100 excluded tombstones. Counting the excluded tombstones would
+     * put the denominator at 200 and hide a listing that returned nothing but
+     * excluded documents.
+     */
+    const existing = Array.from({ length: 100 }, (_, i) => doc(`live-${i}`))
+    const tombstoned = Array.from({ length: 100 }, (_, i) => excluded(`ex-${i}`))
+    const listed = new Set(tombstoned.map((d) => d.externalId))
+    const excludedExternalIds = new Set(listed)
+
+    const ownedDocCount = countDeletionEligibleOwned(existing, tombstoned)
+    const listedDocCount = countNonExcludedListed(listed, excludedExternalIds)
+
+    expect(ownedDocCount).toBe(100)
+    expect(listedDocCount).toBe(0)
+    expect(classifySuspectListing(listedDocCount, ownedDocCount)).toBe('empty')
+  })
+})
+
+describe('buildReconciliationHoldNotice', () => {
+  it('names the counts and the full-sync remedy', async () => {
+    const { buildReconciliationHoldNotice } = await import('@/lib/knowledge/connectors/sync-engine')
+
+    const notice = buildReconciliationHoldNotice(500, 250, 1000)
+
+    expect(notice).toContain('500')
+    expect(notice).toContain('250')
+    expect(notice).toContain('1000')
+    expect(notice).toContain('full sync')
+  })
+})
+
+describe('buildSyncSuccessUpdate', () => {
+  const now = new Date('2026-08-20T00:00:00.000Z')
+
+  it('carries a hold notice into lastSyncError instead of clearing it', async () => {
+    const { buildSyncSuccessUpdate } = await import('@/lib/knowledge/connectors/sync-engine')
+
+    /**
+     * The sequencing assertion. This update runs at the end of the sync, long
+     * after the hold is detected, so writing the notice at the hold site would
+     * be clobbered here.
+     */
+    const update = buildSyncSuccessUpdate(now, 42, null, 'held: 500 removals withheld')
+
+    expect(update.lastSyncError).toBe('held: 500 removals withheld')
+  })
+
+  it('still clears lastSyncError on an ordinary successful sync', async () => {
+    const { buildSyncSuccessUpdate } = await import('@/lib/knowledge/connectors/sync-engine')
+
+    expect(buildSyncSuccessUpdate(now, 42, null, null).lastSyncError).toBeNull()
+  })
+
+  it('does not treat a held pass as a broken connector', async () => {
+    const { buildSyncSuccessUpdate } = await import('@/lib/knowledge/connectors/sync-engine')
+
+    const update = buildSyncSuccessUpdate(now, 42, null, 'held')
+
+    expect(update.status).toBe('active')
+    expect(update.consecutiveFailures).toBe(0)
+  })
+})
+
+describe('completeSyncLog', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
+  it('only writes a row that is still started', async () => {
+    const { completeSyncLog } = await import('@/lib/knowledge/connectors/sync-engine')
+
+    await completeSyncLog('log-1', 'completed', {
+      docsAdded: 1,
+      docsUpdated: 0,
+      docsDeleted: 0,
+      docsUnchanged: 0,
+      docsFailed: 0,
+    })
+
+    const where = dbChainMockFns.where.mock.calls[0][0]
+    /**
+     * Without this the sweep and a late-finishing in-process run race: the sweep
+     * marks the row failed, then the run overwrites it as completed.
+     */
+    expect(
+      hasMockCondition(
+        where,
+        (node: MockCondition) =>
+          node.type === 'eq' &&
+          node.left === schemaMock.knowledgeConnectorSyncLog.status &&
+          node.right === 'started'
+      )
+    ).toBe(true)
+    expect(
+      hasMockCondition(
+        where,
+        (node: MockCondition) =>
+          node.type === 'eq' &&
+          node.left === schemaMock.knowledgeConnectorSyncLog.id &&
+          node.right === 'log-1'
+      )
+    ).toBe(true)
   })
 })

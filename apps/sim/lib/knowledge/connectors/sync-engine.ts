@@ -408,7 +408,20 @@ function calculateNextSyncTime(syncIntervalMinutes: number): Date | null {
   return new Date(now + syncIntervalMinutes * 60_000 + jitterMs)
 }
 
-async function completeSyncLog(
+/**
+ * Records a sync run's outcome on its log row.
+ *
+ * Guarded on `status = 'started'` so a run that outlives
+ * {@link CONNECTOR_SYNC_STALE_LOCK_TTL_MS} cannot overwrite a row the
+ * scheduler's stale sweep already closed. Without the guard the two writers
+ * race and produce contradictory history: the sweep marks the row `failed`,
+ * then the still-running sync reports `completed` on the same row.
+ *
+ * A no-op on the normal path — nothing else touches the row between its
+ * `started` insert and this call, so the guard only ever bites once the sweep
+ * has declared the run dead, and the sweep's verdict is the one that stands.
+ */
+export async function completeSyncLog(
   syncLogId: string,
   status: 'completed' | 'failed',
   result: SyncResult,
@@ -426,7 +439,12 @@ async function completeSyncLog(
       docsUnchanged: result.docsUnchanged,
       docsFailed: result.docsFailed,
     })
-    .where(eq(knowledgeConnectorSyncLog.id, syncLogId))
+    .where(
+      and(
+        eq(knowledgeConnectorSyncLog.id, syncLogId),
+        eq(knowledgeConnectorSyncLog.status, 'started')
+      )
+    )
 }
 
 /**
@@ -569,6 +587,73 @@ export function evaluateListingSafety(
     previous?.trustworthy && classifySuspectListing(previous.listedCount, previous.ownedCount)
   )
   return { reason, blocked: !corroborated, corroborated }
+}
+
+/**
+ * Documents a reconciliation pass could actually remove.
+ *
+ * Both reads are filtered, not just the tombstoned one: the live read already
+ * excludes `userExcluded` rows in SQL, so filtering it again is a no-op today,
+ * but it keeps this count self-consistent with
+ * {@link partitionSyncReconciliation}, which gates deletion on the same flag for
+ * both lists. The result is the denominator for the deletion cap and for
+ * {@link classifySuspectListing}, whose numerator
+ * ({@link countNonExcludedListed}) ranges over the same population.
+ */
+export function countDeletionEligibleOwned(
+  existingDocs: ReconciliationDoc[],
+  tombstonedDocs: ReconciliationDoc[]
+): number {
+  return (
+    existingDocs.filter((d) => !d.userExcluded).length +
+    tombstonedDocs.filter((d) => !d.userExcluded).length
+  )
+}
+
+/**
+ * Operator-facing explanation of a held reconciliation pass.
+ *
+ * Stored on `knowledgeConnector.lastSyncError` because a hold is otherwise
+ * invisible: the sync completes normally and an operator sees an ordinary green
+ * run while source-removed documents stay indexed. Names the forced full sync,
+ * which is the documented way to apply the removals once the source is verified.
+ */
+export function buildReconciliationHoldNotice(
+  requested: number,
+  cap: number,
+  ownedDocCount: number
+): string {
+  return (
+    `Withheld ${requested} document removal(s) — more than the ${cap} allowed in one sync ` +
+    `of ${ownedDocCount} documents. Documents deleted at the source are still indexed. ` +
+    'Check the source is returning its full contents, then run a full sync to apply the removals.'
+  )
+}
+
+/**
+ * The connector row a successful sync writes.
+ *
+ * `holdNotice` is threaded through rather than written when the hold is detected
+ * because this update runs at the very end of the sync and would otherwise clear
+ * `lastSyncError` in the same run. `status` stays `active` and
+ * `consecutiveFailures` still resets: a held pass is a healthy sync that declined
+ * to delete, not a failure, and marking it broken would stop it syncing at all.
+ */
+export function buildSyncSuccessUpdate(
+  now: Date,
+  actualDocCount: number,
+  nextSyncAt: Date | null,
+  holdNotice: string | null
+) {
+  return {
+    status: 'active' as const,
+    lastSyncAt: now,
+    lastSyncError: holdNotice,
+    lastSyncDocCount: actualDocCount,
+    nextSyncAt,
+    consecutiveFailures: 0,
+    updatedAt: now,
+  }
 }
 
 /**
@@ -1504,7 +1589,14 @@ export async function executeSync(
      * same thing. Only evaluated when reconciliation would otherwise run, so
      * healthy syncs pay nothing and no existing gate is loosened.
      */
-    const ownedDocCount = existingDocs.length + tombstonedDocs.length
+    /**
+     * Counted over deletion-eligible rows on both sides. The live read filters
+     * excluded documents in SQL; the tombstoned read only projects the flag, so
+     * excluded tombstones must be dropped here or they inflate a denominator
+     * governing a population they are not part of. Matches `listedDocCount`,
+     * which `countNonExcludedListed` already puts on the same footing.
+     */
+    const ownedDocCount = countDeletionEligibleOwned(existingDocs, tombstonedDocs)
     /**
      * Counted over the same population as `ownedDocCount`: excluded documents
      * are absent from the live read, so they must not inflate the numerator.
@@ -1554,7 +1646,23 @@ export async function executeSync(
       ownedDocCount,
       options?.fullSync
     )
+    /**
+     * Surfaced on the connector so a held pass is visible to an operator rather
+     * than only in logs: without it the sync completes green, clears
+     * `lastSyncError`, and source-removed documents stay indexed with no signal.
+     * Written through the success update at the end of this run rather than
+     * here — that update sets `lastSyncError: null` unconditionally and would
+     * otherwise clobber this within the same sync. `status` is deliberately left
+     * `active`: the sync itself succeeded, and marking the connector broken
+     * would stop it syncing at all.
+     */
+    let reconciliationHoldNotice: string | null = null
     if (capped.held) {
+      reconciliationHoldNotice = buildReconciliationHoldNotice(
+        capped.requested,
+        capped.cap,
+        ownedDocCount
+      )
       logger.error('Reconciliation deletions held — exceeds per-sync blast-radius cap', {
         connectorId,
         connectorType: connector.connectorType,
@@ -1807,15 +1915,14 @@ export async function executeSync(
     const now = new Date()
     await db
       .update(knowledgeConnector)
-      .set({
-        status: 'active',
-        lastSyncAt: now,
-        lastSyncError: null,
-        lastSyncDocCount: actualDocCount,
-        nextSyncAt: calculateNextSyncTime(connector.syncIntervalMinutes),
-        consecutiveFailures: 0,
-        updatedAt: now,
-      })
+      .set(
+        buildSyncSuccessUpdate(
+          now,
+          actualDocCount,
+          calculateNextSyncTime(connector.syncIntervalMinutes),
+          reconciliationHoldNotice
+        )
+      )
       .where(
         and(
           eq(knowledgeConnector.id, connectorId),
