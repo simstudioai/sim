@@ -7,9 +7,12 @@
  * that fails deterministically (a corrupt file, an unsupported encoding) was
  * billed once per sync indefinitely. Five is chosen against the unit that is
  * actually consumed: one attempt per *dispatch*, not per Trigger.dev retry, so
- * a short-interval connector can burn several inside one transient outage.
- * Three left too little room for that; five still bounds the spend well inside
- * `RETRY_WINDOW_DAYS`.
+ * a short-interval connector can still burn several inside one transient
+ * outage. A dispatch that provably reached nothing is refunded — see
+ * `clearDocumentsQueued` — which covers the total-failure shape, but a partial
+ * batch failure and an accepted dispatch whose run never starts both stay
+ * charged. Three left too little room for those; five still bounds the spend
+ * well inside `RETRY_WINDOW_DAYS`.
  *
  * Reaching it is a dead letter, not a deletion: the document keeps its `failed`
  * status and stays user-retryable, it simply stops being swept automatically.

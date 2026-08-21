@@ -16,8 +16,11 @@ export const CONNECTOR_SYNC_MAX_DURATION_SECONDS = 3600
  * lock for another sync, so a TTL at or below the run ceiling would start a second
  * sync while the first is still writing, both racing the same documents.
  *
- * Measured against `updatedAt`, which a running sync refreshes every
- * {@link SYNC_LOCK_HEARTBEAT_INTERVAL_MS}. That is what makes the TTL mean
+ * Measured against `COALESCE(syncLockLeaseAt, updatedAt)`, the lease a running
+ * sync refreshes every {@link SYNC_LOCK_HEARTBEAT_INTERVAL_MS}. The lease is a
+ * dedicated column precisely so an unrelated write to the row — a config edit on
+ * a wedged connector — can no longer pass for a heartbeat; `updatedAt` remains
+ * only as the fallback for a row locked before that column existed. That is what makes the TTL mean
  * "nobody is working on this" rather than "this started a long time ago" — the
  * distinction the in-process fallback path needs. A Trigger.dev run is killed at
  * {@link CONNECTOR_SYNC_MAX_DURATION_SECONDS} and so is provably dead well before
