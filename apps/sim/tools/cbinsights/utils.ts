@@ -1,4 +1,5 @@
 import { getErrorMessage } from '@sim/utils/errors'
+import { LRUCache } from 'lru-cache'
 import {
   DEFAULT_MAX_ERROR_BODY_BYTES,
   readResponseTextWithLimit,
@@ -23,13 +24,28 @@ const REQUEST_TIMEOUT_MS = 120_000
 export const SCOUTING_REPORT_TIMEOUT_MS = 600_000
 
 /**
- * Every list endpoint documents the same bounds.
+ * The bounds the list endpoints document.
  *
- * `orgIds` is "1 - 100 Org IDs" and `limit` is "in the range [1, 100]".
+ * `orgIds` is "1 - 100 Org IDs" and `limit` is "in the range [1, 100]". Two
+ * endpoints state neither — `/v2/businessrelationships` for `orgIds` and
+ * `/v2/firmographics` for `limit` — and are held to the same ceiling anyway, so
+ * a caller sees one rule rather than a per-operation exception.
  */
 export const MAX_ORG_IDS = 100
 export const LIMIT_MIN = 1
 export const LIMIT_MAX = 100
+
+const TOKEN_CACHE_TTL_MS = 5 * 60 * 1000
+
+/**
+ * Ceiling on distinct credential pairs held at once.
+ *
+ * The cache is process-wide, so on a long-lived worker serving many CB Insights
+ * accounts it would otherwise grow with the cumulative number of accounts seen.
+ * Exceeding it evicts inside the TTL, which costs one extra token exchange —
+ * never a wrong answer.
+ */
+const TOKEN_CACHE_MAX_ENTRIES = 128
 
 /**
  * Cached bearer tokens, keyed by a digest of the credentials rather than the
@@ -39,33 +55,10 @@ export const LIMIT_MAX = 100
  * is not load-bearing: {@link cbInsightsRequest} clears the entry and
  * re-authorizes once on a 401, which is what actually makes expiry correct.
  */
-const tokenCache = new Map<string, { token: string; expiresAt: number }>()
-const TOKEN_CACHE_TTL_MS = 5 * 60 * 1000
-
-/**
- * Ceiling on distinct credential pairs held at once.
- *
- * The cache is process-wide, so on a long-lived worker serving many CB Insights
- * accounts it would otherwise grow with the cumulative number of accounts seen.
- */
-const TOKEN_CACHE_MAX_ENTRIES = 128
-
-/**
- * Drops expired entries, then the oldest surviving ones if still over the cap.
- *
- * Map iteration is insertion-ordered, so the first surviving key is the least
- * recently authorized — evicting it costs at most one extra token exchange.
- */
-function pruneTokenCache(): void {
-  const now = Date.now()
-  for (const [key, entry] of tokenCache) {
-    if (entry.expiresAt <= now) tokenCache.delete(key)
-  }
-  for (const key of tokenCache.keys()) {
-    if (tokenCache.size <= TOKEN_CACHE_MAX_ENTRIES) break
-    tokenCache.delete(key)
-  }
-}
+const tokenCache = new LRUCache<string, string>({
+  max: TOKEN_CACHE_MAX_ENTRIES,
+  ttl: TOKEN_CACHE_TTL_MS,
+})
 
 async function credentialDigest(clientId: string, clientSecret: string): Promise<string> {
   const bytes = new TextEncoder().encode(`${clientId}:${clientSecret}`)
@@ -161,12 +154,10 @@ async function getToken(
   if (forceRefresh) tokenCache.delete(key)
 
   const cached = tokenCache.get(key)
-  if (cached && cached.expiresAt > Date.now()) return cached.token
+  if (cached !== undefined) return cached
 
   const token = await authorize(clientId, clientSecret, signal)
-  tokenCache.set(key, { token, expiresAt: Date.now() + TOKEN_CACHE_TTL_MS })
-  /* Pruned after the insert so the cap bounds the cache including this entry. */
-  pruneTokenCache()
+  tokenCache.set(key, token)
   return token
 }
 
@@ -351,11 +342,18 @@ function toPositiveIntegers(entries: readonly unknown[], paramName: string): num
   return ids
 }
 
-/** Coerces a numeric param and clamps it into the documented [1, 100] range. */
+/**
+ * Coerces a page size and clamps it into the documented [1, 100] range.
+ *
+ * Clamping an out-of-range number is what the bound is for, but a value that is
+ * not a number at all is rejected rather than dropped: silently falling back to
+ * the endpoint default would return a different page than the caller asked for
+ * and still bill for it. Same reasoning as {@link parseNumberParam}, which does
+ * the coercion.
+ */
 export function clampLimit(value: unknown): number | undefined {
-  if (value === undefined || value === null || value === '') return undefined
-  const parsed = typeof value === 'number' ? value : Number(value)
-  if (!Number.isFinite(parsed)) return undefined
+  const parsed = parseNumberParam(value, 'limit')
+  if (parsed === undefined) return undefined
   return Math.min(Math.max(Math.trunc(parsed), LIMIT_MIN), LIMIT_MAX)
 }
 
@@ -420,11 +418,35 @@ export function parseIdListParam(value: unknown, paramName: string): number[] | 
   return toPositiveIntegers(entries, paramName)
 }
 
-/** Parses a list of free-text values. */
+/**
+ * Parses a list of free-text values, rejecting an entry that is not text.
+ *
+ * Stringifying whatever arrives would turn an object handed over by a
+ * block-to-block reference into the literal `[object Object]` and search for
+ * that — a filter the caller set, quietly replaced by one that matches nothing,
+ * reported as success. An empty entry is still dropped, for the same reason
+ * {@link splitCommaList} drops one: it carries no filtering meaning.
+ */
 export function parseStringListParam(value: unknown, paramName: string): string[] | undefined {
   const entries = parseListParam(value, paramName)
   if (!entries) return undefined
-  const values = entries.map((entry) => String(entry).trim()).filter(Boolean)
+
+  const values: string[] = []
+  const invalid: string[] = []
+  for (const entry of entries) {
+    if (typeof entry !== 'string' && typeof entry !== 'number') {
+      invalid.push(String(entry))
+      continue
+    }
+    const text = String(entry).trim()
+    if (text !== '') values.push(text)
+  }
+
+  if (invalid.length > 0) {
+    throw new Error(
+      `CB Insights "${paramName}" must contain only text values (invalid: ${invalid.join(', ')})`
+    )
+  }
   return values.length > 0 ? values : undefined
 }
 
@@ -436,8 +458,20 @@ export function parseStringListParam(value: unknown, paramName: string): string[
  * spend credits. Same reasoning as the ID lists.
  */
 export function parseNumberParam(value: unknown, paramName: string): number | undefined {
-  if (value === undefined || value === null || value === '') return undefined
-  const parsed = typeof value === 'number' ? value : Number(String(value).trim())
+  if (value === undefined || value === null) return undefined
+
+  let parsed: number
+  if (typeof value === 'number') {
+    parsed = value
+  } else {
+    /* A whitespace-only field is an empty one, not a malformed number — without
+       the trim, `Number('  ')` is 0 and the filter silently becomes a real
+       bound of zero. */
+    const trimmed = String(value).trim()
+    if (trimmed === '') return undefined
+    parsed = Number(trimmed)
+  }
+
   if (!Number.isFinite(parsed)) {
     throw new Error(`CB Insights "${paramName}" must be a number (received "${String(value)}")`)
   }
@@ -450,12 +484,27 @@ export function parseIntegerParam(value: unknown, paramName: string): number | u
   return parsed === undefined ? undefined : Math.trunc(parsed)
 }
 
-/** Coerces an optional boolean filter, accepting the string form a field emits. */
-export function parseBooleanParam(value: unknown): boolean | undefined {
+/**
+ * Coerces an optional boolean filter, accepting the string form a dropdown emits
+ * and rejecting anything else.
+ *
+ * Same reasoning as {@link parseNumberParam}: only an *unset* value may mean "no
+ * filter". Returning undefined for `"yes"` or `1` would drop a restriction the
+ * caller asked for and widen the search — and the wider search still spends
+ * credits.
+ */
+export function parseBooleanParam(value: unknown, paramName: string): boolean | undefined {
+  if (value === undefined || value === null) return undefined
   if (typeof value === 'boolean') return value
-  if (value === 'true') return true
-  if (value === 'false') return false
-  return undefined
+
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase()
+    if (normalized === '') return undefined
+    if (normalized === 'true') return true
+    if (normalized === 'false') return false
+  }
+
+  throw new Error(`CB Insights "${paramName}" must be true or false (received "${String(value)}")`)
 }
 
 /** Drops keys the caller left unset so an optional filter is never sent empty. */
