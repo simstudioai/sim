@@ -1,7 +1,7 @@
 /**
  * @vitest-environment node
  */
-import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { dbChainMockFns, hasMockCondition, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { listCredentialGroupCredentialReferences } from '@/lib/credential-groups/credentials'
 
@@ -44,5 +44,25 @@ describe('listCredentialGroupCredentialReferences', () => {
       ],
       nextCursor: null,
     })
+  })
+
+  it('filters credential references by normalized enrollment email', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([])
+
+    await listCredentialGroupCredentialReferences({
+      workspaceId: 'workspace-1',
+      credentialGroupId: 'group-1',
+      credentialGroupOptionIds: ['option-1'],
+      email: 'person@example.com',
+      limit: 50,
+    })
+
+    const where = dbChainMockFns.where.mock.calls.at(-1)?.[0]
+    expect(
+      hasMockCondition(
+        where,
+        (condition) => condition.type === 'eq' && condition.right === 'person@example.com'
+      )
+    ).toBe(true)
   })
 })

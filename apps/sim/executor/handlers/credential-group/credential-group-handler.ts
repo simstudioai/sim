@@ -122,6 +122,7 @@ export class CredentialGroupBlockHandler implements BlockHandler {
             credentialGroupId: credentialGroupId!,
             limit: parseLimit(inputs.limit),
             cursor: parseOptionalString(inputs.cursor, 'Cursor'),
+            email: parseOptionalString(inputs.email, 'Email'),
             credentialProviderIds,
           },
         })

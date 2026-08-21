@@ -100,7 +100,7 @@ export const CredentialGroupBlock: BlockConfig<CredentialGroupBlockOutput> = {
     'List usable managed credentials, inspect invited people, send an account-connection invitation, or discover Credential Groups in the current workspace. The block returns credential IDs and account metadata without exposing OAuth tokens.',
   bestPractices: `
   - Use "List Credentials" with a ForEach loop to run a provider block once for every connected account.
-  - "List Credentials" returns only the current workflow caller's enrolled credentials. Filter by provider to select one account type.
+  - "List Credentials" returns every active credential. Filter by email to select one enrolled person, by provider to select one account type, or by both for an exact match.
   - Continue with nextCursor until hasMore is false when a list operation returns multiple pages.
   - "List Credentials" returns active, usable credentials only. Reconnect-needed and revoked credentials are excluded.
   - Use "List People" to inspect invitation and connection progress without exposing credential secrets.
@@ -119,6 +119,7 @@ export const CredentialGroupBlock: BlockConfig<CredentialGroupBlockOutput> = {
             field: ['credentialGroup', 'manualCredentialGroup'],
             core: true,
           },
+          { text: ', for', field: 'email' },
           { text: ', from', field: ['providerFilter', 'manualProviderIds'] },
           { text: ', up to', field: 'limit', after: 'credentials' },
         ],
@@ -183,7 +184,7 @@ export const CredentialGroupBlock: BlockConfig<CredentialGroupBlockOutput> = {
       type: 'short-input',
       required: { field: 'operation', value: 'send_invite' },
       placeholder: 'person@example.com',
-      condition: { field: 'operation', value: ['send_invite', 'list_people'] },
+      condition: { field: 'operation', value: [...GROUP_OPERATIONS] },
     },
     {
       id: 'providerFilter',
@@ -251,7 +252,7 @@ export const CredentialGroupBlock: BlockConfig<CredentialGroupBlockOutput> = {
     credentialGroupId: { type: 'string', description: 'Credential Group ID' },
     email: {
       type: 'string',
-      description: 'Recipient email for invites or an optional people-list filter',
+      description: 'Recipient email for invites or an optional credential/people-list filter',
     },
     credentialProviderIds: {
       type: 'json',
