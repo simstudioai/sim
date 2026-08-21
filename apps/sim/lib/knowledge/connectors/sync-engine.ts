@@ -10,7 +10,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { randomInt } from '@sim/utils/random'
-import { and, desc, eq, gt, inArray, isNotNull, isNull, lt, ne, or, sql } from 'drizzle-orm'
+import { and, desc, eq, gt, inArray, isNotNull, isNull, lt, ne, sql } from 'drizzle-orm'
 import { decryptApiKey } from '@/lib/api-key/crypto'
 import {
   assertBillingAttributionSnapshot,
@@ -58,8 +58,90 @@ const CONTENT_INFLIGHT_BUDGET_BYTES = 64 * 1024 * 1024
 const MAX_PAGES = 500
 const MAX_SAFE_TITLE_LENGTH = 200
 const STALE_PROCESSING_MINUTES = 45
+/**
+ * Grace period a document that is merely *queued* gets before the stuck-document
+ * sweep may reclaim it.
+ *
+ * `STALE_PROCESSING_MINUTES` bounds a run that has already begun — `maxDuration`
+ * (10m) x `maxAttempts` (3) on `knowledge-process-document` is 30 minutes, so 45
+ * covers it with headroom. Queue *wait* is a different quantity: it is
+ * backlog / concurrency, not run duration. `document-processing-queue` has a
+ * global `concurrencyLimit` of 20 shared by every workspace, and a single large
+ * connector corpus is on the order of the 2,600-document site
+ * `CONNECTOR_SYNC_MAX_DURATION_SECONDS` was raised for — 130 waves of 20, which
+ * at roughly a minute of occupancy per document drains in about two hours, and
+ * longer while other workspaces hold slots. Four hours is about twice that
+ * drain, an order of magnitude above the one-hour sync ceiling, and still well
+ * under the 1,440-minute default sync interval, so a default-configured
+ * connector waits no longer for recovery than it already did.
+ */
+const QUEUED_DISPATCH_GRACE_MINUTES = 240
 const RETRY_WINDOW_DAYS = 7
 const MAX_CONSECUTIVE_FAILURES = 10
+
+/** The processing state the stuck-document sweep decides on, one row at a time. */
+export interface StuckDocumentSweepCandidate {
+  processingStatus: string
+  processingQueuedAt: Date | null
+  processingStartedAt: Date | null
+  uploadedAt: Date
+}
+
+/**
+ * Decides whether the sweep may reclaim one document — delete its embeddings,
+ * reset it, and dispatch it again.
+ *
+ * Since document processing is dispatched to `knowledge-process-document`
+ * rather than awaited inline, a document sits at `pending` from dispatch until
+ * a worker claims it; `processing` is only written once a worker has actually
+ * started. Reclaiming a `pending` document therefore risks racing a run that is
+ * still queued, which both duplicates its work and bills a second indexing
+ * pass, so queued documents get {@link QUEUED_DISPATCH_GRACE_MINUTES} before
+ * they are considered lost.
+ *
+ * Queue wait is measured from `processingQueuedAt`, written by every path that
+ * re-dispatches an existing document — this sweep and the user-facing retry.
+ * It falls back to `uploadedAt` when NULL, which covers a document dispatched
+ * by the sync that created it (`uploadedAt` then sits within that sync's own
+ * runtime, an over-estimate bounded by the one-hour sync ceiling) and rows
+ * written before the column existed.
+ *
+ * `failed` gets no grace. It is a terminal state: the run that produced it has
+ * ended, so re-dispatching cannot duplicate live work, and it is the state the
+ * user-facing retry path also operates from.
+ *
+ * This narrows the duplicate-dispatch window; it cannot close it. A grace
+ * period is a timing guarantee, and no timing guarantee is a correctness one:
+ * a document queued for longer than the grace is still reclaimed while its
+ * original run waits, and Trigger.dev will not deduplicate the second dispatch
+ * because the idempotency key `processDocumentsWithQueue` uses is
+ * `doc-process-<documentId>-<requestId>` with a fresh `requestId` per dispatch
+ * — scoped per dispatch by design, so it blocks intra-dispatch retries and
+ * nothing else. Each duplicate run mints its own indexing pass and bills for
+ * it, which is the double-billing `451d2ccbde` closed for the inline path.
+ * Closing it durably needs state, not timing: a document-scoped idempotency
+ * key, or a dispatch-generation column the worker carries and checks before
+ * indexing, so a superseded run declines to bill. That is a larger change than
+ * this hotfix.
+ */
+export function isStuckDocumentSweepEligible(doc: StuckDocumentSweepCandidate, now: Date): boolean {
+  switch (doc.processingStatus) {
+    case 'failed':
+      return true
+    case 'pending': {
+      const queuedAt = doc.processingQueuedAt ?? doc.uploadedAt
+      return now.getTime() - queuedAt.getTime() > QUEUED_DISPATCH_GRACE_MINUTES * 60 * 1000
+    }
+    case 'processing': {
+      if (!doc.processingStartedAt) return true
+      return (
+        now.getTime() - doc.processingStartedAt.getTime() > STALE_PROCESSING_MINUTES * 60 * 1000
+      )
+    }
+    default:
+      return false
+  }
+}
 
 /** Sanitizes a document title for use in S3 storage keys. */
 function sanitizeStorageTitle(title: string): string {
@@ -1368,45 +1450,47 @@ export async function executeSync(
       throw new Error(`Knowledge base ${connector.knowledgeBaseId} was deleted during sync`)
     }
 
-    // Retry stuck documents that failed, never started, or were abandoned mid-processing.
-    // Only retry docs uploaded BEFORE this sync — docs added in the current sync
-    // are still processing asynchronously and would cause a duplicate processing race.
-    // Documents stuck in 'processing' beyond STALE_PROCESSING_MINUTES are considered
-    // abandoned (e.g. the Trigger.dev task process exited before processing completed).
-    // Documents uploaded more than RETRY_WINDOW_DAYS ago are not retried.
-    const staleProcessingCutoff = new Date(Date.now() - STALE_PROCESSING_MINUTES * 60 * 1000)
-    const stuckDocs = await db
+    /**
+     * Reclaims documents this connector left unfinished: a terminated attempt, a
+     * dispatch that never produced a run, or a run abandoned mid-processing.
+     *
+     * The query narrows to this connector's non-terminal documents inside the
+     * `RETRY_WINDOW_DAYS` window and excludes anything created by this sync;
+     * {@link isStuckDocumentSweepEligible} then makes the per-document decision,
+     * so the age rules live in one place rather than being split between SQL and
+     * TypeScript. Skipped (oversized) documents are recorded as content-less
+     * `failed` rows with no storage key and can never be reprocessed, so they are
+     * excluded outright.
+     */
+    const sweepEvaluatedAt = new Date()
+    const sweepCandidates = await db
       .select({
         id: document.id,
         fileUrl: document.fileUrl,
         filename: document.filename,
         fileSize: document.fileSize,
         mimeType: document.mimeType,
+        processingStatus: document.processingStatus,
+        processingQueuedAt: document.processingQueuedAt,
+        processingStartedAt: document.processingStartedAt,
+        uploadedAt: document.uploadedAt,
       })
       .from(document)
       .where(
         and(
           eq(document.connectorId, connectorId),
-          or(
-            inArray(document.processingStatus, ['pending', 'failed']),
-            and(
-              eq(document.processingStatus, 'processing'),
-              or(
-                isNull(document.processingStartedAt),
-                lt(document.processingStartedAt, staleProcessingCutoff)
-              )
-            )
-          ),
+          inArray(document.processingStatus, ['pending', 'failed', 'processing']),
           lt(document.uploadedAt, syncStartedAt),
           gt(document.uploadedAt, retryCutoff),
           eq(document.userExcluded, false),
-          // Skipped (oversized) docs are recorded as content-less failed rows with no
-          // storage key; they cannot be reprocessed, so exclude them from retry.
           isNotNull(document.storageKey),
           isNull(document.archivedAt),
           isNull(document.deletedAt)
         )
       )
+    const stuckDocs = sweepCandidates.filter((doc) =>
+      isStuckDocumentSweepEligible(doc, sweepEvaluatedAt)
+    )
 
     if (stuckDocs.length > 0) {
       logger.info(`Retrying ${stuckDocs.length} stuck documents`, { connectorId })
@@ -1451,6 +1535,12 @@ export async function executeSync(
               .update(document)
               .set({
                 processingStatus: 'pending',
+                /**
+                 * Records when this re-dispatch was queued, so a later sweep can
+                 * tell a document still waiting for a worker from one whose
+                 * dispatch was lost. See {@link isStuckDocumentSweepEligible}.
+                 */
+                processingQueuedAt: sweepEvaluatedAt,
                 processingStartedAt: null,
                 processingCompletedAt: null,
                 processingError: null,
