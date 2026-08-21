@@ -443,6 +443,13 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
          *
          * Fires at most once per socket instance, at the point the toast
          * appears, rather than once per retry.
+         *
+         * Called from `connect_error` and nowhere else. That is the only handler
+         * that sees exactly one event per attempt: a failed *reconnect* also
+         * emits the manager's `reconnect_error` (`manager.reconnect()` calls
+         * `open()`, whose error path emits `error` — which the socket re-emits as
+         * `connect_error` — and then emits `reconnect_error` itself), so counting
+         * in both would advance twice per try and trip the threshold early.
          */
         const reportPersistentConnectFailure = (reason: string) => {
           connectFailureCountRef.current += 1
@@ -574,11 +581,12 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
           logger.info('Socket reconnection attempt', { attemptNumber })
         })
 
+        /* Deliberately does not count toward the outage report — the socket's
+           own `connect_error` already fired for this same attempt. */
         socketInstance.io.on('reconnect_error', (error: Error) => {
           logger.warn('Socket reconnection attempt failed, will retry', {
             message: error.message,
           })
-          reportPersistentConnectFailure(error.message)
         })
 
         socketInstance.io.on('reconnect_failed', () => {
