@@ -13,7 +13,6 @@
  */
 import { resetEnvMock, setEnv } from '@sim/testing'
 import { afterEach, describe, expect, it } from 'vitest'
-
 import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
 
 const PUBLIC_URL = 'https://sim.ai'

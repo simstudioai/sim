@@ -51,7 +51,6 @@
     "check:icon-path-precision": "bun run scripts/check-icon-path-precision.ts",
     "check:migrations": "bun run scripts/check-migrations-safety.ts",
     "check:native-typecheck": "bun run scripts/check-native-typecheck.ts",
-    "check:outbound-delivery": "bun run scripts/check-outbound-delivery.ts",
     "check:source-text": "bun run scripts/check-source-text.ts",
     "check:audits": "bun run scripts/run-audits.ts",
     "check:skills": "bun run scripts/sync-skills.ts --check",

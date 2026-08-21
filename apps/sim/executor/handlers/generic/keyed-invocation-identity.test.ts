@@ -65,11 +65,21 @@ describe('keyed invocation identity', () => {
 
   it('separates two different blocks inside one execution', () => {
     const a = deriveDeliveryKey(
-      { executionId: 'exec-1', blockId: 'block-a', toolId: 'brex_create_transfer', invocationId: '1' },
+      {
+        executionId: 'exec-1',
+        blockId: 'block-a',
+        toolId: 'brex_create_transfer',
+        invocationId: '1',
+      },
       'brex_create_transfer'
     )
     const b = deriveDeliveryKey(
-      { executionId: 'exec-1', blockId: 'block-b', toolId: 'brex_create_transfer', invocationId: '1' },
+      {
+        executionId: 'exec-1',
+        blockId: 'block-b',
+        toolId: 'brex_create_transfer',
+        invocationId: '1',
+      },
       'brex_create_transfer'
     )
 
@@ -78,11 +88,21 @@ describe('keyed invocation identity', () => {
 
   it('separates the same block across two executions', () => {
     const first = deriveDeliveryKey(
-      { executionId: 'exec-1', blockId: 'block-1', toolId: 'brex_create_transfer', invocationId: '1' },
+      {
+        executionId: 'exec-1',
+        blockId: 'block-1',
+        toolId: 'brex_create_transfer',
+        invocationId: '1',
+      },
       'brex_create_transfer'
     )
     const second = deriveDeliveryKey(
-      { executionId: 'exec-2', blockId: 'block-1', toolId: 'brex_create_transfer', invocationId: '1' },
+      {
+        executionId: 'exec-2',
+        blockId: 'block-1',
+        toolId: 'brex_create_transfer',
+        invocationId: '1',
+      },
       'brex_create_transfer'
     )
 
