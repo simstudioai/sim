@@ -213,7 +213,10 @@ export function createBlockFromParams(
         blockState.subBlocks[subBlock.id] = {
           id: subBlock.id,
           type: subBlock.type,
-          value: null,
+          value:
+            subBlock.hidden && subBlock.defaultValue !== undefined
+              ? structuredClone(subBlock.defaultValue)
+              : null,
         }
       } else {
         blockState.subBlocks[subBlock.id].type = subBlock.type

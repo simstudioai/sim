@@ -188,6 +188,15 @@ describe('followRedirectsGuarded', () => {
     expect(raw.mock.calls[1][1].body).toBeUndefined()
   })
 
+  it('keeps HEAD as HEAD on 303', async () => {
+    const raw = vi
+      .fn()
+      .mockResolvedValueOnce(redirectTo('https://a.example/next', 303))
+      .mockResolvedValueOnce(new Response(null, { status: 200 }))
+    await followRedirectsGuarded(raw, 'https://a.example/x', { method: 'HEAD' })
+    expect(raw.mock.calls[1][1].method).toBe('HEAD')
+  })
+
   it('preserves method and body on 307', async () => {
     const raw = vi
       .fn()
