@@ -20,10 +20,7 @@ import type {
   SubscriptionResult,
   WebhookProviderHandler,
 } from '@/lib/webhooks/providers/types'
-import {
-  buildFallbackDeliveryFingerprint,
-  createHmacVerifier,
-} from '@/lib/webhooks/providers/utils'
+import { createHmacVerifier } from '@/lib/webhooks/providers/utils'
 import {
   BITBUCKET_API_BASE,
   bitbucketHeaders,
@@ -425,14 +422,14 @@ function formatBitbucketInput(
 
 export const bitbucketHandler: WebhookProviderHandler = {
   /**
-   * Atlassian documents X-Request-UUID as request metadata, not as a stable retry identifier.
-   * A content fingerprint remains stable when Bitbucket resends the same event, while the shared
-   * idempotency service scopes it to this one event-specific webhook.
+   * Bitbucket supplies a request UUID alongside its attempt number. Preserve that provider-owned
+   * identifier for deduplication instead of fingerprinting payloads, since two legitimate events
+   * can have identical bodies. The processor strips untrusted Sim idempotency headers before this
+   * hook runs.
    */
-  extractIdempotencyId(body) {
-    const payload = toRecordOrNull(body)
-    const repository = toRecordOrNull(payload?.repository)
-    return payload && repository ? `bitbucket:${buildFallbackDeliveryFingerprint(payload)}` : null
+  enrichHeaders(_ctx, headers) {
+    const requestUuid = headers['x-request-uuid']?.trim()
+    if (requestUuid) headers['x-sim-idempotency-key'] = requestUuid
   },
 
   verifyAuth: createHmacVerifier({

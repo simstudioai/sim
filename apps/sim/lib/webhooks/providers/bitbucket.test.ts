@@ -22,6 +22,7 @@ vi.mock('@/lib/webhooks/provider-subscription-utils', () => ({
 
 import { IdempotencyService } from '@/lib/core/idempotency/service'
 import { bitbucketHandler } from '@/lib/webhooks/providers/bitbucket'
+import { getProviderHandler } from '@/lib/webhooks/providers/registry'
 import {
   BITBUCKET_TRIGGER_EVENT_MAP,
   type BitbucketTriggerId,
@@ -120,6 +121,10 @@ describe('Bitbucket webhook provider', () => {
   afterEach(() => {
     vi.unstubAllGlobals()
     vi.restoreAllMocks()
+  })
+
+  it('is registered under the Bitbucket provider key', () => {
+    expect(getProviderHandler('bitbucket')).toBe(bitbucketHandler)
   })
 
   describe('verifyAuth', () => {
@@ -223,72 +228,41 @@ describe('Bitbucket webhook provider', () => {
   })
 
   describe('idempotency', () => {
-    it('uses a stable content fingerprint instead of retry metadata', () => {
-      const firstAttemptBody = {
-        actor: { uuid: '{actor-1}', display_name: 'Ada' },
-        repository: { uuid: '{repo-1}' },
-        push: { changes: [{ created: true }] },
+    function enrich(requestUuid: string | undefined, attemptNumber: string) {
+      const headers: Record<string, string> = { 'x-attempt-number': attemptNumber }
+      if (requestUuid !== undefined) headers['x-request-uuid'] = requestUuid
+      bitbucketHandler.enrichHeaders!({} as never, headers)
+      return headers
+    }
+
+    it.each([
+      ['the same request UUID across attempts', '{request-1}', '1', '{request-1}', '2', true],
+      ['different request UUIDs', '{request-1}', '1', '{request-2}', '1', false],
+    ])(
+      '%s produce the expected key relationship',
+      (_label, firstUuid, firstAttempt, secondUuid, secondAttempt, shouldMatch) => {
+        const payload = { repository: { uuid: '{repo-1}' }, changes: { name: {} } }
+        const first = IdempotencyService.createWebhookIdempotencyKey(
+          'webhook-1',
+          enrich(firstUuid, firstAttempt),
+          payload,
+          'bitbucket'
+        )
+        const second = IdempotencyService.createWebhookIdempotencyKey(
+          'webhook-1',
+          enrich(secondUuid, secondAttempt),
+          payload,
+          'bitbucket'
+        )
+
+        expect(first === second).toBe(shouldMatch)
       }
-      const retryBodyWithReorderedKeys = {
-        push: { changes: [{ created: true }] },
-        repository: { uuid: '{repo-1}' },
-        actor: { display_name: 'Ada', uuid: '{actor-1}' },
-      }
-      const firstAttemptHeaders = {
-        'x-request-uuid': '{request-1}',
-        'x-attempt-number': '1',
-      }
-      const retryHeaders = {
-        'x-request-uuid': '{request-2}',
-        'x-attempt-number': '2',
-      }
+    )
 
-      const firstKey = IdempotencyService.createWebhookIdempotencyKey(
-        'webhook-1',
-        firstAttemptHeaders,
-        firstAttemptBody,
-        'bitbucket'
-      )
-      const retryKey = IdempotencyService.createWebhookIdempotencyKey(
-        'webhook-1',
-        retryHeaders,
-        retryBodyWithReorderedKeys,
-        'bitbucket'
-      )
-
-      expect(firstAttemptHeaders).not.toEqual(retryHeaders)
-      expect(firstKey).toBe(retryKey)
-      expect(firstKey).toMatch(/^webhook-1:bitbucket:[a-f\d]{64}$/)
-      expect(bitbucketHandler.extractIdempotencyId!(firstAttemptBody)).toMatch(
-        /^bitbucket:[a-f\d]{64}$/
-      )
-    })
-
-    it('distinguishes changed payloads', () => {
-      const first = bitbucketHandler.extractIdempotencyId!({
-        repository: { uuid: '{repo-1}' },
-        push: { changes: [{ created: true }] },
-      })
-      const second = bitbucketHandler.extractIdempotencyId!({
-        repository: { uuid: '{repo-1}' },
-        push: { changes: [{ created: false }] },
-      })
-
-      expect(first).not.toBe(second)
-    })
-
-    it('does not require a Bitbucket request UUID to derive a stable key', () => {
-      const payload = { repository: { uuid: '{repo-1}' }, changes: { name: {} } }
-
-      expect(bitbucketHandler.extractIdempotencyId!(payload)).toBe(
-        bitbucketHandler.extractIdempotencyId!(structuredClone(payload))
-      )
-    })
-
-    it.each([null, undefined, 'payload', 42, [], true, {}, { repository: null }])(
-      'returns null for an invalid payload: %j',
-      (payload) => {
-        expect(bitbucketHandler.extractIdempotencyId!(payload)).toBeNull()
+    it.each([undefined, '', '   '])(
+      'does not inject a key for a missing or blank request UUID: %j',
+      (requestUuid) => {
+        expect(enrich(requestUuid, '1')).not.toHaveProperty('x-sim-idempotency-key')
       }
     )
   })
