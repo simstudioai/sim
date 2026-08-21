@@ -8,7 +8,6 @@ import { createLogger } from '@sim/logger'
 import { preferIpv4, resolveHostAddresses } from '@sim/security/dns'
 import { isLoopbackIp, isPrivateIp, isPrivateIpHost, unwrapIpv6Brackets } from '@sim/security/ssrf'
 import { toError } from '@sim/utils/errors'
-import { omit } from '@sim/utils/object'
 import { HttpProxyAgent } from 'http-proxy-agent'
 import { HttpsProxyAgent } from 'https-proxy-agent'
 import * as ipaddr from 'ipaddr.js'
@@ -365,8 +364,18 @@ export interface SecureFetchOptions {
    */
   maxResponseBytes?: number
   signal?: AbortSignal
-  /** Drop the Authorization header when following a redirect, so it is not sent to the redirect target's origin. */
+  /**
+   * Drop the Authorization header when following a redirect. A cross-origin hop already
+   * drops every caller header unconditionally; this narrows same-origin hops too, for
+   * endpoints that redirect to a target carrying its own signed URL.
+   */
   stripAuthOnRedirect?: boolean
+  /**
+   * Refuse a redirect that would resend the request body, because for this
+   * caller a second delivery is unsafe (`once`/`billable`). Redirects that drop
+   * the body still follow — they cannot repeat the write.
+   */
+  refuseBodyPreservingRedirect?: boolean
   /**
    * Pre-validated, IP-pinned `http://` proxy URL (see {@link validateAndPinProxyUrl}).
    * When set, the connection routes through this proxy and target-IP pinning is
@@ -526,6 +535,87 @@ function assertGuardedRedirectTarget(url: URL, allowedPinnedIp?: string): void {
   }
 }
 
+/** Headers that describe a request body and must not outlive it. */
+const ENTITY_HEADERS = [
+  'content-length',
+  'content-type',
+  'content-encoding',
+  'transfer-encoding',
+] as const
+
+/** Case-insensitive header removal — callers supply arbitrary casing. */
+function stripHeaders(
+  headers: Record<string, string>,
+  remove: readonly string[]
+): Record<string, string> {
+  const drop = new Set(remove.map((name) => name.toLowerCase()))
+  const kept: Record<string, string> = {}
+  for (const [name, value] of Object.entries(headers)) {
+    if (!drop.has(name.toLowerCase())) kept[name] = value
+  }
+  return kept
+}
+
+interface RedirectHopPolicy {
+  /** Method for the next hop. */
+  method: string
+  /** Whether the body — and the entity headers describing it — must be dropped. */
+  dropBody: boolean
+  /** Whether every caller-supplied header must be dropped (cross-origin hop). */
+  dropHeaders: boolean
+}
+
+/**
+ * Decides how a request may be replayed on a redirect target, per RFC 9110 section 15.4.
+ *
+ * Both redirect followers in this file route through here so they cannot drift. They had
+ * drifted: {@link secureFetchWithPinnedIP} replayed the original method and body on
+ * 301/302/303 — delivering a non-idempotent write twice — and forwarded `Authorization`
+ * and every other caller header to whatever origin the upstream named, while
+ * {@link followRedirectsGuarded} implemented the correct rules a hundred lines above it.
+ *
+ * Throws when a faithful replay would forward a body across an origin boundary: the
+ * redirect target is chosen by the peer, so a preserved 307/308 body would hand the
+ * caller's payload — and any credential inside it — to an open-redirect destination.
+ */
+function resolveRedirectHop(args: {
+  status: number
+  method: string
+  hasBody: boolean
+  sameOrigin: boolean
+  /**
+   * Set by a delivery whose duplicate is unsafe (`once`, `billable`). Only a
+   * body-PRESERVING hop can deliver twice inside one attempt, so only that is
+   * refused — a 303, or a 301/302 on POST, becomes a bodyless GET and cannot
+   * repeat the write, which is why those still follow. Refusing every redirect
+   * instead would fail the upload-and-parse endpoints that legitimately answer
+   * a POST with a redirect to storage.
+   */
+  refuseBodyPreservingRedirect?: boolean
+}): RedirectHopPolicy {
+  const method = args.method.toUpperCase()
+  // 303 always, and 301/302 on POST by long-standing client convention, degrade to a
+  // bodyless GET. A retained Content-Length/Content-Type on a bodyless GET is malformed.
+  const dropBody =
+    args.status === 303 || ((args.status === 301 || args.status === 302) && method === 'POST')
+  const preservesBody = args.hasBody && !dropBody
+  if (!args.sameOrigin && preservesBody) {
+    throw new Error('Blocked by SSRF policy: cross-origin redirect would forward a request body')
+  }
+  if (args.refuseBodyPreservingRedirect && preservesBody) {
+    throw new Error(
+      `Redirect would resend the request body to the redirect target, which for this delivery could ` +
+        `deliver it twice. HTTP ${args.status} preserves the method and body; only a redirect that ` +
+        `drops the body is followed for a delivery whose duplicate is unsafe.`
+    )
+  }
+  return {
+    method: dropBody ? 'GET' : method,
+    dropBody,
+    dropHeaders: !args.sameOrigin,
+  }
+}
+
 /**
  * Manual, revalidating redirect follower used by the guarded fetch. Auto-follow
  * is unsafe here on two counts the connect-time lookup cannot cover: IP-literal
@@ -574,32 +664,21 @@ export async function followRedirectsGuarded(
     }
     const nextUrl = new URL(location, currentUrl)
     assertGuardedRedirectTarget(nextUrl, options?.allowRedirectToIp)
-    // Per the fetch spec: 303 (and 301/302 on POST) switch to a bodyless GET, dropping
-    // the entity headers that described the removed body (a retained Content-Length /
-    // Content-Type on a bodyless GET is malformed and undici rejects it).
-    if (status === 303 || ((status === 301 || status === 302) && method === 'POST')) {
-      method = 'GET'
-      body = undefined
-      if (headers !== undefined) {
-        const sanitized = new Headers(headers as HeadersInit)
-        sanitized.delete('content-length')
-        sanitized.delete('content-type')
-        sanitized.delete('content-encoding')
-        sanitized.delete('transfer-encoding')
-        // double-cast-allowed: Headers is a valid undici HeadersInit at runtime but the DOM/undici types differ
-        headers = sanitized as unknown as UndiciRequestInit['headers']
-      }
-    }
-    if (nextUrl.origin !== currentUrl.origin) {
+    const hopPolicy = resolveRedirectHop({
+      status,
+      method,
+      hasBody: body !== undefined && body !== null,
+      sameOrigin: nextUrl.origin === currentUrl.origin,
+    })
+    method = hopPolicy.method
+    if (hopPolicy.dropBody) body = undefined
+    if (hopPolicy.dropHeaders) {
       headers = undefined
-      // 307/308 preserve method+body; forwarding a body cross-origin can hand OAuth
-      // client secrets / tokens to an open-redirect target now that redirects really
-      // dial the new origin. No legitimate MCP/OAuth flow does this — refuse it.
-      if (body !== undefined && body !== null) {
-        throw new Error(
-          'Blocked by SSRF policy: cross-origin redirect would forward a request body'
-        )
-      }
+    } else if (hopPolicy.dropBody && headers !== undefined) {
+      const sanitized = new Headers(headers as HeadersInit)
+      for (const name of ENTITY_HEADERS) sanitized.delete(name)
+      // double-cast-allowed: Headers is a valid undici HeadersInit at runtime but the DOM/undici types differ
+      headers = sanitized as unknown as UndiciRequestInit['headers']
     }
     currentUrl = nextUrl
   }
@@ -1018,12 +1097,28 @@ export async function secureFetchWithPinnedIP(
               settledReject(new Error(`Redirect blocked: ${validation.error}`))
               return
             }
-            const redirectOptions = options.stripAuthOnRedirect
-              ? {
-                  ...options,
-                  headers: omit(options.headers ?? {}, ['Authorization', 'authorization']),
-                }
-              : options
+            const hop = resolveRedirectHop({
+              status: statusCode,
+              method: options.method ?? 'GET',
+              hasBody: options.body !== undefined && options.body !== null,
+              sameOrigin: new URL(redirectUrl).origin === parsed.origin,
+              refuseBodyPreservingRedirect: options.refuseBodyPreservingRedirect,
+            })
+            let redirectHeaders = hop.dropHeaders ? undefined : options.headers
+            if (redirectHeaders && hop.dropBody) {
+              redirectHeaders = stripHeaders(redirectHeaders, ENTITY_HEADERS)
+            }
+            // A cross-origin hop already dropped every header; this keeps the opt-in
+            // promise on the same-origin hops it still applies to.
+            if (redirectHeaders && options.stripAuthOnRedirect) {
+              redirectHeaders = stripHeaders(redirectHeaders, ['authorization'])
+            }
+            const redirectOptions: SecureFetchOptions & { allowHttp?: boolean } = {
+              ...options,
+              method: hop.method,
+              body: hop.dropBody ? undefined : options.body,
+              headers: redirectHeaders,
+            }
             return secureFetchWithPinnedIP(
               redirectUrl,
               validation.resolvedIP!,
