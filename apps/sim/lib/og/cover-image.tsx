@@ -27,6 +27,13 @@ const MUTED_INK_COLOR = 'rgba(81, 81, 81, 0.72)'
 /** Tried largest-first; the first size whose title wraps within `COVER_MAX_TITLE_LINES` wins. */
 const TITLE_FONT_SIZES = [110, 96, 85] as const
 const SUBTITLE_FONT_SIZE = 30
+/**
+ * How far the title is nudged down to swallow the invisible leading Satori
+ * adds below its last line instead of splitting it evenly.
+ */
+const TITLE_LEADING_NUDGE = 14
+/** Intended optical gap between the title's baseline row and the caption. */
+const CAPTION_GAP = 18
 const ELLIPSIS = '\u2026'
 /** Width the title and its caption are laid out into, leaving the right third of the card open. */
 export const COVER_TITLE_BOX_WIDTH = 1020
@@ -37,6 +44,13 @@ export const COVER_TITLE_BOX_WIDTH = 1020
  * type down and then truncates rather than growing.
  */
 export const COVER_MAX_TITLE_LINES = 3
+/**
+ * Captions run from one-line provenance up to a full catalog description, so
+ * they wrap — but two lines is the ceiling. A third turns the block into a
+ * paragraph competing with the title for the eye, which is the balance the
+ * reference template is built around.
+ */
+export const COVER_MAX_CAPTION_LINES = 2
 
 /**
  * Söhne Kräftig (weight 500), the typeface of the reference cover template, as
@@ -49,8 +63,15 @@ export const COVER_MAX_TITLE_LINES = 3
  * per-request cards need since they render outside the build. `process.cwd()`
  * is the app directory in every environment this runs in — Next's generated
  * standalone `server.js` opens with `process.chdir(__dirname)`, and that file
- * ships beside `public/`. See `app/(landing)/og-utils.tsx` for the longer
- * account of why these are not fetched.
+ * ships beside `public/`.
+ *
+ * Read from the repo rather than fetched, because a fetch that returns nothing
+ * throws "No fonts are loaded" out of Satori and takes the whole build down on
+ * whichever page happens to be rendering. That was not hypothetical: the
+ * retired landing card fetched two Google Fonts weights subsetted per page via
+ * `&text=`, a URL no cache can reuse, across `integrations/[slug]` alone at 237
+ * pages — several hundred uncacheable requests to one host from one CI egress
+ * IP, in parallel across build workers.
  */
 const titleFont = await readFile(
   join(process.cwd(), 'public', 'brand', 'fonts', 'Soehne-Kraftig.ttf')
@@ -108,14 +129,22 @@ const TITLE_STYLE = {
   /**
    * Compensates for Satori adding extra invisible leading below the last line
    * instead of splitting it evenly. It belongs on the title block, not on the
-   * footer: on the footer it would drag the caption 14px toward the bottom
-   * padding too, and the caption has no such leading to correct for.
+   * footer: on the footer it would drag the caption toward the bottom padding
+   * too, and the caption has no such leading to correct for.
    */
-  transform: 'translateY(14px)',
+  transform: `translateY(${TITLE_LEADING_NUDGE}px)`,
 } satisfies CSSProperties
 const SUBTITLE_STYLE = {
   display: 'flex',
-  marginTop: 18,
+  flexDirection: 'column',
+  /**
+   * The nudge is a transform, so it moves the title visually without moving
+   * its layout box — the caption stays put while the title descends into the
+   * gap. Adding it back here restores `CAPTION_GAP` as the gap actually seen.
+   * The footer is bottom-anchored, so this lifts the title rather than pushing
+   * the caption into the bottom padding.
+   */
+  marginTop: CAPTION_GAP + TITLE_LEADING_NUDGE,
   fontSize: SUBTITLE_FONT_SIZE,
   fontWeight: 500,
   color: MUTED_INK_COLOR,
@@ -185,11 +214,11 @@ function withHardSpaces(text: string): string {
 }
 
 /** Greedily packs words into lines that fit `COVER_TITLE_BOX_WIDTH` at `fontSize`. */
-function wrapTitleLines(title: string, fontSize: number): string[] {
+function wrapLines(text: string, fontSize: number): string[] {
   const lines: string[] = []
   let current = ''
 
-  for (const word of title.split(' ')) {
+  for (const word of text.split(' ')) {
     if (!fits(word, fontSize)) {
       if (current) {
         lines.push(current)
@@ -253,23 +282,25 @@ export const COVER_OG_SIZE = { width: COVER_WIDTH, height: COVER_HEIGHT } as con
 
 interface CoverOgImageProps {
   title: string
-  /** Optional caption under the title — provenance, a byline, a section label. */
+  /** Optional caption under the title — provenance, a description, a byline. */
   subtitle?: string
 }
 
 interface CoverLayout {
   fontSize: number
   lines: string[]
-  subtitle: string | null
+  subtitleLines: string[]
 }
 
 /**
  * Largest type size at which the title fits `COVER_MAX_TITLE_LINES`, with the
- * overflow truncated at the smallest step, and a caption clipped to one line.
+ * overflow truncated at the smallest step, and the caption wrapped to at most
+ * `COVER_MAX_CAPTION_LINES`.
  *
  * Separate from the render so the bound is assertable: every string this
- * returns has to sit inside the fixed canvas, and both inputs — a file name
- * and a workspace/owner pair — are supplied by whoever created the share.
+ * returns has to sit inside the fixed canvas, and on the shared-file card both
+ * inputs — a file name and a workspace/owner pair — are supplied by whoever
+ * created the share.
  */
 export function layoutCover({ title, subtitle }: CoverOgImageProps): CoverLayout {
   const smallest = TITLE_FONT_SIZES[TITLE_FONT_SIZES.length - 1]
@@ -278,7 +309,7 @@ export function layoutCover({ title, subtitle }: CoverOgImageProps): CoverLayout
 
   for (const step of TITLE_FONT_SIZES) {
     fontSize = step
-    lines = wrapTitleLines(title, step)
+    lines = wrapLines(title, step)
     if (lines.length <= COVER_MAX_TITLE_LINES) break
   }
 
@@ -287,24 +318,28 @@ export function layoutCover({ title, subtitle }: CoverOgImageProps): CoverLayout
     lines[lines.length - 1] = withEllipsis(lines[lines.length - 1], smallest)
   }
 
-  return { fontSize, lines, subtitle: subtitle ? fitCaption(subtitle) : null }
+  return { fontSize, lines, subtitleLines: subtitle ? layoutCaption(subtitle) : [] }
 }
 
 /**
- * Clips a caption to a single line. Because `withHardSpaces` leaves Satori no
- * break opportunities, an over-long caption would otherwise run straight off
- * the right edge instead of wrapping.
+ * Wraps a caption to at most `COVER_MAX_CAPTION_LINES`, ellipsizing the last
+ * line if it still overruns. The lines have to be pre-split here for the same
+ * reason the title's are: packing them with U+00A0 leaves Satori no break
+ * opportunity, so an unsplit caption would run straight off the right edge
+ * rather than wrapping.
  */
-function fitCaption(subtitle: string): string {
-  const fitted = fits(subtitle, SUBTITLE_FONT_SIZE)
-    ? subtitle
-    : withEllipsis(subtitle, SUBTITLE_FONT_SIZE)
-  return withHardSpaces(fitted)
+function layoutCaption(subtitle: string): string[] {
+  const lines = wrapLines(subtitle, SUBTITLE_FONT_SIZE)
+  if (lines.length <= COVER_MAX_CAPTION_LINES) return lines
+
+  const kept = lines.slice(0, COVER_MAX_CAPTION_LINES)
+  kept[kept.length - 1] = withEllipsis(kept[kept.length - 1], SUBTITLE_FONT_SIZE)
+  return kept
 }
 
 /** Renders the brandbook cover template for a single title. */
 export function createCoverOgImage(props: CoverOgImageProps) {
-  const { fontSize, lines, subtitle } = layoutCover(props)
+  const { fontSize, lines, subtitleLines } = layoutCover(props)
 
   return new ImageResponse(
     <div style={CONTAINER_STYLE}>
@@ -319,7 +354,13 @@ export function createCoverOgImage(props: CoverOgImageProps) {
             <span key={index}>{line}</span>
           ))}
         </div>
-        {subtitle ? <span style={SUBTITLE_STYLE}>{subtitle}</span> : null}
+        {subtitleLines.length > 0 ? (
+          <div style={SUBTITLE_STYLE}>
+            {subtitleLines.map((line, index) => (
+              <span key={index}>{line}</span>
+            ))}
+          </div>
+        ) : null}
       </div>
     </div>,
     {
