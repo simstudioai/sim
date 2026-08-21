@@ -42,7 +42,7 @@ describe('linkedin-profile enrichment cascade', () => {
   it('uses email-only reverse lookup providers only when email is available', () => {
     expect(provider('findymail').buildParams(allInputs)).toEqual({
       email: 'jane@acme.com',
-      with_profile: false,
+      with_profile: true,
     })
     expect(provider('leadmagic').buildParams(allInputs)).toEqual({ work_email: 'jane@acme.com' })
     expect(provider('findymail').buildParams({ fullName: 'Jane Doe' })).toBeNull()
