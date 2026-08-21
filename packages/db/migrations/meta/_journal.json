@@ -2087,6 +2087,13 @@
       "when": 1787293309837,
       "tag": "0298_nosy_ken_ellis",
       "breakpoints": true
+    },
+    {
+      "idx": 299,
+      "version": "7",
+      "when": 1787338729668,
+      "tag": "0299_bright_nemesis",
+      "breakpoints": true
     }
   ]
 }

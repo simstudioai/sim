@@ -10,7 +10,20 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { randomInt } from '@sim/utils/random'
-import { and, desc, eq, exists, gt, inArray, isNotNull, isNull, lt, ne, sql } from 'drizzle-orm'
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  exists,
+  gt,
+  inArray,
+  isNotNull,
+  isNull,
+  lt,
+  ne,
+  sql,
+} from 'drizzle-orm'
 import { decryptApiKey } from '@/lib/api-key/crypto'
 import {
   assertBillingAttributionSnapshot,
@@ -93,6 +106,25 @@ const MAX_SAFE_TITLE_LENGTH = 200
  * await no heartbeat could interrupt; chunking gives the beat somewhere to run.
  */
 const STUCK_RETRY_DISPATCH_CHUNK_SIZE = 25
+
+/**
+ * How many stuck-document candidates one sync will consider.
+ *
+ * {@link STUCK_RETRY_DISPATCH_CHUNK_SIZE} paces the dispatch loop but does not
+ * bound it — the candidate query had no limit, so a connector carrying a large
+ * backlog dispatched the whole thing at once. One did: 2,959 documents enqueued
+ * in fifteen seconds onto a queue every workspace shares, at
+ * {@link PROCESSING_QUEUE_CONCURRENCY} concurrent runs. Nothing was
+ * double-billed — those documents were genuinely unindexed — but one connector
+ * monopolized the queue, and each dispatch mints a fresh `requestId`, so the
+ * Trigger.dev idempotency key differs every pass and none of it deduplicates.
+ *
+ * 200 keeps a single sync's contribution to roughly ten minutes of queue
+ * occupancy at the default concurrency. A backlog larger than this is not
+ * dropped: candidates are taken oldest-first and whatever is left stays
+ * eligible, so consecutive syncs drain it steadily instead of in one burst.
+ */
+export const STUCK_RETRY_MAX_CANDIDATES_PER_SYNC = 200
 
 /**
  * How many documents reconciliation hard-deletes per call.
@@ -2312,6 +2344,13 @@ export async function executeSync(
           isNull(document.deletedAt)
         )
       )
+      /**
+       * Oldest first, so the most overdue documents drain before newer ones and
+       * the bound below can never starve a document indefinitely. Without an
+       * order the limit would take an arbitrary subset each sync.
+       */
+      .orderBy(asc(document.uploadedAt))
+      .limit(STUCK_RETRY_MAX_CANDIDATES_PER_SYNC)
     const stuckDocs = sweepCandidates
       .filter((row): row is typeof row & { processingStatus: DocumentProcessingStatus } =>
         isDocumentProcessingStatus(row.processingStatus)
