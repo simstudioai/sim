@@ -1,5 +1,5 @@
 import { getErrorMessage } from '@sim/utils/errors'
-import { addDashboardOrganizationMember } from '@/lib/admin/dashboard'
+import { startAdminMemberOperation } from '@/lib/admin/member-operation'
 import { adminDashboardAddMemberContract } from '@/lib/api/contracts/v1/admin/dashboard'
 import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -20,12 +20,14 @@ export const POST = withRouteHandler(
     })
     if (!parsed.success) return parsed.response
     try {
-      const result = await addDashboardOrganizationMember(
+      const { operationId, ...body } = parsed.data.body
+      const result = await startAdminMemberOperation(
+        operationId,
         parsed.data.params.id,
-        parsed.data.body,
+        body,
         await getAdminAuditActor(request)
       )
-      return singleResponse({ success: true as const, ...result })
+      return singleResponse(result)
     } catch (error) {
       return badRequestResponse(getErrorMessage(error, 'Failed to add member'))
     }

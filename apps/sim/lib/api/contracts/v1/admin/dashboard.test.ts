@@ -7,6 +7,8 @@ import {
   adminDashboardEnterprisePreflightSchema,
   adminDashboardIssueEnterpriseBodySchema,
   adminDashboardLimitsBodySchema,
+  adminDashboardMemberPreflightQuerySchema,
+  adminDashboardMemberPreflightSchema,
   adminDashboardOrganizationDetailQuerySchema,
   adminDashboardOrganizationSummarySchema,
   adminDashboardUpdateMemberBodySchema,
@@ -75,7 +77,13 @@ describe('admin dashboard credit grant contract', () => {
           currentEnd: '2026-09-01T00:00:00.000Z',
           source: 'default',
         },
-        usage: { usedDollars: 0.001, limitDollars: 0.001 },
+        usage: {
+          usedDollars: 0.001,
+          limitDollars: 0.001,
+          usedCredits: 0,
+          limitCredits: 0,
+          workflowRuns: 0,
+        },
         provisioning: null,
       }).success
     ).toBe(true)
@@ -149,6 +157,33 @@ describe('admin dashboard credit grant contract', () => {
         },
         billingPreview: null,
         canIssue: true,
+        reason: null,
+      }).success
+    ).toBe(true)
+  })
+
+  it('paginates member-transfer workspaces and makes over-limit defaults explicit', () => {
+    expect(adminDashboardMemberPreflightQuerySchema.parse({ userId: 'user-1' })).toEqual({
+      userId: 'user-1',
+      search: '',
+      limit: 50,
+      offset: 0,
+    })
+    expect(
+      adminDashboardMemberPreflightSchema.safeParse({
+        user: { id: 'user-1', name: 'User', email: 'user@example.com' },
+        currentOrganization: null,
+        personalWorkspaces: [{ id: 'workspace-1', name: 'One', archived: false }],
+        workspacePagination: { total: 1_205, limit: 50, offset: 0, hasMore: true },
+        workspaceSelection: {
+          totalEligible: 1_205,
+          defaultSelectedIds: [],
+          defaultSelectedWorkspaces: [],
+          includesAllEligible: false,
+          limit: 1_000,
+        },
+        credentialDependencies: [],
+        canAdd: true,
         reason: null,
       }).success
     ).toBe(true)

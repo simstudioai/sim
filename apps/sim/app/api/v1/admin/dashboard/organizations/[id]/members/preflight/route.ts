@@ -18,7 +18,11 @@ export const GET = withRouteHandler(
     if (!parsed.success) return parsed.response
     try {
       return singleResponse(
-        await getDashboardMemberTransferPreflight(parsed.data.params.id, parsed.data.query.userId)
+        await getDashboardMemberTransferPreflight(parsed.data.params.id, parsed.data.query.userId, {
+          search: parsed.data.query.search,
+          limit: parsed.data.query.limit,
+          offset: parsed.data.query.offset,
+        })
       )
     } catch (error) {
       return badRequestResponse(getErrorMessage(error, 'Failed to prepare member transfer'))

@@ -29,6 +29,7 @@ import {
   enqueueOrReschedulePendingOutboxEvent,
   enqueueOutboxEvent,
   enqueueOutboxEvents,
+  outboxPayloadHasSourceOperationId,
   processOutboxEvents,
 } from './service'
 
@@ -118,6 +119,29 @@ describe('enqueueOutboxEvent', () => {
       )
     ).rejects.toThrow('Cannot enqueue more than 1000')
     expect(dbChainMockFns.insert).not.toHaveBeenCalled()
+  })
+})
+
+describe('outbox parent-operation correlation', () => {
+  it('retains both scalar and coalesced parent operation identities', () => {
+    expect(
+      outboxPayloadHasSourceOperationId({ sourceOperationId: 'operation-1' }, 'operation-1')
+    ).toBe(true)
+    expect(
+      outboxPayloadHasSourceOperationId(
+        { sourceOperationIds: ['operation-1', 'operation-2'] },
+        'operation-1'
+      )
+    ).toBe(true)
+    expect(
+      outboxPayloadHasSourceOperationId(
+        { sourceOperationIds: ['operation-1', 'operation-2'] },
+        'operation-2'
+      )
+    ).toBe(true)
+    expect(
+      outboxPayloadHasSourceOperationId({ sourceOperationIds: ['operation-2'] }, 'operation-1')
+    ).toBe(false)
   })
 })
 

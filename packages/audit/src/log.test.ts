@@ -37,7 +37,13 @@ vi.mock('@sim/utils/id', () => ({
 }))
 
 import { sleep } from '@sim/utils/helpers'
-import { AuditAction, AuditResourceType, recordAudit, recordAuditBatch } from './index'
+import {
+  AuditAction,
+  AuditResourceType,
+  recordAudit,
+  recordAuditBatch,
+  recordAuditOnce,
+} from './index'
 
 const flush = () => sleep(10)
 
@@ -112,6 +118,26 @@ describe('recordAudit', () => {
         metadata: {},
       })
     )
+  })
+
+  it('awaits an idempotent audit insert under the caller-owned ID', async () => {
+    await recordAuditOnce('admin-refund:operation-1', {
+      actorId: 'user-1',
+      actorName: 'Test User',
+      actorEmail: 'test@example.com',
+      action: AuditAction.SUBSCRIPTION_REFUNDED,
+      resourceType: AuditResourceType.SUBSCRIPTION,
+      resourceId: 'subscription-1',
+    })
+
+    expect(dbChainMockFns.values).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'admin-refund:operation-1',
+        action: 'subscription.refunded',
+        resourceId: 'subscription-1',
+      })
+    )
+    expect(dbChainMockFns.onConflictDoNothing).toHaveBeenCalledWith({ target: 'id' })
   })
 
   it('includes optional denormalized fields when provided', async () => {
