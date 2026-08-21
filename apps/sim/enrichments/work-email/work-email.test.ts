@@ -68,6 +68,21 @@ describe('work-email enrichment cascade', () => {
         email: 'j@acme.com',
       })
     })
+
+    it('projects Prospeo NO_MATCH as a clean miss without hiding genuine errors', () => {
+      expect(
+        p.projectFailure({
+          error: 'NO_MATCH',
+          output: { status: 400, data: { error: true, error_code: 'NO_MATCH' } },
+        })
+      ).toEqual({ status: 'no_match' })
+      expect(
+        p.projectFailure({
+          error: 'INVALID_API_KEY',
+          output: { status: 400, data: { error: true, error_code: 'INVALID_API_KEY' } },
+        })
+      ).toEqual({ status: 'error', error: 'INVALID_API_KEY' })
+    })
   })
 
   describe('wiza (opportunistic)', () => {

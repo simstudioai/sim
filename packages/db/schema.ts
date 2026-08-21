@@ -815,6 +815,28 @@ export const workspaceBYOKKeys = pgTable(
   })
 )
 
+export const organizationBYOKKeys = pgTable(
+  'organization_byok_keys',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id, { onDelete: 'cascade' }),
+    providerId: text('provider_id').notNull(),
+    encryptedApiKey: text('encrypted_api_key').notNull(),
+    name: text('name'),
+    createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    organizationProviderIdx: index('organization_byok_organization_provider_idx').on(
+      table.organizationId,
+      table.providerId
+    ),
+  })
+)
+
 export const settings = pgTable('settings', {
   id: text('id').primaryKey(), // Use the user id as the key
   userId: text('user_id')
@@ -2525,6 +2547,14 @@ export const document = pgTable(
 
     // Processing status
     processingStatus: text('processing_status').notNull().default('pending'), // 'pending', 'processing', 'completed', 'failed'
+    /**
+     * When indexing was last dispatched to a worker, which is not when a worker
+     * picked it up — a document sits at `pending` in between. Recovery sweeps
+     * measure queue wait from here; `processingStartedAt` is written only once a
+     * worker actually starts. NULL means never dispatched, or dispatched before
+     * this column existed.
+     */
+    processingQueuedAt: timestamp('processing_queued_at'),
     processingStartedAt: timestamp('processing_started_at'),
     processingCompletedAt: timestamp('processing_completed_at'),
     processingError: text('processing_error'),

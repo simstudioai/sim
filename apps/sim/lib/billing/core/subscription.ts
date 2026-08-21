@@ -19,6 +19,7 @@ import {
 } from '@/lib/billing/plan-helpers'
 import {
   checkEnterprisePlan,
+  checkOrgPlan,
   checkProPlan,
   checkTeamPlan,
   ENTITLED_SUBSCRIPTION_STATUSES,
@@ -449,6 +450,69 @@ async function resolveOrganizationEnterprisePlan(organizationId: string): Promis
     return !!orgSub && checkEnterprisePlan(orgSub)
   } catch (error) {
     logger.error('Error checking organization enterprise plan status', { error, organizationId })
+    return false
+  }
+}
+
+/**
+ * Resolves whether an organization holds a paying organization plan — Pro for
+ * Teams, Max for Teams, or Enterprise — without request memoization.
+ *
+ * Gates features every paying organization gets, as opposed to
+ * {@link resolveOrganizationEnterprisePlan}, which gates the Enterprise-only
+ * tier. A billing-blocked organization resolves false either way.
+ */
+interface ResolveOrganizationPlanOptions {
+  /**
+   * What a billing-read failure resolves to. `'return-false'` (default) fails
+   * closed, which is what a one-shot gate wants. A caller that *caches* the
+   * answer must pass `'throw'`: a swallowed failure is indistinguishable from a
+   * real plan lapse, so caching it would hold the gate shut for the whole TTL
+   * over what may be a momentary outage.
+   */
+  onError?: 'return-false' | 'throw'
+}
+
+export async function resolveOrganizationPlan(
+  organizationId: string,
+  options: ResolveOrganizationPlanOptions = {}
+): Promise<boolean> {
+  try {
+    if (!isBillingEnabled) {
+      return true
+    }
+
+    /**
+     * The block state and the subscription row are independent reads, so they
+     * go out together — this runs on the workflow execution path, where a
+     * second serial round trip is per-block latency. A blocked organization
+     * pays for one subscription read it does not use, which is the rare case.
+     */
+    const [blocked, orgSub] = await Promise.all([
+      isOrganizationBillingBlocked(organizationId),
+      /**
+       * The subscription read soft-fails to `null` by default, which would
+       * arrive here as a perfectly ordinary "no usable subscription" and return
+       * a successful `false` — the outer catch never sees it. A caller that
+       * asked to throw needs that failure propagated too, or a cached answer
+       * would still record an outage as a plan lapse.
+       */
+      getOrganizationSubscriptionUsable(
+        organizationId,
+        options.onError === 'throw' ? { onError: 'throw' } : {}
+      ),
+    ])
+
+    if (blocked) {
+      return false
+    }
+
+    return !!orgSub && checkOrgPlan(orgSub)
+  } catch (error) {
+    logger.error('Error checking organization plan status', { error, organizationId })
+    if (options.onError === 'throw') {
+      throw error
+    }
     return false
   }
 }

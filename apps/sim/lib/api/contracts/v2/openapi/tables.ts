@@ -653,7 +653,7 @@ const declaredRoutes = [
       operationId: 'queryTableRows',
       summary: 'Query Rows',
       description:
-        "Query rows with a typed predicate, ordered sort specification, and opaque cursor pagination. Bounded pages are capped at 5MB by default and may contain fewer rows than the requested limit; continue until nextCursor is null. A predicate larger than the request-body ceiling is a `413`. Set `includeRunState: true` to attach each row's per-workflow-group run outcomes; the row limit is capped when it is set. Row totals live on the companion `POST /api/v2/tables/{tableId}/query/count`, which is a separate snapshot — a caller needing a consistent pair should take the count first and treat it as a floor.",
+        "Query rows with an optional typed predicate, ordered sort specification, and opaque cursor pagination. A predicate may be one condition or an `all`/`any` group; omit it to match every row. Bounded pages are capped at 5MB by default and may contain fewer rows than the requested limit; continue until nextCursor is null. A predicate larger than the request-body ceiling is a `413`. Set `includeRunState: true` to attach each row's per-workflow-group run outcomes; the row limit is capped when it is set. Row totals live on the companion `POST /api/v2/tables/{tableId}/query/count`, which is a separate snapshot — a caller needing a consistent pair should take the count first and treat it as a floor.",
       errors: TABLE_QUERY_ERRORS,
       success: { description: 'A page of matching table rows.' },
     }),
@@ -669,13 +669,26 @@ const declaredRoutes = [
         v2QueryRowsContract.body,
         'QueryTableRowsRequest',
         'Query table rows request',
-        'Workspace scope, optional predicate and sort, and cursor pagination controls.',
+        'Workspace scope, optional predicate and sort, and cursor pagination controls. The predicate may be one condition or an `all`/`any` group; omitting it matches every row.',
         [
           {
             workspaceId: WORKSPACE_ID,
-            predicate: { all: [{ field: 'status', op: 'eq', value: 'active' }] },
+            limit: 100,
+          },
+          {
+            workspaceId: WORKSPACE_ID,
+            predicate: { field: 'status', op: 'eq', value: 'active' },
             sort: [{ field: 'createdAt', direction: 'desc' }],
             limit: 100,
+          },
+          {
+            workspaceId: WORKSPACE_ID,
+            predicate: {
+              all: [
+                { field: 'status', op: 'eq', value: 'active' },
+                { field: 'score', op: 'gte', value: 80 },
+              ],
+            },
           },
         ]
       ),
@@ -693,7 +706,7 @@ const declaredRoutes = [
       operationId: 'countTableRows',
       summary: 'Count Rows',
       description:
-        'Count the rows matching a typed predicate across the entire table. The paged reads carry no total, and `rowCount` on the table resource counts every row rather than the matches. Omit the predicate to count the whole table. A predicate larger than the request-body ceiling is a `413`.',
+        'Count the rows matching a typed predicate across the entire table. A predicate may be one condition or an `all`/`any` group. The paged reads carry no total, and `rowCount` on the table resource counts every row rather than the matches. Omit the predicate to count the whole table. A predicate larger than the request-body ceiling is a `413`.',
       errors: TABLE_QUERY_ERRORS,
       success: { description: 'The number of matching table rows.' },
     }),
@@ -709,11 +722,11 @@ const declaredRoutes = [
         v2QueryRowsCountContract.body,
         'CountTableRowsRequest',
         'Count table rows request',
-        'Workspace scope and the optional predicate whose matches are counted.',
+        'Workspace scope and the optional condition or `all`/`any` predicate group whose matches are counted.',
         [
           {
             workspaceId: WORKSPACE_ID,
-            predicate: { all: [{ field: 'status', op: 'eq', value: 'active' }] },
+            predicate: { field: 'status', op: 'eq', value: 'active' },
           },
         ]
       ),

@@ -56,6 +56,7 @@ import type { ChunkingStrategy, StrategyOptions } from '@/lib/chunkers/types'
 import { resolveTriggerRegion } from '@/lib/core/async-jobs/region'
 import { env, envNumber } from '@/lib/core/config/env'
 import { getCostMultiplier, isTriggerDevEnabled } from '@/lib/core/config/env-flags'
+import { isInsideTriggerRun } from '@/lib/core/config/trigger-runtime'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import {
@@ -675,6 +676,37 @@ async function resolveDocumentProcessingBillingContext(
 }
 
 /**
+ * Records that indexing has just been queued for these documents.
+ *
+ * Every dispatch funnels through {@link processDocumentsWithQueue}, so stamping
+ * here is what makes `processingQueuedAt` mean "queued for the attempt that is
+ * live right now" for every caller — new uploads, connector inserts, connector
+ * content updates, the connector recovery sweep, the user retry, and the
+ * outbox handler alike. Recovery sweeps age a queued document from this column
+ * (`isStuckDocumentSweepEligible`), and a caller that left a previous
+ * dispatch's value in place would be aged from a stamp that belongs to a run
+ * which has already ended — reclaimed inside its grace period, racing the run
+ * that is actually queued.
+ *
+ * `processingStartedAt` is cleared in the same write: a document waiting in the
+ * queue has not started, and a leftover value from a prior run would otherwise
+ * be reported as this attempt's start time.
+ *
+ * Guarded on `pending` so it can never disturb a document a worker has already
+ * claimed — `processDocumentAsync` uses `processingStartedAt` as a
+ * compare-and-set token, and overwriting it under a live run would strand that
+ * run's completion writes. If the worker wins the race, this update matches no
+ * rows and the worker's own timestamps stand, which is the correct outcome:
+ * queue wait no longer matters once processing has begun.
+ */
+async function markDocumentsQueued(documentIds: string[], queuedAt: Date): Promise<void> {
+  await db
+    .update(document)
+    .set({ processingQueuedAt: queuedAt, processingStartedAt: null })
+    .where(and(inArray(document.id, documentIds), eq(document.processingStatus, 'pending')))
+}
+
+/**
  * Dispatches document processing jobs via Trigger.dev's `batchTrigger` when
  * available, or in-process otherwise. Throws only when every dispatch fails;
  * partial failures are logged and recovered by the next sync's stuck-doc pass.
@@ -694,6 +726,11 @@ export async function processDocumentsWithQueue(
   )
   const jobPayloads = createdDocuments.map((doc) =>
     buildJobPayload(doc, knowledgeBaseId, processingOptions, requestId, billingContext)
+  )
+
+  await markDocumentsQueued(
+    createdDocuments.map((doc) => doc.documentId),
+    new Date()
   )
 
   const useTrigger = isTriggerAvailable()
@@ -787,7 +824,8 @@ async function dispatchInProcess(
           p.documentId,
           p.docData,
           p.processingOptions,
-          p
+          p,
+          p.requestId
         )
         return true
       } catch (error) {
@@ -799,6 +837,17 @@ async function dispatchInProcess(
   return results.filter(Boolean).length
 }
 
+/**
+ * Parses, embeds, and indexes one document.
+ *
+ * @param indexingPassId - Identifies the indexing pass this call belongs to,
+ * as opposed to the individual attempt. Callers pass the dispatch `requestId`:
+ * it is fixed on the job payload, so every retry of a `knowledge-process-document`
+ * run carries the same value, while a new dispatch (upload, connector sync batch,
+ * user-triggered reprocess) mints a fresh one. It is what makes the embedding
+ * charge bill once per pass — see the `sourceReference` note at the `recordUsage`
+ * call below.
+ */
 export async function processDocumentAsync(
   knowledgeBaseId: string,
   documentId: string,
@@ -809,7 +858,8 @@ export async function processDocumentAsync(
     mimeType: string
   },
   processingOptions: ProcessingOptions = {},
-  providedBillingContext?: BillingAttributionSnapshot | DocumentProcessingBillingContext
+  providedBillingContext?: BillingAttributionSnapshot | DocumentProcessingBillingContext,
+  indexingPassId?: string
 ): Promise<void> {
   const startTime = Date.now()
   const processingStartedAt = new Date()
@@ -1215,6 +1265,34 @@ export async function processDocumentAsync(
           costMultiplier
         )
         if (cost > 0) {
+          /**
+           * Dedup identity for this embedding charge. `usage_log.event_key` is
+           * derived from `sourceReference` and guarded by a permanent unique
+           * index — usage_log rows are never pruned, there is no retention job
+           * — so the granularity has to separate two cases for all time:
+           *
+           * - A retry of the same pass must collapse. `knowledge-process-document`
+           *   runs up to `KB_CONFIG_MAX_ATTEMPTS` attempts and the stale-document
+           *   sweep can re-dispatch on top of that, so any per-attempt component
+           *   (a `Date.now()` stamp, `processingStartedAt`) bills one indexing
+           *   pass several times over.
+           * - A genuinely new pass must not collapse. A content change, a
+           *   rehydrate, or a user-triggered reprocess pays a real embedding
+           *   bill, and keying on `documentId` alone would suppress that charge
+           *   permanently.
+           *
+           * `indexingPassId` is exactly that discriminator. Without one, the
+           * resolved pricing id is the safest fallback: it still collapses
+           * attempts and still re-bills a knowledge base whose embedding model
+           * changed. Token counts are deliberately left out — OCR-backed parsing
+           * is not bit-stable across attempts, so they would break the dedup
+           * they appear to sharpen.
+           */
+          const usageSourceReference = [
+            'knowledge-document',
+            documentId,
+            indexingPassId ?? `model:${embeddingPricingId}`,
+          ].join(':')
           await recordUsage({
             userId: documentActorUserId,
             workspaceId: ctx.workspaceId ?? undefined,
@@ -1225,7 +1303,7 @@ export async function processDocumentAsync(
                 source: 'knowledge-base',
                 description: embeddingModelName,
                 cost,
-                sourceReference: `knowledge-document:${documentId}:${startTime}`,
+                sourceReference: usageSourceReference,
                 metadata: { inputTokens: billableEmbeddingTokens, outputTokens: 0 },
               },
             ],
@@ -1274,8 +1352,42 @@ export async function processDocumentAsync(
   }
 }
 
+let triggerAvailabilityLogged = false
+
+/**
+ * Whether background work may be dispatched to Trigger.dev rather than run
+ * in-process.
+ *
+ * Inside a Trigger.dev run the answer is unconditionally yes: the platform is
+ * what is executing this process, so no environment guess can be more reliable
+ * than the run marker. Outside a run the deployment must both enable
+ * Trigger.dev and hold the secret key the SDK authenticates with.
+ *
+ * Resolving `true` inside a run is safe even if the run process turns out not
+ * to expose `TRIGGER_SECRET_KEY`: the SDK would then reject the batch trigger
+ * and `dispatchViaBatchTrigger` falls back to processing in-process, which is
+ * exactly where a `false` predicate lands anyway.
+ *
+ * The first evaluation in a process logs the resolved inputs. That is once per
+ * worker process rather than once per dispatch, and it is the signal that makes
+ * an app-vs-worker asymmetry visible without reading a crashed run's spans.
+ */
 export function isTriggerAvailable(): boolean {
-  return Boolean(env.TRIGGER_SECRET_KEY) && isTriggerDevEnabled
+  const insideRun = isInsideTriggerRun()
+  const hasSecretKey = Boolean(env.TRIGGER_SECRET_KEY)
+  const available = insideRun || (hasSecretKey && isTriggerDevEnabled)
+
+  if (!triggerAvailabilityLogged) {
+    triggerAvailabilityLogged = true
+    logger.info('Resolved Trigger.dev dispatch availability', {
+      available,
+      insideTriggerRun: insideRun,
+      triggerDevEnabled: isTriggerDevEnabled,
+      hasSecretKey,
+    })
+  }
+
+  return available
 }
 
 type DocumentStorageBilling =
@@ -2417,6 +2529,19 @@ export async function retryDocumentProcessing(
   requestId: string,
   billingAttribution: BillingAttributionSnapshot | undefined
 ): Promise<{ success: boolean; status: string; message: string }> {
+  /**
+   * When this requeue was dispatched.
+   *
+   * The document sits at `pending` until a worker claims it, and for a
+   * connector-owned document the connector sweep
+   * (`isStuckDocumentSweepEligible`) measures queue wait from
+   * `processingQueuedAt`, falling back to `uploadedAt`. Leaving it unset would
+   * fall the sweep back on `uploadedAt`, which for a document synced days ago
+   * is arbitrarily old — so the next sync would reclaim the document out from
+   * under this very retry, duplicating its work and billing a second indexing
+   * pass.
+   */
+  const requeuedAt = new Date()
   await db.transaction(async (tx) => {
     await tx.delete(embedding).where(eq(embedding.documentId, documentId))
 
@@ -2424,6 +2549,7 @@ export async function retryDocumentProcessing(
       .update(document)
       .set({
         processingStatus: 'pending',
+        processingQueuedAt: requeuedAt,
         processingStartedAt: null,
         processingCompletedAt: null,
         processingError: null,

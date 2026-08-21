@@ -65,7 +65,7 @@ export async function resolveProviderKey(
   if (workspaceId) {
     const byokResult = await getBYOKKey(workspaceId, config.byokProviderId)
     if (byokResult) {
-      logger.info(`Using workspace BYOK key for ${provider} embeddings`)
+      logger.info(`Using ${byokResult.scope} BYOK key for ${provider} embeddings`)
       return { apiKey: byokResult.apiKey, isBYOK: true }
     }
   }

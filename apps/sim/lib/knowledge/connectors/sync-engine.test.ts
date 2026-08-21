@@ -7,6 +7,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   classifySuspectListing,
   evaluateListingSafety,
+  isStuckDocumentSweepEligible,
   mergeHydratedDocument,
   type PreviousListingObservation,
 } from '@/lib/knowledge/connectors/sync-engine'
@@ -700,5 +701,127 @@ describe('mergeHydratedDocument', () => {
 
     expect(merged.title).toBe('Report.pdf')
     expect(merged.sourceUrl).toBe('https://example.com/a')
+  })
+})
+
+describe('isStuckDocumentSweepEligible', () => {
+  const now = new Date('2026-08-20T12:00:00.000Z')
+  const minutesBefore = (minutes: number) => new Date(now.getTime() - minutes * 60 * 1000)
+
+  const candidate = (
+    processingStatus: string,
+    overrides: {
+      processingQueuedAt?: Date | null
+      processingStartedAt?: Date | null
+      uploadedAt?: Date
+    } = {}
+  ) => ({
+    processingStatus,
+    processingQueuedAt: overrides.processingQueuedAt ?? null,
+    processingStartedAt: overrides.processingStartedAt ?? null,
+    uploadedAt: overrides.uploadedAt ?? minutesBefore(5),
+  })
+
+  it('leaves a document dispatched by the previous sync and still queued alone', () => {
+    expect(
+      isStuckDocumentSweepEligible(candidate('pending', { uploadedAt: minutesBefore(90) }), now)
+    ).toBe(false)
+  })
+
+  it('leaves a document the sweep itself re-dispatched alone while it waits', () => {
+    expect(
+      isStuckDocumentSweepEligible(
+        candidate('pending', {
+          processingQueuedAt: minutesBefore(90),
+          uploadedAt: minutesBefore(60 * 48),
+        }),
+        now
+      )
+    ).toBe(false)
+  })
+
+  it('reclaims a queued document once the grace period has passed', () => {
+    expect(
+      isStuckDocumentSweepEligible(candidate('pending', { uploadedAt: minutesBefore(241) }), now)
+    ).toBe(true)
+    expect(
+      isStuckDocumentSweepEligible(
+        candidate('pending', {
+          processingQueuedAt: minutesBefore(241),
+          uploadedAt: minutesBefore(60 * 48),
+        }),
+        now
+      )
+    ).toBe(true)
+  })
+
+  it('holds a queued document at the grace boundary', () => {
+    expect(
+      isStuckDocumentSweepEligible(candidate('pending', { uploadedAt: minutesBefore(240) }), now)
+    ).toBe(false)
+  })
+
+  it('reclaims a failed document with no grace', () => {
+    expect(isStuckDocumentSweepEligible(candidate('failed'), now)).toBe(true)
+    expect(
+      isStuckDocumentSweepEligible(
+        candidate('failed', { processingStartedAt: minutesBefore(1) }),
+        now
+      )
+    ).toBe(true)
+  })
+
+  it('reclaims a processing document only once its run is stale', () => {
+    expect(
+      isStuckDocumentSweepEligible(
+        candidate('processing', { processingStartedAt: minutesBefore(44) }),
+        now
+      )
+    ).toBe(false)
+    expect(
+      isStuckDocumentSweepEligible(
+        candidate('processing', { processingStartedAt: minutesBefore(46) }),
+        now
+      )
+    ).toBe(true)
+  })
+
+  it('reclaims a processing document with no start time', () => {
+    expect(isStuckDocumentSweepEligible(candidate('processing'), now)).toBe(true)
+  })
+
+  it('ignores a start time a worker left on a document that was requeued', () => {
+    expect(
+      isStuckDocumentSweepEligible(
+        candidate('pending', {
+          processingQueuedAt: minutesBefore(90),
+          processingStartedAt: minutesBefore(60 * 48),
+          uploadedAt: minutesBefore(60 * 72),
+        }),
+        now
+      )
+    ).toBe(false)
+  })
+
+  it('gives a document whose content was just updated the full grace period', () => {
+    expect(
+      isStuckDocumentSweepEligible(
+        candidate('pending', {
+          processingQueuedAt: null,
+          processingStartedAt: minutesBefore(60 * 48),
+          uploadedAt: minutesBefore(5),
+        }),
+        now
+      )
+    ).toBe(false)
+  })
+
+  it('never reclaims a completed document', () => {
+    expect(
+      isStuckDocumentSweepEligible(
+        candidate('completed', { uploadedAt: minutesBefore(60 * 48) }),
+        now
+      )
+    ).toBe(false)
   })
 })

@@ -30,6 +30,7 @@ import {
   v2GetTableRowQuerySchema,
   v2ListTablesQuerySchema,
   v2QueryRowsBodySchema,
+  v2QueryRowsCountBodySchema,
   v2RestoreTableContract,
   v2TableImportStatusSchema,
   v2TableRowsQuerySchema,
@@ -244,6 +245,17 @@ describe('v2 table request bodies', () => {
 
     expect(result.success).toBe(false)
     expect(issueCodes(result.error?.issues ?? [])).toContain('unrecognized_keys')
+  })
+
+  it.each([
+    ['query', v2QueryRowsBodySchema],
+    ['count', v2QueryRowsCountBodySchema],
+  ])('normalizes a plain condition on the rows %s body', (_name, schema) => {
+    const condition = { field: 'status', op: 'eq', value: 'active' }
+
+    expect(schema.parse({ workspaceId: WORKSPACE_ID, predicate: condition })).toMatchObject({
+      predicate: { all: [condition] },
+    })
   })
 })
 
