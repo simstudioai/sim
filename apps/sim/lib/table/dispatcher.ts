@@ -407,7 +407,10 @@ export async function dispatcherStep(
   if (dispatch.status === 'pending') {
     await db
       .update(tableRunDispatches)
-      .set({ status: 'dispatching' })
+      // Opens the heartbeat at the instant a holder takes the dispatch, so the
+      // cleanup sweep ages it from that rather than from `requested_at`, which
+      // was stamped when the run was merely requested.
+      .set({ status: 'dispatching', heartbeatAt: new Date() })
       .where(eq(tableRunDispatches.id, dispatchId))
     // Announce the dispatch the moment it starts — before the first window's
     // cells finish. Without this, auto-fired and capped dispatches (no client-
@@ -672,7 +675,10 @@ export async function dispatcherStep(
 async function incrementProcessedCount(dispatchId: string, delta: number): Promise<void> {
   await db
     .update(tableRunDispatches)
-    .set({ processedCount: sql`${tableRunDispatches.processedCount} + ${delta}` })
+    .set({
+      processedCount: sql`${tableRunDispatches.processedCount} + ${delta}`,
+      heartbeatAt: new Date(),
+    })
     .where(eq(tableRunDispatches.id, dispatchId))
 }
 
@@ -724,7 +730,7 @@ async function stampQueuedForBatch(
 async function advanceCursor(dispatchId: string, newCursor: number): Promise<void> {
   await db
     .update(tableRunDispatches)
-    .set({ cursor: newCursor })
+    .set({ cursor: newCursor, heartbeatAt: new Date() })
     .where(eq(tableRunDispatches.id, dispatchId))
 }
 
@@ -779,6 +785,101 @@ export async function completeDispatchIfActive(dispatchId: string): Promise<bool
     )
     .returning({ id: tableRunDispatches.id })
   return transitioned.length > 0
+}
+
+/**
+ * Cancels dispatches whose holder died without reaching a terminal state.
+ *
+ * `table_run_dispatches` had no reaper: the only paths to a terminal status are
+ * user- or flow-initiated ({@link cancelDispatchById},
+ * {@link completeDispatchIfActive}, {@link markActiveDispatchesCancelled}), so a
+ * dispatcher killed mid-loop left its row `dispatching` forever — pinning the
+ * client's "X running" overlay and blocking re-runs of that table. Four rows
+ * were stranded this way by a single afternoon of OOM kills, and nothing in the
+ * product could clear them. The `table_run_dispatches_watchdog_idx` index has
+ * existed since the table was created for exactly this sweep, unused.
+ *
+ * Liveness comes from `heartbeatAt`, which the per-window `advanceCursor` and
+ * `incrementProcessedCount` writes stamp, so a slow-but-live dispatch is spared
+ * however long it runs. That matters because the in-process path
+ * (`isTriggerDevEnabled === false`) has no duration ceiling at all — ageing from
+ * `requestedAt` would reclaim live self-hosted work. `COALESCE` keeps rows
+ * written before the column existed reclaimable rather than NULL-false forever.
+ *
+ * Cancelled rather than completed: the dispatch did not finish its scope, and
+ * reporting it complete would tell the user work happened that did not. The
+ * cursor is left in place, so a re-run resumes rather than replays.
+ */
+export async function cancelStaleDispatches(
+  staleBefore: Date,
+  limit: number
+): Promise<DispatchRow[]> {
+  const isStale = () =>
+    and(
+      inArray(tableRunDispatches.status, [...ACTIVE_DISPATCH_STATUSES]),
+      sql`COALESCE(${tableRunDispatches.heartbeatAt}, ${tableRunDispatches.requestedAt}) < ${sql.param(staleBefore, tableRunDispatches.heartbeatAt)}`
+    )
+
+  // Claimed as explicit ids first, then updated by id, so the bound is evaluated
+  // exactly once — the pattern every other bulk cleanup in this codebase uses.
+  // The update re-asserts staleness, so a dispatch that finished in between is
+  // left alone rather than cancelled out from under its own terminal write.
+  const claimed = await db
+    .select({ id: tableRunDispatches.id })
+    .from(tableRunDispatches)
+    .where(isStale())
+    .limit(limit)
+  if (claimed.length === 0) return []
+
+  const cancelled = await db
+    .update(tableRunDispatches)
+    .set({ status: 'cancelled', cancelledAt: new Date() })
+    .where(
+      and(
+        isStale(),
+        inArray(
+          tableRunDispatches.id,
+          claimed.map(({ id }) => id)
+        )
+      )
+    )
+    .returning()
+
+  const dispatches = cancelled.map((row) => ({
+    id: row.id,
+    tableId: row.tableId,
+    workspaceId: row.workspaceId,
+    requestId: row.requestId,
+    mode: row.mode as DispatchMode,
+    scope: row.scope as DispatchScope,
+    status: 'cancelled' as DispatchStatus,
+    cursor: row.cursor,
+    limit: (row.limit as DispatchLimit | null) ?? null,
+    processedCount: row.processedCount,
+    isManualRun: row.isManualRun,
+    triggeredByUserId: row.triggeredByUserId,
+    requestedAt: row.requestedAt,
+  }))
+
+  // Same terminal event every other cancel path emits — without it the row goes
+  // terminal in the database while the client overlay stays stuck, which is the
+  // symptom this function exists to clear.
+  await Promise.all(
+    dispatches.map((d) =>
+      appendTableEvent({
+        kind: 'dispatch',
+        tableId: d.tableId,
+        dispatchId: d.id,
+        status: 'cancelled',
+        scope: d.scope,
+        cursor: d.cursor,
+        mode: d.mode,
+        isManualRun: d.isManualRun,
+      })
+    )
+  )
+
+  return dispatches
 }
 
 /** Mark every active dispatch on this table as cancelled. Single atomic

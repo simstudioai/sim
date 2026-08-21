@@ -31,6 +31,7 @@ import {
   STALE_SWEEPABLE_EXECUTION_STATUSES,
   type StaleSweepableExecutionStatus,
 } from '@/lib/logs/types'
+import { cancelStaleDispatches } from '@/lib/table/dispatcher'
 import { deleteFile } from '@/lib/uploads/core/storage-service'
 import {
   carrierNotIrrecoverableSql,
@@ -52,6 +53,16 @@ const EXECUTION_DEADLINE_ERROR = getTimeoutErrorMessage(undefined)
 const TABLE_JOB_STALE_THRESHOLD_MINUTES = 95
 /** Terminal table-jobs older than this are pruned; only the latest job per table is ever read. */
 const TABLE_JOB_RETENTION_HOURS = 24
+/**
+ * A table run dispatch whose holder has not made progress for this long is
+ * treated as dead. Same shape and window as the table-job threshold above: the
+ * 90-minute Trigger.dev task ceiling (`maxDuration` in `trigger.config.ts`) plus
+ * five minutes of cleanup grace, measured from the dispatcher's own per-window
+ * heartbeat rather than from when the run was requested.
+ */
+const TABLE_DISPATCH_STALE_THRESHOLD_MINUTES = 95
+/** Per-run ceiling on reaped dispatches, so one tick cannot fan out unbounded SSE. */
+const TABLE_DISPATCH_MAX_PER_RUN = 200
 /**
  * Terminal deployment operations older than this are pruned. Every reader of
  * this table is latest-generation-only, and idempotency keys only need to
@@ -143,6 +154,9 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     )
     const staleTableJobThreshold = new Date(
       now.getTime() - TABLE_JOB_STALE_THRESHOLD_MINUTES * 60 * 1000
+    )
+    const staleDispatchThreshold = new Date(
+      now.getTime() - TABLE_DISPATCH_STALE_THRESHOLD_MINUTES * 60 * 1000
     )
 
     let staleExecutionsFound = 0
@@ -604,6 +618,29 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       })
     }
 
+    /**
+     * Cancel table run dispatches abandoned by a dead dispatcher. Nothing else
+     * reclaims them — every other terminal transition is user- or flow-initiated
+     * — so a dispatcher killed mid-loop left the row `dispatching` forever and
+     * the client's "X running" overlay with it. Ages from the dispatcher's
+     * per-window heartbeat, so a slow-but-live dispatch is spared.
+     */
+    let staleDispatchesCancelled = 0
+    try {
+      staleDispatchesCancelled = (
+        await cancelStaleDispatches(staleDispatchThreshold, TABLE_DISPATCH_MAX_PER_RUN)
+      ).length
+      if (staleDispatchesCancelled > 0) {
+        logger.warn(`Cancelled ${staleDispatchesCancelled} abandoned table run dispatches`, {
+          thresholdMinutes: TABLE_DISPATCH_STALE_THRESHOLD_MINUTES,
+        })
+      }
+    } catch (error) {
+      logger.error('Failed to cancel abandoned table run dispatches:', {
+        error: toError(error).message,
+      })
+    }
+
     return NextResponse.json({
       success: true,
       executions: {
@@ -621,6 +658,10 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       },
       tableJobs: {
         staleMarkedFailed: staleTableJobsMarkedFailed,
+      },
+      tableRunDispatches: {
+        staleCancelled: staleDispatchesCancelled,
+        thresholdMinutes: TABLE_DISPATCH_STALE_THRESHOLD_MINUTES,
       },
       deploymentOperations: {
         pruned: deploymentOperationsPruned,
