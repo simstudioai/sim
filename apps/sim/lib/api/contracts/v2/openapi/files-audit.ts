@@ -223,7 +223,7 @@ const declaredRoutes = [
     filesOperation({
       operationId: 'getFileUpload',
       summary: 'Get File Upload',
-      description: `Read an upload session's current state — whether it is still accepting bytes, has finalized into a file, or has failed. Use it to decide whether an interrupted transfer can be resumed or should be abandoned. Like every other upload control leg it requires the signed upload token, and is re-authorized against the workspace on each call. ${HEAD_MIRRORS_GET}`,
+      description: `Read an upload session's current state — whether it is still accepting bytes, has finalized into a file, or has failed. Use it to decide whether an interrupted transfer can be resumed or should be abandoned. Like every other upload control leg it requires the signed upload token, and is re-authorized against the workspace on each call.`,
       errors: RESOURCE_CONFLICT_ERRORS,
       success: { description: 'Current upload-session state.' },
     }),
@@ -375,7 +375,7 @@ const declaredRoutes = [
     filesOperation({
       operationId: 'readFileText',
       summary: 'Read File Text',
-      description: `Extract a file's text. Answers \`400\` for a type no parser supports, naming the raw-bytes download as the escape hatch, and \`413\` for a file above the extraction ceiling. A generated document is extracted from its compiled artifact rather than its generation source, so one still compiling answers \`409\` and is worth retrying. **\`degraded: true\` means text extraction did not fully succeed and the returned text may be incomplete or synthesized from the file's raw bytes. Do not treat it as authoritative content.** The legacy \`.doc\` and \`.ppt\` parsers deliberately return best-effort content rather than failing, so this flag — not an error status — is how a partial extraction is reported. \`truncated\` separately reports that a parser limit stopped extraction early. ${HEAD_MIRRORS_GET}`,
+      description: `Extract a file's text. Answers \`400\` for a type no parser supports, naming the raw-bytes download as the escape hatch, and \`413\` for a file above the extraction ceiling. A generated document is extracted from its compiled artifact rather than its generation source, so one still compiling answers \`409\` and is worth retrying. **\`degraded: true\` means text extraction did not fully succeed and the returned text may be incomplete or synthesized from the file's raw bytes. Do not treat it as authoritative content.** The legacy \`.doc\` and \`.ppt\` parsers deliberately return best-effort content rather than failing, so this flag — not an error status — is how a partial extraction is reported. \`truncated\` separately reports that a parser limit stopped extraction early.`,
       errors: [...RESOURCE_CONFLICT_ERRORS, 'PayloadTooLarge'],
       success: { description: 'The extracted text and its extraction-quality flags.' },
     }),
@@ -406,7 +406,7 @@ const declaredRoutes = [
       operationId: 'bulkDownloadFiles',
       summary: 'Bulk Download Files',
       description: `Stream a selection of workspace files as one zip. Select files by id and folders by path, each as one comma-separated parameter; a folder expands to all its descendants, and a path matching no folder is rejected rather than ignored. The selection is capped on input and again on the resolved file count and total bytes, so an over-broad selection answers \`400\` rather than streaming indefinitely. Downloading records an audit event, so it is not a safe read. ${HEAD_MIRRORS_GET} ${HEAD_OMITS_PAYLOAD_HEADERS}`,
-      errors: RESOURCE_ERRORS,
+      errors: RESOURCE_CONFLICT_ERRORS,
       success: {
         description: 'The selected files as a zip archive.',
         headers: ['Content-Type', 'Content-Disposition'],

@@ -1,6 +1,7 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
 import { type Principal, resolvePrincipalAttribution } from '@sim/auth/principal'
 import { db } from '@sim/db'
+import { FolderLockedError } from '@sim/platform-authz/workflow'
 import { principalAuditSource } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -55,17 +56,33 @@ export const duplicateWorkflow = defineAuthorizedWorkflowUseCase({
     const attribution = resolvePrincipalAttribution(principal, {
       workspaceBillingOwnerUserId: context.billedAccountUserId,
     })
-    const duplicated = await db.transaction((tx) =>
-      duplicateWorkflowRecord({
-        sourceWorkflowId: context.workflowId,
-        userId: attribution.attributedUserId,
-        workspaceId: context.workspaceId,
-        folderId: resolution.folderId,
-        name: input.name ?? context.workflow.name,
-        requestId: generateRequestId(),
-        tx,
+    /**
+     * `assertTargetFolderMutable` walks the destination's ancestors and raises
+     * {@link FolderLockedError}, a plain `Error` carrying `status = 423` rather
+     * than an `OrchestrationError`. The v2 error policy classifies only
+     * `OrchestrationError` and `HttpError`, so propagating it verbatim rendered
+     * a `500` for a well-formed request against a locked folder — the defect
+     * class this surface treats as most severe. Converted here, matching
+     * `requireMutable` on the bulk-move path.
+     */
+    const duplicated = await db
+      .transaction((tx) =>
+        duplicateWorkflowRecord({
+          sourceWorkflowId: context.workflowId,
+          userId: attribution.attributedUserId,
+          workspaceId: context.workspaceId,
+          folderId: resolution.folderId,
+          name: input.name ?? context.workflow.name,
+          requestId: generateRequestId(),
+          tx,
+        })
+      )
+      .catch((error: unknown) => {
+        if (error instanceof FolderLockedError) {
+          throw new OrchestrationError('locked', error.message)
+        }
+        throw error
       })
-    )
     return {
       ...duplicated,
       folderPath: workflowFolderPathForId(resolution.index, duplicated.folderId),

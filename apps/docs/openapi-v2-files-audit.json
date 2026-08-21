@@ -346,7 +346,7 @@
       "get": {
         "operationId": "getFileUpload",
         "summary": "Get File Upload",
-        "description": "Read an upload session's current state — whether it is still accepting bytes, has finalized into a file, or has failed. Use it to decide whether an interrupted transfer can be resumed or should be abandoned. Like every other upload control leg it requires the signed upload token, and is re-authorized against the workspace on each call. A `HEAD` skips the effect but is authorized exactly as the `GET` is, so it answers `400`, `401`, `403`, or `404` wherever the `GET` would and an empty `200` otherwise. Skipping the effect means skipping the read that produces the payload, so that `200` carries none of the response headers documented below — it answers whether the `GET` would be allowed, not what the `GET` would return.",
+        "description": "Read an upload session's current state — whether it is still accepting bytes, has finalized into a file, or has failed. Use it to decide whether an interrupted transfer can be resumed or should be abandoned. Like every other upload control leg it requires the signed upload token, and is re-authorized against the workspace on each call.",
         "tags": ["Files"],
         "parameters": [
           {
@@ -722,7 +722,7 @@
       "get": {
         "operationId": "readFileText",
         "summary": "Read File Text",
-        "description": "Extract a file's text. Answers `400` for a type no parser supports, naming the raw-bytes download as the escape hatch, and `413` for a file above the extraction ceiling. A generated document is extracted from its compiled artifact rather than its generation source, so one still compiling answers `409` and is worth retrying. **`degraded: true` means text extraction did not fully succeed and the returned text may be incomplete or synthesized from the file's raw bytes. Do not treat it as authoritative content.** The legacy `.doc` and `.ppt` parsers deliberately return best-effort content rather than failing, so this flag — not an error status — is how a partial extraction is reported. `truncated` separately reports that a parser limit stopped extraction early. A `HEAD` skips the effect but is authorized exactly as the `GET` is, so it answers `400`, `401`, `403`, or `404` wherever the `GET` would and an empty `200` otherwise. Skipping the effect means skipping the read that produces the payload, so that `200` carries none of the response headers documented below — it answers whether the `GET` would be allowed, not what the `GET` would return.",
+        "description": "Extract a file's text. Answers `400` for a type no parser supports, naming the raw-bytes download as the escape hatch, and `413` for a file above the extraction ceiling. A generated document is extracted from its compiled artifact rather than its generation source, so one still compiling answers `409` and is worth retrying. **`degraded: true` means text extraction did not fully succeed and the returned text may be incomplete or synthesized from the file's raw bytes. Do not treat it as authoritative content.** The legacy `.doc` and `.ppt` parsers deliberately return best-effort content rather than failing, so this flag — not an error status — is how a partial extraction is reported. `truncated` separately reports that a parser limit stopped extraction early.",
         "tags": ["Files"],
         "parameters": [
           {
@@ -895,6 +895,9 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"

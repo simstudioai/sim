@@ -103,7 +103,7 @@ export const knowledgeTagOpenApiRoutes = [
       operationId: 'deleteKnowledgeTag',
       summary: 'Delete Tag',
       description: `Remove a tag definition and clear its slot across every document and chunk in the knowledge base. Without a definition the slot has no meaning, so leaving the values would strand them under a raw slot name — this is not recoverable. ${WORKSPACE_API_KEY_DENIED}`,
-      errors: RESOURCE_ERRORS,
+      errors: RESOURCE_CONFLICT_ERRORS,
       success: { description: 'Tag deletion acknowledgement.' },
     }),
     {
@@ -230,7 +230,7 @@ export const knowledgeTagOpenApiRoutes = [
       operationId: 'cleanupKnowledgeDocumentTagDefinitions',
       summary: 'Clean Up Document Tag Definitions',
       description: `Remove tag definitions that no document in the knowledge base still carries a value for. Cleanup is the only action offered: deleting the whole vocabulary from a document-scoped path would be destructive far beyond what the path names, so delete definitions individually with \`DELETE /api/v2/knowledge/{id}/tags/{tagId}\`. ${WORKSPACE_API_KEY_DENIED}`,
-      errors: RESOURCE_CONFLICT_ERRORS,
+      errors: RESOURCE_ERRORS,
       success: { description: 'Number of tag definitions removed.' },
     }),
     {

@@ -316,7 +316,7 @@ const declaredRoutes = [
       operationId: 'replaceWorkflowState',
       summary: 'Replace Workflow State',
       description:
-        'Replace a workflow\u2019s editable draft graph wholesale. `loops` and `parallels` are accepted but ignored — both are recomputed from `blocks`. Omitting `variables` leaves the stored variables untouched.\n\nLast write wins: concurrent writers are serialized by a row lock, so each lands a complete self-consistent graph and the later one replaces the earlier entirely. There is no partially-written state and no conflict detection.\n\nThis does not change what the deployed endpoint serves. Deployments are immutable versioned snapshots, and no schedule or webhook registration is touched. The only visible consequence is that `needsRedeployment` becomes true; `POST /workflows/{id}/deploy` publishes the draft.\n\n`lint` is advisory and never blocks the write. `lint.fieldIssues` is the most actionable part for a headless builder — it names blocks missing a required field, which fail at run time — and `lint.unresolvedReferences` names credential, resource, tool, and skill values that do not resolve. A workspace API key has no human subject to resolve those references against, so for one the reference pass is skipped and `lint.notes` says so; the structural and field findings are unaffected.\n\nSet `?dryRun=true` to validate and lint without persisting: the response is identical to the committed write of the same body, with `dryRun: true`, and nothing is written, no audit entry is recorded, and collaborators are not notified.',
+        'Replace a workflow\u2019s editable draft graph wholesale. `loops` and `parallels` are accepted but ignored — both are recomputed from `blocks`. Omitting `variables` leaves the stored variables untouched.\n\nLast write wins: concurrent writers are serialized by a row lock, so each lands a complete self-consistent graph and the later one replaces the earlier entirely. There is no partially-written state and no conflict detection.\n\nThis does not change what the deployed endpoint serves. Deployments are immutable versioned snapshots, and no schedule or webhook registration is touched. The only visible consequence is that `needsRedeployment` becomes true; `POST /workflows/{id}/deploy` publishes the draft.\n\n`lint` is advisory and never blocks the write. `lint.fieldIssues` is the most actionable part for a headless builder — it names blocks missing a required field, which fail at run time — and `lint.unresolvedReferences` names credential, resource, tool, and skill values that do not resolve. A workspace API key has no human subject to resolve those references against, so for one the reference pass is skipped and `lint.notes` says so; the structural and field findings are unaffected.\n\nSet `?dryRun=true` to validate and lint without persisting: nothing is written, no audit entry is recorded, and collaborators are not notified. The response carries the same shape and the same validation and `lint` findings the committed write would, with `dryRun: true` — but `needsRedeployment` describes the state before the write, and warnings raised by persistence itself are necessarily absent.',
       errors: RESOURCE_MUTATION_ERRORS,
       success: jsonSuccess('The draft graph was replaced.'),
     }),
@@ -354,7 +354,7 @@ const declaredRoutes = [
       operationId: 'applyWorkflowOperations',
       summary: 'Apply Workflow Operations',
       description:
-        'Apply a batch of semantic edits — add, edit, delete, and subflow membership changes — to a workflow graph, plus an optional set of block enable/disable changes.\n\nBest-effort per operation, atomic per write. The engine applies what it can to an in-memory graph and reports the rest in `skipped`, each with a machine-readable `type`; exactly one write of the fully-resolved graph then happens, so there is never a partially-applied graph. `deferred` is **not** a failure list: a forward-referencing edge is wired automatically once its target block exists, in this batch or a later one, so re-issuing a deferred edge is wrong.\n\nSet `atomic` to fail closed: any genuine skipped item, or any block input that would be dropped rather than persisted, then aborts before the write and answers `409` with `error.details.code: "OPERATIONS_NOT_APPLIED"`, the same `skipped` array, and a `droppedInputs` array, having persisted nothing.\n\n`lint` is advisory and never blocks the write. `lint.fieldIssues` is the most actionable part for a headless builder — it names blocks missing a required field, which fail at run time — and `lint.unresolvedReferences` names credential, resource, tool, and skill values that do not resolve. Those values stay persisted; only `inputValidationErrors` lists inputs that were actually dropped.\n\nAs with `PUT /workflows/{id}/state`, this changes only the draft; deploy to publish it.\n\nSet `?dryRun=true` to validate and lint without persisting: the response is identical to the committed write of the same body, with `dryRun: true`, and nothing is written, no audit entry is recorded, and collaborators are not notified.',
+        'Apply a batch of semantic edits — add, edit, delete, and subflow membership changes — to a workflow graph, plus an optional set of block enable/disable changes.\n\nBest-effort per operation, atomic per write. The engine applies what it can to an in-memory graph and reports the rest in `skipped`, each with a machine-readable `type`; exactly one write of the fully-resolved graph then happens, so there is never a partially-applied graph. `deferred` is **not** a failure list: a forward-referencing edge is wired automatically once its target block exists, in this batch or a later one, so re-issuing a deferred edge is wrong.\n\nSet `atomic` to fail closed: any genuine skipped item, or any block input that would be dropped rather than persisted, then aborts before the write and answers `409` with `error.details.code: "OPERATIONS_NOT_APPLIED"`, the same `skipped` array, and a `droppedInputs` array, having persisted nothing.\n\n`lint` is advisory and never blocks the write. `lint.fieldIssues` is the most actionable part for a headless builder — it names blocks missing a required field, which fail at run time — and `lint.unresolvedReferences` names credential, resource, tool, and skill values that do not resolve. Those values stay persisted; only `inputValidationErrors` lists inputs that were actually dropped.\n\nAs with `PUT /workflows/{id}/state`, this changes only the draft; deploy to publish it. ${WORKSPACE_API_KEY_DENIED}\n\nSet `?dryRun=true` to validate and lint without persisting: nothing is written, no audit entry is recorded, and collaborators are not notified. The response carries the same shape and the same validation and `lint` findings the committed write would, with `dryRun: true` — but `needsRedeployment` describes the state before the write, and warnings raised by persistence itself are necessarily absent.',
       errors: RESOURCE_MUTATION_ERRORS,
       success: jsonSuccess('The batch was applied.'),
     }),
@@ -415,7 +415,7 @@ const declaredRoutes = [
       summary: 'Update Workflow Variables',
       description:
         'Add, edit, and delete a workflow\u2019s variables. Operations are matched by variable `name` and applied in order; a batch that changes nothing answers `200` with `changed: false`. Values are coerced to the declared `type`, and a value that cannot be coerced is stored as supplied. Read the current set from `variables` on `GET /workflows/{id}`.',
-      errors: RESOURCE_MUTATION_ERRORS,
+      errors: [...WORKSPACE_ERRORS, 'NotFound'],
       success: jsonSuccess('The variable set after the batch.'),
     }),
     {
@@ -470,7 +470,7 @@ const declaredRoutes = [
       operationId: 'restoreWorkflow',
       summary: 'Restore Workflow',
       description: `Bring an archived workflow back, along with the schedules, webhooks, MCP tools, and chats that were archived with it. A workflow that is not archived answers \`409\`. A workflow whose folder was archived is restored to the workspace root. ${FOLDER_TREE_TOO_LARGE}`,
-      errors: RESOURCE_MUTATION_ERRORS,
+      errors: [...RESOURCE_MUTATION_ERRORS, 'PayloadTooLarge'],
       success: jsonSuccess('The restored workflow.'),
     }),
     {
@@ -491,7 +491,7 @@ const declaredRoutes = [
       operationId: 'moveWorkflows',
       summary: 'Move Workflows',
       description: `Relocate up to 100 workflows into one folder. Explicitly best-effort: each workflow moves in its own transaction, and one that is absent from the workspace, archived, or locked lands in \`failed\` while the rest still move. Duplicate ids are collapsed. ${FOLDER_TREE_TOO_LARGE}`,
-      errors: RESOURCE_MUTATION_ERRORS,
+      errors: [...WORKSPACE_ERRORS, 'NotFound'],
       success: jsonSuccess('Which workflows moved and which did not.'),
     }),
     {
