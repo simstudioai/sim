@@ -1,3 +1,5 @@
+import { getErrorMessage } from '@sim/utils/errors'
+import { truncate } from '@sim/utils/string'
 import { JSON_SCHEMA, load } from 'js-yaml'
 import { marked } from 'marked'
 import { z } from 'zod'
@@ -407,20 +409,26 @@ function compileBody(source: string, diagnostics?: string[]): string {
         const renderer = FENCE_RENDERERS[kind]
         let payload: unknown
         let rendered: string | null = null
+        let parseError: string | null = null
         if (renderer) {
           try {
             payload = loadYaml(body)
-            rendered = renderer(payload)
-          } catch {
-            rendered = null
+          } catch (err) {
+            parseError = getErrorMessage(err, 'invalid YAML')
           }
+          if (parseError === null) rendered = renderer(payload)
         }
         if (rendered !== null) {
           html.push(rendered)
         } else {
-          diagnostics?.push(
-            `sim:${kind} block skipped: its payload did not match the expected shape`
-          )
+          // Name WHICH block failed and WHY: a page can carry several blocks
+          // of the same kind, and a bare "a table is malformed" sends the
+          // fixing agent hunting through all of them.
+          const preview = truncate(body.trim().split('\n')[0] ?? '', 80)
+          const reason = parseError
+            ? `its payload is not valid YAML/JSON — ${truncate(parseError, 160)}`
+            : 'its payload did not match the expected shape'
+          diagnostics?.push(`sim:${kind} block starting "${preview}" skipped: ${reason}`)
         }
       }
       index = bodyEnd + 1

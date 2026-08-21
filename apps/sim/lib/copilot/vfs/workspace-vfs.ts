@@ -177,6 +177,11 @@ import { listAllWorkspaceFiles } from '@/lib/workspace-files/application/list-wo
 import { readWorkspaceFileContent } from '@/lib/workspace-files/application/read-workspace-file-content'
 import { listWorkspaceFileFoldersOperation } from '@/lib/workspace-files/application/workspace-file-folders'
 import { parseWorkspaceFileFolderDisplayPath } from '@/lib/workspace-files/folder-display-path'
+import {
+  collectSimPageDiagnostics,
+  isSimPageSource,
+  SIM_PAGE_CONTENT_TYPE,
+} from '@/lib/workspace-files/page-compile'
 import { getWorkspaceHostContextForViewer } from '@/lib/workspaces/host-context'
 import {
   assertActiveWorkspaceAccess,
@@ -1549,7 +1554,12 @@ export class WorkspaceVFS {
         const e2bFmt = isDocSandboxEnabled ? await getE2BDocFormat(record.name) : null
         const taskId = BINARY_DOC_TASKS[ext]
         const isMermaidFile = ext === 'mmd' || ext === 'mermaid'
-        if (!e2bFmt && !taskId && !isMermaidFile) return null
+        // Sim pages (and legacy .html-named page source) compile-check too:
+        // this is the only way an agent can retrieve the "block skipped"
+        // diagnostics for an ALREADY-written page — without it, "find the
+        // malformed table" degenerates into guessing.
+        const maybeSimPage = record.type === SIM_PAGE_CONTENT_TYPE || ext === 'html'
+        if (!e2bFmt && !taskId && !isMermaidFile && !maybeSimPage) return null
         const { content: buffer } = await readWorkspaceFileContent.execute({
           principal: this.requireFilePrincipal(),
           input: {
@@ -1564,6 +1574,37 @@ export class WorkspaceVFS {
             content: JSON.stringify({ ok: false, error: 'File source exceeds maximum size' }),
             totalLines: 1,
           })
+        }
+        if (maybeSimPage && isSimPageSource(code)) {
+          const diagnostics = collectSimPageDiagnostics(code)
+          const result =
+            diagnostics.length === 0
+              ? { ok: true }
+              : {
+                  ok: false,
+                  error: `${diagnostics.length} block(s) fail to compile and are omitted from the rendered page: ${diagnostics.join('; ')}`,
+                }
+          return bindWorkspaceFileResult(record, {
+            content: JSON.stringify(result),
+            totalLines: 1,
+          })
+        }
+        if (maybeSimPage && !e2bFmt && !taskId && !isMermaidFile) {
+          if (record.type === SIM_PAGE_CONTENT_TYPE) {
+            // A page-typed file whose bytes are not page source (e.g. a crash
+            // between upload registration and source restore) — report it
+            // rather than pretending the path does not exist.
+            return bindWorkspaceFileResult(record, {
+              content: JSON.stringify({
+                ok: false,
+                error:
+                  'Stored content is not page source (no YAML frontmatter with a title) — the file renders as raw HTML',
+              }),
+              totalLines: 1,
+            })
+          }
+          // Bespoke raw HTML has no compiler to check.
+          return null
         }
         if (isMermaidFile) {
           const result = await validateMermaidSource(code)
