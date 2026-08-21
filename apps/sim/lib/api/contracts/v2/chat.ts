@@ -41,15 +41,9 @@ export const v2ChatResultSchema = z.object({
   conversationId: z.string(),
   model: z.string(),
   tokens: v2ChatTokensSchema.optional(),
-  /**
-   * Billing internals passed through from the execution engine; the shape is
-   * owned by the copilot backend and not part of this contract's surface.
-   */
+  // untyped-response: cost is a billing passthrough whose shape is owned by the copilot backend, not this contract
   cost: z.unknown().optional(),
-  /**
-   * Tool invocations surfaced by the run, exactly as the execution engine
-   * reports them; each entry's shape is owned by the tool that produced it.
-   */
+  // untyped-response: each tool call's arguments and result shapes are owned by the tool that produced them
   toolCalls: z.array(z.record(z.string(), z.unknown())).optional(),
 })
 

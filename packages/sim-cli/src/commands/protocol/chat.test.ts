@@ -120,6 +120,14 @@ describe('sim chat', () => {
     expect(written(stdout)).toBe('Hello there\n')
   })
 
+  it('prints the final suffix the chunks never carried, without repeating the prefix', async () => {
+    requestRaw.mockResolvedValue(ndjson([{ type: 'chunk', content: 'Hello ' }, FINAL]))
+
+    await run('hello')
+
+    expect(written(stdout)).toBe('Hello there\n')
+  })
+
   it('strips terminal control sequences from the streamed reply', async () => {
     requestRaw.mockResolvedValue(ndjson([{ type: 'chunk', content: 'safe\u001b[31m text' }, FINAL]))
 

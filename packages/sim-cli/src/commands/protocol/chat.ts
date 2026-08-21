@@ -161,11 +161,14 @@ Examples:
         return
       }
 
-      // A run that produced its reply without incremental chunks — or a final
-      // payload that outran what was streamed — still has to print in full.
+      // A run that produced its reply without incremental chunks — or whose
+      // final content outran the streamed deltas — still has to print in full.
+      // Only the missing suffix is written, so nothing already on the terminal
+      // repeats; a final that diverges from the stream entirely stays unprinted
+      // rather than duplicating the reply.
       const content = sanitize(result.content ?? '')
-      if (streamed.length === 0 && content.length > 0) {
-        process.stdout.write(content)
+      if (content.startsWith(streamed) && content.length > streamed.length) {
+        process.stdout.write(content.slice(streamed.length))
         streamed = content
       }
       if (streamed.length > 0 && !streamed.endsWith('\n')) {

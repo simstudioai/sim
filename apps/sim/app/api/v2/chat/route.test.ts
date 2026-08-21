@@ -8,21 +8,33 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const {
   MockV2ApiKeyUnauthenticatedError,
   MockWorkspaceAccessDeniedError,
+  billingAttributionSnapshot,
   mockAssertActiveWorkspaceAccess,
   mockAuthenticateV2ApiKey,
   mockCheckOperationRate,
   mockCheckPreAuthRate,
   mockGenerateId,
   mockRequestExplicitStreamAbort,
+  mockResolveBillingAttribution,
   mockRunHeadlessCopilotLifecycle,
 } = vi.hoisted(() => ({
   MockV2ApiKeyUnauthenticatedError: class MockV2ApiKeyUnauthenticatedError extends Error {},
   MockWorkspaceAccessDeniedError: class MockWorkspaceAccessDeniedError extends Error {},
   mockAssertActiveWorkspaceAccess: vi.fn(),
   mockAuthenticateV2ApiKey: vi.fn(),
+  billingAttributionSnapshot: {
+    actorUserId: 'user-1',
+    workspaceId: 'workspace-1',
+    organizationId: null,
+    billedAccountUserId: 'user-1',
+    billingEntity: { type: 'user', id: 'user-1' },
+    billingPeriod: { start: '2026-08-01T00:00:00.000Z', end: '2026-09-01T00:00:00.000Z' },
+    payerSubscription: null,
+  },
   mockCheckOperationRate: vi.fn(),
   mockCheckPreAuthRate: vi.fn(),
   mockGenerateId: vi.fn(),
+  mockResolveBillingAttribution: vi.fn(),
   mockRequestExplicitStreamAbort: vi.fn().mockResolvedValue(undefined),
   mockRunHeadlessCopilotLifecycle: vi.fn(),
 }))
@@ -52,6 +64,10 @@ vi.mock('@sim/utils/id', () => ({
 vi.mock('@/lib/workspaces/permissions/utils', () => ({
   assertActiveWorkspaceAccess: mockAssertActiveWorkspaceAccess,
   isWorkspaceAccessDeniedError: (error: unknown) => error instanceof MockWorkspaceAccessDeniedError,
+}))
+
+vi.mock('@/lib/billing/core/billing-attribution', () => ({
+  resolveBillingAttribution: mockResolveBillingAttribution,
 }))
 
 vi.mock('@/lib/environment/utils', () => ({
@@ -130,6 +146,7 @@ describe('POST /api/v2/chat', () => {
     mockCheckPreAuthRate.mockResolvedValue({ allowed: true, remaining: 10, resetAt: new Date() })
     mockCheckOperationRate.mockResolvedValue({ allowed: true, remaining: 10, resetAt: new Date() })
     mockAssertActiveWorkspaceAccess.mockResolvedValue({ permission: 'admin' })
+    mockResolveBillingAttribution.mockResolvedValue(billingAttributionSnapshot)
     mockRequestExplicitStreamAbort.mockResolvedValue(undefined)
     mockRunHeadlessCopilotLifecycle.mockResolvedValue(successResult)
   })
@@ -208,6 +225,13 @@ describe('POST /api/v2/chat', () => {
       goRoute: '/api/mothership/execute',
       autoExecuteTools: true,
       interactive: false,
+      // Hosted execution refuses to run without attribution, so the resolved
+      // snapshot must always ride along.
+      billingAttribution: billingAttributionSnapshot,
+    })
+    expect(mockResolveBillingAttribution).toHaveBeenCalledWith({
+      actorUserId: 'user-1',
+      workspaceId: 'workspace-1',
     })
   })
 

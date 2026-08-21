@@ -11,6 +11,7 @@ import {
   v2ApiKeyAuth,
   v2RateLimits,
 } from '@/lib/api/server/routes'
+import { resolveBillingAttribution } from '@/lib/billing/core/billing-attribution'
 import { chatOperations } from '@/lib/copilot/application/operations'
 import { buildIntegrationToolSchemas } from '@/lib/copilot/chat/payload'
 import { generateWorkspaceContext } from '@/lib/copilot/chat/workspace-context'
@@ -153,11 +154,16 @@ export const POST = withRouteHandler(
         })
       }
 
-      const [workspaceContext, integrationTools, entitlements] = await Promise.all([
-        generateWorkspaceContext(workspaceId, userId, { workspaceAccess, secretMountPolicy }),
-        buildIntegrationToolSchemas(userId, messageId, undefined, workspaceId),
-        computeWorkspaceEntitlements(workspaceId, userId),
-      ])
+      const [workspaceContext, integrationTools, entitlements, billingAttribution] =
+        await Promise.all([
+          generateWorkspaceContext(workspaceId, userId, { workspaceAccess, secretMountPolicy }),
+          buildIntegrationToolSchemas(userId, messageId, undefined, workspaceId),
+          computeWorkspaceEntitlements(workspaceId, userId),
+          // Hosted execution refuses to run without an attribution snapshot;
+          // the executor path receives it as a header, this path resolves it
+          // from the authenticated actor and asserted workspace.
+          resolveBillingAttribution({ actorUserId: userId, workspaceId }),
+        ])
 
       const requestPayload: Record<string, unknown> = {
         messages: [{ role: 'user', content: message }],
@@ -222,6 +228,7 @@ export const POST = withRouteHandler(
           autoExecuteTools: true,
           interactive: false,
           abortSignal: lifecycleAbortController.signal,
+          billingAttribution,
           ...(userPermission ? { userPermission } : {}),
           secretActorUserId: userId,
           secretMountPolicy,
