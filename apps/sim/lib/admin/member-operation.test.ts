@@ -2,7 +2,7 @@
  * @vitest-environment node
  */
 import { member, organization, outboxEvent, user } from '@sim/db/schema'
-import { queueTableRows, resetDbChainMock } from '@sim/testing'
+import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -188,6 +188,44 @@ describe('durable admin member operation', () => {
         memberId: 'member-new',
         transferredFromOrganizationId: 'org-old',
         nextWorkspaceIndex: 2,
+        currentWorkspaceId: null,
+      },
+    })
+  })
+
+  it('applies the requested role when a concurrent join wins the membership insert', async () => {
+    const concurrentPayload = {
+      ...payload([]),
+      request: {
+        ...payload([]).request,
+        role: 'admin' as const,
+        sourceOrganizationId: null,
+      },
+    }
+    queueTableRows(member, [])
+    queueTableRows(member, [{ role: 'member' }])
+    mocks.ensureMembership.mockResolvedValue({
+      success: true,
+      memberId: 'member-new',
+      alreadyMember: true,
+    })
+    const checkpointPayload = vi.fn()
+
+    await expect(
+      processAdminMemberOperation(concurrentPayload, {
+        eventId: 'operation-1',
+        eventType: 'admin.organization-member-operation',
+        attempts: 0,
+        checkpointPayload,
+      })
+    ).resolves.toBeUndefined()
+
+    expect(dbChainMockFns.set).toHaveBeenCalledWith({ role: 'admin' })
+    expect(checkpointPayload).toHaveBeenCalledWith({
+      progress: {
+        memberId: 'member-new',
+        transferredFromOrganizationId: null,
+        nextWorkspaceIndex: 0,
         currentWorkspaceId: null,
       },
     })

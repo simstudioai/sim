@@ -545,6 +545,26 @@ async function applyMembership(
       if (!membershipResult.success || !membershipResult.memberId) {
         throw new Error(membershipResult.error ?? 'Failed to add organization member')
       }
+      if (membershipResult.alreadyMember) {
+        const [concurrentMembership] = await tx
+          .select({ role: member.role })
+          .from(member)
+          .where(eq(member.id, membershipResult.memberId))
+          .for('update')
+          .limit(1)
+        if (!concurrentMembership) {
+          throw new Error('Concurrent organization membership could not be recovered')
+        }
+        if (concurrentMembership.role === 'owner') {
+          throw new Error('Organization ownership changed while the member was being added')
+        }
+        if (concurrentMembership.role !== request.role) {
+          await tx
+            .update(member)
+            .set({ role: request.role })
+            .where(eq(member.id, membershipResult.memberId))
+        }
+      }
       if (request.usageLimitDollars !== undefined) {
         await setOrgMemberUsageLimit(
           request.organizationId,

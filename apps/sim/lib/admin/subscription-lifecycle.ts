@@ -287,6 +287,21 @@ export async function requestDashboardSubscriptionCancellation({
         throw new Error('Cancellation operation ID was already used with different parameters')
       }
       if (existingOperation.status === 'dead_letter') {
+        if (existingOperation.eventType === OUTBOX_EVENT_TYPES.STRIPE_SYNC_CANCEL_AT_PERIOD_END) {
+          const [restoredSubscription] = await tx
+            .update(subscription)
+            .set({ cancelAtPeriodEnd: true })
+            .where(
+              and(
+                eq(subscription.id, existingOperation.subscriptionId),
+                eq(subscription.referenceId, organizationId)
+              )
+            )
+            .returning({ id: subscription.id })
+          if (!restoredSubscription) {
+            throw new Error('Cancellation subscription no longer exists')
+          }
+        }
         await tx
           .update(outboxEvent)
           .set({

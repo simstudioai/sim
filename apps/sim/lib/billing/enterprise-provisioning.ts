@@ -101,7 +101,7 @@ import { ownedAttachableWorkspacesWhere } from '@/lib/workspaces/organization-wo
 const TERMINAL_STATUSES = new Set<string>(TERMINAL_SUBSCRIPTION_STATUSES)
 const ENTERPRISE_WEBHOOK_ACKNOWLEDGEMENT_GRACE_MS = 30 * 60 * 1000
 const ENTERPRISE_WEBHOOK_ACKNOWLEDGEMENT_POLL_MS = 30 * 1000
-const MAX_ENTERPRISE_WORKSPACE_SELECTION = 1_000
+export const MAX_ENTERPRISE_WORKSPACE_SELECTION = 1_000
 const MAX_ENTERPRISE_MIGRATED_INVITATION_EMAILS = 10_000
 const MAX_ENTERPRISE_PROVISIONING_LOOKUP_ORGANIZATIONS = 250
 const ENTERPRISE_MEMBER_RECONCILIATION_BATCH_SIZE = 50
@@ -753,7 +753,7 @@ export async function getEnterpriseIssuanceSeatRequirement({
   }
 }
 
-async function assertEnterpriseInvitationEligibility({
+export async function assertEnterpriseInvitationEligibility({
   executor,
   organizationId,
   invitationEmails,
@@ -1460,7 +1460,7 @@ async function getEnterpriseFollowUpProgress(
   return result
 }
 
-async function getEnterpriseProvisioningById(
+export async function getEnterpriseProvisioningById(
   operationId: string
 ): Promise<EnterpriseProvisioningView | null> {
   const [row] = await db

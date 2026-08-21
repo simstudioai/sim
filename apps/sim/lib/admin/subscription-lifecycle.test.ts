@@ -138,7 +138,7 @@ describe('admin subscription cancellation', () => {
   })
 
   it('requeues the same dead-lettered period-end cancellation operation', async () => {
-    queueTableRows(subscription, [activeSubscription])
+    dbChainMockFns.returning.mockResolvedValueOnce([{ id: activeSubscription.id }])
     queueTableRows(outboxEvent, [
       {
         id: 'outbox-1',
@@ -159,6 +159,7 @@ describe('admin subscription cancellation', () => {
     expect(dbChainMockFns.set).toHaveBeenCalledWith(
       expect.objectContaining({ status: 'pending', attempts: 0, lastError: null })
     )
+    expect(dbChainMockFns.set).toHaveBeenCalledWith({ cancelAtPeriodEnd: true })
     expect(result).toMatchObject({
       operationId: '67e55044-10b1-426f-9247-bb680e5fe0c8',
       status: 'pending',

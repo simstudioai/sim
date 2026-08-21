@@ -263,6 +263,73 @@ export const adminDashboardIssueEnterpriseBodySchema = z
   })
   .strict()
 
+export const adminDashboardEnterpriseOwnerClaimBodySchema = z
+  .object({
+    ownerEmail: z.string().trim().email(),
+    organizationName: z.string().trim().min(1).max(120),
+    invoiceAmountUsd: adminDashboardInvoiceAmountSchema,
+    billingInterval: adminDashboardBillingIntervalSchema.default('year'),
+    invitations: z.array(adminDashboardInvitationSpecSchema).max(MAX_INVITE_EMAILS).default([]),
+    usageLimitDollars: creditAlignedDollarAmountSchema.optional(),
+    seats: z.number().int().positive().max(100_000),
+    concurrencyLimit: z.number().int().positive().max(MAX_BILLING_CONCURRENCY_LIMIT).optional(),
+    workflowExecutionTimeoutSeconds: z
+      .number()
+      .int()
+      .positive()
+      .max(MAX_WORKFLOW_EXECUTION_TIMEOUT_SECONDS)
+      .optional(),
+    pausePaymentCollection: z.boolean().optional(),
+  })
+  .strict()
+
+const adminDashboardEnterpriseOwnerClaimSchema = z.object({
+  id: z.string(),
+  ownerEmail: z.string().email(),
+  organizationName: z.string(),
+  organizationId: z.string().nullable(),
+  provisioningOperationId: z.string().nullable(),
+  stage: z.enum([
+    'owner_email',
+    'owner_acceptance',
+    'activation',
+    'stripe_provisioning',
+    'complete',
+  ]),
+  status: z.enum([
+    'sending',
+    'awaiting_owner',
+    'activating',
+    'provisioning',
+    'applied',
+    'failed',
+    'expired',
+    'revoked',
+  ]),
+  error: z.string().nullable(),
+  expiresAt: z.string(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+})
+
+const adminDashboardEnterpriseOwnerClaimReviewSchema = z.object({
+  ownerEmail: z.string().email(),
+  organizationName: z.string(),
+  activationTiming: z.literal('after_owner_acceptance'),
+  invoiceAmountUsd: adminDashboardInvoiceAmountSchema,
+  billingInterval: adminDashboardBillingIntervalSchema,
+  usageLimitCredits: z.number().int().nonnegative(),
+  invitations: z.object({ requested: z.number().int().min(0).max(MAX_INVITE_EMAILS) }),
+  workspaces: z.object({ resolvedAtAcceptance: z.literal(true) }),
+  seats: z.object({
+    ownerSeats: z.literal(1),
+    newInvitationSeats: z.number().int().min(0).max(MAX_INVITE_EMAILS),
+    requiredSeats: z.number().int().positive(),
+    capacity: z.number().int().positive().max(100_000),
+    sufficient: z.boolean(),
+  }),
+})
+
 export const adminDashboardSeatsBodySchema = z.object({
   seats: z.number().int().positive().max(100_000),
 })
@@ -674,6 +741,56 @@ export const adminDashboardIssueEnterpriseContract = defineRouteContract({
   response: {
     mode: 'json',
     schema: adminV1SingleResponseSchema(adminDashboardProvisioningSchema),
+  },
+})
+
+export const adminDashboardCreateEnterpriseOwnerClaimContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/v1/admin/dashboard/enterprise-owner-claims',
+  body: adminDashboardEnterpriseOwnerClaimBodySchema,
+  response: {
+    mode: 'json',
+    schema: adminV1SingleResponseSchema(adminDashboardEnterpriseOwnerClaimSchema),
+  },
+})
+
+export const adminDashboardListEnterpriseOwnerClaimsContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/v1/admin/dashboard/enterprise-owner-claims',
+  query: adminV1PaginationQuerySchema,
+  response: {
+    mode: 'json',
+    schema: adminV1ListResponseSchema(adminDashboardEnterpriseOwnerClaimSchema),
+  },
+})
+
+export const adminDashboardReviewEnterpriseOwnerClaimContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/v1/admin/dashboard/enterprise-owner-claims/review',
+  body: adminDashboardEnterpriseOwnerClaimBodySchema,
+  response: {
+    mode: 'json',
+    schema: adminV1SingleResponseSchema(adminDashboardEnterpriseOwnerClaimReviewSchema),
+  },
+})
+
+export const adminDashboardRetryEnterpriseOwnerClaimContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/v1/admin/dashboard/enterprise-owner-claims/[id]/retry',
+  params: adminV1IdParamsSchema,
+  response: {
+    mode: 'json',
+    schema: adminV1SingleResponseSchema(adminDashboardEnterpriseOwnerClaimSchema),
+  },
+})
+
+export const adminDashboardRevokeEnterpriseOwnerClaimContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/v1/admin/dashboard/enterprise-owner-claims/[id]/revoke',
+  params: adminV1IdParamsSchema,
+  response: {
+    mode: 'json',
+    schema: adminV1SingleResponseSchema(adminDashboardEnterpriseOwnerClaimSchema),
   },
 })
 

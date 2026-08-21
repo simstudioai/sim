@@ -5,6 +5,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { adminInvitationOperationOutboxHandlers } from '@/lib/admin/invitation-operation'
 import { adminMemberOperationOutboxHandlers } from '@/lib/admin/member-operation'
 import { verifyCronAuth } from '@/lib/auth/internal'
+import { enterpriseOwnerClaimOutboxHandlers } from '@/lib/billing/enterprise-owner-claim'
 import { enterpriseIssuanceOutboxHandlers } from '@/lib/billing/enterprise-provisioning'
 import { membershipBillingOutboxHandlers } from '@/lib/billing/organizations/membership-reconciliation'
 import { billingOutboxHandlers } from '@/lib/billing/webhooks/outbox-handlers'
@@ -29,6 +30,7 @@ const handlers = {
   ...billingOutboxHandlers,
   ...membershipBillingOutboxHandlers,
   ...enterpriseIssuanceOutboxHandlers,
+  ...enterpriseOwnerClaimOutboxHandlers,
   ...invitationMigrationOutboxHandlers,
   ...directGrantOutboxHandlers,
   ...knowledgeDocumentProcessingOutboxHandlers,
