@@ -103,7 +103,14 @@ describe('cancelStaleDispatches', () => {
   it('spares a dispatch whose cells are still reporting', async () => {
     await cancelStaleDispatches(STALE_BEFORE, 200)
 
-    const chunks = collectChunks(dbChainMockFns.where.mock.calls[0][0])
+    /**
+     * Matched on the literal SQL, not on column references: the fragment
+     * interpolates the `tableRowExecutions` table object, so every one of its
+     * column names appears in the chunks whether the predicate uses it or not —
+     * asserting on those passes even with the predicate deleted.
+     */
+    const joined = collectChunks(dbChainMockFns.where.mock.calls[0][0]).join(' ')
+
     /**
      * The dispatch's own heartbeat is stamped between windows, not during them,
      * and the loop is checkpointed for the whole window — so a long window
@@ -111,25 +118,17 @@ describe('cancelStaleDispatches', () => {
      * the signal the checkpointed parent cannot, and both have to be stale
      * before the row is reclaimed.
      */
-    expect(chunks.some((chunk) => chunk.includes('NOT EXISTS'))).toBe(true)
-    expect(chunks).toContain('tableRowExecutions.updatedAt')
-    expect(chunks).toContain('tableRowExecutions.tableId')
+    expect(joined).toContain('NOT ')
+    expect(joined).toContain('EXISTS (')
+
     /**
-     * Narrowed to the dispatch's own groups: row executions carry no dispatch
-     * column, so a table-wide probe lets a LIVE dispatch's cells vouch for an
-     * ABANDONED one beside it, and the abandoned row is never reclaimed.
+     * Scoped to the dispatch's own groups AND its rows. Auto-fired and
+     * row-scoped runs do NOT cancel overlapping dispatches, so a live dispatch
+     * sharing a table is ordinary — without both filters its cells vouch for an
+     * abandoned neighbour and the abandoned row is never reclaimed.
      */
-    expect(chunks).toContain('tableRowExecutions.groupId')
-    expect(chunks.some((chunk) => chunk.includes('jsonb_array_elements_text'))).toBe(true)
-    /**
-     * Rows too, when the dispatch names any. Auto-fired and row-scoped runs do
-     * NOT cancel overlapping dispatches — `cancelPriorRuns` requires
-     * `isManualRun`, and the per-row path is a no-op for dispatch cancellation —
-     * so a live dispatch sharing a group is ordinary, and only the row filter
-     * keeps its cells from vouching for an abandoned neighbour.
-     */
-    expect(chunks).toContain('tableRowExecutions.rowId')
-    expect(chunks.some((chunk) => chunk.includes("'rowIds'"))).toBe(true)
+    expect(joined).toContain("-> 'groupIds'")
+    expect(joined).toContain("-> 'rowIds'")
   })
 
   it('emits the terminal event so a stuck client overlay clears', async () => {

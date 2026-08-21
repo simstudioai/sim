@@ -17,6 +17,7 @@ import {
   sql,
 } from 'drizzle-orm'
 import { getJobQueue } from '@/lib/core/async-jobs/config'
+import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { writeWorkflowGroupState } from '@/lib/table/cell-write'
 import { USER_TABLE_ROWS_SQL_NAME } from '@/lib/table/constants'
 import { isExecCancelledAfter } from '@/lib/table/deps'
@@ -42,6 +43,9 @@ import {
 const logger = createLogger('TableRunDispatcher')
 
 const ACTIVE_DISPATCH_STATUSES = ['pending', 'dispatching'] as const
+
+/** Concurrent terminal-event writes when the stale sweep reclaims a batch. */
+const STALE_DISPATCH_EVENT_CONCURRENCY = 10
 
 export type DispatchStatus = 'pending' | 'dispatching' | 'complete' | 'cancelled'
 export type DispatchMode = 'all' | 'incomplete' | 'new'
@@ -813,6 +817,44 @@ export async function completeDispatchIfActive(dispatchId: string): Promise<bool
 }
 
 /**
+ * Whether any cell inside a dispatch's own scope has reported since `since`.
+ *
+ * Scoped to the dispatch's groups, and to its rows when it names any, because
+ * `table_row_executions` carries no dispatch column. Left table-wide, a live
+ * dispatch's cells read as evidence that an abandoned dispatch beside it was
+ * still working — and auto-fired and row-scoped runs do NOT cancel overlapping
+ * dispatches (`cancelPriorRuns` requires `isManualRun`, and the per-row path is
+ * a no-op for dispatch cancellation), so sharing a group is ordinary rather than
+ * exceptional.
+ *
+ * Two table-wide dispatches over the same groups can still vouch for each other,
+ * since nothing in the row execution says whose work it is. Closing that needs a
+ * `dispatch_id` on `table_row_executions`, threaded through every cell-write
+ * site. Until then the residue is a delay, not a permanent mask: the live
+ * dispatch's cells stop reporting when it finishes.
+ *
+ * Rides the partial `(table_id, status)` index, which covers exactly these three
+ * statuses.
+ */
+function hasRecentCellActivity(since: Date): SQL {
+  return sql`EXISTS (
+    SELECT 1 FROM ${tableRowExecutions}
+    WHERE ${tableRowExecutions.tableId} = ${tableRunDispatches.tableId}
+      AND ${tableRowExecutions.groupId} IN (
+        SELECT jsonb_array_elements_text(${tableRunDispatches.scope} -> 'groupIds')
+      )
+      AND (
+        jsonb_typeof(${tableRunDispatches.scope} -> 'rowIds') <> 'array'
+        OR ${tableRowExecutions.rowId} IN (
+          SELECT jsonb_array_elements_text(${tableRunDispatches.scope} -> 'rowIds')
+        )
+      )
+      AND ${tableRowExecutions.status} IN ('queued', 'running', 'pending')
+      AND ${tableRowExecutions.updatedAt} >= ${sql.param(since, tableRowExecutions.updatedAt)}
+  )`
+}
+
+/**
  * Cancels dispatches whose holder died without reaching a terminal state.
  *
  * `table_run_dispatches` had no reaper: the only paths to a terminal status are
@@ -881,21 +923,7 @@ export async function cancelStaleDispatches(
     and(
       inArray(tableRunDispatches.status, [...ACTIVE_DISPATCH_STATUSES]),
       sql`COALESCE(${tableRunDispatches.heartbeatAt}, ${tableRunDispatches.requestedAt}) < ${sql.param(staleBefore, tableRunDispatches.heartbeatAt)}`,
-      sql`NOT EXISTS (
-        SELECT 1 FROM ${tableRowExecutions}
-        WHERE ${tableRowExecutions.tableId} = ${tableRunDispatches.tableId}
-          AND ${tableRowExecutions.groupId} IN (
-            SELECT jsonb_array_elements_text(${tableRunDispatches.scope} -> 'groupIds')
-          )
-          AND (
-            jsonb_typeof(${tableRunDispatches.scope} -> 'rowIds') <> 'array'
-            OR ${tableRowExecutions.rowId} IN (
-              SELECT jsonb_array_elements_text(${tableRunDispatches.scope} -> 'rowIds')
-            )
-          )
-          AND ${tableRowExecutions.status} IN ('queued', 'running', 'pending')
-          AND ${tableRowExecutions.updatedAt} >= ${sql.param(staleBefore, tableRowExecutions.updatedAt)}
-      )`
+      sql`NOT ${hasRecentCellActivity(staleBefore)}`
     )
 
   // Claimed as explicit ids first, then updated by id, so the bound is evaluated
@@ -939,22 +967,26 @@ export async function cancelStaleDispatches(
     requestedAt: row.requestedAt,
   }))
 
-  // Same terminal event every other cancel path emits — without it the row goes
-  // terminal in the database while the client overlay stays stuck, which is the
-  // symptom this function exists to clear.
-  await Promise.all(
-    dispatches.map((d) =>
-      appendTableEvent({
-        kind: 'dispatch',
-        tableId: d.tableId,
-        dispatchId: d.id,
-        status: 'cancelled',
-        scope: d.scope,
-        cursor: d.cursor,
-        mode: d.mode,
-        isManualRun: d.isManualRun,
-      })
-    )
+  /**
+   * Same terminal event every other cancel path emits — without it the row goes
+   * terminal in the database while the client overlay stays stuck, which is the
+   * symptom this function exists to clear.
+   *
+   * Bounded rather than a bare `Promise.all`: the sibling cancel paths fan out
+   * over one table's dispatches, while this sweep can carry a whole tick's worth
+   * across many tables, and each event is its own write.
+   */
+  await mapWithConcurrency(dispatches, STALE_DISPATCH_EVENT_CONCURRENCY, (d) =>
+    appendTableEvent({
+      kind: 'dispatch',
+      tableId: d.tableId,
+      dispatchId: d.id,
+      status: 'cancelled',
+      scope: d.scope,
+      cursor: d.cursor,
+      mode: d.mode,
+      isManualRun: d.isManualRun,
+    })
   )
 
   return dispatches
