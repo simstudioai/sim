@@ -3,6 +3,8 @@ import type { CliContract, ColumnSpec, CommandVariantSpec } from './types'
 const TABLE_NAME_HELP = 'Identifier: letters, numbers, and underscores; cannot start with a number'
 const TABLE_FILTER_HELP =
   'Predicate: {"all":[{"field":"status","op":"eq","value":"active"}]}; groups use all/any. Operators: eq, ne, gt, gte, lt, lte, in, nin, contains, ncontains, startsWith, endsWith, like, ilike, nlike, nilike, isEmpty, isNotEmpty, isNull, isNotNull'
+const TABLE_READ_FILTER_HELP =
+  'One condition: {"field":"status","op":"eq","value":"active"}; use all/any groups for multiple or nested conditions. Operators: eq, ne, gt, gte, lt, lte, in, nin, contains, ncontains, startsWith, endsWith, like, ilike, nlike, nilike, isEmpty, isNotEmpty, isNull, isNotNull'
 const TABLE_SORT_HELP =
   'Ordered sort keys: [{"field":"createdAt","direction":"desc"}] (direction: asc or desc)'
 const CUSTOM_TOOL_SCHEMA_HELP =
@@ -294,7 +296,7 @@ export const CLI_CONTRACT: CliContract = {
   queryRows: {
     command: 'tables rows query',
     flags: {
-      predicate: { name: 'filter', json: true, describe: TABLE_FILTER_HELP },
+      predicate: { name: 'filter', json: true, describe: TABLE_READ_FILTER_HELP },
       sort: { json: true, describe: TABLE_SORT_HELP },
     },
     // A row's cells live under `data`; without this the table showed an id and
@@ -772,7 +774,7 @@ export const CLI_CONTRACT: CliContract = {
         name: 'filter',
         renamedFrom: ['predicate'],
         json: true,
-        describe: TABLE_FILTER_HELP,
+        describe: TABLE_READ_FILTER_HELP,
       },
     },
   },

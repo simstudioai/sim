@@ -114,6 +114,19 @@ describe('POST /api/v2/tables/[tableId]/query/count', () => {
     })
   })
 
+  it('normalizes a plain condition into a predicate group', async () => {
+    const condition = { field: 'phone', op: 'isEmpty' }
+    const invocation = call({ workspaceId: WORKSPACE_ID, predicate: condition })
+    const response = await invocation.response
+
+    expect(response.status).toBe(200)
+    expect(mocks.queryRows).toHaveBeenCalledWith(
+      expect.objectContaining({
+        input: expect.objectContaining({ predicate: { all: [condition] } }),
+      })
+    )
+  })
+
   it('counts the whole table when no predicate is sent', async () => {
     mocks.queryRows.mockResolvedValue({
       table: TABLE,
