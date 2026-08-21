@@ -55,6 +55,7 @@ const memberOperationProgressSchema = z
     memberId: z.string().min(1).nullable().default(null),
     transferredFromOrganizationId: z.string().min(1).nullable().default(null),
     nextWorkspaceIndex: z.number().int().min(0).default(0),
+    currentWorkspaceId: z.string().min(1).nullable().default(null),
   })
   .strict()
 
@@ -65,6 +66,7 @@ const memberOperationPayloadSchema = z
       memberId: null,
       transferredFromOrganizationId: null,
       nextWorkspaceIndex: 0,
+      currentWorkspaceId: null,
     }),
   })
   .strict()
@@ -198,11 +200,10 @@ async function toMemberOperationView(
   const payload = parseMemberOperationPayload(row.payload)
   const followUpJobs = await getMemberOperationFollowUpJobs(row.id, executor)
   const failed =
-    row.status === 'dead_letter' &&
-    payload.progress.nextWorkspaceIndex < payload.request.workspaceIds.length
+    row.status === 'dead_letter' && payload.progress.currentWorkspaceId
       ? [
           {
-            workspaceId: payload.request.workspaceIds[payload.progress.nextWorkspaceIndex],
+            workspaceId: payload.progress.currentWorkspaceId,
             error: row.lastError ?? 'Workspace move failed',
           },
         ]
@@ -220,7 +221,10 @@ async function toMemberOperationView(
     workspaceMoves: {
       selected: payload.request.workspaceIds.length,
       moved: payload.progress.nextWorkspaceIndex,
-      pending: payload.request.workspaceIds.length - payload.progress.nextWorkspaceIndex,
+      pending: Math.max(
+        0,
+        payload.request.workspaceIds.length - payload.progress.nextWorkspaceIndex - failed.length
+      ),
       failedCount: failed.length,
       failed,
     },
@@ -378,6 +382,7 @@ export async function startAdminMemberOperation(
         memberId: null,
         transferredFromOrganizationId: null,
         nextWorkspaceIndex: 0,
+        currentWorkspaceId: null,
       },
     }
     await enqueueOutboxEvent(tx, ADMIN_MEMBER_OPERATION_EVENT_TYPE, payload, {
@@ -643,8 +648,12 @@ export const processAdminMemberOperation: OutboxHandler<unknown> = async (rawPay
     nextWorkspaceIndex + MEMBER_OPERATION_WORKSPACE_BATCH_SIZE
   )
   while (nextWorkspaceIndex < batchEnd) {
+    const currentWorkspaceId = payload.request.workspaceIds[nextWorkspaceIndex]
+    await context.checkpointPayload({
+      progress: { ...progress, nextWorkspaceIndex, currentWorkspaceId },
+    })
     await moveWorkspaceToOrganization({
-      workspaceId: payload.request.workspaceIds[nextWorkspaceIndex],
+      workspaceId: currentWorkspaceId,
       destinationOrganizationId: payload.request.organizationId,
       adminEmail: payload.request.actor.email ?? ADMIN_API_AUDIT_EMAIL,
       auditActor: payload.request.actor,
@@ -654,7 +663,7 @@ export const processAdminMemberOperation: OutboxHandler<unknown> = async (rawPay
     })
     nextWorkspaceIndex += 1
     await context.checkpointPayload({
-      progress: { ...progress, nextWorkspaceIndex },
+      progress: { ...progress, nextWorkspaceIndex, currentWorkspaceId: null },
     })
   }
 

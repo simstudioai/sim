@@ -86,6 +86,7 @@ function payload(workspaceIds: string[]) {
       memberId: null,
       transferredFromOrganizationId: null,
       nextWorkspaceIndex: 0,
+      currentWorkspaceId: null,
     },
   }
 }
@@ -187,6 +188,7 @@ describe('durable admin member operation', () => {
         memberId: 'member-new',
         transferredFromOrganizationId: 'org-old',
         nextWorkspaceIndex: 2,
+        currentWorkspaceId: null,
       },
     })
   })
@@ -214,6 +216,92 @@ describe('durable admin member operation', () => {
         memberId: 'member-new',
         transferredFromOrganizationId: 'org-old',
         nextWorkspaceIndex: 10,
+        currentWorkspaceId: null,
+      },
+    })
+  })
+
+  it('checkpoints the active workspace before attempting its move', async () => {
+    queueTableRows(member, [{ id: 'member-new', role: 'member', organizationId: 'org-new' }])
+    mocks.moveWorkspace.mockRejectedValueOnce(new Error('Move failed'))
+    const checkpointPayload = vi.fn()
+
+    await expect(
+      processAdminMemberOperation(payload(['workspace-1']), {
+        eventId: 'operation-1',
+        eventType: 'admin.organization-member-operation',
+        attempts: 0,
+        checkpointPayload,
+      })
+    ).rejects.toThrow('Move failed')
+
+    expect(checkpointPayload).toHaveBeenLastCalledWith({
+      progress: {
+        memberId: 'member-new',
+        transferredFromOrganizationId: 'org-old',
+        nextWorkspaceIndex: 0,
+        currentWorkspaceId: 'workspace-1',
+      },
+    })
+  })
+
+  it('does not mislabel a membership failure as a workspace failure', async () => {
+    queueTableRows(outboxEvent, [
+      {
+        id: '1c38ca61-79d5-4d24-8094-c29cb52132ba',
+        eventType: 'admin.organization-member-operation',
+        payload: payload(['workspace-1', 'workspace-2']),
+        status: 'dead_letter',
+        lastError: 'Seat limit reached',
+        createdAt: new Date('2026-08-20T00:00:00.000Z'),
+      },
+    ])
+    queueTableRows(outboxEvent, [{ selected: 0, completed: 0, failed: 0 }])
+
+    await expect(
+      getAdminMemberOperation('org-new', '1c38ca61-79d5-4d24-8094-c29cb52132ba')
+    ).resolves.toMatchObject({
+      error: 'Seat limit reached',
+      workspaceMoves: {
+        selected: 2,
+        moved: 0,
+        pending: 2,
+        failedCount: 0,
+        failed: [],
+      },
+    })
+  })
+
+  it('separates the active failed workspace from still-pending workspaces', async () => {
+    queueTableRows(outboxEvent, [
+      {
+        id: '1c38ca61-79d5-4d24-8094-c29cb52132ba',
+        eventType: 'admin.organization-member-operation',
+        payload: {
+          ...payload(['workspace-1', 'workspace-2', 'workspace-3']),
+          progress: {
+            memberId: 'member-new',
+            transferredFromOrganizationId: 'org-old',
+            nextWorkspaceIndex: 1,
+            currentWorkspaceId: 'workspace-2',
+          },
+        },
+        status: 'dead_letter',
+        lastError: 'Move failed',
+        createdAt: new Date('2026-08-20T00:00:00.000Z'),
+      },
+    ])
+    queueTableRows(outboxEvent, [{ selected: 0, completed: 0, failed: 0 }])
+
+    await expect(
+      getAdminMemberOperation('org-new', '1c38ca61-79d5-4d24-8094-c29cb52132ba')
+    ).resolves.toMatchObject({
+      workspaceMoves: {
+        selected: 3,
+        moved: 1,
+        pending: 1,
+        failedCount: 1,
+        failed: [{ workspaceId: 'workspace-2', error: 'Move failed' }],
       },
     })
   })
@@ -229,6 +317,7 @@ describe('durable admin member operation', () => {
             memberId: 'member-new',
             transferredFromOrganizationId: 'org-old',
             nextWorkspaceIndex: 1,
+            currentWorkspaceId: null,
           },
         },
         status: 'completed',
