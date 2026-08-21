@@ -2,6 +2,7 @@ import { createMockResponse, inputValidationMock, inputValidationMockFns } from 
 import type { QueryClient } from '@tanstack/react-query'
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import * as getQueryClientModule from '@/app/_shell/providers/get-query-client'
+import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import { prepareToolRequest } from '@/tools/request-transport'
 import { transformTable } from '@/tools/shared/table'
 import type { ToolConfig } from '@/tools/types'
@@ -221,6 +222,34 @@ describe('prepareToolRequest', () => {
     expect(prepareToolRequest(mockTool, {}).proxyUrl).toBeUndefined()
     expect(prepareToolRequest(mockTool, { proxyUrl: '' }).proxyUrl).toBeUndefined()
     expect(prepareToolRequest(mockTool, { proxyUrl: '   ' }).proxyUrl).toBeUndefined()
+  })
+
+  it('marks custom headers containing resolved environment secrets as sensitive', () => {
+    mockTool.request.headers = (params) => ({ 'X-Provider-Credential': params.headers.value })
+    mockTool.request.redirectPolicy = () => ({
+      mode: 'legacy',
+      sendCredentialsOnCrossOriginRedirect: false,
+    })
+    const params = { headers: { value: 'resolved-secret' } }
+    const registry = new ResolvedSecretTraceRegistry([
+      {
+        name: 'PROVIDER_SECRET',
+        plaintext: 'resolved-secret',
+        encryptedValue: 'encrypted-secret',
+      },
+    ])
+    registry.recordResolvedAtInputPath('PROVIDER_SECRET', 'resolved-secret', ['headers', 'value'])
+    registry.recordResolvedInputProjection(
+      ['headers', 'value'],
+      'resolved-secret',
+      '{{PROVIDER_SECRET}}'
+    )
+
+    expect(prepareToolRequest(mockTool, params, registry).redirectPolicy).toEqual({
+      mode: 'legacy',
+      sendCredentialsOnCrossOriginRedirect: false,
+      sensitiveHeaders: ['x-provider-credential'],
+    })
   })
 })
 

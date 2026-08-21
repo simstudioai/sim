@@ -2705,6 +2705,7 @@ async function executeToolRequest(
             signal,
             proxyUrl: proxyOption,
             stripAuthOnRedirect: requestParams.stripAuthOnRedirect,
+            redirectPolicy: requestParams.redirectPolicy,
           })
 
           const responseHeaders = new Headers(secureResponse.headers.toRecord())

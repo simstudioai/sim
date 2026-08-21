@@ -53,7 +53,27 @@ const slackBlockConfig = {
   subBlocks: [{ id: 'channel', type: 'channel-selector' }],
 }
 
+const apiBlockConfig = {
+  type: 'api',
+  name: 'API',
+  outputs: {},
+  subBlocks: [
+    {
+      id: 'redirectPolicyVersion',
+      type: 'short-input',
+      hidden: true,
+      defaultValue: 'standard-v1',
+    },
+    {
+      id: 'sendCredentialsOnCrossOriginRedirect',
+      type: 'switch',
+      defaultValue: true,
+    },
+  ],
+}
+
 const blocksByType: Record<string, unknown> = {
+  api: apiBlockConfig,
   agent: agentBlockConfig,
   condition: conditionBlockConfig,
   knowledge: knowledgeBlockConfig,
@@ -62,6 +82,7 @@ const blocksByType: Record<string, unknown> = {
 
 vi.mock('@/blocks/registry', () => ({
   getAllBlocks: () => [
+    apiBlockConfig,
     agentBlockConfig,
     conditionBlockConfig,
     knowledgeBlockConfig,
@@ -142,6 +163,17 @@ describe('createBlockFromParams', () => {
     const filters = JSON.parse(block.subBlocks.tagFilters.value)
     expect(filters[0].tagName).toBe('Department')
     expect(filters[0].id).toEqual(expect.any(String))
+  })
+
+  it('seeds hidden compatibility defaults on programmatically created blocks', () => {
+    const block = createBlockFromParams('api-1', {
+      type: 'api',
+      name: 'API',
+      triggerMode: false,
+    })
+
+    expect(block.subBlocks.redirectPolicyVersion.value).toBe('standard-v1')
+    expect(block.subBlocks.sendCredentialsOnCrossOriginRedirect.value).toBeNull()
   })
 })
 
