@@ -88,6 +88,27 @@ describe('performCreateWorkflowTransition unique-violation handling', () => {
     })
   })
 
+  it('retries with a newly deduplicated name after a concurrent create claims the candidate', async () => {
+    workflowsUtilsMockFns.mockDeduplicateWorkflowName
+      .mockResolvedValueOnce('My Workflow')
+      .mockResolvedValueOnce('My Workflow (2)')
+    dbChainMockFns.transaction.mockRejectedValueOnce(
+      uniqueViolation('workflow_workspace_folder_name_active_unique')
+    )
+
+    const result = await performCreateWorkflowTransition({
+      ...createParams,
+      deduplicate: true,
+    })
+
+    expect(workflowsUtilsMockFns.mockDeduplicateWorkflowName).toHaveBeenCalledTimes(2)
+    expect(dbChainMockFns.transaction).toHaveBeenCalledTimes(2)
+    expect(result).toMatchObject({
+      success: true,
+      workflow: { name: 'My Workflow (2)' },
+    })
+  })
+
   it('does not report a block-id collision as a name conflict', async () => {
     /**
      * `workflow_blocks.id` is a global primary key and the same transaction runs
