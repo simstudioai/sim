@@ -433,12 +433,12 @@ const HtmlPreview = memo(function HtmlPreview({
         <iframe
           key={resumeNonce}
           srcDoc={wrappedContent}
+          /* No clipboard-write delegation: this frame also renders untrusted
+             raw HTML uploads, and a permissions-policy grant would let their
+             inline scripts replace the viewer's clipboard without a gesture.
+             The shell's copy buttons use the selection-command fallback,
+             which works in the sandbox but only on a real user click. */
           sandbox='allow-scripts'
-          /* The wildcard is required: the sandboxed frame's origin is opaque,
-             so an origin-keyed allowlist can never match it. Browsers without
-             wildcard delegation fall back to the shell's selection-command
-             copy path. */
-          allow='clipboard-write *'
           referrerPolicy='no-referrer'
           title='HTML Preview'
           className='h-full w-full border-0 bg-[var(--surface-2)]'

@@ -2494,9 +2494,11 @@ function TerminalHandoffDisplay({ data }: { data: CredentialItemData }) {
   )
 }
 
-// sim_key stays in the routing set so a payload carrying one still takes the
-// card path (CredentialDisplay renders its reveal separately) — but it is an
-// output, so the card itself never shows it as a row.
+/**
+ * sim_key stays in the routing set so a payload carrying one still takes the
+ * card path (CredentialDisplay renders its reveal separately), but it is an
+ * output, so the card itself never shows it as a row.
+ */
 const CREDENTIAL_CARD_TYPES: ReadonlySet<CredentialTagType> = new Set([
   'secret_input',
   'link',

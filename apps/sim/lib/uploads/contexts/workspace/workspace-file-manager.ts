@@ -587,18 +587,26 @@ export interface RegisterUploadedWorkspaceFileResult {
 }
 
 /**
- * The storage-side page restore for presigned/multipart uploads, whose bytes
- * are already in storage at registration time. When the object needs its
- * compiled bytes swapped for the embedded source it is rewritten in place at
- * the same key. Idempotent across finalize replays: after the first pass the
- * stored object IS raw source, which resolves to the same registration
- * without another rewrite.
+ * Detects a page-source upload on the presigned/multipart path, whose bytes
+ * are already in storage at registration time. Returns the page registration
+ * values plus, for a compiled standalone download, the extracted source bytes
+ * to write back at the same key.
+ *
+ * The write-back must NOT happen here: until the registration transaction
+ * records the session's completed file id, a finalize retry re-verifies the
+ * stored object against the session's declared size and content type
+ * (assertObjectIdentity in upload-session/service.ts), and a rewritten object
+ * would fail that check on every retry, permanently stranding the session.
+ * The caller performs the rewrite strictly AFTER the transaction commits —
+ * from then on retries take the completed-file path and never re-verify — and
+ * a replay that arrives before a rewrite landed re-detects the still-compiled
+ * bytes and rewrites after its own commit.
  */
-async function restoreUploadedSimPageSource(params: {
+async function detectUploadedSimPageSource(params: {
   key: string
   name: string
   size: number
-}): Promise<{ contentType: string; name: string; size: number } | null> {
+}): Promise<{ contentType: string; name: string; size: number; rewrite: Buffer | null } | null> {
   const { key, name, size } = params
   if (!name.toLowerCase().endsWith('.html')) return null
   if (size === 0 || size > MAX_SIM_PAGE_UPLOAD_SNIFF_BYTES) return null
@@ -611,18 +619,12 @@ async function restoreUploadedSimPageSource(params: {
   }
   const restored = restoreSimPageSourceBuffer(name, uploaded)
   if (restored === null) return null
-  if (restored.buffer !== uploaded) {
-    await uploadFile({
-      file: restored.buffer,
-      fileName: key,
-      contentType: SIM_PAGE_CONTENT_TYPE,
-      context: 'workspace',
-      preserveKey: true,
-      customKey: key,
-      persistMetadata: false,
-    })
+  return {
+    contentType: SIM_PAGE_CONTENT_TYPE,
+    name: restored.name,
+    size: restored.buffer.length,
+    rewrite: restored.buffer === uploaded ? null : restored.buffer,
   }
-  return { contentType: SIM_PAGE_CONTENT_TYPE, name: restored.name, size: restored.buffer.length }
 }
 
 export async function registerUploadedWorkspaceFile(params: {
@@ -652,7 +654,7 @@ export async function registerUploadedWorkspaceFile(params: {
     throw new Error(`File size exceeds maximum of ${MAX_WORKSPACE_FILE_SIZE} bytes`)
   }
 
-  const pageRestore = await restoreUploadedSimPageSource({
+  const pageRestore = await detectUploadedSimPageSource({
     key,
     name: normalizedOriginalName,
     size: verifiedSize,
@@ -660,6 +662,33 @@ export async function registerUploadedWorkspaceFile(params: {
   const effectiveContentType = pageRestore?.contentType ?? contentType
   const effectiveName = pageRestore?.name ?? normalizedOriginalName
   const effectiveSize = pageRestore?.size ?? verifiedSize
+  /**
+   * Swaps the compiled bytes for the extracted page source, strictly after the
+   * registration transaction committed (see detectUploadedSimPageSource).
+   * Best-effort: the row is already committed, so a failure here leaves a
+   * page-typed file whose bytes are the compiled document — it still renders
+   * everywhere (the compiled doc is self-contained) and only loses source
+   * editing until rewritten, which beats failing a registration that
+   * succeeded.
+   */
+  const commitPageRestoreRewrite = async () => {
+    if (!pageRestore?.rewrite) return
+    try {
+      await uploadFile({
+        file: pageRestore.rewrite,
+        fileName: key,
+        contentType: SIM_PAGE_CONTENT_TYPE,
+        context: 'workspace',
+        preserveKey: true,
+        customKey: key,
+        persistMetadata: false,
+      })
+    } catch (error) {
+      logger.error(`Page-source rewrite failed after registration for ${key}`, {
+        cause: describeError(error),
+      })
+    }
+  }
 
   const registrationIdentity = {
     workspaceId,
@@ -688,6 +717,7 @@ export async function registerUploadedWorkspaceFile(params: {
   })
   if (existing) {
     logger.info(`Using existing metadata record for upload session: ${key}`)
+    await commitPageRestoreRewrite()
     const pathPrefix = getServePathPrefix()
     return {
       file: {
@@ -773,6 +803,7 @@ export async function registerUploadedWorkspaceFile(params: {
       void maybeNotifyStorageLimitForBillingContext(storageBillingContext, finalized.updatedUsage)
     }
 
+    await commitPageRestoreRewrite()
     const pathPrefix = getServePathPrefix()
     return {
       file: {
