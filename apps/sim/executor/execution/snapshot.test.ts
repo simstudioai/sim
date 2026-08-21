@@ -25,6 +25,8 @@ describe('ExecutionSnapshot', () => {
       ['agent.content', 123, 'function.result']
     )
 
+    expect(snapshot.toJSON()).toMatch(/^\{"metadata":/)
+    expect(JSON.parse(snapshot.toJSON())).toMatchObject({ version: 1 })
     expect(snapshot.workflowVariables).toEqual({ 'var-1': variable })
     expect(snapshot.selectedOutputs).toEqual(['agent.content', 'function.result'])
   })
