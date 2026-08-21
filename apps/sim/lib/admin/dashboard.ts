@@ -110,7 +110,6 @@ async function enqueueEnterpriseMetadataIntent(
     subscriptionId: string
     appliedMetadata: unknown
     buildDesiredMetadata: (current: Record<string, unknown>) => Record<string, unknown>
-    terms?: { invoiceAmountCents: number; billingInterval: 'month' | 'year' } | null
   }
 ): Promise<{ version: number; desiredMetadata: Record<string, unknown> }> {
   const intent = await resolveEnterpriseMetadataIntent(
@@ -135,7 +134,6 @@ async function enqueueEnterpriseMetadataIntent(
     ...intent.desiredMetadata,
   }
   const desiredMetadata = params.buildDesiredMetadata(current)
-  const desiredTerms = params.terms === undefined ? intent.desiredTerms : params.terms
   const version = intent.latestRevision + 1
 
   await enqueueOutboxEvent(tx, ENTERPRISE_METADATA_SYNC_EVENT_TYPE, {
@@ -143,7 +141,6 @@ async function enqueueEnterpriseMetadataIntent(
     revision: version,
     deliveryRevision: 0,
     metadata: desiredMetadata,
-    ...(desiredTerms ? { terms: desiredTerms } : {}),
   })
   return { version, desiredMetadata }
 }
@@ -524,8 +521,12 @@ export function toDashboardConfigurationUpdate(
       usageLimitCredits === null
         ? null
         : creditsToDollars(usageLimitCredits) + prepaidBalanceDollars,
-    requestedInvoiceAmountUsd: terms ? terms.invoiceAmountCents / 100 : null,
-    requestedBillingInterval: terms?.billingInterval ?? null,
+    requestedReportingPeriodInterval:
+      metadata.reportingPeriodInterval === 'month' || metadata.reportingPeriodInterval === 'year'
+        ? metadata.reportingPeriodInterval
+        : typeof metadata.reportingPeriodAnchorDate === 'string'
+          ? (terms?.billingInterval ?? null)
+          : null,
     requestedReportingPeriodAnchorDate:
       typeof metadata.reportingPeriodAnchorDate === 'string'
         ? metadata.reportingPeriodAnchorDate
@@ -535,6 +536,7 @@ export function toDashboardConfigurationUpdate(
     requestedWorkflowExecutionTimeoutSeconds:
       workflowExecutionTimeoutSeconds === null ? null : Math.round(workflowExecutionTimeoutSeconds),
     providerAccepted: update.providerAccepted,
+    retryable: terms === null,
     error: update.error,
   }
 }
@@ -1147,36 +1149,27 @@ export async function updateDashboardEnterpriseSeats(
   })
 }
 
-interface DashboardEnterpriseBillingTerms {
-  invoiceAmountUsd: number
-  billingInterval: 'month' | 'year'
+interface DashboardEnterpriseReportingPeriod {
+  reportingPeriodInterval: 'month' | 'year'
   reportingPeriodAnchorDate: string
 }
 
-function validateDashboardEnterpriseBillingTerms(values: DashboardEnterpriseBillingTerms) {
-  const invoiceAmountCents = Math.round(values.invoiceAmountUsd * 100)
-  if (
-    invoiceAmountCents <= 0 ||
-    !Number.isSafeInteger(invoiceAmountCents) ||
-    Math.abs(values.invoiceAmountUsd * 100 - invoiceAmountCents) > 1e-8
-  ) {
-    throw new Error('Invoice amount must be at least $0.01 and use whole cents')
-  }
+function validateDashboardEnterpriseReportingPeriod(values: DashboardEnterpriseReportingPeriod) {
   const reportingPeriod = resolveEnterpriseReportingPeriod(
     values.reportingPeriodAnchorDate,
-    values.billingInterval
+    values.reportingPeriodInterval
   )
   if (!reportingPeriod) {
-    throw new Error('Contract start must be a valid UTC date that is not in the future')
+    throw new Error('Reporting-period anchor must be a valid UTC date that is not in the future')
   }
-  return { invoiceAmountCents, reportingPeriod }
+  return reportingPeriod
 }
 
-export async function previewDashboardEnterpriseBillingTerms(
+export async function previewDashboardEnterpriseReportingPeriod(
   organizationId: string,
-  values: DashboardEnterpriseBillingTerms
+  values: DashboardEnterpriseReportingPeriod
 ) {
-  const { reportingPeriod } = validateDashboardEnterpriseBillingTerms(values)
+  const reportingPeriod = validateDashboardEnterpriseReportingPeriod(values)
   const [[org], [subscriptionRow]] = await Promise.all([
     db
       .select({ orgUsageLimit: organization.orgUsageLimit })
@@ -1221,12 +1214,12 @@ export async function previewDashboardEnterpriseBillingTerms(
   }
 }
 
-export async function updateDashboardEnterpriseBillingTerms(
+export async function updateDashboardEnterpriseReportingPeriod(
   organizationId: string,
-  values: DashboardEnterpriseBillingTerms,
+  values: DashboardEnterpriseReportingPeriod,
   actor: AdminMutationActor
 ) {
-  const { invoiceAmountCents } = validateDashboardEnterpriseBillingTerms(values)
+  validateDashboardEnterpriseReportingPeriod(values)
   await db.transaction(async (tx) => {
     await acquireOrganizationMutationLock(tx, organizationId)
     const [subscriptionRow] = await tx
@@ -1244,29 +1237,14 @@ export async function updateDashboardEnterpriseBillingTerms(
     if (!subscriptionRow?.stripeSubscriptionId) {
       throw new Error('Active Stripe-backed Enterprise subscription not found')
     }
-    const appliedMetadata = metadataRecord(subscriptionRow.metadata)
-    const appliedInvoiceAmountCents =
-      metadataNumber(appliedMetadata, 'invoiceAmountCents') ??
-      Math.round((metadataNumber(appliedMetadata, 'monthlyPrice') ?? 0) * 100)
-    const appliedBillingInterval = subscriptionRow.billingInterval === 'year' ? 'year' : 'month'
-    const termsChanged =
-      appliedInvoiceAmountCents !== invoiceAmountCents ||
-      appliedBillingInterval !== values.billingInterval
     await enqueueEnterpriseMetadataIntent(tx, {
       subscriptionId: subscriptionRow.id,
       appliedMetadata: subscriptionRow.metadata,
-      terms: termsChanged ? { invoiceAmountCents, billingInterval: values.billingInterval } : null,
-      buildDesiredMetadata: (current) => {
-        const { monthlyPrice: _legacyMonthlyPrice, ...rest } = current
-        return {
-          ...rest,
-          // Stripe metadata updates merge by default. An empty value removes
-          // the legacy key after the neutral amount has been written.
-          monthlyPrice: null,
-          invoiceAmountCents,
-          reportingPeriodAnchorDate: values.reportingPeriodAnchorDate,
-        }
-      },
+      buildDesiredMetadata: (current) => ({
+        ...current,
+        reportingPeriodAnchorDate: values.reportingPeriodAnchorDate,
+        reportingPeriodInterval: values.reportingPeriodInterval,
+      }),
     })
   })
   recordAudit({
@@ -1276,7 +1254,7 @@ export async function updateDashboardEnterpriseBillingTerms(
     action: AuditAction.ORGANIZATION_UPDATED,
     resourceType: AuditResourceType.ORGANIZATION,
     resourceId: organizationId,
-    description: 'Admin requested Enterprise billing-term update',
+    description: 'Admin requested Enterprise reporting-period update',
     metadata: { ...values },
   })
 }
@@ -1318,6 +1296,11 @@ export async function retryDashboardEnterpriseConfigurationUpdate(
     }
     if (event.status !== 'dead_letter') {
       throw new Error('Only a failed Enterprise configuration update can be retried')
+    }
+    if (payload.data.terms) {
+      throw new Error(
+        'Legacy Enterprise commercial-term updates cannot be retried. Submit a new reporting-period change instead.'
+      )
     }
     await tx
       .update(outboxEvent)

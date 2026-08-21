@@ -61,6 +61,70 @@ describe('Enterprise reporting periods', () => {
     ).toMatchObject({ source: 'stripe' })
   })
 
+  it('uses the reporting metadata interval independently from the Stripe cadence', () => {
+    expect(
+      resolveSubscriptionUsagePeriod(
+        {
+          plan: 'enterprise',
+          billingInterval: 'month',
+          metadata: {
+            reportingPeriodAnchorDate: '2026-05-01',
+            reportingPeriodInterval: 'year',
+          },
+          periodStart: new Date('2026-07-21T19:37:47.000Z'),
+          periodEnd: new Date('2026-08-21T19:37:47.000Z'),
+        },
+        new Date('2026-08-21T18:00:00.000Z')
+      )
+    ).toMatchObject({
+      source: 'reporting',
+      anchorDate: '2026-05-01',
+      interval: 'year',
+      start: new Date('2026-05-01T00:00:00.000Z'),
+      end: new Date('2027-05-01T00:00:00.000Z'),
+    })
+  })
+
+  it('ignores custom reporting metadata for standard plans', () => {
+    expect(
+      resolveSubscriptionUsagePeriod(
+        {
+          plan: 'team_25000',
+          billingInterval: 'month',
+          metadata: {
+            reportingPeriodAnchorDate: '2026-05-01',
+            reportingPeriodInterval: 'year',
+          },
+          periodStart: new Date('2026-08-01T00:00:00.000Z'),
+          periodEnd: new Date('2026-09-01T00:00:00.000Z'),
+        },
+        new Date('2026-08-21T18:00:00.000Z')
+      )
+    ).toMatchObject({
+      source: 'stripe',
+      interval: 'month',
+      start: new Date('2026-08-01T00:00:00.000Z'),
+      end: new Date('2026-09-01T00:00:00.000Z'),
+    })
+  })
+
+  it('preserves custom reporting periods written before the interval metadata split', () => {
+    expect(
+      resolveSubscriptionUsagePeriod(
+        {
+          plan: 'enterprise',
+          billingInterval: 'year',
+          metadata: { reportingPeriodAnchorDate: '2026-05-01' },
+        },
+        new Date('2026-08-21T18:00:00.000Z')
+      )
+    ).toMatchObject({
+      source: 'reporting',
+      anchorDate: '2026-05-01',
+      interval: 'year',
+    })
+  })
+
   it('uses the same open fallback window when a subscription has no usable dates', () => {
     expect(
       resolveSubscriptionUsagePeriodOrDefault({ plan: 'enterprise', metadata: {} })

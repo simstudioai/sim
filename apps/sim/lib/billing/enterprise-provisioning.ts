@@ -302,33 +302,6 @@ async function findOperationPrice(
   return match
 }
 
-async function findConfigurationPrice(
-  stripe: Stripe,
-  productId: string,
-  operationId: string
-): Promise<Stripe.Price | null> {
-  let match: Stripe.Price | null = null
-  let startingAfter: string | undefined
-  for (;;) {
-    const page = await stripe.prices.list({
-      product: productId,
-      limit: 100,
-      ...(startingAfter ? { starting_after: startingAfter } : {}),
-    })
-    for (const candidate of page.data) {
-      if (candidate.metadata?.enterpriseConfigOperationId !== operationId) continue
-      if (match && match.id !== candidate.id) {
-        throw new Error('Multiple Stripe prices exist for this Enterprise configuration update')
-      }
-      match = candidate
-    }
-    if (!page.has_more) break
-    startingAfter = page.data.at(-1)?.id
-    if (!startingAfter) break
-  }
-  return match
-}
-
 function isStripeMissingResource(error: unknown): boolean {
   return Boolean(
     error &&
@@ -371,25 +344,6 @@ function assertEnterprisePrice(
     productId !== expectedProductId
   ) {
     throw new Error('Recovered Stripe price does not match the Enterprise request')
-  }
-}
-
-function assertEnterpriseConfigurationPrice(
-  price: Stripe.Price,
-  terms: { invoiceAmountCents: number; billingInterval: 'month' | 'year' },
-  operationId: string,
-  expectedProductId: string
-): void {
-  const productId = typeof price.product === 'string' ? price.product : price.product?.id
-  if (
-    price.currency !== 'usd' ||
-    price.unit_amount !== terms.invoiceAmountCents ||
-    price.recurring?.interval !== terms.billingInterval ||
-    (price.recurring.interval_count ?? 1) !== 1 ||
-    price.metadata?.enterpriseConfigOperationId !== operationId ||
-    productId !== expectedProductId
-  ) {
-    throw new Error('Recovered Stripe price does not match the Enterprise billing-term update')
   }
 }
 
@@ -2319,9 +2273,7 @@ function stripePauseMatchesDeliveryState(
 }
 
 async function verifyEnterpriseMetadataDelivery(params: {
-  stripe: Stripe
   subscription: Stripe.Subscription
-  operationId: string
   deliveryState: EnterpriseMetadataDeliveryState
   context: OutboxEventContext
 }): Promise<void> {
@@ -2335,17 +2287,6 @@ async function verifyEnterpriseMetadataDelivery(params: {
     !stripePauseMatchesDeliveryState(params.subscription.pause_collection, acceptedState.priorPause)
   ) {
     throw new Error('Stripe did not preserve Enterprise payment-collection pause settings')
-  }
-
-  if (
-    acceptedState.billingIntervalChanged &&
-    acceptedState.priorPause?.behavior === 'keep_as_draft'
-  ) {
-    await keepInitialEnterpriseInvoiceAsDraft({
-      stripe: params.stripe,
-      subscription: params.subscription,
-      operationId: params.operationId,
-    })
   }
 
   if (!acceptedState.verifiedAt) {
@@ -2424,7 +2365,10 @@ export const provisionEnterpriseInStripe: OutboxHandler<unknown> = async (rawPay
     enterpriseOperationId: context.eventId,
     invoiceAmountCents: request.invoiceAmountCents.toString(),
     ...(request.reportingPeriodAnchorDate
-      ? { reportingPeriodAnchorDate: request.reportingPeriodAnchorDate }
+      ? {
+          reportingPeriodAnchorDate: request.reportingPeriodAnchorDate,
+          reportingPeriodInterval: request.billingInterval,
+        }
       : {}),
     usageLimitCredits: request.usageLimitCredits.toString(),
     seats: request.seats.toString(),
@@ -2659,6 +2603,11 @@ export const syncEnterpriseMetadataInStripe: OutboxHandler<unknown> = async (
 
     const latestPayload = enterpriseMetadataSyncPayloadSchema.safeParse(latest.payload)
     if (!latestPayload.success) throw new Error('Latest Enterprise metadata intent is invalid')
+    if (latestPayload.data.terms) {
+      throw new Error(
+        'Enterprise commercial-term updates are no longer supported. Submit a reporting-period change instead.'
+      )
+    }
     const desiredSeats = Number(latestPayload.data.metadata.seats)
     const currentSeatRequirement = await getEnterpriseIssuanceSeatRequirement({
       executor: db,
@@ -2684,10 +2633,7 @@ export const syncEnterpriseMetadataInStripe: OutboxHandler<unknown> = async (
     metadata.simConfigDeliveryAttempt = String(context.attempts)
 
     const stripe = requireStripeClient()
-    const terms = latestPayload.data.terms
-    const stripeSubscription = await stripe.subscriptions.retrieve(stripeSubscriptionId, {
-      expand: ['latest_invoice'],
-    })
+    const stripeSubscription = await stripe.subscriptions.retrieve(stripeSubscriptionId)
     const deliveryAlreadyWritten = enterpriseMetadataIntentMatchesStripeSubscription(
       latestPayload.data,
       context.eventId,
@@ -2699,77 +2645,16 @@ export const syncEnterpriseMetadataInStripe: OutboxHandler<unknown> = async (
         throw new Error('Enterprise configuration delivery state was not checkpointed')
       }
       await verifyEnterpriseMetadataDelivery({
-        stripe,
         subscription: stripeSubscription,
-        operationId: context.eventId,
         deliveryState,
         context,
       })
       return waitForEnterpriseWebhookAcknowledgement(latestPayload.data.acknowledgement, context)
     }
-    let priceId = latestPayload.data.stripeProgress.priceId ?? null
-    let updateItems: Stripe.SubscriptionUpdateParams.Item[] | undefined
-    let billingIntervalChanged = false
-
-    if (terms) {
-      if (stripeSubscription.schedule) {
-        throw new Error(
-          'Enterprise billing terms cannot be changed while a Stripe Schedule controls the subscription'
-        )
-      }
-      if (
-        stripeSubscription.collection_method !== 'send_invoice' ||
-        stripeSubscription.days_until_due !== 30
-      ) {
-        throw new Error(
-          'Enterprise billing-term updates require send-invoice collection with 30-day terms'
-        )
-      }
-      const items = stripeSubscription.items.data
-      if (items.length !== 1) {
-        throw new Error(
-          'Enterprise billing-term updates require exactly one Stripe subscription item'
-        )
-      }
-      const currentItem = items[0]
-      billingIntervalChanged = currentItem.price.recurring?.interval !== terms.billingInterval
-      const productId =
-        typeof currentItem.price.product === 'string'
-          ? currentItem.price.product
-          : currentItem.price.product?.id
-      if (!productId) throw new Error('Enterprise subscription price has no reusable product')
-
-      let price: Stripe.Price | null = null
-      if (priceId) {
-        price = await stripe.prices.retrieve(priceId)
-      } else {
-        price = await findConfigurationPrice(stripe, productId, context.eventId)
-      }
-      if (!price) {
-        price = await stripe.prices.create(
-          {
-            currency: 'usd',
-            unit_amount: terms.invoiceAmountCents,
-            recurring: { interval: terms.billingInterval },
-            product: productId,
-            metadata: { enterpriseConfigOperationId: context.eventId },
-          },
-          {
-            idempotencyKey: `enterprise-config:${payload.subscriptionId}:${context.eventId}:price`,
-          }
-        )
-      }
-      assertEnterpriseConfigurationPrice(price, terms, context.eventId, productId)
-      priceId = price.id
-      if (latestPayload.data.stripeProgress.priceId !== priceId) {
-        await context.checkpointPayload({ stripeProgress: { priceId } })
-      }
-      updateItems = [{ id: currentItem.id, price: priceId, quantity: 1 }]
-    }
 
     const deliveryState: EnterpriseMetadataDeliveryState = {
       priorPause: stripePauseState(stripeSubscription.pause_collection),
-      billingIntervalChanged,
+      billingIntervalChanged: false,
     }
     await context.checkpointPayload({ deliveryState })
 
@@ -2777,23 +2662,13 @@ export const syncEnterpriseMetadataInStripe: OutboxHandler<unknown> = async (
       stripeSubscriptionId,
       {
         metadata,
-        ...(updateItems
-          ? {
-              items: updateItems,
-              proration_behavior: 'none' as const,
-              ...(billingIntervalChanged ? { billing_cycle_anchor: 'now' as const } : {}),
-            }
-          : {}),
-        expand: ['latest_invoice'],
       },
       {
         idempotencyKey: `enterprise-config:${payload.subscriptionId}:${context.eventId}:delivery:${latestPayload.data.deliveryRevision}:attempt:${context.attempts}`,
       }
     )
     await verifyEnterpriseMetadataDelivery({
-      stripe,
       subscription: updatedSubscription,
-      operationId: context.eventId,
       deliveryState,
       context,
     })
