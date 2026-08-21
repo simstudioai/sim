@@ -155,11 +155,16 @@ describe('PlaidBlock tools.config.params', () => {
     ).toMatchObject({
       selectorKey: 'plaid.institutions',
       canonicalParamId: 'institutionId',
-      dependsOn: ['credential'],
+      dependsOn: ['credential', 'countryCodes'],
     })
     expect(
       PlaidBlock.subBlocks.find((subBlock) => subBlock.id === 'manualInstitutionId')
     ).toMatchObject({ canonicalParamId: 'institutionId', mode: 'advanced' })
+    const countryCodes = PlaidBlock.subBlocks.find((subBlock) => subBlock.id === 'countryCodes')
+    expect(typeof countryCodes?.value).toBe('function')
+    expect(typeof countryCodes?.value === 'function' ? countryCodes.value({}) : undefined).toBe(
+      'US'
+    )
     expect(PlaidBlock.inputs).toHaveProperty('oauthCredential')
     expect(PlaidBlock.inputs).toHaveProperty('authAccountIds')
     expect(PlaidBlock.inputs).not.toHaveProperty('plaidCredentialId')

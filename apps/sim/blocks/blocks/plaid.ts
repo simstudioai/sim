@@ -133,7 +133,7 @@ export const PlaidBlock: BlockConfig<PlaidResponse> = {
       serviceId: 'plaid',
       canonicalParamId: 'institutionId',
       placeholder: 'Search Plaid institutions',
-      dependsOn: ['credential'],
+      dependsOn: ['credential', 'countryCodes'],
       mode: 'basic',
       condition: {
         field: 'operation',
@@ -167,6 +167,7 @@ export const PlaidBlock: BlockConfig<PlaidResponse> = {
       title: 'Country Codes',
       type: 'short-input',
       placeholder: 'Comma-separated, defaults to US',
+      value: () => 'US',
       mode: 'advanced',
       condition: {
         field: 'operation',
