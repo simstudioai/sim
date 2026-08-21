@@ -974,6 +974,7 @@ describe('destructive operations are gated', () => {
     'bulkUpdateKnowledgeDocuments',
     'cancelTableRuns',
     'cancelWorkflowRun',
+    'chat',
     'completeFileUpload',
     'completeKnowledgeDocumentUpload',
     'completeTableImport',
