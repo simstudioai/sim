@@ -54,6 +54,7 @@ describe('ExecutionSnapshot', () => {
     expect(() =>
       ExecutionSnapshot.fromJSON(
         JSON.stringify({
+          version: 1,
           metadata: { ...metadata, principal: { version: 99, principal: {} } },
           workflow: { blocks: [] },
           input: {},
@@ -70,6 +71,7 @@ describe('ExecutionSnapshot', () => {
     expect(() =>
       ExecutionSnapshot.fromJSON(
         JSON.stringify({
+          version: 1,
           metadata: metadataWithoutPrincipal,
           workflow: { blocks: [] },
           input: {},
@@ -78,5 +80,59 @@ describe('ExecutionSnapshot', () => {
         })
       )
     ).toThrow('Execution snapshot metadata is missing its principal')
+  })
+
+  it('restores the recorded session user from a legacy pause snapshot', () => {
+    const { principal: _principal, ...legacyMetadata } = metadata
+    const restored = ExecutionSnapshot.fromJSON(
+      JSON.stringify({
+        metadata: { ...legacyMetadata, sessionUserId: 'session-user-1' },
+        workflow: { blocks: [] },
+        input: {},
+        workflowVariables: {},
+        selectedOutputs: [],
+      })
+    )
+
+    expect(restored.metadata.principal).toEqual({
+      kind: 'session',
+      userId: 'session-user-1',
+      sessionId: 'legacy-paused-execution',
+    })
+  })
+
+  it('restores actorless legacy pause snapshots as internal system executions', () => {
+    const { principal: _principal, ...legacyMetadata } = metadata
+    const restored = ExecutionSnapshot.fromJSON(
+      JSON.stringify({
+        metadata: legacyMetadata,
+        workflow: { blocks: [] },
+        input: {},
+        workflowVariables: {},
+        selectedOutputs: [],
+      })
+    )
+
+    expect(restored.metadata.principal).toEqual({
+      kind: 'system',
+      serviceId: 'internal',
+      workspaceId: 'workspace-1',
+      workflowId: 'workflow-1',
+    })
+  })
+
+  it('rejects unsupported execution snapshot versions', () => {
+    expect(() =>
+      ExecutionSnapshot.fromJSON(
+        JSON.stringify({
+          version: 2,
+          metadata,
+          workflow: { blocks: [] },
+          input: {},
+          workflowVariables: {},
+          selectedOutputs: [],
+        })
+      )
+    ).toThrow('Unsupported execution snapshot version 2')
   })
 })
