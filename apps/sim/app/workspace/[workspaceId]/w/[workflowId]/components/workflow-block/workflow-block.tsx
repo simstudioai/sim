@@ -16,7 +16,6 @@ import {
   TypeNumber,
   Wrench,
 } from '@sim/emcn/icons'
-import { createLogger } from '@sim/logger'
 import {
   BLOCK_DIMENSIONS,
   CanvasSentenceView,
@@ -119,8 +118,6 @@ import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import { formatParameterLabel } from '@/tools/params'
 import { TRIGGER_REGISTRY } from '@/triggers/registry'
-
-const logger = createLogger('WorkflowBlock')
 
 /** Stable empty object to avoid creating new references */
 const EMPTY_SUBBLOCK_VALUES = {} as Record<string, any>
@@ -503,19 +500,13 @@ const SubBlockRow = memo(function SubBlockRow({
     if (!subBlock?.id?.startsWith('webhookUrlDisplay') || !blockId) {
       return null
     }
-    /* `getBaseUrl` throws by design when no application base URL is configured,
-       and this runs during render — so an unguarded call takes the entire editor
-       down through the canvas error boundary over one read-only field. A URL this
-       card cannot resolve is a blank field, never a dead canvas. */
-    let baseUrl: string
-    try {
-      baseUrl = getBaseUrl()
-    } catch (error) {
-      logger.warn('Cannot render the webhook URL: no application base URL is configured', {
-        error,
-      })
-      return null
-    }
+    /* Deliberately unguarded. `getBaseUrl` throws when no application base URL is
+       configured, and that is the right outcome here: this value gets copied into
+       a third-party provider, so a guessed origin would hand the user a URL that
+       provider accepts and then never delivers to, and a blank row explains
+       nothing. The error boundary reports what it caught, so the throw names its
+       own cause. */
+    const baseUrl = getBaseUrl()
     const triggerPath = allSubBlockValues?.triggerPath?.value as string | undefined
     return triggerPath
       ? `${baseUrl}/api/webhooks/trigger/${triggerPath}`
