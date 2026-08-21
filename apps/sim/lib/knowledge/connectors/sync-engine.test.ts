@@ -937,7 +937,7 @@ describe('capReconciliationDeletions', () => {
 
     expect(result.held).toBe(false)
     expect(result.cap).toBe(250)
-    expect(result.requested).toBe(250)
+    expect(result.withheld).toBe(0)
     expect(result.softDeleteIds).toEqual(soft)
   })
 
@@ -947,7 +947,8 @@ describe('capReconciliationDeletions', () => {
     const result = capReconciliationDeletions(ids('soft', 251), [], 1000, false)
 
     expect(result.held).toBe(true)
-    expect(result.requested).toBe(251)
+    expect(result.softHeld).toBe(true)
+    expect(result.withheld).toBe(251)
   })
 
   it('returns empty arrays — not the inputs — when held', async () => {
@@ -960,23 +961,53 @@ describe('capReconciliationDeletions', () => {
     expect(result.hardDeleteIds).toEqual([])
   })
 
-  it('counts the union of soft and hard deletions against one cap', async () => {
+  it('caps each generation separately rather than summing them', async () => {
     const { capReconciliationDeletions } = await import('@/lib/knowledge/connectors/sync-engine')
 
-    const overlapping = ids('doc', 200)
-    // Same ids on both lists must count once, not twice.
-    expect(capReconciliationDeletions(overlapping, overlapping, 1000, false).held).toBe(false)
-    expect(capReconciliationDeletions(ids('a', 200), ids('b', 200), 1000, false).held).toBe(true)
+    /**
+     * Hard deletes are the previous generation's soft deletes, already gated by
+     * this cap once. Summing them double-counts the older generation, which is
+     * what deadlocked a churning connector.
+     */
+    const result = capReconciliationDeletions(ids('a', 200), ids('b', 200), 1000, false)
+
+    expect(result.held).toBe(false)
+    expect(result.softDeleteIds).toHaveLength(200)
+    expect(result.hardDeleteIds).toHaveLength(200)
   })
 
-  it('is bypassed by a forced fullSync', async () => {
+  it('holds only the generation that breached the cap', async () => {
+    const { capReconciliationDeletions } = await import('@/lib/knowledge/connectors/sync-engine')
+
+    const hard = ids('hard', 100)
+    const result = capReconciliationDeletions(ids('soft', 400), hard, 1000, false)
+
+    expect(result.softHeld).toBe(true)
+    expect(result.hardHeld).toBe(false)
+    expect(result.softDeleteIds).toEqual([])
+    // The confirmed generation still drains, so the backlog cannot ratchet.
+    expect(result.hardDeleteIds).toEqual(hard)
+  })
+
+  it('is bypassed by a forced fullSync, in both generations', async () => {
     const { capReconciliationDeletions } = await import('@/lib/knowledge/connectors/sync-engine')
 
     const hard = ids('hard', 1000)
-    const result = capReconciliationDeletions([], hard, 1000, true)
+    const hardOnly = capReconciliationDeletions([], hard, 1000, true)
 
-    expect(result.held).toBe(false)
-    expect(result.hardDeleteIds).toEqual(hard)
+    expect(hardOnly.held).toBe(false)
+    expect(hardOnly.hardDeleteIds).toEqual(hard)
+
+    /**
+     * Exercised per generation: asserting only the hard list left the soft
+     * branch's bypass untested, so dropping it there was invisible.
+     */
+    const soft = ids('soft', 1000)
+    const softOnly = capReconciliationDeletions(soft, [], 1000, true)
+
+    expect(softOnly.held).toBe(false)
+    expect(softOnly.softHeld).toBe(false)
+    expect(softOnly.softDeleteIds).toEqual(soft)
   })
 
   it('applies the small-corpus floor rather than the ratio', async () => {
@@ -998,6 +1029,28 @@ describe('capReconciliationDeletions', () => {
         minAbsolute: 5,
       }).held
     ).toBe(true)
+  })
+
+  describe('steady churn', () => {
+    it('reaches a stable state instead of ratcheting shut', async () => {
+      const { capReconciliationDeletions } = await import('@/lib/knowledge/connectors/sync-engine')
+
+      /**
+       * 1,000 documents at 15% churn against a cap of 250. Under one summed cap:
+       * sync 1 applied 150 soft; sync 2 requested 150 soft + 150 hard = 300 and
+       * was held in full; the blocked hard deletes then accumulated forever.
+       */
+      const sync1 = capReconciliationDeletions(ids('gen1', 150), [], 1000, false)
+      expect(sync1.held).toBe(false)
+
+      const sync2 = capReconciliationDeletions(ids('gen2', 150), ids('gen1', 150), 1000, false)
+      expect(sync2.held).toBe(false)
+      expect(sync2.hardDeleteIds).toHaveLength(150)
+
+      const sync3 = capReconciliationDeletions(ids('gen3', 150), ids('gen2', 150), 1000, false)
+      expect(sync3.held).toBe(false)
+      expect(sync3.hardDeleteIds).toHaveLength(150)
+    })
   })
 
   describe('confirmed data-loss shapes', () => {
@@ -1525,5 +1578,74 @@ describe('buildSyncLockAcquisition', () => {
      */
     expect(acquisition.syncLockToken).toBe('run-a')
     expect(acquisition.status).toBe('syncing')
+  })
+})
+
+describe('shouldHeartbeatSyncLock', () => {
+  it('beats once the interval has elapsed', async () => {
+    const { shouldHeartbeatSyncLock } = await import('@/lib/knowledge/connectors/sync-engine')
+
+    expect(shouldHeartbeatSyncLock(1_000, 0, 1_000)).toBe(true)
+    expect(shouldHeartbeatSyncLock(1_001, 0, 1_000)).toBe(true)
+  })
+
+  it('does not beat before the interval has elapsed', async () => {
+    const { shouldHeartbeatSyncLock } = await import('@/lib/knowledge/connectors/sync-engine')
+
+    expect(shouldHeartbeatSyncLock(999, 0, 1_000)).toBe(false)
+    expect(shouldHeartbeatSyncLock(0, 0, 1_000)).toBe(false)
+  })
+
+  it('defaults to an interval far below the reclaim TTL', async () => {
+    const { shouldHeartbeatSyncLock } = await import('@/lib/knowledge/connectors/sync-engine')
+    const { CONNECTOR_SYNC_STALE_LOCK_TTL_MS, SYNC_LOCK_HEARTBEAT_INTERVAL_MS } = await import(
+      '@/lib/knowledge/connectors/sync-limits'
+    )
+
+    /**
+     * A live run must beat many times over before the reclaim cutoff, or
+     * ordinary jitter reclaims a working sync — which is what made the reaper a
+     * one-way ratchet to `disabled` for slow in-process syncs.
+     */
+    expect(SYNC_LOCK_HEARTBEAT_INTERVAL_MS * 4).toBeLessThan(CONNECTOR_SYNC_STALE_LOCK_TTL_MS)
+    expect(shouldHeartbeatSyncLock(SYNC_LOCK_HEARTBEAT_INTERVAL_MS, 0)).toBe(true)
+    expect(shouldHeartbeatSyncLock(SYNC_LOCK_HEARTBEAT_INTERVAL_MS - 1, 0)).toBe(false)
+  })
+})
+
+describe('heartbeatSyncLock', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
+  it('refreshes updatedAt under the run own lock guard', async () => {
+    const { heartbeatSyncLock } = await import('@/lib/knowledge/connectors/sync-engine')
+
+    await heartbeatSyncLock('c-1', 'run-a')
+
+    expect(dbChainMockFns.set.mock.calls[0][0]).toEqual({ updatedAt: expect.any(Date) })
+
+    // Guarded, so a beat doubles as an ownership probe rather than a blind touch.
+    const where = dbChainMockFns.where.mock.calls[0][0]
+    expect(
+      hasMockCondition(
+        where,
+        (node: MockCondition) =>
+          node.type === 'eq' &&
+          node.left === schemaMock.knowledgeConnector.syncLockToken &&
+          node.right === 'run-a'
+      )
+    ).toBe(true)
+  })
+
+  it('reports a lost lock so the run can stop instead of racing its replacement', async () => {
+    const { heartbeatSyncLock } = await import('@/lib/knowledge/connectors/sync-engine')
+
+    dbChainMockFns.returning.mockResolvedValueOnce([])
+    expect(await heartbeatSyncLock('c-1', 'run-a')).toBe(false)
+
+    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'c-1' }])
+    expect(await heartbeatSyncLock('c-1', 'run-a')).toBe(true)
   })
 })

@@ -106,11 +106,18 @@ describe('connector sync scheduler stale-lock reaper', () => {
     await runTickRecovering(['connector-1'])
 
     const status = setPayloadForUpdate(0).status
-    const rendered = renderedSql(status)
 
-    expect(rendered).toContain('CASE WHEN COALESCE(')
-    expect(rendered).toContain("THEN 'disabled' ELSE 'error' END")
-    expect(numericBinds(status)).toContain(MAX_CONSECUTIVE_FAILURES)
+    /**
+     * Asserted whole rather than by its bookends: the comparison is the entire
+     * point of this expression, and leaving it in an un-asserted middle let
+     * `+ 2 >=`, `+ 1 >`, and an inverted `+ 1 <=` all pass. The last of those
+     * disables a connector on its first hard kill.
+     */
+    expect(renderedSql(status)).toBe(
+      "CASE WHEN COALESCE(?, 0) + 1 >= ? THEN 'disabled' ELSE 'error' END"
+    )
+    expect(asFragment(status).values[0]).toBe(schemaMock.knowledgeConnector.consecutiveFailures)
+    expect(asFragment(status).values[1]).toBe(MAX_CONSECUTIVE_FAILURES)
   })
 
   it('derives nextSyncAt from the shared failure backoff ladder', async () => {
@@ -119,9 +126,10 @@ describe('connector sync scheduler stale-lock reaper', () => {
     const nextSyncAt = setPayloadForUpdate(0).nextSyncAt
     const rendered = renderedSql(nextSyncAt)
 
-    expect(rendered).toContain('THEN NULL')
-    expect(rendered).toContain('LEAST(')
-    expect(rendered).toContain("INTERVAL '1 minute'")
+    expect(rendered).toBe(
+      'CASE WHEN COALESCE(?, 0) + 1 >= ? THEN NULL ' +
+        "ELSE now() + LEAST((COALESCE(?, 0) + 1) * ?, ?) * INTERVAL '1 minute' END"
+    )
 
     const [threshold, step, cap] = numericBinds(nextSyncAt)
     expect(threshold).toBe(MAX_CONSECUTIVE_FAILURES)
@@ -190,12 +198,32 @@ describe('connector sync scheduler stale-lock reaper', () => {
     await runTickRecovering(['connector-1'])
 
     const where = dbChainMockFns.where.mock.calls[1][0]
+
+    /**
+     * Checks every position, not just `column`. `eq()` builds `{left, right}`
+     * and only `inArray()` builds `{column}`, so a `column`-only assertion
+     * silently permitted an `eq`-scoped sweep — the exact coupling this test
+     * exists to forbid.
+     */
+    const connectorIdColumn = schemaMock.knowledgeConnectorSyncLog.connectorId
     expect(
       hasMockCondition(
         where,
-        (node: MockCondition) => node.column === schemaMock.knowledgeConnectorSyncLog.connectorId
+        (node: MockCondition) =>
+          node.column === connectorIdColumn ||
+          node.left === connectorIdColumn ||
+          node.right === connectorIdColumn
       )
     ).toBe(false)
+
+    // And positively: the sweep is keyed on the row's own age.
+    expect(
+      hasMockCondition(
+        where,
+        (node: MockCondition) =>
+          node.type === 'lte' && node.left === schemaMock.knowledgeConnectorSyncLog.startedAt
+      )
+    ).toBe(true)
   })
 
   it('drives the connector write off a single clock', async () => {

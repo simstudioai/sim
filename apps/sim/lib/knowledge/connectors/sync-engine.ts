@@ -21,6 +21,7 @@ import { resolveCredentialTokenIdentity } from '@/lib/credentials/access'
 import {
   connectorFailureBackoffMinutes,
   MAX_CONSECUTIVE_FAILURES,
+  SYNC_LOCK_HEARTBEAT_INTERVAL_MS,
 } from '@/lib/knowledge/connectors/sync-limits'
 import type { DocumentData } from '@/lib/knowledge/documents/service'
 import { hardDeleteDocuments, processDocumentsWithQueue } from '@/lib/knowledge/documents/service'
@@ -40,6 +41,20 @@ import type {
 import { hasIndexablePayload } from '@/connectors/utils'
 
 const logger = createLogger('ConnectorSyncEngine')
+
+/**
+ * Raised when a run discovers mid-flight that it no longer holds its sync lock.
+ *
+ * Stops it doing hours of further work whose terminal write would be rejected,
+ * and — more importantly — stops it writing documents concurrently with the
+ * replacement run that took the lock.
+ */
+class SyncLockLostException extends Error {
+  constructor(connectorId: string) {
+    super(`Sync lock for connector ${connectorId} was reclaimed during sync`)
+    this.name = 'SyncLockLostException'
+  }
+}
 
 class ConnectorDeletedException extends Error {
   constructor(connectorId: string) {
@@ -491,6 +506,42 @@ export function buildSyncLockAcquisition(syncLogId: string, now: Date) {
   }
 }
 
+/**
+ * Whether a running sync is due to refresh its lock.
+ *
+ * Time-based rather than batch-count-based: batches vary hugely in cost, so a
+ * every-N-batches beat would fire constantly on small documents and barely at
+ * all on large ones — exactly the runs that need it.
+ */
+export function shouldHeartbeatSyncLock(
+  nowMs: number,
+  lastBeatMs: number,
+  intervalMs: number = SYNC_LOCK_HEARTBEAT_INTERVAL_MS
+): boolean {
+  return nowMs - lastBeatMs >= intervalMs
+}
+
+/**
+ * Refreshes the connector's `updatedAt` to prove this run is still working, so
+ * the scheduler's stale-lock reclaim does not treat a slow-but-live sync as dead.
+ *
+ * Guarded on the run's own lock, so it doubles as an ownership probe: a false
+ * return means the lock was reclaimed and this run must stop rather than keep
+ * writing alongside its replacement.
+ */
+export async function heartbeatSyncLock(
+  connectorId: string,
+  syncLockToken: string
+): Promise<boolean> {
+  const beat = await db
+    .update(knowledgeConnector)
+    .set({ updatedAt: new Date() })
+    .where(stillHoldsSyncLock(connectorId, syncLockToken))
+    .returning({ id: knowledgeConnector.id })
+
+  return beat.length > 0
+}
+
 /** Columns a terminal write may set. Both paths write a subset of the same set. */
 type ConnectorTerminalUpdate = Partial<typeof knowledgeConnector.$inferInsert>
 
@@ -710,12 +761,12 @@ export function countDeletionEligibleOwned(
  * which is the documented way to apply the removals once the source is verified.
  */
 export function buildReconciliationHoldNotice(
-  requested: number,
+  withheld: number,
   cap: number,
   ownedDocCount: number
 ): string {
   return (
-    `Withheld ${requested} document removal(s) — more than the ${cap} allowed in one sync ` +
+    `Withheld ${withheld} document removal(s) — more than the ${cap} allowed in one sync ` +
     `of ${ownedDocCount} documents. Documents deleted at the source are still indexed. ` +
     'Check the source is returning its full contents, then run a full sync to apply the removals.'
   )
@@ -823,8 +874,21 @@ export function resolveReconciliationDeleteCap(
  *
  * The hold is deliberately all-or-nothing rather than a truncation to the cap:
  * deleting up to the cap still destroys data, and leaves the knowledge base in a
- * state no operator asked for and no later sync can reason about. Holding
- * everything keeps the corpus intact and self-heals as soon as the source does.
+ * state no operator asked for and no later sync can reason about. For the outage
+ * shapes above the corpus is left intact and reconciliation resumes as soon as
+ * the source returns its full listing. It does NOT self-heal from a hold caused
+ * by genuine bulk removal: those deletions stay withheld until a `fullSync`
+ * applies them, which is the point — a human confirms them.
+ *
+ * The two generations are capped SEPARATELY. Soft deletes are this sync's newly
+ * absent documents; hard deletes are the previous generation's soft deletes,
+ * confirmed absent a second time and therefore already gated by this cap once.
+ * Summing them double-counts the older generation and, on a connector with
+ * steady churn, ratchets: each sync's new soft deletes plus the prior sync's
+ * pending hard deletes exceed the cap, the all-or-nothing hold blocks the hard
+ * deletes that would drain the backlog, and the backlog grows monotonically so
+ * the connector never reconciles again. Capping each generation against the same
+ * ceiling keeps the per-sync blast radius bounded without that deadlock.
  *
  * `fullSync` bypasses the cap, matching its meaning everywhere else here — an
  * explicit human request to reconcile against this listing right now, which is
@@ -840,16 +904,24 @@ export function capReconciliationDeletions(
   softDeleteIds: string[]
   hardDeleteIds: string[]
   held: boolean
-  requested: number
+  softHeld: boolean
+  hardHeld: boolean
+  withheld: number
   cap: number
 } {
-  const requested = new Set([...softDeleteIds, ...hardDeleteIds]).size
   const cap = resolveReconciliationDeleteCap(ownedDocCount, override)
+  const softHeld = !fullSync && softDeleteIds.length > cap
+  const hardHeld = !fullSync && hardDeleteIds.length > cap
 
-  if (fullSync || requested <= cap) {
-    return { softDeleteIds, hardDeleteIds, held: false, requested, cap }
+  return {
+    softDeleteIds: softHeld ? [] : softDeleteIds,
+    hardDeleteIds: hardHeld ? [] : hardDeleteIds,
+    held: softHeld || hardHeld,
+    softHeld,
+    hardHeld,
+    withheld: (softHeld ? softDeleteIds.length : 0) + (hardHeld ? hardDeleteIds.length : 0),
+    cap,
   }
-  return { softDeleteIds: [], hardDeleteIds: [], held: true, requested, cap }
 }
 
 /**
@@ -1203,6 +1275,8 @@ export async function executeSync(
   }
 
   const syncStartedAt = new Date()
+  /** Seeded at lock acquisition, which wrote `updatedAt` itself. */
+  let lastHeartbeatAtMs = Date.now()
   await db.insert(knowledgeConnectorSyncLog).values({
     id: syncLogId,
     connectorId,
@@ -1487,6 +1561,13 @@ export async function executeSync(
     // per-file cap never hydrate/upload together and exhaust the worker heap.
     const batches = chunkOpsByByteBudget(pendingOps, CONTENT_INFLIGHT_BUDGET_BYTES, SYNC_BATCH_SIZE)
     for (const rawBatch of batches) {
+      if (shouldHeartbeatSyncLock(Date.now(), lastHeartbeatAtMs)) {
+        if (!(await heartbeatSyncLock(connectorId, syncLogId))) {
+          throw new SyncLockLostException(connectorId)
+        }
+        lastHeartbeatAtMs = Date.now()
+      }
+
       const liveness = await checkSyncLiveness(connectorId, connector.knowledgeBaseId)
       if (liveness.connectorDeleted) {
         throw new ConnectorDeletedException(connectorId)
@@ -1759,14 +1840,18 @@ export async function executeSync(
     let reconciliationHoldNotice: string | null = null
     if (capped.held) {
       reconciliationHoldNotice = buildReconciliationHoldNotice(
-        capped.requested,
+        capped.withheld,
         capped.cap,
         ownedDocCount
       )
       logger.error('Reconciliation deletions held — exceeds per-sync blast-radius cap', {
         connectorId,
         connectorType: connector.connectorType,
-        requested: capped.requested,
+        withheld: capped.withheld,
+        softHeld: capped.softHeld,
+        hardHeld: capped.hardHeld,
+        requestedSoft: softDeleteIds.length,
+        requestedHard: hardDeleteIds.length,
         cap: capped.cap,
         ownedDocCount,
         listedCount: listedDocCount,
@@ -1861,6 +1946,13 @@ export async function executeSync(
       // own commit; this closes the remaining gap between that commit and
       // this call.
       result.docsDeleted += await hardDeleteDocuments(safeHardDeleteIds, syncLogId, connectorId)
+    }
+
+    if (shouldHeartbeatSyncLock(Date.now(), lastHeartbeatAtMs)) {
+      if (!(await heartbeatSyncLock(connectorId, syncLogId))) {
+        throw new SyncLockLostException(connectorId)
+      }
+      lastHeartbeatAtMs = Date.now()
     }
 
     const postBatchLiveness = await checkSyncLiveness(connectorId, connector.knowledgeBaseId)
@@ -2036,6 +2128,20 @@ export async function executeSync(
     logger.info('Sync completed', { connectorId, ...result })
     return result
   } catch (error) {
+    if (error instanceof SyncLockLostException) {
+      /**
+       * Reported as superseded rather than failed, and deliberately writes
+       * nothing: the connector row belongs to whoever reclaimed it, and this
+       * run's own sync-log row was closed by the sweep that did so.
+       */
+      logger.warn('Sync abandoned — lock was reclaimed while this run was executing', {
+        connectorId,
+        syncLogId,
+        ...result,
+      })
+      return applySupersededOutcome(result, false)
+    }
+
     if (error instanceof ConnectorDeletedException) {
       logger.info('Connector deleted during sync, cleaning up', { connectorId })
 

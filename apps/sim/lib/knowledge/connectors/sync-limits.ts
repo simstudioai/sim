@@ -13,20 +13,22 @@ export const CONNECTOR_SYNC_MAX_DURATION_SECONDS = 3600
  * lock for another sync, so a TTL at or below the run ceiling would start a second
  * sync while the first is still writing, both racing the same documents.
  *
- * This is a hard ceiling for BOTH execution paths, not just the queued one. A
- * Trigger.dev run is killed at {@link CONNECTOR_SYNC_MAX_DURATION_SECONDS}, so it
- * is provably dead well before this. The fallback path is not: when Trigger.dev is
- * unavailable, `dispatchSync` runs `executeSync` fire-and-forget inside the web
- * process with no duration cap, and such a run genuinely can still be executing
- * when this TTL expires.
+ * Measured against `updatedAt`, which a running sync refreshes every
+ * {@link SYNC_LOCK_HEARTBEAT_INTERVAL_MS}. That is what makes the TTL mean
+ * "nobody is working on this" rather than "this started a long time ago" — the
+ * distinction the in-process fallback path needs. A Trigger.dev run is killed at
+ * {@link CONNECTOR_SYNC_MAX_DURATION_SECONDS} and so is provably dead well before
+ * this; the fallback path has no duration cap, so without a heartbeat a large
+ * self-hosted sync that legitimately runs past two hours would be reclaimed while
+ * still working, counted as a failure, and — because its own terminal write is
+ * then rejected as superseded — never able to reset that counter. Ten such syncs
+ * would disable a connector whose every sync had actually succeeded.
  *
- * Treating it as dead anyway is deliberate. An unbounded background sync in a
- * recyclable web process that has run for two hours is indistinguishable from one
- * whose process was recycled out from under it, and the cost of guessing wrong in
- * the other direction is a connector locked out of syncing forever. The sweep's
- * verdict is therefore authoritative: `completeSyncLog` is guarded on
- * `status = 'started'`, so a late finisher cannot overwrite a row already closed
- * here, and it loses the race by design rather than by accident.
+ * A run that stops heartbeating is genuinely gone: its process died, or it is
+ * wedged, and either way reclaiming it is correct. The sweep's verdict stays
+ * authoritative for those — `completeSyncLog` is guarded on `status = 'started'`
+ * and terminal connector writes on the run's own `syncLockToken`, so a late
+ * finisher loses the race by design rather than by accident.
  */
 export const CONNECTOR_SYNC_STALE_LOCK_TTL_MS = CONNECTOR_SYNC_MAX_DURATION_SECONDS * 2 * 1000
 
@@ -63,3 +65,14 @@ export function connectorFailureBackoffMinutes(failures: number): number {
     CONNECTOR_FAILURE_BACKOFF_CAP_MINUTES
   )
 }
+
+/**
+ * How often a running sync refreshes its connector's `updatedAt` to prove it is
+ * still working.
+ *
+ * MUST stay well below {@link CONNECTOR_SYNC_STALE_LOCK_TTL_MS} so ordinary
+ * jitter — a slow batch, a long upload — cannot let a live run drift past the
+ * reclaim cutoff. The cost is one narrow UPDATE per interval per running sync,
+ * negligible against the work a sync does between beats.
+ */
+export const SYNC_LOCK_HEARTBEAT_INTERVAL_MS = 5 * 60 * 1000
