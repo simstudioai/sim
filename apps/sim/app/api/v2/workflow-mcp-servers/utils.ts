@@ -2,8 +2,10 @@ import {
   type V2WorkflowMcpServer,
   type V2WorkflowMcpServerListItem,
   type V2WorkflowMcpTool,
+  type V2WorkflowMcpToolListItem,
   v2WorkflowMcpServerListItemSchema,
   v2WorkflowMcpServerSchema,
+  v2WorkflowMcpToolListItemSchema,
   v2WorkflowMcpToolSchema,
 } from '@/lib/api/contracts/v2/workflow-mcp-servers'
 import { createV2ResourceConcealmentPolicy } from '@/lib/api/server/routes'
@@ -58,6 +60,17 @@ export function toV2WorkflowMcpTool(row: WorkflowMcpToolRow, updated: boolean): 
     mcpServerUrl: buildWorkflowMcpServerUrl(row.serverId),
     apiEndpoint: buildWorkflowMcpApiEndpoint(row.workflowId),
     updated,
+    createdAt: row.createdAt.toISOString(),
+    updatedAt: row.updatedAt.toISOString(),
+  })
+}
+
+/** {@link toV2WorkflowMcpTool} for a read, which has no publish outcome to report. */
+export function toV2WorkflowMcpToolListItem(row: WorkflowMcpToolRow): V2WorkflowMcpToolListItem {
+  return v2WorkflowMcpToolListItemSchema.parse({
+    ...row,
+    mcpServerUrl: buildWorkflowMcpServerUrl(row.serverId),
+    apiEndpoint: buildWorkflowMcpApiEndpoint(row.workflowId),
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   })

@@ -16,7 +16,6 @@ import {
   v2ApiTableSchema,
   v2BatchUpdateRowsBodySchema,
   v2BulkDeleteTablesBodySchema,
-  v2BulkMoveTablesBodySchema,
   v2CreateTableBodySchema,
   v2CreateTableColumnBodySchema,
   v2CreateTableImportBodySchema,
@@ -29,6 +28,7 @@ import {
   v2GetTableImportContract,
   v2GetTableRowQuerySchema,
   v2ListTablesQuerySchema,
+  v2MoveTablesBodySchema,
   v2QueryRowsBodySchema,
   v2QueryRowsCountBodySchema,
   v2RestoreTableContract,
@@ -783,7 +783,7 @@ describe('v2 bulk table selection contracts', () => {
 
   it('bounds the combined selection', () => {
     expect(
-      v2BulkMoveTablesBodySchema.safeParse({
+      v2MoveTablesBodySchema.safeParse({
         workspaceId: WORKSPACE_ID,
         tableIds: Array.from({ length: MAX_TABLE_BATCH_ITEMS }, (_unused, i) => `table-${i}`),
         folderPaths: ['/Sales'],
@@ -794,7 +794,7 @@ describe('v2 bulk table selection contracts', () => {
 
   it('accepts a workspace-root destination as null', () => {
     expect(
-      v2BulkMoveTablesBodySchema.safeParse({
+      v2MoveTablesBodySchema.safeParse({
         workspaceId: WORKSPACE_ID,
         tableIds: ['table-1'],
         targetFolderPath: null,

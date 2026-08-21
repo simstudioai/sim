@@ -2548,7 +2548,7 @@ function refineV2BoundedTableSelection(
   }
 }
 
-export const v2BulkMoveTablesBodySchema = z
+export const v2MoveTablesBodySchema = z
   .object({
     workspaceId: workspaceIdSchema.describe('Workspace that owns every selected item.'),
     tableIds: v2BulkTableIdListSchema.describe('Tables to move, by identifier.'),
@@ -2561,7 +2561,7 @@ export const v2BulkMoveTablesBodySchema = z
   })
   .strict()
   .superRefine(refineV2BoundedTableSelection)
-export type V2BulkMoveTablesBody = z.input<typeof v2BulkMoveTablesBodySchema>
+export type V2MoveTablesBody = z.input<typeof v2MoveTablesBodySchema>
 
 export const v2BulkDeleteTablesBodySchema = z
   .object({
@@ -2610,7 +2610,7 @@ const v2BulkTableSkippedSchema = z
   .array(v2BulkTableItemSchema)
   .describe('Items dropped because a selected folder already carries them.')
 
-export const v2BulkMoveTablesDataSchema = z
+export const v2MoveTablesDataSchema = z
   .object({
     moved: z.array(v2BulkTableItemSchema).describe('Items the batch moved.'),
     skipped: v2BulkTableSkippedSchema,
@@ -2619,11 +2619,11 @@ export const v2BulkMoveTablesDataSchema = z
   })
   .strict()
   .meta({
-    id: 'V2BulkMoveTablesData',
+    id: 'V2MoveTablesData',
     title: 'Bulk move tables data',
     description: 'Per-item outcome of a bulk table and folder move.',
   })
-export type V2BulkMoveTablesData = z.output<typeof v2BulkMoveTablesDataSchema>
+export type V2MoveTablesData = z.output<typeof v2MoveTablesDataSchema>
 
 export const v2BulkDeleteTablesDataSchema = z
   .object({
@@ -2652,12 +2652,12 @@ export type V2BulkDeleteTablesData = z.output<typeof v2BulkDeleteTablesDataSchem
  * request, best-effort per item: an item the batch could not act on is reported
  * in `failed` or `notFound` rather than stranding the rest of the selection.
  */
-export const v2BulkMoveTablesContract = defineRouteContract({
+export const v2MoveTablesContract = defineRouteContract({
   method: 'POST',
-  path: '/api/v2/tables/bulk-move',
+  path: '/api/v2/tables/move',
   query: noInputSchema,
-  body: v2BulkMoveTablesBodySchema,
-  response: { mode: 'json', schema: v2DataResponse(v2BulkMoveTablesDataSchema) },
+  body: v2MoveTablesBodySchema,
+  response: { mode: 'json', schema: v2DataResponse(v2MoveTablesDataSchema) },
 })
 
 /**

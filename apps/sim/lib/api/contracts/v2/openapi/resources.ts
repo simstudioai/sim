@@ -65,7 +65,9 @@ import {
   v2CreateWorkflowMcpServerContract,
   v2DeleteWorkflowMcpServerContract,
   v2DeployWorkflowMcpToolContract,
+  v2GetWorkflowMcpServerContract,
   v2ListWorkflowMcpServersContract,
+  v2ListWorkflowMcpToolsContract,
   v2UndeployWorkflowMcpToolContract,
   v2UpdateWorkflowMcpServerContract,
 } from '@/lib/api/contracts/v2/workflow-mcp-servers'
@@ -260,6 +262,11 @@ const WORKFLOW_MCP_TOOL_EXAMPLE = {
   createdAt: '2026-06-12T10:30:00.000Z',
   updatedAt: '2026-06-12T10:30:00.000Z',
 } as const
+
+/** The publish example as a read returns it: `updated` is a publish outcome, not a field of the tool. */
+function omitUpdated({ updated: _updated, ...tool }: typeof WORKFLOW_MCP_TOOL_EXAMPLE) {
+  return tool
+}
 
 const WORKSPACE_ID = 'a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64'
 
@@ -1502,6 +1509,53 @@ const declaredRoutes = [
         'Create workflow MCP server response',
         'The published MCP server.',
         [{ data: WORKFLOW_MCP_SERVER_EXAMPLE }]
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2GetWorkflowMcpServerContract,
+    resourceOperation('MCP Servers', {
+      operationId: 'getWorkflowMcpServer',
+      summary: 'Get Workflow MCP Server',
+      description: `Read one published MCP server. The list is the only other place this state is published, so a caller holding a server id would otherwise have to page the collection and filter client-side. The tools it publishes are on its \`tools\` sub-resource. ${WORKSPACE_API_KEY_DENIED}`,
+      errors: RESOURCE_ERRORS,
+      success: { description: 'The MCP server.' },
+    }),
+    {
+      query: v2GetWorkflowMcpServerContract.query,
+      params: v2GetWorkflowMcpServerContract.params,
+      response: documentedSchema(
+        v2GetWorkflowMcpServerContract.response.schema,
+        'GetWorkflowMcpServerResponse',
+        'Get workflow MCP server response',
+        'A single published MCP server.',
+        [{ data: WORKFLOW_MCP_SERVER_EXAMPLE }]
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2ListWorkflowMcpToolsContract,
+    resourceOperation('MCP Servers', {
+      operationId: 'listWorkflowMcpTools',
+      summary: 'List Workflow MCP Tools',
+      description: `Every tool a server publishes, tool-name ordered. The server list reports tool *names* only, so this is where a caller reads the \`workflowId\` that \`DELETE /api/v2/workflow-mcp-servers/{serverId}/tools/{workflowId}\` addresses. Returns the full inventory rather than a page — it is bounded by the workspace's deployed workflows — so \`nextCursor\` is always null. ${WORKSPACE_API_KEY_DENIED}`,
+      errors: RESOURCE_ERRORS,
+      success: { description: 'The tools this server publishes.' },
+    }),
+    {
+      query: v2ListWorkflowMcpToolsContract.query,
+      params: v2ListWorkflowMcpToolsContract.params,
+      response: documentedSchema(
+        v2ListWorkflowMcpToolsContract.response.schema,
+        'ListWorkflowMcpToolsResponse',
+        'List workflow MCP tools response',
+        'The tools a published MCP server exposes.',
+        [
+          {
+            data: [omitUpdated(WORKFLOW_MCP_TOOL_EXAMPLE)],
+            nextCursor: null,
+          },
+        ]
       ),
     }
   ),

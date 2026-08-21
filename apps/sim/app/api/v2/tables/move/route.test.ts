@@ -26,7 +26,7 @@ vi.mock('@/lib/table/application/bulk', () => ({
 
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { POST as BULK_DELETE } from '@/app/api/v2/tables/bulk-delete/route'
-import { POST as BULK_MOVE } from '@/app/api/v2/tables/bulk-move/route'
+import { POST as BULK_MOVE } from '@/app/api/v2/tables/move/route'
 
 const WORKSPACE_ID = 'workspace-1'
 const PRINCIPAL = {
@@ -52,7 +52,7 @@ function call(handler: (request: NextRequest) => Promise<Response>, path: string
   return { request, response: handler(request) }
 }
 
-describe('POST /api/v2/tables/bulk-move', () => {
+describe('POST /api/v2/tables/move', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     v2RouteMocks.authenticate.mockResolvedValue(AUTH)

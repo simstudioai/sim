@@ -365,19 +365,32 @@ export const CLI_CONTRACT: CliContract = {
   revertWorkflowVersion: {
     confirm: 'This overwrites the draft graph with the selected version and cannot be undone.',
   },
+  // POST derives to `... create`, which creates nothing here. Named for the
+  // operation instead, matching the shipped `files move`.
   moveWorkflows: {
+    command: 'workflows move',
     flags: {
       workflowIds: { name: 'workflow', list: true },
       folderPath: FOLDER_PATH_FLAG,
     },
   },
-  bulkMoveTables: {
+  moveTables: {
+    command: 'tables move',
     flags: {
       folderPaths: FOLDER_PATHS_FLAG,
       targetFolderPath: TARGET_FOLDER_PATH_FLAG,
     },
   },
+  // `tables rows batch-update` is already the filter form (`updateRowsByFilter`,
+  // one payload applied to every match). This is the AIP-234 batch — a distinct
+  // payload per listed row — so it needs a name that says "each", not a second
+  // `batch-`/`bulk-` spelling one word apart from its neighbour.
+  batchUpdateTableRows: {
+    command: 'tables rows update-each',
+    describe: 'Apply a distinct patch to each listed row',
+  },
   bulkDeleteTables: {
+    command: 'tables bulk-delete',
     flags: { folderPaths: FOLDER_PATHS_FLAG },
     confirm: 'This deletes every listed table and all of their rows.',
   },

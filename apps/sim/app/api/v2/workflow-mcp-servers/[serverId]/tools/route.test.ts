@@ -18,6 +18,7 @@ const mocks = vi.hoisted(() => ({
   resolvePermission: vi.fn(),
   loadWorkspaceContext: vi.fn(),
   getServer: vi.fn(),
+  listTools: vi.fn(),
   getLiveTool: vi.fn(),
   getWorkflow: vi.fn(),
   createTool: vi.fn(),
@@ -49,6 +50,7 @@ vi.mock('@/lib/mcp/queries', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/mcp/queries')>()),
   getWorkflowMcpServerById: mocks.getServer,
   getLiveWorkflowMcpTool: mocks.getLiveTool,
+  listLiveWorkflowMcpTools: mocks.listTools,
   getWorkflowMcpPublishableWorkflow: mocks.getWorkflow,
 }))
 vi.mock('@/lib/mcp/orchestration', () => ({
@@ -75,7 +77,7 @@ vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
 vi.mock('@/app/api/v2/lib/gate', () => v2GateModuleMock)
 
 import { DELETE } from '@/app/api/v2/workflow-mcp-servers/[serverId]/tools/[workflowId]/route'
-import { POST } from '@/app/api/v2/workflow-mcp-servers/[serverId]/tools/route'
+import { GET, POST } from '@/app/api/v2/workflow-mcp-servers/[serverId]/tools/route'
 
 const WORKSPACE_ID = 'workspace-1'
 const SERVER_ID = 'wfmcp-1'
@@ -119,6 +121,11 @@ function queueWorkflowLookup(
   row: unknown = { id: WORKFLOW_ID, name: 'Ticket triage', isDeployed: true }
 ) {
   mocks.getWorkflow.mockResolvedValue(row)
+}
+
+async function get() {
+  const request = new NextRequest(`http://localhost/api/v2/workflow-mcp-servers/${SERVER_ID}/tools`)
+  return GET(request, { params: Promise.resolve({ serverId: SERVER_ID }) })
 }
 
 async function post(body: unknown) {
@@ -295,6 +302,56 @@ describe('/api/v2/workflow-mcp-servers/[serverId]/tools', () => {
         'Workflow is not deployed to this MCP server'
       )
       expect(mocks.audit).not.toHaveBeenCalled()
+    })
+  })
+
+  /**
+   * The server list reports tool NAMES only, so before this read nothing
+   * published the `workflowId` that `DELETE .../tools/{workflowId}` addresses —
+   * a caller that lost the publish response could not reconcile a server.
+   */
+  describe('GET', () => {
+    it('returns each published tool with the workflowId that addresses it', async () => {
+      mocks.getServer.mockResolvedValue(serverRow)
+      mocks.listTools.mockResolvedValue({ tools: [toolRow], truncated: false })
+
+      const response = await get()
+
+      expect(response.status).toBe(200)
+      const body = await response.json()
+      expect(body.data).toHaveLength(1)
+      expect(body.data[0]).toMatchObject({
+        id: 'wfmcptool-1',
+        serverId: SERVER_ID,
+        workflowId: WORKFLOW_ID,
+        toolName: 'triage_ticket',
+      })
+    })
+
+    /** `updated` reports what a publish did; a read has no publish to report. */
+    it('omits the publish-only updated flag', async () => {
+      mocks.getServer.mockResolvedValue(serverRow)
+      mocks.listTools.mockResolvedValue({ tools: [toolRow], truncated: false })
+
+      const body = await (await get()).json()
+
+      expect(body.data[0]).not.toHaveProperty('updated')
+    })
+
+    it('is a full set, so nextCursor is always null', async () => {
+      mocks.getServer.mockResolvedValue(serverRow)
+      mocks.listTools.mockResolvedValue({ tools: [toolRow], truncated: false })
+
+      const body = await (await get()).json()
+
+      expect(body.nextCursor).toBeNull()
+    })
+
+    it('conceals a server in another workspace as not found', async () => {
+      mocks.getServer.mockResolvedValue(null)
+
+      expect((await get()).status).toBe(404)
+      expect(mocks.listTools).not.toHaveBeenCalled()
     })
   })
 })

@@ -231,6 +231,28 @@ export async function getWorkflowMcpServerById(
 }
 
 /**
+ * Every live tool a server publishes, tool-name ordered.
+ *
+ * Bounded by `limit` rather than paged, matching `GET /api/v2/mcp-servers/{id}/tools`:
+ * a server's inventory is capped by the workflows a workspace has deployed, and
+ * the caller wants the whole inventory to reconcile against, not a page of it.
+ * The `+ 1` read is how the caller learns the cap was hit — the same signal
+ * {@link listWorkflowMcpToolNames} reports as `truncated`.
+ */
+export async function listLiveWorkflowMcpTools(
+  serverId: string,
+  limit: number
+): Promise<{ tools: WorkflowMcpToolRow[]; truncated: boolean }> {
+  const rows = await db
+    .select()
+    .from(workflowMcpTool)
+    .where(and(eq(workflowMcpTool.serverId, serverId), isNull(workflowMcpTool.archivedAt)))
+    .orderBy(asc(workflowMcpTool.toolName))
+    .limit(limit + 1)
+  return { tools: rows.slice(0, limit), truncated: rows.length > limit }
+}
+
+/**
  * The live tool publishing a workflow on a server, or null.
  *
  * A server carries at most one unarchived tool per workflow — the partial unique

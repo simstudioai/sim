@@ -4010,7 +4010,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/V2BatchUpdateTableRowsResponse"
+                  "$ref": "#/components/schemas/V2BulkUpdateTableRowsResponse"
                 }
               }
             }
@@ -4198,10 +4198,10 @@
         }
       }
     },
-    "/api/v2/tables/bulk-move": {
+    "/api/v2/tables/move": {
       "post": {
-        "operationId": "bulkMoveTables",
-        "summary": "Bulk Move Tables and Folders",
+        "operationId": "moveTables",
+        "summary": "Move Tables and Folders",
         "description": "Move up to 100 tables and table folders into one destination folder in a single authorized request. Folders are named by canonical path, and `null` or `/` moves to the workspace root. Best-effort per item: a table filed inside a selected folder is reported in `skipped` because the folder already carries it, an entry that resolves to nothing lands in `notFound`, and an item refused by a lock or a folder cycle lands in `failed` with a reason. An invalid destination fails the whole request before anything moves.",
         "tags": ["Tables"],
         "requestBody": {
@@ -4232,7 +4232,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/V2BulkMoveTablesResponse"
+                  "$ref": "#/components/schemas/V2MoveTablesResponse"
                 }
               }
             }
@@ -9249,7 +9249,7 @@
         "title": "Batch update rows data",
         "description": "Rows affected by a heterogeneous batch update."
       },
-      "V2BatchUpdateTableRowsResponse": {
+      "V2BulkUpdateTableRowsResponse": {
         "type": "object",
         "properties": {
           "data": {
@@ -9629,7 +9629,7 @@
         "title": "Table run dispatch list response",
         "description": "The table's active run dispatches."
       },
-      "V2BulkMoveTablesData": {
+      "V2MoveTablesData": {
         "type": "object",
         "properties": {
           "moved": {
@@ -9734,12 +9734,12 @@
         "title": "Bulk move tables data",
         "description": "Per-item outcome of a bulk table and folder move."
       },
-      "V2BulkMoveTablesResponse": {
+      "V2MoveTablesResponse": {
         "type": "object",
         "properties": {
           "data": {
             "description": "Response data.",
-            "$ref": "#/components/schemas/V2BulkMoveTablesData"
+            "$ref": "#/components/schemas/V2MoveTablesData"
           }
         },
         "required": ["data"],

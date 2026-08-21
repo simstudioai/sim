@@ -44,6 +44,26 @@ export const mcpServerOperations = {
     workspaceApiKey: 'deny',
     ...HUMAN_PRINCIPAL_POLICY,
   }),
+  /**
+   * Reads one published server, and the tools it publishes.
+   *
+   * Both carry the `listWorkflowDeployments` policy rather than the
+   * `mcp_servers.read` one beside them: the workflow-deployment family denies
+   * workspace API keys throughout, and a detail read that admitted one would be
+   * a wider door into the same data the list deliberately closes.
+   */
+  readWorkflowDeploymentServer: defineWorkspaceOperation({
+    id: 'mcp_servers.workflow_deployments.read_server',
+    minimumRole: 'read',
+    workspaceApiKey: 'deny',
+    ...HUMAN_PRINCIPAL_POLICY,
+  }),
+  listWorkflowDeploymentTools: defineWorkspaceOperation({
+    id: 'mcp_servers.workflow_deployments.list_tools',
+    minimumRole: 'read',
+    workspaceApiKey: 'deny',
+    ...HUMAN_PRINCIPAL_POLICY,
+  }),
   createWorkflowDeploymentServer: defineWorkspaceOperation({
     id: 'mcp_servers.workflow_deployments.create_server',
     minimumRole: 'admin',

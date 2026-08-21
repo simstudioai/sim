@@ -20,7 +20,6 @@ import {
   v2AddWorkflowGroupContract,
   v2BatchUpdateTableRowsContract,
   v2BulkDeleteTablesContract,
-  v2BulkMoveTablesContract,
   v2CancelTableExportContract,
   v2CancelTableImportContract,
   v2CancelTableRunsContract,
@@ -53,6 +52,7 @@ import {
   v2ListTablesContract,
   v2ListTableViewsContract,
   v2ListWorkflowGroupsContract,
+  v2MoveTablesContract,
   v2QueryRowsContract,
   v2QueryRowsCountContract,
   v2RelocateTableFolderContract,
@@ -1669,7 +1669,7 @@ const declaredRoutes = [
       ),
       response: documentedSchema(
         v2BatchUpdateTableRowsContract.response.schema,
-        'V2BatchUpdateTableRowsResponse',
+        'V2BulkUpdateTableRowsResponse',
         'Batch update table rows response',
         'Updated row count and identifiers.'
       ),
@@ -1769,19 +1769,19 @@ const declaredRoutes = [
     }
   ),
   defineOpenApiRoute(
-    v2BulkMoveTablesContract,
+    v2MoveTablesContract,
     tableOperation({
-      operationId: 'bulkMoveTables',
-      summary: 'Bulk Move Tables and Folders',
+      operationId: 'moveTables',
+      summary: 'Move Tables and Folders',
       description:
         'Move up to 100 tables and table folders into one destination folder in a single authorized request. Folders are named by canonical path, and `null` or `/` moves to the workspace root. Best-effort per item: a table filed inside a selected folder is reported in `skipped` because the folder already carries it, an entry that resolves to nothing lands in `notFound`, and an item refused by a lock or a folder cycle lands in `failed` with a reason. An invalid destination fails the whole request before anything moves.',
       errors: [...RESOURCE_ERRORS, 'PayloadTooLarge'],
       success: { description: 'Per-item outcome of the bulk move.' },
     }),
     {
-      query: v2BulkMoveTablesContract.query,
+      query: v2MoveTablesContract.query,
       body: documentedSchema(
-        v2BulkMoveTablesContract.body,
+        v2MoveTablesContract.body,
         'BulkMoveTablesRequest',
         'Bulk move tables request',
         'Workspace scope, the tables and folder paths to move, and the destination folder path.',
@@ -1795,8 +1795,8 @@ const declaredRoutes = [
         ]
       ),
       response: documentedSchema(
-        v2BulkMoveTablesContract.response.schema,
-        'V2BulkMoveTablesResponse',
+        v2MoveTablesContract.response.schema,
+        'V2MoveTablesResponse',
         'Bulk move tables response',
         'Per-item outcome of a bulk table and folder move.'
       ),

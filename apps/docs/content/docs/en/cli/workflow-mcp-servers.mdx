@@ -82,6 +82,22 @@ sim workflow-mcp-servers tools create <serverId> [options]
 
 </CommandTable>
 
+## List workflow MCP tools
+
+```bash
+sim workflow-mcp-servers tools list <serverId>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `serverId` | Yes | Unique workflow-MCP server identifier. |
+
+</CommandTable>
+
 ## Unpublish workflow MCP tool
 
 ```bash
@@ -106,6 +122,22 @@ sim workflow-mcp-servers tools delete <serverId> <workflowId> [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `-y, --yes` | Yes | Confirm this destructive operation. |
+
+</CommandTable>
+
+## Get workflow MCP server
+
+```bash
+sim workflow-mcp-servers get <serverId>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `serverId` | Yes | Unique workflow-MCP server identifier. |
 
 </CommandTable>
 

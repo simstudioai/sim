@@ -3099,6 +3099,69 @@
       }
     },
     "/api/v2/workflow-mcp-servers/{serverId}": {
+      "get": {
+        "operationId": "getWorkflowMcpServer",
+        "summary": "Get Workflow MCP Server",
+        "description": "Read one published MCP server. The list is the only other place this state is published, so a caller holding a server id would otherwise have to page the collection and filter client-side. The tools it publishes are on its `tools` sub-resource. A workspace API key is rejected with `403`; use a personal API key.",
+        "tags": ["MCP Servers"],
+        "parameters": [
+          {
+            "name": "serverId",
+            "in": "path",
+            "required": true,
+            "description": "Unique workflow-MCP server identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Unique workflow-MCP server identifier."
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The MCP server.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetWorkflowMcpServerResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      },
       "patch": {
         "operationId": "updateWorkflowMcpServer",
         "summary": "Update Workflow MCP Server",
@@ -3244,6 +3307,69 @@
       }
     },
     "/api/v2/workflow-mcp-servers/{serverId}/tools": {
+      "get": {
+        "operationId": "listWorkflowMcpTools",
+        "summary": "List Workflow MCP Tools",
+        "description": "Every tool a server publishes, tool-name ordered. The server list reports tool *names* only, so this is where a caller reads the `workflowId` that `DELETE /api/v2/workflow-mcp-servers/{serverId}/tools/{workflowId}` addresses. Returns the full inventory rather than a page — it is bounded by the workspace's deployed workflows — so `nextCursor` is always null. A workspace API key is rejected with `403`; use a personal API key.",
+        "tags": ["MCP Servers"],
+        "parameters": [
+          {
+            "name": "serverId",
+            "in": "path",
+            "required": true,
+            "description": "Unique workflow-MCP server identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Unique workflow-MCP server identifier."
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The tools this server publishes.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListWorkflowMcpToolsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      },
       "post": {
         "operationId": "deployWorkflowMcpTool",
         "summary": "Publish Workflow As MCP Tool",
@@ -7335,6 +7461,141 @@
             "workspaceId": "9f4c2a10-3b7e-4d58-8f6a-2c1d0e5b7a94",
             "name": "Support agents",
             "workflowIds": ["3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36"]
+          }
+        ]
+      },
+      "GetWorkflowMcpServerResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/WorkflowMcpServer"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Get workflow MCP server response",
+        "description": "A single published MCP server.",
+        "examples": [
+          {
+            "data": {
+              "id": "wfmcp_01J8ZK3QW4M6X2R9T7B5C0V2",
+              "name": "Support agents",
+              "description": "Ticket triage and escalation workflows.",
+              "isPublic": false,
+              "mcpServerUrl": "https://www.sim.ai/api/mcp/serve/wfmcp_01J8ZK3QW4M6X2R9T7B5C0V2",
+              "createdAt": "2026-06-12T10:30:00.000Z",
+              "updatedAt": "2026-06-12T10:30:00.000Z"
+            }
+          }
+        ]
+      },
+      "WorkflowMcpToolListItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique tool identifier."
+          },
+          "serverId": {
+            "type": "string",
+            "description": "Server that publishes this tool."
+          },
+          "workflowId": {
+            "type": "string",
+            "description": "Workflow this tool executes."
+          },
+          "toolName": {
+            "type": "string",
+            "description": "Name an MCP client calls. Derived from the supplied name or the workflow name, normalized to the MCP tool-name grammar."
+          },
+          "toolDescription": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Description shown to MCP clients."
+          },
+          "mcpServerUrl": {
+            "type": "string",
+            "description": "Endpoint an MCP client connects to."
+          },
+          "apiEndpoint": {
+            "type": "string",
+            "description": "Sim execution endpoint this tool calls through."
+          },
+          "createdAt": {
+            "type": "string",
+            "description": "ISO 8601 timestamp when the tool was created.",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "description": "ISO 8601 timestamp when the tool was last modified.",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "serverId",
+          "workflowId",
+          "toolName",
+          "toolDescription",
+          "mcpServerUrl",
+          "apiEndpoint",
+          "createdAt",
+          "updatedAt"
+        ],
+        "additionalProperties": false,
+        "title": "Workflow MCP tool list item",
+        "description": "A tool a server publishes, as returned by a read."
+      },
+      "ListWorkflowMcpToolsResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkflowMcpToolListItem"
+            },
+            "description": "Items in the current page."
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Always `null` — this list has no `cursor` or `limit` param and returns its whole bounded set in one page. Present so the list can gain pages later without a shape change."
+          }
+        },
+        "required": ["data", "nextCursor"],
+        "additionalProperties": false,
+        "title": "List workflow MCP tools response",
+        "description": "The tools a published MCP server exposes.",
+        "examples": [
+          {
+            "data": [
+              {
+                "id": "wfmcptool_01J8ZK3QW4M6X2R9T7B5C0V3",
+                "serverId": "wfmcp_01J8ZK3QW4M6X2R9T7B5C0V2",
+                "workflowId": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36",
+                "toolName": "triage_ticket",
+                "toolDescription": "Execute Ticket triage workflow",
+                "mcpServerUrl": "https://www.sim.ai/api/mcp/serve/wfmcp_01J8ZK3QW4M6X2R9T7B5C0V2",
+                "apiEndpoint": "https://www.sim.ai/api/v2/workflows/3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36/execute",
+                "createdAt": "2026-06-12T10:30:00.000Z",
+                "updatedAt": "2026-06-12T10:30:00.000Z"
+              }
+            ],
+            "nextCursor": null
           }
         ]
       },

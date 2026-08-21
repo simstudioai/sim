@@ -1,4 +1,4 @@
-import { v2BulkMoveTablesContract } from '@/lib/api/contracts/v2/tables'
+import { v2MoveTablesContract } from '@/lib/api/contracts/v2/tables'
 import { defineV2JsonRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/routes'
 import { v2TableErrorPolicies } from '@/lib/table/api'
 import { bulkMoveTables } from '@/lib/table/application/bulk'
@@ -14,7 +14,7 @@ export const revalidate = 0
  * case, never here.
  */
 export const POST = defineV2JsonRoute({
-  contract: v2BulkMoveTablesContract,
+  contract: v2MoveTablesContract,
   operation: tableOperations.bulkMove,
   auth: v2ApiKeyAuth,
   rateLimit: v2RateLimits.publicApi,

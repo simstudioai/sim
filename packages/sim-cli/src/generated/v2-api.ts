@@ -626,45 +626,6 @@ export type BulkDownloadFilesQuery = {
 /** Non-JSON response (`binary`). */
 export type BulkDownloadFilesResponse = never
 
-/** `POST /api/v2/tables/bulk-move` */
-export type BulkMoveTablesQuery = Record<string, unknown>
-
-type BulkMoveTablesBodyRef0 = string
-
-export type BulkMoveTablesBody = {
-  workspaceId: string
-  tableIds?: Array<string>
-  folderPaths?: Array<BulkMoveTablesBodyRef0>
-  targetFolderPath: BulkMoveTablesBodyRef0 | null
-}
-
-type BulkMoveTablesResponseRef0 = {
-  moved: Array<{
-    kind: 'table' | 'folder'
-    id: string
-    name: string
-  }>
-  skipped: Array<{
-    kind: 'table' | 'folder'
-    id: string
-    name: string
-  }>
-  notFound: Array<{
-    kind: 'table' | 'folder'
-    id: string
-  }>
-  failed: Array<{
-    kind: 'table' | 'folder'
-    id: string
-    name: string
-    reason: string
-  }>
-}
-
-export type BulkMoveTablesResponse = {
-  data: BulkMoveTablesResponseRef0
-}
-
 /** `PATCH /api/v2/knowledge/[id]/documents/[documentId]/chunks` */
 export type BulkUpdateKnowledgeChunksParams = {
   id: string
@@ -4559,6 +4520,27 @@ export type GetWorkflowDeploymentResponse = {
   data: GetWorkflowDeploymentResponseRef4
 }
 
+/** `GET /api/v2/workflow-mcp-servers/[serverId]` */
+export type GetWorkflowMcpServerParams = {
+  serverId: string
+}
+
+export type GetWorkflowMcpServerQuery = Record<string, unknown>
+
+type GetWorkflowMcpServerResponseRef0 = {
+  id: string
+  name: string
+  description: string | null
+  isPublic: boolean
+  mcpServerUrl: string
+  createdAt: string
+  updatedAt: string
+}
+
+export type GetWorkflowMcpServerResponse = {
+  data: GetWorkflowMcpServerResponseRef0
+}
+
 /** `GET /api/v2/workflows/[id]/runs/[runId]` */
 export type GetWorkflowRunParams = {
   id: string
@@ -6133,6 +6115,30 @@ export type ListWorkflowMcpServersResponse = {
   nextCursor: string | null
 }
 
+/** `GET /api/v2/workflow-mcp-servers/[serverId]/tools` */
+export type ListWorkflowMcpToolsParams = {
+  serverId: string
+}
+
+export type ListWorkflowMcpToolsQuery = Record<string, unknown>
+
+type ListWorkflowMcpToolsResponseRef0 = {
+  id: string
+  serverId: string
+  workflowId: string
+  toolName: string
+  toolDescription: string | null
+  mcpServerUrl: string
+  apiEndpoint: string
+  createdAt: string
+  updatedAt: string
+}
+
+export type ListWorkflowMcpToolsResponse = {
+  data: Array<ListWorkflowMcpToolsResponseRef0>
+  nextCursor: string | null
+}
+
 /** `GET /api/v2/workflows/[id]/runs` */
 export type ListWorkflowRunsParams = {
   id: string
@@ -6292,6 +6298,45 @@ type MoveFileItemsResponseRef0 = {
 
 export type MoveFileItemsResponse = {
   data: MoveFileItemsResponseRef0
+}
+
+/** `POST /api/v2/tables/move` */
+export type MoveTablesQuery = Record<string, unknown>
+
+type MoveTablesBodyRef0 = string
+
+export type MoveTablesBody = {
+  workspaceId: string
+  tableIds?: Array<string>
+  folderPaths?: Array<MoveTablesBodyRef0>
+  targetFolderPath: MoveTablesBodyRef0 | null
+}
+
+type MoveTablesResponseRef0 = {
+  moved: Array<{
+    kind: 'table' | 'folder'
+    id: string
+    name: string
+  }>
+  skipped: Array<{
+    kind: 'table' | 'folder'
+    id: string
+    name: string
+  }>
+  notFound: Array<{
+    kind: 'table' | 'folder'
+    id: string
+  }>
+  failed: Array<{
+    kind: 'table' | 'folder'
+    id: string
+    name: string
+    reason: string
+  }>
+}
+
+export type MoveTablesResponse = {
+  data: MoveTablesResponseRef0
 }
 
 /** `POST /api/v2/workflows/move` */
@@ -9092,27 +9137,6 @@ export const V2_OPERATIONS = {
       },
     },
   },
-  bulkMoveTables: {
-    method: 'POST',
-    path: '/api/v2/tables/bulk-move',
-    pathParams: [] as const,
-    responseMode: 'json',
-    summary: 'Bulk Move Tables and Folders',
-    body: {
-      workspaceId: {
-        kind: 'string',
-        required: true,
-        describe: 'Workspace that owns every selected item.',
-      },
-      tableIds: { kind: 'array', default: [], describe: 'Tables to move, by identifier.' },
-      folderPaths: { kind: 'array', describe: 'Table folders to re-parent, by canonical path.' },
-      targetFolderPath: {
-        kind: 'unknown',
-        required: true,
-        describe: 'Destination folder path. `null` and `/` both mean the workspace root.',
-      },
-    },
-  },
   bulkUpdateKnowledgeChunks: {
     method: 'PATCH',
     path: '/api/v2/knowledge/[id]/documents/[documentId]/chunks',
@@ -11058,6 +11082,14 @@ export const V2_OPERATIONS = {
     responseMode: 'json',
     summary: 'Get Workflow Deployment',
   },
+  getWorkflowMcpServer: {
+    method: 'GET',
+    path: '/api/v2/workflow-mcp-servers/[serverId]',
+    pathParams: ['serverId'] as const,
+    pathParamDocs: { serverId: 'Unique workflow-MCP server identifier.' },
+    responseMode: 'json',
+    summary: 'Get Workflow MCP Server',
+  },
   getWorkflowRun: {
     method: 'GET',
     path: '/api/v2/workflows/[id]/runs/[runId]',
@@ -12531,6 +12563,14 @@ export const V2_OPERATIONS = {
       },
     },
   },
+  listWorkflowMcpTools: {
+    method: 'GET',
+    path: '/api/v2/workflow-mcp-servers/[serverId]/tools',
+    pathParams: ['serverId'] as const,
+    pathParamDocs: { serverId: 'Unique workflow-MCP server identifier.' },
+    responseMode: 'json',
+    summary: 'List Workflow MCP Tools',
+  },
   listWorkflowRuns: {
     method: 'GET',
     path: '/api/v2/workflows/[id]/runs',
@@ -12720,6 +12760,27 @@ export const V2_OPERATIONS = {
       targetFolderPath: {
         kind: 'string',
         describe: 'Destination folder path. Omit to move files to the workspace root.',
+      },
+    },
+  },
+  moveTables: {
+    method: 'POST',
+    path: '/api/v2/tables/move',
+    pathParams: [] as const,
+    responseMode: 'json',
+    summary: 'Move Tables and Folders',
+    body: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns every selected item.',
+      },
+      tableIds: { kind: 'array', default: [], describe: 'Tables to move, by identifier.' },
+      folderPaths: { kind: 'array', describe: 'Table folders to re-parent, by canonical path.' },
+      targetFolderPath: {
+        kind: 'unknown',
+        required: true,
+        describe: 'Destination folder path. `null` and `/` both mean the workspace root.',
       },
     },
   },

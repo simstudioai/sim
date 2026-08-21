@@ -18,6 +18,7 @@ import {
   getLiveWorkflowMcpTool,
   getWorkflowMcpPublishableWorkflow,
   getWorkflowMcpServerById,
+  listLiveWorkflowMcpTools,
   listWorkflowMcpToolNames,
   listWorkspaceWorkflowMcpServers,
   type WorkflowMcpServerSortBy,
@@ -125,6 +126,53 @@ export const listWorkflowMcpDeployments = defineAuthorizedWorkspaceUseCase({
       nextCursorKeys: page.nextCursorKeys,
       truncated: page.nextCursorKeys !== null || truncated,
     }
+  },
+})
+
+export interface ReadWorkflowMcpDeploymentServerInput {
+  serverId: string
+}
+
+/**
+ * One published server.
+ *
+ * The list carries `toolCount`/`toolNames` as decoration on a page; this read
+ * answers for a single server, so the inventory is left to
+ * {@link listWorkflowMcpDeploymentTools} rather than duplicated here in a
+ * second shape.
+ */
+export const readWorkflowMcpDeploymentServer = defineAuthorizedWorkspaceUseCase({
+  operation: mcpServerOperations.readWorkflowDeploymentServer,
+  resolveContext: ({ input }: { input: ReadWorkflowMcpDeploymentServerInput }) =>
+    resolveServerContext(input.serverId),
+  authorizationOptions,
+  async execute({ context }) {
+    return { server: context.server }
+  },
+})
+
+export interface ListWorkflowMcpDeploymentToolsInput {
+  serverId: string
+}
+
+/**
+ * Every tool a server publishes.
+ *
+ * Without this a caller could publish and unpublish tools but never enumerate
+ * them: the server list reports tool *names* only, so nothing returned the
+ * `workflowId` that addresses a tool for deletion.
+ */
+export const listWorkflowMcpDeploymentTools = defineAuthorizedWorkspaceUseCase({
+  operation: mcpServerOperations.listWorkflowDeploymentTools,
+  resolveContext: ({ input }: { input: ListWorkflowMcpDeploymentToolsInput }) =>
+    resolveServerContext(input.serverId),
+  authorizationOptions,
+  async execute({ context }) {
+    const { tools, truncated } = await listLiveWorkflowMcpTools(
+      context.server.id,
+      MAX_LISTED_WORKFLOW_MCP_TOOLS
+    )
+    return { tools, truncated }
   },
 })
 

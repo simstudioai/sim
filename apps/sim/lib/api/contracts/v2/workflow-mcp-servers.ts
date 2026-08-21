@@ -367,6 +367,44 @@ export const v2CreateWorkflowMcpServerContract = defineRouteContract({
   },
 })
 
+/**
+ * A published tool as a read returns it.
+ *
+ * `updated` is omitted deliberately: it reports whether a *publish* replaced an
+ * existing tool, which is a fact about that request, not about the tool.
+ * Publishing it here would force every read to answer a question it cannot.
+ */
+export const v2WorkflowMcpToolListItemSchema = v2WorkflowMcpToolSchema
+  .omit({ updated: true })
+  .meta({
+    id: 'WorkflowMcpToolListItem',
+    title: 'Workflow MCP tool list item',
+    description: 'A tool a server publishes, as returned by a read.',
+  })
+export type V2WorkflowMcpToolListItem = z.output<typeof v2WorkflowMcpToolListItemSchema>
+
+export const v2GetWorkflowMcpServerContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/v2/workflow-mcp-servers/[serverId]',
+  query: noInputSchema,
+  params: v2WorkflowMcpServerParamsSchema,
+  response: {
+    mode: 'json',
+    schema: v2DataResponse(v2WorkflowMcpServerSchema),
+  },
+})
+
+export const v2ListWorkflowMcpToolsContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/v2/workflow-mcp-servers/[serverId]/tools',
+  query: noInputSchema,
+  params: v2WorkflowMcpServerParamsSchema,
+  response: {
+    mode: 'json',
+    schema: v2CursorListResponse(v2WorkflowMcpToolListItemSchema, { paged: false }),
+  },
+})
+
 export const v2UpdateWorkflowMcpServerContract = defineRouteContract({
   method: 'PATCH',
   path: '/api/v2/workflow-mcp-servers/[serverId]',

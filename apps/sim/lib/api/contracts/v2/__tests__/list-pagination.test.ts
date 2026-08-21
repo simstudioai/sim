@@ -113,6 +113,7 @@ const FULL_SET_LISTS = [
   'GET /api/v2/knowledge/[id]/tags/usage',
   'GET /api/v2/knowledge/folders',
   'GET /api/v2/mcp-servers/[id]/tools',
+  'GET /api/v2/workflow-mcp-servers/[serverId]/tools',
   'GET /api/v2/tables/[tableId]/dispatches',
   'GET /api/v2/tables/[tableId]/groups',
   'GET /api/v2/tables/[tableId]/views',

@@ -64,7 +64,7 @@ vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
 vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
 vi.mock('@/app/api/v2/lib/gate', () => v2GateModuleMock)
 
-import { DELETE, PATCH } from '@/app/api/v2/workflow-mcp-servers/[serverId]/route'
+import { DELETE, GET, PATCH } from '@/app/api/v2/workflow-mcp-servers/[serverId]/route'
 
 const WORKSPACE_ID = 'workspace-1'
 const SERVER_ID = 'wfmcp-1'
@@ -108,6 +108,11 @@ async function patch(body: unknown) {
     body: JSON.stringify(body),
   })
   return PATCH(request, { params: Promise.resolve({ serverId: SERVER_ID }) })
+}
+
+async function get() {
+  const request = new NextRequest(`http://localhost/api/v2/workflow-mcp-servers/${SERVER_ID}`)
+  return GET(request, { params: Promise.resolve({ serverId: SERVER_ID }) })
 }
 
 async function del() {
@@ -213,6 +218,54 @@ describe('/api/v2/workflow-mcp-servers/[serverId]', () => {
 
       expect(response.status).toBe(401)
       expect((await response.json()).error.code).toBe('UNAUTHORIZED')
+    })
+  })
+
+  /**
+   * Without this read a caller holding a server id had to page the whole
+   * collection and filter client-side — the server could be renamed and deleted
+   * through this same path, but never simply read.
+   */
+  describe('GET', () => {
+    it('returns the server', async () => {
+      queueServerLookup()
+
+      const response = await get()
+
+      expect(response.status).toBe(200)
+      expect(await response.json()).toEqual({
+        data: expect.objectContaining({ id: SERVER_ID, name: 'Support agents', isPublic: false }),
+      })
+    })
+
+    it('conceals a server in another workspace as not found', async () => {
+      queueServerLookup(null)
+
+      const response = await get()
+
+      expect(response.status).toBe(404)
+    })
+
+    it('records no audit entry for a read', async () => {
+      queueServerLookup()
+
+      await get()
+
+      expect(mocks.audit).not.toHaveBeenCalled()
+    })
+
+    /** The family denies workspace API keys throughout; a read must not be the wide door. */
+    it('refuses a workspace API key', async () => {
+      queueServerLookup()
+      v2RouteMocks.authenticate.mockResolvedValue({
+        ...personalKeyAuth,
+        principal: { kind: 'workspace_api_key', workspaceId: WORKSPACE_ID, keyId: 'ws-key-1' },
+        keyType: 'workspace',
+      })
+
+      const response = await get()
+
+      expect(response.status).toBe(403)
     })
   })
 })
