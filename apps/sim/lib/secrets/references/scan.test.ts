@@ -281,6 +281,31 @@ describe('scanSecretReferences', () => {
   })
 
   /**
+   * Landing exactly on a bound is a complete scan, not a truncated one. Claiming truncation
+   * there tells the reader references may be missing when every one was returned — the same
+   * "absence of evidence" note, on a scan that has none.
+   */
+  it('does not claim truncation for a scan that ends exactly on the result limit', async () => {
+    queueTableRows(
+      schemaMock.workflowBlocks,
+      Array.from({ length: 2000 }, (_, index) =>
+        blockRow({
+          blockId: `block-${index}`,
+          blockName: `Block ${index}`,
+          workflowId: 'workflow-1',
+          workflowName: 'Nightly sync',
+          subBlocks: shortInput('apiKey', '{{API_KEY}}'),
+        })
+      )
+    )
+
+    const scan = await scanSecretReferences({ workspaceId: 'workspace-1', name: 'API_KEY' })
+
+    expect(scan.workflows[0]?.blocks).toHaveLength(2000)
+    expect(scan.truncated).toBe(false)
+  })
+
+  /**
    * The cap counts what is reported, not what is read. The prefilter judges syntax only, so a
    * block naming the secret in prose is a genuine candidate that the scanner then rejects — and
    * when the cap counted candidates, enough of those sorted earlier pushed real references out of

@@ -4686,11 +4686,17 @@ const WorkflowContent = React.memo(
       if (embedded || !deepLinkBlockId) return
 
       /* Same reason as the note reveal above: read from `displayNodes` so a target that lands
-         before its node mounts is retried on the mounting commit instead of dropped. A block id
-         that never mounts — deleted since the link was made — simply leaves the workflow at its
-         default framing, which is what the link did before it carried a target. */
+         before its node mounts is retried on the mounting commit instead of dropped. */
       const node = displayNodes.find((candidate) => candidate.id === deepLinkBlockId)
-      if (!node) return
+      if (!node) {
+        /* Once any node has mounted the canvas is populated, so an id still missing belongs to a
+           block deleted since the link was made. Drop it rather than hold it: the param is
+           already stripped, so a target kept here would re-check on every canvas update forever
+           and shadow a later link to the same block. The workflow simply keeps its default
+           framing, which is what the link did before it carried a target. */
+        if (displayNodes.length > 0) setDeepLinkBlockId(null)
+        return
+      }
 
       setDeepLinkBlockId(null)
 

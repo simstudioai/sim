@@ -20,17 +20,19 @@ const logger = createLogger('SecretReferenceScan')
  */
 const BLOCK_RESULT_LIMIT = 2000
 
-/** Candidate rows held in memory at once. One page, not the whole candidate set. */
-const BLOCK_CANDIDATE_PAGE = 200
-
 /**
- * Ceiling on candidate rows read across all pages, so a scan cannot walk an unbounded set.
+ * Ceiling on candidate rows read, so a scan cannot walk an unbounded set.
  *
- * This is the irreducible bound: completeness and bounded work cannot both hold, so the choice is
- * where the bound sits. It sits well above {@link BLOCK_RESULT_LIMIT} precisely so filtered rows
- * are absorbed as extra reads rather than displacing results.
+ * Sits above {@link BLOCK_RESULT_LIMIT} so semantically filtered rows — dormant members and
+ * condition-hidden fields, which the SQL cannot judge — are absorbed as extra reads rather than
+ * displacing results. The headroom is deliberately modest: every candidate carries its block's
+ * `sub_blocks`, so this is the memory bound as much as the work bound.
+ *
+ * It is also the irreducible one. Bounded work and guaranteed completeness cannot both hold, so
+ * the only real choices are where the bound sits and whether it counts something the reader can
+ * see. It counts results.
  */
-const BLOCK_CANDIDATE_CEILING = 10_000
+const BLOCK_CANDIDATE_CEILING = 4000
 
 /** Matching cap for each cascade table, which are far smaller than the block table. */
 const RESOURCE_SCAN_LIMIT = 200
@@ -207,11 +209,17 @@ export async function scanSecretReferences({
   if (!ENV_KEY_PATTERN.test(name)) return { workflows: [], resources: [], truncated: false }
 
   /**
-   * One page of candidates. `blockId` is in the ordering as a final tiebreak: OFFSET paging over
-   * a non-unique sort can repeat or skip rows between pages, which here would double-report a
-   * block or silently lose one.
+   * All candidates in one read, up to the ceiling.
+   *
+   * Deliberately not paged. Paging bought headroom but paid for it with drift: `OFFSET` is
+   * positional, so a block renamed, inserted or deleted between pages shifts the result set and
+   * the scan silently skips a live reference or reports one twice. One statement is one snapshot,
+   * so neither can happen — and the ceiling is what bounds the read instead.
+   *
+   * `blockId` still closes the ordering, so repeated scans of an unchanged workspace return the
+   * same list in the same order rather than an arbitrary one among ties.
    */
-  const readCandidatePage = (offset: number) =>
+  const readCandidates = () =>
     db
       .select({
         blockId: workflowBlocks.id,
@@ -237,10 +245,12 @@ export async function scanSecretReferences({
         asc(workflowBlocks.name),
         asc(workflowBlocks.id)
       )
-      .limit(BLOCK_CANDIDATE_PAGE)
-      .offset(offset)
+      // Limit-plus-one, like the resource reads: the extra row is how "there were more" is known
+      // without claiming truncation on a set that ended exactly on the bound.
+      .limit(BLOCK_CANDIDATE_CEILING + 1)
 
-  const [tools, servers] = await Promise.all([
+  const [candidates, tools, servers] = await Promise.all([
+    readCandidates(),
     db
       .select({ id: customTools.id, title: customTools.title, code: customTools.code })
       .from(customTools)
@@ -268,34 +278,24 @@ export async function scanSecretReferences({
       .limit(RESOURCE_SCAN_LIMIT + 1),
   ])
 
-  let truncated = tools.length > RESOURCE_SCAN_LIMIT || servers.length > RESOURCE_SCAN_LIMIT
+  /** Every bound is `> limit` on a limit-plus-one read, so landing exactly on one is not truncation. */
+  let truncated =
+    tools.length > RESOURCE_SCAN_LIMIT ||
+    servers.length > RESOURCE_SCAN_LIMIT ||
+    candidates.length > BLOCK_CANDIDATE_CEILING
 
   const workflows: SecretReferenceWorkflow[] = []
   const workflowIndex = new Map<string, SecretReferenceWorkflow>()
   let reported = 0
-  let candidatesRead = 0
 
-  /**
-   * Pages the candidates rather than reading them all: the ceiling is high enough that filtered
-   * rows do not displace results, which would be far too many block records to hold at once.
-   */
-  while (reported < BLOCK_RESULT_LIMIT && candidatesRead < BLOCK_CANDIDATE_CEILING) {
-    const page = await readCandidatePage(candidatesRead)
-    if (page.length === 0) break
-    candidatesRead += page.length
-
-    for (const row of page) {
-      if (reported >= BLOCK_RESULT_LIMIT) break
-      scanCandidate(row)
+  for (const row of candidates.slice(0, BLOCK_CANDIDATE_CEILING)) {
+    /* Reporting stops at the result limit, but the read does not: the remaining candidates are
+       still worth walking only insofar as they cannot add results, so stop here and say so. */
+    if (reported >= BLOCK_RESULT_LIMIT) {
+      truncated = true
+      break
     }
-
-    // A short page is the end of the candidate set; anything else means more remain.
-    if (page.length < BLOCK_CANDIDATE_PAGE) break
-  }
-
-  /* Either bound stopping us early means the lists are a prefix of the real answer. */
-  if (reported >= BLOCK_RESULT_LIMIT || candidatesRead >= BLOCK_CANDIDATE_CEILING) {
-    truncated = true
+    scanCandidate(row)
   }
 
   function scanCandidate(row: {
