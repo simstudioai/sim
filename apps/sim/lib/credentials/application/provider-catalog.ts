@@ -7,6 +7,10 @@ import {
   type ClientCredentialAccountField,
 } from '@/lib/credentials/client-credential-accounts/descriptors'
 import {
+  PLAID_SERVICE_ACCOUNT_FORM,
+  type PlaidServiceAccountFormField,
+} from '@/lib/credentials/plaid-service-account-form'
+import {
   TOKEN_SERVICE_ACCOUNT_DESCRIPTORS,
   type TokenServiceAccountField,
 } from '@/lib/credentials/token-service-accounts/descriptors'
@@ -15,6 +19,7 @@ import {
   ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID,
   GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID,
   type OAuthServiceMetadata,
+  PLAID_SERVICE_ACCOUNT_PROVIDER_ID,
   SLACK_CUSTOM_BOT_PROVIDER_ID,
 } from '@/lib/oauth/types'
 import { getAllOAuthServices, getServiceConfigByServiceId } from '@/lib/oauth/utils'
@@ -91,7 +96,7 @@ const ATLASSIAN_SERVICE_ACCOUNT_DOCS_URL =
   'https://docs.sim.ai/integrations/atlassian-service-account'
 
 function providerField(
-  field: TokenServiceAccountField | ClientCredentialAccountField
+  field: TokenServiceAccountField | ClientCredentialAccountField | PlaidServiceAccountFormField
 ): CredentialProviderField {
   return {
     id: field.id,
@@ -179,6 +184,15 @@ function getServiceAccountDescriptor(providerId: string): ServiceAccountDescript
           multiline: false,
         },
       ],
+    }
+  }
+  if (providerId === PLAID_SERVICE_ACCOUNT_PROVIDER_ID) {
+    return {
+      name: `${PLAID_SERVICE_ACCOUNT_FORM.serviceLabel} ${PLAID_SERVICE_ACCOUNT_FORM.connectNoun}`,
+      description: PLAID_SERVICE_ACCOUNT_FORM.catalogDescription,
+      docsUrl: PLAID_SERVICE_ACCOUNT_FORM.docsUrl,
+      helpText: PLAID_SERVICE_ACCOUNT_FORM.helpText,
+      fields: PLAID_SERVICE_ACCOUNT_FORM.fields.map(providerField),
     }
   }
 

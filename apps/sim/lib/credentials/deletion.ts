@@ -336,7 +336,7 @@ interface ClearResult {
  * Recursively walks a JSON value and clears credential references matching
  * `credentialId`. Recognizes the two reference shapes used in workflow state:
  * subBlock entries (`{id: 'credential'|'manualCredential'|'triggerCredentials', value}`)
- * and tool params (`{credential: <id>, ...}` inside a tool's `params` object).
+ * and the exact tool-param keys `credential` and `plaidCredentialId`.
  * Returns the original reference when nothing matched so callers can skip writes.
  */
 export function clearCredentialInValue(input: unknown, credentialId: string): ClearResult {
@@ -363,7 +363,7 @@ export function clearCredentialInValue(input: unknown, credentialId: string): Cl
         changed = true
         continue
       }
-      if (key === 'credential' && value === credentialId) {
+      if ((key === 'credential' || key === 'plaidCredentialId') && value === credentialId) {
         next[key] = ''
         changed = true
         continue

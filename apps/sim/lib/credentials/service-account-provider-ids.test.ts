@@ -13,6 +13,7 @@ describe('isServiceAccountProviderId', () => {
     expect(isServiceAccountProviderId('google-service-account')).toBe(true)
     expect(isServiceAccountProviderId('atlassian-service-account')).toBe(true)
     expect(isServiceAccountProviderId('slack-custom-bot')).toBe(true)
+    expect(isServiceAccountProviderId('plaid-service-account')).toBe(true)
     expect(isServiceAccountProviderId('notion-service-account')).toBe(true)
     expect(isServiceAccountProviderId('salesforce-service-account')).toBe(true)
     expect(isServiceAccountProviderId('netsuite-service-account')).toBe(true)
@@ -56,6 +57,10 @@ describe('getServiceAccountConnectNoun', () => {
 
   it('calls a custom Slack bot a custom bot', () => {
     expect(getServiceAccountConnectNoun('slack-custom-bot')).toBe('custom bot')
+  })
+
+  it('calls a Plaid Item credential by its provider-specific noun', () => {
+    expect(getServiceAccountConnectNoun('plaid-service-account')).toBe('Item credential')
   })
 
   it('falls back to the generic noun for bespoke providers with no descriptor', () => {

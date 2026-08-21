@@ -1,0 +1,80 @@
+import { ErrorExtractorId } from '@/tools/error-extractors'
+import type { PlaidGetAuthParams, PlaidGetAuthResponse } from '@/tools/plaid/types'
+import {
+  PLAID_ACCOUNT_OUTPUT_PROPERTIES,
+  PLAID_NUMBERS_OUTPUT_PROPERTIES,
+  PLAID_REQUEST_ID_OUTPUT_PROPERTY,
+} from '@/tools/plaid/types'
+import {
+  buildPlaidInternalBody,
+  mapPlaidAccount,
+  mapPlaidNumbers,
+  plaidBaseParamFields,
+  plaidRecord,
+  requirePlaidArrayField,
+  requirePlaidStringField,
+  splitPlaidList,
+} from '@/tools/plaid/utils'
+import type { ToolConfig } from '@/tools/types'
+
+export const plaidGetAuthTool: ToolConfig<PlaidGetAuthParams, PlaidGetAuthResponse> = {
+  id: 'plaid_get_auth',
+  name: 'Plaid Get Auth',
+  description:
+    'Get account and routing numbers for depository accounts linked to an Item (ACH for US, EFT for Canada, BACS for UK, IBAN/BIC internationally). Check verification_status before use; null or empty means neither micro-deposit nor database verification applies',
+  version: '1.0.0',
+  errorExtractor: ErrorExtractorId.PLAID_ERRORS,
+
+  params: {
+    ...plaidBaseParamFields,
+    accountIds: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Comma-separated account IDs to filter to (defaults to all eligible Auth accounts)',
+    },
+  },
+
+  request: {
+    url: '/api/tools/plaid',
+    method: 'POST',
+    headers: () => ({ 'Content-Type': 'application/json' }),
+    body: (params) => {
+      const accountIds = splitPlaidList(params.accountIds, 'accountIds')
+      return buildPlaidInternalBody('plaid_get_auth', params, {
+        account_ids: accountIds,
+      })
+    },
+    internalAuth: 'executor_delegation',
+  },
+
+  transformResponse: async (response) => {
+    const data = await plaidRecord(response, 'auth')
+    const accounts = requirePlaidArrayField(data, 'accounts', 'auth.accounts')
+    return {
+      success: true,
+      output: {
+        requestId: requirePlaidStringField(data, 'request_id', 'auth.request_id'),
+        accounts: accounts.map((account, index) =>
+          mapPlaidAccount(account, `auth.accounts[${index}]`)
+        ),
+        numbers: mapPlaidNumbers(data.numbers),
+      },
+    }
+  },
+
+  outputs: {
+    requestId: PLAID_REQUEST_ID_OUTPUT_PROPERTY,
+    accounts: {
+      type: 'array',
+      description: 'Depository accounts on the Item',
+      items: { type: 'object', properties: PLAID_ACCOUNT_OUTPUT_PROPERTIES },
+    },
+    numbers: {
+      type: 'object',
+      description: 'Account and routing numbers grouped by scheme',
+      properties: PLAID_NUMBERS_OUTPUT_PROPERTIES,
+    },
+  },
+}

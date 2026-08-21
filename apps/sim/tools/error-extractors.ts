@@ -450,6 +450,28 @@ const ERROR_EXTRACTORS: ErrorExtractorConfig[] = [
     },
   },
   {
+    id: 'plaid-errors',
+    description:
+      'Plaid error envelope: {error_type, error_code, error_message, display_message}. Prefers the developer error_message with the programmatic error_code appended',
+    examples: ['Plaid API'],
+    extract: (errorInfo) => {
+      const data = errorInfo?.data
+      if (!data || typeof data !== 'object' || Array.isArray(data)) return undefined
+
+      const record = data as Record<string, unknown>
+      const errorMessage =
+        typeof record.error_message === 'string' ? record.error_message.trim() : ''
+      const displayMessage =
+        typeof record.display_message === 'string' ? record.display_message.trim() : ''
+      const message = errorMessage || displayMessage
+      const code = typeof record.error_code === 'string' ? record.error_code.trim() : ''
+
+      if (!message && !code) return undefined
+      if (!message) return code
+      return code ? `${message} (${code})` : message
+    },
+  },
+  {
     id: 'plain-text-data',
     description: 'Plain text error response',
     examples: ['APIs returning plain text errors like Apollo'],
@@ -534,6 +556,7 @@ export const ErrorExtractorId = {
   PROSPEO_ERRORS: 'prospeo-errors',
   CRUNCHBASE_ERRORS: 'crunchbase-errors',
   SPLUNK_ERRORS: 'splunk-errors',
+  PLAID_ERRORS: 'plaid-errors',
   PLAIN_TEXT_DATA: 'plain-text-data',
   HTTP_STATUS_TEXT: 'http-status-text',
 } as const

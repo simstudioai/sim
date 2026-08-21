@@ -1,7 +1,8 @@
 import { z } from 'zod'
 import { defineRouteContract } from '@/lib/api/contracts/types'
+import { PLAID_SERVICE_ACCOUNT_REQUIRED_FIELDS } from '@/lib/credentials/plaid-service-account-form'
 import { getServiceAccountRequiredFields } from '@/lib/credentials/service-account-fields'
-import type { OAuthProvider } from '@/lib/oauth/types'
+import { type OAuthProvider, PLAID_SERVICE_ACCOUNT_PROVIDER_ID } from '@/lib/oauth/types'
 
 const ENV_VAR_NAME_REGEX = /^[A-Za-z0-9_]+$/
 
@@ -144,6 +145,8 @@ export const createCredentialBodySchema = z
     botToken: z.string().trim().min(1).optional(),
     clientId: z.string().trim().min(1).max(512).optional(),
     clientSecret: z.string().trim().min(1).max(1024).optional(),
+    accessToken: z.string().trim().min(1).max(8192).optional(),
+    environment: z.enum(['production', 'sandbox']).optional(),
     certificateId: z.string().trim().min(1).max(512).optional(),
     orgId: z.string().trim().min(1).max(255).optional(),
     /** Optional provider region selector (Zoho Desk data center). */
@@ -187,6 +190,18 @@ export const createCredentialBodySchema = z
     }
 
     if (data.type === 'service_account') {
+      if (data.providerId === PLAID_SERVICE_ACCOUNT_PROVIDER_ID) {
+        for (const field of PLAID_SERVICE_ACCOUNT_REQUIRED_FIELDS) {
+          if (!data[field]) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              message: `${field} is required for ${PLAID_SERVICE_ACCOUNT_PROVIDER_ID} credentials`,
+              path: [field],
+            })
+          }
+        }
+        return
+      }
       for (const field of getServiceAccountRequiredFields(data.providerId)) {
         if (!data[field]) {
           ctx.addIssue({
@@ -232,6 +247,8 @@ export const updateCredentialByIdBodySchema = z
     /** Client-credential service-account secret rotation (reconnect). */
     clientId: z.string().trim().min(1).max(512).optional(),
     clientSecret: z.string().trim().min(1).max(1024).optional(),
+    accessToken: z.string().trim().min(1).max(8192).optional(),
+    environment: z.enum(['production', 'sandbox']).optional(),
     certificateId: z.string().trim().min(1).max(512).optional(),
     orgId: z.string().trim().min(1).max(255).optional(),
     dataCenter: z.string().trim().min(1).max(32).optional(),
@@ -251,6 +268,8 @@ export const updateCredentialByIdBodySchema = z
       data.domain !== undefined ||
       data.clientId !== undefined ||
       data.clientSecret !== undefined ||
+      data.accessToken !== undefined ||
+      data.environment !== undefined ||
       data.certificateId !== undefined ||
       data.orgId !== undefined ||
       data.dataCenter !== undefined ||

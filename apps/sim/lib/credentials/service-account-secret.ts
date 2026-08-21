@@ -21,6 +21,11 @@ import {
 } from '@/lib/credentials/client-credential-accounts/server'
 import { slackCustomBotDisplayName } from '@/lib/credentials/display-name'
 import {
+  normalizePlaidEnvironment,
+  type PlaidServiceAccountSecretBlob,
+  validatePlaidServiceAccount,
+} from '@/lib/credentials/plaid-service-account'
+import {
   type ServiceAccountPrincipal,
   serviceAccountPrincipalMetadata,
 } from '@/lib/credentials/principal'
@@ -37,6 +42,8 @@ import {
   ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID,
   ATLASSIAN_SERVICE_ACCOUNT_SECRET_TYPE,
   GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID,
+  PLAID_SERVICE_ACCOUNT_PROVIDER_ID,
+  PLAID_SERVICE_ACCOUNT_SECRET_TYPE,
   SLACK_CUSTOM_BOT_PROVIDER_ID,
   SLACK_CUSTOM_BOT_SECRET_TYPE,
 } from '@/lib/oauth/types'
@@ -51,6 +58,8 @@ export interface ServiceAccountSecretFields {
   serviceAccountJson?: string
   clientId?: string
   clientSecret?: string
+  accessToken?: string
+  environment?: string
   certificateId?: string
   orgId?: string
   dataCenter?: string
@@ -217,6 +226,48 @@ async function buildGoogleServiceAccountSecret(
   }
 }
 
+/** Builds and verifies one reusable Plaid Item credential. */
+async function buildPlaidServiceAccountSecret(
+  fields: ServiceAccountSecretFields
+): Promise<ServiceAccountSecretResult> {
+  const clientId = fields.clientId?.trim()
+  const clientSecret = fields.clientSecret?.trim()
+  const accessToken = fields.accessToken?.trim()
+  const environment = normalizePlaidEnvironment(fields.environment ?? '')
+  if (!clientId || !clientSecret || !accessToken || !environment) {
+    throw new ServiceAccountSecretError(
+      'clientId, clientSecret, environment, and accessToken are required for Plaid Item credentials'
+    )
+  }
+
+  const validation = await validatePlaidServiceAccount({
+    clientId,
+    clientSecret,
+    accessToken,
+    environment,
+  })
+  const principalMetadata = serviceAccountPrincipalMetadata(validation.principal)
+  const blob: PlaidServiceAccountSecretBlob = {
+    type: PLAID_SERVICE_ACCOUNT_SECRET_TYPE,
+    providerId: PLAID_SERVICE_ACCOUNT_PROVIDER_ID,
+    clientId,
+    clientSecret,
+    accessToken,
+    environment,
+    itemId: validation.itemId,
+    ...(validation.institutionId ? { institutionId: validation.institutionId } : {}),
+    metadata: { ...validation.auditMetadata, ...principalMetadata },
+  }
+  const { encrypted } = await encryptSecret(JSON.stringify(blob))
+  return {
+    providerId: PLAID_SERVICE_ACCOUNT_PROVIDER_ID,
+    encryptedServiceAccountKey: encrypted,
+    displayName: validation.displayName,
+    auditMetadata: { ...validation.auditMetadata, ...principalMetadata },
+    principal: validation.principal,
+  }
+}
+
 /**
  * Builds a token-paste service-account secret for any provider registered in
  * `TOKEN_SERVICE_ACCOUNT_DESCRIPTORS`: verifies the pasted token via the
@@ -350,6 +401,7 @@ const SERVICE_ACCOUNT_SECRET_BUILDERS: Record<string, ServiceAccountSecretBuilde
   [ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID]: buildAtlassianServiceAccountSecret,
   [SLACK_CUSTOM_BOT_PROVIDER_ID]: buildSlackCustomBotSecret,
   [GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID]: buildGoogleServiceAccountSecret,
+  [PLAID_SERVICE_ACCOUNT_PROVIDER_ID]: buildPlaidServiceAccountSecret,
 }
 
 /**

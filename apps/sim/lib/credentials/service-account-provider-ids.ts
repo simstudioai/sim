@@ -2,6 +2,7 @@ import {
   getClientCredentialAccountDescriptor,
   isClientCredentialAccountProviderId,
 } from '@/lib/credentials/client-credential-accounts/descriptors'
+import { PLAID_SERVICE_ACCOUNT_FORM } from '@/lib/credentials/plaid-service-account-form'
 import {
   getTokenServiceAccountDescriptor,
   isTokenServiceAccountProviderId,
@@ -9,6 +10,7 @@ import {
 import {
   ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID,
   GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID,
+  PLAID_SERVICE_ACCOUNT_PROVIDER_ID,
   SLACK_CUSTOM_BOT_PROVIDER_ID,
 } from '@/lib/oauth/types'
 import type { ServiceAccountProviderId } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal'
@@ -29,6 +31,7 @@ export function asServiceAccountProviderId(
     value === GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID ||
     value === ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID ||
     value === SLACK_CUSTOM_BOT_PROVIDER_ID ||
+    value === PLAID_SERVICE_ACCOUNT_PROVIDER_ID ||
     isTokenServiceAccountProviderId(value) ||
     isClientCredentialAccountProviderId(value)
   ) {
@@ -65,12 +68,16 @@ export function getServiceAccountGatingBlockType(providerId: string): string | n
  * Vendor-accurate noun for the credential a service-account provider collects
  * ("private app token", "server-to-server app", …), for connect-control labels
  * and agent-facing discovery. Token-paste and client-credential providers name
- * their own; bespoke providers (Google JSON key, Atlassian token) fall back to
- * the generic "service account". Single source shared by the connect hook and
- * the VFS catalog so the wording can't drift.
+ * their own; bespoke providers either name theirs here (Plaid Item credential,
+ * Slack custom bot) or fall back to the generic "service account". Single
+ * source shared by the connect hook and the VFS catalog so the wording can't
+ * drift.
  */
 export function getServiceAccountConnectNoun(providerId: string): string {
   if (providerId === SLACK_CUSTOM_BOT_PROVIDER_ID) return 'custom bot'
+  if (providerId === PLAID_SERVICE_ACCOUNT_PROVIDER_ID) {
+    return PLAID_SERVICE_ACCOUNT_FORM.connectNoun
+  }
   const descriptor =
     getTokenServiceAccountDescriptor(providerId) ?? getClientCredentialAccountDescriptor(providerId)
   return descriptor?.connectNoun ?? 'service account'

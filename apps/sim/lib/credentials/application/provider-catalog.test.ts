@@ -191,6 +191,58 @@ describe('listCredentialProviderCatalog', () => {
     )
   })
 
+  it('publishes Plaid fields but does not claim v2 availability before standalone visibility is fixed', async () => {
+    mocks.getAllOAuthServices.mockReturnValue([
+      ...services,
+      {
+        serviceId: 'plaid',
+        providerId: 'plaid',
+        serviceAccountProviderId: 'plaid-service-account',
+        name: 'Plaid',
+        description: 'Connect Plaid.',
+        baseProvider: 'plaid',
+        authType: 'service_account' as const,
+      },
+    ])
+    mocks.createVisibility.mockReturnValue({
+      isOAuthServiceVisible: () => true,
+      isCredentialVisible: () => false,
+    })
+
+    const catalog = await listCredentialProviderCatalog(personalPrincipal, context)
+    const plaid = catalog.find(
+      (entry) => entry.type === 'service_account' && entry.providerId === 'plaid-service-account'
+    )
+
+    expect(plaid).toMatchObject({
+      type: 'service_account',
+      serviceId: 'plaid-service-account',
+      providerId: 'plaid-service-account',
+      name: 'Plaid Item credential',
+      providerFamily: 'plaid',
+      available: false,
+      docsUrl: 'https://docs.sim.ai/integrations/plaid',
+      requiresClientGeneratedCredentialId: false,
+      fields: [
+        {
+          id: 'environment',
+          required: true,
+          secret: false,
+          options: [
+            { value: 'production', label: 'Production' },
+            { value: 'sandbox', label: 'Sandbox' },
+          ],
+        },
+        { id: 'clientId', required: true, secret: true },
+        { id: 'clientSecret', required: true, secret: true },
+        { id: 'accessToken', required: true, secret: true },
+      ],
+    })
+    expect(() =>
+      requireAvailableServiceAccountCredentialProvider(catalog, 'plaid-service-account')
+    ).toThrow('Service-account provider is unavailable: plaid-service-account')
+  })
+
   it('fails fast when a multi-server provider lacks complete labels', async () => {
     mocks.getServiceConfigByServiceId.mockImplementation((serviceId: string) => {
       if (serviceId === 'salesforce') {

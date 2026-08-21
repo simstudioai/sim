@@ -25,9 +25,11 @@ import {
 import { getServiceAccountCoverageSentence } from '@/lib/integrations/credential-display'
 import {
   ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID,
+  PLAID_SERVICE_ACCOUNT_PROVIDER_ID,
   SLACK_CUSTOM_BOT_PROVIDER_ID,
 } from '@/lib/oauth/types'
 import { ClientCredentialAccountModal } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal/client-credential-account-modal'
+import { PlaidServiceAccountModal } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal/plaid-service-account-modal'
 import { TokenServiceAccountModal } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal/token-service-account-modal'
 import { ConnectSlackBotModal } from '@/app/workspace/[workspaceId]/integrations/components/connect-slack-bot-modal/connect-slack-bot-modal'
 import { withBrandIcon } from '@/blocks/brand-icon'
@@ -44,6 +46,7 @@ export type ServiceAccountProviderId =
   | typeof GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof SLACK_CUSTOM_BOT_PROVIDER_ID
+  | typeof PLAID_SERVICE_ACCOUNT_PROVIDER_ID
   | TokenServiceAccountProviderId
   | ClientCredentialAccountProviderId
 
@@ -136,6 +139,8 @@ interface ConnectServiceAccountModalProps {
  * - `atlassian-service-account`: API token + site domain. Validated by the
  *   server against the Atlassian API; user-facing errors are mapped from the
  *   route's `error.code`.
+ * - `plaid-service-account`: application client ID + environment secret + one
+ *   Item access token. Validated server-side against Plaid `/item/get`.
  */
 export function ConnectServiceAccountModal({
   open,
@@ -199,6 +204,21 @@ export function ConnectServiceAccountModal({
   if (serviceAccountProviderId === ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID) {
     return (
       <AtlassianServiceAccountModal
+        open={open}
+        onOpenChange={onOpenChange}
+        workspaceId={workspaceId}
+        serviceName={serviceName}
+        serviceIcon={serviceIcon}
+        credentialId={credentialId}
+        initialDisplayName={credentialDisplayName}
+        initialDescription={credentialDescription}
+        onCreated={onCreated}
+      />
+    )
+  }
+  if (serviceAccountProviderId === PLAID_SERVICE_ACCOUNT_PROVIDER_ID) {
+    return (
+      <PlaidServiceAccountModal
         open={open}
         onOpenChange={onOpenChange}
         workspaceId={workspaceId}

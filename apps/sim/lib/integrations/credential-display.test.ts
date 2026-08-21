@@ -69,6 +69,9 @@ const EXPECTED_COVERAGE: Record<string, string[]> = {
   // block uses the shared reusable-credential selector.
   'netsuite-service-account': [],
   'pipedrive-service-account': ['pipedrive'],
+  // Plaid is intentionally connected from its block, not from a standalone
+  // integration page, because one credential represents one pre-linked Item.
+  'plaid-service-account': [],
   'salesforce-service-account': ['salesforce'],
   'shopify-service-account': ['shopify'],
   'slack-custom-bot': ['slack'],
@@ -106,6 +109,17 @@ describe('service-account coverage', () => {
     expect(OAUTH_PROVIDERS.netsuite.services.netsuite).toMatchObject({
       providerId: 'netsuite',
       serviceAccountProviderId: 'netsuite-service-account',
+      authType: 'service_account',
+    })
+  })
+
+  it('keeps Plaid block-only while registering its service-account provider', () => {
+    const plaidIntegration = INTEGRATIONS.find((integration) => integration.type === 'plaid')
+    expect(plaidIntegration?.authType).toBe('api-key')
+    expect(resolveOAuthServiceForIntegration(plaidIntegration as Integration)).toBeNull()
+    expect(OAUTH_PROVIDERS.plaid.services.plaid).toMatchObject({
+      providerId: 'plaid',
+      serviceAccountProviderId: 'plaid-service-account',
       authType: 'service_account',
     })
   })

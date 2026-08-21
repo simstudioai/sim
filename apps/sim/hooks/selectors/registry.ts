@@ -21,6 +21,7 @@ import { mondaySelectors } from '@/hooks/selectors/providers/monday/selectors'
 import { netsuiteSelectors } from '@/hooks/selectors/providers/netsuite/selectors'
 import { notionSelectors } from '@/hooks/selectors/providers/notion/selectors'
 import { pipedriveSelectors } from '@/hooks/selectors/providers/pipedrive/selectors'
+import { plaidSelectors } from '@/hooks/selectors/providers/plaid/selectors'
 import { sharepointSelectors } from '@/hooks/selectors/providers/sharepoint/selectors'
 import { simSelectors } from '@/hooks/selectors/providers/sim/selectors'
 import { slackSelectors } from '@/hooks/selectors/providers/slack/selectors'
@@ -60,6 +61,7 @@ export const selectorRegistry = {
   ...microsoftSelectors,
   ...notionSelectors,
   ...pipedriveSelectors,
+  ...plaidSelectors,
   ...sharepointSelectors,
   ...trelloSelectors,
   ...zohoDeskSelectors,

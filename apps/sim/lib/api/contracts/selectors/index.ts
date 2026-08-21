@@ -91,6 +91,7 @@ import {
   notionPagesSelectorContract,
 } from '@/lib/api/contracts/selectors/notion'
 import { pipedrivePipelinesSelectorContract } from '@/lib/api/contracts/selectors/pipedrive'
+import { plaidOptionsContract } from '@/lib/api/contracts/selectors/plaid'
 import {
   sharepointListsSelectorContract,
   sharepointSiteSelectorContract,
@@ -143,6 +144,7 @@ export * from '@/lib/api/contracts/selectors/netsuite'
 export * from '@/lib/api/contracts/selectors/notion'
 export * from '@/lib/api/contracts/selectors/oauth'
 export * from '@/lib/api/contracts/selectors/pipedrive'
+export * from '@/lib/api/contracts/selectors/plaid'
 export * from '@/lib/api/contracts/selectors/sharepoint'
 export * from '@/lib/api/contracts/selectors/slack'
 export * from '@/lib/api/contracts/selectors/snowflake'
@@ -178,6 +180,7 @@ export const selectorContractsByPath = {
   '/api/tools/notion/databases': notionDatabasesSelectorContract,
   '/api/tools/notion/pages': notionPagesSelectorContract,
   '/api/tools/pipedrive/pipelines': pipedrivePipelinesSelectorContract,
+  '/api/tools/plaid/options': plaidOptionsContract,
   '/api/tools/sharepoint/lists': sharepointListsSelectorContract,
   '/api/tools/sharepoint/site': sharepointSiteSelectorContract,
   '/api/tools/sharepoint/sites': sharepointSitesSelectorContract,
