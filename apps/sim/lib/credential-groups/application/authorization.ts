@@ -1,6 +1,7 @@
 import {
   type Principal,
   requirePrincipalSubjectUserId,
+  resolvePrincipalSubject,
   type WorkflowExecutionDelegatedPrincipal,
 } from '@sim/auth/principal'
 import type {
@@ -11,7 +12,7 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { CredentialGroupCredentialListContext } from '@/lib/credential-groups/credentials'
 import {
   type CredentialGroupEnrollmentAccess,
-  loadCredentialGroupEnrollmentAccess,
+  loadCredentialGroupEnrollmentAccessForSubject,
 } from '@/lib/credential-groups/credentials'
 
 export const CREDENTIAL_GROUP_DELEGATION_AUDIENCE = 'sim:credential-groups'
@@ -52,13 +53,18 @@ export async function requireCredentialGroupEnrollmentAccess(
   principal: Principal,
   credentialGroupId: string
 ): Promise<CredentialGroupEnrollmentAccess> {
-  let subjectUserId: string
-  try {
-    subjectUserId = requireCredentialGroupWorkflowSubject(principal)
-  } catch {
+  const executionPrincipal = requireWorkflowExecutionPrincipal(principal)
+  const subject = resolvePrincipalSubject(executionPrincipal)
+  if (!subject) {
     throw new OrchestrationError('forbidden', 'Credential Group enrollment access required')
   }
-  const access = await loadCredentialGroupEnrollmentAccess(credentialGroupId, subjectUserId)
+  if (
+    subject.kind === 'sim_user' &&
+    (principal.kind !== 'delegated' || principal.subjectUserId !== subject.userId)
+  ) {
+    throw new OrchestrationError('forbidden', 'Credential Group enrollment access required')
+  }
+  const access = await loadCredentialGroupEnrollmentAccessForSubject(credentialGroupId, subject)
   if (!access) {
     throw new OrchestrationError('forbidden', 'Credential Group enrollment access required')
   }

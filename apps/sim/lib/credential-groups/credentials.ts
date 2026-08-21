@@ -1,3 +1,4 @@
+import type { PrincipalSubject } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import {
   type CredentialGroupOptionConfig,
@@ -6,7 +7,11 @@ import {
   credentialGroupEnrollment,
   user,
 } from '@sim/db/schema'
-import { and, asc, eq, gt, inArray, or } from 'drizzle-orm'
+import { and, asc, eq, gt, inArray, or, sql } from 'drizzle-orm'
+import {
+  getCredentialGroupProviderId,
+  isCredentialGroupProvider,
+} from '@/lib/credential-groups/providers'
 
 export const MAX_CREDENTIAL_GROUP_CREDENTIAL_PAGE_SIZE = 100
 
@@ -60,7 +65,7 @@ export async function loadCredentialGroupEnrollmentAccess(
       email: credentialGroupEnrollment.email,
     })
     .from(credentialGroupEnrollment)
-    .innerJoin(user, eq(user.normalizedEmail, credentialGroupEnrollment.email))
+    .innerJoin(user, eq(sql<string>`lower(btrim(${user.email}))`, credentialGroupEnrollment.email))
     .where(
       and(
         eq(user.id, userId),
@@ -71,6 +76,41 @@ export async function loadCredentialGroupEnrollmentAccess(
     )
     .limit(1)
   return row ?? null
+}
+
+/** Resolves a verified Sim or provider subject to exactly one active enrollment. */
+export async function loadCredentialGroupEnrollmentAccessForSubject(
+  credentialGroupId: string,
+  subject: PrincipalSubject
+): Promise<CredentialGroupEnrollmentAccess | null> {
+  if (subject.kind === 'sim_user') {
+    return loadCredentialGroupEnrollmentAccess(credentialGroupId, subject.userId)
+  }
+  if (!isCredentialGroupProvider(subject.provider)) return null
+  const providerId = getCredentialGroupProviderId(subject.provider)
+  const rows = await db
+    .selectDistinct({
+      enrollmentId: credentialGroupEnrollment.id,
+      email: credentialGroupEnrollment.email,
+    })
+    .from(credentialGroupEnrollment)
+    .innerJoin(credential, eq(credential.credentialGroupEnrollmentId, credentialGroupEnrollment.id))
+    .where(
+      and(
+        eq(credentialGroupEnrollment.credentialGroupId, credentialGroupId),
+        inArray(credentialGroupEnrollment.status, ['in_progress', 'completed']),
+        eq(credential.type, 'managed_oauth'),
+        eq(credential.managedOauthStatus, 'active'),
+        eq(credential.providerId, providerId),
+        eq(credential.providerTenantId, subject.tenantId),
+        eq(credential.providerSubjectId, subject.subjectId)
+      )
+    )
+    .limit(2)
+  if (rows.length > 1) {
+    throw new Error('External subject resolves to multiple Credential Group enrollments')
+  }
+  return rows[0] ?? null
 }
 
 /** Loads the canonical group ownership needed by the application authorization boundary. */
