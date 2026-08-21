@@ -79,7 +79,7 @@ import {
   getDashboardOrganization,
   listDashboardOrganizations,
   toDashboardConfigurationUpdate,
-  updateDashboardEnterpriseBillingTerms,
+  updateDashboardEnterpriseReportingPeriod,
   updateDashboardEnterpriseSeats,
   updateDashboardOrganizationLimits,
 } from '@/lib/admin/dashboard'
@@ -189,6 +189,7 @@ describe('toDashboardConfigurationUpdate', () => {
             concurrencyLimit: 50,
           },
           requestedTerms: null,
+          providerAccepted: false,
           error: null,
         },
       })
@@ -196,13 +197,41 @@ describe('toDashboardConfigurationUpdate', () => {
       id: 'config-2',
       status: 'pending',
       requestedUsageLimitDollars: 50_000,
-      requestedInvoiceAmountUsd: null,
-      requestedBillingInterval: null,
+      requestedReportingPeriodInterval: null,
       requestedReportingPeriodAnchorDate: null,
       requestedSeats: 20,
       requestedConcurrencyLimit: 50,
       requestedWorkflowExecutionTimeoutSeconds: null,
+      providerAccepted: false,
+      retryable: true,
       error: null,
+    })
+  })
+
+  it('surfaces a legacy coupled cadence as reporting-only and disables retry', () => {
+    expect(
+      toDashboardConfigurationUpdate({
+        latestRevision: 3,
+        desiredMetadata: {},
+        desiredTerms: null,
+        hasUnappliedIntent: true,
+        effectiveSeatCapacity: 20,
+        configurationUpdate: {
+          id: 'legacy-config',
+          status: 'failed',
+          requestedMetadata: {
+            reportingPeriodAnchorDate: '2026-05-01',
+            seats: 20,
+          },
+          requestedTerms: { invoiceAmountCents: 50_000, billingInterval: 'year' },
+          providerAccepted: false,
+          error: 'Commercial-term updates are unsupported',
+        },
+      })
+    ).toMatchObject({
+      requestedReportingPeriodAnchorDate: '2026-05-01',
+      requestedReportingPeriodInterval: 'year',
+      retryable: false,
     })
   })
 })
@@ -458,7 +487,7 @@ describe('updateDashboardOrganizationLimits', () => {
   })
 })
 
-describe('updateDashboardEnterpriseBillingTerms', () => {
+describe('updateDashboardEnterpriseReportingPeriod', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
@@ -477,7 +506,7 @@ describe('updateDashboardEnterpriseBillingTerms', () => {
     })
   })
 
-  it('queues a cadence and immutable Price change through the existing Stripe intent', async () => {
+  it('queues only independent reporting metadata and preserves commercial metadata', async () => {
     queueTableRows(subscription, [
       {
         id: 'sub-1',
@@ -485,15 +514,19 @@ describe('updateDashboardEnterpriseBillingTerms', () => {
         plan: 'enterprise',
         status: 'active',
         billingInterval: 'month',
-        metadata: { plan: 'enterprise', referenceId: 'org-1', monthlyPrice: 125, seats: 10 },
+        metadata: {
+          plan: 'enterprise',
+          referenceId: 'org-1',
+          monthlyPrice: 125,
+          seats: 10,
+        },
       },
     ])
 
-    await updateDashboardEnterpriseBillingTerms(
+    await updateDashboardEnterpriseReportingPeriod(
       'org-1',
       {
-        invoiceAmountUsd: 1200,
-        billingInterval: 'year',
+        reportingPeriodInterval: 'year',
         reportingPeriodAnchorDate: '2026-01-31',
       },
       { id: 'admin-1', name: 'Admin', email: 'admin@sim.ai' }
@@ -504,19 +537,17 @@ describe('updateDashboardEnterpriseBillingTerms', () => {
       'stripe.sync-enterprise-metadata',
       expect.objectContaining({
         revision: 4,
-        terms: { invoiceAmountCents: 120_000, billingInterval: 'year' },
         metadata: expect.objectContaining({
-          invoiceAmountCents: 120_000,
+          monthlyPrice: 125,
           reportingPeriodAnchorDate: '2026-01-31',
+          reportingPeriodInterval: 'year',
         }),
       })
     )
-    expect(
-      (mocks.enqueueOutboxEvent.mock.calls[0][2] as { metadata: Record<string, unknown> }).metadata
-    ).toMatchObject({ monthlyPrice: null })
+    expect(mocks.enqueueOutboxEvent.mock.calls[0][2]).not.toHaveProperty('terms')
   })
 
-  it('updates only metadata when the applied Price already matches', async () => {
+  it('does not compare the requested reporting cadence with the Stripe cadence', async () => {
     queueTableRows(subscription, [
       {
         id: 'sub-1',
@@ -528,16 +559,25 @@ describe('updateDashboardEnterpriseBillingTerms', () => {
       },
     ])
 
-    await updateDashboardEnterpriseBillingTerms(
+    await updateDashboardEnterpriseReportingPeriod(
       'org-1',
       {
-        invoiceAmountUsd: 1200,
-        billingInterval: 'year',
+        reportingPeriodInterval: 'month',
         reportingPeriodAnchorDate: '2025-01-31',
       },
       { id: 'admin-1', name: 'Admin', email: 'admin@sim.ai' }
     )
 
     expect(mocks.enqueueOutboxEvent.mock.calls[0][2]).not.toHaveProperty('terms')
+    expect(mocks.enqueueOutboxEvent.mock.calls[0][2]).toMatchObject({
+      metadata: {
+        plan: 'enterprise',
+        referenceId: 'org-1',
+        seats: 10,
+        monthlyPrice: 125,
+        reportingPeriodAnchorDate: '2025-01-31',
+        reportingPeriodInterval: 'month',
+      },
+    })
   })
 })
