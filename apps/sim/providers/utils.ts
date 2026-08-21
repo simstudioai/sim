@@ -1574,12 +1574,13 @@ export function prepareToolExecution(
   /**
    * The model's own id for this tool call, read from the provider's response.
    *
-   * Passed positionally because every provider already has the tool call in
-   * scope at this point but names it differently, and because a provider that
-   * cannot supply one should fail to compile rather than silently fall through
-   * to the unstable-token path.
+   * Required rather than optional — `string | undefined` — so the argument
+   * cannot be forgotten. A provider with no model-supplied id must pass
+   * `undefined` explicitly and take the loud fallback; omitting it entirely
+   * would silently leave `invocationId` unset, which is the unstable-token path
+   * this parameter exists to close.
    */
-  toolCallId?: string
+  toolCallId: string | undefined
 ): {
   toolParams: Record<string, any>
   executionParams: Record<string, any>
