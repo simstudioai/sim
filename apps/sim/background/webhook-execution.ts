@@ -49,7 +49,10 @@ import {
   resolveWebhookRecordProviderConfig,
   type WebhookEnvResolutionOptions,
 } from '@/lib/webhooks/env-resolver'
-import { assertWebhookExecutionPrincipal } from '@/lib/webhooks/execution-principal'
+import {
+  assertWebhookExecutionPrincipal,
+  createWebhookExecutionPrincipal,
+} from '@/lib/webhooks/execution-principal'
 import { getProviderHandler } from '@/lib/webhooks/providers'
 import {
   executeWorkflowCore,
@@ -165,7 +168,7 @@ function normalizeWebhookAttachments(value: unknown): WebhookAttachment[] {
 }
 
 export function buildWebhookCorrelation(
-  payload: WebhookExecutionPayload
+  payload: WebhookExecutionJobPayload
 ): AsyncExecutionCorrelation {
   const executionId = payload.executionId || generateId()
   const requestId = payload.requestId || payload.correlation?.requestId || executionId.slice(0, 8)
@@ -298,8 +301,26 @@ export type WebhookExecutionPayload = {
   executionTimeoutMs?: number
 }
 
+type LegacyWebhookExecutionPayload = Omit<WebhookExecutionPayload, 'principal'> & {
+  /** Jobs queued before execution principals were introduced omit this field. */
+  principal?: undefined
+}
+
+type WebhookExecutionJobPayload = WebhookExecutionPayload | LegacyWebhookExecutionPayload
+
+/** Reconstructs the exact system authority recorded by the pre-principal webhook payload. */
+function parseWebhookJobPrincipal(payload: WebhookExecutionJobPayload): WorkflowExecutionPrincipal {
+  if (payload.principal !== undefined) return parsePrincipal(payload.principal)
+  return createWebhookExecutionPrincipal({
+    webhookId: payload.webhookId,
+    workflowId: payload.workflowId,
+    workspaceId: payload.workspaceId,
+    provider: payload.provider,
+  })
+}
+
 export async function executeWebhookJob(
-  payload: WebhookExecutionPayload,
+  payload: WebhookExecutionJobPayload,
   externalAbortSignal?: AbortSignal
 ) {
   const correlation = buildWebhookCorrelation(payload)
@@ -308,7 +329,7 @@ export async function executeWebhookJob(
   let payloadBillingAttribution: BillingAttributionSnapshot
   let principal: WorkflowExecutionPrincipal
   try {
-    principal = parsePrincipal(payload.principal)
+    principal = parseWebhookJobPrincipal(payload)
     assertWebhookExecutionPrincipal(principal, payload)
     payloadBillingAttribution = assertBillingAttributionSnapshot(payload.billingAttribution)
     if (
@@ -490,7 +511,7 @@ async function handleExecutionResult(
 }
 
 async function executeWebhookJobInternal(
-  payload: WebhookExecutionPayload,
+  payload: WebhookExecutionJobPayload,
   principal: WorkflowExecutionPrincipal,
   correlation: AsyncExecutionCorrelation,
   timeoutController: ReturnType<typeof createTimeoutAbortController>,
@@ -933,6 +954,6 @@ export const webhookExecution = task({
   queue: {
     concurrencyLimit: WEBHOOK_EXECUTION_CONCURRENCY_LIMIT,
   },
-  run: async (payload: WebhookExecutionPayload, { signal }: { signal: AbortSignal }) =>
+  run: async (payload: WebhookExecutionJobPayload, { signal }: { signal: AbortSignal }) =>
     executeWebhookJob(payload, signal),
 })

@@ -25,6 +25,7 @@ const {
   mockLoadDeploymentVersionState,
   mockGetProviderHandler,
   mockSetResolvedSecretTraceRegistry,
+  mockExecutionSnapshot,
 } = vi.hoisted(() => ({
   mockResolveWebhookRecordProviderConfig: vi.fn(),
   mockExecuteWorkflowCore: vi.fn(),
@@ -34,6 +35,7 @@ const {
   mockReleaseExecutionSlot: vi.fn(),
   mockGetProviderHandler: vi.fn(() => ({})),
   mockSetResolvedSecretTraceRegistry: vi.fn(),
+  mockExecutionSnapshot: vi.fn(),
   mockLoadDeploymentVersionState: vi.fn(
     async (_workflowId: string, deploymentVersionId: string) => ({
       blocks: {},
@@ -120,7 +122,7 @@ vi.mock('@/lib/oauth/credential-service', () => ({
 }))
 
 vi.mock('@/executor/execution/snapshot', () => ({
-  ExecutionSnapshot: class {},
+  ExecutionSnapshot: mockExecutionSnapshot,
 }))
 
 vi.mock('@/tools/safe-assign', () => ({ safeAssign: vi.fn() }))
@@ -279,6 +281,55 @@ describe('executeWebhookJob fault vs error handling', () => {
       decryptionFailures: [],
     })
     dbChainMockFns.limit.mockResolvedValue([{ id: 'webhook-1' }])
+  })
+
+  it('restores a legacy queued webhook as its canonical system principal', async () => {
+    const legacyPayload = {
+      webhookId: payload.webhookId,
+      workflowId: payload.workflowId,
+      userId: payload.userId,
+      billingAttribution: payload.billingAttribution,
+      executionId: payload.executionId,
+      requestId: payload.requestId,
+      provider: payload.provider,
+      body: payload.body,
+      headers: payload.headers,
+      path: payload.path,
+      workspaceId: payload.workspaceId,
+    }
+    mockExecuteWorkflowCore.mockResolvedValueOnce({
+      success: true,
+      status: 'completed',
+      output: {},
+      logs: [],
+      executionState: {
+        blockStates: {},
+        executedBlocks: [],
+        blockLogs: [],
+        decisions: {},
+        completedLoops: [],
+        activeExecutionPath: [],
+      },
+    })
+
+    await executeWebhookJob(legacyPayload)
+
+    expect(mockExecutionSnapshot).toHaveBeenCalledWith(
+      expect.objectContaining({
+        principal: {
+          kind: 'system',
+          serviceId: 'webhook',
+          webhookId: 'webhook-1',
+          workflowId: 'workflow-1',
+          workspaceId: 'workspace-1',
+          provider: 'gmail',
+        },
+      }),
+      expect.anything(),
+      expect.anything(),
+      expect.any(Object),
+      expect.any(Array)
+    )
   })
 
   it('completes the run (does not throw) when the failure was finalized by core', async () => {
