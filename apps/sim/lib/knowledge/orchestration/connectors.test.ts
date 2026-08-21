@@ -375,6 +375,67 @@ describe('performUpdateKnowledgeConnector', () => {
     expect(mockDispatchSync).not.toHaveBeenCalled()
   })
 
+  it('preserves an already-due source sync when scheduled sync is disabled', async () => {
+    const pendingSourceSyncAt = new Date(0)
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      {
+        id: 'conn-1',
+        connectorType: 'notion',
+        nextSyncAt: pendingSourceSyncAt,
+        status: 'active',
+      },
+    ])
+    dbChainMockFns.returning.mockResolvedValueOnce([
+      {
+        id: 'conn-1',
+        connectorType: 'notion',
+        nextSyncAt: pendingSourceSyncAt,
+        status: 'active',
+      },
+    ])
+
+    const outcome = await performUpdateKnowledgeConnector({
+      ...ACTOR,
+      knowledgeBase: KB,
+      connectorId: 'conn-1',
+      updates: { syncIntervalMinutes: 0 },
+      resolveBillingAttribution,
+    })
+
+    expect(outcome).toMatchObject({ success: true })
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({ nextSyncAt: pendingSourceSyncAt, syncIntervalMinutes: 0 })
+    )
+    expect(mockDispatchSync).not.toHaveBeenCalled()
+  })
+
+  it('rejects an interval update that races with a source-sync due marker', async () => {
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([
+        { id: 'conn-1', connectorType: 'notion', nextSyncAt: null, status: 'active' },
+      ])
+      .mockResolvedValueOnce([
+        {
+          id: 'conn-1',
+          connectorType: 'notion',
+          nextSyncAt: new Date(),
+          status: 'active',
+        },
+      ])
+    dbChainMockFns.returning.mockResolvedValueOnce([])
+
+    const outcome = await performUpdateKnowledgeConnector({
+      ...ACTOR,
+      knowledgeBase: KB,
+      connectorId: 'conn-1',
+      updates: { syncIntervalMinutes: 0 },
+      resolveBillingAttribution,
+    })
+
+    expect(outcome).toMatchObject({ success: false, errorCode: 'conflict' })
+    expect(mockDispatchSync).not.toHaveBeenCalled()
+  })
+
   it('rejects a source replacement while synchronization is in progress', async () => {
     dbChainMockFns.limit.mockResolvedValueOnce([
       { id: 'conn-1', connectorType: 'notion', status: 'syncing' },
