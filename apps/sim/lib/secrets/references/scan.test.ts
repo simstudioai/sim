@@ -280,6 +280,36 @@ describe('scanSecretReferences', () => {
     expect(scan.workflows[0]?.blocks).toHaveLength(2000)
   })
 
+  /**
+   * The cap counts what is reported, not what is read. The prefilter judges syntax only, so a
+   * block naming the secret in prose is a genuine candidate that the scanner then rejects — and
+   * when the cap counted candidates, enough of those sorted earlier pushed real references out of
+   * the answer entirely.
+   */
+  it('does not let filtered candidates displace real references', async () => {
+    const noise = Array.from({ length: 2500 }, (_, index) =>
+      blockRow({
+        blockId: `noise-${index}`,
+        blockName: `Noise ${index}`,
+        workflowId: 'workflow-1',
+        workflowName: 'Nightly sync',
+        subBlocks: shortInput('systemPrompt', 'the API_KEY is configured elsewhere'),
+      })
+    )
+    const real = blockRow({
+      blockId: 'block-real',
+      blockName: 'Fetch orders',
+      workflowId: 'workflow-1',
+      workflowName: 'Nightly sync',
+      subBlocks: shortInput('apiKey', '{{API_KEY}}'),
+    })
+    queueTableRows(schemaMock.workflowBlocks, [...noise, real])
+
+    const scan = await scanSecretReferences({ workspaceId: 'workspace-1', name: 'API_KEY' })
+
+    expect(scan.workflows[0]?.blocks.map((block) => block.blockId)).toEqual(['block-real'])
+  })
+
   it('returns nothing for a secret referenced nowhere', async () => {
     const scan = await scanSecretReferences({ workspaceId: 'workspace-1', name: 'API_KEY' })
 

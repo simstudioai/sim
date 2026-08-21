@@ -10,13 +10,27 @@ import { ENV_REF_PATTERN, remapSubBlocks } from '@/ee/workspace-forking/lib/rema
 const logger = createLogger('SecretReferenceScan')
 
 /**
- * Cap on candidate blocks read in one scan. The prefilter matches the reference syntax itself,
- * so a candidate is already a genuine `{{name}}` occurrence and reaching this cap means the
- * workspace really does wire the key into thousands of blocks — at which point a complete list
- * is not the useful answer anyway. Reported back as {@link SecretReferenceScan.truncated}
- * rather than silently dropped.
+ * Cap on blocks REPORTED — confirmed references, not rows read.
+ *
+ * Capping candidates instead made the answer depend on how many irrelevant rows happened to sort
+ * first. The prefilter can only judge syntax, while `remapSubBlocks` additionally drops dormant
+ * canonical members and condition-hidden fields — semantics no SQL predicate can replicate — so a
+ * block whose only `{{name}}` sits in a hidden field is a real candidate that yields nothing, and
+ * enough of them sorted earlier displaced active references out of the result.
  */
-const BLOCK_SCAN_LIMIT = 2000
+const BLOCK_RESULT_LIMIT = 2000
+
+/** Candidate rows held in memory at once. One page, not the whole candidate set. */
+const BLOCK_CANDIDATE_PAGE = 200
+
+/**
+ * Ceiling on candidate rows read across all pages, so a scan cannot walk an unbounded set.
+ *
+ * This is the irreducible bound: completeness and bounded work cannot both hold, so the choice is
+ * where the bound sits. It sits well above {@link BLOCK_RESULT_LIMIT} precisely so filtered rows
+ * are absorbed as extra reads rather than displacing results.
+ */
+const BLOCK_CANDIDATE_CEILING = 10_000
 
 /** Matching cap for each cascade table, which are far smaller than the block table. */
 const RESOURCE_SCAN_LIMIT = 200
@@ -192,7 +206,12 @@ export async function scanSecretReferences({
   // A name outside the env-key charset cannot appear inside `{{ }}`, so nothing can reference it.
   if (!ENV_KEY_PATTERN.test(name)) return { workflows: [], resources: [], truncated: false }
 
-  const [blocks, tools, servers] = await Promise.all([
+  /**
+   * One page of candidates. `blockId` is in the ordering as a final tiebreak: OFFSET paging over
+   * a non-unique sort can repeat or skip rows between pages, which here would double-report a
+   * block or silently lose one.
+   */
+  const readCandidatePage = (offset: number) =>
     db
       .select({
         blockId: workflowBlocks.id,
@@ -212,8 +231,16 @@ export async function scanSecretReferences({
           referencesKey(sql`${workflowBlocks.subBlocks}::text`, name)
         )
       )
-      .orderBy(asc(workflow.name), asc(workflow.id), asc(workflowBlocks.name))
-      .limit(BLOCK_SCAN_LIMIT + 1),
+      .orderBy(
+        asc(workflow.name),
+        asc(workflow.id),
+        asc(workflowBlocks.name),
+        asc(workflowBlocks.id)
+      )
+      .limit(BLOCK_CANDIDATE_PAGE)
+      .offset(offset)
+
+  const [tools, servers] = await Promise.all([
     db
       .select({ id: customTools.id, title: customTools.title, code: customTools.code })
       .from(customTools)
@@ -241,15 +268,45 @@ export async function scanSecretReferences({
       .limit(RESOURCE_SCAN_LIMIT + 1),
   ])
 
-  let truncated =
-    blocks.length > BLOCK_SCAN_LIMIT ||
-    tools.length > RESOURCE_SCAN_LIMIT ||
-    servers.length > RESOURCE_SCAN_LIMIT
+  let truncated = tools.length > RESOURCE_SCAN_LIMIT || servers.length > RESOURCE_SCAN_LIMIT
 
   const workflows: SecretReferenceWorkflow[] = []
   const workflowIndex = new Map<string, SecretReferenceWorkflow>()
+  let reported = 0
+  let candidatesRead = 0
 
-  for (const row of blocks.slice(0, BLOCK_SCAN_LIMIT)) {
+  /**
+   * Pages the candidates rather than reading them all: the ceiling is high enough that filtered
+   * rows do not displace results, which would be far too many block records to hold at once.
+   */
+  while (reported < BLOCK_RESULT_LIMIT && candidatesRead < BLOCK_CANDIDATE_CEILING) {
+    const page = await readCandidatePage(candidatesRead)
+    if (page.length === 0) break
+    candidatesRead += page.length
+
+    for (const row of page) {
+      if (reported >= BLOCK_RESULT_LIMIT) break
+      scanCandidate(row)
+    }
+
+    // A short page is the end of the candidate set; anything else means more remain.
+    if (page.length < BLOCK_CANDIDATE_PAGE) break
+  }
+
+  /* Either bound stopping us early means the lists are a prefix of the real answer. */
+  if (reported >= BLOCK_RESULT_LIMIT || candidatesRead >= BLOCK_CANDIDATE_CEILING) {
+    truncated = true
+  }
+
+  function scanCandidate(row: {
+    blockId: string
+    blockName: string
+    blockType: string
+    subBlocks: unknown
+    data: unknown
+    workflowId: string
+    workflowName: string
+  }): void {
     let field: string | undefined
     try {
       const { references } = remapSubBlocks(
@@ -275,9 +332,9 @@ export async function scanSecretReferences({
         workflowId: row.workflowId,
         error,
       })
-      continue
+      return
     }
-    if (!field) continue
+    if (!field) return
 
     let entry = workflowIndex.get(row.workflowId)
     if (!entry) {
@@ -291,6 +348,7 @@ export async function scanSecretReferences({
       blockType: row.blockType,
       field,
     })
+    reported += 1
   }
 
   const resources: SecretReferenceResource[] = []
