@@ -1,10 +1,9 @@
 import { omit } from '@sim/utils/object'
 import {
-  v2CreateChatDeploymentContract,
-  v2DeleteChatDeploymentContract,
-  v2GetChatDeploymentContract,
+  v2DeleteWorkflowChatDeploymentContract,
+  v2GetWorkflowChatDeploymentContract,
   v2ListChatDeploymentsContract,
-  v2UpdateChatDeploymentContract,
+  v2ReplaceWorkflowChatDeploymentContract,
 } from '@/lib/api/contracts/v2/chat-deployments'
 import {
   documentedSchema,
@@ -125,6 +124,18 @@ const WORKFLOW_VERSION_EXAMPLE = {
   deployedBy: 'Jane Smith',
   latestOperationStatus: 'active',
 } as const
+
+/**
+ * The one confusable pair on this surface: `/workflows/{workflowId}/deployment`
+ * (singular) is the workflow's own API deployment, `/workflows/{workflowId}/deployments/chat`
+ * is one surface it is served on. Stated on both rather than on whichever the
+ * caller happens to open first.
+ */
+const WORKFLOW_DEPLOYMENT_VS_CHAT =
+  'Not to be confused with `/workflows/{workflowId}/deployments/chat`, which is the hosted chat the workflow is published as. This path governs whether the workflow is executable at all; that one governs one surface it is served on. A workflow can be deployed with no chat, and removing its chat leaves it deployed and executable.'
+
+const CHAT_VS_WORKFLOW_DEPLOYMENT =
+  "Not to be confused with `/workflows/{workflowId}/deployment` (singular), which is the workflow's own API deployment — its live version and whether the draft has drifted. That path governs whether the workflow is executable at all; this one governs the hosted chat it is served on. The chat is a singleton of its workflow, so it has no id of its own in any path and no separate create verb: `PUT` is create-or-replace and is the only write."
 
 const CHAT_DEPLOYMENT_EXAMPLE = {
   id: 'chat_01J8ZK3QW4M6X2R9T7B5C0V2',
@@ -288,7 +299,7 @@ const declaredRoutes = [
       operationId: 'getWorkflowState',
       summary: 'Get Workflow State',
       description:
-        'Get the editable draft graph of a workflow: blocks, edges, the loop and parallel containers derived from them, and variables. This is the pollable read — it records no audit event, and `HEAD` mirrors `GET`. The payload is **unsanitized**: it carries workspace-scoped `credentialId`, `knowledgeBaseId`, and `tableId` values verbatim, so it is not portable to another workspace. Use `GET /workflows/{id}/export` for a portable, sanitized copy — and note that export is not a read-modify-write source, because sanitizing it drops every credential binding. Unknown members are stripped, so what this returns is exactly the set of keys `PUT /workflows/{id}/state` accepts.',
+        'Get the editable draft graph of a workflow: blocks, edges, the loop and parallel containers derived from them, and variables. This is the pollable read — it records no audit event, and `HEAD` mirrors `GET`. The payload is **unsanitized**: it carries workspace-scoped `credentialId`, `knowledgeBaseId`, and `tableId` values verbatim, so it is not portable to another workspace. Use `GET /workflows/{workflowId}/export` for a portable, sanitized copy — and note that export is not a read-modify-write source, because sanitizing it drops every credential binding. Unknown members are stripped, so what this returns is exactly the set of keys `PUT /workflows/{workflowId}/state` accepts.',
       /**
        * No `413`: unlike the workflow reads beside it this one resolves no
        * folder path, so it never materializes the workspace's folder tree, and
@@ -316,7 +327,7 @@ const declaredRoutes = [
       operationId: 'replaceWorkflowState',
       summary: 'Replace Workflow State',
       description:
-        'Replace a workflow\u2019s editable draft graph wholesale. `loops` and `parallels` are accepted but ignored — both are recomputed from `blocks`. Omitting `variables` leaves the stored variables untouched.\n\nLast write wins: concurrent writers are serialized by a row lock, so each lands a complete self-consistent graph and the later one replaces the earlier entirely. There is no partially-written state and no conflict detection.\n\nThis does not change what the deployed endpoint serves. Deployments are immutable versioned snapshots, and no schedule or webhook registration is touched. The only visible consequence is that `needsRedeployment` becomes true; `POST /workflows/{id}/deploy` publishes the draft.\n\n`lint` is advisory and never blocks the write. `lint.fieldIssues` is the most actionable part for a headless builder — it names blocks missing a required field, which fail at run time — and `lint.unresolvedReferences` names credential, resource, tool, and skill values that do not resolve. A workspace API key has no human subject to resolve those references against, so for one the reference pass is skipped and `lint.notes` says so; the structural and field findings are unaffected.\n\nSet `?dryRun=true` to validate and lint without persisting: nothing is written, no audit entry is recorded, and collaborators are not notified. The response carries the same shape and the same validation and `lint` findings the committed write would, with `dryRun: true` — but `needsRedeployment` describes the state before the write, and warnings raised by persistence itself are necessarily absent.',
+        'Replace a workflow\u2019s editable draft graph wholesale. `loops` and `parallels` are accepted but ignored — both are recomputed from `blocks`. Omitting `variables` leaves the stored variables untouched.\n\nLast write wins: concurrent writers are serialized by a row lock, so each lands a complete self-consistent graph and the later one replaces the earlier entirely. There is no partially-written state and no conflict detection.\n\nThis does not change what the deployed endpoint serves. Deployments are immutable versioned snapshots, and no schedule or webhook registration is touched. The only visible consequence is that `needsRedeployment` becomes true; `POST /workflows/{workflowId}/deploy` publishes the draft.\n\n`lint` is advisory and never blocks the write. `lint.fieldIssues` is the most actionable part for a headless builder — it names blocks missing a required field, which fail at run time — and `lint.unresolvedReferences` names credential, resource, tool, and skill values that do not resolve. A workspace API key has no human subject to resolve those references against, so for one the reference pass is skipped and `lint.notes` says so; the structural and field findings are unaffected.\n\nSet `?dryRun=true` to validate and lint without persisting: nothing is written, no audit entry is recorded, and collaborators are not notified. The response carries the same shape and the same validation and `lint` findings the committed write would, with `dryRun: true` — but `needsRedeployment` describes the state before the write, and warnings raised by persistence itself are necessarily absent.',
       errors: RESOURCE_MUTATION_ERRORS,
       success: jsonSuccess('The draft graph was replaced.'),
     }),
@@ -353,8 +364,7 @@ const declaredRoutes = [
     workflowOperation({
       operationId: 'applyWorkflowOperations',
       summary: 'Apply Workflow Operations',
-      description:
-        'Apply a batch of semantic edits — add, edit, delete, and subflow membership changes — to a workflow graph, plus an optional set of block enable/disable changes.\n\nBest-effort per operation, atomic per write. The engine applies what it can to an in-memory graph and reports the rest in `skipped`, each with a machine-readable `type`; exactly one write of the fully-resolved graph then happens, so there is never a partially-applied graph. `deferred` is **not** a failure list: a forward-referencing edge is wired automatically once its target block exists, in this batch or a later one, so re-issuing a deferred edge is wrong.\n\nSet `atomic` to fail closed: any genuine skipped item, or any block input that would be dropped rather than persisted, then aborts before the write and answers `409` with `error.details.code: "OPERATIONS_NOT_APPLIED"`, the same `skipped` array, and a `droppedInputs` array, having persisted nothing.\n\n`lint` is advisory and never blocks the write. `lint.fieldIssues` is the most actionable part for a headless builder — it names blocks missing a required field, which fail at run time — and `lint.unresolvedReferences` names credential, resource, tool, and skill values that do not resolve. Those values stay persisted; only `inputValidationErrors` lists inputs that were actually dropped.\n\nAs with `PUT /workflows/{id}/state`, this changes only the draft; deploy to publish it. ${WORKSPACE_API_KEY_DENIED}\n\nSet `?dryRun=true` to validate and lint without persisting: nothing is written, no audit entry is recorded, and collaborators are not notified. The response carries the same shape and the same validation and `lint` findings the committed write would, with `dryRun: true` — but `needsRedeployment` describes the state before the write, and warnings raised by persistence itself are necessarily absent.',
+      description: `Apply a batch of semantic edits — add, edit, delete, and subflow membership changes — to a workflow graph, plus an optional set of block enable/disable changes.\n\nBest-effort per operation, atomic per write. The engine applies what it can to an in-memory graph and reports the rest in \`skipped\`, each with a machine-readable \`type\`; exactly one write of the fully-resolved graph then happens, so there is never a partially-applied graph. \`deferred\` is **not** a failure list: a forward-referencing edge is wired automatically once its target block exists, in this batch or a later one, so re-issuing a deferred edge is wrong.\n\nSet \`atomic\` to fail closed: any genuine skipped item, or any block input that would be dropped rather than persisted, then aborts before the write and answers \`409\` with \`error.details.code: "OPERATIONS_NOT_APPLIED"\`, the same \`skipped\` array, and a \`droppedInputs\` array, having persisted nothing.\n\n\`lint\` is advisory and never blocks the write. \`lint.fieldIssues\` is the most actionable part for a headless builder — it names blocks missing a required field, which fail at run time — and \`lint.unresolvedReferences\` names credential, resource, tool, and skill values that do not resolve. Those values stay persisted; only \`inputValidationErrors\` lists inputs that were actually dropped.\n\nAs with \`PUT /workflows/{workflowId}/state\`, this changes only the draft; deploy to publish it. ${WORKSPACE_API_KEY_DENIED}\n\nSet \`?dryRun=true\` to validate and lint without persisting: nothing is written, no audit entry is recorded, and collaborators are not notified. The response carries the same shape and the same validation and \`lint\` findings the committed write would, with \`dryRun: true\` — but \`needsRedeployment\` describes the state before the write, and warnings raised by persistence itself are necessarily absent.`,
       errors: RESOURCE_MUTATION_ERRORS,
       success: jsonSuccess('The batch was applied.'),
     }),
@@ -414,7 +424,7 @@ const declaredRoutes = [
       operationId: 'applyWorkflowVariables',
       summary: 'Update Workflow Variables',
       description:
-        'Add, edit, and delete a workflow\u2019s variables. Operations are matched by variable `name` and applied in order; a batch that changes nothing answers `200` with `changed: false`. Values are coerced to the declared `type`, and a value that cannot be coerced is stored as supplied. Read the current set from `variables` on `GET /workflows/{id}`.',
+        'Add, edit, and delete a workflow\u2019s variables. Operations are matched by variable `name` and applied in order; a batch that changes nothing answers `200` with `changed: false`. Values are coerced to the declared `type`, and a value that cannot be coerced is stored as supplied. Read the current set from `variables` on `GET /workflows/{workflowId}`.',
       errors: [...WORKSPACE_ERRORS, 'NotFound'],
       success: jsonSuccess('The variable set after the batch.'),
     }),
@@ -555,7 +565,7 @@ const declaredRoutes = [
       operationId: 'deleteWorkflowV2',
       summary: 'Delete Workflow',
       description:
-        'Archive a workflow. Despite the verb, this is not an erasure: the workflow, and the schedules, webhooks, MCP tools, and chats attached to it, are stamped archived and stop running, and `POST /workflows/{id}/restore` brings all of them back. An archived workflow disappears from the default list and is reachable with `scope=archived`. The `deleted` field is retained for shipped clients; `archived` states what actually happened.',
+        'Archive a workflow. Despite the verb, this is not an erasure: the workflow, and the schedules, webhooks, MCP tools, and chats attached to it, are stamped archived and stop running, and `POST /workflows/{workflowId}/restore` brings all of them back. An archived workflow disappears from the default list and is reachable with `scope=archived`. The `deleted` field is retained for shipped clients; `archived` states what actually happened.',
       errors: [...RESOURCE_ERRORS, 'Locked'],
       success: jsonSuccess('The workflow was archived.'),
     }),
@@ -631,7 +641,7 @@ const declaredRoutes = [
       operationId: 'updateWorkflowVersionV2',
       summary: 'Update Workflow Version',
       description:
-        'Relabel a deployment version. Merge-patch shaped: an omitted key is unchanged and `description: null` clears the release note. Metadata only — the pinned graph is immutable, and this never changes which version is live. Promote a version with `POST /workflows/{id}/versions/{version}/activate`.',
+        'Relabel a deployment version. Merge-patch shaped: an omitted key is unchanged and `description: null` clears the release note. Metadata only — the pinned graph is immutable, and this never changes which version is live. Promote a version with `POST /workflows/{workflowId}/versions/{version}/activate`.',
       errors: RESOURCE_ERRORS,
       success: jsonSuccess('The updated version metadata.'),
     }),
@@ -728,8 +738,7 @@ const declaredRoutes = [
     workflowOperation({
       operationId: 'getWorkflowDeployment',
       summary: 'Get Workflow Deployment',
-      description:
-        'Read the current deployment state of a workflow: whether a version is live, when it went live, the most recent deployment attempt with its readiness and failure payload, and whether the editable draft has since diverged from the live version. This is the only operation that publishes `needsRedeployment`.',
+      description: `Read the current deployment state of a workflow: whether a version is live, when it went live, the most recent deployment attempt with its readiness and failure payload, and whether the editable draft has since diverged from the live version. This is the only operation that publishes \`needsRedeployment\` and \`isPublicApi\`.\n\n\`isPublicApi\` is the security-relevant one: while it is \`true\` the deployed workflow executes without an API key, so anyone holding the execution URL can run it — and consume the workspace’s billed usage — anonymously. It is set through \`PATCH /workflows/{workflowId}/deployment\`, and this read is the only way to audit whether it is on.\n\n${WORKFLOW_DEPLOYMENT_VS_CHAT}`,
       errors: RESOURCE_ERRORS,
       success: jsonSuccess('The current deployment state.'),
     }),
@@ -740,13 +749,14 @@ const declaredRoutes = [
         v2GetWorkflowDeploymentContract.response.schema,
         'WorkflowDeploymentResponse',
         'Workflow deployment response',
-        'Current deployment state, including draft-versus-live drift.',
+        'Current deployment state, including draft-versus-live drift and whether the deployment is publicly executable.',
         [
           {
             data: {
               id: WORKFLOW_ID,
               isDeployed: true,
               needsRedeployment: true,
+              isPublicApi: false,
               deployedAt: '2026-06-12T10:30:00.000Z',
               warnings: [],
               activeDeployment: {
@@ -777,7 +787,7 @@ const declaredRoutes = [
     workflowOperation({
       operationId: 'updateWorkflowPublicApi',
       summary: 'Update Workflow Public API Access',
-      description: `Enable or disable unauthenticated public execution of the deployed workflow. While enabled, anyone holding the execution URL can run the workflow without an API key. An organization that forbids public sharing refuses this with \`403\` and \`PUBLIC_SHARING_NOT_ALLOWED\`. ${WORKSPACE_API_KEY_DENIED}`,
+      description: `Enable or disable unauthenticated public execution of the deployed workflow. While enabled, anyone holding the execution URL can run the workflow without an API key. An organization that forbids public sharing refuses this with \`403\` and \`PUBLIC_SHARING_NOT_ALLOWED\`. ${WORKFLOW_DEPLOYMENT_VS_CHAT} ${WORKSPACE_API_KEY_DENIED}`,
       errors: [...RESOURCE_ERRORS, 'PayloadTooLarge', 'Locked'],
       success: jsonSuccess('The updated public API setting.'),
     }),
@@ -876,7 +886,7 @@ const declaredRoutes = [
     workflowOperation({
       operationId: 'rollbackWorkflow',
       summary: 'Rollback Workflow',
-      description: `Asynchronously reactivate a previous deployment version, selecting the preceding active version when no version is supplied. Use this to step back from the currently live version; to make a specific version live by naming it in the path — including when the workflow is not currently deployed — use \`POST /workflows/{id}/versions/{version}/activate\`. Neither touches the draft. ${WORKSPACE_API_KEY_DENIED}`,
+      description: `Asynchronously reactivate a previous deployment version, selecting the preceding active version when no version is supplied. Use this to step back from the currently live version; to make a specific version live by naming it in the path — including when the workflow is not currently deployed — use \`POST /workflows/{workflowId}/versions/{version}/activate\`. Neither touches the draft. ${WORKSPACE_API_KEY_DENIED}`,
       errors: [...RESOURCE_ERRORS, 'Conflict', 'PayloadTooLarge', 'Locked'],
       success: jsonSuccess('The accepted rollback attempt.'),
     }),
@@ -991,7 +1001,7 @@ const declaredRoutes = [
       operationId: 'listChatDeployments',
       summary: 'List Chat Deployments',
       description:
-        'List the workflows a workspace has published as hosted chats. Each entry carries the public `url` a visitor uses — there is no chat subdomain, the identifier is a path segment. Entries are deliberately narrower than the detail read: `allowedEmails`, `hasPassword`, and `customizations` are available only from `GET /api/v2/chat-deployments/{chatDeploymentId}`, which requires workspace `admin`. That is what keeps this list callable at workspace `read` and by a workspace API key. A stored password is never returned by either.',
+        'List the workflows a workspace has published as hosted chats. Each entry carries the public `url` a visitor uses — there is no chat subdomain, the identifier is a path segment.\n\nThis is the only chat path not addressed under a workflow, and deliberately so: every chat is a singleton of the workflow it publishes, but "what does this workspace serve" is a question no per-workflow path can answer. Filter by `workflowId` to resolve one workflow\'s chat without holding its id.\n\nEntries are deliberately narrower than the singleton read: `allowedEmails`, `hasPassword`, and `customizations` are available only from `GET /api/v2/workflows/{workflowId}/deployments/chat`, which requires workspace `admin`. That is what keeps this list callable at workspace `read` and by a workspace API key. A stored password is never returned by either.',
       errors: RESOURCE_ERRORS,
       success: jsonSuccess('A page of chat deployments.'),
     }),
@@ -1007,85 +1017,64 @@ const declaredRoutes = [
     }
   ),
   defineOpenApiRoute(
-    v2CreateChatDeploymentContract,
+    v2GetWorkflowChatDeploymentContract,
     workflowOperation({
-      operationId: 'createChatDeployment',
-      summary: 'Create Chat Deployment',
-      description: `Publish a workflow as a hosted chat. This also deploys the workflow, because a chat serves the live version: a draft that has drifted is republished as part of the call, and a call landing while another deployment attempt is still preparing is a \`409\` rather than a second admitted version. A workflow carries at most one live chat deployment, so calling this for a workflow that already has one updates it in place. \`authType: "public"\` leaves the chat open to anyone holding the URL. ${WORKSPACE_API_KEY_DENIED}`,
+      operationId: 'getWorkflowChatDeployment',
+      summary: 'Get Workflow Chat Deployment',
+      description: `Read the hosted chat a workflow is published as. Answers \`404\` when the workflow publishes no chat. ${CHAT_VS_WORKFLOW_DEPLOYMENT} The stored password is never returned — \`hasPassword\` reports only whether one is set. This carries the visitor gate — \`authType\`, \`hasPassword\`, and the \`allowedEmails\` allow-list — so it requires workspace \`admin\`, unlike the workspace-wide list. ${WORKSPACE_API_KEY_DENIED}`,
+      errors: RESOURCE_ERRORS,
+      success: jsonSuccess("The workflow's chat deployment."),
+    }),
+    {
+      query: v2GetWorkflowChatDeploymentContract.query,
+      params: v2GetWorkflowChatDeploymentContract.params,
+      response: documentedSchema(
+        v2GetWorkflowChatDeploymentContract.response.schema,
+        'GetWorkflowChatDeploymentResponse',
+        'Get workflow chat deployment response',
+        "The workflow's chat deployment.",
+        [{ data: CHAT_DEPLOYMENT_EXAMPLE }]
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2ReplaceWorkflowChatDeploymentContract,
+    workflowOperation({
+      operationId: 'replaceWorkflowChatDeployment',
+      summary: 'Create or Replace Workflow Chat Deployment',
+      description: `Publish a workflow as a hosted chat, or replace the chat it already publishes. ${CHAT_VS_WORKFLOW_DEPLOYMENT}\n\n**Replace, not merge.** The chat ends up as exactly what the body describes: an omitted optional field takes its platform default rather than whatever the previous chat carried, so sending the same body twice leaves the same result. \`password\` is therefore required whenever \`authType\` is \`"password"\` and rejected otherwise — it is write-only and never readable back, so carrying one over implicitly is the one place a replace would quietly stop meaning replace. \`allowedEmails\` follows the same rule: required and non-empty for \`"email"\` and \`"sso"\`, rejected for the modes that admit no allow-list.\n\nThis also deploys the workflow, because a chat serves the live version: a draft that has drifted is republished as part of the call. Two conditions answer \`409\` — an \`identifier\` another live chat already holds, and a workflow deployment attempt still preparing, which the caller can retry once it becomes active. \`authType: "public"\` leaves the chat open to anyone holding the URL. ${WORKSPACE_API_KEY_DENIED}`,
       errors: [...RESOURCE_ERRORS, 'Conflict', 'PayloadTooLarge', 'Locked'],
       success: jsonSuccess('The published chat deployment.'),
     }),
     {
-      query: v2CreateChatDeploymentContract.query,
-      body: v2CreateChatDeploymentContract.body,
+      query: v2ReplaceWorkflowChatDeploymentContract.query,
+      params: v2ReplaceWorkflowChatDeploymentContract.params,
+      body: v2ReplaceWorkflowChatDeploymentContract.body,
       response: documentedSchema(
-        v2CreateChatDeploymentContract.response.schema,
-        'CreateChatDeploymentResponse',
-        'Create chat deployment response',
-        'The published chat deployment.',
+        v2ReplaceWorkflowChatDeploymentContract.response.schema,
+        'ReplaceWorkflowChatDeploymentResponse',
+        'Replace workflow chat deployment response',
+        'The chat deployment as stored after the replace.',
         [{ data: CHAT_DEPLOYMENT_EXAMPLE }]
       ),
     }
   ),
   defineOpenApiRoute(
-    v2GetChatDeploymentContract,
+    v2DeleteWorkflowChatDeploymentContract,
     workflowOperation({
-      operationId: 'getChatDeployment',
-      summary: 'Get Chat Deployment',
-      description: `Read one chat deployment. The stored password is never returned — \`hasPassword\` reports only whether one is set. Detail carries the visitor gate — \`authType\`, \`hasPassword\`, and the \`allowedEmails\` allow-list — so it requires workspace \`admin\`, unlike the list. ${WORKSPACE_API_KEY_DENIED}`,
-      errors: RESOURCE_ERRORS,
-      success: jsonSuccess('The chat deployment.'),
-    }),
-    {
-      query: v2GetChatDeploymentContract.query,
-      params: v2GetChatDeploymentContract.params,
-      response: documentedSchema(
-        v2GetChatDeploymentContract.response.schema,
-        'GetChatDeploymentResponse',
-        'Get chat deployment response',
-        'The requested chat deployment.',
-        [{ data: CHAT_DEPLOYMENT_EXAMPLE }]
-      ),
-    }
-  ),
-  defineOpenApiRoute(
-    v2UpdateChatDeploymentContract,
-    workflowOperation({
-      operationId: 'updateChatDeployment',
-      summary: 'Update Chat Deployment',
-      description: `Update a chat deployment. Merge-patch shaped: an omitted key is unchanged, and \`customizations\`, \`allowedEmails\`, and \`outputConfigs\` are replaced wholesale rather than merged. Changing \`authType\` clears the gate the previous mode owned — a stored password does not survive a move to \`email\` or \`sso\`, and the allow-list is cleared by a move to \`password\` or \`public\` unless the same request also supplies a replacement \`allowedEmails\`, which is applied after the clear — and a \`password\` sent alongside a non-password mode is ignored rather than stored. Like create, this republishes the workflow when its draft has drifted and answers \`409\` while a deployment attempt is in flight. A deployment cannot be re-pointed at a different workflow. ${WORKSPACE_API_KEY_DENIED}`,
-      errors: [...RESOURCE_ERRORS, 'Conflict', 'PayloadTooLarge', 'Locked'],
-      success: jsonSuccess('The updated chat deployment.'),
-    }),
-    {
-      query: v2UpdateChatDeploymentContract.query,
-      params: v2UpdateChatDeploymentContract.params,
-      body: v2UpdateChatDeploymentContract.body,
-      response: documentedSchema(
-        v2UpdateChatDeploymentContract.response.schema,
-        'UpdateChatDeploymentResponse',
-        'Update chat deployment response',
-        'The chat deployment after the update.',
-        [{ data: { ...CHAT_DEPLOYMENT_EXAMPLE, title: 'Billing support' } }]
-      ),
-    }
-  ),
-  defineOpenApiRoute(
-    v2DeleteChatDeploymentContract,
-    workflowOperation({
-      operationId: 'deleteChatDeployment',
-      summary: 'Delete Chat Deployment',
-      description: `Stop serving a chat deployment. Its URL stops answering and the identifier becomes free again. The workflow's own deployment is untouched and stays executable through the workflow API. ${WORKSPACE_API_KEY_DENIED}`,
+      operationId: 'deleteWorkflowChatDeployment',
+      summary: 'Delete Workflow Chat Deployment',
+      description: `Stop serving a workflow's hosted chat. Its URL stops answering and the identifier becomes free again. The workflow's own deployment is untouched and stays executable through the workflow API — to undeploy that, use \`DELETE /workflows/{workflowId}/deployment\`. ${WORKSPACE_API_KEY_DENIED}`,
       errors: RESOURCE_ERRORS,
       success: jsonSuccess('The chat deployment was removed.'),
     }),
     {
-      query: v2DeleteChatDeploymentContract.query,
-      params: v2DeleteChatDeploymentContract.params,
+      query: v2DeleteWorkflowChatDeploymentContract.query,
+      params: v2DeleteWorkflowChatDeploymentContract.params,
       response: documentedSchema(
-        v2DeleteChatDeploymentContract.response.schema,
-        'DeleteChatDeploymentResponse',
-        'Delete chat deployment response',
+        v2DeleteWorkflowChatDeploymentContract.response.schema,
+        'DeleteWorkflowChatDeploymentResponse',
+        'Delete workflow chat deployment response',
         'Acknowledgement that the chat deployment was removed.',
         [{ data: { id: CHAT_DEPLOYMENT_EXAMPLE.id, deleted: true } }]
       ),

@@ -490,21 +490,21 @@ export const queryTableRows = defineAuthorizedTableUseCase({
   },
 })
 
-export interface FindTableRowsInput extends TableScopedInput {
+export interface SearchTableRowsInput extends TableScopedInput {
   q: string
   predicate?: TablePredicate
   sort?: SortSpec
 }
 
-export interface FindTableRowsResult extends TableResult {
+export interface SearchTableRowsResult extends TableResult {
   matches: FindRowMatch[]
   truncated: boolean
 }
 
-export const findTableRows = defineAuthorizedTableUseCase({
-  operation: tableOperations.findRows,
-  resolveContext: ({ input }: { input: FindTableRowsInput }) => resolveActiveTableContext(input),
-  async execute({ input, context }): Promise<FindTableRowsResult> {
+export const searchTableRows = defineAuthorizedTableUseCase({
+  operation: tableOperations.searchRows,
+  resolveContext: ({ input }: { input: SearchTableRowsInput }) => resolveActiveTableContext(input),
+  async execute({ input, context }): Promise<SearchTableRowsResult> {
     try {
       if (input.q.length === 0) {
         throw new TableRowsValidationError('q must be a non-empty search string')
@@ -1082,7 +1082,7 @@ export interface BatchUpdateTableRowsResult extends TableResult, BulkOperationRe
  * The sibling {@link updateTableRows} applies ONE patch to every row a
  * predicate matches, so N different writes are N requests through it. This is
  * the surface-neutral home of the behavior Copilot's batch tool and the public
- * `POST /rows/batch-update` both need: identical business semantics, so one
+ * `POST /rows/bulk-update` both need: identical business semantics, so one
  * semantic operation ({@link tableOperations.updateRows}) and one use case.
  *
  * Membership is atomic. `batchUpdateRows` refuses the whole batch when a

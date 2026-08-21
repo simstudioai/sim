@@ -1436,7 +1436,7 @@ describe('opt-in per-cell run state', () => {
 
 /**
  * The heterogeneous batch update, which Copilot's batch tool and the public
- * `POST /rows/batch-update` now share.
+ * `POST /rows/bulk-update` now share.
  */
 describe('batchUpdateTableRows application use case', () => {
   beforeEach(() => {

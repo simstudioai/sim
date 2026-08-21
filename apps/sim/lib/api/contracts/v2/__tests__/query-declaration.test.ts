@@ -13,7 +13,7 @@ import { rejectsUnknownKeys } from '@/lib/api/contracts/v2/__tests__/schema-intr
  *
  * `parseRequest` validates the query slice only when the contract declares one
  * (`contract.query ? validate : skip`). A contract with no `query` therefore
- * never validates the query string at all: `GET /api/v2/workflows/{id}?bogus=1`
+ * never validates the query string at all: `GET /api/v2/workflows/{workflowId}?bogus=1`
  * answered 200 while every v2 list answered 400 for the same shape. The caller
  * learns nothing about the param the server ignored, which is the failure the
  * lists' `.strict()` rule already exists to prevent — a request the server did

@@ -15,6 +15,7 @@ import { resolveActiveWorkflowApplicationContext } from '@/lib/workflows/applica
 import { workflowOperations } from '@/lib/workflows/application/operations'
 import { assertedWorkflowWorkspaceId } from '@/lib/workflows/application/principal-scope'
 import { requireMutableWorkflow } from '@/lib/workflows/application/workflow-mutability'
+import { normalizeWorkflowVariables } from '@/lib/workflows/application/workflow-variables'
 import { checkNeedsRedeployment } from '@/lib/workflows/deployment-status'
 import type { WorkflowLintReport } from '@/lib/workflows/editing/lint'
 import { buildWorkflowLintReport } from '@/lib/workflows/editing/lint-report'
@@ -157,7 +158,16 @@ export const replaceWorkflowState = defineAuthorizedWorkflowUseCase({
       state: {
         blocks: graph.blocks,
         edges: graph.edges,
-        variables: input.variables,
+        /**
+         * Re-keyed by variable id and coerced onto each declared type by the
+         * same helper `PATCH /workflows/{id}/variables` uses, so a full
+         * replacement cannot write a shape the incremental path never
+         * produces. Omitted stays omitted — that leaves the column untouched.
+         */
+        variables:
+          input.variables === undefined
+            ? undefined
+            : normalizeWorkflowVariables(input.variables, { coerceValues: true }),
       },
     })
 

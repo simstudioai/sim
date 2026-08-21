@@ -11,7 +11,6 @@ import {
   v2DeleteFileContract,
   v2DeleteFileFolderContract,
   v2DownloadFileContract,
-  v2ExtractFileContract,
   v2GetFileContract,
   v2GetFileShareContract,
   v2GetFileUploadContract,
@@ -23,6 +22,7 @@ import {
   v2RenameFileContract,
   v2RestoreFileContract,
   v2RestoreFileFolderContract,
+  v2UnarchiveFileContract,
   v2UpdateFileContentContract,
   v2UpsertFileShareContract,
 } from '@/lib/api/contracts/v2/files'
@@ -52,6 +52,7 @@ import {
   type OpenApiOperationMetadata,
   type OpenApiSuccessMetadata,
 } from '@/lib/api/openapi/types'
+import { MAX_ZIP_DOWNLOAD_FILES } from '@/lib/workspace-files/limits'
 
 const FILE_EXAMPLE = {
   id: 'wf_V1StGXR8z5jdHi6BmyT91',
@@ -375,7 +376,7 @@ const declaredRoutes = [
     filesOperation({
       operationId: 'readFileText',
       summary: 'Read File Text',
-      description: `Extract a file's text. Answers \`400\` for a type no parser supports, naming the raw-bytes download as the escape hatch, and \`413\` for a file above the extraction ceiling. A generated document is extracted from its compiled artifact rather than its generation source, so one still compiling answers \`409\` and is worth retrying. **\`degraded: true\` means text extraction did not fully succeed and the returned text may be incomplete or synthesized from the file's raw bytes. Do not treat it as authoritative content.** The legacy \`.doc\` and \`.ppt\` parsers deliberately return best-effort content rather than failing, so this flag — not an error status — is how a partial extraction is reported. \`truncated\` separately reports that a parser limit stopped extraction early.`,
+      description: `Return a file's text content, parsed out of the stored bytes. This reads the file; it writes nothing — \`POST /api/v2/files/{fileId}/unarchive\` is the endpoint that unzips an archive into the workspace. Answers \`400\` for a type no parser supports, naming the raw-bytes download as the escape hatch, and \`413\` for a file above the extraction ceiling. A generated document is extracted from its compiled artifact rather than its generation source, so one still compiling answers \`409\` and is worth retrying. **\`degraded: true\` means text extraction did not fully succeed and the returned text may be incomplete or synthesized from the file's raw bytes. Do not treat it as authoritative content.** The legacy \`.doc\` and \`.ppt\` parsers deliberately return best-effort content rather than failing, so this flag — not an error status — is how a partial extraction is reported. \`truncated\` separately reports that a parser limit stopped extraction early.`,
       errors: [...RESOURCE_CONFLICT_ERRORS, 'PayloadTooLarge'],
       success: { description: 'The extracted text and its extraction-quality flags.' },
     }),
@@ -405,7 +406,7 @@ const declaredRoutes = [
     filesOperation({
       operationId: 'bulkDownloadFiles',
       summary: 'Bulk Download Files',
-      description: `Stream a selection of workspace files as one zip. Select files by id and folders by path, each as one comma-separated parameter; a folder expands to all its descendants, and a path matching no folder is rejected rather than ignored. The selection is capped on input and again on the resolved file count and total bytes, so an over-broad selection answers \`400\` rather than streaming indefinitely. Downloading records an audit event, so it is not a safe read. ${HEAD_MIRRORS_GET} ${HEAD_OMITS_PAYLOAD_HEADERS}`,
+      description: `Stream a selection of workspace files as one zip. Select files by id and folders by path, each as one comma-separated parameter; a folder expands to all its descendants, and a path matching no folder is rejected rather than ignored. Each parameter accepts at most ${MAX_ZIP_DOWNLOAD_FILES} entries — the same ceiling the resolved selection is held to — and the resolved file count and total bytes are checked again, so an over-broad selection answers \`400\` rather than streaming indefinitely. Downloading records an audit event, so it is not a safe read. ${HEAD_MIRRORS_GET} ${HEAD_OMITS_PAYLOAD_HEADERS}`,
       errors: RESOURCE_CONFLICT_ERRORS,
       success: {
         description: 'The selected files as a zip archive.',
@@ -423,34 +424,34 @@ const declaredRoutes = [
     }
   ),
   defineOpenApiRoute(
-    v2ExtractFileContract,
+    v2UnarchiveFileContract,
     filesOperation({
-      operationId: 'extractFile',
-      summary: 'Extract File Archive',
+      operationId: 'unarchiveFile',
+      summary: 'Unarchive File',
       description:
-        'Unzip a `.zip` archive into a new folder beside it and answer counts plus the destination path. The extracted files are deliberately not returned — a large archive would materialize thousands of objects into one response — so page `GET /api/v2/files?folderPath=...` for the contents. Extraction is slow: an archive near the size ceiling can run for minutes. Only one extraction of a given archive runs at a time; a concurrent attempt answers `409`. Archives past the size ceiling, and extractions that outrun their time budget, answer `413`.',
+        "Unzip a `.zip` archive into a new folder beside it and answer counts plus the destination path. This writes new workspace files; it does not read anything out of the archive into the response — `GET /api/v2/files/{fileId}/text` is the endpoint that returns a file's text. The unpacked files are deliberately not returned — a large archive would materialize thousands of objects into one response — so page `GET /api/v2/files?folderPath=...` for the contents. Unzipping is slow: an archive near the size ceiling can run for minutes. Only one unarchive of a given archive runs at a time; a concurrent attempt answers `409`. Archives past the size ceiling, and runs that outrun their time budget, answer `413`.",
       errors: [...RESOURCE_CONFLICT_ERRORS, 'PayloadTooLarge'],
-      success: { description: 'Counts and destination folder for the extracted archive.' },
+      success: { description: 'Counts and destination folder for the unpacked archive.' },
     }),
     {
       params: documentedSchema(
-        v2ExtractFileContract.params,
-        'ExtractFileParams',
-        'Extract archive path parameters',
-        'Archive selected for extraction.'
+        v2UnarchiveFileContract.params,
+        'UnarchiveFileParams',
+        'Unarchive file path parameters',
+        'Archive selected for unzipping.'
       ),
-      query: v2ExtractFileContract.query,
+      query: v2UnarchiveFileContract.query,
       body: documentedSchema(
-        v2ExtractFileContract.body,
-        'ExtractFileBody',
-        'Extract archive body',
+        v2UnarchiveFileContract.body,
+        'UnarchiveFileBody',
+        'Unarchive file body',
         'Workspace scope for the archive.'
       ),
       response: documentedSchema(
-        v2ExtractFileContract.response.schema,
-        'FileExtractionResponse',
-        'Archive extraction response',
-        'Counts and destination folder for the extracted archive.'
+        v2UnarchiveFileContract.response.schema,
+        'FileUnarchiveResponse',
+        'Unarchive file response',
+        'Counts and destination folder for the unpacked archive.'
       ),
     }
   ),

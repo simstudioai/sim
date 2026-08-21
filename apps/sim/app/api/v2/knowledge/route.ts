@@ -25,17 +25,26 @@ export const revalidate = 0
 /** Every param that changes which knowledge bases, in which order, this list returns. */
 function knowledgeCursorFilters(query: {
   workspaceId: string
+  scope?: string
   folderPath?: string
   search?: string
 }) {
   return cursorScopeKey(cursorRoute(v2ListKnowledgeBasesContract), {
     workspaceId: query.workspaceId,
+    scope: query.scope,
     folderPath: query.folderPath,
     search: query.search,
   })
 }
 
-/** GET /api/v2/knowledge — List knowledge bases in a workspace. */
+/**
+ * GET /api/v2/knowledge — List knowledge bases in a workspace.
+ *
+ * `scope=archived` lists the soft-deleted set a `POST /api/v2/knowledge/{knowledgeBaseId}/restore`
+ * can bring back. It is the same operation as the active list — the same rows under
+ * a different `deleted_at` predicate — so it is a filter here rather than a sibling
+ * path, matching files, tables, and workflows.
+ */
 export const GET = defineV2JsonRoute({
   contract: v2ListKnowledgeBasesContract,
   auth: v2ApiKeyAuth,
@@ -44,6 +53,7 @@ export const GET = defineV2JsonRoute({
   errorPolicy: v2OrchestrationErrorPolicy,
   mapInput: ({ query }) => ({
     workspaceId: query.workspaceId,
+    scope: query.scope,
     folderPath: query.folderPath,
     search: query.search,
     sortBy: query.sortBy,

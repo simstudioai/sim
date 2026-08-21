@@ -14,16 +14,14 @@ import {
   v2AddWorkflowGroupBodySchema,
   v2ApiRowSchema,
   v2ApiTableSchema,
-  v2BatchUpdateRowsBodySchema,
   v2BulkDeleteTablesBodySchema,
+  v2BulkUpdateRowsBodySchema,
   v2CreateTableBodySchema,
   v2CreateTableColumnBodySchema,
   v2CreateTableImportBodySchema,
   v2CreateTableRowsBodySchema,
   v2CsvImportCreateColumnsSchema,
   v2CsvImportMappingSchema,
-  v2FindRowsBodySchema,
-  v2FindRowsDataSchema,
   v2GetTableDispatchContract,
   v2GetTableImportContract,
   v2GetTableRowQuerySchema,
@@ -32,6 +30,8 @@ import {
   v2QueryRowsBodySchema,
   v2QueryRowsCountBodySchema,
   v2RestoreTableContract,
+  v2SearchRowsBodySchema,
+  v2SearchRowsDataSchema,
   v2TableImportStatusSchema,
   v2TableRowsQuerySchema,
   v2TableUploadImportSourceSchema,
@@ -447,21 +447,22 @@ describe('v2 table import lifecycle surface', () => {
  * surprise, or not at all.
  */
 describe('v2 table request bounds', () => {
-  const findBody = { workspaceId: WORKSPACE_ID, q: 'x' }
+  const searchBody = { workspaceId: WORKSPACE_ID, q: 'x' }
 
-  it('caps the Find search term at the shared v2 search length', () => {
+  it('caps the Search search term at the shared v2 search length', () => {
     expect(
-      v2FindRowsBodySchema.safeParse({ ...findBody, q: 'a'.repeat(V2_SEARCH_MAX_LENGTH) }).success
+      v2SearchRowsBodySchema.safeParse({ ...searchBody, q: 'a'.repeat(V2_SEARCH_MAX_LENGTH) })
+        .success
     ).toBe(true)
     expect(
-      v2FindRowsBodySchema.safeParse({ ...findBody, q: 'a'.repeat(V2_SEARCH_MAX_LENGTH + 1) })
+      v2SearchRowsBodySchema.safeParse({ ...searchBody, q: 'a'.repeat(V2_SEARCH_MAX_LENGTH + 1) })
         .success
     ).toBe(false)
   })
 
-  it('publishes the Find match cap the truncated flag is derived from', () => {
+  it('publishes the Search match cap the truncated flag is derived from', () => {
     expect(
-      v2FindRowsDataSchema.safeParse({
+      v2SearchRowsDataSchema.safeParse({
         matches: Array.from({ length: TABLE_LIMITS.MAX_FIND_MATCHES + 1 }, () => ({
           ordinal: 0,
           rowId: 'row-1',
@@ -470,7 +471,7 @@ describe('v2 table request bounds', () => {
         truncated: true,
       }).success
     ).toBe(false)
-    expect(JSON.stringify(z.toJSONSchema(v2FindRowsDataSchema))).toContain(
+    expect(JSON.stringify(z.toJSONSchema(v2SearchRowsDataSchema))).toContain(
       String(TABLE_LIMITS.MAX_FIND_MATCHES)
     )
   })
@@ -704,9 +705,9 @@ describe('v2 opt-in row run state', () => {
   })
 })
 
-describe('v2 batch row update contract', () => {
-  it('refuses an empty batch with a message naming the field', () => {
-    const parsed = v2BatchUpdateRowsBodySchema.safeParse({
+describe('v2 bulk row update contract', () => {
+  it('refuses an empty bulk update with a message naming the field', () => {
+    const parsed = v2BulkUpdateRowsBodySchema.safeParse({
       workspaceId: WORKSPACE_ID,
       updates: [],
     })
@@ -721,8 +722,8 @@ describe('v2 batch row update contract', () => {
    * the only thing that tells a v2 caller the bound that actually applies to
    * it. The message has to name that number, not the backstop's.
    */
-  it('refuses a batch past the bulk ceiling, naming the ceiling it enforces', () => {
-    const parsed = v2BatchUpdateRowsBodySchema.safeParse({
+  it('refuses a bulk update past the bulk ceiling, naming the ceiling it enforces', () => {
+    const parsed = v2BulkUpdateRowsBodySchema.safeParse({
       workspaceId: WORKSPACE_ID,
       updates: Array.from(
         { length: TABLE_LIMITS.MAX_BULK_OPERATION_SIZE + 1 },
@@ -739,8 +740,8 @@ describe('v2 batch row update contract', () => {
    * Two patches for one row have no defined precedence, and the primitive
    * applies them in array order — so the caller's second patch silently wins.
    */
-  it('refuses a batch naming the same row twice', () => {
-    const parsed = v2BatchUpdateRowsBodySchema.safeParse({
+  it('refuses a bulk update naming the same row twice', () => {
+    const parsed = v2BulkUpdateRowsBodySchema.safeParse({
       workspaceId: WORKSPACE_ID,
       updates: [
         { rowId: 'row-1', data: { name: 'Ada' } },

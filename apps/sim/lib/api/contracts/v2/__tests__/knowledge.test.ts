@@ -273,6 +273,7 @@ describe('v2 knowledge chunking configuration', () => {
         updatedAt: '2026-01-01T00:00:00.000Z',
         ownerEmail: 'owner@example.com',
         folderPath: '/',
+        deletedAt: null,
       },
     })
 

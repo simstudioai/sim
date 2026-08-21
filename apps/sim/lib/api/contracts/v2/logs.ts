@@ -16,11 +16,11 @@ import {
   v2FolderPathInputSchema,
   v2FolderPathSchema,
   v2PaginationFields,
-  v2RunOrderSchema,
   v2RunWindowBoundSchema,
-  v2SortOrderSchema,
+  v2SortFields,
   v2TimestampSchema,
 } from '@/lib/api/contracts/v2/shared'
+import { v2RunFileSchema } from '@/lib/api/contracts/v2/workflows'
 import { PERSISTED_WORKFLOW_EXECUTION_STATUSES } from '@/lib/logs/types'
 
 /**
@@ -103,11 +103,45 @@ export const v2LogStatusSchema = z
     'Current execution status, reported as persisted. `redacting` is transient while run output is scrubbed. `paused` is reported only when a resume attempt did not complete; a run held at a human-in-the-loop pause point reads `pending` here, and `paused` on the workflow run resources. Use those when the pause state matters.'
   )
 
-/** Execution `files` is a per-run jsonb array of attachment metadata. */
+/**
+ * One file a run produced, as the log surface publishes it.
+ *
+ * Exactly the run resource's own file projection minus `base64` — this read
+ * never inlines bytes — rather than a parallel shape, because the two describe
+ * the same objects and a caller addresses them through the same
+ * `downloadPath`. Reusing it also carries the reason the storage `key` is
+ * absent: a caller names a file by `id`, the key is re-derived server side from
+ * the run's recording on every request, and publishing it would let a request
+ * name bytes the run did not produce.
+ */
+const v2LogFileSchema = v2RunFileSchema.omit({ base64: true }).meta({
+  id: 'V2LogFile',
+  title: 'Execution log file',
+  description: 'A file produced by the run this log records.',
+})
+
+/**
+ * Files the run produced.
+ *
+ * Projected from `workflow_execution_logs.files` rather than passed through.
+ * That column is a recording, not a manifest: the start block copies every
+ * caller-supplied input field verbatim into its output, so the blob carries
+ * input attachments and can carry a `UserFile` naming any storage key at all.
+ * Only entries whose key sits under this run's own
+ * `execution/<workspaceId>/<workflowId>/<executionId>/…` prefix survive
+ * (`isRunOutputFileKey`), so a recorded entry that names another run's — or
+ * another tenant's — bytes is dropped rather than published.
+ *
+ * `null` and `[]` mean different things and both are reachable: `null` is a run
+ * that recorded no files at all, `[]` a run whose recorded entries were all
+ * input files or otherwise outside its own output scope.
+ */
 const v2LogFilesSchema = z
-  .array(z.unknown().describe('Attachment metadata captured for the execution.'))
+  .array(v2LogFileSchema)
   .nullable()
-  .describe('Files attached to the run, or null when none are recorded.')
+  .describe(
+    "Files the run produced, or null when none are recorded. Only the run's own output files appear; input attachments a caller supplied are addressed through the files API instead."
+  )
 
 /**
  * The graph as executed, sourced from the run's snapshot row. Declared loose because the
@@ -352,14 +386,31 @@ function v2CostBoundSchema(field: 'minCost' | 'maxCost', bound: 'Minimum' | 'Max
  * malformed list into a narrower filter and reports nothing, which on a log
  * search reads as "those runs do not exist".
  */
-function v2CommaListSchema(field: 'workflowIds' | 'triggers', description: string) {
+function v2CommaListSchema(field: 'workflowIds' | 'triggers', description: string, max: number) {
   return z
     .string()
-    .describe(description)
+    .describe(`${description} At most ${max} entries.`)
     .refine((value) => value.split(',').every((entry) => entry.length > 0), {
       error: `${field} must not contain an empty entry`,
     })
+    .refine((value) => value.split(',').length <= max, {
+      error: `${field} cannot contain more than ${max} entries`,
+    })
 }
+
+/**
+ * Ceilings on the comma-separated filter lists.
+ *
+ * An id list compiles to `IN (...)`, so an unbounded one is an unbounded query
+ * string, an unbounded bind-parameter list, and a plan whose cost the caller
+ * rather than the server chooses. The numbers are the ones this operation
+ * already enforced on its JSON-body twin before that endpoint was folded back
+ * into this one; they are not new policy, they are the policy the querystring
+ * spelling was missing.
+ */
+const V2_LOG_WORKFLOW_IDS_MAX = 200
+const V2_LOG_FOLDER_PATHS_MAX = 100
+const V2_LOG_TRIGGERS_MAX = 100
 
 /**
  * The `status` filter: a comma-separated list of persisted execution statuses.
@@ -379,6 +430,9 @@ const v2LogStatusFilterSchema = z
   )
   .refine((value) => value.split(',').every((entry) => entry.length > 0), {
     error: 'status must not contain an empty entry',
+  })
+  .refine((value) => value.split(',').length <= PERSISTED_WORKFLOW_EXECUTION_STATUSES.length, {
+    error: `status cannot contain more than ${PERSISTED_WORKFLOW_EXECUTION_STATUSES.length} entries`,
   })
   .refine(
     (value) =>
@@ -411,13 +465,35 @@ const v2WorkflowNameFilterSchema = z
     "Case-insensitive substring match against the run's workflow name. Runs whose workflow has been deleted match nothing, because the name is no longer joinable."
   )
 
+/**
+ * The columns `GET /api/v2/logs` can order by.
+ *
+ * Kept in step with `PUBLIC_LOG_SORT_FIELDS` in `lib/logs/public-queries.ts`,
+ * which turns each of these into a keyset; a member here with no keyset there
+ * is a sort the read cannot express.
+ */
+const v2LogSortFields = ['startedAt', 'durationMs', 'cost', 'status'] as const
+
+/** The shared `sortBy` + `sortOrder` pair, at this resource's defaults. */
+const v2LogSortFieldSchemas = v2SortFields(v2LogSortFields, {
+  sortBy: 'startedAt',
+  sortOrder: 'desc',
+})
+
 export const v2ListLogsQuerySchema = v1ListLogsQuerySchema
-  .omit({ executionId: true, folderIds: true })
+  /**
+   * `order` is dropped in favour of the surface-wide `sortBy` + `sortOrder`
+   * pair. v2 logs now sort by four columns, so a lone direction param cannot
+   * express the ordering, and carrying both would be two spellings of one thing
+   * with undefined precedence when both arrive.
+   */
+  .omit({ executionId: true, folderIds: true, order: true })
   .extend({
     workspaceId: workspaceIdSchema.describe('Workspace whose execution logs should be returned.'),
     workflowIds: v2CommaListSchema(
       'workflowIds',
-      'Comma-separated workflow identifiers to include. An empty entry is rejected.'
+      'Comma-separated workflow identifiers to include. An empty entry is rejected.',
+      V2_LOG_WORKFLOW_IDS_MAX
     ).optional(),
     /**
      * Not a closed enum, which is why an unrecognized member is not a 400.
@@ -439,14 +515,15 @@ export const v2ListLogsQuerySchema = v1ListLogsQuerySchema
      */
     triggers: v2CommaListSchema(
       'triggers',
-      'Comma-separated trigger types to include. An empty entry is rejected. Values are matched exactly and are case-sensitive — every recorded trigger is lowercase, so `API` matches nothing while `api` matches. The vocabulary is open: it covers the core trigger types (`manual`, `api`, `schedule`, `chat`, `webhook`, `mcp`, `copilot`, `workflow`, `custom_block`) and the provider id of any webhook trigger (`slack`, `gmail`, `github`, …), so an unrecognized member is not rejected — it selects no runs. The literal value `all` is a sentinel that disables this filter entirely, so a list containing it returns runs of every trigger type; no real trigger type is named `all`.'
+      'Comma-separated trigger types to include. An empty entry is rejected. Values are matched exactly and are case-sensitive — every recorded trigger is lowercase, so `API` matches nothing while `api` matches. The vocabulary is open: it covers the core trigger types (`manual`, `api`, `schedule`, `chat`, `webhook`, `mcp`, `copilot`, `workflow`, `custom_block`) and the provider id of any webhook trigger (`slack`, `gmail`, `github`, …), so an unrecognized member is not rejected — it selects no runs. The literal value `all` is a sentinel that disables this filter entirely, so a list containing it returns runs of every trigger type; no real trigger type is named `all`.',
+      V2_LOG_TRIGGERS_MAX
     ).optional(),
     level: z.enum(['info', 'error']).describe('Severity level to include.').optional(),
     status: v2LogStatusFilterSchema.optional(),
     workflowName: v2WorkflowNameFilterSchema.optional(),
     includeJobRuns: booleanQueryFlagSchema
       .describe(
-        'Whether Chat and Sim-agent job runs join the sequence alongside workflow runs. Job runs report `kind: "job"`, carry no `workflow` summary, and never carry a cost ledger. They are dropped entirely — not partially matched — whenever a filter they cannot answer is set (`workflowIds`, `workflowName`, `folderPaths`, `model`, or `status`), so a filter never means two different things across the union.'
+        'Whether Chat and Sim-agent job runs join the sequence alongside workflow runs. Job runs report `kind: "job"`, carry no `workflow` summary, and never carry a cost ledger. They are dropped entirely — not partially matched — whenever a filter they cannot answer is set (`workflowIds`, `workflowName`, `folderPaths`, `model`, or `status`), so a filter never means two different things across the union. Accepted only under `sortBy=startedAt`: job runs record cost as a document and no comparable status, so they cannot participate in the other orderings.'
       )
       .optional()
       .default(false),
@@ -483,23 +560,19 @@ export const v2ListLogsQuerySchema = v1ListLogsQuerySchema
       outOfRange: 'clamp',
       description: 'Maximum log entries per page.',
     }),
+    ...v2LogSortFieldSchemas,
     /**
-     * Deliberate deviation from the v2 `sortBy` + `sortOrder` convention, and
-     * the same one `GET /workflows/{id}/runs` makes for the same reason: logs
-     * have exactly one sortable column (execution start time), so there is no
-     * `sortBy` to pair with. `order` is the published name and renaming it
-     * would break every caller, while accepting `sortOrder` as an alias would
-     * add a second spelling of one thing with undefined precedence when both
-     * arrive — so the split is documented rather than papered over.
-     *
-     * Shared with `GET /workflows/{id}/runs` so the two spell the enum the same
-     * way in the generated specs.
+     * Re-described rather than re-declared: the pair itself comes from the
+     * shared {@link v2SortFields} helper, and only the null-ordering caveat is
+     * local to this resource.
      */
-    order: v2RunOrderSchema('execution'),
+    sortBy: v2LogSortFieldSchemas.sortBy.describe(
+      'Field used to sort the result. `durationMs` and `cost` are null until a run settles; those runs order as though the value were below every recorded one, so they trail an ascending page and lead a descending one. Only `startedAt` can order Chat and Sim-agent job runs, so any other value is rejected together with `includeJobRuns=true`.'
+    ),
     folderPaths: z
       .string()
       .describe(
-        `Comma-separated workflow folder paths to include. A path covers its whole subtree, so \`/prod\` also selects runs in \`/prod/nested\`. ${V2_FOLDER_FILTER_MISS}`
+        `Comma-separated workflow folder paths to include. At most ${V2_LOG_FOLDER_PATHS_MAX} entries. A path covers its whole subtree, so \`/prod\` also selects runs in \`/prod/nested\`. ${V2_FOLDER_FILTER_MISS}`
       )
       .optional()
       .transform((value, ctx) => {
@@ -507,6 +580,13 @@ export const v2ListLogsQuerySchema = v1ListLogsQuerySchema
         const paths = value.split(',')
         if (paths.length === 0 || paths.some((path) => path.length === 0)) {
           ctx.addIssue({ code: 'custom', message: 'folderPaths must contain valid paths' })
+          return z.NEVER
+        }
+        if (paths.length > V2_LOG_FOLDER_PATHS_MAX) {
+          ctx.addIssue({
+            code: 'custom',
+            message: `folderPaths cannot contain more than ${V2_LOG_FOLDER_PATHS_MAX} entries`,
+          })
           return z.NEVER
         }
 
@@ -569,6 +649,21 @@ export const v2ListLogsQuerySchema = v1ListLogsQuerySchema
         path: ['minDurationMs'],
       })
     }
+    /**
+     * `job_execution_logs` stores cost as a jsonb document and records no
+     * comparable persisted status, so ordering the two tables together on
+     * `durationMs`, `cost`, or `status` would compare values that do not mean
+     * the same thing. Silently dropping the job branch would answer a request
+     * the caller made with a sequence it did not ask for, so the combination is
+     * refused and the message names the way out.
+     */
+    if (query.includeJobRuns && query.sortBy !== 'startedAt') {
+      ctx.addIssue({
+        code: 'custom',
+        message: `sortBy: only "startedAt" can order job runs; drop includeJobRuns or sort by "startedAt"`,
+        path: ['sortBy'],
+      })
+    }
   })
 
 export const v2ListLogsContract = defineRouteContract({
@@ -589,121 +684,5 @@ export const v2GetLogContract = defineRouteContract({
   response: {
     mode: 'json',
     schema: v2DataResponse(v2LogDetailSchema),
-  },
-})
-
-/**
- * The columns `POST /api/v2/logs/query` can order by.
- *
- * `GET /logs` orders by start time alone — the premise its single `order` param
- * rests on — so the additional columns live here rather than being bolted onto
- * that list. Splitting the plain page from the rich read is the same split the
- * table surface already ships as `GET /rows` and `POST /query`, and it leaves
- * every shipped `GET /logs` caller untouched.
- */
-export const v2LogSortFields = ['startedAt', 'durationMs', 'cost', 'status'] as const
-
-/**
- * The body half of the log filters.
- *
- * Deliberately re-declared rather than `.pick()`ed from the list query: that
- * schema is chained with two refines and a transform and speaks comma-separated
- * strings, while a JSON body speaks arrays. Reusing it would publish querystring
- * spellings inside a body, which is the "inherited from the sibling" mistake the
- * conventions doc names.
- */
-export const v2QueryLogsBodySchema = z
-  .object({
-    workspaceId: workspaceIdSchema.describe('Workspace whose execution logs should be returned.'),
-    workflowIds: z
-      .array(z.string().min(1, 'workflowIds entries must not be empty'))
-      .min(1, 'workflowIds must contain at least one workflow')
-      .max(200, 'workflowIds cannot contain more than 200 workflows')
-      .optional()
-      .describe('Workflow identifiers to include.'),
-    folderPaths: z
-      .array(v2FolderPathInputSchema)
-      .min(1, 'folderPaths must contain at least one path')
-      .max(100, 'folderPaths cannot contain more than 100 paths')
-      .optional()
-      .describe(
-        `Workflow folder paths to include. A path covers its whole subtree, so \`/prod\` also selects runs in \`/prod/nested\`. ${V2_FOLDER_FILTER_MISS}`
-      ),
-    triggers: z
-      .array(z.string().min(1, 'triggers entries must not be empty'))
-      .min(1, 'triggers must contain at least one trigger')
-      .max(100, 'triggers cannot contain more than 100 triggers')
-      .optional()
-      .describe(
-        'Trigger types to include. Matched exactly and case-sensitively against an open vocabulary, so an unrecognized member selects no runs rather than failing. The literal `all` is a sentinel that disables this filter.'
-      ),
-    level: z.enum(['info', 'error']).describe('Severity level to include.').optional(),
-    status: z
-      .array(z.enum(PERSISTED_WORKFLOW_EXECUTION_STATUSES))
-      .min(1, 'status must contain at least one status')
-      .optional()
-      .describe('Execution statuses to include, matched against the reported `status` field.'),
-    workflowName: v2WorkflowNameFilterSchema.optional(),
-    runId: runIdSchema.describe('Exact run identifier to match.').optional(),
-    startDate: v2RunWindowBoundSchema('startDate').optional(),
-    endDate: v2RunWindowBoundSchema('endDate').optional(),
-    minDurationMs: v2DurationBoundSchema('minDurationMs', 'Minimum').optional(),
-    maxDurationMs: v2DurationBoundSchema('maxDurationMs', 'Maximum').optional(),
-    minCost: v2CostBoundSchema('minCost', 'Minimum').optional(),
-    maxCost: v2CostBoundSchema('maxCost', 'Maximum').optional(),
-    model: z
-      .string()
-      .min(1, 'model cannot be empty')
-      .optional()
-      .describe('AI model used during execution.'),
-    sortBy: z
-      .enum(v2LogSortFields)
-      .default('startedAt')
-      .describe(
-        'Column to order by. `durationMs` and `cost` are null until a run settles; those runs order as though the value were below every recorded one, so they trail an ascending page and lead a descending one.'
-      ),
-    sortOrder: v2SortOrderSchema.default('desc'),
-    ...v2PaginationFields({ description: 'Maximum log entries per page.' }),
-  })
-  .strict()
-  .refine(
-    (body) =>
-      !body.startDate || !body.endDate || Date.parse(body.startDate) <= Date.parse(body.endDate),
-    { error: 'startDate must be before or equal to endDate', path: ['startDate'] }
-  )
-  .superRefine((body, ctx) => {
-    if (body.minCost !== undefined && body.maxCost !== undefined && body.minCost > body.maxCost) {
-      ctx.addIssue({
-        code: 'custom',
-        message: 'minCost must be less than or equal to maxCost',
-        path: ['minCost'],
-      })
-    }
-    if (
-      body.minDurationMs !== undefined &&
-      body.maxDurationMs !== undefined &&
-      body.minDurationMs > body.maxDurationMs
-    ) {
-      ctx.addIssue({
-        code: 'custom',
-        message: 'minDurationMs must be less than or equal to maxDurationMs',
-        path: ['minDurationMs'],
-      })
-    }
-  })
-
-export type V2QueryLogsBody = z.input<typeof v2QueryLogsBodySchema>
-
-/** The parsed body, with defaults applied — what a route's `mapInput` and `present` receive. */
-export type V2QueryLogsRequest = z.output<typeof v2QueryLogsBodySchema>
-
-export const v2QueryLogsContract = defineRouteContract({
-  method: 'POST',
-  path: '/api/v2/logs/query',
-  query: noInputSchema,
-  body: v2QueryLogsBodySchema,
-  response: {
-    mode: 'json',
-    schema: v2CursorListResponse(v2LogListItemSchema),
   },
 })

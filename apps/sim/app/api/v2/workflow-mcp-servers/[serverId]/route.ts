@@ -23,7 +23,7 @@ export const revalidate = 0
  *
  * The list is the only other place this state is published, so a caller holding
  * a server id had to page the collection and filter client-side to see one.
- * Mirrors `GET /api/v2/mcp-servers/{id}` beside it.
+ * Mirrors `GET /api/v2/mcp-servers/{mcpServerId}` beside it.
  *
  * Head-safe: nothing is written and no audit is projected.
  */

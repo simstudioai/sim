@@ -27,7 +27,7 @@ vi.mock('@/lib/logs/application/list-public-logs', () => ({
 import { v2ListLogsContract } from '@/lib/api/contracts/v2/logs'
 import { cursorRoute, cursorScopeKey, UNREADABLE_CURSOR_MESSAGE } from '@/lib/api/cursor-binding'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { encodeScopedCursor } from '@/app/api/v2/lib/response'
+import { cursorSortKey, encodeSortedCursor } from '@/app/api/v2/lib/response'
 import { GET } from '@/app/api/v2/logs/route'
 
 const WORKSPACE_ID = '6fc7631d-88cd-46f8-9f0a-d4764daef7f8'
@@ -69,7 +69,7 @@ describe('GET /api/v2/logs', () => {
     v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
     mocks.execute.mockResolvedValue({
       items: [{ log, executionData: { finalOutput: false, traceSpans: [] } }],
-      nextCursor: null,
+      nextCursorKeys: null,
       includeFullDetails: true,
       includeFinalOutput: true,
       includeTraceSpans: true,
@@ -104,7 +104,7 @@ describe('GET /api/v2/logs', () => {
   it('serves a run whose persisted status is paused', async () => {
     mocks.execute.mockResolvedValue({
       items: [{ log: { ...log, status: 'paused' }, executionData: null }],
-      nextCursor: null,
+      nextCursorKeys: null,
       includeFullDetails: false,
       includeFinalOutput: false,
       includeTraceSpans: false,
@@ -120,17 +120,14 @@ describe('GET /api/v2/logs', () => {
   })
 
   /**
-   * The run-log cursor is minted by the domain codec, so it carries only its own
-   * `(startedAt, id)` position and the requested order. Binding it to the filters
-   * is what stops a cursor taken from an unfiltered walk from resuming inside a
-   * `level=error` read at an unrelated point in that shorter sequence.
+   * The keyset carries only a `(startedAt, id)` position. Binding it to the
+   * filters is what stops a cursor taken from an unfiltered walk from resuming
+   * inside a `level=error` read at an unrelated point in that shorter sequence.
    */
   it('refuses a cursor replayed under a different filter', async () => {
     mocks.execute.mockResolvedValueOnce({
       items: [{ log, executionData: null }],
-      nextCursor: Buffer.from(
-        JSON.stringify({ startedAt: log.startedAt.toISOString(), id: 'run-1', order: 'desc' })
-      ).toString('base64'),
+      nextCursorKeys: [log.startedAt.toISOString(), 'run-1'],
       includeFullDetails: false,
       includeFinalOutput: false,
       includeTraceSpans: false,
@@ -163,9 +160,7 @@ describe('GET /api/v2/logs', () => {
     async (param) => {
       mocks.execute.mockResolvedValueOnce({
         items: [{ log, executionData: null }],
-        nextCursor: Buffer.from(
-          JSON.stringify({ startedAt: log.startedAt.toISOString(), id: 'run-1', order: 'desc' })
-        ).toString('base64'),
+        nextCursorKeys: [log.startedAt.toISOString(), 'run-1'],
         includeFullDetails: false,
         includeFinalOutput: false,
         includeTraceSpans: false,
@@ -193,11 +188,10 @@ describe('GET /api/v2/logs', () => {
    * contribute nothing to the scope.
    */
   it('resumes a cursor minted before includeJobRuns entered the binding', async () => {
-    const legacyCursor = encodeScopedCursor(
-      cursorScopeKey(cursorRoute(v2ListLogsContract), { workspaceId: WORKSPACE_ID, order: 'desc' }),
-      Buffer.from(
-        JSON.stringify({ startedAt: log.startedAt.toISOString(), id: 'run-1', order: 'desc' })
-      ).toString('base64')
+    const legacyCursor = encodeSortedCursor(
+      cursorSortKey('startedAt', 'desc'),
+      [log.startedAt.toISOString(), 'run-1'],
+      cursorScopeKey(cursorRoute(v2ListLogsContract), { workspaceId: WORKSPACE_ID })
     )
 
     const response = await GET(
@@ -223,33 +217,37 @@ describe('GET /api/v2/logs', () => {
   })
 
   /**
-   * An empty inner token reads as falsy in the domain codec, so no cursor
-   * condition is applied and the caller silently gets page one back, with a
-   * `nextCursor` inviting it to do the same thing forever.
+   * The keys in a `startedAt` cursor are a timestamp and an id; replayed under
+   * `sortBy=cost` they would be compared against a `numeric` column, which is a
+   * different sequence entirely rather than a later position in this one.
    */
-  it('rejects a cursor whose inner token is empty instead of restarting at page one', async () => {
-    const cursor = encodeScopedCursor(
-      cursorScopeKey(cursorRoute(v2ListLogsContract), { workspaceId: WORKSPACE_ID, order: 'desc' }),
-      ''
+  it('refuses a cursor replayed under a different sort', async () => {
+    const cursor = encodeSortedCursor(
+      cursorSortKey('startedAt', 'desc'),
+      [log.startedAt.toISOString(), 'run-1'],
+      cursorScopeKey(cursorRoute(v2ListLogsContract), { workspaceId: WORKSPACE_ID })
     )
 
     const response = await GET(
       new NextRequest(
-        `http://localhost:3000/api/v2/logs?workspaceId=${WORKSPACE_ID}&limit=1&cursor=${encodeURIComponent(cursor)}`
+        `http://localhost:3000/api/v2/logs?workspaceId=${WORKSPACE_ID}&sortBy=cost&cursor=${encodeURIComponent(cursor)}`
       )
     )
 
     expect(response.status).toBe(400)
+    expect(await response.json()).toMatchObject({
+      error: { code: 'BAD_REQUEST', message: expect.stringContaining('sortBy') },
+    })
     expect(mocks.execute).not.toHaveBeenCalled()
   })
 
   /**
-   * An undecodable token says nothing about which param changed, and this
-   * operation declares neither `sortBy` nor `sortOrder` under a `.strict()`
-   * query schema — so the sort-mismatch message would answer one 400 with
-   * advice that earns a second. The message is asserted exactly rather than by
-   * absence: "does not say sortBy" is satisfied by almost any wording, including
-   * one that tells the caller nothing at all.
+   * An undecodable token says nothing about which param changed — it did not
+   * decode far enough to compare a sort or a filter — so answering it with the
+   * sort-mismatch message would send the caller after a param it may not have
+   * touched. The message is asserted exactly rather than by absence: "does not
+   * say sortBy" is satisfied by almost any wording, including one that tells the
+   * caller nothing at all.
    */
   it('names the params a rejected cursor is actually bound to', async () => {
     const response = await GET(
@@ -442,9 +440,7 @@ describe('GET /api/v2/logs', () => {
     async (param) => {
       mocks.execute.mockResolvedValueOnce({
         items: [{ log, executionData: null }],
-        nextCursor: Buffer.from(
-          JSON.stringify({ startedAt: log.startedAt.toISOString(), id: 'run-1', order: 'desc' })
-        ).toString('base64'),
+        nextCursorKeys: [log.startedAt.toISOString(), 'run-1'],
         includeFullDetails: false,
         includeFinalOutput: false,
         includeTraceSpans: false,
@@ -553,6 +549,234 @@ describe('GET /api/v2/logs', () => {
       cost: { total: 0.5 },
       files: null,
     })
+  })
+
+  /**
+   * `workflow_execution_logs.files` is a recording, not a manifest: the start
+   * block copies every caller-supplied input field verbatim into its output, so
+   * a caller can get a `UserFile` naming ANY storage key recorded against its
+   * own run. Publishing the blob as stored handed back that key — and a
+   * `/api/files/serve/…` URL an API key cannot follow — so the projection keeps
+   * only keys under this run's own execution prefix.
+   */
+  it("publishes only the run's own output files, never a recorded storage key", async () => {
+    mocks.execute.mockResolvedValueOnce({
+      items: [
+        {
+          log: {
+            ...log,
+            files: [
+              {
+                id: 'file-own',
+                name: 'report.pdf',
+                size: 1024,
+                type: 'application/pdf',
+                url: '/api/files/serve/execution/x',
+                key: `execution/${WORKSPACE_ID}/workflow-1/run-1/report.pdf`,
+              },
+              {
+                id: 'file-other-workspace',
+                name: 'stolen.pdf',
+                size: 1,
+                type: 'application/pdf',
+                url: '/api/files/serve/execution/y',
+                key: 'execution/other-workspace/workflow-1/run-1/stolen.pdf',
+              },
+              {
+                id: 'file-other-run',
+                name: 'neighbour.pdf',
+                size: 1,
+                type: 'application/pdf',
+                key: `execution/${WORKSPACE_ID}/workflow-1/run-2/neighbour.pdf`,
+              },
+              {
+                id: 'file-input',
+                name: 'upload.csv',
+                size: 12,
+                type: 'text/csv',
+                key: `workspace/${WORKSPACE_ID}/upload.csv`,
+              },
+            ],
+          },
+          executionData: null,
+        },
+      ],
+      nextCursorKeys: null,
+      includeFullDetails: false,
+      includeFinalOutput: false,
+      includeTraceSpans: false,
+    })
+
+    const response = await GET(
+      new NextRequest(`http://localhost:3000/api/v2/logs?workspaceId=${WORKSPACE_ID}`)
+    )
+    const raw = await response.text()
+
+    expect(response.status).toBe(200)
+    expect(JSON.parse(raw).data[0].files).toEqual([
+      {
+        id: 'file-own',
+        name: 'report.pdf',
+        size: 1024,
+        type: 'application/pdf',
+        downloadPath: '/api/v2/workflows/workflow-1/runs/run-1/files/file-own',
+      },
+    ])
+    expect(raw).not.toContain('"key"')
+    expect(raw).not.toContain('/api/files/serve/')
+    expect(raw).not.toContain('stolen.pdf')
+    expect(raw).not.toContain('neighbour.pdf')
+    expect(raw).not.toContain('upload.csv')
+  })
+
+  /**
+   * The response schema is `.parse`d on the way out, so a row whose recorded
+   * entries are all out of scope has to project to an empty array. A 500 here
+   * would be caller-reachable through nothing more than attaching a file.
+   */
+  it('answers a row whose recorded files are all out of scope with an empty array', async () => {
+    mocks.execute.mockResolvedValueOnce({
+      items: [
+        {
+          log: {
+            ...log,
+            files: [
+              { id: 'f', name: 'x', size: 1, type: 'text/plain', key: 'workspace/other/x' },
+              { nonsense: true },
+              null,
+              'not-an-object',
+            ],
+          },
+          executionData: null,
+        },
+      ],
+      nextCursorKeys: null,
+      includeFullDetails: false,
+      includeFinalOutput: false,
+      includeTraceSpans: false,
+    })
+
+    const response = await GET(
+      new NextRequest(`http://localhost:3000/api/v2/logs?workspaceId=${WORKSPACE_ID}`)
+    )
+
+    expect(response.status).toBe(200)
+    expect((await response.json()).data[0].files).toEqual([])
+  })
+
+  /** A deleted workflow leaves no run resource to address the bytes through. */
+  it('drops recorded files when the run has no workflow to address them under', async () => {
+    mocks.execute.mockResolvedValueOnce({
+      items: [
+        {
+          log: {
+            ...log,
+            workflowId: null,
+            files: [
+              {
+                id: 'file-own',
+                name: 'report.pdf',
+                size: 1,
+                type: 'application/pdf',
+                key: `execution/${WORKSPACE_ID}/workflow-1/run-1/report.pdf`,
+              },
+            ],
+          },
+          executionData: null,
+        },
+      ],
+      nextCursorKeys: null,
+      includeFullDetails: false,
+      includeFinalOutput: false,
+      includeTraceSpans: false,
+    })
+
+    const response = await GET(
+      new NextRequest(`http://localhost:3000/api/v2/logs?workspaceId=${WORKSPACE_ID}`)
+    )
+
+    expect(response.status).toBe(200)
+    expect((await response.json()).data[0].files).toEqual([])
+  })
+
+  it('forwards the requested sort to the application operation', async () => {
+    const response = await GET(
+      new NextRequest(
+        `http://localhost:3000/api/v2/logs?workspaceId=${WORKSPACE_ID}&sortBy=cost&sortOrder=asc`
+      )
+    )
+
+    expect(response.status).toBe(200)
+    expect(mocks.execute).toHaveBeenCalledWith(
+      expect.objectContaining({
+        input: expect.objectContaining({ sortBy: 'cost', sortOrder: 'asc' }),
+      })
+    )
+  })
+
+  it('defaults to the newest runs first', async () => {
+    await GET(new NextRequest(`http://localhost:3000/api/v2/logs?workspaceId=${WORKSPACE_ID}`))
+
+    expect(mocks.execute).toHaveBeenCalledWith(
+      expect.objectContaining({
+        input: expect.objectContaining({ sortBy: 'startedAt', sortOrder: 'desc' }),
+      })
+    )
+  })
+
+  /** `order` was retired in favour of the surface-wide pair; a strict query rejects it. */
+  it('rejects the retired order param', async () => {
+    const response = await GET(
+      new NextRequest(`http://localhost:3000/api/v2/logs?workspaceId=${WORKSPACE_ID}&order=asc`)
+    )
+
+    expect(response.status).toBe(400)
+    expect(mocks.execute).not.toHaveBeenCalled()
+  })
+
+  /**
+   * Job runs record cost as a document and no comparable status, so they cannot
+   * participate in those orderings. Dropping the branch silently would answer a
+   * request with a sequence the caller did not ask for.
+   */
+  it.each([['durationMs'], ['cost'], ['status']])(
+    'refuses includeJobRuns together with sortBy=%s',
+    async (sortBy) => {
+      const response = await GET(
+        new NextRequest(
+          `http://localhost:3000/api/v2/logs?workspaceId=${WORKSPACE_ID}&includeJobRuns=true&sortBy=${sortBy}`
+        )
+      )
+
+      expect(response.status).toBe(400)
+      expect(await response.json()).toMatchObject({
+        error: { code: 'BAD_REQUEST', message: expect.stringContaining('startedAt') },
+      })
+      expect(mocks.execute).not.toHaveBeenCalled()
+    }
+  )
+
+  /**
+   * An id list compiles to `IN (...)`, so an unbounded one lets the caller
+   * choose the query plan's cost. These are the ceilings the retired
+   * `POST /logs/query` already enforced on the same filters.
+   */
+  it.each([
+    ['workflowIds', Array.from({ length: 201 }, (_, i) => `w${i}`).join(',')],
+    ['triggers', Array.from({ length: 101 }, (_, i) => `t${i}`).join(',')],
+    ['folderPaths', Array.from({ length: 101 }, (_, i) => `/f${i}`).join(',')],
+  ])('caps the %s list', async (field, value) => {
+    const response = await GET(
+      new NextRequest(
+        `http://localhost:3000/api/v2/logs?workspaceId=${WORKSPACE_ID}&${field}=${encodeURIComponent(value)}`
+      )
+    )
+
+    expect(response.status).toBe(400)
+    expect(await response.json()).toMatchObject({
+      error: { code: 'BAD_REQUEST', message: expect.stringContaining(field) },
+    })
+    expect(mocks.execute).not.toHaveBeenCalled()
   })
 
   it('projects typed folder errors', async () => {

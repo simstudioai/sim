@@ -14,7 +14,7 @@ import {
   decodePublicLogCursor,
   encodePublicLogCursor,
   listPublicWorkflowLogs,
-  queryPublicWorkflowLogs,
+  readPublicLogPage,
 } from '@/lib/logs/public-queries'
 
 describe('public log cursor', () => {
@@ -262,8 +262,9 @@ describe('sortable public log query', () => {
       .join(' | ')
 
   async function query(sortBy: 'startedAt' | 'durationMs' | 'cost' | 'status') {
-    await queryPublicWorkflowLogs({
+    await readPublicLogPage({
       filters: { workspaceId: 'workspace-1' },
+      includeExecutionData: false,
       sortBy,
       sortOrder: 'desc',
       cursorKeys: undefined,
@@ -313,8 +314,9 @@ describe('sortable public log query', () => {
       { id: 'w-2', costTotal, startedAt: new Date('2026-08-06T00:00:00.000Z') },
     ])
 
-    const page = await queryPublicWorkflowLogs({
+    const page = await readPublicLogPage({
       filters: { workspaceId: 'workspace-1' },
+      includeExecutionData: false,
       sortBy: 'cost',
       sortOrder: 'desc',
       cursorKeys: undefined,
@@ -332,8 +334,9 @@ describe('sortable public log query', () => {
       { id: 'w-2', costTotal: null, startedAt: new Date('2026-08-06T00:00:00.000Z') },
     ])
 
-    const page = await queryPublicWorkflowLogs({
+    const page = await readPublicLogPage({
       filters: { workspaceId: 'workspace-1' },
+      includeExecutionData: false,
       sortBy: 'cost',
       sortOrder: 'desc',
       cursorKeys: undefined,

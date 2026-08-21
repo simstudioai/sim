@@ -103,7 +103,7 @@ export const v2ListAuditLogsQuerySchema = v1ListAuditLogsQuerySchema
      * accepts partial and locale-dependent forms whose meaning varies by
      * runtime. Both bounds are turned into `Date`s before they reach the query,
      * so the strict UTC form is what keeps an unrepresentable value a 400
-     * instead of a driver-level 500. `GET /logs` and `GET /workflows/{id}/runs`
+     * instead of a driver-level 500. `GET /logs` and `GET /workflows/{workflowId}/runs`
      * already share it, and an audit trail is read alongside them.
      */
     startDate: v2RunWindowBoundSchema('startDate').optional(),
@@ -127,8 +127,8 @@ export const v2ListAuditLogsQuerySchema = v1ListAuditLogsQuerySchema
   })
   .strict()
 
-export const v2AuditLogParamsSchema = v1AuditLogParamsSchema.extend({
-  id: v1AuditLogParamsSchema.shape.id.describe('Audit-log entry identifier.'),
+export const v2AuditLogParamsSchema = v1AuditLogParamsSchema.omit({ id: true }).extend({
+  auditLogId: v1AuditLogParamsSchema.shape.id.describe('Audit-log entry identifier.'),
 })
 
 export const v2GetAuditLogQuerySchema = z
@@ -151,7 +151,7 @@ export const v2ListAuditLogsContract = defineRouteContract({
 
 export const v2GetAuditLogContract = defineRouteContract({
   method: 'GET',
-  path: '/api/v2/audit-logs/[id]',
+  path: '/api/v2/audit-logs/[auditLogId]',
   params: v2AuditLogParamsSchema,
   query: v2GetAuditLogQuerySchema,
   response: {

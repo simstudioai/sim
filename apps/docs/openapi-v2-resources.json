@@ -322,7 +322,7 @@
       "get": {
         "operationId": "listMcpServers",
         "summary": "List MCP Servers",
-        "description": "List MCP servers registered in a workspace. Request-header values and OAuth client secrets are never returned. The discovery fields stay at their registration defaults until `GET /api/v2/mcp-servers/{id}/tools` runs a discovery.",
+        "description": "List MCP servers registered in a workspace. Request-header values and OAuth client secrets are never returned. The discovery fields stay at their registration defaults until `GET /api/v2/mcp-servers/{mcpServerId}/tools` runs a discovery.",
         "tags": ["MCP Servers"],
         "parameters": [
           {
@@ -446,7 +446,7 @@
       "post": {
         "operationId": "createMcpServer",
         "summary": "Create MCP Server",
-        "description": "Register an MCP server in a workspace. The endpoint URL is the server identity, so a URL already registered here is a `409` — reconfigure that server with `PATCH /api/v2/mcp-servers/{id}` instead. Registration never connects to the endpoint: the server comes back `disconnected` and stays unavailable until `GET /api/v2/mcp-servers/{id}/tools` succeeds.",
+        "description": "Register an MCP server in a workspace. The endpoint URL is the server identity, so a URL already registered here is a `409` — reconfigure that server with `PATCH /api/v2/mcp-servers/{mcpServerId}` instead. Registration never connects to the endpoint: the server comes back `disconnected` and stays unavailable until `GET /api/v2/mcp-servers/{mcpServerId}/tools` succeeds.",
         "tags": ["MCP Servers"],
         "requestBody": {
           "required": true,
@@ -514,7 +514,7 @@
         }
       }
     },
-    "/api/v2/mcp-servers/{id}": {
+    "/api/v2/mcp-servers/{mcpServerId}": {
       "get": {
         "operationId": "getMcpServer",
         "summary": "Get MCP Server",
@@ -522,7 +522,7 @@
         "tags": ["MCP Servers"],
         "parameters": [
           {
-            "name": "id",
+            "name": "mcpServerId",
             "in": "path",
             "required": true,
             "description": "Unique MCP server identifier.",
@@ -597,7 +597,7 @@
         "tags": ["MCP Servers"],
         "parameters": [
           {
-            "name": "id",
+            "name": "mcpServerId",
             "in": "path",
             "required": true,
             "description": "Unique MCP server identifier.",
@@ -677,7 +677,7 @@
         "tags": ["MCP Servers"],
         "parameters": [
           {
-            "name": "id",
+            "name": "mcpServerId",
             "in": "path",
             "required": true,
             "description": "Unique MCP server identifier.",
@@ -746,7 +746,7 @@
         }
       }
     },
-    "/api/v2/mcp-servers/{id}/tools": {
+    "/api/v2/mcp-servers/{mcpServerId}/tools": {
       "get": {
         "operationId": "listMcpServerTools",
         "summary": "List MCP Server Tools",
@@ -754,7 +754,7 @@
         "tags": ["MCP Servers"],
         "parameters": [
           {
-            "name": "id",
+            "name": "mcpServerId",
             "in": "path",
             "required": true,
             "description": "Unique MCP server identifier.",
@@ -1032,7 +1032,7 @@
         }
       }
     },
-    "/api/v2/skills/{id}": {
+    "/api/v2/skills/{skillId}": {
       "get": {
         "operationId": "getSkill",
         "summary": "Get Skill",
@@ -1040,7 +1040,7 @@
         "tags": ["Skills"],
         "parameters": [
           {
-            "name": "id",
+            "name": "skillId",
             "in": "path",
             "required": true,
             "description": "Unique skill identifier. A built-in skill is `builtin-` followed by its name, for example `builtin-research`.",
@@ -1115,7 +1115,7 @@
         "tags": ["Skills"],
         "parameters": [
           {
-            "name": "id",
+            "name": "skillId",
             "in": "path",
             "required": true,
             "description": "Unique skill identifier. A built-in skill is `builtin-` followed by its name, for example `builtin-research`.",
@@ -1198,7 +1198,7 @@
         "tags": ["Skills"],
         "parameters": [
           {
-            "name": "id",
+            "name": "skillId",
             "in": "path",
             "required": true,
             "description": "Unique skill identifier. A built-in skill is `builtin-` followed by its name, for example `builtin-research`.",
@@ -1267,7 +1267,7 @@
         }
       }
     },
-    "/api/v2/skills/{id}/editors": {
+    "/api/v2/skills/{skillId}/editors": {
       "get": {
         "operationId": "listSkillEditors",
         "summary": "List Skill Editors",
@@ -1275,7 +1275,7 @@
         "tags": ["Skills"],
         "parameters": [
           {
-            "name": "id",
+            "name": "skillId",
             "in": "path",
             "required": true,
             "description": "Unique skill identifier. A built-in skill is `builtin-` followed by its name, for example `builtin-research`.",
@@ -1398,7 +1398,7 @@
         "tags": ["Skills"],
         "parameters": [
           {
-            "name": "id",
+            "name": "skillId",
             "in": "path",
             "required": true,
             "description": "Unique skill identifier. A built-in skill is `builtin-` followed by its name, for example `builtin-research`.",
@@ -1499,7 +1499,7 @@
         "tags": ["Skills"],
         "parameters": [
           {
-            "name": "id",
+            "name": "skillId",
             "in": "path",
             "required": true,
             "description": "Unique skill identifier. A built-in skill is `builtin-` followed by its name, for example `builtin-research`.",
@@ -1776,7 +1776,7 @@
         }
       }
     },
-    "/api/v2/custom-tools/{id}": {
+    "/api/v2/custom-tools/{customToolId}": {
       "get": {
         "operationId": "getCustomTool",
         "summary": "Get Custom Tool",
@@ -1784,7 +1784,7 @@
         "tags": ["Custom Tools"],
         "parameters": [
           {
-            "name": "id",
+            "name": "customToolId",
             "in": "path",
             "required": true,
             "description": "Unique custom tool identifier.",
@@ -1859,7 +1859,7 @@
         "tags": ["Custom Tools"],
         "parameters": [
           {
-            "name": "id",
+            "name": "customToolId",
             "in": "path",
             "required": true,
             "description": "Unique custom tool identifier.",
@@ -1942,7 +1942,7 @@
         "tags": ["Custom Tools"],
         "parameters": [
           {
-            "name": "id",
+            "name": "customToolId",
             "in": "path",
             "required": true,
             "description": "Unique custom tool identifier.",

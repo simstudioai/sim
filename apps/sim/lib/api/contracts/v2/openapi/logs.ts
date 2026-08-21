@@ -1,8 +1,4 @@
-import {
-  v2GetLogContract,
-  v2ListLogsContract,
-  v2QueryLogsContract,
-} from '@/lib/api/contracts/v2/logs'
+import { v2GetLogContract, v2ListLogsContract } from '@/lib/api/contracts/v2/logs'
 import { v2GetLogStatsContract } from '@/lib/api/contracts/v2/logs-stats'
 import {
   documentedSchema,
@@ -41,7 +37,15 @@ const LOG_LIST_EXAMPLE = {
       endedAt: '2026-01-15T10:30:01.250Z',
       totalDurationMs: 1250,
       cost: { total: 0.0032 },
-      files: null,
+      files: [
+        {
+          id: 'f1c3a7d0-4b52-4a8e-9f61-2d7c8b3e5a04',
+          name: 'summary.pdf',
+          size: 18422,
+          type: 'application/pdf',
+          downloadPath: `/api/v2/workflows/${WORKFLOW_ID}/runs/${RUN_ID}/files/f1c3a7d0-4b52-4a8e-9f61-2d7c8b3e5a04`,
+        },
+      ],
     },
   ],
   nextCursor: 'eyJzdGFydGVkQXQiOiIyMDI2LTAxLTE1VDEwOjMwOjAwMFoifQ==',
@@ -89,32 +93,6 @@ const LOG_DETAIL_EXAMPLE = {
     workflowInput: { ticketId: 'T-4821' },
     createdAt: '2026-01-15T10:30:00.000Z',
   },
-} as const
-
-const LOG_QUERY_EXAMPLE = {
-  data: [
-    {
-      kind: 'workflow',
-      runId: RUN_ID,
-      workflowId: WORKFLOW_ID,
-      deploymentVersionId: 'dep_2c4e6a8b0d1f',
-      status: 'failed',
-      level: 'error',
-      trigger: 'schedule',
-      startedAt: '2026-01-15T10:30:00.000Z',
-      endedAt: '2026-01-15T10:30:09.900Z',
-      totalDurationMs: 9900,
-      cost: { total: 0.41 },
-      files: null,
-      workflow: {
-        id: WORKFLOW_ID,
-        name: 'Nightly Enrichment',
-        description: 'Enriches new accounts overnight',
-        deleted: false,
-      },
-    },
-  ],
-  nextCursor: null,
 } as const
 
 const LOG_STATS_EXAMPLE = {
@@ -178,7 +156,7 @@ const declaredRoutes = [
     logsOperation({
       operationId: 'listLogs',
       summary: 'List Logs',
-      description: `List workflow execution logs for a workspace with filters, selectable detail, and opaque cursor pagination. ${RUN_RETENTION} ${FOLDER_TREE_TOO_LARGE}`,
+      description: `List workflow execution logs for a workspace with filters, selectable detail, sorting by start time, duration, cost, or status, and opaque cursor pagination. Chat and Sim-agent job runs join the sequence with \`includeJobRuns=true\`, which is accepted only under \`sortBy=startedAt\` — their cost is stored as a document and their status is not comparable, so they cannot participate in the other orderings. Each item's \`files\` lists only the files the run itself produced, addressed by \`downloadPath\`; input attachments a caller supplied are read through the files API instead. ${RUN_RETENTION} ${FOLDER_TREE_TOO_LARGE}`,
       errors: [...RESOURCE_ERRORS, 'PayloadTooLarge'],
       success: { description: 'A page of execution logs matching the filters.' },
     }),
@@ -225,39 +203,6 @@ const declaredRoutes = [
     }
   ),
   defineOpenApiRoute(
-    v2QueryLogsContract,
-    logsOperation({
-      /**
-       * Not `queryLogs`: that page slug is already a permanent redirect to
-       * `listLogs` from an earlier rename, and reusing it would make one
-       * documentation URL mean two different operations over time.
-       */
-      operationId: 'searchLogs',
-      summary: 'Search Logs',
-      description: `Search a workspace's workflow runs with the same row filters as \`GET /logs\`, ordered by start time, duration, cost, or status. \`GET /logs\`'s remaining params are not accepted here: \`includeJobRuns\` because job runs cannot participate in these orderings (see below), and \`details\`, \`includeFinalOutput\`, and \`includeTraceSpans\` because this read returns the summary projection only. This is the sortable read: \`GET /logs\` orders by start time alone, which is what its single \`order\` param means, so the additional sort columns live here rather than adding a second spelling of the direction there. Every result carries its workflow summary. Chat and Sim-agent job runs are not included — their cost is stored as a document and their status is not comparable, so they cannot participate in these orderings; use \`GET /logs?includeJobRuns=true\` for the combined start-time sequence. ${RUN_RETENTION} ${FOLDER_TREE_TOO_LARGE}`,
-      errors: [...RESOURCE_ERRORS, 'PayloadTooLarge'],
-      success: {
-        description: 'A page of workflow runs matching the filters, in the requested order.',
-      },
-    }),
-    {
-      query: v2QueryLogsContract.query,
-      body: documentedSchema(
-        v2QueryLogsContract.body,
-        'QueryLogsBody',
-        'Query logs body',
-        'Filters, ordering, and pagination for a sortable run search.'
-      ),
-      response: documentedSchema(
-        v2QueryLogsContract.response.schema,
-        'V2LogQueryResponse',
-        'Log query response',
-        'A cursor-paginated page of workflow runs in the requested order.',
-        [LOG_QUERY_EXAMPLE]
-      ),
-    }
-  ),
-  defineOpenApiRoute(
     v2GetLogStatsContract,
     logsOperation({
       operationId: 'getLogStats',
@@ -284,7 +229,7 @@ const declaredRoutes = [
   ),
 ] as const
 
-/** Adds the 413 the query route's body read can raise; a no-op on the bodyless reads. */
+/** A no-op on these bodyless reads; kept so a future body-taking log operation inherits its 413. */
 const routes = declaredRoutes.map(withRequestBodyErrors)
 
 export const logsOpenApiDocument = defineOpenApiDocument({
@@ -292,7 +237,7 @@ export const logsOpenApiDocument = defineOpenApiDocument({
   info: {
     title: 'Sim API v2 — Logs',
     description:
-      'Version 2 of the Sim REST API for workflow execution logs: listing runs, searching them with sortable filters, retrieving complete diagnostic run snapshots, and reading bucketed execution statistics.',
+      'Version 2 of the Sim REST API for workflow execution logs: listing and sorting runs with filters, retrieving complete diagnostic run snapshots, and reading bucketed execution statistics.',
     version: '2.0.0',
     contact: {
       name: 'Sim Support',

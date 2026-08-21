@@ -1,5 +1,5 @@
 import { jobExecutionLogs, workflow, workflowExecutionLogs } from '@sim/db/schema'
-import { and, asc, desc, eq, gte, inArray, lte, type SQL, sql } from 'drizzle-orm'
+import { and, eq, gte, inArray, lte, type SQL, sql } from 'drizzle-orm'
 import { escapeLikePattern } from '@/lib/api/list-query'
 import type { PersistedWorkflowExecutionStatus } from '@/lib/logs/types'
 
@@ -39,6 +39,12 @@ export interface LogFilters {
   minCost?: number
   maxCost?: number
   model?: string
+  /**
+   * The v1 adapter's opaque `(startedAt, id)` position. Consumed by
+   * `listPublicWorkflowLogs`, which translates it into the shared keyset — it is
+   * deliberately NOT read here, so a filter set can never carry two different
+   * spellings of the same page boundary into one query.
+   */
   cursor?: {
     startedAt: string
     id: string
@@ -50,20 +56,6 @@ export function buildLogFilters(filters: LogFilters): SQL<unknown> {
   const conditions: SQL<unknown>[] = []
 
   conditions.push(eq(workflowExecutionLogs.workspaceId, filters.workspaceId))
-
-  // Cursor-based pagination
-  if (filters.cursor) {
-    const cursorDate = new Date(filters.cursor.startedAt)
-    if (filters.order === 'desc') {
-      conditions.push(
-        sql`(${workflowExecutionLogs.startedAt}, ${workflowExecutionLogs.id}) < (${sql.param(cursorDate, workflowExecutionLogs.startedAt)}, ${filters.cursor.id})`
-      )
-    } else {
-      conditions.push(
-        sql`(${workflowExecutionLogs.startedAt}, ${workflowExecutionLogs.id}) > (${sql.param(cursorDate, workflowExecutionLogs.startedAt)}, ${filters.cursor.id})`
-      )
-    }
-  }
 
   // Workflow IDs filter
   if (filters.workflowIds && filters.workflowIds.length > 0) {
@@ -138,18 +130,6 @@ export function buildLogFilters(filters: LogFilters): SQL<unknown> {
 }
 
 /**
- * Order rows by `(startedAt, id)` so the sort matches the keyset cursor's tuple
- * comparison in {@link buildLogFilters}. Without the `id` tie-break, rows that
- * share a `startedAt` have an arbitrary order and can be skipped or duplicated
- * across pages.
- */
-export function getOrderBy(order: 'desc' | 'asc' = 'desc') {
-  return order === 'desc'
-    ? [desc(workflowExecutionLogs.startedAt), desc(workflowExecutionLogs.id)]
-    : [asc(workflowExecutionLogs.startedAt), asc(workflowExecutionLogs.id)]
-}
-
-/**
  * Whether a filter set can select job runs at all.
  *
  * `job_execution_logs` has no workflow, no folder, no model projection, and no
@@ -178,15 +158,6 @@ export function jobLogsSelectable(filters: LogFilters): boolean {
  */
 export function buildJobLogFilters(filters: LogFilters): SQL<unknown> {
   const conditions: SQL<unknown>[] = [eq(jobExecutionLogs.workspaceId, filters.workspaceId)]
-
-  if (filters.cursor) {
-    const cursorDate = new Date(filters.cursor.startedAt)
-    const comparison =
-      filters.order === 'asc'
-        ? sql`(${jobExecutionLogs.startedAt}, ${jobExecutionLogs.id}) > (${sql.param(cursorDate, jobExecutionLogs.startedAt)}, ${filters.cursor.id})`
-        : sql`(${jobExecutionLogs.startedAt}, ${jobExecutionLogs.id}) < (${sql.param(cursorDate, jobExecutionLogs.startedAt)}, ${filters.cursor.id})`
-    conditions.push(comparison)
-  }
 
   if (filters.triggers && filters.triggers.length > 0 && !filters.triggers.includes('all')) {
     conditions.push(inArray(jobExecutionLogs.trigger, filters.triggers))
@@ -227,11 +198,4 @@ export function buildJobLogFilters(filters: LogFilters): SQL<unknown> {
   }
 
   return and(...conditions)!
-}
-
-/** `getOrderBy`'s job-log twin, on the same `(startedAt, id)` tuple the cursor compares. */
-export function getJobOrderBy(order: 'desc' | 'asc' = 'desc') {
-  return order === 'desc'
-    ? [desc(jobExecutionLogs.startedAt), desc(jobExecutionLogs.id)]
-    : [asc(jobExecutionLogs.startedAt), asc(jobExecutionLogs.id)]
 }

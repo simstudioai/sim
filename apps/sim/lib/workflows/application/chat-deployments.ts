@@ -5,7 +5,10 @@ import {
   resolvePrincipalAttribution,
   toPrincipalActor,
 } from '@sim/auth/principal'
-import { ChatIdentifierInUseError } from '@/lib/chat-deployments/application/errors'
+import {
+  ChatIdentifierInUseError,
+  chatIdentifierUniquenessConflict,
+} from '@/lib/chat-deployments/application/errors'
 import { toChatDeploymentView } from '@/lib/chat-deployments/application/read-chat-deployments'
 import {
   getChatDeploymentIdOwningIdentifier,
@@ -195,7 +198,7 @@ export const deployWorkflowChat = defineAuthorizedWorkflowUseCase({
       ...(principal.kind === 'delegated'
         ? { captureDeploymentAnalytics: false as const, captureLegacyTelemetry: false }
         : {}),
-    })
+    }).catch(chatIdentifierUniquenessConflict(identifier))
     if (!result.success) {
       /**
        * Classified by the orchestration rather than flattened to a `400`: an

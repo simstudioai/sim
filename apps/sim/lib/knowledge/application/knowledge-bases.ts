@@ -72,6 +72,11 @@ const logger = createLogger('KnowledgeBaseApplication')
 
 export interface ListKnowledgeBasesInput {
   workspaceId: string
+  /**
+   * Lifecycle set to list. Defaults to `active`; `archived` reads the
+   * soft-deleted set the restore flow discovers from.
+   */
+  scope?: KnowledgeBaseScope
   folderPath?: string
   search?: string
   sortBy?: 'name' | 'createdAt' | 'updatedAt'
@@ -94,21 +99,6 @@ export interface ListKnowledgeBasesResult {
   nextCursorKeys: CursorKey[] | null
   sortBy: 'name' | 'createdAt' | 'updatedAt'
   sortOrder: 'asc' | 'desc'
-}
-
-export interface ListArchivedKnowledgeBasesInput {
-  workspaceId: string
-  search?: string
-  sortBy?: 'name' | 'createdAt' | 'updatedAt'
-  sortOrder?: 'asc' | 'desc'
-  /** Page size. Omitted reads the whole archived set as one page. */
-  limit?: number
-  cursorKeys?: CursorKey[]
-}
-
-export interface ListArchivedKnowledgeBasesResult {
-  knowledgeBases: KnowledgeBaseWithCounts[]
-  nextCursorKeys: CursorKey[] | null
 }
 
 export interface RestoreKnowledgeBaseInput extends ReadKnowledgeBaseInput {
@@ -281,7 +271,7 @@ async function executeListKnowledgeBases(args: {
       sortOrder: args.input.sortOrder ?? 'asc',
     }
   }
-  const page = await getWorkspaceKnowledgeBases(args.context.workspaceId, 'active', {
+  const page = await getWorkspaceKnowledgeBases(args.context.workspaceId, args.input.scope, {
     folderId: folderFilter.kind === 'folder' ? folderFilter.folderId : undefined,
     search: args.input.search,
     sortBy: args.input.sortBy,
@@ -445,29 +435,6 @@ export const listKnowledgeBaseCatalog = defineAuthorizedKnowledgeUseCase({
         tagDefinitions: tagsByKnowledgeBase.get(entry.knowledgeBase.id) ?? [],
       })),
     }
-  },
-})
-
-/**
- * Lists the workspace's archived knowledge bases.
- *
- * Paged on the same keyset the active list uses, over the same reader — an
- * omitted `limit` still reads the whole set, which is what the agent's
- * recently-deleted view wants and what this returned before it took a page.
- */
-export const listArchivedKnowledgeBases = defineAuthorizedKnowledgeUseCase({
-  operation: knowledgeOperations.listArchived,
-  resolveContext: ({ input }: { input: ListArchivedKnowledgeBasesInput }) =>
-    resolveKnowledgeWorkspaceContext(input),
-  async execute({ input, context }): Promise<ListArchivedKnowledgeBasesResult> {
-    const page = await getWorkspaceKnowledgeBases(context.workspaceId, 'archived', {
-      search: input.search,
-      sortBy: input.sortBy,
-      sortOrder: input.sortOrder,
-      limit: input.limit,
-      cursorKeys: input.cursorKeys,
-    })
-    return { knowledgeBases: page.data, nextCursorKeys: page.nextCursorKeys }
   },
 })
 

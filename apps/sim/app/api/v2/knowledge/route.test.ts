@@ -126,6 +126,7 @@ describe('/api/v2/knowledge route composition', () => {
       principal: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' },
       input: {
         workspaceId: WORKSPACE_ID,
+        scope: 'active',
         folderPath: '/',
         search: 'support',
         sortBy: 'name',
@@ -150,10 +151,96 @@ describe('/api/v2/knowledge route composition', () => {
   })
 
   /**
+   * The archived set is this list under `scope=archived`, not a sibling path:
+   * one semantic operation over the same rows with a different `deleted_at`
+   * predicate, matching files, tables, and workflows.
+   */
+  it('lists the archived set through the same operation and reports when each was archived', async () => {
+    mockList.mockResolvedValue({
+      knowledgeBases: [
+        {
+          knowledgeBase: {
+            ...buildKnowledgeBase(),
+            deletedAt: new Date('2024-02-02T00:00:00Z'),
+          },
+          folderPath: '/',
+        },
+      ],
+      nextCursorKeys: null,
+      sortBy: 'createdAt',
+      sortOrder: 'asc',
+    })
+
+    const response = await GET(
+      new NextRequest(
+        `http://localhost/api/v2/knowledge?workspaceId=${WORKSPACE_ID}&scope=archived`,
+        { headers: { 'x-api-key': 'secret' } }
+      )
+    )
+
+    expect(response.status).toBe(200)
+    expect(mockList).toHaveBeenCalledWith(
+      expect.objectContaining({ input: expect.objectContaining({ scope: 'archived' }) })
+    )
+    const [item] = (await response.json()).data
+    expect(item.deletedAt).toBe('2024-02-02T00:00:00.000Z')
+    expect(item.folderPath).toBe('/')
+  })
+
+  it('reports a null archive instant for an active knowledge base', async () => {
+    const response = await GET(
+      new NextRequest(`http://localhost/api/v2/knowledge?workspaceId=${WORKSPACE_ID}`, {
+        headers: { 'x-api-key': 'secret' },
+      })
+    )
+
+    expect((await response.json()).data[0].deletedAt).toBeNull()
+  })
+
+  it('rejects a scope outside the published set', async () => {
+    const response = await GET(
+      new NextRequest(`http://localhost/api/v2/knowledge?workspaceId=${WORKSPACE_ID}&scope=all`, {
+        headers: { 'x-api-key': 'secret' },
+      })
+    )
+
+    expect(response.status).toBe(400)
+    expect(mockList).not.toHaveBeenCalled()
+  })
+
+  /**
    * Pins the binding end-to-end — the mint in `present` and the read in
    * `mapInput` — because the contract-level sweep only checks a hand-maintained
    * map of param names and stays green when a route drops the stamp entirely.
    */
+  it('refuses a cursor minted under one scope and replayed under the other', async () => {
+    mockList.mockResolvedValue({
+      knowledgeBases: [{ knowledgeBase: buildKnowledgeBase(), folderPath: '/' }],
+      nextCursorKeys: ['Support docs', 'kb-1'],
+      sortBy: 'name',
+      sortOrder: 'desc',
+    })
+
+    const minted = await GET(
+      new NextRequest(`http://localhost/api/v2/knowledge?workspaceId=${WORKSPACE_ID}`, {
+        headers: { 'x-api-key': 'secret' },
+      })
+    )
+    const { nextCursor } = await minted.json()
+
+    mockList.mockClear()
+    const replayed = await GET(
+      new NextRequest(
+        `http://localhost/api/v2/knowledge?workspaceId=${WORKSPACE_ID}&scope=archived&cursor=${encodeURIComponent(nextCursor)}`,
+        { headers: { 'x-api-key': 'secret' } }
+      )
+    )
+
+    expect(replayed.status).toBe(400)
+    expect((await replayed.json()).error.message).toBe(REFILTERED_CURSOR_MESSAGE)
+    expect(mockList).not.toHaveBeenCalled()
+  })
+
   it('refuses a cursor minted under a different filter', async () => {
     mockList.mockResolvedValue({
       knowledgeBases: [{ knowledgeBase: buildKnowledgeBase(), folderPath: '/' }],

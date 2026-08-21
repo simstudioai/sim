@@ -94,7 +94,7 @@ export type V2ExecuteWorkflowHeaders = z.input<typeof v2ExecuteWorkflowHeadersSc
 
 export const v2WorkflowRunParamsSchema = z
   .object({
-    id: z.string().min(1, 'Invalid workflow ID').describe('Unique workflow identifier.'),
+    workflowId: z.string().min(1, 'Invalid workflow ID').describe('Unique workflow identifier.'),
     runId: v2WorkflowRunIdSchema.describe('Unique workflow run identifier.'),
   })
   .meta({
@@ -105,8 +105,8 @@ export const v2WorkflowRunParamsSchema = z
 export type V2WorkflowRunParams = z.input<typeof v2WorkflowRunParamsSchema>
 
 /**
- * v2 workflows contracts. Request shapes are reused from v1 (the `[id]` param
- * is unchanged, and the list query extends v1's with the v2 search/sort
+ * v2 workflows contracts. Request shapes are reused from v1 (the workflow-id
+ * param is unchanged, spelled `[workflowId]` here and `[id]` in v1, and the list query extends v1's with the v2 search/sort
  * convention); only the response envelope is upgraded to the canonical v2
  * shapes with concrete item/detail schemas. Deploy, rollback, and undeploy
  * have named v2 lifecycle result schemas and use `v2DataResponse` (the v1
@@ -204,7 +204,7 @@ export const v2WorkflowListItemSchema = z
      * `executeWorkflowCore`'s post-execution hook, under
      * `result.success && result.status !== 'paused'` — and nothing ever
      * decrements it, so the two ways it disagrees with
-     * `GET /workflows/{id}/runs` point in opposite directions and both are
+     * `GET /workflows/{workflowId}/runs` point in opposite directions and both are
      * reachable at once. The description is what makes that legible; the
      * counter itself is left alone because its stored values already carry the
      * narrow meaning and no backfill can recover runs whose logs retention has
@@ -215,7 +215,7 @@ export const v2WorkflowListItemSchema = z
       .int()
       .nonnegative()
       .describe(
-        'Runs that finished successfully. Failed, cancelled, and paused runs are not counted, and the counter is never reduced when a run ages out of log retention — so it does not match the size of `GET /api/v2/workflows/{id}/runs`, in either direction.'
+        'Runs that finished successfully. Failed, cancelled, and paused runs are not counted, and the counter is never reduced when a run ages out of log retention — so it does not match the size of `GET /api/v2/workflows/{workflowId}/runs`, in either direction.'
       ),
     lastRunAt: z
       .string()
@@ -279,8 +279,9 @@ export const v2WorkflowDetailSchema = v2WorkflowListItemSchema
 export type V2WorkflowDetail = z.output<typeof v2WorkflowDetailSchema>
 
 export const v2WorkflowIdParamsSchema = workflowIdParamsSchema
+  .omit({ id: true })
   .extend({
-    id: workflowIdParamsSchema.shape.id
+    workflowId: workflowIdParamsSchema.shape.id
       .describe('Unique workflow identifier.')
       .meta({ examples: ['3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36'] }),
   })
@@ -291,8 +292,9 @@ export const v2WorkflowIdParamsSchema = workflowIdParamsSchema
   })
 
 export const v2DeploymentVersionParamsSchema = deploymentVersionParamsSchema
+  .omit({ id: true })
   .extend({
-    id: deploymentVersionParamsSchema.shape.id.describe('Unique workflow identifier.'),
+    workflowId: deploymentVersionParamsSchema.shape.id.describe('Unique workflow identifier.'),
     version: deploymentVersionParamsSchema.shape.version
       .describe('Numeric deployment version.')
       .meta({ examples: [3] }),
@@ -310,8 +312,11 @@ export const v2DeploymentVersionParamsSchema = deploymentVersionParamsSchema
  * version is not, so the other two keep the numeric-only schema.
  */
 export const v2DeploymentVersionOrActiveParamsSchema = deploymentVersionOrActiveParamsSchema
+  .omit({ id: true })
   .extend({
-    id: deploymentVersionOrActiveParamsSchema.shape.id.describe('Unique workflow identifier.'),
+    workflowId: deploymentVersionOrActiveParamsSchema.shape.id.describe(
+      'Unique workflow identifier.'
+    ),
     version: deploymentVersionOrActiveParamsSchema.shape.version
       .describe('Numeric deployment version, or `active` for the currently live version.')
       .meta({ examples: [3, 'active'] }),
@@ -357,7 +362,8 @@ export const v2DeploymentStateSchema = z
  * Read-only deployment state. Extends the shared state with `needsRedeployment`,
  * which the mutation responses cannot carry: it compares the live graph against
  * the draft, and immediately after a deploy or rollback the two are equal by
- * construction.
+ * construction — and with `isPublicApi`, which was write-only across the whole
+ * surface until this read published it.
  */
 export const v2WorkflowDeploymentSchema = v2DeploymentStateSchema
   .extend({
@@ -365,6 +371,11 @@ export const v2WorkflowDeploymentSchema = v2DeploymentStateSchema
       .boolean()
       .describe(
         'Whether the editable draft has diverged from the live deployment version. False while a deployment attempt is still preparing or activating, and false when nothing is deployed.'
+      ),
+    isPublicApi: z
+      .boolean()
+      .describe(
+        'Whether the deployed workflow accepts unauthenticated public API execution. While true, anyone holding the execution URL can run the workflow — and be billed for it — without an API key, so this is the field an audit of what a deployment exposes reads. Changed with `PATCH /workflows/{workflowId}/deployment`.'
       ),
   })
   .meta({
@@ -389,7 +400,7 @@ export const v2DeployWorkflowDataSchema = v2DeploymentStateSchema
     id: 'DeployResult',
     title: 'Deploy result',
     description:
-      'Deployment attempt accepted for processing. Activation is asynchronous, and `latestDeploymentAttempt` is the attempt handle — returned by every deployment mutation as well as this read. Poll activation with `isDeployed` and `deployedAt` on the workflow, or `isActive` on `GET /workflows/{id}/versions`.',
+      'Deployment attempt accepted for processing. Activation is asynchronous, and `latestDeploymentAttempt` is the attempt handle — returned by every deployment mutation as well as this read. Poll activation with `isDeployed` and `deployedAt` on the workflow, or `isActive` on `GET /workflows/{workflowId}/versions`.',
   })
 export type V2DeployWorkflowData = z.output<typeof v2DeployWorkflowDataSchema>
 
@@ -442,7 +453,7 @@ export const v2ListWorkflowsContract = defineRouteContract({
 
 export const v2GetWorkflowContract = defineRouteContract({
   method: 'GET',
-  path: '/api/v2/workflows/[id]',
+  path: '/api/v2/workflows/[workflowId]',
   query: noInputSchema,
   params: v2WorkflowIdParamsSchema,
   response: {
@@ -544,7 +555,7 @@ export const v2DeleteWorkflowDataSchema = z
     archived: z
       .literal(true)
       .describe(
-        'The workflow was archived, not erased. Its schedules, webhooks, MCP tools, and chats were archived with it, and `POST /workflows/{id}/restore` brings all of them back.'
+        'The workflow was archived, not erased. Its schedules, webhooks, MCP tools, and chats were archived with it, and `POST /workflows/{workflowId}/restore` brings all of them back.'
       ),
   })
   .meta({
@@ -570,7 +581,7 @@ const v2SeededBlockSchema = z
 /**
  * Create result. Carries the seeded blocks — deliberately a summary rather than
  * the whole graph, which would reintroduce the unbounded response
- * `GET /workflows/{id}/state` exists to keep off the common path.
+ * `GET /workflows/{workflowId}/state` exists to keep off the common path.
  */
 export const v2CreateWorkflowDataSchema = v2WorkflowListItemSchema
   .extend({
@@ -602,7 +613,7 @@ export const v2CreateWorkflowContract = defineRouteContract({
 
 export const v2UpdateWorkflowContract = defineRouteContract({
   method: 'PATCH',
-  path: '/api/v2/workflows/[id]',
+  path: '/api/v2/workflows/[workflowId]',
   query: noInputSchema,
   params: v2WorkflowIdParamsSchema,
   body: v2UpdateWorkflowBodySchema,
@@ -614,7 +625,7 @@ export const v2UpdateWorkflowContract = defineRouteContract({
 
 export const v2DeleteWorkflowContract = defineRouteContract({
   method: 'DELETE',
-  path: '/api/v2/workflows/[id]',
+  path: '/api/v2/workflows/[workflowId]',
   query: noInputSchema,
   params: v2WorkflowIdParamsSchema,
   response: {
@@ -782,7 +793,7 @@ export type V2WorkflowVersionDetail = z.output<typeof v2WorkflowVersionDetailSch
 
 export const v2ListWorkflowVersionsContract = defineRouteContract({
   method: 'GET',
-  path: '/api/v2/workflows/[id]/versions',
+  path: '/api/v2/workflows/[workflowId]/versions',
   params: v2WorkflowIdParamsSchema,
   query: v2ListWorkflowVersionsQuerySchema,
   response: {
@@ -793,7 +804,7 @@ export const v2ListWorkflowVersionsContract = defineRouteContract({
 
 export const v2GetWorkflowVersionContract = defineRouteContract({
   method: 'GET',
-  path: '/api/v2/workflows/[id]/versions/[version]',
+  path: '/api/v2/workflows/[workflowId]/versions/[version]',
   query: noInputSchema,
   params: v2DeploymentVersionParamsSchema,
   response: {
@@ -804,7 +815,7 @@ export const v2GetWorkflowVersionContract = defineRouteContract({
 
 export const v2GetWorkflowDeploymentContract = defineRouteContract({
   method: 'GET',
-  path: '/api/v2/workflows/[id]/deployment',
+  path: '/api/v2/workflows/[workflowId]/deployment',
   query: noInputSchema,
   params: v2WorkflowIdParamsSchema,
   response: {
@@ -815,7 +826,7 @@ export const v2GetWorkflowDeploymentContract = defineRouteContract({
 
 export const v2DeployWorkflowContract = defineRouteContract({
   method: 'POST',
-  path: '/api/v2/workflows/[id]/deploy',
+  path: '/api/v2/workflows/[workflowId]/deploy',
   query: noInputSchema,
   params: v2WorkflowIdParamsSchema,
   body: v1DeployWorkflowBodySchema
@@ -846,7 +857,7 @@ export const v2DeployWorkflowContract = defineRouteContract({
 
 export const v2UndeployWorkflowContract = defineRouteContract({
   method: 'DELETE',
-  path: '/api/v2/workflows/[id]/deploy',
+  path: '/api/v2/workflows/[workflowId]/deploy',
   query: noInputSchema,
   params: v2WorkflowIdParamsSchema,
   response: {
@@ -865,7 +876,7 @@ export const v2UndeployWorkflowContract = defineRouteContract({
  */
 export const v2RollbackWorkflowContract = defineRouteContract({
   method: 'POST',
-  path: '/api/v2/workflows/[id]/rollback',
+  path: '/api/v2/workflows/[workflowId]/rollback',
   query: noInputSchema,
   params: v2WorkflowIdParamsSchema,
   body: v1RollbackWorkflowBodySchema
@@ -957,7 +968,7 @@ export type V2UpdateWorkflowVersionBody = z.input<typeof v2UpdateWorkflowVersion
 
 export const v2UpdateWorkflowVersionContract = defineRouteContract({
   method: 'PATCH',
-  path: '/api/v2/workflows/[id]/versions/[version]',
+  path: '/api/v2/workflows/[workflowId]/versions/[version]',
   query: noInputSchema,
   params: v2DeploymentVersionParamsSchema,
   body: v2UpdateWorkflowVersionBodySchema,
@@ -975,7 +986,7 @@ export const v2UpdateWorkflowVersionContract = defineRouteContract({
  */
 export const v2ActivateWorkflowVersionContract = defineRouteContract({
   method: 'POST',
-  path: '/api/v2/workflows/[id]/versions/[version]/activate',
+  path: '/api/v2/workflows/[workflowId]/versions/[version]/activate',
   query: noInputSchema,
   params: v2DeploymentVersionParamsSchema,
   body: noInputSchema
@@ -1024,7 +1035,7 @@ export type V2RevertWorkflowVersionData = z.output<typeof v2RevertWorkflowVersio
  */
 export const v2RevertWorkflowVersionContract = defineRouteContract({
   method: 'POST',
-  path: '/api/v2/workflows/[id]/versions/[version]/revert',
+  path: '/api/v2/workflows/[workflowId]/versions/[version]/revert',
   query: noInputSchema,
   params: v2DeploymentVersionOrActiveParamsSchema,
   body: noInputSchema
@@ -1073,7 +1084,7 @@ export type V2UpdateWorkflowPublicApiBody = z.input<typeof v2UpdateWorkflowPubli
 
 export const v2UpdateWorkflowPublicApiContract = defineRouteContract({
   method: 'PATCH',
-  path: '/api/v2/workflows/[id]/deployment',
+  path: '/api/v2/workflows/[workflowId]/deployment',
   query: noInputSchema,
   params: v2WorkflowIdParamsSchema,
   body: v2UpdateWorkflowPublicApiBodySchema,
@@ -1328,7 +1339,7 @@ export const v2ExecuteWorkflowSuccessSchema = z
 
 export const v2ExecuteWorkflowContract = defineRouteContract({
   method: 'POST',
-  path: '/api/v2/workflows/[id]/execute',
+  path: '/api/v2/workflows/[workflowId]/execute',
   query: noInputSchema,
   params: v2WorkflowIdParamsSchema,
   headers: v2ExecuteWorkflowHeadersSchema,
@@ -1392,7 +1403,7 @@ export type V2ResumeWorkflowResponse = z.output<typeof v2ResumeWorkflowResponseS
 
 export const v2ResumeWorkflowContract = defineRouteContract({
   method: 'POST',
-  path: '/api/v2/workflows/[id]/runs/[runId]/resume',
+  path: '/api/v2/workflows/[workflowId]/runs/[runId]/resume',
   query: noInputSchema,
   params: v2WorkflowRunParamsSchema,
   body: v2ResumeWorkflowBodySchema,
@@ -1523,7 +1534,7 @@ export type V2WorkflowRunListItem = z.output<typeof v2WorkflowRunListItemSchema>
 
 export const v2ListWorkflowRunsContract = defineRouteContract({
   method: 'GET',
-  path: '/api/v2/workflows/[id]/runs',
+  path: '/api/v2/workflows/[workflowId]/runs',
   params: v2WorkflowIdParamsSchema,
   query: v2ListWorkflowRunsQuerySchema,
   response: {
@@ -1650,7 +1661,7 @@ export type V2WorkflowRunStatus = z.output<typeof v2WorkflowRunStatusSchema>
 
 export const v2DownloadRunFileParamsSchema = z
   .object({
-    id: z.string().min(1, 'Invalid workflow ID').describe('Unique workflow identifier.'),
+    workflowId: z.string().min(1, 'Invalid workflow ID').describe('Unique workflow identifier.'),
     runId: v2WorkflowRunIdSchema.describe('Unique workflow run identifier.'),
     fileId: z
       .string()
@@ -1674,7 +1685,7 @@ export type V2DownloadRunFileParams = z.input<typeof v2DownloadRunFileParamsSche
  */
 export const v2DownloadRunFileContract = defineRouteContract({
   method: 'GET',
-  path: '/api/v2/workflows/[id]/runs/[runId]/files/[fileId]',
+  path: '/api/v2/workflows/[workflowId]/runs/[runId]/files/[fileId]',
   params: v2DownloadRunFileParamsSchema,
   query: noInputSchema,
   response: {
@@ -1684,7 +1695,7 @@ export const v2DownloadRunFileContract = defineRouteContract({
 
 export const v2GetWorkflowRunContract = defineRouteContract({
   method: 'GET',
-  path: '/api/v2/workflows/[id]/runs/[runId]',
+  path: '/api/v2/workflows/[workflowId]/runs/[runId]',
   params: v2WorkflowRunParamsSchema,
   query: workflowExecutionStatusQuerySchema
     .extend({
@@ -1782,7 +1793,7 @@ export type V2CancelWorkflowRunData = z.output<typeof v2CancelWorkflowRunDataSch
 
 export const v2CancelWorkflowRunContract = defineRouteContract({
   method: 'POST',
-  path: '/api/v2/workflows/[id]/runs/[runId]/cancel',
+  path: '/api/v2/workflows/[workflowId]/runs/[runId]/cancel',
   query: noInputSchema,
   params: v2WorkflowRunParamsSchema,
   response: {
@@ -1916,7 +1927,7 @@ export const v2ImportWorkflowDataSchema = z
 
 export const v2ExportWorkflowContract = defineRouteContract({
   method: 'GET',
-  path: '/api/v2/workflows/[id]/export',
+  path: '/api/v2/workflows/[workflowId]/export',
   query: noInputSchema,
   params: v2WorkflowIdParamsSchema,
   response: {
@@ -2450,7 +2461,7 @@ export type V2ReplaceWorkflowStateData = z.output<typeof v2ReplaceWorkflowStateD
 
 export const v2GetWorkflowStateContract = defineRouteContract({
   method: 'GET',
-  path: '/api/v2/workflows/[id]/state',
+  path: '/api/v2/workflows/[workflowId]/state',
   query: noInputSchema,
   params: v2WorkflowIdParamsSchema,
   response: {
@@ -2461,7 +2472,7 @@ export const v2GetWorkflowStateContract = defineRouteContract({
 
 export const v2ReplaceWorkflowStateContract = defineRouteContract({
   method: 'PUT',
-  path: '/api/v2/workflows/[id]/state',
+  path: '/api/v2/workflows/[workflowId]/state',
   query: v2GraphWriteDryRunQuerySchema,
   params: v2WorkflowIdParamsSchema,
   body: v2ReplaceWorkflowStateBodySchema,
@@ -2718,7 +2729,7 @@ export type V2ApplyWorkflowOperationsData = z.output<typeof v2ApplyWorkflowOpera
 
 export const v2ApplyWorkflowOperationsContract = defineRouteContract({
   method: 'POST',
-  path: '/api/v2/workflows/[id]/operations',
+  path: '/api/v2/workflows/[workflowId]/operations',
   query: v2GraphWriteDryRunQuerySchema,
   params: v2WorkflowIdParamsSchema,
   body: v2ApplyWorkflowOperationsBodySchema,
@@ -2809,7 +2820,7 @@ export type V2ApplyWorkflowVariablesData = z.output<typeof v2ApplyWorkflowVariab
 
 export const v2ApplyWorkflowVariablesContract = defineRouteContract({
   method: 'PATCH',
-  path: '/api/v2/workflows/[id]/variables',
+  path: '/api/v2/workflows/[workflowId]/variables',
   query: noInputSchema,
   params: v2WorkflowIdParamsSchema,
   body: v2ApplyWorkflowVariablesBodySchema,
@@ -2844,7 +2855,7 @@ export type V2DuplicateWorkflowBody = z.input<typeof v2DuplicateWorkflowBodySche
 
 export const v2DuplicateWorkflowContract = defineRouteContract({
   method: 'POST',
-  path: '/api/v2/workflows/[id]/duplicate',
+  path: '/api/v2/workflows/[workflowId]/duplicate',
   query: noInputSchema,
   params: v2WorkflowIdParamsSchema,
   body: v2DuplicateWorkflowBodySchema,
@@ -2857,7 +2868,7 @@ export const v2DuplicateWorkflowContract = defineRouteContract({
 
 export const v2RestoreWorkflowContract = defineRouteContract({
   method: 'POST',
-  path: '/api/v2/workflows/[id]/restore',
+  path: '/api/v2/workflows/[workflowId]/restore',
   query: noInputSchema,
   params: v2WorkflowIdParamsSchema,
   response: {

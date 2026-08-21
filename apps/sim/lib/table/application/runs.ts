@@ -20,6 +20,7 @@ import {
 import { tableOperations } from '@/lib/table/application/operations'
 import { tablePredicateNamesToFilter } from '@/lib/table/application/rows'
 import {
+  cancelDispatchById,
   type DispatchLimit,
   type DispatchMode,
   type DispatchRow,
@@ -220,9 +221,11 @@ export const cancelTableRuns = defineAuthorizedTableUseCase({
   },
 })
 
-export interface ReadTableDispatchInput {
+export interface TableDispatchResourceInput {
   dispatchId: string
   workspaceId: string
+  /** The table the caller addressed the dispatch under; asserted against the stored row. */
+  tableId: string
 }
 
 export interface TableDispatchResult {
@@ -235,19 +238,23 @@ interface TableDispatchContext extends TableAuthorizationContext {
 
 /**
  * Loads one dispatch and derives its canonical table and workspace from the
- * stored row, then asserts the caller's workspace against them.
+ * stored row, then asserts the caller's asserted scope against them.
  *
- * The dispatch id is the only thing the caller holds, so the canonical scope
- * has to come from the dispatch itself — the asserted workspace is compared to
- * it, never substituted for it. A mismatch, a dispatch whose table was deleted,
- * and a dispatch that never existed all report the same not-found, so the id
- * space leaks nothing across tenants.
+ * The canonical scope always comes from the dispatch itself — the asserted
+ * workspace and table are compared to it, never substituted for it. A workspace
+ * mismatch, a `tableId` naming a different table, a dispatch whose table was
+ * deleted, and a dispatch that never existed all report the same not-found, so
+ * the id space leaks nothing across tenants or across tables.
  */
 async function resolveTableDispatchContext(
-  input: ReadTableDispatchInput
+  input: TableDispatchResourceInput
 ): Promise<TableDispatchContext> {
   const dispatch = await readDispatch(input.dispatchId)
-  if (!dispatch || dispatch.workspaceId !== input.workspaceId) {
+  if (
+    !dispatch ||
+    dispatch.workspaceId !== input.workspaceId ||
+    dispatch.tableId !== input.tableId
+  ) {
     throw new OrchestrationError('not_found', 'Table run dispatch not found')
   }
   const table = await getTableById(dispatch.tableId)
@@ -260,10 +267,35 @@ async function resolveTableDispatchContext(
 /** Polls one run dispatch in any of its four states, including the terminal two. */
 export const readTableDispatch = defineAuthorizedTableUseCase({
   operation: tableOperations.readRun,
-  resolveContext: ({ input }: { input: ReadTableDispatchInput }) =>
+  resolveContext: ({ input }: { input: TableDispatchResourceInput }) =>
     resolveTableDispatchContext(input),
   async execute({ context }): Promise<TableDispatchResult> {
     return { dispatch: context.dispatch }
+  },
+})
+
+/**
+ * Cancels one dispatch by id — the counterpart to `POST /cancel-runs`, which cancels by
+ * predicate scope and cannot name a single dispatch.
+ *
+ * Stops the scheduler: the dispatcher observes the `cancelled` status at its next iteration
+ * and enqueues nothing further. Cells already handed to the queue are NOT cancelled here,
+ * because nothing links a cell execution back to the dispatch that enqueued it — cancelling
+ * those means `POST /cancel-runs`, whose predicate scope is the only way to name them.
+ *
+ * Idempotent: a dispatch already in a terminal state is returned unchanged.
+ */
+export const cancelTableDispatch = defineAuthorizedTableUseCase({
+  operation: tableOperations.cancelRuns,
+  resolveContext: ({ input }: { input: TableDispatchResourceInput }) =>
+    resolveTableDispatchContext(input),
+  async execute({ context }): Promise<TableDispatchResult> {
+    if (context.dispatch.status === 'complete' || context.dispatch.status === 'cancelled') {
+      return { dispatch: context.dispatch }
+    }
+    await cancelDispatchById(context.dispatch.id)
+    const dispatch = await readDispatch(context.dispatch.id)
+    return { dispatch: dispatch ?? context.dispatch }
   },
 })
 

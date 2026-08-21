@@ -38,6 +38,7 @@ vi.mock('@/app/api/v2/lib/gate', () => v2GateModuleMock)
 import { Readable } from 'node:stream'
 import { NoWorkspaceAccessError } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { MAX_ZIP_DOWNLOAD_FILES } from '@/lib/workspace-files/limits'
 import { GET } from '@/app/api/v2/files/bulk-download/route'
 
 const WORKSPACE_ID = '6fc7631d-88cd-46f8-9f0a-d4764daef7f8'
@@ -138,9 +139,15 @@ describe('GET /api/v2/files/bulk-download', () => {
     expect(mocks.download).not.toHaveBeenCalled()
   })
 
-  /** Input caps come before the selection walk can expand anything. */
-  it('rejects a selection above the input cap', async () => {
-    const tooMany = Array.from({ length: 1001 }, (_, i) => `wf_${i}`).join(',')
+  /**
+   * The contract's cap is the download's real ceiling, so an over-large
+   * selection is refused at the boundary rather than validating, resolving, and
+   * only then failing — and the message names the field and the limit.
+   */
+  it('rejects a file selection above the download ceiling before it resolves', async () => {
+    const tooMany = Array.from({ length: MAX_ZIP_DOWNLOAD_FILES + 1 }, (_, i) => `wf_${i}`).join(
+      ','
+    )
 
     const response = await GET(
       downloadRequest(`workspaceId=${WORKSPACE_ID}&fileIds=${tooMany}`),
@@ -148,6 +155,35 @@ describe('GET /api/v2/files/bulk-download', () => {
     )
 
     expect(response.status).toBe(400)
+    const message = (await response.json()).error.message
+    expect(message).toContain('fileIds')
+    expect(message).toContain(String(MAX_ZIP_DOWNLOAD_FILES))
+    expect(mocks.download).not.toHaveBeenCalled()
+    expect(mocks.authorizeDownload).not.toHaveBeenCalled()
+  })
+
+  it('accepts a file selection exactly at the download ceiling', async () => {
+    const atCap = Array.from({ length: MAX_ZIP_DOWNLOAD_FILES }, (_, i) => `wf_${i}`).join(',')
+
+    const response = await GET(
+      downloadRequest(`workspaceId=${WORKSPACE_ID}&fileIds=${atCap}`),
+      context
+    )
+
+    expect(response.status).toBe(200)
+    expect(mocks.download).toHaveBeenCalledOnce()
+  })
+
+  it('rejects a folder selection above the download ceiling', async () => {
+    const tooMany = Array.from({ length: MAX_ZIP_DOWNLOAD_FILES + 1 }, (_, i) => `/f${i}`).join(',')
+
+    const response = await GET(
+      downloadRequest(`workspaceId=${WORKSPACE_ID}&folderPaths=${tooMany}`),
+      context
+    )
+
+    expect(response.status).toBe(400)
+    expect((await response.json()).error.message).toContain('folderPaths')
     expect(mocks.download).not.toHaveBeenCalled()
   })
 

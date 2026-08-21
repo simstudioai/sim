@@ -15,7 +15,6 @@ import {
   v2GetKnowledgeBaseContract,
   v2GetKnowledgeConnectorContract,
   v2GetKnowledgeDocumentContract,
-  v2ListArchivedKnowledgeBasesContract,
   v2ListKnowledgeBasesContract,
   v2ListKnowledgeConnectorDocumentsContract,
   v2ListKnowledgeConnectorsContract,
@@ -114,7 +113,7 @@ const declaredRoutes = [
     knowledgeOperation({
       operationId: 'listKnowledgeBases',
       summary: 'List Knowledge Bases',
-      description: `List knowledge bases in a workspace with folder filtering, search, sorting, and opaque cursor pagination. ${FOLDER_TREE_TOO_LARGE}`,
+      description: `List knowledge bases in a workspace with lifecycle scope, folder filtering, search, sorting, and opaque cursor pagination. \`scope\` defaults to \`active\`; pass \`archived\` to list knowledge bases a \`DELETE\` archived, each carrying the \`deletedAt\` instant it was archived, and recover one with \`POST /api/v2/knowledge/{knowledgeBaseId}/restore\`. ${FOLDER_TREE_TOO_LARGE}`,
       errors: [...RESOURCE_ERRORS, 'PayloadTooLarge'],
       success: { description: 'A page of knowledge bases.' },
     }),
@@ -123,7 +122,7 @@ const declaredRoutes = [
         v2ListKnowledgeBasesContract.query,
         'ListKnowledgeBasesQuery',
         'List knowledge bases query',
-        'Workspace, folder, search, and sorting options for listing knowledge bases.'
+        'Workspace, lifecycle scope, folder, search, and sorting options for listing knowledge bases.'
       ),
       response: documentedSchema(
         v2ListKnowledgeBasesContract.response.schema,
@@ -608,7 +607,7 @@ const declaredRoutes = [
       operationId: 'listKnowledgeDocuments',
       summary: 'List Documents',
       description:
-        'List documents in a knowledge base with filename search, state filtering, tag filtering, sorting, and opaque cursor pagination. Tag values are keyed by display name; resolve those to write slots with `GET /api/v2/knowledge/{id}/tags`.',
+        'List documents in a knowledge base with filename search, state filtering, tag filtering, sorting, and opaque cursor pagination. Tag values are keyed by display name; resolve those to write slots with `GET /api/v2/knowledge/{knowledgeBaseId}/tags`.',
       errors: RESOURCE_ERRORS,
       success: { description: 'A page of knowledge documents.' },
     }),
@@ -638,7 +637,7 @@ const declaredRoutes = [
     knowledgeOperation({
       operationId: 'bulkUpdateKnowledgeDocuments',
       summary: 'Bulk Enable or Disable Documents',
-      description: `Enable or disable many documents in one request, either by identifier or, with \`selectAll\`, every document in the knowledge base. Bulk delete is not offered; delete documents one at a time with \`DELETE /api/v2/knowledge/{id}/documents/{documentId}\`. ${WORKSPACE_API_KEY_DENIED}`,
+      description: `Enable or disable many documents in one request, either by identifier or, with \`selectAll\`, every document in the knowledge base. Bulk delete is not offered; delete documents one at a time with \`DELETE /api/v2/knowledge/{knowledgeBaseId}/documents/{documentId}\`. ${WORKSPACE_API_KEY_DENIED}`,
       errors: [...RESOURCE_ERRORS, 'PayloadTooLarge'],
       success: { description: 'The number and identifiers of the documents that changed.' },
     }),
@@ -914,7 +913,7 @@ const declaredRoutes = [
     knowledgeOperation({
       operationId: 'updateKnowledgeDocument',
       summary: 'Update Document',
-      description: `Rename a document, enable or disable it for search, set any of its 17 tag slots, or requeue it for processing. Absent fields are unchanged, and derived indexing state is read-only. Resolve a tag display name to its slot with \`GET /api/v2/knowledge/{id}/tags\`. The returned document omits the connector provenance the detail read carries. ${WORKSPACE_API_KEY_DENIED}`,
+      description: `Rename a document, enable or disable it for search, set any of its 17 tag slots, or requeue it for processing. Absent fields are unchanged, and derived indexing state is read-only. Resolve a tag display name to its slot with \`GET /api/v2/knowledge/{knowledgeBaseId}/tags\`. The returned document omits the connector provenance the detail read carries. ${WORKSPACE_API_KEY_DENIED}`,
       errors: [...RESOURCE_ERRORS, 'PayloadTooLarge'],
       success: { description: 'The updated document, or the requeue acknowledgement.' },
     }),
@@ -1079,31 +1078,6 @@ const declaredRoutes = [
     }
   ),
   defineOpenApiRoute(
-    v2ListArchivedKnowledgeBasesContract,
-    knowledgeOperation({
-      operationId: 'listArchivedKnowledgeBases',
-      summary: 'List Archived Knowledge Bases',
-      description:
-        "List the workspace's soft-deleted knowledge bases, newest first, with search, sorting, and opaque cursor pagination. Each entry carries the `deletedAt` instant it was archived; recover one with `POST /api/v2/knowledge/{id}/restore`. `folderPath` is not reported: archiving a folder archives what is under it, so an archived knowledge base frequently has no active containing folder.",
-      errors: RESOURCE_ERRORS,
-      success: { description: 'A page of archived knowledge bases.' },
-    }),
-    {
-      query: documentedSchema(
-        v2ListArchivedKnowledgeBasesContract.query,
-        'ListArchivedKnowledgeBasesQuery',
-        'List archived knowledge bases query',
-        'Workspace, search, sorting, and pagination options for the archived list.'
-      ),
-      response: documentedSchema(
-        v2ListArchivedKnowledgeBasesContract.response.schema,
-        'V2ArchivedKnowledgeBaseListResponse',
-        'Archived knowledge base list response',
-        'A cursor-paginated page of archived knowledge bases.'
-      ),
-    }
-  ),
-  defineOpenApiRoute(
     v2RestoreKnowledgeBaseContract,
     knowledgeOperation({
       operationId: 'restoreKnowledgeBase',
@@ -1141,7 +1115,7 @@ const declaredRoutes = [
       operationId: 'addWorkspaceFilesToKnowledgeBase',
       summary: 'Index Workspace Files',
       description:
-        'Index files the workspace already stores, without re-uploading their bytes. Each reference is authorized against the file it names, so a reference the caller cannot read, one over the 100 MB document limit, or one whose type is not supported is reported in `failed` while the rest are queued — a partial outcome is a `200`, not a multi-status. A queued document starts in the `pending` processing state; the entries returned here carry only its identity, so read `GET /api/v2/knowledge/{id}/documents/{documentId}` for its current state. A workspace API key is rejected with `403`; use a personal API key.',
+        'Index files the workspace already stores, without re-uploading their bytes. Each reference is authorized against the file it names, so a reference the caller cannot read, one over the 100 MB document limit, or one whose type is not supported is reported in `failed` while the rest are queued — a partial outcome is a `200`, not a multi-status. A queued document starts in the `pending` processing state; the entries returned here carry only its identity, so read `GET /api/v2/knowledge/{knowledgeBaseId}/documents/{documentId}` for its current state. A workspace API key is rejected with `403`; use a personal API key.',
       errors: [...RESOURCE_ERRORS, 'UsageLimitExceeded'],
       success: { description: 'Files queued for indexing, with any that could not be.' },
     }),

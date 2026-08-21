@@ -40,7 +40,7 @@ const SORT_FIELDS: Record<ListCatalogToolsInput['sortBy'], (tool: CatalogToolSum
  * The built-in tools this caller may run in this workspace.
  *
  * Built-in tools only. A workspace's MCP tools are discovered live per server
- * and live on `GET /api/v2/mcp-servers/{id}/tools`; its code-backed custom tools
+ * and live on `GET /api/v2/mcp-servers/{mcpServerId}/tools`; its code-backed custom tools
  * are a CRUD resource on `GET /api/v2/custom-tools`. Three resources with three
  * lifecycles, deliberately not unioned.
  */

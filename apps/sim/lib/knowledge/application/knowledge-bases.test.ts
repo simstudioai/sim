@@ -102,7 +102,6 @@ import {
   bulkDeleteKnowledgeBases,
   createKnowledgeBase,
   deleteInternalKnowledgeBase,
-  listArchivedKnowledgeBases,
   listInternalKnowledgeBases,
   listKnowledgeBaseCatalog,
   listKnowledgeBases,
@@ -294,7 +293,7 @@ describe('knowledge base application use cases', () => {
 
   it('rejects an archived Knowledge list bound to another trusted workspace before reading', async () => {
     await expect(
-      listArchivedKnowledgeBases.execute({
+      listKnowledgeBases.execute({
         principal: {
           kind: 'delegated',
           serviceId: 'copilot',
@@ -305,7 +304,7 @@ describe('knowledge base application use cases', () => {
           issuedAt: new Date(),
           expiresAt: new Date(Date.now() + 60_000),
         },
-        input: { workspaceId: 'workspace-1' },
+        input: { workspaceId: 'workspace-1', scope: 'archived' },
       })
     ).rejects.toMatchObject({ code: 'forbidden' })
 
@@ -624,13 +623,14 @@ describe('knowledge base application use cases', () => {
     expect(mocks.recordAudit).not.toHaveBeenCalled()
   })
 
-  it('pages the archived list through the same keyset the active list uses', async () => {
+  it('reads the archived set through the same list, keyset, and reader as the active one', async () => {
     mocks.listRecords.mockResolvedValue({ data: [knowledgeBase], nextCursorKeys: ['k', 'id'] })
 
-    const result = await listArchivedKnowledgeBases.execute({
+    const result = await listKnowledgeBases.execute({
       principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
       input: {
         workspaceId: 'workspace-1',
+        scope: 'archived',
         search: 'docs',
         sortBy: 'updatedAt',
         sortOrder: 'desc',
@@ -640,6 +640,7 @@ describe('knowledge base application use cases', () => {
     })
 
     expect(mocks.listRecords).toHaveBeenCalledWith('workspace-1', 'archived', {
+      folderId: undefined,
       search: 'docs',
       sortBy: 'updatedAt',
       sortOrder: 'desc',

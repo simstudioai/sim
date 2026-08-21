@@ -103,7 +103,35 @@ export async function getChatDeploymentWithWorkspace(
   return { chat: row.chat, workspaceId: row.workspaceId }
 }
 
-/** The live chat deployment of a workflow, or null when it has none. */
+/**
+ * The live chat deployment of a workflow, or null when it has none.
+ *
+ * `.limit(1)` is the only thing expressing the 1:1 invariant between a workflow
+ * and its chat. It is a projection of that invariant, not an enforcement of it:
+ * there is no unique constraint on `chat(workflow_id)`, so this read is one half
+ * of a check-then-act and the guarantees split in two.
+ *
+ * **Guaranteed.** Two concurrent writers claiming the same `identifier` cannot
+ * both win: the partial unique index `identifier_idx ON chat (identifier) WHERE
+ * archived_at IS NULL` rejects the loser, and
+ * {@link chatIdentifierUniquenessConflict} classifies that rejection as the same
+ * `409` the pre-check reports.
+ *
+ * **Not guaranteed.** Two concurrent writers publishing the *same workflow*
+ * under *different* identifiers both read `null` here and both insert. Nothing
+ * rejects the second, so the workflow ends up with two live chat rows and every
+ * subsequent read of it silently resolves to whichever one this `.limit(1)`
+ * happens to return. The window is narrow — it spans this read to the insert in
+ * `performChatDeploy` — but it is real, and it is not closable in application
+ * code: the insert is not transactional and is shared with the internal editor
+ * and the Copilot deploy tool, so a lock taken here would not span it.
+ *
+ * The fix is a partial unique index, `chat(workflow_id) WHERE archived_at IS
+ * NULL`, which makes the loser a `23505` this domain can classify exactly as it
+ * already classifies the identifier collision. It ships as its own migration,
+ * behind a preflight count of workflows already carrying more than one live
+ * chat row, because the constraint cannot be created while a duplicate exists.
+ */
 export async function getLiveChatDeploymentForWorkflow(
   workflowId: string
 ): Promise<ChatDeploymentRow | null> {

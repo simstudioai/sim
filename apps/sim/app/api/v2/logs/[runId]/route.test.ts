@@ -41,6 +41,7 @@ const auth = {
 const log = {
   executionId: 'run-1',
   workflowId: 'workflow-1',
+  workspaceId: 'workspace-1',
   deploymentVersionId: 'deployment-1',
   status: 'completed',
   level: 'info',
@@ -227,6 +228,59 @@ describe('GET /api/v2/logs/[runId]', () => {
     expect(await response.json()).toMatchObject({
       error: { code: 'NOT_FOUND', message: 'Log not found' },
     })
+  })
+
+  /**
+   * The detail read passed `workflow_execution_logs.files` straight through,
+   * publishing the storage key and a `/api/files/serve/…` URL that authenticates
+   * by session and refuses an API key. Only files under this run's own execution
+   * prefix survive, and they are addressed through the run resource instead.
+   */
+  it("publishes only the run's own output files, never a recorded storage key", async () => {
+    mocks.execute.mockResolvedValueOnce({
+      log: {
+        ...log,
+        files: [
+          {
+            id: 'file-own',
+            name: 'report.pdf',
+            size: 1024,
+            type: 'application/pdf',
+            url: '/api/files/serve/execution/x',
+            key: 'execution/workspace-1/workflow-1/run-1/report.pdf',
+          },
+          {
+            id: 'file-forged',
+            name: 'stolen.pdf',
+            size: 1,
+            type: 'application/pdf',
+            key: 'execution/other-workspace/other-workflow/other-run/stolen.pdf',
+          },
+        ],
+      },
+      workflowFolderPath: '/agents',
+      executionData: { traceSpans: [], finalOutput: null, workflowInput: null },
+      costLedger: null,
+    })
+
+    const response = await GET(new NextRequest('http://localhost:3000/api/v2/logs/run-1'), {
+      params: Promise.resolve({ runId: 'run-1' }),
+    })
+    const raw = await response.text()
+
+    expect(response.status).toBe(200)
+    expect(JSON.parse(raw).data.files).toEqual([
+      {
+        id: 'file-own',
+        name: 'report.pdf',
+        size: 1024,
+        type: 'application/pdf',
+        downloadPath: '/api/v2/workflows/workflow-1/runs/run-1/files/file-own',
+      },
+    ])
+    expect(raw).not.toContain('"key"')
+    expect(raw).not.toContain('/api/files/serve/')
+    expect(raw).not.toContain('stolen.pdf')
   })
 
   it('hides unexpected materialization errors', async () => {

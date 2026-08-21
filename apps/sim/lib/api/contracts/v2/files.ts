@@ -36,6 +36,7 @@ import {
 } from '@/lib/api/contracts/v2/uploads'
 import { MAX_WORKSPACE_FILE_SIZE } from '@/lib/uploads/shared/types'
 import { MAX_TEXT_EXTRACTION_BYTES } from '@/lib/uploads/utils/file-utils'
+import { MAX_ZIP_DOWNLOAD_FILES } from '@/lib/workspace-files/limits'
 
 /**
  * v2 files contracts. v2 drops the v1 `{ success, data, limits }` envelope in
@@ -799,7 +800,7 @@ export const v2FileTextSchema = z
 export type V2FileText = z.output<typeof v2FileTextSchema>
 
 /**
- * Extracts a file's text.
+ * Returns a file's text content, parsed out of the stored bytes.
  *
  * `degraded` is a required, non-optional boolean rather than an optional flag:
  * the legacy `doc` and `ppt` parsers return best-effort or placeholder content
@@ -851,25 +852,25 @@ export const v2DeleteFileContract = defineRouteContract({
   },
 })
 
-export const v2ExtractFileBodySchema = z
+export const v2UnarchiveFileBodySchema = z
   .object({
     workspaceId: workspaceIdSchema.describe('Workspace that owns the archive.'),
   })
   .strict()
-export type V2ExtractFileBody = z.input<typeof v2ExtractFileBodySchema>
+export type V2UnarchiveFileBody = z.input<typeof v2UnarchiveFileBodySchema>
 
 /**
- * Counts plus the destination path, deliberately not the extracted files.
+ * Counts plus the destination path, deliberately not the unpacked files.
  *
  * A large archive would otherwise materialize thousands of file objects into
  * one response body — the same unbounded-materialization hazard the list
  * endpoints exist to avoid. The caller pages
  * `GET /api/v2/files?folderPath=...` instead.
  */
-export const v2ExtractFileDataSchema = z
+export const v2UnarchiveFileDataSchema = z
   .object({
     folderPath: v2FolderPathSchema.describe(
-      'Canonical path of the folder the archive was extracted into. May differ from the archive name when a sibling folder already claimed it.'
+      'Canonical path of the folder the archive was unpacked into. May differ from the archive name when a sibling folder already claimed it.'
     ),
     extractedFileCount: z
       .number()
@@ -884,21 +885,29 @@ export const v2ExtractFileDataSchema = z
   })
   .strict()
   .meta({
-    id: 'V2FileExtraction',
-    title: 'Archive extraction result',
-    description: 'Outcome of unzipping a workspace archive.',
+    id: 'V2FileUnarchiveResult',
+    title: 'Unarchive result',
+    description: 'Outcome of unzipping a workspace archive into a folder.',
   })
-export type V2FileExtraction = z.output<typeof v2ExtractFileDataSchema>
+export type V2FileUnarchiveResult = z.output<typeof v2UnarchiveFileDataSchema>
 
-export const v2ExtractFileContract = defineRouteContract({
+/**
+ * Unzips an archive into a new folder beside it.
+ *
+ * Named `unarchive`, not `extract`: the sibling `GET /api/v2/files/[fileId]/text`
+ * is the endpoint that extracts something *out of* a file, and one surface
+ * cannot use the same verb for reading a file's text and for unpacking an
+ * archive into the workspace.
+ */
+export const v2UnarchiveFileContract = defineRouteContract({
   method: 'POST',
-  path: '/api/v2/files/[fileId]/extract',
+  path: '/api/v2/files/[fileId]/unarchive',
   query: noInputSchema,
   params: v2FileParamsSchema,
-  body: v2ExtractFileBodySchema,
+  body: v2UnarchiveFileBodySchema,
   response: {
     mode: 'json',
-    schema: v2DataResponse(v2ExtractFileDataSchema),
+    schema: v2DataResponse(v2UnarchiveFileDataSchema),
   },
 })
 
@@ -926,30 +935,44 @@ export const v2MoveFileItemsContract = defineRouteContract({
 })
 
 /**
- * Comma-separated query list, bounded so a request cannot ask the selection
- * walk to expand an unbounded set before the zip's own file-count and byte
- * ceilings apply.
+ * Comma-separated query list, bounded by the same ceiling the resolved
+ * selection is held to. A looser cap here was a contract lie: a selection above
+ * `MAX_ZIP_DOWNLOAD_FILES` passed validation, resolved, and only then answered
+ * `400`, and a thousand comma-joined identifiers is a query string long enough
+ * that a proxy answers `414` with a body that never reaches the v2 error
+ * envelope.
  *
  * Comma-separated only: v2 rejects a query parameter sent more than once, so a
  * repeated-parameter form would never reach this schema.
  */
-const v2QuerySelectionListSchema = z
-  .string()
-  .optional()
-  .transform((value) =>
-    (value ?? '')
-      .split(',')
-      .map((entry) => entry.trim())
-      .filter(Boolean)
-  )
-  .pipe(z.array(z.string().min(1)).max(1000, 'Too many entries selected'))
+function v2QuerySelectionListSchema(field: string) {
+  return z
+    .string()
+    .optional()
+    .transform((value) =>
+      (value ?? '')
+        .split(',')
+        .map((entry) => entry.trim())
+        .filter(Boolean)
+    )
+    .pipe(
+      z
+        .array(z.string().min(1))
+        .max(
+          MAX_ZIP_DOWNLOAD_FILES,
+          `${field} cannot contain more than ${MAX_ZIP_DOWNLOAD_FILES} entries; a bulk download is limited to ${MAX_ZIP_DOWNLOAD_FILES} files.`
+        )
+    )
+}
 
 export const v2BulkDownloadFilesQuerySchema = z
   .object({
     workspaceId: workspaceIdSchema.describe('Workspace containing the selection.'),
-    fileIds: v2QuerySelectionListSchema.describe('File identifiers to include, comma-separated.'),
-    folderPaths: v2QuerySelectionListSchema.describe(
-      'Folder paths to include with all their descendants, comma-separated. A path that matches no folder is rejected rather than ignored.'
+    fileIds: v2QuerySelectionListSchema('fileIds').describe(
+      `File identifiers to include, comma-separated. At most ${MAX_ZIP_DOWNLOAD_FILES} entries.`
+    ),
+    folderPaths: v2QuerySelectionListSchema('folderPaths').describe(
+      `Folder paths to include with all their descendants, comma-separated. At most ${MAX_ZIP_DOWNLOAD_FILES} entries, and the files they resolve to count against the same ${MAX_ZIP_DOWNLOAD_FILES}-file download ceiling. A path that matches no folder is rejected rather than ignored.`
     ),
   })
   .strict()

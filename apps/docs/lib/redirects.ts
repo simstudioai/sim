@@ -190,6 +190,15 @@ export const DOCS_REDIRECTS: DocsRedirect[] = [
    */
   // Pure operationId renames — same path and method, v1 -> v2.
   {
+    // `/rows/find` became `/rows/search`: same operation, renamed once the
+    // surface settled on `query` for a structured predicate and `search` for
+    // text. Every other operation retired in that pass was added and removed
+    // without ever being published, so none of them needs a rule here.
+    source: '/api-reference/tables/findTableRows',
+    destination: '/api-reference/tables/searchTableRows',
+    permanent: true,
+  },
+  {
     source: '/api-reference/audit-logs/getAuditLogDetails',
     destination: '/api-reference/audit-logs/getAuditLog',
     permanent: true,

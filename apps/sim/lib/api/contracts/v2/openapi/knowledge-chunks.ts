@@ -39,7 +39,7 @@ export const knowledgeChunkOpenApiRoutes = [
     knowledgeOperation({
       operationId: 'listKnowledgeChunks',
       summary: 'List Chunks',
-      description: `List the passages a document was split into, with content search, enabled filtering, sorting, and opaque cursor pagination. Tag values are projected by slot; resolve slots to display names with \`GET /api/v2/knowledge/{id}/tags\`. ${DOCUMENT_NOT_READY} ${WORKSPACE_API_KEY_DENIED}`,
+      description: `List the passages a document was split into, with content search, enabled filtering, sorting, and opaque cursor pagination. Tag values are projected by slot; resolve slots to display names with \`GET /api/v2/knowledge/{knowledgeBaseId}/tags\`. ${DOCUMENT_NOT_READY} ${WORKSPACE_API_KEY_DENIED}`,
       errors: RESOURCE_CONFLICT_ERRORS,
       success: { description: 'A page of document chunks.' },
     }),

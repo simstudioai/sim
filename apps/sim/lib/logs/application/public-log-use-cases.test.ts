@@ -28,7 +28,7 @@ vi.mock('@sim/platform-authz/workspace', () => ({
 vi.mock('@/lib/logs/public-queries', () => ({
   getPublicWorkflowLogScope: mocks.getLogScope,
   getPublicWorkflowLog: mocks.getLog,
-  listPublicWorkflowLogs: mocks.listLogs,
+  readPublicLogPage: mocks.listLogs,
 }))
 
 vi.mock('@/lib/folders/queries', () => ({
@@ -126,7 +126,7 @@ describe('public log application use cases', () => {
       workflowId: 'workflow-1',
     })
     mocks.getLog.mockResolvedValue(log)
-    mocks.listLogs.mockResolvedValue({ data: [log], nextCursor: null })
+    mocks.listLogs.mockResolvedValue({ data: [log], nextCursorKeys: null })
     mocks.loadFolders.mockResolvedValue({
       idByPath: new Map([['/agents', 'folder-1']]),
       pathById: new Map([['folder-1', '/agents']]),
@@ -307,6 +307,9 @@ describe('public log application use cases', () => {
       input: {
         workspaceId: 'workspace-1',
         filters: {},
+        sortBy: 'startedAt' as const,
+        sortOrder: 'desc' as const,
+        cursorKeys: undefined,
         limit: 50,
         includeFullDetails: false,
         includeFinalOutput: false,
@@ -340,6 +343,9 @@ describe('public log application use cases', () => {
         workspaceId: 'workspace-1',
         filters: {},
         folderPaths: ['/agents'],
+        sortBy: 'startedAt' as const,
+        sortOrder: 'desc' as const,
+        cursorKeys: undefined,
         limit: 50,
         includeFullDetails: false,
         includeFinalOutput: false,
@@ -370,6 +376,9 @@ describe('public log application use cases', () => {
         workspaceId: 'workspace-1',
         filters: {},
         folderPaths: ['/missing'],
+        sortBy: 'startedAt' as const,
+        sortOrder: 'desc' as const,
+        cursorKeys: undefined,
         limit: 50,
         includeFullDetails: false,
         includeFinalOutput: false,
@@ -381,7 +390,7 @@ describe('public log application use cases', () => {
     expect(mocks.listLogs).toHaveBeenCalledWith(
       expect.objectContaining({ folderScope: { includesRoot: false, folderIds: [] } })
     )
-    expect(result.nextCursor).toBeNull()
+    expect(result.nextCursorKeys).toBeNull()
   })
 
   it('keeps the folders that do resolve when one path in the set does not', async () => {
@@ -391,6 +400,9 @@ describe('public log application use cases', () => {
         workspaceId: 'workspace-1',
         filters: {},
         folderPaths: ['/agents', '/missing'],
+        sortBy: 'startedAt' as const,
+        sortOrder: 'desc' as const,
+        cursorKeys: undefined,
         limit: 50,
         includeFullDetails: false,
         includeFinalOutput: false,
@@ -410,6 +422,9 @@ describe('public log application use cases', () => {
       input: {
         workspaceId: 'workspace-1',
         filters: {},
+        sortBy: 'startedAt' as const,
+        sortOrder: 'desc' as const,
+        cursorKeys: undefined,
         limit: 50,
         includeFullDetails: false,
         includeFinalOutput: false,
@@ -429,7 +444,7 @@ describe('public log application use cases', () => {
   it('does not materialize a job run', async () => {
     mocks.listLogs.mockResolvedValueOnce({
       data: [{ kind: 'job', executionId: 'job-1', executionData: { pointer: true } }],
-      nextCursor: null,
+      nextCursorKeys: null,
     })
 
     const result = await listPublicLogs.execute({
@@ -437,6 +452,9 @@ describe('public log application use cases', () => {
       input: {
         workspaceId: 'workspace-1',
         filters: {},
+        sortBy: 'startedAt' as const,
+        sortOrder: 'desc' as const,
+        cursorKeys: undefined,
         limit: 50,
         includeFullDetails: false,
         includeFinalOutput: true,
@@ -467,6 +485,9 @@ describe('public log application use cases', () => {
         workspaceId: 'workspace-1',
         filters: {},
         folderPaths: ['/agents'],
+        sortBy: 'startedAt' as const,
+        sortOrder: 'desc' as const,
+        cursorKeys: undefined,
         limit: 50,
         includeFullDetails: false,
         includeFinalOutput: false,
@@ -480,6 +501,35 @@ describe('public log application use cases', () => {
         folderScope: { includesRoot: false, folderIds: ['folder-1', 'folder-2'] },
       })
     )
+  })
+
+  /**
+   * The sortable read folded into this list when `POST /logs/query` was retired,
+   * so the sort has to reach the query and the keyset has to come back out.
+   */
+  it('forwards the requested sort and returns the keyset the next page resumes from', async () => {
+    mocks.listLogs.mockResolvedValueOnce({ data: [], nextCursorKeys: ['0.41', 'log-1'] })
+
+    const result = await listPublicLogs.execute({
+      principal: workspacePrincipal,
+      input: {
+        workspaceId: 'workspace-1',
+        filters: {},
+        sortBy: 'cost' as const,
+        sortOrder: 'asc' as const,
+        cursorKeys: undefined,
+        limit: 50,
+        includeFullDetails: false,
+        includeFinalOutput: false,
+        includeTraceSpans: false,
+        includeJobRuns: false,
+      },
+    })
+
+    expect(mocks.listLogs).toHaveBeenCalledWith(
+      expect.objectContaining({ sortBy: 'cost', sortOrder: 'asc' })
+    )
+    expect(result.nextCursorKeys).toEqual(['0.41', 'log-1'])
   })
 
   it('propagates run-store failures', async () => {

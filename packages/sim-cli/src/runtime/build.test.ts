@@ -166,9 +166,9 @@ describe('commands parsed through commander', () => {
     await expect(root.parseAsync(['node', 'sim', 'skills', 'update'])).rejects.toMatchObject({
       code: 'commander.missingArgument',
     })
-    expect(errorOutput).toContain("error: missing required argument 'id'")
-    expect(errorOutput).toContain('Example: sim skills update <id>')
-    expect(errorOutput).not.toContain('--id')
+    expect(errorOutput).toContain("error: missing required argument 'skillId'")
+    expect(errorOutput).toContain('Example: sim skills update <skillId>')
+    expect(errorOutput).not.toContain('--skillId')
   })
 
   it('dispatches generated commands through their singular resource alias', async () => {
@@ -419,7 +419,7 @@ describe('commands parsed through commander', () => {
     expect(updateOptions.body).toEqual({ description: 'Updated' })
 
     const moveHelp = commandAt('workflows', 'mv').helpInformation()
-    expect(moveHelp).toContain('<id> <folder>')
+    expect(moveHelp).toContain('<workflowId> <folder>')
     expect(moveHelp).not.toContain('--folder')
     expect(commandAt('workflows', 'update').helpInformation()).not.toContain('update|mv')
   })

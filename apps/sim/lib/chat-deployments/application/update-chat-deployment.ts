@@ -5,7 +5,10 @@ import {
   assertedChatDeploymentWorkspaceId,
   resolveActiveChatDeploymentApplicationContext,
 } from '@/lib/chat-deployments/application/context'
-import { ChatIdentifierInUseError } from '@/lib/chat-deployments/application/errors'
+import {
+  ChatIdentifierInUseError,
+  chatIdentifierUniquenessConflict,
+} from '@/lib/chat-deployments/application/errors'
 import { chatDeploymentOperations } from '@/lib/chat-deployments/application/operations'
 import {
   type ChatDeploymentView,
@@ -226,7 +229,9 @@ export const updateChatDeployment = defineAuthorizedWorkspaceUseCase({
     /** Partial updates keep the stored value; a row predating the column reads false. */
     values.includeToolCalls = input.includeToolCalls ?? existing.includeToolCalls ?? false
 
-    const updated = await updateChatDeploymentRow(existing.id, values)
+    const updated = await updateChatDeploymentRow(existing.id, values).catch(
+      chatIdentifierUniquenessConflict(values.identifier ?? existing.identifier)
+    )
     if (!updated) throw new OrchestrationError('not_found', 'Chat deployment not found')
 
     return {

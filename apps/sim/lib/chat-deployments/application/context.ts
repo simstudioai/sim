@@ -2,8 +2,13 @@ import type { Principal } from '@sim/auth/principal'
 import {
   type ChatDeploymentRow,
   getChatDeploymentWithWorkspace,
+  getLiveChatDeploymentForWorkflow,
 } from '@/lib/chat-deployments/queries'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import {
+  type ActiveWorkflowApplicationContext,
+  resolveActiveWorkflowApplicationContext,
+} from '@/lib/workflows/application/context'
 import {
   type ActiveWorkspaceApplicationContext,
   loadActiveWorkspaceApplicationContext,
@@ -65,4 +70,45 @@ export function assertedChatDeploymentWorkspaceId(
 ): string | undefined {
   if (principal.kind === 'workspace_api_key' || principal.kind === 'delegated') return undefined
   return assertedWorkspaceId
+}
+
+/**
+ * Canonical context for the chat singleton of one workflow.
+ *
+ * The parent is the workflow, so the workspace is derived from it rather than
+ * from the deployment — which is what lets `PUT` authorize before any
+ * deployment row exists. `chatDeployment` is therefore nullable by design: it is
+ * `null` on a create, and every caller that requires one says so itself.
+ *
+ * A workflow the caller cannot reach is already concealed as a not-found by
+ * {@link resolveActiveWorkflowApplicationContext}, so no separate assertion is
+ * compared here. That is also why the singleton takes no `workspaceId` query
+ * param where the deployment-id-keyed reads do: the path already names a
+ * resource whose workspace is canonical, so there is no id-alone authorization
+ * to defend against.
+ */
+export interface WorkflowChatDeploymentApplicationContext extends ActiveWorkflowApplicationContext {
+  chatDeployment: ChatDeploymentRow | null
+}
+
+export async function resolveWorkflowChatDeploymentApplicationContext(input: {
+  workflowId: string
+}): Promise<WorkflowChatDeploymentApplicationContext> {
+  const workflowContext = await resolveActiveWorkflowApplicationContext({
+    workflowId: input.workflowId,
+  })
+  return {
+    ...workflowContext,
+    chatDeployment: await getLiveChatDeploymentForWorkflow(workflowContext.workflowId),
+  }
+}
+
+/** The context's deployment, or the not-found a caller requiring one must answer. */
+export function requireWorkflowChatDeployment(
+  context: WorkflowChatDeploymentApplicationContext
+): ChatDeploymentRow {
+  if (!context.chatDeployment) {
+    throw new OrchestrationError('not_found', CHAT_DEPLOYMENT_NOT_FOUND_MESSAGE)
+  }
+  return context.chatDeployment
 }

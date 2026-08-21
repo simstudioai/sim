@@ -133,8 +133,8 @@ import { createIntegrationCredentialVisibility } from '@/lib/integrations/creden
 import { listKnowledgeConnectors } from '@/lib/knowledge/application/connectors'
 import { listKnowledgeDocuments } from '@/lib/knowledge/application/documents'
 import {
-  listArchivedKnowledgeBases,
   listKnowledgeBaseCatalog,
+  listKnowledgeBases,
 } from '@/lib/knowledge/application/knowledge-bases'
 import { validateMermaidSource } from '@/lib/mermaid/validate'
 import { isBlockTypeAccessControlExempt } from '@/lib/permission-groups/block-access'
@@ -2905,12 +2905,12 @@ export class WorkspaceVFS {
             input: { workspaceId, scope: 'archived' },
           })
           .then(({ folders }) => folders),
-        listArchivedKnowledgeBases
+        listKnowledgeBases
           .execute({
             principal: this.requireKnowledgePrincipal(),
-            input: { workspaceId },
+            input: { workspaceId, scope: 'archived' },
           })
-          .then(({ knowledgeBases }) => knowledgeBases),
+          .then(({ knowledgeBases }) => knowledgeBases.map((entry) => entry.knowledgeBase)),
       ])
 
       for (const wf of archivedWorkflows) {

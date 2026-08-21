@@ -20,8 +20,8 @@ import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/appl
 import { fetchAuthorizedServableWorkspaceFileBuffer } from '@/lib/workspace-files/application/fetch-servable-workspace-file-buffer'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { parseWorkspaceFileFolderDisplayPath } from '@/lib/workspace-files/folder-display-path'
+import { MAX_ZIP_DOWNLOAD_FILES } from '@/lib/workspace-files/limits'
 
-export const MAX_ZIP_DOWNLOAD_FILES = 100
 export const MAX_ZIP_DOWNLOAD_BYTES = 250 * 1024 * 1024
 const MAX_REQUESTED_FILE_IDS = 1_000
 const MAX_REQUESTED_FOLDER_IDS = 1_000

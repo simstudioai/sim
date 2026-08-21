@@ -233,7 +233,7 @@ export async function getWorkflowMcpServerById(
 /**
  * Every live tool a server publishes, tool-name ordered.
  *
- * Bounded by `limit` rather than paged, matching `GET /api/v2/mcp-servers/{id}/tools`:
+ * Bounded by `limit` rather than paged, matching `GET /api/v2/mcp-servers/{mcpServerId}/tools`:
  * a server's inventory is capped by the workflows a workspace has deployed, and
  * the caller wants the whole inventory to reconcile against, not a page of it.
  * The `+ 1` read is how the caller learns the cap was hit — the same signal

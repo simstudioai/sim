@@ -130,6 +130,39 @@ describe('replaceWorkflowState', () => {
     })
   })
 
+  /**
+   * `PUT /state` used to pass `variables` through verbatim while
+   * `PATCH /variables` re-keyed by variable id and coerced each value onto its
+   * declared type, so the same column held two shapes depending on which write
+   * reached it last — which is why the read side carries defensive parsing.
+   * Both writes now share one normalizer.
+   */
+  it('re-keys variables by their own id and coerces each value onto its declared type', async () => {
+    await replaceWorkflowState.execute({
+      principal: sessionPrincipal,
+      input: {
+        ...input,
+        variables: {
+          'stale-key': { id: 'var-1', name: 'retries', type: 'number', value: '42' },
+          'another-stale-key': { id: 'var-2', name: 'enabled', type: 'boolean', value: 'true' },
+          'json-key': { id: 'var-3', name: 'tags', type: 'array', value: '["a","b"]' },
+        },
+      },
+    })
+
+    expect(mocks.replace).toHaveBeenCalledWith(
+      expect.objectContaining({
+        state: expect.objectContaining({
+          variables: {
+            'var-1': { id: 'var-1', name: 'retries', type: 'number', value: 42 },
+            'var-2': { id: 'var-2', name: 'enabled', type: 'boolean', value: true },
+            'var-3': { id: 'var-3', name: 'tags', type: 'array', value: ['a', 'b'] },
+          },
+        }),
+      })
+    )
+  })
+
   it('derives the audit source from the acting principal and notifies after it', async () => {
     await replaceWorkflowState.execute({ principal: sessionPrincipal, input })
 

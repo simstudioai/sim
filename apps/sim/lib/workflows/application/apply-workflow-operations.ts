@@ -220,7 +220,7 @@ async function resolveBaseGraph(
  * end, through the shared persistence primitive. A caller that needs all-or-nothing
  * sets `atomic`, which decides between the in-memory apply and that single write.
  *
- * Copilot's `edit_workflow` tool and `POST /api/v2/workflows/{id}/operations` are
+ * Copilot's `edit_workflow` tool and `POST /api/v2/workflows/{workflowId}/operations` are
  * both adapters over this; the tool is the only caller allowed to supply
  * `baseGraph`.
  */

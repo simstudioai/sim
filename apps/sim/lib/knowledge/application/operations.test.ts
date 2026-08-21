@@ -11,7 +11,6 @@ describe('knowledge operation registry', () => {
     const ids = Object.values(knowledgeOperations).map((operation) => operation.id)
     expect(ids).toEqual([
       'knowledge.list',
-      'knowledge.list_archived',
       'knowledge.read',
       'knowledge.create',
       'knowledge.update',
@@ -50,8 +49,8 @@ describe('knowledge operation registry', () => {
       'knowledge.tags.read_usage',
       'knowledge.tags.read_detailed_usage',
       'knowledge.tags.read_next_slot',
-      'knowledge.tags.save_document_definitions',
-      'knowledge.tags.delete_document_definitions',
+      'knowledge.tags.bulk_save',
+      'knowledge.tags.cleanup',
       'knowledge.connectors.list',
       'knowledge.connectors.read',
       'knowledge.connectors.create',
@@ -122,23 +121,24 @@ describe('knowledge operation registry', () => {
   })
 
   /**
-   * Archive, restore, and the archived list are one recoverable loop. A
-   * principal that may run the first two but not the third can restore only the
-   * ids it recorded before archiving, so the discovery read carries the policy
-   * of the writes it exists to serve.
+   * Archive, restore, and the list that discovers archived rows are one
+   * recoverable loop. A principal that may run the first two but not the third
+   * can restore only the ids it recorded before archiving, so the discovery read
+   * — `knowledge.list`, which serves `scope=archived` too — carries the policy of
+   * the writes it exists to serve.
    */
   it('keeps the archived list reachable by every principal that may archive and restore', () => {
-    expect(knowledgeOperations.listArchived.workspaceApiKey).toBe(
+    expect(knowledgeOperations.list.workspaceApiKey).toBe(
       knowledgeOperations.restore.workspaceApiKey
     )
-    expect(knowledgeOperations.listArchived.principalKinds).toEqual(
+    expect(knowledgeOperations.list.principalKinds).toEqual(
       knowledgeOperations.restore.principalKinds
     )
-    expect(knowledgeOperations.listArchived.principalKinds).toContain('workspace_api_key')
+    expect(knowledgeOperations.list.principalKinds).toContain('workspace_api_key')
     expect(
       permissionSatisfies(
         knowledgeOperations.restore.minimumRole,
-        knowledgeOperations.listArchived.minimumRole
+        knowledgeOperations.list.minimumRole
       )
     ).toBe(true)
   })

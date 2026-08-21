@@ -17,6 +17,7 @@ const {
   mockGetTableById,
   mockReadDispatch,
   mockListActiveDispatches,
+  mockCancelDispatchById,
   mockResolveWorkspaceContext,
 } = vi.hoisted(() => ({
   mockCancelRuns: vi.fn(),
@@ -30,6 +31,7 @@ const {
   mockGetTableById: vi.fn(),
   mockReadDispatch: vi.fn(),
   mockListActiveDispatches: vi.fn(),
+  mockCancelDispatchById: vi.fn(),
   mockResolveWorkspaceContext: vi.fn(),
 }))
 
@@ -57,6 +59,7 @@ vi.mock('@/lib/table/application/context', () => ({
 }))
 
 vi.mock('@/lib/table/dispatcher', () => ({
+  cancelDispatchById: mockCancelDispatchById,
   listActiveDispatches: mockListActiveDispatches,
   readDispatch: mockReadDispatch,
 }))
@@ -75,6 +78,7 @@ vi.mock('@/lib/table/workflow-columns', () => ({
 }))
 
 import {
+  cancelTableDispatch,
   cancelTableRuns,
   listTableDispatches,
   readTableDispatch,
@@ -292,7 +296,7 @@ describe('table run application use cases', () => {
 })
 
 /**
- * The dispatch resource `POST /columns/run` hands back an id for.
+ * The dispatch resource `POST /tables/{tableId}/dispatches` hands back an id for.
  *
  * The regression these guard is the published status set: the first-party
  * active-dispatch schema knows only `pending` and `dispatching`, so a resource
@@ -347,7 +351,7 @@ describe('table run dispatch reads', () => {
 
       const result = await readTableDispatch.execute({
         principal: PRINCIPAL,
-        input: { dispatchId: DISPATCH.id, workspaceId: TABLE.workspaceId },
+        input: { tableId: TABLE.id, dispatchId: DISPATCH.id, workspaceId: TABLE.workspaceId },
       })
 
       expect(result.dispatch.status).toBe(status)
@@ -360,7 +364,7 @@ describe('table run dispatch reads', () => {
     await expect(
       readTableDispatch.execute({
         principal: PRINCIPAL,
-        input: { dispatchId: DISPATCH.id, workspaceId: TABLE.workspaceId },
+        input: { tableId: TABLE.id, dispatchId: DISPATCH.id, workspaceId: TABLE.workspaceId },
       })
     ).rejects.toMatchObject({ code: 'not_found' })
   })
@@ -371,7 +375,7 @@ describe('table run dispatch reads', () => {
     await expect(
       readTableDispatch.execute({
         principal: PRINCIPAL,
-        input: { dispatchId: DISPATCH.id, workspaceId: TABLE.workspaceId },
+        input: { tableId: TABLE.id, dispatchId: DISPATCH.id, workspaceId: TABLE.workspaceId },
       })
     ).rejects.toMatchObject({ code: 'not_found' })
   })
@@ -382,9 +386,69 @@ describe('table run dispatch reads', () => {
     await expect(
       readTableDispatch.execute({
         principal: PRINCIPAL,
-        input: { dispatchId: 'nope', workspaceId: TABLE.workspaceId },
+        input: { tableId: TABLE.id, dispatchId: 'nope', workspaceId: TABLE.workspaceId },
       })
     ).rejects.toMatchObject({ code: 'not_found' })
+  })
+
+  /**
+   * Nesting the read under its table means the parent is authorized first — and a dispatch id
+   * belonging to a DIFFERENT table must not confirm its own existence through the table the
+   * caller named.
+   */
+  it('conceals a dispatch belonging to another table as not found', async () => {
+    mockReadDispatch.mockResolvedValue({ ...DISPATCH, tableId: 'table-other' })
+
+    await expect(
+      readTableDispatch.execute({
+        principal: PRINCIPAL,
+        input: {
+          tableId: TABLE.id,
+          dispatchId: DISPATCH.id,
+          workspaceId: TABLE.workspaceId,
+        },
+      })
+    ).rejects.toMatchObject({ code: 'not_found' })
+  })
+
+  it('cancels an active dispatch by id and returns its settled state', async () => {
+    mockResolvePermission.mockResolvedValue('write')
+    mockReadDispatch.mockResolvedValueOnce(DISPATCH)
+    mockReadDispatch.mockResolvedValueOnce({ ...DISPATCH, status: 'cancelled' })
+
+    const result = await cancelTableDispatch.execute({
+      principal: PRINCIPAL,
+      input: { tableId: TABLE.id, dispatchId: DISPATCH.id, workspaceId: TABLE.workspaceId },
+    })
+
+    expect(mockCancelDispatchById).toHaveBeenCalledWith(DISPATCH.id)
+    expect(result.dispatch.status).toBe('cancelled')
+  })
+
+  it('leaves a terminal dispatch alone rather than re-cancelling it', async () => {
+    mockResolvePermission.mockResolvedValue('write')
+    mockReadDispatch.mockResolvedValue({ ...DISPATCH, status: 'complete' })
+
+    const result = await cancelTableDispatch.execute({
+      principal: PRINCIPAL,
+      input: { tableId: TABLE.id, dispatchId: DISPATCH.id, workspaceId: TABLE.workspaceId },
+    })
+
+    expect(mockCancelDispatchById).not.toHaveBeenCalled()
+    expect(result.dispatch.status).toBe('complete')
+  })
+
+  it('conceals a cancel of a dispatch belonging to another table as not found', async () => {
+    mockResolvePermission.mockResolvedValue('write')
+    mockReadDispatch.mockResolvedValue({ ...DISPATCH, tableId: 'table-other' })
+
+    await expect(
+      cancelTableDispatch.execute({
+        principal: PRINCIPAL,
+        input: { tableId: TABLE.id, dispatchId: DISPATCH.id, workspaceId: TABLE.workspaceId },
+      })
+    ).rejects.toMatchObject({ code: 'not_found' })
+    expect(mockCancelDispatchById).not.toHaveBeenCalled()
   })
 
   it('lists the active dispatches for the canonical table', async () => {

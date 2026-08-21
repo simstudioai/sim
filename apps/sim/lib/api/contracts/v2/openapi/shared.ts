@@ -171,7 +171,7 @@ export const ERROR_RESPONSES = {
    * an SDK can branch on. Publishing it on every operation would add a branch to
    * every generated client that can never be taken.
    *
-   * `POST /workflows/{id}/execute` is the exception because there an abort
+   * `POST /workflows/{workflowId}/execute` is the exception because there an abort
    * leaves *residue*: the run may keep going and bill, so the response carries
    * `error.details.runId` for the caller to reconcile against once it reconnects.
    * That is caller-actionable information about state that outlives the

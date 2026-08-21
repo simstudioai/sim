@@ -1,12 +1,12 @@
 import { z } from 'zod'
 import { knowledgeTagParamsSchema } from '@/lib/api/contracts/knowledge/shared'
-import { noInputSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
-import { defineRouteContract } from '@/lib/api/contracts/types'
 import {
-  v2KnowledgeBaseParamsSchema,
-  v2KnowledgeDocumentParamsSchema,
-  v2KnowledgeTagSchema,
-} from '@/lib/api/contracts/v2/knowledge'
+  booleanQueryFlagSchema,
+  noInputSchema,
+  workspaceIdSchema,
+} from '@/lib/api/contracts/primitives'
+import { defineRouteContract } from '@/lib/api/contracts/types'
+import { v2KnowledgeBaseParamsSchema, v2KnowledgeTagSchema } from '@/lib/api/contracts/v2/knowledge'
 import { v2CursorListResponse, v2DataResponse } from '@/lib/api/contracts/v2/shared'
 import {
   ALL_TAG_SLOTS,
@@ -18,7 +18,11 @@ import {
 /**
  * v2 knowledge tag-definition writes.
  *
- * The read half (`GET /api/v2/knowledge/{id}/tags`) shipped first, which left
+ * All of them are knowledge-base scoped, because a tag definition is: the rows
+ * live in `knowledge_base_tag_definitions`, keyed by knowledge base and slot,
+ * and every document in the base reads the same vocabulary.
+ *
+ * The read half (`GET /api/v2/knowledge/{knowledgeBaseId}/tags`) shipped first, which left
  * the tag loop unbuildable end-to-end: a caller could set a tag *value* by slot
  * on a document, but had no way to name that slot, and both the document-list
  * and search tag filters resolve by display name and reject a name no
@@ -67,8 +71,8 @@ const v2KnowledgeTagDisplayNameSchema = z
   .describe('Name tag filters and document reads use for this tag.')
   .meta({ examples: ['category'] })
 
-export const v2KnowledgeTagParamsSchema = knowledgeTagParamsSchema.extend({
-  id: knowledgeTagParamsSchema.shape.id.describe('Unique knowledge base identifier.'),
+export const v2KnowledgeTagParamsSchema = knowledgeTagParamsSchema.omit({ id: true }).extend({
+  knowledgeBaseId: knowledgeTagParamsSchema.shape.id.describe('Unique knowledge base identifier.'),
   tagId: knowledgeTagParamsSchema.shape.tagId.describe('Unique tag definition identifier.'),
 })
 export type V2KnowledgeTagParams = z.output<typeof v2KnowledgeTagParamsSchema>
@@ -177,6 +181,12 @@ export const v2NextKnowledgeTagSlotDataSchema = z
 
 export const v2KnowledgeTagUsageSchema = z
   .object({
+    id: z
+      .string()
+      .describe(
+        'Tag definition identifier. Published for the same reason the vocabulary read publishes it: `PATCH` and `DELETE /knowledge/{knowledgeBaseId}/tags/{tagId}` address a definition by id, so without it a usage row cannot be acted on without a second read and a slot join.'
+      )
+      .meta({ examples: ['7c9e6679-7425-40de-944b-e07fc1f90ae7'] }),
     tagSlot: z
       .string()
       .describe('Slot the tag occupies.')
@@ -208,14 +218,14 @@ export const v2KnowledgeTagUsageSchema = z
   })
 
 /**
- * A tag definition a document write declares.
+ * One tag definition in a bulk save.
  *
  * `originalDisplayName` names the definition being renamed. It is how a bulk
  * save distinguishes "rename the tag in this slot" from "define a new one", and
  * a slot already holding a definition under a different name is updated rather
  * than duplicated.
  */
-export const v2SaveKnowledgeDocumentTagDefinitionSchema = z
+export const v2BulkSaveKnowledgeTagDefinitionSchema = z
   .object({
     tagSlot: v2KnowledgeTagSlotSchema,
     displayName: v2KnowledgeTagDisplayNameSchema,
@@ -226,16 +236,16 @@ export const v2SaveKnowledgeDocumentTagDefinitionSchema = z
   })
   .strict()
   .meta({
-    id: 'V2SaveKnowledgeDocumentTagDefinition',
-    title: 'Knowledge document tag definition input',
-    description: 'One tag definition declared while saving a document’s tags.',
+    id: 'V2BulkSaveKnowledgeTagDefinition',
+    title: 'Knowledge tag definition input',
+    description: 'One tag definition declared in a bulk save.',
   })
 
-export const v2SaveKnowledgeDocumentTagDefinitionsBodySchema = z
+export const v2BulkSaveKnowledgeTagDefinitionsBodySchema = z
   .object({
     workspaceId: workspaceIdSchema.describe('Workspace that owns the knowledge base.'),
     definitions: z
-      .array(v2SaveKnowledgeDocumentTagDefinitionSchema)
+      .array(v2BulkSaveKnowledgeTagDefinitionSchema)
       .min(1, 'definitions must contain at least one tag definition')
       .max(
         ALL_TAG_SLOTS.length,
@@ -244,11 +254,11 @@ export const v2SaveKnowledgeDocumentTagDefinitionsBodySchema = z
       .describe('Tag definitions to create or update on the knowledge base.'),
   })
   .strict()
-export type V2SaveKnowledgeDocumentTagDefinitionsBody = z.input<
-  typeof v2SaveKnowledgeDocumentTagDefinitionsBodySchema
+export type V2BulkSaveKnowledgeTagDefinitionsBody = z.input<
+  typeof v2BulkSaveKnowledgeTagDefinitionsBodySchema
 >
 
-export const v2SaveKnowledgeDocumentTagDefinitionsDataSchema = z
+export const v2BulkSaveKnowledgeTagDefinitionsDataSchema = z
   .object({
     created: z.array(v2KnowledgeTagSchema).describe('Definitions that did not previously exist.'),
     updated: z.array(v2KnowledgeTagSchema).describe('Definitions whose slot was already defined.'),
@@ -258,49 +268,57 @@ export const v2SaveKnowledgeDocumentTagDefinitionsDataSchema = z
   })
   .strict()
   .meta({
-    id: 'V2SaveKnowledgeDocumentTagDefinitionsData',
-    title: 'Save knowledge document tag definitions data',
-    description: 'Definitions created and updated by a document tag-definition save.',
+    id: 'V2BulkSaveKnowledgeTagDefinitionsData',
+    title: 'Bulk save knowledge tag definitions data',
+    description: 'Definitions created and updated by a bulk tag-definition save.',
   })
 
 /**
- * Cleanup only.
+ * `unused` selects how much of the vocabulary the delete removes.
  *
- * The domain operation also accepts `action: "all"`, which deletes **every**
- * tag definition on the knowledge base rather than the document's — a
- * whole-vocabulary wipe reachable from a document-scoped path. It is not
- * exposed here, for the same reason bulk delete is absent from
- * `PATCH /api/v2/knowledge/{id}/documents`. Delete definitions one at a time
- * with `DELETE /api/v2/knowledge/{id}/tags/{tagId}`.
+ * It defaults to `true` — remove only the definitions no document still carries
+ * a value for — because that is the recoverable half: a definition with no
+ * values behind it can be recreated at no cost. `unused=false` deletes **every**
+ * definition on the knowledge base and clears its slot on every document and
+ * chunk, so it is stated explicitly or not at all.
+ *
+ * A real boolean rather than the `action` string literal this replaced. That
+ * literal was a guard, not a parameter: the delete used to hang off a
+ * document-scoped path where a whole-vocabulary wipe was reachable from a URL
+ * that named one document. The path now names the knowledge base the delete
+ * actually acts on, so both halves are legitimate and the guard is gone.
  */
-export const v2DeleteKnowledgeDocumentTagDefinitionsQuerySchema = z
+export const v2DeleteKnowledgeTagDefinitionsQuerySchema = z
   .object({
     workspaceId: workspaceIdSchema.describe('Workspace that owns the knowledge base.'),
-    action: z
-      .literal('cleanup')
-      .default('cleanup')
-      .describe('Remove tag definitions no document in this knowledge base still uses.'),
+    unused: booleanQueryFlagSchema
+      .default(true)
+      .describe(
+        'Whether to remove only the tag definitions no document in the knowledge base still carries a value for. Defaults to true. Pass `unused=false` to delete every definition on the knowledge base, which also clears its slot on every document and chunk and is not recoverable.'
+      ),
   })
   .strict()
-export type V2DeleteKnowledgeDocumentTagDefinitionsQuery = z.output<
-  typeof v2DeleteKnowledgeDocumentTagDefinitionsQuerySchema
+export type V2DeleteKnowledgeTagDefinitionsQuery = z.output<
+  typeof v2DeleteKnowledgeTagDefinitionsQuerySchema
 >
 
-export const v2DeleteKnowledgeDocumentTagDefinitionsDataSchema = z
+export const v2DeleteKnowledgeTagDefinitionsDataSchema = z
   .object({
-    action: z.literal('cleanup').describe('Action that was performed.'),
+    unused: z
+      .boolean()
+      .describe('Whether the delete was restricted to definitions no document still uses.'),
     count: z.number().int().nonnegative().describe('Number of tag definitions removed.'),
   })
   .strict()
   .meta({
-    id: 'V2DeleteKnowledgeDocumentTagDefinitionsData',
-    title: 'Delete knowledge document tag definitions data',
-    description: 'Outcome of a tag-definition cleanup.',
+    id: 'V2DeleteKnowledgeTagDefinitionsData',
+    title: 'Delete knowledge tag definitions data',
+    description: 'Outcome of a knowledge-base tag-definition delete.',
   })
 
 export const v2CreateKnowledgeTagContract = defineRouteContract({
   method: 'POST',
-  path: '/api/v2/knowledge/[id]/tags',
+  path: '/api/v2/knowledge/[knowledgeBaseId]/tags',
   query: noInputSchema,
   params: v2KnowledgeBaseParamsSchema,
   body: v2CreateKnowledgeTagBodySchema,
@@ -313,7 +331,7 @@ export const v2CreateKnowledgeTagContract = defineRouteContract({
 
 export const v2UpdateKnowledgeTagContract = defineRouteContract({
   method: 'PATCH',
-  path: '/api/v2/knowledge/[id]/tags/[tagId]',
+  path: '/api/v2/knowledge/[knowledgeBaseId]/tags/[tagId]',
   query: noInputSchema,
   params: v2KnowledgeTagParamsSchema,
   body: v2UpdateKnowledgeTagBodySchema,
@@ -325,7 +343,7 @@ export const v2UpdateKnowledgeTagContract = defineRouteContract({
 
 export const v2DeleteKnowledgeTagContract = defineRouteContract({
   method: 'DELETE',
-  path: '/api/v2/knowledge/[id]/tags/[tagId]',
+  path: '/api/v2/knowledge/[knowledgeBaseId]/tags/[tagId]',
   params: v2KnowledgeTagParamsSchema,
   query: v2KnowledgeWorkspaceQuerySchema,
   response: {
@@ -336,7 +354,7 @@ export const v2DeleteKnowledgeTagContract = defineRouteContract({
 
 export const v2GetNextKnowledgeTagSlotContract = defineRouteContract({
   method: 'GET',
-  path: '/api/v2/knowledge/[id]/tags/next-slot',
+  path: '/api/v2/knowledge/[knowledgeBaseId]/tags/next-slot',
   params: v2KnowledgeBaseParamsSchema,
   query: v2NextKnowledgeTagSlotQuerySchema,
   response: {
@@ -351,7 +369,7 @@ export const v2GetNextKnowledgeTagSlotContract = defineRouteContract({
  */
 export const v2ListKnowledgeTagUsageContract = defineRouteContract({
   method: 'GET',
-  path: '/api/v2/knowledge/[id]/tags/usage',
+  path: '/api/v2/knowledge/[knowledgeBaseId]/tags/usage',
   params: v2KnowledgeBaseParamsSchema,
   query: v2KnowledgeWorkspaceQuerySchema,
   response: {
@@ -361,30 +379,42 @@ export const v2ListKnowledgeTagUsageContract = defineRouteContract({
 })
 
 /**
- * `PUT`, not `PATCH`: the body declares the definitions the document's tags
- * need, and every named slot is written to that declaration. Slots the body
- * does not name are left alone, so this replaces per slot rather than across
- * the vocabulary.
+ * Bulk upsert of the knowledge base's tag vocabulary.
+ *
+ * On the knowledge base rather than a document: the write targets
+ * `knowledge_base_tag_definitions`, keyed by knowledge base and slot, and every
+ * document in the base sees the result. It used to hang off
+ * `PUT /knowledge/{knowledgeBaseId}/documents/{documentId}/tags`, where the document id was
+ * read only to find the knowledge base behind it and the path promised a
+ * document-scoped write it never performed. Tag *values* on one document are
+ * written by `PATCH /api/v2/knowledge/{knowledgeBaseId}/documents/{documentId}` through its
+ * tag slots.
+ *
+ * `PUT`, not `PATCH`: every named slot is written to the body's declaration.
+ * Slots the body does not name are left alone, so this replaces per slot rather
+ * than across the vocabulary — which is also why it is a second verb on this
+ * path rather than a repeated `POST`, which defines exactly one.
  */
-export const v2SaveKnowledgeDocumentTagDefinitionsContract = defineRouteContract({
+export const v2BulkSaveKnowledgeTagDefinitionsContract = defineRouteContract({
   method: 'PUT',
-  path: '/api/v2/knowledge/[id]/documents/[documentId]/tags',
+  path: '/api/v2/knowledge/[knowledgeBaseId]/tags',
   query: noInputSchema,
-  params: v2KnowledgeDocumentParamsSchema,
-  body: v2SaveKnowledgeDocumentTagDefinitionsBodySchema,
+  params: v2KnowledgeBaseParamsSchema,
+  body: v2BulkSaveKnowledgeTagDefinitionsBodySchema,
   response: {
     mode: 'json',
-    schema: v2DataResponse(v2SaveKnowledgeDocumentTagDefinitionsDataSchema),
+    schema: v2DataResponse(v2BulkSaveKnowledgeTagDefinitionsDataSchema),
   },
 })
 
-export const v2DeleteKnowledgeDocumentTagDefinitionsContract = defineRouteContract({
+/** Collection delete over the same vocabulary the bulk save writes. */
+export const v2DeleteKnowledgeTagDefinitionsContract = defineRouteContract({
   method: 'DELETE',
-  path: '/api/v2/knowledge/[id]/documents/[documentId]/tags',
-  params: v2KnowledgeDocumentParamsSchema,
-  query: v2DeleteKnowledgeDocumentTagDefinitionsQuerySchema,
+  path: '/api/v2/knowledge/[knowledgeBaseId]/tags',
+  params: v2KnowledgeBaseParamsSchema,
+  query: v2DeleteKnowledgeTagDefinitionsQuerySchema,
   response: {
     mode: 'json',
-    schema: v2DataResponse(v2DeleteKnowledgeDocumentTagDefinitionsDataSchema),
+    schema: v2DataResponse(v2DeleteKnowledgeTagDefinitionsDataSchema),
   },
 })

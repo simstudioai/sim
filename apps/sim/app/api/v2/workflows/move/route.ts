@@ -20,7 +20,7 @@ export const revalidate = 0
  * reported as a per-item failure.
  *
  * Sits beside `/workflows/folders` at the collection level so it cannot shadow
- * `/workflows/{id}`.
+ * `/workflows/{workflowId}`.
  */
 export const POST = defineV2JsonRoute({
   contract: v2MoveWorkflowsContract,

@@ -17,6 +17,8 @@ const mocks = vi.hoisted(() => ({
   deleteTag: vi.fn(),
   readUsage: vi.fn(),
   saveTags: vi.fn(),
+  cleanupTags: vi.fn(),
+  deleteAllTags: vi.fn(),
   recordAudit: vi.fn(),
 }))
 
@@ -52,10 +54,13 @@ vi.mock('@/lib/knowledge/tags/service', () => ({
   deleteTagDefinition: mocks.deleteTag,
   getTagUsageStats: mocks.readUsage,
   createOrUpdateTagDefinitionsBulk: mocks.saveTags,
+  cleanupUnusedTagDefinitions: mocks.cleanupTags,
+  deleteAllTagDefinitions: mocks.deleteAllTags,
 }))
 
 import {
   createKnowledgeTag,
+  deleteKnowledgeDocumentTagDefinitions,
   deleteKnowledgeTag,
   listKnowledgeTags,
   readKnowledgeTagUsage,
@@ -469,6 +474,60 @@ describe('knowledge tag application use cases', () => {
         input: { knowledgeBaseId: 'knowledge-b', fieldType: 'date' },
       })
     ).resolves.toMatchObject({ totalSlots: 2, availableSlots: 0 })
+  })
+
+  /**
+   * Both vocabulary writes act on the knowledge base: the bulk save writes
+   * `knowledge_base_tag_definitions` keyed by base and slot, and the cleanup
+   * deletes definitions across every document in the base. Neither reads a
+   * document, so neither resolves one — the canonical context they load is the
+   * knowledge base, and their audit entry names it.
+   */
+  it('resolves the knowledge base rather than a document for a bulk save', async () => {
+    mocks.saveTags.mockResolvedValue({ created: [], updated: [], errors: [] })
+
+    await saveKnowledgeDocumentTagDefinitions.execute({
+      principal: sessionPrincipal,
+      input: {
+        knowledgeBaseId: 'knowledge-b',
+        definitions: [{ tagSlot: 'tag1', displayName: 'Region', fieldType: 'text' }],
+      },
+    })
+
+    expect(mocks.resolveKnowledgeBase).toHaveBeenCalledWith(
+      expect.objectContaining({ knowledgeBaseId: 'knowledge-b' })
+    )
+    expect(mocks.resolveDocument).not.toHaveBeenCalled()
+    expect(mocks.recordAudit).toHaveBeenCalledWith(
+      expect.objectContaining({ resourceType: 'knowledge_base', resourceId: 'knowledge-b' })
+    )
+  })
+
+  it('cleans unused definitions across the knowledge base without resolving a document', async () => {
+    mocks.cleanupTags.mockResolvedValue(3)
+
+    await expect(
+      deleteKnowledgeDocumentTagDefinitions.execute({
+        principal: sessionPrincipal,
+        input: { knowledgeBaseId: 'knowledge-b', action: 'cleanup' },
+      })
+    ).resolves.toEqual({ action: 'cleanup', count: 3 })
+
+    expect(mocks.cleanupTags).toHaveBeenCalledWith('knowledge-b', expect.any(String))
+    expect(mocks.resolveDocument).not.toHaveBeenCalled()
+  })
+
+  it('deletes the whole vocabulary when the caller asks for all', async () => {
+    mocks.deleteAllTags.mockResolvedValue(7)
+
+    await expect(
+      deleteKnowledgeDocumentTagDefinitions.execute({
+        principal: sessionPrincipal,
+        input: { knowledgeBaseId: 'knowledge-b', action: 'all' },
+      })
+    ).resolves.toEqual({ action: 'all', count: 7 })
+
+    expect(mocks.cleanupTags).not.toHaveBeenCalled()
   })
 
   it('preserves legacy bulk rename payloads whose existing slot and field type differ', async () => {

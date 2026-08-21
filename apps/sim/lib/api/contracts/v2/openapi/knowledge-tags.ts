@@ -1,10 +1,10 @@
 import {
+  v2BulkSaveKnowledgeTagDefinitionsContract,
   v2CreateKnowledgeTagContract,
-  v2DeleteKnowledgeDocumentTagDefinitionsContract,
   v2DeleteKnowledgeTagContract,
+  v2DeleteKnowledgeTagDefinitionsContract,
   v2GetNextKnowledgeTagSlotContract,
   v2ListKnowledgeTagUsageContract,
-  v2SaveKnowledgeDocumentTagDefinitionsContract,
   v2UpdateKnowledgeTagContract,
 } from '@/lib/api/contracts/v2/knowledge-tags'
 import {
@@ -30,7 +30,7 @@ import { defineOpenApiRoute } from '@/lib/api/openapi/types'
  */
 
 const TAG_LOOP =
-  'Define a tag here, write its `tagSlot` on a document with `PATCH /api/v2/knowledge/{id}/documents/{documentId}`, then filter by its `displayName` on the document list or on search.'
+  'Define a tag here, write its `tagSlot` on a document with `PATCH /api/v2/knowledge/{knowledgeBaseId}/documents/{documentId}`, then filter by its `displayName` on the document list or on search.'
 
 export const knowledgeTagOpenApiRoutes = [
   defineOpenApiRoute(
@@ -38,7 +38,7 @@ export const knowledgeTagOpenApiRoutes = [
     knowledgeOperation({
       operationId: 'createKnowledgeTag',
       summary: 'Create Tag',
-      description: `Define a tag on a knowledge base. ${TAG_LOOP} Omit \`tagSlot\` to take the next free slot for the field type; a field type with no free slot left is a \`400\` naming it, since the remedy is a different type or a deleted definition rather than a retry. A \`tagSlot\` already taken, or a \`displayName\` already defined on this knowledge base, is a \`409\` naming which of the two to change. ${WORKSPACE_API_KEY_DENIED}`,
+      description: `Define one tag on a knowledge base; use \`PUT\` on this path to declare several at once. ${TAG_LOOP} Omit \`tagSlot\` to take the next free slot for the field type; a field type with no free slot left is a \`400\` naming it, since the remedy is a different type or a deleted definition rather than a retry. A \`tagSlot\` already taken, or a \`displayName\` already defined on this knowledge base, is a \`409\` naming which of the two to change. ${WORKSPACE_API_KEY_DENIED}`,
       errors: RESOURCE_CONFLICT_ERRORS,
       success: { description: 'The created tag definition.' },
     }),
@@ -132,7 +132,7 @@ export const knowledgeTagOpenApiRoutes = [
     knowledgeOperation({
       operationId: 'getNextKnowledgeTagSlot',
       summary: 'Get Next Tag Slot',
-      description: `Report which slot a create would take for a field type, and how many are left. Advisory rather than a claim: nothing is reserved, and \`POST /api/v2/knowledge/{id}/tags\` assigns the same slot when \`tagSlot\` is omitted. ${WORKSPACE_API_KEY_DENIED}`,
+      description: `Report which slot a create would take for a field type, and how many are left. Advisory rather than a claim: nothing is reserved, and \`POST /api/v2/knowledge/{knowledgeBaseId}/tags\` assigns the same slot when \`tagSlot\` is omitted. ${WORKSPACE_API_KEY_DENIED}`,
       errors: RESOURCE_ERRORS,
       success: { description: 'Slot availability for the requested field type.' },
     }),
@@ -188,26 +188,26 @@ export const knowledgeTagOpenApiRoutes = [
     }
   ),
   defineOpenApiRoute(
-    v2SaveKnowledgeDocumentTagDefinitionsContract,
+    v2BulkSaveKnowledgeTagDefinitionsContract,
     knowledgeOperation({
-      operationId: 'saveKnowledgeDocumentTagDefinitions',
-      summary: 'Save Document Tag Definitions',
-      description: `Declare, in one request, the tag definitions a document's tags need. Scoped to a document because that is where a caller discovers it needs them, but the definitions belong to the knowledge base and apply to every document in it. Updating an existing definition requires naming its current name in \`originalDisplayName\`; that is the only form that edits one in place. Without it the entry is a create, and a requested \`tagSlot\` another name already holds is not overwritten — the definition is created in the next free slot of its \`fieldType\` instead, so read the returned entry for the slot actually assigned. A create whose \`displayName\` already exists is refused in \`errors\`. Per-definition failures are reported in \`errors\` and still answer \`200\`. ${WORKSPACE_API_KEY_DENIED}`,
+      operationId: 'bulkSaveKnowledgeTagDefinitions',
+      summary: 'Bulk Save Tag Definitions',
+      description: `Declare, in one request, several of the knowledge base's tag definitions. \`POST\` on this path defines exactly one tag; this is the same write over a list, and every slot the body names is written to the declaration it carries while slots it does not name are left alone. Updating an existing definition requires naming its current name in \`originalDisplayName\`; that is the only form that edits one in place. Without it the entry is a create, and a requested \`tagSlot\` another name already holds is not overwritten — the definition is created in the next free slot of its \`fieldType\` instead, so read the returned entry for the slot actually assigned. A create whose \`displayName\` already exists is refused in \`errors\`. Per-definition failures are reported in \`errors\` and still answer \`200\`. This writes the vocabulary, not one document's tag values — set those with \`PATCH /api/v2/knowledge/{knowledgeBaseId}/documents/{documentId}\`. ${WORKSPACE_API_KEY_DENIED}`,
       errors: RESOURCE_ERRORS,
       success: { description: 'Definitions created and updated by the save.' },
     }),
     {
-      query: v2SaveKnowledgeDocumentTagDefinitionsContract.query,
+      query: v2BulkSaveKnowledgeTagDefinitionsContract.query,
       params: documentedSchema(
-        v2SaveKnowledgeDocumentTagDefinitionsContract.params,
-        'SaveKnowledgeDocumentTagDefinitionsParams',
-        'Save document tag definitions path parameters',
-        'Knowledge base and document the definitions are declared through.'
+        v2BulkSaveKnowledgeTagDefinitionsContract.params,
+        'BulkSaveKnowledgeTagDefinitionsParams',
+        'Bulk save tag definitions path parameters',
+        'Knowledge base whose tag vocabulary is written.'
       ),
       body: documentedSchema(
-        v2SaveKnowledgeDocumentTagDefinitionsContract.body,
-        'SaveKnowledgeDocumentTagDefinitionsRequest',
-        'Save document tag definitions request',
+        v2BulkSaveKnowledgeTagDefinitionsContract.body,
+        'BulkSaveKnowledgeTagDefinitionsRequest',
+        'Bulk save tag definitions request',
         'Workspace scope and the tag definitions to create or update.',
         [
           {
@@ -217,40 +217,40 @@ export const knowledgeTagOpenApiRoutes = [
         ]
       ),
       response: documentedSchema(
-        v2SaveKnowledgeDocumentTagDefinitionsContract.response.schema,
-        'V2SaveKnowledgeDocumentTagDefinitionsResponse',
-        'Save document tag definitions response',
+        v2BulkSaveKnowledgeTagDefinitionsContract.response.schema,
+        'V2BulkSaveKnowledgeTagDefinitionsResponse',
+        'Bulk save tag definitions response',
         'Definitions created and updated, with any per-definition failures.'
       ),
     }
   ),
   defineOpenApiRoute(
-    v2DeleteKnowledgeDocumentTagDefinitionsContract,
+    v2DeleteKnowledgeTagDefinitionsContract,
     knowledgeOperation({
-      operationId: 'cleanupKnowledgeDocumentTagDefinitions',
-      summary: 'Clean Up Document Tag Definitions',
-      description: `Remove tag definitions that no document in the knowledge base still carries a value for. Cleanup is the only action offered: deleting the whole vocabulary from a document-scoped path would be destructive far beyond what the path names, so delete definitions individually with \`DELETE /api/v2/knowledge/{id}/tags/{tagId}\`. ${WORKSPACE_API_KEY_DENIED}`,
+      operationId: 'deleteKnowledgeTagDefinitions',
+      summary: 'Delete Tag Definitions',
+      description: `Remove tag definitions from the knowledge base. \`unused\` defaults to \`true\`, which removes only the definitions no document still carries a value for — the recoverable half, since a definition with nothing behind it can simply be redefined. Pass \`unused=false\` to delete every definition on the knowledge base, which also clears its slot on every document and chunk and is not recoverable. Delete one definition at a time with \`DELETE /api/v2/knowledge/{knowledgeBaseId}/tags/{tagId}\`. ${WORKSPACE_API_KEY_DENIED}`,
       errors: RESOURCE_ERRORS,
       success: { description: 'Number of tag definitions removed.' },
     }),
     {
       params: documentedSchema(
-        v2DeleteKnowledgeDocumentTagDefinitionsContract.params,
-        'CleanupKnowledgeDocumentTagDefinitionsParams',
-        'Clean up document tag definitions path parameters',
-        'Knowledge base and document the cleanup is requested through.'
+        v2DeleteKnowledgeTagDefinitionsContract.params,
+        'DeleteKnowledgeTagDefinitionsParams',
+        'Delete tag definitions path parameters',
+        'Knowledge base whose tag definitions are removed.'
       ),
       query: documentedSchema(
-        v2DeleteKnowledgeDocumentTagDefinitionsContract.query,
-        'CleanupKnowledgeDocumentTagDefinitionsQuery',
-        'Clean up document tag definitions query',
-        'Workspace scope and the cleanup action.'
+        v2DeleteKnowledgeTagDefinitionsContract.query,
+        'DeleteKnowledgeTagDefinitionsQuery',
+        'Delete tag definitions query',
+        'Workspace scope and how much of the vocabulary to remove.'
       ),
       response: documentedSchema(
-        v2DeleteKnowledgeDocumentTagDefinitionsContract.response.schema,
-        'V2CleanupKnowledgeDocumentTagDefinitionsResponse',
-        'Clean up document tag definitions response',
-        'Number of unused tag definitions that were removed.'
+        v2DeleteKnowledgeTagDefinitionsContract.response.schema,
+        'V2DeleteKnowledgeTagDefinitionsResponse',
+        'Delete tag definitions response',
+        'Number of tag definitions that were removed.'
       ),
     }
   ),

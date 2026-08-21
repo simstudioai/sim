@@ -58,6 +58,7 @@ import {
   v2FolderPathSchema,
   v2FolderSchema,
   v2ListFoldersQuerySchema,
+  v2NonRootFolderPathInputSchema,
   v2PaginationFields,
   v2RelocateFolderBodySchema,
   v2SearchSchema,
@@ -657,6 +658,61 @@ export const v2DeleteTableFolderContract = defineRouteContract({
   response: { mode: 'json', schema: v2DataResponse(v2DeleteTableFolderDataSchema) },
 })
 
+export const v2RestoreTableFolderBodySchema = z
+  .object({
+    workspaceId: workspaceIdSchema.describe('Workspace that owns the archived folder.'),
+    path: v2NonRootFolderPathInputSchema.describe(
+      'Path the folder held when `DELETE /api/v2/tables/folders` archived it.'
+    ),
+  })
+  .strict()
+export type V2RestoreTableFolderBody = z.input<typeof v2RestoreTableFolderBodySchema>
+
+export const v2RestoreTableFolderDataSchema = z
+  .object({
+    folder: v2FolderSchema.describe(
+      'The restored folder, at the path it actually landed on — which is not always the path requested.'
+    ),
+    restoredItems: z
+      .object({
+        folders: z
+          .number()
+          .int()
+          .nonnegative()
+          .describe('Folders restored, including the one addressed.'),
+        tables: z.number().int().nonnegative().describe('Tables restored inside the folder tree.'),
+      })
+      .strict()
+      .describe('What the restore brought back.'),
+  })
+  .strict()
+  .meta({
+    id: 'V2TableFolderRestore',
+    title: 'Table folder restore result',
+    description: 'The restored folder and the counts of items it brought back.',
+  })
+export type V2TableFolderRestore = z.output<typeof v2RestoreTableFolderDataSchema>
+
+/**
+ * Restores a soft-deleted table folder tree.
+ *
+ * `DELETE /api/v2/tables/folders` archives recursively, so without this the archived tables
+ * were visible through `GET /api/v2/tables?scope=archived` while the folder structure itself
+ * was unrecoverable over the API.
+ *
+ * Path-addressed, matching the rest of the v2 table folder family, and the path is the one
+ * the folder held at delete time. The restore can legally land it elsewhere — a folder whose
+ * parent is still archived is re-rooted, and a name an active sibling took meanwhile is
+ * deduplicated — so read the returned folder's `path` rather than assuming the request's.
+ */
+export const v2RestoreTableFolderContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/v2/tables/folders/restore',
+  query: noInputSchema,
+  body: v2RestoreTableFolderBodySchema,
+  response: { mode: 'json', schema: v2DataResponse(v2RestoreTableFolderDataSchema) },
+})
+
 export const v2DeleteTableContract = defineRouteContract({
   method: 'DELETE',
   path: '/api/v2/tables/[tableId]',
@@ -1149,7 +1205,7 @@ export const v2GetTableRowQuerySchema = v2TableWorkspaceQuerySchema
 export type V2GetTableRowQuery = z.output<typeof v2GetTableRowQuerySchema>
 
 /**
- * Heterogeneous batch row update: one distinct patch per row, in one authorized
+ * Heterogeneous bulk row update: one distinct patch per row, in one authorized
  * request.
  *
  * `PATCH /api/v2/tables/{tableId}/rows` is the predicate form — one patch
@@ -1161,7 +1217,7 @@ export type V2GetTableRowQuery = z.output<typeof v2GetTableRowQuerySchema>
  * Each patch MERGES into its row, like the single-row `PATCH`: a column absent
  * from `data` is left alone, not cleared.
  */
-export const v2BatchUpdateRowsBodySchema = z
+export const v2BulkUpdateRowsBodySchema = z
   .object({
     workspaceId: workspaceIdSchema.describe('Workspace that owns the table.'),
     updates: z
@@ -1197,37 +1253,37 @@ export const v2BatchUpdateRowsBodySchema = z
       .describe('One merge patch per row. Each row identifier may appear at most once.'),
   })
   .strict()
-export type V2BatchUpdateRowsBody = z.input<typeof v2BatchUpdateRowsBodySchema>
+export type V2BulkUpdateRowsBody = z.input<typeof v2BulkUpdateRowsBodySchema>
 
 /**
- * The batch is atomic on membership: a `rowId` naming no row in this table
+ * The bulk update is atomic on membership: a `rowId` naming no row in this table
  * fails the whole request with a `400` naming the missing ids, rather than
  * reporting a per-item miss. A caller sending explicit row identifiers already
  * believes they exist, and a partially-applied batch it has to reconcile is
  * strictly worse than a refusal it can retry.
  */
-export const v2BatchUpdateRowsDataSchema = z
+export const v2BulkUpdateRowsDataSchema = z
   .object({
     updatedCount: z.number().int().nonnegative().describe('Number of rows the batch updated.'),
     updatedRowIds: z.array(z.string()).describe('Identifiers of the rows the batch updated.'),
   })
   .strict()
   .meta({
-    id: 'V2BatchUpdateRowsData',
-    title: 'Batch update rows data',
-    description: 'Rows affected by a heterogeneous batch update.',
+    id: 'V2BulkUpdateRowsData',
+    title: 'Bulk update rows data',
+    description: 'Rows affected by a heterogeneous bulk update.',
   })
-export type V2BatchUpdateRowsData = z.output<typeof v2BatchUpdateRowsDataSchema>
+export type V2BulkUpdateRowsData = z.output<typeof v2BulkUpdateRowsDataSchema>
 
-export const v2BatchUpdateTableRowsContract = defineRouteContract({
+export const v2BulkUpdateTableRowsContract = defineRouteContract({
   method: 'POST',
-  path: '/api/v2/tables/[tableId]/rows/batch-update',
+  path: '/api/v2/tables/[tableId]/rows/bulk-update',
   query: noInputSchema,
   params: tableIdParamsSchema,
-  body: v2BatchUpdateRowsBodySchema,
+  body: v2BulkUpdateRowsBodySchema,
   response: {
     mode: 'json',
-    schema: v2DataResponse(v2BatchUpdateRowsDataSchema),
+    schema: v2DataResponse(v2BulkUpdateRowsDataSchema),
   },
 })
 
@@ -1292,7 +1348,7 @@ export type V2WorkspaceScopedBody = z.input<typeof v2WorkspaceScopedBodySchema>
  * Idempotent: restoring a table that is already active answers `200` with its
  * current representation rather than `409`, so a retry after a dropped response
  * cannot look like a failure. No audit entry is recorded for that no-op. This
- * matches `POST /api/v2/knowledge/{id}/restore`, which takes the same position
+ * matches `POST /api/v2/knowledge/{knowledgeBaseId}/restore`, which takes the same position
  * for the same reason.
  *
  * Restore renames on collision rather than failing, so the returned table's
@@ -1602,7 +1658,7 @@ function refineGroupSource(
  * - `autoRun` defaults to **false**. On the first-party surface it defaults to
  *   true so a UI add fills cells immediately, but here it would make one POST
  *   fan out a metered run across every existing row. Callers opt in, or fire
- *   explicitly via `POST /columns/run`.
+ *   explicitly via `POST /tables/{tableId}/dispatches`.
  */
 export const v2AddWorkflowGroupBodySchema = z
   .object({
@@ -1762,13 +1818,17 @@ export const v2RunColumnDataSchema = z
 export type V2RunColumnData = z.output<typeof v2RunColumnDataSchema>
 
 /**
- * Runs one or more workflow/enrichment groups across the table or a row subset.
- * Asynchronous: the response acknowledges the dispatch, and cell values land as
- * the runs complete. Poll the rows endpoints for results.
+ * Creates a run dispatch: runs one or more workflow/enrichment groups across the table or a
+ * row subset. Asynchronous — the response acknowledges the dispatch, and cell values land as
+ * the runs complete. Poll the rows endpoints for results, or the dispatch itself at
+ * `GET /api/v2/tables/{tableId}/dispatches/{dispatchId}`.
+ *
+ * It shares its path with the dispatch list, get, and cancel so create/list/get/delete are
+ * one coherent resource rather than a verb hanging off `/columns`.
  */
-export const v2RunTableColumnContract = defineRouteContract({
+export const v2CreateTableDispatchContract = defineRouteContract({
   method: 'POST',
-  path: '/api/v2/tables/[tableId]/columns/run',
+  path: '/api/v2/tables/[tableId]/dispatches',
   query: noInputSchema,
   params: tableIdParamsSchema,
   body: v2RunColumnBodySchema,
@@ -1784,7 +1844,7 @@ export const v2RowEnrichmentParamsSchema = tableRowParamsSchema.extend({
 export type V2RowEnrichmentParams = z.output<typeof v2RowEnrichmentParamsSchema>
 
 /**
- * The single-cell case of {@link v2RunTableColumnContract}: runs one group for
+ * The single-cell case of {@link v2CreateTableDispatchContract}: runs one group for
  * one row. The scope lives entirely in the path, so the body carries only the
  * workspace.
  */
@@ -1891,11 +1951,14 @@ export const v2GetRowEnrichmentContract = defineRouteContract({
 })
 
 /**
- * Lookup body: a case-insensitive substring search across every cell, narrowed
+ * Text-search body: a case-insensitive substring search across every cell, narrowed
  * by the same predicate/sort grammar as `POST /query`. POST because the
  * predicate tree is a structured body, not a querystring dialect.
+ *
+ * `query` on this surface means a structured predicate and `search` means text, which is
+ * why this is `/rows/search` and the predicate read is `/query`.
  */
-export const v2FindRowsBodySchema = z
+export const v2SearchRowsBodySchema = z
   .object({
     workspaceId: workspaceIdSchema,
     q: z
@@ -1907,7 +1970,7 @@ export const v2FindRowsBodySchema = z
     sort: sortSpecSchema.optional().describe('Ordered table-row sort specification.'),
   })
   .strict()
-export type V2FindRowsBody = z.input<typeof v2FindRowsBodySchema>
+export type V2SearchRowsBody = z.input<typeof v2SearchRowsBodySchema>
 
 /**
  * One matching cell. `ordinal` is the row's 0-based index in the
@@ -1933,7 +1996,7 @@ export type V2RowMatch = z.output<typeof v2RowMatchSchema>
  * {@link TABLE_LIMITS.MAX_FIND_MATCHES} and more cells match than were returned
  * — narrow the predicate rather than paging, since matches have no cursor.
  */
-export const v2FindRowsDataSchema = z
+export const v2SearchRowsDataSchema = z
   .object({
     matches: z
       .array(v2RowMatchSchema)
@@ -1946,21 +2009,21 @@ export const v2FindRowsDataSchema = z
       ),
   })
   .meta({
-    id: 'V2FindRowsData',
-    title: 'Find rows data',
+    id: 'V2SearchRowsData',
+    title: 'Search rows data',
     description: 'Matching table cells and truncation state.',
   })
-export type V2FindRowsData = z.output<typeof v2FindRowsDataSchema>
+export type V2SearchRowsData = z.output<typeof v2SearchRowsDataSchema>
 
-export const v2FindTableRowsContract = defineRouteContract({
+export const v2SearchTableRowsContract = defineRouteContract({
   method: 'POST',
-  path: '/api/v2/tables/[tableId]/rows/find',
+  path: '/api/v2/tables/[tableId]/rows/search',
   query: noInputSchema,
   params: tableIdParamsSchema,
-  body: v2FindRowsBodySchema,
+  body: v2SearchRowsBodySchema,
   response: {
     mode: 'json',
-    schema: v2DataResponse(v2FindRowsDataSchema),
+    schema: v2DataResponse(v2SearchRowsDataSchema),
   },
 })
 
@@ -1970,6 +2033,16 @@ export const v2TableImportParamsSchema = z.object({
 export const v2TableExportParamsSchema = z.object({
   exportId: z.string().min(1).describe('Unique table-export identifier.'),
 })
+
+/**
+ * The nested export address. v2 reads an export under the table that owns it, so the parent
+ * is in the path and is authorized before the child is looked at; an `exportId` belonging to
+ * a different table answers `404`, exactly as an unknown id does.
+ */
+export const v2NestedTableExportParamsSchema = tableIdParamsSchema.extend(
+  v2TableExportParamsSchema.shape
+)
+export type V2NestedTableExportParams = z.output<typeof v2NestedTableExportParamsSchema>
 export const v2TableTransferWorkspaceQuerySchema = z
   .object({
     workspaceId: workspaceIdSchema.describe('Workspace that owns the transfer resource.'),
@@ -2315,16 +2388,16 @@ export const v2CreateTableExportContract = defineRouteContract({
 
 export const v2GetTableExportContract = defineRouteContract({
   method: 'GET',
-  path: '/api/v2/tables/exports/[exportId]',
-  params: v2TableExportParamsSchema,
+  path: '/api/v2/tables/[tableId]/exports/[exportId]',
+  params: v2NestedTableExportParamsSchema,
   query: v2TableTransferWorkspaceQuerySchema,
   response: { mode: 'json', schema: v2DataResponse(v2TableExportSchema) },
 })
 
 export const v2CancelTableExportContract = defineRouteContract({
   method: 'DELETE',
-  path: '/api/v2/tables/exports/[exportId]',
-  params: v2TableExportParamsSchema,
+  path: '/api/v2/tables/[tableId]/exports/[exportId]',
+  params: v2NestedTableExportParamsSchema,
   query: v2TableTransferWorkspaceQuerySchema,
   response: { mode: 'json', schema: v2DataResponse(v2TableExportSchema) },
 })
@@ -2343,8 +2416,8 @@ export const v2TableExportDownloadDataSchema = z
 
 export const v2TableExportDownloadContract = defineRouteContract({
   method: 'GET',
-  path: '/api/v2/tables/exports/[exportId]/download',
-  params: v2TableExportParamsSchema,
+  path: '/api/v2/tables/[tableId]/exports/[exportId]/download',
+  params: v2NestedTableExportParamsSchema,
   query: v2TableTransferWorkspaceQuerySchema,
   response: { mode: 'json', schema: v2DataResponse(v2TableExportDownloadDataSchema) },
 })
@@ -2375,7 +2448,7 @@ export type V2CancelTableRunsData = z.output<typeof v2CancelTableRunsDataSchema>
 
 /**
  * Stops in-flight and pending workflow/enrichment cell runs — the counterpart
- * to `POST /columns/run`. Import and export work is canceled by deleting its
+ * to `POST /tables/{tableId}/dispatches`. Import and export work is canceled by deleting its
  * resource instead.
  */
 export const v2CancelTableRunsContract = defineRouteContract({
@@ -2408,7 +2481,7 @@ export const v2TableDispatchStatusSchema = z.enum([
 export type V2TableDispatchStatus = z.output<typeof v2TableDispatchStatusSchema>
 
 /**
- * One run dispatch: the unit `POST /tables/{tableId}/columns/run` creates and
+ * One run dispatch: the unit `POST /tables/{tableId}/dispatches` creates and
  * returns a `dispatchId` for.
  *
  * The stored `cursor` — the highest row position already enqueued — is
@@ -2469,19 +2542,32 @@ export const v2TableRunDispatchSchema = z
   })
 export type V2TableRunDispatch = z.output<typeof v2TableRunDispatchSchema>
 
-export const v2TableDispatchParamsSchema = z.object({
+export const v2TableDispatchParamsSchema = tableIdParamsSchema.extend({
   dispatchId: z.string().min(1).describe('Unique table run-dispatch identifier.'),
 })
 export type V2TableDispatchParams = z.output<typeof v2TableDispatchParamsSchema>
 
 /**
- * Polls one dispatch to completion — the resource `POST /columns/run`'s
+ * Polls one dispatch to completion — the resource `POST /tables/{tableId}/dispatches`'s
  * `dispatchId` names. A `null` `dispatchId` there means the run settled inline
  * and there is nothing to poll.
  */
 export const v2GetTableDispatchContract = defineRouteContract({
   method: 'GET',
-  path: '/api/v2/tables/dispatches/[dispatchId]',
+  path: '/api/v2/tables/[tableId]/dispatches/[dispatchId]',
+  params: v2TableDispatchParamsSchema,
+  query: v2TableTransferWorkspaceQuerySchema,
+  response: { mode: 'json', schema: v2DataResponse(v2TableRunDispatchSchema) },
+})
+
+/**
+ * Cancels one dispatch by id — the id-addressed counterpart to
+ * `POST /tables/{tableId}/cancel-runs`, which cancels by predicate scope and cannot name a
+ * single dispatch. Keep using `cancel-runs` to stop cell runs already in the queue.
+ */
+export const v2CancelTableDispatchContract = defineRouteContract({
+  method: 'DELETE',
+  path: '/api/v2/tables/[tableId]/dispatches/[dispatchId]',
   params: v2TableDispatchParamsSchema,
   query: v2TableTransferWorkspaceQuerySchema,
   response: { mode: 'json', schema: v2DataResponse(v2TableRunDispatchSchema) },

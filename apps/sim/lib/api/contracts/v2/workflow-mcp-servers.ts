@@ -21,7 +21,7 @@ import {
  * opposite direction from `/api/v2/mcp-servers`, which registers external
  * servers Sim consumes. The two resources share nothing but a protocol name and
  * live on separate paths for exactly that reason — overloading one path would
- * make `DELETE /mcp-servers/{id}` mean "stop calling out" or "stop serving"
+ * make `DELETE /mcp-servers/{mcpServerId}` mean "stop calling out" or "stop serving"
  * depending on which table the id happened to be in.
  *
  * Every operation here denies workspace API keys: publishing a workflow for

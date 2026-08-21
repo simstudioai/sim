@@ -23,7 +23,7 @@ export const revalidate = 0
  * The server list reports tool *names* only, so nothing published the
  * `workflowId` that `DELETE .../tools/{workflowId}` addresses — a caller that
  * did not keep the publish response could not reconcile a server's inventory.
- * Mirrors `GET /api/v2/mcp-servers/{id}/tools` beside it.
+ * Mirrors `GET /api/v2/mcp-servers/{mcpServerId}/tools` beside it.
  *
  * A full set rather than a page, for the same reason as its twin: the inventory
  * is bounded by the workspace's deployed workflows, and a caller reconciling it

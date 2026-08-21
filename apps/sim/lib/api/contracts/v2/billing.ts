@@ -198,7 +198,7 @@ export const v2BillingLogsQuerySchema = z
     }
   })
   /**
-   * Parity with `GET /logs` and `GET /workflows/{id}/runs`, which reject an
+   * Parity with `GET /logs` and `GET /workflows/{workflowId}/runs`, which reject an
    * inverted window rather than answering with the empty page an unsatisfiable
    * `createdAt >= start AND createdAt <= end` produces.
    */

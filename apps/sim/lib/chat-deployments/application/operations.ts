@@ -3,15 +3,18 @@ import { defineWorkspaceOperation } from '@/lib/core/application'
 /**
  * Semantic operations on a chat deployment as a resource in its own right.
  *
- * Creation is deliberately absent: deploying a workflow as a chat is
- * `workflows.chat.deploy`, which is keyed on the workflow because that is what
- * the caller names and what gets deployed. Everything below is keyed on the
- * chat deployment, whose workspace is derived by joining its workflow.
+ * A workflow carries at most one live chat, so the public surface addresses it
+ * as a singleton under its workflow — `/api/v2/workflows/{workflowId}/deployments/chat`
+ * — and every operation there is one of these. `read`, `update`, and `delete`
+ * are also what the internal editor calls when it addresses the same deployment
+ * by its own id; the resource and its policy are the same either way, so the
+ * operation is too.
  *
- * `chat_deployments.delete` and `workflows.chat.undeploy` are separate for the
- * same reason: one addresses the deployment, the other addresses the workflow
- * whose chat should stop serving. They converge on the same domain effect but a
- * caller of one cannot name the resource the other requires.
+ * `workflows.chat.deploy` and `workflows.chat.undeploy` remain the entry points
+ * for the surfaces that name a workflow and ask for it to be published — the
+ * internal deploy route and the Copilot tool. They converge on the same domain
+ * effect as `replace` and `delete` but authorize a workflow the caller is
+ * deploying rather than a chat surface the caller is configuring.
  */
 const CHAT_DEPLOYMENT_LIST_POLICY = {
   principalKinds: ['session', 'personal_api_key', 'workspace_api_key', 'delegated'],
@@ -40,6 +43,12 @@ export const chatDeploymentOperations = {
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     ...CHAT_DEPLOYMENT_LIST_POLICY,
+  }),
+  replace: defineWorkspaceOperation({
+    id: 'chat_deployments.replace',
+    minimumRole: 'admin',
+    workspaceApiKey: 'deny',
+    ...CHAT_DEPLOYMENT_ADMIN_POLICY,
   }),
   read: defineWorkspaceOperation({
     id: 'chat_deployments.read',

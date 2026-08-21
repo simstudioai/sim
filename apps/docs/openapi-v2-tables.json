@@ -2376,11 +2376,11 @@
         }
       }
     },
-    "/api/v2/tables/{tableId}/columns/run": {
+    "/api/v2/tables/{tableId}/dispatches": {
       "post": {
-        "operationId": "runTableColumns",
-        "summary": "Run Column Groups",
-        "description": "Asynchronously run workflow or enrichment groups across all rows or a selected row subset. Poll the returned `dispatchId` with `GET /api/v2/tables/dispatches/{dispatchId}` until its status is `complete` or `cancelled`. A `null` `dispatchId` means the run settled inline and there is nothing to poll.",
+        "operationId": "createTableDispatch",
+        "summary": "Create Run Dispatch",
+        "description": "Asynchronously run workflow or enrichment groups across all rows or a selected row subset. Poll the returned `dispatchId` with `GET /api/v2/tables/{tableId}/dispatches/{dispatchId}` until its status is `complete` or `cancelled`, and cancel it with `DELETE` on the same path. A `null` `dispatchId` means the run settled inline and there is nothing to poll.",
         "tags": ["Tables"],
         "parameters": [
           {
@@ -2401,14 +2401,14 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/RunTableColumnsRequest"
+                "$ref": "#/components/schemas/CreateTableDispatchRequest"
               }
             }
           }
         },
         "responses": {
           "200": {
-            "description": "The accepted table-column dispatch.",
+            "description": "The accepted run dispatch.",
             "headers": {
               "X-RateLimit-Limit": {
                 "$ref": "#/components/headers/X-RateLimit-Limit"
@@ -2423,7 +2423,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/V2RunTableColumnsResponse"
+                  "$ref": "#/components/schemas/V2CreateTableDispatchResponse"
                 }
               }
             }
@@ -2456,13 +2456,87 @@
             "$ref": "#/components/responses/ServiceUnavailable"
           }
         }
+      },
+      "get": {
+        "operationId": "listTableDispatches",
+        "summary": "List Active Run Dispatches",
+        "description": "List the run dispatches still in flight on one table. Bounded by the dispatcher rather than by a page size, so this list is unpaginated and `nextCursor` is always null. A settled dispatch is read by identifier.",
+        "tags": ["Tables"],
+        "parameters": [
+          {
+            "name": "tableId",
+            "in": "path",
+            "required": true,
+            "description": "Unique table identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Unique table identifier."
+            }
+          },
+          {
+            "name": "workspaceId",
+            "in": "query",
+            "required": true,
+            "description": "Workspace that owns the table.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Workspace that owns the table."
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The table's active run dispatches.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2TableRunDispatchListResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
       }
     },
     "/api/v2/tables/{tableId}/rows/{rowId}/enrichment/{groupId}": {
       "post": {
         "operationId": "runRowEnrichment",
         "summary": "Run Enrichment For One Row",
-        "description": "Asynchronously run one workflow or enrichment group for one table row. Poll the returned `dispatchId` with `GET /api/v2/tables/dispatches/{dispatchId}`; a `null` `dispatchId` means the cell already settled inline.",
+        "description": "Asynchronously run one workflow or enrichment group for one table row. Poll the returned `dispatchId` with `GET /api/v2/tables/{tableId}/dispatches/{dispatchId}`; a `null` `dispatchId` means the cell already settled inline.",
         "tags": ["Tables"],
         "parameters": [
           {
@@ -2658,11 +2732,11 @@
         }
       }
     },
-    "/api/v2/tables/{tableId}/rows/find": {
+    "/api/v2/tables/{tableId}/rows/search": {
       "post": {
-        "operationId": "findTableRows",
-        "summary": "Find Rows",
-        "description": "Search every cell case-insensitively, optionally within a predicate-filtered and sorted view.",
+        "operationId": "searchTableRows",
+        "summary": "Search Rows",
+        "description": "Text-search every cell case-insensitively for the substring `q`, optionally within a predicate-filtered and sorted view. This is TEXT search, not the structured predicate read: `POST /api/v2/tables/{tableId}/query` is that one, and on this surface `query` always means a structured predicate while `search` always means text.\n\nIt returns cell COORDINATES — `{ ordinal, rowId, column }` — and never row data. `ordinal` is the row's zero-based index in the same filtered, sorted view `POST /query` pages, so read the rows themselves through that. The result is uncursored and capped: at most 1000 matches come back and `truncated` is `true` when more matched than were returned. There is no cursor to page with — narrow `q` or the predicate instead.",
         "tags": ["Tables"],
         "parameters": [
           {
@@ -2683,7 +2757,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/FindTableRowsRequest"
+                "$ref": "#/components/schemas/SearchTableRowsRequest"
               }
             }
           }
@@ -2705,7 +2779,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/V2FindTableRowsResponse"
+                  "$ref": "#/components/schemas/V2SearchTableRowsResponse"
                 }
               }
             }
@@ -3279,13 +3353,24 @@
         }
       }
     },
-    "/api/v2/tables/exports/{exportId}": {
+    "/api/v2/tables/{tableId}/exports/{exportId}": {
       "get": {
         "operationId": "getTableExport",
         "summary": "Get Table Export",
         "description": "Read progress and terminal state for a durable table export.",
         "tags": ["Tables"],
         "parameters": [
+          {
+            "name": "tableId",
+            "in": "path",
+            "required": true,
+            "description": "Unique table identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Unique table identifier."
+            }
+          },
           {
             "name": "exportId",
             "in": "path",
@@ -3362,6 +3447,17 @@
         "tags": ["Tables"],
         "parameters": [
           {
+            "name": "tableId",
+            "in": "path",
+            "required": true,
+            "description": "Unique table identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Unique table identifier."
+            }
+          },
+          {
             "name": "exportId",
             "in": "path",
             "required": true,
@@ -3434,13 +3530,24 @@
         }
       }
     },
-    "/api/v2/tables/exports/{exportId}/download": {
+    "/api/v2/tables/{tableId}/exports/{exportId}/download": {
       "get": {
         "operationId": "downloadTableExport",
         "summary": "Download Table Export",
         "description": "Return a short-lived signed download URL for a completed table export.\n\nThe export must have reached `completed`; one still processing, failed, or canceled is a `409` naming the current status. An export whose file is no longer available is a `404`, not a `410`.",
         "tags": ["Tables"],
         "parameters": [
+          {
+            "name": "tableId",
+            "in": "path",
+            "required": true,
+            "description": "Unique table identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Unique table identifier."
+            }
+          },
           {
             "name": "exportId",
             "in": "path",
@@ -3959,6 +4066,78 @@
         }
       }
     },
+    "/api/v2/tables/folders/restore": {
+      "post": {
+        "operationId": "restoreTablesFolder",
+        "summary": "Restore Folder",
+        "description": "Un-archive a table folder a recursive `DELETE` archived, along with every subfolder and table archived with it. Address it by the path it held when it was deleted. The restore may legally land it elsewhere: a folder whose parent is still archived is re-rooted to `/`, and a name an active sibling has taken meanwhile is deduplicated — so read the returned folder's `path` rather than assuming the requested one. Idempotent in the safe direction: a folder that is already active reports zero restored items.",
+        "tags": ["Tables"],
+        "requestBody": {
+          "required": true,
+          "description": "Workspace scope and the canonical path the archived folder held.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RestoreTableFolderRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The restored table folder and what it brought back.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2RestoreTableFolderResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
     "/api/v2/tables/{tableId}/restore": {
       "post": {
         "operationId": "restoreTable",
@@ -4044,11 +4223,11 @@
         }
       }
     },
-    "/api/v2/tables/{tableId}/rows/batch-update": {
+    "/api/v2/tables/{tableId}/rows/bulk-update": {
       "post": {
-        "operationId": "batchUpdateTableRows",
-        "summary": "Batch Update Rows",
-        "description": "Apply a distinct partial data patch to each of up to 1000 rows in one request. Each patch merges into its row, so a column absent from `data` is left alone. Membership is atomic: a `rowId` naming no row in this table fails the whole batch with a `400` listing the missing identifiers. Use `PATCH /api/v2/tables/{tableId}/rows` when one patch applies to every matching row.",
+        "operationId": "bulkUpdateTableRows",
+        "summary": "Bulk Update Rows",
+        "description": "Apply a distinct partial data patch to each of up to 1000 rows in one request. Each patch merges into its row, so a column absent from `data` is left alone. Membership is atomic: a `rowId` naming no row in this table fails the whole request with a `400` listing the missing identifiers. Use `PATCH /api/v2/tables/{tableId}/rows` when one patch applies to every matching row.",
         "tags": ["Tables"],
         "parameters": [
           {
@@ -4069,14 +4248,14 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/BatchUpdateTableRowsRequest"
+                "$ref": "#/components/schemas/BulkUpdateTableRowsRequest"
               }
             }
           }
         },
         "responses": {
           "200": {
-            "description": "The batch update result.",
+            "description": "The bulk update result.",
             "headers": {
               "X-RateLimit-Limit": {
                 "$ref": "#/components/headers/X-RateLimit-Limit"
@@ -4129,13 +4308,24 @@
         }
       }
     },
-    "/api/v2/tables/dispatches/{dispatchId}": {
+    "/api/v2/tables/{tableId}/dispatches/{dispatchId}": {
       "get": {
         "operationId": "getTableDispatch",
         "summary": "Get Run Dispatch",
         "description": "Poll one workflow-column run dispatch by the `dispatchId` the run endpoints returned. Answers in every lifecycle state — `pending`, `dispatching`, `complete`, and `cancelled` — so a poller can wait for a run to settle. Per-cell outcomes are read with `includeRunState` on the row endpoints.",
         "tags": ["Tables"],
         "parameters": [
+          {
+            "name": "tableId",
+            "in": "path",
+            "required": true,
+            "description": "Unique table identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Unique table identifier."
+            }
+          },
           {
             "name": "dispatchId",
             "in": "path",
@@ -4204,13 +4394,11 @@
             "$ref": "#/components/responses/ServiceUnavailable"
           }
         }
-      }
-    },
-    "/api/v2/tables/{tableId}/dispatches": {
-      "get": {
-        "operationId": "listTableDispatches",
-        "summary": "List Active Run Dispatches",
-        "description": "List the run dispatches still in flight on one table. Bounded by the dispatcher rather than by a page size, so this list is unpaginated and `nextCursor` is always null. A settled dispatch is read by identifier.",
+      },
+      "delete": {
+        "operationId": "cancelTableDispatch",
+        "summary": "Cancel Run Dispatch",
+        "description": "Cancel one run dispatch by the `dispatchId` the run endpoint returned. This stops the scheduler: the dispatcher observes the cancellation at its next iteration and enqueues no further cells. Cells already handed to the queue are NOT cancelled here — nothing links a queued cell back to the dispatch that enqueued it — so use `POST /api/v2/tables/{tableId}/cancel-runs` to stop work already in flight. Idempotent: a dispatch already `complete` or `cancelled` is returned unchanged.",
         "tags": ["Tables"],
         "parameters": [
           {
@@ -4225,20 +4413,32 @@
             }
           },
           {
-            "name": "workspaceId",
-            "in": "query",
+            "name": "dispatchId",
+            "in": "path",
             "required": true,
-            "description": "Workspace that owns the table.",
+            "description": "Unique table run-dispatch identifier.",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "Workspace that owns the table."
+              "description": "Unique table run-dispatch identifier."
+            }
+          },
+          {
+            "name": "workspaceId",
+            "in": "query",
+            "required": true,
+            "description": "Workspace that owns the transfer resource.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "description": "Workspace that owns the transfer resource."
             }
           }
         ],
         "responses": {
           "200": {
-            "description": "The table's active run dispatches.",
+            "description": "The dispatch in its post-cancellation state.",
             "headers": {
               "X-RateLimit-Limit": {
                 "$ref": "#/components/headers/X-RateLimit-Limit"
@@ -4253,7 +4453,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/V2TableRunDispatchListResponse"
+                  "$ref": "#/components/schemas/V2CancelTableDispatchResponse"
                 }
               }
             }
@@ -7771,7 +7971,7 @@
         "title": "Run column data",
         "description": "Acknowledgement for a table column run."
       },
-      "V2RunTableColumnsResponse": {
+      "V2CreateTableDispatchResponse": {
         "type": "object",
         "properties": {
           "data": {
@@ -7781,10 +7981,10 @@
         },
         "required": ["data"],
         "additionalProperties": false,
-        "title": "Run table columns response",
+        "title": "Create table dispatch response",
         "description": "Accepted background dispatch identifier."
       },
-      "RunTableColumnsRequest": {
+      "CreateTableDispatchRequest": {
         "type": "object",
         "properties": {
           "workspaceId": {
@@ -7851,7 +8051,7 @@
         },
         "required": ["workspaceId", "groupIds"],
         "additionalProperties": false,
-        "title": "Run table columns request",
+        "title": "Create table dispatch request",
         "description": "Workspace scope, producer groups, execution mode, and optional row scope.",
         "examples": [
           {
@@ -7914,7 +8114,7 @@
         "title": "Table row match",
         "description": "One matching cell returned by a table row search."
       },
-      "V2FindRowsData": {
+      "V2SearchRowsData": {
         "type": "object",
         "properties": {
           "matches": {
@@ -7932,23 +8132,23 @@
         },
         "required": ["matches", "truncated"],
         "additionalProperties": false,
-        "title": "Find rows data",
+        "title": "Search rows data",
         "description": "Matching table cells and truncation state."
       },
-      "V2FindTableRowsResponse": {
+      "V2SearchTableRowsResponse": {
         "type": "object",
         "properties": {
           "data": {
             "description": "Response data.",
-            "$ref": "#/components/schemas/V2FindRowsData"
+            "$ref": "#/components/schemas/V2SearchRowsData"
           }
         },
         "required": ["data"],
         "additionalProperties": false,
-        "title": "Find table rows response",
+        "title": "Search table rows response",
         "description": "Matching table cells and truncation state."
       },
-      "FindTableRowsRequest": {
+      "SearchTableRowsRequest": {
         "type": "object",
         "properties": {
           "workspaceId": {
@@ -7992,7 +8192,7 @@
         },
         "required": ["workspaceId", "q"],
         "additionalProperties": false,
-        "title": "Find table rows request",
+        "title": "Search table rows request",
         "description": "Workspace scope, substring query, and optional predicate and sort.",
         "examples": [
           {
@@ -9300,6 +9500,71 @@
         "title": "Delete table folder response",
         "description": "Folder deletion acknowledgement and deleted resource counts."
       },
+      "V2TableFolderRestore": {
+        "type": "object",
+        "properties": {
+          "folder": {
+            "description": "The restored folder, at the path it actually landed on — which is not always the path requested.",
+            "$ref": "#/components/schemas/V2Folder"
+          },
+          "restoredItems": {
+            "type": "object",
+            "properties": {
+              "folders": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991,
+                "description": "Folders restored, including the one addressed."
+              },
+              "tables": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991,
+                "description": "Tables restored inside the folder tree."
+              }
+            },
+            "required": ["folders", "tables"],
+            "additionalProperties": false,
+            "description": "What the restore brought back."
+          }
+        },
+        "required": ["folder", "restoredItems"],
+        "additionalProperties": false,
+        "title": "Table folder restore result",
+        "description": "The restored folder and the counts of items it brought back."
+      },
+      "V2RestoreTableFolderResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2TableFolderRestore"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Restore table folder response",
+        "description": "The restored table folder and the counts of items it brought back."
+      },
+      "RestoreTableFolderRequest": {
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "Workspace that owns the archived folder."
+          },
+          "path": {
+            "description": "Path the folder held when `DELETE /api/v2/tables/folders` archived it.",
+            "$ref": "#/components/schemas/NonRootFolderPathInput"
+          }
+        },
+        "required": ["workspaceId", "path"],
+        "additionalProperties": false,
+        "title": "Restore table folder request",
+        "description": "Workspace scope and the canonical path the archived folder held."
+      },
       "V2RestoreTableResponse": {
         "type": "object",
         "properties": {
@@ -9333,7 +9598,7 @@
           }
         ]
       },
-      "V2BatchUpdateRowsData": {
+      "V2BulkUpdateRowsData": {
         "type": "object",
         "properties": {
           "updatedCount": {
@@ -9352,23 +9617,23 @@
         },
         "required": ["updatedCount", "updatedRowIds"],
         "additionalProperties": false,
-        "title": "Batch update rows data",
-        "description": "Rows affected by a heterogeneous batch update."
+        "title": "Bulk update rows data",
+        "description": "Rows affected by a heterogeneous bulk update."
       },
       "V2BulkUpdateTableRowsResponse": {
         "type": "object",
         "properties": {
           "data": {
             "description": "Response data.",
-            "$ref": "#/components/schemas/V2BatchUpdateRowsData"
+            "$ref": "#/components/schemas/V2BulkUpdateRowsData"
           }
         },
         "required": ["data"],
         "additionalProperties": false,
-        "title": "Batch update table rows response",
+        "title": "Bulk update table rows response",
         "description": "Updated row count and identifiers."
       },
-      "BatchUpdateTableRowsRequest": {
+      "BulkUpdateTableRowsRequest": {
         "type": "object",
         "properties": {
           "workspaceId": {
@@ -9402,7 +9667,7 @@
         },
         "required": ["workspaceId", "updates"],
         "additionalProperties": false,
-        "title": "Batch update table rows request",
+        "title": "Bulk update table rows request",
         "description": "Workspace scope and one merge patch per row.",
         "examples": [
           {
@@ -9707,6 +9972,19 @@
         "additionalProperties": false,
         "title": "Table run dispatch response",
         "description": "A single table run dispatch."
+      },
+      "V2CancelTableDispatchResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2TableRunDispatch"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Cancel table dispatch response",
+        "description": "The dispatch in its post-cancellation state."
       },
       "V2TableRunDispatchListResponse": {
         "type": "object",

@@ -56,10 +56,6 @@ export const v2TableErrorPolicies = {
     notFoundMessage: 'Table export not found',
     render: renderTableError,
   }),
-  concealDispatchAuthorization: createV2ResourceConcealmentPolicy({
-    notFoundMessage: 'Table run dispatch not found',
-    render: renderTableError,
-  }),
   /**
    * Workspace-scoped bulk routes. Deliberately NOT a concealment policy: these
    * routes name a workspace, not one table, so there is no table whose

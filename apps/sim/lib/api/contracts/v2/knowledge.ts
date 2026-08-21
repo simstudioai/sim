@@ -160,8 +160,17 @@ export const v2KnowledgeBaseSchema = knowledgeBaseDataSchema
       .describe('Current email address of the knowledge base owner.')
       .meta({ examples: ['owner@example.com'] }),
     folderPath: v2FolderPathSchema
-      .describe('Canonical containing-folder path; `/` is the workspace root.')
+      .describe(
+        'Canonical containing-folder path; `/` is the workspace root. Resolved against active folders only, so an archived knowledge base whose containing folder was archived with it reports `/`.'
+      )
       .meta({ examples: ['/Product'] }),
+    /** Non-null only for a knowledge base a `DELETE` archived; see `scope` on the list. */
+    deletedAt: v2TimestampSchema
+      .nullable()
+      .describe(
+        'ISO 8601 timestamp when the knowledge base was archived by `DELETE /knowledge/{knowledgeBaseId}`, or null while the knowledge base is active. Only `GET /knowledge?scope=archived` returns knowledge bases with a non-null value.'
+      )
+      .meta({ format: 'date-time', examples: ['2026-01-16T09:00:00Z'] }),
   })
   .strict()
   .meta({
@@ -255,7 +264,7 @@ export type V2KnowledgeDocumentSummary = z.output<typeof v2KnowledgeDocumentSumm
  *   because a slot is the addressable column and a display name is only unique
  *   per knowledge base and may be renamed.
  *
- * `GET /api/v2/knowledge/{id}/tags` is the mapping between the two. A slot that
+ * `GET /api/v2/knowledge/{knowledgeBaseId}/tags` is the mapping between the two. A slot that
  * holds a value but has no definition in the knowledge base appears under its
  * raw slot name, matching how knowledge search projects the same columns.
  */
@@ -267,7 +276,7 @@ export const v2KnowledgeDocumentTagsSchema = z
       .describe('Tag value; dates are ISO 8601 strings and an unset tag is null.')
   )
   .describe(
-    'Document tag values keyed by tag display name. Writes address the same tags by slot (`tag1`..`tag7`); resolve names to slots with GET /api/v2/knowledge/{id}/tags.'
+    'Document tag values keyed by tag display name. Writes address the same tags by slot (`tag1`..`tag7`); resolve names to slots with GET /api/v2/knowledge/{knowledgeBaseId}/tags.'
   )
   .meta({ examples: [{ category: 'billing', priority: 2 }] })
 
@@ -439,17 +448,21 @@ export const v2UploadKnowledgeDocumentQuerySchema = z
   .strict()
 export type V2UploadKnowledgeDocumentQuery = z.output<typeof v2UploadKnowledgeDocumentQuerySchema>
 
-export const v2KnowledgeBaseParamsSchema = knowledgeBaseParamsSchema.extend({
-  id: knowledgeBaseParamsSchema.shape.id.describe('Unique knowledge base identifier.'),
+export const v2KnowledgeBaseParamsSchema = knowledgeBaseParamsSchema.omit({ id: true }).extend({
+  knowledgeBaseId: knowledgeBaseParamsSchema.shape.id.describe('Unique knowledge base identifier.'),
 })
 export type V2KnowledgeBaseParams = z.output<typeof v2KnowledgeBaseParamsSchema>
 
-export const v2KnowledgeDocumentParamsSchema = knowledgeDocumentParamsSchema.extend({
-  id: knowledgeDocumentParamsSchema.shape.id.describe('Unique knowledge base identifier.'),
-  documentId: knowledgeDocumentParamsSchema.shape.documentId.describe(
-    'Unique knowledge document identifier.'
-  ),
-})
+export const v2KnowledgeDocumentParamsSchema = knowledgeDocumentParamsSchema
+  .omit({ id: true })
+  .extend({
+    knowledgeBaseId: knowledgeDocumentParamsSchema.shape.id.describe(
+      'Unique knowledge base identifier.'
+    ),
+    documentId: knowledgeDocumentParamsSchema.shape.documentId.describe(
+      'Unique knowledge document identifier.'
+    ),
+  })
 export type V2KnowledgeDocumentParams = z.output<typeof v2KnowledgeDocumentParamsSchema>
 
 export const v2KnowledgeDocumentUploadParamsSchema = v2KnowledgeBaseParamsSchema.extend({
@@ -583,13 +596,30 @@ export const v2KnowledgeBaseSortFields = ['name', 'createdAt', 'updatedAt'] as c
 export type V2KnowledgeBaseSortBy = (typeof v2KnowledgeBaseSortFields)[number]
 
 /**
- * KB list query: v1's workspace scope plus the v2 search/sort convention and a
- * folder filter. v1's own list query stays untouched — it does not implement
- * these, and advertising a param a route ignores is worse than not having it.
+ * Listing scopes. Two-valued, mirroring `v2FileScopeSchema`, `v2TableScopeSchema`
+ * and `v2WorkflowScopeSchema` rather than the three-valued internal
+ * `KnowledgeBaseScope`: `all` drops the `deleted_at` predicate entirely and
+ * degrades to a full workspace scan, and a caller that wants both sets can walk
+ * two pages.
+ */
+export const v2KnowledgeBaseScopeSchema = z.enum(['active', 'archived'])
+
+export type V2KnowledgeBaseScope = z.output<typeof v2KnowledgeBaseScopeSchema>
+
+/**
+ * KB list query: v1's workspace scope plus the v2 search/sort convention, a
+ * lifecycle scope, and a folder filter. v1's own list query stays untouched — it
+ * does not implement these, and advertising a param a route ignores is worse than
+ * not having it.
  */
 export const v2ListKnowledgeBasesQuerySchema = z
   .object({
     workspaceId: workspaceIdSchema.describe('Workspace whose knowledge bases should be listed.'),
+    scope: v2KnowledgeBaseScopeSchema
+      .default('active')
+      .describe(
+        'Which lifecycle set to list: `active` (default) for live knowledge bases, `archived` for knowledge bases a `DELETE` archived and `POST /knowledge/{knowledgeBaseId}/restore` can bring back. `folderPath` resolves against active folders only, so pairing it with `scope=archived` returns an empty page when the containing folder was archived too.'
+      ),
     folderPath: v2FolderPathInputSchema
       .optional()
       .describe(`Restrict results to knowledge bases in this folder. ${V2_FOLDER_FILTER_MISS}`),
@@ -682,8 +712,13 @@ export const v2UpdateKnowledgeBaseBodySchema = z
   })
 
 /**
- * KB list, keyset-paginated over the active sort. Search, folder filter, and
- * sort all run in the query, not over its result.
+ * KB list, keyset-paginated over the active sort. Lifecycle scope, search, folder
+ * filter, and sort all run in the query, not over its result.
+ *
+ * Archived knowledge bases are `scope=archived` on this list rather than a
+ * sibling path, matching files, tables, and workflows. The two reads bind one
+ * semantic operation — the archived set is the same rows under a different
+ * `deleted_at` predicate, not a different resource.
  *
  * Before pagination this list returned `nextCursor` while rejecting `limit` and
  * `cursor` outright, so it advertised a pagination scheme no caller could
@@ -713,7 +748,7 @@ export const v2CreateKnowledgeBaseContract = defineRouteContract({
 
 export const v2GetKnowledgeBaseContract = defineRouteContract({
   method: 'GET',
-  path: '/api/v2/knowledge/[id]',
+  path: '/api/v2/knowledge/[knowledgeBaseId]',
   params: v2KnowledgeBaseParamsSchema,
   query: v1KnowledgeWorkspaceQuerySchema
     .extend({
@@ -734,7 +769,7 @@ export const v2GetKnowledgeBaseContract = defineRouteContract({
  */
 export const v2UpdateKnowledgeBaseContract = defineRouteContract({
   method: 'PATCH',
-  path: '/api/v2/knowledge/[id]',
+  path: '/api/v2/knowledge/[knowledgeBaseId]',
   query: noInputSchema,
   params: v2KnowledgeBaseParamsSchema,
   body: v2UpdateKnowledgeBaseBodySchema,
@@ -746,7 +781,7 @@ export const v2UpdateKnowledgeBaseContract = defineRouteContract({
 
 export const v2DeleteKnowledgeBaseContract = defineRouteContract({
   method: 'DELETE',
-  path: '/api/v2/knowledge/[id]',
+  path: '/api/v2/knowledge/[knowledgeBaseId]',
   params: v2KnowledgeBaseParamsSchema,
   query: v1KnowledgeWorkspaceQuerySchema
     .extend({
@@ -902,7 +937,7 @@ export const v2KnowledgeSearchBodySchema = z
       )
       .optional()
       .describe(
-        `Structured tag filters, at most ${MAX_V2_KNOWLEDGE_DOCUMENT_TAG_FILTERS} of them. Every filter must hold, including two that name the same tag: repeating one tag narrows the result rather than widening it, matching \`GET /api/v2/knowledge/{id}/documents\`. To match either of two values for one tag, issue a search per value. Each filtered tag must resolve to the same slot and field type in every knowledge base selected; one missing from any of them, or defined inconsistently across them, is rejected rather than ignored, and those knowledge bases must be searched separately. List the available names with \`GET /api/v2/knowledge/{id}/tags\`.`
+        `Structured tag filters, at most ${MAX_V2_KNOWLEDGE_DOCUMENT_TAG_FILTERS} of them. Every filter must hold, including two that name the same tag: repeating one tag narrows the result rather than widening it, matching \`GET /api/v2/knowledge/{knowledgeBaseId}/documents\`. To match either of two values for one tag, issue a search per value. Each filtered tag must resolve to the same slot and field type in every knowledge base selected; one missing from any of them, or defined inconsistently across them, is rejected rather than ignored, and those knowledge bases must be searched separately. List the available names with \`GET /api/v2/knowledge/{knowledgeBaseId}/tags\`.`
       ),
     searchMode: v1KnowledgeSearchBodySchema.shape.searchMode.describe(
       'Retrieval strategy: vector is semantic-only, while hybrid also runs full-text search.'
@@ -1059,7 +1094,7 @@ export type V2ListKnowledgeDocumentsQuery = z.output<typeof v2ListKnowledgeDocum
 
 export const v2ListKnowledgeDocumentsContract = defineRouteContract({
   method: 'GET',
-  path: '/api/v2/knowledge/[id]/documents',
+  path: '/api/v2/knowledge/[knowledgeBaseId]/documents',
   params: v2KnowledgeBaseParamsSchema,
   query: v2ListKnowledgeDocumentsQuerySchema,
   response: {
@@ -1070,7 +1105,7 @@ export const v2ListKnowledgeDocumentsContract = defineRouteContract({
 
 export const v2UploadKnowledgeDocumentContract = defineRouteContract({
   method: 'POST',
-  path: '/api/v2/knowledge/[id]/documents',
+  path: '/api/v2/knowledge/[knowledgeBaseId]/documents',
   params: v2KnowledgeBaseParamsSchema,
   query: v2UploadKnowledgeDocumentQuerySchema,
   response: {
@@ -1082,7 +1117,7 @@ export const v2UploadKnowledgeDocumentContract = defineRouteContract({
 
 export const v2CreateKnowledgeDocumentUploadContract = defineRouteContract({
   method: 'POST',
-  path: '/api/v2/knowledge/[id]/documents/uploads',
+  path: '/api/v2/knowledge/[knowledgeBaseId]/documents/uploads',
   query: noInputSchema,
   params: v2KnowledgeBaseParamsSchema,
   body: v2CreateKnowledgeDocumentUploadBodySchema,
@@ -1095,7 +1130,7 @@ export const v2CreateKnowledgeDocumentUploadContract = defineRouteContract({
 
 export const v2AbortKnowledgeDocumentUploadContract = defineRouteContract({
   method: 'DELETE',
-  path: '/api/v2/knowledge/[id]/documents/uploads/[uploadId]',
+  path: '/api/v2/knowledge/[knowledgeBaseId]/documents/uploads/[uploadId]',
   params: v2KnowledgeDocumentUploadParamsSchema,
   query: v2UploadKnowledgeDocumentQuerySchema,
   headers: v2UploadTokenHeadersSchema,
@@ -1104,7 +1139,7 @@ export const v2AbortKnowledgeDocumentUploadContract = defineRouteContract({
 
 export const v2CreateKnowledgeDocumentUploadPartUrlsContract = defineRouteContract({
   method: 'POST',
-  path: '/api/v2/knowledge/[id]/documents/uploads/[uploadId]/parts',
+  path: '/api/v2/knowledge/[knowledgeBaseId]/documents/uploads/[uploadId]/parts',
   params: v2KnowledgeDocumentUploadParamsSchema,
   query: v2UploadKnowledgeDocumentQuerySchema,
   headers: v2UploadTokenHeadersSchema,
@@ -1114,7 +1149,7 @@ export const v2CreateKnowledgeDocumentUploadPartUrlsContract = defineRouteContra
 
 export const v2CompleteKnowledgeDocumentUploadContract = defineRouteContract({
   method: 'POST',
-  path: '/api/v2/knowledge/[id]/documents/uploads/[uploadId]/complete',
+  path: '/api/v2/knowledge/[knowledgeBaseId]/documents/uploads/[uploadId]/complete',
   params: v2KnowledgeDocumentUploadParamsSchema,
   query: v2UploadKnowledgeDocumentQuerySchema,
   headers: v2UploadTokenHeadersSchema,
@@ -1123,7 +1158,7 @@ export const v2CompleteKnowledgeDocumentUploadContract = defineRouteContract({
 
 export const v2GetKnowledgeDocumentContract = defineRouteContract({
   method: 'GET',
-  path: '/api/v2/knowledge/[id]/documents/[documentId]',
+  path: '/api/v2/knowledge/[knowledgeBaseId]/documents/[documentId]',
   params: v2KnowledgeDocumentParamsSchema,
   query: v1KnowledgeWorkspaceQuerySchema
     .extend({
@@ -1147,7 +1182,7 @@ export const v2KnowledgeTagSchema = z
     id: z
       .string()
       .describe(
-        'Tag definition identifier. Published because `PATCH` and `DELETE /knowledge/{id}/tags/{tagId}` address a definition by it; without it those operations are unreachable from a list read.'
+        'Tag definition identifier. Published because `PATCH` and `DELETE /knowledge/{knowledgeBaseId}/tags/{tagId}` address a definition by it; without it those operations are unreachable from a list read.'
       ),
     displayName: z
       .string()
@@ -1179,7 +1214,7 @@ export type V2KnowledgeTag = z.output<typeof v2KnowledgeTagSchema>
  */
 export const v2ListKnowledgeTagsContract = defineRouteContract({
   method: 'GET',
-  path: '/api/v2/knowledge/[id]/tags',
+  path: '/api/v2/knowledge/[knowledgeBaseId]/tags',
   params: v2KnowledgeBaseParamsSchema,
   query: v1KnowledgeWorkspaceQuerySchema
     .extend({
@@ -1362,7 +1397,7 @@ const v2UpdateKnowledgeDocumentDataSchema = z.union([
 
 export const v2UpdateKnowledgeDocumentContract = defineRouteContract({
   method: 'PATCH',
-  path: '/api/v2/knowledge/[id]/documents/[documentId]',
+  path: '/api/v2/knowledge/[knowledgeBaseId]/documents/[documentId]',
   query: noInputSchema,
   params: v2KnowledgeDocumentParamsSchema,
   body: v2UpdateKnowledgeDocumentBodySchema,
@@ -1381,7 +1416,7 @@ export const MAX_V2_BULK_KNOWLEDGE_DOCUMENTS = 100
  * `enable` and `disable` only. A bulk `delete` is deliberately absent: the
  * underlying bulk operation records no semantic audit, so a public bulk delete
  * would remove a knowledge base's documents leaving no `DOCUMENT_DELETED`
- * entries, while `DELETE /api/v2/knowledge/{id}/documents/{documentId}` audits
+ * entries, while `DELETE /api/v2/knowledge/{knowledgeBaseId}/documents/{documentId}` audits
  * every single deletion. Delete documents one request at a time.
  */
 export const v2BulkKnowledgeDocumentsBodySchema = z
@@ -1465,7 +1500,7 @@ export const v2BulkKnowledgeDocumentsDataSchema = z
 
 export const v2BulkUpdateKnowledgeDocumentsContract = defineRouteContract({
   method: 'PATCH',
-  path: '/api/v2/knowledge/[id]/documents',
+  path: '/api/v2/knowledge/[knowledgeBaseId]/documents',
   query: noInputSchema,
   params: v2KnowledgeBaseParamsSchema,
   body: v2BulkKnowledgeDocumentsBodySchema,
@@ -1477,7 +1512,7 @@ export const v2BulkUpdateKnowledgeDocumentsContract = defineRouteContract({
 
 export const v2DeleteKnowledgeDocumentContract = defineRouteContract({
   method: 'DELETE',
-  path: '/api/v2/knowledge/[id]/documents/[documentId]',
+  path: '/api/v2/knowledge/[knowledgeBaseId]/documents/[documentId]',
   params: v2KnowledgeDocumentParamsSchema,
   query: v1KnowledgeWorkspaceQuerySchema
     .extend({
@@ -1604,8 +1639,11 @@ export const v2KnowledgeConnectorDocumentSchema = z
 export type V2KnowledgeConnectorDocument = z.output<typeof v2KnowledgeConnectorDocumentSchema>
 
 export const v2KnowledgeConnectorParamsSchema = knowledgeConnectorParamsSchema
+  .omit({ id: true })
   .extend({
-    id: knowledgeConnectorParamsSchema.shape.id.describe('Knowledge base that owns the connector.'),
+    knowledgeBaseId: knowledgeConnectorParamsSchema.shape.id.describe(
+      'Knowledge base that owns the connector.'
+    ),
     connectorId: knowledgeConnectorParamsSchema.shape.connectorId.describe(
       'Connector selected for the operation.'
     ),
@@ -1798,7 +1836,7 @@ export type V2KnowledgeConnectorDocumentsUpdateData = z.output<
 
 export const v2ListKnowledgeConnectorsContract = defineRouteContract({
   method: 'GET',
-  path: '/api/v2/knowledge/[id]/connectors',
+  path: '/api/v2/knowledge/[knowledgeBaseId]/connectors',
   params: v2KnowledgeBaseParamsSchema,
   query: v2ListKnowledgeConnectorsQuerySchema,
   response: { mode: 'json', schema: v2CursorListResponse(v2KnowledgeConnectorSchema) },
@@ -1806,7 +1844,7 @@ export const v2ListKnowledgeConnectorsContract = defineRouteContract({
 
 export const v2CreateKnowledgeConnectorContract = defineRouteContract({
   method: 'POST',
-  path: '/api/v2/knowledge/[id]/connectors',
+  path: '/api/v2/knowledge/[knowledgeBaseId]/connectors',
   params: v2KnowledgeBaseParamsSchema,
   query: noInputSchema,
   body: v2CreateKnowledgeConnectorBodySchema,
@@ -1815,7 +1853,7 @@ export const v2CreateKnowledgeConnectorContract = defineRouteContract({
 
 export const v2GetKnowledgeConnectorContract = defineRouteContract({
   method: 'GET',
-  path: '/api/v2/knowledge/[id]/connectors/[connectorId]',
+  path: '/api/v2/knowledge/[knowledgeBaseId]/connectors/[connectorId]',
   params: v2KnowledgeConnectorParamsSchema,
   query: v2KnowledgeConnectorWorkspaceQuerySchema,
   response: { mode: 'json', schema: v2DataResponse(v2KnowledgeConnectorDetailSchema) },
@@ -1823,7 +1861,7 @@ export const v2GetKnowledgeConnectorContract = defineRouteContract({
 
 export const v2UpdateKnowledgeConnectorContract = defineRouteContract({
   method: 'PATCH',
-  path: '/api/v2/knowledge/[id]/connectors/[connectorId]',
+  path: '/api/v2/knowledge/[knowledgeBaseId]/connectors/[connectorId]',
   params: v2KnowledgeConnectorParamsSchema,
   query: noInputSchema,
   body: v2UpdateKnowledgeConnectorBodySchema,
@@ -1832,7 +1870,7 @@ export const v2UpdateKnowledgeConnectorContract = defineRouteContract({
 
 export const v2DeleteKnowledgeConnectorContract = defineRouteContract({
   method: 'DELETE',
-  path: '/api/v2/knowledge/[id]/connectors/[connectorId]',
+  path: '/api/v2/knowledge/[knowledgeBaseId]/connectors/[connectorId]',
   params: v2KnowledgeConnectorParamsSchema,
   query: v2DeleteKnowledgeConnectorQuerySchema,
   response: { mode: 'json', schema: v2DataResponse(v2KnowledgeConnectorDeleteDataSchema) },
@@ -1840,7 +1878,7 @@ export const v2DeleteKnowledgeConnectorContract = defineRouteContract({
 
 export const v2SyncKnowledgeConnectorContract = defineRouteContract({
   method: 'POST',
-  path: '/api/v2/knowledge/[id]/connectors/[connectorId]/sync',
+  path: '/api/v2/knowledge/[knowledgeBaseId]/connectors/[connectorId]/sync',
   params: v2KnowledgeConnectorParamsSchema,
   query: noInputSchema,
   body: v2SyncKnowledgeConnectorBodySchema,
@@ -1849,7 +1887,7 @@ export const v2SyncKnowledgeConnectorContract = defineRouteContract({
 
 export const v2ListKnowledgeConnectorDocumentsContract = defineRouteContract({
   method: 'GET',
-  path: '/api/v2/knowledge/[id]/connectors/[connectorId]/documents',
+  path: '/api/v2/knowledge/[knowledgeBaseId]/connectors/[connectorId]/documents',
   params: v2KnowledgeConnectorParamsSchema,
   query: v2ListKnowledgeConnectorDocumentsQuerySchema,
   response: { mode: 'json', schema: v2CursorListResponse(v2KnowledgeConnectorDocumentSchema) },
@@ -1857,78 +1895,13 @@ export const v2ListKnowledgeConnectorDocumentsContract = defineRouteContract({
 
 export const v2UpdateKnowledgeConnectorDocumentsContract = defineRouteContract({
   method: 'PATCH',
-  path: '/api/v2/knowledge/[id]/connectors/[connectorId]/documents',
+  path: '/api/v2/knowledge/[knowledgeBaseId]/connectors/[connectorId]/documents',
   params: v2KnowledgeConnectorParamsSchema,
   query: noInputSchema,
   body: v2UpdateKnowledgeConnectorDocumentsBodySchema,
   response: {
     mode: 'json',
     schema: v2DataResponse(v2KnowledgeConnectorDocumentsUpdateDataSchema),
-  },
-})
-
-/**
- * An archived knowledge base — the active projection plus the instant it was
- * archived. A caller deciding whether to restore needs to know when it went
- * away, and `deletedAt` is never null on this list by construction.
- *
- * `folderPath` is dropped rather than carried. A folder path is resolved from
- * the *active* folder tree, and archiving a folder archives the knowledge bases
- * under it, so the containing folder of an archived base is frequently archived
- * too and has no path to report. Restoring returns the base to whichever folder
- * still holds its `folderId`, which the restore response reports.
- */
-export const v2ArchivedKnowledgeBaseSchema = v2KnowledgeBaseSchema
-  .omit({ folderPath: true })
-  .extend({
-    deletedAt: v2TimestampSchema.describe(
-      'ISO 8601 timestamp when the knowledge base was archived.'
-    ),
-  })
-  .meta({
-    id: 'V2ArchivedKnowledgeBase',
-    title: 'Archived knowledge base',
-    description: 'A soft-deleted knowledge base that can still be restored.',
-  })
-
-export type V2ArchivedKnowledgeBase = z.output<typeof v2ArchivedKnowledgeBaseSchema>
-
-/**
- * Archived-list query.
- *
- * A sibling path rather than a `scope` param on `GET /api/v2/knowledge`: the
- * two reads bind different semantic operations (`knowledge.list` and
- * `knowledge.list_archived`) and a v2 route declares exactly one, so merging
- * them would need two operations behind one handler and give up separately
- * governing either. A new filter param would also have to join the main list's
- * cursor binding, invalidating every cursor already in flight.
- *
- * `folderPath` is absent: an archived knowledge base is not shown in a folder,
- * and filtering a trash bin by where the row used to live is not a question
- * this list answers.
- */
-export const v2ListArchivedKnowledgeBasesQuerySchema = z
-  .object({
-    workspaceId: workspaceIdSchema.describe(
-      'Workspace whose archived knowledge bases should be listed.'
-    ),
-    search: v2SearchSchema,
-    ...v2SortFields(v2KnowledgeBaseSortFields, { sortBy: 'updatedAt', sortOrder: 'desc' }),
-    ...v2PaginationFields({ description: 'Maximum archived knowledge bases to return per page.' }),
-  })
-  .strict()
-
-export type V2ListArchivedKnowledgeBasesQuery = z.output<
-  typeof v2ListArchivedKnowledgeBasesQuerySchema
->
-
-export const v2ListArchivedKnowledgeBasesContract = defineRouteContract({
-  method: 'GET',
-  path: '/api/v2/knowledge/archived',
-  query: v2ListArchivedKnowledgeBasesQuerySchema,
-  response: {
-    mode: 'json',
-    schema: v2CursorListResponse(v2ArchivedKnowledgeBaseSchema),
   },
 })
 
@@ -1948,7 +1921,7 @@ export type V2RestoreKnowledgeBaseBody = z.input<typeof v2RestoreKnowledgeBaseBo
  */
 export const v2RestoreKnowledgeBaseContract = defineRouteContract({
   method: 'POST',
-  path: '/api/v2/knowledge/[id]/restore',
+  path: '/api/v2/knowledge/[knowledgeBaseId]/restore',
   query: noInputSchema,
   params: v2KnowledgeBaseParamsSchema,
   body: v2RestoreKnowledgeBaseBodySchema,
@@ -1962,7 +1935,7 @@ export const v2RestoreKnowledgeBaseContract = defineRouteContract({
  * Indexes files already in workspace storage.
  *
  * Without it a file the server already holds has to be downloaded and
- * re-uploaded byte-for-byte through `POST /api/v2/knowledge/{id}/documents`
+ * re-uploaded byte-for-byte through `POST /api/v2/knowledge/{knowledgeBaseId}/documents`
  * purely to be indexed. Each reference is authorized against the *file's* own
  * canonical context, so naming a file the caller cannot read fails that entry
  * rather than the request.
@@ -2026,7 +1999,7 @@ export const v2AddWorkspaceFilesToKnowledgeBaseDataSchema = z
 
 export const v2AddWorkspaceFilesToKnowledgeBaseContract = defineRouteContract({
   method: 'POST',
-  path: '/api/v2/knowledge/[id]/documents/from-workspace-files',
+  path: '/api/v2/knowledge/[knowledgeBaseId]/documents/from-workspace-files',
   query: noInputSchema,
   params: v2KnowledgeBaseParamsSchema,
   body: v2AddWorkspaceFilesToKnowledgeBaseBodySchema,

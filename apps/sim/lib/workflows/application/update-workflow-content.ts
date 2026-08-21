@@ -2,10 +2,7 @@ import { AuditAction, AuditResourceType } from '@sim/audit'
 import { type Principal, resolvePrincipalAttribution } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { workflow } from '@sim/db/schema'
-import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { isRecordLike } from '@sim/utils/object'
 import type { BlockState, WorkflowState } from '@sim/workflow-types/workflow'
 import { and, eq, isNull } from 'drizzle-orm'
 import { principalAuditSource } from '@/lib/core/application'
@@ -17,6 +14,11 @@ import { workflowOperations } from '@/lib/workflows/application/operations'
 import { assertedWorkflowWorkspaceId } from '@/lib/workflows/application/principal-scope'
 import { requireMutableWorkflow } from '@/lib/workflows/application/workflow-mutability'
 import {
+  coerceWorkflowVariableValue,
+  normalizeWorkflowVariables,
+  type WorkflowVariable,
+} from '@/lib/workflows/application/workflow-variables'
+import {
   type BlockEnablementRefusal,
   decideBlockEnablement,
 } from '@/lib/workflows/editing/block-enablement'
@@ -24,7 +26,6 @@ import { replaceWorkflowNormalizedState } from '@/lib/workflows/persistence/repl
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
 
-const logger = createLogger('UpdateWorkflowContent')
 const MAX_WORKFLOW_VARIABLE_OPERATIONS = 100
 
 /** How each protection refusal is classified when a single block toggle is the whole request. */
@@ -55,14 +56,6 @@ function resolveWorkflowContentContext<I extends WorkflowContentInput>({
   })
 }
 
-interface WorkflowVariable {
-  id: string
-  workflowId?: string
-  name: string
-  type: string
-  value?: unknown
-}
-
 export interface WorkflowVariableOperation {
   name: string
   operation: 'add' | 'edit' | 'delete'
@@ -74,59 +67,14 @@ export interface ApplyWorkflowVariableOperationsInput extends WorkflowContentInp
   operations: WorkflowVariableOperation[]
 }
 
-function coerceWorkflowVariableValue(value: unknown, type: string): unknown {
-  if (value === undefined) return value
-  if (type === 'number') {
-    const number = Number(value)
-    return Number.isNaN(number) ? value : number
-  }
-  if (type === 'boolean') {
-    const normalized = String(value).trim().toLowerCase()
-    if (normalized === 'true') return true
-    if (normalized === 'false') return false
-    return value
-  }
-  if (type !== 'array' && type !== 'object') return value
-
-  try {
-    const parsed: unknown = JSON.parse(String(value))
-    if (type === 'array' && Array.isArray(parsed)) return parsed
-    if (type === 'object' && isRecordLike(parsed)) {
-      return parsed
-    }
-  } catch (error) {
-    logger.warn('Failed to parse JSON value for workflow variable coercion', {
-      error: getErrorMessage(error),
-    })
-  }
-  return value
-}
-
 function applyVariableOperations(
   workflowId: string,
   currentVariables: unknown,
   operations: readonly WorkflowVariableOperation[]
 ): { variables: Record<string, WorkflowVariable>; changed: boolean } {
-  const current = isRecordLike(currentVariables)
-    ? (currentVariables as Record<string, unknown>)
-    : {}
   const byName = new Map<string, WorkflowVariable>()
-  for (const value of Object.values(current)) {
-    if (
-      value &&
-      typeof value === 'object' &&
-      'id' in value &&
-      typeof value.id === 'string' &&
-      'name' in value &&
-      typeof value.name === 'string'
-    ) {
-      byName.set(value.name, {
-        ...value,
-        id: value.id,
-        name: value.name,
-        type: 'type' in value && typeof value.type === 'string' ? value.type : 'plain',
-      })
-    }
+  for (const variable of Object.values(normalizeWorkflowVariables(currentVariables))) {
+    byName.set(variable.name, variable)
   }
 
   let changed = false
@@ -149,10 +97,7 @@ function applyVariableOperations(
     changed = true
   }
 
-  return {
-    variables: Object.fromEntries([...byName.values()].map((variable) => [variable.id, variable])),
-    changed,
-  }
+  return { variables: normalizeWorkflowVariables([...byName.values()]), changed }
 }
 
 export const applyWorkflowVariableOperations = defineAuthorizedWorkflowUseCase({

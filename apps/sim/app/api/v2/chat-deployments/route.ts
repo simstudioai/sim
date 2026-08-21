@@ -1,16 +1,9 @@
-import {
-  v2CreateChatDeploymentContract,
-  v2ListChatDeploymentsContract,
-} from '@/lib/api/contracts/v2/chat-deployments'
+import { v2ListChatDeploymentsContract } from '@/lib/api/contracts/v2/chat-deployments'
 import { cursorRoute, cursorScopeKey } from '@/lib/api/cursor-binding'
 import { defineV2JsonRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/routes'
 import { chatDeploymentOperations, listChatDeployments } from '@/lib/chat-deployments/application'
-import { generateRequestId } from '@/lib/core/utils/request'
-import { deployWorkflowChat } from '@/lib/workflows/application/chat-deployments'
-import { workflowOperations } from '@/lib/workflows/application/operations'
 import {
   chatDeploymentErrorPolicy,
-  toV2ChatDeployment,
   toV2ChatDeploymentListItem,
 } from '@/app/api/v2/chat-deployments/utils'
 import { readSortedCursor, writeSortedCursor } from '@/app/api/v2/lib/response'
@@ -37,6 +30,12 @@ function chatDeploymentCursorFilters(query: {
  *
  * Workspace-scoped, not creator-scoped: a chat deployment is workspace
  * property, and every write on it is authorized by workspace admin.
+ *
+ * The only chat-deployment path that is not under a workflow, and deliberately
+ * so. Every write addresses one workflow's chat singleton at
+ * `/api/v2/workflows/{workflowId}/deployments/chat`, but "what does this workspace
+ * serve" is a cross-parent question no per-workflow path can answer. Filter by
+ * `workflowId` to resolve one workflow's chat without holding its id.
  *
  * Deliberately a narrower projection than the detail read. Discovery is a
  * `read`-level concern, so this stays callable by any workspace member and by a
@@ -75,29 +74,5 @@ export const GET = defineV2JsonRoute({
       query.sortOrder,
       chatDeploymentCursorFilters(query)
     ),
-  }),
-})
-
-/**
- * POST /api/v2/chat-deployments — Publish a workflow as a chat.
- *
- * This also deploys the workflow: a chat serves the live version, so a draft
- * that has drifted is republished as part of the call. Deployment settles
- * asynchronously, and a call that lands while another attempt is still
- * preparing is a `409` rather than a second admitted version.
- *
- * A workflow carries at most one live chat deployment, so calling this for a
- * workflow that already has one updates it in place.
- */
-export const POST = defineV2JsonRoute({
-  contract: v2CreateChatDeploymentContract,
-  auth: v2ApiKeyAuth,
-  operation: workflowOperations.deployChat,
-  rateLimit: v2RateLimits.publicApi,
-  errorPolicy: chatDeploymentErrorPolicy,
-  mapInput: ({ body }) => ({ ...body, requestId: generateRequestId() }),
-  useCase: deployWorkflowChat,
-  present: (result) => ({
-    data: toV2ChatDeployment(result.deployment, result.workspaceId),
   }),
 })

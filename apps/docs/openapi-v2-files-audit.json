@@ -728,7 +728,7 @@
       "get": {
         "operationId": "readFileText",
         "summary": "Read File Text",
-        "description": "Extract a file's text. Answers `400` for a type no parser supports, naming the raw-bytes download as the escape hatch, and `413` for a file above the extraction ceiling. A generated document is extracted from its compiled artifact rather than its generation source, so one still compiling answers `409` and is worth retrying. **`degraded: true` means text extraction did not fully succeed and the returned text may be incomplete or synthesized from the file's raw bytes. Do not treat it as authoritative content.** The legacy `.doc` and `.ppt` parsers deliberately return best-effort content rather than failing, so this flag — not an error status — is how a partial extraction is reported. `truncated` separately reports that a parser limit stopped extraction early.",
+        "description": "Return a file's text content, parsed out of the stored bytes. This reads the file; it writes nothing — `POST /api/v2/files/{fileId}/unarchive` is the endpoint that unzips an archive into the workspace. Answers `400` for a type no parser supports, naming the raw-bytes download as the escape hatch, and `413` for a file above the extraction ceiling. A generated document is extracted from its compiled artifact rather than its generation source, so one still compiling answers `409` and is worth retrying. **`degraded: true` means text extraction did not fully succeed and the returned text may be incomplete or synthesized from the file's raw bytes. Do not treat it as authoritative content.** The legacy `.doc` and `.ppt` parsers deliberately return best-effort content rather than failing, so this flag — not an error status — is how a partial extraction is reported. `truncated` separately reports that a parser limit stopped extraction early.",
         "tags": ["Files"],
         "parameters": [
           {
@@ -825,7 +825,7 @@
       "get": {
         "operationId": "bulkDownloadFiles",
         "summary": "Bulk Download Files",
-        "description": "Stream a selection of workspace files as one zip. Select files by id and folders by path, each as one comma-separated parameter; a folder expands to all its descendants, and a path matching no folder is rejected rather than ignored. The selection is capped on input and again on the resolved file count and total bytes, so an over-broad selection answers `400` rather than streaming indefinitely. Downloading records an audit event, so it is not a safe read. A `HEAD` skips the effect but is authorized exactly as the `GET` is, so it answers `400`, `401`, `403`, or `404` wherever the `GET` would and an empty `200` otherwise. Skipping the effect means skipping the read that produces the payload, so that `200` carries none of the response headers documented below — it answers whether the `GET` would be allowed, not what the `GET` would return. In particular a `HEAD` does not report `Content-Length`, so it cannot be used to size a download in advance; read the size from the file resource instead.",
+        "description": "Stream a selection of workspace files as one zip. Select files by id and folders by path, each as one comma-separated parameter; a folder expands to all its descendants, and a path matching no folder is rejected rather than ignored. Each parameter accepts at most 100 entries — the same ceiling the resolved selection is held to — and the resolved file count and total bytes are checked again, so an over-broad selection answers `400` rather than streaming indefinitely. Downloading records an audit event, so it is not a safe read. A `HEAD` skips the effect but is authorized exactly as the `GET` is, so it answers `400`, `401`, `403`, or `404` wherever the `GET` would and an empty `200` otherwise. Skipping the effect means skipping the read that produces the payload, so that `200` carries none of the response headers documented below — it answers whether the `GET` would be allowed, not what the `GET` would return. In particular a `HEAD` does not report `Content-Length`, so it cannot be used to size a download in advance; read the size from the file resource instead.",
         "tags": ["Files"],
         "parameters": [
           {
@@ -844,9 +844,9 @@
             "name": "fileIds",
             "in": "query",
             "required": false,
-            "description": "File identifiers to include, comma-separated.",
+            "description": "File identifiers to include, comma-separated. At most 100 entries.",
             "schema": {
-              "description": "File identifiers to include, comma-separated.",
+              "description": "File identifiers to include, comma-separated. At most 100 entries.",
               "type": "string"
             }
           },
@@ -854,9 +854,9 @@
             "name": "folderPaths",
             "in": "query",
             "required": false,
-            "description": "Folder paths to include with all their descendants, comma-separated. A path that matches no folder is rejected rather than ignored.",
+            "description": "Folder paths to include with all their descendants, comma-separated. At most 100 entries, and the files they resolve to count against the same 100-file download ceiling. A path that matches no folder is rejected rather than ignored.",
             "schema": {
-              "description": "Folder paths to include with all their descendants, comma-separated. A path that matches no folder is rejected rather than ignored.",
+              "description": "Folder paths to include with all their descendants, comma-separated. At most 100 entries, and the files they resolve to count against the same 100-file download ceiling. A path that matches no folder is rejected rather than ignored.",
               "type": "string"
             }
           }
@@ -917,11 +917,11 @@
         }
       }
     },
-    "/api/v2/files/{fileId}/extract": {
+    "/api/v2/files/{fileId}/unarchive": {
       "post": {
-        "operationId": "extractFile",
-        "summary": "Extract File Archive",
-        "description": "Unzip a `.zip` archive into a new folder beside it and answer counts plus the destination path. The extracted files are deliberately not returned — a large archive would materialize thousands of objects into one response — so page `GET /api/v2/files?folderPath=...` for the contents. Extraction is slow: an archive near the size ceiling can run for minutes. Only one extraction of a given archive runs at a time; a concurrent attempt answers `409`. Archives past the size ceiling, and extractions that outrun their time budget, answer `413`.",
+        "operationId": "unarchiveFile",
+        "summary": "Unarchive File",
+        "description": "Unzip a `.zip` archive into a new folder beside it and answer counts plus the destination path. This writes new workspace files; it does not read anything out of the archive into the response — `GET /api/v2/files/{fileId}/text` is the endpoint that returns a file's text. The unpacked files are deliberately not returned — a large archive would materialize thousands of objects into one response — so page `GET /api/v2/files?folderPath=...` for the contents. Unzipping is slow: an archive near the size ceiling can run for minutes. Only one unarchive of a given archive runs at a time; a concurrent attempt answers `409`. Archives past the size ceiling, and runs that outrun their time budget, answer `413`.",
         "tags": ["Files"],
         "parameters": [
           {
@@ -944,14 +944,14 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ExtractFileBody"
+                "$ref": "#/components/schemas/UnarchiveFileBody"
               }
             }
           }
         },
         "responses": {
           "200": {
-            "description": "Counts and destination folder for the extracted archive.",
+            "description": "Counts and destination folder for the unpacked archive.",
             "headers": {
               "X-RateLimit-Limit": {
                 "$ref": "#/components/headers/X-RateLimit-Limit"
@@ -966,7 +966,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/FileExtractionResponse"
+                  "$ref": "#/components/schemas/FileUnarchiveResponse"
                 }
               }
             }
@@ -1613,7 +1613,7 @@
         }
       }
     },
-    "/api/v2/audit-logs/{id}": {
+    "/api/v2/audit-logs/{auditLogId}": {
       "get": {
         "operationId": "getAuditLog",
         "summary": "Get Audit Log",
@@ -1621,7 +1621,7 @@
         "tags": ["Audit Logs"],
         "parameters": [
           {
-            "name": "id",
+            "name": "auditLogId",
             "in": "path",
             "required": true,
             "description": "Audit-log entry identifier.",
@@ -3417,13 +3417,13 @@
         "title": "File text response",
         "description": "Text extracted from a workspace file."
       },
-      "V2FileExtraction": {
+      "V2FileUnarchiveResult": {
         "type": "object",
         "properties": {
           "folderPath": {
             "type": "string",
             "title": "Folder path",
-            "description": "Canonical path of the folder the archive was extracted into. May differ from the archive name when a sibling folder already claimed it.",
+            "description": "Canonical path of the folder the archive was unpacked into. May differ from the archive name when a sibling folder already claimed it.",
             "maxLength": 4096
           },
           "extractedFileCount": {
@@ -3441,23 +3441,23 @@
         },
         "required": ["folderPath", "extractedFileCount", "skippedFileCount"],
         "additionalProperties": false,
-        "title": "Archive extraction result",
-        "description": "Outcome of unzipping a workspace archive."
+        "title": "Unarchive result",
+        "description": "Outcome of unzipping a workspace archive into a folder."
       },
-      "FileExtractionResponse": {
+      "FileUnarchiveResponse": {
         "type": "object",
         "properties": {
           "data": {
             "description": "Response data.",
-            "$ref": "#/components/schemas/V2FileExtraction"
+            "$ref": "#/components/schemas/V2FileUnarchiveResult"
           }
         },
         "required": ["data"],
         "additionalProperties": false,
-        "title": "Archive extraction response",
-        "description": "Counts and destination folder for the extracted archive."
+        "title": "Unarchive file response",
+        "description": "Counts and destination folder for the unpacked archive."
       },
-      "ExtractFileBody": {
+      "UnarchiveFileBody": {
         "type": "object",
         "properties": {
           "workspaceId": {
@@ -3469,7 +3469,7 @@
         },
         "required": ["workspaceId"],
         "additionalProperties": false,
-        "title": "Extract archive body",
+        "title": "Unarchive file body",
         "description": "Workspace scope for the archive."
       },
       "V2DeleteFileResult": {

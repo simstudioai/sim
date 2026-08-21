@@ -31,9 +31,9 @@ const FOLDER_DELETE_FLAGS = {
   path: FOLDER_PATH_INPUT,
   recursive: { boolean: true, describe: 'Delete the folder and its descendants' },
 } as const
-const KNOWLEDGE_BASE_PATH_ARGUMENT = { id: 'knowledgeBaseId' } as const
+const KNOWLEDGE_BASE_PATH_ARGUMENT = { knowledgeBaseId: 'knowledgeBaseId' } as const
 const WORKFLOW_RUN_SCOPE = {
-  id: {
+  workflowId: {
     name: 'workflow',
     placeholder: 'workflowId',
     describe: 'Workflow ID',
@@ -177,24 +177,6 @@ export const CLI_CONTRACT: CliContract = {
     // The document batch-update above is not: it only enables or disables.
     confirm: 'This can delete every named chunk and its embedding, and cannot be undone.',
   },
-  // The document-scoped tag-definition writes act on the knowledge base's
-  // vocabulary through a document, so they derive onto `knowledge tags` and
-  // collide with the definition-scoped `update` and `delete`. They belong under
-  // `knowledge documents tags`, which is the path they are actually addressed by.
-  saveKnowledgeDocumentTagDefinitions: {
-    command: 'knowledge documents tags save',
-    describe: 'Declare the tag definitions a document’s tags need',
-    pathArgumentNames: KNOWLEDGE_BASE_PATH_ARGUMENT,
-    flags: {
-      definitions: { json: true, describe: KNOWLEDGE_TAG_DEFINITIONS_HELP },
-    },
-  },
-  deleteKnowledgeDocumentTagDefinitions: {
-    command: 'knowledge documents tags cleanup',
-    describe: 'Remove tag definitions no document still uses',
-    pathArgumentNames: KNOWLEDGE_BASE_PATH_ARGUMENT,
-    confirm: 'This deletes every tag definition no document in the knowledge base still uses.',
-  },
   listKnowledgeConnectorDocuments: {
     command: 'knowledge connectors documents list',
   },
@@ -326,12 +308,6 @@ export const CLI_CONTRACT: CliContract = {
   undeployWorkflowMcpTool: {
     confirm: 'This withdraws the tool, and any agent calling it loses access.',
   },
-  deleteChatDeployment: {
-    confirm: 'This takes the chat deployment offline and its URL stops answering.',
-  },
-  queryLogs: {
-    flags: LOG_LIST_FILTER_FLAGS,
-  },
   duplicateWorkflow: {
     flags: { folderPath: FOLDER_PATH_FLAG },
   },
@@ -381,11 +357,11 @@ export const CLI_CONTRACT: CliContract = {
       targetFolderPath: TARGET_FOLDER_PATH_FLAG,
     },
   },
-  // `tables rows batch-update` is already the filter form (`updateRowsByFilter`,
+  // `PATCH /rows` is already the filter form (`updateRowsByFilter`,
   // one payload applied to every match). This is the AIP-234 batch — a distinct
   // payload per listed row — so it needs a name that says "each", not a second
   // `batch-`/`bulk-` spelling one word apart from its neighbour.
-  batchUpdateTableRows: {
+  bulkUpdateTableRows: {
     command: 'tables rows update-each',
     describe: 'Apply a distinct patch to each listed row',
   },
@@ -775,6 +751,72 @@ export const CLI_CONTRACT: CliContract = {
     flags: { path: FOLDER_PATH_INPUT },
     describe: 'Restore an archived file folder',
   },
+  /**
+   * The restore family mirrors `restoreFile`/`restoreFileFolder` above: a
+   * `restore create` created nothing, and leaving the folder restore to derive
+   * collides with the resource restore on the same leaf.
+   */
+  restoreTable: {
+    command: 'tables restore',
+    renamedFrom: ['tables restore create'],
+    describe: 'Restore an archived table',
+  },
+  restoreTableFolder: {
+    command: 'tables folders restore',
+    positionals: ['path'],
+    flags: { path: FOLDER_PATH_INPUT },
+    describe: 'Restore an archived table folder',
+  },
+  restoreKnowledgeBase: {
+    command: 'knowledge restore',
+    renamedFrom: ['knowledge restore create'],
+    describe: 'Restore an archived knowledge base',
+  },
+  restoreWorkflow: {
+    command: 'workflows restore',
+    renamedFrom: ['workflows restore create'],
+    describe: 'Restore an archived workflow',
+  },
+  cancelTableDispatch: {
+    // `delete` reads as removing a record; this stops a run that is under way.
+    command: 'tables dispatches cancel',
+    describe: 'Cancel a running dispatch',
+    confirm:
+      'This stops the dispatch. Cells already handed to the queue keep running — use `tables cancel-runs` to stop those.',
+  },
+  replaceWorkflowChatDeployment: {
+    command: 'workflows chat publish',
+    describe: 'Publish or replace a workflow’s chat deployment',
+    confirm:
+      'This replaces the chat deployment wholesale. Any field you omit returns to its default, including a stored password or allow-list.',
+  },
+  deleteWorkflowChatDeployment: {
+    command: 'workflows chat unpublish',
+    describe: 'Take a workflow’s chat deployment offline',
+    confirm:
+      'This takes the chat offline and frees its identifier. The workflow itself stays deployed and executable.',
+  },
+  /**
+   * Both write the knowledge base's tag vocabulary, so they sit beside the
+   * per-definition `tags update`/`tags delete` rather than deriving onto them.
+   */
+  bulkSaveKnowledgeTagDefinitions: {
+    command: 'knowledge tags save',
+    renamedFrom: ['knowledge documents tags save'],
+    describe: 'Declare the tag definitions a knowledge base needs',
+    pathArgumentNames: KNOWLEDGE_BASE_PATH_ARGUMENT,
+    flags: {
+      definitions: { json: true, describe: KNOWLEDGE_TAG_DEFINITIONS_HELP },
+    },
+  },
+  deleteKnowledgeTagDefinitions: {
+    command: 'knowledge tags cleanup',
+    renamedFrom: ['knowledge documents tags cleanup'],
+    pathArgumentNames: KNOWLEDGE_BASE_PATH_ARGUMENT,
+    describe: 'Remove tag definitions no document still uses',
+    confirm:
+      'This deletes every tag definition no document still uses. Their slots become free for a different field.',
+  },
   bulkDownloadFiles: {
     command: 'files bulk-download',
     describe: 'Download files and folders as a zip archive',
@@ -931,7 +973,7 @@ export const CLI_CONTRACT: CliContract = {
   },
 
   // ─── The expanded tables surface ──────────────────────────────────────────
-  // `/cancel-runs`, `/rows/find`, `/query/count`, `/columns/run` and the
+  // `/cancel-runs`, `/rows/search`, `/query/count` and the
   // enrichment path all put a verb where the deriver expects a sub-resource, so
   // each became a group holding a lone `create`.
   cancelTableRuns: {
@@ -942,13 +984,14 @@ export const CLI_CONTRACT: CliContract = {
       filter: { json: true, describe: TABLE_FILTER_HELP },
     },
   },
-  findTableRows: {
-    command: 'tables rows find',
-    describe: 'Find rows matching a predicate',
+  searchTableRows: {
+    command: 'tables rows search',
+    renamedFrom: ['tables rows find'],
+    describe: 'Search cells for a value and return their coordinates',
     flags: {
       // `--q` was the wire field spelled out; the same idea is `--query` on
       // `knowledge search`, and one concept should not have two flag names.
-      q: { name: 'query', renamedFrom: ['q'], describe: 'Value to find' },
+      q: { name: 'query', renamedFrom: ['q'], describe: 'Value to search for' },
       predicate: { name: 'filter', json: true, describe: TABLE_FILTER_HELP },
       sort: { json: true, describe: TABLE_SORT_HELP },
     },
@@ -970,9 +1013,10 @@ export const CLI_CONTRACT: CliContract = {
       },
     },
   },
-  runTableColumn: {
-    command: 'tables columns run',
-    describe: 'Run a column’s workflow',
+  createTableDispatch: {
+    command: 'tables dispatches create',
+    renamedFrom: ['tables columns run'],
+    describe: 'Start a column or enrichment run',
     flags: {
       groupIds: { list: true },
       rowIds: { list: true },

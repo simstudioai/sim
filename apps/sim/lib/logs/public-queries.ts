@@ -8,11 +8,12 @@ import {
   workflowExecutionLogs,
   workflowExecutionSnapshots,
 } from '@sim/db/schema'
-import { and, eq, sql } from 'drizzle-orm'
+import { and, type Column, eq, sql } from 'drizzle-orm'
 import {
   type CursorKey,
   decimalKey,
   type KeysetKey,
+  type KeysetPage,
   keysetColumns,
   keysetPage,
   type ListSortOrder,
@@ -27,8 +28,6 @@ import { folderScopeCondition, type LogFolderScope } from '@/lib/logs/folder-sco
 import {
   buildJobLogFilters,
   buildLogFilters,
-  getJobOrderBy,
-  getOrderBy,
   jobLogsSelectable,
   type LogFilters,
 } from '@/lib/logs/public-filters'
@@ -93,14 +92,10 @@ export interface ListPublicWorkflowLogsInput {
 }
 
 /**
- * Reads one page of workflow-execution log rows for the public adapters. Folder
- * path resolution remains an adapter concern; this query takes the resulting ids
- * and applies one coherent root/non-root predicate.
+ * The workflow-log projection, as one query builder so its row type can be
+ * derived without the reader that pages it referring to itself.
  */
-function readWorkflowLogRows(input: ListPublicWorkflowLogsInput) {
-  const filters = input.folderScope ? { ...input.filters, folderIds: undefined } : input.filters
-  const folderCondition = input.folderScope ? folderScopeCondition(input.folderScope) : undefined
-
+function workflowLogQuery(includeExecutionData: boolean) {
   return db
     .select({
       id: workflowExecutionLogs.id,
@@ -116,7 +111,7 @@ function readWorkflowLogRows(input: ListPublicWorkflowLogsInput) {
       totalDurationMs: workflowExecutionLogs.totalDurationMs,
       costTotal: workflowExecutionLogs.costTotal,
       files: workflowExecutionLogs.files,
-      executionData: input.includeExecutionData ? workflowExecutionLogs.executionData : sql`null`,
+      executionData: includeExecutionData ? workflowExecutionLogs.executionData : sql`null`,
       workflowName: workflow.name,
       workflowDescription: workflow.description,
       workflowFolderId: workflow.folderId,
@@ -128,20 +123,17 @@ function readWorkflowLogRows(input: ListPublicWorkflowLogsInput) {
     })
     .from(workflowExecutionLogs)
     .leftJoin(workflow, eq(workflowExecutionLogs.workflowId, workflow.id))
-    .where(and(buildLogFilters(filters), folderCondition))
-    .orderBy(...getOrderBy(input.filters.order))
-    .limit(input.limit + 1)
 }
 
 /**
- * Reads one page of Chat / Sim-agent job-run rows.
+ * The job-run projection.
  *
- * The projection is deliberately narrower than the workflow one: a job run has
- * no workflow, no deployment version, and no attachment list, so those fields
- * are absent from the row rather than reported as null-valued versions of a
- * thing that does not exist.
+ * Deliberately narrower than the workflow one: a job run has no workflow, no
+ * deployment version, and no attachment list, so those fields are absent from
+ * the row rather than reported as null-valued versions of a thing that does not
+ * exist.
  */
-function readJobLogRows(input: ListPublicWorkflowLogsInput) {
+function jobLogQuery() {
   return db
     .select({
       id: jobExecutionLogs.id,
@@ -155,13 +147,10 @@ function readJobLogRows(input: ListPublicWorkflowLogsInput) {
       cost: jobExecutionLogs.cost,
     })
     .from(jobExecutionLogs)
-    .where(buildJobLogFilters(input.filters))
-    .orderBy(...getJobOrderBy(input.filters.order))
-    .limit(input.limit + 1)
 }
 
-export type PublicWorkflowLogListRow = Awaited<ReturnType<typeof readWorkflowLogRows>>[number]
-export type PublicJobLogListRow = Awaited<ReturnType<typeof readJobLogRows>>[number]
+export type PublicWorkflowLogListRow = Awaited<ReturnType<typeof workflowLogQuery>>[number]
+export type PublicJobLogListRow = Awaited<ReturnType<typeof jobLogQuery>>[number]
 
 /**
  * One row of the public log sequence, tagged by which table it came from.
@@ -179,8 +168,12 @@ export type PublicLogListRow =
  * Merges the two branches into the single `(startedAt, id)` ordering both were
  * read under, so the page boundary and its cursor mean the same thing whether or
  * not job runs were included.
+ *
+ * The comparison is at millisecond precision because that is the precision the
+ * keyset orders and compares at — see {@link timestampKey}. Anything finer would
+ * put the merged order out of step with the boundary the cursor names.
  */
-function mergeByKeyset(rows: PublicLogListRow[], order: 'asc' | 'desc'): PublicLogListRow[] {
+function mergeByKeyset(rows: PublicLogListRow[], order: ListSortOrder): PublicLogListRow[] {
   const direction = order === 'asc' ? 1 : -1
   return rows.sort((a, b) => {
     const byTime = a.startedAt.getTime() - b.startedAt.getTime()
@@ -189,68 +182,7 @@ function mergeByKeyset(rows: PublicLogListRow[], order: 'asc' | 'desc'): PublicL
   })
 }
 
-/**
- * Reads the log page shared by the v1 and v2 public adapters, optionally unioned
- * with the workspace's Chat and Sim-agent job runs.
- *
- * Each branch over-fetches one row so the merged set can answer "is there
- * another page" without a count, exactly as the single-table read did.
- *
- * The overloads keep the narrower row type for callers that never opt in — a
- * caller that cannot receive a job run should not have to narrow a union it can
- * never observe.
- */
-export async function listPublicWorkflowLogs(
-  input: ListPublicWorkflowLogsInput & { includeJobRuns?: false }
-): Promise<{
-  data: Array<{ kind: 'workflow' } & PublicWorkflowLogListRow>
-  nextCursor: string | null
-}>
-export async function listPublicWorkflowLogs(
-  input: ListPublicWorkflowLogsInput
-): Promise<{ data: PublicLogListRow[]; nextCursor: string | null }>
-export async function listPublicWorkflowLogs(
-  input: ListPublicWorkflowLogsInput
-): Promise<{ data: PublicLogListRow[]; nextCursor: string | null }> {
-  // `folderScope` is checked separately from `jobLogsSelectable`, which reads
-  // `filters.folderIds`. The public surface never sets that field — its input
-  // type omits it and carries the folder filter in `folderScope` instead — so
-  // gating on the filters alone let a folder-scoped page union in every job run
-  // in the workspace, which is the "one filter means two different things
-  // across the union" answer the guard exists to refuse.
-  const includeJobRuns =
-    Boolean(input.includeJobRuns) && !input.folderScope && jobLogsSelectable(input.filters)
-
-  const [workflowRows, jobRows] = await Promise.all([
-    readWorkflowLogRows(input),
-    includeJobRuns ? readJobLogRows(input) : Promise.resolve([] as PublicJobLogListRow[]),
-  ])
-
-  const order = input.filters.order ?? 'desc'
-  const merged = mergeByKeyset(
-    [
-      ...workflowRows.map((row): PublicLogListRow => ({ kind: 'workflow', ...row })),
-      ...jobRows.map((row): PublicLogListRow => ({ kind: 'job', ...row })),
-    ],
-    order
-  )
-
-  const hasMore = merged.length > input.limit
-  const data = merged.slice(0, input.limit)
-  const last = data.at(-1)
-  const nextCursor =
-    hasMore && last
-      ? encodePublicLogCursor({
-          startedAt: last.startedAt.toISOString(),
-          id: last.id,
-          order,
-        })
-      : null
-
-  return { data, nextCursor }
-}
-
-/** The columns `POST /api/v2/logs/query` can order by. */
+/** The columns `GET /api/v2/logs` can order by. */
 export const PUBLIC_LOG_SORT_FIELDS = ['startedAt', 'durationMs', 'cost', 'status'] as const
 
 export type PublicLogSortField = (typeof PUBLIC_LOG_SORT_FIELDS)[number]
@@ -279,12 +211,6 @@ const UNSETTLED_SORT_VALUE = -1
 const UNSETTLED_COST_VALUE = String(UNSETTLED_SORT_VALUE)
 
 /**
- * The sortable read's row: the list row minus the run's execution data, which
- * that read does not select — it returns the summary projection only.
- */
-export type PublicWorkflowLogQueryRow = Omit<PublicWorkflowLogListRow, 'executionData'>
-
-/**
  * The columns the sortable keyset compares on — every row shape it pages carries
  * these, whether or not it also selects the run's execution data.
  */
@@ -292,6 +218,22 @@ type PublicLogKeysetRow = Pick<
   PublicWorkflowLogListRow,
   'id' | 'status' | 'startedAt' | 'totalDurationMs' | 'costTotal'
 >
+
+/**
+ * The `(startedAt, id)` keyset, over whichever table's columns are given.
+ *
+ * Both log tables are ordered by it, and both spell it identically, so the
+ * merged sequence a unioned page returns resumes from one set of cursor keys.
+ */
+function startedAtKeyset<Row extends { id: string; startedAt: Date }>(
+  startedAtColumn: Column,
+  idColumn: Column
+): KeysetKey<Row>[] {
+  return [
+    timestampKey<Row>(startedAtColumn, (row) => row.startedAt),
+    textKey<Row>(idColumn, (row) => row.id),
+  ]
+}
 
 /**
  * The keyset for one sort field, always ending in `id`.
@@ -324,69 +266,159 @@ function publicLogKeyset<Row extends PublicLogKeysetRow>(
     case 'status':
       return [textKey<Row>(workflowExecutionLogs.status, (row) => row.status), idKey]
     default:
-      return [timestampKey<Row>(workflowExecutionLogs.startedAt, (row) => row.startedAt), idKey]
+      return startedAtKeyset<Row>(workflowExecutionLogs.startedAt, workflowExecutionLogs.id)
   }
 }
 
-export interface QueryPublicWorkflowLogsInput {
+export interface ReadPublicLogPageInput {
   filters: LogFilters
+  limit: number
+  includeExecutionData: boolean
   folderScope?: LogFolderScope
+  includeJobRuns?: boolean
   sortBy: PublicLogSortField
   sortOrder: ListSortOrder
   cursorKeys: CursorKey[] | undefined
-  limit: number
 }
 
-/**
- * The rich-read half of the public log surface: the same filter set as the list,
- * ordered by any of {@link PUBLIC_LOG_SORT_FIELDS} rather than by start time
- * alone.
- *
- * Job runs are deliberately absent. `job_execution_logs` stores cost as a jsonb
- * document and has no comparable persisted status, so ordering the two tables
- * together on those columns would compare values that do not mean the same
- * thing. `GET /api/v2/logs?includeJobRuns=true` is the surface for the union,
- * where the ordering is start time, which both tables record identically.
- */
-export async function queryPublicWorkflowLogs(input: QueryPublicWorkflowLogsInput) {
-  const keys = publicLogKeyset(input.sortBy)
-  const rows = await db
-    .select({
-      id: workflowExecutionLogs.id,
-      workflowId: workflowExecutionLogs.workflowId,
-      workspaceId: workflowExecutionLogs.workspaceId,
-      executionId: workflowExecutionLogs.executionId,
-      deploymentVersionId: workflowExecutionLogs.deploymentVersionId,
-      status: workflowExecutionLogs.status,
-      level: workflowExecutionLogs.level,
-      trigger: workflowExecutionLogs.trigger,
-      startedAt: workflowExecutionLogs.startedAt,
-      endedAt: workflowExecutionLogs.endedAt,
-      totalDurationMs: workflowExecutionLogs.totalDurationMs,
-      costTotal: workflowExecutionLogs.costTotal,
-      files: workflowExecutionLogs.files,
-      workflowName: workflow.name,
-      workflowDescription: workflow.description,
-      workflowFolderId: workflow.folderId,
-      workflowUserId: workflow.userId,
-      workflowWorkspaceId: workflow.workspaceId,
-      workflowCreatedAt: workflow.createdAt,
-      workflowUpdatedAt: workflow.updatedAt,
-      workflowArchivedAt: workflow.archivedAt,
-    })
-    .from(workflowExecutionLogs)
-    .leftJoin(workflow, eq(workflowExecutionLogs.workflowId, workflow.id))
+function readWorkflowLogRows(
+  input: ReadPublicLogPageInput,
+  keys: readonly KeysetKey<PublicWorkflowLogListRow>[]
+) {
+  const filters = input.folderScope ? { ...input.filters, folderIds: undefined } : input.filters
+  const folderCondition = input.folderScope ? folderScopeCondition(input.folderScope) : undefined
+
+  return workflowLogQuery(input.includeExecutionData)
     .where(
       and(
-        buildLogFilters(input.filters),
-        input.folderScope ? folderScopeCondition(input.folderScope) : undefined,
+        buildLogFilters(filters),
+        folderCondition,
         resumeKeyset(keys, input.cursorKeys, input.sortOrder)
       )
     )
     .orderBy(...listOrderBy(keysetColumns(keys), input.sortOrder))
     .limit(input.limit + 1)
+}
 
-  return keysetPage(keys, rows, input.limit)
+function readJobLogRows(
+  input: ReadPublicLogPageInput,
+  keys: readonly KeysetKey<PublicJobLogListRow>[]
+) {
+  return jobLogQuery()
+    .where(
+      and(buildJobLogFilters(input.filters), resumeKeyset(keys, input.cursorKeys, input.sortOrder))
+    )
+    .orderBy(...listOrderBy(keysetColumns(keys), input.sortOrder))
+    .limit(input.limit + 1)
+}
+
+/**
+ * Reads one page of the public log sequence, ordered by any of
+ * {@link PUBLIC_LOG_SORT_FIELDS} and resumed from a shared keyset cursor.
+ *
+ * Job runs join the sequence only under `startedAt`. `job_execution_logs` stores
+ * cost as a jsonb document and records no comparable persisted status, so
+ * ordering the two tables together on those columns would compare values that do
+ * not mean the same thing; the contract refuses the combination at the boundary,
+ * and this guard is the second half of that rule rather than a silent narrowing.
+ *
+ * Each branch over-fetches one row so the merged set can answer "is there
+ * another page" without a count.
+ */
+export async function readPublicLogPage(
+  input: ReadPublicLogPageInput
+): Promise<KeysetPage<PublicLogListRow>> {
+  const keys = publicLogKeyset<PublicWorkflowLogListRow>(input.sortBy)
+
+  // `folderScope` is checked separately from `jobLogsSelectable`, which reads
+  // `filters.folderIds`. The public surface never sets that field — its input
+  // type omits it and carries the folder filter in `folderScope` instead — so
+  // gating on the filters alone let a folder-scoped page union in every job run
+  // in the workspace, which is the "one filter means two different things
+  // across the union" answer the guard exists to refuse.
+  const includeJobRuns =
+    input.sortBy === 'startedAt' &&
+    Boolean(input.includeJobRuns) &&
+    !input.folderScope &&
+    jobLogsSelectable(input.filters)
+
+  const [workflowRows, jobRows] = await Promise.all([
+    readWorkflowLogRows(input, keys),
+    includeJobRuns
+      ? readJobLogRows(
+          input,
+          startedAtKeyset<PublicJobLogListRow>(jobExecutionLogs.startedAt, jobExecutionLogs.id)
+        )
+      : Promise.resolve([] as PublicJobLogListRow[]),
+  ])
+
+  if (!includeJobRuns) {
+    const page = keysetPage(keys, workflowRows, input.limit)
+    return {
+      data: page.data.map((row): PublicLogListRow => ({ kind: 'workflow', ...row })),
+      nextCursorKeys: page.nextCursorKeys,
+    }
+  }
+
+  const merged = mergeByKeyset(
+    [
+      ...workflowRows.map((row): PublicLogListRow => ({ kind: 'workflow', ...row })),
+      ...jobRows.map((row): PublicLogListRow => ({ kind: 'job', ...row })),
+    ],
+    input.sortOrder
+  )
+  return keysetPage(
+    startedAtKeyset<PublicLogListRow>(workflowExecutionLogs.startedAt, workflowExecutionLogs.id),
+    merged,
+    input.limit
+  )
+}
+
+/**
+ * The v1 adapter's log page: {@link readPublicLogPage} ordered by start time,
+ * with the keyset carried by v1's own opaque `(startedAt, id)` token.
+ *
+ * v2 reads {@link readPublicLogPage} directly and carries the keyset in the
+ * shared v2 cursor codec. This wrapper exists so v1's published token keeps its
+ * shape while both surfaces page over one query.
+ *
+ * The overloads keep the narrower row type for callers that never opt in — a
+ * caller that cannot receive a job run should not have to narrow a union it can
+ * never observe.
+ */
+export async function listPublicWorkflowLogs(
+  input: ListPublicWorkflowLogsInput & { includeJobRuns?: false }
+): Promise<{
+  data: Array<{ kind: 'workflow' } & PublicWorkflowLogListRow>
+  nextCursor: string | null
+}>
+export async function listPublicWorkflowLogs(
+  input: ListPublicWorkflowLogsInput
+): Promise<{ data: PublicLogListRow[]; nextCursor: string | null }>
+export async function listPublicWorkflowLogs(
+  input: ListPublicWorkflowLogsInput
+): Promise<{ data: PublicLogListRow[]; nextCursor: string | null }> {
+  const order = input.filters.order ?? 'desc'
+  const { data, nextCursorKeys } = await readPublicLogPage({
+    filters: { ...input.filters, cursor: undefined },
+    limit: input.limit,
+    includeExecutionData: input.includeExecutionData,
+    folderScope: input.folderScope,
+    includeJobRuns: input.includeJobRuns,
+    sortBy: 'startedAt',
+    sortOrder: order,
+    cursorKeys: input.filters.cursor
+      ? [input.filters.cursor.startedAt, input.filters.cursor.id]
+      : undefined,
+  })
+
+  const [startedAt, id] = nextCursorKeys ?? []
+  const nextCursor =
+    typeof startedAt === 'string' && typeof id === 'string'
+      ? encodePublicLogCursor({ startedAt, id, order })
+      : null
+
+  return { data, nextCursor }
 }
 
 export type PublicWorkflowLogLookup =

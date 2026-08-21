@@ -11,7 +11,6 @@ const mocks = vi.hoisted(() => ({
   readSegments: vi.fn(),
   resolveFolderScope: vi.fn(),
   folderCondition: vi.fn(),
-  queryLogs: vi.fn(),
   recordAudit: vi.fn(),
 }))
 
@@ -36,14 +35,9 @@ vi.mock('@/lib/logs/folder-scope', () => ({
   LOG_FOLDER_SCOPE_VERSION: 2,
 }))
 
-vi.mock('@/lib/logs/public-queries', () => ({
-  queryPublicWorkflowLogs: mocks.queryLogs,
-}))
-
 vi.mock('@sim/audit', () => ({ recordAudit: mocks.recordAudit }))
 
 import { getLogStats } from '@/lib/logs/application/get-log-stats'
-import { queryPublicLogs } from '@/lib/logs/application/query-public-logs'
 
 const workspaceContext = {
   workspaceId: 'workspace-1',
@@ -192,73 +186,5 @@ describe('getLogStats', () => {
         input: { workspaceId: 'workspace-1', filters: {}, segmentCount: 2 },
       })
     ).rejects.toBe(failure)
-  })
-})
-
-describe('queryPublicLogs', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    mocks.loadWorkspace.mockResolvedValue(workspaceContext)
-    mocks.resolvePermission.mockResolvedValue('read')
-    mocks.queryLogs.mockResolvedValue({ data: [{ id: 'log-1' }], nextCursorKeys: null })
-    mocks.resolveFolderScope.mockResolvedValue({ includesRoot: false, folderIds: ['folder-1'] })
-  })
-
-  const input = {
-    workspaceId: 'workspace-1',
-    filters: {},
-    sortBy: 'cost' as const,
-    sortOrder: 'desc' as const,
-    cursorKeys: undefined,
-    limit: 50,
-  }
-
-  it('rejects a principal kind the operation does not accept before reading anything', async () => {
-    await expect(
-      queryPublicLogs.execute({ principal: sessionPrincipal, input })
-    ).rejects.toMatchObject({ code: 'forbidden' })
-
-    expect(mocks.queryLogs).not.toHaveBeenCalled()
-  })
-
-  it('conceals a workspace that does not resolve', async () => {
-    mocks.loadWorkspace.mockResolvedValueOnce(null)
-
-    await expect(
-      queryPublicLogs.execute({ principal: workspacePrincipal, input })
-    ).rejects.toMatchObject({ code: 'not_found' })
-  })
-
-  it('reads under the canonical workspace, not the asserted one', async () => {
-    await queryPublicLogs.execute({ principal: workspacePrincipal, input })
-
-    expect(mocks.queryLogs).toHaveBeenCalledWith(
-      expect.objectContaining({
-        filters: { workspaceId: 'workspace-1' },
-        sortBy: 'cost',
-        sortOrder: 'desc',
-        limit: 50,
-      })
-    )
-  })
-
-  it('expands a folder filter only after authorization', async () => {
-    await queryPublicLogs.execute({
-      principal: workspacePrincipal,
-      input: { ...input, folderPaths: ['/prod'] },
-    })
-
-    expect(mocks.resolveFolderScope).toHaveBeenCalledWith('workspace-1', ['/prod'])
-    expect(mocks.queryLogs).toHaveBeenCalledWith(
-      expect.objectContaining({ folderScope: { includesRoot: false, folderIds: ['folder-1'] } })
-    )
-  })
-
-  it('returns the keyset the next page resumes from', async () => {
-    mocks.queryLogs.mockResolvedValueOnce({ data: [], nextCursorKeys: ['0.41', 'log-1'] })
-
-    const result = await queryPublicLogs.execute({ principal: workspacePrincipal, input })
-
-    expect(result.nextCursorKeys).toEqual(['0.41', 'log-1'])
   })
 })

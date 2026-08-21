@@ -1,3 +1,4 @@
+import type { CursorKey, ListSortOrder } from '@/lib/api/list-query'
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { MATERIALIZE_CONCURRENCY, mapWithConcurrency } from '@/lib/core/utils/concurrency'
@@ -5,13 +6,20 @@ import { logOperations } from '@/lib/logs/application/operations'
 import { materializeExecutionDataForDisplay } from '@/lib/logs/execution/trace-store'
 import { resolveLogFolderScope } from '@/lib/logs/folder-scope'
 import type { LogFilters } from '@/lib/logs/public-filters'
-import { listPublicWorkflowLogs, type PublicLogListRow } from '@/lib/logs/public-queries'
+import {
+  type PublicLogListRow,
+  type PublicLogSortField,
+  readPublicLogPage,
+} from '@/lib/logs/public-queries'
 import { loadActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
 
 export interface ListPublicLogsInput {
   workspaceId: string
-  filters: Omit<LogFilters, 'workspaceId' | 'folderIds'>
+  filters: Omit<LogFilters, 'workspaceId' | 'folderIds' | 'cursor' | 'order'>
   folderPaths?: string[]
+  sortBy: PublicLogSortField
+  sortOrder: ListSortOrder
+  cursorKeys: CursorKey[] | undefined
   limit: number
   includeFullDetails: boolean
   includeFinalOutput: boolean
@@ -26,7 +34,7 @@ export interface PublicLogApplicationItem {
 
 export interface ListPublicLogsResult {
   items: PublicLogApplicationItem[]
-  nextCursor: string | null
+  nextCursorKeys: CursorKey[] | null
   includeFullDetails: boolean
   includeFinalOutput: boolean
   includeTraceSpans: boolean
@@ -46,12 +54,15 @@ export const listPublicLogs = defineAuthorizedWorkspaceUseCase({
       : undefined
 
     const needsMaterialization = input.includeFinalOutput || input.includeTraceSpans
-    const { data, nextCursor } = await listPublicWorkflowLogs({
+    const { data, nextCursorKeys } = await readPublicLogPage({
       filters: { ...input.filters, workspaceId: context.workspaceId },
       limit: input.limit,
       includeExecutionData: needsMaterialization,
       folderScope,
       includeJobRuns: input.includeJobRuns,
+      sortBy: input.sortBy,
+      sortOrder: input.sortOrder,
+      cursorKeys: input.cursorKeys,
     })
 
     const userId = principal.kind === 'personal_api_key' ? principal.userId : undefined
@@ -82,7 +93,7 @@ export const listPublicLogs = defineAuthorizedWorkspaceUseCase({
 
     return {
       items,
-      nextCursor,
+      nextCursorKeys,
       includeFullDetails: input.includeFullDetails,
       includeFinalOutput: input.includeFinalOutput,
       includeTraceSpans: input.includeTraceSpans,

@@ -46,7 +46,7 @@ const v2KnowledgeChunkTagValueSchema = z
  * copies of the document's, so the display-name map is already available one
  * level up, and projecting slots here keeps the shape stable when a definition
  * is renamed mid-page. Resolve slots to names with
- * `GET /api/v2/knowledge/{id}/tags`.
+ * `GET /api/v2/knowledge/{knowledgeBaseId}/tags`.
  */
 export const v2KnowledgeChunkSchema = z
   .object({
@@ -107,8 +107,10 @@ export const v2KnowledgeChunkSchema = z
   })
 export type V2KnowledgeChunk = z.output<typeof v2KnowledgeChunkSchema>
 
-export const v2KnowledgeChunkParamsSchema = knowledgeChunkParamsSchema.extend({
-  id: knowledgeChunkParamsSchema.shape.id.describe('Unique knowledge base identifier.'),
+export const v2KnowledgeChunkParamsSchema = knowledgeChunkParamsSchema.omit({ id: true }).extend({
+  knowledgeBaseId: knowledgeChunkParamsSchema.shape.id.describe(
+    'Unique knowledge base identifier.'
+  ),
   documentId: knowledgeChunkParamsSchema.shape.documentId.describe(
     'Unique knowledge document identifier.'
   ),
@@ -232,7 +234,7 @@ export const v2BulkKnowledgeChunksDataSchema = z
 
 export const v2ListKnowledgeChunksContract = defineRouteContract({
   method: 'GET',
-  path: '/api/v2/knowledge/[id]/documents/[documentId]/chunks',
+  path: '/api/v2/knowledge/[knowledgeBaseId]/documents/[documentId]/chunks',
   params: v2KnowledgeDocumentParamsSchema,
   query: v2ListKnowledgeChunksQuerySchema,
   response: {
@@ -243,7 +245,7 @@ export const v2ListKnowledgeChunksContract = defineRouteContract({
 
 export const v2CreateKnowledgeChunkContract = defineRouteContract({
   method: 'POST',
-  path: '/api/v2/knowledge/[id]/documents/[documentId]/chunks',
+  path: '/api/v2/knowledge/[knowledgeBaseId]/documents/[documentId]/chunks',
   query: noInputSchema,
   params: v2KnowledgeDocumentParamsSchema,
   body: v2CreateKnowledgeChunkBodySchema,
@@ -256,7 +258,7 @@ export const v2CreateKnowledgeChunkContract = defineRouteContract({
 
 export const v2BulkUpdateKnowledgeChunksContract = defineRouteContract({
   method: 'PATCH',
-  path: '/api/v2/knowledge/[id]/documents/[documentId]/chunks',
+  path: '/api/v2/knowledge/[knowledgeBaseId]/documents/[documentId]/chunks',
   query: noInputSchema,
   params: v2KnowledgeDocumentParamsSchema,
   body: v2BulkKnowledgeChunksBodySchema,
@@ -268,7 +270,7 @@ export const v2BulkUpdateKnowledgeChunksContract = defineRouteContract({
 
 export const v2GetKnowledgeChunkContract = defineRouteContract({
   method: 'GET',
-  path: '/api/v2/knowledge/[id]/documents/[documentId]/chunks/[chunkId]',
+  path: '/api/v2/knowledge/[knowledgeBaseId]/documents/[documentId]/chunks/[chunkId]',
   params: v2KnowledgeChunkParamsSchema,
   query: z
     .object({
@@ -283,7 +285,7 @@ export const v2GetKnowledgeChunkContract = defineRouteContract({
 
 export const v2UpdateKnowledgeChunkContract = defineRouteContract({
   method: 'PATCH',
-  path: '/api/v2/knowledge/[id]/documents/[documentId]/chunks/[chunkId]',
+  path: '/api/v2/knowledge/[knowledgeBaseId]/documents/[documentId]/chunks/[chunkId]',
   query: noInputSchema,
   params: v2KnowledgeChunkParamsSchema,
   body: v2UpdateKnowledgeChunkBodySchema,
@@ -295,7 +297,7 @@ export const v2UpdateKnowledgeChunkContract = defineRouteContract({
 
 export const v2DeleteKnowledgeChunkContract = defineRouteContract({
   method: 'DELETE',
-  path: '/api/v2/knowledge/[id]/documents/[documentId]/chunks/[chunkId]',
+  path: '/api/v2/knowledge/[knowledgeBaseId]/documents/[documentId]/chunks/[chunkId]',
   params: v2KnowledgeChunkParamsSchema,
   query: z
     .object({

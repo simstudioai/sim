@@ -3,7 +3,6 @@ import { chatAuthTypeSchema, chatDeploymentPasswordSchema } from '@/lib/api/cont
 import {
   booleanQueryFlagSchema,
   noInputSchema,
-  nonEmptyIdSchema,
   workflowIdSchema,
   workspaceIdSchema,
 } from '@/lib/api/contracts/primitives'
@@ -14,6 +13,7 @@ import {
   v2PaginationFields,
   v2SortFields,
 } from '@/lib/api/contracts/v2/shared'
+import { v2WorkflowIdParamsSchema } from '@/lib/api/contracts/v2/workflows'
 
 /**
  * v2 chat-deployment contracts.
@@ -25,46 +25,24 @@ import {
  *    proxy routes deployed chats purely by the `/chat/` path, so a deployment is
  *    identified by `identifier` and reachable at `url`. Nothing here publishes a
  *    host a caller could point DNS at.
- * 2. **A password is never readable back.** `password` is write-only on both
- *    bodies; reads carry `hasPassword` and nothing else. Publishing a decrypt on
- *    an API-key surface would turn a stored secret into a fetchable one, so the
- *    existing session-only reveal endpoint deliberately has no v2 counterpart.
+ * 2. **A password is never readable back.** `password` is write-only; reads
+ *    carry `hasPassword` and nothing else. Publishing a decrypt on an API-key
+ *    surface would turn a stored secret into a fetchable one, so the existing
+ *    session-only reveal endpoint deliberately has no v2 counterpart.
+ * 3. **It is a singleton of its workflow, not a resource with its own id.** A
+ *    chat is strictly 1:1 with the workflow it publishes — `workflowId` is
+ *    `NOT NULL`, cascades, and cannot be re-pointed — so the workflow already
+ *    addresses the chat uniquely and it lives at
+ *    `/api/v2/workflows/{workflowId}/deployments/chat`. A singleton has no separate
+ *    create verb, so `PUT` is create-or-replace and is the only write. The
+ *    deployment's `id` is still published, because audit records and the
+ *    internal editor name it, but no v2 path takes one.
  */
 
 export const V2_CHAT_DEPLOYMENT_TITLE_MAX = 200
 export const V2_CHAT_DEPLOYMENT_DESCRIPTION_MAX = 2000
 export const V2_CHAT_DEPLOYMENT_ALLOWED_EMAILS_MAX = 500
 export const V2_CHAT_DEPLOYMENT_OUTPUT_CONFIGS_MAX = 100
-
-export const v2ChatDeploymentIdParamsSchema = z
-  .object({
-    chatDeploymentId: nonEmptyIdSchema.describe('Unique chat deployment identifier.'),
-  })
-  .meta({
-    id: 'ChatDeploymentParams',
-    title: 'Chat deployment path parameters',
-    description: 'Chat deployment selected by the request path.',
-  })
-export type V2ChatDeploymentParams = z.output<typeof v2ChatDeploymentIdParamsSchema>
-
-/**
- * The workspace the caller asserts the deployment belongs to.
- *
- * Required, like every other v2 resource-detail route: the assertion is what
- * lets a deployment in a workspace the caller did not name be concealed as a
- * `404` rather than authorized on the strength of the id alone.
- */
-export const v2ChatDeploymentScopeQuerySchema = z
-  .object({
-    workspaceId: workspaceIdSchema.describe('Workspace that owns the chat deployment.'),
-  })
-  .strict()
-  .meta({
-    id: 'ChatDeploymentScopeQuery',
-    title: 'Chat deployment scope query',
-    description: 'Workspace the chat deployment is asserted to belong to.',
-  })
-export type V2ChatDeploymentScopeQuery = z.output<typeof v2ChatDeploymentScopeQuerySchema>
 
 /**
  * Strict on the nested object, not only on the body: `.strict()` binds one
@@ -237,10 +215,10 @@ export type V2ChatDeployment = z.output<typeof v2ChatDeploymentSchema>
  * API key — can call. `customizations` follows them because it is deployment
  * configuration rather than something a caller needs to find a deployment.
  *
- * They stay available on `GET /api/v2/chat-deployments/{id}`, which is gated at
- * workspace `admin`. Narrowing the projection is what lets the list stay a
- * `read` operation, and reachable by a workspace key, without the detail read's
- * gate being routable around.
+ * They stay available on `GET /api/v2/workflows/{workflowId}/deployments/chat`, which is
+ * gated at workspace `admin`. Narrowing the projection is what lets the list stay
+ * a `read` operation, and reachable by a workspace key, without the singleton
+ * read's gate being routable around.
  */
 const V2_CHAT_DEPLOYMENT_GATED_FIELDS = {
   allowedEmails: true,
@@ -303,15 +281,20 @@ const chatOutputConfigsSchema = z
   )
 
 /**
- * Creating a chat deployment also deploys the workflow it publishes, because a
- * chat serves the live version. A workflow already carrying a live deployment is
- * republished only when its draft has drifted.
+ * The full representation of a workflow's chat.
+ *
+ * `PUT` is create-or-replace, so this is the whole resource rather than a set of
+ * changes: the deployment ends up as exactly what this body describes, and an
+ * omitted optional field takes its platform default rather than whatever the
+ * previous deployment carried. There is no `workflowId` — the path names it, and
+ * a deployment is bound to its workflow for its whole life.
+ *
+ * Replacing also deploys the workflow, because a chat serves the live version.
  */
-export const v2CreateChatDeploymentBodySchema = z
+export const v2ReplaceChatDeploymentBodySchema = z
   .object({
-    workflowId: workflowIdSchema.describe('Workflow to publish as a chat.'),
     identifier: chatIdentifierSchema.describe(
-      'URL slug the deployed chat will answer on. Must be free across live deployments.'
+      'URL slug the deployed chat answers on. Must be free across live deployments.'
     ),
     title: z
       .string()
@@ -328,7 +311,7 @@ export const v2CreateChatDeploymentBodySchema = z
         `description must be at most ${V2_CHAT_DEPLOYMENT_DESCRIPTION_MAX} characters`
       )
       .optional()
-      .describe('Description shown to visitors.'),
+      .describe('Description shown to visitors. Omitted clears it.'),
     customizations: v2ChatDeploymentCustomizationsSchema
       .optional()
       .describe('Presentation overrides. Omitted fields take platform defaults.'),
@@ -336,12 +319,20 @@ export const v2CreateChatDeploymentBodySchema = z
       .optional()
       .describe('How visitors are gated. `public` leaves the chat open to anyone holding the URL.')
       .meta({ default: 'public' }),
-    /** Write-only. Reads expose `hasPassword` instead. */
+    /**
+     * Write-only, and required rather than carried over.
+     *
+     * Reads publish `hasPassword` and never the password, so a caller cannot read
+     * one back to re-send it. Carrying the stored password over implicitly would
+     * be the one place a replace quietly stopped meaning replace, and it would
+     * make the verb non-idempotent from the caller's point of view — so a
+     * password-gated result must state its password every time.
+     */
     password: chatDeploymentPasswordSchema
       .min(1, 'password cannot be empty')
       .optional()
       .describe(
-        'Write-only password, required when `authType` is `password`. Never readable back.'
+        'Write-only password. Required whenever `authType` is `password`, and rejected otherwise. Never readable back.'
       ),
     allowedEmails: chatAllowedEmailsSchema
       .optional()
@@ -350,7 +341,7 @@ export const v2CreateChatDeploymentBodySchema = z
       ),
     outputConfigs: chatOutputConfigsSchema
       .optional()
-      .describe('Block outputs to surface to visitors.'),
+      .describe('Block outputs to surface to visitors. Omitted surfaces none.'),
     includeThinking: z
       .boolean()
       .optional()
@@ -363,88 +354,50 @@ export const v2CreateChatDeploymentBodySchema = z
       .meta({ default: false }),
   })
   .strict()
-  .meta({
-    id: 'CreateChatDeploymentRequest',
-    title: 'Create chat deployment request',
-    description: 'A workflow to publish as a chat and how visitors reach it.',
-    examples: [
-      {
-        workflowId: '3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36',
-        identifier: 'support',
-        title: 'Support chat',
-      },
-    ],
-  })
-export type V2CreateChatDeploymentBody = z.input<typeof v2CreateChatDeploymentBodySchema>
-
-/**
- * Merge-patch shaped: an omitted key is unchanged. `workflowId` is absent by
- * design — a deployment is bound to its workflow for its whole life, and
- * re-pointing one is a new deployment.
- */
-export const v2UpdateChatDeploymentBodySchema = z
-  .object({
-    identifier: chatIdentifierSchema.optional().describe('New URL slug for the deployed chat.'),
-    title: z
-      .string()
-      .min(1, 'title cannot be empty')
-      .max(
-        V2_CHAT_DEPLOYMENT_TITLE_MAX,
-        `title must be at most ${V2_CHAT_DEPLOYMENT_TITLE_MAX} characters`
-      )
-      .optional()
-      .describe('New title shown to visitors.'),
-    description: z
-      .string()
-      .max(
-        V2_CHAT_DEPLOYMENT_DESCRIPTION_MAX,
-        `description must be at most ${V2_CHAT_DEPLOYMENT_DESCRIPTION_MAX} characters`
-      )
-      .optional()
-      .describe('New description shown to visitors.'),
-    customizations: v2ChatDeploymentCustomizationsSchema
-      .optional()
-      .describe('Replacement presentation overrides. Replaced wholesale, not merged.'),
-    authType: chatAuthTypeSchema
-      .optional()
-      .describe(
-        'New visitor gate. Switching modes clears the gate the previous mode owned: a stored password is dropped when moving to `email` or `sso`, and the allow-list is cleared when moving to `password` or `public` unless the same request supplies a replacement `allowedEmails`, which is applied after the clear.'
-      ),
-    password: chatDeploymentPasswordSchema
-      .min(1, 'password cannot be empty')
-      .optional()
-      .describe(
-        'Write-only replacement password. Ignored unless the deployment ends up `password`-gated. Omit to keep the stored one.'
-      ),
-    allowedEmails: chatAllowedEmailsSchema
-      .optional()
-      .describe('Replacement allow-list for `email` and `sso` gating. Replaced wholesale.'),
-    outputConfigs: chatOutputConfigsSchema
-      .optional()
-      .describe('Replacement block outputs. Replaced wholesale.'),
-    includeThinking: z.boolean().optional().describe('Allow visitors to receive thinking events.'),
-    includeToolCalls: z
-      .boolean()
-      .optional()
-      .describe('Allow visitors to receive tool lifecycle events.'),
-  })
-  .strict()
   .superRefine((body, ctx) => {
-    if (Object.values(body).every((value) => value === undefined)) {
+    const authType = body.authType ?? 'public'
+    /**
+     * Each mode owns exactly one gate column, so a body naming the wrong one is
+     * refused rather than silently dropped. Under merge-patch semantics a stray
+     * `password` was ignorable; under replace it would read as configuration the
+     * caller believes is stored.
+     */
+    if (authType === 'password' && !body.password) {
       ctx.addIssue({
         code: 'custom',
-        path: ['title'],
-        message: 'At least one field must be provided',
+        path: ['password'],
+        message: 'password is required when authType is "password"',
+      })
+    }
+    if (authType !== 'password' && body.password !== undefined) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['password'],
+        message: `password cannot be set when authType is "${authType}"; only "password" gating stores one`,
+      })
+    }
+    if ((authType === 'email' || authType === 'sso') && (body.allowedEmails ?? []).length === 0) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['allowedEmails'],
+        message: `allowedEmails must contain at least one email or domain when authType is "${authType}"`,
+      })
+    }
+    if (authType !== 'email' && authType !== 'sso' && (body.allowedEmails ?? []).length > 0) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['allowedEmails'],
+        message: `allowedEmails cannot be set when authType is "${authType}"; only "email" and "sso" gating admit an allow-list`,
       })
     }
   })
   .meta({
-    id: 'UpdateChatDeploymentRequest',
-    title: 'Update chat deployment request',
-    description: 'Merge-patch body for a chat deployment.',
-    examples: [{ title: 'Support chat', authType: 'public' }],
+    id: 'ReplaceChatDeploymentRequest',
+    title: 'Replace chat deployment request',
+    description: "The complete desired state of a workflow's chat.",
+    examples: [{ identifier: 'support', title: 'Support chat' }],
   })
-export type V2UpdateChatDeploymentBody = z.input<typeof v2UpdateChatDeploymentBodySchema>
+export type V2ReplaceChatDeploymentBody = z.input<typeof v2ReplaceChatDeploymentBodySchema>
 
 export const v2DeleteChatDeploymentDataSchema = z
   .object({
@@ -458,6 +411,13 @@ export const v2DeleteChatDeploymentDataSchema = z
   })
 export type V2DeleteChatDeploymentData = z.output<typeof v2DeleteChatDeploymentDataSchema>
 
+/**
+ * The cross-parent discovery collection.
+ *
+ * Every write addresses one workflow's chat, but "what does this workspace
+ * serve" is a question no per-workflow path can answer, so the list stays
+ * workspace-scoped and keeps its own cursor binding.
+ */
 export const v2ListChatDeploymentsContract = defineRouteContract({
   method: 'GET',
   path: '/api/v2/chat-deployments',
@@ -468,45 +428,34 @@ export const v2ListChatDeploymentsContract = defineRouteContract({
   },
 })
 
-export const v2CreateChatDeploymentContract = defineRouteContract({
-  method: 'POST',
-  path: '/api/v2/chat-deployments',
-  query: noInputSchema,
-  body: v2CreateChatDeploymentBodySchema,
-  response: {
-    mode: 'json',
-    schema: v2DataResponse(v2ChatDeploymentSchema),
-  },
-})
-
-export const v2GetChatDeploymentContract = defineRouteContract({
+export const v2GetWorkflowChatDeploymentContract = defineRouteContract({
   method: 'GET',
-  path: '/api/v2/chat-deployments/[chatDeploymentId]',
-  query: v2ChatDeploymentScopeQuerySchema,
-  params: v2ChatDeploymentIdParamsSchema,
+  path: '/api/v2/workflows/[workflowId]/deployments/chat',
+  query: noInputSchema,
+  params: v2WorkflowIdParamsSchema,
   response: {
     mode: 'json',
     schema: v2DataResponse(v2ChatDeploymentSchema),
   },
 })
 
-export const v2UpdateChatDeploymentContract = defineRouteContract({
-  method: 'PATCH',
-  path: '/api/v2/chat-deployments/[chatDeploymentId]',
-  query: v2ChatDeploymentScopeQuerySchema,
-  params: v2ChatDeploymentIdParamsSchema,
-  body: v2UpdateChatDeploymentBodySchema,
+export const v2ReplaceWorkflowChatDeploymentContract = defineRouteContract({
+  method: 'PUT',
+  path: '/api/v2/workflows/[workflowId]/deployments/chat',
+  query: noInputSchema,
+  params: v2WorkflowIdParamsSchema,
+  body: v2ReplaceChatDeploymentBodySchema,
   response: {
     mode: 'json',
     schema: v2DataResponse(v2ChatDeploymentSchema),
   },
 })
 
-export const v2DeleteChatDeploymentContract = defineRouteContract({
+export const v2DeleteWorkflowChatDeploymentContract = defineRouteContract({
   method: 'DELETE',
-  path: '/api/v2/chat-deployments/[chatDeploymentId]',
-  query: v2ChatDeploymentScopeQuerySchema,
-  params: v2ChatDeploymentIdParamsSchema,
+  path: '/api/v2/workflows/[workflowId]/deployments/chat',
+  query: noInputSchema,
+  params: v2WorkflowIdParamsSchema,
   response: {
     mode: 'json',
     schema: v2DataResponse(v2DeleteChatDeploymentDataSchema),

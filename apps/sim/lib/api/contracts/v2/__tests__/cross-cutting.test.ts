@@ -146,7 +146,7 @@ describe('tables nested strictness', () => {
  * parameter got a 200 for a request the server never honoured — and on
  * `POST /knowledge/search` the stripped keys were the ones that decide how many
  * search units the call is billed. The strictness was already there on
- * `GET /knowledge/{id}/tags`, which is what made the divergence visible:
+ * `GET /knowledge/{knowledgeBaseId}/tags`, which is what made the divergence visible:
  * `?foo=1` was a 400 on that one route and a 200 on its siblings.
  *
  * Only `query` and `body` are swept. `params` are produced by the router from
@@ -186,10 +186,12 @@ describe('knowledge and files request-slice strictness', () => {
    * 63 → 87 with the knowledge chunk, tag-write, archive, restore, and
    * workspace-file-ingest operations, and 87 → 95 with the file upload-session
    * read, archive extraction, file-text read, folder restore, bulk zip
-   * download, and permanent delete.
+   * download, and permanent delete. It falls when two routes become one: 106 →
+   * 105 when the archived knowledge-base list folded into `GET /knowledge` as
+   * `scope=archived`.
    */
   it('sweeps every documented query and body slice', () => {
-    expect(slices.length).toBe(106)
+    expect(slices.length).toBe(105)
   })
 
   it.each(slices)('%s rejects an undeclared key', (_name, schema) => {

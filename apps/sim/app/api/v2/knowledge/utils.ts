@@ -1,5 +1,4 @@
 import type {
-  V2ArchivedKnowledgeBase,
   V2KnowledgeBase,
   V2KnowledgeDocumentSummary,
   V2KnowledgeTag,
@@ -120,11 +119,17 @@ interface KnowledgeBaseWithFolder {
   folderPath: string
 }
 
-/** Everything both knowledge-base projections share; only `folderPath` differs. */
-function serializeV2KnowledgeBaseCore(
+/**
+ * Public knowledge-base projection.
+ *
+ * `deletedAt` is null for an active knowledge base and the archive instant for one
+ * `GET /knowledge?scope=archived` returned, so one projection serves both scopes.
+ */
+function serializeV2KnowledgeBase(
   knowledgeBase: KnowledgeBaseWithCounts,
+  folderPath: string,
   ownerEmail: string
-): Omit<V2KnowledgeBase, 'folderPath'> {
+): V2KnowledgeBase {
   return {
     id: knowledgeBase.id,
     name: knowledgeBase.name,
@@ -151,33 +156,8 @@ function serializeV2KnowledgeBaseCore(
     connectorTypes: knowledgeBase.connectorTypes,
     createdAt: knowledgeBase.createdAt.toISOString(),
     updatedAt: knowledgeBase.updatedAt.toISOString(),
-  }
-}
-
-function serializeV2KnowledgeBase(
-  knowledgeBase: KnowledgeBaseWithCounts,
-  folderPath: string,
-  ownerEmail: string
-): V2KnowledgeBase {
-  return { ...serializeV2KnowledgeBaseCore(knowledgeBase, ownerEmail), folderPath }
-}
-
-/**
- * Serializes an archived knowledge base. `deletedAt` is what makes the row
- * archived, so a null one means the reader was handed an active base and the
- * caller would otherwise receive a response the contract rejects — a producer
- * bug, not a caller-reachable failure.
- */
-function serializeV2ArchivedKnowledgeBase(
-  knowledgeBase: KnowledgeBaseWithCounts,
-  ownerEmail: string
-): V2ArchivedKnowledgeBase {
-  if (!knowledgeBase.deletedAt) {
-    throw new Error(`Knowledge base ${knowledgeBase.id} is not archived`)
-  }
-  return {
-    ...serializeV2KnowledgeBaseCore(knowledgeBase, ownerEmail),
-    deletedAt: knowledgeBase.deletedAt.toISOString(),
+    folderPath,
+    deletedAt: knowledgeBase.deletedAt?.toISOString() ?? null,
   }
 }
 
@@ -207,16 +187,6 @@ export async function toV2KnowledgeBases(
       folderPath,
       requireResolvedUserEmail(emailByUserId, knowledgeBase.userId)
     )
-  )
-}
-
-/** Batch-resolves owner emails before serializing an archived knowledge-base list. */
-export async function toV2ArchivedKnowledgeBases(
-  knowledgeBases: readonly KnowledgeBaseWithCounts[]
-): Promise<V2ArchivedKnowledgeBase[]> {
-  const emailByUserId = await getUserEmailsByIds(knowledgeBases.map((base) => base.userId))
-  return knowledgeBases.map((base) =>
-    serializeV2ArchivedKnowledgeBase(base, requireResolvedUserEmail(emailByUserId, base.userId))
   )
 }
 

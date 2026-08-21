@@ -18,13 +18,15 @@ import {
 import {
   v2AddTableColumnContract,
   v2AddWorkflowGroupContract,
-  v2BatchUpdateTableRowsContract,
   v2BulkDeleteTablesContract,
+  v2BulkUpdateTableRowsContract,
+  v2CancelTableDispatchContract,
   v2CancelTableExportContract,
   v2CancelTableImportContract,
   v2CancelTableRunsContract,
   v2CompleteTableImportContract,
   v2CreateTableContract,
+  v2CreateTableDispatchContract,
   v2CreateTableExportContract,
   v2CreateTableFolderContract,
   v2CreateTableImportContract,
@@ -38,7 +40,6 @@ import {
   v2DeleteTableRowsContract,
   v2DeleteTableViewContract,
   v2DeleteWorkflowGroupContract,
-  v2FindTableRowsContract,
   v2GetRowEnrichmentContract,
   v2GetTableContract,
   v2GetTableDispatchContract,
@@ -57,8 +58,9 @@ import {
   v2QueryRowsCountContract,
   v2RelocateTableFolderContract,
   v2RestoreTableContract,
+  v2RestoreTableFolderContract,
   v2RunRowEnrichmentContract,
-  v2RunTableColumnContract,
+  v2SearchTableRowsContract,
   v2TableExportDownloadContract,
   v2UpdateRowsByFilterContract,
   v2UpdateTableColumnContract,
@@ -74,6 +76,7 @@ import {
   type OpenApiOperationMetadata,
   type OpenApiSuccessMetadata,
 } from '@/lib/api/openapi/types'
+import { TABLE_LIMITS } from '@/lib/table/constants'
 
 const WORKSPACE_ID = 'a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64'
 const TABLE_ID = 'tbl_7c9e6679742540de944be07fc1f90ae7'
@@ -1043,34 +1046,34 @@ const declaredRoutes = [
     }
   ),
   defineOpenApiRoute(
-    v2RunTableColumnContract,
+    v2CreateTableDispatchContract,
     tableOperation({
-      operationId: 'runTableColumns',
-      summary: 'Run Column Groups',
+      operationId: 'createTableDispatch',
+      summary: 'Create Run Dispatch',
       description:
-        'Asynchronously run workflow or enrichment groups across all rows or a selected row subset. Poll the returned `dispatchId` with `GET /api/v2/tables/dispatches/{dispatchId}` until its status is `complete` or `cancelled`. A `null` `dispatchId` means the run settled inline and there is nothing to poll.',
+        'Asynchronously run workflow or enrichment groups across all rows or a selected row subset. Poll the returned `dispatchId` with `GET /api/v2/tables/{tableId}/dispatches/{dispatchId}` until its status is `complete` or `cancelled`, and cancel it with `DELETE` on the same path. A `null` `dispatchId` means the run settled inline and there is nothing to poll.',
       errors: RESOURCE_ERRORS,
-      success: { description: 'The accepted table-column dispatch.' },
+      success: { description: 'The accepted run dispatch.' },
     }),
     {
-      query: v2RunTableColumnContract.query,
+      query: v2CreateTableDispatchContract.query,
       params: documentedSchema(
-        v2RunTableColumnContract.params,
-        'RunTableColumnsParams',
-        'Run table columns path parameters',
+        v2CreateTableDispatchContract.params,
+        'CreateTableDispatchParams',
+        'Create table dispatch path parameters',
         'Table whose producer groups should run.'
       ),
       body: documentedSchema(
-        v2RunTableColumnContract.body,
-        'RunTableColumnsRequest',
-        'Run table columns request',
+        v2CreateTableDispatchContract.body,
+        'CreateTableDispatchRequest',
+        'Create table dispatch request',
         'Workspace scope, producer groups, execution mode, and optional row scope.',
         [{ workspaceId: WORKSPACE_ID, groupIds: [GROUP_ID] }]
       ),
       response: documentedSchema(
-        v2RunTableColumnContract.response.schema,
-        'V2RunTableColumnsResponse',
-        'Run table columns response',
+        v2CreateTableDispatchContract.response.schema,
+        'V2CreateTableDispatchResponse',
+        'Create table dispatch response',
         'Accepted background dispatch identifier.'
       ),
     }
@@ -1081,7 +1084,7 @@ const declaredRoutes = [
       operationId: 'runRowEnrichment',
       summary: 'Run Enrichment For One Row',
       description:
-        'Asynchronously run one workflow or enrichment group for one table row. Poll the returned `dispatchId` with `GET /api/v2/tables/dispatches/{dispatchId}`; a `null` `dispatchId` means the cell already settled inline.',
+        'Asynchronously run one workflow or enrichment group for one table row. Poll the returned `dispatchId` with `GET /api/v2/tables/{tableId}/dispatches/{dispatchId}`; a `null` `dispatchId` means the cell already settled inline.',
       errors: RESOURCE_ERRORS,
       success: { description: 'The accepted row enrichment dispatch.' },
     }),
@@ -1109,27 +1112,26 @@ const declaredRoutes = [
     }
   ),
   defineOpenApiRoute(
-    v2FindTableRowsContract,
+    v2SearchTableRowsContract,
     tableOperation({
-      operationId: 'findTableRows',
-      summary: 'Find Rows',
-      description:
-        'Search every cell case-insensitively, optionally within a predicate-filtered and sorted view.',
+      operationId: 'searchTableRows',
+      summary: 'Search Rows',
+      description: `Text-search every cell case-insensitively for the substring \`q\`, optionally within a predicate-filtered and sorted view. This is TEXT search, not the structured predicate read: \`POST /api/v2/tables/{tableId}/query\` is that one, and on this surface \`query\` always means a structured predicate while \`search\` always means text.\n\nIt returns cell COORDINATES — \`{ ordinal, rowId, column }\` — and never row data. \`ordinal\` is the row's zero-based index in the same filtered, sorted view \`POST /query\` pages, so read the rows themselves through that. The result is uncursored and capped: at most ${TABLE_LIMITS.MAX_FIND_MATCHES} matches come back and \`truncated\` is \`true\` when more matched than were returned. There is no cursor to page with — narrow \`q\` or the predicate instead.`,
       errors: RESOURCE_ERRORS,
       success: { description: 'The matching table cells.' },
     }),
     {
-      query: v2FindTableRowsContract.query,
+      query: v2SearchTableRowsContract.query,
       params: documentedSchema(
-        v2FindTableRowsContract.params,
-        'FindTableRowsParams',
-        'Find table rows path parameters',
+        v2SearchTableRowsContract.params,
+        'SearchTableRowsParams',
+        'Search table rows path parameters',
         'Table whose cells should be searched.'
       ),
       body: documentedSchema(
-        v2FindTableRowsContract.body,
-        'FindTableRowsRequest',
-        'Find table rows request',
+        v2SearchTableRowsContract.body,
+        'SearchTableRowsRequest',
+        'Search table rows request',
         'Workspace scope, substring query, and optional predicate and sort.',
         [
           {
@@ -1140,9 +1142,9 @@ const declaredRoutes = [
         ]
       ),
       response: documentedSchema(
-        v2FindTableRowsContract.response.schema,
-        'V2FindTableRowsResponse',
-        'Find table rows response',
+        v2SearchTableRowsContract.response.schema,
+        'V2SearchTableRowsResponse',
+        'Search table rows response',
         'Matching table cells and truncation state.'
       ),
     }
@@ -1384,8 +1386,8 @@ const declaredRoutes = [
         v2GetTableExportContract.params,
         'GetTableExportParams',
         'Get table export path parameters',
-        'Export selected for retrieval.',
-        [{ exportId: EXPORT_ID }]
+        'Table that owns the export, and the export selected for retrieval.',
+        [{ tableId: TABLE_ID, exportId: EXPORT_ID }]
       ),
       query: documentedSchema(
         v2GetTableExportContract.query,
@@ -1415,7 +1417,7 @@ const declaredRoutes = [
         v2CancelTableExportContract.params,
         'CancelTableExportParams',
         'Cancel table export path parameters',
-        'Export selected for cancellation.'
+        'Table that owns the export, and the export selected for cancellation.'
       ),
       query: documentedSchema(
         v2CancelTableExportContract.query,
@@ -1446,7 +1448,7 @@ const declaredRoutes = [
         v2TableExportDownloadContract.params,
         'DownloadTableExportParams',
         'Download table export path parameters',
-        'Export selected for download.'
+        'Table that owns the export, and the export selected for download.'
       ),
       query: documentedSchema(
         v2TableExportDownloadContract.query,
@@ -1603,6 +1605,33 @@ const declaredRoutes = [
     }
   ),
   defineOpenApiRoute(
+    v2RestoreTableFolderContract,
+    tableOperation({
+      operationId: 'restoreTablesFolder',
+      summary: 'Restore Folder',
+      description:
+        "Un-archive a table folder a recursive `DELETE` archived, along with every subfolder and table archived with it. Address it by the path it held when it was deleted. The restore may legally land it elsewhere: a folder whose parent is still archived is re-rooted to `/`, and a name an active sibling has taken meanwhile is deduplicated — so read the returned folder's `path` rather than assuming the requested one. Idempotent in the safe direction: a folder that is already active reports zero restored items.",
+      errors: [...RESOURCE_CONFLICT_ERRORS, 'PayloadTooLarge'],
+      success: { description: 'The restored table folder and what it brought back.' },
+    }),
+    {
+      query: v2RestoreTableFolderContract.query,
+      body: documentedSchema(
+        v2RestoreTableFolderContract.body,
+        'RestoreTableFolderRequest',
+        'Restore table folder request',
+        'Workspace scope and the canonical path the archived folder held.',
+        [{ workspaceId: WORKSPACE_ID, path: '/Sales/Enterprise' }]
+      ),
+      response: documentedSchema(
+        v2RestoreTableFolderContract.response.schema,
+        'V2RestoreTableFolderResponse',
+        'Restore table folder response',
+        'The restored table folder and the counts of items it brought back.'
+      ),
+    }
+  ),
+  defineOpenApiRoute(
     v2RestoreTableContract,
     tableOperation({
       operationId: 'restoreTable',
@@ -1636,27 +1665,27 @@ const declaredRoutes = [
     }
   ),
   defineOpenApiRoute(
-    v2BatchUpdateTableRowsContract,
+    v2BulkUpdateTableRowsContract,
     tableOperation({
-      operationId: 'batchUpdateTableRows',
-      summary: 'Batch Update Rows',
+      operationId: 'bulkUpdateTableRows',
+      summary: 'Bulk Update Rows',
       description:
-        'Apply a distinct partial data patch to each of up to 1000 rows in one request. Each patch merges into its row, so a column absent from `data` is left alone. Membership is atomic: a `rowId` naming no row in this table fails the whole batch with a `400` listing the missing identifiers. Use `PATCH /api/v2/tables/{tableId}/rows` when one patch applies to every matching row.',
+        'Apply a distinct partial data patch to each of up to 1000 rows in one request. Each patch merges into its row, so a column absent from `data` is left alone. Membership is atomic: a `rowId` naming no row in this table fails the whole request with a `400` listing the missing identifiers. Use `PATCH /api/v2/tables/{tableId}/rows` when one patch applies to every matching row.',
       errors: [...TABLE_MUTATION_ERRORS, 'PayloadTooLarge'],
-      success: { description: 'The batch update result.' },
+      success: { description: 'The bulk update result.' },
     }),
     {
-      query: v2BatchUpdateTableRowsContract.query,
+      query: v2BulkUpdateTableRowsContract.query,
       params: documentedSchema(
-        v2BatchUpdateTableRowsContract.params,
-        'BatchUpdateTableRowsParams',
-        'Batch update table rows path parameters',
+        v2BulkUpdateTableRowsContract.params,
+        'BulkUpdateTableRowsParams',
+        'Bulk update table rows path parameters',
         'Table whose rows should be updated.'
       ),
       body: documentedSchema(
-        v2BatchUpdateTableRowsContract.body,
-        'BatchUpdateTableRowsRequest',
-        'Batch update table rows request',
+        v2BulkUpdateTableRowsContract.body,
+        'BulkUpdateTableRowsRequest',
+        'Bulk update table rows request',
         'Workspace scope and one merge patch per row.',
         [
           {
@@ -1669,9 +1698,9 @@ const declaredRoutes = [
         ]
       ),
       response: documentedSchema(
-        v2BatchUpdateTableRowsContract.response.schema,
+        v2BulkUpdateTableRowsContract.response.schema,
         'V2BulkUpdateTableRowsResponse',
-        'Batch update table rows response',
+        'Bulk update table rows response',
         'Updated row count and identifiers.'
       ),
     }
@@ -1722,7 +1751,7 @@ const declaredRoutes = [
         v2GetTableDispatchContract.params,
         'GetTableDispatchParams',
         'Get table dispatch path parameters',
-        'Run dispatch selected for retrieval.'
+        'Table that owns the dispatch, and the dispatch selected for retrieval.'
       ),
       query: documentedSchema(
         v2GetTableDispatchContract.query,
@@ -1735,6 +1764,37 @@ const declaredRoutes = [
         'V2TableRunDispatchResponse',
         'Table run dispatch response',
         'A single table run dispatch.'
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2CancelTableDispatchContract,
+    tableOperation({
+      operationId: 'cancelTableDispatch',
+      summary: 'Cancel Run Dispatch',
+      description:
+        'Cancel one run dispatch by the `dispatchId` the run endpoint returned. This stops the scheduler: the dispatcher observes the cancellation at its next iteration and enqueues no further cells. Cells already handed to the queue are NOT cancelled here — nothing links a queued cell back to the dispatch that enqueued it — so use `POST /api/v2/tables/{tableId}/cancel-runs` to stop work already in flight. Idempotent: a dispatch already `complete` or `cancelled` is returned unchanged.',
+      errors: RESOURCE_ERRORS,
+      success: { description: 'The dispatch in its post-cancellation state.' },
+    }),
+    {
+      params: documentedSchema(
+        v2CancelTableDispatchContract.params,
+        'CancelTableDispatchParams',
+        'Cancel table dispatch path parameters',
+        'Table that owns the dispatch, and the dispatch selected for cancellation.'
+      ),
+      query: documentedSchema(
+        v2CancelTableDispatchContract.query,
+        'CancelTableDispatchQuery',
+        'Cancel table dispatch query',
+        'Workspace scope for the dispatch.'
+      ),
+      response: documentedSchema(
+        v2CancelTableDispatchContract.response.schema,
+        'V2CancelTableDispatchResponse',
+        'Cancel table dispatch response',
+        'The dispatch in its post-cancellation state.'
       ),
     }
   ),

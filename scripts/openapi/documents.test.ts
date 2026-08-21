@@ -31,11 +31,11 @@ const DOCUMENTS = [
 ] as const
 
 const EXPECTED_OPERATION_COUNTS = new Map<string, number>([
-  ['apps/docs/openapi-v2-workflows.json', 39],
-  ['apps/docs/openapi-v2-logs.json', 4],
+  ['apps/docs/openapi-v2-workflows.json', 38],
+  ['apps/docs/openapi-v2-logs.json', 3],
   ['apps/docs/openapi-v2-files-audit.json', 27],
-  ['apps/docs/openapi-v2-tables.json', 51],
-  ['apps/docs/openapi-v2-knowledge.json', 45],
+  ['apps/docs/openapi-v2-tables.json', 53],
+  ['apps/docs/openapi-v2-knowledge.json', 44],
   ['apps/docs/openapi-v2-billing.json', 2],
   ['apps/docs/openapi-v2-resources.json', 46],
 ])
@@ -169,12 +169,12 @@ describe('generated OpenAPI documents', () => {
         })
       }
     }
-    expect(totalOperations).toBe(214)
+    expect(totalOperations).toBe(213)
   })
 
   it('documents mixed workflow execution and resume responses', () => {
     const spec = generateOpenApiDocument(workflowsOpenApiDocument)
-    const execute = getOperation(spec, '/api/v2/workflows/{id}/execute', 'post')
+    const execute = getOperation(spec, '/api/v2/workflows/{workflowId}/execute', 'post')
     const executeResponses = execute.responses as JsonObject
     const executeOk = executeResponses['200'] as JsonObject
     const executeQueued = executeResponses['202'] as JsonObject
@@ -190,7 +190,7 @@ describe('generated OpenAPI documents', () => {
     expect(Object.keys(executeOkContent).sort()).toEqual(['application/json', 'text/event-stream'])
     expect(Object.keys(executeQueuedContent)).toEqual(['application/json'])
 
-    const resume = getOperation(spec, '/api/v2/workflows/{id}/runs/{runId}/resume', 'post')
+    const resume = getOperation(spec, '/api/v2/workflows/{workflowId}/runs/{runId}/resume', 'post')
     const resumeResponses = resume.responses as JsonObject
     const resumeOkContent = (resumeResponses['200'] as JsonObject).content as JsonObject
     const resumeQueuedContent = (resumeResponses['202'] as JsonObject).content as JsonObject
@@ -204,9 +204,13 @@ describe('generated OpenAPI documents', () => {
     expect(resumeOkSchema.$ref).toBe('#/components/schemas/ResumeWorkflowSyncResponse')
     expect(resumeQueuedSchema.$ref).toBe('#/components/schemas/ResumeWorkflowQueuedResponse')
 
-    const listRuns = getOperation(spec, '/api/v2/workflows/{id}/runs', 'get')
-    const getRun = getOperation(spec, '/api/v2/workflows/{id}/runs/{runId}', 'get')
-    const cancelRun = getOperation(spec, '/api/v2/workflows/{id}/runs/{runId}/cancel', 'post')
+    const listRuns = getOperation(spec, '/api/v2/workflows/{workflowId}/runs', 'get')
+    const getRun = getOperation(spec, '/api/v2/workflows/{workflowId}/runs/{runId}', 'get')
+    const cancelRun = getOperation(
+      spec,
+      '/api/v2/workflows/{workflowId}/runs/{runId}/cancel',
+      'post'
+    )
     expect(listRuns.tags).toEqual(['Workflow Runs'])
     expect(getRun.tags).toEqual(['Workflow Runs'])
     expect(cancelRun.tags).toEqual(['Workflow Runs'])
@@ -214,7 +218,11 @@ describe('generated OpenAPI documents', () => {
 
   it('documents multipart uploads, dual-status secret sets, and nullable file shares', () => {
     const knowledgeSpec = generateOpenApiDocument(knowledgeOpenApiDocument)
-    const upload = getOperation(knowledgeSpec, '/api/v2/knowledge/{id}/documents', 'post')
+    const upload = getOperation(
+      knowledgeSpec,
+      '/api/v2/knowledge/{knowledgeBaseId}/documents',
+      'post'
+    )
     const uploadBody = upload.requestBody as JsonObject
     const uploadContent = uploadBody.content as JsonObject
     const uploadSchemaRef = (uploadContent['multipart/form-data'] as JsonObject)
@@ -386,7 +394,9 @@ describe('documented error sets', () => {
       Object.keys(getOperation(spec, '/api/v2/audit-logs', 'get').responses as JsonObject)
     ).not.toContain('404')
     expect(
-      Object.keys(getOperation(spec, '/api/v2/audit-logs/{id}', 'get').responses as JsonObject)
+      Object.keys(
+        getOperation(spec, '/api/v2/audit-logs/{auditLogId}', 'get').responses as JsonObject
+      )
     ).toContain('404')
   })
 

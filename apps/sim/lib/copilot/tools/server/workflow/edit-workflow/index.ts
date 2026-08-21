@@ -41,7 +41,7 @@ function parseCurrentUserWorkflow(currentUserWorkflow: string): Record<string, u
  * Owns only what a surface owns: argument shaping, abort checkpoints, and the
  * tool result the model reads. Authorization, the lock and plan gates, the edit
  * engine, persistence, semantic audit, and the realtime notification all live in
- * the application use case, which `POST /api/v2/workflows/{id}/operations`
+ * the application use case, which `POST /api/v2/workflows/{workflowId}/operations`
  * enters through as well.
  *
  * `currentUserWorkflow` — the unsaved canvas the user is looking at — is passed

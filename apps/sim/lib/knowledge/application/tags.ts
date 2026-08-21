@@ -69,13 +69,22 @@ export interface KnowledgeDocumentTagDefinitionsInput extends ListKnowledgeTagsI
   documentId: string
 }
 
-export interface SaveKnowledgeDocumentTagDefinitionsInput
-  extends KnowledgeDocumentTagDefinitionsInput {
+/**
+ * Bulk vocabulary upsert.
+ *
+ * Knowledge-base scoped, like the rows it writes. `documentId` is accepted and
+ * ignored: the legacy internal route still addresses this write through
+ * `/api/knowledge/{id}/documents/{documentId}/tag-definitions`, a path that names
+ * a document the write never reads.
+ */
+export interface SaveKnowledgeDocumentTagDefinitionsInput extends ListKnowledgeTagsInput {
+  documentId?: string
   definitions: BulkTagDefinitionsData['definitions']
 }
 
-export interface DeleteKnowledgeDocumentTagDefinitionsInput
-  extends KnowledgeDocumentTagDefinitionsInput {
+export interface DeleteKnowledgeDocumentTagDefinitionsInput extends ListKnowledgeTagsInput {
+  documentId?: string
+  /** `cleanup` removes only definitions no document still uses; `all` removes every one. */
   action?: 'cleanup' | 'all'
 }
 
@@ -334,10 +343,18 @@ export const listKnowledgeDocumentTagDefinitions = defineAuthorizedKnowledgeUseC
   },
 })
 
+/**
+ * Creates or updates tag definitions in bulk on the knowledge base.
+ *
+ * The knowledge base is the canonical context, not a document: every write here
+ * lands in `knowledge_base_tag_definitions` keyed by knowledge base and slot, and
+ * the audit entry it projects is a `KNOWLEDGE_BASE` one. Tag *values* on one
+ * document are written by the document update through its tag slots.
+ */
 export const saveKnowledgeDocumentTagDefinitions = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.saveDocumentTagDefinitions,
   resolveContext: ({ input }: { input: SaveKnowledgeDocumentTagDefinitionsInput }) =>
-    resolveCanonicalActiveKnowledgeDocumentContext(input),
+    resolveActiveKnowledgeResourceContext(input),
   async execute({ input, context }) {
     for (const definition of input.definitions) {
       if (!(SUPPORTED_FIELD_TYPES as readonly string[]).includes(definition.fieldType)) {
@@ -371,10 +388,15 @@ export const saveKnowledgeDocumentTagDefinitions = defineAuthorizedKnowledgeUseC
   }),
 })
 
+/**
+ * Removes tag definitions from the knowledge base — the unused ones, or all of
+ * them. Knowledge-base scoped for the same reason the bulk save is: cleanup
+ * deletes definitions across the whole vocabulary, not one document's.
+ */
 export const deleteKnowledgeDocumentTagDefinitions = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.deleteDocumentTagDefinitions,
   resolveContext: ({ input }: { input: DeleteKnowledgeDocumentTagDefinitionsInput }) =>
-    resolveCanonicalActiveKnowledgeDocumentContext(input),
+    resolveActiveKnowledgeResourceContext(input),
   async execute({ input, context }) {
     if (input.action === 'cleanup') {
       return {

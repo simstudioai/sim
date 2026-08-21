@@ -4,6 +4,7 @@ import { defineV2JsonRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/
 import { v2LogErrorPolicies } from '@/lib/logs/api/route-policies'
 import { getPublicLog } from '@/lib/logs/application/get-public-log'
 import { logOperations } from '@/lib/logs/application/operations'
+import { projectLogFiles } from '@/lib/logs/log-files'
 
 export const revalidate = 0
 
@@ -47,7 +48,7 @@ export const GET = defineV2JsonRoute({
       startedAt: log.startedAt.toISOString(),
       endedAt: log.endedAt ? log.endedAt.toISOString() : null,
       totalDurationMs: log.totalDurationMs,
-      files: (log.files as unknown[] | null) ?? null,
+      files: projectLogFiles(log),
       workflow: {
         id: log.workflowId,
         name: log.workflowName || 'Deleted Workflow',
