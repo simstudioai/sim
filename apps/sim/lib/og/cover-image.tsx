@@ -201,19 +201,16 @@ function splitOversizedWord(word: string, fontSize: number): string[] {
 }
 
 /**
- * Replaces every plain space (U+0020) with U+00A0. Satori has a
- * text-measurement bug where the first plain space in a text node renders at
- * roughly double width — a non-breaking space measures correctly and reads
- * identically at these sizes, so it sidesteps the bug rather than fighting
- * Satori's own line-wrapping, which is disabled here since lines arrive
- * pre-split. Title lines are packed with the U+00A0 already in them so that
- * what is measured is exactly what is rendered.
+ * Greedily packs words into lines that fit `COVER_TITLE_BOX_WIDTH` at
+ * `fontSize`, joining them with U+00A0 rather than a plain space.
+ *
+ * Satori has a text-measurement bug where the first plain space (U+0020) in a
+ * text node renders at roughly double width; a non-breaking space measures
+ * correctly and reads identically at these sizes, so this sidesteps the bug
+ * rather than fighting Satori's own line-wrapping, which is disabled here
+ * since lines arrive pre-split. The U+00A0 goes in as the line is packed, so
+ * what gets measured is exactly what gets rendered.
  */
-function withHardSpaces(text: string): string {
-  return text.replace(/ /g, '\u00a0')
-}
-
-/** Greedily packs words into lines that fit `COVER_TITLE_BOX_WIDTH` at `fontSize`. */
 function wrapLines(text: string, fontSize: number): string[] {
   const lines: string[] = []
   let current = ''

@@ -38,12 +38,8 @@ export default async function Image({
     notFound()
   }
 
-  const context = model.contextWindow
-    ? `${formatTokenCount(model.contextWindow)} context`
-    : 'context window'
-
   return createCoverOgImage({
     title: model.displayName,
-    subtitle: `${provider.name} · ${formatPrice(model.pricing.input)}/1M in, ${formatPrice(model.pricing.output)}/1M out, ${context} — from Sim's model registry.`,
+    subtitle: `${provider.name} · ${formatPrice(model.pricing.input)}/1M in, ${formatPrice(model.pricing.output)}/1M out, ${formatTokenCount(model.contextWindow)} context — from Sim's model registry.`,
   })
 }
