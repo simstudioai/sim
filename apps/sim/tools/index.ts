@@ -206,25 +206,28 @@ function resolveInternalExecutorDelegation(
 ): GenerateInternalDelegationTokenInput | undefined {
   if (tool.request.internalAuth !== 'executor_delegation') return undefined
   if (supplied) {
-    if (!supplied.subjectUserId || !supplied.workflowId) {
-      throw new Error('Executor delegation requires an authenticated user and workflow')
+    if (!supplied.workflowId) {
+      throw new Error('Executor delegation requires a workflow')
     }
     return supplied
   }
-  if (!executionContext?.userId || !executionContext.workflowId) {
+  if (!executionContext?.workflowId) {
     throw new Error('Executor delegation requires a trusted workflow execution context')
   }
   if (executionContext.executorDelegationOrigin) {
     const origin = executionContext.executorDelegationOrigin
-    if (!origin.subjectUserId || !origin.workflowId) {
-      throw new Error('Executor delegation origin requires an authenticated user and workflow')
+    if (!origin.workflowId) {
+      throw new Error('Executor delegation origin requires a workflow')
     }
     return origin
   }
+  if (!executionContext.principal) {
+    throw new Error('Executor delegation requires a workflow principal')
+  }
   return {
-    subjectUserId: executionContext.userId,
     workflowId: executionContext.workflowId,
     ...(executionContext.executionId ? { executionId: executionContext.executionId } : {}),
+    principal: executionContext.principal,
   }
 }
 
@@ -1803,11 +1806,11 @@ async function executeToolImplementation(
           }
           const managedCredentialDelegation =
             executionContext?.executorDelegationOrigin ??
-            (workflowId && userId
+            (workflowId && executionContext?.principal
               ? {
-                  subjectUserId: userId,
                   workflowId,
                   ...(scope.executionId ? { executionId: scope.executionId } : {}),
+                  principal: executionContext.principal,
                 }
               : undefined)
           if (managedCredentialDelegation) {
@@ -1919,6 +1922,7 @@ async function executeToolImplementation(
           abortSignal: effectiveSignal,
           resolvedSecretTraceRegistry,
           executorDelegationOrigin: executionContext?.executorDelegationOrigin,
+          principal: executionContext?.principal,
           // Trusted `executionContext`, never `_context` — that bag spreads
           // model-reachable `contextParams._context` first, so a model could otherwise
           // inject its own env map or disable redaction.
@@ -1970,6 +1974,7 @@ async function executeToolImplementation(
         {
           abortSignal: effectiveSignal,
           resolvedSecretTraceRegistry,
+          principal: executionContext?.principal,
         }
       )
       const endTime = new Date()

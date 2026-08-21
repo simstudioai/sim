@@ -63,13 +63,23 @@ const principal: WorkflowExecutionDelegatedPrincipal = {
   audience: 'sim:credential-groups',
   issuedAt: new Date(Date.now() - 1_000),
   expiresAt: new Date(Date.now() + 60_000),
-  delegationContext: { kind: 'workflow_execution', workflowId: 'workflow-1' },
+  delegationContext: {
+    kind: 'workflow_execution',
+    workflowId: 'workflow-1',
+    principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+  },
 }
 
 const context = {
   workspaceId: 'workspace-1',
   workflowId: 'workflow-1',
   userId: 'user-1',
+  principal: principal.delegationContext.principal,
+  executorDelegationOrigin: {
+    subjectUserId: 'user-1',
+    workflowId: 'workflow-1',
+    principal: principal.delegationContext.principal,
+  },
 } as ExecutionContext
 
 const block = { metadata: { id: BlockType.CREDENTIAL_GROUP } } as SerializedBlock
@@ -90,7 +100,7 @@ describe('CredentialGroupBlockHandler', () => {
     )
   })
 
-  it('lists credentials with normalized provider, email, and page filters', async () => {
+  it('lists credentials with an optional email selector', async () => {
     mocks.listCredentials.mockResolvedValue({
       credentials: [],
       count: 0,
@@ -101,8 +111,8 @@ describe('CredentialGroupBlockHandler', () => {
     const result = await new CredentialGroupBlockHandler().execute(context, block, {
       operation: 'list_credentials',
       credentialGroupId: ' group-1 ',
-      credentialProviderIds: '["google-email", "google-email"]',
       email: ' person@example.com ',
+      credentialProviderIds: '["google-email", "google-email"]',
       limit: '25',
       cursor: ' credential-1 ',
     })
@@ -112,8 +122,8 @@ describe('CredentialGroupBlockHandler', () => {
       principal,
       input: {
         credentialGroupId: 'group-1',
-        credentialProviderIds: ['google-email'],
         email: 'person@example.com',
+        credentialProviderIds: ['google-email'],
         limit: 25,
         cursor: 'credential-1',
       },

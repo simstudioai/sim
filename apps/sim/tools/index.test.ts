@@ -958,6 +958,11 @@ describe('executeTool Function', () => {
       userId: 'trusted-user',
       workflowId: 'trusted-workflow',
       executionId: 'trusted-execution',
+      principal: {
+        kind: 'session',
+        userId: 'trusted-user',
+        sessionId: 'trusted-session',
+      },
     })
     await executeTool(
       'test_executor_delegation',
@@ -971,9 +976,13 @@ describe('executeTool Function', () => {
     )
 
     expect(mockGenerateInternalDelegationToken).toHaveBeenCalledWith({
-      subjectUserId: 'trusted-user',
       workflowId: 'trusted-workflow',
       executionId: 'trusted-execution',
+      principal: {
+        kind: 'session',
+        userId: 'trusted-user',
+        sessionId: 'trusted-session',
+      },
     })
     const request = vi.mocked(global.fetch).mock.calls[0]?.[1]
     expect(new Headers(request?.headers).get('authorization')).toBe('Bearer executor-token')

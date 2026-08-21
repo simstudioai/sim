@@ -593,6 +593,12 @@ async function runWorkflowExecution({
       workflowId: payload.workflowId,
       workspaceId,
       userId: actorUserId,
+      principal: {
+        kind: 'system',
+        serviceId: 'schedule',
+        workspaceId,
+        workflowId: payload.workflowId,
+      },
       billingAttribution,
       sessionUserId: undefined,
       workflowUserId: workflowRecord.userId,

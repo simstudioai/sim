@@ -1,3 +1,4 @@
+import type { WorkflowExecutionPrincipal } from '@sim/auth/principal'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import type { TraceSpan } from '@/lib/logs/types'
 import type { PermissionGroupConfig } from '@/lib/permission-groups/types'
@@ -325,6 +326,7 @@ interface ExecutionMetadata {
     depth: number
   }
   userId?: string
+  principal?: WorkflowExecutionPrincipal
   executionId?: string
   triggerType?: string
   triggerBlockId?: string
@@ -355,9 +357,10 @@ export interface BlockState {
  * publisher-owned child execution after opening their own source-workspace log row.
  */
 export interface ExecutorDelegationOrigin {
-  subjectUserId: string
+  subjectUserId?: string
   workflowId: string
   executionId?: string
+  principal?: WorkflowExecutionPrincipal
 }
 
 export interface ExecutionContext {
@@ -369,6 +372,8 @@ export interface ExecutionContext {
   fileKeys?: string[]
   allowLargeValueWorkflowScope?: boolean
   userId?: string
+  /** Original authenticated caller for resource-policy decisions. */
+  principal?: WorkflowExecutionPrincipal
   /** Trusted origin for signed executor delegation, distinct from the currently executing child. */
   executorDelegationOrigin?: ExecutorDelegationOrigin
   isDeployedContext?: boolean

@@ -153,6 +153,11 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
       userId: 'user-1',
       workflowUserId: 'workflow-owner',
       workspaceId: 'workspace-1',
+      principal: {
+        kind: 'session' as const,
+        userId: 'user-1',
+        sessionId: 'session-1',
+      },
       triggerType: 'api',
       executionId: 'execution-1',
       triggerBlockId: undefined,
