@@ -391,6 +391,7 @@ describe('getScopeDescription', () => {
       'View your Bitbucket account and workspace memberships'
     )
     expect(getScopeDescription('pipeline:write', 'bitbucket')).toBe('Run and stop pipelines')
+    expect(getScopeDescription('webhook', 'bitbucket')).toBe('Manage repository webhooks')
   })
 
   it.concurrent('preserves the existing Reddit meaning of the account scope', () => {
@@ -662,6 +663,19 @@ describe('getScopesForService', () => {
     expect(scopes).toContain('Mail.ReadWrite')
     expect(scopes).toContain('Calendars.ReadWrite')
     expect(scopes).not.toContain('Calendars.ReadWrite.Shared')
+  })
+
+  it.concurrent('should include webhook management in Bitbucket consent scopes', () => {
+    expect(getScopesForService('bitbucket')).toEqual([
+      'account',
+      'repository',
+      'repository:write',
+      'pullrequest',
+      'pullrequest:write',
+      'pipeline',
+      'pipeline:write',
+      'webhook',
+    ])
   })
 
   it.concurrent('should return empty array for empty string', () => {

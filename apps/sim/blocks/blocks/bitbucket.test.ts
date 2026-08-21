@@ -44,6 +44,38 @@ const EXPECTED_TOOL_IDS = [
   'bitbucket_get_pipeline_step_log',
 ] as const
 
+const EXPECTED_TRIGGER_IDS = [
+  'bitbucket_push',
+  'bitbucket_repository_forked',
+  'bitbucket_repository_updated',
+  'bitbucket_commit_comment_created',
+  'bitbucket_build_status_created',
+  'bitbucket_build_status_updated',
+  'bitbucket_pull_request_created',
+  'bitbucket_pull_request_updated',
+  'bitbucket_pull_request_approved',
+  'bitbucket_pull_request_approval_removed',
+  'bitbucket_pull_request_changes_requested',
+  'bitbucket_pull_request_changes_request_removed',
+  'bitbucket_pull_request_merged',
+  'bitbucket_pull_request_declined',
+  'bitbucket_pull_request_comment_created',
+  'bitbucket_pull_request_comment_updated',
+  'bitbucket_pull_request_comment_deleted',
+  'bitbucket_pull_request_comment_resolved',
+  'bitbucket_pull_request_comment_reopened',
+] as const
+
+const BITBUCKET_ACTION_SCOPES = [
+  'account',
+  'repository',
+  'repository:write',
+  'pullrequest',
+  'pullrequest:write',
+  'pipeline',
+  'pipeline:write',
+] as const
+
 const SAMPLE_VALUES: Record<string, unknown> = {
   oauthCredential: 'credential-1',
   workspaceSlug: 'acme',
@@ -181,7 +213,9 @@ describe('BitbucketBlock', () => {
 
     for (const [canonicalParamId, ids] of Object.entries(expectedPairs)) {
       const members = BitbucketBlock.subBlocks.filter(
-        (subBlock) => subBlock.canonicalParamId === canonicalParamId
+        (subBlock) =>
+          subBlock.canonicalParamId === canonicalParamId &&
+          (subBlock.mode === 'basic' || subBlock.mode === 'advanced')
       )
       expect(members.map((member) => member.id).sort()).toEqual([...ids].sort())
       expect(members.filter((member) => member.mode === 'basic')).toHaveLength(1)
@@ -379,11 +413,45 @@ describe('BitbucketBlock', () => {
     ).toMatchObject({ content: '  indented Markdown\n' })
   })
 
-  it('covers every action with a canvas sentence and declares no trigger support', () => {
+  it('covers every action with a canvas sentence', () => {
     const sentences = BitbucketBlock.canvasPresentation?.sentences?.byOperation ?? {}
     expect(Object.keys(sentences).sort()).toEqual([...EXPECTED_TOOL_IDS].sort())
-    expect(BitbucketBlock.triggerAllowed).toBeUndefined()
-    expect(BitbucketBlock.triggers).toBeUndefined()
     expect(BitbucketBlockMeta.tags).not.toContain('webhooks')
+  })
+
+  it('wires every supported Bitbucket trigger in stable dropdown order', () => {
+    expect(BitbucketBlock.triggerAllowed).toBe(true)
+    expect(BitbucketBlock.triggers).toEqual({
+      enabled: true,
+      available: EXPECTED_TRIGGER_IDS,
+    })
+
+    const triggerDropdowns = BitbucketBlock.subBlocks.filter(
+      (subBlock) => subBlock.id === 'selectedTriggerId'
+    )
+    expect(triggerDropdowns).toHaveLength(1)
+
+    const options =
+      typeof triggerDropdowns[0].options === 'function'
+        ? triggerDropdowns[0].options()
+        : triggerDropdowns[0].options
+    expect(options?.map((option) => option.id)).toEqual(EXPECTED_TRIGGER_IDS)
+
+    for (const triggerId of EXPECTED_TRIGGER_IDS) {
+      expect(
+        BitbucketBlock.subBlocks.some(
+          (subBlock) => subBlock.id === `webhookUrlDisplay_${triggerId}`
+        )
+      ).toBe(true)
+    }
+  })
+
+  it('keeps existing action credentials compatible without the webhook scope', () => {
+    const accountPicker = BitbucketBlock.subBlocks.find(
+      (subBlock) => subBlock.id === 'accountPicker'
+    )
+
+    expect(accountPicker?.requiredScopes).toEqual(BITBUCKET_ACTION_SCOPES)
+    expect(accountPicker?.requiredScopes).not.toContain('webhook')
   })
 })

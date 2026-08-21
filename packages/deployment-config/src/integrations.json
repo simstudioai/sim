@@ -2807,7 +2807,7 @@
       "slug": "bitbucket",
       "name": "Bitbucket",
       "description": "Work with Bitbucket Cloud repositories, pull requests, and pipelines",
-      "longDescription": "Connect Bitbucket Cloud to inspect repositories and source, collaborate on pull requests, and diagnose or control pipelines. This action integration uses OAuth and does not create webhooks or triggers.",
+      "longDescription": "Connect Bitbucket Cloud to inspect repositories and source, collaborate on pull requests, diagnose or control pipelines, and start workflows from repository and pull request events. OAuth is used for actions and automatic webhook management.",
       "bgColor": "#FFFFFF",
       "iconName": "BitbucketIcon",
       "docsUrl": "https://docs.sim.ai/integrations/bitbucket",
@@ -2934,8 +2934,104 @@
         }
       ],
       "operationCount": 30,
-      "triggers": [],
-      "triggerCount": 0,
+      "triggers": [
+        {
+          "id": "bitbucket_push",
+          "name": "Bitbucket Push",
+          "description": "Trigger workflow when commits are pushed to a Bitbucket repository"
+        },
+        {
+          "id": "bitbucket_repository_forked",
+          "name": "Bitbucket Repository Forked",
+          "description": "Trigger workflow when a Bitbucket repository is forked"
+        },
+        {
+          "id": "bitbucket_repository_updated",
+          "name": "Bitbucket Repository Updated",
+          "description": "Trigger workflow when a Bitbucket repository is updated"
+        },
+        {
+          "id": "bitbucket_commit_comment_created",
+          "name": "Bitbucket Commit Comment Created",
+          "description": "Trigger workflow when a comment is created on a Bitbucket commit"
+        },
+        {
+          "id": "bitbucket_build_status_created",
+          "name": "Bitbucket Build Status Created",
+          "description": "Trigger workflow when a build status is created for a Bitbucket commit"
+        },
+        {
+          "id": "bitbucket_build_status_updated",
+          "name": "Bitbucket Build Status Updated",
+          "description": "Trigger workflow when a build status is updated for a Bitbucket commit"
+        },
+        {
+          "id": "bitbucket_pull_request_created",
+          "name": "Bitbucket Pull Request Created",
+          "description": "Trigger workflow when a Bitbucket pull request is created"
+        },
+        {
+          "id": "bitbucket_pull_request_updated",
+          "name": "Bitbucket Pull Request Updated",
+          "description": "Trigger workflow when a Bitbucket pull request is updated"
+        },
+        {
+          "id": "bitbucket_pull_request_approved",
+          "name": "Bitbucket Pull Request Approved",
+          "description": "Trigger workflow when a Bitbucket pull request is approved"
+        },
+        {
+          "id": "bitbucket_pull_request_approval_removed",
+          "name": "Bitbucket Pull Request Approval Removed",
+          "description": "Trigger workflow when approval is removed from a Bitbucket pull request"
+        },
+        {
+          "id": "bitbucket_pull_request_changes_requested",
+          "name": "Bitbucket Pull Request Changes Requested",
+          "description": "Trigger workflow when changes are requested on a Bitbucket pull request"
+        },
+        {
+          "id": "bitbucket_pull_request_changes_request_removed",
+          "name": "Bitbucket Pull Request Changes Request Removed",
+          "description": "Trigger workflow when a changes request is removed from a Bitbucket pull request"
+        },
+        {
+          "id": "bitbucket_pull_request_merged",
+          "name": "Bitbucket Pull Request Merged",
+          "description": "Trigger workflow when a Bitbucket pull request is merged"
+        },
+        {
+          "id": "bitbucket_pull_request_declined",
+          "name": "Bitbucket Pull Request Declined",
+          "description": "Trigger workflow when a Bitbucket pull request is declined"
+        },
+        {
+          "id": "bitbucket_pull_request_comment_created",
+          "name": "Bitbucket Pull Request Comment Created",
+          "description": "Trigger workflow when a comment is created on a Bitbucket pull request"
+        },
+        {
+          "id": "bitbucket_pull_request_comment_updated",
+          "name": "Bitbucket Pull Request Comment Updated",
+          "description": "Trigger workflow when a comment is updated on a Bitbucket pull request"
+        },
+        {
+          "id": "bitbucket_pull_request_comment_deleted",
+          "name": "Bitbucket Pull Request Comment Deleted",
+          "description": "Trigger workflow when a comment is deleted from a Bitbucket pull request"
+        },
+        {
+          "id": "bitbucket_pull_request_comment_resolved",
+          "name": "Bitbucket Pull Request Comment Resolved",
+          "description": "Trigger workflow when a comment is resolved on a Bitbucket pull request"
+        },
+        {
+          "id": "bitbucket_pull_request_comment_reopened",
+          "name": "Bitbucket Pull Request Comment Reopened",
+          "description": "Trigger workflow when a resolved comment is reopened on a Bitbucket pull request"
+        }
+      ],
+      "triggerCount": 19,
       "authType": "oauth",
       "oauthServiceId": "bitbucket",
       "category": "tools",
