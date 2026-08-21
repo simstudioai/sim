@@ -155,7 +155,7 @@ describe('PlaidBlock tools.config.params', () => {
     ).toMatchObject({
       selectorKey: 'plaid.institutions',
       canonicalParamId: 'institutionId',
-      dependsOn: ['credential', 'countryCodes'],
+      dependsOn: ['credential'],
     })
     expect(
       PlaidBlock.subBlocks.find((subBlock) => subBlock.id === 'manualInstitutionId')

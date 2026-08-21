@@ -133,7 +133,7 @@ export const PlaidBlock: BlockConfig<PlaidResponse> = {
       serviceId: 'plaid',
       canonicalParamId: 'institutionId',
       placeholder: 'Search Plaid institutions',
-      dependsOn: ['credential', 'countryCodes'],
+      dependsOn: ['credential'],
       mode: 'basic',
       condition: {
         field: 'operation',
