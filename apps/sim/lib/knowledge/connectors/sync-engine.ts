@@ -882,7 +882,12 @@ export async function executeSync(
     .returning({ id: knowledgeConnector.id })
 
   if (lockResult.length === 0) {
-    logger.info('Sync already in progress, skipping', { connectorId })
+    logger.info(
+      options.requireRunnable
+        ? 'Connector is not runnable or sync is already in progress, skipping'
+        : 'Sync already in progress, skipping',
+      { connectorId }
+    )
     return result
   }
 

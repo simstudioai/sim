@@ -254,10 +254,20 @@ describe('performUpdateKnowledgeConnector', () => {
 
   it('queues synchronization after replacing an active connector source', async () => {
     dbChainMockFns.limit.mockResolvedValueOnce([
-      { id: 'conn-1', connectorType: 'notion', status: 'active' },
+      {
+        id: 'conn-1',
+        connectorType: 'notion',
+        status: 'active',
+        syncIntervalMinutes: 0,
+      },
     ])
     dbChainMockFns.returning.mockResolvedValueOnce([
-      { id: 'conn-1', connectorType: 'notion', status: 'active' },
+      {
+        id: 'conn-1',
+        connectorType: 'notion',
+        status: 'active',
+        syncIntervalMinutes: 0,
+      },
     ])
 
     const outcome = await performUpdateKnowledgeConnector({
@@ -278,12 +288,22 @@ describe('performUpdateKnowledgeConnector', () => {
     })
   })
 
-  it('reports a queue failure after replacing an active connector source', async () => {
+  it('reports a queue failure and leaves the source sync due for retry', async () => {
     dbChainMockFns.limit.mockResolvedValueOnce([
-      { id: 'conn-1', connectorType: 'notion', status: 'active' },
+      {
+        id: 'conn-1',
+        connectorType: 'notion',
+        status: 'active',
+        syncIntervalMinutes: 0,
+      },
     ])
     dbChainMockFns.returning.mockResolvedValueOnce([
-      { id: 'conn-1', connectorType: 'notion', status: 'active' },
+      {
+        id: 'conn-1',
+        connectorType: 'notion',
+        status: 'active',
+        syncIntervalMinutes: 0,
+      },
     ])
     mockDispatchSync.mockRejectedValueOnce(new Error('queue unavailable'))
 
@@ -302,6 +322,12 @@ describe('performUpdateKnowledgeConnector', () => {
       error: 'queue unavailable',
     })
     expect(dbChainMockFns.update).toHaveBeenCalledOnce()
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sourceConfig: { database: 'next' },
+        nextSyncAt: expect.any(Date),
+      })
+    )
     expect(mockDispatchSync).toHaveBeenCalledOnce()
   })
 

@@ -483,7 +483,10 @@ export async function performUpdateKnowledgeConnector(
     }
   }
 
-  const values: Partial<typeof knowledgeConnector.$inferInsert> = { updatedAt: new Date() }
+  const updateTimestamp = new Date()
+  const values: Partial<typeof knowledgeConnector.$inferInsert> = {
+    updatedAt: updateTimestamp,
+  }
   if (updates.sourceConfig !== undefined) {
     values.sourceConfig = updates.sourceConfig
   }
@@ -505,6 +508,9 @@ export async function performUpdateKnowledgeConnector(
         values.nextSyncAt = new Date()
       }
     }
+  }
+  if (shouldDispatchSourceSync) {
+    values.nextSyncAt = updateTimestamp
   }
 
   let updated: ConnectorRow
