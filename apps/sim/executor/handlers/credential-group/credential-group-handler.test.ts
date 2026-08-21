@@ -100,7 +100,7 @@ describe('CredentialGroupBlockHandler', () => {
     )
   })
 
-  it('lists credentials without accepting an email selector', async () => {
+  it('lists credentials with an optional email selector', async () => {
     mocks.listCredentials.mockResolvedValue({
       credentials: [],
       count: 0,
@@ -111,6 +111,7 @@ describe('CredentialGroupBlockHandler', () => {
     const result = await new CredentialGroupBlockHandler().execute(context, block, {
       operation: 'list_credentials',
       credentialGroupId: ' group-1 ',
+      email: ' person@example.com ',
       credentialProviderIds: '["google-email", "google-email"]',
       limit: '25',
       cursor: ' credential-1 ',
@@ -121,6 +122,7 @@ describe('CredentialGroupBlockHandler', () => {
       principal,
       input: {
         credentialGroupId: 'group-1',
+        email: 'person@example.com',
         credentialProviderIds: ['google-email'],
         limit: 25,
         cursor: 'credential-1',

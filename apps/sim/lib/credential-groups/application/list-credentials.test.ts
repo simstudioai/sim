@@ -203,6 +203,7 @@ describe('listCredentialGroupCredentials', () => {
       credentialGroupId: 'group-1',
       limit: 50,
       cursor: undefined,
+      email: undefined,
       credentialProviderIds: undefined,
       credentialGroupOptionIds: ['option-1'],
     })
@@ -234,15 +235,25 @@ describe('listCredentialGroupCredentials', () => {
     )
   })
 
-  it('does not use caller-supplied identity fields to filter credential references', async () => {
+  it('normalizes an optional email filter independently of caller identity', async () => {
     await listCredentialGroupCredentials.execute({
       principal: executorPrincipal(),
       input: { ...input, email: ' Person@Example.COM ' },
     })
 
     expect(mocks.listCredentials).toHaveBeenCalledWith(
-      expect.not.objectContaining({ credentialGroupEnrollmentId: expect.anything() })
+      expect.objectContaining({ email: 'person@example.com' })
     )
+  })
+
+  it('rejects an invalid email filter', async () => {
+    await expect(
+      listCredentialGroupCredentials.execute({
+        principal: executorPrincipal(),
+        input: { ...input, email: 'not-an-email' },
+      })
+    ).rejects.toMatchObject({ code: 'validation', message: 'Email must be a valid address' })
+    expect(mocks.listCredentials).not.toHaveBeenCalled()
   })
 
   it('rejects providers that are not active in the group before credential access', async () => {

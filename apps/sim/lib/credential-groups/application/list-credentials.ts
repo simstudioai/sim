@@ -1,3 +1,4 @@
+import { isValidEmailSyntax, normalizeEmail } from '@sim/utils/string'
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { credentialGroupDelegationPolicy } from '@/lib/credential-groups/application/authorization'
@@ -21,6 +22,7 @@ export interface ListCredentialGroupCredentialsInput {
   credentialGroupId: string
   limit: number
   cursor?: string
+  email?: string
   credentialProviderIds?: string[]
 }
 
@@ -49,6 +51,11 @@ export const listCredentialGroupCredentials = defineAuthorizedWorkspaceUseCase({
     }
     if (context.status !== 'active') {
       throw new OrchestrationError('conflict', 'Credential group is disabled')
+    }
+
+    const email = input.email ? normalizeEmail(input.email) : undefined
+    if (email && !isValidEmailSyntax(email)) {
+      throw new OrchestrationError('validation', 'Email must be a valid address')
     }
 
     const credentialProviderIds = [...new Set(input.credentialProviderIds ?? [])]
@@ -84,6 +91,7 @@ export const listCredentialGroupCredentials = defineAuthorizedWorkspaceUseCase({
         credentialGroupOptionIds: activeOptions.map((option) => option.id),
         limit: input.limit,
         cursor: input.cursor,
+        email,
         credentialProviderIds: credentialProviderIds.length > 0 ? credentialProviderIds : undefined,
       })
     } catch (error) {
