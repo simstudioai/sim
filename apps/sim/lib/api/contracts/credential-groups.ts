@@ -5,6 +5,7 @@ import {
   CREDENTIAL_GROUP_PROVIDER_IDS,
   CREDENTIAL_GROUP_STANDARD_OAUTH_PROVIDER_IDS,
 } from '@/lib/credential-groups/providers'
+import { resourcePolicySubjectSchema } from '@/lib/resource-policies/types'
 
 export const credentialGroupProviderSchema = z.enum(CREDENTIAL_GROUP_PROVIDER_IDS)
 export const credentialGroupStatusSchema = z.enum(['active', 'disabled'])
@@ -114,6 +115,42 @@ export type CredentialGroupEnrollmentConnection = z.output<
   typeof credentialGroupEnrollmentConnectionSchema
 >
 export type CredentialGroupEnrollmentDetail = z.output<typeof credentialGroupEnrollmentDetailSchema>
+
+export const credentialGroupAccessGrantSchema = z
+  .object({
+    id: z.string().min(1).max(128),
+    subject: resourcePolicySubjectSchema,
+  })
+  .strict()
+
+export type CredentialGroupAccessGrant = z.output<typeof credentialGroupAccessGrantSchema>
+
+export const credentialGroupAccessPolicySchema = z
+  .object({
+    revision: z.number().int().nonnegative(),
+    grants: z.array(credentialGroupAccessGrantSchema).max(100),
+  })
+  .strict()
+
+export type CredentialGroupAccessPolicy = z.output<typeof credentialGroupAccessPolicySchema>
+
+export const updateCredentialGroupAccessBodySchema = z
+  .object({
+    expectedRevision: z.number().int().nonnegative(),
+    grants: z
+      .array(
+        z
+          .object({
+            id: z.string().min(1).max(128).optional(),
+            subject: resourcePolicySubjectSchema,
+          })
+          .strict()
+      )
+      .max(100),
+  })
+  .strict()
+
+export type UpdateCredentialGroupAccessBody = z.input<typeof updateCredentialGroupAccessBodySchema>
 
 export const credentialGroupWorkspaceParamsSchema = z.object({
   id: workspaceIdSchema,
@@ -380,6 +417,21 @@ export const updateCredentialGroupContract = defineRouteContract({
     mode: 'json',
     schema: z.object({ credentialGroup: credentialGroupSchema }),
   },
+})
+
+export const getCredentialGroupAccessContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/workspaces/[id]/credential-groups/[groupId]/access',
+  params: credentialGroupDetailParamsSchema,
+  response: { mode: 'json', schema: credentialGroupAccessPolicySchema },
+})
+
+export const updateCredentialGroupAccessContract = defineRouteContract({
+  method: 'PUT',
+  path: '/api/workspaces/[id]/credential-groups/[groupId]/access',
+  params: credentialGroupDetailParamsSchema,
+  body: updateCredentialGroupAccessBodySchema,
+  response: { mode: 'json', schema: credentialGroupAccessPolicySchema },
 })
 
 export const startSlackCredentialGroupConfigurationContract = defineRouteContract({

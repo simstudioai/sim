@@ -340,6 +340,27 @@ export class WorkflowBlockHandler implements BlockHandler {
         throw new Error(`Child workflow ${workflowId} not found`)
       }
 
+      if (useDeployed && !childWorkflow.deploymentVersionId) {
+        throw new Error(`Deployed child workflow ${workflowId} has no deployment version`)
+      }
+
+      const childWorkflowAuthority = useDeployed
+        ? {
+            workflowId,
+            mode: 'deployment' as const,
+            deploymentVersionId: childWorkflow.deploymentVersionId as string,
+          }
+        : { workflowId, mode: 'draft' as const }
+      if (!isCustomBlock) {
+        if (!childExecutorDelegationOrigin) {
+          throw new Error('Child workflow execution is missing its delegation origin')
+        }
+        childExecutorDelegationOrigin = {
+          ...childExecutorDelegationOrigin,
+          currentWorkflow: childWorkflowAuthority,
+        }
+      }
+
       // Custom blocks are org-scoped and deliberately cross-workspace: the source
       // workflow lives in the publisher's workspace, not the consumer's. Their
       // boundary is the org overlay + `getCustomBlockAuthority`, so the
@@ -548,6 +569,7 @@ export class WorkflowBlockHandler implements BlockHandler {
             workspaceId: sourceWorkspaceId,
             workflowId,
           },
+          currentWorkflow: childWorkflowAuthority,
         }
         // The child no longer shares the parent's execution id, so it no longer
         // hears the parent's cancellation event — bridge it explicitly.
@@ -1169,6 +1191,7 @@ export class WorkflowBlockHandler implements BlockHandler {
     return {
       name: workflowData.name,
       workspaceId: (workflowData.workspaceId ?? null) as string | null,
+      deploymentVersionId: undefined,
       serializedState: serializedWorkflow,
       variables: workflowVariables,
       workflowState: workflowStateWithVariables,
@@ -1257,6 +1280,7 @@ export class WorkflowBlockHandler implements BlockHandler {
     return {
       name: childName,
       workspaceId: (wfData?.workspaceId ?? null) as string | null,
+      deploymentVersionId: deployedState.deploymentVersionId as string | undefined,
       serializedState: serializedWorkflow,
       variables: workflowVariables,
       workflowState: workflowStateWithVariables,

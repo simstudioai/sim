@@ -1,6 +1,6 @@
 # Resource Policies
 
-Status: proposed reusable authorization model
+Status: reusable store and Credential Group integration implemented
 
 ## Goal
 
@@ -100,10 +100,7 @@ Policies store stable subject references, never session IDs, API keys, delegatio
         "type": "workflow",
         "workflowId": "wf_support"
       },
-      "actions": [
-        "credential_groups.credentials.list",
-        "credential_groups.credentials.use"
-      ]
+      "actions": ["credential_groups.credentials.use"]
     },
     {
       "id": "support-admins",
@@ -111,10 +108,7 @@ Policies store stable subject references, never session IDs, API keys, delegatio
         "type": "access_control_group",
         "accessControlGroupId": "pg_support_admins"
       },
-      "actions": [
-        "credential_groups.credentials.list",
-        "credential_groups.credentials.use"
-      ]
+      "actions": ["credential_groups.credentials.use"]
     }
   ]
 }
@@ -228,9 +222,10 @@ resource_policy
   workspace_id
   resource_type
   resource_id
-  version
-  document_json
+  revision
+  document
   created_by
+  updated_by
   created_at
   updated_at
 ```
@@ -258,6 +253,12 @@ authenticate Principal
 
 Routes, blocks, tools, Copilot adapters, and executor handlers do not query policy tables or make independent authorization decisions.
 
+## Current implementation
+
+The generic policy document, strict parser, optimistic repository, subject evaluator, and subject-management validation are implemented. Credential Groups are the first resource type and currently expose one managed permission in the UI: use every credential in the group.
+
+Future resource types extend the exact resource/action registry and call the same evaluator from their application operations. Knowledge Base/table enforcement and log-provenance redaction remain separate follow-up work.
+
 ## Provenance and logs
 
 Future protected resources attach provenance to values returned into workflow execution:
@@ -281,7 +282,7 @@ Provenance and viewer-specific log shielding are a later phase. They use the sam
 1. Add strict policy types, validation, storage, and evaluator.
 2. Add admin policy read/write application operations and audit.
 3. Add deployed-workflow authority to execution identity.
-4. Integrate Credential Group list and use authorization.
+4. Integrate Credential Group credential-use authorization.
 5. Add user, workspace-role, and Access Control Group subject resolution.
 6. Add policy management UI on Credential Groups.
 7. Extend the same evaluator to Knowledge Bases and tables.

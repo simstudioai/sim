@@ -7,10 +7,12 @@ import {
   createCredentialGroupContract,
   deleteCredentialGroupContract,
   deleteCredentialGroupEnrollmentContract,
+  getCredentialGroupAccessContract,
   getCredentialGroupContract,
   inviteCredentialGroupEnrollmentsContract,
   resendCredentialGroupEnrollmentContract,
   startSlackCredentialGroupConfigurationContract,
+  updateCredentialGroupAccessContract,
   updateCredentialGroupContract,
 } from '@/lib/api/contracts/credential-groups'
 import type { ContractJsonResponse } from '@/lib/api/contracts/types'
@@ -53,6 +55,47 @@ export function useCredentialGroupDetail(workspaceId?: string, groupId?: string)
     // An infinite staleTime never goes stale, so the app-wide `retryOnMount: false`
     // would cache one transient failure for the life of the QueryClient.
     retryOnMount: true,
+  })
+}
+
+export function useCredentialGroupAccess(workspaceId?: string, groupId?: string) {
+  return useQuery({
+    queryKey: credentialGroupKeys.access(workspaceId, groupId),
+    queryFn: ({ signal }) => {
+      if (!workspaceId || !groupId) {
+        throw new Error('Credential Group access identifiers are required')
+      }
+      return requestJson(getCredentialGroupAccessContract, {
+        params: { id: workspaceId, groupId },
+        signal,
+      })
+    },
+    enabled: Boolean(workspaceId && groupId),
+    staleTime: CREDENTIAL_GROUP_DETAIL_STALE_TIME,
+    retryOnMount: true,
+  })
+}
+
+export function useUpdateCredentialGroupAccess() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({
+      workspaceId,
+      groupId,
+      body,
+    }: {
+      workspaceId: string
+      groupId: string
+      body: ContractBodyInput<typeof updateCredentialGroupAccessContract>
+    }) =>
+      requestJson(updateCredentialGroupAccessContract, {
+        params: { id: workspaceId, groupId },
+        body,
+      }),
+    onSettled: (_data, _error, variables) =>
+      queryClient.invalidateQueries({
+        queryKey: credentialGroupKeys.access(variables.workspaceId, variables.groupId),
+      }),
   })
 }
 

@@ -1,6 +1,5 @@
 import {
   type Principal,
-  requirePrincipalSubjectUserId,
   resolvePrincipalSubject,
   type WorkflowExecutionDelegatedPrincipal,
 } from '@sim/auth/principal'
@@ -14,14 +13,24 @@ import {
   type CredentialGroupEnrollmentAccess,
   loadCredentialGroupEnrollmentAccessForSubject,
 } from '@/lib/credential-groups/credentials'
+import { findResourcePolicyGrant } from '@/lib/resource-policies/authorization'
+import type { ResourcePolicyAction } from '@/lib/resource-policies/types'
 
 export const CREDENTIAL_GROUP_DELEGATION_AUDIENCE = 'sim:credential-groups'
 
-export interface CredentialGroupApplicationContext
-  extends WorkspaceAuthorizationContext,
-    CredentialGroupCredentialListContext {
-  enrollmentAccess?: CredentialGroupEnrollmentAccess
+export interface CredentialGroupAuthorizationContext extends WorkspaceAuthorizationContext {
+  credentialGroupId: string
 }
+
+export interface CredentialGroupApplicationContext
+  extends CredentialGroupAuthorizationContext,
+    CredentialGroupCredentialListContext {
+  credentialAccess?: CredentialGroupCredentialAccess
+}
+
+export type CredentialGroupCredentialAccess =
+  | ({ scope: 'enrollment' } & CredentialGroupEnrollmentAccess)
+  | { scope: 'all'; grantId: string }
 
 function requireWorkflowExecutionPrincipal(principal: Principal) {
   if (principal.kind !== 'delegated' || principal.serviceId !== 'executor') {
@@ -36,39 +45,50 @@ function requireWorkflowExecutionPrincipal(principal: Principal) {
 }
 
 export function requireCredentialGroupWorkflowSubject(principal: Principal): string {
-  const executionPrincipal = requireWorkflowExecutionPrincipal(principal)
-  let subjectUserId: string
-  try {
-    subjectUserId = requirePrincipalSubjectUserId(executionPrincipal)
-  } catch {
+  const subject = resolvePrincipalSubject(requireWorkflowExecutionPrincipal(principal))
+  if (
+    subject?.kind !== 'sim_user' ||
+    principal.kind !== 'delegated' ||
+    principal.subjectUserId !== subject.userId
+  ) {
     throw new OrchestrationError('forbidden', 'Credential Group user access required')
   }
-  if (principal.kind !== 'delegated' || principal.subjectUserId !== subjectUserId) {
-    throw new OrchestrationError('forbidden', 'Credential Group user access required')
-  }
-  return subjectUserId
+  return subject.userId
 }
 
-export async function requireCredentialGroupEnrollmentAccess(
+export async function requireCredentialGroupCredentialAccess(
   principal: Principal,
-  credentialGroupId: string
-): Promise<CredentialGroupEnrollmentAccess> {
+  context: CredentialGroupAuthorizationContext,
+  action: ResourcePolicyAction
+): Promise<CredentialGroupCredentialAccess> {
+  const grant = await findResourcePolicyGrant({
+    principal,
+    context,
+    resourceType: 'credential_group',
+    resourceId: context.credentialGroupId,
+    action,
+  })
+  if (grant) return { scope: 'all', grantId: grant.id }
+
   const executionPrincipal = requireWorkflowExecutionPrincipal(principal)
   const subject = resolvePrincipalSubject(executionPrincipal)
   if (!subject) {
-    throw new OrchestrationError('forbidden', 'Credential Group enrollment access required')
+    throw new OrchestrationError('forbidden', 'Credential Group actor access required')
   }
   if (
     subject.kind === 'sim_user' &&
     (principal.kind !== 'delegated' || principal.subjectUserId !== subject.userId)
   ) {
-    throw new OrchestrationError('forbidden', 'Credential Group enrollment access required')
+    throw new OrchestrationError('forbidden', 'Credential Group actor access required')
   }
-  const access = await loadCredentialGroupEnrollmentAccessForSubject(credentialGroupId, subject)
+  const access = await loadCredentialGroupEnrollmentAccessForSubject(
+    context.credentialGroupId,
+    subject
+  )
   if (!access) {
     throw new OrchestrationError('forbidden', 'Credential Group enrollment access required')
   }
-  return access
+  return { scope: 'enrollment', ...access }
 }
 
 export const credentialGroupDelegationPolicy = {

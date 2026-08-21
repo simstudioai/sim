@@ -5,6 +5,7 @@ import type { WorkflowExecutionDelegatedPrincipal } from '@sim/auth/principal'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
+  findPolicyGrant: vi.fn(),
   loadEnrollmentAccess: vi.fn(),
 }))
 
@@ -12,7 +13,18 @@ vi.mock('@/lib/credential-groups/credentials', () => ({
   loadCredentialGroupEnrollmentAccessForSubject: mocks.loadEnrollmentAccess,
 }))
 
-import { requireCredentialGroupEnrollmentAccess } from '@/lib/credential-groups/application/authorization'
+vi.mock('@/lib/resource-policies/authorization', () => ({
+  findResourcePolicyGrant: mocks.findPolicyGrant,
+}))
+
+import { requireCredentialGroupCredentialAccess } from '@/lib/credential-groups/application/authorization'
+
+const context = {
+  workspaceId: 'workspace-1',
+  workspaceOrganizationId: null,
+  allowPersonalApiKeys: true,
+  credentialGroupId: 'group-1',
+}
 
 function executorPrincipal(): WorkflowExecutionDelegatedPrincipal {
   return {
@@ -44,9 +56,10 @@ function executorPrincipal(): WorkflowExecutionDelegatedPrincipal {
   }
 }
 
-describe('requireCredentialGroupEnrollmentAccess', () => {
+describe('requireCredentialGroupCredentialAccess', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mocks.findPolicyGrant.mockResolvedValue(null)
     mocks.loadEnrollmentAccess.mockResolvedValue({
       enrollmentId: 'enrollment-1',
       email: 'person@example.com',
@@ -56,7 +69,14 @@ describe('requireCredentialGroupEnrollmentAccess', () => {
   it('resolves an external workflow actor to their enrollment', async () => {
     const principal = executorPrincipal()
 
-    await expect(requireCredentialGroupEnrollmentAccess(principal, 'group-1')).resolves.toEqual({
+    await expect(
+      requireCredentialGroupCredentialAccess(
+        principal,
+        context,
+        'credential_groups.credentials.use'
+      )
+    ).resolves.toEqual({
+      scope: 'enrollment',
       enrollmentId: 'enrollment-1',
       email: 'person@example.com',
     })
@@ -78,10 +98,14 @@ describe('requireCredentialGroupEnrollmentAccess', () => {
     }
 
     await expect(
-      requireCredentialGroupEnrollmentAccess(principal, 'group-1')
+      requireCredentialGroupCredentialAccess(
+        principal,
+        context,
+        'credential_groups.credentials.use'
+      )
     ).rejects.toMatchObject({
       code: 'forbidden',
-      message: 'Credential Group enrollment access required',
+      message: 'Credential Group actor access required',
     })
     expect(mocks.loadEnrollmentAccess).not.toHaveBeenCalled()
   })
@@ -96,8 +120,32 @@ describe('requireCredentialGroupEnrollmentAccess', () => {
     }
 
     await expect(
-      requireCredentialGroupEnrollmentAccess(principal, 'group-1')
+      requireCredentialGroupCredentialAccess(
+        principal,
+        context,
+        'credential_groups.credentials.use'
+      )
     ).rejects.toMatchObject({ code: 'forbidden' })
+    expect(mocks.loadEnrollmentAccess).not.toHaveBeenCalled()
+  })
+
+  it('allows an actorless workflow when an explicit policy grant matches', async () => {
+    const principal = executorPrincipal()
+    principal.delegationContext!.principal = {
+      kind: 'system',
+      serviceId: 'schedule',
+      workspaceId: 'workspace-1',
+      workflowId: 'workflow-1',
+    }
+    mocks.findPolicyGrant.mockResolvedValue({ id: 'grant-1' })
+
+    await expect(
+      requireCredentialGroupCredentialAccess(
+        principal,
+        context,
+        'credential_groups.credentials.use'
+      )
+    ).resolves.toEqual({ scope: 'all', grantId: 'grant-1' })
     expect(mocks.loadEnrollmentAccess).not.toHaveBeenCalled()
   })
 })

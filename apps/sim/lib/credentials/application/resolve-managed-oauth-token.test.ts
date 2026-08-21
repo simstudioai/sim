@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   loadContext: vi.fn(),
-  requireEnrollmentAccess: vi.fn(),
+  requireCredentialAccess: vi.fn(),
   resolvePermission: vi.fn(),
   resolveToken: vi.fn(),
   recordAudit: vi.fn(),
@@ -18,7 +18,7 @@ vi.mock('@/lib/credentials/managed-oauth', () => ({
 }))
 
 vi.mock('@/lib/credential-groups/application/authorization', () => ({
-  requireCredentialGroupEnrollmentAccess: mocks.requireEnrollmentAccess,
+  requireCredentialGroupCredentialAccess: mocks.requireCredentialAccess,
 }))
 
 vi.mock('@sim/platform-authz/workspace', () => ({
@@ -75,7 +75,8 @@ describe('resolveManagedOAuthCredentialToken', () => {
     vi.clearAllMocks()
     mocks.loadContext.mockResolvedValue(context)
     mocks.resolvePermission.mockResolvedValue('read')
-    mocks.requireEnrollmentAccess.mockResolvedValue({
+    mocks.requireCredentialAccess.mockResolvedValue({
+      scope: 'enrollment',
       enrollmentId: 'enrollment-1',
       email: 'person@example.com',
     })
@@ -125,7 +126,8 @@ describe('resolveManagedOAuthCredentialToken', () => {
   })
 
   it('rejects a credential owned by another group enrollment', async () => {
-    mocks.requireEnrollmentAccess.mockResolvedValueOnce({
+    mocks.requireCredentialAccess.mockResolvedValueOnce({
+      scope: 'enrollment',
       enrollmentId: 'enrollment-2',
       email: 'other@example.com',
     })
@@ -137,5 +139,14 @@ describe('resolveManagedOAuthCredentialToken', () => {
       message: 'Credential Group enrollment access required',
     })
     expect(mocks.resolveToken).not.toHaveBeenCalled()
+  })
+
+  it('allows any credential in the group for a matching all-credentials grant', async () => {
+    mocks.requireCredentialAccess.mockResolvedValueOnce({ scope: 'all', grantId: 'grant-1' })
+
+    await expect(
+      resolveManagedOAuthCredentialToken.execute({ principal: executorPrincipal(), input })
+    ).resolves.toEqual({ accessToken: 'access-token', refreshed: false })
+    expect(mocks.resolveToken).toHaveBeenCalledOnce()
   })
 })

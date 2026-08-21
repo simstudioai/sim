@@ -12,6 +12,8 @@ export const credentialGroupKeys = {
   details: () => [...credentialGroupKeys.all, 'detail'] as const,
   detail: (workspaceId?: string, groupId?: string) =>
     [...credentialGroupKeys.details(), workspaceId ?? '', groupId ?? ''] as const,
+  access: (workspaceId?: string, groupId?: string) =>
+    [...credentialGroupKeys.detail(workspaceId, groupId), 'access'] as const,
 }
 
 export async function fetchCredentialGroupList(

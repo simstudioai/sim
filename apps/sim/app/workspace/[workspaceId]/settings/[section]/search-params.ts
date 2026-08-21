@@ -107,7 +107,7 @@ export const credentialGroupIdUrlKeys = {
 /** Active view inside a credential-group detail page. */
 export const credentialGroupTabParam = {
   key: 'credential-group-tab',
-  parser: parseAsStringLiteral(['details', 'people'] as const).withDefault('details'),
+  parser: parseAsStringLiteral(['details', 'people', 'access'] as const).withDefault('details'),
 } as const
 
 /** Tab view-state: clean URLs, no back-stack churn. */

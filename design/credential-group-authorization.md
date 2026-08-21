@@ -1,6 +1,6 @@
 # Credential Group Authorization
 
-Status: actor-only enforcement is implemented; group-wide resource grants are proposed
+Status: actor-only enforcement and group-wide resource grants are implemented
 
 ## Purpose
 
@@ -8,7 +8,7 @@ Credential Groups collect external users' managed credentials and let workflows 
 
 The default is simple:
 
-> An execution with a verified actor may list and use only that actor's credentials.
+> An execution may list every non-secret credential reference, but it may use only the verified actor's credential.
 
 Explicit resource-policy grants can expand a user, Access Control Group, workspace role, or deployed workflow to every credential in the Credential Group.
 
@@ -41,7 +41,7 @@ Principal userId
   -> active enrollment with the same normalized email
 ```
 
-For Slack, the next step is:
+For Slack, the implementation resolves:
 
 ```text
 verified webhook Principal subject (slack, teamId, userId)
@@ -60,7 +60,7 @@ List Credentials
 
 Its contract is:
 
-> Return every credential that this execution is currently authorized to use.
+> Return every active credential reference in the group; selecting a reference does not authorize its use.
 
 Inputs may select the Credential Group, provider option, and pagination. Inputs never select identity or authorization scope:
 
@@ -83,28 +83,7 @@ The input does not contain:
 
 ## List authorization
 
-The application operation loads the canonical Credential Group, verifies workspace access, and evaluates the current resource policy.
-
-```text
-matching credentials.list grant
-  -> list all active credentials in the group
-
-otherwise verified actor with active enrollment
-  -> list only credentials for that exact enrollment
-
-otherwise
-  -> fail
-```
-
-The internal result is a database query constraint, not persisted policy state:
-
-```ts
-type CredentialListAuthorization =
-  | { enrollmentId: string }
-  | { grantId: string }
-```
-
-The exact enrollment constraint is applied to cursor validation and every page query. A credential ID returned from an earlier call is not an authorization capability.
+The application operation loads the canonical Credential Group, verifies executor delegation, workspace binding, group scope, status, and entitlement, then returns a bounded page of all active credential references in the group. The result contains opaque IDs and account metadata but no token material, and a returned credential ID is never an authorization capability.
 
 ## Credential use authorization
 
@@ -131,7 +110,6 @@ Tokens and refresh tokens never appear in block output or execution logs. List r
 The Credential Group resource policy can grant:
 
 ```text
-credential_groups.credentials.list
 credential_groups.credentials.use
 ```
 
@@ -144,10 +122,7 @@ Example workflow grant:
     "type": "workflow",
     "workflowId": "wf_support"
   },
-  "actions": [
-    "credential_groups.credentials.list",
-    "credential_groups.credentials.use"
-  ]
+  "actions": ["credential_groups.credentials.use"]
 }
 ```
 
@@ -162,10 +137,7 @@ Example Access Control Group grant:
     "type": "access_control_group",
     "accessControlGroupId": "pg_support_admins"
   },
-  "actions": [
-    "credential_groups.credentials.list",
-    "credential_groups.credentials.use"
-  ]
+  "actions": ["credential_groups.credentials.use"]
 }
 ```
 
@@ -173,7 +145,9 @@ Membership is evaluated at operation time. Removing a user from the Access Contr
 
 ## Execution behavior
 
-| Execution | Result |
+All executions that pass the list operation's workspace and group checks can see the same credential references. Using a selected credential resolves as follows:
+
+| Execution | Credential use result |
 | --- | --- |
 | Manual actor without an explicit grant | Actor's enrollment only |
 | Manual actor in a granted Access Control Group | All credentials |
@@ -184,7 +158,7 @@ Membership is evaluated at operation time. Removing a user from the Access Contr
 | Actorless schedule without a workflow grant | Fail |
 | Actor with no enrollment and no explicit grant | Fail |
 
-There is no silent fallback from a requested all-credentials mode because the block has no caller-controlled access mode. It simply returns the set authorized for the current execution.
+There is no silent fallback from a requested all-credentials mode because the block has no caller-controlled access mode. Authorization happens when the selected credential is assumed.
 
 Manual testing exercises the actor path with the tester's credential. Full group-wide behavior is tested through a deployed execution, preferably against a staging Credential Group in a forked workspace.
 
@@ -197,7 +171,7 @@ Slack signature and installation verified
   -> webhook Principal with (teamId, userId) subject
   -> workflow execution
   -> Credential Group enrollment resolution
-  -> actor-scoped credential list/use
+  -> actor-scoped credential use
 ```
 
 The Slack trigger subscription credential only receives events. It is not the external user's downstream credential.
@@ -208,24 +182,22 @@ Bot events and events without a verified human subject have no actor. They requi
 
 Credential Group creation, options, invitations, enrollment lifecycle, and resource-policy changes remain control-plane operations requiring current workspace-admin authorization and audit.
 
-Managing the policy does not automatically grant the administrator permission to list or use credentials. Data-plane access still requires actor ownership or an explicit grant.
+Managing the policy does not automatically grant the administrator permission to use credentials. Data-plane credential use still requires actor ownership or an explicit grant.
 
 ## Current implementation delta
 
-The branch already:
+The branch:
 
 - threads the original Principal into Credential Group executor delegation;
 - removes caller-supplied email filtering from credential listing;
 - resolves a verified Sim user to an exact active enrollment;
-- filters list pagination by that enrollment;
+- lists bounded non-secret references for every active credential in the group;
 - rechecks the same enrollment when resolving managed OAuth tokens;
 - fails actorless execution instead of substituting a billing or workflow owner.
+- stores and evaluates generic allow-only resource policies;
+- resolves user, workspace-role, Access Control Group, external-identity, and deployed-workflow subjects;
+- grants whole-group credential use when an explicit policy matches;
+- binds Slack's verified provider subject to an active enrollment;
+- exposes an audited, optimistic-concurrency admin management API and structured Access tab.
 
-Remaining work is:
-
-1. Add the generic resource-policy store and evaluator.
-2. Resolve user, workspace-role, Access Control Group, and deployed-workflow subjects.
-3. Extend list authorization to actor enrollment or a `credentials.list` grant.
-4. Extend token authorization to actor ownership or a `credentials.use` grant.
-5. Bind Slack's verified nested external subject to the matching enrollment.
-6. Add admin policy management and audit surfaces.
+Knowledge Base/table resource enforcement and provenance-aware log redaction remain separate follow-up work.

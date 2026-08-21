@@ -947,6 +947,9 @@ async function executeWorkflowCoreImpl(
         workflowId,
         ...(executionId ? { executionId } : {}),
         principal: metadata.principal,
+        currentWorkflow: deploymentVersionId
+          ? { workflowId, mode: 'deployment', deploymentVersionId }
+          : { workflowId, mode: 'draft' },
       },
       isDeployedContext: !metadata.isClientSession,
       enforceCredentialAccess: metadata.enforceCredentialAccess ?? false,

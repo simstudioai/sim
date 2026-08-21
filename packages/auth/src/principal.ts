@@ -77,7 +77,12 @@ export interface WorkflowExecutionDelegationContext {
   workflowId: string
   executionId?: string
   principal?: WorkflowExecutionPrincipal
+  currentWorkflow?: WorkflowExecutionAuthority
 }
+
+export type WorkflowExecutionAuthority =
+  | { workflowId: string; mode: 'draft' }
+  | { workflowId: string; mode: 'deployment'; deploymentVersionId: string }
 
 export interface WorkflowExecutionDelegatedPrincipal extends DelegatedPrincipalBase {
   serviceId: 'executor'
