@@ -86,6 +86,7 @@ export function bitbucketSetupInstructions(eventLabel: string): string {
     'Connect the <strong>Bitbucket account</strong> that administers the repository.',
     'Select the <strong>workspace</strong> and <strong>repository</strong> to monitor.',
     `Deploy the workflow. Sim automatically creates a signed webhook for <strong>${eventLabel}</strong> events.`,
+    'Bitbucket allows up to <strong>50 webhooks per repository</strong>; each deployed Sim trigger uses one.',
     'Undeploying the workflow automatically removes the webhook from Bitbucket.',
   ]
 
