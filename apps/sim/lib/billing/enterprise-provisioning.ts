@@ -2611,20 +2611,6 @@ export const syncEnterpriseMetadataInStripe: OutboxHandler<unknown> = async (
     ) {
       return
     }
-    const desiredSeats = Number(latestPayload.data.metadata.seats)
-    const currentSeatRequirement = await getEnterpriseIssuanceSeatRequirement({
-      executor: db,
-      organizationId: subscriptionRow.referenceId,
-      workspaceIds: [],
-      invitationEmails: [],
-    })
-    if (
-      !Number.isSafeInteger(desiredSeats) ||
-      desiredSeats < currentSeatRequirement.requiredSeats
-    ) {
-      throw new Error('Enterprise seat intent is below current occupied or reserved seats')
-    }
-
     const metadata: Record<string, string> = {}
     for (const [key, value] of Object.entries(latestPayload.data.metadata)) {
       if (value === null) metadata[key] = ''
@@ -2662,6 +2648,20 @@ export const syncEnterpriseMetadataInStripe: OutboxHandler<unknown> = async (
       }
       await context.checkpointPayload({ commercialTermsRetiredAt: new Date().toISOString() })
       return
+    }
+
+    const desiredSeats = Number(latestPayload.data.metadata.seats)
+    const currentSeatRequirement = await getEnterpriseIssuanceSeatRequirement({
+      executor: db,
+      organizationId: subscriptionRow.referenceId,
+      workspaceIds: [],
+      invitationEmails: [],
+    })
+    if (
+      !Number.isSafeInteger(desiredSeats) ||
+      desiredSeats < currentSeatRequirement.requiredSeats
+    ) {
+      throw new Error('Enterprise seat intent is below current occupied or reserved seats')
     }
 
     const deliveryState: EnterpriseMetadataDeliveryState = {

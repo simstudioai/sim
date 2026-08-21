@@ -1450,7 +1450,7 @@ describe('Enterprise metadata outbox handler', () => {
     expect(mocks.subscriptionsUpdate).not.toHaveBeenCalled()
   })
 
-  it('retires a legacy commercial-term intent after Stripe confirms it was not applied', async () => {
+  it('retires an unapplied legacy commercial intent even when its seats are now too low', async () => {
     const payload = {
       subscriptionId: 'local-sub-1',
       revision: 7,
@@ -1458,7 +1458,7 @@ describe('Enterprise metadata outbox handler', () => {
       metadata: {
         plan: 'enterprise',
         referenceId: 'org-1',
-        seats: 15,
+        seats: 5,
         invoiceAmountCents: 120000,
         reportingPeriodAnchorDate: '2026-05-01',
       },
