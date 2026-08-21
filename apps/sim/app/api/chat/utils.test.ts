@@ -197,6 +197,7 @@ describe('Chat API Utils', () => {
 
       const mockRequest = {
         method: 'POST',
+        headers: new Headers(),
         cookies: {
           get: vi.fn().mockReturnValue(null),
         },
@@ -221,6 +222,7 @@ describe('Chat API Utils', () => {
 
       const mockRequest = {
         method: 'POST',
+        headers: new Headers(),
         cookies: {
           get: vi.fn().mockReturnValue(null),
         },
@@ -247,6 +249,7 @@ describe('Chat API Utils', () => {
 
       const mockRequest = {
         method: 'POST',
+        headers: new Headers(),
         cookies: {
           get: vi.fn().mockReturnValue(null),
         },
@@ -291,6 +294,7 @@ describe('Chat API Utils', () => {
 
       const mockRequest = {
         method: 'POST',
+        headers: new Headers(),
         cookies: {
           get: vi.fn().mockReturnValue(null),
         },

@@ -1,13 +1,7 @@
 /**
  * @vitest-environment node
  */
-import {
-  auditMock,
-  dbChainMock,
-  dbChainMockFns,
-  requestUtilsMockFns,
-  resetDbChainMock,
-} from '@sim/testing'
+import { auditMock, dbChainMock, dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@sim/db', () => ({
@@ -81,12 +75,6 @@ describe('recordAudit', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
-    requestUtilsMockFns.mockGetClientIp.mockImplementation(
-      (request: { headers: { get(name: string): string | null } }) =>
-        request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
-        request.headers.get('x-real-ip')?.trim() ||
-        'unknown'
-    )
   })
 
   afterEach(() => {
@@ -165,7 +153,38 @@ describe('recordAudit', () => {
     )
   })
 
-  it('extracts IP address from x-forwarded-for header', async () => {
+  it('extracts IP address from a single-value x-forwarded-for header', async () => {
+    const request = new Request('https://example.com', {
+      headers: {
+        'x-forwarded-for': '1.2.3.4',
+        'user-agent': 'TestAgent/1.0',
+      },
+    })
+
+    recordAudit({
+      workspaceId: 'ws-1',
+      actorId: 'user-1',
+      actorName: 'Test',
+      actorEmail: 'test@test.com',
+      action: AuditAction.MEMBER_INVITED,
+      resourceType: AuditResourceType.WORKSPACE,
+      request,
+    })
+
+    await flush()
+
+    expect(dbChainMockFns.values).toHaveBeenCalledWith(
+      expect.objectContaining({
+        ipAddress: '1.2.3.4',
+        userAgent: 'TestAgent/1.0',
+      })
+    )
+  })
+
+  it('records no IP for an unverifiable forwarded chain', async () => {
+    // With no trusted proxies configured the leftmost token is client-supplied.
+    // A blank `ipAddress` is honest; recording `1.2.3.4` would put an
+    // attacker-chosen string into the audit trail as though it were evidence.
     const request = new Request('https://example.com', {
       headers: {
         'x-forwarded-for': '1.2.3.4, 5.6.7.8',
@@ -187,7 +206,7 @@ describe('recordAudit', () => {
 
     expect(dbChainMockFns.values).toHaveBeenCalledWith(
       expect.objectContaining({
-        ipAddress: '1.2.3.4',
+        ipAddress: undefined,
         userAgent: 'TestAgent/1.0',
       })
     )

@@ -4,6 +4,12 @@ import { stripe } from '@better-auth/stripe'
 import { db } from '@sim/db'
 import * as schema from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import {
+  CLIENT_IP_HEADERS,
+  findMalformedTrustedProxies,
+  isAllTrustingProxyEntry,
+  parseTrustedProxies,
+} from '@sim/security/client-ip'
 import { toError } from '@sim/utils/errors'
 import { type BetterAuthOptions, betterAuth, type User } from 'better-auth'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
@@ -166,15 +172,31 @@ if (validStripeKey) {
 }
 
 /**
- * Reverse-proxy hops trusted for forwarded-IP resolution. When configured,
- * Better Auth walks the x-forwarded-for chain right to left, skips these
- * hops, and records the first untrusted address as the session client IP —
- * preventing header spoofing behind multi-hop proxies.
+ * Reverse-proxy hops trusted for forwarded-IP resolution: the chain is walked
+ * right to left, these hops are skipped, and the first untrusted address is the
+ * client. Parsed with the same helper `resolveClientIp` uses so the session's
+ * recorded IP and the one every other caller resolves cannot diverge.
  */
-const trustedProxies = (env.AUTH_TRUSTED_PROXIES ?? '')
-  .split(',')
-  .map((entry) => entry.trim())
-  .filter(Boolean)
+const trustedProxies = parseTrustedProxies(env.AUTH_TRUSTED_PROXIES)
+
+/**
+ * Both misconfigurations below leave every request resolving no IP at all, and
+ * neither throws — an operator can only discover them if we say so.
+ */
+const malformedTrustedProxies = findMalformedTrustedProxies(trustedProxies)
+if (malformedTrustedProxies.length > 0) {
+  logger.error('AUTH_TRUSTED_PROXIES contains entries that are not an IP or CIDR range', {
+    malformedTrustedProxies,
+  })
+}
+
+const allTrustingProxies = trustedProxies.filter(isAllTrustingProxyEntry)
+if (allTrustingProxies.length > 0) {
+  logger.error(
+    'AUTH_TRUSTED_PROXIES trusts every hop, so no request will resolve a client IP — scope it to your ingress ranges',
+    { allTrustingProxies }
+  )
+}
 
 /**
  * Resolves the org's API instance URL for a freshly linked Salesforce account.
@@ -258,6 +280,9 @@ export const auth = betterAuth({
   },
   advanced: {
     ipAddress: {
+      // The same header list and proxy set `resolveClientIp` uses, so the
+      // address recorded on a session row is the one every other caller sees.
+      ipAddressHeaders: [...CLIENT_IP_HEADERS],
       ...(trustedProxies.length > 0 ? { trustedProxies } : {}),
     },
   },

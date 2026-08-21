@@ -4,7 +4,7 @@ import { normalizeEmail } from '@sim/utils/string'
 import { type NextRequest, NextResponse } from 'next/server'
 import { RateLimiter } from '@/lib/core/rate-limiter/rate-limiter'
 import type { TokenBucketConfig } from '@/lib/core/rate-limiter/storage'
-import { getClientIp } from '@/lib/core/utils/request'
+import { getRateLimitIpKey } from '@/lib/core/utils/request'
 
 const logger = createLogger('RouteRateLimit')
 const rateLimiter = new RateLimiter()
@@ -57,16 +57,15 @@ export async function enforceUserRateLimit(
 }
 
 /**
- * Apply a per-IP token bucket to an unauthenticated route. The `unknown` IP
- * fallback shares one global bucket per route so it cannot be amplified by
- * `X-Forwarded-For: unknown` spoofing.
+ * Apply a per-IP token bucket to an unauthenticated route. Requests with no
+ * trustworthy IP share one bucket per route — see {@link getRateLimitIpKey}.
  */
 export async function enforceIpRateLimit(
   bucketName: string,
   request: NextRequest,
   config: TokenBucketConfig = DEFAULT_PUBLIC_IP_ROUTE_LIMIT
 ): Promise<NextResponse | null> {
-  const ip = getClientIp(request)
+  const ip = getRateLimitIpKey(request)
   const key = `route:${bucketName}:ip:${ip}`
   const { allowed, resetAt } = await rateLimiter.checkRateLimitDirect(key, config)
   if (allowed) return null

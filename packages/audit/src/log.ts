@@ -1,5 +1,6 @@
 import { auditLog, db, user } from '@sim/db'
 import { createLogger } from '@sim/logger'
+import { type ClientIpHeaders, parseTrustedProxies, resolveClientIp } from '@sim/security/client-ip'
 import { generateShortId } from '@sim/utils/id'
 import { eq } from 'drizzle-orm'
 import type { AuditActionType, AuditResourceTypeValue } from './types'
@@ -26,12 +27,18 @@ export interface AuditLogParams {
   request?: { headers: { get(name: string): string | null } }
 }
 
-function getClientIp(request: { headers: { get(name: string): string | null } }): string {
-  return (
-    request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
-    request.headers.get('x-real-ip')?.trim() ||
-    'unknown'
-  )
+/** Same variable the app and Better Auth read, so all three agree on the IP. */
+const trustedProxies = parseTrustedProxies(
+  typeof process !== 'undefined' ? process.env.AUTH_TRUSTED_PROXIES : undefined
+)
+
+/**
+ * The actor's client IP, or `undefined` when none can be trusted. A blank
+ * `ipAddress` is honest; a client-supplied one is worse than blank, because in
+ * an audit trail it reads as evidence.
+ */
+function resolveAuditIpAddress(request: { headers: ClientIpHeaders }): string | undefined {
+  return resolveClientIp(request, { trustedProxies }) ?? undefined
 }
 
 /**
@@ -90,7 +97,7 @@ function buildAuditRow(
     resourceName: params.resourceName,
     description: params.description,
     metadata: params.metadata ?? {},
-    ipAddress: params.request ? getClientIp(params.request) : undefined,
+    ipAddress: params.request ? resolveAuditIpAddress(params.request) : undefined,
     userAgent: params.request?.headers.get('user-agent') ?? undefined,
   }
 }

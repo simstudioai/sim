@@ -19,7 +19,7 @@ import {
   OTP_IP_RATE_LIMIT,
   storeOTP,
 } from '@/lib/core/security/otp'
-import { generateRequestId, getClientIp } from '@/lib/core/utils/request'
+import { generateRequestId, getRateLimitIpKey } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import { setChatAuthCookie } from '@/app/api/chat/utils'
@@ -35,7 +35,7 @@ export const POST = withRouteHandler(
     const requestId = generateRequestId()
 
     try {
-      const ip = getClientIp(request)
+      const ip = getRateLimitIpKey(request)
       const ipRateLimit = await rateLimiter.checkRateLimitDirect(
         `chat-otp:ip:${identifier}:${ip}`,
         OTP_IP_RATE_LIMIT

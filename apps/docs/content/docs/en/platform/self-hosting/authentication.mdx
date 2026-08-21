@@ -111,13 +111,21 @@ Both SSO flags are needed: the server-side one grants access, and the `NEXT_PUBL
 
 ## Behind a load balancer
 
-Tell Better Auth which forwarding hops to trust when resolving the client IP:
+Tell Sim which forwarding hops to trust when resolving the client IP:
 
 ```bash
 AUTH_TRUSTED_PROXIES=10.0.0.0/24,192.0.2.10
 ```
 
-Better Auth walks `X-Forwarded-For` right to left, skips these hops, and uses the first untrusted address as the client IP for session records and its own IP-based checks. Use your proxies' actual addresses — a broad private range that also covers client traffic defeats the purpose. See [Security](/platform/self-hosting/security).
+The forwarded chain is walked right to left, skipping these hops, and the first untrusted address becomes the client IP. Use your proxies' actual addresses — a broad private range that also covers client traffic defeats the purpose, and `0.0.0.0/0` matches every hop, so the walk finds no client at all.
+
+This one variable governs every IP-derived behavior in Sim: session records, per-IP rate limits on public endpoints, the `ipAddress` column on audit log entries, and per-webhook IP allowlists.
+
+<Callout type="warn">
+  Leave it unset behind a proxy and Sim resolves no client IP at all. Nothing breaks outright — per-IP rate limits fall back to one shared bucket per endpoint (stricter, not weaker), audit rows record a blank IP, and any webhook configured with an IP allowlist rejects every delivery. Sim will not read the leftmost `X-Forwarded-For` value as a fallback, because a client can set that header itself.
+</Callout>
+
+Sim reads `X-Forwarded-For` first and falls back to `X-Real-IP`. If your ingress sets only `X-Real-IP` (nginx's `proxy_set_header X-Real-IP $remote_addr`), that is enough — but make sure the header is *overwritten* at the edge rather than passed through from the client. See [Security](/platform/self-hosting/security).
 
 ## Disabling authentication entirely
 

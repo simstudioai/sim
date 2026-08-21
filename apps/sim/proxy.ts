@@ -5,7 +5,7 @@ import { sendToProfound } from './lib/analytics/profound'
 import { getEnv } from './lib/core/config/env'
 import { isAuthDisabled, isDev, isHosted } from './lib/core/config/env-flags'
 import { generateRuntimeCSP } from './lib/core/security/csp'
-import { getClientIp } from './lib/core/utils/request'
+import { resolveClientIp } from './lib/core/utils/request'
 import { isNonCanonicalSimHost } from './lib/core/utils/urls'
 
 const logger = createLogger('Proxy')
@@ -275,7 +275,7 @@ function handleSecurityFiltering(request: NextRequest): NextResponse | null {
   if (isSuspicious && !isWebhookEndpoint && !isMcpEndpoint && !isMcpOauthDiscoveryEndpoint) {
     logger.warn('Blocked suspicious request', {
       userAgent,
-      ip: getClientIp(request),
+      ip: resolveClientIp(request),
       url: request.url,
       method: request.method,
       pattern: SUSPICIOUS_UA_PATTERNS.find((pattern) => pattern.test(userAgent))?.toString(),

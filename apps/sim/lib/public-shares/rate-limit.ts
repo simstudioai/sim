@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { RateLimiter, type TokenBucketConfig } from '@/lib/core/rate-limiter'
-import { getClientIp } from '@/lib/core/utils/request'
+import { getRateLimitIpKey } from '@/lib/core/utils/request'
 
 const rateLimiter = new RateLimiter()
 
@@ -29,7 +29,7 @@ export async function enforcePublicFileRateLimit(
   request: { headers: { get(name: string): string | null } },
   scope: 'metadata' | 'content'
 ): Promise<NextResponse | null> {
-  const ip = getClientIp(request)
+  const ip = getRateLimitIpKey(request)
   const config = scope === 'content' ? CONTENT_RATE_LIMIT : METADATA_RATE_LIMIT
   const result = await rateLimiter.checkRateLimitDirect(`public-file:${scope}:${ip}`, config)
   if (result.allowed) return null

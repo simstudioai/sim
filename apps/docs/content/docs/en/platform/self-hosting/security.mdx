@@ -148,7 +148,22 @@ ALLOW_PRIVATE_DATABASE_HOSTS=true
 
 ## Client IP and forwarded headers
 
-Behind a load balancer, `X-Forwarded-For` is client-controllable. Set `AUTH_TRUSTED_PROXIES` to your proxies' actual addresses so Better Auth resolves the real client IP, and `TRUSTED_ORIGINS` if users reach Sim from more than one origin. Both are covered in [Authentication](/platform/self-hosting/authentication#behind-a-load-balancer).
+`X-Forwarded-For` is appended to by each hop, and the leftmost value is written by the client — so behind a load balancer it is attacker-controlled. Sim never reads it directly. It walks the chain right to left, skips the hops you declare in `AUTH_TRUSTED_PROXIES`, and takes the first address it does not recognize as a proxy. A chain it cannot verify resolves to no IP at all rather than to a guess.
+
+Set `AUTH_TRUSTED_PROXIES` to your proxies' actual addresses, and `TRUSTED_ORIGINS` if users reach Sim from more than one origin. Both are covered in [Authentication](/platform/self-hosting/authentication#behind-a-load-balancer).
+
+What depends on it:
+
+| Surface | With it set | Without it, behind a proxy |
+|---|---|---|
+| Session records | Real client IP on the session row | Blank |
+| Per-IP rate limits on public endpoints | One bucket per client | One shared bucket per endpoint — stricter, and not amplifiable |
+| Audit log `ipAddress` | Real client IP | Blank |
+| Per-webhook IP allowlists | Enforced against the real client | Every delivery rejected |
+
+<Callout type="warn">
+  Do not set it to `0.0.0.0/0` (or `::/0`) to "just make it work". Every hop then counts as a trusted proxy, the walk runs past the end of the chain, and *no* request resolves an IP. Sim logs an error at startup if you do, and likewise if an entry is not a valid IP or CIDR — a typo silently drops that entry.
+</Callout>
 
 ## Restricting who can use the instance
 
@@ -179,7 +194,7 @@ The service bundles ~2.2 GB of spaCy models, so first start takes around three m
 - [ ] Images pinned to an explicit tag or digest on app, realtime, and migrations
 - [ ] TLS terminating at the ingress; HTTP redirected or disabled
 - [ ] `NEXT_PUBLIC_APP_URL` and `BETTER_AUTH_URL` set to the real public origin
-- [ ] `AUTH_TRUSTED_PROXIES` set if behind a load balancer
+- [ ] `AUTH_TRUSTED_PROXIES` set to the ingress addresses if behind a load balancer (not `0.0.0.0/0`)
 - [ ] Signup restricted (`DISABLE_REGISTRATION` or `ALLOWED_LOGIN_DOMAINS`)
 - [ ] `DISABLE_AUTH` **not** set
 - [ ] NetworkPolicy enabled and `ingressFrom` scoped to the ingress controller

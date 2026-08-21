@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { isRecordLike } from '@sim/utils/object'
 import { NextResponse } from 'next/server'
-import { getClientIp } from '@/lib/core/utils/request'
+import { resolveClientIp } from '@/lib/core/utils/request'
 import type {
   AuthContext,
   EventFilterContext,
@@ -160,9 +160,11 @@ export const genericHandler: WebhookProviderHandler = {
 
     const allowedIps = providerConfig.allowedIps
     if (allowedIps && Array.isArray(allowedIps) && allowedIps.length > 0) {
-      const clientIp = getClientIp(request)
+      // An unresolvable IP denies — this allowlist is the only thing between
+      // the webhook and the public internet.
+      const clientIp = resolveClientIp(request)
 
-      if (clientIp === 'unknown' || !allowedIps.includes(clientIp)) {
+      if (clientIp === null || !allowedIps.includes(clientIp)) {
         logger.warn(`[${requestId}] Forbidden webhook access attempt - IP not allowed: ${clientIp}`)
         return new NextResponse('Forbidden - IP not allowed', {
           status: 403,

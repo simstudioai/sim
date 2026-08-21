@@ -21,7 +21,7 @@ import {
   OTP_IP_RATE_LIMIT,
   storeOTP,
 } from '@/lib/core/security/otp'
-import { generateRequestId, getClientIp } from '@/lib/core/utils/request'
+import { generateRequestId, getRateLimitIpKey } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import { resolveActiveShareByToken } from '@/lib/public-shares/share-manager'
@@ -57,7 +57,7 @@ export const POST = withRouteHandler(
     const requestId = generateRequestId()
 
     try {
-      const ip = getClientIp(request)
+      const ip = getRateLimitIpKey(request)
       const ipRateLimit = await rateLimiter.checkRateLimitDirect(
         `file-otp:ip:${ip}`,
         OTP_IP_RATE_LIMIT

@@ -8,7 +8,7 @@ import { parseRequest } from '@/lib/api/server'
 import type { TokenBucketConfig } from '@/lib/core/rate-limiter'
 import { RateLimiter } from '@/lib/core/rate-limiter'
 import { isEmailAllowed } from '@/lib/core/security/deployment'
-import { generateRequestId, getClientIp } from '@/lib/core/utils/request'
+import { generateRequestId, getRateLimitIpKey } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
 
@@ -29,7 +29,7 @@ export const POST = withRouteHandler(
   async (request: NextRequest, context: { params: Promise<{ identifier: string }> }) => {
     const requestId = generateRequestId()
 
-    const ip = getClientIp(request)
+    const ip = getRateLimitIpKey(request)
     const ipRateLimit = await rateLimiter.checkRateLimitDirect(
       `chat-sso:ip:${ip}`,
       SSO_IP_RATE_LIMIT

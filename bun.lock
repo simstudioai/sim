@@ -390,6 +390,7 @@
       "dependencies": {
         "@sim/db": "workspace:*",
         "@sim/logger": "workspace:*",
+        "@sim/security": "workspace:*",
         "@sim/utils": "workspace:*",
         "drizzle-orm": "^0.45.2",
       },
@@ -598,6 +599,7 @@
       "name": "@sim/security",
       "version": "0.1.0",
       "dependencies": {
+        "@better-auth/core": "1.6.23",
         "ipaddr.js": "2.3.0",
       },
       "devDependencies": {
@@ -665,6 +667,7 @@
         "@sim/utils": "workspace:*",
       },
       "devDependencies": {
+        "@sim/security": "workspace:*",
         "@sim/tsconfig": "workspace:*",
         "typescript": "^7.0.2",
         "vitest": "^4.1.0",

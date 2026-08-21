@@ -1,8 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { safeCompare } from '@sim/security/compare'
 import type { NextRequest } from 'next/server'
-import type { TokenBucketConfig } from '@/lib/core/rate-limiter'
-import { RateLimiter } from '@/lib/core/rate-limiter'
+import { RateLimiter, type TokenBucketConfig } from '@/lib/core/rate-limiter'
 import {
   type DeploymentAuthKind,
   deploymentAuthCookieName,
@@ -10,7 +9,7 @@ import {
   validateAuthToken,
 } from '@/lib/core/security/deployment'
 import { decryptSecret } from '@/lib/core/security/encryption'
-import { getClientIp } from '@/lib/core/utils/request'
+import { getRateLimitIpKey } from '@/lib/core/utils/request'
 
 const logger = createLogger('DeploymentAuth')
 
@@ -105,7 +104,7 @@ export async function validateDeploymentAuth(
         return { authorized: false, error: 'Authentication configuration error' }
       }
 
-      const ip = getClientIp(request)
+      const ip = getRateLimitIpKey(request)
       const ipRateLimit = await rateLimiter.checkRateLimitDirect(
         `${cookiePrefix}-password:ip:${resource.id}:${ip}`,
         PASSWORD_IP_RATE_LIMIT

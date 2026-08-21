@@ -1,6 +1,11 @@
 /**
  * Mock request utilities for API testing
  */
+import {
+  type ClientIpHeaders,
+  resolveClientIp,
+  UNRESOLVED_CLIENT_IP_BUCKET,
+} from '@sim/security/client-ip'
 import { NextRequest } from 'next/server'
 import { vi } from 'vitest'
 
@@ -69,17 +74,27 @@ export function createMockFormDataRequest(
 /**
  * Controllable mock functions for `@/lib/core/utils/request`.
  *
+ * `generateRequestId` is stubbed for determinism. The IP helpers deliberately
+ * run the REAL resolver (with no trusted proxies, as a test environment
+ * declares none) so route tests see production's IP semantics — a stubbed
+ * passthrough here would be a second definition of "the client IP". Override
+ * per test when a specific address is needed.
+ *
  * @example
  * ```ts
  * import { requestUtilsMockFns } from '@sim/testing'
  *
  * requestUtilsMockFns.mockGenerateRequestId.mockReturnValueOnce('test-req-42')
- * requestUtilsMockFns.mockGetClientIp.mockReturnValueOnce('10.0.0.5')
+ * requestUtilsMockFns.mockResolveClientIp.mockReturnValueOnce('10.0.0.5')
  * ```
  */
 export const requestUtilsMockFns = {
   mockGenerateRequestId: vi.fn(() => 'mock-request-id'),
-  mockGetClientIp: vi.fn(() => '127.0.0.1'),
+  mockResolveClientIp: vi.fn((request: { headers: ClientIpHeaders }) => resolveClientIp(request)),
+  mockGetRateLimitIpKey: vi.fn(
+    (request: { headers: ClientIpHeaders }) =>
+      resolveClientIp(request) ?? UNRESOLVED_CLIENT_IP_BUCKET
+  ),
 }
 
 /**
@@ -92,6 +107,7 @@ export const requestUtilsMockFns = {
  */
 export const requestUtilsMock = {
   generateRequestId: requestUtilsMockFns.mockGenerateRequestId,
-  getClientIp: requestUtilsMockFns.mockGetClientIp,
+  resolveClientIp: requestUtilsMockFns.mockResolveClientIp,
+  getRateLimitIpKey: requestUtilsMockFns.mockGetRateLimitIpKey,
   noop: () => {},
 }
