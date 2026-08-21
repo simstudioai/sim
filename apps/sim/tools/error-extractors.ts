@@ -375,6 +375,20 @@ const ERROR_EXTRACTORS: ErrorExtractorConfig[] = [
     },
   },
   {
+    id: 'prospeo-errors',
+    description: 'Prospeo API error_code with optional filter_error and message details',
+    examples: ['Prospeo API'],
+    extract: (errorInfo) => {
+      const data = errorInfo?.data
+      if (!data || typeof data !== 'object') return undefined
+
+      const parts = [data.error_code, data.filter_error, data.message].filter(
+        (part): part is string => typeof part === 'string' && Boolean(part.trim())
+      )
+      return parts.length > 0 ? parts.join(': ') : undefined
+    },
+  },
+  {
     id: 'crunchbase-errors',
     description:
       'Crunchbase Data API error envelope: a top-level JSON array of {status, code, message}. Nothing else in this registry reads a bare array, so without it a rejected key or malformed predicate reports only its HTTP status',
@@ -499,6 +513,7 @@ export const ErrorExtractorId = {
   DYNATRACE_ERRORS: 'dynatrace-errors',
   SMARTLEAD_ERRORS: 'smartlead-errors',
   POSTHOG_ERRORS: 'posthog-errors',
+  PROSPEO_ERRORS: 'prospeo-errors',
   CRUNCHBASE_ERRORS: 'crunchbase-errors',
   SPLUNK_ERRORS: 'splunk-errors',
   PLAIN_TEXT_DATA: 'plain-text-data',
