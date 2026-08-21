@@ -278,7 +278,11 @@ export async function hydrateChildTraces(
     frontier = nextFrontier
   }
 
-  const totalDropped = dropped.missing + dropped.depthLimited + dropped.rowLimited + dropped.failed
+  // Summed from the struct rather than a hand-listed set of fields, which silently
+  // goes stale the moment a counter is added — `policyClosed` was already missing
+  // from such a list, and it is the commonest drop of all now that a handle written
+  // before the policy existed refuses here.
+  const totalDropped = Object.values(dropped).reduce((sum, count) => sum + count, 0)
   if (totalDropped > 0) {
     logger.info('Custom-block child runs not joined into parent trace', { hydrated, ...dropped })
   }
