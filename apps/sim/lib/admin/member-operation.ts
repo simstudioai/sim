@@ -259,15 +259,15 @@ export async function startAdminMemberOperation(
   if (workspaceIds.length > 1_000) throw new Error('At most 1,000 workspaces can be moved')
 
   return db.transaction(async (tx) => {
+    await acquireOrganizationMutationLock(tx, organizationId)
+    await acquireUserBillingIdentityLock(tx, values.userId)
+
     const [existingOperation] = await tx
       .select()
       .from(outboxEvent)
       .where(eq(outboxEvent.id, operationId))
       .for('update')
       .limit(1)
-
-    await acquireOrganizationMutationLock(tx, organizationId)
-    await acquireUserBillingIdentityLock(tx, values.userId)
 
     const [[destination], [target]] = await Promise.all([
       tx
