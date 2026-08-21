@@ -30,6 +30,7 @@ import {
   GoogleSheetsIcon,
   GoogleTasksIcon,
   GoogleVaultIcon,
+  HarmonicIcon,
   HubspotIcon,
   InstagramIcon,
   JiraIcon,
@@ -1154,6 +1155,23 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
       },
     },
     defaultService: 'hubspot',
+  },
+  harmonic: {
+    name: 'Harmonic',
+    icon: HarmonicIcon,
+    services: {
+      harmonic: {
+        name: 'Harmonic',
+        description: 'Search and enrich people with Harmonic data.',
+        providerId: 'harmonic',
+        serviceAccountProviderId: 'harmonic-service-account',
+        icon: HarmonicIcon,
+        baseProviderIcon: HarmonicIcon,
+        scopes: [],
+        authType: 'service_account',
+      },
+    },
+    defaultService: 'harmonic',
   },
   linkedin: {
     name: 'LinkedIn',

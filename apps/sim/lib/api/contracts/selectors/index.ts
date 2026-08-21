@@ -43,6 +43,7 @@ import {
   googleSheetsSelectorContract,
   googleTasksTaskListsSelectorContract,
 } from '@/lib/api/contracts/selectors/google'
+import { harmonicSavedSearchesSelectorContract } from '@/lib/api/contracts/selectors/harmonic'
 import {
   hubspotListsSelectorContract,
   hubspotOwnersSelectorContract,
@@ -130,6 +131,7 @@ export * from '@/lib/api/contracts/selectors/clickup'
 export * from '@/lib/api/contracts/selectors/cloudwatch'
 export * from '@/lib/api/contracts/selectors/confluence'
 export * from '@/lib/api/contracts/selectors/google'
+export * from '@/lib/api/contracts/selectors/harmonic'
 export * from '@/lib/api/contracts/selectors/hubspot'
 export * from '@/lib/api/contracts/selectors/jira'
 export * from '@/lib/api/contracts/selectors/jsm'
@@ -170,6 +172,7 @@ export const selectorContractsByPath = {
   '/api/tools/jsm/selector-servicedesks': jsmServiceDesksSelectorContract,
   '/api/tools/jsm/selector-requesttypes': jsmRequestTypesSelectorContract,
   '/api/tools/google_tasks/task-lists': googleTasksTaskListsSelectorContract,
+  '/api/tools/harmonic/saved-searches': harmonicSavedSearchesSelectorContract,
   '/api/tools/microsoft_planner/plans': microsoftPlannerPlansSelectorContract,
   '/api/tools/microsoft_planner/tasks': microsoftPlannerTasksSelectorContract,
   '/api/tools/notion/databases': notionDatabasesSelectorContract,

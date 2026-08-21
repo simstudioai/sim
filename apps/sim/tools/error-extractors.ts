@@ -211,6 +211,67 @@ const ERROR_EXTRACTORS: ErrorExtractorConfig[] = [
     extract: (errorInfo) => errorInfo?.data?.message,
   },
   {
+    id: 'harmonic-errors',
+    description:
+      'Harmonic API message errors, string and object FastAPI detail aborts including the enrichment URN, and validation detail arrays without echoed request input',
+    examples: ['Harmonic'],
+    extract: (errorInfo) => {
+      const data = errorInfo?.data
+      if (!data || typeof data !== 'object' || Array.isArray(data)) return undefined
+
+      const message = typeof data.message === 'string' ? data.message.trim() : ''
+      if (message) return message
+
+      /**
+       * Harmonic's Kong edge answers with `message`, but the FastAPI application
+       * behind it renders every non-422 abort as a bare string `detail`. Without
+       * this branch those become `Request failed with status 403`, because a tool
+       * that names an extractor gets no fallback chain.
+       */
+      if (typeof data.detail === 'string') {
+        const detail = data.detail.trim()
+        return detail || undefined
+      }
+
+      /**
+       * `POST /persons` answers 404 with an object detail carrying the enrichment
+       * Harmonic just scheduled. The URN is the only handle on that job, so it is
+       * appended to the message rather than dropped with the rest of the envelope.
+       */
+      if (data.detail && typeof data.detail === 'object' && !Array.isArray(data.detail)) {
+        const detail = data.detail as { message?: unknown; enrichment_urn?: unknown }
+        const detailMessage = typeof detail.message === 'string' ? detail.message.trim() : ''
+        if (!detailMessage) return undefined
+        const enrichmentUrn =
+          typeof detail.enrichment_urn === 'string' ? detail.enrichment_urn.trim() : ''
+        return enrichmentUrn ? `${detailMessage} (${enrichmentUrn})` : detailMessage
+      }
+
+      if (!Array.isArray(data.detail)) return undefined
+      const details = data.detail
+        .map((entry: unknown) => {
+          if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return ''
+          const validation = entry as { loc?: unknown; msg?: unknown }
+          const detail = typeof validation.msg === 'string' ? validation.msg.trim() : ''
+          if (!detail) return ''
+
+          const location = Array.isArray(validation.loc)
+            ? validation.loc
+                .filter(
+                  (segment): segment is string | number =>
+                    typeof segment === 'string' || typeof segment === 'number'
+                )
+                .map(String)
+            : []
+          const fieldPath = location[0] === 'body' ? location.slice(1) : location
+          return fieldPath.length > 0 ? `${fieldPath.join('.')}: ${detail}` : detail
+        })
+        .filter(Boolean)
+
+      return details.length > 0 ? details.join('; ') : undefined
+    },
+  },
+  {
     id: 'soap-fault',
     description: 'SOAP/XML fault string patterns',
     examples: ['SOAP APIs', 'Legacy XML services'],
@@ -430,6 +491,7 @@ export const ErrorExtractorId = {
   ERRORS_ARRAY_STRING: 'errors-array-string',
   TELEGRAM_DESCRIPTION: 'telegram-description',
   STANDARD_MESSAGE: 'standard-message',
+  HARMONIC_ERRORS: 'harmonic-errors',
   SOAP_FAULT: 'soap-fault',
   OAUTH_ERROR_DESCRIPTION: 'oauth-error-description',
   NESTED_ERROR_OBJECT: 'nested-error-object',
