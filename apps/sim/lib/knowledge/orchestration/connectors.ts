@@ -437,14 +437,14 @@ export async function performUpdateKnowledgeConnector(
     return fail('Connector not found', 'not_found')
   }
 
-  if (updates.sourceConfig !== undefined && existing.status === 'syncing') {
-    return fail(
-      'Cannot update source configuration while connector synchronization is in progress',
-      'conflict'
-    )
-  }
-  if (updates.status !== undefined && existing.status === 'syncing') {
-    return fail('Cannot change connector status while synchronization is in progress', 'conflict')
+  const syncingUpdateError =
+    updates.sourceConfig !== undefined
+      ? 'Cannot update source configuration while connector synchronization is in progress'
+      : updates.status !== undefined
+        ? 'Cannot change connector status while synchronization is in progress'
+        : 'Cannot change connector sync interval while synchronization is in progress'
+  if (existing.status === 'syncing') {
+    return fail(syncingUpdateError, 'conflict')
   }
 
   if (updates.syncIntervalMinutes !== undefined) {
@@ -523,9 +523,7 @@ export async function performUpdateKnowledgeConnector(
       isNull(knowledgeConnector.archivedAt),
       isNull(knowledgeConnector.deletedAt),
     ]
-    if (updates.sourceConfig !== undefined || updates.status !== undefined) {
-      updateConditions.push(eq(knowledgeConnector.status, existing.status))
-    }
+    updateConditions.push(eq(knowledgeConnector.status, existing.status))
     if (values.nextSyncAt !== undefined) {
       updateConditions.push(
         existing.nextSyncAt
@@ -542,17 +540,8 @@ export async function performUpdateKnowledgeConnector(
 
     if (!row) {
       const current = await getKnowledgeConnector(kb.id, connectorId)
-      if (current?.status === 'syncing' && updates.sourceConfig !== undefined) {
-        return fail(
-          'Cannot update source configuration while connector synchronization is in progress',
-          'conflict'
-        )
-      }
-      if (current?.status === 'syncing' && updates.status !== undefined) {
-        return fail(
-          'Cannot change connector status while synchronization is in progress',
-          'conflict'
-        )
+      if (current?.status === 'syncing') {
+        return fail(syncingUpdateError, 'conflict')
       }
       if (current) {
         return fail('Connector changed during the update; retry the request', 'conflict')

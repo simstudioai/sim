@@ -457,6 +457,53 @@ describe('performUpdateKnowledgeConnector', () => {
     expect(dbChainMockFns.update).not.toHaveBeenCalled()
   })
 
+  it('rejects a schedule change while synchronization is in progress', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      { id: 'conn-1', connectorType: 'notion', status: 'syncing' },
+    ])
+
+    const outcome = await performUpdateKnowledgeConnector({
+      ...ACTOR,
+      knowledgeBase: KB,
+      connectorId: 'conn-1',
+      updates: { syncIntervalMinutes: 0 },
+      resolveBillingAttribution,
+    })
+
+    expect(outcome).toMatchObject({
+      success: false,
+      error: 'Cannot change connector sync interval while synchronization is in progress',
+      errorCode: 'conflict',
+    })
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
+  })
+
+  it('rejects a schedule change that races with synchronization startup', async () => {
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([
+        { id: 'conn-1', connectorType: 'notion', nextSyncAt: null, status: 'active' },
+      ])
+      .mockResolvedValueOnce([
+        { id: 'conn-1', connectorType: 'notion', nextSyncAt: null, status: 'syncing' },
+      ])
+    dbChainMockFns.returning.mockResolvedValueOnce([])
+
+    const outcome = await performUpdateKnowledgeConnector({
+      ...ACTOR,
+      knowledgeBase: KB,
+      connectorId: 'conn-1',
+      updates: { syncIntervalMinutes: 0 },
+      resolveBillingAttribution,
+    })
+
+    expect(outcome).toMatchObject({
+      success: false,
+      error: 'Cannot change connector sync interval while synchronization is in progress',
+      errorCode: 'conflict',
+    })
+    expect(mockDispatchSync).not.toHaveBeenCalled()
+  })
+
   it('fails before persisting when sync billing attribution cannot be resolved', async () => {
     dbChainMockFns.limit.mockResolvedValueOnce([
       { id: 'conn-1', connectorType: 'notion', status: 'active' },
