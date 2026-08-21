@@ -793,6 +793,7 @@ export function MothershipChat({
               onCancelEdit={onCancelQueueEdit}
             />
             <UserInput
+              key={draftScopeKey}
               ref={userInputRef}
               onSubmit={onSubmit}
               isSending={isStreamActive}
