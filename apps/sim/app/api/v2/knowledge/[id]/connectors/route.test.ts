@@ -264,6 +264,31 @@ describe('v2 knowledge connector routes', () => {
     expect(mocks.connectorRemoved).toHaveBeenCalledOnce()
   })
 
+  it('passes source changes to application billing without an adapter resolver', async () => {
+    const response = await updateConnector(
+      request(`/api/v2/knowledge/${KNOWLEDGE_BASE_ID}/connectors/${CONNECTOR_ID}`, 'PATCH', {
+        workspaceId: WORKSPACE_ID,
+        sourceConfig: { pageIds: ['page-2'] },
+      }),
+      connectorContext
+    )
+
+    expect(response.status).toBe(200)
+    expect(mocks.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        input: expect.objectContaining({
+          assertedWorkspaceId: WORKSPACE_ID,
+          updates: expect.objectContaining({ sourceConfig: { pageIds: ['page-2'] } }),
+        }),
+      })
+    )
+    expect(mocks.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        input: expect.not.objectContaining({ resolveBillingAttribution: expect.anything() }),
+      })
+    )
+  })
+
   it('queues connector synchronization without an adapter billing resolver', async () => {
     const response = await syncConnector(
       request(`/api/v2/knowledge/${KNOWLEDGE_BASE_ID}/connectors/${CONNECTOR_ID}/sync`, 'POST', {

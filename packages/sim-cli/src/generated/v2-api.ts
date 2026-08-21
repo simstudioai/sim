@@ -9325,7 +9325,8 @@ export const V2_OPERATIONS = {
       },
       sourceConfig: {
         kind: 'object',
-        describe: 'Replacement source selection and filtering configuration.',
+        describe:
+          'Replacement source selection and filtering configuration. Updating a runnable connector queues synchronization; paused connectors remain paused.',
       },
       syncIntervalMinutes: {
         kind: 'integer',

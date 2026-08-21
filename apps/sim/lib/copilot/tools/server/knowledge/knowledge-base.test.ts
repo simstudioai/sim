@@ -631,6 +631,41 @@ describe('manage_knowledge_base trusted application delegation', () => {
     expect(result.message).not.toContain('private-db')
   })
 
+  it('passes trusted billing attribution for a source-change sync', async () => {
+    mockUpdateKnowledgeConnector.mockResolvedValueOnce({
+      connector: {
+        id: 'connector-1',
+        knowledgeBaseId: KNOWLEDGE_BASE.id,
+        connectorType: 'notion',
+        sourceConfig: { pageIds: ['page-2'] },
+        status: 'active',
+      },
+    })
+
+    const result = await knowledgeBaseServerTool.execute(
+      {
+        operation: 'update_connector',
+        args: { connectorId: 'connector-1', sourceConfig: { pageIds: ['page-2'] } },
+      },
+      BILLED_CONTEXT
+    )
+
+    expect(result).toMatchObject({
+      success: true,
+      message: 'Connector updated successfully. Synchronization was queued for the source change.',
+    })
+    const call = mockUpdateKnowledgeConnector.mock.calls[0]?.[0] as {
+      input?: { resolveBillingAttribution?: (workspaceId: string) => Promise<unknown> }
+    }
+    expectDelegatedPrincipal(call)
+    if (!call.input?.resolveBillingAttribution) {
+      throw new Error('Copilot connector update did not provide billing attribution')
+    }
+    await expect(call.input.resolveBillingAttribution('workspace-paid')).resolves.toEqual(
+      BILLED_CONTEXT.billingAttribution
+    )
+  })
+
   it.each([
     [
       'update_document',
