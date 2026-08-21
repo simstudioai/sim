@@ -82,6 +82,7 @@ const MAX_CONSECUTIVE_FAILURES = 10
 /** The processing state the stuck-document sweep decides on, one row at a time. */
 export interface StuckDocumentSweepCandidate {
   processingStatus: string
+  processingQueuedAt: Date | null
   processingStartedAt: Date | null
   uploadedAt: Date
 }
@@ -98,16 +99,12 @@ export interface StuckDocumentSweepCandidate {
  * pass, so queued documents get {@link QUEUED_DISPATCH_GRACE_MINUTES} before
  * they are considered lost.
  *
- * No column records dispatch time. `uploadedAt` is the row's creation time,
- * which for a document dispatched by the sync that created it is within that
- * sync's own runtime — an over-estimate of the wait bounded by the one-hour
- * sync ceiling, and the best available proxy. A document the sweep itself
- * re-dispatched has no such proxy at all, its `uploadedAt` being arbitrarily
- * old, so the sweep stamps `processingStartedAt` with the re-dispatch time and
- * this reads it back. That is an overload of the column, but a safe one: every
- * other reader of `processingStartedAt` gates on `processingStatus` being
- * `processing` first, and a worker overwrites the stamp with its own the moment
- * it starts.
+ * Queue wait is measured from `processingQueuedAt`, written by every path that
+ * re-dispatches an existing document — this sweep and the user-facing retry.
+ * It falls back to `uploadedAt` when NULL, which covers a document dispatched
+ * by the sync that created it (`uploadedAt` then sits within that sync's own
+ * runtime, an over-estimate bounded by the one-hour sync ceiling) and rows
+ * written before the column existed.
  *
  * `failed` gets no grace. It is a terminal state: the run that produced it has
  * ended, so re-dispatching cannot duplicate live work, and it is the state the
@@ -132,7 +129,7 @@ export function isStuckDocumentSweepEligible(doc: StuckDocumentSweepCandidate, n
     case 'failed':
       return true
     case 'pending': {
-      const queuedAt = doc.processingStartedAt ?? doc.uploadedAt
+      const queuedAt = doc.processingQueuedAt ?? doc.uploadedAt
       return now.getTime() - queuedAt.getTime() > QUEUED_DISPATCH_GRACE_MINUTES * 60 * 1000
     }
     case 'processing': {
@@ -1474,6 +1471,7 @@ export async function executeSync(
         fileSize: document.fileSize,
         mimeType: document.mimeType,
         processingStatus: document.processingStatus,
+        processingQueuedAt: document.processingQueuedAt,
         processingStartedAt: document.processingStartedAt,
         uploadedAt: document.uploadedAt,
       })
@@ -1542,7 +1540,8 @@ export async function executeSync(
                  * tell a document still waiting for a worker from one whose
                  * dispatch was lost. See {@link isStuckDocumentSweepEligible}.
                  */
-                processingStartedAt: sweepEvaluatedAt,
+                processingQueuedAt: sweepEvaluatedAt,
+                processingStartedAt: null,
                 processingCompletedAt: null,
                 processingError: null,
                 chunkCount: 0,

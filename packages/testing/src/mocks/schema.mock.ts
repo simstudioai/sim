@@ -748,6 +748,7 @@ export const schemaMock = {
     tokenCount: 'tokenCount',
     characterCount: 'characterCount',
     processingStatus: 'processingStatus',
+    processingQueuedAt: 'processingQueuedAt',
     processingStartedAt: 'processingStartedAt',
     processingCompletedAt: 'processingCompletedAt',
     processingError: 'processingError',

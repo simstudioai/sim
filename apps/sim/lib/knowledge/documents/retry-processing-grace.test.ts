@@ -42,16 +42,22 @@ describe('retryDocumentProcessing requeue stamp', () => {
     resetDbChainMock()
   })
 
-  it('stamps the requeue time instead of clearing it', async () => {
+  it('stamps the requeue time on the dispatch column', async () => {
     const before = Date.now()
     const values = await captureRequeueValues()
     const after = Date.now()
 
-    expect(values.processingStartedAt).toBeInstanceOf(Date)
-    const stamp = values.processingStartedAt as Date
+    expect(values.processingQueuedAt).toBeInstanceOf(Date)
+    const stamp = values.processingQueuedAt as Date
     expect(stamp.getTime()).toBeGreaterThanOrEqual(before)
     expect(stamp.getTime()).toBeLessThanOrEqual(after)
     expect(values.processingCompletedAt).toBeNull()
+  })
+
+  it('leaves processingStartedAt null so the API reports no start time', async () => {
+    const values = await captureRequeueValues()
+
+    expect(values.processingStartedAt).toBeNull()
   })
 
   it('leaves the requeued document outside the reach of the next connector sync', async () => {
@@ -63,6 +69,7 @@ describe('retryDocumentProcessing requeue stamp', () => {
       isStuckDocumentSweepEligible(
         {
           processingStatus: values.processingStatus as string,
+          processingQueuedAt: values.processingQueuedAt as Date | null,
           processingStartedAt: values.processingStartedAt as Date | null,
           uploadedAt,
         },
@@ -72,7 +79,12 @@ describe('retryDocumentProcessing requeue stamp', () => {
 
     expect(
       isStuckDocumentSweepEligible(
-        { processingStatus: 'pending', processingStartedAt: null, uploadedAt },
+        {
+          processingStatus: 'pending',
+          processingQueuedAt: null,
+          processingStartedAt: null,
+          uploadedAt,
+        },
         sweptAt
       )
     ).toBe(true)

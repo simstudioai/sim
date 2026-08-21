@@ -710,9 +710,14 @@ describe('isStuckDocumentSweepEligible', () => {
 
   const candidate = (
     processingStatus: string,
-    overrides: { processingStartedAt?: Date | null; uploadedAt?: Date } = {}
+    overrides: {
+      processingQueuedAt?: Date | null
+      processingStartedAt?: Date | null
+      uploadedAt?: Date
+    } = {}
   ) => ({
     processingStatus,
+    processingQueuedAt: overrides.processingQueuedAt ?? null,
     processingStartedAt: overrides.processingStartedAt ?? null,
     uploadedAt: overrides.uploadedAt ?? minutesBefore(5),
   })
@@ -727,7 +732,7 @@ describe('isStuckDocumentSweepEligible', () => {
     expect(
       isStuckDocumentSweepEligible(
         candidate('pending', {
-          processingStartedAt: minutesBefore(90),
+          processingQueuedAt: minutesBefore(90),
           uploadedAt: minutesBefore(60 * 48),
         }),
         now
@@ -742,7 +747,7 @@ describe('isStuckDocumentSweepEligible', () => {
     expect(
       isStuckDocumentSweepEligible(
         candidate('pending', {
-          processingStartedAt: minutesBefore(241),
+          processingQueuedAt: minutesBefore(241),
           uploadedAt: minutesBefore(60 * 48),
         }),
         now
@@ -783,6 +788,19 @@ describe('isStuckDocumentSweepEligible', () => {
 
   it('reclaims a processing document with no start time', () => {
     expect(isStuckDocumentSweepEligible(candidate('processing'), now)).toBe(true)
+  })
+
+  it('ignores a start time a worker left on a document that was requeued', () => {
+    expect(
+      isStuckDocumentSweepEligible(
+        candidate('pending', {
+          processingQueuedAt: minutesBefore(90),
+          processingStartedAt: minutesBefore(60 * 48),
+          uploadedAt: minutesBefore(60 * 72),
+        }),
+        now
+      )
+    ).toBe(false)
   })
 
   it('never reclaims a completed document', () => {

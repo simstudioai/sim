@@ -2547,6 +2547,14 @@ export const document = pgTable(
 
     // Processing status
     processingStatus: text('processing_status').notNull().default('pending'), // 'pending', 'processing', 'completed', 'failed'
+    /**
+     * When indexing was last dispatched to a worker, which is not when a worker
+     * picked it up — a document sits at `pending` in between. Recovery sweeps
+     * measure queue wait from here; `processingStartedAt` is written only once a
+     * worker actually starts. NULL means never dispatched, or dispatched before
+     * this column existed.
+     */
+    processingQueuedAt: timestamp('processing_queued_at'),
     processingStartedAt: timestamp('processing_started_at'),
     processingCompletedAt: timestamp('processing_completed_at'),
     processingError: text('processing_error'),
