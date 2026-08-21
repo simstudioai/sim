@@ -88,8 +88,23 @@ function referencesEnvKey(text: string, name: string): boolean {
 }
 
 /**
- * Matches the name sitting inside `{{ }}` with only non-word characters between, rather than the
- * bare name.
+ * One unit of what may sit between `{{` and the name.
+ *
+ * Three encodings have to be accepted at once, because the prefilter reads a `::text` rendering
+ * of a JSON column and the two regex engines disagree about whitespace:
+ *  - raw characters, including every Unicode space (`ENV_REF_PATTERN`'s `\s` accepts U+00A0,
+ *    U+202F and U+3000, which Postgres `[[:space:]]` does not) — covered by `[^[:alnum:]_]`;
+ *  - JSON two-character escapes, since `jsonb::text` renders a real tab as the literal pair
+ *    `\` `t` and `t` is alphanumeric — covered by `\\[a-z]`;
+ *  - JSON `\uXXXX` escapes, which is how a vertical tab survives the same rendering.
+ *
+ * Excluding word characters rather than enumerating whitespace means no code-point list to drift
+ * as `\s` evolves, while a longer key on either side (`_TEST`, `MY_`) still cannot be consumed.
+ */
+const REFERENCE_GAP = String.raw`(\\u[0-9a-fA-F]{4}|\\[a-z]|[^[:alnum:]_])`
+
+/**
+ * Matches the name sitting inside `{{ }}` with only {@link REFERENCE_GAP} units between.
  *
  * Deliberately not `LIKE '%name%'`: `_` is a LIKE single-character wildcard and nearly every env
  * key contains one, so `SB_ACTION_ROUTER_SECRET` would match text it does not occur in. And
@@ -98,20 +113,13 @@ function referencesEnvKey(text: string, name: string): boolean {
  * row cap — so on a workspace with enough of them, genuine references sorted later were never
  * read at all.
  *
- * `[^[:alnum:]_]` rather than `[[:space:]]` because the two engines disagree about what
- * whitespace is: `ENV_REF_PATTERN`'s `\s` accepts U+00A0, U+202F, U+3000 and friends, while
- * Postgres `[[:space:]]` matches only the ASCII set — so a pasted non-breaking space inside the
- * braces is a reference the executor resolves and a whitespace-class prefilter would silently
- * drop. Excluding word characters instead accepts every whitespace encoding while still
- * rejecting a longer key on either side, and needs no code-point list that could drift.
- *
- * The looser class can admit a non-reference like `{{-NAME-}}`; that costs a candidate row and
- * nothing else, because the scanners below re-check every candidate and remain the authority.
- * Erring loose is deliberate — a false positive is a wasted read, a false negative is this
- * feature telling someone a live key is unused.
+ * The gap can admit a non-reference like `{{-NAME-}}`; that costs a candidate row and nothing
+ * else, because the scanners below re-check every candidate with `ENV_REF_PATTERN` and remain the
+ * authority. Erring loose is deliberate — a false positive is a wasted read, a false negative is
+ * this feature telling someone a live key is unused.
  */
 function referencesKey(column: unknown, envKey: string) {
-  return sql`${column} ~ ${`\\{\\{[^[:alnum:]_]*${envKey}[^[:alnum:]_]*\\}\\}`}`
+  return sql`${column} ~ ${`\\{\\{${REFERENCE_GAP}*${envKey}${REFERENCE_GAP}*\\}\\}`}`
 }
 
 /**
