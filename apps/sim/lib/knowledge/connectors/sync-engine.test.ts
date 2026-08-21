@@ -1245,15 +1245,83 @@ describe('countDeletionEligibleOwned', () => {
 })
 
 describe('buildReconciliationHoldNotice', () => {
-  it('names the counts and the full-sync remedy', async () => {
+  it('places each count in its own role', async () => {
     const { buildReconciliationHoldNotice } = await import('@/lib/knowledge/connectors/sync-engine')
 
-    const notice = buildReconciliationHoldNotice(500, 250, 1000)
+    /**
+     * Asserted whole rather than by three independent `toContain` checks on
+     * distinct digit strings: those passed even with the first two arguments
+     * swapped, which inverts the message into "withheld 250 — more than the 500
+     * allowed" and misleads the operator it exists to inform.
+     */
+    expect(buildReconciliationHoldNotice(500, 250, 1000)).toBe(
+      'Withheld 500 document removal(s) — more than the 250 allowed in one sync ' +
+        'of 1000 documents. Documents deleted at the source are still indexed. ' +
+        'Check the source is returning its full contents, then run a full sync to apply the removals.'
+    )
+  })
 
-    expect(notice).toContain('500')
-    expect(notice).toContain('250')
-    expect(notice).toContain('1000')
-    expect(notice).toContain('full sync')
+  it('cannot be satisfied by swapping the withheld and cap counts', async () => {
+    const { buildReconciliationHoldNotice } = await import('@/lib/knowledge/connectors/sync-engine')
+
+    expect(buildReconciliationHoldNotice(500, 250, 1000)).not.toBe(
+      buildReconciliationHoldNotice(250, 500, 1000)
+    )
+  })
+})
+
+describe('buildSyncFailureUpdate', () => {
+  const now = new Date('2026-08-20T00:00:00.000Z')
+  const minutesAfter = (mins: number) => new Date(now.getTime() + mins * 60 * 1000)
+
+  it('backs off on the shared ladder below the threshold', async () => {
+    const { buildSyncFailureUpdate } = await import('@/lib/knowledge/connectors/sync-engine')
+
+    const first = buildSyncFailureUpdate(now, 0, 'boom')
+    expect(first.status).toBe('error')
+    expect(first.consecutiveFailures).toBe(1)
+    expect(first.lastSyncError).toBe('boom')
+    expect(first.nextSyncAt).toEqual(minutesAfter(30))
+
+    const third = buildSyncFailureUpdate(now, 2, 'boom')
+    expect(third.consecutiveFailures).toBe(3)
+    expect(third.nextSyncAt).toEqual(minutesAfter(90))
+  })
+
+  it('treats a null counter as a first failure', async () => {
+    const { buildSyncFailureUpdate } = await import('@/lib/knowledge/connectors/sync-engine')
+
+    expect(buildSyncFailureUpdate(now, null, 'boom').consecutiveFailures).toBe(1)
+    expect(buildSyncFailureUpdate(now, undefined, 'boom').nextSyncAt).toEqual(minutesAfter(30))
+  })
+
+  it('disables exactly at the threshold, not before it', async () => {
+    const { buildSyncFailureUpdate } = await import('@/lib/knowledge/connectors/sync-engine')
+    const { MAX_CONSECUTIVE_FAILURES } = await import('@/lib/knowledge/connectors/sync-limits')
+
+    /**
+     * The path the auto-disable breaker actually runs through in-process. Only
+     * the reaper's SQL equivalent was covered before, so an off-by-one here —
+     * disabling a connector one failure early — was invisible.
+     */
+    const below = buildSyncFailureUpdate(now, MAX_CONSECUTIVE_FAILURES - 2, 'boom')
+    expect(below.status).toBe('error')
+    expect(below.consecutiveFailures).toBe(MAX_CONSECUTIVE_FAILURES - 1)
+    expect(below.nextSyncAt).not.toBeNull()
+
+    const at = buildSyncFailureUpdate(now, MAX_CONSECUTIVE_FAILURES - 1, 'boom')
+    expect(at.status).toBe('disabled')
+    expect(at.consecutiveFailures).toBe(MAX_CONSECUTIVE_FAILURES)
+    expect(at.nextSyncAt).toBeNull()
+    expect(at.lastSyncError).toContain('reconnect')
+  })
+
+  it('releases the ownership token on both outcomes', async () => {
+    const { buildSyncFailureUpdate } = await import('@/lib/knowledge/connectors/sync-engine')
+    const { MAX_CONSECUTIVE_FAILURES } = await import('@/lib/knowledge/connectors/sync-limits')
+
+    expect(buildSyncFailureUpdate(now, 0, 'boom').syncLockToken).toBeNull()
+    expect(buildSyncFailureUpdate(now, MAX_CONSECUTIVE_FAILURES, 'boom').syncLockToken).toBeNull()
   })
 })
 

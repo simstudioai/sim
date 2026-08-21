@@ -773,6 +773,39 @@ export function buildReconciliationHoldNotice(
 }
 
 /**
+ * The connector row a failed sync writes.
+ *
+ * Extracted for the same reason as {@link buildSyncSuccessUpdate}: this is the
+ * path the auto-disable breaker runs through, so the threshold and the backoff
+ * it applies need to be assertable without standing up the whole sync. The
+ * in-process ladder here and the reaper's SQL ladder must agree — they are two
+ * writers of one policy, both sourced from
+ * {@link connectorFailureBackoffMinutes}.
+ */
+export function buildSyncFailureUpdate(
+  now: Date,
+  previousFailures: number | null | undefined,
+  errorMessage: string
+) {
+  const failures = (previousFailures ?? 0) + 1
+  const disabled = failures >= MAX_CONSECUTIVE_FAILURES
+
+  return {
+    status: (disabled ? 'disabled' : 'error') as 'disabled' | 'error',
+    lastSyncError: disabled
+      ? 'Connector disabled after repeated sync failures. Please reconnect.'
+      : errorMessage,
+    nextSyncAt: disabled
+      ? null
+      : new Date(now.getTime() + connectorFailureBackoffMinutes(failures) * 60 * 1000),
+    consecutiveFailures: failures,
+    // Releases the lock so a stale token can never match a later run.
+    syncLockToken: null,
+    updatedAt: now,
+  }
+}
+
+/**
  * The connector row a successful sync writes.
  *
  * `holdNotice` is threaded through rather than written when the hold is detected
@@ -2177,29 +2210,24 @@ export async function executeSync(
     try {
       await completeSyncLog(syncLogId, 'failed', result, errorMessage)
 
-      const now = new Date()
-      const failures = (connector.consecutiveFailures ?? 0) + 1
-      const disabled = failures >= MAX_CONSECUTIVE_FAILURES
-      const backoffMinutes = connectorFailureBackoffMinutes(failures)
-      const nextSync = disabled ? null : new Date(now.getTime() + backoffMinutes * 60 * 1000)
+      const failureUpdate = buildSyncFailureUpdate(
+        new Date(),
+        connector.consecutiveFailures,
+        errorMessage
+      )
 
-      if (disabled) {
+      if (failureUpdate.status === 'disabled') {
         logger.warn('Connector disabled after repeated failures', {
           connectorId,
-          consecutiveFailures: failures,
+          consecutiveFailures: failureUpdate.consecutiveFailures,
         })
       }
 
-      const failureWriteLanded = await writeTerminalConnectorState(connectorId, syncLogId, {
-        status: disabled ? 'disabled' : 'error',
-        lastSyncError: disabled
-          ? 'Connector disabled after repeated sync failures. Please reconnect.'
-          : errorMessage,
-        nextSyncAt: nextSync,
-        consecutiveFailures: failures,
-        syncLockToken: null,
-        updatedAt: now,
-      })
+      const failureWriteLanded = await writeTerminalConnectorState(
+        connectorId,
+        syncLogId,
+        failureUpdate
+      )
 
       /**
        * Deliberately does NOT get {@link applySupersededOutcome}. `result.error`

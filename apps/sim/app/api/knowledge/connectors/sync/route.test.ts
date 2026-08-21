@@ -17,6 +17,8 @@ import {
 import type { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
+  CONNECTOR_FAILURE_BACKOFF_CAP_MINUTES,
+  CONNECTOR_FAILURE_BACKOFF_STEP_MINUTES,
   connectorFailureBackoffMinutes,
   MAX_CONSECUTIVE_FAILURES,
 } from '@/lib/knowledge/connectors/sync-limits'
@@ -133,12 +135,47 @@ describe('connector sync scheduler stale-lock reaper', () => {
 
     const [threshold, step, cap] = numericBinds(nextSyncAt)
     expect(threshold).toBe(MAX_CONSECUTIVE_FAILURES)
+    expect(step).toBe(CONNECTOR_FAILURE_BACKOFF_STEP_MINUTES)
+    expect(cap).toBe(CONNECTOR_FAILURE_BACKOFF_CAP_MINUTES)
 
-    // Recomputing the ladder from the binds the SQL actually carries makes this
-    // fail the moment the route and `connectorFailureBackoffMinutes` drift apart.
-    for (const failures of [1, 2, 5, 10, 47, 48, 100]) {
-      expect(Math.min(failures * step, cap)).toBe(connectorFailureBackoffMinutes(failures))
-    }
+    /**
+     * Pinned to literals, not recomputed from the binds. Comparing
+     * `Math.min(failures * step, cap)` against `connectorFailureBackoffMinutes`
+     * derived both sides from the same two constants, so it held for any values
+     * AND any shape — swapping the SQL's `*` for `+` left every substring and
+     * every bind untouched. The shape is pinned by the string assertion above;
+     * these pin the magnitudes independently of both the SQL and the helper.
+     */
+    expect(step).toBe(30)
+    expect(cap).toBe(1440)
+  })
+
+  it('applies the same minutes in SQL that the shared helper computes in JS', async () => {
+    /**
+     * The equivalence the ladder test above only appeared to establish. The SQL
+     * encodes `LEAST((failures) * 30, 1440)`; these fix what the JS helper
+     * returns for the same inputs, so the two cannot drift without one of the
+     * two assertions failing.
+     */
+    expect(connectorFailureBackoffMinutes(1)).toBe(30)
+    expect(connectorFailureBackoffMinutes(2)).toBe(60)
+    expect(connectorFailureBackoffMinutes(3)).toBe(90)
+    expect(connectorFailureBackoffMinutes(9)).toBe(270)
+    // 48 * 30 is exactly the cap; either side of it must clamp, not overshoot.
+    expect(connectorFailureBackoffMinutes(47)).toBe(1410)
+    expect(connectorFailureBackoffMinutes(48)).toBe(1440)
+    expect(connectorFailureBackoffMinutes(49)).toBe(1440)
+    expect(connectorFailureBackoffMinutes(100)).toBe(1440)
+  })
+
+  it('releases the reclaimed run ownership token', async () => {
+    await runTickRecovering(['connector-1'])
+
+    /**
+     * Without this the reclaimed run's token still matches its own terminal
+     * write, so it can overwrite the verdict this reclaim just recorded.
+     */
+    expect(setPayloadForUpdate(0).syncLockToken).toBeNull()
   })
 
   it('does not stamp lastSyncAt when reclaiming a stale lock', async () => {
