@@ -2493,6 +2493,24 @@ export async function retryDocumentProcessing(
   requestId: string,
   billingAttribution: BillingAttributionSnapshot | undefined
 ): Promise<{ success: boolean; status: string; message: string }> {
+  /**
+   * When this requeue was dispatched.
+   *
+   * The document sits at `pending` until a worker claims it, and for a
+   * connector-owned document the connector sweep
+   * (`isStuckDocumentSweepEligible`) reads `processingStartedAt ?? uploadedAt`
+   * to judge how long it has been queued. Clearing the column would fall the
+   * sweep back on `uploadedAt`, which for a document synced days ago is
+   * arbitrarily old — so the next sync would reclaim the document out from
+   * under this very retry, duplicating its work and billing a second indexing
+   * pass. Stamping the requeue time puts it back inside the grace period.
+   *
+   * Safe against the processing claim: `processDocumentAsync` writes its own
+   * `processingStartedAt` unconditionally when it starts and compares every
+   * later write against that value, so it never requires the column to be null
+   * to claim a document.
+   */
+  const requeuedAt = new Date()
   await db.transaction(async (tx) => {
     await tx.delete(embedding).where(eq(embedding.documentId, documentId))
 
@@ -2500,7 +2518,7 @@ export async function retryDocumentProcessing(
       .update(document)
       .set({
         processingStatus: 'pending',
-        processingStartedAt: null,
+        processingStartedAt: requeuedAt,
         processingCompletedAt: null,
         processingError: null,
         chunkCount: 0,
