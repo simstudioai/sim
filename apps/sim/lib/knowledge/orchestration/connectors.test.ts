@@ -283,6 +283,7 @@ describe('performUpdateKnowledgeConnector', () => {
     expect(resolveBillingAttribution).toHaveBeenCalledOnce()
     expect(mockDispatchSync).toHaveBeenCalledWith('conn-1', {
       billingAttribution: BILLING,
+      expectedNextSyncAt: expect.any(Date),
       requestId: 'req-1',
       requireRunnable: true,
     })

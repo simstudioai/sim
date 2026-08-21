@@ -4,7 +4,7 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { isRecordLike } from '@sim/utils/object'
-import { tasks } from '@trigger.dev/sdk'
+import { idempotencyKeys, tasks } from '@trigger.dev/sdk'
 import { eq } from 'drizzle-orm'
 import {
   assertBillingAttributionSnapshot,
@@ -35,6 +35,7 @@ export interface ConnectorSyncPayload {
 
 export interface DispatchSyncOptions {
   billingAttribution: BillingAttributionSnapshot
+  expectedNextSyncAt?: Date
   fullSync?: boolean
   requireRunnable?: boolean
   rehydrate?: boolean
@@ -89,6 +90,13 @@ export async function dispatchSync(
   if (!isNonEmptyString(connectorId)) {
     throw new Error('Connector sync dispatch requires a connector ID')
   }
+  if (
+    options.requireRunnable &&
+    (!(options.expectedNextSyncAt instanceof Date) ||
+      Number.isNaN(options.expectedNextSyncAt.getTime()))
+  ) {
+    throw new Error('Automatic connector sync dispatch requires the expected next sync time')
+  }
 
   const requestId = options?.requestId ?? generateId()
   const payload = assertConnectorSyncPayload({
@@ -106,6 +114,7 @@ export async function dispatchSync(
       connectorStatus: knowledgeConnector.status,
       connectorArchivedAt: knowledgeConnector.archivedAt,
       connectorDeletedAt: knowledgeConnector.deletedAt,
+      connectorNextSyncAt: knowledgeConnector.nextSyncAt,
       workspaceId: knowledgeBase.workspaceId,
       kbDeletedAt: knowledgeBase.deletedAt,
     })
@@ -151,6 +160,16 @@ export async function dispatchSync(
     })
     return
   }
+  if (
+    options.expectedNextSyncAt &&
+    row.connectorNextSyncAt?.getTime() !== options.expectedNextSyncAt.getTime()
+  ) {
+    logger.info('Skipping stale automatic sync dispatch: next sync time changed', {
+      connectorId,
+      requestId,
+    })
+    return
+  }
   if (!row.workspaceId) {
     throw new Error(`Connector ${connectorId} is missing workspace billing context`)
   }
@@ -168,7 +187,14 @@ export async function dispatchSync(
   ]
 
   if (isTriggerAvailable()) {
+    const idempotencyKey = options.expectedNextSyncAt
+      ? await idempotencyKeys.create(
+          `knowledge-connector-sync:${connectorId}:${options.expectedNextSyncAt.toISOString()}`,
+          { scope: 'global' }
+        )
+      : undefined
     await tasks.trigger('knowledge-connector-sync', payload, {
+      ...(idempotencyKey ? { idempotencyKey } : {}),
       tags,
       region: await resolveTriggerRegion(),
     })

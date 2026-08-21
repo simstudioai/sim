@@ -4,15 +4,24 @@
 import { queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockExecuteSync, mockIsTriggerAvailable, mockResolveTriggerRegion, mockTrigger } =
-  vi.hoisted(() => ({
-    mockExecuteSync: vi.fn(),
-    mockIsTriggerAvailable: vi.fn(),
-    mockResolveTriggerRegion: vi.fn(),
-    mockTrigger: vi.fn(),
-  }))
+const {
+  mockCreateIdempotencyKey,
+  mockExecuteSync,
+  mockIsTriggerAvailable,
+  mockResolveTriggerRegion,
+  mockTrigger,
+} = vi.hoisted(() => ({
+  mockCreateIdempotencyKey: vi.fn(),
+  mockExecuteSync: vi.fn(),
+  mockIsTriggerAvailable: vi.fn(),
+  mockResolveTriggerRegion: vi.fn(),
+  mockTrigger: vi.fn(),
+}))
 
-vi.mock('@trigger.dev/sdk', () => ({ tasks: { trigger: mockTrigger } }))
+vi.mock('@trigger.dev/sdk', () => ({
+  idempotencyKeys: { create: mockCreateIdempotencyKey },
+  tasks: { trigger: mockTrigger },
+}))
 vi.mock('@/lib/core/async-jobs/region', () => ({
   resolveTriggerRegion: mockResolveTriggerRegion,
 }))
@@ -46,6 +55,7 @@ const BILLING_ATTRIBUTION = {
     periodEnd: '2026-08-01T00:00:00.000Z',
   },
 }
+const NEXT_SYNC_AT = new Date('2026-07-15T12:00:00.000Z')
 
 describe('connector sync queue', () => {
   beforeEach(() => {
@@ -57,11 +67,13 @@ describe('connector sync queue', () => {
         connectorStatus: 'active',
         connectorArchivedAt: null,
         connectorDeletedAt: null,
+        connectorNextSyncAt: NEXT_SYNC_AT,
         workspaceId: 'workspace-paid',
         kbDeletedAt: null,
       },
     ])
     mockIsTriggerAvailable.mockReturnValue(true)
+    mockCreateIdempotencyKey.mockResolvedValue('idempotency-key')
     mockResolveTriggerRegion.mockResolvedValue('us-east-1')
     mockTrigger.mockResolvedValue({ id: 'run-1' })
   })
@@ -116,6 +128,7 @@ describe('connector sync queue', () => {
   it('carries the runnable requirement into the queued payload', async () => {
     await dispatchSync('connector-1', {
       billingAttribution: BILLING_ATTRIBUTION,
+      expectedNextSyncAt: NEXT_SYNC_AT,
       requireRunnable: true,
       requestId: 'request-1',
     })
@@ -123,8 +136,38 @@ describe('connector sync queue', () => {
     expect(mockTrigger).toHaveBeenCalledWith(
       'knowledge-connector-sync',
       expect.objectContaining({ connectorId: 'connector-1', requireRunnable: true }),
-      expect.anything()
+      expect.objectContaining({ idempotencyKey: 'idempotency-key' })
     )
+    expect(mockCreateIdempotencyKey).toHaveBeenCalledWith(
+      `knowledge-connector-sync:connector-1:${NEXT_SYNC_AT.toISOString()}`,
+      { scope: 'global' }
+    )
+  })
+
+  it('skips an automatic dispatch after the due time changes', async () => {
+    await dispatchSync('connector-1', {
+      billingAttribution: BILLING_ATTRIBUTION,
+      expectedNextSyncAt: new Date('2026-07-15T11:00:00.000Z'),
+      requireRunnable: true,
+      requestId: 'request-1',
+    })
+
+    expect(mockCreateIdempotencyKey).not.toHaveBeenCalled()
+    expect(mockTrigger).not.toHaveBeenCalled()
+    expect(mockExecuteSync).not.toHaveBeenCalled()
+  })
+
+  it('rejects automatic dispatch without an expected due time', async () => {
+    await expect(
+      dispatchSync('connector-1', {
+        billingAttribution: BILLING_ATTRIBUTION,
+        requireRunnable: true,
+        requestId: 'request-1',
+      })
+    ).rejects.toThrow('Automatic connector sync dispatch requires the expected next sync time')
+
+    expect(mockTrigger).not.toHaveBeenCalled()
+    expect(mockExecuteSync).not.toHaveBeenCalled()
   })
 
   it('skips automatic dispatch when the connector was paused concurrently', async () => {
@@ -142,6 +185,7 @@ describe('connector sync queue', () => {
 
     await dispatchSync('connector-1', {
       billingAttribution: BILLING_ATTRIBUTION,
+      expectedNextSyncAt: NEXT_SYNC_AT,
       requireRunnable: true,
       requestId: 'request-1',
     })

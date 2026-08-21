@@ -70,6 +70,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     const dueConnectors = await db
       .select({
         id: knowledgeConnector.id,
+        nextSyncAt: knowledgeConnector.nextSyncAt,
         workspaceId: knowledgeBase.workspaceId,
       })
       .from(knowledgeConnector)
@@ -104,6 +105,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         const billingAttribution = await resolveSystemBillingAttribution(connector.workspaceId)
         await dispatchSync(connector.id, {
           billingAttribution,
+          expectedNextSyncAt: connector.nextSyncAt ?? undefined,
           requestId,
           requireRunnable: true,
         })

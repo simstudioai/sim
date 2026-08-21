@@ -581,6 +581,7 @@ export async function performUpdateKnowledgeConnector(
     try {
       await dispatchSourceSync(connectorId, {
         billingAttribution,
+        expectedNextSyncAt: updateTimestamp,
         requestId,
         requireRunnable: true,
       })
