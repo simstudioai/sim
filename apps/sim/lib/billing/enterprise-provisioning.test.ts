@@ -21,12 +21,16 @@ const mocks = vi.hoisted(() => ({
   enqueue: vi.fn(),
   patchPayload: vi.fn(),
   reapplyPaidOrgJoinBillingForExistingMemberTx: vi.fn(),
+  prepareWorkspaceInvitationContext: vi.fn(),
+  createWorkspaceInvitation: vi.fn(),
+  sendInvitationEmail: vi.fn(),
 }))
 
 vi.mock('@sim/audit', () => ({
   AuditAction: { ENTERPRISE_SUBSCRIPTION_PROVISIONED: 'subscription.enterprise_provisioned' },
   AuditResourceType: { SUBSCRIPTION: 'subscription' },
   recordAudit: vi.fn(),
+  recordAuditOnce: vi.fn(),
 }))
 
 vi.mock('@sim/utils/id', () => ({ generateId: vi.fn(() => 'generated-id') }))
@@ -64,17 +68,28 @@ vi.mock('@/lib/core/outbox/service', () => ({
     ...(consumeAttempt ? {} : { consumeAttempt: false }),
   }),
   enqueueOutboxEvent: mocks.enqueue,
+  outboxEventHasSourceOperationId: vi.fn(() => undefined),
   patchOutboxEventPayload: mocks.patchPayload,
+}))
+vi.mock('@/lib/invitations/workspace-invitations', () => ({
+  prepareWorkspaceInvitationContext: mocks.prepareWorkspaceInvitationContext,
+  createWorkspaceInvitation: mocks.createWorkspaceInvitation,
+}))
+vi.mock('@/lib/invitations/send', () => ({
+  sendInvitationEmail: mocks.sendInvitationEmail,
 }))
 
 import {
   buildEnterpriseProvisioningRequestKey,
+  computeEnterpriseIssuanceRequiredSeats,
   decideEnterpriseProvisioningIssue,
   decideEnterpriseProvisioningRetry,
   getEnterpriseIssuancePreflight,
   getLatestEnterpriseProvisionings,
+  inviteEnterprisePeople,
   provisionEnterpriseInStripe,
   reconcileEnterpriseMembers,
+  reviewEnterpriseProvisioning,
   syncEnterpriseMetadataInStripe,
 } from '@/lib/billing/enterprise-provisioning'
 
@@ -207,6 +222,74 @@ describe('Enterprise issuance preflight', () => {
     })
   })
 
+  it('reviews exact selected-workspace invitation reservations before issuance', async () => {
+    queueTableRows(schemaMock.user, [{ id: 'owner-1', name: 'Owner', email: 'owner@example.com' }])
+    queueTableRows(schemaMock.member, [])
+    queueTableRows(schemaMock.workspace, [{ value: 1 }])
+    queueTableRows(schemaMock.workspace, [{ id: 'workspace-1', name: 'One', archivedAt: null }])
+    queueTableRows(schemaMock.workspace, [
+      { id: 'workspace-1', name: 'One', archivedAt: null, total: 1 },
+    ])
+    queueTableRows(schemaMock.workspace, [{ id: 'workspace-1' }])
+    queueTableRows(schemaMock.invitation, [{ email: 'pending@example.com' }])
+
+    await expect(
+      reviewEnterpriseProvisioning({
+        ownerUserId: 'owner-1',
+        organizationName: 'Acme',
+        invoiceAmountUsd: 1_200,
+        billingInterval: 'year',
+        reportingPeriodAnchorDate: '2026-08-01',
+        workspaceIds: ['workspace-1'],
+        invitations: [],
+        seats: 1,
+      })
+    ).resolves.toMatchObject({
+      workspaceSelection: { selected: 1 },
+      invitations: {
+        requested: 0,
+        additionalSeatReservationsFromWorkspaceSweep: 1,
+      },
+      seats: {
+        memberSeats: 1,
+        pendingSeats: 0,
+        migratedPendingSeats: 1,
+        newInvitationSeats: 0,
+        requiredSeats: 2,
+        capacity: 1,
+        sufficient: false,
+      },
+    })
+  })
+
+  it('blocks an oversized workspace-sweep invitation expansion without truncating it', async () => {
+    queueTableRows(schemaMock.user, [{ id: 'owner-1', name: 'Owner', email: 'owner@example.com' }])
+    queueTableRows(schemaMock.member, [])
+    queueTableRows(schemaMock.workspace, [{ value: 1 }])
+    queueTableRows(schemaMock.workspace, [{ id: 'workspace-1', name: 'One', archivedAt: null }])
+    queueTableRows(schemaMock.workspace, [
+      { id: 'workspace-1', name: 'One', archivedAt: null, total: 1 },
+    ])
+    queueTableRows(schemaMock.workspace, [{ id: 'workspace-1' }])
+    queueTableRows(
+      schemaMock.invitation,
+      Array.from({ length: 10_001 }, (_, index) => ({ email: `pending-${index}@example.com` }))
+    )
+
+    await expect(
+      reviewEnterpriseProvisioning({
+        ownerUserId: 'owner-1',
+        organizationName: 'Acme',
+        invoiceAmountUsd: 1_200,
+        billingInterval: 'year',
+        reportingPeriodAnchorDate: '2026-08-01',
+        workspaceIds: ['workspace-1'],
+        invitations: [],
+        seats: 10_001,
+      })
+    ).rejects.toThrow('none were omitted')
+  })
+
   it('returns a product error for an invalid reporting anchor', async () => {
     queueTableRows(schemaMock.user, [{ id: 'owner-1', name: 'Owner', email: 'owner@example.com' }])
     queueTableRows(schemaMock.member, [])
@@ -259,6 +342,37 @@ function context() {
 }
 
 describe('Enterprise issuance serialization decisions', () => {
+  it('reserves seats only for invitations that do not already occupy or reserve one', () => {
+    expect(
+      computeEnterpriseIssuanceRequiredSeats({
+        memberSeats: 4,
+        pendingSeats: 2,
+        invitationEmails: ['member@example.com', 'pending@example.com', 'new@example.com'],
+        existingMemberEmails: new Set(['member@example.com']),
+        pendingInvitationEmails: new Set(['pending@example.com']),
+      })
+    ).toBe(7)
+  })
+
+  it('includes distinct pending internal invitees carried by the workspace sweep', () => {
+    expect(
+      computeEnterpriseIssuanceRequiredSeats({
+        memberSeats: 1,
+        pendingSeats: 1,
+        invitationEmails: ['explicit@example.com', 'overlap@example.com'],
+        migratedInvitationEmails: [
+          'moved@example.com',
+          'moved@example.com',
+          'overlap@example.com',
+          'member@example.com',
+          'pending@example.com',
+        ],
+        existingMemberEmails: new Set(['member@example.com']),
+        pendingInvitationEmails: new Set(['pending@example.com']),
+      })
+    ).toBe(5)
+  })
+
   it('includes the configured or invoice-defaulted usage limit in the request key', () => {
     const input = {
       ownerUserId: 'owner-1',
@@ -275,7 +389,7 @@ describe('Enterprise issuance serialization decisions', () => {
     }
 
     expect(buildEnterpriseProvisioningRequestKey(input, 'org-1', normalizedTerms)).toBe(
-      'enterprise-v5:owner-1:org-1:12500:year:2026-08-01::24000:12:concurrency=default:workflow-timeout=default:collection=active'
+      'enterprise-v6:owner-1:org-1:12500:year:2026-08-01:::24000:12:concurrency=default:workflow-timeout=default:collection=active'
     )
     expect(
       buildEnterpriseProvisioningRequestKey(
@@ -284,7 +398,7 @@ describe('Enterprise issuance serialization decisions', () => {
         normalizedTerms
       )
     ).toBe(
-      'enterprise-v5:owner-1:org-1:12500:year:2026-08-01::24000:12:concurrency=1250:workflow-timeout=default:collection=active'
+      'enterprise-v6:owner-1:org-1:12500:year:2026-08-01:::24000:12:concurrency=1250:workflow-timeout=default:collection=active'
     )
     expect(
       buildEnterpriseProvisioningRequestKey(
@@ -293,7 +407,7 @@ describe('Enterprise issuance serialization decisions', () => {
         normalizedTerms
       )
     ).toBe(
-      'enterprise-v5:owner-1:org-1:12500:year:2026-08-01::24000:12:concurrency=default:workflow-timeout=default:collection=paused'
+      'enterprise-v6:owner-1:org-1:12500:year:2026-08-01:::24000:12:concurrency=default:workflow-timeout=default:collection=paused'
     )
     expect(
       buildEnterpriseProvisioningRequestKey(
@@ -302,8 +416,47 @@ describe('Enterprise issuance serialization decisions', () => {
         normalizedTerms
       )
     ).toBe(
-      'enterprise-v5:owner-1:org-1:12500:year:2026-08-01::25000:12:concurrency=default:workflow-timeout=default:collection=active'
+      'enterprise-v6:owner-1:org-1:12500:year:2026-08-01:::25000:12:concurrency=default:workflow-timeout=default:collection=active'
     )
+  })
+
+  it('includes normalized creation-time invitations in the idempotency key', () => {
+    const normalizedTerms = {
+      billingInterval: 'year' as const,
+      reportingPeriodAnchorDate: '2026-08-01',
+    }
+    const base = {
+      ownerUserId: 'owner-1',
+      invoiceAmountUsd: 125,
+      seats: 12,
+      requestedByEmail: 'admin@sim.ai',
+      requestedByUserId: 'admin-1',
+    }
+    const first = buildEnterpriseProvisioningRequestKey(
+      {
+        ...base,
+        invitations: [
+          { email: 'B@Example.com', role: 'member' as const, permission: 'write' as const },
+          { email: 'a@example.com', role: 'admin' as const, permission: 'admin' as const },
+        ],
+      },
+      'org-1',
+      normalizedTerms
+    )
+    const reordered = buildEnterpriseProvisioningRequestKey(
+      {
+        ...base,
+        invitations: [
+          { email: 'a@example.com', role: 'admin' as const, permission: 'admin' as const },
+          { email: 'b@example.com', role: 'member' as const, permission: 'write' as const },
+        ],
+      },
+      'org-1',
+      normalizedTerms
+    )
+
+    expect(first).toBe(reordered)
+    expect(first).toContain('a@example.com,admin,admin;b@example.com,member,write')
   })
 
   it('keeps concurrency and workflow timeout in distinct request-key slots', () => {
@@ -464,6 +617,41 @@ describe('Enterprise workspace-move progress', () => {
     })
   })
 
+  it('surfaces correlated follow-up completion and dead-letter totals', async () => {
+    const payload = operationPayload()
+    const now = new Date('2026-08-13T00:00:00.000Z')
+    queueTableRows(schemaMock.outboxEvent, [
+      {
+        id: 'operation-1',
+        eventType: 'stripe.provision-enterprise',
+        status: 'completed',
+        payload,
+        attempts: 0,
+        maxAttempts: 5,
+        availableAt: now,
+        lockedAt: null,
+        processedAt: now,
+        lastError: null,
+        createdAt: now,
+      },
+    ])
+    queueTableRows(schemaMock.outboxEvent, [])
+    queueTableRows(schemaMock.outboxEvent, [])
+    queueTableRows(schemaMock.outboxEvent, [
+      { operationId: 'operation-1', selected: 3, completed: 1, failed: 1 },
+    ])
+
+    const provisionings = await getLatestEnterpriseProvisionings(['org-1'])
+
+    expect(provisionings.get('org-1')?.followUpJobs).toEqual({
+      selected: 3,
+      completed: 1,
+      pending: 1,
+      failedCount: 1,
+      failed: [],
+    })
+  })
+
   it('rejects provisioning lookups larger than one admin page', async () => {
     await expect(
       getLatestEnterpriseProvisionings(Array.from({ length: 251 }, (_, index) => `org-${index}`))
@@ -514,6 +702,262 @@ describe('Enterprise member reconciliation', () => {
     expect(mocks.reapplyPaidOrgJoinBillingForExistingMemberTx).toHaveBeenCalledTimes(50)
     expect(checkpointPayload).toHaveBeenCalledWith({ afterUserId: 'user-049' })
     expect(dbChainMockFns.limit).toHaveBeenCalledWith(51)
+  })
+})
+
+describe('Enterprise creation invitations', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+    mocks.sendInvitationEmail.mockResolvedValue({ success: true })
+    mocks.createWorkspaceInvitation.mockResolvedValue({ id: 'new-invitation' })
+    mocks.prepareWorkspaceInvitationContext.mockResolvedValue({
+      inviterId: 'owner-1',
+      inviterName: 'Owner',
+      inviterEmail: 'owner@example.com',
+      organizationId: 'org-1',
+      targets: [
+        {
+          workspaceId: 'workspace-1',
+          workspaceDetails: { name: 'Workspace 1' },
+        },
+      ],
+    })
+  })
+
+  it('waits without consuming attempts until every selected workspace move completes', async () => {
+    const payload = operationPayload({
+      request: {
+        ...operationPayload().request,
+        workspaceIds: ['workspace-1'],
+        invitations: [{ email: 'new@example.com', role: 'member', permission: 'write' }],
+      },
+      applicationResult: {
+        appliedAt: '2026-08-13T00:00:00.000Z',
+        subscriptionId: 'sub-1',
+      },
+    })
+    queueTableRows(schemaMock.outboxEvent, [{ eventType: 'stripe.provision-enterprise', payload }])
+    queueTableRows(schemaMock.outboxEvent, [])
+    queueTableRows(schemaMock.outboxEvent, [{ status: 'pending' }])
+
+    await expect(
+      inviteEnterprisePeople(
+        {
+          provisioningOperationId: 'operation-1',
+          organizationId: 'org-1',
+          ownerUserId: 'owner-1',
+          email: 'new@example.com',
+          role: 'member',
+          permission: 'write',
+          sequence: 0,
+        },
+        {
+          eventId: 'invite-1',
+          eventType: 'enterprise.invite-people',
+          attempts: 0,
+          checkpointPayload: vi.fn(),
+        }
+      )
+    ).resolves.toEqual({
+      outcome: 'deferred',
+      reason: 'Waiting for the Enterprise workspace sweep before sending invitations',
+      consumeAttempt: false,
+    })
+
+    expect(mocks.prepareWorkspaceInvitationContext).not.toHaveBeenCalled()
+    expect(mocks.createWorkspaceInvitation).not.toHaveBeenCalled()
+  })
+
+  it('resends an exact pending invitation instead of treating its row as delivered', async () => {
+    const payload = operationPayload({
+      request: {
+        ...operationPayload().request,
+        requestedByName: 'Platform Admin',
+        workspaceIds: ['workspace-1'],
+        invitations: [{ email: 'new@example.com', role: 'member', permission: 'write' }],
+      },
+      applicationResult: {
+        appliedAt: '2026-08-13T00:00:00.000Z',
+        subscriptionId: 'sub-1',
+      },
+    })
+    queueTableRows(schemaMock.outboxEvent, [{ eventType: 'stripe.provision-enterprise', payload }])
+    queueTableRows(schemaMock.outboxEvent, [])
+    queueTableRows(schemaMock.outboxEvent, [{ status: 'completed' }])
+    queueTableRows(schemaMock.user, [])
+    queueTableRows(schemaMock.invitation, [
+      {
+        id: 'pending-invitation',
+        token: 'pending-token',
+        role: 'member',
+        membershipIntent: 'internal',
+        workspaceId: 'workspace-1',
+        permission: 'write',
+      },
+    ])
+    queueTableRows(schemaMock.user, [])
+    queueTableRows(schemaMock.user, [{ id: 'owner-1', name: 'Owner', email: 'owner@example.com' }])
+    queueTableRows(schemaMock.user, [])
+    queueTableRows(schemaMock.invitation, [
+      {
+        id: 'pending-invitation',
+        token: 'pending-token',
+        role: 'member',
+        membershipIntent: 'internal',
+        workspaceId: 'workspace-1',
+        permission: 'write',
+      },
+    ])
+    const checkpointPayload = vi.fn()
+
+    await expect(
+      inviteEnterprisePeople(
+        {
+          provisioningOperationId: 'operation-1',
+          organizationId: 'org-1',
+          ownerUserId: 'owner-1',
+          email: 'new@example.com',
+          role: 'member',
+          permission: 'write',
+          sequence: 0,
+        },
+        {
+          eventId: 'invite-1',
+          eventType: 'enterprise.invite-people',
+          attempts: 1,
+          checkpointPayload,
+        }
+      )
+    ).resolves.toBeUndefined()
+
+    expect(mocks.sendInvitationEmail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        invitationId: 'pending-invitation',
+        token: 'pending-token',
+        email: 'new@example.com',
+      })
+    )
+    expect(mocks.createWorkspaceInvitation).not.toHaveBeenCalled()
+    expect(checkpointPayload).toHaveBeenCalledWith({
+      delivery: {
+        completedAt: expect.any(String),
+        resultId: 'pending-invitation',
+        outcome: 'sent',
+      },
+    })
+  })
+
+  it('refuses to complete over a weaker pending workspace grant', async () => {
+    const payload = operationPayload({
+      request: {
+        ...operationPayload().request,
+        workspaceIds: ['workspace-1'],
+        invitations: [{ email: 'new@example.com', role: 'member', permission: 'write' }],
+      },
+      applicationResult: {
+        appliedAt: '2026-08-13T00:00:00.000Z',
+        subscriptionId: 'sub-1',
+      },
+    })
+    queueTableRows(schemaMock.outboxEvent, [{ eventType: 'stripe.provision-enterprise', payload }])
+    queueTableRows(schemaMock.outboxEvent, [])
+    queueTableRows(schemaMock.outboxEvent, [{ status: 'completed' }])
+    queueTableRows(schemaMock.user, [])
+    queueTableRows(schemaMock.invitation, [
+      {
+        id: 'pending-invitation',
+        token: 'pending-token',
+        role: 'member',
+        membershipIntent: 'internal',
+        workspaceId: 'workspace-1',
+        permission: 'read',
+      },
+    ])
+    const checkpointPayload = vi.fn()
+
+    await expect(
+      inviteEnterprisePeople(
+        {
+          provisioningOperationId: 'operation-1',
+          organizationId: 'org-1',
+          ownerUserId: 'owner-1',
+          email: 'new@example.com',
+          role: 'member',
+          permission: 'write',
+          sequence: 0,
+        },
+        {
+          eventId: 'invite-1',
+          eventType: 'enterprise.invite-people',
+          attempts: 1,
+          checkpointPayload,
+        }
+      )
+    ).rejects.toThrow('weaker pending grant')
+    expect(mocks.sendInvitationEmail).not.toHaveBeenCalled()
+    expect(mocks.createWorkspaceInvitation).not.toHaveBeenCalled()
+    expect(checkpointPayload).not.toHaveBeenCalled()
+  })
+
+  it('resends a stronger pending grant without downgrading it', async () => {
+    const payload = operationPayload({
+      request: {
+        ...operationPayload().request,
+        workspaceIds: ['workspace-1'],
+        invitations: [{ email: 'new@example.com', role: 'member', permission: 'write' }],
+      },
+      applicationResult: {
+        appliedAt: '2026-08-13T00:00:00.000Z',
+        subscriptionId: 'sub-1',
+      },
+    })
+    const pendingGrant = {
+      id: 'pending-invitation',
+      token: 'pending-token',
+      role: 'member',
+      membershipIntent: 'internal',
+      workspaceId: 'workspace-1',
+      permission: 'admin',
+    }
+    queueTableRows(schemaMock.outboxEvent, [{ eventType: 'stripe.provision-enterprise', payload }])
+    queueTableRows(schemaMock.outboxEvent, [])
+    queueTableRows(schemaMock.outboxEvent, [{ status: 'completed' }])
+    queueTableRows(schemaMock.user, [])
+    queueTableRows(schemaMock.invitation, [pendingGrant])
+    queueTableRows(schemaMock.user, [])
+    queueTableRows(schemaMock.user, [{ id: 'owner-1', name: 'Owner', email: 'owner@example.com' }])
+    queueTableRows(schemaMock.user, [])
+    queueTableRows(schemaMock.invitation, [pendingGrant])
+    const checkpointPayload = vi.fn()
+
+    await inviteEnterprisePeople(
+      {
+        provisioningOperationId: 'operation-1',
+        organizationId: 'org-1',
+        ownerUserId: 'owner-1',
+        email: 'new@example.com',
+        role: 'member',
+        permission: 'write',
+        sequence: 0,
+      },
+      {
+        eventId: 'invite-1',
+        eventType: 'enterprise.invite-people',
+        attempts: 1,
+        checkpointPayload,
+      }
+    )
+
+    expect(mocks.sendInvitationEmail).toHaveBeenCalled()
+    expect(mocks.createWorkspaceInvitation).not.toHaveBeenCalled()
+    expect(checkpointPayload).toHaveBeenCalledWith({
+      delivery: {
+        completedAt: expect.any(String),
+        resultId: 'pending-invitation',
+        outcome: 'sent',
+      },
+    })
   })
 })
 
@@ -741,7 +1185,18 @@ describe('Enterprise issuance outbox handler', () => {
     arrangeWorkerReads([], [], 13)
 
     await expect(provisionEnterpriseInStripe(operationPayload(), context())).rejects.toThrow(
-      'seat capacity is below current internal membership'
+      'seat capacity is below current occupied or reserved seats'
+    )
+
+    expect(mocks.subscriptionsCreate).not.toHaveBeenCalled()
+  })
+
+  it('rechecks pending seat reservations immediately before Stripe create', async () => {
+    arrangeWorkerReads([], [], 1)
+    queueTableRows(schemaMock.invitation, [{ count: 12 }])
+
+    await expect(provisionEnterpriseInStripe(operationPayload(), context())).rejects.toThrow(
+      'seat capacity is below current occupied or reserved seats'
     )
 
     expect(mocks.subscriptionsCreate).not.toHaveBeenCalled()
@@ -835,6 +1290,37 @@ describe('Enterprise metadata outbox handler', () => {
         idempotencyKey: 'enterprise-config:local-sub-1:metadata-event-1:delivery:0:attempt:0',
       }
     )
+  })
+
+  it('does not send a seat decrease below current pending reservations to Stripe', async () => {
+    const payload = {
+      subscriptionId: 'local-sub-1',
+      revision: 5,
+      deliveryRevision: 0,
+      metadata: {
+        plan: 'enterprise',
+        referenceId: 'org-1',
+        seats: 15,
+      },
+    }
+    queueTableRows(schemaMock.subscription, [
+      { stripeSubscriptionId: 'sub_1', referenceId: 'org-1', metadata: {} },
+    ])
+    queueTableRows(schemaMock.subscription, [{ metadata: {} }])
+    queueTableRows(schemaMock.outboxEvent, [{ id: 'metadata-event-capacity', payload }])
+    queueTableRows(schemaMock.member, [{ value: 10 }])
+    queueTableRows(schemaMock.invitation, [{ count: 6 }])
+
+    await expect(
+      syncEnterpriseMetadataInStripe(payload, {
+        eventId: 'metadata-event-capacity',
+        eventType: 'stripe.sync-enterprise-metadata',
+        attempts: 0,
+        checkpointPayload: vi.fn(),
+      })
+    ).rejects.toThrow('seat intent is below current occupied or reserved seats')
+
+    expect(mocks.subscriptionsUpdate).not.toHaveBeenCalled()
   })
 
   it('unsets nullable metadata overrides in Stripe', async () => {

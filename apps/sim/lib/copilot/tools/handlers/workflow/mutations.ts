@@ -458,7 +458,6 @@ export async function executeSetBlockEnabled(
         blockId: params.blockId,
         enabled: params.enabled,
         affectedBlockIds: result.affectedBlockIds,
-        workflowState: result.state,
         copilotSanitizedWorkflowState: sanitizeForCopilot(result.state),
         ...(!result.changed
           ? {

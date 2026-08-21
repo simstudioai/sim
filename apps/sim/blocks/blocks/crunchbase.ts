@@ -59,7 +59,14 @@ function toCollectionOption(id: string) {
 
 const COLLECTION_OPTIONS = CRUNCHBASE_COLLECTIONS.map(toCollectionOption)
 const CARD_COLLECTION_OPTIONS = CRUNCHBASE_CARD_COLLECTIONS.map(toCollectionOption)
-const DELETED_COLLECTION_OPTIONS = CRUNCHBASE_DELETED_COLLECTIONS.map(toCollectionOption)
+/**
+ * The empty id is what returns the picker to the cross-collection feed — without
+ * it a chosen collection can be swapped but never cleared.
+ */
+const DELETED_COLLECTION_OPTIONS = [
+  { label: 'All collections', id: '' },
+  ...CRUNCHBASE_DELETED_COLLECTIONS.map(toCollectionOption),
+]
 
 const QUERY_WAND_PROMPT = `Generate a Crunchbase Search API "query" array.
 
@@ -303,7 +310,8 @@ export const CrunchbaseBlock: BlockConfig<CrunchbaseResponse> = {
       title: 'Limit',
       type: 'short-input',
       mode: 'advanced',
-      placeholder: 'Search: 1-1000 (default 100). Card: 1-100. Autocomplete: 1-25 (default 10)',
+      placeholder:
+        'Search: 1-1000 (default 100). Card: 1-100. Autocomplete and deleted feed: 1-25 (default 10)',
       condition: { field: 'operation', value: LIMITED_OPERATIONS },
     },
     {

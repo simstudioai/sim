@@ -12,6 +12,7 @@ import {
 } from '@/lib/workflows/application/apply-workflow-operations'
 import { formatWorkflowLintMessage, hasWorkflowLintIssues } from '@/lib/workflows/editing/lint'
 import type { EditWorkflowParams, SkippedItem } from '@/lib/workflows/editing/types'
+import { sanitizeForCopilot } from '@/lib/workflows/sanitization/json-sanitizer'
 
 const logger = createLogger('EditWorkflowServerTool')
 
@@ -97,7 +98,13 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, unknown>
       success: true,
       workflowId: result.workflowId,
       workflowName: result.workflowName || 'Workflow',
-      workflowState: result.graph,
+      /**
+       * Sanitized before it reaches the agent (#6904). The graph goes back into
+       * a model context, so non-serializable and oversized values have to be
+       * stripped; the application use case returns the graph it persisted, not
+       * a copilot-shaped one.
+       */
+      workflowState: sanitizeForCopilot(result.graph),
       workflowLint: result.lint,
       ...(workflowLintMessage && { workflowLintMessage }),
       ...(inputErrors && {

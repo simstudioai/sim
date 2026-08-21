@@ -105,7 +105,7 @@ export const cbinsightsLookupOrganizationsTool: ToolConfig<
           urls,
           profileUrl,
           limit: clampLimit(params.limit),
-          nextPageToken: params.nextPageToken,
+          nextPageToken: params.nextPageToken?.trim(),
         }),
       },
       (data) => ({ orgs: asArray(data.orgs), ...pageInfo(data) }),

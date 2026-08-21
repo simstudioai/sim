@@ -71,7 +71,7 @@ export const cbinsightsGetOrgFundingsTool: ToolConfig<CbInsightsOrgFundingsParam
         path: `/v2/organizations/${orgId}/financialtransactions/fundings`,
         body: compactBody({
           limit: clampLimit(params.limit),
-          nextPageToken: params.nextPageToken,
+          nextPageToken: params.nextPageToken?.trim(),
         }),
       },
       (data) => ({

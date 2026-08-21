@@ -131,7 +131,7 @@ async function resolveInvitationOrganizationId(
   return uniqueScopes.length === 1 ? uniqueScopes[0] : input.organizationId
 }
 
-async function findPendingOrganizationInvitation(
+export async function findPendingOrganizationInvitation(
   executor: DbOrTx,
   organizationId: string,
   email: string

@@ -4,7 +4,7 @@ import { createLogger } from '@sim/logger'
 import { and, count, eq, gte, lt, sql } from 'drizzle-orm'
 import { isOrganizationBillingBlocked } from '@/lib/billing/core/access'
 import { getOrganizationSubscription, getPlanPricing } from '@/lib/billing/core/billing'
-import { resolveSubscriptionUsagePeriod } from '@/lib/billing/core/reporting-period'
+import { resolveSubscriptionUsagePeriodOrDefault } from '@/lib/billing/core/reporting-period'
 import {
   getBillingPeriodUsageCost,
   getBillingPeriodUsageCostByUser,
@@ -82,7 +82,7 @@ export async function getOrgMemberLedgerByUser(
   let billingPeriod = period ?? null
   if (period === undefined) {
     const subscription = await getOrganizationSubscription(organizationId, { executor })
-    billingPeriod = resolveSubscriptionUsagePeriod(subscription)
+    billingPeriod = subscription ? resolveSubscriptionUsagePeriodOrDefault(subscription) : null
   }
   if (!billingPeriod) return new Map<string, number>()
   return getBillingPeriodUsageCostByUser(
@@ -176,7 +176,7 @@ export async function getOrganizationMemberUsageSnapshot(
 ): Promise<OrganizationMemberUsageSnapshot> {
   const executor = options.executor ?? db
   const subscription = await getOrganizationSubscription(organizationId, { executor })
-  const billingPeriod = resolveSubscriptionUsagePeriod(subscription)
+  const billingPeriod = subscription ? resolveSubscriptionUsagePeriodOrDefault(subscription) : null
   return {
     billingPeriod,
     includeLegacyBaseline: billingPeriod?.source !== 'reporting',
@@ -217,7 +217,7 @@ export async function getOrganizationBillingData(
       return null
     }
 
-    const billingPeriod = resolveSubscriptionUsagePeriod(subscription)
+    const billingPeriod = resolveSubscriptionUsagePeriodOrDefault(subscription)
     const includeLegacyBaseline = billingPeriod?.source !== 'reporting'
     const limit = Math.min(
       MAX_ORGANIZATION_BILLING_MEMBER_LIMIT,

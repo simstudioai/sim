@@ -6,6 +6,7 @@ import { cbinsightsChatTool } from '@/tools/cbinsights/chat'
 import { cbinsightsGetOrgFundingsTool } from '@/tools/cbinsights/get_org_fundings'
 import { cbinsightsGetOrgOutlookTool } from '@/tools/cbinsights/get_org_outlook'
 import { cbinsightsGetScoutingReportTool } from '@/tools/cbinsights/get_scouting_report'
+import { cbinsightsListBusinessRelationshipsTool } from '@/tools/cbinsights/list_business_relationships'
 import { cbinsightsListFundingsTool } from '@/tools/cbinsights/list_fundings'
 import { cbinsightsLookupOrganizationsTool } from '@/tools/cbinsights/lookup_organizations'
 import { cbinsightsRagTool } from '@/tools/cbinsights/rag'
@@ -268,6 +269,110 @@ describe('cbinsights request building', () => {
     expect(JSON.parse(String(calls[2].init.body)).sectorIds).toEqual([1, 2])
   })
 
+  /*
+   * The sibling of the numeric bound. `parseBooleanParam` used to return
+   * undefined for anything it did not recognize, so a model answering "yes"
+   * dropped the restriction entirely and widened the search — the same failure,
+   * on a filter the caller explicitly set.
+   */
+  it.each(['yes', '1', 'TRUE ish', 0])(
+    'rejects the unrecognized boolean %j rather than dropping the filter',
+    async (entry) => {
+      mockFetch([AUTH_OK])
+      await expect(
+        cbinsightsSearchFirmographicsTool.directExecution!({
+          ...CREDS,
+          keyword: 'fintech',
+          vcBacked: entry,
+        } as never)
+      ).rejects.toThrow(/"vcBacked" must be true or false/)
+      expect(calls).toHaveLength(0)
+    }
+  )
+
+  it.each([
+    ['true', true],
+    ['FALSE', false],
+    [true, true],
+    [false, false],
+  ])('still accepts the boolean form %j a dropdown emits', async (entry, expected) => {
+    mockFetch([AUTH_OK, { body: { orgs: [] } }])
+    await cbinsightsSearchFirmographicsTool.directExecution!({
+      ...CREDS,
+      keyword: 'fintech',
+      vcBacked: entry,
+    } as never)
+    expect(JSON.parse(String(calls[1].init.body)).vcBacked).toBe(expected)
+  })
+
+  it('treats the dropdown\'s "Any" option as no filter at all', async () => {
+    mockFetch([AUTH_OK, { body: { orgs: [] } }])
+    await cbinsightsSearchFirmographicsTool.directExecution!({
+      ...CREDS,
+      keyword: 'fintech',
+      vcBacked: '',
+    } as never)
+    expect(JSON.parse(String(calls[1].init.body))).toEqual({ keyword: 'fintech' })
+  })
+
+  /*
+   * A mistyped direction used to fold into `desc`, handing back the bottom of a
+   * metered result set as though it were the top.
+   */
+  it('rejects a sort direction that is neither asc nor desc', async () => {
+    mockFetch([AUTH_OK])
+    await expect(
+      cbinsightsSearchFirmographicsTool.directExecution!({
+        ...CREDS,
+        keyword: 'fintech',
+        sortField: 'mosaicOverall',
+        sortDirection: 'ascending',
+      } as never)
+    ).rejects.toThrow(/"sortDirection" must be "asc" or "desc"/)
+    expect(calls).toHaveLength(0)
+  })
+
+  /*
+   * `limit` is the last silent-drop path: falling back to the endpoint default
+   * returns a different page than the caller asked for, and still bills for it.
+   */
+  it('rejects a mistyped limit rather than falling back to the endpoint default', async () => {
+    mockFetch([AUTH_OK])
+    await expect(
+      cbinsightsLookupOrganizationsTool.directExecution!({
+        ...CREDS,
+        names: 'a',
+        limit: 'twenty',
+      } as never)
+    ).rejects.toThrow(/"limit" must be a number/)
+    expect(calls).toHaveLength(0)
+  })
+
+  /*
+   * A block-to-block reference can hand over an object. Stringifying it searched
+   * for the literal "[object Object]" and reported success on zero matches.
+   */
+  it('rejects a non-text entry in a free-text filter rather than stringifying it', async () => {
+    mockFetch([AUTH_OK])
+    await expect(
+      cbinsightsLookupOrganizationsTool.directExecution!({
+        ...CREDS,
+        names: [{ name: 'CB Insights' }],
+      } as never)
+    ).rejects.toThrow(/"names" must contain only text values/)
+    expect(calls).toHaveLength(0)
+  })
+
+  it('treats a whitespace-only numeric bound as unset, not as zero', async () => {
+    mockFetch([AUTH_OK, { body: { orgs: [] } }])
+    await cbinsightsSearchFirmographicsTool.directExecution!({
+      ...CREDS,
+      keyword: 'fintech',
+      minCurrentHeadcount: '   ',
+    } as never)
+    expect(JSON.parse(String(calls[1].init.body))).toEqual({ keyword: 'fintech' })
+  })
+
   it('rejects a mistyped numeric bound rather than dropping it', async () => {
     mockFetch([AUTH_OK])
     await expect(
@@ -467,6 +572,24 @@ describe('cbinsights response mapping', () => {
       totalHits: null,
       totalHitsRelation: null,
     })
+  })
+
+  /*
+   * Business relationships is the one paged endpoint whose documented response
+   * carries no total, so the tool must not manufacture a permanently-null
+   * `totalHits` alongside the real token.
+   */
+  it('reports only the fields the business-relationships endpoint documents', async () => {
+    mockFetch([AUTH_OK, { body: { orgs: [{ orgId: 1 }], nextPageToken: 'tok' } }])
+
+    const result = await cbinsightsListBusinessRelationshipsTool.directExecution!({
+      ...CREDS,
+      orgIds: '1',
+    } as never)
+
+    expect(result.output).toEqual({ orgs: [{ orgId: 1 }], nextPageToken: 'tok' })
+    expect(cbinsightsListBusinessRelationshipsTool.outputs).not.toHaveProperty('totalHits')
+    expect(cbinsightsListBusinessRelationshipsTool.outputs).not.toHaveProperty('totalHitsRelation')
   })
 
   it('renames the API chatID to the block-facing chatId', async () => {

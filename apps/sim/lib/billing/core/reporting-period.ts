@@ -1,4 +1,5 @@
 import { isRecordLike } from '@sim/utils/object'
+import { defaultBillingPeriod } from '@/lib/billing/core/billing-period'
 import { isEnterprise } from '@/lib/billing/plan-helpers'
 
 export const ENTERPRISE_REPORTING_PERIOD_ANCHOR_METADATA_KEY = 'reportingPeriodAnchorDate'
@@ -109,4 +110,19 @@ export function resolveSubscriptionUsagePeriod(
   }
 
   return null
+}
+
+/** Resolves a paid subscription's canonical usage window, including the open fallback window. */
+export function resolveSubscriptionUsagePeriodOrDefault(
+  subscription: SubscriptionPeriodInput,
+  now: Date = new Date()
+): ResolvedUsagePeriod {
+  return (
+    resolveSubscriptionUsagePeriod(subscription, now) ?? {
+      ...defaultBillingPeriod(),
+      source: 'default',
+      anchorDate: null,
+      interval: null,
+    }
+  )
 }

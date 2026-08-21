@@ -6,7 +6,7 @@ import type { AuditActionType, AuditResourceTypeValue } from './types'
 
 const logger = createLogger('AuditLog')
 
-interface AuditLogParams {
+export interface AuditLogParams {
   workspaceId?: string | null
   /**
    * The acting user's id (FK to `user.id`). Pass `null` for genuinely
@@ -75,10 +75,11 @@ export function recordAuditBatch(entries: AuditLogParams[]): void {
  */
 function buildAuditRow(
   params: AuditLogParams,
-  actor: { actorId: string | null; actorName?: string | null; actorEmail?: string | null }
+  actor: { actorId: string | null; actorName?: string | null; actorEmail?: string | null },
+  id = generateShortId()
 ) {
   return {
-    id: generateShortId(),
+    id,
     workspaceId: params.workspaceId || null,
     actorId: actor.actorId,
     action: params.action,
@@ -92,6 +93,24 @@ function buildAuditRow(
     ipAddress: params.request ? getClientIp(params.request) : undefined,
     userAgent: params.request?.headers.get('user-agent') ?? undefined,
   }
+}
+
+/**
+ * Persists one audit row under a caller-owned idempotency key.
+ *
+ * External operations use this after recovering a provider result from an
+ * ambiguous response loss. Awaiting the insert closes the crash gap before the
+ * operation is reported as recovered, while the primary-key conflict turns a
+ * retry into an authoritative no-op instead of a duplicate audit row.
+ */
+export async function recordAuditOnce(id: string, params: AuditLogParams): Promise<void> {
+  if (!id.trim()) throw new Error('Idempotent audit ID must not be empty')
+
+  const actor = await resolveAuditActor(params)
+  await db
+    .insert(auditLog)
+    .values(buildAuditRow(params, actor, id))
+    .onConflictDoNothing({ target: auditLog.id })
 }
 
 async function insertAuditLogBatch(entries: AuditLogParams[]): Promise<void> {
@@ -111,6 +130,15 @@ async function insertAuditLogBatch(entries: AuditLogParams[]): Promise<void> {
 }
 
 async function insertAuditLog(params: AuditLogParams): Promise<void> {
+  const actor = await resolveAuditActor(params)
+  await db.insert(auditLog).values(buildAuditRow(params, actor))
+}
+
+async function resolveAuditActor(params: AuditLogParams): Promise<{
+  actorId: string | null
+  actorName?: string | null
+  actorEmail?: string | null
+}> {
   let { actorName, actorEmail } = params
 
   /**
@@ -144,5 +172,5 @@ async function insertAuditLog(params: AuditLogParams): Promise<void> {
     }
   }
 
-  await db.insert(auditLog).values(buildAuditRow(params, { actorId, actorName, actorEmail }))
+  return { actorId, actorName, actorEmail }
 }

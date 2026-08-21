@@ -9,9 +9,9 @@ import {
   clampLimit,
   crunchbaseError,
   crunchbaseHeaders,
+  DELETED_LIMIT_MAX,
   parseIdListParam,
   readJson,
-  SEARCH_LIMIT_MAX,
 } from '@/tools/crunchbase/utils'
 import { ErrorExtractorId } from '@/tools/error-extractors'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
@@ -61,14 +61,14 @@ export const crunchbaseListDeletedEntitiesTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Restrict the feed to a single collection: categories, event_appearances, events, ipos, jobs, locations, organizations, ownerships, or people. Leave empty to read the feed across collections.',
+        'Restrict the feed to a single collection: acquisitions, categories, event_appearances, events, funding_rounds, funds, investments, ipos, jobs, locations, organizations, ownerships, people, or press_references. Which of them your key can read depends on your Crunchbase package. Leave empty to read the feed across collections.',
     },
     collectionIds: {
       type: 'json',
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Collections to include when reading the cross-collection feed, e.g. ["organizations","people"]. Ignored when a single collection is set.',
+        'Collections to include when reading the cross-collection feed, e.g. ["organizations","people"]. One or more of: acquisitions, categories, event_appearances, events, funding_rounds, funds, investments, ipos, jobs, locations, organizations, ownerships, people, press_references. Ignored when a single collection is set.',
     },
     deletedAtOrder: {
       type: 'string',
@@ -80,7 +80,7 @@ export const crunchbaseListDeletedEntitiesTool: ToolConfig<
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Rows to return per page',
+      description: 'Rows to return per page, 1-25 (default 10)',
     },
     afterId: {
       type: 'string',
@@ -117,7 +117,7 @@ export const crunchbaseListDeletedEntitiesTool: ToolConfig<
       if (params.deletedAtOrder === 'desc' || params.deletedAtOrder === 'asc') {
         search.set('deleted_at_order', params.deletedAtOrder)
       }
-      const limit = clampLimit(params.limit, SEARCH_LIMIT_MAX)
+      const limit = clampLimit(params.limit, DELETED_LIMIT_MAX)
       if (limit !== undefined) search.set('limit', String(limit))
       if (params.afterId) search.set('after_id', params.afterId)
       if (params.beforeId) search.set('before_id', params.beforeId)
