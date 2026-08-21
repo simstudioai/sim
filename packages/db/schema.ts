@@ -4770,6 +4770,14 @@ export const tableRunDispatches = pgTable(
       onDelete: 'set null',
     }),
     requestedAt: timestamp('requested_at').notNull().defaultNow(),
+    /** Last time the dispatcher loop made progress on this dispatch. Stamped by
+     *  the same per-window writes that advance `cursor` and `processed_count`,
+     *  so it means "a holder is alive" rather than "this started a while ago" —
+     *  the distinction the cleanup sweep needs, since `requested_at` never moves
+     *  and a legitimately long dispatch would otherwise be reclaimed under a
+     *  live holder. Null on rows written before this column existed; the sweep
+     *  reads `COALESCE(heartbeat_at, requested_at)` so those stay reclaimable. */
+    heartbeatAt: timestamp('heartbeat_at'),
     completedAt: timestamp('completed_at'),
     cancelledAt: timestamp('cancelled_at'),
   },

@@ -1,6 +1,7 @@
 import { existsSync } from 'fs'
 import { readFile } from 'fs/promises'
 import { createLogger } from '@sim/logger'
+import { loadParseOfficeAsync } from '@/lib/file-parsers/officeparser-module'
 import type { FileParseResult, FileParser } from '@/lib/file-parsers/types'
 import { sanitizeTextForUTF8 } from '@/lib/file-parsers/utils'
 import { assertOoxmlArchiveWithinLimits } from '@/lib/file-parsers/zip-guard'
@@ -40,8 +41,7 @@ export class PptxParser implements FileParser {
 
       let parseOfficeAsync
       try {
-        const officeParser = await import('officeparser')
-        parseOfficeAsync = officeParser.parseOfficeAsync
+        parseOfficeAsync = await loadParseOfficeAsync()
       } catch (importError) {
         logger.warn('officeparser not available, using fallback extraction')
         return this.fallbackExtraction(buffer)
