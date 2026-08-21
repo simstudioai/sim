@@ -15,7 +15,9 @@ import {
 } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/add-resource-dropdown'
 import { getResourceConfig } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
 import type { PlusMenuHandle } from '@/app/workspace/[workspaceId]/home/components/user-input/components/constants'
+import { MentionRowContent } from '@/app/workspace/[workspaceId]/home/components/user-input/components/plus-menu-dropdown/mention-row-content'
 import {
+  buildFolderMentionLocationMap,
   resourceMentionMatches,
   withDesktopTabMentions,
 } from '@/app/workspace/[workspaceId]/home/components/user-input/components/plus-menu-dropdown/resource-mention-items'
@@ -118,6 +120,11 @@ export const PlusMenuDropdown = React.memo(
       )
       return attachable.filter(({ type }) => !MENTION_ONLY_RESOURCE_TYPES.has(type))
     }, [availableResources, browserTabs, isMention, terminalTabs])
+
+    const folderMentionLocations = useMemo(
+      () => buildFolderMentionLocationMap(visibleResources),
+      [visibleResources]
+    )
 
     const treeSections = useResourceTreeSections({
       groups: visibleResources,
@@ -298,7 +305,9 @@ export const PlusMenuDropdown = React.memo(
             // Plus-click shows short fixed labels (Workflows, Tables, …) — let it size
             // to its content via the emcn DropdownMenuContent default max-w.
             // Mention mode renders resource names directly, so widen for breathing room.
-            isMention && 'max-w-[min(300px,calc(100vw-32px))]'
+            // Wide enough that a folder row fits its name and its right-aligned
+            // location column without either collapsing to a stub.
+            isMention && 'w-[min(380px,calc(100vw-32px))] max-w-[calc(100vw-32px)]'
           )}
           onCloseAutoFocus={handleCloseAutoFocus}
           onOpenAutoFocus={handleOpenAutoFocus}
@@ -334,6 +343,7 @@ export const PlusMenuDropdown = React.memo(
                 filteredItems.map(({ type, item }, index) => {
                   const config = getResourceConfig(type)
                   const isActive = index === activeIndex
+                  const location = folderMentionLocations.get(`${type}:${item.id}`)
                   return (
                     <button
                       key={`${type}:${item.id}`}
@@ -350,7 +360,9 @@ export const PlusMenuDropdown = React.memo(
                         isActive && 'bg-[var(--surface-hover)]'
                       )}
                     >
-                      {config.renderDropdownItem({ item })}
+                      <MentionRowContent location={location}>
+                        {config.renderDropdownItem({ item })}
+                      </MentionRowContent>
                     </button>
                   )
                 })

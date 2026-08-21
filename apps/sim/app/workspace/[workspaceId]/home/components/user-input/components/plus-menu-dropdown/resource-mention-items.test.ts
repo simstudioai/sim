@@ -4,6 +4,7 @@ import {
   TERMINAL_SESSION_RESOURCE_ID,
 } from '@/lib/copilot/resources/types'
 import {
+  buildFolderMentionLocationMap,
   resourceMentionMatches,
   withDesktopTabMentions,
 } from '@/app/workspace/[workspaceId]/home/components/user-input/components/plus-menu-dropdown/resource-mention-items'
@@ -19,6 +20,88 @@ const groups = [
     items: [{ id: TERMINAL_SESSION_RESOURCE_ID, name: 'Terminal' }],
   },
 ]
+
+describe('buildFolderMentionLocationMap', () => {
+  it('distinguishes same-named top-level workflow and file folders by family', () => {
+    const locations = buildFolderMentionLocationMap([
+      {
+        type: 'folder',
+        items: [{ id: 'enterprise', name: 'Enterprise', parentId: null }],
+      },
+      {
+        type: 'filefolder',
+        items: [{ id: 'enterprise', name: 'Enterprise', parentId: null }],
+      },
+    ])
+
+    expect(locations.get('folder:enterprise')).toEqual({
+      familyType: 'workflow',
+      parentNames: [],
+    })
+    expect(locations.get('filefolder:enterprise')).toEqual({
+      familyType: 'file',
+      parentNames: [],
+    })
+  })
+
+  it('returns root-first parents without repeating the current folder name', () => {
+    const locations = buildFolderMentionLocationMap([
+      {
+        type: 'folder',
+        items: [
+          { id: 'engineering', name: 'Engineering', parentId: null },
+          { id: 'accounts', name: 'Accounts', parentId: 'engineering' },
+          { id: 'enterprise', name: 'Enterprise', parentId: 'accounts' },
+        ],
+      },
+    ])
+
+    expect(locations.get('folder:enterprise')).toEqual({
+      familyType: 'workflow',
+      parentNames: ['Engineering', 'Accounts'],
+    })
+  })
+
+  it('falls back to the family when a parent is missing', () => {
+    const locations = buildFolderMentionLocationMap([
+      {
+        type: 'filefolder',
+        items: [{ id: 'enterprise', name: 'Enterprise', parentId: 'missing' }],
+      },
+    ])
+
+    expect(locations.get('filefolder:enterprise')).toEqual({
+      familyType: 'file',
+      parentNames: [],
+    })
+  })
+
+  it('terminates cyclic ancestry without repeating the current folder', () => {
+    const locations = buildFolderMentionLocationMap([
+      {
+        type: 'folder',
+        items: [
+          { id: 'enterprise', name: 'Enterprise', parentId: 'accounts' },
+          { id: 'accounts', name: 'Accounts', parentId: 'enterprise' },
+        ],
+      },
+    ])
+
+    expect(locations.get('folder:enterprise')).toEqual({
+      familyType: 'workflow',
+      parentNames: ['Accounts'],
+    })
+  })
+
+  it('does not add locations for non-folder resources', () => {
+    const locations = buildFolderMentionLocationMap([
+      { type: 'workflow', items: [{ id: 'workflow-1', name: 'Enterprise' }] },
+      { type: 'file', items: [{ id: 'file-1', name: 'Enterprise' }] },
+    ])
+
+    expect(locations.size).toBe(0)
+  })
+})
 
 describe('withDesktopTabMentions', () => {
   it('keeps Browser and Terminal as flat resource mentions with no live tabs', () => {
