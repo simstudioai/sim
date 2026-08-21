@@ -7,6 +7,7 @@ import {
   OPERATION_SUBBLOCK_ID,
 } from '@/lib/permission-groups/operation-access'
 import { getDependsOnFields } from '@/lib/workflows/subblocks/dependencies'
+import { staleSelectionOptions } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/dropdown/stale-selections'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { getWorkflowSearchLabelHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
 import { useFetchedOptions } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-fetched-options'
@@ -23,6 +24,9 @@ import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 /** Shared empty list, so a selector-backed field with no static options keeps a stable identity. */
 const EMPTY_OPTIONS: DropdownOption[] = []
+
+/** Shared empty list, so a multi-select with no value keeps a stable identity across renders. */
+const EMPTY_MULTI_VALUES: string[] = []
 
 /** Selected-value badges shown before folding the rest into a "+N" badge. */
 const MAX_VISIBLE_MULTI_SELECT_BADGES = 2
@@ -135,13 +139,11 @@ export const Dropdown = memo(function Dropdown({
   const value = isPreview ? previewValue : propValue !== undefined ? propValue : storeValue
 
   const singleValue = multiSelect ? null : (value as string | null | undefined)
-  const multiValues = multiSelect
-    ? Array.isArray(value)
-      ? value
-      : value
-        ? [value as string]
-        : []
-    : null
+  const multiValues = useMemo(() => {
+    if (!multiSelect) return null
+    if (Array.isArray(value)) return value
+    return value ? [value as string] : EMPTY_MULTI_VALUES
+  }, [multiSelect, value])
 
   // Derived option lists read the block's own values (a model's valid reasoning efforts);
   // `dependsOn` already re-renders this control when one of those siblings changes.
@@ -201,8 +203,27 @@ export const Dropdown = memo(function Dropdown({
       }
     }
 
+    // A multi-select can only drop a value by clicking its row; a selection the
+    // loaded list no longer carries gets one so it can be removed in place.
+    if (multiValues && isDynamic) {
+      const stale = staleSelectionOptions({
+        selected: multiValues,
+        optionIds: new Set(opts.map((o) => (typeof o === 'string' ? o : o.id))),
+        listLoaded: normalizedFetchedOptions.length > 0 && !isLoadingOptions && fetchError === null,
+      })
+      if (stale.length > 0) opts = [...opts, ...stale]
+    }
+
     return opts
-  }, [isDynamic, normalizedFetchedOptions, evaluatedOptions, hydratedOption])
+  }, [
+    isDynamic,
+    normalizedFetchedOptions,
+    evaluatedOptions,
+    hydratedOption,
+    multiValues,
+    isLoadingOptions,
+    fetchError,
+  ])
 
   /**
    * Operation IDs whose resolved tool is denied by the caller's permission

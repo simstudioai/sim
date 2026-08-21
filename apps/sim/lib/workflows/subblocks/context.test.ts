@@ -86,6 +86,15 @@ describe('buildSelectorContextFromBlock', () => {
     expect(ctx.knowledgeBaseId).toBeUndefined()
   })
 
+  it('skips a run-time reference so a dependent selector stays disabled instead of fetching it', () => {
+    const ctx = buildSelectorContextFromBlock('table_v2', {
+      operation: { id: 'operation', type: 'dropdown', value: 'query_rows' },
+      manualTableId: { id: 'manualTableId', type: 'short-input', value: '<start.tableId>' },
+    })
+
+    expect(ctx.tableId).toBeUndefined()
+  })
+
   it('should return empty context for unknown block types', () => {
     const ctx = buildSelectorContextFromBlock('nonexistent_block', {
       foo: { id: 'foo', type: 'short-input', value: 'bar' },

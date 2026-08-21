@@ -1,4 +1,5 @@
 import { getBlock } from '@/blocks'
+import { isReference } from '@/executor/constants'
 import type { SelectorContext } from '@/hooks/selectors/types'
 import type { SubBlockState } from '@/stores/workflows/workflow/types'
 import {
@@ -83,6 +84,9 @@ export function buildSelectorContextFromBlock(
     if (value === null || value === undefined) return
     const strValue = typeof value === 'string' ? value : String(value)
     if (!strValue) return
+    // A `<block.output>` reference only resolves at run time; handing the literal text to a
+    // selector would issue a request for a resource that cannot exist (mirrors useSelectorSetup).
+    if (isReference(strValue)) return
     if (SELECTOR_CONTEXT_FIELDS.has(key as keyof SelectorContext)) {
       context[key as keyof SelectorContext] = strValue
     }
