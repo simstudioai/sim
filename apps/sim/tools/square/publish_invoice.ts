@@ -1,5 +1,9 @@
-import { generateId } from '@sim/utils/id'
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import {
+  defineSquareKeyedSite,
+  type SquareDeliveryContextParams,
+  withSquareIdempotencyKey,
+} from '@/tools/square/idempotency'
 import type { InvoiceResponse, PublishInvoiceParams } from '@/tools/square/types'
 import {
   INVOICE_METADATA_OUTPUT_PROPERTIES,
@@ -9,7 +13,15 @@ import {
 } from '@/tools/square/types'
 import type { ToolConfig } from '@/tools/types'
 
-export const squarePublishInvoiceTool: ToolConfig<PublishInvoiceParams, InvoiceResponse> = {
+const DELIVERY = defineSquareKeyedSite(
+  'square_publish_invoice',
+  'the customer would receive the invoice email twice'
+)
+
+export const squarePublishInvoiceTool: ToolConfig<
+  PublishInvoiceParams & SquareDeliveryContextParams,
+  InvoiceResponse
+> = {
   id: 'square_publish_invoice',
   name: 'Square Publish Invoice',
   description: 'Publish a draft invoice so it is sent to the customer and becomes payable',
@@ -48,10 +60,7 @@ export const squarePublishInvoiceTool: ToolConfig<PublishInvoiceParams, InvoiceR
       `${SQUARE_BASE_URL}/v2/invoices/${encodeURIComponent(params.invoiceId)}/publish`,
     method: 'POST',
     headers: (params) => squareHeaders(params.apiKey),
-    body: (params) => ({
-      version: params.version,
-      idempotency_key: params.idempotencyKey || generateId(),
-    }),
+    body: (params) => withSquareIdempotencyKey(DELIVERY, params, { version: params.version }),
   },
 
   transformResponse: async (response) => {

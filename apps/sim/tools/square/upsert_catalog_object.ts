@@ -1,5 +1,9 @@
-import { generateId } from '@sim/utils/id'
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import {
+  defineSquareKeyedSite,
+  type SquareDeliveryContextParams,
+  withSquareIdempotencyKey,
+} from '@/tools/square/idempotency'
 import type { CatalogObjectResponse, UpsertCatalogObjectParams } from '@/tools/square/types'
 import {
   CATALOG_OBJECT_METADATA_OUTPUT_PROPERTIES,
@@ -9,8 +13,18 @@ import {
 } from '@/tools/square/types'
 import type { ToolConfig } from '@/tools/types'
 
+/**
+ * An update addressed by a real object ID converges, but a create — the `#name`
+ * form Square documents for new objects — mints a new row on every delivery, so
+ * the site takes the stricter of the two classes.
+ */
+const DELIVERY = defineSquareKeyedSite(
+  'square_upsert_catalog_object',
+  "a second, duplicate item would appear in the seller's catalog"
+)
+
 export const squareUpsertCatalogObjectTool: ToolConfig<
-  UpsertCatalogObjectParams,
+  UpsertCatalogObjectParams & SquareDeliveryContextParams,
   CatalogObjectResponse
 > = {
   id: 'square_upsert_catalog_object',
@@ -45,10 +59,7 @@ export const squareUpsertCatalogObjectTool: ToolConfig<
     url: () => `${SQUARE_BASE_URL}/v2/catalog/object`,
     method: 'POST',
     headers: (params) => squareHeaders(params.apiKey),
-    body: (params) => ({
-      idempotency_key: params.idempotencyKey || generateId(),
-      object: params.object,
-    }),
+    body: (params) => withSquareIdempotencyKey(DELIVERY, params, { object: params.object }),
   },
 
   transformResponse: async (response) => {

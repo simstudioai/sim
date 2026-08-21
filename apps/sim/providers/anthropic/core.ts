@@ -656,7 +656,12 @@ export async function executeAnthropicProviderRequest(
               }
             }
 
-            const { toolParams, executionParams } = prepareToolExecution(tool, toolArgs, request)
+            const { toolParams, executionParams } = prepareToolExecution(
+              tool,
+              toolArgs,
+              request,
+              toolUse.id
+            )
             const { rawResponse, modelResponse } = await executeProviderTool(
               toolName,
               executionParams,

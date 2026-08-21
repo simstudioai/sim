@@ -601,7 +601,8 @@ export class IdempotencyService {
         return await this.waitForResult<T>(
           claimResult.normalizedKey,
           claimResult.storageMethod,
-          existingResult.inProgressExpiresAt ?? Date.now() + MAX_WAIT_TIME_MS
+          existingResult.inProgressExpiresAt ??
+            (existingResult.startedAt ?? Date.now()) + this.config.inProgressTtlSeconds * 1000
         )
       }
 
@@ -701,13 +702,35 @@ export class IdempotencyService {
 }
 
 /**
+ * Longest an unfinished webhook claim stays live when its caller cannot name a
+ * real execution deadline.
+ *
+ * The lease only has to outlive a normal run; it must not outlive the process
+ * holding it. Untimed executions have no deadline to borrow — `getExecutionDeadlineAt`
+ * returns `undefined` for them — so before this bound existed they fell through
+ * to the result TTL, which is the seven-day *dedupe* window. One crashed holder
+ * therefore wedged a webhook for a week while every concurrent duplicate delivery
+ * polled {@link IdempotencyService.waitForResult} once a second against it.
+ *
+ * Two hours clears the 90-minute default async execution budget plus the
+ * reservation buffer with room to spare. A run that genuinely outlives it may be
+ * executed a second time if the provider retries after the lease lapses — a
+ * bounded, recoverable duplicate rather than an unbounded stall.
+ */
+export const WEBHOOK_IN_PROGRESS_LEASE_SECONDS = 60 * 60 * 2
+
+/**
  * As a webhook receiver we only need a "we saw this delivery" marker —
  * the provider's retry just needs a 2xx, not our cached response body.
  * TTL must exceed the longest provider retry window (Gmail / Pub-Sub: 7d).
+ *
+ * The in-progress lease is deliberately far shorter than that dedupe window:
+ * see {@link WEBHOOK_IN_PROGRESS_LEASE_SECONDS}.
  */
 export const webhookIdempotency = new IdempotencyService({
   namespace: 'webhook',
   ttlSeconds: 60 * 60 * 24 * 7, // 7 days
+  inProgressTtlSeconds: WEBHOOK_IN_PROGRESS_LEASE_SECONDS,
   storeResultBody: false,
 })
 

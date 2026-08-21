@@ -1,5 +1,9 @@
-import { generateId } from '@sim/utils/id'
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import {
+  defineSquareKeyedSite,
+  type SquareDeliveryContextParams,
+  withSquareIdempotencyKey,
+} from '@/tools/square/idempotency'
 import type { OrderResponse, PayOrderParams } from '@/tools/square/types'
 import {
   ORDER_METADATA_OUTPUT_PROPERTIES,
@@ -9,7 +13,15 @@ import {
 } from '@/tools/square/types'
 import type { ToolConfig } from '@/tools/types'
 
-export const squarePayOrderTool: ToolConfig<PayOrderParams, OrderResponse> = {
+const DELIVERY = defineSquareKeyedSite(
+  'square_pay_order',
+  'the order would be paid a second time, charging the buyer twice'
+)
+
+export const squarePayOrderTool: ToolConfig<
+  PayOrderParams & SquareDeliveryContextParams,
+  OrderResponse
+> = {
   id: 'square_pay_order',
   name: 'Square Pay Order',
   description: 'Pay for an order using one or more already-approved payments',
@@ -54,12 +66,10 @@ export const squarePayOrderTool: ToolConfig<PayOrderParams, OrderResponse> = {
     method: 'POST',
     headers: (params) => squareHeaders(params.apiKey),
     body: (params) => {
-      const body: Record<string, unknown> = {
-        idempotency_key: params.idempotencyKey || generateId(),
-      }
+      const body: Record<string, unknown> = {}
       if (params.paymentIds) body.payment_ids = params.paymentIds
       if (params.orderVersion !== undefined) body.order_version = params.orderVersion
-      return body
+      return withSquareIdempotencyKey(DELIVERY, params, body)
     },
   },
 
