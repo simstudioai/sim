@@ -38,8 +38,8 @@ export const CONNECTOR_SYNC_STALE_LOCK_TTL_MS = CONNECTOR_SYNC_MAX_DURATION_SECO
  *
  * Shared because two independent writers advance this counter: `executeSync`'s
  * in-process failure path, and the scheduler's out-of-process stale-lock
- * reclaim (a SIGKILL skips `catch`/`finally`, so only the reaper ever sees that
- * failure). A connector that only ever dies hard must still reach the threshold,
+ * reclaim (a SIGKILL unwinds nothing, so the in-process `catch` never runs and
+ * only the reaper ever sees that failure). A connector that only ever dies hard must still reach the threshold,
  * which it cannot if the two disagree on what the threshold is.
  */
 export const MAX_CONSECUTIVE_FAILURES = 10

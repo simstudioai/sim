@@ -1518,7 +1518,7 @@ describe('writeTerminalConnectorState', () => {
   })
 })
 
-describe('applySupersededOutcome', () => {
+describe('markSyncSuperseded', () => {
   const result = {
     docsAdded: 3,
     docsUpdated: 1,
@@ -1527,29 +1527,28 @@ describe('applySupersededOutcome', () => {
     docsFailed: 0,
   }
 
-  it('leaves a run that kept its lock untouched', async () => {
-    const { applySupersededOutcome } = await import('@/lib/knowledge/connectors/sync-engine')
-
-    expect(applySupersededOutcome(result, true)).toEqual(result)
-  })
-
   it('flags a discarded run so the task wrapper does not report it as clean', async () => {
-    const { applySupersededOutcome, SUPERSEDED_SYNC_ERROR } = await import(
+    const { markSyncSuperseded, SUPERSEDED_SYNC_ERROR } = await import(
       '@/lib/knowledge/connectors/sync-engine'
     )
 
-    const superseded = applySupersededOutcome(result, false)
-
     // The task wrapper reports `success: !result.error`.
-    expect(superseded.error).toBe(SUPERSEDED_SYNC_ERROR)
-    expect(Boolean(superseded.error)).toBe(true)
+    expect(markSyncSuperseded(result).error).toBe(SUPERSEDED_SYNC_ERROR)
   })
 
   it('preserves the document counters of the discarded run', async () => {
-    const { applySupersededOutcome } = await import('@/lib/knowledge/connectors/sync-engine')
+    const { markSyncSuperseded } = await import('@/lib/knowledge/connectors/sync-engine')
 
     // Those writes landed — only the connector-level bookkeeping was discarded.
-    expect(applySupersededOutcome(result, false)).toMatchObject(result)
+    expect(markSyncSuperseded(result)).toMatchObject(result)
+  })
+
+  it('does not mutate the result it was handed', async () => {
+    const { markSyncSuperseded } = await import('@/lib/knowledge/connectors/sync-engine')
+
+    markSyncSuperseded(result)
+
+    expect(result).not.toHaveProperty('error')
   })
 })
 

@@ -477,9 +477,11 @@ export async function completeSyncLog(
  * proves the lock is still this run's. `status` is kept alongside as defence in
  * depth and to cover a user pausing the connector mid-run.
  *
- * Guards both terminal paths. The failure path needs it as much as the success
- * path: a reclaimed run's failure would double-increment a counter the sweep
- * already advanced and overwrite its backoff with a shorter one.
+ * Guards every write a run makes to its own connector row: both terminal paths
+ * and the mid-run heartbeat. The failure path needs it as much as the success
+ * path — a reclaimed run's failure would double-increment a counter the sweep
+ * already advanced and overwrite its backoff with a shorter one — and reusing it
+ * for the heartbeat is what turns a beat into an ownership probe.
  */
 export function stillHoldsSyncLock(connectorId: string, syncLockToken: string) {
   return and(
@@ -509,7 +511,7 @@ export function buildSyncLockAcquisition(syncLogId: string, now: Date) {
 /**
  * Whether a running sync is due to refresh its lock.
  *
- * Time-based rather than batch-count-based: batches vary hugely in cost, so a
+ * Time-based rather than batch-count-based: batches vary hugely in cost, so an
  * every-N-batches beat would fire constantly on small documents and barely at
  * all on large ones — exactly the runs that need it.
  */
@@ -570,9 +572,10 @@ export async function writeTerminalConnectorState(
 }
 
 /**
- * Reported when a run's terminal write matched no rows because the run no longer
- * held its lock. Its document writes still landed; only its connector-level
- * bookkeeping was discarded, in favour of whoever reclaimed the row.
+ * Reported when a run loses its connector's lock mid-flight — either because a
+ * heartbeat found the lock reclaimed, or because its terminal write matched no
+ * rows. Its document writes still landed; only its connector-level bookkeeping
+ * was discarded, in favour of whoever reclaimed the row.
  */
 export const SUPERSEDED_SYNC_ERROR = 'sync_superseded'
 
@@ -581,11 +584,7 @@ export const SUPERSEDED_SYNC_ERROR = 'sync_superseded'
  * report a discarded run as a clean sync — the same reason a lock-contended run
  * returns `sync_in_progress` rather than an empty success.
  */
-export function applySupersededOutcome(
-  result: SyncResult,
-  terminalWriteLanded: boolean
-): SyncResult {
-  if (terminalWriteLanded) return result
+export function markSyncSuperseded(result: SyncResult): SyncResult {
   return { ...result, error: SUPERSEDED_SYNC_ERROR }
 }
 
@@ -708,8 +707,8 @@ export function classifySuspectListing(
  * immediately. A genuinely emptied source keeps reconciling: its second sync
  * corroborates the first and tombstones everything, and a later sync — once the
  * tombstoned set is again absent — completes the two-strike purge, subject to
- * {@link capReconciliationDeletions}, which holds a pass whose deletion count
- * exceeds the per-sync blast-radius cap.
+ * {@link capReconciliationDeletions}, which withholds any generation whose
+ * deletion count exceeds the per-sync blast-radius cap.
  *
  * A forced `fullSync` overrides the guard, matching its existing meaning
  * elsewhere here — an explicit human request to reconcile against this listing
@@ -2155,7 +2154,7 @@ export async function executeSync(
         syncLogId,
         ...result,
       })
-      return applySupersededOutcome(result, false)
+      return markSyncSuperseded(result)
     }
 
     logger.info('Sync completed', { connectorId, ...result })
@@ -2172,7 +2171,7 @@ export async function executeSync(
         syncLogId,
         ...result,
       })
-      return applySupersededOutcome(result, false)
+      return markSyncSuperseded(result)
     }
 
     if (error instanceof ConnectorDeletedException) {
@@ -2230,7 +2229,7 @@ export async function executeSync(
       )
 
       /**
-       * Deliberately does NOT get {@link applySupersededOutcome}. `result.error`
+       * Deliberately does NOT get {@link markSyncSuperseded}. `result.error`
        * is set to the real failure cause below and the task wrapper already
        * reports this run as unsuccessful, so overwriting it with
        * `sync_superseded` would destroy the diagnostic without changing the
