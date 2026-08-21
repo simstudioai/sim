@@ -1,9 +1,12 @@
-import type { CbInsightsListResponse, CbInsightsOrgListParams } from '@/tools/cbinsights/types'
+import type {
+  CbInsightsOrgListParams,
+  CbInsightsPagedOrgListResponse,
+} from '@/tools/cbinsights/types'
 import {
   asArray,
+  asString,
   cbInsightsRequest,
   compactBody,
-  pageInfo,
   requireOrgIds,
 } from '@/tools/cbinsights/utils'
 import type { ToolConfig } from '@/tools/types'
@@ -14,7 +17,7 @@ interface CbInsightsListBusinessRelationshipsParams extends CbInsightsOrgListPar
 
 export const cbinsightsListBusinessRelationshipsTool: ToolConfig<
   CbInsightsListBusinessRelationshipsParams,
-  CbInsightsListResponse
+  CbInsightsPagedOrgListResponse
 > = {
   id: 'cbinsights_list_business_relationships',
   name: 'CB Insights List Business Relationships',
@@ -58,10 +61,10 @@ export const cbinsightsListBusinessRelationshipsTool: ToolConfig<
         path: '/v2/businessrelationships',
         body: compactBody({
           orgIds: requireOrgIds(params.orgIds),
-          nextPageToken: params.nextPageToken,
+          nextPageToken: params.nextPageToken?.trim(),
         }),
       },
-      (data) => ({ orgs: asArray(data.orgs), ...pageInfo(data) }),
+      (data) => ({ orgs: asArray(data.orgs), nextPageToken: asString(data.nextPageToken) }),
       signal
     ),
 
@@ -70,20 +73,15 @@ export const cbinsightsListBusinessRelationshipsTool: ToolConfig<
       type: 'json',
       description: 'Organizations as [{orgId, businessRelationships}]',
     },
+    /*
+     * This is the one paged endpoint that reports no total: the documented
+     * response carries `orgs` and `nextPageToken` only, so declaring `totalHits`
+     * here would promise a field that is always null.
+     */
     nextPageToken: {
       type: 'string',
       nullable: true,
       description: 'Token for the next page, or null when there are no more results',
-    },
-    totalHits: {
-      type: 'number',
-      nullable: true,
-      description: 'Total number of matching records',
-    },
-    totalHitsRelation: {
-      type: 'string',
-      nullable: true,
-      description: "Whether totalHits is exact ('eq') or a floor ('gte', used above 10,000)",
     },
   },
 }

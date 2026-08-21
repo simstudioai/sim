@@ -512,6 +512,16 @@ export interface PostHogEventMap {
     provider_id: string
   }
 
+  organization_byok_key_added: {
+    organization_id: string
+    provider_id: string
+  }
+
+  organization_byok_key_removed: {
+    organization_id: string
+    provider_id: string
+  }
+
   notification_channel_created: {
     workspace_id: string
     notification_type: 'webhook' | 'email' | 'slack'
@@ -749,6 +759,34 @@ export interface PostHogEventMap {
   workflow_schedule_deleted: {
     workflow_id: string
     workspace_id: string
+  }
+
+  /**
+   * The workflow editor's error boundary caught a render or effect error and
+   * replaced the canvas with its fallback. `error_name` is what distinguishes
+   * the failure classes (`ChunkLoadError`, `TypeError`, a thrown config error),
+   * so it is the property to break down on.
+   */
+  workflow_canvas_crashed: {
+    error_name: string
+    error_message: string
+    component_stack?: string
+  }
+
+  /**
+   * The realtime socket has failed to connect enough times in a row to count as
+   * an outage rather than a hiccup. Emitted at most once per socket instance.
+   *
+   * A socket that cannot connect throws nothing, so exception capture never sees
+   * it. `socket_origin` separates the two causes that look identical to the
+   * user: the realtime service being unreachable, and this client resolving the
+   * wrong host — the latter shows up as an origin equal to the app's own.
+   */
+  realtime_connection_failing: {
+    socket_origin: string
+    expected_socket_origin_configured: boolean
+    attempts: number
+    reason: string
   }
 
   /** A stored credential's plaintext secret was deliberately retrieved via the token API. */

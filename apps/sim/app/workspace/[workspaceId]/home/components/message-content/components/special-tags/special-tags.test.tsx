@@ -1308,7 +1308,7 @@ describe('CredentialDisplay link tag', () => {
     act(() => root.unmount())
   })
 
-  it('leaves a sim_key-only card alone when the turn moves on', () => {
+  it('renders a sim_key as a standalone reveal, not a card, even when the turn moves on', () => {
     const container = document.createElement('div')
     const root: Root = createRoot(container)
     const data: CredentialItemData[] = [{ type: 'sim_key', name: 'Sim API key', value: 'sim-key' }]
@@ -1317,8 +1317,39 @@ describe('CredentialDisplay link tag', () => {
       root.render(<SpecialTags segment={{ type: 'credential', data }} credentialAbandoned />)
     })
 
-    expect(container.textContent).toContain('API key')
+    // The generated key is an output: the reveal chip shows the value with no
+    // question-style card chrome around it and no recap when abandoned.
+    expect(container.textContent).toContain('sim-key')
+    expect(container.textContent).not.toContain('API key')
     expect(container.textContent).not.toContain('Skipped')
+    act(() => root.unmount())
+  })
+
+  it('keeps the sim_key reveal outside a mixed card and out of its recap', () => {
+    const container = document.createElement('div')
+    const root: Root = createRoot(container)
+    const data: CredentialItemData[] = [
+      { type: 'sim_key', name: 'Sim API key', value: 'sim-key' },
+      { type: 'secret_input', name: 'ABC_API_KEY' },
+    ]
+
+    act(() => {
+      root.render(
+        <SpecialTags
+          segment={{ type: 'credential', data }}
+          credentialSubmission={{
+            integrations: [],
+            secrets: [{ name: 'ABC_API_KEY', status: 'saved' }],
+          }}
+        />
+      )
+    })
+
+    // After Submit the input row collapses to the recap, but the generated key
+    // stays retrievable in its reveal chip and never reads as "Added".
+    expect(container.textContent).toContain('sim-key')
+    expect(container.textContent).toContain('ABC_API_KEYAdded')
+    expect(container.textContent).not.toContain('Sim API key')
     act(() => root.unmount())
   })
 

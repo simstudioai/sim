@@ -119,7 +119,7 @@ async function createServiceAccount(
     throw new SimApiError(`--id is required for ${providerId}.`, 0)
   }
 
-  const credentials = credentialValues(provider, options.credentials)
+  const credentialFields = credentialValues(provider, options.credentials)
   const operation = V2_OPERATIONS.createServiceAccountCredential
   const response = await client.request<CreateServiceAccountCredentialResponse>(operation.path, {
     method: operation.method,
@@ -130,7 +130,7 @@ async function createServiceAccount(
       displayName: options.name,
       ...(options.description ? { description: options.description } : {}),
       ...(options.id ? { id: options.id } : {}),
-      ...credentials,
+      credentials: JSON.stringify(credentialFields),
     },
   })
 

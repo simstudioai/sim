@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 
+import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -17,6 +18,8 @@ const mocks = vi.hoisted(() => ({
   deleteDocument: vi.fn(),
   updateDocument: vi.fn(),
   processQueue: vi.fn(),
+  createDocumentRecords: vi.fn(),
+  deleteDocumentById: vi.fn(),
   getProcessingConfig: vi.fn(),
   performSingleUpload: vi.fn(),
   performBulkUpload: vi.fn(),
@@ -66,6 +69,8 @@ vi.mock('@/lib/knowledge/application/contexts', () => ({
 vi.mock('@/lib/knowledge/documents/service', () => ({
   getDocuments: mocks.getDocuments,
   createSingleDocument: mocks.createDocument,
+  createDocumentRecords: mocks.createDocumentRecords,
+  deleteDocument: mocks.deleteDocumentById,
   deleteKnowledgeDocumentInKnowledgeBase: mocks.deleteDocument,
   updateDocument: mocks.updateDocument,
   processDocumentsWithQueue: mocks.processQueue,
@@ -105,6 +110,7 @@ import {
   listKnowledgeDocuments,
   updateKnowledgeDocument,
   uploadKnowledgeDocument,
+  upsertKnowledgeDocument,
 } from '@/lib/knowledge/application/documents'
 
 const context = {
@@ -177,6 +183,17 @@ describe('knowledge document application use cases', () => {
     mocks.createDocument.mockResolvedValue(document)
     mocks.updateDocument.mockResolvedValue(document)
     mocks.processQueue.mockResolvedValue(undefined)
+    mocks.createDocumentRecords.mockResolvedValue([
+      {
+        documentId: document.id,
+        filename: document.filename,
+        fileUrl: document.fileUrl,
+        fileSize: document.fileSize,
+        mimeType: document.mimeType,
+      },
+    ])
+    mocks.deleteDocumentById.mockResolvedValue(undefined)
+    resetDbChainMock()
     mocks.getProcessingConfig.mockReturnValue({ batchSize: 10, maxConcurrentDocuments: 2 })
     mocks.performBulkUpload.mockResolvedValue({
       success: true,
@@ -193,6 +210,44 @@ describe('knowledge document application use cases', () => {
     mocks.getDocuments.mockResolvedValue({
       documents: [],
       pagination: { total: 0, limit: 50, offset: 0, hasMore: false },
+    })
+  })
+
+  /**
+   * An upserted document has no `connector_id`, so the connector-scoped
+   * stuck-document sweep never sees it. Logging the dispatch failure and walking
+   * away leaves it `pending`, where nothing finds it again.
+   */
+  it('marks an upserted document failed when its dispatch never got off the ground', async () => {
+    mocks.processQueue.mockRejectedValue(new Error('queue unavailable'))
+
+    await upsertKnowledgeDocument.execute({
+      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      input: {
+        knowledgeBaseId: 'knowledge-1',
+        assertedWorkspaceId: 'workspace-1',
+        filename: document.filename,
+        fileUrl: document.fileUrl,
+        fileSize: document.fileSize,
+        mimeType: document.mimeType,
+        resolveBillingAttribution: async () => ({
+          actorUserId: 'user-1',
+          workspaceId: 'workspace-1',
+        }),
+        resolveSecretProvenances: () => undefined,
+      },
+    })
+    // The dispatch is fire-and-forget, so the unwind runs on a later microtask.
+    await Promise.resolve()
+    await Promise.resolve()
+    await Promise.resolve()
+
+    const failureWrite = dbChainMockFns.set.mock.calls.find(
+      (call) => (call[0] as Record<string, unknown> | undefined)?.processingStatus === 'failed'
+    )
+    expect(failureWrite?.[0]).toMatchObject({
+      processingStatus: 'failed',
+      processingError: 'queue unavailable',
     })
   })
 

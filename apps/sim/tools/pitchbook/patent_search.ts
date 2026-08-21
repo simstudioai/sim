@@ -1,3 +1,4 @@
+import { ErrorExtractorId } from '@/tools/error-extractors'
 import type { PitchbookPatentSearchParams, PitchbookResponse } from '@/tools/pitchbook/types'
 import {
   mapStats,
@@ -14,6 +15,7 @@ export const pitchbookPatentSearchTool: ToolConfig<PitchbookPatentSearchParams, 
     description:
       'Search the patents held by a company by status, filing and publication date, authority, and CPC classification',
     version: '1.0.0',
+    errorExtractor: ErrorExtractorId.PITCHBOOK_ERRORS,
 
     params: {
       apiKey: {

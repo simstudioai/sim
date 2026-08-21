@@ -38,6 +38,8 @@ export const FORBIDDEN_DETAIL_CODES = [
   'ORGANIZATION_ADMIN_REQUIRED',
   /** The organization has no usable enterprise subscription. */
   'ENTERPRISE_PLAN_REQUIRED',
+  /** The organization has no usable organization plan of any tier. */
+  'ORGANIZATION_PLAN_REQUIRED',
   /** Audit logging is switched off for this deployment. */
   'AUDIT_LOGS_DISABLED',
   /** The caller holds workspace write but is not an editor of this skill. */
@@ -76,6 +78,8 @@ export const FORBIDDEN_DETAIL_CODE_DESCRIPTIONS: Record<ForbiddenDetailCode, str
   ORGANIZATION_ADMIN_REQUIRED:
     'The caller is a member of the organization but not an admin or owner.',
   ENTERPRISE_PLAN_REQUIRED: 'The organization has no active enterprise subscription.',
+  ORGANIZATION_PLAN_REQUIRED:
+    'The organization has no active organization subscription (Pro for Teams, Max for Teams, or Enterprise).',
   AUDIT_LOGS_DISABLED: 'Audit logging is not enabled for this deployment.',
   SKILL_EDITOR_ACCESS_REQUIRED:
     'The caller can write in the workspace but is not an editor of this skill.',

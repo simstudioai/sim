@@ -211,7 +211,10 @@ export const SIM_ARTIFACT_STYLESHEET = `
 /* scrollbar-gutter keeps the centered column from shifting when content
    length toggles the viewport scrollbar (e.g. switching between a long and a
    short tab). */
-html { scroll-behavior: smooth; scroll-padding-top: 72px; scrollbar-gutter: stable; }
+/* text-size-adjust pins mobile font boosting: without it, Safari and Chrome
+   on phones inflate the text of wide scrollable blocks — code blocks and
+   tables render at a jarringly larger size than the prose around them. */
+html { scroll-behavior: smooth; scroll-padding-top: 72px; scrollbar-gutter: stable; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
   * { transition: none !important; animation: none !important; }
@@ -341,10 +344,16 @@ figcaption { font-size: 0.875em; line-height: 1.4285714; color: var(--text-prima
 .pill--warn { background: var(--badge-orange-bg); color: var(--badge-orange-text); }
 .pill--bad { background: var(--badge-error-bg); color: var(--badge-error-text); }
 
-/* Expanding question rows — the accordion, as native <details>, no scripts. */
+/* Expanding question rows — the accordion, as native <details>, no scripts.
+   fumadocs-ui accordion.js verbatim: a rounded-lg bg-fd-card frame with
+   divide-y rows; each trigger is px-3 py-2.5 font-medium with a LEADING
+   chevron-right (16px icon box, muted) that quarter-turns to down over
+   200ms when open; content sits at px-4 pb-2 in 15px. The trigger has no
+   hover fill — only focus-visible tints the row (has-focus-visible:
+   bg-fd-accent). */
 .faq {
   border: 1px solid var(--border);
-  border-radius: 0.75rem;
+  border-radius: 0.5rem;
   background: var(--surface-2);
   overflow: hidden;
 }
@@ -355,29 +364,30 @@ figcaption { font-size: 0.875em; line-height: 1.4285714; color: var(--text-prima
   cursor: pointer;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  padding: 0.7rem 1rem;
-  font-size: var(--text-sm);
+  gap: 0.5rem;
+  padding: 0.625rem 0.75rem;
   font-weight: 500;
+  line-height: 1.5;
   color: var(--text-primary);
 }
 .faq summary::-webkit-details-marker { display: none; }
-.faq summary::after {
+/* The lucide chevron as a border glyph, centered in its 16px box via the
+   side margins: points right closed, rotates to down open. */
+.faq summary::before {
   content: "";
   width: 8px;
   height: 8px;
+  margin: 0 4px;
   flex-shrink: 0;
-  border-right: 1.5px solid var(--text-icon);
-  border-bottom: 1.5px solid var(--text-icon);
-  transform: rotate(45deg);
-  transition: transform 0.15s;
-  margin-top: -3px;
+  border-right: 1.5px solid var(--text-muted);
+  border-bottom: 1.5px solid var(--text-muted);
+  transform: rotate(-45deg);
+  transition: transform 0.2s;
 }
-.faq details[open] summary::after { transform: rotate(225deg); margin-top: 3px; }
-.faq summary:hover { background: var(--surface-hover); }
-.faq details > :not(summary) { padding: 0 1rem; }
-.faq details > :last-child { padding-bottom: 0.9rem; margin-bottom: 0; }
+.faq details[open] summary::before { transform: rotate(45deg); }
+.faq summary:focus-visible { outline: none; background: var(--surface-active); }
+.faq details > :not(summary) { padding: 0 1rem; font-size: 0.9375rem; }
+.faq details > :last-child { padding-bottom: 0.5rem; margin-bottom: 0; }
 
 /* The fumadocs callout: a rounded-xl bordered card at 14px with a rounded
    2px color bar down the start edge (the docs strip its shadow). */
@@ -741,6 +751,27 @@ export const SIM_ARTIFACT_SHELL = `<script>
     // emcn's Duplicate icon flipping to a brand-accent Check while copied.
     const COPY_ICON = '<svg ' + ICON_ATTRS + '><path d="M14.25 0.75H2.75C1.64543 0.75 0.75 1.64543 0.75 2.75V14.25"/><rect x="5.25" y="5.25" width="14" height="14" rx="2"/></svg>'
     const COPIED_ICON = '<svg ' + ICON_ATTRS + '><path d="M18.25 2.75L7.25 15.75L1.75 10.25"/></svg>'
+    // The async clipboard API is denied in the sandboxed in-app preview (the
+    // frame's origin is opaque, so no clipboard permission can match it); the
+    // selection command still honors the click's user activation there, so it
+    // is the fallback wherever the modern API refuses.
+    const copyText = async (text) => {
+      try {
+        await navigator.clipboard.writeText(text)
+        return true
+      } catch {}
+      const scratch = document.createElement('textarea')
+      scratch.value = text
+      scratch.setAttribute('readonly', '')
+      scratch.style.position = 'fixed'
+      scratch.style.opacity = '0'
+      document.body.appendChild(scratch)
+      scratch.select()
+      let copied = false
+      try { copied = document.execCommand('copy') } catch {}
+      scratch.remove()
+      return copied
+    }
     for (const pre of [...main.querySelectorAll('pre')]) {
       if (pre.closest('.codeblock')) continue
       const codeEl = pre.querySelector('code')
@@ -754,21 +785,30 @@ export const SIM_ARTIFACT_SHELL = `<script>
       let copyResetTimer
       copy.addEventListener('click', async () => {
         const text = (codeEl || pre).textContent || ''
-        try {
-          await navigator.clipboard.writeText(text)
-          copy.innerHTML = COPIED_ICON
-          copy.classList.add('is-copied')
-          copy.setAttribute('aria-label', 'Copied Text')
-          clearTimeout(copyResetTimer)
-          copyResetTimer = setTimeout(() => {
-            copy.innerHTML = COPY_ICON
-            copy.classList.remove('is-copied')
-            copy.setAttribute('aria-label', 'Copy Text')
-          }, 1500)
-        } catch {}
+        if (!(await copyText(text))) return
+        copy.innerHTML = COPIED_ICON
+        copy.classList.add('is-copied')
+        copy.setAttribute('aria-label', 'Copied Text')
+        clearTimeout(copyResetTimer)
+        copyResetTimer = setTimeout(() => {
+          copy.innerHTML = COPY_ICON
+          copy.classList.remove('is-copied')
+          copy.setAttribute('aria-label', 'Copy Text')
+        }, 1500)
       })
       pre.replaceWith(frame)
       frame.append(copy, pre)
+    }
+
+    // Markdown tables arrive bare (only sim:table fences are pre-wrapped);
+    // an over-wide one must scroll inside the column — on a phone a bare
+    // table is what drags the whole page sideways.
+    for (const table of [...main.querySelectorAll('table')]) {
+      if (table.closest('.scroll')) continue
+      const wrap = document.createElement('div')
+      wrap.className = 'scroll'
+      table.replaceWith(wrap)
+      wrap.appendChild(table)
     }
 
     // Code-tab groups: switch panes; the docs' icon copy control targets the
@@ -784,16 +824,14 @@ export const SIM_ARTIFACT_SHELL = `<script>
       let groupResetTimer
       groupCopy.addEventListener('click', async () => {
         const pane = group.querySelector('pre:not([hidden])')
-        try {
-          await navigator.clipboard.writeText((pane && pane.textContent) || '')
-          groupCopy.innerHTML = COPIED_ICON
-          groupCopy.classList.add('is-copied')
-          clearTimeout(groupResetTimer)
-          groupResetTimer = setTimeout(() => {
-            groupCopy.innerHTML = COPY_ICON
-            groupCopy.classList.remove('is-copied')
-          }, 1500)
-        } catch {}
+        if (!(await copyText((pane && pane.textContent) || ''))) return
+        groupCopy.innerHTML = COPIED_ICON
+        groupCopy.classList.add('is-copied')
+        clearTimeout(groupResetTimer)
+        groupResetTimer = setTimeout(() => {
+          groupCopy.innerHTML = COPY_ICON
+          groupCopy.classList.remove('is-copied')
+        }, 1500)
       })
       head.appendChild(groupCopy)
       head.addEventListener('click', (event) => {

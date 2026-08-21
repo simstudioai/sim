@@ -35,7 +35,8 @@ export async function runDocumentProcessing(rawPayload: DocumentProcessingPayloa
       documentId,
       docData,
       processingOptions,
-      billingContext
+      billingContext,
+      requestId
     )
 
     logger.info(`[${requestId}] Successfully processed document: ${docData.filename}`)

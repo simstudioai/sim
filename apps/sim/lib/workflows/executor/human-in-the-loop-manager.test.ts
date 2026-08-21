@@ -1026,17 +1026,17 @@ describe('PauseResumeManager paused cancellation after pause release', () => {
     const casConditions = flattenMockConditions(dbChainMockFns.where.mock.calls.at(-1)?.[0])
     expect(casConditions).toContainEqual({
       type: 'eq',
-      left: 'executionId',
+      left: 'workflowExecutionLogs.executionId',
       right: 'execution-1',
     })
     expect(casConditions).toContainEqual({
       type: 'eq',
-      left: 'workflowId',
+      left: 'workflowExecutionLogs.workflowId',
       right: 'workflow-1',
     })
     expect(casConditions).toContainEqual({
       type: 'inArray',
-      column: 'status',
+      column: 'workflowExecutionLogs.status',
       values: ['running', 'pending', 'cancelled'],
     })
   })
@@ -1131,17 +1131,17 @@ describe('PauseResumeManager paused cancellation after pause release', () => {
     const conditions = flattenMockConditions(dbChainMockFns.where.mock.calls[0]?.[0])
     expect(conditions).toContainEqual({
       type: 'eq',
-      left: 'parentExecutionId',
+      left: 'resumeQueue.parentExecutionId',
       right: 'execution-1',
     })
     expect(conditions).toContainEqual({
       type: 'eq',
-      left: 'workflowId',
+      left: 'pausedExecutions.workflowId',
       right: 'workflow-1',
     })
     expect(conditions).toContainEqual({
       type: 'eq',
-      left: 'status',
+      left: 'resumeQueue.status',
       right: 'claimed',
     })
   })
@@ -1305,7 +1305,7 @@ describe('PauseResumeManager paused cancellation after pause release', () => {
       )
       expect(queueRestoreConditions).toContainEqual({
         type: 'eq',
-        left: 'failureReason',
+        left: 'resumeQueue.failureReason',
         right: 'Paused execution cancellation requested',
       })
       expect(processQueuedResumesSpy).toHaveBeenCalledWith('execution-1', 'workflow-1')
@@ -1798,11 +1798,12 @@ describe('PauseResumeManager resume log claims', () => {
       executionDeadlineAt,
     })
     const statusGuard = flattenMockConditions(dbChainMockFns.where.mock.calls.at(-1)?.[0]).find(
-      (condition) => condition.type === 'inArray' && condition.column === 'status'
+      (condition) =>
+        condition.type === 'inArray' && condition.column === 'workflowExecutionLogs.status'
     )
     expect(statusGuard).toEqual({
       type: 'inArray',
-      column: 'status',
+      column: 'workflowExecutionLogs.status',
       values: ['pending', 'paused'],
     })
   })

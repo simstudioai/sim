@@ -226,6 +226,52 @@ describe('performUpdateKnowledgeConnector', () => {
     )
   })
 
+  it('refuses to flip the status of a connector that is mid-sync', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      { id: 'conn-1', connectorType: 'notion', status: 'syncing' },
+    ])
+
+    const outcome = await performUpdateKnowledgeConnector({
+      ...ACTOR,
+      knowledgeBase: KB,
+      connectorId: 'conn-1',
+      updates: { status: 'active' },
+    })
+
+    /**
+     * `status: 'active'` also writes `nextSyncAt = now`, which summons a second
+     * run alongside the one already holding the lock. `performSyncKnowledgeConnector`
+     * already refuses on the same condition; this is the other half.
+     */
+    expect(outcome).toMatchObject({
+      success: false,
+      errorCode: 'conflict',
+      error: 'Sync already in progress',
+    })
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
+  })
+
+  it('refuses a non-status edit mid-sync too', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      { id: 'conn-1', connectorType: 'notion', status: 'syncing' },
+    ])
+
+    const outcome = await performUpdateKnowledgeConnector({
+      ...ACTOR,
+      knowledgeBase: KB,
+      connectorId: 'conn-1',
+      updates: { sourceConfig: { database: 'other' } },
+    })
+
+    /**
+     * `sourceConfig` is read once at the start of a run and threaded through it,
+     * so an edit mid-flight yields a pass that lists against one config and
+     * reconciles against another — and reconciliation hard-deletes.
+     */
+    expect(outcome).toMatchObject({ success: false, errorCode: 'conflict' })
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
+  })
+
   it('leaves semantic audit to an authorized application caller when requested', async () => {
     dbChainMockFns.limit.mockResolvedValueOnce([{ id: 'conn-1', connectorType: 'notion' }])
     dbChainMockFns.returning.mockResolvedValueOnce([

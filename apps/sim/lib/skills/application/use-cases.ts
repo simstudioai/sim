@@ -1,12 +1,17 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
 import { requirePrincipalSubjectUserId, resolvePrincipalAttribution } from '@sim/auth/principal'
-import type { skill } from '@sim/db/schema'
+import { db } from '@sim/db'
+import { skill, skillMember } from '@sim/db/schema'
+import { generateId } from '@sim/utils/id'
+import { and, eq } from 'drizzle-orm'
 import type { ListSortOrder } from '@/lib/api/list-query'
 import {
   authorizeWorkspaceOperation,
   defineAuthorizedWorkspaceUseCase,
+  ForbiddenOperationError,
 } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { getSkillActorContext, listSkillEditors, type SkillEditor } from '@/lib/skills/access'
 import { skillDelegationPolicy } from '@/lib/skills/application/authorization'
 import { skillOperations } from '@/lib/skills/application/operations'
 import {
@@ -17,12 +22,14 @@ import {
   upsertSkillBatch,
 } from '@/lib/skills/orchestration'
 import { loadActiveWorkspaceContext } from '@/lib/uploads/contexts/workspace'
+import { isBuiltinSkillId } from '@/lib/workflows/skills/builtin-skills'
 import {
   getSkillById,
   listSkillSummariesPage,
   listSkillsForUser,
   type SkillSortBy,
 } from '@/lib/workflows/skills/operations'
+import { getUsersWithPermissions } from '@/lib/workspaces/permissions/utils'
 
 type SkillRow = typeof skill.$inferSelect
 type SkillWriteSource = 'api' | 'settings' | 'tool_input'
@@ -51,7 +58,77 @@ async function resolveSkillContext(workspaceId: string, skillId: string): Promis
   return { ...workspace, skill: row }
 }
 
+async function resolveSkillEditorContext(
+  skillId: string,
+  assertedWorkspaceId?: string
+): Promise<SkillContext> {
+  if (isBuiltinSkillId(skillId)) throw new OrchestrationError('not_found', 'Skill not found')
+
+  const [row] = await db.select().from(skill).where(eq(skill.id, skillId)).limit(1)
+  if (!row?.workspaceId || (assertedWorkspaceId && row.workspaceId !== assertedWorkspaceId)) {
+    throw new OrchestrationError('not_found', 'Skill not found')
+  }
+
+  const workspace = await resolveWorkspaceContext(row.workspaceId)
+  return { ...workspace, skill: row }
+}
+
 const authorizationOptions = { delegation: skillDelegationPolicy }
+
+async function requireSkillEditorAccess(userId: string, context: SkillContext): Promise<void> {
+  const actor = await getSkillActorContext(context.skill.id, userId)
+  if (
+    !actor.skill ||
+    actor.skill.workspaceId !== context.workspaceId ||
+    !actor.hasWorkspaceAccess
+  ) {
+    throw new OrchestrationError('not_found', 'Skill not found')
+  }
+  if (!actor.canEdit) {
+    throw new ForbiddenOperationError(
+      'SKILL_EDITOR_ACCESS_REQUIRED',
+      'Skill editor access required'
+    )
+  }
+}
+
+export type SkillEditorTarget =
+  | { kind: 'user_id'; userId: string }
+  | { kind: 'email'; email: string }
+
+async function resolveSkillEditorTarget(
+  context: SkillContext,
+  target: SkillEditorTarget
+): Promise<SkillEditor> {
+  const editors = await listSkillEditors({
+    id: context.skill.id,
+    workspaceId: context.workspaceId,
+  })
+  const workspaceMembers = await getUsersWithPermissions(context.workspaceId)
+  const member =
+    target.kind === 'user_id'
+      ? workspaceMembers.find(({ userId }) => userId === target.userId)
+      : workspaceMembers.find(
+          ({ email }) => email.toLowerCase() === target.email.trim().toLowerCase()
+        )
+  if (!member) {
+    throw new OrchestrationError('validation', 'User is not a member of this workspace')
+  }
+  if (member.permissionType === 'admin') {
+    throw new OrchestrationError('validation', 'Workspace admins can always edit skills')
+  }
+  const existing = editors.find(({ userId }) => userId === member.userId)
+  return (
+    existing ?? {
+      id: '',
+      userId: member.userId,
+      userName: member.name,
+      userEmail: member.email,
+      userImage: member.image,
+      isWorkspaceAdmin: false,
+    }
+  )
+}
 
 export interface ListSkillsInput {
   workspaceId: string
@@ -276,5 +353,142 @@ export const deleteSkillUseCase = defineAuthorizedWorkspaceUseCase({
     resourceName: result.skill.name,
     description: `Deleted skill "${result.skill.name}"`,
     metadata: { source: input.source },
+  }),
+})
+
+export interface ListSkillEditorsInput {
+  workspaceId?: string
+  skillId: string
+  sortBy: 'email' | 'name'
+  sortOrder: ListSortOrder
+  limit?: number
+  offset?: number
+}
+
+export const listSkillEditorsUseCase = defineAuthorizedWorkspaceUseCase({
+  operation: skillOperations.listEditors,
+  resolveContext: ({ input }: { input: ListSkillEditorsInput }) =>
+    resolveSkillEditorContext(input.skillId, input.workspaceId),
+  authorizationOptions,
+  async execute({ input, context }) {
+    const editors = await listSkillEditors({
+      id: context.skill.id,
+      workspaceId: context.workspaceId,
+    })
+    const direction = input.sortOrder === 'asc' ? 1 : -1
+    const sorted = editors.sort((left, right) => {
+      const leftValue = input.sortBy === 'email' ? (left.userEmail ?? '') : (left.userName ?? '')
+      const rightValue = input.sortBy === 'email' ? (right.userEmail ?? '') : (right.userName ?? '')
+      const primary = leftValue.localeCompare(rightValue)
+      return primary === 0
+        ? left.userId.localeCompare(right.userId) * direction
+        : primary * direction
+    })
+    if (input.limit === undefined) {
+      return { editors: sorted, hasMore: false, offset: 0, limit: sorted.length }
+    }
+    const offset = input.offset ?? 0
+    return {
+      editors: sorted.slice(offset, offset + input.limit),
+      hasMore: sorted.length > offset + input.limit,
+      offset,
+      limit: input.limit,
+    }
+  },
+})
+
+export interface GrantSkillEditorInput {
+  workspaceId?: string
+  skillId: string
+  target: SkillEditorTarget
+}
+
+export const grantSkillEditorUseCase = defineAuthorizedWorkspaceUseCase({
+  operation: skillOperations.grantEditor,
+  resolveContext: ({ input }: { input: GrantSkillEditorInput }) =>
+    resolveSkillEditorContext(input.skillId, input.workspaceId),
+  authorizationOptions,
+  authorizeResource: ({ principal, context }) =>
+    requireSkillEditorAccess(requirePrincipalSubjectUserId(principal), context),
+  async execute({ principal, input, context }) {
+    const target = await resolveSkillEditorTarget(context, input.target)
+    if (target.id) return { editor: target, created: false, workspaceId: context.workspaceId }
+
+    const now = new Date()
+    const [inserted] = await db
+      .insert(skillMember)
+      .values({
+        id: generateId(),
+        skillId: context.skill.id,
+        userId: target.userId,
+        invitedBy: requirePrincipalSubjectUserId(principal),
+        createdAt: now,
+        updatedAt: now,
+      })
+      .onConflictDoNothing({ target: [skillMember.skillId, skillMember.userId] })
+      .returning({ id: skillMember.id })
+
+    if (inserted) {
+      return {
+        editor: { ...target, id: inserted.id },
+        created: true,
+        workspaceId: context.workspaceId,
+      }
+    }
+
+    const [concurrent] = await db
+      .select({ id: skillMember.id })
+      .from(skillMember)
+      .where(and(eq(skillMember.skillId, context.skill.id), eq(skillMember.userId, target.userId)))
+      .limit(1)
+    if (!concurrent) throw new Error('Skill editor insert conflicted without an existing row')
+    return {
+      editor: { ...target, id: concurrent.id },
+      created: false,
+      workspaceId: context.workspaceId,
+    }
+  },
+  projectAudit: ({ result, context }) =>
+    result.created
+      ? {
+          action: AuditAction.SKILL_MEMBER_ADDED,
+          resourceType: AuditResourceType.SKILL,
+          resourceId: context.skill.id,
+          resourceName: context.skill.name,
+          description: 'Added skill editor',
+          metadata: { targetUserId: result.editor.userId },
+        }
+      : [],
+})
+
+export interface RevokeSkillEditorInput {
+  workspaceId?: string
+  skillId: string
+  target: SkillEditorTarget
+}
+
+export const revokeSkillEditorUseCase = defineAuthorizedWorkspaceUseCase({
+  operation: skillOperations.revokeEditor,
+  resolveContext: ({ input }: { input: RevokeSkillEditorInput }) =>
+    resolveSkillEditorContext(input.skillId, input.workspaceId),
+  authorizationOptions,
+  authorizeResource: ({ principal, context }) =>
+    requireSkillEditorAccess(requirePrincipalSubjectUserId(principal), context),
+  async execute({ input, context }) {
+    const target = await resolveSkillEditorTarget(context, input.target)
+    const [removed] = await db
+      .delete(skillMember)
+      .where(and(eq(skillMember.skillId, context.skill.id), eq(skillMember.userId, target.userId)))
+      .returning({ id: skillMember.id })
+    if (!removed) throw new OrchestrationError('not_found', 'Editor not found')
+    return { editor: target, workspaceId: context.workspaceId }
+  },
+  projectAudit: ({ result, context }) => ({
+    action: AuditAction.SKILL_MEMBER_REMOVED,
+    resourceType: AuditResourceType.SKILL,
+    resourceId: context.skill.id,
+    resourceName: context.skill.name,
+    description: 'Removed skill editor',
+    metadata: { targetUserId: result.editor.userId },
   }),
 })

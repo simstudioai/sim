@@ -3,6 +3,8 @@ import type { CliContract, ColumnSpec, CommandVariantSpec } from './types'
 const TABLE_NAME_HELP = 'Identifier: letters, numbers, and underscores; cannot start with a number'
 const TABLE_FILTER_HELP =
   'Predicate: {"all":[{"field":"status","op":"eq","value":"active"}]}; groups use all/any. Operators: eq, ne, gt, gte, lt, lte, in, nin, contains, ncontains, startsWith, endsWith, like, ilike, nlike, nilike, isEmpty, isNotEmpty, isNull, isNotNull'
+const TABLE_READ_FILTER_HELP =
+  'Condition: {"field":"status","op":"eq","value":"active"}. Groups: {"all":[{"field":"status","op":"eq","value":"active"}]} or {"any":[{"field":"status","op":"eq","value":"active"}]}; group entries may also be nested groups. Operators: eq, ne, gt, gte, lt, lte, in, nin, contains, ncontains, startsWith, endsWith, like, ilike, nlike, nilike, isEmpty, isNotEmpty, isNull, isNotNull'
 const TABLE_SORT_HELP =
   'Ordered sort keys: [{"field":"createdAt","direction":"desc"}] (direction: asc or desc)'
 const CUSTOM_TOOL_SCHEMA_HELP =
@@ -139,6 +141,15 @@ export const CLI_CONTRACT: CliContract = {
       selectAll: { boolean: true, describe: 'Apply to every document in the knowledge base' },
     },
   },
+  listKnowledgeConnectorDocuments: {
+    command: 'knowledge connectors documents list',
+  },
+  updateKnowledgeConnectorDocuments: {
+    command: 'knowledge connectors documents update',
+    flags: {
+      documentIds: { name: 'document', list: true },
+    },
+  },
   // `DELETE /workflows/[id]/deploy` is an undeploy, not a delete.
   undeployWorkflow: {
     command: 'workflows undeploy',
@@ -167,11 +178,18 @@ export const CLI_CONTRACT: CliContract = {
     pathArgumentNames: KNOWLEDGE_BASE_PATH_ARGUMENT,
     confirm: 'This deletes the document and its embeddings.',
   },
+  deleteKnowledgeConnector: {
+    confirm:
+      'This deletes the connector; --delete-documents also deletes its synchronized documents.',
+  },
   deleteFile: { confirm: 'This archives the file.' },
   deleteCredential: {
     confirm: 'This disconnects the credential and removes its stored authentication.',
   },
   deleteSkill: { confirm: 'This deletes the skill.' },
+  revokeSkillEditor: {
+    confirm: 'This revokes the explicit skill editor grant for the selected email.',
+  },
   deleteCustomTool: { confirm: 'This deletes the custom tool.' },
   deleteMcpServer: {
     confirm: 'This removes the MCP server and the tools it provides.',
@@ -278,7 +296,7 @@ export const CLI_CONTRACT: CliContract = {
   queryRows: {
     command: 'tables rows query',
     flags: {
-      predicate: { name: 'filter', json: true, describe: TABLE_FILTER_HELP },
+      predicate: { name: 'filter', json: true, describe: TABLE_READ_FILTER_HELP },
       sort: { json: true, describe: TABLE_SORT_HELP },
     },
     // A row's cells live under `data`; without this the table showed an id and
@@ -756,7 +774,7 @@ export const CLI_CONTRACT: CliContract = {
         name: 'filter',
         renamedFrom: ['predicate'],
         json: true,
-        describe: TABLE_FILTER_HELP,
+        describe: TABLE_READ_FILTER_HELP,
       },
     },
   },

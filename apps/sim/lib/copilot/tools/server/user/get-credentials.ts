@@ -7,6 +7,7 @@ import { decodeJwt } from 'jose'
 import { createPermissionError, verifyWorkflowAccess } from '@/lib/copilot/auth/permissions'
 import type { BaseServerTool } from '@/lib/copilot/tools/server/base-tool'
 import { getAllowedIntegrationsFromEnv } from '@/lib/core/config/env-flags'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { getAccessibleOAuthCredentials } from '@/lib/credentials/environment'
 import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
 import { createIntegrationCredentialVisibility } from '@/lib/integrations/credential-visibility.server'
@@ -50,7 +51,7 @@ export const getCredentialsServerTool: BaseServerTool<GetCredentialsParams, any>
           workflowId: params.workflowId,
           authenticatedUserId,
         })
-        throw new Error(errorMessage)
+        throw new OrchestrationError('forbidden', errorMessage)
       }
 
       workspaceId = wId

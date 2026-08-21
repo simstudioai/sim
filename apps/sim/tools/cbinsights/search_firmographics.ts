@@ -53,6 +53,23 @@ interface CbInsightsFirmographicsParams extends CbInsightsAuthParams {
   nextPageToken?: string
 }
 
+/**
+ * Reads the sort direction, defaulting to the API's own `desc` when unset.
+ *
+ * A value that is neither is rejected rather than folded into the default: a
+ * mistyped `"ascending"` would silently reverse the page and hand back the
+ * bottom of the result set as though it were the top, on a metered search.
+ */
+function sortDirection(value: unknown): 'asc' | 'desc' {
+  if (value === undefined || value === null) return 'desc'
+  const normalized = String(value).trim().toLowerCase()
+  if (normalized === '') return 'desc'
+  if (normalized === 'asc' || normalized === 'desc') return normalized
+  throw new Error(
+    `CB Insights "sortDirection" must be "asc" or "desc" (received "${String(value)}")`
+  )
+}
+
 export const cbinsightsSearchFirmographicsTool: ToolConfig<
   CbInsightsFirmographicsParams,
   CbInsightsListResponse
@@ -358,7 +375,7 @@ export const cbinsightsSearchFirmographicsTool: ToolConfig<
       ),
       minLastFundingDate: params.minLastFundingDate?.trim(),
       maxLastFundingDate: params.maxLastFundingDate?.trim(),
-      vcBacked: parseBooleanParam(params.vcBacked),
+      vcBacked: parseBooleanParam(params.vcBacked, 'vcBacked'),
     })
 
     /*
@@ -375,7 +392,7 @@ export const cbinsightsSearchFirmographicsTool: ToolConfig<
       ...filters,
       ...compactBody({
         limit: clampLimit(params.limit),
-        nextPageToken: params.nextPageToken,
+        nextPageToken: params.nextPageToken?.trim(),
       }),
     }
 
@@ -383,10 +400,7 @@ export const cbinsightsSearchFirmographicsTool: ToolConfig<
        so neither has to be typed as JSON. */
     const sortField = params.sortField?.trim()
     if (sortField) {
-      body.sort = {
-        field: sortField,
-        direction: params.sortDirection === 'asc' ? 'asc' : 'desc',
-      }
+      body.sort = { field: sortField, direction: sortDirection(params.sortDirection) }
     }
 
     return cbInsightsRequest<{

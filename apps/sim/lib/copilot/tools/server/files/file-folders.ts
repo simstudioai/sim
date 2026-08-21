@@ -14,7 +14,7 @@ import {
   requireCopilotWorkspace,
 } from '@/lib/copilot/tools/server/files/file-folder-application'
 import { decodeVfsPathSegments } from '@/lib/copilot/vfs/path-utils'
-import { asOrchestrationError } from '@/lib/core/orchestration/types'
+import { asOrchestrationError, OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   findWorkspaceFileFolderIdByPath,
   getWorkspaceFileFolder,
@@ -119,9 +119,11 @@ async function resolveFolderIdFromPath(
   label = 'Folder'
 ): Promise<string> {
   const segments = decodeFileFolderPath(path)
-  if (!segments) throw new Error(`${label} path must identify a folder under files/`)
+  if (!segments)
+    throw new OrchestrationError('validation', `${label} path must identify a folder under files/`)
   const folderId = await findWorkspaceFileFolderIdByPath(workspaceId, segments)
-  if (!folderId) throw new Error(`${label} not found at files/${segments.join('/')}`)
+  if (!folderId)
+    throw new OrchestrationError('not_found', `${label} not found at files/${segments.join('/')}`)
   return folderId
 }
 
@@ -135,7 +137,11 @@ async function resolveOptionalFolderId(
   const segments = decodeFileFolderPath(raw)
   if (!segments) return null
   const folderId = await findWorkspaceFileFolderIdByPath(workspaceId, segments)
-  if (!folderId) throw new Error(`Target folder not found at files/${segments.join('/')}`)
+  if (!folderId)
+    throw new OrchestrationError(
+      'not_found',
+      `Target folder not found at files/${segments.join('/')}`
+    )
   return folderId
 }
 

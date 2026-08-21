@@ -128,6 +128,39 @@ describe('POST /api/v2/tables/[tableId]/query', () => {
     })
   })
 
+  it('normalizes a plain condition into a predicate group', async () => {
+    const condition = { field: 'phone', op: 'isEmpty' }
+    const invocation = call({ workspaceId: WORKSPACE_ID, predicate: condition })
+    const response = await invocation.response
+
+    expect(response.status).toBe(200)
+    expect(mocks.queryRows).toHaveBeenCalledWith(
+      expect.objectContaining({
+        input: expect.objectContaining({ predicate: { all: [condition] } }),
+      })
+    )
+  })
+
+  it('queries every row when the predicate is omitted', async () => {
+    const invocation = call({ workspaceId: WORKSPACE_ID })
+    const response = await invocation.response
+
+    expect(response.status).toBe(200)
+    expect(mocks.queryRows).toHaveBeenCalledWith({
+      principal: PRINCIPAL,
+      input: {
+        tableId: 'table-1',
+        assertedWorkspaceId: WORKSPACE_ID,
+        predicate: undefined,
+        sort: undefined,
+        cursor: undefined,
+        limit: 100,
+        includeTotal: false,
+      },
+      request: invocation.request,
+    })
+  })
+
   it('preserves explicit limit=0 as the unbounded opt-in', async () => {
     await call({ workspaceId: WORKSPACE_ID, limit: 0 }).response
 

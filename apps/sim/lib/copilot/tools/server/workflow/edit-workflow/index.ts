@@ -17,6 +17,7 @@ import {
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
 import { env } from '@/lib/core/config/env'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { getSocketServerUrl } from '@/lib/core/utils/urls'
 import { MAX_PLAN_REQUIRED } from '@/lib/execution/remote-sandbox/workspace-sandboxes'
 import {
@@ -33,6 +34,7 @@ import {
   loadWorkflowFromNormalizedTables,
   saveWorkflowToNormalizedTables,
 } from '@/lib/workflows/persistence/utils'
+import { sanitizeForCopilot } from '@/lib/workflows/sanitization/json-sanitizer'
 import { validateWorkflowState } from '@/lib/workflows/sanitization/validation'
 import { withBlockVisibility } from '@/blocks/visibility/server-context'
 import { getUserPermissionConfig } from '@/ee/access-control/utils/permission-check'
@@ -64,7 +66,8 @@ async function getCurrentWorkflowStateFromDb(
     .from(workflowTable)
     .where(eq(workflowTable.id, workflowId))
     .limit(1)
-  if (!workflowRecord) throw new Error(`Workflow ${workflowId} not found in database`)
+  if (!workflowRecord)
+    throw new OrchestrationError('not_found', `Workflow ${workflowId} not found in database`)
   const normalized = await loadWorkflowFromNormalizedTables(workflowId)
   if (!normalized) throw new Error('Workflow has no normalized data')
 
@@ -99,9 +102,9 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, unknown>
     const logger = createLogger('EditWorkflowServerTool')
     const { operations, workflowId, currentUserWorkflow } = params
     if (!Array.isArray(operations) || operations.length === 0) {
-      throw new Error('operations are required and must be an array')
+      throw new OrchestrationError('validation', 'operations are required and must be an array')
     }
-    if (!workflowId) throw new Error('workflowId is required')
+    if (!workflowId) throw new OrchestrationError('validation', 'workflowId is required')
     if (!context?.userId) {
       throw new Error('Unauthorized workflow access')
     }
@@ -112,7 +115,16 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, unknown>
       action: 'write',
     })
     if (!authorization.allowed) {
-      throw new Error(authorization.message || 'Unauthorized workflow access')
+      // Classified, not a bare Error: the copilot error projection passes a
+      // classified message through to the model verbatim, while an
+      // unclassified throw collapses into "system error, please retry" —
+      // which invites blind retries of a call that can never succeed.
+      throw new OrchestrationError(
+        authorization.status === 404 ? 'not_found' : 'forbidden',
+        authorization.status === 404
+          ? `Workflow not found: ${workflowId}. Pass the workflow's canonical id (copy it from workflows/**/meta.json or the tool result that created it) — a workflow name or @-mention is not an id.`
+          : authorization.message || 'Unauthorized workflow access'
+      )
     }
 
     await assertWorkflowMutable(workflowId)
@@ -124,7 +136,7 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, unknown>
       operationsReferenceSimSandbox(operations) &&
       (!workspaceId || !(await hasWorkspaceSandboxAccess(workspaceId)))
     ) {
-      throw new Error(MAX_PLAN_REQUIRED)
+      throw new OrchestrationError('forbidden', MAX_PLAN_REQUIRED)
     }
 
     logger.info('Executing edit_workflow', {
@@ -142,7 +154,7 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, unknown>
         workflowState = JSON.parse(currentUserWorkflow)
       } catch (error) {
         logger.error('Failed to parse currentUserWorkflow', error)
-        throw new Error('Invalid currentUserWorkflow format')
+        throw new OrchestrationError('validation', 'Invalid currentUserWorkflow format')
       }
     } else {
       const fromDb = await getCurrentWorkflowStateFromDb(workflowId)
@@ -240,7 +252,10 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, unknown>
         errors: validation.errors,
         warnings: validation.warnings,
       })
-      throw new Error(`Invalid edited workflow: ${validation.errors.join('; ')}`)
+      throw new OrchestrationError(
+        'validation',
+        `Invalid edited workflow: ${validation.errors.join('; ')}`
+      )
     }
 
     if (validation.warnings.length > 0) {
@@ -376,7 +391,7 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, unknown>
         workflowId,
         error: saveResult.error,
       })
-      throw new Error(`Failed to save workflow: ${saveResult.error}`)
+      throw new OrchestrationError('conflict', `Failed to save workflow: ${saveResult.error}`)
     }
 
     // Update workflow's lastSynced timestamp
@@ -408,7 +423,7 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, unknown>
       success: true,
       workflowId,
       workflowName: workflowName ?? 'Workflow',
-      workflowState: { ...finalWorkflowState, blocks: layoutedBlocks },
+      workflowState: sanitizeForCopilot(workflowStateForDb),
       workflowLint,
       ...(workflowLintMessage && { workflowLintMessage }),
       ...(inputErrors && {

@@ -11,6 +11,7 @@ import {
   deleteWorkflowGroupBodySchema,
   exportTableAsyncBodySchema,
   insertTableRowBodyBaseSchema,
+  predicateInputSchema,
   predicateSchema,
   refineCancelTableRunsScope,
   refineColumnOptions,
@@ -720,8 +721,9 @@ export const v2ListTableRowsContract = defineRouteContract({
 })
 
 /**
- * Rows query body. `predicate`/`sort` are the typed predicate tree / sort spec,
- * field refs keyed by column NAME. `limit`: omitted →
+ * Rows query body. `predicate` accepts one condition or a typed predicate tree
+ * and normalizes either form to a tree; predicate/sort field refs are keyed by
+ * column NAME. `limit`: omitted →
  * {@link V2_DEFAULT_ROW_LIMIT}; `0` → unbounded (whole result or a 400
  * `TABLE_QUERY_RESULT_TOO_LARGE`); `1..{@link V2_MAX_ROW_LIMIT}` → page cap.
  *
@@ -736,7 +738,7 @@ export const v2ListTableRowsContract = defineRouteContract({
 export const v2QueryRowsBodySchema = z
   .object({
     workspaceId: workspaceIdSchema,
-    predicate: predicateSchema.optional(),
+    predicate: predicateInputSchema.optional(),
     sort: sortSpecSchema.optional().describe('Ordered table-row sort specification.'),
     limit: z
       .number({ error: 'Limit must be a number' })
@@ -766,7 +768,7 @@ export type V2QueryRowsBody = z.input<typeof v2QueryRowsBodySchema>
 export const v2QueryRowsCountBodySchema = z
   .object({
     workspaceId: workspaceIdSchema,
-    predicate: predicateSchema.optional(),
+    predicate: predicateInputSchema.optional(),
   })
   .strict()
 export type V2QueryRowsCountBody = z.input<typeof v2QueryRowsCountBodySchema>

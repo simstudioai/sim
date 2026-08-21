@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   resolveEnterpriseReportingPeriod,
   resolveSubscriptionUsagePeriod,
+  resolveSubscriptionUsagePeriodOrDefault,
 } from '@/lib/billing/core/reporting-period'
 
 describe('Enterprise reporting periods', () => {
@@ -58,5 +59,17 @@ describe('Enterprise reporting periods', () => {
         new Date('2026-08-13T00:00:00.000Z')
       )
     ).toMatchObject({ source: 'stripe' })
+  })
+
+  it('uses the same open fallback window when a subscription has no usable dates', () => {
+    expect(
+      resolveSubscriptionUsagePeriodOrDefault({ plan: 'enterprise', metadata: {} })
+    ).toMatchObject({
+      start: new Date(0),
+      end: new Date(Date.UTC(9999, 11, 31)),
+      source: 'default',
+      anchorDate: null,
+      interval: null,
+    })
   })
 })

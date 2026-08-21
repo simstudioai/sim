@@ -163,19 +163,19 @@ describe('workspace file secret provenance', () => {
     expect(dbChainMockFns.where.mock.calls.at(-1)?.[0]).toEqual({
       type: 'and',
       conditions: [
-        { type: 'eq', left: 'id', right: 'file-1' },
-        { type: 'gte', left: 'contentUpdatedAt', right: CONTENT_UPDATED_AT },
+        { type: 'eq', left: 'workspaceFiles.id', right: 'file-1' },
+        { type: 'gte', left: 'workspaceFiles.contentUpdatedAt', right: CONTENT_UPDATED_AT },
         {
           type: 'lt',
-          left: 'contentUpdatedAt',
+          left: 'workspaceFiles.contentUpdatedAt',
           right: new Date(CONTENT_UPDATED_AT.getTime() + 1),
         },
-        { type: 'inArray', column: 'context', values: ['workspace', 'mothership'] },
+        { type: 'inArray', column: 'workspaceFiles.context', values: ['workspace', 'mothership'] },
         {
           type: 'or',
           conditions: [
-            { type: 'isNull', column: 'secretProvenanceVersion' },
-            { type: 'eq', left: 'secretProvenanceVersion', right: 1 },
+            { type: 'isNull', column: 'workspaceFiles.secretProvenanceVersion' },
+            { type: 'eq', left: 'workspaceFiles.secretProvenanceVersion', right: 1 },
           ],
         },
       ],

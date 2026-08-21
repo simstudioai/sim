@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { ErrorExtractorId } from '@/tools/error-extractors'
 import { findEmailFromNameTool } from '@/tools/findymail/find_email_from_name'
 import { findEmailsByDomainTool } from '@/tools/findymail/find_emails_by_domain'
 import { findPhoneTool } from '@/tools/findymail/find_phone'
@@ -76,6 +77,7 @@ describe('Prospeo hosted key pricing', () => {
   it('declares hosting with the shared env prefix and BYOK provider', () => {
     expect(enrichPersonTool.hosting?.envKeyPrefix).toBe('PROSPEO_API_KEY')
     expect(enrichPersonTool.hosting?.byokProviderId).toBe('prospeo')
+    expect(enrichPersonTool.errorExtractor).toBe(ErrorExtractorId.PROSPEO_ERRORS)
   })
 
   it('charges 1 credit for a person match and 10 when a mobile is revealed', () => {

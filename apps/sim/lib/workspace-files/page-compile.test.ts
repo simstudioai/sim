@@ -106,7 +106,7 @@ describe('compileSimPage', () => {
     const source = '---\ntitle: T\n---\n```sim:kv\n- { key: }\n```'
     expect(compileSimPage(source)).not.toContain('was skipped')
     expect(collectSimPageDiagnostics(source)).toEqual([
-      'sim:kv block skipped: its payload did not match the expected shape',
+      'sim:kv block starting "- { key: }" skipped: its payload did not match the expected shape',
     ])
   })
 
@@ -114,8 +114,33 @@ describe('compileSimPage', () => {
     const source = '---\ntitle: T\n---\n```sim:cards\n- title: X\n```'
     expect(compileSimPage(source)).not.toContain('sim:cards')
     expect(collectSimPageDiagnostics(source)).toEqual([
-      'sim:cards block skipped: its payload did not match the expected shape',
+      'sim:cards block starting "- title: X" skipped: its payload did not match the expected shape',
     ])
+  })
+
+  // A page can carry several blocks of the same kind — the diagnostic must
+  // name WHICH one failed and distinguish a YAML syntax error from a shape
+  // mismatch, or "a table is malformed" sends the fixer hunting through all
+  // of them.
+  it('identifies the failing block by its first payload line and reports YAML errors', () => {
+    const source = [
+      '---',
+      'title: T',
+      '---',
+      '```sim:table',
+      'columns: [A, B]',
+      'rows:',
+      '  - [a, b]',
+      '```',
+      '',
+      '```sim:table',
+      'columns: [C: D]',
+      'rows: broken',
+      '```',
+    ].join('\n')
+    const diagnostics = collectSimPageDiagnostics(source)
+    expect(diagnostics).toHaveLength(1)
+    expect(diagnostics[0]).toContain('sim:table block starting "columns: [C: D]"')
   })
 
   it('reports nothing for a fully valid page', () => {

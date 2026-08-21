@@ -78,6 +78,68 @@ describe('in-document tabs drive the on-this-page rail', () => {
   })
 })
 
+describe('markdown table wrapping', () => {
+  // A bare table is what drags the page sideways on a phone — the shell puts
+  // every markdown table in the same .scroll container sim:table fences get.
+  it('wraps bare tables in a scroll container', async () => {
+    const dom = new JSDOM(
+      renderSimPageDocument(`---
+title: Table Doc
+---
+
+## Reference
+
+| Connection | Endpoint |
+|---|---|
+| shell | api.planetscale.com/v1 |
+`),
+      domOptions
+    )
+    await tick()
+    const table = dom.window.document.querySelector('table')
+    expect(table?.parentElement?.classList.contains('scroll')).toBe(true)
+  })
+})
+
+describe('code block copy', () => {
+  // The sandboxed in-app preview denies the async clipboard API (opaque
+  // origin), so the shell falls back to the selection command; jsdom has no
+  // navigator.clipboard, which exercises exactly that path.
+  it('copies through the selection-command fallback and flips the button', async () => {
+    const dom = new JSDOM(
+      renderSimPageDocument(`---
+title: Copy Doc
+---
+
+## Snippet
+
+\`\`\`bash
+echo hi
+\`\`\`
+`),
+      domOptions
+    )
+    const { document } = dom.window
+    await tick()
+
+    let copiedText: string | null = null
+    document.execCommand = (command: string) => {
+      copiedText = document.querySelector('textarea')?.value ?? null
+      return command === 'copy'
+    }
+
+    const copy = document.querySelector('.codeblock-copy')
+    expect(copy).not.toBeNull()
+    copy?.dispatchEvent(new dom.window.Event('click', { bubbles: true }))
+    await tick()
+
+    expect(copiedText?.trim()).toBe('echo hi')
+    expect(copy?.classList.contains('is-copied')).toBe(true)
+    // The scratch textarea is removed after the copy.
+    expect(document.querySelector('textarea')).toBeNull()
+  })
+})
+
 describe('older page shapes keep their rail', () => {
   it('builds the rail for a plain untabbed page', async () => {
     const dom = new JSDOM(

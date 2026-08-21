@@ -1,3 +1,4 @@
+import { ErrorExtractorId } from '@/tools/error-extractors'
 import type {
   PitchbookInvestorSearchParams,
   PitchbookSearchResponse,
@@ -20,6 +21,7 @@ export const pitchbookInvestorSearchTool: ToolConfig<
   description:
     'Search PitchBook for investors by type, location, assets under management, fund profile, and deal activity',
   version: '1.0.0',
+  errorExtractor: ErrorExtractorId.PITCHBOOK_ERRORS,
 
   params: {
     apiKey: {

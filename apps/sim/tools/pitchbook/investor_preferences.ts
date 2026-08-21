@@ -1,3 +1,4 @@
+import { ErrorExtractorId } from '@/tools/error-extractors'
 import type { PitchbookProfileParams, PitchbookResponse } from '@/tools/pitchbook/types'
 import { PITCHBOOK_API_BASE, pitchbookAuthHeaders, throwIfNotOk } from '@/tools/pitchbook/utils'
 import type { ToolConfig } from '@/tools/types'
@@ -11,6 +12,7 @@ export const pitchbookInvestorPreferencesTool: ToolConfig<
   description:
     'Retrieve what an investor targets: check size, deal size, valuation, revenue, geography, industry, and deal type preferences',
   version: '1.0.0',
+  errorExtractor: ErrorExtractorId.PITCHBOOK_ERRORS,
 
   params: {
     apiKey: {
@@ -217,8 +219,28 @@ export const pitchbookInvestorPreferencesTool: ToolConfig<
       items: {
         type: 'object',
         properties: {
-          code: { type: 'string', description: 'Industry code' },
-          description: { type: 'string', description: 'Industry label' },
+          industryCode: {
+            type: 'json',
+            description: 'Most specific industry classification',
+            nullable: true,
+          },
+          industrySector: {
+            type: 'object',
+            description: 'Top-level sector',
+            properties: {
+              code: { type: 'string', description: 'Sector code' },
+              description: { type: 'string', description: 'Sector label' },
+            },
+          },
+          industryGroup: {
+            type: 'object',
+            description: 'Industry group within the sector',
+            properties: {
+              code: { type: 'string', description: 'Group code' },
+              description: { type: 'string', description: 'Group label' },
+            },
+          },
+          primary: { type: 'boolean', description: 'Whether this is the primary industry' },
         },
       },
     },

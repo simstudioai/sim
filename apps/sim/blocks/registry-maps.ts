@@ -1,4 +1,5 @@
 import { A2ABlock } from '@/blocks/blocks/a2a'
+import { AffinityBlock, AffinityBlockMeta } from '@/blocks/blocks/affinity'
 import { AgentBlock } from '@/blocks/blocks/agent'
 import { AgentMailBlock, AgentMailBlockMeta } from '@/blocks/blocks/agentmail'
 import { AgentPhoneBlock, AgentPhoneBlockMeta } from '@/blocks/blocks/agentphone'
@@ -142,6 +143,7 @@ import { GranolaBlock, GranolaBlockMeta } from '@/blocks/blocks/granola'
 import { GreenhouseBlock, GreenhouseBlockMeta } from '@/blocks/blocks/greenhouse'
 import { GreptileBlock, GreptileBlockMeta } from '@/blocks/blocks/greptile'
 import { GuardrailsBlock } from '@/blocks/blocks/guardrails'
+import { HarmonicBlock, HarmonicBlockMeta } from '@/blocks/blocks/harmonic'
 import { HexBlock, HexBlockMeta } from '@/blocks/blocks/hex'
 import { HubSpotBlock, HubSpotBlockMeta } from '@/blocks/blocks/hubspot'
 import { HuggingFaceBlock, HuggingFaceBlockMeta } from '@/blocks/blocks/huggingface'
@@ -367,6 +369,7 @@ import type { BlockConfig, BlockMeta } from '@/blocks/types'
 /** All block configs keyed by block type. The execution source of truth. */
 export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   a2a: A2ABlock,
+  affinity: AffinityBlock,
   agent: AgentBlock,
   agentmail: AgentMailBlock,
   agentphone: AgentPhoneBlock,
@@ -499,6 +502,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   greenhouse: GreenhouseBlock,
   greptile: GreptileBlock,
   guardrails: GuardrailsBlock,
+  harmonic: HarmonicBlock,
   hex: HexBlock,
   hubspot: HubSpotBlock,
   huggingface: HuggingFaceBlock,
@@ -716,6 +720,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
  * index). The toolbar and search modal read block *configs*, not metas.
  */
 export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
+  affinity: AffinityBlockMeta,
   agentmail: AgentMailBlockMeta,
   agentphone: AgentPhoneBlockMeta,
   agiloft: AgiloftBlockMeta,
@@ -825,6 +830,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   granola: GranolaBlockMeta,
   greenhouse: GreenhouseBlockMeta,
   greptile: GreptileBlockMeta,
+  harmonic: HarmonicBlockMeta,
   hex: HexBlockMeta,
   hubspot: HubSpotBlockMeta,
   huggingface: HuggingFaceBlockMeta,

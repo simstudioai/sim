@@ -38,6 +38,29 @@ interface ErrorExtractorConfig {
   examples?: string[]
   /** The extraction function */
   extract: ErrorExtractor
+  /**
+   * Optional replacement for the raw error body.
+   *
+   * The executor attaches `errorInfo.data` to the thrown error and surfaces it on
+   * the failed tool's `output.data`, so an extractor that exists because a provider
+   * echoes a credential back must redact the body too — scrubbing only the message
+   * leaves the original reachable at `output.data`.
+   */
+  redactData?: (errorInfo?: ErrorInfo) => unknown
+}
+
+const PITCHBOOK_UNAUTHORIZED_MESSAGE =
+  'PitchBook rejected the API key. Check that the key is active and has API access.'
+
+/**
+ * PitchBook's unauthorized body echoes the submitted key back inside `message`,
+ * so both the message and the retained body have to be replaced.
+ */
+function isPitchbookUnauthorized(errorInfo?: ErrorInfo): boolean {
+  const data = errorInfo?.data
+  if (!data || typeof data !== 'object' || Array.isArray(data)) return false
+  const reason = typeof data.reason === 'string' ? data.reason.trim() : ''
+  return errorInfo?.status === 401 || reason === 'UNAUTHORIZED'
 }
 
 const ERROR_EXTRACTORS: ErrorExtractorConfig[] = [
@@ -211,6 +234,85 @@ const ERROR_EXTRACTORS: ErrorExtractorConfig[] = [
     extract: (errorInfo) => errorInfo?.data?.message,
   },
   {
+    id: 'harmonic-errors',
+    description:
+      'Harmonic API message errors, string and object FastAPI detail aborts including the enrichment URN, bulk email-enrichment error codes with their quota counters, and validation detail arrays without echoed request input',
+    examples: ['Harmonic'],
+    extract: (errorInfo) => {
+      const data = errorInfo?.data
+      if (!data || typeof data !== 'object' || Array.isArray(data)) return undefined
+
+      const message = typeof data.message === 'string' ? data.message.trim() : ''
+      if (message) return message
+
+      /**
+       * Harmonic's Kong edge answers with `message`, but the FastAPI application
+       * behind it renders every non-422 abort as a bare string `detail`. Without
+       * this branch those become `Request failed with status 403`, because a tool
+       * that names an extractor gets no fallback chain.
+       */
+      if (typeof data.detail === 'string') {
+        const detail = data.detail.trim()
+        return detail || undefined
+      }
+
+      /**
+       * `POST /persons` answers 404 with an object detail carrying the enrichment
+       * Harmonic just scheduled. The URN is the only handle on that job, so it is
+       * appended to the message rather than dropped with the rest of the envelope.
+       */
+      if (data.detail && typeof data.detail === 'object' && !Array.isArray(data.detail)) {
+        const detail = data.detail as { message?: unknown; enrichment_urn?: unknown }
+        const detailMessage = typeof detail.message === 'string' ? detail.message.trim() : ''
+        const enrichmentUrn =
+          typeof detail.enrichment_urn === 'string' ? detail.enrichment_urn.trim() : ''
+        if (!detailMessage) return enrichmentUrn || undefined
+        return enrichmentUrn ? `${detailMessage} (${enrichmentUrn})` : detailMessage
+      }
+
+      /**
+       * The bulk email-enrichment endpoint answers 422/429 with a code in `error`
+       * and no message anywhere — `{error: 'MONTHLY_QUOTA_INSUFFICIENT', needed,
+       * available, submitted}`. These are the most actionable failures on that path.
+       *
+       * Gated on one of the documented numeric counters being present. `error` alone
+       * is far too common a key to claim: `extractErrorMessage` without an explicit
+       * id walks every extractor in order, so a bare `error` check here would swallow
+       * OAuth's `{error, error_description}` and return the code instead of the text.
+       */
+      const emailJobCounters = (['needed', 'available', 'submitted'] as const).filter(
+        (key) => typeof data[key] === 'number'
+      )
+      if (typeof data.error === 'string' && data.error.trim() && emailJobCounters.length > 0) {
+        const code = data.error.trim()
+        return `${code} (${emailJobCounters.map((key) => `${key} ${data[key]}`).join(', ')})`
+      }
+
+      if (!Array.isArray(data.detail)) return undefined
+      const details = data.detail
+        .map((entry: unknown) => {
+          if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return ''
+          const validation = entry as { loc?: unknown; msg?: unknown }
+          const detail = typeof validation.msg === 'string' ? validation.msg.trim() : ''
+          if (!detail) return ''
+
+          const location = Array.isArray(validation.loc)
+            ? validation.loc
+                .filter(
+                  (segment): segment is string | number =>
+                    typeof segment === 'string' || typeof segment === 'number'
+                )
+                .map(String)
+            : []
+          const fieldPath = location[0] === 'body' ? location.slice(1) : location
+          return fieldPath.length > 0 ? `${fieldPath.join('.')}: ${detail}` : detail
+        })
+        .filter(Boolean)
+
+      return details.length > 0 ? details.join('; ') : undefined
+    },
+  },
+  {
     id: 'soap-fault',
     description: 'SOAP/XML fault string patterns',
     examples: ['SOAP APIs', 'Legacy XML services'],
@@ -314,6 +416,20 @@ const ERROR_EXTRACTORS: ErrorExtractorConfig[] = [
     },
   },
   {
+    id: 'prospeo-errors',
+    description: 'Prospeo API error_code with optional filter_error and message details',
+    examples: ['Prospeo API'],
+    extract: (errorInfo) => {
+      const data = errorInfo?.data
+      if (!data || typeof data !== 'object') return undefined
+
+      const parts = [data.error_code, data.filter_error, data.message].filter(
+        (part): part is string => typeof part === 'string' && Boolean(part.trim())
+      )
+      return parts.length > 0 ? parts.join(': ') : undefined
+    },
+  },
+  {
     id: 'crunchbase-errors',
     description:
       'Crunchbase Data API error envelope: a top-level JSON array of {status, code, message}. Nothing else in this registry reads a bare array, so without it a rejected key or malformed predicate reports only its HTTP status',
@@ -329,6 +445,29 @@ const ERROR_EXTRACTORS: ErrorExtractorConfig[] = [
         .filter(Boolean)
 
       return messages.length > 0 ? messages.join('; ') : undefined
+    },
+  },
+  {
+    id: 'pitchbook-errors',
+    description:
+      'PitchBook Public API error envelope: {reason, message}. An unauthorized response echoes the rejected key back inside `message` ("Active API key {KEY} not found"), so that case is replaced with a fixed string — the generic message fallback would otherwise put the credential in the block error, the run log, and any agent context reading the failure. Returns undefined unless the body carries a `message`, so that on the generic fallback chain — which every tool without an `errorExtractor` walks — a foreign 401 is never labelled a PitchBook auth failure',
+    examples: ['PitchBook'],
+    extract: (errorInfo) => {
+      const data = errorInfo?.data
+      if (!data || typeof data !== 'object' || Array.isArray(data)) return undefined
+
+      const reason = typeof data.reason === 'string' ? data.reason.trim() : ''
+      const message = typeof data.message === 'string' ? data.message.trim() : ''
+      if (!message) return undefined
+
+      if (isPitchbookUnauthorized(errorInfo)) return PITCHBOOK_UNAUTHORIZED_MESSAGE
+
+      return reason ? `${message} (${reason})` : message
+    },
+    redactData: (errorInfo) => {
+      if (!isPitchbookUnauthorized(errorInfo)) return errorInfo?.data
+      const reason = (errorInfo?.data as { reason?: unknown } | undefined)?.reason
+      return { reason, message: PITCHBOOK_UNAUTHORIZED_MESSAGE }
     },
   },
   {
@@ -398,6 +537,21 @@ export function extractErrorMessageWithId(
   return `Request failed with status ${errorInfo?.status || 'unknown'}`
 }
 
+/**
+ * Body to retain on a failed tool result, with any credential the provider echoed
+ * back replaced. Falls back to the original body when no extractor redacts it.
+ */
+export function redactErrorData(errorInfo?: ErrorInfo, extractorId?: string): unknown {
+  if (!extractorId) return errorInfo?.data
+  const extractor = ERROR_EXTRACTORS.find((candidate) => candidate.id === extractorId)
+  if (!extractor?.redactData) return errorInfo?.data
+  try {
+    return extractor.redactData(errorInfo)
+  } catch {
+    return errorInfo?.data
+  }
+}
+
 export function extractErrorMessage(errorInfo?: ErrorInfo, extractorId?: string): string {
   if (extractorId) {
     return extractErrorMessageWithId(errorInfo, extractorId)
@@ -430,6 +584,7 @@ export const ErrorExtractorId = {
   ERRORS_ARRAY_STRING: 'errors-array-string',
   TELEGRAM_DESCRIPTION: 'telegram-description',
   STANDARD_MESSAGE: 'standard-message',
+  HARMONIC_ERRORS: 'harmonic-errors',
   SOAP_FAULT: 'soap-fault',
   OAUTH_ERROR_DESCRIPTION: 'oauth-error-description',
   NESTED_ERROR_OBJECT: 'nested-error-object',
@@ -437,7 +592,9 @@ export const ErrorExtractorId = {
   DYNATRACE_ERRORS: 'dynatrace-errors',
   SMARTLEAD_ERRORS: 'smartlead-errors',
   POSTHOG_ERRORS: 'posthog-errors',
+  PROSPEO_ERRORS: 'prospeo-errors',
   CRUNCHBASE_ERRORS: 'crunchbase-errors',
+  PITCHBOOK_ERRORS: 'pitchbook-errors',
   SPLUNK_ERRORS: 'splunk-errors',
   PLAIN_TEXT_DATA: 'plain-text-data',
   HTTP_STATUS_TEXT: 'http-status-text',
