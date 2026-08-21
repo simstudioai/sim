@@ -7,6 +7,7 @@ import {
   getDefaultWorkspaceId,
 } from '@/lib/copilot/tools/handlers/access'
 import type { BaseServerTool, ServerToolContext } from '@/lib/copilot/tools/server/base-tool'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { performUpdateCredential } from '@/lib/credentials/orchestration'
 import { listVisibleWorkspaceCredentials } from '@/lib/credentials/queries'
 import { upsertPersonalEnvVars, upsertWorkspaceEnvVars } from '@/lib/environment/utils'
@@ -67,7 +68,8 @@ function normalizeDescriptions(
     if (!item || typeof item.name !== 'string' || item.description === undefined) continue
     const description = item.description?.trim() ?? ''
     if (description.length > DESCRIPTION_MAX_LENGTH) {
-      throw new Error(
+      throw new OrchestrationError(
+        'validation',
         `description for ${item.name} must be at most ${DESCRIPTION_MAX_LENGTH} characters`
       )
     }
@@ -159,7 +161,10 @@ async function resolveWorkspaceId(
   if (params.workflowId) {
     const { workflow } = await ensureWorkflowAccess(params.workflowId, userId, 'write')
     if (!workflow.workspaceId) {
-      throw new Error(`Workflow ${params.workflowId} is not associated with a workspace`)
+      throw new OrchestrationError(
+        'validation',
+        `Workflow ${params.workflowId} is not associated with a workspace`
+      )
     }
     return workflow.workspaceId
   }
@@ -202,7 +207,10 @@ export const setEnvironmentVariablesServerTool: BaseServerTool<
     // per-workspace mirrors, so there is no single row to hold its description —
     // one written here would exist in this workspace alone.
     if (scope === 'personal' && Object.keys(descriptions).length > 0) {
-      throw new Error('description is only supported for a workspace secret')
+      throw new OrchestrationError(
+        'validation',
+        'description is only supported for a workspace secret'
+      )
     }
     const { variables: validatedVariables } = EnvVarSchema.parse({ variables: normalized })
     const variableNames = Object.keys(validatedVariables)
@@ -249,7 +257,10 @@ export const setEnvironmentVariablesServerTool: BaseServerTool<
     // A failed description never fails a stored value — but a describe-only call
     // has nothing else to report, so its failure is the result.
     if (descriptionFailures.length > 0 && workspaceUpdated.length === 0) {
-      throw new Error(`Could not describe: ${descriptionFailures.join('; ')}`)
+      throw new OrchestrationError(
+        'conflict',
+        `Could not describe: ${descriptionFailures.join('; ')}`
+      )
     }
 
     const parts: string[] = []

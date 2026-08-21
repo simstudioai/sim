@@ -1,5 +1,6 @@
 import Ajv, { type ErrorObject, type ValidateFunction } from 'ajv'
 import { TOOL_RUNTIME_SCHEMAS } from '@/lib/copilot/generated/tool-schemas-v1'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 
 const ajv = new Ajv({
   allErrors: true,
@@ -42,7 +43,13 @@ export function validateGeneratedToolPayload<T>(
 
   if (!validator(payload)) {
     const label = schemaKind === 'parameters' ? 'input' : 'output'
-    throw new Error(`${toolName} ${label} validation failed: ${formatErrors(validator.errors)}`)
+    const message = `${toolName} ${label} validation failed: ${formatErrors(validator.errors)}`
+    // Input validation is the CALLER's mistake — classified, so the copilot
+    // error projection surfaces it verbatim and the model can fix its
+    // arguments instead of blind-retrying a masked "system error". Output
+    // validation failing is the tool's own bug and stays internal.
+    if (schemaKind === 'parameters') throw new OrchestrationError('validation', message)
+    throw new Error(message)
   }
 
   return payload

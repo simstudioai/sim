@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { z } from 'zod'
 import { QueryLogs } from '@/lib/copilot/generated/tool-catalog-v1'
 import type { BaseServerTool, ServerToolContext } from '@/lib/copilot/tools/server/base-tool'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   collectLargeValueExecutionIds,
   collectLargeValueKeys,
@@ -120,7 +121,7 @@ type QueryLogsArgs = z.infer<typeof queryLogsArgsSchema>
 function resolveWorkspaceId(args: QueryLogsArgs, context?: ServerToolContext): string {
   const workspaceId = args.workspaceId ?? context?.workspaceId
   if (!workspaceId) {
-    throw new Error('workspaceId is required')
+    throw new OrchestrationError('validation', 'workspaceId is required')
   }
   return workspaceId
 }

@@ -6,6 +6,7 @@ import {
   type BaseServerTool,
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   type ApplyWorkflowOperationsResult,
   applyWorkflowOperations,
@@ -15,6 +16,27 @@ import type { EditWorkflowParams, SkippedItem } from '@/lib/workflows/editing/ty
 import { sanitizeForCopilot } from '@/lib/workflows/sanitization/json-sanitizer'
 
 const logger = createLogger('EditWorkflowServerTool')
+
+/**
+ * Re-states a `not_found` from the use case in terms the model can act on (#6918).
+ *
+ * The message is deliberately Copilot's rather than the use case's: it names
+ * `workflows/**` + '/meta.json', a path that exists only in the copilot VFS, so an
+ * HTTP caller hitting `POST /api/v2/workflows/{workflowId}/operations` would be
+ * told to look somewhere it cannot reach. Every other classification is passed
+ * through untouched.
+ */
+function enrichWorkflowNotFound(error: unknown, workflowId: string): unknown {
+  if (error instanceof OrchestrationError && error.code === 'not_found') {
+    return new OrchestrationError(
+      'not_found',
+      `Workflow not found: ${workflowId}. Pass the workflow's canonical id (copy it from ` +
+        `workflows/**` +
+        `/meta.json or the tool result that created it) — a workflow name or @-mention is not an id.`
+    )
+  }
+  return error
+}
 
 function mapSkippedItem(item: SkippedItem) {
   return {
@@ -31,7 +53,7 @@ function parseCurrentUserWorkflow(currentUserWorkflow: string): Record<string, u
     return JSON.parse(currentUserWorkflow)
   } catch (error) {
     logger.error('Failed to parse currentUserWorkflow', error)
-    throw new Error('Invalid currentUserWorkflow format')
+    throw new OrchestrationError('validation', 'Invalid currentUserWorkflow format')
   }
 }
 
@@ -53,9 +75,9 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, unknown>
   async execute(params: EditWorkflowParams, context?: ServerToolContext): Promise<unknown> {
     const { operations, workflowId, currentUserWorkflow } = params
     if (!Array.isArray(operations) || operations.length === 0) {
-      throw new Error('operations are required and must be an array')
+      throw new OrchestrationError('validation', 'operations are required and must be an array')
     }
-    if (!workflowId) throw new Error('workflowId is required')
+    if (!workflowId) throw new OrchestrationError('validation', 'workflowId is required')
 
     logger.info('Executing edit_workflow', {
       operationCount: operations.length,
@@ -77,7 +99,9 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, unknown>
           : {}),
         checkAborted: () => assertServerToolNotAborted(context),
       }
-    )
+    ).catch((error: unknown) => {
+      throw enrichWorkflowNotFound(error, workflowId)
+    })
 
     const inputErrors =
       result.inputValidationErrors.length > 0

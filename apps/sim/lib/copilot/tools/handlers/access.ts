@@ -1,4 +1,5 @@
 import { authorizeWorkflowByWorkspacePermission } from '@sim/platform-authz/workflow'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { getWorkflowById } from '@/lib/workflows/utils'
 import { checkWorkspaceAccess, type WorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 import { listAccessibleWorkspaceRowsForUser } from '@/lib/workspaces/utils'
@@ -19,12 +20,21 @@ export async function ensureWorkflowAccess(
     action,
   })
 
+  // Classified, not bare Errors: the copilot error projection passes a
+  // classified message through to the model verbatim, while an unclassified
+  // throw collapses into the generic "system error, please retry".
   if (!result.workflow) {
-    throw new Error(`Workflow ${workflowId} not found`)
+    throw new OrchestrationError(
+      'not_found',
+      `Workflow not found: ${workflowId}. Pass the workflow's canonical id (copy it from workflows/**/meta.json or the tool result that created it) — a workflow name or @-mention is not an id.`
+    )
   }
 
   if (!result.allowed) {
-    throw new Error(result.message || 'Unauthorized workflow access')
+    throw new OrchestrationError(
+      result.status === 404 ? 'not_found' : 'forbidden',
+      result.message || 'Unauthorized workflow access'
+    )
   }
 
   return { workflow: result.workflow, workspaceId: result.workflow.workspaceId }
