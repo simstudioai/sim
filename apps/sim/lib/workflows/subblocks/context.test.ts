@@ -152,6 +152,67 @@ describe('buildSelectorContextFromBlock', () => {
     ).toBe('advanced-team')
   })
 
+  it('uses the Gmail trigger credential instead of dormant action credentials', () => {
+    const subBlocks = {
+      credential: { id: 'credential', type: 'oauth-input', value: 'action-basic' },
+      manualCredential: {
+        id: 'manualCredential',
+        type: 'short-input',
+        value: 'action-advanced',
+      },
+      triggerCredentials: {
+        id: 'triggerCredentials',
+        type: 'oauth-input',
+        value: 'trigger-credential',
+      },
+    }
+
+    expect(buildSelectorContextFromBlock('gmail', subBlocks).oauthCredential).toBe('action-basic')
+    expect(
+      buildSelectorContextFromBlock('gmail', subBlocks, {
+        canonicalModes: { oauthCredential: 'advanced' },
+      }).oauthCredential
+    ).toBe('action-advanced')
+    expect(
+      buildSelectorContextFromBlock('gmail', subBlocks, { triggerMode: true }).oauthCredential
+    ).toBe('trigger-credential')
+  })
+
+  it('does not leak a Gmail action credential when the active trigger credential is blank', () => {
+    const ctx = buildSelectorContextFromBlock(
+      'gmail',
+      {
+        credential: { id: 'credential', type: 'oauth-input', value: 'stale-action-credential' },
+        triggerCredentials: { id: 'triggerCredentials', type: 'oauth-input', value: '' },
+      },
+      { triggerMode: true }
+    )
+
+    expect(ctx.oauthCredential).toBeUndefined()
+  })
+
+  it('uses the condition-visible ClickUp trigger credential', () => {
+    const ctx = buildSelectorContextFromBlock(
+      'clickup',
+      {
+        selectedTriggerId: {
+          id: 'selectedTriggerId',
+          type: 'dropdown',
+          value: 'clickup_task_created',
+        },
+        credential: { id: 'credential', type: 'oauth-input', value: 'action-credential' },
+        triggerCredentials: {
+          id: 'triggerCredentials',
+          type: 'oauth-input',
+          value: 'trigger-credential',
+        },
+      },
+      { triggerMode: true }
+    )
+
+    expect(ctx.oauthCredential).toBe('trigger-credential')
+  })
+
   it('should ignore subblock keys not in SELECTOR_CONTEXT_FIELDS', () => {
     const ctx = buildSelectorContextFromBlock('knowledge', {
       operation: { id: 'operation', type: 'dropdown', value: 'search' },

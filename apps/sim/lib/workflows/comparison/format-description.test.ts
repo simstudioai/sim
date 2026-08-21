@@ -3,7 +3,8 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetBlock } = vi.hoisted(() => ({
+const { mockBuildSelectorContextFromBlock, mockGetBlock } = vi.hoisted(() => ({
+  mockBuildSelectorContextFromBlock: vi.fn(() => ({})),
   mockGetBlock: vi.fn(),
 }))
 
@@ -32,7 +33,7 @@ vi.mock('@/blocks/registry', () => ({
 }))
 
 vi.mock('@/lib/workflows/subblocks/context', () => ({
-  buildSelectorContextFromBlock: vi.fn(() => ({})),
+  buildSelectorContextFromBlock: mockBuildSelectorContextFromBlock,
 }))
 
 vi.mock('@/hooks/queries/oauth/oauth-credentials', () => ({
@@ -54,7 +55,11 @@ import {
   formatDiffSummaryForDescriptionAsync,
   generateWorkflowDiffSummary,
 } from '@/lib/workflows/comparison/compare'
-import { formatValueForDisplay, resolveFieldLabel } from '@/lib/workflows/comparison/resolve-values'
+import {
+  formatValueForDisplay,
+  resolveFieldLabel,
+  resolveValueForDisplay,
+} from '@/lib/workflows/comparison/resolve-values'
 
 function emptyDiffSummary(overrides: Partial<WorkflowDiffSummary> = {}): WorkflowDiffSummary {
   return {
@@ -128,6 +133,36 @@ describe('formatValueForDisplay', () => {
 
   it('handles empty string', () => {
     expect(formatValueForDisplay('')).toBe('(empty)')
+  })
+})
+
+describe('resolveValueForDisplay', () => {
+  it('builds off-canvas selector context with the block trigger mode', async () => {
+    mockGetBlock.mockReturnValue({
+      subBlocks: [{ id: 'labelIds', title: 'Labels', type: 'short-input' }],
+    })
+
+    await resolveValueForDisplay('INBOX', {
+      blockType: 'gmail',
+      subBlockId: 'labelIds',
+      workflowId: 'workflow-1',
+      currentState: {
+        blocks: {
+          'block-1': {
+            type: 'gmail',
+            triggerMode: true,
+            subBlocks: { triggerCredentials: { value: 'trigger-credential' } },
+          },
+        },
+      } as never,
+      blockId: 'block-1',
+    })
+
+    expect(mockBuildSelectorContextFromBlock).toHaveBeenCalledWith(
+      'gmail',
+      expect.any(Object),
+      expect.objectContaining({ triggerMode: true })
+    )
   })
 })
 

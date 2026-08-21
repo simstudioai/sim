@@ -131,6 +131,137 @@ describe('collectForkDependentReconfigs', () => {
     ])
   })
 
+  it('uses trigger canonical context for top-level trigger-mode reconfiguration', () => {
+    vi.mocked(getBlock).mockReturnValue(
+      blockWith([
+        {
+          id: 'credential',
+          title: 'Action Credential',
+          type: 'oauth-input',
+          canonicalParamId: 'oauthCredential',
+          mode: 'basic',
+        },
+        {
+          id: 'workspaceSelector',
+          title: 'Action Workspace',
+          type: 'project-selector',
+          canonicalParamId: 'teamId',
+          mode: 'basic',
+        },
+        {
+          id: 'triggerCredentials',
+          title: 'Trigger Credential',
+          type: 'oauth-input',
+          canonicalParamId: 'oauthCredential',
+          mode: 'trigger',
+        },
+        {
+          id: 'triggerWorkspaceId',
+          title: 'Trigger Workspace',
+          type: 'dropdown',
+          canonicalParamId: 'teamId',
+          dependsOn: ['triggerCredentials'],
+          selectorKey: 'clickup.workspaces',
+          mode: 'trigger',
+        },
+      ])
+    )
+    const state = sourceState('clickup', {
+      credential: { value: 'action-credential' },
+      workspaceSelector: { value: 'action-workspace' },
+      triggerCredentials: { value: 'trigger-credential' },
+      triggerWorkspaceId: { value: 'trigger-workspace' },
+    })
+    state.blocks['block-1'].triggerMode = true
+
+    const result = collectForkDependentReconfigs(
+      [replaceItem],
+      new Map([['wf-src', state]]),
+      resolve
+    )
+
+    expect(result).toHaveLength(1)
+    expect(result[0]).toMatchObject({
+      parentSourceId: 'trigger-credential',
+      subBlockKey: 'triggerWorkspaceId',
+      context: { teamId: 'trigger-workspace' },
+    })
+  })
+
+  it('keeps nested tool selector context in action mode inside a trigger block', () => {
+    const agentConfig = blockWith([{ id: 'tools', title: 'Tools', type: 'tool-input' }])
+    const clickupToolConfig = blockWith([
+      {
+        id: 'credential',
+        title: 'Action Credential',
+        type: 'oauth-input',
+        canonicalParamId: 'oauthCredential',
+        mode: 'basic',
+      },
+      {
+        id: 'workspaceSelector',
+        title: 'Action Workspace',
+        type: 'project-selector',
+        canonicalParamId: 'teamId',
+        mode: 'basic',
+      },
+      {
+        id: 'triggerCredentials',
+        title: 'Trigger Credential',
+        type: 'oauth-input',
+        canonicalParamId: 'oauthCredential',
+        mode: 'trigger',
+      },
+      {
+        id: 'triggerWorkspaceId',
+        title: 'Trigger Workspace',
+        type: 'dropdown',
+        canonicalParamId: 'teamId',
+        mode: 'trigger',
+      },
+      {
+        id: 'listId',
+        title: 'List',
+        type: 'short-input',
+        dependsOn: ['credential'],
+        required: true,
+      },
+    ])
+    vi.mocked(getBlock).mockImplementation((type) =>
+      type === 'agent' ? agentConfig : clickupToolConfig
+    )
+    const state = sourceState('agent', {
+      tools: {
+        value: [
+          {
+            type: 'clickup',
+            params: {
+              credential: 'action-credential',
+              workspaceSelector: 'action-workspace',
+              triggerCredentials: 'trigger-credential',
+              triggerWorkspaceId: 'trigger-workspace',
+              listId: 'list-1',
+            },
+          },
+        ],
+      },
+    })
+    state.blocks['block-1'].triggerMode = true
+
+    const result = collectForkDependentReconfigs(
+      [replaceItem],
+      new Map([['wf-src', state]]),
+      resolve
+    )
+
+    expect(result).toHaveLength(1)
+    expect(result[0]).toMatchObject({
+      parentSourceId: 'action-credential',
+      subBlockKey: 'tools[0].listId',
+      context: { teamId: 'action-workspace' },
+    })
+  })
+
   it('skips an anchor whose canonical pair is in advanced (manual) mode - the value passes through', () => {
     vi.mocked(getBlock).mockReturnValue(
       blockWith([

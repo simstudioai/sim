@@ -6,12 +6,21 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetSelectorDefinition } = vi.hoisted(() => ({
+const { mockBuildSelectorContextFromBlock, mockGetSelectorDefinition } = vi.hoisted(() => ({
+  mockBuildSelectorContextFromBlock: vi.fn(
+    (_blockType: string, _subBlocks: unknown, opts?: { workspaceId?: string }) => ({
+      workspaceId: opts?.workspaceId,
+    })
+  ),
   mockGetSelectorDefinition: vi.fn(),
 }))
 
 vi.mock('@/hooks/selectors/registry', () => ({
   getSelectorDefinition: mockGetSelectorDefinition,
+}))
+
+vi.mock('@/lib/workflows/subblocks/context', () => ({
+  buildSelectorContextFromBlock: mockBuildSelectorContextFromBlock,
 }))
 
 import type { SubBlockConfig } from '@/blocks/types'
@@ -20,6 +29,10 @@ import {
   useDynamicSubBlockOptionDisplayName,
 } from '@/hooks/queries/dynamic-subblock-options'
 import type { SelectorDefinition, SelectorKey } from '@/hooks/selectors/types'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { useSubBlockStore } from '@/stores/workflows/subblock/store'
+import { useWorkflowStore } from '@/stores/workflows/workflow/store'
+import type { BlockState } from '@/stores/workflows/workflow/types'
 
 /** Any registered key; the hook only uses it to look the definition up. */
 const SELECTOR_KEY = 'workspace.credentialGroups' as SelectorKey
@@ -70,6 +83,9 @@ describe('useDynamicSubBlockOptionDisplayName', () => {
 
   afterEach(() => {
     mounted.splice(0).forEach((unmount) => unmount())
+    useWorkflowRegistry.setState({ activeWorkflowId: null })
+    useWorkflowStore.setState({ blocks: {} })
+    useSubBlockStore.setState({ workflowValues: {} })
     vi.clearAllMocks()
   })
 
@@ -128,6 +144,57 @@ describe('useDynamicSubBlockOptionDisplayName', () => {
     mounted.push(hook.unmount)
 
     await waitForResult(() => expect(hook.result()).toBe('Gmail, Slack'))
+  })
+
+  it('uses trigger mode when hydrating a trigger field label', async () => {
+    const block = {
+      id: 'block-1',
+      type: 'gmail',
+      name: 'Gmail trigger',
+      position: { x: 0, y: 0 },
+      subBlocks: {},
+      outputs: {},
+      enabled: true,
+      triggerMode: true,
+    } satisfies BlockState
+    useWorkflowRegistry.setState({ activeWorkflowId: 'workflow-1' })
+    useWorkflowStore.setState({ blocks: { 'block-1': block } })
+    useSubBlockStore.setState({
+      workflowValues: {
+        'workflow-1': {
+          'block-1': { triggerCredentials: 'trigger-credential' },
+        },
+      },
+    })
+
+    const fetchById = vi.fn(async ({ detailId }: { detailId?: string }) => ({
+      id: detailId as string,
+      label: 'Inbox',
+    }))
+    mockDefinition({ key: SELECTOR_KEY, getQueryKey: () => [SELECTOR_KEY], fetchById })
+    const subBlock = {
+      id: 'labelIds',
+      title: 'Labels',
+      type: 'dropdown',
+      selectorKey: SELECTOR_KEY,
+    } satisfies SubBlockConfig
+
+    const hook = renderHookWithClient(() =>
+      useDynamicSubBlockOptionDisplayName({
+        workspaceId: 'workspace-1',
+        blockId: 'block-1',
+        subBlock,
+        value: 'INBOX',
+      })
+    )
+    mounted.push(hook.unmount)
+
+    await waitForResult(() => expect(hook.result()).toBe('Inbox'))
+    expect(mockBuildSelectorContextFromBlock).toHaveBeenCalledWith(
+      'gmail',
+      expect.objectContaining({ triggerCredentials: { value: 'trigger-credential' } }),
+      expect.objectContaining({ triggerMode: true })
+    )
   })
 
   it('re-resolves a label when the sibling its selector depends on changes', () => {
