@@ -803,6 +803,19 @@ describe('isStuckDocumentSweepEligible', () => {
     ).toBe(false)
   })
 
+  it('gives a document whose content was just updated the full grace period', () => {
+    expect(
+      isStuckDocumentSweepEligible(
+        candidate('pending', {
+          processingQueuedAt: null,
+          processingStartedAt: minutesBefore(60 * 48),
+          uploadedAt: minutesBefore(5),
+        }),
+        now
+      )
+    ).toBe(false)
+  })
+
   it('never reclaims a completed document', () => {
     expect(
       isStuckDocumentSweepEligible(

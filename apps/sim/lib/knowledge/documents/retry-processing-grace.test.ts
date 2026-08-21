@@ -12,7 +12,10 @@ vi.mock('@/lib/uploads', () => ({ StorageService: {} }))
 vi.mock('@/connectors/registry.server', () => ({ CONNECTOR_REGISTRY: {} }))
 
 import { isStuckDocumentSweepEligible } from '@/lib/knowledge/connectors/sync-engine'
-import { retryDocumentProcessing } from '@/lib/knowledge/documents/service'
+import {
+  processDocumentsWithQueue,
+  retryDocumentProcessing,
+} from '@/lib/knowledge/documents/service'
 
 const DOC_DATA = {
   filename: 'report.pdf',
@@ -88,5 +91,45 @@ describe('retryDocumentProcessing requeue stamp', () => {
         sweptAt
       )
     ).toBe(true)
+  })
+})
+
+describe('processDocumentsWithQueue dispatch stamp', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+    dbChainMockFns.limit.mockResolvedValue([{ userId: 'user-1', workspaceId: null }])
+  })
+
+  /**
+   * The dispatch itself needs Trigger.dev infrastructure this test does not
+   * stand up; the stamp is written before it, so a later throw is irrelevant.
+   */
+  async function dispatch(): Promise<void> {
+    await processDocumentsWithQueue(
+      [{ documentId: 'doc-1', ...DOC_DATA }],
+      'kb-1',
+      {},
+      'req-1',
+      undefined
+    ).catch(() => {})
+  }
+
+  it('stamps the queue time and clears any leftover start time', async () => {
+    const before = Date.now()
+    await dispatch()
+    const after = Date.now()
+
+    const stampCall = dbChainMockFns.set.mock.calls.find(
+      (call) => (call[0] as Record<string, unknown> | undefined)?.processingQueuedAt !== undefined
+    )
+    expect(stampCall).toBeDefined()
+    const values = stampCall?.[0] as Record<string, unknown>
+
+    expect(values.processingQueuedAt).toBeInstanceOf(Date)
+    const stamp = values.processingQueuedAt as Date
+    expect(stamp.getTime()).toBeGreaterThanOrEqual(before)
+    expect(stamp.getTime()).toBeLessThanOrEqual(after)
+    expect(values.processingStartedAt).toBeNull()
   })
 })

@@ -676,6 +676,37 @@ async function resolveDocumentProcessingBillingContext(
 }
 
 /**
+ * Records that indexing has just been queued for these documents.
+ *
+ * Every dispatch funnels through {@link processDocumentsWithQueue}, so stamping
+ * here is what makes `processingQueuedAt` mean "queued for the attempt that is
+ * live right now" for every caller — new uploads, connector inserts, connector
+ * content updates, the connector recovery sweep, the user retry, and the
+ * outbox handler alike. Recovery sweeps age a queued document from this column
+ * (`isStuckDocumentSweepEligible`), and a caller that left a previous
+ * dispatch's value in place would be aged from a stamp that belongs to a run
+ * which has already ended — reclaimed inside its grace period, racing the run
+ * that is actually queued.
+ *
+ * `processingStartedAt` is cleared in the same write: a document waiting in the
+ * queue has not started, and a leftover value from a prior run would otherwise
+ * be reported as this attempt's start time.
+ *
+ * Guarded on `pending` so it can never disturb a document a worker has already
+ * claimed — `processDocumentAsync` uses `processingStartedAt` as a
+ * compare-and-set token, and overwriting it under a live run would strand that
+ * run's completion writes. If the worker wins the race, this update matches no
+ * rows and the worker's own timestamps stand, which is the correct outcome:
+ * queue wait no longer matters once processing has begun.
+ */
+async function markDocumentsQueued(documentIds: string[], queuedAt: Date): Promise<void> {
+  await db
+    .update(document)
+    .set({ processingQueuedAt: queuedAt, processingStartedAt: null })
+    .where(and(inArray(document.id, documentIds), eq(document.processingStatus, 'pending')))
+}
+
+/**
  * Dispatches document processing jobs via Trigger.dev's `batchTrigger` when
  * available, or in-process otherwise. Throws only when every dispatch fails;
  * partial failures are logged and recovered by the next sync's stuck-doc pass.
@@ -695,6 +726,11 @@ export async function processDocumentsWithQueue(
   )
   const jobPayloads = createdDocuments.map((doc) =>
     buildJobPayload(doc, knowledgeBaseId, processingOptions, requestId, billingContext)
+  )
+
+  await markDocumentsQueued(
+    createdDocuments.map((doc) => doc.documentId),
+    new Date()
   )
 
   const useTrigger = isTriggerAvailable()
