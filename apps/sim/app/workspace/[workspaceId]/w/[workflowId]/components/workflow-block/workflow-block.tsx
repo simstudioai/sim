@@ -500,6 +500,12 @@ const SubBlockRow = memo(function SubBlockRow({
     if (!subBlock?.id?.startsWith('webhookUrlDisplay') || !blockId) {
       return null
     }
+    /* Deliberately unguarded. `getBaseUrl` throws when no application base URL is
+       configured, and that is the right outcome here: this value gets copied into
+       a third-party provider, so a guessed origin would hand the user a URL that
+       provider accepts and then never delivers to, and a blank row explains
+       nothing. The error boundary reports what it caught, so the throw names its
+       own cause. */
     const baseUrl = getBaseUrl()
     const triggerPath = allSubBlockValues?.triggerPath?.value as string | undefined
     return triggerPath

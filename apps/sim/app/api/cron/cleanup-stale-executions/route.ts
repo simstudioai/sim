@@ -7,7 +7,7 @@ import {
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { and, eq, exists, gt, inArray, isNull, lt, or, sql } from 'drizzle-orm'
+import { and, eq, exists, gt, inArray, isNull, lt, ne, or, sql } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
 import { type NextRequest, NextResponse } from 'next/server'
 import { verifyCronAuth } from '@/lib/auth/internal'
@@ -17,6 +17,7 @@ import {
   JOB_STATUS,
   MAX_JOB_DURATION_SECONDS,
   MIN_JOB_DURATION_SECONDS,
+  TERMINAL_JOB_STATUSES,
 } from '@/lib/core/async-jobs'
 import {
   getExecutionReservationTtlMs,
@@ -26,7 +27,17 @@ import {
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import type { DbTransaction } from '@/lib/db/types'
 import { elapsedDurationMsSql } from '@/lib/logs/execution/duration'
+import {
+  STALE_SWEEPABLE_EXECUTION_STATUSES,
+  type StaleSweepableExecutionStatus,
+} from '@/lib/logs/types'
 import { deleteFile } from '@/lib/uploads/core/storage-service'
+import {
+  carrierNotIrrecoverableSql,
+  carrierReconciledSql,
+  SCHEDULE_CARRIER_IRRECOVERABLE_RETENTION_HOURS,
+} from '@/lib/workflows/schedules/carrier-metadata'
+import { SCHEDULE_EXECUTION_QUEUE_NAME } from '@/lib/workflows/schedules/execution-limits'
 
 const logger = createLogger('CleanupStaleExecutions')
 
@@ -140,79 +151,109 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     let currentWorkflowBatchSize = 0
 
     try {
-      const staleExecutionPredicate = and(
-        eq(workflowExecutionLogs.status, 'running'),
-        or(
-          lt(workflowExecutionLogs.executionDeadlineAt, staleDeadlineThreshold),
-          and(
-            isNull(workflowExecutionLogs.executionDeadlineAt),
-            lt(workflowExecutionLogs.startedAt, staleThreshold)
-          )
-        )
-      )
+      /**
+       * `running` is swept on its execution deadline plus the cleanup grace, or
+       * on the generic stale window when it has no deadline.
+       *
+       * `redacting` gets the generic window only. That status is set *after* the
+       * run finished, while a live worker masks the payload, so the execution
+       * deadline is already in the past by the time redaction starts — the
+       * deadline rule would fail a masking pass that is merely slow, and
+       * schedule recovery would read that as a failed occurrence even though
+       * the worker is about to persist `completed`. A redaction that genuinely
+       * crashed still clears within the generic window.
+       */
+      const staleExecutionTimePredicate = (status: StaleSweepableExecutionStatus) =>
+        status === 'redacting'
+          ? lt(workflowExecutionLogs.startedAt, staleThreshold)
+          : or(
+              lt(workflowExecutionLogs.executionDeadlineAt, staleDeadlineThreshold),
+              and(
+                isNull(workflowExecutionLogs.executionDeadlineAt),
+                lt(workflowExecutionLogs.startedAt, staleThreshold)
+              )
+            )
       const cleanupTimestamp = sql.param(now, workflowExecutionLogs.startedAt)
       const staleDurationMinutes = sql<number>`ROUND(
         EXTRACT(EPOCH FROM (${cleanupTimestamp} - ${workflowExecutionLogs.startedAt})) / 60
       )::integer`
       const totalDurationMs = elapsedDurationMsSql(now)
+      const staleDurationError = sql`${'Execution terminated: worker timeout or crash after '}::text
+        || ${staleDurationMinutes}::text
+        || ' minutes'`
+      /**
+       * A `redacting` row is never swept by the deadline rule, so the deadline
+       * message cannot apply to it.
+       */
+      const staleExecutionError = (status: StaleSweepableExecutionStatus) =>
+        status === 'redacting'
+          ? staleDurationError
+          : sql`CASE
+              WHEN ${workflowExecutionLogs.executionDeadlineAt} IS NOT NULL
+                THEN ${EXECUTION_DEADLINE_ERROR}::text
+              ELSE ${staleDurationError}
+            END`
+      /**
+       * Swept one status at a time so each pass stays on its own partial index;
+       * `status IN (...)` would match neither. The row budget is shared across
+       * both passes so the per-run cap keeps meaning what its name says.
+       */
       let workflowRowsConsidered = 0
-      while (workflowRowsConsidered < WORKFLOW_EXECUTION_MAX_ROWS_PER_RUN) {
-        const limit = Math.min(
-          WORKFLOW_EXECUTION_MUTATION_BATCH_SIZE,
-          WORKFLOW_EXECUTION_MAX_ROWS_PER_RUN - workflowRowsConsidered
+      for (const executionStatus of STALE_SWEEPABLE_EXECUTION_STATUSES) {
+        const staleExecutionPredicate = and(
+          eq(workflowExecutionLogs.status, executionStatus),
+          staleExecutionTimePredicate(executionStatus)
         )
-        currentWorkflowBatchSize = 0
-        const { candidates, updatedExecutions } = await db.transaction(async (tx) => {
-          const candidates = await tx
-            .select({ id: workflowExecutionLogs.id })
-            .from(workflowExecutionLogs)
-            .where(staleExecutionPredicate)
-            .limit(limit)
-            .for('update', { skipLocked: true })
-          currentWorkflowBatchSize = candidates.length
-          if (candidates.length === 0) return { candidates, updatedExecutions: [] }
+        while (workflowRowsConsidered < WORKFLOW_EXECUTION_MAX_ROWS_PER_RUN) {
+          const limit = Math.min(
+            WORKFLOW_EXECUTION_MUTATION_BATCH_SIZE,
+            WORKFLOW_EXECUTION_MAX_ROWS_PER_RUN - workflowRowsConsidered
+          )
+          currentWorkflowBatchSize = 0
+          const { candidates, updatedExecutions } = await db.transaction(async (tx) => {
+            const candidates = await tx
+              .select({ id: workflowExecutionLogs.id })
+              .from(workflowExecutionLogs)
+              .where(staleExecutionPredicate)
+              .limit(limit)
+              .for('update', { skipLocked: true })
+            currentWorkflowBatchSize = candidates.length
+            if (candidates.length === 0) return { candidates, updatedExecutions: [] }
 
-          const updatedExecutions = await tx
-            .update(workflowExecutionLogs)
-            .set({
-              status: 'failed',
-              endedAt: now,
-              executionDeadlineAt: null,
-              totalDurationMs,
-              executionData: sql`jsonb_set(
-                COALESCE(execution_data, '{}'::jsonb),
-                ARRAY['error'],
-                to_jsonb(
-                  CASE
-                    WHEN ${workflowExecutionLogs.executionDeadlineAt} IS NOT NULL
-                      THEN ${EXECUTION_DEADLINE_ERROR}::text
-                    ELSE ${'Execution terminated: worker timeout or crash after '}::text
-                      || ${staleDurationMinutes}::text
-                      || ' minutes'
-                  END
-                )
-              )`,
-            })
-            .where(
-              and(
-                staleExecutionPredicate,
-                inArray(
-                  workflowExecutionLogs.id,
-                  candidates.map(({ id }) => id)
+            const updatedExecutions = await tx
+              .update(workflowExecutionLogs)
+              .set({
+                status: 'failed',
+                endedAt: now,
+                executionDeadlineAt: null,
+                totalDurationMs,
+                executionData: sql`jsonb_set(
+                  COALESCE(execution_data, '{}'::jsonb),
+                  ARRAY['error'],
+                  to_jsonb(${staleExecutionError(executionStatus)})
+                )`,
+              })
+              .where(
+                and(
+                  staleExecutionPredicate,
+                  inArray(
+                    workflowExecutionLogs.id,
+                    candidates.map(({ id }) => id)
+                  )
                 )
               )
-            )
-            .returning({ id: workflowExecutionLogs.id })
+              .returning({ id: workflowExecutionLogs.id })
 
-          return { candidates, updatedExecutions }
-        })
-        currentWorkflowBatchSize = 0
-        staleExecutionsFound += candidates.length
-        if (candidates.length === 0) break
+            return { candidates, updatedExecutions }
+          })
+          currentWorkflowBatchSize = 0
+          staleExecutionsFound += candidates.length
+          if (candidates.length === 0) break
 
-        cleaned += updatedExecutions.length
-        workflowRowsConsidered += candidates.length
-        if (candidates.length < limit) break
+          cleaned += updatedExecutions.length
+          workflowRowsConsidered += candidates.length
+          if (candidates.length < limit) break
+        }
       }
 
       if (workflowRowsConsidered >= WORKFLOW_EXECUTION_MAX_ROWS_PER_RUN) {
@@ -253,6 +294,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       END`
       const staleProcessingPredicate = and(
         eq(asyncJobs.status, JOB_STATUS.PROCESSING),
+        ne(asyncJobs.type, SCHEDULE_EXECUTION_QUEUE_NAME),
         staleProcessingDurationPredicate
       )
       const staleProcessingResult = await runBatchedMutation({
@@ -395,6 +437,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     try {
       const stalePendingPredicate = and(
         eq(asyncJobs.status, JOB_STATUS.PENDING),
+        ne(asyncJobs.type, SCHEDULE_EXECUTION_QUEUE_NAME),
         lt(asyncJobs.createdAt, stalePendingThreshold)
       )
       const stalePendingResult = await runBatchedMutation({
@@ -436,11 +479,29 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     }
 
     const retentionThreshold = new Date(Date.now() - JOB_RETENTION_HOURS * 60 * 60 * 1000)
+    const irrecoverableCarrierRetentionThreshold = new Date(
+      Date.now() - SCHEDULE_CARRIER_IRRECOVERABLE_RETENTION_HOURS * 60 * 60 * 1000
+    )
     let asyncJobsDeleted = 0
 
     try {
       const retainedJobPredicate = and(
-        inArray(asyncJobs.status, [JOB_STATUS.COMPLETED, JOB_STATUS.FAILED, JOB_STATUS.CANCELLED]),
+        inArray(asyncJobs.status, TERMINAL_JOB_STATUSES),
+        or(
+          ne(asyncJobs.type, SCHEDULE_EXECUTION_QUEUE_NAME),
+          /**
+           * Schedule recovery owns a carrier until it stamps the reconciled
+           * marker, so retention waits for it rather than deleting an
+           * occurrence that has not been accounted for yet.
+           */
+          and(
+            carrierReconciledSql(asyncJobs.metadata),
+            or(
+              carrierNotIrrecoverableSql(asyncJobs.metadata),
+              lt(asyncJobs.completedAt, irrecoverableCarrierRetentionThreshold)
+            )
+          )
+        ),
         lt(asyncJobs.completedAt, retentionThreshold)
       )
       const retainedJobResult = await runBatchedMutation({

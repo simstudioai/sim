@@ -666,9 +666,17 @@ const predicateGroupsJsonSchema = (selfRef: string) =>
  * false and the negation true — the same include-nulls behaviour as every other
  * negation. Pinned by `__tests__/sql.test.ts`.
  */
+const PREDICATE_LIMITS_DESCRIPTION = `At most ${MAX_PREDICATE_GROUP_SIZE} members per group, ${MAX_PREDICATE_DEPTH} levels of nesting, and ${MAX_PREDICATE_NODES} nodes in total.`
+const PREDICATE_NEGATION_DESCRIPTION =
+  'The negating operators include nulls: `ne`, `nin`, `ncontains`, `nlike`, and `nilike` match rows whose column is null or absent, so "not X" is not the complement of "X" over a nullable column. That holds for every column type, multi-select included. To exclude nulls, `all`-combine the negation with `isNotEmpty` (multi-select) or `isNotNull`.'
 const PREDICATE_TREE_DESCRIPTION = [
-  `Recursive predicate tree. Each group node is exactly one non-empty \`all\` or \`any\` array whose members are further groups or \`{ field, op, value }\` conditions; the root must be a group, not a bare condition. At most ${MAX_PREDICATE_GROUP_SIZE} members per group, ${MAX_PREDICATE_DEPTH} levels of nesting, and ${MAX_PREDICATE_NODES} nodes in total.`,
-  'The negating operators include nulls: `ne`, `nin`, `ncontains`, `nlike`, and `nilike` match rows whose column is null or absent, so "not X" is not the complement of "X" over a nullable column. That holds for every column type, multi-select included. To exclude nulls, `all`-combine the negation with `isNotEmpty` (multi-select) or `isNotNull`.',
+  `Recursive predicate tree. Each group node is exactly one non-empty \`all\` or \`any\` array whose members are further groups or \`{ field, op, value }\` conditions; the root must be a group, not a bare condition. ${PREDICATE_LIMITS_DESCRIPTION}`,
+  PREDICATE_NEGATION_DESCRIPTION,
+  PREDICATE_OPERATOR_GRAMMAR,
+].join(' ')
+const PREDICATE_INPUT_DESCRIPTION = [
+  `A single \`{ field, op, value }\` condition or a recursive \`all\`/\`any\` group; either form is normalized to a grouped predicate after validation. ${PREDICATE_LIMITS_DESCRIPTION}`,
+  PREDICATE_NEGATION_DESCRIPTION,
   PREDICATE_OPERATOR_GRAMMAR,
 ].join(' ')
 
@@ -700,8 +708,7 @@ export const predicateInputSchema = predicateBoundarySchema
   .meta({
     id: 'TablePredicateInput',
     title: 'Table predicate input',
-    description:
-      'A single `{ field, op, value }` condition or a group, normalized to a grouped predicate after validation. Same grammar and limits as `TablePredicate`.',
+    description: PREDICATE_INPUT_DESCRIPTION,
     oneOf: [
       ...predicateGroupsJsonSchema('#/$defs/TablePredicateInput'),
       PREDICATE_LEAF_JSON_SCHEMA,
@@ -2189,7 +2196,7 @@ export const updateTableViewBodySchema = z
       .min(1, 'Workspace ID is required')
       .describe('Workspace that owns the table.'),
     name: viewNameSchema.optional().describe('Replacement saved-view display name.'),
-    /** Full replace. Use for an explicit Save, where dropping a removed filter is the point. */
+    /** Full replacement for callers that own the complete configuration snapshot. */
     config: tableViewConfigSchema
       .optional()
       .describe('Complete replacement saved-view configuration.'),

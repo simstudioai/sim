@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   patchOutboxEventPayload: vi.fn(),
   enqueueOutboxEvent: vi.fn(),
   enqueueOutboxEvents: vi.fn(),
+  getEnterpriseIssuanceSeatRequirement: vi.fn(),
   reapplyPaidOrgJoinBillingForExistingMemberTx: vi.fn(),
 }))
 
@@ -35,6 +36,10 @@ vi.mock('@/components/emails', () => ({
 vi.mock('@/lib/billing/organizations/membership', () => ({
   acquireOrganizationMutationLock: vi.fn(),
   reapplyPaidOrgJoinBillingForExistingMemberTx: mocks.reapplyPaidOrgJoinBillingForExistingMemberTx,
+}))
+
+vi.mock('@/lib/billing/enterprise-provisioning', () => ({
+  getEnterpriseIssuanceSeatRequirement: mocks.getEnterpriseIssuanceSeatRequirement,
 }))
 
 vi.mock('@/lib/billing/stripe-client', () => ({
@@ -76,7 +81,17 @@ import { handleManualEnterpriseSubscription } from '@/lib/billing/webhooks/enter
 const ENTERPRISE_PROVISION_EVENT_TYPE = 'stripe.provision-enterprise'
 
 function operationPayload(
-  options: { applied?: boolean; pausePaymentCollection?: boolean; workspaceIds?: string[] } = {}
+  options: {
+    applied?: boolean
+    pausePaymentCollection?: boolean
+    workspaceIds?: string[]
+    invitations?: Array<{
+      email: string
+      role: 'admin' | 'member'
+      permission: 'admin' | 'write' | 'read'
+    }>
+    logoutOwnerOnApply?: boolean
+  } = {}
 ) {
   return {
     version: 1 as const,
@@ -91,6 +106,8 @@ function operationPayload(
       seats: 12,
       concurrencyLimit: 1250,
       workspaceIds: options.workspaceIds ?? [],
+      invitations: options.invitations ?? [],
+      logoutOwnerOnApply: options.logoutOwnerOnApply ?? false,
       pausePaymentCollection: options.pausePaymentCollection ?? false,
     },
     retryRevision: 0,
@@ -111,12 +128,13 @@ function stripeSubscription(options: {
   paused?: boolean
   configOperationId?: string
   seats?: number
+  status?: Stripe.Subscription.Status
 }): Stripe.Subscription {
   const seats = options.seats ?? 12
   return {
     id: 'sub_1',
     customer: 'cus_1',
-    status: 'active',
+    status: options.status ?? 'active',
     collection_method: 'send_invoice',
     days_until_due: 30,
     pause_collection: options.paused ? { behavior: 'keep_as_draft', resumes_at: null } : null,
@@ -195,6 +213,7 @@ describe('Enterprise webhook issuance correlation', () => {
     mocks.reapplyPaidOrgJoinBillingForExistingMemberTx.mockResolvedValue(undefined)
     mocks.enqueueOutboxEvent.mockResolvedValue('move-event')
     mocks.enqueueOutboxEvents.mockResolvedValue(['move-event'])
+    mocks.getEnterpriseIssuanceSeatRequirement.mockResolvedValue({ requiredSeats: 1 })
   })
 
   afterAll(() => {
@@ -273,6 +292,89 @@ describe('Enterprise webhook issuance correlation', () => {
       'enterprise.move-workspace',
       [expect.objectContaining({ workspaceId: 'workspace-1' })]
     )
+  })
+
+  it('queues creation invitations and revokes the owner session only after verified apply', async () => {
+    const subscription = stripeSubscription({ operationId: 'operation-1', paused: false })
+    mocks.subscriptionsRetrieve.mockResolvedValue(subscription)
+    queueSuccessfulExistingSubscriptionReconciliation({
+      operation: operationPayload({
+        workspaceIds: ['workspace-1'],
+        invitations: [{ email: 'new@example.com', role: 'member', permission: 'write' }],
+        logoutOwnerOnApply: true,
+      }),
+    })
+
+    await expect(
+      handleManualEnterpriseSubscription(eventFor(subscription))
+    ).resolves.toBeUndefined()
+
+    expect(mocks.enqueueOutboxEvents).toHaveBeenCalledWith(
+      expect.anything(),
+      'enterprise.invite-people',
+      [
+        expect.objectContaining({
+          email: 'new@example.com',
+          organizationId: 'org-1',
+          sequence: 0,
+        }),
+      ]
+    )
+    expect(dbChainMockFns.delete).toHaveBeenCalledWith(schemaMock.session)
+    expect(dbChainMockFns.set.mock.calls).toContainEqual([
+      expect.objectContaining({ securityPolicyVersion: expect.anything() }),
+    ])
+  })
+
+  it('does not apply issuance children or logout until Stripe reports an entitled status', async () => {
+    const subscription = stripeSubscription({
+      operationId: 'operation-1',
+      paused: false,
+      status: 'incomplete',
+    })
+    mocks.subscriptionsRetrieve.mockResolvedValue(subscription)
+    mocks.getEnterpriseIssuanceSeatRequirement.mockResolvedValue({ requiredSeats: 99 })
+    queueSuccessfulExistingSubscriptionReconciliation({
+      operation: operationPayload({
+        workspaceIds: ['workspace-1'],
+        invitations: [{ email: 'new@example.com', role: 'member', permission: 'write' }],
+        logoutOwnerOnApply: true,
+      }),
+    })
+
+    await expect(
+      handleManualEnterpriseSubscription(eventFor(subscription))
+    ).resolves.toBeUndefined()
+
+    expect(mocks.enqueueOutboxEvents).not.toHaveBeenCalled()
+    expect(mocks.enqueueOutboxEvent).not.toHaveBeenCalled()
+    expect(mocks.patchOutboxEventPayload).not.toHaveBeenCalled()
+    expect(dbChainMockFns.delete).not.toHaveBeenCalled()
+    expect(dbChainMockFns.set.mock.calls).not.toContainEqual([
+      expect.objectContaining({ securityPolicyVersion: expect.anything() }),
+    ])
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'incomplete' })
+    )
+  })
+
+  it('refuses an entitled issuance when live reservations outgrow its Stripe seat capacity', async () => {
+    const subscription = stripeSubscription({ operationId: 'operation-1', seats: 12 })
+    mocks.subscriptionsRetrieve.mockResolvedValue(subscription)
+    mocks.getEnterpriseIssuanceSeatRequirement.mockResolvedValue({ requiredSeats: 13 })
+    queueSuccessfulExistingSubscriptionReconciliation({
+      operation: operationPayload({
+        workspaceIds: ['workspace-1'],
+        invitations: [{ email: 'new@example.com', role: 'member', permission: 'write' }],
+      }),
+    })
+
+    await expect(handleManualEnterpriseSubscription(eventFor(subscription))).rejects.toThrow(
+      'below 13 occupied or reserved seats'
+    )
+
+    expect(mocks.enqueueOutboxEvents).not.toHaveBeenCalled()
+    expect(mocks.patchOutboxEventPayload).not.toHaveBeenCalled()
   })
 
   it('allows later Stripe metadata edits after the issuance was already applied', async () => {

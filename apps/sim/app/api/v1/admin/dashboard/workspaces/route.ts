@@ -16,11 +16,12 @@ export const GET = withRouteHandler(
     if (!parsed.success) return parsed.response
 
     try {
-      const data = await searchWorkspaceMoveCandidates(
+      const result = await searchWorkspaceMoveCandidates(
         parsed.data.query.search,
-        parsed.data.query.limit
+        parsed.data.query.limit,
+        parsed.data.query.offset
       )
-      return NextResponse.json({ data })
+      return NextResponse.json(result)
     } catch (error) {
       logger.error('Failed to search workspace move candidates', {
         error: getErrorMessage(error),

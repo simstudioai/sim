@@ -156,7 +156,7 @@ describe('stream session contract parser', () => {
       type: 'tool' as const,
       payload: {
         toolCallId: 'preview-1',
-        toolName: 'workspace_file' as const,
+        toolName: 'prepare_file_edit' as const,
         previewPhase: 'file_preview_content' as const,
         content: 'draft body',
         contentMode: 'snapshot' as const,

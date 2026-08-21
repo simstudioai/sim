@@ -33,6 +33,7 @@ import {
   loadWorkflowFromNormalizedTables,
   saveWorkflowToNormalizedTables,
 } from '@/lib/workflows/persistence/utils'
+import { sanitizeForCopilot } from '@/lib/workflows/sanitization/json-sanitizer'
 import { validateWorkflowState } from '@/lib/workflows/sanitization/validation'
 import { withBlockVisibility } from '@/blocks/visibility/server-context'
 import { getUserPermissionConfig } from '@/ee/access-control/utils/permission-check'
@@ -408,7 +409,7 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, unknown>
       success: true,
       workflowId,
       workflowName: workflowName ?? 'Workflow',
-      workflowState: { ...finalWorkflowState, blocks: layoutedBlocks },
+      workflowState: sanitizeForCopilot(workflowStateForDb),
       workflowLint,
       ...(workflowLintMessage && { workflowLintMessage }),
       ...(inputErrors && {

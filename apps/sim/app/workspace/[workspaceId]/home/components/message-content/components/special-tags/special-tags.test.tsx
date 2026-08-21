@@ -1413,3 +1413,48 @@ describe('parseSpecialTags sim_key placeholder', () => {
     }
   })
 })
+
+describe('recoverTrailingBareOptions', () => {
+  const bareOptions =
+    '{"1": {"title": "Fix the tracker", "description": "debug"}, "2": {"title": "Inspect the miss", "description": "look"}}'
+
+  it('renders a trailing bare-JSON options payload as an options card', () => {
+    const { segments } = parseSpecialTags(`Here they are.\n${bareOptions}`, false)
+    const last = segments[segments.length - 1]
+    expect(last.type).toBe('options')
+    if (last.type === 'options') {
+      expect(last.data['1']?.title).toBe('Fix the tracker')
+    }
+    expect(segments[0]).toEqual({ type: 'text', content: 'Here they are.' })
+  })
+
+  it('never recovers mid-stream — a partial JSON tail must not flicker into a card', () => {
+    const { segments } = parseSpecialTags(`Here they are.\n${bareOptions}`, true)
+    expect(segments.every((segment) => segment.type === 'text')).toBe(true)
+  })
+
+  it('leaves ordinary JSON prose alone', () => {
+    const { segments } = parseSpecialTags('The config is {"retries": 3, "mode": "fast"}', false)
+    expect(segments.every((segment) => segment.type === 'text')).toBe(true)
+  })
+
+  it('does not double-render when a real options tag already parsed', () => {
+    const { segments } = parseSpecialTags(`Pick one <options>${bareOptions}</options>`, false)
+    expect(segments.filter((segment) => segment.type === 'options')).toHaveLength(1)
+  })
+
+  it('recovers an options payload wrapped in the singular <option> near-miss tag', () => {
+    const body =
+      '{"1": {"title": "Demo wait — sleep until an agent finishes", "description": "wait_agents demo"}, "2": {"title": "Demo steer — redirect a running agent mid-task", "description": "steer_agent demo"}, "3": {"title": "Demo stop — interrupt a running agent", "description": "interrupt_agent demo"}}'
+    const { segments } = parseSpecialTags(
+      `Next up is usually **wait**, **steer**, or **stop**.\n\n<option>${body}</option>`,
+      false
+    )
+    const last = segments[segments.length - 1]
+    expect(last.type).toBe('options')
+    if (last.type === 'options') {
+      expect(Object.keys(last.data)).toEqual(['1', '2', '3'])
+      expect(last.data['1']?.title).toBe('Demo wait — sleep until an agent finishes')
+    }
+  })
+})

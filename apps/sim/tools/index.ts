@@ -72,7 +72,7 @@ import {
   type ResolvedSecretTraceRegistry,
 } from '@/executor/utils/resolved-secret-trace-registry'
 import type { ErrorInfo } from '@/tools/error-extractors'
-import { extractErrorMessage } from '@/tools/error-extractors'
+import { extractErrorMessage, redactErrorData } from '@/tools/error-extractors'
 import { HostedKeyRateLimitedError, HostedKeyUnavailableError } from '@/tools/errors'
 import {
   getOwnEnumerableDataEntries,
@@ -352,12 +352,26 @@ async function resolveCopilotEnvReferences(
     return
   }
 
-  const pending: Array<{ paramId: string; value: string }> = []
+  // Models improvise reference syntax: after `{{NAME}}`, the bare variable
+  // name is the common fallback — it previously went upstream as the literal
+  // credential and failed with an undiagnosable 401. `{{NAME}}` is the one
+  // explicit reference form, so a missing variable is a hard error. A bare
+  // name is a reference only when a variable by that exact name exists
+  // (`soft`): plenty of real API keys match the identifier pattern, and
+  // those must pass through verbatim. `$NAME` is deliberately NOT a
+  // reference — real credentials can start with `$`, and a secret must never
+  // be reinterpreted as a lookup.
+  const pending: Array<{ paramId: string; value: string; soft?: boolean }> = []
   for (const [paramId, paramDef] of Object.entries(tool.params || {})) {
     if (paramDef?.visibility !== 'user-only') continue
     const value = params[paramId]
-    if (typeof value === 'string' && value.startsWith('{{') && value.endsWith('}}')) {
+    if (typeof value !== 'string') continue
+    if (value.startsWith('{{') && value.endsWith('}}')) {
       pending.push({ paramId, value })
+      continue
+    }
+    if (/^[A-Za-z_][A-Za-z0-9_]*$/.test(value)) {
+      pending.push({ paramId, value: `{{${value}}}`, soft: true })
     }
   }
 
@@ -376,7 +390,7 @@ async function resolveCopilotEnvReferences(
     const { getEffectiveDecryptedEnv } = await import('@/lib/environment/utils')
     const envVars = await getEffectiveDecryptedEnv(scope.userId, scope.workspaceId)
 
-    for (const { paramId, value } of pending) {
+    for (const { paramId, value, soft } of pending) {
       const missingKeys: string[] = []
       const resolved = resolveEnvVarReferences(value, envVars, {
         allowEmbedded: false,
@@ -388,6 +402,9 @@ async function resolveCopilotEnvReferences(
         },
       })
       if (missingKeys.length > 0) {
+        // A bare name that matches no variable is treated as the literal
+        // credential it probably is; only explicit reference forms error.
+        if (soft) continue
         const scopeHint = scope.workspaceId
           ? ''
           : ' (no workspace context — only personal variables are available here)'
@@ -1149,7 +1166,7 @@ function createTransformedErrorFromErrorInfo(errorInfo?: ErrorInfo, extractorId?
   Object.assign(transformed, {
     status: errorInfo?.status,
     statusText: errorInfo?.statusText,
-    data: errorInfo?.data,
+    data: redactErrorData(errorInfo, extractorId),
   })
   return transformed
 }

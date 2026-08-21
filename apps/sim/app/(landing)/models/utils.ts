@@ -589,9 +589,6 @@ export const ALL_CATALOG_MODELS = MODEL_PROVIDERS_WITH_CATALOGS.flatMap(
 )
 export const TOTAL_MODEL_PROVIDERS = MODEL_CATALOG_PROVIDERS.length
 export const TOTAL_MODELS = ALL_CATALOG_MODELS.length
-export const MAX_CONTEXT_WINDOW = Math.max(
-  ...ALL_CATALOG_MODELS.map((model) => model.contextWindow ?? 0)
-)
 export const TOP_MODEL_PROVIDERS = MODEL_PROVIDERS_WITH_CATALOGS.slice(0, 8).map(
   (provider) => provider.name
 )

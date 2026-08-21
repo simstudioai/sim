@@ -513,6 +513,12 @@ export const workflowExecutionLogs = pgTable(
     runningExecutionDeadlineIdx: index('workflow_execution_logs_running_deadline_idx')
       .on(table.executionDeadlineAt)
       .where(sql`${table.status} = 'running' AND ${table.executionDeadlineAt} IS NOT NULL`),
+    redactingStartedAtIdx: index('workflow_execution_logs_redacting_started_at_idx')
+      .on(table.startedAt)
+      .where(sql`status = 'redacting'`),
+    redactingExecutionDeadlineIdx: index('workflow_execution_logs_redacting_deadline_idx')
+      .on(table.executionDeadlineAt)
+      .where(sql`${table.status} = 'redacting' AND ${table.executionDeadlineAt} IS NOT NULL`),
     completedEndedAtIdx: index('workflow_execution_logs_completed_ended_at_idx')
       .on(table.endedAt, table.workspaceId, table.executionId)
       .where(
@@ -804,6 +810,28 @@ export const workspaceBYOKKeys = pgTable(
   (table) => ({
     workspaceProviderIdx: index('workspace_byok_workspace_provider_idx').on(
       table.workspaceId,
+      table.providerId
+    ),
+  })
+)
+
+export const organizationBYOKKeys = pgTable(
+  'organization_byok_keys',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id, { onDelete: 'cascade' }),
+    providerId: text('provider_id').notNull(),
+    encryptedApiKey: text('encrypted_api_key').notNull(),
+    name: text('name'),
+    createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    organizationProviderIdx: index('organization_byok_organization_provider_idx').on(
+      table.organizationId,
       table.providerId
     ),
   })
@@ -2519,6 +2547,25 @@ export const document = pgTable(
 
     // Processing status
     processingStatus: text('processing_status').notNull().default('pending'), // 'pending', 'processing', 'completed', 'failed'
+    /**
+     * Dispatches spent on this document since its last successful pass.
+     *
+     * A bounded retry budget, not a dispatch generation. The stuck-document
+     * sweep re-dispatches a failing document every sync for the whole retry
+     * window, and each dispatch re-parses and re-embeds it — so a document that
+     * fails deterministically was billed once per sync indefinitely. Past the
+     * budget it becomes a dead letter: still visible and still user-retryable,
+     * but no longer swept. Reset to 0 whenever a pass completes.
+     */
+    processingAttempts: integer('processing_attempts').notNull().default(0),
+    /**
+     * When indexing was last dispatched to a worker, which is not when a worker
+     * picked it up — a document sits at `pending` in between. Recovery sweeps
+     * measure queue wait from here; `processingStartedAt` is written only once a
+     * worker actually starts. NULL means never dispatched, or dispatched before
+     * this column existed.
+     */
+    processingQueuedAt: timestamp('processing_queued_at'),
     processingStartedAt: timestamp('processing_started_at'),
     processingCompletedAt: timestamp('processing_completed_at'),
     processingError: text('processing_error'),
@@ -4262,6 +4309,11 @@ export const asyncJobs = pgTable(
     scheduleProcessingStartedAtIdx: index('async_jobs_schedule_processing_started_at_idx')
       .on(table.startedAt, table.id)
       .where(sql`${table.type} = 'schedule-execution' AND ${table.status} = 'processing'`),
+    scheduleUnreconciledTerminalIdx: index('async_jobs_schedule_unreconciled_terminal_idx')
+      .on(table.updatedAt, table.id)
+      .where(
+        sql`${table.type} = 'schedule-execution' AND ${table.status} IN ('completed', 'failed', 'cancelled') AND COALESCE(${table.metadata} ->> 'scheduleReconciled', 'false') <> 'true'`
+      ),
   })
 )
 
@@ -4288,6 +4340,31 @@ export const knowledgeConnector = pgTable(
     lastSyncDocCount: integer('last_sync_doc_count'),
     nextSyncAt: timestamp('next_sync_at'),
     consecutiveFailures: integer('consecutive_failures').notNull().default(0),
+    /**
+     * Identifies the sync run that currently holds this connector's lock.
+     *
+     * `status = 'syncing'` only says *a* run holds it. After the scheduler
+     * reclaims a stale lock and dispatches a replacement, the original run would
+     * still see `syncing` and overwrite the replacement's state. Terminal writes
+     * match this token so a run can prove the lock is still *its own*.
+     */
+    syncLockToken: text('sync_lock_token'),
+    /**
+     * When the run holding this connector's lock last proved it was alive.
+     *
+     * Split off `updated_at`, which the stale-lock reaper used to read as a
+     * lease. `updated_at` is the row's modification time, so every unrelated
+     * write — a config edit, a status change — renewed the lease of a wedged
+     * run and pushed its recovery out by another full TTL. Only lock
+     * acquisition and the heartbeat write this column; both terminal helpers
+     * clear it alongside `sync_lock_token`.
+     *
+     * NULL on a row locked before this column existed, and on any future writer
+     * that forgets it, so every reader compares `COALESCE(lease, updated_at)`
+     * rather than the lease alone — a `lease <= cutoff` test is NULL-false and
+     * would make such a row permanently unreclaimable.
+     */
+    syncLockLeaseAt: timestamp('sync_lock_lease_at'),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
     archivedAt: timestamp('archived_at'),
@@ -4327,6 +4404,20 @@ export const knowledgeConnectorSyncLog = pgTable(
   },
   (table) => ({
     connectorIdIdx: index('kcsl_connector_id_idx').on(table.connectorId),
+    /**
+     * Serves the scheduler's five-minute sweep for orphaned `started` rows.
+     *
+     * This table is append-only and never pruned, and `connector_id` does not
+     * help a scan that filters on status and age, so the sweep was a sequential
+     * scan of all sync history on every tick. The predicate is partial rather
+     * than a composite `(status, started_at)`: `started` rows are a vanishing
+     * fraction of the table and the only ones the sweep ever reads, so indexing
+     * closed history buys nothing and costs write amplification on every
+     * completion.
+     */
+    startedPartialIdx: index('kcsl_started_at_partial_idx')
+      .on(table.startedAt)
+      .where(sql`${table.status} = 'started'`),
   })
 )
 
@@ -4490,10 +4581,10 @@ export const userTableRowSecretProvenance = pgTable(
 )
 
 /**
- * Saved presets for a user-defined table — a named filter + sort + column layout.
+ * Saved views for a user-defined table — a named filter + sort + column layout.
  * Workspace-shared: anyone who can read the table sees every view, and `write` is
- * required to create, update, or delete one. The absence of a view is the built-in
- * "All" state, so a table is always reachable unfiltered without a seeded row.
+ * required to create, update, or delete one. New tables are seeded with one default
+ * view; legacy tables without one temporarily retain the built-in "All" fallback.
  *
  * A dedicated table rather than a key on `user_table_definitions.metadata`: that
  * column is written read-modify-write with a shallow merge, so a stale snapshot

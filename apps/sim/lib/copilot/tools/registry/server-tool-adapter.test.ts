@@ -24,7 +24,7 @@ describe('server tool adapter authority boundary', () => {
   })
 
   it('overwrites model-supplied workspace scope and forwards trusted delegation context', async () => {
-    const handler = createServerToolHandler('workspace_file')
+    const handler = createServerToolHandler('prepare_file_edit')
 
     await handler(
       { workspaceId: 'attacker-workspace', operation: 'rename' },
@@ -39,7 +39,7 @@ describe('server tool adapter authority boundary', () => {
     )
 
     expect(mocks.routeExecution).toHaveBeenCalledWith(
-      'workspace_file',
+      'prepare_file_edit',
       expect.objectContaining({ workspaceId: 'workspace-1', operation: 'rename' }),
       expect.objectContaining({
         userId: 'user-1',
@@ -55,7 +55,7 @@ describe('server tool adapter authority boundary', () => {
     const storageError = new Error('update workspace_files set secret_column = value')
     mocks.routeExecution.mockRejectedValue(storageError)
 
-    const result = await createServerToolHandler('workspace_file')(
+    const result = await createServerToolHandler('prepare_file_edit')(
       {},
       {
         userId: 'user-1',
@@ -68,13 +68,13 @@ describe('server tool adapter authority boundary', () => {
 
     expect(result).toEqual({
       success: false,
-      error: `[workspace_file] ${TOOL_RESULT_UNAVAILABLE_ERROR}`,
+      error: `[prepare_file_edit] ${TOOL_RESULT_UNAVAILABLE_ERROR}`,
     })
     expect(result.error).not.toContain('workspace_files')
     expect(mocks.loggerError).toHaveBeenCalledWith(
       'Server tool execution failed',
       {
-        toolId: 'workspace_file',
+        toolId: 'prepare_file_edit',
         abortSignalAborted: false,
       },
       storageError

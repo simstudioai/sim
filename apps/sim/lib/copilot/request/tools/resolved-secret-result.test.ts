@@ -2,10 +2,12 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
-import { FunctionExecute, RunCode } from '@/lib/copilot/generated/tool-catalog-v1'
+import { RunCode, RunFunction } from '@/lib/copilot/generated/tool-catalog-v1'
 import {
   projectToolResultForCopilot,
+  READ_TOOL_RESULT_UNAVAILABLE_ERROR,
   TOOL_RESULT_UNAVAILABLE_ERROR,
+  toolResultUnavailableError,
 } from '@/lib/copilot/request/tools/resolved-secret-result'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
@@ -20,7 +22,7 @@ function createRegistry(): ResolvedSecretTraceRegistry {
 }
 
 describe('projectToolResultForCopilot', () => {
-  it.each([FunctionExecute.id, RunCode.id])(
+  it.each([RunFunction.id, RunCode.id])(
     'projects active exact and embedded secrets for %s without mutating runtime output',
     (toolName) => {
       const registry = createRegistry()
@@ -429,5 +431,29 @@ describe('projectToolResultForCopilot', () => {
     expect(
       projectToolResultForCopilot({ success: true, output: 'possibly-secret' }, undefined)
     ).toEqual({ success: true })
+  })
+
+  it.each(['read', 'glob', 'grep'])(
+    'withholds a read-only %s failure without the mutation-retry warning',
+    (toolId) => {
+      const projected = projectToolResultForCopilot(
+        { success: false, error: 'anything' },
+        undefined,
+        toolId
+      )
+      expect(projected).toEqual({ success: false, error: READ_TOOL_RESULT_UNAVAILABLE_ERROR })
+      expect(projected.error).not.toContain('mutation')
+    }
+  )
+
+  it('keeps the mutation-retry warning for withheld mutating-tool failures', () => {
+    expect(
+      projectToolResultForCopilot(
+        { success: false, error: 'anything' },
+        undefined,
+        'apply_file_edit'
+      )
+    ).toEqual({ success: false, error: TOOL_RESULT_UNAVAILABLE_ERROR })
+    expect(toolResultUnavailableError(undefined)).toBe(TOOL_RESULT_UNAVAILABLE_ERROR)
   })
 })

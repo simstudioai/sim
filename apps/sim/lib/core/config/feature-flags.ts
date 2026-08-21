@@ -118,7 +118,8 @@ const FEATURE_FLAGS = {
   'tables-v2-api': {
     description:
       'Gate the internal predicate-grammar table query route (POST /api/table/[tableId]/query), ' +
-      'its only caller. When off, that route returns 404 as if it does not exist. Despite the ' +
+      'its only caller. When off, that route returns 403 naming the gate (post-authz, so the ' +
+      'masquerade 404 served nobody and broke the table_v2 block confusingly). Despite the ' +
       'name it does NOT gate any /api/v2/tables route — the public v2 tables surface is gated ' +
       'by v2-api alone. Gated by userId/orgId/admins via AppConfig; off-AppConfig falls back to ' +
       'TABLES_V2_API.',
@@ -136,11 +137,10 @@ const FEATURE_FLAGS = {
   'table-views': {
     description:
       'Saved table views (named filter/sort/column-visibility presets) plus the column show/hide ' +
-      'menu, in the table-detail options bar. UI-only gate: resolved in the table page (server) ' +
-      "and passed down, so the table falls back to today's Filter/Sort bar when off. The routes " +
-      'and the table_views table ship ungated — they are inert with no UI to call them, and a view ' +
-      'saved during a rollout must survive the flag being toggled back off. Embedded (mothership) ' +
-      'tables render without views regardless, since no server context resolves the flag there. ' +
+      'menu. UI-only gate: resolved server-side for table-detail and embedded tables, then passed ' +
+      "down so both surfaces fall back to today's Filter/Sort behavior when off. The routes and " +
+      'the table_views table ship ungated, and new or forked tables still seed their view data, so ' +
+      'a saved view survives the flag being toggled off and can be restored when it is re-enabled. ' +
       'Off-AppConfig falls back to TABLE_VIEWS.',
     fallback: 'TABLE_VIEWS',
   },

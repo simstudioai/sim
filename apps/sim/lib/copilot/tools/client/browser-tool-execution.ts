@@ -175,15 +175,45 @@ export function executeBrowserToolOnClient(
 ): void {
   if (!scopeId) {
     logger.error('Cannot execute browser tool without a chat scope', { toolCallId, toolName })
+    // Tell the waiter, or the turn hangs forever on a tool that never ran.
+    const message = 'This browser action could not run: no active browser session for this chat.'
+    void reportClientToolCompletion(toolCallId, ASYNC_TOOL_CONFIRMATION_STATUS.error, message, {
+      error: message,
+    }).catch((reportErr) => {
+      logger.error('Failed to report missing-scope browser tool error', {
+        toolCallId,
+        error: toError(reportErr).message,
+      })
+    })
     return
   }
   if (hasAlreadyExecuted(toolCallId)) {
+    // Same-page re-delivery: the original dispatch is in flight (or done) and
+    // owns the result. Reporting here would race it — the server claims each
+    // resume exactly once, so an error now would discard the genuine result.
     logger.info('Skipping already-executed browser tool (replay)', { toolCallId, toolName })
     return
   }
   const age = eventAgeMs(eventTs)
   if (age !== null && age > MAX_EVENT_AGE_MS) {
     logger.info('Skipping stale browser tool event', { toolCallId, toolName, age })
+    // Usually a replay of an action that already ran and resumed in a previous
+    // page lifetime — the server claims each resume exactly once, so this
+    // duplicate confirmation is simply discarded. When it is NOT a replay
+    // (the event was delivered late, e.g. a backgrounded tab with throttled
+    // timers), this error unblocks the turn instead of leaving it hanging
+    // forever on a tool that will never execute.
+    const message =
+      'This browser action was delivered too late to run safely. Ask again to retry it.'
+    void reportClientToolCompletion(toolCallId, ASYNC_TOOL_CONFIRMATION_STATUS.error, message, {
+      error: message,
+      staleEvent: true,
+    }).catch((reportErr) => {
+      logger.error('Failed to report stale browser tool error', {
+        toolCallId,
+        error: toError(reportErr).message,
+      })
+    })
     return
   }
   markExecuted(toolCallId)

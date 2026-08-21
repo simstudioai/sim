@@ -102,6 +102,16 @@ function copilotRunLifecycle(context: ExecutionContext) {
     billingAttribution: context.billingAttribution,
     resolvedSecretTraceRegistry: context.resolvedSecretTraceRegistry,
     abortSignal: context.abortSignal,
+    // Present only when the request handler already claimed an execution id for
+    // this tool call because it is running the workflow server-side.
+    ...(context.boundWorkflowExecutionId && context.toolCallId
+      ? {
+          boundExecution: {
+            executionId: context.boundWorkflowExecutionId,
+            copilotToolCallId: context.toolCallId,
+          },
+        }
+      : {}),
   }
 }
 
@@ -448,7 +458,6 @@ export async function executeSetBlockEnabled(
         blockId: params.blockId,
         enabled: params.enabled,
         affectedBlockIds: result.affectedBlockIds,
-        workflowState: result.state,
         copilotSanitizedWorkflowState: sanitizeForCopilot(result.state),
         ...(!result.changed
           ? {

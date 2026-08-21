@@ -1574,6 +1574,57 @@ describe('incompleteness diagnostics', () => {
     )
   })
 
+  /**
+   * `reason` says what tripped; without this the line says nothing about where, which is the
+   * difference between a signal you can act on and one you can only count.
+   */
+  it('carries a caller-supplied structural detail onto the reported line', () => {
+    const registry = new ResolvedSecretTraceRegistry([], scope)
+
+    registry.markIncomplete('structural-input-root-unprojected', {
+      detail: { blockType: 'api', tool: 'http_request', inputPath: 'body.payload' },
+    })
+
+    expect(mockLogger.error).toHaveBeenCalledWith(
+      'Resolved secret registry marked incomplete',
+      expect.objectContaining({
+        reason: 'structural-input-root-unprojected',
+        blockType: 'api',
+        tool: 'http_request',
+        inputPath: 'body.payload',
+      })
+    )
+  })
+
+  /** A detail key must never displace the fields every one of these lines is read by. */
+  /**
+   * The detail type names its fields, so none of these is expressible without a cast. The runtime
+   * guarantee is asserted anyway because the payload is assembled in two places — `reason` is
+   * added a level above, where the caller's spread order cannot reach it — and a line whose
+   * `reason` disagrees with the level it was logged at is worse than one carrying no detail.
+   */
+  it('does not let a detail shadow the canonical fields', () => {
+    const registry = new ResolvedSecretTraceRegistry([], scope)
+
+    registry.markIncomplete('structural-input-root-unprojected', {
+      detail: {
+        reason: 'spoofed',
+        origin: 'spoofed',
+        scopeWorkspaceId: 'spoofed',
+        activeEntryCount: 'spoofed',
+      } as never,
+    })
+
+    expect(mockLogger.error).toHaveBeenCalledWith(
+      'Resolved secret registry marked incomplete',
+      expect.objectContaining({
+        reason: 'structural-input-root-unprojected',
+        scopeWorkspaceId: 'workspace-1',
+        activeEntryCount: 0,
+      })
+    )
+  })
+
   it('names the guard that tripped rather than reporting unspecified', () => {
     const registry = new ResolvedSecretTraceRegistry([], scope)
 

@@ -1,14 +1,19 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
-import { member, organization, outboxEvent, subscription, user } from '@sim/db/schema'
+import { organization, outboxEvent, session, subscription, user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { isRecordLike } from '@sim/utils/object'
-import { and, count, eq, inArray, sql } from 'drizzle-orm'
+import { and, eq, inArray, sql } from 'drizzle-orm'
 import type Stripe from 'stripe'
 import { getEmailSubject, renderEnterpriseSubscriptionEmail } from '@/components/emails'
+import {
+  invalidateMembershipCache,
+  invalidateSecurityPolicyVersionCache,
+} from '@/lib/auth/security-policy'
 import { deriveEnterpriseCreditLimits } from '@/lib/billing/enterprise-credit-limits'
 import {
+  ENTERPRISE_INVITE_PEOPLE_EVENT_TYPE,
   ENTERPRISE_MEMBER_RECONCILIATION_EVENT_TYPE,
   ENTERPRISE_METADATA_SYNC_EVENT_TYPE,
   ENTERPRISE_PROVISION_EVENT_TYPE,
@@ -20,6 +25,7 @@ import {
   enterpriseOperationMatchesStripeSubscription,
   parseEnterpriseProvisionPayload,
 } from '@/lib/billing/enterprise-outbox'
+import { getEnterpriseIssuanceSeatRequirement } from '@/lib/billing/enterprise-provisioning'
 import { acquireOrganizationMutationLock } from '@/lib/billing/organizations/membership'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
 import {
@@ -164,6 +170,7 @@ async function reconcileManualEnterpriseSubscription(
     billingInterval: referenceItem?.price?.recurring?.interval ?? null,
     metadata: metadata as Record<string, unknown>,
   }
+  const isEntitled = hasPaidSubscriptionStatus(subscriptionRow.status)
 
   const coreResult = await db.transaction(async (tx) => {
     await acquireOrganizationMutationLock(tx, referenceId)
@@ -219,7 +226,7 @@ async function reconcileManualEnterpriseSubscription(
       )
       if (validCorrelation && operationPayload) {
         correlatedOperation = operationPayload
-        operationNewlyApplied = !operationPayload.applicationResult
+        operationNewlyApplied = isEntitled && !operationPayload.applicationResult
       } else if (
         operationRow?.eventType === ENTERPRISE_PROVISION_EVENT_TYPE &&
         (!operationPayload || !operationPayload.applicationResult)
@@ -255,13 +262,21 @@ async function reconcileManualEnterpriseSubscription(
       }
     }
 
-    const [currentMemberCount] = await tx
-      .select({ value: count() })
-      .from(member)
-      .where(eq(member.organizationId, referenceId))
-    if (seats < (currentMemberCount?.value ?? 0)) {
+    const seatRequirement = await getEnterpriseIssuanceSeatRequirement({
+      executor: tx,
+      organizationId: referenceId,
+      workspaceIds:
+        operationNewlyApplied && correlatedOperation
+          ? correlatedOperation.request.workspaceIds
+          : [],
+      invitationEmails:
+        operationNewlyApplied && correlatedOperation
+          ? correlatedOperation.request.invitations.map((invite) => invite.email)
+          : [],
+    })
+    if (isEntitled && seats < seatRequirement.requiredSeats) {
       throw new Error(
-        `Enterprise seat capacity ${seats} is below current internal membership ${currentMemberCount?.value ?? 0}`
+        `Enterprise seat capacity ${seats} is below ${seatRequirement.requiredSeats} occupied or reserved seats`
       )
     }
 
@@ -386,14 +401,44 @@ async function reconcileManualEnterpriseSubscription(
           workspaceId,
           destinationOrganizationId: referenceId,
           expectedOwnerId: correlatedOperation.request.ownerUserId,
+          adminUserId: correlatedOperation.request.requestedByUserId,
+          adminName: correlatedOperation.request.requestedByName,
           adminEmail: correlatedOperation.request.requestedByEmail,
           sequence,
         }))
       )
+      if (correlatedOperation.request.invitations.length > 0) {
+        await enqueueOutboxEvents(
+          tx,
+          ENTERPRISE_INVITE_PEOPLE_EVENT_TYPE,
+          correlatedOperation.request.invitations.map((invite, sequence) => ({
+            provisioningOperationId: operationId,
+            organizationId: referenceId,
+            ownerUserId: correlatedOperation.request.ownerUserId,
+            sequence,
+            ...invite,
+          }))
+        )
+      }
+      if (correlatedOperation.request.logoutOwnerOnApply) {
+        await tx
+          .delete(session)
+          .where(
+            and(
+              eq(session.userId, correlatedOperation.request.ownerUserId),
+              sql`${session.impersonatedBy} IS NULL`
+            )
+          )
+        await tx
+          .update(organization)
+          .set({
+            securityPolicyVersion: sql`${organization.securityPolicyVersion} + 1`,
+          })
+          .where(eq(organization.id, referenceId))
+      }
     }
 
     const wasEntitled = hasPaidSubscriptionStatus(existing?.status)
-    const isEntitled = hasPaidSubscriptionStatus(subscriptionRow.status)
     const triggerRestoredEntitlement = Boolean(
       trigger.previousStatus && !hasPaidSubscriptionStatus(trigger.previousStatus)
     )
@@ -407,11 +452,13 @@ async function reconcileManualEnterpriseSubscription(
     ) {
       await enqueueOutboxEvent(tx, ENTERPRISE_MEMBER_RECONCILIATION_EVENT_TYPE, {
         organizationId: referenceId,
+        provisioningOperationId:
+          operationNewlyApplied && typeof operationId === 'string' ? operationId : null,
         afterUserId: null,
       })
     }
 
-    if (correlatedOperation && typeof operationId === 'string') {
+    if (isEntitled && correlatedOperation && typeof operationId === 'string') {
       const operationPatched = await patchOutboxEventPayload(tx, operationId, {
         applicationResult: {
           appliedAt: correlatedOperation.applicationResult?.appliedAt ?? new Date().toISOString(),
@@ -434,6 +481,10 @@ async function reconcileManualEnterpriseSubscription(
         operationNewlyApplied && correlatedOperation
           ? correlatedOperation.request.workspaceIds.length
           : 0,
+      loggedOutOwnerId:
+        operationNewlyApplied && correlatedOperation?.request.logoutOwnerOnApply
+          ? correlatedOperation.request.ownerUserId
+          : null,
       ...creditLimits,
     }
   })
@@ -446,10 +497,15 @@ async function reconcileManualEnterpriseSubscription(
     hasCorrelatedOperation,
     subscriptionNewlyInserted,
     queuedWorkspaceCount,
+    loggedOutOwnerId,
     configuredUsageLimitCredits,
     prepaidCredits,
     effectiveUsageLimitCredits,
   } = coreResult
+  if (loggedOutOwnerId) {
+    invalidateMembershipCache(loggedOutOwnerId)
+    invalidateSecurityPolicyVersionCache(referenceId)
+  }
   const shouldAnnounce = hasCorrelatedOperation ? operationNewlyApplied : subscriptionNewlyInserted
 
   logger.info('[subscription.created] Upserted enterprise subscription', {

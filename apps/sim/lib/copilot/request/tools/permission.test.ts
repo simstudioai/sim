@@ -94,7 +94,7 @@ describe('toolCallNeedsApproval', () => {
     expect(toolCallNeedsApproval('terminal', context, {}, false, runCall)).toBe(false)
   })
 
-  it.each(['deploy_api', 'deploy_chat', 'deploy_mcp'])(
+  it.each(['deploy_as_api', 'deploy_as_chat', 'deploy_as_mcp'])(
     'honors the saved permission for a %s undeploy',
     (toolName) => {
       const context = makeContext()
@@ -108,10 +108,10 @@ describe('toolCallNeedsApproval', () => {
 
   it('applies the normal saved permission to code with a secret reference', () => {
     const context = makeContext()
-    context.toolPermissions.autoAllowed.add('function_execute')
+    context.toolPermissions.autoAllowed.add('run_function')
 
     expect(
-      toolCallNeedsApproval('function_execute', context, {}, false, {
+      toolCallNeedsApproval('run_function', context, {}, false, {
         language: 'javascript',
         code: 'return {{API_KEY}}',
       })
@@ -135,7 +135,7 @@ describe('toolCallNeedsApproval', () => {
     context.toolPermissions.enabled = false
 
     expect(
-      toolCallNeedsApproval('function_execute', context, {}, false, {
+      toolCallNeedsApproval('run_function', context, {}, false, {
         language: 'javascript',
         code: 'return {{API_KEY}}',
       })
@@ -214,13 +214,13 @@ describe('gated tools are askable', () => {
     ).toEqual([
       'call_integration_tool',
       'delete_workspace_mcp_server',
-      'deploy_api',
-      'deploy_chat',
-      'deploy_mcp',
-      'function_execute',
+      'deploy_as_api',
+      'deploy_as_chat',
+      'deploy_as_mcp',
       'promote_to_live',
       'redeploy',
       'run_code',
+      'run_function',
       'run_workflow',
       'run_workflow_until_block',
       'terminal',
@@ -323,7 +323,7 @@ describe('runGatedToolExecution', () => {
   it('accepts the normal chat-level decision for code with a secret reference', async () => {
     const context = makeContext()
     const toolCall = makeToolCall()
-    toolCall.name = 'function_execute'
+    toolCall.name = 'run_function'
     toolCall.params = { language: 'javascript', code: 'return {{API_KEY}}' }
     const execute = vi.fn().mockResolvedValue({ status: 'success' })
     waitForToolPermissionDecision.mockResolvedValue({
@@ -334,7 +334,7 @@ describe('runGatedToolExecution', () => {
     await gate(context, toolCall, execute, [])
 
     expect(execute).toHaveBeenCalledTimes(1)
-    expect(context.toolPermissions.autoAllowed.has('function_execute')).toBe(true)
+    expect(context.toolPermissions.autoAllowed.has('run_function')).toBe(true)
   })
 
   it('does not suppress later prompts for a one-off allow', async () => {

@@ -3,21 +3,29 @@ import {
   v2BulkUpdateKnowledgeDocumentsContract,
   v2CompleteKnowledgeDocumentUploadContract,
   v2CreateKnowledgeBaseContract,
+  v2CreateKnowledgeConnectorContract,
   v2CreateKnowledgeDocumentUploadContract,
   v2CreateKnowledgeDocumentUploadPartUrlsContract,
   v2CreateKnowledgeFolderContract,
   v2DeleteKnowledgeBaseContract,
+  v2DeleteKnowledgeConnectorContract,
   v2DeleteKnowledgeDocumentContract,
   v2DeleteKnowledgeFolderContract,
   v2GetKnowledgeBaseContract,
+  v2GetKnowledgeConnectorContract,
   v2GetKnowledgeDocumentContract,
   v2ListKnowledgeBasesContract,
+  v2ListKnowledgeConnectorDocumentsContract,
+  v2ListKnowledgeConnectorsContract,
   v2ListKnowledgeDocumentsContract,
   v2ListKnowledgeFoldersContract,
   v2ListKnowledgeTagsContract,
   v2RelocateKnowledgeFolderContract,
   v2SearchKnowledgeContract,
+  v2SyncKnowledgeConnectorContract,
   v2UpdateKnowledgeBaseContract,
+  v2UpdateKnowledgeConnectorContract,
+  v2UpdateKnowledgeConnectorDocumentsContract,
   v2UpdateKnowledgeDocumentContract,
   v2UploadKnowledgeDocumentContract,
   v2UploadKnowledgeDocumentFormSchema,
@@ -48,6 +56,36 @@ import {
 
 const WORKSPACE_ID = 'a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64'
 const KNOWLEDGE_BASE_ID = '7c9e6679-7425-40de-944b-e07fc1f90ae7'
+const KNOWLEDGE_CONNECTOR_ID = 'kc-9f8e7d6c'
+
+const KNOWLEDGE_CONNECTOR_EXAMPLE = {
+  id: KNOWLEDGE_CONNECTOR_ID,
+  knowledgeBaseId: KNOWLEDGE_BASE_ID,
+  connectorType: 'notion',
+  credentialId: 'cred-4b3a2c1d',
+  sourceConfig: { pageIds: ['page-123'] },
+  syncMode: 'full',
+  syncIntervalMinutes: 1440,
+  status: 'active',
+  lastSyncAt: '2026-06-20T14:02:11.000Z',
+  lastSyncError: null,
+  lastSyncDocCount: 42,
+  nextSyncAt: '2026-06-21T14:02:11.000Z',
+  consecutiveFailures: 0,
+  createdAt: '2026-06-01T09:14:00.000Z',
+  updatedAt: '2026-06-20T14:02:11.000Z',
+} as const
+
+const KNOWLEDGE_CONNECTOR_DOCUMENT_EXAMPLE = {
+  id: 'doc-8a7b6c5d',
+  filename: 'Product requirements',
+  externalId: 'page-123',
+  sourceUrl: 'https://www.notion.so/page-123',
+  enabled: true,
+  userExcluded: false,
+  createdAt: '2026-06-01T09:15:00.000Z',
+  processingStatus: 'completed',
+} as const
 
 function knowledgeOperation(
   operation: Omit<OpenApiOperationMetadata, 'tags' | 'success' | 'errors'> & {
@@ -205,6 +243,293 @@ const declaredRoutes = [
         'V2KnowledgeDeleteResponse',
         'Knowledge deletion response',
         'Deletion acknowledgement containing the removed resource identifier.'
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2ListKnowledgeConnectorsContract,
+    knowledgeOperation({
+      operationId: 'listKnowledgeConnectors',
+      summary: 'List Knowledge Connectors',
+      description: `List external sources connected to a knowledge base with opaque cursor pagination. Stored API keys and encrypted secret material are never returned. ${WORKSPACE_API_KEY_DENIED}`,
+      errors: RESOURCE_ERRORS,
+      success: { description: 'A page of knowledge connectors.' },
+    }),
+    {
+      params: documentedSchema(
+        v2ListKnowledgeConnectorsContract.params,
+        'ListKnowledgeConnectorsParams',
+        'List knowledge connectors path parameters',
+        'Knowledge base whose connectors should be listed.'
+      ),
+      query: documentedSchema(
+        v2ListKnowledgeConnectorsContract.query,
+        'ListKnowledgeConnectorsQuery',
+        'List knowledge connectors query',
+        'Workspace, sorting, and pagination controls.'
+      ),
+      response: documentedSchema(
+        v2ListKnowledgeConnectorsContract.response.schema,
+        'V2KnowledgeConnectorListResponse',
+        'Knowledge connector list response',
+        'A cursor-paginated page of connectors without secret material.',
+        [{ data: [KNOWLEDGE_CONNECTOR_EXAMPLE], nextCursor: null }]
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2CreateKnowledgeConnectorContract,
+    knowledgeOperation({
+      operationId: 'createKnowledgeConnector',
+      summary: 'Create Knowledge Connector',
+      description: `Validate and connect an external source, then queue its initial synchronization. The apiKey field is write-only and is never returned. ${WORKSPACE_API_KEY_DENIED}`,
+      errors: RESOURCE_CONFLICT_ERRORS,
+      success: { description: 'The created connector without secret material.' },
+    }),
+    {
+      query: v2CreateKnowledgeConnectorContract.query,
+      params: documentedSchema(
+        v2CreateKnowledgeConnectorContract.params,
+        'CreateKnowledgeConnectorParams',
+        'Create knowledge connector path parameters',
+        'Knowledge base to connect to an external source.'
+      ),
+      body: documentedSchema(
+        v2CreateKnowledgeConnectorContract.body,
+        'CreateKnowledgeConnectorRequest',
+        'Create knowledge connector request',
+        'Workspace, connector type, authentication reference, source configuration, and sync schedule.',
+        [
+          {
+            workspaceId: WORKSPACE_ID,
+            connectorType: 'notion',
+            credentialId: 'cred-4b3a2c1d',
+            sourceConfig: { pageIds: ['page-123'] },
+            syncIntervalMinutes: 1440,
+          },
+        ]
+      ),
+      response: documentedSchema(
+        v2CreateKnowledgeConnectorContract.response.schema,
+        'V2KnowledgeConnectorResponse',
+        'Knowledge connector response',
+        'A single connector without secret material.',
+        [{ data: KNOWLEDGE_CONNECTOR_EXAMPLE }]
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2GetKnowledgeConnectorContract,
+    knowledgeOperation({
+      operationId: 'getKnowledgeConnector',
+      summary: 'Get Knowledge Connector',
+      description: `Retrieve one connector and its ten most recent synchronization attempts. Stored API keys and encrypted secret material are never returned. ${WORKSPACE_API_KEY_DENIED}`,
+      errors: RESOURCE_ERRORS,
+      success: { description: 'The connector and recent synchronization history.' },
+    }),
+    {
+      params: documentedSchema(
+        v2GetKnowledgeConnectorContract.params,
+        'GetKnowledgeConnectorParams',
+        'Get knowledge connector path parameters',
+        'Knowledge connector selected for retrieval.'
+      ),
+      query: documentedSchema(
+        v2GetKnowledgeConnectorContract.query,
+        'GetKnowledgeConnectorQuery',
+        'Get knowledge connector query',
+        'Workspace scope for the knowledge base.'
+      ),
+      response: documentedSchema(
+        v2GetKnowledgeConnectorContract.response.schema,
+        'V2KnowledgeConnectorDetailResponse',
+        'Knowledge connector detail response',
+        'A connector and recent synchronization history without secret material.',
+        [{ data: { ...KNOWLEDGE_CONNECTOR_EXAMPLE, syncLogs: [] } }]
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2UpdateKnowledgeConnectorContract,
+    knowledgeOperation({
+      operationId: 'updateKnowledgeConnector',
+      summary: 'Update Knowledge Connector',
+      description: `Update connector source configuration, schedule, or active state. Authentication material cannot be changed through this operation. ${WORKSPACE_API_KEY_DENIED}`,
+      errors: RESOURCE_CONFLICT_ERRORS,
+      success: { description: 'The updated connector.' },
+    }),
+    {
+      query: v2UpdateKnowledgeConnectorContract.query,
+      params: documentedSchema(
+        v2UpdateKnowledgeConnectorContract.params,
+        'UpdateKnowledgeConnectorParams',
+        'Update knowledge connector path parameters',
+        'Knowledge connector selected for update.'
+      ),
+      body: documentedSchema(
+        v2UpdateKnowledgeConnectorContract.body,
+        'UpdateKnowledgeConnectorRequest',
+        'Update knowledge connector request',
+        'Workspace scope and at least one mutable connector field.',
+        [{ workspaceId: WORKSPACE_ID, status: 'paused' }]
+      ),
+      response: documentedSchema(
+        v2UpdateKnowledgeConnectorContract.response.schema,
+        'V2KnowledgeConnectorResponse',
+        'Knowledge connector response',
+        'A single connector without secret material.',
+        [{ data: KNOWLEDGE_CONNECTOR_EXAMPLE }]
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2DeleteKnowledgeConnectorContract,
+    knowledgeOperation({
+      operationId: 'deleteKnowledgeConnector',
+      summary: 'Delete Knowledge Connector',
+      description: `Delete a connector and optionally its synchronized documents. Documents are retained by default. ${WORKSPACE_API_KEY_DENIED}`,
+      errors: RESOURCE_ERRORS,
+      success: { description: 'Connector deletion acknowledgement and document counts.' },
+    }),
+    {
+      params: documentedSchema(
+        v2DeleteKnowledgeConnectorContract.params,
+        'DeleteKnowledgeConnectorParams',
+        'Delete knowledge connector path parameters',
+        'Knowledge connector selected for deletion.'
+      ),
+      query: documentedSchema(
+        v2DeleteKnowledgeConnectorContract.query,
+        'DeleteKnowledgeConnectorQuery',
+        'Delete knowledge connector query',
+        'Workspace scope and whether synchronized documents should also be deleted.'
+      ),
+      response: documentedSchema(
+        v2DeleteKnowledgeConnectorContract.response.schema,
+        'V2KnowledgeConnectorDeleteResponse',
+        'Knowledge connector delete response',
+        'Deletion acknowledgement and affected document counts.',
+        [
+          {
+            data: {
+              id: KNOWLEDGE_CONNECTOR_ID,
+              deleted: true,
+              documentsDeleted: 0,
+              documentsKept: 42,
+            },
+          },
+        ]
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2SyncKnowledgeConnectorContract,
+    knowledgeOperation({
+      operationId: 'syncKnowledgeConnector',
+      summary: 'Sync Knowledge Connector',
+      description: `Queue a connector synchronization. Rehydration forces existing documents to be fetched and indexed again. ${WORKSPACE_API_KEY_DENIED}`,
+      errors: RESOURCE_CONFLICT_ERRORS,
+      success: { description: 'Synchronization was queued.' },
+    }),
+    {
+      query: v2SyncKnowledgeConnectorContract.query,
+      params: documentedSchema(
+        v2SyncKnowledgeConnectorContract.params,
+        'SyncKnowledgeConnectorParams',
+        'Sync knowledge connector path parameters',
+        'Knowledge connector selected for synchronization.'
+      ),
+      body: documentedSchema(
+        v2SyncKnowledgeConnectorContract.body,
+        'SyncKnowledgeConnectorRequest',
+        'Sync knowledge connector request',
+        'Workspace scope and optional full rehydration control.',
+        [{ workspaceId: WORKSPACE_ID, rehydrate: false }]
+      ),
+      response: documentedSchema(
+        v2SyncKnowledgeConnectorContract.response.schema,
+        'V2KnowledgeConnectorSyncResponse',
+        'Knowledge connector sync response',
+        'Acknowledgement that synchronization was queued.',
+        [{ data: { id: KNOWLEDGE_CONNECTOR_ID, syncTriggered: true } }]
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2ListKnowledgeConnectorDocumentsContract,
+    knowledgeOperation({
+      operationId: 'listKnowledgeConnectorDocuments',
+      summary: 'List Knowledge Connector Documents',
+      description: `List documents produced by one connector with opaque cursor pagination. Excluded documents are omitted unless explicitly requested. ${WORKSPACE_API_KEY_DENIED}`,
+      errors: RESOURCE_ERRORS,
+      success: { description: 'A page of connector documents.' },
+    }),
+    {
+      params: documentedSchema(
+        v2ListKnowledgeConnectorDocumentsContract.params,
+        'ListKnowledgeConnectorDocumentsParams',
+        'List knowledge connector documents path parameters',
+        'Knowledge connector whose documents should be listed.'
+      ),
+      query: documentedSchema(
+        v2ListKnowledgeConnectorDocumentsContract.query,
+        'ListKnowledgeConnectorDocumentsQuery',
+        'List knowledge connector documents query',
+        'Workspace, exclusion filter, and pagination controls.'
+      ),
+      response: documentedSchema(
+        v2ListKnowledgeConnectorDocumentsContract.response.schema,
+        'V2KnowledgeConnectorDocumentListResponse',
+        'Knowledge connector document list response',
+        'A cursor-paginated page of connector documents.',
+        [{ data: [KNOWLEDGE_CONNECTOR_DOCUMENT_EXAMPLE], nextCursor: null }]
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2UpdateKnowledgeConnectorDocumentsContract,
+    knowledgeOperation({
+      operationId: 'updateKnowledgeConnectorDocuments',
+      summary: 'Update Knowledge Connector Documents',
+      description: `Exclude connector documents from knowledge search or restore previously excluded documents. Only documents produced by the selected connector can change. ${WORKSPACE_API_KEY_DENIED}`,
+      errors: RESOURCE_ERRORS,
+      success: { description: 'The selected connector documents were updated.' },
+    }),
+    {
+      query: v2UpdateKnowledgeConnectorDocumentsContract.query,
+      params: documentedSchema(
+        v2UpdateKnowledgeConnectorDocumentsContract.params,
+        'UpdateKnowledgeConnectorDocumentsParams',
+        'Update knowledge connector documents path parameters',
+        'Knowledge connector whose documents should be updated.'
+      ),
+      body: documentedSchema(
+        v2UpdateKnowledgeConnectorDocumentsContract.body,
+        'UpdateKnowledgeConnectorDocumentsRequest',
+        'Update knowledge connector documents request',
+        'Workspace, restore or exclude operation, and selected document identifiers.',
+        [
+          {
+            workspaceId: WORKSPACE_ID,
+            operation: 'exclude',
+            documentIds: [KNOWLEDGE_CONNECTOR_DOCUMENT_EXAMPLE.id],
+          },
+        ]
+      ),
+      response: documentedSchema(
+        v2UpdateKnowledgeConnectorDocumentsContract.response.schema,
+        'V2KnowledgeConnectorDocumentsUpdateResponse',
+        'Knowledge connector documents update response',
+        'Operation result and identifiers actually changed.',
+        [
+          {
+            data: {
+              operation: 'exclude',
+              updatedCount: 1,
+              documentIds: [KNOWLEDGE_CONNECTOR_DOCUMENT_EXAMPLE.id],
+            },
+          },
+        ]
       ),
     }
   ),

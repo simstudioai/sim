@@ -43,7 +43,7 @@ export const crunchbaseGetFieldsMetadataTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Collections to describe, e.g. ["organizations","people"]. One or more of: addresses, categories, category_groups, degrees, diversity_spotlights, event_appearances, events, ipos, jobs, locations, organizations, ownerships, people, principals. Defaults to every collection.',
+        'Collections to describe, e.g. ["organizations","people"]. One or more of: acquisition_predictions, acquisitions, addresses, awards, categories, category_groups, closure_predictions, current_valuation_estimates, degrees, diversity_spotlights, event_appearances, events, funding_predictions, funding_rounds, funds, growth_insights, growth_predictions, investments, investor_insights, investor_matches, ipo_predictions, ipos, jobs, key_employee_changes, layoff_predictions, layoffs, legal_proceedings, locations, market_insight_reasons, market_insights, micro_categories, org_similarities, organizations, ownerships, partnership_announcements, people, press_references, principals, product_launches, product_similarities, products, remain_private_predictions, research_insights. Which of them your key can read depends on your Crunchbase package. Defaults to every collection.',
     },
   },
 

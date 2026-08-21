@@ -23,6 +23,8 @@ import {
   inArray,
   isNotNull,
   isNull,
+  ne,
+  or,
   type SQL,
   sql,
 } from 'drizzle-orm'
@@ -56,6 +58,7 @@ import type { ChunkingStrategy, StrategyOptions } from '@/lib/chunkers/types'
 import { resolveTriggerRegion } from '@/lib/core/async-jobs/region'
 import { env, envNumber } from '@/lib/core/config/env'
 import { getCostMultiplier, isTriggerDevEnabled } from '@/lib/core/config/env-flags'
+import { isInsideTriggerRun } from '@/lib/core/config/trigger-runtime'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import {
@@ -65,7 +68,10 @@ import {
   mergeDurableSecretProvenance,
 } from '@/lib/execution/durable-secret-provenance'
 import { processDocument } from '@/lib/knowledge/documents/document-processor'
-import { failStaleDocumentProcessingClaim } from '@/lib/knowledge/documents/processing-claim'
+import {
+  failStaleDocumentProcessingClaim,
+  recordUndispatchedDocumentFailure,
+} from '@/lib/knowledge/documents/processing-claim'
 import { enqueueKnowledgeDocumentProcessing } from '@/lib/knowledge/documents/processing-outbox-event'
 import {
   assertDocumentProcessingBillingContext,
@@ -80,7 +86,11 @@ import {
   buildTagFilterCondition,
   type TagFilterCondition,
 } from '@/lib/knowledge/documents/tag-filter'
-import type { DocumentSortField, SortOrder } from '@/lib/knowledge/documents/types'
+import {
+  type DocumentSortField,
+  QUEUED_DISPATCH_GRACE_MS,
+  type SortOrder,
+} from '@/lib/knowledge/documents/types'
 import { getEmbeddingModelInfo } from '@/lib/knowledge/embedding-models'
 import { generateEmbeddings } from '@/lib/knowledge/embeddings'
 import { runWithKnowledgeModelInputProvenance } from '@/lib/knowledge/model-input-provenance'
@@ -675,6 +685,74 @@ async function resolveDocumentProcessingBillingContext(
 }
 
 /**
+ * Records that indexing has just been queued for these documents.
+ *
+ * Every dispatch funnels through {@link processDocumentsWithQueue}, so stamping
+ * here is what makes `processingQueuedAt` mean "queued for the attempt that is
+ * live right now" for every caller — new uploads, connector inserts, connector
+ * content updates, the connector recovery sweep, the user retry, and the
+ * outbox handler alike. Recovery sweeps age a queued document from this column
+ * (`isStuckDocumentSweepEligible`), and a caller that left a previous
+ * dispatch's value in place would be aged from a stamp that belongs to a run
+ * which has already ended — reclaimed inside its grace period, racing the run
+ * that is actually queued.
+ *
+ * `processingStartedAt` is cleared in the same write: a document waiting in the
+ * queue has not started, and a leftover value from a prior run would otherwise
+ * be reported as this attempt's start time.
+ *
+ * Guarded on `pending` so it can never disturb a document a worker has already
+ * claimed — `processDocumentAsync` uses `processingStartedAt` as a
+ * compare-and-set token, and overwriting it under a live run would strand that
+ * run's completion writes. If the worker wins the race, this update matches no
+ * rows and the worker's own timestamps stand, which is the correct outcome:
+ * queue wait no longer matters once processing has begun.
+ */
+async function markDocumentsQueued(documentIds: string[], queuedAt: Date): Promise<void> {
+  await db
+    .update(document)
+    .set({
+      processingQueuedAt: queuedAt,
+      processingStartedAt: null,
+      // Spent here because this is the one write every dispatch passes through,
+      // and it is already guarded — so the budget cannot be charged twice for a
+      // single dispatch, nor skipped by a caller that dispatches another way.
+      processingAttempts: sql`${document.processingAttempts} + 1`,
+    })
+    .where(and(inArray(document.id, documentIds), eq(document.processingStatus, 'pending')))
+}
+
+/**
+ * Withdraws a queue stamp whose dispatch provably never happened.
+ *
+ * {@link markDocumentsQueued} runs before dispatch on purpose — `batchTrigger`
+ * chunks, so a batch can half-succeed, and stamping afterwards would leave the
+ * runs that did start with no stamp and no grace. The cost of that ordering is
+ * that a batch where *every* dispatch failed still carries a fresh stamp, and
+ * recovery sweeps would honour a grace period the documents did not earn. Total
+ * failure is the one case where nothing was dispatched, so the stamp can be
+ * taken back and the next sweep is free to reclaim them immediately.
+ *
+ * Scoped three ways so it can only ever undo its own write: to the ids in this
+ * batch, to rows still `pending` (a worker that has since claimed one keeps its
+ * timestamps — see {@link markDocumentsQueued}), and to the exact stamp this
+ * call wrote, so a concurrent dispatch that has already re-stamped a document
+ * is left alone.
+ */
+async function clearDocumentsQueued(documentIds: string[], queuedAt: Date): Promise<void> {
+  await db
+    .update(document)
+    .set({ processingQueuedAt: null })
+    .where(
+      and(
+        inArray(document.id, documentIds),
+        eq(document.processingStatus, 'pending'),
+        eq(document.processingQueuedAt, queuedAt)
+      )
+    )
+}
+
+/**
  * Dispatches document processing jobs via Trigger.dev's `batchTrigger` when
  * available, or in-process otherwise. Throws only when every dispatch fails;
  * partial failures are logged and recovered by the next sync's stuck-doc pass.
@@ -696,6 +774,10 @@ export async function processDocumentsWithQueue(
     buildJobPayload(doc, knowledgeBaseId, processingOptions, requestId, billingContext)
   )
 
+  const documentIds = createdDocuments.map((doc) => doc.documentId)
+  const queuedAt = new Date()
+  await markDocumentsQueued(documentIds, queuedAt)
+
   const useTrigger = isTriggerAvailable()
   logger.info(
     `[${requestId}] Dispatching background processing for ${jobPayloads.length} documents`,
@@ -711,6 +793,19 @@ export async function processDocumentsWithQueue(
   )
 
   if (dispatched === 0) {
+    /**
+     * Best-effort, unlike the stamp itself: failing to write the stamp means the
+     * grace cannot be promised and dispatching anyway is the unsafe direction, so
+     * that write throws. Failing to withdraw one only delays recovery by a grace
+     * period, so it must not mask the dispatch failure that is the real error.
+     */
+    try {
+      await clearDocumentsQueued(documentIds, queuedAt)
+    } catch (error) {
+      logger.warn(`[${requestId}] Failed to withdraw the queue stamp after a failed dispatch`, {
+        error: getErrorMessage(error),
+      })
+    }
     throw new Error(`All ${jobPayloads.length} document processing dispatches failed`)
   }
 }
@@ -787,7 +882,8 @@ async function dispatchInProcess(
           p.documentId,
           p.docData,
           p.processingOptions,
-          p
+          p,
+          p.requestId
         )
         return true
       } catch (error) {
@@ -799,6 +895,17 @@ async function dispatchInProcess(
   return results.filter(Boolean).length
 }
 
+/**
+ * Parses, embeds, and indexes one document.
+ *
+ * @param indexingPassId - Identifies the indexing pass this call belongs to,
+ * as opposed to the individual attempt. Callers pass the dispatch `requestId`:
+ * it is fixed on the job payload, so every retry of a `knowledge-process-document`
+ * run carries the same value, while a new dispatch (upload, connector sync batch,
+ * user-triggered reprocess) mints a fresh one. It is what makes the embedding
+ * charge bill once per pass — see the `sourceReference` note at the `recordUsage`
+ * call below.
+ */
 export async function processDocumentAsync(
   knowledgeBaseId: string,
   documentId: string,
@@ -809,7 +916,8 @@ export async function processDocumentAsync(
     mimeType: string
   },
   processingOptions: ProcessingOptions = {},
-  providedBillingContext?: BillingAttributionSnapshot | DocumentProcessingBillingContext
+  providedBillingContext?: BillingAttributionSnapshot | DocumentProcessingBillingContext,
+  indexingPassId?: string
 ): Promise<void> {
   const startTime = Date.now()
   const processingStartedAt = new Date()
@@ -879,7 +987,16 @@ export async function processDocumentAsync(
           processingError: 'Document or knowledge base no longer exists',
           processingCompletedAt: new Date(),
         })
-        .where(eq(document.id, documentId))
+        // Never overwrite a finished pass, and never resurrect state on a row
+        // that has since been archived or deleted.
+        .where(
+          and(
+            eq(document.id, documentId),
+            ne(document.processingStatus, 'completed'),
+            isNull(document.archivedAt),
+            isNull(document.deletedAt)
+          )
+        )
       return
     }
 
@@ -891,7 +1008,17 @@ export async function processDocumentAsync(
       mimeType: ctx.mimeType,
     }
 
-    await db
+    /**
+     * Claiming is guarded on the document not already being `completed`.
+     *
+     * Without a status predicate this write was reachable for a finished
+     * document — a late or duplicate dispatch would flip `completed` back to
+     * `processing`, discard the pass that had already indexed and billed, and
+     * index it a second time. `pending`, `failed` and `processing` stay
+     * claimable so a Trigger.dev retry of the same run still proceeds; the
+     * commit CAS downstream is what keeps two live workers from both finishing.
+     */
+    const claimed = await db
       .update(document)
       .set({
         processingStatus: 'processing',
@@ -900,8 +1027,21 @@ export async function processDocumentAsync(
         processingError: null,
       })
       .where(
-        and(eq(document.id, documentId), isNull(document.archivedAt), isNull(document.deletedAt))
+        and(
+          eq(document.id, documentId),
+          ne(document.processingStatus, 'completed'),
+          isNull(document.archivedAt),
+          isNull(document.deletedAt)
+        )
       )
+      .returning({ id: document.id })
+
+    if (claimed.length === 0) {
+      logger.info(
+        `[${documentId}] Skipping document processing: already completed, archived, or deleted`
+      )
+      return
+    }
 
     logger.info(`[${documentId}] Status updated to 'processing', starting document processor`)
 
@@ -1175,6 +1315,9 @@ export async function processDocumentAsync(
                 processingStatus: 'completed',
                 processingCompletedAt: now,
                 processingError: null,
+                // A completed pass clears the budget: the next failure starts
+                // from a full allowance rather than inheriting a stale count.
+                processingAttempts: 0,
               })
               .where(
                 and(
@@ -1215,6 +1358,34 @@ export async function processDocumentAsync(
           costMultiplier
         )
         if (cost > 0) {
+          /**
+           * Dedup identity for this embedding charge. `usage_log.event_key` is
+           * derived from `sourceReference` and guarded by a permanent unique
+           * index — usage_log rows are never pruned, there is no retention job
+           * — so the granularity has to separate two cases for all time:
+           *
+           * - A retry of the same pass must collapse. `knowledge-process-document`
+           *   runs up to `KB_CONFIG_MAX_ATTEMPTS` attempts and the stale-document
+           *   sweep can re-dispatch on top of that, so any per-attempt component
+           *   (a `Date.now()` stamp, `processingStartedAt`) bills one indexing
+           *   pass several times over.
+           * - A genuinely new pass must not collapse. A content change, a
+           *   rehydrate, or a user-triggered reprocess pays a real embedding
+           *   bill, and keying on `documentId` alone would suppress that charge
+           *   permanently.
+           *
+           * `indexingPassId` is exactly that discriminator. Without one, the
+           * resolved pricing id is the safest fallback: it still collapses
+           * attempts and still re-bills a knowledge base whose embedding model
+           * changed. Token counts are deliberately left out — OCR-backed parsing
+           * is not bit-stable across attempts, so they would break the dedup
+           * they appear to sharpen.
+           */
+          const usageSourceReference = [
+            'knowledge-document',
+            documentId,
+            indexingPassId ?? `model:${embeddingPricingId}`,
+          ].join(':')
           await recordUsage({
             userId: documentActorUserId,
             workspaceId: ctx.workspaceId ?? undefined,
@@ -1225,7 +1396,7 @@ export async function processDocumentAsync(
                 source: 'knowledge-base',
                 description: embeddingModelName,
                 cost,
-                sourceReference: `knowledge-document:${documentId}:${startTime}`,
+                sourceReference: usageSourceReference,
                 metadata: { inputTokens: billableEmbeddingTokens, outputTokens: 0 },
               },
             ],
@@ -1274,8 +1445,42 @@ export async function processDocumentAsync(
   }
 }
 
+let triggerAvailabilityLogged = false
+
+/**
+ * Whether background work may be dispatched to Trigger.dev rather than run
+ * in-process.
+ *
+ * Inside a Trigger.dev run the answer is unconditionally yes: the platform is
+ * what is executing this process, so no environment guess can be more reliable
+ * than the run marker. Outside a run the deployment must both enable
+ * Trigger.dev and hold the secret key the SDK authenticates with.
+ *
+ * Resolving `true` inside a run is safe even if the run process turns out not
+ * to expose `TRIGGER_SECRET_KEY`: the SDK would then reject the batch trigger
+ * and `dispatchViaBatchTrigger` falls back to processing in-process, which is
+ * exactly where a `false` predicate lands anyway.
+ *
+ * The first evaluation in a process logs the resolved inputs. That is once per
+ * worker process rather than once per dispatch, and it is the signal that makes
+ * an app-vs-worker asymmetry visible without reading a crashed run's spans.
+ */
 export function isTriggerAvailable(): boolean {
-  return Boolean(env.TRIGGER_SECRET_KEY) && isTriggerDevEnabled
+  const insideRun = isInsideTriggerRun()
+  const hasSecretKey = Boolean(env.TRIGGER_SECRET_KEY)
+  const available = insideRun || (hasSecretKey && isTriggerDevEnabled)
+
+  if (!triggerAvailabilityLogged) {
+    triggerAvailabilityLogged = true
+    logger.info('Resolved Trigger.dev dispatch availability', {
+      available,
+      insideTriggerRun: insideRun,
+      triggerDevEnabled: isTriggerDevEnabled,
+      hasSecretKey,
+    })
+  }
+
+  return available
 }
 
 type DocumentStorageBilling =
@@ -2417,13 +2622,37 @@ export async function retryDocumentProcessing(
   requestId: string,
   billingAttribution: BillingAttributionSnapshot | undefined
 ): Promise<{ success: boolean; status: string; message: string }> {
-  await db.transaction(async (tx) => {
-    await tx.delete(embedding).where(eq(embedding.documentId, documentId))
-
-    await tx
+  /**
+   * A document may be retried from a terminal state, or from a `pending` state
+   * old enough that its dispatch is certainly lost.
+   *
+   * Unguarded, a double-click issued two full passes: the second reset a
+   * document that the first had already queued, so both dispatches ran, both
+   * indexed, and both billed. A terminal-only guard closes that, but it also
+   * strands a document that never left `pending` — a worker killed before its
+   * claim UPDATE burns an attempt without changing status, and once the
+   * processing-attempt budget is spent the connector sweep drops it too. The row
+   * then matches nothing anywhere.
+   *
+   * The `pending` arm is admitted only past {@link QUEUED_DISPATCH_GRACE_MS},
+   * which is the same grace the connector sweep waits out, so a second click
+   * still lands inside a live dispatch's window and still matches no rows.
+   *
+   * Age is measured from `COALESCE(processingQueuedAt, uploadedAt)`, exactly as
+   * `isStuckDocumentSweepEligible` measures it. `processingQueuedAt` is NULL
+   * only for a document no dispatch has ever stamped, and falling back to
+   * `uploadedAt` — rather than treating NULL as retryable — keeps the grace
+   * window closed for a document created moments ago whose first dispatch is
+   * still in flight.
+   */
+  const queuedGraceCutoff = new Date(Date.now() - QUEUED_DISPATCH_GRACE_MS)
+  const requeued = await db.transaction(async (tx) => {
+    const reset = await tx
       .update(document)
       .set({
         processingStatus: 'pending',
+        // `processingQueuedAt` is stamped by `markDocumentsQueued` on the
+        // dispatch below, for this and every other caller.
         processingStartedAt: null,
         processingCompletedAt: null,
         processingError: null,
@@ -2431,24 +2660,77 @@ export async function retryDocumentProcessing(
         tokenCount: 0,
         characterCount: 0,
       })
-      .where(eq(document.id, documentId))
+      .where(
+        and(
+          eq(document.id, documentId),
+          or(
+            inArray(document.processingStatus, ['completed', 'failed']),
+            and(
+              eq(document.processingStatus, 'pending'),
+              sql`COALESCE(${document.processingQueuedAt}, ${document.uploadedAt}) < ${sql.param(queuedGraceCutoff, document.processingQueuedAt)}`
+            )
+          ),
+          isNull(document.archivedAt),
+          isNull(document.deletedAt)
+        )
+      )
+      .returning({ id: document.id })
+
+    // Embeddings are dropped only for a document this call actually claimed,
+    // so a losing double-click cannot wipe the winner's in-flight work.
+    if (reset.length > 0) {
+      await tx.delete(embedding).where(eq(embedding.documentId, documentId))
+    }
+    return reset.length > 0
   })
 
-  await processDocumentsWithQueue(
-    [
-      {
-        documentId,
-        filename: docData.filename,
-        fileUrl: docData.fileUrl,
-        fileSize: docData.fileSize,
-        mimeType: docData.mimeType,
-      },
-    ],
-    knowledgeBaseId,
-    {},
-    requestId,
-    billingAttribution
-  )
+  if (!requeued) {
+    logger.info(`[${requestId}] Document retry skipped, already queued: ${documentId}`)
+    return {
+      success: true,
+      status: 'pending',
+      message: 'Document is already queued for processing',
+    }
+  }
+
+  /**
+   * The reset committed in its own transaction above, so a throwing dispatch
+   * would leave the row at `pending` with nothing queued behind it — and the
+   * grace window means the same click cannot recover it until that window
+   * elapses again.
+   * Recording the failure returns it to `failed`, which is immediately
+   * retryable and visible in the document list with its reason.
+   */
+  try {
+    await processDocumentsWithQueue(
+      [
+        {
+          documentId,
+          filename: docData.filename,
+          fileUrl: docData.fileUrl,
+          fileSize: docData.fileSize,
+          mimeType: docData.mimeType,
+        },
+      ],
+      knowledgeBaseId,
+      {},
+      requestId,
+      billingAttribution
+    )
+  } catch (error) {
+    const failureMessage = getErrorMessage(error, 'Document processing dispatch failed')
+    await recordUndispatchedDocumentFailure({
+      documentId,
+      knowledgeBaseId,
+      failureMessage,
+      requestId,
+    })
+    return {
+      success: false,
+      status: 'failed',
+      message: failureMessage,
+    }
+  }
 
   logger.info(`[${requestId}] Document retry initiated: ${documentId}`)
 

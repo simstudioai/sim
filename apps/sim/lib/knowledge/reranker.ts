@@ -64,7 +64,7 @@ async function resolveCohereKey(
   if (workspaceId) {
     const byokResult = await getBYOKKey(workspaceId, 'cohere')
     if (byokResult) {
-      logger.info('Using workspace BYOK key for Cohere reranker')
+      logger.info('Using BYOK key for Cohere reranker', { scope: byokResult.scope })
       return { apiKey: byokResult.apiKey, isBYOK: true }
     }
   }

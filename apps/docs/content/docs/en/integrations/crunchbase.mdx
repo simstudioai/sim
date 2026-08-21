@@ -79,7 +79,7 @@ Look up a single Crunchbase organization by permalink or UUID, returning the req
 | `apiKey` | string | Yes | Crunchbase API key, sent as the X-cb-user-key header |
 | `entityId` | string | Yes | Organization permalink \(e.g. "tesla-motors"\) or UUID |
 | `fieldIds` | json | No | Organization fields to return, e.g. \["identifier","name","founded_on","categories"\]. Defaults to identifier, name, short_description, website_url, linkedin, location_identifiers, categories, founded_on, num_employees_enum, operating_status, rank_org, permalink. |
-| `cardIds` | json | No | Related-entity cards to include, e.g. \["founders","headquarters_address"\]. Available on every license tier: child_organizations, child_ownerships, event_appearances, fields, founders, headquarters_address, parent_organization, parent_ownership. A card returns at most 100 items. |
+| `cardIds` | json | No | Related-entity cards to include, e.g. \["founders","headquarters_address"\]. Available on every license tier: child_organizations, child_ownerships, event_appearances, fields, founders, headquarters_address, parent_organization, parent_ownership. Richer packages add acquiree_acquisitions, acquirer_acquisitions, investors, ipos, jobs, participated_funding_rounds, participated_funds, participated_investments, press_references, raised_funding_rounds, raised_funds, raised_investments. A card returns at most 100 items. |
 
 #### Output
 
@@ -126,7 +126,7 @@ Look up a single Crunchbase person by permalink or UUID, returning the requested
 | `apiKey` | string | Yes | Crunchbase API key, sent as the X-cb-user-key header |
 | `entityId` | string | Yes | Person permalink \(e.g. "elon-musk"\) or UUID |
 | `fieldIds` | json | No | Person fields to return, e.g. \["identifier","name","primary_job_title","primary_organization"\]. Defaults to identifier, name, first_name, last_name, primary_job_title, primary_organization, short_description, location_identifiers, linkedin, rank_person, permalink. |
-| `cardIds` | json | No | Related-entity cards to include, e.g. \["jobs","primary_organization"\]. Available: degrees, event_appearances, fields, founded_organizations, jobs, primary_job, primary_organization. A card returns at most 100 items. |
+| `cardIds` | json | No | Related-entity cards to include, e.g. \["jobs","primary_organization"\]. Available on every license tier: degrees, event_appearances, fields, founded_organizations, jobs, primary_job, primary_organization. Advanced Financials adds participated_funding_rounds, participated_funds, participated_investments, partner_funding_rounds, partner_investments, press_references. A card returns at most 100 items. |
 
 #### Output
 
@@ -317,7 +317,7 @@ Suggest Crunchbase entities matching a typed query, returning the permalinks and
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Crunchbase API key, sent as the X-cb-user-key header |
 | `query` | string | Yes | Text to autocomplete against, e.g. "airbnb" |
-| `collectionIds` | json | No | Collections to search, e.g. \["organizations","people"\]. One or more of: addresses, categories, category_groups, degrees, diversity_spotlights, event_appearances, events, ipos, jobs, locations, organizations, ownerships, people, principals. Defaults to every collection. |
+| `collectionIds` | json | No | Collections to search, e.g. \["organizations","people"\]. One or more of: acquisition_predictions, acquisitions, addresses, awards, categories, category_groups, closure_predictions, current_valuation_estimates, degrees, diversity_spotlights, event_appearances, events, funding_predictions, funding_rounds, funds, growth_insights, growth_predictions, investments, investor_insights, investor_matches, ipo_predictions, ipos, jobs, key_employee_changes, layoff_predictions, layoffs, legal_proceedings, locations, market_insight_reasons, market_insights, micro_categories, org_similarities, organizations, ownerships, partnership_announcements, people, press_references, principals, product_launches, product_similarities, products, remain_private_predictions, research_insights. Which of them your key can read depends on your Crunchbase package. Defaults to every collection. |
 | `limit` | number | No | Suggestions to return, max 25 \(default 10\) |
 
 #### Output
@@ -335,10 +335,10 @@ List entities Crunchbase has deleted, so a mirrored copy can be pruned in step w
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Crunchbase API key, sent as the X-cb-user-key header |
-| `collection` | string | No | Restrict the feed to a single collection: categories, event_appearances, events, ipos, jobs, locations, organizations, ownerships, or people. Leave empty to read the feed across collections. |
-| `collectionIds` | json | No | Collections to include when reading the cross-collection feed, e.g. \["organizations","people"\]. Ignored when a single collection is set. |
+| `collection` | string | No | Restrict the feed to a single collection: acquisitions, categories, event_appearances, events, funding_rounds, funds, investments, ipos, jobs, locations, organizations, ownerships, people, or press_references. Which of them your key can read depends on your Crunchbase package. Leave empty to read the feed across collections. |
+| `collectionIds` | json | No | Collections to include when reading the cross-collection feed, e.g. \["organizations","people"\]. One or more of: acquisitions, categories, event_appearances, events, funding_rounds, funds, investments, ipos, jobs, locations, organizations, ownerships, people, press_references. Ignored when a single collection is set. |
 | `deletedAtOrder` | string | No | Order by deletion time: "asc" \(default\) or "desc" |
-| `limit` | number | No | Rows to return per page |
+| `limit` | number | No | Rows to return per page, 1-25 \(default 10\) |
 | `afterId` | string | No | UUID of the last row on the current page, to fetch the next page |
 | `beforeId` | string | No | UUID of the first row on the current page, to fetch the previous page |
 
@@ -358,7 +358,7 @@ List the field ids, types, and descriptions each Crunchbase collection publishes
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Crunchbase API key, sent as the X-cb-user-key header |
-| `collectionIds` | json | No | Collections to describe, e.g. \["organizations","people"\]. One or more of: addresses, categories, category_groups, degrees, diversity_spotlights, event_appearances, events, ipos, jobs, locations, organizations, ownerships, people, principals. Defaults to every collection. |
+| `collectionIds` | json | No | Collections to describe, e.g. \["organizations","people"\]. One or more of: acquisition_predictions, acquisitions, addresses, awards, categories, category_groups, closure_predictions, current_valuation_estimates, degrees, diversity_spotlights, event_appearances, events, funding_predictions, funding_rounds, funds, growth_insights, growth_predictions, investments, investor_insights, investor_matches, ipo_predictions, ipos, jobs, key_employee_changes, layoff_predictions, layoffs, legal_proceedings, locations, market_insight_reasons, market_insights, micro_categories, org_similarities, organizations, ownerships, partnership_announcements, people, press_references, principals, product_launches, product_similarities, products, remain_private_predictions, research_insights. Which of them your key can read depends on your Crunchbase package. Defaults to every collection. |
 
 #### Output
 

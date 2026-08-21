@@ -97,6 +97,12 @@ export const tableOperations = {
     workspaceApiKey: 'deny',
     ...COPILOT_PRINCIPAL_POLICY,
   }),
+  moveByVfsPath: defineWorkspaceOperation({
+    id: 'tables.vfs.move',
+    minimumRole: 'write',
+    workspaceApiKey: 'deny',
+    ...COPILOT_PRINCIPAL_POLICY,
+  }),
   deleteByVfsPath: defineWorkspaceOperation({
     id: 'tables.vfs.delete',
     minimumRole: 'write',

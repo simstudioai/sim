@@ -53,6 +53,30 @@ describe('panel chat scope', () => {
     panel = freshPanel()
   })
 
+  it('returns keyboard focus to the renderer when attaching a view steals it mid-typing', () => {
+    const win = new BrowserWindow()
+    const view = new WebContentsView()
+    const active = { id: 'tab-1', scopeId: 'chat-test', view, pinned: false }
+    vi.mocked(win.webContents.isFocused).mockReturnValue(true)
+    panel.initPanel({
+      getMainWindow: () => win,
+      activeTab: () => active,
+      backgroundColor: () => '#0c0c0c',
+      ensureInitialTab: () => {},
+      onViewDetached: () => {},
+    })
+    panel.activatePanelScope('chat-test')
+    panel.setPanelBounds(PANEL_RECT, win)
+    expect(win.contentView.addChildView).toHaveBeenCalledWith(view)
+    expect(win.webContents.focus).toHaveBeenCalled()
+  })
+
+  it('leaves focus untouched when the renderer was not focused at attach time', () => {
+    const { win, view } = showPanel(panel)
+    expect(win.contentView.addChildView).toHaveBeenCalledWith(view)
+    expect(win.webContents.focus).not.toHaveBeenCalled()
+  })
+
   it('requires fresh bounds for the newly active chat and ignores stale reports', () => {
     const { win, view } = showPanel(panel)
     const previousScope = panel.getActivePanelScopeId()

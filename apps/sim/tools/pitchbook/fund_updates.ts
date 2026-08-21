@@ -1,3 +1,4 @@
+import { ErrorExtractorId } from '@/tools/error-extractors'
 import type { PitchbookResponse, PitchbookUpdatesParams } from '@/tools/pitchbook/types'
 import { PITCHBOOK_API_BASE, pitchbookAuthHeaders, throwIfNotOk } from '@/tools/pitchbook/utils'
 import type { ToolConfig } from '@/tools/types'
@@ -7,6 +8,7 @@ export const pitchbookFundUpdatesTool: ToolConfig<PitchbookUpdatesParams, Pitchb
   name: 'PitchBook Fund Updates',
   description: 'Check which fund datasets changed in a window, so a sync only refetches what moved',
   version: '1.0.0',
+  errorExtractor: ErrorExtractorId.PITCHBOOK_ERRORS,
 
   params: {
     apiKey: {

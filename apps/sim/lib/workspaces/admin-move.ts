@@ -1,10 +1,11 @@
-import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
+import { AuditAction, AuditResourceType, recordAudit, recordAuditOnce } from '@sim/audit'
 import { db } from '@sim/db'
 import {
   invitation,
   invitationWorkspaceGrant,
   member,
   organization,
+  outboxEvent,
   permissions,
   subscription,
   user,
@@ -42,8 +43,11 @@ import {
   resolveSeatCapacity,
 } from '@/lib/billing/validation/seat-management'
 import {
+  addOutboxEventSourceOperationId,
   enqueueOrReschedulePendingOutboxEvent,
   type OutboxHandler,
+  outboxEventHasSourceOperationId,
+  outboxPayloadHasSourceOperationId,
 } from '@/lib/core/outbox/service'
 import type { DbOrTx } from '@/lib/db/types'
 import { getInvitationById, isInvitationExpired } from '@/lib/invitations/core'
@@ -58,10 +62,16 @@ import {
 import { WORKSPACE_MODE } from '@/lib/workspaces/policy'
 
 const logger = createLogger('AdminWorkspaceMove')
-// A dashboard member add may move several grants from one invitation in
-// consecutive short transactions. Let that split/merge sequence settle before
-// the outbox resolves the live invitation and sends its final token.
+/**
+ * A dashboard member add may move several grants from one invitation in
+ * consecutive short transactions. Let that split/merge sequence settle before
+ * the outbox resolves the live invitation and sends its final token.
+ */
 const MIGRATED_INVITATION_EMAIL_SETTLE_MS = 60_000
+const MAX_WORKSPACE_MOVE_PENDING_INVITATIONS = 1_000
+const MAX_WORKSPACE_MOVE_GRANTS_PER_INVITATION = 1_000
+const MAX_WORKSPACE_MOVE_TOTAL_INVITATION_GRANTS = 10_000
+const MAX_WORKSPACE_MOVE_RELATED_INVITATIONS = 1_000
 
 export class WorkspaceMoveError extends Error {
   constructor(
@@ -71,6 +81,8 @@ export class WorkspaceMoveError extends Error {
       | 'organization-not-found'
       | 'workspace-owner-changed'
       | 'already-organization-workspace'
+      | 'seat-capacity-exceeded'
+      | 'invitation-volume-exceeded'
   ) {
     super(message)
     this.name = 'WorkspaceMoveError'
@@ -116,6 +128,21 @@ export interface WorkspaceMovePreflight {
   warning: string | null
 }
 
+export interface WorkspaceMoveOperationView extends WorkspaceMovePreflight {
+  operationId: string
+  followUpJobs: {
+    selected: number
+    completed: number
+    pending: number
+    failedCount: number
+    failed: Array<{
+      eventId: string
+      invitationId: string
+      error: string | null
+    }>
+  }
+}
+
 interface InvitationMigrationEvent {
   invitationId: string
   outcome: 'migrated' | 'split' | 'merged'
@@ -144,11 +171,101 @@ interface MoveTransactionResult {
   previousBillingOwnerId: string
   destinationOwnerId: string
   organizationAssignedAt: Date | null
+  durableAudit: AdminWorkspaceMoveOperationPayload['audit'] | null
   invitationEvents: InvitationMigrationEvent[]
   summary: WorkspaceMovePreflight
 }
 
 export const MIGRATED_INVITATION_EMAIL_EVENT_TYPE = 'invitation.send-migrated-link'
+export const ADMIN_WORKSPACE_MOVE_OPERATION_EVENT_TYPE = 'admin.workspace-move-operation'
+
+interface AdminWorkspaceMoveOperationRequest {
+  workspaceId: string
+  destinationOrganizationId: string
+  expectedOwnerId: string | null
+}
+
+interface AdminWorkspaceMoveOperationPayload {
+  request: AdminWorkspaceMoveOperationRequest
+  audit: {
+    actor: { id: string | null; name: string; email: string | null }
+    previousBillingOwnerId: string
+    newBillingOwnerId: string
+    organizationAssignedAt: string
+  }
+}
+
+function parseAdminWorkspaceMoveOperationPayload(
+  payload: unknown
+): AdminWorkspaceMoveOperationPayload | null {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return null
+  const record = payload as Record<string, unknown>
+  const request = record.request
+  const audit = record.audit
+  if (
+    !request ||
+    typeof request !== 'object' ||
+    Array.isArray(request) ||
+    !audit ||
+    typeof audit !== 'object' ||
+    Array.isArray(audit)
+  ) {
+    return null
+  }
+  const requestRecord = request as Record<string, unknown>
+  const auditRecord = audit as Record<string, unknown>
+  const actor = auditRecord.actor
+  if (
+    typeof requestRecord.workspaceId !== 'string' ||
+    typeof requestRecord.destinationOrganizationId !== 'string' ||
+    (requestRecord.expectedOwnerId !== null && typeof requestRecord.expectedOwnerId !== 'string') ||
+    !actor ||
+    typeof actor !== 'object' ||
+    Array.isArray(actor) ||
+    typeof auditRecord.previousBillingOwnerId !== 'string' ||
+    typeof auditRecord.newBillingOwnerId !== 'string' ||
+    typeof auditRecord.organizationAssignedAt !== 'string'
+  ) {
+    return null
+  }
+  const actorRecord = actor as Record<string, unknown>
+  if (
+    (actorRecord.id !== null && typeof actorRecord.id !== 'string') ||
+    typeof actorRecord.name !== 'string' ||
+    (actorRecord.email !== null && typeof actorRecord.email !== 'string')
+  ) {
+    return null
+  }
+  return {
+    request: {
+      workspaceId: requestRecord.workspaceId,
+      destinationOrganizationId: requestRecord.destinationOrganizationId,
+      expectedOwnerId: requestRecord.expectedOwnerId,
+    },
+    audit: {
+      actor: {
+        id: actorRecord.id,
+        name: actorRecord.name,
+        email: actorRecord.email,
+      },
+      previousBillingOwnerId: auditRecord.previousBillingOwnerId,
+      newBillingOwnerId: auditRecord.newBillingOwnerId,
+      organizationAssignedAt: auditRecord.organizationAssignedAt,
+    },
+  }
+}
+
+function workspaceMoveOperationMatches(
+  payload: unknown,
+  params: AdminWorkspaceMoveOperationRequest
+): boolean {
+  const parsed = parseAdminWorkspaceMoveOperationPayload(payload)
+  return (
+    parsed?.request.workspaceId === params.workspaceId &&
+    parsed.request.destinationOrganizationId === params.destinationOrganizationId &&
+    parsed.request.expectedOwnerId === params.expectedOwnerId
+  )
+}
 
 class InvitationSetChangedError extends Error {
   constructor(readonly invitationIds: string[]) {
@@ -165,12 +282,11 @@ function isConcurrentPendingInvitationInsert(error: unknown): boolean {
 }
 
 /** Returns movable personal/grandfathered workspaces by case-insensitive name or exact UUID. */
-export async function searchWorkspaceMoveCandidates(
-  search: string,
-  limit = 20
-): Promise<WorkspaceMoveCandidate[]> {
+export async function searchWorkspaceMoveCandidates(search: string, limit = 20, offset = 0) {
   const query = search.trim()
-  if (!query) return []
+  if (!query) {
+    return { data: [], pagination: { total: 0, limit, offset, hasMore: false } }
+  }
 
   const rows = await db
     .select({
@@ -183,6 +299,7 @@ export async function searchWorkspaceMoveCandidates(
       organizationId: workspace.organizationId,
       billedAccountUserId: workspace.billedAccountUserId,
       archivedAt: workspace.archivedAt,
+      total: sql<number>`count(*) over()`.mapWith(Number),
     })
     .from(workspace)
     .innerJoin(user, eq(user.id, workspace.ownerId))
@@ -195,8 +312,22 @@ export async function searchWorkspaceMoveCandidates(
     )
     .orderBy(asc(workspace.name))
     .limit(Math.min(Math.max(limit, 1), 50))
+    .offset(Math.max(offset, 0))
 
-  return rows.map(({ archivedAt, ...row }) => ({ ...row, archived: archivedAt !== null }))
+  const boundedLimit = Math.min(Math.max(limit, 1), 50)
+  const total = rows[0]?.total ?? 0
+  return {
+    data: rows.map(({ archivedAt, total: _total, ...row }) => ({
+      ...row,
+      archived: archivedAt !== null,
+    })),
+    pagination: {
+      total,
+      limit: boundedLimit,
+      offset: Math.max(offset, 0),
+      hasMore: Math.max(offset, 0) + rows.length < total,
+    },
+  }
 }
 
 /** Builds the human-reviewable summary shown before a workspace move. */
@@ -275,7 +406,7 @@ export async function getWorkspaceMovePreflight(
         })
   const warning =
     seatCapacity !== null && currentMembers + projectedPendingInternalSeats > seatCapacity
-      ? `${currentMembers} current member${currentMembers === 1 ? '' : 's'} plus ${projectedPendingInternalSeats} pending internal invitation${projectedPendingInternalSeats === 1 ? '' : 's'} would exceed the ${seatCapacity}-seat Enterprise capacity if all are accepted.`
+      ? `This move is blocked: ${currentMembers} current member${currentMembers === 1 ? '' : 's'} plus ${projectedPendingInternalSeats} pending internal invitation reservation${projectedPendingInternalSeats === 1 ? '' : 's'} exceed the ${seatCapacity}-seat Enterprise capacity.`
       : null
 
   return {
@@ -302,6 +433,12 @@ export async function moveWorkspaceToOrganization(params: {
   workspaceId: string
   destinationOrganizationId: string
   adminEmail: string
+  auditActor?: { id: string | null; name: string; email: string | null }
+  /** Makes the move audit recoverable if the DB commit succeeds before the caller gets a response. */
+  auditOperationId?: string
+  operationCorrelationId?: string
+  /** Persists a standalone Admin operation marker atomically with the move. */
+  durableOperationId?: string
   /** Reject a stale batch selection instead of moving a newly owned workspace. */
   expectedOwnerId?: string
 }): Promise<WorkspaceMovePreflight> {
@@ -323,6 +460,38 @@ export async function moveWorkspaceToOrganization(params: {
           workspaceIds: [params.workspaceId],
         })
         await acquireOrganizationMutationLock(tx, params.destinationOrganizationId)
+
+        const durableOperationRequest: AdminWorkspaceMoveOperationRequest = {
+          workspaceId: params.workspaceId,
+          destinationOrganizationId: params.destinationOrganizationId,
+          expectedOwnerId: params.expectedOwnerId ?? null,
+        }
+        const [existingDurableOperation] = params.durableOperationId
+          ? await tx
+              .select({
+                eventType: outboxEvent.eventType,
+                status: outboxEvent.status,
+                payload: outboxEvent.payload,
+              })
+              .from(outboxEvent)
+              .where(eq(outboxEvent.id, params.durableOperationId))
+              .for('update')
+              .limit(1)
+          : []
+        if (
+          existingDurableOperation &&
+          (existingDurableOperation.eventType !== ADMIN_WORKSPACE_MOVE_OPERATION_EVENT_TYPE ||
+            existingDurableOperation.status !== 'completed' ||
+            !workspaceMoveOperationMatches(
+              existingDurableOperation.payload,
+              durableOperationRequest
+            ))
+        ) {
+          throw new WorkspaceMoveError(
+            'Workspace move operation ID is already bound to different parameters',
+            'already-organization-workspace'
+          )
+        }
 
         const currentInvitationIds = await findInvitationMigrationLockIds(
           params.workspaceId,
@@ -367,14 +536,63 @@ export async function moveWorkspaceToOrganization(params: {
         }
 
         if (moveState === 'already-moved') {
+          if (params.durableOperationId && !existingDurableOperation) {
+            throw new WorkspaceMoveError(
+              'Workspace was already moved outside this confirmed operation',
+              'already-organization-workspace'
+            )
+          }
           return {
             performedMove: false,
             previousBillingOwnerId: workspaceRow.billedAccountUserId,
             destinationOwnerId: destination.ownerId,
             organizationAssignedAt: null,
+            durableAudit: existingDurableOperation
+              ? (parseAdminWorkspaceMoveOperationPayload(existingDurableOperation.payload)?.audit ??
+                null)
+              : null,
             invitationEvents: [],
             summary: await getMovedWorkspaceSummary(tx, params.workspaceId, destination),
           } satisfies MoveTransactionResult
+        }
+
+        const [enterpriseSubscription] = await tx
+          .select({
+            id: subscription.id,
+            plan: subscription.plan,
+            status: subscription.status,
+            metadata: subscription.metadata,
+          })
+          .from(subscription)
+          .where(
+            and(
+              eq(subscription.referenceId, params.destinationOrganizationId),
+              eq(subscription.plan, 'enterprise'),
+              inArray(subscription.status, ENTITLED_SUBSCRIPTION_STATUSES)
+            )
+          )
+          .limit(1)
+        if (enterpriseSubscription && hasPaidSubscriptionStatus(enterpriseSubscription.status)) {
+          const [capacity, memberRows, movedWorkspaceInvitations] = await Promise.all([
+            resolveSeatCapacity(enterpriseSubscription, tx),
+            tx
+              .select({ value: count() })
+              .from(member)
+              .where(eq(member.organizationId, params.destinationOrganizationId)),
+            getPendingInvitationSummaries(params.workspaceId, tx),
+          ])
+          const projectedPendingSeats = await getProjectedDestinationPendingSeatCount({
+            destinationOrganizationId: params.destinationOrganizationId,
+            movedWorkspaceInvitations,
+            executor: tx,
+          })
+          const currentMembers = memberRows[0]?.value ?? 0
+          if (currentMembers + projectedPendingSeats > capacity) {
+            throw new WorkspaceMoveError(
+              `Moving this workspace would require ${currentMembers + projectedPendingSeats} occupied or reserved seats, above the ${capacity}-seat Enterprise capacity`,
+              'seat-capacity-exceeded'
+            )
+          }
         }
 
         const now = new Date()
@@ -387,15 +605,27 @@ export async function moveWorkspaceToOrganization(params: {
           now,
         })
         for (const invitationId of migration.invitationsToEmail) {
-          await enqueueOrReschedulePendingOutboxEvent(
+          const invitationEmailEventId = await enqueueOrReschedulePendingOutboxEvent(
             tx,
             MIGRATED_INVITATION_EMAIL_EVENT_TYPE,
-            { invitationId },
+            {
+              invitationId,
+              ...(params.operationCorrelationId
+                ? { sourceOperationIds: [params.operationCorrelationId] }
+                : {}),
+            },
             {
               availableAt: new Date(now.getTime() + MIGRATED_INVITATION_EMAIL_SETTLE_MS),
               coalesceOn: { payloadKey: 'invitationId', payloadValue: invitationId },
             }
           )
+          if (params.operationCorrelationId) {
+            await addOutboxEventSourceOperationId(
+              tx,
+              invitationEmailEventId,
+              params.operationCorrelationId
+            )
+          }
         }
 
         await changeWorkspaceStoragePayerInTx(tx, {
@@ -416,6 +646,29 @@ export async function moveWorkspaceToOrganization(params: {
             updatedAt: now,
           })
           .where(eq(workspace.id, params.workspaceId))
+
+        const durableAudit: AdminWorkspaceMoveOperationPayload['audit'] | null =
+          params.durableOperationId
+            ? {
+                actor: params.auditActor ?? {
+                  id: null,
+                  name: 'Admin Panel',
+                  email: params.adminEmail,
+                },
+                previousBillingOwnerId: workspaceRow.billedAccountUserId,
+                newBillingOwnerId: destination.ownerId,
+                organizationAssignedAt: now.toISOString(),
+              }
+            : null
+        if (params.durableOperationId && durableAudit) {
+          await tx.insert(outboxEvent).values({
+            id: params.durableOperationId,
+            eventType: ADMIN_WORKSPACE_MOVE_OPERATION_EVENT_TYPE,
+            payload: { request: durableOperationRequest, audit: durableAudit },
+            status: 'completed',
+            processedAt: now,
+          })
+        }
 
         await tx
           .insert(permissions)
@@ -438,6 +691,7 @@ export async function moveWorkspaceToOrganization(params: {
           previousBillingOwnerId: workspaceRow.billedAccountUserId,
           destinationOwnerId: destination.ownerId,
           organizationAssignedAt: now,
+          durableAudit,
           invitationEvents: migration.invitationEvents,
           summary: await getMovedWorkspaceSummary(tx, params.workspaceId, destination),
         } satisfies MoveTransactionResult
@@ -464,6 +718,22 @@ export async function moveWorkspaceToOrganization(params: {
   }
 
   if (!result.performedMove) {
+    if (params.auditOperationId && result.durableAudit) {
+      await recordDurableWorkspaceMoveAudit(
+        params.auditOperationId,
+        params.workspaceId,
+        params.destinationOrganizationId,
+        result.durableAudit
+      )
+    } else if (params.auditOperationId) {
+      await recordWorkspaceMoveAudit({
+        params,
+        previousBillingOwnerId: null,
+        newBillingOwnerId: result.destinationOwnerId,
+        organizationAssignedAt: null,
+        recovered: true,
+      })
+    }
     logger.info('Workspace was already in destination organization', {
       workspaceId: params.workspaceId,
       destinationOrganizationId: params.destinationOrganizationId,
@@ -473,29 +743,29 @@ export async function moveWorkspaceToOrganization(params: {
 
   invalidateWorkspaceTableLimitsCache(params.workspaceId)
 
-  recordAudit({
-    workspaceId: params.workspaceId,
-    actorId: null,
-    actorName: 'Admin Panel',
-    actorEmail: params.adminEmail,
-    action: AuditAction.WORKSPACE_UPDATED,
-    resourceType: AuditResourceType.WORKSPACE,
-    resourceId: params.workspaceId,
-    description: 'Moved workspace into an organization',
-    metadata: {
-      destinationOrganizationId: params.destinationOrganizationId,
+  if (params.auditOperationId && result.durableAudit) {
+    await recordDurableWorkspaceMoveAudit(
+      params.auditOperationId,
+      params.workspaceId,
+      params.destinationOrganizationId,
+      result.durableAudit
+    )
+  } else {
+    await recordWorkspaceMoveAudit({
+      params,
       previousBillingOwnerId: result.previousBillingOwnerId,
       newBillingOwnerId: result.destinationOwnerId,
-      organizationAssignedAt: result.organizationAssignedAt?.toISOString(),
-    },
-  })
+      organizationAssignedAt: result.organizationAssignedAt,
+      recovered: false,
+    })
+  }
 
   for (const event of result.invitationEvents) {
     recordAudit({
       workspaceId: params.workspaceId,
-      actorId: null,
-      actorName: 'Admin Panel',
-      actorEmail: params.adminEmail,
+      actorId: params.auditActor ? params.auditActor.id : null,
+      actorName: params.auditActor?.name ?? 'Admin Panel',
+      actorEmail: params.auditActor?.email ?? params.adminEmail,
       action: AuditAction.INVITATION_UPDATED,
       resourceType: AuditResourceType.WORKSPACE,
       resourceId: event.invitationId,
@@ -515,6 +785,277 @@ export async function moveWorkspaceToOrganization(params: {
   })
 
   return result.summary
+}
+
+async function recordWorkspaceMoveAudit({
+  params,
+  previousBillingOwnerId,
+  newBillingOwnerId,
+  organizationAssignedAt,
+  recovered,
+}: {
+  params: {
+    workspaceId: string
+    destinationOrganizationId: string
+    adminEmail: string
+    auditActor?: { id: string | null; name: string; email: string | null }
+    auditOperationId?: string
+  }
+  previousBillingOwnerId: string | null
+  newBillingOwnerId: string
+  organizationAssignedAt: Date | null
+  recovered: boolean
+}): Promise<void> {
+  const audit = {
+    workspaceId: params.workspaceId,
+    actorId: params.auditActor ? params.auditActor.id : null,
+    actorName: params.auditActor?.name ?? 'Admin Panel',
+    actorEmail: params.auditActor?.email ?? params.adminEmail,
+    action: AuditAction.WORKSPACE_UPDATED,
+    resourceType: AuditResourceType.WORKSPACE,
+    resourceId: params.workspaceId,
+    description: 'Moved workspace into an organization',
+    metadata: {
+      destinationOrganizationId: params.destinationOrganizationId,
+      previousBillingOwnerId,
+      newBillingOwnerId,
+      organizationAssignedAt: organizationAssignedAt?.toISOString() ?? null,
+      recoveredAfterResponseLoss: recovered,
+    },
+  } as const
+  if (params.auditOperationId) {
+    await recordAuditOnce(`${params.auditOperationId}:workspace-move:${params.workspaceId}`, audit)
+  } else {
+    recordAudit(audit)
+  }
+}
+
+async function recordDurableWorkspaceMoveAudit(
+  operationId: string,
+  workspaceId: string,
+  destinationOrganizationId: string,
+  audit: AdminWorkspaceMoveOperationPayload['audit']
+): Promise<void> {
+  await recordAuditOnce(`${operationId}:workspace-move:${workspaceId}`, {
+    workspaceId,
+    actorId: audit.actor.id,
+    actorName: audit.actor.name,
+    actorEmail: audit.actor.email,
+    action: AuditAction.WORKSPACE_UPDATED,
+    resourceType: AuditResourceType.WORKSPACE,
+    resourceId: workspaceId,
+    description: 'Moved workspace into an organization',
+    metadata: {
+      destinationOrganizationId,
+      previousBillingOwnerId: audit.previousBillingOwnerId,
+      newBillingOwnerId: audit.newBillingOwnerId,
+      organizationAssignedAt: audit.organizationAssignedAt,
+      requestOperationId: operationId,
+    },
+  })
+}
+
+async function getWorkspaceMoveFollowUpJobs(
+  operationId: string,
+  executor: DbOrTx = db
+): Promise<WorkspaceMoveOperationView['followUpJobs']> {
+  const [progress] = await executor
+    .select({
+      selected: count(),
+      completed: sql<number>`count(*) filter (where ${outboxEvent.status} = 'completed')`.mapWith(
+        Number
+      ),
+      failed: sql<number>`count(*) filter (where ${outboxEvent.status} = 'dead_letter')`.mapWith(
+        Number
+      ),
+    })
+    .from(outboxEvent)
+    .where(
+      and(
+        eq(outboxEvent.eventType, MIGRATED_INVITATION_EMAIL_EVENT_TYPE),
+        outboxEventHasSourceOperationId(operationId)
+      )
+    )
+  const selected = progress?.selected ?? 0
+  const completed = progress?.completed ?? 0
+  const failedCount = progress?.failed ?? 0
+  const failedRows =
+    failedCount > 0
+      ? await executor
+          .select({
+            eventId: outboxEvent.id,
+            invitationId: sql<string | null>`${outboxEvent.payload} ->> 'invitationId'`,
+            error: outboxEvent.lastError,
+          })
+          .from(outboxEvent)
+          .where(
+            and(
+              eq(outboxEvent.eventType, MIGRATED_INVITATION_EMAIL_EVENT_TYPE),
+              eq(outboxEvent.status, 'dead_letter'),
+              outboxEventHasSourceOperationId(operationId)
+            )
+          )
+          .orderBy(outboxEvent.createdAt, outboxEvent.id)
+          .limit(100)
+      : []
+  return {
+    selected,
+    completed,
+    pending: Math.max(0, selected - completed - failedCount),
+    failedCount,
+    failed: failedRows.flatMap((row) =>
+      row.invitationId
+        ? [
+            {
+              eventId: row.eventId,
+              invitationId: row.invitationId,
+              error: row.error,
+            },
+          ]
+        : []
+    ),
+  }
+}
+
+export async function toWorkspaceMoveOperationView(
+  summary: WorkspaceMovePreflight,
+  operationId: string
+): Promise<WorkspaceMoveOperationView> {
+  return {
+    ...summary,
+    operationId,
+    followUpJobs: await getWorkspaceMoveFollowUpJobs(operationId),
+  }
+}
+
+export async function getWorkspaceMoveOperation(
+  workspaceId: string,
+  destinationOrganizationId: string,
+  expectedOwnerId: string | undefined,
+  operationId: string
+): Promise<WorkspaceMoveOperationView> {
+  const [operation] = await db
+    .select({
+      eventType: outboxEvent.eventType,
+      status: outboxEvent.status,
+      payload: outboxEvent.payload,
+    })
+    .from(outboxEvent)
+    .where(eq(outboxEvent.id, operationId))
+    .limit(1)
+  const operationPayload = parseAdminWorkspaceMoveOperationPayload(operation?.payload)
+  if (
+    operation?.eventType !== ADMIN_WORKSPACE_MOVE_OPERATION_EVENT_TYPE ||
+    operation.status !== 'completed' ||
+    !operationPayload ||
+    !workspaceMoveOperationMatches(operationPayload, {
+      workspaceId,
+      destinationOrganizationId,
+      expectedOwnerId: expectedOwnerId ?? null,
+    })
+  ) {
+    throw new WorkspaceMoveError(
+      'Workspace move has not been applied with these confirmed parameters',
+      'workspace-owner-changed'
+    )
+  }
+  const [workspaceRow] = await searchWorkspaceById(workspaceId)
+  if (!workspaceRow) throw new WorkspaceMoveError('Workspace not found', 'workspace-not-found')
+  if (
+    workspaceRow.organizationId !== destinationOrganizationId ||
+    workspaceRow.workspaceMode !== WORKSPACE_MODE.ORGANIZATION
+  ) {
+    throw new WorkspaceMoveError(
+      'Workspace move has not been applied with these confirmed parameters',
+      'workspace-owner-changed'
+    )
+  }
+  const destination = await getDestinationOrganization(destinationOrganizationId)
+  if (!destination) {
+    throw new WorkspaceMoveError('Destination organization not found', 'organization-not-found')
+  }
+  await recordDurableWorkspaceMoveAudit(
+    operationId,
+    workspaceId,
+    destinationOrganizationId,
+    operationPayload.audit
+  )
+  return toWorkspaceMoveOperationView(
+    await getMovedWorkspaceSummary(db, workspaceId, destination),
+    operationId
+  )
+}
+
+export async function retryWorkspaceMoveFollowUpJob(params: {
+  workspaceId: string
+  destinationOrganizationId: string
+  expectedOwnerId?: string
+  operationId: string
+  jobEventId: string
+  actor: { id: string | null; name: string; email: string | null }
+}): Promise<WorkspaceMoveOperationView> {
+  await getWorkspaceMoveOperation(
+    params.workspaceId,
+    params.destinationOrganizationId,
+    params.expectedOwnerId,
+    params.operationId
+  )
+  const retried = await db.transaction(async (tx) => {
+    await acquireOrganizationMutationLock(tx, params.destinationOrganizationId)
+    const [job] = await tx
+      .select({
+        status: outboxEvent.status,
+        eventType: outboxEvent.eventType,
+        payload: outboxEvent.payload,
+      })
+      .from(outboxEvent)
+      .where(eq(outboxEvent.id, params.jobEventId))
+      .for('update')
+      .limit(1)
+    if (
+      !job ||
+      job.eventType !== MIGRATED_INVITATION_EMAIL_EVENT_TYPE ||
+      !outboxPayloadHasSourceOperationId(job.payload, params.operationId)
+    ) {
+      throw new Error('Workspace-move follow-up job not found')
+    }
+    if (job.status !== 'dead_letter') return false
+    await tx
+      .update(outboxEvent)
+      .set({
+        status: 'pending',
+        attempts: 0,
+        lastError: null,
+        availableAt: new Date(),
+        lockedAt: null,
+        processedAt: null,
+      })
+      .where(eq(outboxEvent.id, params.jobEventId))
+    return true
+  })
+  if (retried) {
+    await recordAuditOnce(`${params.operationId}:follow-up-retry:${params.jobEventId}`, {
+      actorId: params.actor.id,
+      actorName: params.actor.name,
+      actorEmail: params.actor.email,
+      action: AuditAction.INVITATION_UPDATED,
+      resourceType: AuditResourceType.WORKSPACE,
+      resourceId: params.workspaceId,
+      workspaceId: params.workspaceId,
+      description: 'Admin retried a migrated invitation email after a workspace move',
+      metadata: {
+        destinationOrganizationId: params.destinationOrganizationId,
+        operationId: params.operationId,
+        jobEventId: params.jobEventId,
+      },
+    })
+  }
+  return getWorkspaceMoveOperation(
+    params.workspaceId,
+    params.destinationOrganizationId,
+    params.expectedOwnerId,
+    params.operationId
+  )
 }
 
 async function searchWorkspaceById(workspaceId: string): Promise<WorkspaceMoveCandidate[]> {
@@ -611,6 +1152,14 @@ async function getPendingInvitationSummaries(workspaceId: string, executor: DbOr
         gt(invitation.expiresAt, new Date())
       )
     )
+    .limit(MAX_WORKSPACE_MOVE_PENDING_INVITATIONS + 1)
+
+  if (rows.length > MAX_WORKSPACE_MOVE_PENDING_INVITATIONS) {
+    throw new WorkspaceMoveError(
+      `This workspace has more than ${MAX_WORKSPACE_MOVE_PENDING_INVITATIONS.toLocaleString()} pending invitations. Resolve or cancel older invitations before moving it; none were migrated.`,
+      'invitation-volume-exceeded'
+    )
+  }
 
   if (rows.length === 0) return []
   const counts = await executor
@@ -623,6 +1172,13 @@ async function getPendingInvitationSummaries(workspaceId: string, executor: DbOr
       )
     )
     .groupBy(invitationWorkspaceGrant.invitationId)
+  const totalGrantCount = counts.reduce((total, row) => total + row.value, 0)
+  if (totalGrantCount > MAX_WORKSPACE_MOVE_TOTAL_INVITATION_GRANTS) {
+    throw new WorkspaceMoveError(
+      `The pending invitations on this workspace cover more than ${MAX_WORKSPACE_MOVE_TOTAL_INVITATION_GRANTS.toLocaleString()} workspace grants. Resolve or cancel older invitations before moving it; none were migrated.`,
+      'invitation-volume-exceeded'
+    )
+  }
   const countById = new Map(counts.map((row) => [row.invitationId, row.value]))
 
   return rows.map((row) => ({
@@ -676,9 +1232,12 @@ export function projectDestinationPendingSeatCount(params: {
 async function getProjectedDestinationPendingSeatCount(params: {
   destinationOrganizationId: string
   movedWorkspaceInvitations: PendingWorkspaceInvitationSummary[]
+  executor?: DbOrTx
 }): Promise<number> {
+  const executor = params.executor ?? db
   const currentDestinationPendingSeats = await countPendingSeatInvitations(
-    params.destinationOrganizationId
+    params.destinationOrganizationId,
+    executor
   )
   const incomingInternalEmails = [
     ...new Set(
@@ -694,7 +1253,7 @@ async function getProjectedDestinationPendingSeatCount(params: {
   if (incomingInternalEmails.length === 0) return currentDestinationPendingSeats
 
   const [existingDestinationRows, existingMembers] = await Promise.all([
-    db
+    executor
       .select({ email: invitation.email })
       .from(invitation)
       .where(
@@ -710,7 +1269,7 @@ async function getProjectedDestinationPendingSeatCount(params: {
           )
         )
       ),
-    db
+    executor
       .select({ email: user.email })
       .from(member)
       .innerJoin(user, eq(user.id, member.userId))
@@ -733,10 +1292,10 @@ async function getProjectedDestinationPendingSeatCount(params: {
 }
 
 /**
- * Lock the source invitations plus every pending invitation for the same
- * invitees. Those rows are potential split/merge targets and acceptance locks
- * the same invitation IDs, so a destination invite cannot be accepted while a
- * move is appending a grant to it.
+ * Lock the source invitations plus pending organization invitations for the
+ * same invitees. A legacy source can retain grants in several organization
+ * scopes, and redistribution may merge into any of them. Acceptance locks the
+ * same invitation IDs, so all possible merge targets must be fenced.
  */
 async function findInvitationMigrationLockIds(
   workspaceId: string,
@@ -755,6 +1314,13 @@ async function findInvitationMigrationLockIds(
         eq(invitationWorkspaceGrant.workspaceId, workspaceId)
       )
     )
+    .limit(MAX_WORKSPACE_MOVE_PENDING_INVITATIONS + 1)
+  if (sourceRows.length > MAX_WORKSPACE_MOVE_PENDING_INVITATIONS) {
+    throw new WorkspaceMoveError(
+      `This workspace has more than ${MAX_WORKSPACE_MOVE_PENDING_INVITATIONS.toLocaleString()} pending invitations. Resolve or cancel older invitations before moving it; none were migrated.`,
+      'invitation-volume-exceeded'
+    )
+  }
   if (sourceRows.length === 0) return []
 
   const emails = [...new Set(sourceRows.map((row) => normalizeEmail(row.email)))]
@@ -764,12 +1330,18 @@ async function findInvitationMigrationLockIds(
     .where(
       and(
         eq(invitation.status, 'pending'),
+        gt(invitation.expiresAt, now),
         or(...emails.map((email) => sql`lower(${invitation.email}) = ${email}`)),
-        // Null-org invitations never coalesce, so unrelated personal invites
-        // for the same email are not mutation targets and need no lock.
         isNotNull(invitation.organizationId)
       )
     )
+    .limit(MAX_WORKSPACE_MOVE_RELATED_INVITATIONS + 1)
+  if (relatedRows.length > MAX_WORKSPACE_MOVE_RELATED_INVITATIONS) {
+    throw new WorkspaceMoveError(
+      `The pending invitations on this workspace have more than ${MAX_WORKSPACE_MOVE_RELATED_INVITATIONS.toLocaleString()} related organization invitations. Resolve or cancel older invitations before moving it; none were migrated.`,
+      'invitation-volume-exceeded'
+    )
+  }
   return [
     ...new Set([...sourceRows.map((row) => row.id), ...relatedRows.map((row) => row.id)]),
   ].sort()
@@ -811,6 +1383,13 @@ async function lockCurrentPendingInvitations(
     )
     .orderBy(invitation.id)
     .for('update')
+    .limit(MAX_WORKSPACE_MOVE_PENDING_INVITATIONS + 1)
+  if (rows.length > MAX_WORKSPACE_MOVE_PENDING_INVITATIONS) {
+    throw new WorkspaceMoveError(
+      `This workspace has more than ${MAX_WORKSPACE_MOVE_PENDING_INVITATIONS.toLocaleString()} pending invitations. Resolve or cancel older invitations before moving it; none were migrated.`,
+      'invitation-volume-exceeded'
+    )
+  }
   return [...new Set(rows.map((row) => row.id))]
 }
 
@@ -825,6 +1404,7 @@ async function migratePendingInvitations(
 ): Promise<{ invitationEvents: InvitationMigrationEvent[]; invitationsToEmail: string[] }> {
   const invitationEvents: InvitationMigrationEvent[] = []
   const invitationsToEmail = new Set<string>()
+  let loadedGrantCount = 0
 
   for (const invitationId of params.invitationIds) {
     const [source] = await tx
@@ -851,6 +1431,20 @@ async function migratePendingInvitations(
       .innerJoin(workspace, eq(workspace.id, invitationWorkspaceGrant.workspaceId))
       .where(eq(invitationWorkspaceGrant.invitationId, source.id))
       .orderBy(invitationWorkspaceGrant.workspaceId)
+      .limit(MAX_WORKSPACE_MOVE_GRANTS_PER_INVITATION + 1)
+    if (grants.length > MAX_WORKSPACE_MOVE_GRANTS_PER_INVITATION) {
+      throw new WorkspaceMoveError(
+        `Pending invitation ${source.id} covers more than ${MAX_WORKSPACE_MOVE_GRANTS_PER_INVITATION.toLocaleString()} workspaces. Resolve or cancel it before moving this workspace; none were migrated.`,
+        'invitation-volume-exceeded'
+      )
+    }
+    loadedGrantCount += grants.length
+    if (loadedGrantCount > MAX_WORKSPACE_MOVE_TOTAL_INVITATION_GRANTS) {
+      throw new WorkspaceMoveError(
+        `The pending invitations on this workspace cover more than ${MAX_WORKSPACE_MOVE_TOTAL_INVITATION_GRANTS.toLocaleString()} workspace grants. Resolve or cancel older invitations before moving it; none were migrated.`,
+        'invitation-volume-exceeded'
+      )
+    }
 
     const existingDestination = await findPendingInvitationForScope(tx, {
       email: source.email,
@@ -1093,7 +1687,11 @@ async function mergeGrant(
   })
 }
 
-const sendMigratedInvitationLink: OutboxHandler<{ invitationId: string }> = async (payload) => {
+const sendMigratedInvitationLink: OutboxHandler<{
+  invitationId: string
+  sourceOperationId?: string
+  sourceOperationIds?: string[]
+}> = async (payload) => {
   const migrated = await getInvitationById(payload.invitationId)
   if (!migrated || migrated.status !== 'pending' || isInvitationExpired(migrated)) return
   const result = await sendInvitationEmail({

@@ -101,6 +101,8 @@ export interface DesktopSettings {
   launchAtLogin?: boolean
   autoDownloadUpdates?: boolean
   browserEnabled?: boolean
+  /** Whether omnibox typing may request live Google search completions. */
+  browserSearchSuggestionsEnabled?: boolean
   terminalEnabled?: boolean
   /** Device-wide browser page appearance; `app` follows Sim. */
   browserTheme?: 'app' | 'light' | 'dark'
@@ -216,6 +218,7 @@ const DEFAULT_SETTINGS: DesktopSettings = {
   launchAtLogin: false,
   autoDownloadUpdates: true,
   browserEnabled: true,
+  browserSearchSuggestionsEnabled: true,
   terminalEnabled: true,
 }
 

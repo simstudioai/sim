@@ -36,6 +36,7 @@ import {
   ResolvedSecretTraceRegistry,
 } from '@/executor/utils/resolved-secret-trace-registry'
 import { bitbucketGetPipelineStepLogTool } from '@/tools/bitbucket/get_pipeline_step_log'
+import { ErrorExtractorId } from '@/tools/error-extractors'
 import { fileGetContentTool } from '@/tools/file/get'
 import { memoryAddTool } from '@/tools/memory/add'
 import { tableBatchInsertRowsTool } from '@/tools/table/batch_insert_rows'
@@ -4262,6 +4263,17 @@ describe('Centralized Error Handling', () => {
       { errors: [{ detail: 'Rate limit exceeded' }] },
       'Rate limit exceeded'
     )
+  })
+
+  it('uses a tool-specific Prospeo extractor before flattening a failed response', async () => {
+    const originalExtractor = tools.function_execute.errorExtractor
+    tools.function_execute.errorExtractor = ErrorExtractorId.PROSPEO_ERRORS
+
+    try {
+      await testErrorFormat('Prospeo', { error: true, error_code: 'NO_MATCH' }, 'NO_MATCH')
+    } finally {
+      tools.function_execute.errorExtractor = originalExtractor
+    }
   })
 
   it('should extract Hunter API error format', async () => {

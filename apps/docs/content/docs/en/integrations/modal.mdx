@@ -1,0 +1,94 @@
+---
+title: Modal
+description: Call deployed Modal functions and endpoints
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="modal"
+  color="#000000"
+/>
+
+## Usage Instructions
+
+Integrate Modal into your workflow to reach the serverless compute you already run there. Invoke a deployed Web Function or Server over HTTPS with proxy-token auth, generate completions from a model served by a Modal Endpoint, and list the models a token can reach.
+
+
+
+## Actions
+
+### Modal Call Function
+
+Invoke a deployed Modal Web Function or Server over HTTPS
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `url` | string | Yes | Public URL of the deployed Modal Web Function or Server \(e.g., https://your-workspace--your-app-your-function.modal.run\) |
+| `method` | string | No | HTTP method to use: GET, POST, PUT, PATCH, DELETE, or HEAD |
+| `body` | json | No | JSON request body sent to the function |
+| `queryParams` | json | No | Query parameters to append to the URL as key-value pairs |
+| `headers` | json | No | Additional request headers as key-value pairs |
+| `tokenId` | string | No | Modal proxy token ID \(wk-...\), required for authenticated functions |
+| `tokenSecret` | string | No | Modal proxy token secret \(ws-...\), required for authenticated functions |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `data` | json | Body returned by the function — parsed JSON when it responds with application/json, otherwise the raw text |
+| `status` | number | HTTP status code of the response |
+| `headers` | json | Response headers as key-value pairs |
+
+### Modal Chat Completion
+
+Generate a chat completion from a model served by a Modal Endpoint
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `endpointUrl` | string | No | Endpoint URL from the Modal dashboard or `modal endpoint list`. Defaults to https://inference.us-west.modal.direct, which routes to Shared Endpoints on the model ID |
+| `model` | string | Yes | Model to generate with — the base model repo ID for a dedicated endpoint, or the endpoint hostname for a Shared Endpoint |
+| `content` | string | Yes | The user message content to send to the model |
+| `systemPrompt` | string | No | System prompt to guide the model behavior |
+| `maxTokens` | number | No | Maximum number of tokens to generate |
+| `temperature` | number | No | Sampling temperature \(e.g., 0 for deterministic, 0.7 for creative\) |
+| `topP` | number | No | Nucleus sampling probability mass between 0 and 1 |
+| `tokenId` | string | Yes | Modal proxy token ID \(wk-...\) |
+| `tokenSecret` | string | Yes | Modal proxy token secret \(ws-...\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | string | Generated text content |
+| `model` | string | Model that produced the completion |
+| `finishReason` | string | Why generation stopped \(e.g., stop, length\) |
+| `usage` | object | Token usage reported by the endpoint |
+|   ↳ `prompt_tokens` | number | Number of tokens in the prompt |
+|   ↳ `completion_tokens` | number | Number of tokens in the completion |
+|   ↳ `total_tokens` | number | Total number of tokens used |
+
+### Modal List Models
+
+List the model IDs a Modal proxy token can reach on an endpoint
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `endpointUrl` | string | No | Endpoint URL to query. Defaults to https://inference.us-west.modal.direct, which lists every Shared Endpoint the token can reach |
+| `tokenId` | string | Yes | Modal proxy token ID \(wk-...\) |
+| `tokenSecret` | string | Yes | Modal proxy token secret \(ws-...\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `models` | array | Models the token can reach on the endpoint |
+| `count` | number | Number of models returned |
+
+

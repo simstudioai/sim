@@ -68,6 +68,7 @@ export const AIRTABLE_SERVICE_ACCOUNT_PROVIDER_ID = 'airtable-service-account' a
 export const NOTION_SERVICE_ACCOUNT_PROVIDER_ID = 'notion-service-account' as const
 export const ASANA_SERVICE_ACCOUNT_PROVIDER_ID = 'asana-service-account' as const
 export const ATTIO_SERVICE_ACCOUNT_PROVIDER_ID = 'attio-service-account' as const
+export const HARMONIC_SERVICE_ACCOUNT_PROVIDER_ID = 'harmonic-service-account' as const
 export const CLICKUP_SERVICE_ACCOUNT_PROVIDER_ID = 'clickup-service-account' as const
 export const LINEAR_SERVICE_ACCOUNT_PROVIDER_ID = 'linear-service-account' as const
 export const MONDAY_SERVICE_ACCOUNT_PROVIDER_ID = 'monday-service-account' as const
@@ -96,6 +97,7 @@ export type TokenServiceAccountProviderId =
   | typeof NOTION_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof ASANA_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof ATTIO_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof HARMONIC_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof CLICKUP_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof LINEAR_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof MONDAY_SERVICE_ACCOUNT_PROVIDER_ID
@@ -202,6 +204,21 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
     docsUrl: 'https://docs.sim.ai/integrations/attio-service-account',
     helpText:
       'Check the scopes granted to the key in Attio — tools whose scopes are missing will fail at run time.',
+  },
+  [HARMONIC_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: HARMONIC_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Harmonic',
+    tokenNoun: 'team API key',
+    connectNoun: 'API key',
+    fields: [
+      {
+        id: 'apiToken',
+        label: 'Team API key',
+        placeholder: 'Paste Harmonic team API key',
+        secret: true,
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/harmonic',
   },
   [CLICKUP_SERVICE_ACCOUNT_PROVIDER_ID]: {
     providerId: CLICKUP_SERVICE_ACCOUNT_PROVIDER_ID,

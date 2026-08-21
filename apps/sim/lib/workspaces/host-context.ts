@@ -26,7 +26,7 @@ async function resolveWorkspaceHostContextForViewer(
     getWorkspaceOwnerSubscriptionAccess(workspaceId),
     hostOrganizationId
       ? getOrganizationSettingsAccess(hostOrganizationId, userId)
-      : Promise.resolve({ isMember: false, isAdmin: false }),
+      : Promise.resolve({ role: null, isMember: false, isAdmin: false }),
   ])
   const credentialGroupsAvailable = await isCredentialGroupsAvailable(ownerBilling)
 
@@ -43,6 +43,7 @@ async function resolveWorkspaceHostContextForViewer(
       permission: access.permission,
       isHostOrganizationMember: hostOrganizationAccess.isMember,
       isHostOrganizationAdmin: hostOrganizationAccess.isAdmin,
+      organizationRole: hostOrganizationAccess.role,
     },
     features: {
       credentialGroups: credentialGroupsAvailable,

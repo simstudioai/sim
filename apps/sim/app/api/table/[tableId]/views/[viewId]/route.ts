@@ -99,6 +99,9 @@ export const DELETE = withRouteHandler(
 
       return NextResponse.json({ success: true, data: { deleted: true } })
     } catch (error) {
+      if (error instanceof TableViewValidationError) {
+        return NextResponse.json({ error: error.message }, { status: 400 })
+      }
       logger.error(`[${requestId}] Error deleting table view:`, error)
       return NextResponse.json({ error: 'Failed to delete view' }, { status: 500 })
     }

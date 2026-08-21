@@ -11,6 +11,7 @@ import {
 } from '@/lib/copilot/chat/selection-context'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { getFileExtension } from '@/lib/uploads/utils/file-utils'
+import { isSimPageSource, SIM_PAGE_CONTENT_TYPE } from '@/lib/workspace-files/page-compile'
 import { useAddToChat } from '@/hooks/use-add-to-chat'
 import type { ChatContext } from '@/stores/panel'
 import { EditorContextMenu } from './editor-context-menu'
@@ -19,6 +20,9 @@ import { PreviewPanel, resolvePreviewType } from './preview-panel'
 import { PreviewLoadingFrame } from './preview-shared'
 import { useEditableFileContent } from './use-editable-file-content'
 import { useSelectionCopyBridge } from './use-selection-copy-bridge'
+
+/** File ids observed rendering as Sim pages this session (see the sticky lock). */
+const KNOWN_PAGE_FILE_IDS = new Set<string>()
 
 const SIM_DARK_RULES: MonacoEditorTypes.ITokenThemeRule[] = [
   { token: 'comment', foreground: '606060', fontStyle: 'italic' },
@@ -584,7 +588,32 @@ export const TextEditor = memo(function TextEditor({
 
   const previewType = resolvePreviewType(file.type, file.name)
   const isIframeRendered = previewType === 'html' || previewType === 'svg'
-  const effectiveMode = isStreaming && isIframeRendered ? 'editor' : previewMode
+  // A Sim page NEVER shows its source here — the pdf model: the rendered
+  // document is the file's face on every surface, at every moment. The
+  // record's internal type decides instantly (stamped at write, known before
+  // content loads); content detection is the fallback for files written
+  // before the stamp existed. During the very first streamed chunk even the
+  // frontmatter is partial, so an html stream that has not yet contradicted
+  // the page shape (empty, or an opening '---') already counts — that kills
+  // the raw-header flash at stream start and the raw flips between an
+  // agent's tool calls. Bespoke raw HTML keeps the old behavior.
+  const trimmedContent = content.trimStart()
+  const detectedSimPage =
+    file.type === SIM_PAGE_CONTENT_TYPE ||
+    (previewType === 'html' &&
+      (isSimPageSource(content) ||
+        (isStreaming && (trimmedContent === '' || trimmedContent.startsWith('-')))))
+  // Sticky per file: a PATCH stream carries only the replacement snippet,
+  // which is not frontmatter-shaped — without memory the lock would drop
+  // mid-edit and flash raw source. Once a file is known to be a page, it
+  // stays one for the session.
+  if (detectedSimPage) KNOWN_PAGE_FILE_IDS.add(file.id)
+  const isSimPageFile = detectedSimPage || KNOWN_PAGE_FILE_IDS.has(file.id)
+  const effectiveMode = isSimPageFile
+    ? 'preview'
+    : isStreaming && isIframeRendered
+      ? 'editor'
+      : previewMode
   const showEditor = effectiveMode !== 'preview'
   const showPreviewPane = effectiveMode !== 'editor'
 

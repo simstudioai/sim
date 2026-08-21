@@ -14,7 +14,10 @@ import {
 } from '@/components/emails'
 import { getEffectiveBillingStatus } from '@/lib/billing/core/access'
 import { defaultBillingPeriod } from '@/lib/billing/core/billing-period'
-import { getHighestPrioritySubscription } from '@/lib/billing/core/plan'
+import {
+  getHighestPrioritySubscription,
+  type HighestPrioritySubscription,
+} from '@/lib/billing/core/plan'
 import {
   type ResolvedUsagePeriod,
   resolveSubscriptionUsagePeriod,
@@ -197,13 +200,18 @@ export async function ensureUserStatsExists(userId: string): Promise<void> {
     .onConflictDoNothing({ target: userStats.userId })
 }
 
-/**
- * Get comprehensive usage data for a user
- */
-export async function getUserUsageData(
+export interface ResolvedUserUsageData {
+  usage: UsageData
+  subscription: HighestPrioritySubscription
+  /** The personal balance from the same user-stats row used to calculate usage. */
+  personalCreditBalance: number
+}
+
+/** Resolves comprehensive usage and the subscription that determined its billing scope. */
+export async function getResolvedUserUsageData(
   userId: string,
   executor: DbClient = db
-): Promise<UsageData> {
+): Promise<ResolvedUserUsageData> {
   try {
     // Write — always on the primary regardless of executor routing.
     await ensureUserStatsExists(userId)
@@ -344,19 +352,31 @@ export async function getUserUsageData(
     const isExceeded = effectiveUsage >= limit
 
     return {
-      currentUsage: effectiveUsage,
-      limit,
-      percentUsed,
-      isWarning,
-      isExceeded,
-      billingPeriodStart,
-      billingPeriodEnd,
-      lastPeriodCost,
+      usage: {
+        currentUsage: effectiveUsage,
+        limit,
+        percentUsed,
+        isWarning,
+        isExceeded,
+        billingPeriodStart,
+        billingPeriodEnd,
+        lastPeriodCost,
+      },
+      subscription,
+      personalCreditBalance: toNumber(toDecimal(stats.creditBalance)),
     }
   } catch (error) {
     logger.error('Failed to get user usage data', { userId, error })
     throw error
   }
+}
+
+/** Get comprehensive usage data for a user. */
+export async function getUserUsageData(
+  userId: string,
+  executor: DbClient = db
+): Promise<UsageData> {
+  return (await getResolvedUserUsageData(userId, executor)).usage
 }
 
 /**

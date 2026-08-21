@@ -72,7 +72,7 @@ export const cbinsightsListInvestmentsTool: ToolConfig<
         body: compactBody({
           orgIds: requireOrgIds(params.orgIds),
           limit: clampLimit(params.limit),
-          nextPageToken: params.nextPageToken,
+          nextPageToken: params.nextPageToken?.trim(),
         }),
       },
       (data) => ({ orgs: asArray(data.orgs), ...pageInfo(data) }),

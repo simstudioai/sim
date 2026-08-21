@@ -178,7 +178,11 @@ export async function performCreateKnowledgeConnector(
 
   const configValidation = await connectorConfig.validateConfig(accessToken, sourceConfig)
   if (!configValidation.valid) {
-    return fail(configValidation.error || 'Invalid source configuration', 'validation')
+    return fail(
+      configValidation.error ||
+        `The ${connectorType} connector rejected sourceConfig without a reason — re-check its required fields in knowledgebases/connectors/${connectorType}.json before retrying; the same config will fail again.`,
+      'validation'
+    )
   }
 
   if (connectorConfig.auth.mode === 'apiKey' && apiKey) {
@@ -421,6 +425,27 @@ export async function performUpdateKnowledgeConnector(
   const existing = await getKnowledgeConnector(kb.id, connectorId)
   if (!existing) {
     return fail('Connector not found', 'not_found')
+  }
+  /**
+   * A running sync owns the row, so no edit is applied while it holds the lock.
+   *
+   * `performSyncKnowledgeConnector` already refuses on the same condition; this
+   * is the other half. `status: 'active'` sets `nextSyncAt = new Date()`, which
+   * summons a second run alongside the first, and every write here moves
+   * `updatedAt` — which the stale-lock reaper read as the lock's lease, so the
+   * only two controls the UI leaves enabled on a wedged connector both pushed
+   * its recovery out by another full TTL.
+   *
+   * A non-status edit is refused too, not just a status flip. `sourceConfig` is
+   * read once at the start of a run and threaded through it, so changing it
+   * mid-flight yields a pass that lists against one config and reconciles
+   * against another — and reconciliation hard-deletes. `syncIntervalMinutes`
+   * writes a `nextSyncAt` the run's own terminal write overwrites moments later,
+   * so allowing it would silently discard the change. Refusing is the only
+   * answer that is honest about either.
+   */
+  if (existing.status === 'syncing') {
+    return fail('Sync already in progress', 'conflict')
   }
 
   if (updates.syncIntervalMinutes !== undefined) {

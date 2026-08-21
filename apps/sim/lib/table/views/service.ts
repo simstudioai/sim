@@ -2,11 +2,12 @@
  * Saved views on a user table — named presets of `{ filter, sort, column layout }`.
  *
  * A view is presentation state, never an access boundary: it narrows what a
- * reader sees by default, but every row it hides is still reachable by switching
- * to "All". Row access is enforced entirely by the caller's workspace permission.
+ * reader sees by default, but every row it hides remains accessible by clearing
+ * the filter or selecting another view. Row access is enforced entirely by the
+ * caller's workspace permission.
  *
- * "All" is the *absence* of a view, so no row is seeded per table and a table is
- * always reachable unfiltered even if every saved view is broken or deleted.
+ * New tables are seeded with an empty default view. Legacy tables without one
+ * temporarily use "All" as an unfiltered fallback until they are migrated.
  */
 
 import { db } from '@sim/db'
@@ -193,10 +194,10 @@ function tolerantColumns(
  * `carriedForward` names the references that are exempt from that refusal.
  * Deleting a column leaves every view that filtered on it dangling —
  * `pruneViewConfig` deliberately does not prune a filter — so without the
- * exemption the view becomes unwritable: the Save chip sends the whole
- * `{filter, sort, hiddenColumns}` slice, and a user changing the sort would be
- * refused over a condition they did not touch, with no way to save the removal
- * of anything else first. The v2 surface exempts only what the STORED config
+ * exemption the filter becomes unwritable: changing one of its other conditions
+ * autosaves the whole predicate and would be refused over the dangling condition
+ * the user did not touch, with no way to save its eventual removal. The v2
+ * surface exempts only what the STORED config
  * already held, so a reference the caller INTRODUCES is refused; a first-party
  * caller exempts its own refs too, which is the behavior the grid has always
  * had — see {@link CreateTableViewData.strictRefs}.
@@ -425,9 +426,8 @@ export interface CreateTableViewData {
    * Absent — the first-party grid, which does not author these refs so much as
    * carry them: a view filtered on a since-deleted column keeps the dangling
    * leaf through every read (`pruneViewConfig` spares filters) and hands it
-   * straight back on the next save. Refusing it would 400 "Save as view" on a
-   * config the Save chip accepts, one menu item apart, over a condition the user
-   * never touched.
+   * straight back on the next autosave. Refusing it would reject a config the
+   * first-party grid already accepted, over a condition the user never touched.
    */
   strictRefs?: boolean
 }
@@ -464,7 +464,8 @@ export async function createTableView(data: CreateTableViewData): Promise<TableV
         and(eq(tableViews.tableId, data.tableId), eq(tableViews.workspaceId, data.workspaceId))
       )
 
-    if (Number(existing?.total ?? 0) >= TABLE_LIMITS.MAX_VIEWS_PER_TABLE) {
+    const existingTotal = Number(existing?.total ?? 0)
+    if (existingTotal >= TABLE_LIMITS.MAX_VIEWS_PER_TABLE) {
       throw new TableViewValidationError(
         `A table cannot have more than ${TABLE_LIMITS.MAX_VIEWS_PER_TABLE} saved views`
       )
@@ -478,6 +479,7 @@ export async function createTableView(data: CreateTableViewData): Promise<TableV
         workspaceId: data.workspaceId,
         name,
         config,
+        isDefault: existingTotal === 0,
         createdBy: data.userId,
       })
       .returning()
@@ -495,7 +497,7 @@ export interface UpdateTableViewData {
   tableId: string
   workspaceId?: string
   name?: string
-  /** Full replace — an explicit Save, where removing a filter must persist. */
+  /** Full replacement for callers that own the complete configuration snapshot. */
   config?: TableViewConfig
   /** Shallow-merged into the stored config. Mutually exclusive with `config`. */
   configPatch?: TableViewConfig
@@ -619,27 +621,132 @@ export async function updateTableView(data: UpdateTableViewData): Promise<TableV
   return toTableView(outcome.row, data.columns)
 }
 
-/** Deleting the default simply leaves the table on "All". */
+/**
+ * Deleting the default while siblings remain simply leaves the table on "All".
+ * The last remaining view is not deletable: a table that has views keeps at
+ * least one, so it can never regress to the legacy zero-view state. Views of a
+ * hard-deleted table are removed by the FK cascade, never through this path.
+ * The sibling check and the delete share the views lock, so two racing deletes
+ * cannot both observe a sibling and drop the table to zero.
+ */
 export async function deleteTableView(
   viewId: string,
   tableId: string,
   workspaceId?: string
 ): Promise<boolean> {
-  const deleted = await db
-    .delete(tableViews)
-    .where(
-      and(
-        eq(tableViews.id, viewId),
-        eq(tableViews.tableId, tableId),
-        workspaceId ? eq(tableViews.workspaceId, workspaceId) : undefined
+  const deleted = await withTableViewsLock(tableId, async (trx) => {
+    const siblings = await trx
+      .select({ id: tableViews.id })
+      .from(tableViews)
+      .where(
+        and(
+          eq(tableViews.tableId, tableId),
+          workspaceId ? eq(tableViews.workspaceId, workspaceId) : undefined
+        )
       )
-    )
-    .returning({ id: tableViews.id })
+    if (!siblings.some((view) => view.id === viewId)) return false
+    if (siblings.length === 1) {
+      throw new TableViewValidationError('A table must keep at least one saved view')
+    }
+    const result = await trx
+      .delete(tableViews)
+      .where(
+        and(
+          eq(tableViews.id, viewId),
+          eq(tableViews.tableId, tableId),
+          workspaceId ? eq(tableViews.workspaceId, workspaceId) : undefined
+        )
+      )
+      .returning({ id: tableViews.id })
+    return result.length > 0
+  })
 
-  if (deleted.length > 0) {
+  if (deleted) {
     logger.info('Deleted table view', { tableId, viewId })
     // Only signal a real deletion — a missing view (nothing deleted) changed nothing.
     signalTableViewsChanged(tableId)
   }
-  return deleted.length > 0
+  return deleted
+}
+
+/**
+ * All of a workspace's views in one query, keyed by tableId — the snapshot
+ * materializer's shape (per-table listTableViews would be N queries). Configs
+ * are returned RAW (id-domain, unpruned); callers translate/prune with each
+ * table's own columns.
+ */
+export async function listTableViewsByWorkspace(
+  workspaceId: string
+): Promise<Map<string, Array<typeof tableViews.$inferSelect>>> {
+  const rows = await db
+    .select()
+    .from(tableViews)
+    .where(eq(tableViews.workspaceId, workspaceId))
+    .orderBy(asc(tableViews.createdAt), asc(tableViews.id))
+  const byTable = new Map<string, Array<typeof tableViews.$inferSelect>>()
+  for (const row of rows) {
+    const list = byTable.get(row.tableId) ?? []
+    list.push(row)
+    byTable.set(row.tableId, list)
+  }
+  return byTable
+}
+
+function mapPredicateFields(
+  node: PredicateNode,
+  mapField: (field: string) => string
+): PredicateNode {
+  if ('all' in node) return { all: node.all.map((child) => mapPredicateFields(child, mapField)) }
+  if ('any' in node) return { any: node.any.map((child) => mapPredicateFields(child, mapField)) }
+  const leaf = node as Predicate
+  return { ...leaf, field: mapField(leaf.field) }
+}
+
+/**
+ * Stored (id-domain) view config → the column-NAME domain agents speak.
+ * Unknown ids pass through unchanged, mirroring pruneViewConfig's philosophy
+ * for filters: surfacing a stale reference beats silently widening the view.
+ */
+export function viewConfigIdsToNames(
+  config: TableViewConfig,
+  columns: ColumnDefinition[]
+): TableViewConfig {
+  const nameById = new Map(columns.map((col) => [getColumnId(col), col.name]))
+  const toName = (field: string) => nameById.get(field) ?? field
+  const out: TableViewConfig = { ...config }
+  if (config.filter) out.filter = mapPredicateFields(config.filter, toName) as typeof config.filter
+  if (config.sort) out.sort = config.sort.map((s) => ({ ...s, field: toName(s.field) }))
+  if (config.hiddenColumns) out.hiddenColumns = config.hiddenColumns.map(toName)
+  return out
+}
+
+/**
+ * Agent-supplied (name-domain) view config → the id-domain stored shape.
+ * Unknown column names are an error — a saved view with a dangling reference
+ * is exactly the artifact this translation exists to prevent.
+ */
+export function viewConfigNamesToIds(
+  config: TableViewConfig,
+  columns: ColumnDefinition[]
+): TableViewConfig {
+  const idByName = new Map(columns.map((col) => [col.name, getColumnId(col)]))
+  const unknown = new Set<string>()
+  const toId = (field: string) => {
+    const id = idByName.get(field)
+    if (!id) {
+      unknown.add(field)
+      return field
+    }
+    return id
+  }
+  const out: TableViewConfig = { ...config }
+  if (config.filter) out.filter = mapPredicateFields(config.filter, toId) as typeof config.filter
+  if (config.sort) out.sort = config.sort.map((s) => ({ ...s, field: toId(s.field) }))
+  if (config.hiddenColumns) out.hiddenColumns = config.hiddenColumns.map(toId)
+  if (unknown.size > 0) {
+    throw new TableViewValidationError(
+      `Unknown column(s): ${[...unknown].join(', ')}. Use exact column names from get_schema.`
+    )
+  }
+  return out
 }

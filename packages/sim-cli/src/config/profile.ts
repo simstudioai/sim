@@ -101,6 +101,54 @@ export function readCredentialsProfile(profile: string): Record<string, string> 
   return getSection(readIni(credentialsPath()), profile) ?? {}
 }
 
+/**
+ * Resolves the one stored identity a profile authenticates through.
+ *
+ * Existing profiles authenticate through their same-named credentials section.
+ * A workspace alias may instead name one direct `auth_profile`; references are
+ * deliberately non-recursive so a hand-edited cycle or missing target fails
+ * with the setting that needs repair rather than surfacing later as "no key".
+ */
+export function resolveAuthenticationProfileName(profile: string): string {
+  const config = readConfigProfile(profile)
+  if (!Object.hasOwn(config, 'auth_profile')) return profile
+
+  const authProfile = config.auth_profile.trim()
+  if (!authProfile) {
+    throw new ProfileConfigError(`Profile "${profile}" has an empty auth_profile.`)
+  }
+  if (authProfile === profile) {
+    throw new ProfileConfigError(
+      `Profile "${profile}" cannot use itself as auth_profile. Remove the auth_profile setting instead.`
+    )
+  }
+  if (Object.hasOwn(config, 'endpoint')) {
+    throw new ProfileConfigError(
+      `Profile "${profile}" cannot set both auth_profile and endpoint. Set the endpoint on authentication profile "${authProfile}".`
+    )
+  }
+  if (readCredentialsProfile(profile).api_key) {
+    throw new ProfileConfigError(
+      `Profile "${profile}" cannot set both auth_profile and its own API key. Remove one of them.`
+    )
+  }
+
+  const authConfig = readConfigProfile(authProfile)
+  const credentials = readCredentialsProfile(authProfile)
+  if (Object.keys(authConfig).length === 0 && Object.keys(credentials).length === 0) {
+    throw new ProfileConfigError(
+      `Profile "${profile}" references missing auth_profile "${authProfile}".`
+    )
+  }
+  if (Object.hasOwn(authConfig, 'auth_profile')) {
+    throw new ProfileConfigError(
+      `Profile "${profile}" references auth_profile "${authProfile}", which also has auth_profile set. Authentication profile references cannot be chained.`
+    )
+  }
+
+  return authProfile
+}
+
 /** Every profile named by either file, deduplicated and sorted. */
 export function listProfiles(): string[] {
   const names = new Set<string>()
@@ -114,6 +162,14 @@ export function listProfiles(): string[] {
   }
 
   return [...names].sort()
+}
+
+/** Profiles that directly share the named profile's stored authentication. */
+export function listAuthenticationDependents(authProfile: string): string[] {
+  return listProfiles().filter(
+    (profile) =>
+      profile !== authProfile && readConfigProfile(profile).auth_profile?.trim() === authProfile
+  )
 }
 
 export function writeConfigProfile(profile: string, values: Record<string, string | null>): void {
@@ -195,13 +251,15 @@ function resolve<T>(
 export function resolveProfile(overrides: ProfileOverrides = {}): ResolvedProfile {
   const name = overrides.profile || process.env.SIM_PROFILE || DEFAULT_PROFILE
   const config = readConfigProfile(name)
-  const credentials = readCredentialsProfile(name)
+  const authProfile = resolveAuthenticationProfileName(name)
+  const authConfig = authProfile === name ? config : readConfigProfile(authProfile)
+  const credentials = readCredentialsProfile(authProfile)
 
   const endpoint = resolve<string>(
     [
       ['flag', overrides.endpoint],
       ['env', process.env.SIM_ENDPOINT],
-      ['config', config.endpoint],
+      ['config', authConfig.endpoint],
     ],
     DEFAULT_ENDPOINT,
     'default'

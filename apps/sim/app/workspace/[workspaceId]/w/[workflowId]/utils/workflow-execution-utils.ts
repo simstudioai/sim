@@ -1070,7 +1070,10 @@ export async function executeWorkflowWithFullLogging(
       error: errorMessage,
       httpStatus: response.status,
     })
-    throw new Error(errorMessage)
+    // Keep the status and code on the thrown error. Downgrading to a bare Error
+    // discarded both, so callers could not tell a Copilot binding rejection from
+    // any other 4xx — and the reason never reached the agent that could fix it.
+    throw new ExecutionStreamHttpError(errorMessage, response.status, errorCode)
   }
 
   if (!response.body) {

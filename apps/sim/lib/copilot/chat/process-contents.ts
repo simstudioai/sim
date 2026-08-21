@@ -49,6 +49,7 @@ import { readWorkspaceFileMetadata } from '@/lib/workspace-files/application/rea
 import { parseWorkspaceFileFolderDisplayPath } from '@/lib/workspace-files/folder-display-path'
 import { getUserPermissionConfig } from '@/ee/access-control/utils/permission-check'
 import { escapeRegExp } from '@/executor/constants'
+import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import type { BrowserTextSelection, ChatContext, TerminalTextSelection } from '@/stores/panel'
 
 type AgentContextType =
@@ -124,7 +125,8 @@ export async function processContextsServer(
   userId: string,
   userMessage?: string,
   currentWorkspaceId?: string,
-  chatId?: string
+  chatId?: string,
+  resolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry
 ): Promise<AgentContext[]> {
   if (!Array.isArray(contexts) || contexts.length === 0) return []
   const tasks = contexts.map(async (ctx) => {
@@ -314,17 +316,36 @@ export async function processContextsServer(
       }
       if (ctx.kind === 'docs') {
         try {
-          const { searchDocumentationServerTool } = await import(
-            '@/lib/copilot/tools/server/docs/search-documentation'
+          const { searchDocsServerTool } = await import(
+            '@/lib/copilot/tools/server/docs/search-docs'
           )
           const rawQuery = (userMessage || '').trim() || ctx.label || 'Sim documentation'
-          const query = sanitizeMessageForDocs(rawQuery, contexts)
-          const res = await searchDocumentationServerTool.execute({ query, topK: 10 })
-          const content = JSON.stringify(res?.results || [])
+          const query =
+            sanitizeMessageForDocs(rawQuery, contexts) || ctx.label || 'Sim documentation'
+          const res = await searchDocsServerTool.execute(
+            { query },
+            {
+              userId,
+              workspaceId: currentWorkspaceId,
+              chatId,
+              resolvedSecretTraceRegistry,
+            }
+          )
+          const content = JSON.stringify({
+            results: res?.results || [],
+            ...(res?.note ? { note: res.note } : {}),
+          })
           return { type: 'docs', tag: ctx.label ? `@${ctx.label}` : '@', content }
         } catch (e) {
           logger.error('Failed to process docs context', e)
-          return null
+          return {
+            type: 'docs',
+            tag: ctx.label ? `@${ctx.label}` : '@',
+            content: JSON.stringify({
+              results: [],
+              note: 'Documentation search is temporarily unavailable. Do not infer that the docs lack this topic; retry search_docs or browse docs/** later.',
+            }),
+          }
         }
       }
       return null

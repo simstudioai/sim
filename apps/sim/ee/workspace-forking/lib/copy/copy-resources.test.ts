@@ -2,7 +2,7 @@
  * @vitest-environment node
  */
 
-import { folder as folderTable } from '@sim/db/schema'
+import { folder as folderTable, tableViews, userTableDefinitions } from '@sim/db/schema'
 import { sha256Hex } from '@sim/security/hash'
 import {
   dbChainMockFns,
@@ -1208,6 +1208,127 @@ describe('copyForkResourceContent', () => {
     })
     expect(storageServiceMockFns.mockDownloadFile).not.toHaveBeenCalled()
     expect(storageServiceMockFns.mockUploadFile).not.toHaveBeenCalled()
+  })
+})
+
+describe('copyForkResourceContainers table views', () => {
+  it('copies saved views and seeds a default for a legacy table', async () => {
+    const now = new Date('2026-08-19T00:00:00.000Z')
+    const definitions = [
+      {
+        id: 'table-with-view',
+        workspaceId: 'src-ws',
+        folderId: null,
+        name: 'Configured table',
+        description: null,
+        schema: { columns: [{ id: 'col-name', name: 'Name', type: 'string' }] },
+        metadata: { columnOrder: ['col-name'] },
+        maxRows: 10000,
+        rowCount: 1,
+        rowsVersion: 1,
+        schemaLocked: false,
+        insertLocked: false,
+        updateLocked: false,
+        deleteLocked: false,
+        archivedAt: null,
+        createdBy: 'source-user',
+        createdAt: now,
+        updatedAt: now,
+      },
+      {
+        id: 'legacy-table',
+        workspaceId: 'src-ws',
+        folderId: null,
+        name: 'Legacy table',
+        description: null,
+        schema: { columns: [{ id: 'col-email', name: 'Email', type: 'string' }] },
+        metadata: { columnOrder: ['col-email'] },
+        maxRows: 10000,
+        rowCount: 0,
+        rowsVersion: 0,
+        schemaLocked: false,
+        insertLocked: false,
+        updateLocked: false,
+        deleteLocked: false,
+        archivedAt: null,
+        createdBy: 'source-user',
+        createdAt: now,
+        updatedAt: now,
+      },
+    ]
+    const sourceViews = [
+      {
+        id: 'source-view',
+        tableId: 'table-with-view',
+        workspaceId: 'src-ws',
+        name: 'My view',
+        config: { hiddenColumns: ['col-name'] },
+        isDefault: true,
+        createdBy: 'source-user',
+        createdAt: now,
+        updatedAt: now,
+      },
+    ]
+    const inserted = new Map<unknown, Array<Record<string, unknown>>>()
+    const tx = {
+      select: () => ({
+        from: (table: unknown) => ({
+          where: () =>
+            Promise.resolve(
+              table === userTableDefinitions ? definitions : table === tableViews ? sourceViews : []
+            ),
+        }),
+      }),
+      insert: (table: unknown) => ({
+        values: (values: Array<Record<string, unknown>>) => {
+          inserted.set(table, values)
+          return Promise.resolve()
+        },
+      }),
+    }
+
+    const result = await copyForkResourceContainers({
+      tx: tx as unknown as DbOrTx,
+      sourceWorkspaceId: 'src-ws',
+      childWorkspaceId: 'child-ws',
+      userId: 'user-1',
+      now,
+      selection: {
+        customTools: [],
+        skills: [],
+        mcpServers: [],
+        workflowMcpServers: [],
+        tables: definitions.map((definition) => definition.id),
+        knowledgeBases: [],
+      },
+      workflowIdMap: new Map(),
+      documentMappingContext: { edgeChildWorkspaceId: 'child-ws', sourceIsParent: true },
+    })
+
+    const copiedTableId = result.idMap.get('table')?.get('table-with-view')
+    const legacyTableId = result.idMap.get('table')?.get('legacy-table')
+    const copiedViews = inserted.get(tableViews)
+    expect(copiedViews).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          tableId: copiedTableId,
+          workspaceId: 'child-ws',
+          name: 'My view',
+          config: { hiddenColumns: ['col-name'] },
+          isDefault: true,
+          createdBy: 'user-1',
+        }),
+        expect.objectContaining({
+          tableId: legacyTableId,
+          workspaceId: 'child-ws',
+          name: 'Default',
+          config: { columnOrder: ['col-email'] },
+          isDefault: true,
+          createdBy: 'user-1',
+        }),
+      ])
+    )
+    expect(copiedViews?.find((view) => view.name === 'My view')?.id).not.toBe('source-view')
   })
 })
 

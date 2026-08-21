@@ -498,7 +498,8 @@ export class TerminalService {
     emitRendererCommand: (command: TerminalShortcutCommand, terminalId: string) => void,
     confirmCloseRunning?: (running: string) => boolean
   ): boolean {
-    if (shortcut === 'focus-omnibox') return false
+    // Hard reload has no terminal meaning — leave it to the Browser or shell.
+    if (shortcut === 'focus-omnibox' || shortcut === 'hard-reload') return false
     const visibleTabShortcut =
       shortcut === 'new-tab' || shortcut === 'reopen-closed-tab' || shortcut === 'close-tab'
     const ownsVisibleTabs =

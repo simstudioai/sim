@@ -267,6 +267,8 @@ export const documentDataSchema = z
     tokenCount: z.number(),
     characterCount: z.number(),
     processingStatus: z.enum(['pending', 'processing', 'completed', 'failed']),
+    /** When indexing was last dispatched to a worker, which precedes a worker starting it. */
+    processingQueuedAt: nullableWireDateSchema.optional(),
     processingStartedAt: nullableWireDateSchema.optional(),
     processingCompletedAt: nullableWireDateSchema.optional(),
     processingError: z.string().nullable().optional(),

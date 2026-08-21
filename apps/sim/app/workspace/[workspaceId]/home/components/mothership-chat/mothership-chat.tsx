@@ -665,6 +665,28 @@ export function MothershipChat({
   }, [handleEditQueued])
 
   /**
+   * A drag-selection that overshoots a message's last line crosses the row
+   * wrappers' block boundaries, which the clipboard serializer renders as
+   * trailing newlines — every copied response pasted with blank lines
+   * appended. Rewrite the plain-text flavor trimmed; the rich flavor is
+   * re-serialized from the selection so formatted pastes keep working.
+   */
+  const handleCopy = useCallback((event: React.ClipboardEvent) => {
+    const selection = window.getSelection()
+    if (!selection || selection.isCollapsed || !event.clipboardData) return
+    const text = selection.toString()
+    const trimmed = text.replace(/\s+$/, '')
+    if (trimmed === text) return
+    event.preventDefault()
+    event.clipboardData.setData('text/plain', trimmed)
+    const html = document.createElement('div')
+    for (let i = 0; i < selection.rangeCount; i++) {
+      html.appendChild(selection.getRangeAt(i).cloneContents())
+    }
+    event.clipboardData.setData('text/html', html.innerHTML)
+  }, [])
+
+  /**
    * Land at the most recent message once per chat — on open and when switching
    * chats. The ref tracks which `chatId` we last scrolled for (seeded with
    * {@link UNSCROLLED} so a pending, id-less chat still scrolls on first mount),
@@ -696,7 +718,7 @@ export function MothershipChat({
       onWorkspaceResourceSelect={onWorkspaceResourceSelect}
     >
       <div className={cn('flex h-full min-h-0 flex-col', className)}>
-        <div ref={setScrollElement} className={styles.scrollContainer}>
+        <div ref={setScrollElement} className={styles.scrollContainer} onCopy={handleCopy}>
           {isLoading && !hasMessages ? (
             <MothershipChatSkeleton layout={layout} />
           ) : (
@@ -714,8 +736,15 @@ export function MothershipChat({
                     key={virtualItem.key}
                     data-index={index}
                     ref={virtualizer.measureElement}
-                    className='absolute top-0 left-0 w-full'
-                    style={{ transform: `translateY(${virtualItem.start}px)` }}
+                    /* Positioned with a real `top`, NOT `top-0` + translateY:
+                       text selection maps a drag's start point to a text
+                       position via the rows' LAYOUT boxes, and with every row
+                       laid out at y=0 a drag starting in the gutter anchors in
+                       the wrong row — selections ran upward from a downward
+                       drag. Transforms move paint and hit-testing but not the
+                       layout box that mapping falls back to. */
+                    className='absolute left-0 w-full'
+                    style={{ top: virtualItem.start }}
                   >
                     {msg.role === 'user' ? (
                       interactionPairing.hiddenUserByIndex[index] ? null : (

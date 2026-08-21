@@ -23,11 +23,8 @@ import {
   resolveActiveKnowledgeBaseContext,
 } from '@/lib/knowledge/application/contexts'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
-import {
-  createSingleDocument,
-  type DocumentData,
-  processDocumentsWithQueue,
-} from '@/lib/knowledge/documents/service'
+import { dispatchDocumentProcessing } from '@/lib/knowledge/documents/processing-dispatch'
+import { createSingleDocument, type DocumentData } from '@/lib/knowledge/documents/service'
 import { StorageService } from '@/lib/uploads'
 import {
   loadActiveWorkspaceFileContext,
@@ -217,18 +214,12 @@ export const addWorkspaceFilesToKnowledgeBase = defineAuthorizedKnowledgeUseCase
           fileSize: document.fileSize,
           mimeType: document.mimeType,
         }
-        processDocumentsWithQueue(
-          [processingDocument],
-          context.knowledgeBaseId,
-          {},
+        void dispatchDocumentProcessing({
+          documents: [processingDocument],
+          knowledgeBaseId: context.knowledgeBaseId,
+          processingOptions: {},
           requestId,
-          billingAttribution
-        ).catch((error: unknown) => {
-          logger.error('Knowledge document processing pipeline failed', {
-            knowledgeBaseId: context.knowledgeBaseId,
-            documentId: document.id,
-            error,
-          })
+          billingAttribution,
         })
         added.push({
           documentId: document.id,

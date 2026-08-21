@@ -3,11 +3,13 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Command } from 'commander'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { readConfigProfile } from '../config/index'
+import { readConfigProfile, writeConfigProfile, writeCredentialsProfile } from '../config/index'
 import { configureCommand } from './configure'
 
+const mocks = vi.hoisted(() => ({ profileName: 'default' }))
+
 vi.mock('../context', () => ({
-  profileFrom: () => ({ name: 'default' }),
+  profileFrom: () => ({ name: mocks.profileName }),
 }))
 
 let dir: string
@@ -21,6 +23,7 @@ function run(...args: string[]): Promise<Command> {
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'sim-cli-'))
   process.env.SIM_CONFIG_DIR = dir
+  mocks.profileName = 'default'
   vi.spyOn(console, 'log').mockImplementation(() => {})
 })
 
@@ -48,5 +51,20 @@ describe('configure --set-endpoint', () => {
   it('stores a self-hosted endpoint with its trailing slashes stripped', async () => {
     await run('--set-endpoint', 'http://localhost:3000//')
     expect(readConfigProfile('default')).toMatchObject({ endpoint: 'http://localhost:3000' })
+  })
+
+  it('refuses to set an endpoint locally on a shared workspace profile', async () => {
+    writeConfigProfile('default', { endpoint: 'https://sim.example' })
+    writeCredentialsProfile('default', 'stored-key')
+    writeConfigProfile('acme', { auth_profile: 'default', workspace: 'ws_acme' })
+    mocks.profileName = 'acme'
+
+    await expect(run('--set-endpoint', 'https://other.example')).rejects.toThrow(
+      'Profile "acme" shares its endpoint with authentication profile "default".'
+    )
+    expect(readConfigProfile('acme')).toEqual({
+      auth_profile: 'default',
+      workspace: 'ws_acme',
+    })
   })
 })

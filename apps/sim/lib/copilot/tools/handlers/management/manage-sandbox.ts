@@ -102,7 +102,11 @@ export async function executeManageSandbox(
       workspaceId,
       SANDBOX_MUTATION_LIMIT
     )
-    if (limited) return { success: false, error: 'Rate limit exceeded' }
+    if (limited)
+      return {
+        success: false,
+        error: `Rate limit exceeded for sandbox ${operation} in this workspace — do not retry now; continue with other work or tell the user the limit was hit.`,
+      }
 
     if (operation === 'add') {
       const parsed = createSandboxBodySchema.safeParse({

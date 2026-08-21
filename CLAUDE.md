@@ -472,6 +472,22 @@ describe('my route', () => {
 
 Use `@sim/testing` mocks/factories over local test data.
 
+## Caching
+
+Never hand-roll TTL arithmetic — a `Map` plus `Date.now() - fetchedAt < TTL` re-implements expiry,
+the ceiling, and coalescing badly. Use `lru-cache` (a direct dependency), and always set `max`:
+`ttl` alone does not bound memory, so a tenant-keyed cache without a ceiling grows for the life of
+the process. Prefer `fetchMethod` + `cache.fetch(key)` for async read-through — it gives TTL,
+coalescing, and eviction-on-rejection in one primitive — and compose `coalesceLocally` around an
+`LRUCache` only when a hung producer would otherwise wedge callers for the whole TTL.
+
+First check the thing is a cache at all: a lifecycle map whose entry is deleted when the tracked
+thing ends (`activeStreams`, `pendingChildRuns`) is a plain `Map`, and giving it a TTL or a ceiling
+introduces an expiry that races the lifecycle. Cache the gate, never the credential — entitlements
+tolerate bounded staleness in the safe direction, key material must stay fresh so revocation is
+immediate. Full decision tree, sizing, `!== undefined` reads, and the invalidation rule are in
+`.claude/rules/sim-caching.md`.
+
 ## Utils Rules
 
 - Never create `utils.ts` for single consumer - inline it

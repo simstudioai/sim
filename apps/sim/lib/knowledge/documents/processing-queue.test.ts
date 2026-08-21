@@ -8,9 +8,13 @@ import {
   resetEnvFlagsMock,
   setEnvFlags,
 } from '@sim/testing'
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import { env } from '@/lib/core/config/env'
+import {
+  markInsideTriggerRun,
+  resetInsideTriggerRunForTests,
+} from '@/lib/core/config/trigger-runtime'
 
 const { mockBatchTrigger } = vi.hoisted(() => ({
   mockBatchTrigger: vi.fn(),
@@ -72,6 +76,9 @@ describe('processDocumentsWithQueue billing attribution', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
+    // The processing claim is guarded and returns the row it claimed; without a
+    // stub every worker would read as 'already completed' and return early.
+    dbChainMockFns.returning.mockResolvedValue([{ id: 'document-1' }])
     mockBatchTrigger.mockResolvedValue({ batchId: 'batch-1' })
     for (const key of Object.keys(env)) {
       delete (env as Record<string, unknown>)[key]
@@ -151,5 +158,99 @@ describe('processDocumentsWithQueue billing attribution', () => {
       workspaceId: null,
     })
     expect(jobs[0].payload).not.toHaveProperty('billingAttribution')
+  })
+})
+
+/**
+ * The per-document fan-out was inert in production because `isTriggerAvailable()`
+ * inferred availability from environment variables that the app container sets
+ * and the Trigger.dev worker does not. A run process is authoritative about its
+ * own runtime, so the marker has to beat both environment conjuncts.
+ */
+describe('processDocumentsWithQueue dispatch backend', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+    // The processing claim is guarded and returns the row it claimed; without a
+    // stub every worker would read as 'already completed' and return early.
+    dbChainMockFns.returning.mockResolvedValue([{ id: 'document-1' }])
+    resetInsideTriggerRunForTests()
+    mockBatchTrigger.mockResolvedValue({ batchId: 'batch-1' })
+    for (const key of Object.keys(env)) {
+      delete (env as Record<string, unknown>)[key]
+    }
+    Object.assign(env, { ...defaultMockEnv })
+    ;(env as Record<string, unknown>).TRIGGER_SECRET_KEY = undefined
+    dbChainMockFns.limit.mockResolvedValue([
+      { userId: 'knowledge-owner', workspaceId: 'workspace-1' },
+    ])
+  })
+
+  afterEach(() => {
+    resetInsideTriggerRunForTests()
+    setEnvFlags({ isTriggerDevEnabled: true })
+  })
+
+  it('dispatches via Trigger.dev inside a run with neither env conjunct satisfied', async () => {
+    setEnvFlags({ isTriggerDevEnabled: false })
+    markInsideTriggerRun()
+
+    await processDocumentsWithQueue(
+      [DOCUMENT],
+      'knowledge-base-1',
+      {},
+      'request-1',
+      BILLING_ATTRIBUTION
+    )
+
+    expect(mockBatchTrigger).toHaveBeenCalledTimes(1)
+  })
+
+  it('dispatches via Trigger.dev inside a run when only the secret key is missing', async () => {
+    setEnvFlags({ isTriggerDevEnabled: true })
+    markInsideTriggerRun()
+
+    await processDocumentsWithQueue(
+      [DOCUMENT],
+      'knowledge-base-1',
+      {},
+      'request-1',
+      BILLING_ATTRIBUTION
+    )
+
+    expect(mockBatchTrigger).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not dispatch via Trigger.dev outside a run when the secret key is missing', async () => {
+    setEnvFlags({ isTriggerDevEnabled: true })
+
+    await expect(
+      processDocumentsWithQueue(
+        [DOCUMENT],
+        'knowledge-base-1',
+        {},
+        'request-1',
+        BILLING_ATTRIBUTION
+      )
+    ).rejects.toThrow()
+
+    expect(mockBatchTrigger).not.toHaveBeenCalled()
+  })
+
+  it('does not dispatch via Trigger.dev outside a run when the deployment flag is off', async () => {
+    setEnvFlags({ isTriggerDevEnabled: false })
+    Object.assign(env, { TRIGGER_SECRET_KEY: 'trigger-secret' })
+
+    await expect(
+      processDocumentsWithQueue(
+        [DOCUMENT],
+        'knowledge-base-1',
+        {},
+        'request-1',
+        BILLING_ATTRIBUTION
+      )
+    ).rejects.toThrow()
+
+    expect(mockBatchTrigger).not.toHaveBeenCalled()
   })
 })

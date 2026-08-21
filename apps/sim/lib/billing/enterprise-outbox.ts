@@ -6,11 +6,13 @@ import { z } from 'zod'
 import { MAX_BILLING_CONCURRENCY_LIMIT } from '@/lib/billing/concurrency-defaults'
 import { MAX_WORKFLOW_EXECUTION_TIMEOUT_SECONDS } from '@/lib/billing/execution-timeout-defaults'
 import type { DbOrTx } from '@/lib/db/types'
+import { MAX_INVITE_EMAILS } from '@/lib/invitations/limits'
 
 export const ENTERPRISE_PROVISION_EVENT_TYPE = 'stripe.provision-enterprise'
 export const ENTERPRISE_METADATA_SYNC_EVENT_TYPE = 'stripe.sync-enterprise-metadata'
 export const ENTERPRISE_WORKSPACE_MOVE_EVENT_TYPE = 'enterprise.move-workspace'
 export const ENTERPRISE_MEMBER_RECONCILIATION_EVENT_TYPE = 'enterprise.reconcile-members'
+export const ENTERPRISE_INVITE_PEOPLE_EVENT_TYPE = 'enterprise.invite-people'
 
 const nonnegativeInteger = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER)
 
@@ -20,6 +22,7 @@ export const enterpriseProvisionRequestSchema = z.object({
   organizationId: z.string().min(1),
   requestedByEmail: z.string().min(1),
   requestedByUserId: z.string().nullable(),
+  requestedByName: z.string().min(1).default('Admin Panel'),
   invoiceAmountCents: z.number().int().positive(),
   billingInterval: z.enum(['month', 'year']).default('month'),
   reportingPeriodAnchorDate: z
@@ -27,6 +30,16 @@ export const enterpriseProvisionRequestSchema = z.object({
     .regex(/^\d{4}-\d{2}-\d{2}$/)
     .optional(),
   workspaceIds: z.array(z.string().min(1)).max(1_000).default([]),
+  invitations: z
+    .array(
+      z.object({
+        email: z.string().email(),
+        role: z.enum(['admin', 'member']),
+        permission: z.enum(['admin', 'write', 'read']),
+      })
+    )
+    .max(MAX_INVITE_EMAILS)
+    .default([]),
   usageLimitCredits: nonnegativeInteger,
   prepaidBalanceCreditsAtIssuance: nonnegativeInteger.default(0),
   seats: z.number().int().positive(),
@@ -38,6 +51,7 @@ export const enterpriseProvisionRequestSchema = z.object({
     .max(MAX_WORKFLOW_EXECUTION_TIMEOUT_SECONDS)
     .optional(),
   pausePaymentCollection: z.boolean().default(false),
+  logoutOwnerOnApply: z.boolean().default(false),
 })
 
 export const enterpriseProvisionPayloadSchema = z.object({
@@ -153,14 +167,38 @@ export const enterpriseWorkspaceMovePayloadSchema = z.object({
   workspaceId: z.string().min(1),
   destinationOrganizationId: z.string().min(1),
   expectedOwnerId: z.string().min(1),
-  adminEmail: z.string().email(),
+  adminUserId: z.string().min(1).nullable().default(null),
+  adminName: z.string().min(1).default('Admin Panel'),
+  adminEmail: z.string().min(1),
   sequence: z.number().int().min(0),
 })
 
 export type EnterpriseWorkspaceMovePayload = z.infer<typeof enterpriseWorkspaceMovePayloadSchema>
 
+export const enterpriseInvitePeoplePayloadSchema = z.object({
+  source: z.enum(['enterprise', 'admin']).default('enterprise'),
+  provisioningOperationId: z.string().min(1),
+  organizationId: z.string().min(1),
+  ownerUserId: z.string().min(1),
+  email: z.string().email(),
+  role: z.enum(['admin', 'member']),
+  permission: z.enum(['admin', 'write', 'read']),
+  sequence: z.number().int().min(0),
+  attemptedAt: z.string().datetime().optional(),
+  delivery: z
+    .object({
+      completedAt: z.string().datetime(),
+      resultId: z.string().min(1),
+      outcome: z.enum(['sent', 'added', 'unchanged']).default('sent'),
+    })
+    .optional(),
+})
+
+export type EnterpriseInvitePeoplePayload = z.infer<typeof enterpriseInvitePeoplePayloadSchema>
+
 export const enterpriseMemberReconciliationPayloadSchema = z.object({
   organizationId: z.string().min(1),
+  provisioningOperationId: z.string().min(1).nullable().default(null),
   afterUserId: z.string().min(1).nullable().default(null),
 })
 

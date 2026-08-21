@@ -6,6 +6,7 @@ import {
   formatQuotedNameList,
   isVersionedType,
   normalizeEmail,
+  projectEscapedMarkdownForSearch,
   sanitizeForJsonb,
   sanitizeValueForJsonb,
   stripVersionSuffix,
@@ -134,5 +135,43 @@ describe('formatQuotedNameList', () => {
 
   it('returns an empty string for no names', () => {
     expect(formatQuotedNameList([], 3)).toBe('')
+  })
+})
+
+describe('projectEscapedMarkdownForSearch', () => {
+  it('leaves text with no escapes alone', () => {
+    const { text, starts } = projectEscapedMarkdownForSearch('plain text')
+    expect(text).toBe('plain text')
+    expect(starts[0]).toBe(0)
+    expect(starts[text.length]).toBe(10)
+  })
+
+  it('drops the backslash a markdown escape carries', () => {
+    expect(projectEscapedMarkdownForSearch('SB\\_ACTION\\_ROUTER').text).toBe('SB_ACTION_ROUTER')
+    expect(projectEscapedMarkdownForSearch('{{TE\\_SERET}}').text).toBe('{{TE_SERET}}')
+  })
+
+  it('keeps a backslash that escapes nothing markdown cares about', () => {
+    expect(projectEscapedMarkdownForSearch('a\\nb').text).toBe('a\\nb')
+    expect(projectEscapedMarkdownForSearch('trailing\\').text).toBe('trailing\\')
+  })
+
+  /* The span must cover the backslash, or replacing a match would leave it stranded. */
+  it('maps a projected range back over the escape it consumed', () => {
+    const source = 'x SB\\_ACTION y'
+    const { text, starts } = projectEscapedMarkdownForSearch(source)
+    const start = text.indexOf('SB_ACTION')
+    const end = start + 'SB_ACTION'.length
+    expect(source.slice(starts[start], starts[end])).toBe('SB\\_ACTION')
+  })
+
+  it('maps every position when escapes repeat', () => {
+    const source = 'a\\_b\\_c'
+    const { text, starts } = projectEscapedMarkdownForSearch(source)
+    expect(text).toBe('a_b_c')
+    for (let i = 0; i < text.length; i += 1) {
+      expect(source.slice(starts[i], starts[i + 1]).endsWith(text[i])).toBe(true)
+    }
+    expect(starts[text.length]).toBe(source.length)
   })
 })

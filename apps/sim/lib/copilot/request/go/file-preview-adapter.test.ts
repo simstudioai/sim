@@ -54,21 +54,21 @@ function toolEvent(payload: Record<string, unknown>): StreamEvent {
   )
 }
 
-/** One args_delta chunk of the streamed `edit_content` JSON, as a driveable StreamEvent. */
+/** One args_delta chunk of the streamed `apply_file_edit` JSON, as a driveable StreamEvent. */
 function editContentDelta(argumentsDelta: string): StreamEvent {
   return toolEvent({
     toolCallId: EDIT_TOOL_CALL_ID,
-    toolName: 'edit_content',
+    toolName: 'apply_file_edit',
     phase: MothershipStreamV1ToolPhase.args_delta,
     argumentsDelta,
   })
 }
 
-/** The authoritative `workspace_file` call frame for a path-targeted update. */
+/** The authoritative `prepare_file_edit` call frame for a path-targeted update. */
 function workspaceFileCall(): StreamEvent {
   return toolEvent({
     toolCallId: WORKSPACE_FILE_TOOL_CALL_ID,
-    toolName: 'workspace_file',
+    toolName: 'prepare_file_edit',
     phase: MothershipStreamV1ToolPhase.call,
     arguments: {
       operation: 'update',
