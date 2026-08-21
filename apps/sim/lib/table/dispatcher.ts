@@ -826,10 +826,35 @@ export async function cancelStaleDispatches(
   staleBefore: Date,
   limit: number
 ): Promise<DispatchRow[]> {
+  /**
+   * Dead means nothing about the dispatch has moved — neither the loop nor the
+   * work it is waiting on.
+   *
+   * The dispatch's own heartbeat is stamped between windows, not during them,
+   * and `batchTriggerAndWait` checkpoints the loop for the whole window, so a
+   * long window leaves the heartbeat untouched while the dispatch is plainly
+   * alive. A lease needs its heartbeat interval to sit well under its TTL; this
+   * one cannot promise that, because the window is bounded by the cells' own
+   * timeouts and the in-process path has no ceiling at all.
+   *
+   * Its cells carry the signal the checkpointed parent cannot: `updatedAt` on
+   * every in-flight row execution, written by the cell tasks themselves. Both
+   * must be stale before a dispatch is reclaimed, so a slow window is spared for
+   * as long as its cells keep reporting, and a genuinely dead run — nothing
+   * beating, nothing executing — is still collected. The subquery rides the
+   * partial `(table_id, status)` index that already covers exactly these three
+   * statuses.
+   */
   const isStale = () =>
     and(
       inArray(tableRunDispatches.status, [...ACTIVE_DISPATCH_STATUSES]),
-      sql`COALESCE(${tableRunDispatches.heartbeatAt}, ${tableRunDispatches.requestedAt}) < ${sql.param(staleBefore, tableRunDispatches.heartbeatAt)}`
+      sql`COALESCE(${tableRunDispatches.heartbeatAt}, ${tableRunDispatches.requestedAt}) < ${sql.param(staleBefore, tableRunDispatches.heartbeatAt)}`,
+      sql`NOT EXISTS (
+        SELECT 1 FROM ${tableRowExecutions}
+        WHERE ${tableRowExecutions.tableId} = ${tableRunDispatches.tableId}
+          AND ${tableRowExecutions.status} IN ('queued', 'running', 'pending')
+          AND ${tableRowExecutions.updatedAt} >= ${sql.param(staleBefore, tableRowExecutions.updatedAt)}
+      )`
     )
 
   // Claimed as explicit ids first, then updated by id, so the bound is evaluated

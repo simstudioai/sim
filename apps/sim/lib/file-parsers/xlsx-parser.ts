@@ -176,9 +176,15 @@ export class XlsxParser implements FileParser {
           contentSize += chunkContent.length
         }
 
-        if (actualRowCount > rowsToProcess) {
+        /**
+         * Compared against the DECLARED row count, not the converted one. The
+         * conversion is now bounded to the preview window, so the converted
+         * length can never exceed it — comparing the two made this unreachable
+         * and silently dropped the notice from every sheet larger than the cap.
+         */
+        if (rowCount > rowsToProcess) {
           content += truncationNotice(
-            `${actualRowCount.toLocaleString()} total rows, showing first ${rowsToProcess.toLocaleString()}`
+            `${rowCount.toLocaleString()} total rows, showing first ${rowsToProcess.toLocaleString()}`
           )
           truncated = true
         }

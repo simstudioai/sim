@@ -100,6 +100,22 @@ describe('cancelStaleDispatches', () => {
     expect(chunks).toContain('tableRunDispatches.requestedAt')
   })
 
+  it('spares a dispatch whose cells are still reporting', async () => {
+    await cancelStaleDispatches(STALE_BEFORE, 200)
+
+    const chunks = collectChunks(dbChainMockFns.where.mock.calls[0][0])
+    /**
+     * The dispatch's own heartbeat is stamped between windows, not during them,
+     * and the loop is checkpointed for the whole window — so a long window
+     * leaves it untouched while the dispatch is plainly alive. Its cells carry
+     * the signal the checkpointed parent cannot, and both have to be stale
+     * before the row is reclaimed.
+     */
+    expect(chunks.some((chunk) => chunk.includes('NOT EXISTS'))).toBe(true)
+    expect(chunks).toContain('tableRowExecutions.updatedAt')
+    expect(chunks).toContain('tableRowExecutions.tableId')
+  })
+
   it('emits the terminal event so a stuck client overlay clears', async () => {
     await cancelStaleDispatches(STALE_BEFORE, 200)
 

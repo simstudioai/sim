@@ -67,4 +67,16 @@ describe('XlsxParser preview bound', () => {
     expect(result.content).toContain('header-a')
     expect(result.content).toContain('row-2-b')
   })
+
+  it('still reports truncation for a sheet larger than the preview window', async () => {
+    const result = await new XlsxParser().parseBuffer(inflatedRangeWorkbook())
+
+    /**
+     * Bounding the conversion made the converted length equal the window, so
+     * comparing it against the window could never be true — the notice silently
+     * disappeared from exactly the large sheets it exists for.
+     */
+    expect(result.metadata?.truncated).toBe(true)
+    expect(result.content).toContain('200,000 total rows')
+  })
 })
