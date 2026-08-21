@@ -101,9 +101,9 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, unknown>
     const logger = createLogger('EditWorkflowServerTool')
     const { operations, workflowId, currentUserWorkflow } = params
     if (!Array.isArray(operations) || operations.length === 0) {
-      throw new Error('operations are required and must be an array')
+      throw new OrchestrationError('validation', 'operations are required and must be an array')
     }
-    if (!workflowId) throw new Error('workflowId is required')
+    if (!workflowId) throw new OrchestrationError('validation', 'workflowId is required')
     if (!context?.userId) {
       throw new Error('Unauthorized workflow access')
     }
@@ -135,7 +135,7 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, unknown>
       operationsReferenceSimSandbox(operations) &&
       (!workspaceId || !(await hasWorkspaceSandboxAccess(workspaceId)))
     ) {
-      throw new Error(MAX_PLAN_REQUIRED)
+      throw new OrchestrationError('forbidden', MAX_PLAN_REQUIRED)
     }
 
     logger.info('Executing edit_workflow', {
@@ -153,7 +153,7 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, unknown>
         workflowState = JSON.parse(currentUserWorkflow)
       } catch (error) {
         logger.error('Failed to parse currentUserWorkflow', error)
-        throw new Error('Invalid currentUserWorkflow format')
+        throw new OrchestrationError('validation', 'Invalid currentUserWorkflow format')
       }
     } else {
       const fromDb = await getCurrentWorkflowStateFromDb(workflowId)
@@ -251,7 +251,10 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, unknown>
         errors: validation.errors,
         warnings: validation.warnings,
       })
-      throw new Error(`Invalid edited workflow: ${validation.errors.join('; ')}`)
+      throw new OrchestrationError(
+        'validation',
+        `Invalid edited workflow: ${validation.errors.join('; ')}`
+      )
     }
 
     if (validation.warnings.length > 0) {
@@ -387,7 +390,7 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, unknown>
         workflowId,
         error: saveResult.error,
       })
-      throw new Error(`Failed to save workflow: ${saveResult.error}`)
+      throw new OrchestrationError('conflict', `Failed to save workflow: ${saveResult.error}`)
     }
 
     // Update workflow's lastSynced timestamp
