@@ -9,7 +9,6 @@ import {
   stripSpanCosts,
 } from '@/lib/logs/execution/trace-store'
 import type { TraceSpan } from '@/lib/logs/types'
-import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('HydrateChildTraces')
 
@@ -24,20 +23,23 @@ const DEFAULT_MAX_ROWS = 25
 
 /** Why a child run was not joined into the parent's trace. */
 export interface ChildTraceDropCounts {
-  /** Viewer has no access to the child's source workspace. */
-  denied: number
   /** No child log row, or it carries no spans (in flight, pruned, never written). */
   missing: number
   /** Boundary sat deeper than `maxDepth`. */
   depthLimited: number
   /** `maxRows` was already exhausted by shallower boundaries. */
   rowLimited: number
-  /** The child-log lookup itself failed, so access was never determined. */
+  /** The child-log lookup itself failed, so nothing could be joined. */
   failed: number
 }
 
 export interface HydrateChildTracesOptions {
-  /** The user reading the log. Every child workspace is authorized against them. */
+  /**
+   * The user reading the log. NOT an authorization input — whether the child run
+   * may be joined was decided by its publisher at write time. Carried only so
+   * large-value materialization and secret projection have an owner to attribute
+   * their reads to.
+   */
   viewerUserId: string
   maxDepth?: number
   maxRows?: number
@@ -77,14 +79,16 @@ function collectBoundarySpans(spans: TraceSpan[], into: TraceSpan[]): void {
  * Joins a custom block's child run into its parent's trace, so an orchestrator
  * workflow's log shows the whole cross-workspace execution in one waterfall.
  *
- * The custom-block boundary deliberately keeps the child's spans out of the
- * parent's persisted log — they belong to the child's own log row in the SOURCE
- * workspace, and a custom block is org-wide, so a consumer must not be handed
- * another team's block internals by default. Only the child's opaque execution id
- * is persisted on the parent span; the join happens HERE, at read time, and only
- * after the *viewer* has been authorized against the child's workspace. The
- * authorization decision therefore follows the person reading rather than a flag
- * set when the block was published, and it re-evaluates on every read.
+ * There is deliberately NO authorization here. Whether a block's runs may be shown
+ * to consumers is the publisher's org-wide decision, and it was already applied at
+ * write time: the handler persists `childExecutionId` only for a block whose
+ * publisher opted in, so the presence of a handle IS the permission. A boundary the
+ * publisher did not open carries no handle, and there is nothing here to refuse.
+ *
+ * The consequence is deliberate and worth stating: for an opted-in block, anyone who
+ * can read the consuming workflow's log sees the source workflow's block names,
+ * inputs, outputs, and prompts — including consumers with no access to the source
+ * workspace. That is what the publisher turned on.
  *
  * Mutates `spans` in place — callers pass a freshly materialized, request-local
  * tree, and copying it would double the peak memory of a large trace.
@@ -99,7 +103,6 @@ export async function hydrateChildTraces(
   const maxDepth = options.maxDepth ?? DEFAULT_MAX_DEPTH
   const maxRows = options.maxRows ?? DEFAULT_MAX_ROWS
   const dropped: ChildTraceDropCounts = {
-    denied: 0,
     missing: 0,
     depthLimited: 0,
     rowLimited: 0,
@@ -111,9 +114,6 @@ export async function hydrateChildTraces(
   // Execution ids already joined in this read. Guards against a malformed tree
   // pointing back at an ancestor run and looping forever.
   const seen = new Set<string>()
-  // One access decision per workspace, reused across every boundary that resolves
-  // to it — a parent with 30 custom-block spans usually spans 1-2 workspaces.
-  const accessByWorkspace = new Map<string, boolean>()
 
   let frontier = spans
   for (let depth = 0; ; depth++) {
@@ -162,38 +162,16 @@ export async function hydrateChildTraces(
 
     const rowByExecutionId = new Map(rows.map((row) => [row.executionId, row]))
 
-    const workspacesToCheck = Array.from(
-      new Set(
-        rows
-          .map((row) => row.workspaceId)
-          .filter((id): id is string => typeof id === 'string' && !accessByWorkspace.has(id))
-      )
-    )
-    await Promise.all(
-      workspacesToCheck.map(async (workspaceId) => {
-        try {
-          const access = await checkWorkspaceAccess(workspaceId, options.viewerUserId)
-          accessByWorkspace.set(workspaceId, access.hasAccess === true)
-        } catch {
-          // Fail closed: an unresolvable access decision keeps the boundary shut.
-          accessByWorkspace.set(workspaceId, false)
-        }
-      })
-    )
-
     const nextFrontier: TraceSpan[] = []
     await Promise.all(
       admitted.map(async (span) => {
         const executionId = span.childExecutionId as string
         const row = rowByExecutionId.get(executionId)
-        if (!row) {
+        // No row, or a row whose workspace is gone: large-value storage keys are
+        // workspace-scoped, so an orphaned row has nothing materializable either way.
+        if (!row?.workspaceId) {
           span.childTraceAccess = 'missing'
           dropped.missing++
-          return
-        }
-        if (!row.workspaceId || accessByWorkspace.get(row.workspaceId) !== true) {
-          span.childTraceAccess = 'denied'
-          dropped.denied++
           return
         }
 
@@ -233,9 +211,8 @@ export async function hydrateChildTraces(
 
         span.children = children
         span.childTraceAccess = 'granted'
-        // Only now that the viewer is authorized does the child's graph snapshot
-        // become theirs to see. Stamping it at write time would have exposed the
-        // source workflow's structure to every consumer.
+        // Carried alongside the joined spans so canvas drill-down works for the same
+        // reader, on the same permission.
         if (row.stateSnapshotId) span.childWorkflowSnapshotId = row.stateSnapshotId
         hydrated++
         nextFrontier.push(...children)
@@ -246,8 +223,7 @@ export async function hydrateChildTraces(
     frontier = nextFrontier
   }
 
-  const totalDropped =
-    dropped.denied + dropped.missing + dropped.depthLimited + dropped.rowLimited + dropped.failed
+  const totalDropped = dropped.missing + dropped.depthLimited + dropped.rowLimited + dropped.failed
   if (totalDropped > 0) {
     logger.info('Custom-block child runs not joined into parent trace', { hydrated, ...dropped })
   }

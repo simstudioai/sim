@@ -1172,6 +1172,9 @@ describe('WorkflowBlockHandler', () => {
         ownerUserId: 'owner-9',
         exposedOutputs: [{ blockId: 'b1', path: 'content', name: 'answer' }],
         requiredInputIds: [],
+        // Publisher opted this block's runs into consumer traces; the tests that
+        // exercise the closed path override it.
+        traceChildRuns: true,
       })
       mockGetPersonalAndWorkspaceEnv.mockResolvedValue({
         personalDecrypted: {},
@@ -1214,18 +1217,27 @@ describe('WorkflowBlockHandler', () => {
         mockProjectTraceSpansForLiveDisplay.mockResolvedValue([projectedSpan])
       })
 
-      it('emits NOTHING when there is no authorized live viewer', async () => {
+      it('emits NOTHING when there is no identified live consumer', async () => {
         const output: any = await handler.execute(customBlockContext(), customBlock(), {})
 
         expect(output.childTraceSpans).toBeUndefined()
         expect(mockProjectTraceSpansForLiveDisplay).not.toHaveBeenCalled()
       })
 
-      it('emits nothing when the viewer cannot read the source workspace', async () => {
-        mockCheckWorkspaceAccess.mockResolvedValue({ hasAccess: false })
+      it('emits nothing when the publisher has not opted the block in', async () => {
+        // The viewer's own access is deliberately not consulted; this is the only
+        // thing that closes the stream for an identified consumer.
+        mockGetCustomBlockAuthority.mockResolvedValue({
+          workflowId: 'source-workflow-id',
+          organizationId: 'org-1',
+          ownerUserId: 'owner-9',
+          exposedOutputs: [{ blockId: 'b1', path: 'content', name: 'answer' }],
+          requiredInputIds: [],
+          traceChildRuns: false,
+        })
 
         const output: any = await handler.execute(
-          customBlockContext({ liveTraceViewerUserId: 'outsider' }),
+          customBlockContext({ liveTraceViewerUserId: 'consumer-1' }),
           customBlock(),
           {}
         )
@@ -1234,11 +1246,10 @@ describe('WorkflowBlockHandler', () => {
         expect(mockProjectTraceSpansForLiveDisplay).not.toHaveBeenCalled()
       })
 
-      it('projects through the CHILD session before handing spans to an authorized viewer', async () => {
+      it('projects through the CHILD session before handing spans to a live consumer', async () => {
         // The invoking run's registry knows nothing about the publisher's secrets, so
         // projecting there would leave a source-owner credential unmasked in the consumer's
         // stream. Only the child's own session can mask them.
-        mockCheckWorkspaceAccess.mockResolvedValue({ hasAccess: true })
 
         const output: any = await handler.execute(
           customBlockContext({ liveTraceViewerUserId: 'viewer-1' }),
@@ -1260,7 +1271,6 @@ describe('WorkflowBlockHandler', () => {
         // Those markers are keyed by the parent execution and readable by anyone with
         // parent-workspace access, long after the per-viewer gate this stream passed — so
         // the source workflow's blocks must reach the emit half only.
-        mockCheckWorkspaceAccess.mockResolvedValue({ hasAccess: true })
         const persistingStart = vi.fn()
         const persistingComplete = vi.fn()
         const emitOnlyStart = vi.fn()
@@ -1288,10 +1298,9 @@ describe('WorkflowBlockHandler', () => {
       })
 
       it('forwards the emit-only sink to the child, so nested hops still stream', async () => {
-        // The viewer id alone is not enough: a nested custom block clears
-        // `canStreamCustomBlockToViewer` off the inherited id and then needs a sink to
-        // stream through. Without this the live trace stops at the first sub-executor.
-        mockCheckWorkspaceAccess.mockResolvedValue({ hasAccess: true })
+        // The viewer id alone is not enough: a nested custom block re-derives its own
+        // stream permission and then needs a sink to stream through. Without this the
+        // live trace stops at the first sub-executor.
         const emitOnly = { onBlockStart: vi.fn(), onBlockComplete: vi.fn() }
 
         await handler.execute(
@@ -1306,11 +1315,21 @@ describe('WorkflowBlockHandler', () => {
       })
 
       it('withholds both the viewer id and the sink when streaming is not permitted', async () => {
-        mockCheckWorkspaceAccess.mockResolvedValue({ hasAccess: false })
+        mockGetCustomBlockAuthority.mockResolvedValue({
+          workflowId: 'source-workflow-id',
+          organizationId: 'org-1',
+          ownerUserId: 'owner-9',
+          exposedOutputs: [{ blockId: 'b1', path: 'content', name: 'answer' }],
+          requiredInputIds: [],
+          traceChildRuns: false,
+        })
         const emitOnly = { onBlockStart: vi.fn(), onBlockComplete: vi.fn() }
 
         await handler.execute(
-          customBlockContext({ liveTraceViewerUserId: 'outsider', liveStreamCallbacks: emitOnly }),
+          customBlockContext({
+            liveTraceViewerUserId: 'consumer-1',
+            liveStreamCallbacks: emitOnly,
+          }),
           customBlock(),
           {}
         )
@@ -1321,7 +1340,6 @@ describe('WorkflowBlockHandler', () => {
       })
 
       it('keeps the boundary shut when the surface offers no emit-only sink', async () => {
-        mockCheckWorkspaceAccess.mockResolvedValue({ hasAccess: true })
         const persistingStart = vi.fn()
 
         await handler.execute(
@@ -1337,8 +1355,6 @@ describe('WorkflowBlockHandler', () => {
       })
 
       it('still exposes only curated outputs alongside the spans', async () => {
-        mockCheckWorkspaceAccess.mockResolvedValue({ hasAccess: true })
-
         const output: any = await handler.execute(
           customBlockContext({ liveTraceViewerUserId: 'viewer-1' }),
           customBlock(),
@@ -1348,6 +1364,128 @@ describe('WorkflowBlockHandler', () => {
         expect(output.childWorkflowId).toBeUndefined()
         expect(output.childWorkflowName).toBeUndefined()
         expect(output.cost).toBeUndefined()
+      })
+    })
+
+    describe("the publisher's trace policy", () => {
+      /** Republish the block with tracing closed, the shipped default. */
+      function closeTracePolicy() {
+        mockGetCustomBlockAuthority.mockResolvedValue({
+          workflowId: 'source-workflow-id',
+          organizationId: 'org-1',
+          ownerUserId: 'owner-9',
+          exposedOutputs: [{ blockId: 'b1', path: 'content', name: 'answer' }],
+          requiredInputIds: [],
+          traceChildRuns: false,
+        })
+      }
+
+      it('publishes the child run handle when the publisher opted in', async () => {
+        const output: any = await handler.execute(customBlockContext(), customBlock(), {})
+
+        expect(typeof output._childExecutionId).toBe('string')
+        expect(output._childExecutionId).not.toBe('parent-execution-id')
+        expect(output._childTraceDisabled).toBeUndefined()
+      })
+
+      it('withholds the handle outright when the publisher has not', async () => {
+        // Withheld rather than persisted behind a flag: with no handle there is
+        // nothing for a reader to join, so the decision cannot be undone downstream.
+        closeTracePolicy()
+
+        const output: any = await handler.execute(customBlockContext(), customBlock(), {})
+
+        expect(output._childExecutionId).toBeUndefined()
+        expect(output._childTraceDisabled).toBe(true)
+      })
+
+      it('ignores a consumer input trying to assert the policy', async () => {
+        // The policy belongs to the publisher and is read from the DB. A caller's
+        // workflow must not be able to open its own view of another team's internals
+        // by placing a param the executor happens to read.
+        closeTracePolicy()
+
+        const output: any = await handler.execute(customBlockContext(), customBlock(), {
+          traceChildRun: true,
+          traceChildRuns: true,
+        })
+
+        expect(output._childExecutionId).toBeUndefined()
+        expect(output._childTraceDisabled).toBe(true)
+      })
+
+      it('does not stream to a live viewer when the publisher has not opted in', async () => {
+        closeTracePolicy()
+        const emitOnly = { onBlockStart: vi.fn(), onBlockComplete: vi.fn() }
+
+        const output: any = await handler.execute(
+          customBlockContext({ liveTraceViewerUserId: 'viewer-1', liveStreamCallbacks: emitOnly }),
+          customBlock(),
+          {}
+        )
+
+        expect(output.childTraceSpans).toBeUndefined()
+        expect(output._childWorkflowInstanceId).toBeUndefined()
+        const forwarded = executorOptions[0].contextExtensions
+        expect(forwarded.liveTraceViewerUserId).toBeUndefined()
+        expect(forwarded.liveStreamCallbacks).toBeUndefined()
+      })
+
+      it('streams to an opted-in block without checking the viewer at all', async () => {
+        // The publisher's decision is the whole policy — no workspace-access query
+        // stands between an opted-in block and the run's live trace.
+        const emitOnly = { onBlockStart: vi.fn(), onBlockComplete: vi.fn() }
+
+        await handler.execute(
+          customBlockContext({ liveTraceViewerUserId: 'viewer-1', liveStreamCallbacks: emitOnly }),
+          customBlock(),
+          {}
+        )
+
+        expect(mockCheckWorkspaceAccess).not.toHaveBeenCalled()
+        const forwarded = executorOptions[0].contextExtensions
+        expect(forwarded.liveTraceViewerUserId).toBe('viewer-1')
+        expect(forwarded.liveStreamCallbacks).toBe(emitOnly)
+      })
+
+      it('keeps the boundary shut for a surface with no identified consumer', async () => {
+        // Chat deployments and the public API leave `liveTraceViewerUserId` unset —
+        // their consumer may be an anonymous visitor. Opting into org-wide tracing is
+        // not consent to stream a publisher's raw agent tokens to the internet.
+        const output: any = await handler.execute(customBlockContext(), customBlock(), {})
+
+        expect(output.childTraceSpans).toBeUndefined()
+        expect(output._childWorkflowInstanceId).toBeUndefined()
+        // The persisted handle still rides along: reading a log is not the same
+        // surface as streaming one, and that is the publisher's opt-in working.
+        expect(typeof output._childExecutionId).toBe('string')
+      })
+
+      it('keeps the failure ref while withholding the trace handle', async () => {
+        // The ref is the one thing that makes an untraced failure reportable — the
+        // consumer quotes it and the publisher finds the run. Only the trace join goes.
+        closeTracePolicy()
+        mockExecutorExecute.mockRejectedValue(new Error('child blew up'))
+
+        const error: any = await handler
+          .execute(customBlockContext(), customBlock(), {})
+          .catch((e: unknown) => e)
+
+        expect(error.consumerFacing.ref).toBeTruthy()
+        expect(error.message).toContain(error.consumerFacing.ref)
+        expect(error.childExecutionId).toBeUndefined()
+        expect(error.childTraceDisabled).toBe(true)
+      })
+
+      it('carries the handle on a failure from an opted-in block', async () => {
+        mockExecutorExecute.mockRejectedValue(new Error('child blew up'))
+
+        const error: any = await handler
+          .execute(customBlockContext(), customBlock(), {})
+          .catch((e: unknown) => e)
+
+        expect(typeof error.childExecutionId).toBe('string')
+        expect(error.childTraceDisabled).toBeUndefined()
       })
     })
 
@@ -1870,62 +2008,6 @@ describe('WorkflowBlockHandler', () => {
       expect(executorOptions[0].contextExtensions.executorDelegationOrigin).toBe(
         ctx.executorDelegationOrigin
       )
-    })
-  })
-
-  describe('canStreamCustomBlockToViewer', () => {
-    // Streaming a custom block's child into the parent's live trace reveals the SOURCE
-    // workflow's block names, inputs, outputs, and raw agent tokens. It is allowed only
-    // when the run has a single known, authenticated viewer who can already read that
-    // workspace — every other combination must keep the boundary shut.
-    it('streams when an authenticated viewer can read the source workspace', async () => {
-      mockCheckWorkspaceAccess.mockResolvedValue({ hasAccess: true })
-
-      const allowed = await (handler as any).canStreamCustomBlockToViewer(
-        { liveTraceViewerUserId: 'user-1' },
-        'ws-source'
-      )
-
-      expect(allowed).toBe(true)
-      expect(mockCheckWorkspaceAccess).toHaveBeenCalledWith('ws-source', 'user-1')
-    })
-
-    it('refuses when the viewer cannot read the source workspace', async () => {
-      mockCheckWorkspaceAccess.mockResolvedValue({ hasAccess: false })
-
-      expect(
-        await (handler as any).canStreamCustomBlockToViewer(
-          { liveTraceViewerUserId: 'outsider' },
-          'ws-source'
-        )
-      ).toBe(false)
-    })
-
-    it('refuses when there is no identified live viewer', async () => {
-      // Chat deployments, the public API, webhooks, and schedules all leave
-      // `liveTraceViewerUserId` unset — their stream consumer may be anonymous.
-      expect(await (handler as any).canStreamCustomBlockToViewer({}, 'ws-source')).toBe(false)
-      expect(mockCheckWorkspaceAccess).not.toHaveBeenCalled()
-    })
-
-    it('refuses when the source workspace is unknown', async () => {
-      expect(
-        await (handler as any).canStreamCustomBlockToViewer(
-          { liveTraceViewerUserId: 'user-1' },
-          null
-        )
-      ).toBe(false)
-    })
-
-    it('fails closed when the access check throws', async () => {
-      mockCheckWorkspaceAccess.mockRejectedValue(new Error('permissions backend down'))
-
-      expect(
-        await (handler as any).canStreamCustomBlockToViewer(
-          { liveTraceViewerUserId: 'user-1' },
-          'ws-source'
-        )
-      ).toBe(false)
     })
   })
 

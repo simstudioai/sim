@@ -68,6 +68,8 @@ export const customBlockSchema = z.object({
   /** Uploaded icon image URL, or null for the default icon. */
   iconUrl: z.string().nullable(),
   enabled: z.boolean(),
+  /** Whether this block's runs are joined into consumers' traces, org-wide. */
+  traceChildRuns: z.boolean(),
   inputFields: z.array(inputFieldSchema),
   /** Curated outputs exposed to consumers; empty = expose the child's whole result. */
   exposedOutputs: z.array(exposedOutputSchema),
@@ -113,6 +115,12 @@ export const publishCustomBlockBodySchema = z.object({
     .array(exposedOutputWriteSchema)
     .min(1, 'Select at least one output to expose to consumers')
     .max(50),
+  /**
+   * Joins this block's runs into consumers' traces, org-wide. Defaults FALSE: it is
+   * the only policy guarding the source workflow's internals, so publishing must
+   * never open them as a side effect of omitting a field.
+   */
+  traceChildRuns: z.boolean().default(false),
 })
 
 export type PublishCustomBlockBody = z.input<typeof publishCustomBlockBodySchema>
@@ -135,6 +143,8 @@ export const updateCustomBlockBodySchema = z
       .min(1, 'Select at least one output to expose to consumers')
       .max(50)
       .optional(),
+    /** Omit to leave the trace policy unchanged. */
+    traceChildRuns: z.boolean().optional(),
   })
   .refine((v) => Object.keys(v).length > 0, { message: 'At least one field is required' })
 

@@ -473,6 +473,7 @@ export const schemaMock = {
     inputs: 'customBlock.inputs',
     outputs: 'customBlock.outputs',
     enabled: 'customBlock.enabled',
+    traceChildRuns: 'customBlock.traceChildRuns',
     createdBy: 'customBlock.createdBy',
     createdAt: 'customBlock.createdAt',
     updatedAt: 'customBlock.updatedAt',

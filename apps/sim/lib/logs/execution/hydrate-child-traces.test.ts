@@ -75,7 +75,7 @@ describe('hydrateChildTraces', () => {
     mockMaterialize.mockResolvedValue({ traceSpans: [childSpan()] })
   })
 
-  it('splices the child run in when the viewer can read the source workspace', async () => {
+  it('splices the child run in under the boundary span', async () => {
     mockSelect.mockResolvedValue([
       {
         executionId: 'child-exec-1',
@@ -93,11 +93,14 @@ describe('hydrateChildTraces', () => {
     expect(spans[0].childTraceAccess).toBe('granted')
     expect(spans[0].children).toHaveLength(1)
     expect(spans[0].children?.[0].name).toBe('Agent 1')
-    // Drill-down into the child's canvas only becomes available once authorized.
+    // The child's graph snapshot rides along, so canvas drill-down works too.
     expect(spans[0].childWorkflowSnapshotId).toBe('snap-1')
   })
 
-  it('leaves the boundary shut when the viewer has no access to the source workspace', async () => {
+  it('joins the run without consulting the reader at all', async () => {
+    // Permission was settled at write time by the block's publisher: a handle exists
+    // only for a block they opted in. Re-deciding here — against a consumer who by
+    // design has no access to the source workspace — would refuse every real read.
     mockSelect.mockResolvedValue([
       {
         executionId: 'child-exec-1',
@@ -107,37 +110,13 @@ describe('hydrateChildTraces', () => {
         executionData: {},
       },
     ])
-    mockCheckWorkspaceAccess.mockResolvedValue({ hasAccess: false })
     const spans = [boundarySpan('child-exec-1')]
 
-    const result = await hydrateChildTraces(spans, { viewerUserId: 'outsider' })
+    const result = await hydrateChildTraces(spans, { viewerUserId: 'outsider-with-no-access' })
 
-    expect(result.hydrated).toBe(0)
-    expect(result.dropped.denied).toBe(1)
-    expect(spans[0].childTraceAccess).toBe('denied')
-    expect(spans[0].children).toEqual([])
-    // Nothing about the source may leak on a denied read.
-    expect(spans[0].childWorkflowSnapshotId).toBeUndefined()
-    expect(mockMaterialize).not.toHaveBeenCalled()
-  })
-
-  it('fails closed when the access check throws', async () => {
-    mockSelect.mockResolvedValue([
-      {
-        executionId: 'child-exec-1',
-        workspaceId: 'ws-source',
-        workflowId: 'wf-source',
-        stateSnapshotId: null,
-        executionData: {},
-      },
-    ])
-    mockCheckWorkspaceAccess.mockRejectedValue(new Error('permissions backend down'))
-    const spans = [boundarySpan('child-exec-1')]
-
-    const result = await hydrateChildTraces(spans, { viewerUserId: 'user-1' })
-
-    expect(result.dropped.denied).toBe(1)
-    expect(spans[0].childTraceAccess).toBe('denied')
+    expect(result.hydrated).toBe(1)
+    expect(spans[0].childTraceAccess).toBe('granted')
+    expect(mockCheckWorkspaceAccess).not.toHaveBeenCalled()
   })
 
   it('marks a missing child log row rather than failing the parent read', async () => {
@@ -168,33 +147,6 @@ describe('hydrateChildTraces', () => {
     await hydrateChildTraces(spans, { viewerUserId: 'user-1' })
 
     expect(spans[0].children?.[0].cost).toBeUndefined()
-  })
-
-  it('checks each source workspace once no matter how many boundaries resolve to it', async () => {
-    mockSelect.mockResolvedValue([
-      {
-        executionId: 'child-exec-1',
-        workspaceId: 'ws-source',
-        workflowId: 'wf-source',
-        stateSnapshotId: null,
-        executionData: {},
-      },
-      {
-        executionId: 'child-exec-2',
-        workspaceId: 'ws-source',
-        workflowId: 'wf-source',
-        stateSnapshotId: null,
-        executionData: {},
-      },
-    ])
-    const spans = [
-      boundarySpan('child-exec-1'),
-      { ...boundarySpan('child-exec-2'), id: 'span-2', blockId: 'blk-2' },
-    ]
-
-    await hydrateChildTraces(spans, { viewerUserId: 'user-1' })
-
-    expect(mockCheckWorkspaceAccess).toHaveBeenCalledTimes(1)
   })
 
   it('reports boundaries dropped by the row cap instead of silently truncating', async () => {
@@ -254,9 +206,9 @@ describe('hydrateChildTraces', () => {
     expect(spans[1].childTraceAccess).toBe('truncated')
   })
 
-  it('authorizes each hop of a NESTED custom block against its own workspace', async () => {
-    // Orchestrator -> impl (ws-b) -> sub-impl (ws-c). Access to the middle workspace must
-    // never imply access to the innermost one, so each hop is checked separately.
+  it('follows a NESTED custom block into its own source workspace', async () => {
+    // Orchestrator -> impl (ws-b) -> sub-impl (ws-c). Each hop's handle was written by
+    // its own publisher's opt-in, so the walk simply follows what is there.
     mockSelect
       .mockResolvedValueOnce([
         {
@@ -276,9 +228,6 @@ describe('hydrateChildTraces', () => {
           executionData: {},
         },
       ])
-    mockCheckWorkspaceAccess.mockImplementation((workspaceId: string) =>
-      Promise.resolve({ hasAccess: workspaceId === 'ws-b' })
-    )
     // The child's own span carries the next boundary handle, exactly as `createBaseSpan`
     // stamps it when the middle workflow's log row is written.
     mockMaterialize.mockResolvedValue({
@@ -288,13 +237,10 @@ describe('hydrateChildTraces', () => {
 
     const result = await hydrateChildTraces(spans, { viewerUserId: 'user-1' })
 
-    expect(result.hydrated).toBe(1)
+    expect(result.hydrated).toBe(2)
     expect(spans[0].childTraceAccess).toBe('granted')
-    // The nested boundary was reached and independently refused.
-    expect(spans[0].children?.[0].childTraceAccess).toBe('denied')
-    expect(result.dropped.denied).toBe(1)
-    expect(mockCheckWorkspaceAccess).toHaveBeenCalledWith('ws-b', 'user-1')
-    expect(mockCheckWorkspaceAccess).toHaveBeenCalledWith('ws-c', 'user-1')
+    expect(spans[0].children?.[0].childTraceAccess).toBe('granted')
+    expect(mockCheckWorkspaceAccess).not.toHaveBeenCalled()
   })
 
   it('does nothing when no span carries a boundary handle', async () => {
@@ -304,5 +250,62 @@ describe('hydrateChildTraces', () => {
 
     expect(result.hydrated).toBe(0)
     expect(mockSelect).not.toHaveBeenCalled()
+  })
+
+  it('joins a custom block invoked as an Agent tool, nested under the agent span', async () => {
+    // The handle sits on a tool child span rather than a top-level block span. Nothing
+    // here special-cases that — the boundary walk already recurses — so this pins the
+    // property the Agent-tool path depends on.
+    mockSelect.mockResolvedValue([
+      {
+        executionId: 'child-exec-1',
+        workspaceId: 'ws-source',
+        workflowId: 'wf-source',
+        stateSnapshotId: 'snap-1',
+        executionData: {},
+      },
+    ])
+    const toolSpan: TraceSpan = {
+      id: 'agent-1-tool-0',
+      name: 'Invoice Parser',
+      type: 'tool',
+      duration: 8,
+      startTime: '2026-01-01T00:00:00.001Z',
+      endTime: '2026-01-01T00:00:00.009Z',
+      childExecutionId: 'child-exec-1',
+    }
+    const agentSpan: TraceSpan = {
+      id: 'agent-1',
+      name: 'Agent 1',
+      type: 'agent',
+      duration: 10,
+      startTime: '2026-01-01T00:00:00.000Z',
+      endTime: '2026-01-01T00:00:00.010Z',
+      blockId: 'agent-blk-1',
+      children: [toolSpan],
+    }
+
+    const result = await hydrateChildTraces([agentSpan], { viewerUserId: 'user-1' })
+
+    expect(result.hydrated).toBe(1)
+    expect(toolSpan.childTraceAccess).toBe('granted')
+    expect(toolSpan.children?.[0].name).toBe('Agent 1')
+  })
+
+  it('never joins an untraced boundary, since it carries no handle at all', async () => {
+    // The opt-out is enforced at write time: with no `childExecutionId` there is nothing
+    // for a reader to look up, whatever access they hold.
+    const spans: TraceSpan[] = [
+      { ...boundarySpan('unused'), childExecutionId: undefined, childTraceDisabled: true },
+    ]
+
+    const result = await hydrateChildTraces(spans, { viewerUserId: 'user-1' })
+
+    expect(result.hydrated).toBe(0)
+    expect(mockSelect).not.toHaveBeenCalled()
+    expect(mockCheckWorkspaceAccess).not.toHaveBeenCalled()
+    // Untouched by hydration: the marker stays the only thing the UI reads.
+    expect(spans[0].childTraceAccess).toBeUndefined()
+    expect(spans[0].childTraceDisabled).toBe(true)
   })
 })
