@@ -111,20 +111,47 @@ function referencesEnvKey(text: string, name: string): boolean {
 }
 
 /**
- * One unit of what may sit between `{{` and the name.
- *
- * Three encodings have to be accepted at once, because the prefilter reads a `::text` rendering
- * of a JSON column and the two regex engines disagree about whitespace:
- *  - raw characters, including every Unicode space (`ENV_REF_PATTERN`'s `\s` accepts U+00A0,
- *    U+202F and U+3000, which Postgres `[[:space:]]` does not) — covered by `[^[:alnum:]_]`;
- *  - JSON two-character escapes, since `jsonb::text` renders a real tab as the literal pair
- *    `\` `t` and `t` is alphanumeric — covered by `\\[a-z]`;
- *  - JSON `\uXXXX` escapes, which is how a vertical tab survives the same rendering.
- *
- * Excluding word characters rather than enumerating whitespace means no code-point list to drift
- * as `\s` evolves, while a longer key on either side (`_TEST`, `MY_`) still cannot be consumed.
+ * Code points JS `\s` matches beyond ASCII, as inclusive ranges. Spelled out as numbers and
+ * rendered to `\uXXXX` below rather than written literally, so the source stays readable ASCII
+ * instead of carrying a run of invisible characters no reviewer could check.
  */
-const REFERENCE_GAP = String.raw`(\\u[0-9a-fA-F]{4}|\\[a-z]|[^[:alnum:]_])`
+const UNICODE_SPACE_RANGES: ReadonlyArray<readonly [number, number]> = [
+  [0x00a0, 0x00a0],
+  [0x1680, 0x1680],
+  [0x2000, 0x200a],
+  [0x2028, 0x2029],
+  [0x202f, 0x202f],
+  [0x205f, 0x205f],
+  [0x3000, 0x3000],
+  [0xfeff, 0xfeff],
+]
+
+/** A code point as the `\uXXXX` escape a Postgres regex understands. */
+function toPgEscape(codePoint: number): string {
+  return `\\u${codePoint.toString(16).padStart(4, '0')}`
+}
+
+const UNICODE_SPACE_CLASS = UNICODE_SPACE_RANGES.map(([low, high]) =>
+  low === high ? toPgEscape(low) : `${toPgEscape(low)}-${toPgEscape(high)}`
+).join('')
+
+/**
+ * One unit of what may sit between `{{` and the name: exactly the whitespace
+ * `ENV_REF_PATTERN` accepts, in each encoding it can arrive in.
+ *
+ * The prefilter reads a `::text` rendering of a JSON column, and the two regex engines
+ * disagree about whitespace, so all three forms are spelled out: `[[:space:]]` for raw ASCII;
+ * the JSON escapes, since `jsonb::text` renders a real tab as the literal pair `\\` `t` and a
+ * vertical tab as `\\u000b`; and the Unicode class above, which Postgres emits verbatim and
+ * `[[:space:]]` does not match though JS `\\s` does.
+ *
+ * Enumerating whitespace rather than excluding word characters costs a list to keep in step
+ * with `\\s`, and buys a prefilter exactly as tight as the authority. A looser gap admitted
+ * `{{-NAME-}}` and `{{"NAME"}}`, and those are not free: each occupies a row under
+ * {@link BLOCK_SCAN_LIMIT}, so a workspace with enough of them sorted earlier would exhaust
+ * the cap before a genuine reference was read — reporting a live key as unused.
+ */
+const REFERENCE_GAP = `([[:space:]]|\\\\[tnrf]|\\\\u000[bB]|[${UNICODE_SPACE_CLASS}])`
 
 /**
  * Matches the name sitting inside `{{ }}` with only {@link REFERENCE_GAP} units between.
@@ -136,10 +163,9 @@ const REFERENCE_GAP = String.raw`(\\u[0-9a-fA-F]{4}|\\[a-z]|[^[:alnum:]_])`
  * row cap — so on a workspace with enough of them, genuine references sorted later were never
  * read at all.
  *
- * The gap can admit a non-reference like `{{-NAME-}}`; that costs a candidate row and nothing
- * else, because the scanners below re-check every candidate with `ENV_REF_PATTERN` and remain the
- * authority. Erring loose is deliberate — a false positive is a wasted read, a false negative is
- * this feature telling someone a live key is unused.
+ * The gap accepts exactly the whitespace `ENV_REF_PATTERN` does, so a candidate row is always a
+ * real occurrence and the cap counts only references. The scanners below still re-check each one
+ * and remain the authority; this decides what is worth reading.
  */
 function referencesKey(column: unknown, envKey: string) {
   return sql`${column} ~ ${`\\{\\{${REFERENCE_GAP}*${envKey}${REFERENCE_GAP}*\\}\\}`}`
