@@ -30,7 +30,7 @@ vi.mock('@/lib/credential-groups/credentials', () => ({
     }
   },
   listCredentialGroupCredentialReferences: mocks.listCredentials,
-  loadCredentialGroupEnrollmentAccess: mocks.loadEnrollmentAccess,
+  loadCredentialGroupEnrollmentAccessForSubject: mocks.loadEnrollmentAccess,
   loadCredentialGroupCredentialListContext: mocks.loadGroup,
   MAX_CREDENTIAL_GROUP_CREDENTIAL_PAGE_SIZE: 100,
 }))

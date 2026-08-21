@@ -3,7 +3,16 @@
  */
 import { dbChainMockFns, hasMockCondition, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { listCredentialGroupCredentialReferences } from '@/lib/credential-groups/credentials'
+
+vi.mock('@/lib/credential-groups/providers', () => ({
+  isCredentialGroupProvider: (provider: string) => provider === 'slack',
+  getCredentialGroupProviderId: () => 'slack',
+}))
+
+import {
+  listCredentialGroupCredentialReferences,
+  loadCredentialGroupEnrollmentAccessForSubject,
+} from '@/lib/credential-groups/credentials'
 
 describe('listCredentialGroupCredentialReferences', () => {
   beforeEach(() => {
@@ -64,5 +73,36 @@ describe('listCredentialGroupCredentialReferences', () => {
         (condition) => condition.type === 'eq' && condition.right === 'person@example.com'
       )
     ).toBe(true)
+  })
+
+  it('resolves a Slack subject by stable tenant and user identifiers', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      { enrollmentId: 'enrollment-1', email: 'person@example.com' },
+    ])
+
+    await expect(
+      loadCredentialGroupEnrollmentAccessForSubject('group-1', {
+        kind: 'external_user',
+        provider: 'slack',
+        tenantId: 'T123',
+        subjectId: 'U123',
+      })
+    ).resolves.toEqual({ enrollmentId: 'enrollment-1', email: 'person@example.com' })
+  })
+
+  it('fails fast when one external subject resolves to multiple enrollments', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      { enrollmentId: 'enrollment-1', email: 'first@example.com' },
+      { enrollmentId: 'enrollment-2', email: 'second@example.com' },
+    ])
+
+    await expect(
+      loadCredentialGroupEnrollmentAccessForSubject('group-1', {
+        kind: 'external_user',
+        provider: 'slack',
+        tenantId: 'T123',
+        subjectId: 'U123',
+      })
+    ).rejects.toThrow('multiple Credential Group enrollments')
   })
 })
