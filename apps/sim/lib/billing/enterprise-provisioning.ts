@@ -57,6 +57,7 @@ import {
   enterpriseInvitePeoplePayloadSchema,
   enterpriseMemberReconciliationPayloadSchema,
   enterpriseMetadataIntentMatchesStripeSubscription,
+  enterpriseMetadataIntentProviderAccepted,
   enterpriseMetadataSyncPayloadSchema,
   enterpriseProvisionPayloadSchema,
   enterpriseWorkspaceMovePayloadSchema,
@@ -2648,6 +2649,11 @@ export const syncEnterpriseMetadataInStripe: OutboxHandler<unknown> = async (
       return waitForEnterpriseWebhookAcknowledgement(latestPayload.data.acknowledgement, context)
     }
     if (latestPayload.data.terms) {
+      if (enterpriseMetadataIntentProviderAccepted(latestPayload.data)) {
+        throw new Error(
+          'Legacy Enterprise commercial terms were accepted by Stripe but no longer match; manual reconciliation is required'
+        )
+      }
       await context.checkpointPayload({ commercialTermsRetiredAt: new Date().toISOString() })
       return
     }

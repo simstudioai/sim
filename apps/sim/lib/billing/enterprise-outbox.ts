@@ -119,6 +119,14 @@ export function enterpriseMetadataDeliveryIsVerified(
   return payload.deliveryState?.verifiedAt !== undefined
 }
 
+export function enterpriseMetadataIntentProviderAccepted(
+  payload: EnterpriseMetadataSyncPayload
+): boolean {
+  return (
+    payload.deliveryState?.providerAcceptedAt !== undefined || payload.acknowledgement !== undefined
+  )
+}
+
 function stripeMetadataValueMatches(
   metadata: Stripe.Metadata,
   key: string,
@@ -424,11 +432,11 @@ export async function resolveEnterpriseMetadataIntent(
 
   const appliedOperationId = appliedMetadata.simConfigOperationId
   const operationApplied = appliedOperationId === latest.id
-  const providerAccepted =
-    parsed.data.deliveryState?.providerAcceptedAt !== undefined ||
-    parsed.data.acknowledgement !== undefined
+  const providerAccepted = enterpriseMetadataIntentProviderAccepted(parsed.data)
   const retiredCommercialTerms =
-    parsed.data.terms !== undefined && parsed.data.commercialTermsRetiredAt !== undefined
+    parsed.data.terms !== undefined &&
+    parsed.data.commercialTermsRetiredAt !== undefined &&
+    !providerAccepted
   const hasUnappliedIntent =
     !operationApplied &&
     !retiredCommercialTerms &&

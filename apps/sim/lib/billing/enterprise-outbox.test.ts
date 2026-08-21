@@ -400,6 +400,40 @@ describe('Enterprise metadata intent admission state', () => {
     })
   })
 
+  it('does not release an accepted legacy intent even if a retirement marker is present', async () => {
+    const state = await resolveEnterpriseMetadataIntent(
+      executorReturning([
+        {
+          id: 'config-2',
+          status: 'dead_letter',
+          payload: {
+            subscriptionId: 'sub-local',
+            revision: 2,
+            metadata: { seats: 7 },
+            terms: { invoiceAmountCents: 500_00, billingInterval: 'year' },
+            commercialTermsRetiredAt: '2026-08-01T00:00:00.000Z',
+            deliveryState: {
+              priorPause: null,
+              billingIntervalChanged: true,
+              providerAcceptedAt: '2026-08-01T00:00:00.000Z',
+            },
+          },
+        },
+      ]),
+      'sub-local',
+      { seats: '10', simConfigRevision: '1', simConfigOperationId: 'config-1' }
+    )
+
+    expect(state.hasUnappliedIntent).toBe(true)
+    expect(state.effectiveSeatCapacity).toBe(7)
+    expect(state.configurationUpdate).toMatchObject({
+      id: 'config-2',
+      status: 'failed',
+      providerAccepted: true,
+      error: null,
+    })
+  })
+
   it('keeps a Stripe-accepted dead letter fail-closed until reconciliation', async () => {
     const state = await resolveEnterpriseMetadataIntent(
       executorReturning([

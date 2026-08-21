@@ -1584,6 +1584,59 @@ describe('Enterprise metadata outbox handler', () => {
     expect(mocks.invoicesUpdate).not.toHaveBeenCalled()
   })
 
+  it('keeps an accepted legacy commercial intent fail-closed when Stripe no longer matches', async () => {
+    const payload = {
+      subscriptionId: 'local-sub-1',
+      revision: 7,
+      deliveryRevision: 2,
+      metadata: {
+        plan: 'enterprise',
+        referenceId: 'org-1',
+        seats: 15,
+        invoiceAmountCents: 120000,
+        reportingPeriodAnchorDate: '2026-05-01',
+      },
+      terms: { invoiceAmountCents: 120000, billingInterval: 'year' as const },
+      deliveryState: {
+        priorPause: { behavior: 'keep_as_draft' as const, resumesAt: null },
+        billingIntervalChanged: true,
+        providerAcceptedAt: '2026-08-21T18:00:00.000Z',
+      },
+      stripeProgress: { priceId: 'price_year' },
+    }
+    queueTableRows(schemaMock.subscription, [
+      { stripeSubscriptionId: 'sub_1', referenceId: 'org-1', metadata: {} },
+    ])
+    queueTableRows(schemaMock.subscription, [{ metadata: {} }])
+    queueTableRows(schemaMock.outboxEvent, [{ id: 'accepted-legacy-terms-event', payload }])
+    queueTableRows(schemaMock.member, [{ value: 10 }])
+    mocks.subscriptionsRetrieve.mockResolvedValue({
+      id: 'sub_1',
+      metadata: {},
+      items: { data: [] },
+      pause_collection: { behavior: 'keep_as_draft', resumes_at: null },
+    })
+    const checkpointPayload = vi.fn()
+
+    await expect(
+      syncEnterpriseMetadataInStripe(payload, {
+        eventId: 'accepted-legacy-terms-event',
+        eventType: 'stripe.sync-enterprise-metadata',
+        attempts: 7,
+        checkpointPayload,
+      })
+    ).rejects.toThrow(
+      'Legacy Enterprise commercial terms were accepted by Stripe but no longer match; manual reconciliation is required'
+    )
+
+    expect(checkpointPayload).not.toHaveBeenCalledWith({
+      commercialTermsRetiredAt: expect.any(String),
+    })
+    expect(mocks.subscriptionsUpdate).not.toHaveBeenCalled()
+    expect(mocks.pricesCreate).not.toHaveBeenCalled()
+    expect(mocks.invoicesUpdate).not.toHaveBeenCalled()
+  })
+
   it('consumes the finite missing-ack budget only after the durable grace deadline', async () => {
     const payload = {
       subscriptionId: 'local-sub-1',
