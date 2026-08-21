@@ -828,6 +828,34 @@ export function buildEnrichmentStatusUrl(enrichmentUrns: unknown): string {
   return url.toString()
 }
 
+/**
+ * `linkedin.com/in/x`, `www.linkedin.com/in/x` and a trailing slash all name one
+ * profile. Regional subdomains (`uk.linkedin.com`) are deliberately left distinct:
+ * folding them would claim an equivalence Harmonic does not document, and the
+ * canonical URL kept for display must stay the one the caller supplied.
+ */
+function linkedinProfileKey(url: string): string {
+  try {
+    const parsed = new URL(url)
+    const host = parsed.hostname.toLowerCase().replace(/^www\./, '')
+    return `${host}${parsed.pathname.replace(/\/+$/, '')}`
+  } catch {
+    return url
+  }
+}
+
+function dedupeLinkedinProfiles(urls: string[]): string[] {
+  const seen = new Set<string>()
+  const result: string[] = []
+  for (const url of urls) {
+    const key = linkedinProfileKey(url)
+    if (seen.has(key)) continue
+    seen.add(key)
+    result.push(url)
+  }
+  return result
+}
+
 export function buildEmailEnrichmentJobBody(
   personUrns: unknown,
   personLinkedinUrls: unknown
@@ -840,7 +868,12 @@ export function buildEmailEnrichmentJobBody(
    * for Harmonic to adjudicate. Only values that are not absolute http(s) URLs at
    * all are rejected here, because those are a local mistake, not a provider call.
    */
-  const rawLinkedinUrls = parseArrayParam(personLinkedinUrls, 'personLinkedinUrls')
+  /**
+   * Blank and non-string entries are dropped first so `['']` reads as "no LinkedIn
+   * URLs supplied" rather than tripping the mutual-exclusivity check below or
+   * failing the per-URL parse.
+   */
+  const rawLinkedinUrls = uniqueStrings(parseArrayParam(personLinkedinUrls, 'personLinkedinUrls'))
 
   /**
    * Harmonic documents these as mutually exclusive — "Provide exactly one of the
@@ -855,11 +888,13 @@ export function buildEmailEnrichmentJobBody(
   }
 
   /**
-   * Canonicalise first, then deduplicate: `.../in/foo?utm_source=x` and `.../in/foo`
-   * are the same person, and Harmonic bills each submitted entry, so deduplicating
-   * the raw strings would spend quota twice and double-count against the cap.
+   * Canonicalise first, then deduplicate. Harmonic canonicalizes and silently
+   * deduplicates server-side and reserves quota afterwards, so this is not what
+   * protects the bill — it keeps Sim's own 1-5000 accounting in step with the set
+   * Harmonic will actually accept, so a batch of equivalent URLs is not rejected
+   * locally for exceeding a cap it never reaches.
    */
-  const linkedinUrls = uniqueStrings(
+  const linkedinUrls = dedupeLinkedinProfiles(
     rawLinkedinUrls.map((value) => {
       const normalized = normalizeLinkedinProfileUrl(value)
       if (normalized) return normalized

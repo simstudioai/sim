@@ -1150,16 +1150,42 @@ describe('Harmonic email enrichment', () => {
     ).toThrow('must contain absolute http(s) URLs')
   })
 
-  it('deduplicates LinkedIn URLs after canonicalisation so quota is not spent twice', () => {
+  it('folds every spelling of one profile into a single submitted entry', () => {
     expect(
       buildBody(harmonicSubmitEmailEnrichmentJobTool, {
         personLinkedinUrls: [
           'https://www.linkedin.com/in/ada?utm_source=x',
           'https://www.linkedin.com/in/ada',
           'https://www.linkedin.com/in/ada#about',
+          'https://www.linkedin.com/in/ada/',
+          'https://linkedin.com/in/ada',
+          'https://WWW.LinkedIn.com/in/ada',
         ],
       })
     ).toEqual({ person_linkedin_urls: ['https://www.linkedin.com/in/ada'] })
+  })
+
+  it('keeps regional subdomains distinct rather than assuming an undocumented equivalence', () => {
+    expect(
+      buildBody(harmonicSubmitEmailEnrichmentJobTool, {
+        personLinkedinUrls: ['https://uk.linkedin.com/in/ada', 'https://www.linkedin.com/in/ada'],
+      })
+    ).toEqual({
+      person_linkedin_urls: ['https://uk.linkedin.com/in/ada', 'https://www.linkedin.com/in/ada'],
+    })
+  })
+
+  it('treats blank LinkedIn entries as absent instead of a conflicting identifier list', () => {
+    expect(
+      buildBody(harmonicSubmitEmailEnrichmentJobTool, {
+        personUrns: ['urn:harmonic:person:1'],
+        personLinkedinUrls: ['', '   ', null],
+      })
+    ).toEqual({ person_urns: ['urn:harmonic:person:1'] })
+
+    expect(() =>
+      buildBody(harmonicSubmitEmailEnrichmentJobTool, { personLinkedinUrls: ['', '  '] })
+    ).toThrow('requires at least one person URN or LinkedIn profile URL')
   })
 
   it('reports the identifier conflict before complaining about any single URL', () => {
