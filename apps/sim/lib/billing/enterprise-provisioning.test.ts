@@ -1510,6 +1510,7 @@ describe('Enterprise metadata outbox handler', () => {
         reportingPeriodAnchorDate: '2026-05-01',
       },
       terms: { invoiceAmountCents: 120000, billingInterval: 'year' as const },
+      commercialTermsRetiredAt: '2026-08-21T18:01:00.000Z',
       deliveryState: {
         priorPause: { behavior: 'keep_as_draft' as const, resumesAt: null },
         billingIntervalChanged: true,
@@ -1597,6 +1598,7 @@ describe('Enterprise metadata outbox handler', () => {
         reportingPeriodAnchorDate: '2026-05-01',
       },
       terms: { invoiceAmountCents: 120000, billingInterval: 'year' as const },
+      commercialTermsRetiredAt: '2026-08-21T18:01:00.000Z',
       deliveryState: {
         priorPause: { behavior: 'keep_as_draft' as const, resumesAt: null },
         billingIntervalChanged: true,

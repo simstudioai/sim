@@ -2604,7 +2604,13 @@ export const syncEnterpriseMetadataInStripe: OutboxHandler<unknown> = async (
 
     const latestPayload = enterpriseMetadataSyncPayloadSchema.safeParse(latest.payload)
     if (!latestPayload.success) throw new Error('Latest Enterprise metadata intent is invalid')
-    if (latestPayload.data.terms && latestPayload.data.commercialTermsRetiredAt) return
+    if (
+      latestPayload.data.terms &&
+      latestPayload.data.commercialTermsRetiredAt &&
+      !enterpriseMetadataIntentProviderAccepted(latestPayload.data)
+    ) {
+      return
+    }
     const desiredSeats = Number(latestPayload.data.metadata.seats)
     const currentSeatRequirement = await getEnterpriseIssuanceSeatRequirement({
       executor: db,
