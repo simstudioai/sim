@@ -83,8 +83,15 @@ export async function performChatDeploy(
    * route contract, so a whitespace-only or over-long password would otherwise
    * be encrypted and stored — and neither can ever be submitted through the
    * chat login form, permanently locking visitors out of the deployment.
+   *
+   * `null` is not a password to validate, it is the absence of one, which the
+   * declared `password?: string | null` has always allowed. A replace-shaped
+   * caller sends it for every mode that owns no password — the default
+   * `public`, plus `email` and `sso` — and validating it rejected all three on
+   * a well-formed request. The stored value is cleared by `authType` below
+   * regardless, so `null` needs no validation of its own.
    */
-  if (password !== undefined) {
+  if (password !== undefined && password !== null) {
     const validatedPassword = chatDeploymentPasswordSchema.safeParse(password)
     if (!validatedPassword.success) {
       return {

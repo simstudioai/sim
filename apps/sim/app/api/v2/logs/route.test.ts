@@ -435,7 +435,14 @@ describe('GET /api/v2/logs', () => {
     expect(mocks.execute).not.toHaveBeenCalled()
   })
 
-  it.each([['status=error'], ['workflowName=support'], ['includeJobRuns=true']])(
+  /**
+   * Each param must be a value the contract ACCEPTS, or the 400 comes from
+   * schema validation and the case proves nothing about cursor binding — which
+   * is why the assertion below pins the reason as well as the status. `error`
+   * sat here once: it is a `level`, not a `status`, so it never reached the
+   * cursor check at all.
+   */
+  it.each([['status=failed'], ['workflowName=support'], ['includeJobRuns=true']])(
     'refuses a cursor replayed under a changed %s',
     async (param) => {
       mocks.execute.mockResolvedValueOnce({
@@ -457,6 +464,7 @@ describe('GET /api/v2/logs', () => {
       )
 
       expect(response.status).toBe(400)
+      expect((await response.json()).error.message).toMatch(/cursor/i)
       expect(mocks.execute).not.toHaveBeenCalled()
     }
   )

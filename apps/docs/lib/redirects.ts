@@ -192,10 +192,24 @@ export const DOCS_REDIRECTS: DocsRedirect[] = [
   {
     // `/rows/find` became `/rows/search`: same operation, renamed once the
     // surface settled on `query` for a structured predicate and `search` for
-    // text. Every other operation retired in that pass was added and removed
-    // without ever being published, so none of them needs a rule here.
+    // text.
     source: '/api-reference/tables/findTableRows',
     destination: '/api-reference/tables/searchTableRows',
+    permanent: true,
+  },
+  {
+    // `/columns/run` became `POST /tables/{tableId}/dispatches`: it always
+    // created a dispatch and was polled as one, and `GET .../dispatches`
+    // already sat at the path it now posts to.
+    //
+    // These two are the only operations that pass retired a *published* slug —
+    // confirmed by diffing operationIds in the committed specs, not by reading
+    // the diff, because a path can move while its operationId (and therefore
+    // its docs slug) stays put, and an operationId can change without the path
+    // moving. Everything else renamed alongside them was added and removed
+    // within the same unreleased branch.
+    source: '/api-reference/tables/runTableColumns',
+    destination: '/api-reference/tables/createTableDispatch',
     permanent: true,
   },
   {

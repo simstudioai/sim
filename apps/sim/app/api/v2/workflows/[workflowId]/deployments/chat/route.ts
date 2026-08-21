@@ -69,6 +69,15 @@ export const GET = defineV2JsonRoute({
  * caller cannot read one back to re-send it, and carrying it over implicitly is
  * the one place a replace would quietly stop meaning replace.
  *
+ * `customizations` is the documented exception, and it is not this surface's to
+ * fix: `performChatDeploy` is shared with the internal editor and the Copilot
+ * deploy tool, which both send partial objects and rely on a per-field merge, so
+ * an empty `imageUrl` keeps the stored one rather than clearing it. That same
+ * shared rebuild keeps only the three keys declared here, so customization keys
+ * written by another surface — the editor's `logoUrl` and `headerText` — do not
+ * survive a deploy from any surface, this one included. Both behaviors predate
+ * this endpoint; changing either changes the editor and Copilot too.
+ *
  * This also deploys the workflow, because a chat serves the live version: a
  * drifted draft is republished as part of the call, and a call landing while
  * another deployment attempt is still preparing is a `409` rather than a second

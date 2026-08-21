@@ -84,6 +84,22 @@ describe('performChatDeploy password guards', () => {
     })
   })
 
+  /**
+   * The replace-shaped `PUT /workflows/{workflowId}/deployments/chat` sends
+   * `password: null` for every mode that owns no password, so validating it
+   * rejected the default `public` mode — and `email` and `sso` — on a
+   * well-formed request. The route test cannot catch this: it mocks this whole
+   * module and asserts the exact `null` the real guard refused.
+   */
+  it.each(['public', 'email', 'sso'] as const)(
+    'takes a null password as the absence of one on a %s chat',
+    async (authType) => {
+      const result = await performChatDeploy({ ...basePayload, authType, password: null })
+
+      expect(result).not.toMatchObject({ errorCode: 'validation' })
+    }
+  )
+
   it('rejects password protection with no password and no stored one', async () => {
     queueTableRows(schemaMock.chat, [])
 
