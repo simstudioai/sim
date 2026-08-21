@@ -510,7 +510,9 @@ describe('commands parsed through commander', () => {
   it('documents plain and grouped table queries in help', () => {
     const help = commandAt('tables', 'rows', 'query').helpInformation()
     expect(help).toContain('{"field":"status","op":"eq","value":"active"}')
-    expect(help).toContain('all/any groups for multiple or nested conditions')
+    expect(help).toContain('{"all":[{"field":"status","op":"eq","value":"active"}]}')
+    expect(help).toContain('{"any":[{"field":"status","op":"eq","value":"active"}]}')
+    expect(help).toContain('group entries may also be nested groups')
     expect(help).toContain('[{"field":"createdAt","direction":"desc"}]')
   })
 

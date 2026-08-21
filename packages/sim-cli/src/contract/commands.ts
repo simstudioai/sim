@@ -4,7 +4,7 @@ const TABLE_NAME_HELP = 'Identifier: letters, numbers, and underscores; cannot s
 const TABLE_FILTER_HELP =
   'Predicate: {"all":[{"field":"status","op":"eq","value":"active"}]}; groups use all/any. Operators: eq, ne, gt, gte, lt, lte, in, nin, contains, ncontains, startsWith, endsWith, like, ilike, nlike, nilike, isEmpty, isNotEmpty, isNull, isNotNull'
 const TABLE_READ_FILTER_HELP =
-  'One condition: {"field":"status","op":"eq","value":"active"}; use all/any groups for multiple or nested conditions. Operators: eq, ne, gt, gte, lt, lte, in, nin, contains, ncontains, startsWith, endsWith, like, ilike, nlike, nilike, isEmpty, isNotEmpty, isNull, isNotNull'
+  'Condition: {"field":"status","op":"eq","value":"active"}. Groups: {"all":[{"field":"status","op":"eq","value":"active"}]} or {"any":[{"field":"status","op":"eq","value":"active"}]}; group entries may also be nested groups. Operators: eq, ne, gt, gte, lt, lte, in, nin, contains, ncontains, startsWith, endsWith, like, ilike, nlike, nilike, isEmpty, isNotEmpty, isNull, isNotNull'
 const TABLE_SORT_HELP =
   'Ordered sort keys: [{"field":"createdAt","direction":"desc"}] (direction: asc or desc)'
 const CUSTOM_TOOL_SCHEMA_HELP =

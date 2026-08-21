@@ -2979,7 +2979,7 @@ sim tables rows query <tableId> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--filter <json\|@file>` | No | One condition: &#123;"field":"status","op":"eq","value":"active"&#125;; use all/any groups for multiple or nested conditions. Operators: eq, ne, gt, gte, lt, lte, in, nin, contains, ncontains, startsWith, endsWith, like, ilike, nlike, nilike, isEmpty, isNotEmpty, isNull, isNotNull (JSON, or @path / @- to read a file or stdin). |
+| `--filter <json\|@file>` | No | Condition: &#123;"field":"status","op":"eq","value":"active"&#125;. Groups: &#123;"all":[&#123;"field":"status","op":"eq","value":"active"&#125;]&#125; or &#123;"any":[&#123;"field":"status","op":"eq","value":"active"&#125;]&#125;; group entries may also be nested groups. Operators: eq, ne, gt, gte, lt, lte, in, nin, contains, ncontains, startsWith, endsWith, like, ilike, nlike, nilike, isEmpty, isNotEmpty, isNull, isNotNull (JSON, or @path / @- to read a file or stdin). |
 | `--sort <json\|@file>` | No | Ordered sort keys: [&#123;"field":"createdAt","direction":"desc"&#125;] (direction: asc or desc) (JSON, or @path / @- to read a file or stdin). |
 | `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
 
@@ -3009,7 +3009,7 @@ sim tables rows count <tableId> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--filter <json\|@file>` | No | One condition: &#123;"field":"status","op":"eq","value":"active"&#125;; use all/any groups for multiple or nested conditions. Operators: eq, ne, gt, gte, lt, lte, in, nin, contains, ncontains, startsWith, endsWith, like, ilike, nlike, nilike, isEmpty, isNotEmpty, isNull, isNotNull (JSON, or @path / @- to read a file or stdin). |
+| `--filter <json\|@file>` | No | Condition: &#123;"field":"status","op":"eq","value":"active"&#125;. Groups: &#123;"all":[&#123;"field":"status","op":"eq","value":"active"&#125;]&#125; or &#123;"any":[&#123;"field":"status","op":"eq","value":"active"&#125;]&#125;; group entries may also be nested groups. Operators: eq, ne, gt, gte, lt, lte, in, nin, contains, ncontains, startsWith, endsWith, like, ilike, nlike, nilike, isEmpty, isNotEmpty, isNull, isNotNull (JSON, or @path / @- to read a file or stdin). |
 
 </CommandTable>
 
