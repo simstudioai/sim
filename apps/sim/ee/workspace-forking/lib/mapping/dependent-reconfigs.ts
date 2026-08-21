@@ -75,6 +75,8 @@ interface EmitAnchoredParams {
   targetWorkflowId: string
   /** Canonical-mode overrides for resolving the active parent member (undefined -> value heuristic). */
   canonicalModes?: CanonicalModeOverrides
+  /** Applies trigger-only canonical precedence for a top-level trigger-mode block. */
+  triggerMode?: boolean
   /** Memoized so the deterministic target block id is derived at most once per block. */
   resolveTargetBlockId: () => string
   /** Map a dependent's config id to its wire `subBlockKey` (identity, or nested `tools[i].id`). */
@@ -117,6 +119,7 @@ function emitAnchoredDependents(params: EmitAnchoredParams): void {
     blockName,
     targetWorkflowId,
     canonicalModes,
+    triggerMode,
     resolveTargetBlockId,
     makeSubBlockKey,
     makeTitle,
@@ -127,6 +130,7 @@ function emitAnchoredDependents(params: EmitAnchoredParams): void {
   } = params
   const fullContext = buildSelectorContextFromBlock(contextBlockType, contextSubBlocks, {
     canonicalModes,
+    triggerMode,
   })
   const canonicalIndex = buildCanonicalIndex(config.subBlocks)
   const gates = createCanonicalModeGates(config.subBlocks, values, canonicalModes)
@@ -327,6 +331,7 @@ export function collectForkDependentReconfigs(
         blockName: block.name,
         targetWorkflowId: item.targetWorkflowId,
         canonicalModes: block.data?.canonicalModes,
+        triggerMode: block.triggerMode,
         resolveTargetBlockId: resolveBlockId,
         makeSubBlockKey: (id) => id,
         makeTitle: (dependent) => dependent.title ?? dependent.id ?? '',

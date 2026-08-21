@@ -131,6 +131,7 @@ export function useFetchedOptions({
       workflowId: activeWorkflowId ?? undefined,
       workspaceId: workspaceId ?? undefined,
       canonicalModes: block.data?.canonicalModes,
+      triggerMode: block.triggerMode,
     })
     if (selectorExcludeSelf && activeWorkflowId) context.excludeWorkflowId = activeWorkflowId
     return context

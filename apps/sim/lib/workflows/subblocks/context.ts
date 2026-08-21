@@ -5,6 +5,7 @@ import {
   buildCanonicalIndex,
   buildSubBlockValues,
   type CanonicalModeOverrides,
+  evaluateSubBlockCondition,
   resolveActiveCanonicalValue,
 } from './visibility'
 
@@ -66,7 +67,12 @@ export const SELECTOR_CONTEXT_FIELDS = new Set<keyof SelectorContext>([
 export function buildSelectorContextFromBlock(
   blockType: string,
   subBlocks: Record<string, SubBlockState | { value?: unknown }>,
-  opts?: { workflowId?: string; workspaceId?: string; canonicalModes?: CanonicalModeOverrides }
+  opts?: {
+    workflowId?: string
+    workspaceId?: string
+    canonicalModes?: CanonicalModeOverrides
+    triggerMode?: boolean
+  }
 ): SelectorContext {
   const context: SelectorContext = {}
   if (opts?.workflowId) context.workflowId = opts.workflowId
@@ -78,6 +84,13 @@ export function buildSelectorContextFromBlock(
   const canonicalIndex = buildCanonicalIndex(blockConfig.subBlocks)
   const values = buildSubBlockValues(subBlocks)
   const resolvedGroups = new Set<string>()
+  const visibleTriggerSubBlocks = opts?.triggerMode
+    ? blockConfig.subBlocks.filter(
+        (subBlock) =>
+          (subBlock.mode === 'trigger' || subBlock.mode === 'trigger-advanced') &&
+          evaluateSubBlockCondition(subBlock.condition, values)
+      )
+    : []
 
   const setField = (key: string, value: unknown) => {
     if (value === null || value === undefined) return
@@ -85,6 +98,14 @@ export function buildSelectorContextFromBlock(
     if (!strValue) return
     if (SELECTOR_CONTEXT_FIELDS.has(key as keyof SelectorContext)) {
       context[key as keyof SelectorContext] = strValue
+    }
+  }
+
+  if (opts?.triggerMode) {
+    const triggerCanonicalIndex = buildCanonicalIndex(visibleTriggerSubBlocks)
+    for (const group of Object.values(triggerCanonicalIndex.groupsById)) {
+      resolvedGroups.add(group.canonicalId)
+      setField(group.canonicalId, resolveActiveCanonicalValue(group, values, opts.canonicalModes))
     }
   }
 
@@ -110,9 +131,10 @@ export function buildSelectorContextFromBlock(
   //
   // Only fills a gap: a block that does declare the canonical id has already set it above,
   // including the basic/advanced active-member resolution this loop cannot express.
-  if (!context.oauthCredential) {
+  if (!context.oauthCredential && !resolvedGroups.has('oauthCredential')) {
+    const credentialConfigs = opts?.triggerMode ? visibleTriggerSubBlocks : blockConfig.subBlocks
     for (const [subBlockId, subBlock] of Object.entries(subBlocks)) {
-      if (blockConfig.subBlocks.find((cfg) => cfg.id === subBlockId)?.type !== 'oauth-input') {
+      if (credentialConfigs.find((cfg) => cfg.id === subBlockId)?.type !== 'oauth-input') {
         continue
       }
       const value = subBlock?.value

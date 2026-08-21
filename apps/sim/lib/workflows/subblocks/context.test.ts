@@ -152,6 +152,54 @@ describe('buildSelectorContextFromBlock', () => {
     ).toBe('advanced-team')
   })
 
+  it('preserves Gmail action credential resolution in basic and advanced modes', () => {
+    const subBlocks = {
+      credential: { id: 'credential', type: 'oauth-input', value: 'action-basic' },
+      manualCredential: {
+        id: 'manualCredential',
+        type: 'short-input',
+        value: 'action-advanced',
+      },
+    }
+
+    expect(buildSelectorContextFromBlock('gmail', subBlocks).oauthCredential).toBe('action-basic')
+    expect(
+      buildSelectorContextFromBlock('gmail', subBlocks, {
+        canonicalModes: { oauthCredential: 'advanced' },
+      }).oauthCredential
+    ).toBe('action-advanced')
+  })
+
+  it('uses the trigger credential when a Gmail action block is converted to trigger mode', () => {
+    const ctx = buildSelectorContextFromBlock(
+      'gmail',
+      {
+        credential: { id: 'credential', type: 'oauth-input', value: 'dormant-action' },
+        triggerCredentials: {
+          id: 'triggerCredentials',
+          type: 'oauth-input',
+          value: 'active-trigger',
+        },
+      },
+      { triggerMode: true }
+    )
+
+    expect(ctx.oauthCredential).toBe('active-trigger')
+  })
+
+  it('does not leak a dormant Gmail action credential when the trigger credential is blank', () => {
+    const ctx = buildSelectorContextFromBlock(
+      'gmail',
+      {
+        credential: { id: 'credential', type: 'oauth-input', value: 'dormant-action' },
+        triggerCredentials: { id: 'triggerCredentials', type: 'oauth-input', value: '' },
+      },
+      { triggerMode: true }
+    )
+
+    expect(ctx.oauthCredential).toBeUndefined()
+  })
+
   it('should ignore subblock keys not in SELECTOR_CONTEXT_FIELDS', () => {
     const ctx = buildSelectorContextFromBlock('knowledge', {
       operation: { id: 'operation', type: 'dropdown', value: 'search' },
