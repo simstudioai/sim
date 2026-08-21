@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { safeCompare } from '@sim/security/compare'
 import { hmacSha256Hex } from '@sim/security/hmac'
-import { getErrorMessage } from '@sim/utils/errors'
+import { getErrorMessage, toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { toRecord, toRecordOrNull } from '@sim/utils/object'
 import { truncate } from '@sim/utils/string'
@@ -189,10 +189,7 @@ async function findBitbucketCandidateHook(
     })
     return {
       kind: 'unavailable',
-      error:
-        error instanceof Error
-          ? error
-          : new Error('Bitbucket candidate webhook lookup failed unexpectedly.'),
+      error: toError(error),
     }
   }
 
