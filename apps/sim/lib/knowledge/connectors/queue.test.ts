@@ -21,6 +21,7 @@ vi.mock('@/lib/knowledge/documents/service', () => ({
 }))
 vi.mock('@/lib/knowledge/connectors/sync-engine', () => ({
   executeSync: mockExecuteSync,
+  isConnectorRunnableStatus: (status: string) => status === 'active' || status === 'error',
 }))
 
 import { assertConnectorSyncPayload, dispatchSync } from '@/lib/knowledge/connectors/queue'
@@ -53,6 +54,7 @@ describe('connector sync queue', () => {
     queueTableRows(schemaMock.knowledgeConnector, [
       {
         knowledgeBaseId: 'knowledge-base-1',
+        connectorStatus: 'active',
         connectorArchivedAt: null,
         connectorDeletedAt: null,
         workspaceId: 'workspace-paid',
@@ -80,6 +82,7 @@ describe('connector sync queue', () => {
       {
         connectorId: 'connector-1',
         fullSync: true,
+        requireRunnable: undefined,
         rehydrate: undefined,
         requestId: 'request-1',
         billingAttribution: BILLING_ATTRIBUTION,
@@ -108,6 +111,43 @@ describe('connector sync queue', () => {
       expect.objectContaining({ connectorId: 'connector-1', rehydrate: true }),
       expect.anything()
     )
+  })
+
+  it('carries the runnable requirement into the queued payload', async () => {
+    await dispatchSync('connector-1', {
+      billingAttribution: BILLING_ATTRIBUTION,
+      requireRunnable: true,
+      requestId: 'request-1',
+    })
+
+    expect(mockTrigger).toHaveBeenCalledWith(
+      'knowledge-connector-sync',
+      expect.objectContaining({ connectorId: 'connector-1', requireRunnable: true }),
+      expect.anything()
+    )
+  })
+
+  it('skips automatic dispatch when the connector was paused concurrently', async () => {
+    resetDbChainMock()
+    queueTableRows(schemaMock.knowledgeConnector, [
+      {
+        knowledgeBaseId: 'knowledge-base-1',
+        connectorStatus: 'paused',
+        connectorArchivedAt: null,
+        connectorDeletedAt: null,
+        workspaceId: 'workspace-paid',
+        kbDeletedAt: null,
+      },
+    ])
+
+    await dispatchSync('connector-1', {
+      billingAttribution: BILLING_ATTRIBUTION,
+      requireRunnable: true,
+      requestId: 'request-1',
+    })
+
+    expect(mockTrigger).not.toHaveBeenCalled()
+    expect(mockExecuteSync).not.toHaveBeenCalled()
   })
 
   it('rejects legacy payloads without billing attribution', () => {

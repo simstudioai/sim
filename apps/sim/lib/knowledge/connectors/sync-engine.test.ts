@@ -7,6 +7,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   classifySuspectListing,
   evaluateListingSafety,
+  isConnectorRunnableStatus,
   isStuckDocumentSweepEligible,
   mergeHydratedDocument,
   type PreviousListingObservation,
@@ -43,6 +44,16 @@ vi.mock('@/connectors/registry.server', () => ({
     },
   },
 }))
+
+describe('isConnectorRunnableStatus', () => {
+  it.each(['active', 'error'])('allows automatic sync from %s', (status) => {
+    expect(isConnectorRunnableStatus(status)).toBe(true)
+  })
+
+  it.each(['paused', 'disabled', 'syncing'])('blocks automatic sync from %s', (status) => {
+    expect(isConnectorRunnableStatus(status)).toBe(false)
+  })
+})
 
 describe('shouldReconcileDeletions', () => {
   it('runs on a clean full listing', async () => {

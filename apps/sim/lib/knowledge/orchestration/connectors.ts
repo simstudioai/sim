@@ -9,7 +9,7 @@ import {
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
-import { and, eq, inArray, isNull, ne, sql } from 'drizzle-orm'
+import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
 import { encryptApiKey } from '@/lib/api-key/crypto'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import { hasWorkspaceLiveSyncAccess } from '@/lib/billing/core/subscription'
@@ -443,6 +443,9 @@ export async function performUpdateKnowledgeConnector(
       'conflict'
     )
   }
+  if (updates.status !== undefined && existing.status === 'syncing') {
+    return fail('Cannot change connector status while synchronization is in progress', 'conflict')
+  }
 
   if (updates.syncIntervalMinutes !== undefined) {
     if (!kb.workspaceId && updates.syncIntervalMinutes > 0 && updates.syncIntervalMinutes < 60) {
@@ -512,8 +515,8 @@ export async function performUpdateKnowledgeConnector(
       isNull(knowledgeConnector.archivedAt),
       isNull(knowledgeConnector.deletedAt),
     ]
-    if (updates.sourceConfig !== undefined) {
-      updateConditions.push(ne(knowledgeConnector.status, 'syncing'))
+    if (updates.sourceConfig !== undefined || updates.status !== undefined) {
+      updateConditions.push(eq(knowledgeConnector.status, existing.status))
     }
 
     const [row] = await db
@@ -523,13 +526,18 @@ export async function performUpdateKnowledgeConnector(
       .returning()
 
     if (!row) {
-      if (updates.sourceConfig !== undefined) {
+      if (updates.sourceConfig !== undefined || updates.status !== undefined) {
         const current = await getKnowledgeConnector(kb.id, connectorId)
         if (current?.status === 'syncing') {
           return fail(
-            'Cannot update source configuration while connector synchronization is in progress',
+            updates.sourceConfig !== undefined
+              ? 'Cannot update source configuration while connector synchronization is in progress'
+              : 'Cannot change connector status while synchronization is in progress',
             'conflict'
           )
+        }
+        if (current) {
+          return fail('Connector status changed during the update; retry the request', 'conflict')
         }
       }
       return fail('Connector not found', 'not_found')
@@ -564,7 +572,11 @@ export async function performUpdateKnowledgeConnector(
   }
 
   if (dispatchSourceSync && billingAttribution) {
-    dispatchSourceSync(connectorId, { billingAttribution, requestId }).catch((error) => {
+    dispatchSourceSync(connectorId, {
+      billingAttribution,
+      requestId,
+      requireRunnable: true,
+    }).catch((error) => {
       logger.error(
         `[${requestId}] Failed to dispatch source-change sync for connector ${connectorId}`,
         error

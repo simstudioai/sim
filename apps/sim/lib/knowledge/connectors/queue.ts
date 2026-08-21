@@ -11,7 +11,7 @@ import {
   type BillingAttributionSnapshot,
 } from '@/lib/billing/core/billing-attribution'
 import { resolveTriggerRegion } from '@/lib/core/async-jobs/region'
-import { executeSync } from '@/lib/knowledge/connectors/sync-engine'
+import { executeSync, isConnectorRunnableStatus } from '@/lib/knowledge/connectors/sync-engine'
 import { isTriggerAvailable } from '@/lib/knowledge/documents/service'
 
 const logger = createLogger('ConnectorSyncQueue')
@@ -19,6 +19,8 @@ const logger = createLogger('ConnectorSyncQueue')
 export interface ConnectorSyncPayload {
   connectorId: string
   fullSync?: boolean
+  /** Skip automatic work if the connector is paused or disabled before execution starts. */
+  requireRunnable?: boolean
   /**
    * Force re-hydration + re-indexing of already-synced documents for connectors
    * whose rendered content can drift without a hash change (see
@@ -34,6 +36,7 @@ export interface ConnectorSyncPayload {
 export interface DispatchSyncOptions {
   billingAttribution: BillingAttributionSnapshot
   fullSync?: boolean
+  requireRunnable?: boolean
   rehydrate?: boolean
   requestId?: string
 }
@@ -55,6 +58,9 @@ export function assertConnectorSyncPayload(value: unknown): ConnectorSyncPayload
   if (value.fullSync !== undefined && typeof value.fullSync !== 'boolean') {
     throw new Error('Connector sync payload fullSync must be a boolean when provided')
   }
+  if (value.requireRunnable !== undefined && typeof value.requireRunnable !== 'boolean') {
+    throw new Error('Connector sync payload requireRunnable must be a boolean when provided')
+  }
   if (value.rehydrate !== undefined && typeof value.rehydrate !== 'boolean') {
     throw new Error('Connector sync payload rehydrate must be a boolean when provided')
   }
@@ -65,6 +71,7 @@ export function assertConnectorSyncPayload(value: unknown): ConnectorSyncPayload
   return {
     connectorId: value.connectorId,
     fullSync: value.fullSync as boolean | undefined,
+    requireRunnable: value.requireRunnable as boolean | undefined,
     rehydrate: value.rehydrate as boolean | undefined,
     requestId: value.requestId,
     billingAttribution: assertBillingAttributionSnapshot(value.billingAttribution),
@@ -87,6 +94,7 @@ export async function dispatchSync(
   const payload = assertConnectorSyncPayload({
     connectorId,
     fullSync: options?.fullSync,
+    requireRunnable: options?.requireRunnable,
     rehydrate: options?.rehydrate,
     requestId,
     billingAttribution: options?.billingAttribution,
@@ -95,6 +103,7 @@ export async function dispatchSync(
   const connectorRows = await db
     .select({
       knowledgeBaseId: knowledgeConnector.knowledgeBaseId,
+      connectorStatus: knowledgeConnector.status,
       connectorArchivedAt: knowledgeConnector.archivedAt,
       connectorDeletedAt: knowledgeConnector.deletedAt,
       workspaceId: knowledgeBase.workspaceId,
@@ -134,6 +143,14 @@ export async function dispatchSync(
     })
     return
   }
+  if (payload.requireRunnable && !isConnectorRunnableStatus(row.connectorStatus)) {
+    logger.info('Skipping automatic sync dispatch: connector is not runnable', {
+      connectorId,
+      status: row.connectorStatus,
+      requestId,
+    })
+    return
+  }
   if (!row.workspaceId) {
     throw new Error(`Connector ${connectorId} is missing workspace billing context`)
   }
@@ -161,6 +178,7 @@ export async function dispatchSync(
 
   executeSync(connectorId, {
     fullSync: payload.fullSync,
+    requireRunnable: payload.requireRunnable,
     rehydrate: payload.rehydrate,
     billingAttribution: payload.billingAttribution,
   }).catch((error) => {

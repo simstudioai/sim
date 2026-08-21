@@ -91,6 +91,12 @@ const QUEUED_DISPATCH_GRACE_MINUTES = Math.ceil(
 )
 const RETRY_WINDOW_DAYS = 7
 const MAX_CONSECUTIVE_FAILURES = 10
+const RUNNABLE_CONNECTOR_STATUSES = ['active', 'error'] as const
+
+/** Whether an automatic connector sync may begin from this persisted state. */
+export function isConnectorRunnableStatus(status: string): boolean {
+  return RUNNABLE_CONNECTOR_STATUSES.some((runnableStatus) => runnableStatus === status)
+}
 
 /** The processing state the stuck-document sweep decides on, one row at a time. */
 export interface StuckDocumentSweepCandidate {
@@ -777,6 +783,7 @@ export async function executeSync(
   options: {
     billingAttribution: BillingAttributionSnapshot
     fullSync?: boolean
+    requireRunnable?: boolean
     rehydrate?: boolean
   }
 ): Promise<SyncResult> {
@@ -807,6 +814,14 @@ export async function executeSync(
   }
 
   const connector = connectorRows[0]
+
+  if (options.requireRunnable && !isConnectorRunnableStatus(connector.status)) {
+    logger.info('Skipping automatic sync: connector is not runnable', {
+      connectorId,
+      status: connector.status,
+    })
+    return result
+  }
 
   const connectorConfig = CONNECTOR_REGISTRY[connector.connectorType]
   if (!connectorConfig) {
@@ -857,7 +872,9 @@ export async function executeSync(
     .where(
       and(
         eq(knowledgeConnector.id, connectorId),
-        ne(knowledgeConnector.status, 'syncing'),
+        options.requireRunnable
+          ? inArray(knowledgeConnector.status, RUNNABLE_CONNECTOR_STATUSES)
+          : ne(knowledgeConnector.status, 'syncing'),
         isNull(knowledgeConnector.archivedAt),
         isNull(knowledgeConnector.deletedAt)
       )
