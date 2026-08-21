@@ -113,6 +113,7 @@ function createPausedExecution(overrides: PausedExecutionOverrides = {}) {
     executionId: overrides.executionId ?? EXECUTION_ID,
     executionSnapshot: {
       snapshot: JSON.stringify({
+        version: 1,
         metadata: {
           requestId: 'request-original',
           workflowId: overrides.snapshotWorkflowId ?? WORKFLOW_ID,
