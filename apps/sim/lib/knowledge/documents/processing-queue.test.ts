@@ -254,3 +254,73 @@ describe('processDocumentsWithQueue dispatch backend', () => {
     expect(mockBatchTrigger).not.toHaveBeenCalled()
   })
 })
+
+/**
+ * The processing-attempt budget exists to stop re-billing a document that keeps
+ * failing the same way *in processing*. A dispatch that never reached a worker
+ * teaches it nothing, so the charge is given back on the one path that proves
+ * nothing was dispatched. Without the refund a Trigger.dev outage burns the
+ * allowance without a single run, and after `MAX_PROCESSING_ATTEMPTS` of them
+ * the connector sweep — which skips documents at the cap — permanently stops
+ * recovering them.
+ */
+describe('processDocumentsWithQueue attempt refund', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+    dbChainMockFns.returning.mockResolvedValue([{ id: 'document-1' }])
+    for (const key of Object.keys(env)) {
+      delete (env as Record<string, unknown>)[key]
+    }
+    Object.assign(env, { ...defaultMockEnv, TRIGGER_SECRET_KEY: 'trigger-secret' })
+    dbChainMockFns.limit.mockResolvedValue([
+      { userId: 'knowledge-owner', workspaceId: 'workspace-1' },
+    ])
+  })
+
+  it('refunds the attempt in the same write that withdraws the queue stamp', async () => {
+    mockBatchTrigger.mockRejectedValue(new Error('trigger.dev region unavailable'))
+
+    await expect(
+      processDocumentsWithQueue(
+        [DOCUMENT],
+        'knowledge-base-1',
+        {},
+        'request-1',
+        BILLING_ATTRIBUTION
+      )
+    ).rejects.toThrow('document processing dispatches failed')
+
+    const withdrawCall = dbChainMockFns.set.mock.calls.find(
+      (call) => (call[0] as Record<string, unknown> | undefined)?.processingQueuedAt === null
+    )
+    expect(withdrawCall).toBeDefined()
+
+    const values = withdrawCall?.[0] as Record<string, unknown>
+    const attempts = values.processingAttempts as { toSQL: () => { sql: string } } | undefined
+    expect(attempts).toBeDefined()
+    // Given back as a SQL decrement in the same guarded statement as the stamp,
+    // so it can only ever undo the charge this call made.
+    expect(attempts?.toSQL().sql).toContain('- 1')
+    // Floored, so a refund can never drive the count below zero.
+    expect(attempts?.toSQL().sql).toContain('GREATEST')
+  })
+
+  it('leaves the attempt spent when a dispatch did get through', async () => {
+    mockBatchTrigger.mockResolvedValue({ batchId: 'batch-1' })
+
+    await processDocumentsWithQueue(
+      [DOCUMENT],
+      'knowledge-base-1',
+      {},
+      'request-1',
+      BILLING_ATTRIBUTION
+    )
+
+    expect(
+      dbChainMockFns.set.mock.calls.some(
+        (call) => (call[0] as Record<string, unknown> | undefined)?.processingQueuedAt === null
+      )
+    ).toBe(false)
+  })
+})
