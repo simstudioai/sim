@@ -714,7 +714,15 @@ async function incrementProcessedCount(dispatchId: string, delta: number): Promi
 /** Mark a dispatch complete and emit the terminal SSE so the client overlay
  *  clears. Shared by the row-cap exhaustion path. */
 async function completeDispatch(dispatch: DispatchRow, cursor: number): Promise<void> {
-  await markDispatchComplete(dispatch.id)
+  /**
+   * Guarded, because both callers run AFTER the window's wait. A Stop-all or the
+   * stale sweep landing during that wait leaves the row `cancelled`, and the
+   * unguarded write would overwrite it with `complete` and publish a completion
+   * event after the cancellation one. The claim guard at the top of the step
+   * cannot cover this — the cancel arrives long after the claim.
+   */
+  if (!(await completeDispatchIfActive(dispatch.id))) return
+
   await appendTableEvent({
     kind: 'dispatch',
     tableId: dispatch.tableId,
@@ -833,6 +841,12 @@ export async function completeDispatchIfActive(dispatchId: string): Promise<bool
  * site. Until then the residue is a delay, not a permanent mask: the live
  * dispatch's cells stop reporting when it finishes.
  *
+ * The row bypass uses `IS DISTINCT FROM`, not `<>`: a table-wide dispatch has no
+ * `rowIds`, so the extraction is SQL NULL and `jsonb_typeof` returns NULL.
+ * `NULL <> 'array'` is UNKNOWN rather than TRUE, so the bypass never fired and no
+ * live cell could satisfy the probe — reclaiming exactly the long-running
+ * table-wide dispatches the row filter was added to protect.
+ *
  * Rides the partial `(table_id, status)` index, which covers exactly these three
  * statuses.
  */
@@ -844,7 +858,7 @@ function hasRecentCellActivity(since: Date): SQL {
         SELECT jsonb_array_elements_text(${tableRunDispatches.scope} -> 'groupIds')
       )
       AND (
-        jsonb_typeof(${tableRunDispatches.scope} -> 'rowIds') <> 'array'
+        jsonb_typeof(${tableRunDispatches.scope} -> 'rowIds') IS DISTINCT FROM 'array'
         OR ${tableRowExecutions.rowId} IN (
           SELECT jsonb_array_elements_text(${tableRunDispatches.scope} -> 'rowIds')
         )

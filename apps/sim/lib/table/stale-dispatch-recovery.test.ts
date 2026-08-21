@@ -129,6 +129,16 @@ describe('cancelStaleDispatches', () => {
      */
     expect(joined).toContain("-> 'groupIds'")
     expect(joined).toContain("-> 'rowIds'")
+
+    /**
+     * The table-wide bypass must be NULL-safe. A dispatch with no `rowIds`
+     * extracts SQL NULL, and `jsonb_typeof(NULL) <> 'array'` is UNKNOWN rather
+     * than TRUE — so a plain `<>` never lets a live cell satisfy the probe, and
+     * the long-running table-wide dispatches this filter protects get reclaimed
+     * instead. Same NULL-rowIds pitfall `markActiveDispatchesCancelled` handles.
+     */
+    expect(joined).toContain('IS DISTINCT FROM')
+    expect(joined).not.toMatch(/jsonb_typeof\([^)]*\) <>/)
   })
 
   it('emits the terminal event so a stuck client overlay clears', async () => {
@@ -229,5 +239,39 @@ describe('dispatcherStep pending transition', () => {
           chunks.includes('tableRunDispatches.id') && chunks.includes('tableRunDispatches.status')
       )
     expect(claimPredicate).toBeDefined()
+  })
+})
+
+describe('completeDispatch cancellation safety', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+    mockGetTableById.mockResolvedValue({
+      id: 'table-1',
+      schema: { workflowGroups: [{ id: 'group-1' }] },
+    })
+  })
+
+  /**
+   * Both completion paths run AFTER the window's wait, so a Stop-all or the
+   * stale sweep landing during that wait leaves the row cancelled — and an
+   * unguarded complete would overwrite it and publish a completion event after
+   * the cancellation one. The claim guard cannot cover this: the cancel arrives
+   * long after the claim.
+   */
+  it('emits no completion event when the dispatch is no longer active', async () => {
+    dbChainMockFns.limit.mockResolvedValue([
+      { ...ABANDONED_ROW, status: 'dispatching', limit: { type: 'rows', max: 1 } },
+    ])
+    // The guarded complete matched nothing — the row is already terminal.
+    dbChainMockFns.returning.mockResolvedValue([])
+
+    await dispatcherStep('tdsp_1').catch(() => {})
+
+    expect(
+      mockAppendTableEvent.mock.calls.some(
+        (call) => (call[0] as { status?: string } | undefined)?.status === 'complete'
+      )
+    ).toBe(false)
   })
 })
