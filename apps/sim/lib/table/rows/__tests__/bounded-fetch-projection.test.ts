@@ -121,4 +121,26 @@ describe('fetchRowsBounded column projection', () => {
       source.rows = previous
     }
   })
+
+  it('lets the widest stored row seen so far bound the next batch, not just the average', async () => {
+    // 49 tiny rows and one ~400KB row in the first batch: the stored AVERAGE is ~8KB
+    // (a cap of ~640 rows), but a batch of rows as wide as the widest seen must stay
+    // within ~8x the budget (5MB * 8 / ~400KB = 103, plus the +1 witness row).
+    const mixed = Array.from({ length: 120 }, (_, index) => ({
+      id: `row_${index}`,
+      data: { col_big: index === 10 ? 'x'.repeat(400 * 1024) : 'x', col_small: `v${index}` },
+    }))
+    const previous = source.rows
+    source.rows = mixed
+    source.asks = []
+    try {
+      const result = await drain({ columnIds: new Set(['col_small']) })
+
+      expect(result.rows).toHaveLength(120)
+      expect(source.asks.length).toBeGreaterThan(1)
+      expect(Math.max(...source.asks.slice(1))).toBeLessThanOrEqual(104)
+    } finally {
+      source.rows = previous
+    }
+  })
 })

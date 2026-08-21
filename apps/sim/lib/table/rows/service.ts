@@ -1321,6 +1321,7 @@ export async function fetchRowsBounded(params: BoundedFetchParams): Promise<Boun
   // response bytes above can be tiny while the SELECT still returns whole rows,
   // so batch sizing must be bounded by this, not by the projected average.
   let storedBytes = 0
+  let maxStoredRowBytes = 0
   let hasMore = false
   let anchor = params.seek
   let anchorOffset = params.startOffset
@@ -1342,9 +1343,19 @@ export async function fetchRowsBounded(params: BoundedFetchParams): Promise<Boun
     // full rows. Unprojected, stored and projected bytes agree, so this is the
     // budget-sized batch the drain already takes.
     const fetchCap = Math.ceil(budgetBytes / Math.max(1, storedBytes / rows.length))
+    // The stored-size counterpart of varianceCap: once a wide row has been seen,
+    // assume the next batch could be all that wide, so a run of small rows
+    // cannot talk the average into an oversized SELECT.
+    const storedVarianceCap = Math.ceil((8 * budgetBytes) / Math.max(maxStoredRowBytes, 1))
     return Math.max(
       1,
-      Math.min(byAverage, TABLE_LIMITS.QUERY_BATCH_MAX_ROWS, varianceCap, fetchCap)
+      Math.min(
+        byAverage,
+        TABLE_LIMITS.QUERY_BATCH_MAX_ROWS,
+        varianceCap,
+        fetchCap,
+        storedVarianceCap
+      )
     )
   }
 
@@ -1425,6 +1436,7 @@ export async function fetchRowsBounded(params: BoundedFetchParams): Promise<Boun
       storedBytes += rowStoredBytes
       consumedSinceAnchor++
       if (rowBytes > maxRowBytes) maxRowBytes = rowBytes
+      if (rowStoredBytes > maxStoredRowBytes) maxStoredRowBytes = rowStoredBytes
       if (keysetValid && row.orderKey) {
         anchor = { orderKey: row.orderKey, id: row.id }
         anchorOffset = 0
