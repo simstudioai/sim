@@ -38,6 +38,29 @@ interface ErrorExtractorConfig {
   examples?: string[]
   /** The extraction function */
   extract: ErrorExtractor
+  /**
+   * Optional replacement for the raw error body.
+   *
+   * The executor attaches `errorInfo.data` to the thrown error and surfaces it on
+   * the failed tool's `output.data`, so an extractor that exists because a provider
+   * echoes a credential back must redact the body too — scrubbing only the message
+   * leaves the original reachable at `output.data`.
+   */
+  redactData?: (errorInfo?: ErrorInfo) => unknown
+}
+
+const PITCHBOOK_UNAUTHORIZED_MESSAGE =
+  'PitchBook rejected the API key. Check that the key is active and has API access.'
+
+/**
+ * PitchBook's unauthorized body echoes the submitted key back inside `message`,
+ * so both the message and the retained body have to be replaced.
+ */
+function isPitchbookUnauthorized(errorInfo?: ErrorInfo): boolean {
+  const data = errorInfo?.data
+  if (!data || typeof data !== 'object' || Array.isArray(data)) return false
+  const reason = typeof data.reason === 'string' ? data.reason.trim() : ''
+  return errorInfo?.status === 401 || reason === 'UNAUTHORIZED'
 }
 
 const ERROR_EXTRACTORS: ErrorExtractorConfig[] = [
@@ -437,11 +460,14 @@ const ERROR_EXTRACTORS: ErrorExtractorConfig[] = [
       const message = typeof data.message === 'string' ? data.message.trim() : ''
       if (!message) return undefined
 
-      if (errorInfo?.status === 401 || reason === 'UNAUTHORIZED') {
-        return 'PitchBook rejected the API key. Check that the key is active and has API access.'
-      }
+      if (isPitchbookUnauthorized(errorInfo)) return PITCHBOOK_UNAUTHORIZED_MESSAGE
 
       return reason ? `${message} (${reason})` : message
+    },
+    redactData: (errorInfo) => {
+      if (!isPitchbookUnauthorized(errorInfo)) return errorInfo?.data
+      const reason = (errorInfo?.data as { reason?: unknown } | undefined)?.reason
+      return { reason, message: PITCHBOOK_UNAUTHORIZED_MESSAGE }
     },
   },
   {
@@ -509,6 +535,21 @@ export function extractErrorMessageWithId(
   } catch (error) {}
 
   return `Request failed with status ${errorInfo?.status || 'unknown'}`
+}
+
+/**
+ * Body to retain on a failed tool result, with any credential the provider echoed
+ * back replaced. Falls back to the original body when no extractor redacts it.
+ */
+export function redactErrorData(errorInfo?: ErrorInfo, extractorId?: string): unknown {
+  if (!extractorId) return errorInfo?.data
+  const extractor = ERROR_EXTRACTORS.find((candidate) => candidate.id === extractorId)
+  if (!extractor?.redactData) return errorInfo?.data
+  try {
+    return extractor.redactData(errorInfo)
+  } catch {
+    return errorInfo?.data
+  }
 }
 
 export function extractErrorMessage(errorInfo?: ErrorInfo, extractorId?: string): string {

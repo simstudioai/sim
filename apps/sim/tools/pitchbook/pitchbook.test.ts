@@ -6,7 +6,8 @@ import { describe, expect, it, vi } from 'vitest'
 vi.unmock('@/tools/registry')
 
 import { PitchBookBlock } from '@/blocks/blocks/pitchbook'
-import { ErrorExtractorId, extractErrorMessage } from '@/tools/error-extractors'
+import { ErrorExtractorId, extractErrorMessage, redactErrorData } from '@/tools/error-extractors'
+import { executeTool } from '@/tools/index'
 import RECORDED from '@/tools/pitchbook/__fixtures__/recorded-responses.json'
 import { tools } from '@/tools/registry'
 
@@ -417,6 +418,28 @@ describe('pitchbook error extraction', () => {
     )
   })
 
+  it('redacts the echoed key from the body kept on the failed result', () => {
+    const redacted = redactErrorData(
+      {
+        status: 401,
+        statusText: 'Unauthorized',
+        data: { reason: 'UNAUTHORIZED', message: `Active API key ${SUBMITTED_KEY} not found` },
+      },
+      ErrorExtractorId.PITCHBOOK_ERRORS
+    )
+
+    expect(JSON.stringify(redacted)).not.toContain(SUBMITTED_KEY)
+  })
+
+  it('keeps the body intact for a non-auth failure', () => {
+    expect(
+      redactErrorData(
+        { status: 404, statusText: 'Not Found', data: { reason: 'NOT_FOUND', message: 'gone' } },
+        ErrorExtractorId.PITCHBOOK_ERRORS
+      )
+    ).toEqual({ reason: 'NOT_FOUND', message: 'gone' })
+  })
+
   it('surfaces a non-auth error with its reason', () => {
     expect(
       extractErrorMessage(
@@ -445,6 +468,36 @@ describe('pitchbook error extraction', () => {
     const foreign = extractErrorMessage({ status: 401, statusText: 'Unauthorized', data })
 
     expect(foreign).not.toContain('PitchBook')
+  })
+
+  /**
+   * The direct `redactErrorData` assertions above pass even when the executor is
+   * not wired to it, so this drives the real failure path: the rejected key must
+   * not appear anywhere in the tool result, message or retained body.
+   */
+  it('keeps the rejected key out of the whole failed tool result', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          reason: 'UNAUTHORIZED',
+          message: `Active API key ${SUBMITTED_KEY} not found`,
+        }),
+        { status: 401, headers: { 'content-type': 'application/json' } }
+      )
+    )
+
+    try {
+      const result = await executeTool('pitchbook_company_bio', {
+        apiKey: SUBMITTED_KEY,
+        pbId: '10618-03',
+      })
+
+      expect(result.success).toBe(false)
+      expect(JSON.stringify(result.output ?? {})).not.toContain(SUBMITTED_KEY)
+      expect(result.error ?? '').not.toContain(SUBMITTED_KEY)
+    } finally {
+      fetchSpy.mockRestore()
+    }
   })
 
   it('routes every pitchbook tool through the scrubbing extractor', () => {
