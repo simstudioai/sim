@@ -61,6 +61,7 @@ import { getCredentialsServerTool } from '@/lib/copilot/tools/server/user/get-cr
 import { setEnvironmentVariablesServerTool } from '@/lib/copilot/tools/server/user/set-environment-variables'
 import { editWorkflowServerTool } from '@/lib/copilot/tools/server/workflow/edit-workflow'
 import { queryLogsServerTool } from '@/lib/copilot/tools/server/workflow/query-logs'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { listCustomBlocksWithInputsForWorkspace } from '@/lib/workflows/custom-blocks/operations'
 import { withCustomBlockOverlay } from '@/blocks/custom/server-overlay'
 import { withBlockVisibility } from '@/blocks/visibility/server-context'
@@ -219,7 +220,7 @@ export async function routeExecution(
 ): Promise<unknown> {
   const tool = getServerToolRegistry()[toolName]
   if (!tool) {
-    throw new Error(`Unknown server tool: ${toolName}`)
+    throw new OrchestrationError('validation', `Unknown server tool: ${toolName}`)
   }
 
   logger.debug(
@@ -233,7 +234,10 @@ export async function routeExecution(
     const action = (p?.operation ?? p?.action) as string | undefined
     if (isWriteAction(toolName, action) && !copilotToolCanWrite(context?.userPermission)) {
       const actionLabel = action ? `'${action}' on ` : ''
-      throw new Error(
+      // Classified so the projection surfaces it: a permission denial is
+      // caller-actionable (stop retrying, tell the user), not a system error.
+      throw new OrchestrationError(
+        'forbidden',
         `Permission denied: ${actionLabel}${toolName} requires write access. You have '${context?.userPermission ?? 'none'}' permission.`
       )
     }

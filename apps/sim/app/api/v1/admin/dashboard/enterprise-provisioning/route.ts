@@ -44,6 +44,7 @@ export const POST = withRouteHandler(
               usageLimitDollars === undefined ? undefined : dollarsToCredits(usageLimitDollars),
             requestedByEmail: actor.email ?? 'admin-api',
             requestedByUserId: actor.id,
+            requestedByName: actor.name,
           })
         )
       )

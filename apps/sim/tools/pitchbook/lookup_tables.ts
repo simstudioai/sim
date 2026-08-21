@@ -1,3 +1,4 @@
+import { ErrorExtractorId } from '@/tools/error-extractors'
 import type { PitchbookLookupTablesParams, PitchbookResponse } from '@/tools/pitchbook/types'
 import { PITCHBOOK_API_BASE, pitchbookAuthHeaders, throwIfNotOk } from '@/tools/pitchbook/utils'
 import type { ToolConfig } from '@/tools/types'
@@ -9,6 +10,7 @@ export const pitchbookLookupTablesTool: ToolConfig<PitchbookLookupTablesParams, 
     description:
       'Retrieve the codes in one or more lookup tables. These are the codes the search filters expect, such as INDUSTRY or VERTICAL.',
     version: '1.0.0',
+    errorExtractor: ErrorExtractorId.PITCHBOOK_ERRORS,
 
     params: {
       apiKey: {

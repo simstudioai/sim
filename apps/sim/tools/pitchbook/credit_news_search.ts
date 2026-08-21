@@ -1,3 +1,4 @@
+import { ErrorExtractorId } from '@/tools/error-extractors'
 import type { PitchbookCreditNewsSearchParams, PitchbookResponse } from '@/tools/pitchbook/types'
 import {
   mapStats,
@@ -16,6 +17,7 @@ export const pitchbookCreditNewsSearchTool: ToolConfig<
   description:
     'Search PitchBook credit analysis news by author, region, asset class, topic, issuer, lender, sponsor, and date',
   version: '1.0.0',
+  errorExtractor: ErrorExtractorId.PITCHBOOK_ERRORS,
 
   params: {
     apiKey: {

@@ -1,3 +1,4 @@
+import { ErrorExtractorId } from '@/tools/error-extractors'
 import type { PitchbookCompanySearchParams, PitchbookSearchResponse } from '@/tools/pitchbook/types'
 import {
   buildSearchQuery,
@@ -17,6 +18,7 @@ export const pitchbookCompanySearchTool: ToolConfig<
   description:
     'Search PitchBook for companies by name, location, industry, funding, deal activity, and more',
   version: '1.0.0',
+  errorExtractor: ErrorExtractorId.PITCHBOOK_ERRORS,
 
   params: {
     apiKey: {

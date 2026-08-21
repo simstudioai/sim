@@ -201,4 +201,11 @@ export const envMock = {
   isFalsy: isFalsyImpl,
   envBoolean: envBooleanImpl,
   envNumber: envNumberImpl,
+  /**
+   * Mirrors `PUBLIC_ENV_ATTRIBUTE` in `apps/sim/lib/core/config/env.ts`. The
+   * literal is repeated rather than imported because packages never import from
+   * `apps/*`; keep the two in step if the attribute is ever renamed.
+   */
+  PUBLIC_ENV_ATTRIBUTE: 'data-public-env',
+  publicEnvMissingAtModuleInit: false,
 }

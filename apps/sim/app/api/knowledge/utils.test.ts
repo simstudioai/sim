@@ -137,6 +137,9 @@ describe('Knowledge Utils', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
+    // The document claim gates on the row it writes back, so an unstubbed
+    // `returning()` would abort processing before any completion write.
+    dbChainMockFns.returning.mockResolvedValue([{ id: 'doc1' }])
     // `unstubGlobals: true` removes the module-scope fetch stub after the
     // first test in the worker; re-stub it per test.
     vi.stubGlobal('fetch', createEmbeddingFetchMock())

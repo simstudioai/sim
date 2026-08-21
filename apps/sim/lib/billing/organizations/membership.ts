@@ -808,7 +808,8 @@ interface PaidOrgJoinBillingActions {
 async function applyPaidOrgJoinBillingTx(
   tx: DbOrTx,
   userId: string,
-  organizationId: string
+  organizationId: string,
+  options: { sourceOperationId?: string } = {}
 ): Promise<PaidOrgJoinBillingActions> {
   const actions: PaidOrgJoinBillingActions = {
     proUsageSnapshotted: false,
@@ -867,6 +868,7 @@ async function applyPaidOrgJoinBillingTx(
         stripeSubscriptionId: personalPro.stripeSubscriptionId,
         subscriptionId: personalPro.id,
         reason: 'joined-paid-org',
+        ...(options.sourceOperationId ? { sourceOperationId: options.sourceOperationId } : {}),
       })
     }
 
@@ -895,7 +897,8 @@ async function applyPaidOrgJoinBillingTx(
 export async function reapplyPaidOrgJoinBillingForExistingMemberTx(
   tx: DbOrTx,
   userId: string,
-  organizationId: string
+  organizationId: string,
+  options: { sourceOperationId?: string } = {}
 ): Promise<PaidOrgJoinBillingActions> {
   await acquireUserBillingIdentityLock(tx, userId)
   const [orgSub] = await tx
@@ -913,7 +916,7 @@ export async function reapplyPaidOrgJoinBillingForExistingMemberTx(
     return { proUsageSnapshotted: false, proCancelledAtPeriodEnd: false }
   }
 
-  return applyPaidOrgJoinBillingTx(tx, userId, organizationId)
+  return applyPaidOrgJoinBillingTx(tx, userId, organizationId, options)
 }
 
 type InvitationRemovalScope = 'all' | 'external'

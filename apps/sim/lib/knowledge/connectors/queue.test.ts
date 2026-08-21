@@ -1,7 +1,7 @@
 /**
  * @vitest-environment node
  */
-import { queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -192,6 +192,40 @@ describe('connector sync queue', () => {
 
     expect(mockTrigger).not.toHaveBeenCalled()
     expect(mockExecuteSync).not.toHaveBeenCalled()
+  })
+
+  it('releases the lock when it errors a connector whose knowledge base is gone', async () => {
+    resetDbChainMock()
+    queueTableRows(schemaMock.knowledgeConnector, [
+      {
+        knowledgeBaseId: 'knowledge-base-1',
+        connectorArchivedAt: null,
+        connectorDeletedAt: null,
+        workspaceId: 'workspace-paid',
+        kbDeletedAt: new Date('2026-08-20T00:00:00.000Z'),
+      },
+    ])
+
+    await dispatchSync('connector-1', {
+      billingAttribution: BILLING_ATTRIBUTION,
+      requestId: 'request-1',
+    })
+
+    /**
+     * This write is unconditional on status, so it can land on a row a previous
+     * run left `syncing`. Flipping status without releasing the token and lease
+     * left a row that was neither locked nor reclaimable — the reaper only looks
+     * at `syncing` rows, and the old run's terminal write could still match its
+     * own token.
+     */
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: 'error',
+        syncLockToken: null,
+        syncLockLeaseAt: null,
+      })
+    )
+    expect(mockTrigger).not.toHaveBeenCalled()
   })
 
   it('rejects legacy payloads without billing attribution', () => {

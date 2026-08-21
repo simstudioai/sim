@@ -35,6 +35,23 @@ export function PostHogProvider({ children }: { children: React.ReactNode }) {
             capture_performance: false,
             capture_dead_clicks: false,
             enable_heatmaps: false,
+            /**
+             * PostHog's own error tracking, wired to `window.onerror` and
+             * `unhandledrejection`. This is the app-wide net: React error
+             * boundaries only see errors thrown inside the tree they wrap, and
+             * a failed chunk load, a rejected promise, or anything thrown from
+             * an event handler or socket callback reaches none of them.
+             *
+             * `capture_console_errors` stays off. It is not error reporting —
+             * it captures every `console.error`, which here means React's
+             * hydration and dev warnings (the ones `HydrationErrorHandler`
+             * already filters out as noise) drowning the real exceptions.
+             */
+            capture_exceptions: {
+              capture_unhandled_errors: true,
+              capture_unhandled_rejections: true,
+              capture_console_errors: false,
+            },
             disable_session_recording: true,
             session_recording: {
               maskAllInputs: false,

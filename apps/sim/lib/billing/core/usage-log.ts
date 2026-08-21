@@ -216,6 +216,43 @@ export async function getBillingPeriodUsageCost(
 }
 
 /**
+ * Counts distinct workflow executions that produced billable ledger entries in
+ * an attributed billing period. Multiple line items for one execution count as
+ * one run; executions with no billable usage are intentionally excluded.
+ */
+export async function getBillingPeriodWorkflowRunCount(
+  billingEntity: BillingEntity,
+  billingPeriod: UsageQueryPeriod,
+  executor: DbClient = db
+): Promise<number> {
+  const [row] = await executor
+    .select({
+      workflowRuns:
+        sql<number>`COUNT(DISTINCT ${usageLog.executionId}) FILTER (WHERE ${usageLog.source} = 'workflow')`.mapWith(
+          Number
+        ),
+    })
+    .from(usageLog)
+    .where(
+      and(
+        eq(usageLog.billingEntityType, billingEntity.type),
+        eq(usageLog.billingEntityId, billingEntity.id),
+        ...(billingPeriod.source === 'reporting'
+          ? [
+              gte(usageLog.createdAt, billingPeriod.start),
+              lt(usageLog.createdAt, billingPeriod.end),
+            ]
+          : [
+              eq(usageLog.billingPeriodStart, billingPeriod.start),
+              eq(usageLog.billingPeriodEnd, billingPeriod.end),
+            ])
+      )
+    )
+
+  return row?.workflowRuns ?? 0
+}
+
+/**
  * Period total plus the portion attributable to `source`, in a single scan.
  *
  * Two separate aggregates over the identical row set double the work and, because

@@ -21,6 +21,7 @@ import {
 } from '@/components/emails/billing'
 import {
   BatchInvitationEmail,
+  EnterpriseOwnerInvitationEmail,
   InvitationEmail,
   WorkspaceAddedEmail,
   WorkspaceInvitationEmail,
@@ -94,6 +95,16 @@ export async function renderBatchInvitationEmail(
       workspaceInvitations,
       acceptUrl,
     })
+  )
+}
+
+export async function renderEnterpriseOwnerInvitationEmail(
+  organizationName: string,
+  inviteLink: string,
+  expiresInDays: number
+): Promise<string> {
+  return await render(
+    EnterpriseOwnerInvitationEmail({ organizationName, inviteLink, expiresInDays })
   )
 }
 

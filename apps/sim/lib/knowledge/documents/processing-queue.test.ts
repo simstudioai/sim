@@ -76,6 +76,9 @@ describe('processDocumentsWithQueue billing attribution', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
+    // The processing claim is guarded and returns the row it claimed; without a
+    // stub every worker would read as 'already completed' and return early.
+    dbChainMockFns.returning.mockResolvedValue([{ id: 'document-1' }])
     mockBatchTrigger.mockResolvedValue({ batchId: 'batch-1' })
     for (const key of Object.keys(env)) {
       delete (env as Record<string, unknown>)[key]
@@ -168,6 +171,9 @@ describe('processDocumentsWithQueue dispatch backend', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
+    // The processing claim is guarded and returns the row it claimed; without a
+    // stub every worker would read as 'already completed' and return early.
+    dbChainMockFns.returning.mockResolvedValue([{ id: 'document-1' }])
     resetInsideTriggerRunForTests()
     mockBatchTrigger.mockResolvedValue({ batchId: 'batch-1' })
     for (const key of Object.keys(env)) {

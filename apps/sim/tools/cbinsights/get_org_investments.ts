@@ -73,7 +73,7 @@ export const cbinsightsGetOrgInvestmentsTool: ToolConfig<
         path: `/v2/organizations/${orgId}/financialtransactions/investments`,
         body: compactBody({
           limit: clampLimit(params.limit),
-          nextPageToken: params.nextPageToken,
+          nextPageToken: params.nextPageToken?.trim(),
         }),
       },
       (data) => ({ investments: asArray(data.investments), ...pageInfo(data) }),

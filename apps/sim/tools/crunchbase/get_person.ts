@@ -42,7 +42,7 @@ export const crunchbaseGetPersonTool: ToolConfig<CrunchbaseEntityParams, Crunchb
         required: false,
         visibility: 'user-or-llm',
         description:
-          'Related-entity cards to include, e.g. ["jobs","primary_organization"]. Available: degrees, event_appearances, fields, founded_organizations, jobs, primary_job, primary_organization. A card returns at most 100 items.',
+          'Related-entity cards to include, e.g. ["jobs","primary_organization"]. Available on every license tier: degrees, event_appearances, fields, founded_organizations, jobs, primary_job, primary_organization. Advanced Financials adds participated_funding_rounds, participated_funds, participated_investments, partner_funding_rounds, partner_investments, press_references. A card returns at most 100 items.',
       },
     },
 

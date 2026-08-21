@@ -44,7 +44,7 @@ export const crunchbaseGetOrganizationTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Related-entity cards to include, e.g. ["founders","headquarters_address"]. Available on every license tier: child_organizations, child_ownerships, event_appearances, fields, founders, headquarters_address, parent_organization, parent_ownership. A card returns at most 100 items.',
+        'Related-entity cards to include, e.g. ["founders","headquarters_address"]. Available on every license tier: child_organizations, child_ownerships, event_appearances, fields, founders, headquarters_address, parent_organization, parent_ownership. Richer packages add acquiree_acquisitions, acquirer_acquisitions, investors, ipos, jobs, participated_funding_rounds, participated_funds, participated_investments, press_references, raised_funding_rounds, raised_funds, raised_investments. A card returns at most 100 items.',
     },
   },
 
