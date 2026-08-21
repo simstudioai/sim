@@ -132,6 +132,14 @@ async function executeToolCallsBatch(
         throw new Error(`Arguments for tool "${toolName}" must be an object`)
       }
 
+      /*
+       * No tool-call id is passed: Gemini's function-call parts carry no
+       * model-supplied identifier, and the streaming loop has to synthesize a
+       * local one. A positional index would not survive the model re-emitting
+       * the call, so a `keyed` tool invoked through a Gemini agent falls back to
+       * a fresh token and logs the missing identity rather than deriving one
+       * that only looks stable.
+       */
       const { toolParams, executionParams } = prepareToolExecution(tool, args, request)
       const { rawResponse, modelResponse } = await executeProviderTool(toolName, executionParams, {
         signal: request.abortSignal,

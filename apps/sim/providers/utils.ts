@@ -1570,7 +1570,16 @@ export function prepareToolExecution(
      * from the model's response rather than minted per attempt.
      */
     invocationId?: string
-  }
+  },
+  /**
+   * The model's own id for this tool call, read from the provider's response.
+   *
+   * Passed positionally because every provider already has the tool call in
+   * scope at this point but names it differently, and because a provider that
+   * cannot supply one should fail to compile rather than silently fall through
+   * to the unstable-token path.
+   */
+  toolCallId?: string
 ): {
   toolParams: Record<string, any>
   executionParams: Record<string, any>
@@ -1639,7 +1648,9 @@ export function prepareToolExecution(
             ...(request.callChain ? { callChain: request.callChain } : {}),
             ...(request.executionId ? { executionId: request.executionId } : {}),
             ...(request.blockId ? { blockId: request.blockId } : {}),
-            ...(request.invocationId ? { invocationId: request.invocationId } : {}),
+            ...((toolCallId ?? request.invocationId)
+              ? { invocationId: toolCallId ?? request.invocationId }
+              : {}),
             ...(request.billingAttribution
               ? { billingAttribution: request.billingAttribution }
               : {}),
