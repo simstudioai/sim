@@ -152,7 +152,9 @@ type ActivateWorkflowVersionResponseRef3 = {
   retryable: boolean
 }
 
-type ActivateWorkflowVersionResponseRef4 = {
+type ActivateWorkflowVersionResponseRef4 = ActivateWorkflowVersionResponseRef5
+
+type ActivateWorkflowVersionResponseRef5 = {
   id: string
   isDeployed: boolean
   deployedAt: string | null
@@ -10889,7 +10891,7 @@ export const V2_OPERATIONS = {
         kind: 'integer',
         default: 72,
         describe:
-          'Number of equal time buckets to divide the window into, from 1 to 500. Buckets are never narrower than one minute, so a short window yields fewer distinct instants than requested.',
+          'Number of equal time buckets to divide the window into, from 1 to 500. Exactly this many buckets are always returned. Buckets are never narrower than one minute, so on a short window the series extends past the end of the window rather than being compressed, and the trailing buckets are empty.',
       },
     },
   },

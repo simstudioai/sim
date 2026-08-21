@@ -287,16 +287,29 @@ export const RESOURCE_MUTATION_ERRORS = [
  * `413` on any route whose contract declares one — and a status a caller can
  * receive but the spec omits is an unhandled branch in every generated client.
  *
+ * `415` is derived the same way and for the same reason: the JSON builder
+ * answers `UNSUPPORTED_MEDIA_TYPE` for any body sent under a content type it
+ * cannot read (`v2-json-route.ts`), so every route declaring a body can return
+ * it, and none of them had said so.
+ *
  * Derived from the contract rather than chosen per operation, so a new body
- * route cannot forget it. One-directional: it never removes a `413` from a
+ * route cannot forget either. One-directional: it never removes a `413` from a
  * bodyless read, several of which publish one for the folder-tree ceiling.
  */
+const BODY_DERIVED_ERRORS = [
+  'PayloadTooLarge',
+  'UnsupportedMediaType',
+] as const satisfies readonly ErrorResponseId[]
+
+/** @see BODY_DERIVED_ERRORS */
 export function withRequestBodyErrors(route: OpenApiRouteDefinition): OpenApiRouteDefinition {
-  if (!route.contract.body || route.operation.errors.includes('PayloadTooLarge')) return route
-  return {
-    ...route,
-    operation: { ...route.operation, errors: [...route.operation.errors, 'PayloadTooLarge'] },
+  if (!route.contract.body) return route
+  const derived = route.operation.errors.slice()
+  for (const code of BODY_DERIVED_ERRORS) {
+    if (!derived.includes(code)) derived.push(code)
   }
+  if (derived.length === route.operation.errors.length) return route
+  return { ...route, operation: { ...route.operation, errors: derived } }
 }
 
 export const V2_API_KEY_SECURITY = [{ apiKey: [] }] as const

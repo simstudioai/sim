@@ -193,6 +193,29 @@ export const updateKnowledgeTag = defineAuthorizedKnowledgeUseCase({
     if (input.updates.displayName === undefined && input.updates.fieldType === undefined) {
       throw new OrchestrationError('validation', 'No tag updates specified')
     }
+
+    /**
+     * A tag's slot is fixed for its lifetime, and each slot only holds one kind
+     * of value — so changing `fieldType` is only meaningful when the new type is
+     * valid for the slot the definition already occupies. Create checks this;
+     * update did not, so a tag in a text slot could be relabelled `number` and
+     * every read of it would then interpret text as the wrong type. The same
+     * two checks as create, in the same order.
+     */
+    const { fieldType } = input.updates
+    if (fieldType !== undefined) {
+      if (!(SUPPORTED_FIELD_TYPES as readonly string[]).includes(fieldType)) {
+        throw new OrchestrationError('validation', 'Invalid field type')
+      }
+      const tagSlot = context.tagDefinition.tagSlot
+      if (!isValidSlotForFieldType(tagSlot, fieldType)) {
+        throw new OrchestrationError(
+          'validation',
+          `Tag slot "${tagSlot}" is not valid for field type "${fieldType}"; a tag's slot cannot change, so create a new tag of that type instead`
+        )
+      }
+    }
+
     return {
       tagDefinition: await updateTagDefinition(
         context.tagDefinitionId,

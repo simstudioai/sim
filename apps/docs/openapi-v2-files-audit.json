@@ -264,6 +264,9 @@
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
           },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -329,6 +332,9 @@
           },
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"
@@ -417,9 +423,6 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
-          },
-          "409": {
-            "$ref": "#/components/responses/Conflict"
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"
@@ -614,6 +617,9 @@
           },
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"
@@ -983,6 +989,9 @@
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
           },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -1237,6 +1246,9 @@
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
           },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -1320,6 +1332,9 @@
           },
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"
@@ -1731,6 +1746,9 @@
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
           },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -1889,6 +1907,9 @@
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
           },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -1970,6 +1991,9 @@
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
           },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -2038,6 +2062,9 @@
           },
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"
@@ -2230,6 +2257,9 @@
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
           },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -2296,6 +2326,9 @@
           },
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"
@@ -2467,6 +2500,9 @@
           },
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"
@@ -2661,6 +2697,22 @@
               "error": {
                 "code": "PAYLOAD_TOO_LARGE",
                 "message": "Request body is too large"
+              }
+            }
+          }
+        }
+      },
+      "UnsupportedMediaType": {
+        "description": "The request uses an unsupported media type.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2Error"
+            },
+            "example": {
+              "error": {
+                "code": "UNSUPPORTED_MEDIA_TYPE",
+                "message": "Request body must be sent as application/json"
               }
             }
           }

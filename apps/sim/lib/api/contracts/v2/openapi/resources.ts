@@ -1476,7 +1476,7 @@ const declaredRoutes = [
     resourceOperation('MCP Servers', {
       operationId: 'listWorkflowMcpServers',
       summary: 'List Workflow MCP Servers',
-      description: `List the MCP servers a workspace *publishes*. These serve deployed workflows as tools to outside MCP clients, which is the opposite direction from \`GET /api/v2/mcp-servers\` — that lists external servers Sim calls. Each entry carries the endpoint clients connect to and the tool names it exposes. ${WORKSPACE_API_KEY_DENIED}`,
+      description: `List the MCP servers a workspace *publishes*. These serve deployed workflows as tools to outside MCP clients, which is the opposite direction from \`GET /api/v2/mcp-servers\` — that lists external servers Sim calls. Each entry carries the endpoint clients connect to and the tool names it exposes; those names are gathered under a 2,000-tool budget shared across the page, so on a page of unusually large servers the trailing entries can list fewer names than they publish. Read one server's full inventory with \`GET /api/v2/workflow-mcp-servers/{serverId}/tools\`. ${WORKSPACE_API_KEY_DENIED}`,
       errors: RESOURCE_ERRORS,
       success: { description: 'A page of published MCP servers.' },
     }),
@@ -1538,7 +1538,7 @@ const declaredRoutes = [
     resourceOperation('MCP Servers', {
       operationId: 'listWorkflowMcpTools',
       summary: 'List Workflow MCP Tools',
-      description: `Every tool a server publishes, tool-name ordered. The server list reports tool *names* only, so this is where a caller reads the \`workflowId\` that \`DELETE /api/v2/workflow-mcp-servers/{serverId}/tools/{workflowId}\` addresses. Returns the full inventory rather than a page — it is bounded by the workspace's deployed workflows — so \`nextCursor\` is always null. ${WORKSPACE_API_KEY_DENIED}`,
+      description: `Every tool a server publishes, tool-name ordered. The server list reports tool *names* only, so this is where a caller reads the \`workflowId\` that \`DELETE /api/v2/workflow-mcp-servers/{serverId}/tools/{workflowId}\` addresses. Returned in one page rather than paged — so \`nextCursor\` is always null — and capped at 2,000 tools, which is far above any real server's inventory. ${WORKSPACE_API_KEY_DENIED}`,
       errors: RESOURCE_ERRORS,
       success: { description: 'The tools this server publishes.' },
     }),
@@ -1724,7 +1724,7 @@ const declaredRoutes = [
       operationId: 'getBlock',
       summary: 'Get Block',
       description:
-        'Read one block’s full configuration shape: its fields and their conditions, its operations with the tool each runs, every tool’s parameters and outputs, and its triggers. An unversioned base type resolves to the newest version — `confluence` answers with `confluence_v2` — and the returned `id` is always the resolved one, matching Get Tool. A block this caller cannot see answers 404, identically to one that does not exist.',
+        'Read one block’s full configuration shape: its fields and their conditions, its operations with the tool each runs, every tool’s parameters and outputs, and its triggers. An unversioned base type resolves to the newest version this caller can see — `confluence` answers with `confluence_v2` — and the returned `id` is always the resolved one, matching Get Tool. A block this caller cannot see answers 404, identically to one that does not exist.',
       errors: RESOURCE_ERRORS,
       success: { description: 'The block.' },
     }),
@@ -1782,7 +1782,7 @@ const declaredRoutes = [
       operationId: 'getTool',
       summary: 'Get Tool',
       description:
-        'Read one built-in tool’s declared parameters and outputs. An unversioned name resolves to the newest version — `gmail_send` answers with `gmail_send_v2` — and the returned `id` is always the resolved one, so a caller can see which version it got.',
+        'Read one built-in tool’s declared parameters and outputs. A name that is itself a registered id answers as that exact tool; a name that is not resolves to the newest version of its family. The returned `id` is always the one that answered, so a caller can see which version it got. A tool the workspace’s visible blocks do not expose answers `404`, identically to one that does not exist.',
       errors: RESOURCE_ERRORS,
       success: { description: 'The tool.' },
     }),

@@ -280,6 +280,63 @@ describe('knowledge tag application use cases', () => {
     expect(mocks.recordAudit).not.toHaveBeenCalled()
   })
 
+  /**
+   * A tag's slot is fixed, and each slot holds one kind of value. Without this
+   * guard a tag sitting in a text slot could be relabelled `number`, and every
+   * later read would interpret its text values as the wrong type.
+   */
+  it.each([
+    ['number', 'tag1'],
+    ['date', 'tag1'],
+  ])('rejects changing fieldType to %s, invalid for the tag slot', async (fieldType, tagSlot) => {
+    mocks.resolveTag.mockResolvedValueOnce({
+      ...tagContext,
+      tagDefinition: { ...tagContext.tagDefinition, tagSlot, fieldType: 'text' },
+    })
+
+    await expect(
+      updateKnowledgeTag.execute({
+        principal: sessionPrincipal,
+        input: {
+          knowledgeBaseId: 'knowledge-b',
+          tagDefinitionId: 'tag-1',
+          updates: { fieldType },
+        },
+      })
+    ).rejects.toMatchObject({ code: 'validation' })
+
+    expect(mocks.updateTag).not.toHaveBeenCalled()
+  })
+
+  it('rejects an unknown fieldType on update, as create does', async () => {
+    await expect(
+      updateKnowledgeTag.execute({
+        principal: sessionPrincipal,
+        input: {
+          knowledgeBaseId: 'knowledge-b',
+          tagDefinitionId: 'tag-1',
+          updates: { fieldType: 'nonsense' },
+        },
+      })
+    ).rejects.toMatchObject({ code: 'validation' })
+    expect(mocks.updateTag).not.toHaveBeenCalled()
+  })
+
+  it('allows a rename that leaves the field type alone', async () => {
+    mocks.updateTag.mockResolvedValueOnce({ ...tagContext.tagDefinition, displayName: 'Region' })
+
+    await updateKnowledgeTag.execute({
+      principal: sessionPrincipal,
+      input: {
+        knowledgeBaseId: 'knowledge-b',
+        tagDefinitionId: 'tag-1',
+        updates: { displayName: 'Region' },
+      },
+    })
+
+    expect(mocks.updateTag).toHaveBeenCalledTimes(1)
+  })
+
   it('reports a rename onto a taken name as a conflict', async () => {
     mocks.updateTag.mockRejectedValueOnce(
       Object.assign(new Error('duplicate key value violates unique constraint'), {

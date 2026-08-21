@@ -70,7 +70,7 @@ export const knowledgeTagOpenApiRoutes = [
     knowledgeOperation({
       operationId: 'updateKnowledgeTag',
       summary: 'Update Tag',
-      description: `Rename a tag or change the value type stored in its slot. Renaming changes the name filters and document reads use; the slot, and every value in it, is untouched. A name another tag on this knowledge base already holds is a \`409\`. ${WORKSPACE_API_KEY_DENIED}`,
+      description: `Rename a tag, or change the value type stored in its slot. Renaming changes the name filters and document reads use; the slot, and every value in it, is untouched. A tag's slot is fixed for its lifetime and each slot holds one kind of value, so \`fieldType\` can only change to another type valid for the slot the tag already occupies — anything else is a \`400\`, and the way to get a tag of that type is to create one. A name another tag on this knowledge base already holds is a \`409\`. ${WORKSPACE_API_KEY_DENIED}`,
       errors: RESOURCE_CONFLICT_ERRORS,
       success: { description: 'The updated tag definition.' },
     }),
@@ -192,7 +192,7 @@ export const knowledgeTagOpenApiRoutes = [
     knowledgeOperation({
       operationId: 'saveKnowledgeDocumentTagDefinitions',
       summary: 'Save Document Tag Definitions',
-      description: `Declare, in one request, the tag definitions a document's tags need. Scoped to a document because that is where a caller discovers it needs them, but the definitions belong to the knowledge base and apply to every document in it. A slot already defined under a different name is updated rather than duplicated; name the previous name in \`originalDisplayName\` to make that a rename. Per-definition failures are reported in \`errors\` and still answer \`200\`. ${WORKSPACE_API_KEY_DENIED}`,
+      description: `Declare, in one request, the tag definitions a document's tags need. Scoped to a document because that is where a caller discovers it needs them, but the definitions belong to the knowledge base and apply to every document in it. Updating an existing definition requires naming its current name in \`originalDisplayName\`; that is the only form that edits one in place. Without it the entry is a create, and a requested \`tagSlot\` another name already holds is not overwritten — the definition is created in the next free slot of its \`fieldType\` instead, so read the returned entry for the slot actually assigned. A create whose \`displayName\` already exists is refused in \`errors\`. Per-definition failures are reported in \`errors\` and still answer \`200\`. ${WORKSPACE_API_KEY_DENIED}`,
       errors: RESOURCE_ERRORS,
       success: { description: 'Definitions created and updated by the save.' },
     }),

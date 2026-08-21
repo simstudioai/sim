@@ -226,6 +226,9 @@
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
           },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -384,6 +387,9 @@
           },
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"
@@ -664,6 +670,9 @@
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
           },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -842,6 +851,9 @@
           },
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"
@@ -1031,6 +1043,9 @@
           },
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"
@@ -1242,6 +1257,9 @@
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
           },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -1310,6 +1328,9 @@
           },
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"
@@ -1466,6 +1487,9 @@
           },
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"
@@ -1712,6 +1736,9 @@
           },
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"
@@ -2111,6 +2138,9 @@
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
           },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -2391,6 +2421,9 @@
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
           },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -2658,6 +2691,9 @@
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
           },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -2724,6 +2760,9 @@
           },
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"
@@ -3038,6 +3077,9 @@
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
           },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -3054,7 +3096,7 @@
       "post": {
         "operationId": "addWorkspaceFilesToKnowledgeBase",
         "summary": "Index Workspace Files",
-        "description": "Index files the workspace already stores, without re-uploading their bytes. Each reference is authorized against the file it names, so a reference the caller cannot read, one over the 100 MB document limit, or one whose type is not supported is reported in `failed` while the rest are queued — a partial outcome is a `200`, not a multi-status. Queued documents return with `processingStatus` pending; poll `GET /api/v2/knowledge/{id}/documents/{documentId}`. A workspace API key is rejected with `403`; use a personal API key.",
+        "description": "Index files the workspace already stores, without re-uploading their bytes. Each reference is authorized against the file it names, so a reference the caller cannot read, one over the 100 MB document limit, or one whose type is not supported is reported in `failed` while the rest are queued — a partial outcome is a `200`, not a multi-status. A queued document starts in the `pending` processing state; the entries returned here carry only its identity, so read `GET /api/v2/knowledge/{id}/documents/{documentId}` for its current state. A workspace API key is rejected with `403`; use a personal API key.",
         "tags": ["Knowledge Bases"],
         "parameters": [
           {
@@ -3119,6 +3161,9 @@
           },
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"
@@ -3368,11 +3413,11 @@
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
-          "409": {
-            "$ref": "#/components/responses/Conflict"
-          },
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"
@@ -3459,11 +3504,11 @@
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
-          "409": {
-            "$ref": "#/components/responses/Conflict"
-          },
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"
@@ -3669,6 +3714,9 @@
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
           },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -3785,7 +3833,7 @@
       "patch": {
         "operationId": "updateKnowledgeTag",
         "summary": "Update Tag",
-        "description": "Rename a tag or change the value type stored in its slot. Renaming changes the name filters and document reads use; the slot, and every value in it, is untouched. A name another tag on this knowledge base already holds is a `409`. A workspace API key is rejected with `403`; use a personal API key.",
+        "description": "Rename a tag, or change the value type stored in its slot. Renaming changes the name filters and document reads use; the slot, and every value in it, is untouched. A tag's slot is fixed for its lifetime and each slot holds one kind of value, so `fieldType` can only change to another type valid for the slot the tag already occupies — anything else is a `400`, and the way to get a tag of that type is to create one. A name another tag on this knowledge base already holds is a `409`. A workspace API key is rejected with `403`; use a personal API key.",
         "tags": ["Knowledge Bases"],
         "parameters": [
           {
@@ -3861,6 +3909,9 @@
           },
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"
@@ -4133,7 +4184,7 @@
       "put": {
         "operationId": "saveKnowledgeDocumentTagDefinitions",
         "summary": "Save Document Tag Definitions",
-        "description": "Declare, in one request, the tag definitions a document's tags need. Scoped to a document because that is where a caller discovers it needs them, but the definitions belong to the knowledge base and apply to every document in it. A slot already defined under a different name is updated rather than duplicated; name the previous name in `originalDisplayName` to make that a rename. Per-definition failures are reported in `errors` and still answer `200`. A workspace API key is rejected with `403`; use a personal API key.",
+        "description": "Declare, in one request, the tag definitions a document's tags need. Scoped to a document because that is where a caller discovers it needs them, but the definitions belong to the knowledge base and apply to every document in it. Updating an existing definition requires naming its current name in `originalDisplayName`; that is the only form that edits one in place. Without it the entry is a create, and a requested `tagSlot` another name already holds is not overwritten — the definition is created in the next free slot of its `fieldType` instead, so read the returned entry for the slot actually assigned. A create whose `displayName` already exists is refused in `errors`. Per-definition failures are reported in `errors` and still answer `200`. A workspace API key is rejected with `403`; use a personal API key.",
         "tags": ["Knowledge Bases"],
         "parameters": [
           {
@@ -4206,6 +4257,9 @@
           },
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"

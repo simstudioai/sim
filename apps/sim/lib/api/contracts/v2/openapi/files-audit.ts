@@ -224,7 +224,7 @@ const declaredRoutes = [
       operationId: 'getFileUpload',
       summary: 'Get File Upload',
       description: `Read an upload session's current state — whether it is still accepting bytes, has finalized into a file, or has failed. Use it to decide whether an interrupted transfer can be resumed or should be abandoned. Like every other upload control leg it requires the signed upload token, and is re-authorized against the workspace on each call.`,
-      errors: RESOURCE_CONFLICT_ERRORS,
+      errors: RESOURCE_ERRORS,
       success: { description: 'Current upload-session state.' },
     }),
     {

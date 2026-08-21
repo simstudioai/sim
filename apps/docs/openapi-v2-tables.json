@@ -236,6 +236,9 @@
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
           },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -472,6 +475,9 @@
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
           },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -550,6 +556,9 @@
           },
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
           },
           "423": {
             "$ref": "#/components/responses/Locked"
@@ -631,6 +640,9 @@
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
           },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
           "423": {
             "$ref": "#/components/responses/Locked"
           },
@@ -710,6 +722,9 @@
           },
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
           },
           "423": {
             "$ref": "#/components/responses/Locked"
@@ -902,6 +917,9 @@
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
           },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
           "423": {
             "$ref": "#/components/responses/Locked"
           },
@@ -982,6 +1000,9 @@
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
           },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
           "423": {
             "$ref": "#/components/responses/Locked"
           },
@@ -1061,6 +1082,9 @@
           },
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
           },
           "423": {
             "$ref": "#/components/responses/Locked"
@@ -1250,6 +1274,9 @@
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
           },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
           "423": {
             "$ref": "#/components/responses/Locked"
           },
@@ -1420,6 +1447,9 @@
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
           },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
           "423": {
             "$ref": "#/components/responses/Locked"
           },
@@ -1502,6 +1532,9 @@
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
           },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -1580,6 +1613,9 @@
           },
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"
@@ -1733,6 +1769,9 @@
           },
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"
@@ -1908,6 +1947,9 @@
           },
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"
@@ -2147,6 +2189,9 @@
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
           },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
           "423": {
             "$ref": "#/components/responses/Locked"
           },
@@ -2230,6 +2275,9 @@
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
           },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
           "423": {
             "$ref": "#/components/responses/Locked"
           },
@@ -2309,6 +2357,9 @@
           },
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
           },
           "423": {
             "$ref": "#/components/responses/Locked"
@@ -2391,6 +2442,9 @@
           },
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"
@@ -2492,6 +2546,9 @@
           },
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"
@@ -2668,6 +2725,9 @@
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
           },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -2736,6 +2796,9 @@
           },
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
           },
           "423": {
             "$ref": "#/components/responses/Locked"
@@ -3022,6 +3085,9 @@
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
           },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -3197,6 +3263,9 @@
           },
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"
@@ -3512,6 +3581,9 @@
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
           },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -3694,6 +3766,9 @@
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
           },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -3760,6 +3835,9 @@
           },
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"
@@ -3951,6 +4029,9 @@
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
           },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -4029,6 +4110,9 @@
           },
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
           },
           "423": {
             "$ref": "#/components/responses/Locked"
@@ -4252,6 +4336,9 @@
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
           },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -4317,6 +4404,9 @@
           },
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
           },
           "423": {
             "$ref": "#/components/responses/Locked"
@@ -4489,6 +4579,22 @@
               "error": {
                 "code": "PAYLOAD_TOO_LARGE",
                 "message": "Request body is too large"
+              }
+            }
+          }
+        }
+      },
+      "UnsupportedMediaType": {
+        "description": "The request uses an unsupported media type.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2Error"
+            },
+            "example": {
+              "error": {
+                "code": "UNSUPPORTED_MEDIA_TYPE",
+                "message": "Request body must be sent as application/json"
               }
             }
           }
@@ -9473,7 +9579,7 @@
           "status": {
             "type": "string",
             "enum": ["pending", "dispatching", "complete", "cancelled"],
-            "description": "Current dispatch lifecycle state."
+            "description": "Current dispatch lifecycle state. Note the spelling: a dispatch is `cancelled` with two `l`s, mirroring the stored column, while table imports, exports, and row run state spell the same concept `canceled`. Match the exact value for the resource you are reading rather than assuming one spelling across the API."
           },
           "mode": {
             "type": "string",

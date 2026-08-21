@@ -34,7 +34,7 @@ const v2SegmentCountSchema = z.coerce
   .optional()
   .default(DEFAULT_SEGMENT_COUNT)
   .describe(
-    `Number of equal time buckets to divide the window into, from 1 to ${MAX_STATS_SEGMENT_COUNT}. Buckets are never narrower than one minute, so a short window yields fewer distinct instants than requested.`
+    `Number of equal time buckets to divide the window into, from 1 to ${MAX_STATS_SEGMENT_COUNT}. Exactly this many buckets are always returned. Buckets are never narrower than one minute, so on a short window the series extends past the end of the window rather than being compressed, and the trailing buckets are empty.`
   )
 
 const v2LogSegmentSchema = z

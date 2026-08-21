@@ -252,6 +252,9 @@
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
           },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
           "423": {
             "$ref": "#/components/responses/Locked"
           },
@@ -412,6 +415,9 @@
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
           },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
           "423": {
             "$ref": "#/components/responses/Locked"
           },
@@ -508,6 +514,9 @@
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
           },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
           "423": {
             "$ref": "#/components/responses/Locked"
           },
@@ -591,6 +600,9 @@
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
           },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -673,6 +685,9 @@
           },
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
           },
           "423": {
             "$ref": "#/components/responses/Locked"
@@ -817,6 +832,9 @@
           },
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"
@@ -967,6 +985,9 @@
           },
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
           },
           "423": {
             "$ref": "#/components/responses/Locked"
@@ -1296,6 +1317,9 @@
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
           },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -1390,6 +1414,9 @@
           },
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
           },
           "423": {
             "$ref": "#/components/responses/Locked"
@@ -1496,6 +1523,9 @@
           },
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
           },
           "423": {
             "$ref": "#/components/responses/Locked"
@@ -1644,6 +1674,9 @@
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
           },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
           "423": {
             "$ref": "#/components/responses/Locked"
           },
@@ -1729,6 +1762,9 @@
           },
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
           },
           "423": {
             "$ref": "#/components/responses/Locked"
@@ -1883,6 +1919,9 @@
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
           },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
           "423": {
             "$ref": "#/components/responses/Locked"
           },
@@ -2023,6 +2062,9 @@
           },
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
           },
           "423": {
             "$ref": "#/components/responses/Locked"
@@ -2229,6 +2271,9 @@
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
           },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
           "423": {
             "$ref": "#/components/responses/Locked"
           },
@@ -2400,6 +2445,9 @@
           },
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
           },
           "423": {
             "$ref": "#/components/responses/Locked"
@@ -2626,6 +2674,9 @@
           },
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"
@@ -3135,6 +3186,9 @@
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
           },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -3399,6 +3453,9 @@
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
           },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
           "423": {
             "$ref": "#/components/responses/Locked"
           },
@@ -3468,6 +3525,9 @@
           },
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
           },
           "423": {
             "$ref": "#/components/responses/Locked"
@@ -3814,6 +3874,22 @@
               "error": {
                 "code": "PAYLOAD_TOO_LARGE",
                 "message": "Request body is too large"
+              }
+            }
+          }
+        }
+      },
+      "UnsupportedMediaType": {
+        "description": "The request uses an unsupported media type.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2Error"
+            },
+            "example": {
+              "error": {
+                "code": "UNSUPPORTED_MEDIA_TYPE",
+                "message": "Request body must be sent as application/json"
               }
             }
           }
@@ -7178,6 +7254,11 @@
         "title": "Deployment operation error",
         "description": "Failure details for a deployment lifecycle operation."
       },
+      "VersionActivationResult": {
+        "title": "Version activation result",
+        "description": "Activation attempt accepted for processing. Activation is asynchronous; inspect `isDeployed` and `latestDeploymentAttempt` for current state.",
+        "$ref": "#/components/schemas/RollbackResult"
+      },
       "RollbackResult": {
         "type": "object",
         "properties": {
@@ -7256,8 +7337,78 @@
         "type": "object",
         "properties": {
           "data": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "description": "Unique workflow identifier.",
+                "examples": ["3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36"]
+              },
+              "isDeployed": {
+                "type": "boolean",
+                "description": "Whether a workflow version is currently live and available for API execution."
+              },
+              "deployedAt": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "ISO 8601 timestamp associated with the deployment, or null when unavailable.",
+                "format": "date-time",
+                "examples": ["2026-06-12T10:30:00.000Z"]
+              },
+              "warnings": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Non-fatal synchronization warnings. Empty when there is nothing to report."
+              },
+              "activeDeployment": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/ActiveDeploymentSummary"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Currently live deployment version, or null while no version is active."
+              },
+              "latestDeploymentAttempt": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/DeploymentOperationSummary"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Most recent deployment lifecycle attempt, or null when none is available."
+              },
+              "version": {
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991,
+                "description": "Deployment version selected for re-activation."
+              }
+            },
+            "required": [
+              "id",
+              "isDeployed",
+              "deployedAt",
+              "warnings",
+              "activeDeployment",
+              "latestDeploymentAttempt",
+              "version"
+            ],
+            "additionalProperties": false,
             "description": "Response data.",
-            "$ref": "#/components/schemas/RollbackResult"
+            "$ref": "#/components/schemas/VersionActivationResult"
           }
         },
         "required": ["data"],

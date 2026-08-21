@@ -13,6 +13,7 @@ import {
 import {
   documentedSchema,
   RESOURCE_CONFLICT_ERRORS,
+  RESOURCE_ERRORS,
   WORKSPACE_API_KEY_DENIED,
 } from '@/lib/api/contracts/v2/openapi/shared'
 import { defineOpenApiRoute } from '@/lib/api/openapi/types'
@@ -69,7 +70,7 @@ export const knowledgeChunkOpenApiRoutes = [
       operationId: 'createKnowledgeChunk',
       summary: 'Create Chunk',
       description: `Append a chunk to a document. The text is embedded before the response returns, so the chunk is searchable immediately, and it inherits the document's tag values and the next \`chunkIndex\`. ${CONNECTOR_MANAGED} ${WORKSPACE_API_KEY_DENIED}`,
-      errors: RESOURCE_CONFLICT_ERRORS,
+      errors: RESOURCE_ERRORS,
       success: { description: 'The created chunk.' },
     }),
     {
@@ -106,7 +107,7 @@ export const knowledgeChunkOpenApiRoutes = [
       operationId: 'bulkUpdateKnowledgeChunks',
       summary: 'Bulk Update Chunks',
       description: `Enable, disable, or delete many chunks of one document in a single request. Best-effort: an identifier naming no chunk in the document is skipped rather than failing the request, so \`processed\` is the authoritative count. ${CONNECTOR_MANAGED} ${WORKSPACE_API_KEY_DENIED}`,
-      errors: RESOURCE_CONFLICT_ERRORS,
+      errors: RESOURCE_ERRORS,
       success: { description: 'Outcome of the bulk chunk operation.' },
     }),
     {

@@ -413,6 +413,23 @@ export const v2RollbackWorkflowDataSchema = v2DeploymentStateSchema
   })
 export type V2RollbackWorkflowData = z.output<typeof v2RollbackWorkflowDataSchema>
 
+/**
+ * The same shape under an activation-shaped name.
+ *
+ * `POST /versions/{version}/activate` and `POST /rollback` return identical
+ * data, but publishing the activate response as `RollbackResult` named and
+ * described a generated client's activate type as a rollback. The component id
+ * `RollbackResult` stays on rollback, where shipped clients already depend on
+ * it; activate gets its own rather than renaming theirs.
+ */
+export const v2ActivateWorkflowVersionDataSchema = v2RollbackWorkflowDataSchema.meta({
+  id: 'VersionActivationResult',
+  title: 'Version activation result',
+  description:
+    'Activation attempt accepted for processing. Activation is asynchronous; inspect `isDeployed` and `latestDeploymentAttempt` for current state.',
+})
+export type V2ActivateWorkflowVersionData = z.output<typeof v2ActivateWorkflowVersionDataSchema>
+
 export const v2ListWorkflowsContract = defineRouteContract({
   method: 'GET',
   path: '/api/v2/workflows',
@@ -972,7 +989,7 @@ export const v2ActivateWorkflowVersionContract = defineRouteContract({
     }),
   response: {
     mode: 'json',
-    schema: v2DataResponse(v2RollbackWorkflowDataSchema),
+    schema: v2DataResponse(v2ActivateWorkflowVersionDataSchema),
   },
 })
 

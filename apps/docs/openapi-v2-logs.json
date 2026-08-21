@@ -459,6 +459,9 @@
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
           },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -475,7 +478,7 @@
       "get": {
         "operationId": "getLogStats",
         "summary": "Get Log Statistics",
-        "description": "Bucketed run counts, success rate, error count, and mean latency for a workspace and for each of its workflows — the aggregate a caller would otherwise have to page every run to compute. The window spans the oldest matching run through the later of the newest matching run and now, divided into `segmentCount` equal buckets no narrower than one minute. A folder path covers its whole subtree. Per-workflow series are capped and `workflowsTruncated` reports whether the cap applied; the workspace totals are always computed from every workflow. Runs are hard-deleted once they pass the payer's log retention window, so an older run is simply absent rather than reported as removed. The window is 30 days from run start on the free plan, unbounded on Pro and Team, and set per organization on Enterprise with an optional per-workspace override. A workspace folder tree over 10,000 folders is a `413`.",
+        "description": "Bucketed run counts, success rate, error count, and mean latency for a workspace and for each of its workflows — the aggregate a caller would otherwise have to page every run to compute. The window spans the oldest matching run through the later of the newest matching run and now, divided into exactly `segmentCount` equal buckets whose width is `max(60000, floor(windowMs / segmentCount))` milliseconds. The one-minute floor is a floor on bucket width, not on the window: when it applies, the series runs past `timeBounds.end` and the trailing buckets are empty rather than the window being compressed. A folder path covers its whole subtree. Per-workflow series are capped and `workflowsTruncated` reports whether the cap applied; the workspace totals are always computed from every workflow. Runs are hard-deleted once they pass the payer's log retention window, so an older run is simply absent rather than reported as removed. The window is 30 days from run start on the free plan, unbounded on Pro and Team, and set per organization on Enterprise with an optional per-workspace override. A workspace folder tree over 10,000 folders is a `413`.",
         "tags": ["Logs"],
         "parameters": [
           {
@@ -559,10 +562,10 @@
             "name": "segmentCount",
             "in": "query",
             "required": false,
-            "description": "Number of equal time buckets to divide the window into, from 1 to 500. Buckets are never narrower than one minute, so a short window yields fewer distinct instants than requested.",
+            "description": "Number of equal time buckets to divide the window into, from 1 to 500. Exactly this many buckets are always returned. Buckets are never narrower than one minute, so on a short window the series extends past the end of the window rather than being compressed, and the trailing buckets are empty.",
             "schema": {
               "default": 72,
-              "description": "Number of equal time buckets to divide the window into, from 1 to 500. Buckets are never narrower than one minute, so a short window yields fewer distinct instants than requested.",
+              "description": "Number of equal time buckets to divide the window into, from 1 to 500. Exactly this many buckets are always returned. Buckets are never narrower than one minute, so on a short window the series extends past the end of the window rather than being compressed, and the trailing buckets are empty.",
               "type": "integer",
               "minimum": 1,
               "maximum": 500
@@ -758,6 +761,22 @@
               "error": {
                 "code": "PAYLOAD_TOO_LARGE",
                 "message": "Request body is too large"
+              }
+            }
+          }
+        }
+      },
+      "UnsupportedMediaType": {
+        "description": "The request uses an unsupported media type.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2Error"
+            },
+            "example": {
+              "error": {
+                "code": "UNSUPPORTED_MEDIA_TYPE",
+                "message": "Request body must be sent as application/json"
               }
             }
           }

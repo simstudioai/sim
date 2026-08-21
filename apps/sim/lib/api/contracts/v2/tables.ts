@@ -2420,7 +2420,9 @@ export const v2TableRunDispatchSchema = z
     id: z.string().describe('Unique dispatch identifier.'),
     tableId: z.string().describe('Table the dispatch runs against.'),
     workspaceId: z.string().describe('Workspace that owns the dispatch.'),
-    status: v2TableDispatchStatusSchema.describe('Current dispatch lifecycle state.'),
+    status: v2TableDispatchStatusSchema.describe(
+      'Current dispatch lifecycle state. Note the spelling: a dispatch is `cancelled` with two `l`s, mirroring the stored column, while table imports, exports, and row run state spell the same concept `canceled`. Match the exact value for the resource you are reading rather than assuming one spelling across the API.'
+    ),
     mode: z
       .enum(['all', 'incomplete', 'new'])
       .describe(

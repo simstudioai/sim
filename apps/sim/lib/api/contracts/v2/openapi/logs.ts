@@ -262,7 +262,7 @@ const declaredRoutes = [
     logsOperation({
       operationId: 'getLogStats',
       summary: 'Get Log Statistics',
-      description: `Bucketed run counts, success rate, error count, and mean latency for a workspace and for each of its workflows — the aggregate a caller would otherwise have to page every run to compute. The window spans the oldest matching run through the later of the newest matching run and now, divided into \`segmentCount\` equal buckets no narrower than one minute. A folder path covers its whole subtree. Per-workflow series are capped and \`workflowsTruncated\` reports whether the cap applied; the workspace totals are always computed from every workflow. ${RUN_RETENTION} ${FOLDER_TREE_TOO_LARGE}`,
+      description: `Bucketed run counts, success rate, error count, and mean latency for a workspace and for each of its workflows — the aggregate a caller would otherwise have to page every run to compute. The window spans the oldest matching run through the later of the newest matching run and now, divided into exactly \`segmentCount\` equal buckets whose width is \`max(60000, floor(windowMs / segmentCount))\` milliseconds. The one-minute floor is a floor on bucket width, not on the window: when it applies, the series runs past \`timeBounds.end\` and the trailing buckets are empty rather than the window being compressed. A folder path covers its whole subtree. Per-workflow series are capped and \`workflowsTruncated\` reports whether the cap applied; the workspace totals are always computed from every workflow. ${RUN_RETENTION} ${FOLDER_TREE_TOO_LARGE}`,
       errors: [...RESOURCE_ERRORS, 'PayloadTooLarge'],
       success: { description: 'Bucketed execution statistics for the workspace.' },
     }),
