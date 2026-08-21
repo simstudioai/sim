@@ -29,6 +29,7 @@ import {
   enqueueOrReschedulePendingOutboxEvent,
   enqueueOutboxEvent,
   enqueueOutboxEvents,
+  outboxEventHasSourceOperationId,
   outboxPayloadHasSourceOperationId,
   processOutboxEvents,
 } from './service'
@@ -123,6 +124,13 @@ describe('enqueueOutboxEvent', () => {
 })
 
 describe('outbox parent-operation correlation', () => {
+  it('casts JSON payloads before applying JSONB containment operators', () => {
+    const query = JSON.stringify(outboxEventHasSourceOperationId('operation-1'))
+
+    expect(query).toContain("::jsonb -> 'sourceOperationIds'")
+    expect(query).toContain('@> jsonb_build_array')
+  })
+
   it('retains both scalar and coalesced parent operation identities', () => {
     expect(
       outboxPayloadHasSourceOperationId({ sourceOperationId: 'operation-1' }, 'operation-1')
