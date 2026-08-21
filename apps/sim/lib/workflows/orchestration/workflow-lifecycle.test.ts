@@ -10,6 +10,7 @@ import {
   workflowsPersistenceUtilsMock,
   workflowsPersistenceUtilsMockFns,
   workflowsUtilsMock,
+  workflowsUtilsMockFns,
 } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -65,6 +66,25 @@ describe('performCreateWorkflowTransition unique-violation handling', () => {
       success: false,
       error: 'A workflow named "My Workflow" already exists in this folder',
       errorCode: 'conflict',
+    })
+  })
+
+  it('uses a deduplicated workflow name when requested', async () => {
+    workflowsUtilsMockFns.mockDeduplicateWorkflowName.mockResolvedValueOnce('My Workflow (2)')
+
+    const result = await performCreateWorkflowTransition({
+      ...createParams,
+      deduplicate: true,
+    })
+
+    expect(workflowsUtilsMockFns.mockDeduplicateWorkflowName).toHaveBeenCalledWith(
+      'My Workflow',
+      'workspace-1',
+      null
+    )
+    expect(result).toMatchObject({
+      success: true,
+      workflow: { name: 'My Workflow (2)' },
     })
   })
 
