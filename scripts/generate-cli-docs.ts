@@ -277,6 +277,7 @@ const ACRONYMS = new Set([
   'JSON',
   'MCP',
   'OAuth',
+  'Sim',
   'SSE',
   'SSO',
   'URL',
