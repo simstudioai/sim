@@ -70,6 +70,7 @@ describe('resource directory', () => {
             {
               id: 'tbl_1',
               name: 'Revenue',
+              webUrl: 'https://sim.example/workspace/ws_local/tables/tbl_1',
               folderPath: '/Reports',
               updatedAt: '2026-08-03T00:00:00.000Z',
             },
@@ -116,6 +117,7 @@ describe('resource directory', () => {
         kind: 'table',
         name: 'Revenue',
         ref: 'tbl_1',
+        webUrl: 'https://sim.example/workspace/ws_local/tables/tbl_1',
         folderPath: '/Reports',
         updatedAt: '2026-08-03T00:00:00.000Z',
       },

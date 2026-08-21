@@ -127,6 +127,7 @@ describe('/api/v2/tables/[tableId]', () => {
     expect(response.status).toBe(200)
     expect((await response.json()).data).toMatchObject({
       id: 'table-1',
+      webUrl: `https://test.sim.ai/workspace/${WORKSPACE_ID}/tables/table-1`,
       ownerEmail: 'owner@example.com',
       maxRows: 5000,
     })

@@ -7,6 +7,8 @@ import {
   v2OrchestrationErrorPolicy,
   v2RateLimits,
 } from '@/lib/api/server/routes'
+import { getBaseUrl } from '@/lib/core/utils/urls'
+import { workspaceResourceWebUrl } from '@/lib/resources'
 import { createWorkflow } from '@/lib/workflows/application/create-workflow'
 import { listWorkflows } from '@/lib/workflows/application/list-workflows'
 import { workflowOperations } from '@/lib/workflows/application/operations'
@@ -52,29 +54,33 @@ export const GET = defineV2JsonRoute({
     limit: query.limit,
   }),
   useCase: listWorkflows,
-  present: ({ workflows, nextCursorKeys }, { query }) => ({
-    data: workflows.map(
-      (workflow): V2WorkflowListItem => ({
-        id: workflow.id,
-        name: workflow.name,
-        description: workflow.description,
-        folderPath: workflow.folderPath,
-        workspaceId: workflow.workspaceId,
-        isDeployed: workflow.isDeployed,
-        deployedAt: workflow.deployedAt?.toISOString() ?? null,
-        runCount: workflow.runCount,
-        lastRunAt: workflow.lastRunAt?.toISOString() ?? null,
-        createdAt: workflow.createdAt.toISOString(),
-        updatedAt: workflow.updatedAt.toISOString(),
-      })
-    ),
-    nextCursor: writeSortedCursor(
-      nextCursorKeys,
-      query.sortBy,
-      query.sortOrder,
-      workflowCursorFilters(query)
-    ),
-  }),
+  present: ({ workflows, nextCursorKeys }, { query }) => {
+    const baseUrl = getBaseUrl()
+    return {
+      data: workflows.map(
+        (workflow): V2WorkflowListItem => ({
+          id: workflow.id,
+          webUrl: workspaceResourceWebUrl(baseUrl, workflow.workspaceId, 'workflow', workflow.id),
+          name: workflow.name,
+          description: workflow.description,
+          folderPath: workflow.folderPath,
+          workspaceId: workflow.workspaceId,
+          isDeployed: workflow.isDeployed,
+          deployedAt: workflow.deployedAt?.toISOString() ?? null,
+          runCount: workflow.runCount,
+          lastRunAt: workflow.lastRunAt?.toISOString() ?? null,
+          createdAt: workflow.createdAt.toISOString(),
+          updatedAt: workflow.updatedAt.toISOString(),
+        })
+      ),
+      nextCursor: writeSortedCursor(
+        nextCursorKeys,
+        query.sortBy,
+        query.sortOrder,
+        workflowCursorFilters(query)
+      ),
+    }
+  },
 })
 
 export const POST = defineV2JsonRoute({
@@ -88,6 +94,7 @@ export const POST = defineV2JsonRoute({
   present: ({ workflow, folderPath }) => ({
     data: {
       id: workflow.id,
+      webUrl: workspaceResourceWebUrl(getBaseUrl(), workflow.workspaceId, 'workflow', workflow.id),
       name: workflow.name,
       description: workflow.description ?? null,
       folderPath,

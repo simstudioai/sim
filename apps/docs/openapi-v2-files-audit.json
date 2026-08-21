@@ -2332,6 +2332,11 @@
             "description": "Unique file identifier.",
             "examples": ["wf_V1StGXR8z5jdHi6BmyT91"]
           },
+          "webUrl": {
+            "type": "string",
+            "format": "uri",
+            "description": "Canonical absolute URL for opening this resource in the Sim web application."
+          },
           "name": {
             "type": "string",
             "description": "Original file name.",
@@ -2394,6 +2399,7 @@
         },
         "required": [
           "id",
+          "webUrl",
           "name",
           "size",
           "type",
@@ -2439,6 +2445,7 @@
             "data": [
               {
                 "id": "wf_V1StGXR8z5jdHi6BmyT91",
+                "webUrl": "https://www.sim.ai/workspace/a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64/files/wf_V1StGXR8z5jdHi6BmyT91",
                 "name": "data.csv",
                 "size": 1024,
                 "type": "text/csv",
@@ -2470,6 +2477,7 @@
           {
             "data": {
               "id": "wf_V1StGXR8z5jdHi6BmyT91",
+              "webUrl": "https://www.sim.ai/workspace/a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64/files/wf_V1StGXR8z5jdHi6BmyT91",
               "name": "data.csv",
               "size": 1024,
               "type": "text/csv",
@@ -2913,6 +2921,7 @@
           {
             "data": {
               "id": "wf_V1StGXR8z5jdHi6BmyT91",
+              "webUrl": "https://www.sim.ai/workspace/a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64/files/wf_V1StGXR8z5jdHi6BmyT91",
               "name": "data_restored.csv",
               "size": 1024,
               "type": "text/csv",
@@ -3018,6 +3027,11 @@
             "description": "Unique file identifier.",
             "examples": ["wf_V1StGXR8z5jdHi6BmyT91"]
           },
+          "webUrl": {
+            "type": "string",
+            "format": "uri",
+            "description": "Canonical absolute URL for opening this resource in the Sim web application."
+          },
           "name": {
             "type": "string",
             "description": "Original file name.",
@@ -3091,6 +3105,7 @@
         },
         "required": [
           "id",
+          "webUrl",
           "name",
           "size",
           "type",
@@ -3122,6 +3137,7 @@
           {
             "data": {
               "id": "wf_V1StGXR8z5jdHi6BmyT91",
+              "webUrl": "https://www.sim.ai/workspace/a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64/files/wf_V1StGXR8z5jdHi6BmyT91",
               "name": "data.csv",
               "size": 1024,
               "type": "text/csv",
@@ -3137,6 +3153,7 @@
           {
             "data": {
               "id": "wf_V1StGXR8z5jdHi6BmyT91",
+              "webUrl": "https://www.sim.ai/workspace/a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64/files/wf_V1StGXR8z5jdHi6BmyT91",
               "name": "data.csv",
               "size": 1024,
               "type": "text/csv",

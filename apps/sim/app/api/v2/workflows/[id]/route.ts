@@ -4,6 +4,8 @@ import {
   v2UpdateWorkflowContract,
 } from '@/lib/api/contracts/v2/workflows'
 import { defineV2JsonRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/routes'
+import { getBaseUrl } from '@/lib/core/utils/urls'
+import { workspaceResourceWebUrl } from '@/lib/resources'
 import { v2WorkflowErrorPolicies } from '@/lib/workflows/api'
 import { deleteWorkflow } from '@/lib/workflows/application/delete-workflow'
 import { workflowOperations } from '@/lib/workflows/application/operations'
@@ -35,6 +37,7 @@ export const GET = defineV2JsonRoute({
   present: ({ workflow, workspaceId, folderPath, inputs }) => ({
     data: {
       id: workflow.id,
+      webUrl: workspaceResourceWebUrl(getBaseUrl(), workspaceId, 'workflow', workflow.id),
       name: workflow.name,
       description: workflow.description,
       folderPath,
@@ -62,6 +65,7 @@ export const PATCH = defineV2JsonRoute({
   present: ({ workflow, workspaceId, folderPath, deployment }) => ({
     data: {
       id: workflow.id,
+      webUrl: workspaceResourceWebUrl(getBaseUrl(), workspaceId, 'workflow', workflow.id),
       name: workflow.name,
       description: workflow.description,
       folderPath,
