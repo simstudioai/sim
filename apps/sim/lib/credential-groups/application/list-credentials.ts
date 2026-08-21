@@ -1,9 +1,6 @@
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import {
-  credentialGroupDelegationPolicy,
-  requireCredentialGroupEnrollmentAccess,
-} from '@/lib/credential-groups/application/authorization'
+import { credentialGroupDelegationPolicy } from '@/lib/credential-groups/application/authorization'
 import {
   requireCredentialGroupsAvailable,
   resolveCredentialGroupContext,
@@ -39,12 +36,6 @@ export const listCredentialGroupCredentials = defineAuthorizedWorkspaceUseCase({
   resolveContext: ({ input }: { input: ListCredentialGroupCredentialsInput }) =>
     resolveCredentialGroupContext(input.credentialGroupId),
   authorizationOptions: { delegation: credentialGroupDelegationPolicy },
-  async authorizeResource({ principal, context }) {
-    context.enrollmentAccess = await requireCredentialGroupEnrollmentAccess(
-      principal,
-      context.credentialGroupId
-    )
-  },
   execute: async ({ input, context }): Promise<ListCredentialGroupCredentialsResult> => {
     if (
       !Number.isInteger(input.limit) ||
@@ -84,9 +75,6 @@ export const listCredentialGroupCredentials = defineAuthorizedWorkspaceUseCase({
     }
 
     await requireCredentialGroupsAvailable(context.workspaceId)
-    if (!context.enrollmentAccess) {
-      throw new Error('Credential Group credential listing executed without enrollment access')
-    }
 
     let page
     try {
@@ -96,7 +84,6 @@ export const listCredentialGroupCredentials = defineAuthorizedWorkspaceUseCase({
         credentialGroupOptionIds: activeOptions.map((option) => option.id),
         limit: input.limit,
         cursor: input.cursor,
-        credentialGroupEnrollmentId: context.enrollmentAccess.enrollmentId,
         credentialProviderIds: credentialProviderIds.length > 0 ? credentialProviderIds : undefined,
       })
     } catch (error) {

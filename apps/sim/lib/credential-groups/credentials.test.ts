@@ -27,7 +27,6 @@ describe('listCredentialGroupCredentialReferences', () => {
     const result = await listCredentialGroupCredentialReferences({
       workspaceId: 'workspace-1',
       credentialGroupId: 'group-1',
-      credentialGroupEnrollmentId: 'enrollment-1',
       credentialGroupOptionIds: ['option-1'],
       limit: 50,
     })
