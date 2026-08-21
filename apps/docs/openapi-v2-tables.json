@@ -1407,7 +1407,7 @@
       "post": {
         "operationId": "queryTableRows",
         "summary": "Query Rows",
-        "description": "Query rows with a typed predicate, ordered sort specification, and opaque cursor pagination. Bounded pages are capped at 5MB by default and may contain fewer rows than the requested limit; continue until nextCursor is null. A predicate larger than the request-body ceiling is a `413`.",
+        "description": "Query rows with an optional typed predicate, ordered sort specification, and opaque cursor pagination. A predicate may be one condition or an `all`/`any` group; omit it to match every row. Bounded pages are capped at 5MB by default and may contain fewer rows than the requested limit; continue until nextCursor is null. A predicate larger than the request-body ceiling is a `413`.",
         "tags": ["Tables"],
         "parameters": [
           {
@@ -1424,7 +1424,7 @@
         ],
         "requestBody": {
           "required": true,
-          "description": "Workspace scope, optional predicate and sort, and cursor pagination controls.",
+          "description": "Workspace scope, optional predicate and sort, and cursor pagination controls. The predicate may be one condition or an `all`/`any` group; omitting it matches every row.",
           "content": {
             "application/json": {
               "schema": {
@@ -1486,7 +1486,7 @@
       "post": {
         "operationId": "countTableRows",
         "summary": "Count Rows",
-        "description": "Count the rows matching a typed predicate across the entire table. The paged reads carry no total, and `rowCount` on the table resource counts every row rather than the matches. Omit the predicate to count the whole table. A predicate larger than the request-body ceiling is a `413`.",
+        "description": "Count the rows matching a typed predicate across the entire table. A predicate may be one condition or an `all`/`any` group. The paged reads carry no total, and `rowCount` on the table resource counts every row rather than the matches. Omit the predicate to count the whole table. A predicate larger than the request-body ceiling is a `413`.",
         "tags": ["Tables"],
         "parameters": [
           {
@@ -1503,7 +1503,7 @@
         ],
         "requestBody": {
           "required": true,
-          "description": "Workspace scope and the optional predicate whose matches are counted.",
+          "description": "Workspace scope and the optional condition or `all`/`any` predicate group whose matches are counted.",
           "content": {
             "application/json": {
               "schema": {
@@ -5472,6 +5472,188 @@
         "title": "Query table rows response",
         "description": "A cursor-paginated page of matching table rows."
       },
+      "TablePredicateInput": {
+        "title": "Table predicate input",
+        "description": "A single `{ field, op, value }` condition or a recursive `all`/`any` group; either form is normalized to a grouped predicate after validation. At most 100 members per group, 10 levels of nesting, and 500 nodes in total. The negating operators include nulls: `ne`, `nin`, `ncontains`, `nlike`, and `nilike` match rows whose column is null or absent, so \"not X\" is not the complement of \"X\" over a nullable column. That holds for every column type, multi-select included. To exclude nulls, `all`-combine the negation with `isNotEmpty` (multi-select) or `isNotNull`. Comparison: `eq`, `ne`, `gt`, `gte`, `lt`, `lte`. Membership: `in`, `nin` (array operand). Emptiness: `isEmpty`, `isNotEmpty`, `isNull`, `isNotNull` (no operand). Substring, always case-insensitive, operand matched literally: `contains`, `ncontains`, `startsWith`, `endsWith`. Pattern: `like`/`nlike` (case-sensitive), `ilike`/`nilike` (case-insensitive). **`*` is the only wildcard** and stands for any run of characters; `%`, `_`, and backslash match themselves. Use `like: \"Hi*\"`, not `like: \"Hi%\"`. A `select` column compares by option id and restricts its operators: single-select accepts `eq`, `ne`, `in`, `nin`; multi-select accepts `contains`, `ncontains`. Option names are accepted as operands and resolved to ids.",
+        "oneOf": [
+          {
+            "type": "object",
+            "description": "Matches a row when every member matches.",
+            "properties": {
+              "all": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 100,
+                "description": "Members combined with AND. An empty group is rejected, because it would compile to no filter at all.",
+                "items": {
+                  "description": "A nested group, or a single condition.",
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/TablePredicateInput"
+                    },
+                    {
+                      "type": "object",
+                      "title": "Predicate condition",
+                      "description": "One column comparison.",
+                      "properties": {
+                        "field": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 128,
+                          "description": "Column name to compare, or one of the system fields `id`, `createdAt`, `updatedAt`."
+                        },
+                        "op": {
+                          "type": "string",
+                          "enum": [
+                            "eq",
+                            "ne",
+                            "gt",
+                            "gte",
+                            "lt",
+                            "lte",
+                            "in",
+                            "nin",
+                            "contains",
+                            "ncontains",
+                            "startsWith",
+                            "endsWith",
+                            "like",
+                            "ilike",
+                            "nlike",
+                            "nilike",
+                            "isEmpty",
+                            "isNotEmpty",
+                            "isNull",
+                            "isNotNull"
+                          ],
+                          "description": "Comparison operator. The `TablePredicate` schema description carries the grammar for all of them."
+                        },
+                        "value": {
+                          "description": "Operand. A scalar for the comparison operators, an array of at most 1000 entries for `in`/`nin`, a pattern for the matching operators, and omitted for `isEmpty`/`isNotEmpty`/`isNull`/`isNotNull`."
+                        }
+                      },
+                      "required": ["field", "op"],
+                      "additionalProperties": false
+                    }
+                  ]
+                }
+              }
+            },
+            "required": ["all"],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "description": "Matches a row when at least one member matches.",
+            "properties": {
+              "any": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 100,
+                "description": "Members combined with OR. An empty group is rejected, because it would compile to no filter at all.",
+                "items": {
+                  "description": "A nested group, or a single condition.",
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/TablePredicateInput"
+                    },
+                    {
+                      "type": "object",
+                      "title": "Predicate condition",
+                      "description": "One column comparison.",
+                      "properties": {
+                        "field": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 128,
+                          "description": "Column name to compare, or one of the system fields `id`, `createdAt`, `updatedAt`."
+                        },
+                        "op": {
+                          "type": "string",
+                          "enum": [
+                            "eq",
+                            "ne",
+                            "gt",
+                            "gte",
+                            "lt",
+                            "lte",
+                            "in",
+                            "nin",
+                            "contains",
+                            "ncontains",
+                            "startsWith",
+                            "endsWith",
+                            "like",
+                            "ilike",
+                            "nlike",
+                            "nilike",
+                            "isEmpty",
+                            "isNotEmpty",
+                            "isNull",
+                            "isNotNull"
+                          ],
+                          "description": "Comparison operator. The `TablePredicate` schema description carries the grammar for all of them."
+                        },
+                        "value": {
+                          "description": "Operand. A scalar for the comparison operators, an array of at most 1000 entries for `in`/`nin`, a pattern for the matching operators, and omitted for `isEmpty`/`isNotEmpty`/`isNull`/`isNotNull`."
+                        }
+                      },
+                      "required": ["field", "op"],
+                      "additionalProperties": false
+                    }
+                  ]
+                }
+              }
+            },
+            "required": ["any"],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "title": "Predicate condition",
+            "description": "One column comparison.",
+            "properties": {
+              "field": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128,
+                "description": "Column name to compare, or one of the system fields `id`, `createdAt`, `updatedAt`."
+              },
+              "op": {
+                "type": "string",
+                "enum": [
+                  "eq",
+                  "ne",
+                  "gt",
+                  "gte",
+                  "lt",
+                  "lte",
+                  "in",
+                  "nin",
+                  "contains",
+                  "ncontains",
+                  "startsWith",
+                  "endsWith",
+                  "like",
+                  "ilike",
+                  "nlike",
+                  "nilike",
+                  "isEmpty",
+                  "isNotEmpty",
+                  "isNull",
+                  "isNotNull"
+                ],
+                "description": "Comparison operator. The `TablePredicate` schema description carries the grammar for all of them."
+              },
+              "value": {
+                "description": "Operand. A scalar for the comparison operators, an array of at most 1000 entries for `in`/`nin`, a pattern for the matching operators, and omitted for `isEmpty`/`isNotEmpty`/`isNull`/`isNotNull`."
+              }
+            },
+            "required": ["field", "op"],
+            "additionalProperties": false
+          }
+        ]
+      },
       "QueryTableRowsRequest": {
         "type": "object",
         "properties": {
@@ -5482,7 +5664,7 @@
             "description": "Unique workspace identifier."
           },
           "predicate": {
-            "$ref": "#/components/schemas/TablePredicate"
+            "$ref": "#/components/schemas/TablePredicateInput"
           },
           "sort": {
             "description": "Ordered table-row sort specification.",
@@ -5522,28 +5704,7 @@
         "required": ["workspaceId"],
         "additionalProperties": false,
         "title": "Query table rows request",
-        "description": "Workspace scope, optional predicate and sort, and cursor pagination controls.",
-        "examples": [
-          {
-            "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
-            "predicate": {
-              "all": [
-                {
-                  "field": "status",
-                  "op": "eq",
-                  "value": "active"
-                }
-              ]
-            },
-            "sort": [
-              {
-                "field": "createdAt",
-                "direction": "desc"
-              }
-            ],
-            "limit": 100
-          }
-        ]
+        "description": "Workspace scope, optional predicate and sort, and cursor pagination controls. The predicate may be one condition or an `all`/`any` group; omitting it matches every row."
       },
       "V2QueryRowsCountData": {
         "type": "object",
@@ -5583,27 +5744,13 @@
             "description": "Unique workspace identifier."
           },
           "predicate": {
-            "$ref": "#/components/schemas/TablePredicate"
+            "$ref": "#/components/schemas/TablePredicateInput"
           }
         },
         "required": ["workspaceId"],
         "additionalProperties": false,
         "title": "Count table rows request",
-        "description": "Workspace scope and the optional predicate whose matches are counted.",
-        "examples": [
-          {
-            "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
-            "predicate": {
-              "all": [
-                {
-                  "field": "status",
-                  "op": "eq",
-                  "value": "active"
-                }
-              ]
-            }
-          }
-        ]
+        "description": "Workspace scope and the optional condition or `all`/`any` predicate group whose matches are counted."
       },
       "V2ApiTableView": {
         "type": "object",
@@ -5788,188 +5935,6 @@
         "additionalProperties": false,
         "title": "Create table view response",
         "description": "The created saved view."
-      },
-      "TablePredicateInput": {
-        "title": "Table predicate input",
-        "description": "A single `{ field, op, value }` condition or a group, normalized to a grouped predicate after validation. Same grammar and limits as `TablePredicate`.",
-        "oneOf": [
-          {
-            "type": "object",
-            "description": "Matches a row when every member matches.",
-            "properties": {
-              "all": {
-                "type": "array",
-                "minItems": 1,
-                "maxItems": 100,
-                "description": "Members combined with AND. An empty group is rejected, because it would compile to no filter at all.",
-                "items": {
-                  "description": "A nested group, or a single condition.",
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/TablePredicateInput"
-                    },
-                    {
-                      "type": "object",
-                      "title": "Predicate condition",
-                      "description": "One column comparison.",
-                      "properties": {
-                        "field": {
-                          "type": "string",
-                          "minLength": 1,
-                          "maxLength": 128,
-                          "description": "Column name to compare, or one of the system fields `id`, `createdAt`, `updatedAt`."
-                        },
-                        "op": {
-                          "type": "string",
-                          "enum": [
-                            "eq",
-                            "ne",
-                            "gt",
-                            "gte",
-                            "lt",
-                            "lte",
-                            "in",
-                            "nin",
-                            "contains",
-                            "ncontains",
-                            "startsWith",
-                            "endsWith",
-                            "like",
-                            "ilike",
-                            "nlike",
-                            "nilike",
-                            "isEmpty",
-                            "isNotEmpty",
-                            "isNull",
-                            "isNotNull"
-                          ],
-                          "description": "Comparison operator. The `TablePredicate` schema description carries the grammar for all of them."
-                        },
-                        "value": {
-                          "description": "Operand. A scalar for the comparison operators, an array of at most 1000 entries for `in`/`nin`, a pattern for the matching operators, and omitted for `isEmpty`/`isNotEmpty`/`isNull`/`isNotNull`."
-                        }
-                      },
-                      "required": ["field", "op"],
-                      "additionalProperties": false
-                    }
-                  ]
-                }
-              }
-            },
-            "required": ["all"],
-            "additionalProperties": false
-          },
-          {
-            "type": "object",
-            "description": "Matches a row when at least one member matches.",
-            "properties": {
-              "any": {
-                "type": "array",
-                "minItems": 1,
-                "maxItems": 100,
-                "description": "Members combined with OR. An empty group is rejected, because it would compile to no filter at all.",
-                "items": {
-                  "description": "A nested group, or a single condition.",
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/TablePredicateInput"
-                    },
-                    {
-                      "type": "object",
-                      "title": "Predicate condition",
-                      "description": "One column comparison.",
-                      "properties": {
-                        "field": {
-                          "type": "string",
-                          "minLength": 1,
-                          "maxLength": 128,
-                          "description": "Column name to compare, or one of the system fields `id`, `createdAt`, `updatedAt`."
-                        },
-                        "op": {
-                          "type": "string",
-                          "enum": [
-                            "eq",
-                            "ne",
-                            "gt",
-                            "gte",
-                            "lt",
-                            "lte",
-                            "in",
-                            "nin",
-                            "contains",
-                            "ncontains",
-                            "startsWith",
-                            "endsWith",
-                            "like",
-                            "ilike",
-                            "nlike",
-                            "nilike",
-                            "isEmpty",
-                            "isNotEmpty",
-                            "isNull",
-                            "isNotNull"
-                          ],
-                          "description": "Comparison operator. The `TablePredicate` schema description carries the grammar for all of them."
-                        },
-                        "value": {
-                          "description": "Operand. A scalar for the comparison operators, an array of at most 1000 entries for `in`/`nin`, a pattern for the matching operators, and omitted for `isEmpty`/`isNotEmpty`/`isNull`/`isNotNull`."
-                        }
-                      },
-                      "required": ["field", "op"],
-                      "additionalProperties": false
-                    }
-                  ]
-                }
-              }
-            },
-            "required": ["any"],
-            "additionalProperties": false
-          },
-          {
-            "type": "object",
-            "title": "Predicate condition",
-            "description": "One column comparison.",
-            "properties": {
-              "field": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 128,
-                "description": "Column name to compare, or one of the system fields `id`, `createdAt`, `updatedAt`."
-              },
-              "op": {
-                "type": "string",
-                "enum": [
-                  "eq",
-                  "ne",
-                  "gt",
-                  "gte",
-                  "lt",
-                  "lte",
-                  "in",
-                  "nin",
-                  "contains",
-                  "ncontains",
-                  "startsWith",
-                  "endsWith",
-                  "like",
-                  "ilike",
-                  "nlike",
-                  "nilike",
-                  "isEmpty",
-                  "isNotEmpty",
-                  "isNull",
-                  "isNotNull"
-                ],
-                "description": "Comparison operator. The `TablePredicate` schema description carries the grammar for all of them."
-              },
-              "value": {
-                "description": "Operand. A scalar for the comparison operators, an array of at most 1000 entries for `in`/`nin`, a pattern for the matching operators, and omitted for `isEmpty`/`isNotEmpty`/`isNull`/`isNotNull`."
-              }
-            },
-            "required": ["field", "op"],
-            "additionalProperties": false
-          }
-        ]
       },
       "CreateTableViewRequest": {
         "type": "object",

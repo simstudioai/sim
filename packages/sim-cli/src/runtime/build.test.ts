@@ -507,9 +507,12 @@ describe('commands parsed through commander', () => {
     expect(selected.body).toEqual({ selectedOutputs: ['agent.answer', 'save.result'] })
   })
 
-  it('documents the table predicate and sort wire shapes in help', () => {
+  it('documents plain and grouped table queries in help', () => {
     const help = commandAt('tables', 'rows', 'query').helpInformation()
+    expect(help).toContain('{"field":"status","op":"eq","value":"active"}')
     expect(help).toContain('{"all":[{"field":"status","op":"eq","value":"active"}]}')
+    expect(help).toContain('{"any":[{"field":"status","op":"eq","value":"active"}]}')
+    expect(help).toContain('group entries may also be nested groups')
     expect(help).toContain('[{"field":"createdAt","direction":"desc"}]')
   })
 
