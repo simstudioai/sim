@@ -211,7 +211,11 @@ export function SecretDetail({ workspaceId, credentialId }: SecretDetailProps) {
           aria-label='Secret usage views'
         />
         {usageTab === 'references' ? (
-          <SecretReferencesPanel workspaceId={workspaceId} secretName={secretName} />
+          <SecretReferencesPanel
+            workspaceId={workspaceId}
+            secretName={secretName}
+            shadowed={valueField.isConflicted}
+          />
         ) : (
           <SecretUsagePanel workspaceId={workspaceId} secretName={secretName} scope={scope} />
         )}

@@ -20,6 +20,14 @@ import { useSecretReferences } from '@/hooks/queries/credentials'
 interface SecretReferencesPanelProps {
   workspaceId: string
   secretName: string
+  /**
+   * This personal secret is overridden by a workspace variable of the same name. References are
+   * name-based, so every `{{name}}` in the workspace resolves to the workspace variable — whose
+   * reference map is admin-gated. The owner may still read their own Logs, which is why the view
+   * is offered at all, so this tab explains the shadowing instead of asking the API for a map it
+   * will refuse.
+   */
+  shadowed: boolean
 }
 
 /**
@@ -52,8 +60,24 @@ function resourceHref(workspaceId: string, resource: SecretReferenceResourcePayl
  * The companion to the Logs tab, and the half of the question runs cannot answer — a secret
  * four blocks depend on but nothing has executed yet has an empty trail and a full list here.
  */
-export function SecretReferencesPanel({ workspaceId, secretName }: SecretReferencesPanelProps) {
-  const { data, isPending, isError } = useSecretReferences({ workspaceId, name: secretName })
+export function SecretReferencesPanel({
+  workspaceId,
+  secretName,
+  shadowed,
+}: SecretReferencesPanelProps) {
+  const { data, isPending, isError } = useSecretReferences(
+    { workspaceId, name: secretName },
+    !shadowed
+  )
+
+  if (shadowed) {
+    return (
+      <SettingsEmptyState variant='inline'>
+        Overridden by a workspace variable, so every reference to this name resolves to that
+        variable instead.
+      </SettingsEmptyState>
+    )
+  }
 
   if (isError) {
     return (

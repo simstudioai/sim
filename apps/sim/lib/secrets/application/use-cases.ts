@@ -7,6 +7,7 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   getPersonalEnvCredentialMetadata,
   getWorkspaceEnvKeyAdminAccess,
+  hasWorkspaceEnvValue,
 } from '@/lib/credentials/environment'
 import {
   listVisibleWorkspaceCredentials,
@@ -481,9 +482,19 @@ async function requireSecretReferencesReadAccess(params: {
     'Credential admin permission required to view this secret usage'
   )
 
-  // A workspace secret under this name is admin-gated outright — a personal secret the caller
-  // happens to hold under the same name does not unlock the workspace one's reference map.
-  if (keyAccess.knownKeys.has(params.name)) throw forbidden
+  /**
+   * A workspace value under this name is admin-gated outright — a personal secret the caller
+   * happens to hold under the same name does not unlock the workspace one's reference map,
+   * and at run time the workspace value is the one that wins anyway.
+   *
+   * Read from the authoritative variables map rather than `keyAccess.knownKeys`: that set only
+   * covers names with an `env_workspace` credential row, so a legacy value written before the
+   * ACL existed would look like "no workspace secret here" and fall through to the personal
+   * branch — handing a non-admin the map for exactly the oldest keys.
+   */
+  if (await hasWorkspaceEnvValue({ workspaceId: params.workspaceId, envKey: params.name })) {
+    throw forbidden
+  }
 
   const owned = await getPersonalEnvCredentialMetadata({
     userId: params.userId,

@@ -158,14 +158,26 @@ describe('scanSecretReferences', () => {
     expect(scan.workflows[0]?.blocks[0]?.field).toBe('params')
   })
 
-  it('tolerates whitespace inside the reference braces', async () => {
+  /**
+   * `ENV_REF_PATTERN`'s `\s` spans more than ASCII, so a value pasted with a non-breaking or
+   * ideographic space inside the braces is a reference the executor resolves. Reporting it as
+   * unreferenced is the one failure direction this feature must never take.
+   */
+  it.each([
+    ['ascii space', '{{ API_KEY }}'],
+    ['tab', '{{\tAPI_KEY\t}}'],
+    ['newline', '{{\nAPI_KEY\n}}'],
+    ['non-breaking space', '{{ API_KEY }}'],
+    ['narrow non-breaking space', '{{ API_KEY }}'],
+    ['ideographic space', '{{　API_KEY　}}'],
+  ])('tolerates %s inside the reference braces', async (_label, value) => {
     queueTableRows(schemaMock.workflowBlocks, [
       blockRow({
         blockId: 'block-1',
         blockName: 'Call API',
         workflowId: 'workflow-1',
         workflowName: 'Nightly sync',
-        subBlocks: shortInput('apiKey', '{{ API_KEY }}'),
+        subBlocks: shortInput('apiKey', value),
       }),
     ])
 
