@@ -301,6 +301,30 @@ describe('completeDispatch cancellation safety', () => {
     expect(guarded).toBeDefined()
   })
 
+  /**
+   * Several round trips separate the claim from the enqueue — the window query,
+   * the executions prefetch, the tombstone filter — so a cancel landing in that
+   * gap would otherwise run a whole window of cells for a dispatch already
+   * recorded as cancelled.
+   */
+  it('does not commit a window for a dispatch cancelled after the claim', async () => {
+    dbChainMockFns.returning.mockResolvedValue([{ id: 'tdsp_1' }])
+    // Claimed while active, then observed cancelled on the pre-window re-read.
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([{ ...ABANDONED_ROW, status: 'dispatching' }])
+      .mockResolvedValue([{ ...ABANDONED_ROW, status: 'cancelled' }])
+
+    const result = await dispatcherStep('tdsp_1').catch(() => 'threw')
+
+    expect(result).toBe('done')
+    // Nothing enqueued: no cell was stamped for the cancelled dispatch.
+    expect(
+      mockAppendTableEvent.mock.calls.some(
+        (call) => (call[0] as { kind?: string } | undefined)?.kind === 'cell'
+      )
+    ).toBe(false)
+  })
+
   it('emits no completion event when the dispatch is no longer active', async () => {
     dbChainMockFns.limit.mockResolvedValue([
       { ...ABANDONED_ROW, status: 'dispatching', limit: { type: 'rows', max: 1 } },

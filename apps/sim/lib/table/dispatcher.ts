@@ -614,6 +614,28 @@ export async function dispatcherStep(
   }
 
   if (windowRuns.length > 0) {
+    /**
+     * Re-read before committing a window, mirroring the check after one.
+     *
+     * Several round trips separate the claim from here — the window query, the
+     * executions prefetch, the tombstone filter — and a Stop-all or the stale
+     * sweep landing in that gap would otherwise have this stamp cells and run an
+     * entire window for a dispatch already recorded as cancelled.
+     *
+     * This narrows the gap to a single statement; it does not close it, and no
+     * check can. A cancel arriving after this read still races the enqueue. The
+     * cell-level `cancellationGuard` and the `isExecCancelledAfter` tombstone
+     * filter are what catch that remainder.
+     */
+    const beforeWindow = await readDispatch(dispatchId)
+    if (
+      !beforeWindow ||
+      beforeWindow.status === 'cancelled' ||
+      beforeWindow.status === 'complete'
+    ) {
+      return 'done'
+    }
+
     await stampQueuedForBatch(windowRuns, table)
 
     // Backend-agnostic batch dispatch: trigger.dev wraps `batchTriggerAndWait`
