@@ -78,22 +78,33 @@ describe('generateCreativeWorkflowName', () => {
     })
 
     expect(names).toEqual(
-      expect.arrayContaining(['city-grove', 'bolt-ivy', 'cog-tree', 'gpu-moss'])
+      expect.arrayContaining([
+        'city-grove',
+        'bolt-ivy',
+        'cog-tree',
+        'gpu-moss',
+        'beam-bird',
+        'gear-moon',
+        'cell-bug',
+        'token-fruit',
+        'beam-root',
+        'gear-snow',
+      ])
     )
     for (const excludedWord of [
       'auto',
+      'boot',
       'bus',
       'cam',
       'car',
       'cart',
-      'cell',
+      'host',
       'jet',
       'nut',
       'plug',
       'rig',
       'saw',
       'ship',
-      'token',
       'train',
       'tram',
       'van',
@@ -101,22 +112,10 @@ describe('generateCreativeWorkflowName', () => {
     ]) {
       expect(machineWords.has(excludedWord)).toBe(false)
     }
-    for (const excludedWord of [
-      'bear',
-      'bug',
-      'cave',
-      'cow',
-      'fruit',
-      'goat',
-      'horse',
-      'mud',
-      'root',
-      'snow',
-      'whale',
-    ]) {
+    for (const excludedWord of ['bear', 'bush', 'cave', 'cow', 'goat', 'horse', 'mud', 'whale']) {
       expect(natureWords.has(excludedWord)).toBe(false)
     }
-    expect(names).toHaveLength(4_730)
+    expect(names).toHaveLength(6_435)
     expect(new Set(names).size).toBe(names.length)
   })
 })
