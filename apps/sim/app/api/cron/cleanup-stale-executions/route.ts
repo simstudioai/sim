@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import {
   asyncJobs,
+  knowledgeConnectorSyncLog,
   tableJobs,
   workflowDeploymentOperation,
   workflowExecutionLogs,
@@ -69,6 +70,17 @@ const TABLE_DISPATCH_MAX_PER_RUN = 200
  * survive a client retry window, so 30 days is generous.
  */
 const DEPLOYMENT_OPERATION_RETENTION_DAYS = 30
+/**
+ * Terminal connector sync logs older than this are pruned. Nothing pruned them
+ * before, so the table grew by one row per sync run forever — a connector on a
+ * fifteen-minute interval writes about 35,000 rows a year on its own. That cost
+ * lands on `loadPreviousListingObservation`, which reads the newest `completed`
+ * row per connector through an index covering `connector_id` alone, so every
+ * retained row makes the sort behind the deletion-safety corroboration slower.
+ */
+const CONNECTOR_SYNC_LOG_RETENTION_DAYS = 30
+const CONNECTOR_SYNC_LOG_PRUNE_BATCH_SIZE = 2000
+const CONNECTOR_SYNC_LOG_MAX_ROWS_PER_RUN = 20_000
 const DEPLOYMENT_OPERATION_PRUNE_BATCH_SIZE = 2000
 const DEPLOYMENT_OPERATION_PRUNE_MAX_BATCHES = 10
 const WORKFLOW_EXECUTION_MUTATION_BATCH_SIZE = 100
@@ -553,6 +565,90 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     }
 
     /**
+     * Prune terminal connector sync logs past retention.
+     *
+     * HARD INVARIANT: the newest row per connector must survive, and so must the
+     * newest `completed` row. `loadPreviousListingObservation` reconstructs the
+     * previous listing from the latest `completed` log, and that reconstruction
+     * decides whether a suspect listing is corroborated — i.e. whether
+     * reconciliation may delete documents. Pruning the last `completed` row
+     * would silently change deletion behaviour, so both `exists` guards below
+     * are load-bearing rather than defensive.
+     *
+     * `started` rows are never eligible: they are either in flight or waiting on
+     * the scheduler's own sweep to close them.
+     */
+    let connectorSyncLogsPruned = 0
+    try {
+      const syncLogRetention = new Date(
+        Date.now() - CONNECTOR_SYNC_LOG_RETENTION_DAYS * 24 * 60 * 60 * 1000
+      )
+      const newerSyncLog = alias(knowledgeConnectorSyncLog, 'newer_sync_log')
+      const newerCompletedSyncLog = alias(knowledgeConnectorSyncLog, 'newer_completed_sync_log')
+      const syncLogPredicate = and(
+        inArray(knowledgeConnectorSyncLog.status, ['completed', 'failed']),
+        lt(knowledgeConnectorSyncLog.startedAt, syncLogRetention),
+        exists(
+          db
+            .select({ id: newerSyncLog.id })
+            .from(newerSyncLog)
+            .where(
+              and(
+                eq(newerSyncLog.connectorId, knowledgeConnectorSyncLog.connectorId),
+                gt(newerSyncLog.startedAt, knowledgeConnectorSyncLog.startedAt)
+              )
+            )
+        ),
+        or(
+          ne(knowledgeConnectorSyncLog.status, 'completed'),
+          exists(
+            db
+              .select({ id: newerCompletedSyncLog.id })
+              .from(newerCompletedSyncLog)
+              .where(
+                and(
+                  eq(newerCompletedSyncLog.connectorId, knowledgeConnectorSyncLog.connectorId),
+                  eq(newerCompletedSyncLog.status, 'completed'),
+                  gt(newerCompletedSyncLog.startedAt, knowledgeConnectorSyncLog.startedAt)
+                )
+              )
+          )
+        )
+      )
+      const syncLogResult = await runBatchedMutation({
+        batchSize: CONNECTOR_SYNC_LOG_PRUNE_BATCH_SIZE,
+        maxRowsPerRun: CONNECTOR_SYNC_LOG_MAX_ROWS_PER_RUN,
+        claim: (tx, limit) =>
+          tx
+            .select({ id: knowledgeConnectorSyncLog.id })
+            .from(knowledgeConnectorSyncLog)
+            .where(syncLogPredicate)
+            .limit(limit)
+            .for('update', { skipLocked: true }),
+        mutation: (tx, candidateIds) =>
+          tx
+            .delete(knowledgeConnectorSyncLog)
+            .where(inArray(knowledgeConnectorSyncLog.id, candidateIds))
+            .returning({ id: knowledgeConnectorSyncLog.id }),
+      })
+      connectorSyncLogsPruned = syncLogResult.affected
+      if (connectorSyncLogsPruned > 0) {
+        logger.info(
+          `Pruned ${connectorSyncLogsPruned} old connector sync logs (retention: ${CONNECTOR_SYNC_LOG_RETENTION_DAYS}d)`
+        )
+      }
+      if (syncLogResult.reachedLimit) {
+        logger.info('Deferred remaining connector sync logs after reaching the per-run cap', {
+          maxRowsPerRun: CONNECTOR_SYNC_LOG_MAX_ROWS_PER_RUN,
+        })
+      }
+    } catch (error) {
+      logger.error('Failed to prune old connector sync logs:', {
+        error: toError(error).message,
+      })
+    }
+
+    /**
      * Prune terminal deployment operations past retention. HARD INVARIANT:
      * the newest-generation row per workflow must always survive — the next
      * deploy computes `generation = MAX(generation) + 1`, and the webhook
@@ -658,6 +754,10 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       },
       tableJobs: {
         staleMarkedFailed: staleTableJobsMarkedFailed,
+      },
+      connectorSyncLogs: {
+        pruned: connectorSyncLogsPruned,
+        retentionDays: CONNECTOR_SYNC_LOG_RETENTION_DAYS,
       },
       tableRunDispatches: {
         staleCancelled: staleDispatchesCancelled,
