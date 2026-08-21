@@ -21,6 +21,10 @@ After deployment, set in the Railway dashboard:
 - Your custom domain under **Settings → Networking**, then `NEXT_PUBLIC_APP_URL` to match
 
 <Callout type="warn">
+  The template auto-generates `ENCRYPTION_KEY` as a URL-safe secret, but Sim requires a 64-character hex string. If saving Workspace Secrets fails with `ENCRYPTION_KEY must be set to a 64-character hex string` (HTTP 500), regenerate it with `openssl rand -hex 32` and update the variable in the Railway dashboard.
+</Callout>
+
+<Callout type="warn">
   The Railway template deploys the app services but not the `cron` service, so scheduled workflows and polling triggers stay idle. Add a Railway cron service calling the endpoints in [Background Jobs](/platform/self-hosting/background-jobs), or deploy with Docker Compose instead.
 </Callout>
 
