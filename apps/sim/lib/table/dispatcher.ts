@@ -1027,6 +1027,8 @@ export async function cancelStaleDispatches(
     isManualRun: row.isManualRun,
     triggeredByUserId: row.triggeredByUserId,
     requestedAt: row.requestedAt,
+    completedAt: row.completedAt,
+    cancelledAt: row.cancelledAt,
   }))
 
   /**
