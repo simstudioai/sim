@@ -174,11 +174,17 @@ describe('failUndispatchedDocumentProcessing', () => {
     expect(
       hasMockCondition(
         where,
-        (node) => node.type === 'eq' && node.left === 'processingStatus' && node.right === 'pending'
+        (node) =>
+          node.type === 'eq' &&
+          node.left === 'document.processingStatus' &&
+          node.right === 'pending'
       )
     ).toBe(true)
     expect(
-      hasMockCondition(where, (node) => node.type === 'isNull' && node.column === 'deletedAt')
+      hasMockCondition(
+        where,
+        (node) => node.type === 'isNull' && node.column === 'document.deletedAt'
+      )
     ).toBe(true)
   })
 })

@@ -52,8 +52,8 @@ describe('POST /api/mothership/chats/read', () => {
     expect(orClause).toBeDefined()
     expect(orClause?.conditions).toEqual(
       expect.arrayContaining([
-        { type: 'isNull', column: 'lastSeenAt' },
-        { type: 'lt', left: 'lastSeenAt', right: 'updatedAt' },
+        { type: 'isNull', column: 'copilotChats.lastSeenAt' },
+        { type: 'lt', left: 'copilotChats.lastSeenAt', right: 'copilotChats.updatedAt' },
       ])
     )
   })

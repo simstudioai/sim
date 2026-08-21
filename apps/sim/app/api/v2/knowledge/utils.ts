@@ -8,6 +8,10 @@ import type {
 import type { V2KnowledgeChunk } from '@/lib/api/contracts/v2/knowledge-chunks'
 import type { ChunkData } from '@/lib/knowledge/chunks/types'
 import { ALL_TAG_SLOTS, type AllTagSlot } from '@/lib/knowledge/constants'
+import {
+  DOCUMENT_PROCESSING_STATUSES,
+  type DocumentProcessingStatus,
+} from '@/lib/knowledge/documents/types'
 import type { DocumentTagDefinition } from '@/lib/knowledge/tags/types'
 import type { KnowledgeBaseWithCounts } from '@/lib/knowledge/types'
 import { getUserEmailsByIds, requireResolvedUserEmail } from '@/lib/users/queries'
@@ -43,9 +47,7 @@ export function toV2DocumentTags(
   return tags
 }
 
-const PROCESSING_STATUSES = ['pending', 'processing', 'completed', 'failed'] as const
-
-type V2DocumentProcessingStatus = (typeof PROCESSING_STATUSES)[number]
+type V2DocumentProcessingStatus = DocumentProcessingStatus
 
 /**
  * Narrows a stored processing status onto the published enum. An absent value
@@ -54,7 +56,7 @@ type V2DocumentProcessingStatus = (typeof PROCESSING_STATUSES)[number]
  */
 function toProcessingStatus(status: string | null | undefined): V2DocumentProcessingStatus {
   if (status === null || status === undefined) return 'pending'
-  const known = PROCESSING_STATUSES.find((candidate) => candidate === status)
+  const known = DOCUMENT_PROCESSING_STATUSES.find((candidate) => candidate === status)
   if (!known) throw new Error(`Unexpected knowledge document processing status: ${status}`)
   return known
 }

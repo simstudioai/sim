@@ -650,6 +650,16 @@ describe('Enterprise workspace-move progress', () => {
       failedCount: 1,
       failed: [],
     })
+
+    const renderedJoin = JSON.stringify(dbChainMockFns.innerJoin.mock.calls[0]?.[0])
+    expect(renderedJoin).toContain("::jsonb -> 'sourceOperationIds'")
+    expect(renderedJoin).toContain('jsonb_typeof')
+
+    const renderedFilters = dbChainMockFns.where.mock.calls
+      .map(([condition]) => JSON.stringify(condition))
+      .join('\n')
+    expect(renderedFilters).toContain("::jsonb -> 'sourceOperationIds'")
+    expect(renderedFilters).toContain('?|')
   })
 
   it('rejects provisioning lookups larger than one admin page', async () => {

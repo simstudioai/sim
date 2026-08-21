@@ -329,7 +329,7 @@ export async function addOutboxEventSourceOperationId(
 export function outboxEventHasSourceOperationId(operationId: string) {
   return sql<boolean>`(
     ${outboxEvent.payload} ->> 'sourceOperationId' = ${operationId}
-    or coalesce(${outboxEvent.payload} -> 'sourceOperationIds', '[]'::jsonb)
+    or coalesce(${outboxEvent.payload}::jsonb -> 'sourceOperationIds', '[]'::jsonb)
       @> jsonb_build_array(${operationId}::text)
   )`
 }

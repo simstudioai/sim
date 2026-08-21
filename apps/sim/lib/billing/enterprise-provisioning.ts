@@ -1365,8 +1365,8 @@ async function getEnterpriseFollowUpProgress(
   const arrayOperationIdExpression = sql<string>`source_operations.operation_id`
   const sourceOperationRows = sql`lateral jsonb_array_elements_text(
     case
-      when jsonb_typeof(${outboxEvent.payload} -> 'sourceOperationIds') = 'array'
-      then ${outboxEvent.payload} -> 'sourceOperationIds'
+      when jsonb_typeof(${outboxEvent.payload}::jsonb -> 'sourceOperationIds') = 'array'
+      then ${outboxEvent.payload}::jsonb -> 'sourceOperationIds'
       else '[]'::jsonb
     end
   ) as source_operations(operation_id)`
@@ -1391,7 +1391,7 @@ async function getEnterpriseFollowUpProgress(
           .where(
             and(
               eq(outboxEvent.eventType, MIGRATED_INVITATION_EMAIL_EVENT_TYPE),
-              sql`coalesce(${outboxEvent.payload} -> 'sourceOperationIds', '[]'::jsonb) ?| array[${sql.join(
+              sql`coalesce(${outboxEvent.payload}::jsonb -> 'sourceOperationIds', '[]'::jsonb) ?| array[${sql.join(
                 uniqueOperationIds.map((operationId) => sql`${operationId}`),
                 sql`, `
               )}]::text[]`

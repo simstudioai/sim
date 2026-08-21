@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 
+import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -136,6 +137,37 @@ describe('add workspace files to knowledge base application command', () => {
       mimeType: workspaceFile.type,
     })
     mocks.processQueue.mockResolvedValue(undefined)
+    resetDbChainMock()
+  })
+
+  /**
+   * A document added from a workspace file has no `connector_id`, so the
+   * connector-scoped stuck-document sweep never sees it. Logging the dispatch
+   * failure and walking away leaves it `pending`, where nothing finds it again.
+   */
+  it('marks the document failed when its processing dispatch never got off the ground', async () => {
+    mocks.processQueue.mockRejectedValue(new Error('queue unavailable'))
+
+    await addWorkspaceFilesToKnowledgeBase.execute({
+      principal: delegatedPrincipal,
+      input: {
+        knowledgeBaseId: 'knowledge-1',
+        assertedWorkspaceId: 'workspace-1',
+        fileReferences: ['files/report.pdf'],
+      },
+    })
+    // The dispatch is fire-and-forget, so the unwind runs on a later microtask.
+    await Promise.resolve()
+    await Promise.resolve()
+    await Promise.resolve()
+
+    const failureWrite = dbChainMockFns.set.mock.calls.find(
+      (call) => (call[0] as Record<string, unknown> | undefined)?.processingStatus === 'failed'
+    )
+    expect(failureWrite?.[0]).toMatchObject({
+      processingStatus: 'failed',
+      processingError: 'queue unavailable',
+    })
   })
 
   it('bounds file references before canonical knowledge loading', async () => {

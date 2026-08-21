@@ -38,6 +38,7 @@ import {
   type AllTagSlot,
   MAX_KNOWLEDGE_DOCUMENTS_PER_CREATE,
 } from '@/lib/knowledge/constants'
+import { dispatchDocumentProcessing } from '@/lib/knowledge/documents/processing-dispatch'
 import {
   bulkDocumentOperation,
   bulkDocumentOperationByFilter,
@@ -48,7 +49,6 @@ import {
   getDocuments,
   getProcessingConfig,
   type ProcessingOptions,
-  processDocumentsWithQueue,
   updateDocument,
 } from '@/lib/knowledge/documents/service'
 import type { TagFilterCondition } from '@/lib/knowledge/documents/tag-filter'
@@ -690,18 +690,12 @@ export const upsertKnowledgeDocument = defineAuthorizedKnowledgeUseCase({
         throw new Error('Failed to replace existing document', { cause: error })
       }
     }
-    processDocumentsWithQueue(
-      createdDocuments,
-      context.knowledgeBaseId,
-      input.processingOptions ?? {},
+    void dispatchDocumentProcessing({
+      documents: createdDocuments,
+      knowledgeBaseId: context.knowledgeBaseId,
+      processingOptions: input.processingOptions ?? {},
       requestId,
-      billingAttribution
-    ).catch((error: unknown) => {
-      logger.error('Knowledge document upsert processing pipeline failed', {
-        knowledgeBaseId: context.knowledgeBaseId,
-        documentId: createdDocument.documentId,
-        error,
-      })
+      billingAttribution,
     })
     const isUpdate = existingDocumentId !== null
     const { maxConcurrentDocuments, batchSize } = getProcessingConfig()
