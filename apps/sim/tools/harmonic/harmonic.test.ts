@@ -1165,6 +1165,34 @@ describe('Harmonic email enrichment', () => {
     ).toEqual({ person_linkedin_urls: ['https://www.linkedin.com/in/ada'] })
   })
 
+  it('keeps pass-through URLs distinct on every component Harmonic still sees', () => {
+    expect(
+      buildBody(harmonicSubmitEmailEnrichmentJobTool, {
+        personLinkedinUrls: [
+          'https://profiles.example/p?id=1',
+          'https://profiles.example/p?id=2',
+          'https://profiles.example:8443/p',
+          'https://profiles.example/p#a',
+          'https://profiles.example/p#b',
+        ],
+      })
+    ).toEqual({
+      person_linkedin_urls: [
+        'https://profiles.example/p?id=1',
+        'https://profiles.example/p?id=2',
+        'https://profiles.example:8443/p',
+        'https://profiles.example/p#a',
+        'https://profiles.example/p#b',
+      ],
+    })
+
+    expect(
+      buildBody(harmonicSubmitEmailEnrichmentJobTool, {
+        personLinkedinUrls: ['https://profiles.example/p?id=1', 'https://profiles.example/p?id=1'],
+      })
+    ).toEqual({ person_linkedin_urls: ['https://profiles.example/p?id=1'] })
+  })
+
   it('keeps regional subdomains distinct rather than assuming an undocumented equivalence', () => {
     expect(
       buildBody(harmonicSubmitEmailEnrichmentJobTool, {

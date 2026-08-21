@@ -830,28 +830,33 @@ export function buildEnrichmentStatusUrl(enrichmentUrns: unknown): string {
 
 /**
  * `linkedin.com/in/x`, `www.linkedin.com/in/x` and a trailing slash all name one
- * profile. Regional subdomains (`uk.linkedin.com`) are deliberately left distinct:
- * folding them would claim an equivalence Harmonic does not document, and the
- * canonical URL kept for display must stay the one the caller supplied.
+ * profile, so a recognized profile folds to a host-and-path key. Regional
+ * subdomains (`uk.linkedin.com`) are deliberately left distinct: folding them
+ * would claim an equivalence Harmonic does not document.
+ *
+ * This key is only ever applied to a URL `normalizeLinkedinProfileUrl` already
+ * canonicalized — one with no query or fragment left. A URL forwarded verbatim for
+ * Harmonic to adjudicate keeps every component significant, so it deduplicates on
+ * its exact text; dropping the query or port there would silently discard a
+ * distinct identifier the caller asked to submit.
  */
-function linkedinProfileKey(url: string): string {
+function linkedinProfileKey(canonicalUrl: string): string {
   try {
-    const parsed = new URL(url)
+    const parsed = new URL(canonicalUrl)
     const host = parsed.hostname.toLowerCase().replace(/^www\./, '')
     return `${host}${parsed.pathname.replace(/\/+$/, '')}`
   } catch {
-    return url
+    return canonicalUrl
   }
 }
 
-function dedupeLinkedinProfiles(urls: string[]): string[] {
+function dedupeByKey(entries: Array<{ url: string; key: string }>): string[] {
   const seen = new Set<string>()
   const result: string[] = []
-  for (const url of urls) {
-    const key = linkedinProfileKey(url)
-    if (seen.has(key)) continue
-    seen.add(key)
-    result.push(url)
+  for (const entry of entries) {
+    if (seen.has(entry.key)) continue
+    seen.add(entry.key)
+    result.push(entry.url)
   }
   return result
 }
@@ -894,16 +899,16 @@ export function buildEmailEnrichmentJobBody(
    * Harmonic will actually accept, so a batch of equivalent URLs is not rejected
    * locally for exceeding a cap it never reaches.
    */
-  const linkedinUrls = dedupeLinkedinProfiles(
+  const linkedinUrls = dedupeByKey(
     rawLinkedinUrls.map((value) => {
       const normalized = normalizeLinkedinProfileUrl(value)
-      if (normalized) return normalized
+      if (normalized) return { url: normalized, key: linkedinProfileKey(normalized) }
       try {
         const parsed = new URL(String(value))
         if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
           throw new Error('unsupported scheme')
         }
-        return String(value)
+        return { url: String(value), key: String(value) }
       } catch {
         throw new Error(
           'Harmonic "personLinkedinUrls" must contain absolute http(s) URLs; Harmonic reports unmatched profiles in dropped'
