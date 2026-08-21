@@ -9,6 +9,7 @@ import { workflowOperations } from '@/lib/workflows/application/operations'
 import { readWorkflowGraph } from '@/lib/workflows/application/read-workflow-graph'
 import { replaceWorkflowState } from '@/lib/workflows/application/replace-workflow-state'
 import { MAX_IMPORT_BODY_BYTES } from '@/lib/workflows/operations/import-workflow'
+import { presentWorkflowLint } from '@/app/api/v2/lib/workflow-lint'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -37,6 +38,17 @@ export const GET = defineV2JsonRoute({
   }),
 })
 
+/**
+ * PUT /api/v2/workflows/[id]/state — replace the draft graph wholesale.
+ *
+ * Answers with the same `lint` report as `POST /operations`. The two are the
+ * only ways to write a graph, and an agent that authors one from scratch needs
+ * the findings at least as much as one that edits an existing graph — reporting
+ * them on only one of the two was the asymmetry this closes.
+ *
+ * `?dryRun=true` validates and lints without persisting, so a caller can see
+ * exactly what a write would produce before committing to it.
+ */
 export const PUT = defineV2JsonRoute({
   contract: v2ReplaceWorkflowStateContract,
   auth: v2ApiKeyAuth,
@@ -44,15 +56,16 @@ export const PUT = defineV2JsonRoute({
   rateLimit: v2RateLimits.publicApi,
   errorPolicy: v2WorkflowErrorPolicies.concealWorkflowAuthorization,
   parseOptions: { maxBodyBytes: MAX_IMPORT_BODY_BYTES },
-  mapInput: ({ params, body }) => ({
+  mapInput: ({ params, query, body }) => ({
     workflowId: params.id,
+    dryRun: query.dryRun,
     // double-cast-allowed: the wire schema leaves sub-block `type` an open string, which the domain type narrows to the block registry's union; the persistence layer re-validates every sub-block.
     blocks: body.blocks as unknown as Record<string, BlockState>,
     edges: body.edges as WorkflowState['edges'],
     variables: body.variables,
   }),
   useCase: replaceWorkflowState,
-  present: ({ workflowId, warnings, needsRedeployment }) => ({
-    data: { id: workflowId, warnings, needsRedeployment },
+  present: ({ workflowId, warnings, needsRedeployment, lint, dryRun }) => ({
+    data: { id: workflowId, warnings, needsRedeployment, lint: presentWorkflowLint(lint), dryRun },
   }),
 })

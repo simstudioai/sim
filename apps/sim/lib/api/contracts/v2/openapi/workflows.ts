@@ -102,6 +102,19 @@ const WORKFLOW_FOLDER_EXAMPLE = {
   locked: false,
 } as const
 
+/** An empty lint report, for examples where the findings are not the subject. */
+const EMPTY_LINT_EXAMPLE = {
+  sources: [],
+  sinks: [],
+  orphanBlocks: [],
+  emptyOutgoingPorts: [],
+  invalidBranchPorts: [],
+  invalidConnectionTargets: [],
+  fieldIssues: [],
+  unresolvedReferences: [],
+  notes: [],
+} as const
+
 const WORKFLOW_VERSION_EXAMPLE = {
   id: 'version_3',
   version: 3,
@@ -303,20 +316,35 @@ const declaredRoutes = [
       operationId: 'replaceWorkflowState',
       summary: 'Replace Workflow State',
       description:
-        'Replace a workflow\u2019s editable draft graph wholesale. `loops` and `parallels` are accepted but ignored — both are recomputed from `blocks`. Omitting `variables` leaves the stored variables untouched.\n\nLast write wins: concurrent writers are serialized by a row lock, so each lands a complete self-consistent graph and the later one replaces the earlier entirely. There is no partially-written state and no conflict detection.\n\nThis does not change what the deployed endpoint serves. Deployments are immutable versioned snapshots, and no schedule or webhook registration is touched. The only visible consequence is that `needsRedeployment` becomes true; `POST /workflows/{id}/deploy` publishes the draft.',
+        'Replace a workflow\u2019s editable draft graph wholesale. `loops` and `parallels` are accepted but ignored — both are recomputed from `blocks`. Omitting `variables` leaves the stored variables untouched.\n\nLast write wins: concurrent writers are serialized by a row lock, so each lands a complete self-consistent graph and the later one replaces the earlier entirely. There is no partially-written state and no conflict detection.\n\nThis does not change what the deployed endpoint serves. Deployments are immutable versioned snapshots, and no schedule or webhook registration is touched. The only visible consequence is that `needsRedeployment` becomes true; `POST /workflows/{id}/deploy` publishes the draft.\n\n`lint` is advisory and never blocks the write. `lint.fieldIssues` is the most actionable part for a headless builder — it names blocks missing a required field, which fail at run time — and `lint.unresolvedReferences` names credential, resource, tool, and skill values that do not resolve. A workspace API key has no human subject to resolve those references against, so for one the reference pass is skipped and `lint.notes` says so; the structural and field findings are unaffected.\n\nSet `?dryRun=true` to validate and lint without persisting: the response is identical to the committed write of the same body, with `dryRun: true`, and nothing is written, no audit entry is recorded, and collaborators are not notified.',
       errors: RESOURCE_MUTATION_ERRORS,
       success: jsonSuccess('The draft graph was replaced.'),
     }),
     {
       params: v2ReplaceWorkflowStateContract.params,
-      query: v2ReplaceWorkflowStateContract.query,
+      query: documentedSchema(
+        v2ReplaceWorkflowStateContract.query,
+        'ReplaceWorkflowStateQuery',
+        'Replace workflow state query',
+        'Whether to validate without persisting.'
+      ),
       body: v2ReplaceWorkflowStateContract.body,
       response: documentedSchema(
         v2ReplaceWorkflowStateContract.response.schema,
         'ReplaceWorkflowStateResponse',
         'Replace workflow state response',
         'Outcome of replacing a workflow draft graph.',
-        [{ data: { id: WORKFLOW_ID, warnings: [], needsRedeployment: true } }]
+        [
+          {
+            data: {
+              id: WORKFLOW_ID,
+              warnings: [],
+              needsRedeployment: true,
+              dryRun: false,
+              lint: EMPTY_LINT_EXAMPLE,
+            },
+          },
+        ]
       ),
     }
   ),
@@ -326,13 +354,18 @@ const declaredRoutes = [
       operationId: 'applyWorkflowOperations',
       summary: 'Apply Workflow Operations',
       description:
-        'Apply a batch of semantic edits — add, edit, delete, and subflow membership changes — to a workflow graph, plus an optional set of block enable/disable changes.\n\nBest-effort per operation, atomic per write. The engine applies what it can to an in-memory graph and reports the rest in `skipped`, each with a machine-readable `type`; exactly one write of the fully-resolved graph then happens, so there is never a partially-applied graph. `deferred` is **not** a failure list: a forward-referencing edge is wired automatically once its target block exists, in this batch or a later one, so re-issuing a deferred edge is wrong.\n\nSet `atomic` to fail closed: any genuine skipped item, or any block input that would be dropped rather than persisted, then aborts before the write and answers `409` with `error.details.code: "OPERATIONS_NOT_APPLIED"`, the same `skipped` array, and a `droppedInputs` array, having persisted nothing.\n\n`lint` is advisory and never blocks the write. `lint.fieldIssues` is the most actionable part for a headless builder — it names blocks missing a required field, which fail at run time — and `lint.unresolvedReferences` names credential, resource, tool, and skill values that do not resolve. Those values stay persisted; only `inputValidationErrors` lists inputs that were actually dropped.\n\nAs with `PUT /workflows/{id}/state`, this changes only the draft; deploy to publish it.',
+        'Apply a batch of semantic edits — add, edit, delete, and subflow membership changes — to a workflow graph, plus an optional set of block enable/disable changes.\n\nBest-effort per operation, atomic per write. The engine applies what it can to an in-memory graph and reports the rest in `skipped`, each with a machine-readable `type`; exactly one write of the fully-resolved graph then happens, so there is never a partially-applied graph. `deferred` is **not** a failure list: a forward-referencing edge is wired automatically once its target block exists, in this batch or a later one, so re-issuing a deferred edge is wrong.\n\nSet `atomic` to fail closed: any genuine skipped item, or any block input that would be dropped rather than persisted, then aborts before the write and answers `409` with `error.details.code: "OPERATIONS_NOT_APPLIED"`, the same `skipped` array, and a `droppedInputs` array, having persisted nothing.\n\n`lint` is advisory and never blocks the write. `lint.fieldIssues` is the most actionable part for a headless builder — it names blocks missing a required field, which fail at run time — and `lint.unresolvedReferences` names credential, resource, tool, and skill values that do not resolve. Those values stay persisted; only `inputValidationErrors` lists inputs that were actually dropped.\n\nAs with `PUT /workflows/{id}/state`, this changes only the draft; deploy to publish it.\n\nSet `?dryRun=true` to validate and lint without persisting: the response is identical to the committed write of the same body, with `dryRun: true`, and nothing is written, no audit entry is recorded, and collaborators are not notified.',
       errors: RESOURCE_MUTATION_ERRORS,
       success: jsonSuccess('The batch was applied.'),
     }),
     {
       params: v2ApplyWorkflowOperationsContract.params,
-      query: v2ApplyWorkflowOperationsContract.query,
+      query: documentedSchema(
+        v2ApplyWorkflowOperationsContract.query,
+        'ApplyWorkflowOperationsQuery',
+        'Apply workflow operations query',
+        'Whether to evaluate without persisting.'
+      ),
       body: v2ApplyWorkflowOperationsContract.body,
       response: documentedSchema(
         v2ApplyWorkflowOperationsContract.response.schema,
@@ -368,6 +401,7 @@ const declaredRoutes = [
               },
               warnings: [],
               needsRedeployment: true,
+              dryRun: false,
             },
           },
         ]
@@ -842,7 +876,7 @@ const declaredRoutes = [
     workflowOperation({
       operationId: 'rollbackWorkflow',
       summary: 'Rollback Workflow',
-      description: `Asynchronously reactivate a previous deployment version, selecting the preceding active version when no version is supplied. ${WORKSPACE_API_KEY_DENIED}`,
+      description: `Asynchronously reactivate a previous deployment version, selecting the preceding active version when no version is supplied. Use this to step back from the currently live version; to make a specific version live by naming it in the path — including when the workflow is not currently deployed — use \`POST /workflows/{id}/versions/{version}/activate\`. Neither touches the draft. ${WORKSPACE_API_KEY_DENIED}`,
       errors: [...RESOURCE_ERRORS, 'Conflict', 'PayloadTooLarge', 'Locked'],
       success: jsonSuccess('The accepted rollback attempt.'),
     }),

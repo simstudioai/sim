@@ -29,7 +29,7 @@ sim workflows activate create <id> <version>
 ## Apply workflow operations
 
 ```bash
-sim workflows operations create <id> [options]
+sim workflows operations apply <id> [options]
 ```
 
 **Arguments**
@@ -48,6 +48,8 @@ sim workflows operations create <id> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
+| `--dry-run` | No | Validate and lint without persisting. The response is identical to the committed write of the same body, so a caller can inspect `lint` and then re-send the request for real. Nothing is written, no audit entry is recorded, and collaborators are not notified. |
+| `--no-dry-run` | No | Send --dry-run as false. |
 | `--operations <json\|@file>` | Yes | Edits to apply, in a single batch. (JSON, or @path / @- to read a file or stdin). |
 | `--atomic` | No | Fail the whole batch when any operation is declined or any block input would be dropped. The default applies what it can and reports the rest in `skipped` and `inputValidationErrors`; `true` writes nothing and answers `409` instead. |
 | `--no-atomic` | No | Send --atomic as false. |
@@ -515,7 +517,7 @@ sim workflows deployment update <id> [options]
 ## Get workflow state
 
 ```bash
-sim workflows state list <id>
+sim workflows state get <id>
 ```
 
 **Arguments**
@@ -531,7 +533,7 @@ sim workflows state list <id>
 ## Replace workflow state
 
 ```bash
-sim workflows state update <id> [options]
+sim workflows state replace <id> [options]
 ```
 
 **Arguments**
@@ -550,6 +552,8 @@ sim workflows state update <id> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
+| `--dry-run` | No | Validate and lint without persisting. The response is identical to the committed write of the same body, so a caller can inspect `lint` and then re-send the request for real. Nothing is written, no audit entry is recorded, and collaborators are not notified. |
+| `--no-dry-run` | No | Send --dry-run as false. |
 | `--blocks <json\|@file>` | Yes | Blocks keyed by block id. (JSON, or @path / @- to read a file or stdin). |
 | `--edges <json\|@file>` | Yes | Directed connections between blocks. (JSON, or @path / @- to read a file or stdin). |
 | `--loops <json\|@file>` | No | Ignored on write: loop containers are recomputed from `blocks`. (JSON, or @path / @- to read a file or stdin). |

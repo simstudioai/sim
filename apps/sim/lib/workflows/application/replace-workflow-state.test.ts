@@ -47,6 +47,7 @@ vi.mock('@/lib/workflows/deployment-status', () => ({
 
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { replaceWorkflowState } from '@/lib/workflows/application/replace-workflow-state'
+import { REFERENCES_UNCHECKED_NOTE } from '@/lib/workflows/editing/lint-report'
 
 const BLOCK = {
   id: 'block-1',
@@ -249,5 +250,96 @@ describe('replaceWorkflowState', () => {
 
     expect(mocks.recordAudit).not.toHaveBeenCalled()
     expect(mocks.notify).not.toHaveBeenCalled()
+  })
+
+  /**
+   * The report is the whole point of the endpoint for a headless builder: an
+   * agent that authors a graph from scratch needs the same findings as one that
+   * edits it incrementally through `POST /operations`.
+   */
+  it('reports lint findings alongside a committed write', async () => {
+    const result = await replaceWorkflowState.execute({
+      principal: sessionPrincipal,
+      input,
+    })
+
+    expect(result.dryRun).toBe(false)
+    expect(result.lint).toMatchObject({
+      sources: expect.any(Array),
+      sinks: expect.any(Array),
+      orphanBlocks: expect.any(Array),
+      fieldIssues: expect.any(Array),
+      unresolvedReferences: expect.any(Array),
+      notes: expect.any(Array),
+    })
+  })
+
+  describe('dry run', () => {
+    it('persists nothing, audits nothing, and notifies nobody', async () => {
+      const result = await replaceWorkflowState.execute({
+        principal: sessionPrincipal,
+        input: { ...input, dryRun: true },
+      })
+
+      expect(result.dryRun).toBe(true)
+      expect(mocks.replace).not.toHaveBeenCalled()
+      expect(mocks.recordAudit).not.toHaveBeenCalled()
+      expect(mocks.notify).not.toHaveBeenCalled()
+    })
+
+    /** A preview a caller cannot act on is worthless; it must carry the findings. */
+    it('still reports the findings a committed write would produce', async () => {
+      const dry = await replaceWorkflowState.execute({
+        principal: sessionPrincipal,
+        input: { ...input, dryRun: true },
+      })
+      const committed = await replaceWorkflowState.execute({ principal: sessionPrincipal, input })
+
+      expect(dry.lint).toEqual(committed.lint)
+      expect(dry.blocksCount).toBe(committed.blocksCount)
+      expect(dry.edgesCount).toBe(committed.edgesCount)
+    })
+
+    /** A locked workflow refuses the preview too, or the preview would lie. */
+    it('refuses when the workflow cannot be mutated', async () => {
+      workflowAuthzMockFns.mockAssertWorkflowMutable.mockRejectedValueOnce(
+        new WorkflowLockedError('workflow-1')
+      )
+
+      await expect(
+        replaceWorkflowState.execute({
+          principal: sessionPrincipal,
+          input: { ...input, dryRun: true },
+        })
+      ).rejects.toThrow()
+    })
+  })
+
+  /**
+   * This operation admits workspace API keys, which have no human subject. The
+   * identity that would stand in for one is the workspace's billing owner — a
+   * different person — so resolving credential references against it would both
+   * misreport what the workflow can reach and disclose that person's grants.
+   */
+  describe('reference resolution identity', () => {
+    it('skips the reference pass for a workspace API key and says so', async () => {
+      const result = await replaceWorkflowState.execute({
+        principal: { kind: 'workspace_api_key', workspaceId: 'workspace-1', keyId: 'key-1' },
+        input,
+      })
+
+      expect(result.lint.notes).toContain(REFERENCES_UNCHECKED_NOTE)
+      expect(result.lint.unresolvedReferences).toEqual([])
+      expect(result.lint.fieldIssues).toEqual(expect.any(Array))
+    })
+
+    it('runs the reference pass for a human principal', async () => {
+      const result = await replaceWorkflowState.execute({
+        principal: sessionPrincipal,
+        input,
+      })
+
+      expect(result.lint.notes).not.toContain(REFERENCES_UNCHECKED_NOTE)
+    })
   })
 })

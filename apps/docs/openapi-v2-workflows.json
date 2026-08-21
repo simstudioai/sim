@@ -335,7 +335,7 @@
       "put": {
         "operationId": "replaceWorkflowState",
         "summary": "Replace Workflow State",
-        "description": "Replace a workflow’s editable draft graph wholesale. `loops` and `parallels` are accepted but ignored — both are recomputed from `blocks`. Omitting `variables` leaves the stored variables untouched.\n\nLast write wins: concurrent writers are serialized by a row lock, so each lands a complete self-consistent graph and the later one replaces the earlier entirely. There is no partially-written state and no conflict detection.\n\nThis does not change what the deployed endpoint serves. Deployments are immutable versioned snapshots, and no schedule or webhook registration is touched. The only visible consequence is that `needsRedeployment` becomes true; `POST /workflows/{id}/deploy` publishes the draft.",
+        "description": "Replace a workflow’s editable draft graph wholesale. `loops` and `parallels` are accepted but ignored — both are recomputed from `blocks`. Omitting `variables` leaves the stored variables untouched.\n\nLast write wins: concurrent writers are serialized by a row lock, so each lands a complete self-consistent graph and the later one replaces the earlier entirely. There is no partially-written state and no conflict detection.\n\nThis does not change what the deployed endpoint serves. Deployments are immutable versioned snapshots, and no schedule or webhook registration is touched. The only visible consequence is that `needsRedeployment` becomes true; `POST /workflows/{id}/deploy` publishes the draft.\n\n`lint` is advisory and never blocks the write. `lint.fieldIssues` is the most actionable part for a headless builder — it names blocks missing a required field, which fail at run time — and `lint.unresolvedReferences` names credential, resource, tool, and skill values that do not resolve. A workspace API key has no human subject to resolve those references against, so for one the reference pass is skipped and `lint.notes` says so; the structural and field findings are unaffected.\n\nSet `?dryRun=true` to validate and lint without persisting: the response is identical to the committed write of the same body, with `dryRun: true`, and nothing is written, no audit entry is recorded, and collaborators are not notified.",
         "tags": ["Workflows"],
         "parameters": [
           {
@@ -348,6 +348,16 @@
               "minLength": 1,
               "description": "Unique workflow identifier.",
               "examples": ["3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36"]
+            }
+          },
+          {
+            "name": "dryRun",
+            "in": "query",
+            "required": false,
+            "description": "Validate and lint without persisting. The response is identical to the committed write of the same body, so a caller can inspect `lint` and then re-send the request for real. Nothing is written, no audit entry is recorded, and collaborators are not notified.",
+            "schema": {
+              "description": "Validate and lint without persisting. The response is identical to the committed write of the same body, so a caller can inspect `lint` and then re-send the request for real. Nothing is written, no audit entry is recorded, and collaborators are not notified.",
+              "type": "boolean"
             }
           }
         ],
@@ -421,7 +431,7 @@
       "post": {
         "operationId": "applyWorkflowOperations",
         "summary": "Apply Workflow Operations",
-        "description": "Apply a batch of semantic edits — add, edit, delete, and subflow membership changes — to a workflow graph, plus an optional set of block enable/disable changes.\n\nBest-effort per operation, atomic per write. The engine applies what it can to an in-memory graph and reports the rest in `skipped`, each with a machine-readable `type`; exactly one write of the fully-resolved graph then happens, so there is never a partially-applied graph. `deferred` is **not** a failure list: a forward-referencing edge is wired automatically once its target block exists, in this batch or a later one, so re-issuing a deferred edge is wrong.\n\nSet `atomic` to fail closed: any genuine skipped item, or any block input that would be dropped rather than persisted, then aborts before the write and answers `409` with `error.details.code: \"OPERATIONS_NOT_APPLIED\"`, the same `skipped` array, and a `droppedInputs` array, having persisted nothing.\n\n`lint` is advisory and never blocks the write. `lint.fieldIssues` is the most actionable part for a headless builder — it names blocks missing a required field, which fail at run time — and `lint.unresolvedReferences` names credential, resource, tool, and skill values that do not resolve. Those values stay persisted; only `inputValidationErrors` lists inputs that were actually dropped.\n\nAs with `PUT /workflows/{id}/state`, this changes only the draft; deploy to publish it.",
+        "description": "Apply a batch of semantic edits — add, edit, delete, and subflow membership changes — to a workflow graph, plus an optional set of block enable/disable changes.\n\nBest-effort per operation, atomic per write. The engine applies what it can to an in-memory graph and reports the rest in `skipped`, each with a machine-readable `type`; exactly one write of the fully-resolved graph then happens, so there is never a partially-applied graph. `deferred` is **not** a failure list: a forward-referencing edge is wired automatically once its target block exists, in this batch or a later one, so re-issuing a deferred edge is wrong.\n\nSet `atomic` to fail closed: any genuine skipped item, or any block input that would be dropped rather than persisted, then aborts before the write and answers `409` with `error.details.code: \"OPERATIONS_NOT_APPLIED\"`, the same `skipped` array, and a `droppedInputs` array, having persisted nothing.\n\n`lint` is advisory and never blocks the write. `lint.fieldIssues` is the most actionable part for a headless builder — it names blocks missing a required field, which fail at run time — and `lint.unresolvedReferences` names credential, resource, tool, and skill values that do not resolve. Those values stay persisted; only `inputValidationErrors` lists inputs that were actually dropped.\n\nAs with `PUT /workflows/{id}/state`, this changes only the draft; deploy to publish it.\n\nSet `?dryRun=true` to validate and lint without persisting: the response is identical to the committed write of the same body, with `dryRun: true`, and nothing is written, no audit entry is recorded, and collaborators are not notified.",
         "tags": ["Workflows"],
         "parameters": [
           {
@@ -434,6 +444,16 @@
               "minLength": 1,
               "description": "Unique workflow identifier.",
               "examples": ["3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36"]
+            }
+          },
+          {
+            "name": "dryRun",
+            "in": "query",
+            "required": false,
+            "description": "Validate and lint without persisting. The response is identical to the committed write of the same body, so a caller can inspect `lint` and then re-send the request for real. Nothing is written, no audit entry is recorded, and collaborators are not notified.",
+            "schema": {
+              "description": "Validate and lint without persisting. The response is identical to the committed write of the same body, so a caller can inspect `lint` and then re-send the request for real. Nothing is written, no audit entry is recorded, and collaborators are not notified.",
+              "type": "boolean"
             }
           }
         ],
@@ -1805,7 +1825,7 @@
       "post": {
         "operationId": "rollbackWorkflow",
         "summary": "Rollback Workflow",
-        "description": "Asynchronously reactivate a previous deployment version, selecting the preceding active version when no version is supplied. A workspace API key is rejected with `403`; use a personal API key.",
+        "description": "Asynchronously reactivate a previous deployment version, selecting the preceding active version when no version is supplied. Use this to step back from the currently live version; to make a specific version live by naming it in the path — including when the workflow is not currently deployed — use `POST /workflows/{id}/versions/{version}/activate`. Neither touches the draft. A workspace API key is rejected with `403`; use a personal API key.",
         "tags": ["Workflows"],
         "parameters": [
           {
@@ -4780,12 +4800,434 @@
           }
         ]
       },
-      "ReplaceWorkflowStateResult": {
-        "title": "Replace workflow state result",
-        "description": "Outcome of replacing a workflow draft graph.",
-        "$ref": "#/components/schemas/WorkflowGraphWriteResult"
+      "WorkflowLintReport": {
+        "type": "object",
+        "properties": {
+          "sources": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "blockId": {
+                  "type": "string",
+                  "description": "Block the finding is about."
+                },
+                "blockName": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Display name of the block, when it has one."
+                },
+                "blockType": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Registered type of the block, when it has one."
+                }
+              },
+              "required": ["blockId", "blockName", "blockType"],
+              "additionalProperties": false
+            },
+            "description": "Blocks with no incoming edge. A trigger block is naturally a source; anything else here is unreachable."
+          },
+          "sinks": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "blockId": {
+                  "type": "string",
+                  "description": "Block the finding is about."
+                },
+                "blockName": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Display name of the block, when it has one."
+                },
+                "blockType": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Registered type of the block, when it has one."
+                }
+              },
+              "required": ["blockId", "blockName", "blockType"],
+              "additionalProperties": false
+            },
+            "description": "Blocks with no outgoing edge."
+          },
+          "orphanBlocks": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "blockId": {
+                  "type": "string",
+                  "description": "Block the finding is about."
+                },
+                "blockName": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Display name of the block, when it has one."
+                },
+                "blockType": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Registered type of the block, when it has one."
+                }
+              },
+              "required": ["blockId", "blockName", "blockType"],
+              "additionalProperties": false
+            },
+            "description": "Blocks with neither an incoming nor an outgoing edge."
+          },
+          "emptyOutgoingPorts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "blockId": {
+                  "type": "string",
+                  "description": "Block the finding is about."
+                },
+                "blockName": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Display name of the block, when it has one."
+                },
+                "blockType": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Registered type of the block, when it has one."
+                },
+                "handle": {
+                  "type": "string",
+                  "description": "Source handle with nothing connected to it."
+                },
+                "label": {
+                  "type": "string",
+                  "description": "Human-readable name of the port."
+                }
+              },
+              "required": ["blockId", "blockName", "blockType", "handle", "label"],
+              "additionalProperties": false
+            },
+            "description": "Branch and container ports that lead nowhere."
+          },
+          "invalidBranchPorts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "blockId": {
+                  "type": "string",
+                  "description": "Block the finding is about."
+                },
+                "blockName": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Display name of the block, when it has one."
+                },
+                "blockType": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Registered type of the block, when it has one."
+                },
+                "sourceHandle": {
+                  "type": "string",
+                  "description": "Source handle that does not match the block."
+                },
+                "reason": {
+                  "type": "string",
+                  "description": "Why the handle is not valid for this block."
+                }
+              },
+              "required": ["blockId", "blockName", "blockType", "sourceHandle", "reason"],
+              "additionalProperties": false
+            },
+            "description": "Condition and router edges whose source handle names no real branch."
+          },
+          "invalidConnectionTargets": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "sourceBlockId": {
+                  "type": "string",
+                  "description": "Block the edge leaves."
+                },
+                "sourceBlockName": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Display name of the source block."
+                },
+                "sourceHandle": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Handle the edge leaves from."
+                },
+                "targetBlockId": {
+                  "type": "string",
+                  "description": "Block the edge points at."
+                },
+                "reason": {
+                  "type": "string",
+                  "description": "Why the target is not a legal destination."
+                }
+              },
+              "required": [
+                "sourceBlockId",
+                "sourceBlockName",
+                "sourceHandle",
+                "targetBlockId",
+                "reason"
+              ],
+              "additionalProperties": false
+            },
+            "description": "Edges pointing at a block that cannot legally receive them."
+          },
+          "fieldIssues": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "blockId": {
+                  "type": "string",
+                  "description": "Block the finding is about."
+                },
+                "blockName": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Display name of the block, when it has one."
+                },
+                "blockType": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Registered type of the block, when it has one."
+                },
+                "missingRequiredFields": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Required sub-block fields that resolve empty in the active mode."
+                },
+                "inactiveModeValues": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "canonicalId": {
+                        "type": "string",
+                        "description": "Canonical parameter the two sub-block modes share."
+                      },
+                      "activeMemberId": {
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "Sub-block the runtime reads, where the value should live."
+                      },
+                      "inactiveMemberId": {
+                        "type": "string",
+                        "description": "Sub-block holding the stranded value, which the runtime ignores."
+                      },
+                      "kind": {
+                        "type": "string",
+                        "enum": ["credential", "resource", "other"],
+                        "description": "What kind of value is stranded."
+                      }
+                    },
+                    "required": ["canonicalId", "activeMemberId", "inactiveMemberId", "kind"],
+                    "additionalProperties": false
+                  },
+                  "description": "Values stranded on the inactive member of a canonical pair."
+                }
+              },
+              "required": [
+                "blockId",
+                "blockName",
+                "blockType",
+                "missingRequiredFields",
+                "inactiveModeValues"
+              ],
+              "additionalProperties": false
+            },
+            "description": "Per-block configuration problems. The most actionable part of the report for a headless graph builder: a block missing a required field will fail at run time."
+          },
+          "unresolvedReferences": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "blockId": {
+                  "type": "string",
+                  "description": "Block the finding is about."
+                },
+                "blockName": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Display name of the block, when it has one."
+                },
+                "blockType": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Registered type of the block, when it has one."
+                },
+                "field": {
+                  "type": "string",
+                  "description": "Sub-block field holding the reference."
+                },
+                "value": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  ],
+                  "description": "The reference, or references, that did not resolve."
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": ["credential", "resource", "custom-tool", "mcp-tool", "skill"],
+                  "description": "What kind of entity the reference was expected to name."
+                },
+                "reason": {
+                  "type": "string",
+                  "description": "Why the reference does not resolve."
+                }
+              },
+              "required": ["blockId", "blockName", "blockType", "field", "value", "kind", "reason"],
+              "additionalProperties": false
+            },
+            "description": "Credential, resource, tool, and skill references that do not resolve. These values are still persisted; they are reported, not dropped."
+          },
+          "notes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Advisory notes about the report itself."
+          }
+        },
+        "required": [
+          "sources",
+          "sinks",
+          "orphanBlocks",
+          "emptyOutgoingPorts",
+          "invalidBranchPorts",
+          "invalidConnectionTargets",
+          "fieldIssues",
+          "unresolvedReferences",
+          "notes"
+        ],
+        "additionalProperties": false,
+        "title": "Workflow lint report",
+        "description": "Advisory findings about the saved graph. Findings never block the write; they tell a caller what will misbehave at run time."
       },
-      "WorkflowGraphWriteResult": {
+      "ReplaceWorkflowStateResult": {
         "type": "object",
         "properties": {
           "id": {
@@ -4802,37 +5244,24 @@
           "needsRedeployment": {
             "type": "boolean",
             "description": "Whether the live deployment now differs from the draft. A graph write never changes what the deployed endpoint serves; deploy to publish it."
+          },
+          "lint": {
+            "$ref": "#/components/schemas/WorkflowLintReport"
+          },
+          "dryRun": {
+            "type": "boolean",
+            "description": "Whether this request only validated. `true` means nothing was persisted; the findings describe what a committed write of the same body would produce."
           }
         },
-        "required": ["id", "warnings", "needsRedeployment"],
+        "required": ["id", "warnings", "needsRedeployment", "lint", "dryRun"],
         "additionalProperties": false,
-        "title": "Workflow graph write result",
-        "description": "Outcome of a write against a workflow draft graph."
+        "title": "Replace workflow state result",
+        "description": "Outcome of replacing a workflow draft graph, with its advisory findings."
       },
       "ReplaceWorkflowStateResponse": {
         "type": "object",
         "properties": {
           "data": {
-            "type": "object",
-            "properties": {
-              "id": {
-                "type": "string",
-                "description": "Identifier of the workflow whose draft graph was written."
-              },
-              "warnings": {
-                "type": "array",
-                "items": {
-                  "type": "string"
-                },
-                "description": "Non-fatal notes about blocks and edges that were normalized or dropped before persistence. Empty when there was nothing to report."
-              },
-              "needsRedeployment": {
-                "type": "boolean",
-                "description": "Whether the live deployment now differs from the draft. A graph write never changes what the deployed endpoint serves; deploy to publish it."
-              }
-            },
-            "required": ["id", "warnings", "needsRedeployment"],
-            "additionalProperties": false,
             "description": "Response data.",
             "$ref": "#/components/schemas/ReplaceWorkflowStateResult"
           }
@@ -4846,7 +5275,19 @@
             "data": {
               "id": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36",
               "warnings": [],
-              "needsRedeployment": true
+              "needsRedeployment": true,
+              "dryRun": false,
+              "lint": {
+                "sources": [],
+                "sinks": [],
+                "orphanBlocks": [],
+                "emptyOutgoingPorts": [],
+                "invalidBranchPorts": [],
+                "invalidConnectionTargets": [],
+                "fieldIssues": [],
+                "unresolvedReferences": [],
+                "notes": []
+              }
             }
           }
         ]
@@ -5396,433 +5837,6 @@
         "title": "Workflow input validation error",
         "description": "One block input that was dropped rather than persisted."
       },
-      "WorkflowLintReport": {
-        "type": "object",
-        "properties": {
-          "sources": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "blockId": {
-                  "type": "string",
-                  "description": "Block the finding is about."
-                },
-                "blockName": {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ],
-                  "description": "Display name of the block, when it has one."
-                },
-                "blockType": {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ],
-                  "description": "Registered type of the block, when it has one."
-                }
-              },
-              "required": ["blockId", "blockName", "blockType"],
-              "additionalProperties": false
-            },
-            "description": "Blocks with no incoming edge. A trigger block is naturally a source; anything else here is unreachable."
-          },
-          "sinks": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "blockId": {
-                  "type": "string",
-                  "description": "Block the finding is about."
-                },
-                "blockName": {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ],
-                  "description": "Display name of the block, when it has one."
-                },
-                "blockType": {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ],
-                  "description": "Registered type of the block, when it has one."
-                }
-              },
-              "required": ["blockId", "blockName", "blockType"],
-              "additionalProperties": false
-            },
-            "description": "Blocks with no outgoing edge."
-          },
-          "orphanBlocks": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "blockId": {
-                  "type": "string",
-                  "description": "Block the finding is about."
-                },
-                "blockName": {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ],
-                  "description": "Display name of the block, when it has one."
-                },
-                "blockType": {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ],
-                  "description": "Registered type of the block, when it has one."
-                }
-              },
-              "required": ["blockId", "blockName", "blockType"],
-              "additionalProperties": false
-            },
-            "description": "Blocks with neither an incoming nor an outgoing edge."
-          },
-          "emptyOutgoingPorts": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "blockId": {
-                  "type": "string",
-                  "description": "Block the finding is about."
-                },
-                "blockName": {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ],
-                  "description": "Display name of the block, when it has one."
-                },
-                "blockType": {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ],
-                  "description": "Registered type of the block, when it has one."
-                },
-                "handle": {
-                  "type": "string",
-                  "description": "Source handle with nothing connected to it."
-                },
-                "label": {
-                  "type": "string",
-                  "description": "Human-readable name of the port."
-                }
-              },
-              "required": ["blockId", "blockName", "blockType", "handle", "label"],
-              "additionalProperties": false
-            },
-            "description": "Branch and container ports that lead nowhere."
-          },
-          "invalidBranchPorts": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "blockId": {
-                  "type": "string",
-                  "description": "Block the finding is about."
-                },
-                "blockName": {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ],
-                  "description": "Display name of the block, when it has one."
-                },
-                "blockType": {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ],
-                  "description": "Registered type of the block, when it has one."
-                },
-                "sourceHandle": {
-                  "type": "string",
-                  "description": "Source handle that does not match the block."
-                },
-                "reason": {
-                  "type": "string",
-                  "description": "Why the handle is not valid for this block."
-                }
-              },
-              "required": ["blockId", "blockName", "blockType", "sourceHandle", "reason"],
-              "additionalProperties": false
-            },
-            "description": "Condition and router edges whose source handle names no real branch."
-          },
-          "invalidConnectionTargets": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "sourceBlockId": {
-                  "type": "string",
-                  "description": "Block the edge leaves."
-                },
-                "sourceBlockName": {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ],
-                  "description": "Display name of the source block."
-                },
-                "sourceHandle": {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ],
-                  "description": "Handle the edge leaves from."
-                },
-                "targetBlockId": {
-                  "type": "string",
-                  "description": "Block the edge points at."
-                },
-                "reason": {
-                  "type": "string",
-                  "description": "Why the target is not a legal destination."
-                }
-              },
-              "required": [
-                "sourceBlockId",
-                "sourceBlockName",
-                "sourceHandle",
-                "targetBlockId",
-                "reason"
-              ],
-              "additionalProperties": false
-            },
-            "description": "Edges pointing at a block that cannot legally receive them."
-          },
-          "fieldIssues": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "blockId": {
-                  "type": "string",
-                  "description": "Block the finding is about."
-                },
-                "blockName": {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ],
-                  "description": "Display name of the block, when it has one."
-                },
-                "blockType": {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ],
-                  "description": "Registered type of the block, when it has one."
-                },
-                "missingRequiredFields": {
-                  "type": "array",
-                  "items": {
-                    "type": "string"
-                  },
-                  "description": "Required sub-block fields that resolve empty in the active mode."
-                },
-                "inactiveModeValues": {
-                  "type": "array",
-                  "items": {
-                    "type": "object",
-                    "properties": {
-                      "canonicalId": {
-                        "type": "string",
-                        "description": "Canonical parameter the two sub-block modes share."
-                      },
-                      "activeMemberId": {
-                        "anyOf": [
-                          {
-                            "type": "string"
-                          },
-                          {
-                            "type": "null"
-                          }
-                        ],
-                        "description": "Sub-block the runtime reads, where the value should live."
-                      },
-                      "inactiveMemberId": {
-                        "type": "string",
-                        "description": "Sub-block holding the stranded value, which the runtime ignores."
-                      },
-                      "kind": {
-                        "type": "string",
-                        "enum": ["credential", "resource", "other"],
-                        "description": "What kind of value is stranded."
-                      }
-                    },
-                    "required": ["canonicalId", "activeMemberId", "inactiveMemberId", "kind"],
-                    "additionalProperties": false
-                  },
-                  "description": "Values stranded on the inactive member of a canonical pair."
-                }
-              },
-              "required": [
-                "blockId",
-                "blockName",
-                "blockType",
-                "missingRequiredFields",
-                "inactiveModeValues"
-              ],
-              "additionalProperties": false
-            },
-            "description": "Per-block configuration problems. The most actionable part of the report for a headless graph builder: a block missing a required field will fail at run time."
-          },
-          "unresolvedReferences": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "blockId": {
-                  "type": "string",
-                  "description": "Block the finding is about."
-                },
-                "blockName": {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ],
-                  "description": "Display name of the block, when it has one."
-                },
-                "blockType": {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ],
-                  "description": "Registered type of the block, when it has one."
-                },
-                "field": {
-                  "type": "string",
-                  "description": "Sub-block field holding the reference."
-                },
-                "value": {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "array",
-                      "items": {
-                        "type": "string"
-                      }
-                    }
-                  ],
-                  "description": "The reference, or references, that did not resolve."
-                },
-                "kind": {
-                  "type": "string",
-                  "enum": ["credential", "resource", "custom-tool", "mcp-tool", "skill"],
-                  "description": "What kind of entity the reference was expected to name."
-                },
-                "reason": {
-                  "type": "string",
-                  "description": "Why the reference does not resolve."
-                }
-              },
-              "required": ["blockId", "blockName", "blockType", "field", "value", "kind", "reason"],
-              "additionalProperties": false
-            },
-            "description": "Credential, resource, tool, and skill references that do not resolve. These values are still persisted; they are reported, not dropped."
-          },
-          "notes": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            },
-            "description": "Advisory notes about the report itself."
-          }
-        },
-        "required": [
-          "sources",
-          "sinks",
-          "orphanBlocks",
-          "emptyOutgoingPorts",
-          "invalidBranchPorts",
-          "invalidConnectionTargets",
-          "fieldIssues",
-          "unresolvedReferences",
-          "notes"
-        ],
-        "additionalProperties": false,
-        "title": "Workflow lint report",
-        "description": "Advisory findings about the saved graph. Findings never block the write; they tell a caller what will misbehave at run time."
-      },
       "ApplyWorkflowOperationsResult": {
         "type": "object",
         "properties": {
@@ -5870,6 +5884,10 @@
           },
           "lint": {
             "$ref": "#/components/schemas/WorkflowLintReport"
+          },
+          "dryRun": {
+            "type": "boolean",
+            "description": "Whether this request only evaluated. `true` means nothing was persisted; the outcome describes what a committed apply of the same body would produce."
           }
         },
         "required": [
@@ -5880,7 +5898,8 @@
           "skipped",
           "deferred",
           "inputValidationErrors",
-          "lint"
+          "lint",
+          "dryRun"
         ],
         "additionalProperties": false,
         "title": "Apply workflow operations result",
@@ -5926,7 +5945,8 @@
                 "notes": []
               },
               "warnings": [],
-              "needsRedeployment": true
+              "needsRedeployment": true,
+              "dryRun": false
             }
           }
         ]

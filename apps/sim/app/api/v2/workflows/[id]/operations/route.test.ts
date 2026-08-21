@@ -103,6 +103,7 @@ describe('/api/v2/workflows/[id]/operations', () => {
       lint: LINT,
       warnings: [],
       needsRedeployment: true,
+      dryRun: false,
     })
   })
 
@@ -129,6 +130,7 @@ describe('/api/v2/workflows/[id]/operations', () => {
         lint: LINT,
         warnings: [],
         needsRedeployment: true,
+        dryRun: false,
       },
     })
     expect(mocks.applyWorkflowOperations).toHaveBeenCalledWith(
@@ -275,6 +277,7 @@ describe('/api/v2/workflows/[id]/operations', () => {
       },
       warnings: [],
       needsRedeployment: true,
+      dryRun: false,
     })
 
     const response = await POST(request({ operations: [ADD] }), routeContext)

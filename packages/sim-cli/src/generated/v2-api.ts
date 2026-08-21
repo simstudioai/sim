@@ -331,7 +331,9 @@ export type ApplyWorkflowOperationsParams = {
   id: string
 }
 
-export type ApplyWorkflowOperationsQuery = Record<string, unknown>
+export type ApplyWorkflowOperationsQuery = {
+  dryRun?: boolean
+}
 
 type ApplyWorkflowOperationsBodyRef0 =
   | {
@@ -483,6 +485,7 @@ type ApplyWorkflowOperationsResponseRef3 = {
   deferred: Array<ApplyWorkflowOperationsResponseRef0>
   inputValidationErrors: Array<ApplyWorkflowOperationsResponseRef1>
   lint: ApplyWorkflowOperationsResponseRef2
+  dryRun: boolean
 }
 
 export type ApplyWorkflowOperationsResponse = {
@@ -6804,7 +6807,9 @@ export type ReplaceWorkflowStateParams = {
   id: string
 }
 
-export type ReplaceWorkflowStateQuery = Record<string, unknown>
+export type ReplaceWorkflowStateQuery = {
+  dryRun?: boolean
+}
 
 type ReplaceWorkflowStateBodyRef0 = {
   id: string
@@ -6899,16 +6904,77 @@ export type ReplaceWorkflowStateBody = {
   variables?: Record<string, ReplaceWorkflowStateBodyRef4>
 }
 
-type ReplaceWorkflowStateResponseRef0 = ReplaceWorkflowStateResponseRef1
+type ReplaceWorkflowStateResponseRef0 = {
+  sources: Array<{
+    blockId: string
+    blockName: string | null
+    blockType: string | null
+  }>
+  sinks: Array<{
+    blockId: string
+    blockName: string | null
+    blockType: string | null
+  }>
+  orphanBlocks: Array<{
+    blockId: string
+    blockName: string | null
+    blockType: string | null
+  }>
+  emptyOutgoingPorts: Array<{
+    blockId: string
+    blockName: string | null
+    blockType: string | null
+    handle: string
+    label: string
+  }>
+  invalidBranchPorts: Array<{
+    blockId: string
+    blockName: string | null
+    blockType: string | null
+    sourceHandle: string
+    reason: string
+  }>
+  invalidConnectionTargets: Array<{
+    sourceBlockId: string
+    sourceBlockName: string | null
+    sourceHandle: string | null
+    targetBlockId: string
+    reason: string
+  }>
+  fieldIssues: Array<{
+    blockId: string
+    blockName: string | null
+    blockType: string | null
+    missingRequiredFields: Array<string>
+    inactiveModeValues: Array<{
+      canonicalId: string
+      activeMemberId: string | null
+      inactiveMemberId: string
+      kind: 'credential' | 'resource' | 'other'
+    }>
+  }>
+  unresolvedReferences: Array<{
+    blockId: string
+    blockName: string | null
+    blockType: string | null
+    field: string
+    value: string | Array<string>
+    kind: 'credential' | 'resource' | 'custom-tool' | 'mcp-tool' | 'skill'
+    reason: string
+  }>
+  notes: Array<string>
+}
 
 type ReplaceWorkflowStateResponseRef1 = {
   id: string
   warnings: Array<string>
   needsRedeployment: boolean
+  lint: ReplaceWorkflowStateResponseRef0
+  dryRun: boolean
 }
 
 export type ReplaceWorkflowStateResponse = {
-  data: ReplaceWorkflowStateResponseRef0
+  data: ReplaceWorkflowStateResponseRef1
 }
 
 /** `POST /api/v2/files/[fileId]/restore` */
@@ -8915,6 +8981,13 @@ export const V2_OPERATIONS = {
     pathParamDocs: { id: 'Unique workflow identifier.' },
     responseMode: 'json',
     summary: 'Apply Workflow Operations',
+    query: {
+      dryRun: {
+        kind: 'boolean',
+        describe:
+          'Validate and lint without persisting. The response is identical to the committed write of the same body, so a caller can inspect `lint` and then re-send the request for real. Nothing is written, no audit entry is recorded, and collaborators are not notified.',
+      },
+    },
     body: {
       operations: { kind: 'array', required: true, describe: 'Edits to apply, in a single batch.' },
       atomic: {
@@ -12912,6 +12985,13 @@ export const V2_OPERATIONS = {
     pathParamDocs: { id: 'Unique workflow identifier.' },
     responseMode: 'json',
     summary: 'Replace Workflow State',
+    query: {
+      dryRun: {
+        kind: 'boolean',
+        describe:
+          'Validate and lint without persisting. The response is identical to the committed write of the same body, so a caller can inspect `lint` and then re-send the request for real. Nothing is written, no audit entry is recorded, and collaborators are not notified.',
+      },
+    },
     body: {
       blocks: { kind: 'object', required: true, describe: 'Blocks keyed by block id.' },
       edges: { kind: 'array', required: true, describe: 'Directed connections between blocks.' },

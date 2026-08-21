@@ -77,6 +77,18 @@ function putRequest(body: unknown) {
   })
 }
 
+const EMPTY_LINT = {
+  sources: [],
+  sinks: [],
+  orphanBlocks: [],
+  emptyOutgoingPorts: [],
+  invalidBranchPorts: [],
+  invalidConnectionTargets: [],
+  fieldIssues: [],
+  unresolvedReferences: [],
+  notes: [],
+}
+
 describe('/api/v2/workflows/[id]/state', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -97,6 +109,8 @@ describe('/api/v2/workflows/[id]/state', () => {
       edgesCount: 0,
       warnings: ['Dropped edge "edge-9": target block does not exist'],
       needsRedeployment: true,
+      lint: EMPTY_LINT,
+      dryRun: false,
     })
   })
 
@@ -208,6 +222,8 @@ describe('/api/v2/workflows/[id]/state', () => {
         id: WORKFLOW_ID,
         warnings: ['Dropped edge "edge-9": target block does not exist'],
         needsRedeployment: true,
+        lint: EMPTY_LINT,
+        dryRun: false,
       },
     })
     expect(mocks.replaceWorkflowState).toHaveBeenCalledWith({

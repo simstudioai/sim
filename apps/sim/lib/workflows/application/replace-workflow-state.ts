@@ -1,5 +1,10 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
-import { type Principal, resolvePrincipalAttribution } from '@sim/auth/principal'
+import {
+  type Principal,
+  PrincipalSubjectUserRequiredError,
+  requirePrincipalSubjectUserId,
+  resolvePrincipalAttribution,
+} from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import type { BlockState, WorkflowState } from '@sim/workflow-types/workflow'
 import { principalAuditSource } from '@/lib/core/application'
@@ -11,10 +16,28 @@ import { workflowOperations } from '@/lib/workflows/application/operations'
 import { assertedWorkflowWorkspaceId } from '@/lib/workflows/application/principal-scope'
 import { requireMutableWorkflow } from '@/lib/workflows/application/workflow-mutability'
 import { checkNeedsRedeployment } from '@/lib/workflows/deployment-status'
+import type { WorkflowLintReport } from '@/lib/workflows/editing/lint'
+import { buildWorkflowLintReport } from '@/lib/workflows/editing/lint-report'
 import { replaceWorkflowNormalizedState } from '@/lib/workflows/persistence/replace-normalized-state'
 import { validateWorkflowState } from '@/lib/workflows/sanitization/validation'
 
 const logger = createLogger('ReplaceWorkflowState')
+
+/**
+ * The human a principal acts as, or `null` when it does not act as one.
+ *
+ * Deliberately not `resolvePrincipalAttribution`: that answers a workspace API
+ * key with the workspace's billing owner, which is correct for billing and
+ * wrong for anything that reads a person's own grants.
+ */
+function humanSubjectUserId(principal: Principal): string | null {
+  try {
+    return requirePrincipalSubjectUserId(principal)
+  } catch (error) {
+    if (error instanceof PrincipalSubjectUserRequiredError) return null
+    throw error
+  }
+}
 
 export interface ReplaceWorkflowStateInput {
   workflowId: string
@@ -23,6 +46,12 @@ export interface ReplaceWorkflowStateInput {
   edges: WorkflowState['edges']
   /** Omitted leaves the stored variables untouched. */
   variables?: Record<string, unknown>
+  /**
+   * Validate and lint without persisting. The response is byte-identical to a
+   * committed write of the same body, so a caller can inspect the findings it
+   * would get and then send the same request for real.
+   */
+  dryRun?: boolean
 }
 
 export interface ReplaceWorkflowStateResult {
@@ -33,6 +62,10 @@ export interface ReplaceWorkflowStateResult {
   edgesCount: number
   warnings: string[]
   needsRedeployment: boolean
+  /** Advisory findings about the graph. Never blocks the write. */
+  lint: WorkflowLintReport
+  /** True when nothing was persisted because the caller asked for a dry run. */
+  dryRun: boolean
 }
 
 /**
@@ -77,6 +110,43 @@ export const replaceWorkflowState = defineAuthorizedWorkflowUseCase({
     }
     const sanitized = validation.sanitizedState ?? candidate
 
+    const graph = {
+      blocks: sanitized.blocks as Record<string, BlockState>,
+      edges: sanitized.edges as WorkflowState['edges'],
+    }
+
+    /**
+     * Linted before the write so a dry run and a committed write report the
+     * same findings for the same body. Unlike its sibling `applyOperations`,
+     * this operation admits workspace API keys, which have no human subject —
+     * the reference pass is skipped for them rather than resolved against the
+     * billing owner. See {@link buildWorkflowLintReport}.
+     */
+    const lint = await buildWorkflowLintReport(graph, {
+      workflowId: context.workflowId,
+      workspaceId: context.workspaceId,
+      subjectUserId: humanSubjectUserId(principal),
+    })
+
+    if (input.dryRun) {
+      logger.info('Validated workflow state without persisting', {
+        workflowId: context.workflowId,
+        workspaceId: context.workspaceId,
+        principalKind: principal.kind,
+      })
+      return {
+        workflowId: context.workflowId,
+        workflowName: context.workflow.name,
+        workspaceId: context.workspaceId,
+        blocksCount: Object.keys(graph.blocks).length,
+        edgesCount: graph.edges.length,
+        warnings: validation.warnings,
+        needsRedeployment: await checkNeedsRedeployment(context.workflowId),
+        lint,
+        dryRun: true,
+      }
+    }
+
     const attribution = resolvePrincipalAttribution(principal, {
       workspaceBillingOwnerUserId: context.billedAccountUserId,
     })
@@ -85,8 +155,8 @@ export const replaceWorkflowState = defineAuthorizedWorkflowUseCase({
       workspaceId: context.workspaceId,
       attributedUserId: attribution.attributedUserId,
       state: {
-        blocks: sanitized.blocks as Record<string, BlockState>,
-        edges: sanitized.edges as WorkflowState['edges'],
+        blocks: graph.blocks,
+        edges: graph.edges,
         variables: input.variables,
       },
     })
@@ -105,21 +175,30 @@ export const replaceWorkflowState = defineAuthorizedWorkflowUseCase({
       edgesCount: persisted.state.edges.length,
       warnings: [...validation.warnings, ...persisted.warnings],
       needsRedeployment: await checkNeedsRedeployment(context.workflowId),
+      lint,
+      dryRun: false,
     }
   },
-  projectAudit: ({ principal, context, result }) => ({
-    action: AuditAction.WORKFLOW_UPDATED,
-    resourceType: AuditResourceType.WORKFLOW,
-    resourceId: context.workflowId,
-    resourceName: result.workflowName,
-    description: `Replaced the draft graph of workflow "${result.workflowName}"`,
-    metadata: {
-      op: 'replace_state',
-      blocksCount: result.blocksCount,
-      edgesCount: result.edgesCount,
-      warnings: result.warnings,
-      source: principalAuditSource(principal),
-    },
-  }),
-  afterSuccess: ({ context }) => notifyWorkflowUpdated(context.workflowId),
+  /** A dry run changes nothing, so it projects no audit entry. */
+  projectAudit: ({ principal, context, result }) =>
+    result.dryRun
+      ? []
+      : ({
+          action: AuditAction.WORKFLOW_UPDATED,
+          resourceType: AuditResourceType.WORKFLOW,
+          resourceId: context.workflowId,
+          resourceName: result.workflowName,
+          description: `Replaced the draft graph of workflow "${result.workflowName}"`,
+          metadata: {
+            op: 'replace_state',
+            blocksCount: result.blocksCount,
+            edgesCount: result.edgesCount,
+            warnings: result.warnings,
+            source: principalAuditSource(principal),
+          },
+        } as const),
+  afterSuccess: ({ context, result }) => {
+    if (result.dryRun) return
+    return notifyWorkflowUpdated(context.workflowId)
+  },
 })

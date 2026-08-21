@@ -1,7 +1,7 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
 import { type Principal, resolvePrincipalAttribution } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
-import { getErrorMessage, toError } from '@sim/utils/errors'
+import { toError } from '@sim/utils/errors'
 import type { BlockState, WorkflowState } from '@sim/workflow-types/workflow'
 import { hasWorkspaceSandboxAccess } from '@/lib/billing/core/subscription'
 import { ForbiddenOperationError, principalAuditSource } from '@/lib/core/application'
@@ -33,12 +33,8 @@ import {
   decideBlockEnablement,
 } from '@/lib/workflows/editing/block-enablement'
 import { applyOperationsToWorkflowState } from '@/lib/workflows/editing/engine'
-import {
-  collectWorkflowFieldIssues,
-  lintEditedWorkflowState,
-  type WorkflowLintReport,
-  type WorkflowLintUnresolvedReference,
-} from '@/lib/workflows/editing/lint'
+import type { WorkflowLintReport } from '@/lib/workflows/editing/lint'
+import { buildWorkflowLintReport } from '@/lib/workflows/editing/lint-report'
 import { operationsReferenceSimSandbox } from '@/lib/workflows/editing/sandbox-projection'
 import {
   type EditWorkflowOperation,
@@ -47,12 +43,7 @@ import {
   type SkippedItemType,
   type ValidationError,
 } from '@/lib/workflows/editing/types'
-import {
-  collectUnresolvedAgentToolReferences,
-  collectUnresolvedReferences,
-  preValidateCredentialInputs,
-  UNRESOLVABLE_AT_LINT_NOTE,
-} from '@/lib/workflows/editing/validation'
+import { preValidateCredentialInputs } from '@/lib/workflows/editing/validation'
 import { replaceWorkflowNormalizedState } from '@/lib/workflows/persistence/replace-normalized-state'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { validateWorkflowState } from '@/lib/workflows/sanitization/validation'
@@ -89,6 +80,11 @@ export interface ApplyWorkflowOperationsInput {
   baseGraph?: Record<string, unknown>
   /** Cancellation checkpoint, invoked before each step that commits work. */
   checkAborted?: () => void
+  /**
+   * Apply the batch to an in-memory graph and report the outcome without
+   * persisting it. Same response as a committed apply of the same body.
+   */
+  dryRun?: boolean
 }
 
 export interface ApplyWorkflowOperationsResult {
@@ -109,6 +105,8 @@ export interface ApplyWorkflowOperationsResult {
   lint: WorkflowLintReport
   warnings: string[]
   needsRedeployment: boolean
+  /** True when nothing was persisted because the caller asked for a dry run. */
+  dryRun: boolean
 }
 
 /**
@@ -296,26 +294,6 @@ export const applyWorkflowOperations = defineAuthorizedWorkflowUseCase({
     modifiedGraph.blocks = enablement.blocks
     const applied = appliedOperations + enablement.applied
 
-    const unresolvedReferences: WorkflowLintUnresolvedReference[] = []
-    for (const collect of [collectUnresolvedReferences, collectUnresolvedAgentToolReferences]) {
-      try {
-        // Reported only through `lint`. `collectUnresolvedReferences` is
-        // read-only, so the values it flags stay persisted — pushing them into
-        // `inputValidationErrors` as well would double-report them, and falsely,
-        // since that field means "dropped rather than persisted".
-        const references = await collect(modifiedGraph, {
-          userId: subjectUserId,
-          workspaceId: context.workspaceId,
-        })
-        unresolvedReferences.push(...references)
-      } catch (error) {
-        logger.warn('Reference resolution lint failed', {
-          workflowId: context.workflowId,
-          error: getErrorMessage(error),
-        })
-      }
-    }
-
     const validation = validateWorkflowState(modifiedGraph, { sanitize: true })
     if (!validation.valid) {
       throw new OrchestrationError(
@@ -351,19 +329,49 @@ export const applyWorkflowOperations = defineAuthorizedWorkflowUseCase({
     }
 
     /**
-     * `notes` is assigned after the graph-lint spread and that is safe: notes
-     * are this layer's to produce. `lintEditedWorkflowState` returns
-     * {@link WorkflowLintResult}, which declares no `notes` member, so the
-     * assignment can never discard a finding the linter made.
+     * Linted on the graph that is about to be persisted, so every finding
+     * describes what the caller will actually have. This operation denies
+     * workspace API keys, so the acting principal always has a human subject.
      */
-    const lint: WorkflowLintReport = {
-      ...lintEditedWorkflowState(graph),
-      fieldIssues: collectWorkflowFieldIssues(graph.blocks),
-      unresolvedReferences,
-      notes: unresolvedReferences.length > 0 ? [UNRESOLVABLE_AT_LINT_NOTE] : [],
-    }
+    const lint = await buildWorkflowLintReport(graph, {
+      workflowId: context.workflowId,
+      workspaceId: context.workspaceId,
+      subjectUserId,
+    })
 
     input.checkAborted?.()
+
+    /**
+     * A dry run still runs the whole engine — operations are applied, refusals
+     * collected, the result validated and linted — and stops at the write. An
+     * atomic batch has already thrown by here if anything was refused, so a
+     * dry run reports precisely what a committed apply of the same body would.
+     */
+    if (input.dryRun) {
+      logger.info('Evaluated workflow operations without persisting', {
+        workflowId: context.workflowId,
+        workspaceId: context.workspaceId,
+        operationCount: input.operations.length,
+        applied,
+        principalKind: principal.kind,
+      })
+      return {
+        workflowId: context.workflowId,
+        workflowName: context.workflow.name,
+        workspaceId: context.workspaceId,
+        graph,
+        operationCount: input.operations.length,
+        applied,
+        skipped: genuineSkippedItems,
+        deferred: deferredItems,
+        inputValidationErrors: validationErrors,
+        lint,
+        warnings: validation.warnings,
+        needsRedeployment: await checkNeedsRedeployment(context.workflowId),
+        dryRun: true,
+      }
+    }
+
     const persisted = await replaceWorkflowNormalizedState({
       workflowId: context.workflowId,
       workspaceId: context.workspaceId,
@@ -393,25 +401,33 @@ export const applyWorkflowOperations = defineAuthorizedWorkflowUseCase({
       lint,
       warnings: [...validation.warnings, ...persisted.warnings],
       needsRedeployment: await checkNeedsRedeployment(context.workflowId),
+      dryRun: false,
     }
   },
-  projectAudit: ({ principal, context, result }) => ({
-    action: AuditAction.WORKFLOW_UPDATED,
-    resourceType: AuditResourceType.WORKFLOW,
-    resourceId: context.workflowId,
-    resourceName: result.workflowName,
-    description: `Applied ${result.operationCount} edit operation(s) to workflow "${result.workflowName}"`,
-    metadata: {
-      op: 'apply_operations',
-      operationCount: result.operationCount,
-      appliedCount: result.applied,
-      skippedCount: result.skipped.length,
-      blocksCount: Object.keys(result.graph.blocks).length,
-      edgesCount: result.graph.edges.length,
-      source: principalAuditSource(principal),
-    },
-  }),
-  afterSuccess: ({ context }) => notifyWorkflowUpdated(context.workflowId),
+  /** A dry run changes nothing, so it projects no audit entry. */
+  projectAudit: ({ principal, context, result }) =>
+    result.dryRun
+      ? []
+      : ({
+          action: AuditAction.WORKFLOW_UPDATED,
+          resourceType: AuditResourceType.WORKFLOW,
+          resourceId: context.workflowId,
+          resourceName: result.workflowName,
+          description: `Applied ${result.operationCount} edit operation(s) to workflow "${result.workflowName}"`,
+          metadata: {
+            op: 'apply_operations',
+            operationCount: result.operationCount,
+            appliedCount: result.applied,
+            skippedCount: result.skipped.length,
+            blocksCount: Object.keys(result.graph.blocks).length,
+            edgesCount: result.graph.edges.length,
+            source: principalAuditSource(principal),
+          },
+        } as const),
+  afterSuccess: ({ context, result }) => {
+    if (result.dryRun) return
+    return notifyWorkflowUpdated(context.workflowId)
+  },
 })
 
 /**

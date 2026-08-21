@@ -188,6 +188,36 @@ describe('applyWorkflowOperations', () => {
     expect(result.needsRedeployment).toBe(true)
   })
 
+  describe('dry run', () => {
+    it('runs the whole engine and stops at the write', async () => {
+      const result = await applyWorkflowOperations.execute({
+        principal: sessionPrincipal,
+        input: { workflowId: 'workflow-1', operations, dryRun: true },
+      })
+
+      expect(result.dryRun).toBe(true)
+      expect(result.applied).toBe(1)
+      expect(mocks.replace).not.toHaveBeenCalled()
+      expect(mocks.recordAudit).not.toHaveBeenCalled()
+      expect(mocks.notify).not.toHaveBeenCalled()
+    })
+
+    /** The preview is worthless if it does not carry the findings. */
+    it('reports the same lint a committed apply would', async () => {
+      const dry = await applyWorkflowOperations.execute({
+        principal: sessionPrincipal,
+        input: { workflowId: 'workflow-1', operations, dryRun: true },
+      })
+      const committed = await applyWorkflowOperations.execute({
+        principal: sessionPrincipal,
+        input: { workflowId: 'workflow-1', operations },
+      })
+
+      expect(dry.lint).toEqual(committed.lint)
+      expect(committed.dryRun).toBe(false)
+    })
+  })
+
   it('reports declined operations rather than failing the batch', async () => {
     mocks.applyOperations.mockReturnValue({
       state: graph(),

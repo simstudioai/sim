@@ -339,10 +339,20 @@ export const CLI_CONTRACT: CliContract = {
   // reaches them, yet each can discard work: a state replace overwrites the
   // whole draft with no conflict detection, an operations batch carries a
   // `delete` arm, and a variables patch replaces the set.
+  /**
+   * The derived names read wrong here. `deriveCommandPath` calls a `GET` a
+   * `list` unless the path ends in a parameter, but `/workflows/[id]/state` is
+   * one graph, not a page of them; and `POST` derives to `create`, which
+   * describes neither replacing a graph nor applying a batch of edits to one.
+   * Each name is the operation's own verb instead.
+   */
+  getWorkflowState: { command: 'workflows state get' },
   replaceWorkflowState: {
+    command: 'workflows state replace',
     confirm: 'This replaces the entire draft graph and cannot be undone.',
   },
   applyWorkflowOperations: {
+    command: 'workflows operations apply',
     confirm: 'This edits the draft graph, and a delete operation removes blocks and their edges.',
   },
   applyWorkflowVariables: {

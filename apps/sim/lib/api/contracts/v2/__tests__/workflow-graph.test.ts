@@ -174,6 +174,7 @@ describe('v2ApplyWorkflowOperationsDataSchema', () => {
         deferred: [],
         inputValidationErrors: [],
         lint: EMPTY_LINT,
+        dryRun: false,
       })
       expect(result.success, `skip type ${type} is not published`).toBe(true)
     }
@@ -194,6 +195,7 @@ describe('v2ApplyWorkflowOperationsDataSchema', () => {
       deferred: [],
       inputValidationErrors: [],
       lint: FULL_LINT,
+      dryRun: false,
     })
 
     expect(result.error?.issues ?? []).toEqual([])

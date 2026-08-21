@@ -83,6 +83,42 @@ describe('commands parsed through commander', () => {
     expect(options.query).toMatchObject({ minDurationMs: 250 })
   })
 
+  /**
+   * A dry run writes nothing, so demanding `--yes` to preview a change would
+   * teach callers to pass `--yes` reflexively — the exact habit the confirm gate
+   * depends on not forming.
+   */
+  describe('destructive confirmation and --dry-run', () => {
+    it('refuses a graph replace without --yes', async () => {
+      await expect(
+        run(['workflows', 'state', 'replace', 'wf-1', '--blocks', '{}', '--edges', '[]'])
+      ).rejects.toThrow(/--yes/)
+      expect(mockRequest).not.toHaveBeenCalled()
+    })
+
+    it('allows the same command as a dry run without --yes', async () => {
+      const [, options] = await run([
+        'workflows',
+        'state',
+        'replace',
+        'wf-1',
+        '--blocks',
+        '{}',
+        '--edges',
+        '[]',
+        '--dry-run',
+      ])
+
+      expect(options.query).toMatchObject({ dryRun: true })
+    })
+
+    it('still refuses a committed apply of operations without --yes', async () => {
+      await expect(
+        run(['workflows', 'operations', 'apply', 'wf-1', '--operations', '[]'])
+      ).rejects.toThrow(/--yes/)
+    })
+  })
+
   it('registers singular aliases for every plural resource group', () => {
     const aliases = {
       'audit-logs': 'audit-log',
