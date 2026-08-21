@@ -50,7 +50,7 @@ export const linkedinProfileEnrichment: EnrichmentConfig = {
       toolId: 'findymail_reverse_email_lookup',
       buildParams: (inputs) => {
         const email = str(inputs.email)
-        return email ? { email, with_profile: false } : null
+        return email ? { email } : null
       },
       mapOutput: (output) => {
         const linkedinUrl = normalizeLinkedInProfileUrl(output.linkedin_url)
