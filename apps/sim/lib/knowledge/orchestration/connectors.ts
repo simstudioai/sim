@@ -572,16 +572,19 @@ export async function performUpdateKnowledgeConnector(
   }
 
   if (dispatchSourceSync && billingAttribution) {
-    dispatchSourceSync(connectorId, {
-      billingAttribution,
-      requestId,
-      requireRunnable: true,
-    }).catch((error) => {
-      logger.error(
-        `[${requestId}] Failed to dispatch source-change sync for connector ${connectorId}`,
-        error
+    try {
+      await dispatchSourceSync(connectorId, {
+        billingAttribution,
+        requestId,
+        requireRunnable: true,
+      })
+    } catch (error) {
+      return classifyKnowledgeFailure(
+        error,
+        requestId,
+        `Dispatch source-change sync for connector ${connectorId}`
       )
-    })
+    }
   }
 
   return { success: true, connector: withoutSecret(updated) }

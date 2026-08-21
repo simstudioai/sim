@@ -278,6 +278,33 @@ describe('performUpdateKnowledgeConnector', () => {
     })
   })
 
+  it('reports a queue failure after replacing an active connector source', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      { id: 'conn-1', connectorType: 'notion', status: 'active' },
+    ])
+    dbChainMockFns.returning.mockResolvedValueOnce([
+      { id: 'conn-1', connectorType: 'notion', status: 'active' },
+    ])
+    mockDispatchSync.mockRejectedValueOnce(new Error('queue unavailable'))
+
+    const outcome = await performUpdateKnowledgeConnector({
+      ...ACTOR,
+      knowledgeBase: KB,
+      connectorId: 'conn-1',
+      updates: { sourceConfig: { database: 'next' } },
+      resolveBillingAttribution,
+      validateSourceConfig: async () => null,
+    })
+
+    expect(outcome).toMatchObject({
+      success: false,
+      errorCode: 'internal',
+      error: 'queue unavailable',
+    })
+    expect(dbChainMockFns.update).toHaveBeenCalledOnce()
+    expect(mockDispatchSync).toHaveBeenCalledOnce()
+  })
+
   it('saves a paused connector source without synchronizing it', async () => {
     dbChainMockFns.limit.mockResolvedValueOnce([
       { id: 'conn-1', connectorType: 'notion', status: 'paused' },
