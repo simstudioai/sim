@@ -14,6 +14,7 @@ import {
   RESOURCE_LIST_STACK,
   SettingsResourceRow,
 } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
+import { focusBlockParam } from '@/app/workspace/[workspaceId]/w/[workflowId]/search-params'
 import { getBlock } from '@/blocks/registry'
 import { useSecretReferences } from '@/hooks/queries/credentials'
 
@@ -40,6 +41,27 @@ const TRUNCATED_NOTE = 'This secret is referenced in more places than can be lis
 /** A custom tool and an MCP server can each carry the key more than once, so `id` alone is not a key. */
 function resourceKey(resource: SecretReferenceResourcePayload): string {
   return `${resource.kind}:${resource.id}:${resource.field}`
+}
+
+/**
+ * The field's own label from the block's config — "Tools", "API Key" — rather than the storage
+ * id the scanner reports. The id is how the value is keyed, not what the block calls it, and a
+ * reader looking for the field on the canvas is looking for the label.
+ *
+ * Falls back to the raw id when the block or field is unregistered, which is honest: an id the
+ * config cannot name is still better than naming nothing.
+ */
+function fieldLabel(blockType: string, field: string): string {
+  return getBlock(blockType)?.subBlocks?.find((subBlock) => subBlock.id === field)?.title ?? field
+}
+
+/**
+ * The workflow, pointed at the block that carries the reference, so the canvas lands on it
+ * rather than on its default framing. The target rides in the link itself so it survives a
+ * middle-click or a reload, which an in-memory handoff could not.
+ */
+function blockHref(workspaceId: string, workflowId: string, blockId: string): string {
+  return `/workspace/${workspaceId}/w/${workflowId}?${focusBlockParam.key}=${encodeURIComponent(blockId)}`
 }
 
 /**
@@ -123,9 +145,9 @@ export function SecretReferencesPanel({
                     ) : undefined
                   }
                   title={block.blockName}
-                  description={block.field}
-                  href={`/workspace/${workspaceId}/w/${workflow.workflowId}`}
-                  clickLabel={`Open ${workflow.workflowName}`}
+                  description={fieldLabel(block.blockType, block.field)}
+                  href={blockHref(workspaceId, workflow.workflowId, block.blockId)}
+                  clickLabel={`Open ${block.blockName} in ${workflow.workflowName}`}
                   navigable
                 />
               )

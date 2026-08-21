@@ -37,14 +37,10 @@ interface SecretDetailProps {
 
 type SecretUsageTab = 'references' | 'logs'
 
-/**
- * References first: it answers where the key is wired in, which is what a rotation starts from,
- * and it has an answer even for a secret nothing has run yet. Logs still opens by default, since
- * that is what "See usage" showed before this tab existed.
- */
+/** Logs leads: it is the default tab, and what "See usage" opened before References existed. */
 const SECRET_USAGE_TABS = [
-  { value: 'references', label: 'References' },
   { value: 'logs', label: 'Logs' },
+  { value: 'references', label: 'References' },
 ] as const
 
 export function SecretDetail({ workspaceId, credentialId }: SecretDetailProps) {
@@ -178,9 +174,10 @@ export function SecretDetail({ workspaceId, credentialId }: SecretDetailProps) {
   /**
    * Usage is a destination reached from the header, the same shape as the Forks tab's
    * "See activity" — it replaces the secret rather than expanding inside it, so the two
-   * readings never compete for the same column. Back returns with `replace`, since opening
-   * already pushed, and clears the tab in the same batched write so no `?usage-tab=` lingers
-   * on the secret's own URL.
+   * readings never compete for the same column. It leads with a plain page title like that
+   * view does: the back chip already names the secret, so a resource heading would say it
+   * twice. Back returns with `replace`, since opening already pushed, and clears the tab in
+   * the same batched write so no `?usage-tab=` lingers on the secret's own URL.
    */
   if (canViewUsage && view === 'usage') {
     const secretName = credential.envKey || ''
@@ -198,12 +195,8 @@ export function SecretDetail({ workspaceId, credentialId }: SecretDetailProps) {
             {credential.envKey || credential.displayName}
           </Chip>
         }
+        title='Usage'
       >
-        <CredentialDetailHeading
-          leading={<ResourceTile icon={Clock} />}
-          title='Usage'
-          subtitle={credential.envKey || credential.displayName}
-        />
         <ChipModalTabs
           tabs={SECRET_USAGE_TABS}
           value={usageTab}

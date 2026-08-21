@@ -66,6 +66,7 @@ import {
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/connection-block-selector/connection-block-selector'
 import { Cursors } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/cursors/cursors'
 import { ErrorBoundary } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/error/index'
+import { FocusBlockDeepLink } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/focus-block-deep-link'
 import { WorkflowSearchReplace } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/search-replace/workflow-search-replace'
 import { WorkflowControls } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-controls/workflow-controls'
 import {
@@ -4675,6 +4676,50 @@ const WorkflowContent = React.memo(
       focusBlockInView(node)
     }, [blocks, displayNodes, embedded, focusBlockInView, searchMatchBlockId, searchMatchId])
 
+    /**
+     * Inbound `?block=` target, held until the canvas can act on it. State rather than a ref
+     * because the effect below has to re-run on the commit that finally mounts the node.
+     */
+    const [deepLinkBlockId, setDeepLinkBlockId] = useState<string | null>(null)
+
+    useEffect(() => {
+      if (embedded || !deepLinkBlockId) return
+
+      /* Same reason as the note reveal above: read from `displayNodes` so a target that lands
+         before its node mounts is retried on the mounting commit instead of dropped. A block id
+         that never mounts — deleted since the link was made — simply leaves the workflow at its
+         default framing, which is what the link did before it carried a target. */
+      const node = displayNodes.find((candidate) => candidate.id === deepLinkBlockId)
+      if (!node) return
+
+      setDeepLinkBlockId(null)
+
+      /* Claim the framing before the canvas can re-init over it. `onInit` re-reads this ref
+         inside its own `requestAnimationFrame`, so setting it here suppresses the initial
+         `fitView` whenever this effect wins the race — and is harmless when it does not, since
+         `focusBlockInView` animates from wherever the fit left the camera. */
+      userFocusedWorkflowIdRef.current = activeWorkflowId ?? workflowIdParam
+
+      setDisplayNodes((currentNodes) =>
+        resolveSelectionConflicts(
+          currentNodes.map((currentNode) => ({
+            ...currentNode,
+            selected: currentNode.id === node.id,
+          })),
+          blocks
+        )
+      )
+      focusBlockInView(node)
+    }, [
+      activeWorkflowId,
+      blocks,
+      deepLinkBlockId,
+      displayNodes,
+      embedded,
+      focusBlockInView,
+      workflowIdParam,
+    ])
+
     /** Handles edge selection with container context tracking and Shift-click multi-selection. */
     const onEdgeClick = useCallback(
       (event: React.MouseEvent, edge: any) => {
@@ -5141,6 +5186,10 @@ const WorkflowContent = React.memo(
 
                 {!embedded && (
                   <>
+                    {/* Renders nothing; the boundary is what `useSearchParams` needs. */}
+                    <Suspense fallback={null}>
+                      <FocusBlockDeepLink onTarget={setDeepLinkBlockId} />
+                    </Suspense>
                     <WorkflowControls />
                     <Suspense fallback={null}>
                       <LazyChat />

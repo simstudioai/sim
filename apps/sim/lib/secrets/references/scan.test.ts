@@ -142,6 +142,30 @@ describe('scanSecretReferences', () => {
     expect(['apiKey', 'headers']).toContain(blocks[0]?.field)
   })
 
+  /**
+   * `{subBlockId}-tool-{index}-{paramId}` keys are a client-only projection of the canonical
+   * `tool-input` value that older rows persisted anyway. Reporting one puts an internal key
+   * where the reader expects a field name, so the canonical sub-block has to win.
+   */
+  it('reports the canonical field rather than a persisted tool mirror', async () => {
+    queueTableRows(schemaMock.workflowBlocks, [
+      blockRow({
+        blockId: 'block-1',
+        blockName: 'Agent 1',
+        workflowId: 'workflow-1',
+        workflowName: 'Exa Tool Demo',
+        subBlocks: {
+          ...shortInput('tools', [{ params: { code: 'const k = "{{API_KEY}}"' } }]),
+          ...shortInput('tools-tool-0-code', 'const k = "{{API_KEY}}"'),
+        },
+      }),
+    ])
+
+    const scan = await scanSecretReferences({ workspaceId: 'workspace-1', name: 'API_KEY' })
+
+    expect(scan.workflows[0]?.blocks[0]?.field).toBe('tools')
+  })
+
   it('finds a reference nested inside a sub-block value', async () => {
     queueTableRows(schemaMock.workflowBlocks, [
       blockRow({

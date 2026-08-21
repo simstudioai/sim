@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { and, asc, eq, isNull, sql } from 'drizzle-orm'
 import type { SubBlockRecord } from '@/lib/workflows/persistence/remap-internal-ids'
 import type { CanonicalModeOverrides } from '@/lib/workflows/subblocks/visibility'
+import { isSyntheticToolSubBlockId } from '@/lib/workflows/tool-input/synthetic-subblocks'
 import { ENV_REF_PATTERN, remapSubBlocks } from '@/ee/workspace-forking/lib/remap/remap-references'
 
 const logger = createLogger('SecretReferenceScan')
@@ -34,6 +35,28 @@ const RESOURCE_EMIT_LIMIT = 400
  * SQL regex below without escaping, since it cannot carry a metacharacter.
  */
 const ENV_KEY_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/
+
+/**
+ * Drops the `{subBlockId}-tool-{index}-{paramId}` mirrors a tool row renders with.
+ *
+ * Those ids are documented as an ephemeral, client-only projection of the value held canonically
+ * at `tool.params[paramId]` inside the aggregate `tool-input` sub-block — they are not supposed
+ * to be persisted at all, but rows predating that rule still carry them. Left in, the scanner
+ * reports whichever the record happens to yield last, which surfaced an internal key like
+ * `tools-tool-0-code` where the reader expects a field.
+ *
+ * Removing them is right even when the two disagree: the canonical `tool.params` is what
+ * executes, so a mirror the canonical no longer matches describes a reference that no longer
+ * runs.
+ */
+function withoutToolMirrors(subBlocks: SubBlockRecord): SubBlockRecord {
+  const canonical: SubBlockRecord = {}
+  for (const [key, value] of Object.entries(subBlocks)) {
+    if (isSyntheticToolSubBlockId(key)) continue
+    canonical[key] = value
+  }
+  return canonical
+}
 
 export interface SecretReferenceBlock {
   blockId: string
@@ -203,13 +226,17 @@ export async function scanSecretReferences({
   for (const row of blocks.slice(0, BLOCK_SCAN_LIMIT)) {
     let field: string | undefined
     try {
-      const { references } = remapSubBlocks(row.subBlocks as SubBlockRecord, () => null, {
-        blockId: row.blockId,
-        blockName: row.blockName,
-        blockType: row.blockType,
-        canonicalModes: (row.data as { canonicalModes?: CanonicalModeOverrides } | null)
-          ?.canonicalModes,
-      })
+      const { references } = remapSubBlocks(
+        withoutToolMirrors(row.subBlocks as SubBlockRecord),
+        () => null,
+        {
+          blockId: row.blockId,
+          blockName: row.blockName,
+          blockType: row.blockType,
+          canonicalModes: (row.data as { canonicalModes?: CanonicalModeOverrides } | null)
+            ?.canonicalModes,
+        }
+      )
       field = references.find(
         (reference) => reference.kind === 'env-var' && reference.sourceId === name
       )?.subBlockKey
