@@ -448,6 +448,76 @@ export async function completeSyncLog(
 }
 
 /**
+ * Matches the connector row only while this run still holds its sync lock.
+ *
+ * `executeSync` sets `status = 'syncing'` when it acquires the lock, so that
+ * value means "I am still the writer". Anything else means another actor took
+ * the row: the scheduler's stale sweep reclaimed it to `error`/`disabled` and
+ * may already have dispatched a replacement, or a user paused it. In every such
+ * case this run's terminal write must not land — otherwise it clears a backoff
+ * the breaker just set, un-disables a connector, or flips a paused connector
+ * back to `active`.
+ *
+ * Guards both terminal paths. The failure path needs it as much as the success
+ * path: a reclaimed run's failure would double-increment a counter the sweep
+ * already advanced and overwrite its backoff with a shorter one.
+ */
+export function stillHoldsSyncLock(connectorId: string) {
+  return and(
+    eq(knowledgeConnector.id, connectorId),
+    eq(knowledgeConnector.status, 'syncing'),
+    isNull(knowledgeConnector.archivedAt),
+    isNull(knowledgeConnector.deletedAt)
+  )
+}
+
+/** Columns a terminal write may set. Both paths write a subset of the same set. */
+type ConnectorTerminalUpdate = Partial<typeof knowledgeConnector.$inferInsert>
+
+/**
+ * The only way a sync run writes its terminal state onto the connector row.
+ *
+ * Callers pass their own values and never build a WHERE clause: the
+ * {@link stillHoldsSyncLock} guard is applied here, so there is exactly one
+ * place it can be removed from and a terminal path added later cannot forget
+ * it. Returns whether the write landed — false means the run was reclaimed
+ * mid-flight and its bookkeeping was discarded in favour of whoever took the
+ * row.
+ */
+export async function writeTerminalConnectorState(
+  connectorId: string,
+  values: ConnectorTerminalUpdate
+): Promise<boolean> {
+  const written = await db
+    .update(knowledgeConnector)
+    .set(values)
+    .where(stillHoldsSyncLock(connectorId))
+    .returning({ id: knowledgeConnector.id })
+
+  return written.length > 0
+}
+
+/**
+ * Reported when a run's terminal write matched no rows because the run no longer
+ * held its lock. Its document writes still landed; only its connector-level
+ * bookkeeping was discarded, in favour of whoever reclaimed the row.
+ */
+export const SUPERSEDED_SYNC_ERROR = 'sync_superseded'
+
+/**
+ * Marks a superseded run so the task wrapper's `success: !result.error` does not
+ * report a discarded run as a clean sync — the same reason a lock-contended run
+ * returns `sync_in_progress` rather than an empty success.
+ */
+export function applySupersededOutcome(
+  result: SyncResult,
+  terminalWriteLanded: boolean
+): SyncResult {
+  if (terminalWriteLanded) return result
+  return { ...result, error: SUPERSEDED_SYNC_ERROR }
+}
+
+/**
  * Decides whether deletion reconciliation may run for a sync.
  *
  * Reconciliation hard-deletes every stored document absent from the listing,
@@ -1913,23 +1983,24 @@ export async function executeSync(
       )
 
     const now = new Date()
-    await db
-      .update(knowledgeConnector)
-      .set(
-        buildSyncSuccessUpdate(
-          now,
-          actualDocCount,
-          calculateNextSyncTime(connector.syncIntervalMinutes),
-          reconciliationHoldNotice
-        )
+    const successWriteLanded = await writeTerminalConnectorState(
+      connectorId,
+      buildSyncSuccessUpdate(
+        now,
+        actualDocCount,
+        calculateNextSyncTime(connector.syncIntervalMinutes),
+        reconciliationHoldNotice
       )
-      .where(
-        and(
-          eq(knowledgeConnector.id, connectorId),
-          isNull(knowledgeConnector.archivedAt),
-          isNull(knowledgeConnector.deletedAt)
-        )
-      )
+    )
+
+    if (!successWriteLanded) {
+      logger.warn('Sync result discarded — connector was reclaimed while this run was executing', {
+        connectorId,
+        syncLogId,
+        ...result,
+      })
+      return applySupersededOutcome(result, false)
+    }
 
     logger.info('Sync completed', { connectorId, ...result })
     return result
@@ -1982,24 +2053,29 @@ export async function executeSync(
         })
       }
 
-      await db
-        .update(knowledgeConnector)
-        .set({
-          status: disabled ? 'disabled' : 'error',
-          lastSyncError: disabled
-            ? 'Connector disabled after repeated sync failures. Please reconnect.'
-            : errorMessage,
-          nextSyncAt: nextSync,
-          consecutiveFailures: failures,
-          updatedAt: now,
-        })
-        .where(
-          and(
-            eq(knowledgeConnector.id, connectorId),
-            isNull(knowledgeConnector.archivedAt),
-            isNull(knowledgeConnector.deletedAt)
-          )
+      const failureWriteLanded = await writeTerminalConnectorState(connectorId, {
+        status: disabled ? 'disabled' : 'error',
+        lastSyncError: disabled
+          ? 'Connector disabled after repeated sync failures. Please reconnect.'
+          : errorMessage,
+        nextSyncAt: nextSync,
+        consecutiveFailures: failures,
+        updatedAt: now,
+      })
+
+      /**
+       * Deliberately does NOT get {@link applySupersededOutcome}. `result.error`
+       * is set to the real failure cause below and the task wrapper already
+       * reports this run as unsuccessful, so overwriting it with
+       * `sync_superseded` would destroy the diagnostic without changing the
+       * reported outcome. The supersession is carried by this log line instead.
+       */
+      if (!failureWriteLanded) {
+        logger.warn(
+          'Sync failure discarded — connector was reclaimed while this run was executing',
+          { connectorId, syncLogId, error: errorMessage }
         )
+      }
     } catch (recoveryError) {
       logger.error('Failed to record sync failure', {
         connectorId,

@@ -1277,3 +1277,146 @@ describe('completeSyncLog', () => {
     ).toBe(true)
   })
 })
+
+describe('stillHoldsSyncLock', () => {
+  it('requires the connector to still be syncing', async () => {
+    const { stillHoldsSyncLock } = await import('@/lib/knowledge/connectors/sync-engine')
+
+    /**
+     * Without this a run reclaimed by the stale sweep still writes its terminal
+     * result: clearing the backoff, un-disabling the connector, and resetting a
+     * failure counter the sweep just advanced.
+     */
+    expect(
+      hasMockCondition(
+        stillHoldsSyncLock('c-1'),
+        (node: MockCondition) =>
+          node.type === 'eq' &&
+          node.left === schemaMock.knowledgeConnector.status &&
+          node.right === 'syncing'
+      )
+    ).toBe(true)
+  })
+
+  it('still scopes to the connector and skips archived or deleted rows', async () => {
+    const { stillHoldsSyncLock } = await import('@/lib/knowledge/connectors/sync-engine')
+
+    const condition = stillHoldsSyncLock('c-1')
+
+    expect(
+      hasMockCondition(
+        condition,
+        (node: MockCondition) =>
+          node.type === 'eq' &&
+          node.left === schemaMock.knowledgeConnector.id &&
+          node.right === 'c-1'
+      )
+    ).toBe(true)
+    expect(
+      hasMockCondition(
+        condition,
+        (node: MockCondition) =>
+          node.type === 'isNull' && node.column === schemaMock.knowledgeConnector.archivedAt
+      )
+    ).toBe(true)
+    expect(
+      hasMockCondition(
+        condition,
+        (node: MockCondition) =>
+          node.type === 'isNull' && node.column === schemaMock.knowledgeConnector.deletedAt
+      )
+    ).toBe(true)
+  })
+})
+
+describe('writeTerminalConnectorState', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
+  it('applies the sync-lock guard itself so no caller can omit it', async () => {
+    const { writeTerminalConnectorState } = await import('@/lib/knowledge/connectors/sync-engine')
+
+    /**
+     * The property that closes the gap a shared-helper-by-convention left open:
+     * both terminal paths route through here and neither builds a WHERE clause,
+     * so removing the guard is a single-site edit that this assertion catches.
+     */
+    await writeTerminalConnectorState('c-1', { status: 'active' })
+
+    const where = dbChainMockFns.where.mock.calls[0][0]
+    expect(
+      hasMockCondition(
+        where,
+        (node: MockCondition) =>
+          node.type === 'eq' &&
+          node.left === schemaMock.knowledgeConnector.status &&
+          node.right === 'syncing'
+      )
+    ).toBe(true)
+    expect(
+      hasMockCondition(
+        where,
+        (node: MockCondition) =>
+          node.type === 'eq' &&
+          node.left === schemaMock.knowledgeConnector.id &&
+          node.right === 'c-1'
+      )
+    ).toBe(true)
+  })
+
+  it('passes the caller values through untouched', async () => {
+    const { writeTerminalConnectorState } = await import('@/lib/knowledge/connectors/sync-engine')
+
+    const values = { status: 'error', consecutiveFailures: 4, nextSyncAt: null }
+    await writeTerminalConnectorState('c-1', values)
+
+    expect(dbChainMockFns.set.mock.calls[0][0]).toEqual(values)
+  })
+
+  it('reports whether the write landed', async () => {
+    const { writeTerminalConnectorState } = await import('@/lib/knowledge/connectors/sync-engine')
+
+    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'c-1' }])
+    expect(await writeTerminalConnectorState('c-1', { status: 'active' })).toBe(true)
+
+    dbChainMockFns.returning.mockResolvedValueOnce([])
+    expect(await writeTerminalConnectorState('c-1', { status: 'active' })).toBe(false)
+  })
+})
+
+describe('applySupersededOutcome', () => {
+  const result = {
+    docsAdded: 3,
+    docsUpdated: 1,
+    docsDeleted: 0,
+    docsUnchanged: 2,
+    docsFailed: 0,
+  }
+
+  it('leaves a run that kept its lock untouched', async () => {
+    const { applySupersededOutcome } = await import('@/lib/knowledge/connectors/sync-engine')
+
+    expect(applySupersededOutcome(result, true)).toEqual(result)
+  })
+
+  it('flags a discarded run so the task wrapper does not report it as clean', async () => {
+    const { applySupersededOutcome, SUPERSEDED_SYNC_ERROR } = await import(
+      '@/lib/knowledge/connectors/sync-engine'
+    )
+
+    const superseded = applySupersededOutcome(result, false)
+
+    // The task wrapper reports `success: !result.error`.
+    expect(superseded.error).toBe(SUPERSEDED_SYNC_ERROR)
+    expect(Boolean(superseded.error)).toBe(true)
+  })
+
+  it('preserves the document counters of the discarded run', async () => {
+    const { applySupersededOutcome } = await import('@/lib/knowledge/connectors/sync-engine')
+
+    // Those writes landed — only the connector-level bookkeeping was discarded.
+    expect(applySupersededOutcome(result, false)).toMatchObject(result)
+  })
+})
