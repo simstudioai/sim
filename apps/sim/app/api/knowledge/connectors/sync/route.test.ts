@@ -214,27 +214,64 @@ describe('connector sync scheduler stale-lock reaper', () => {
     ).toBe(true)
   })
 
-  it('spares the log row of a run that still holds its connector lock', async () => {
+  /** The `NOT EXISTS` liveness fragment the sweep's WHERE carries. */
+  function sweepLivenessFragment(): MockSqlFragment {
+    const where = dbChainMockFns.where.mock.calls[1][0]
+    const fragment = flattenMockConditions(where).find(
+      (node: MockCondition) => typeof node.toSQL === 'function'
+    )
+    expect(fragment).toBeDefined()
+    return fragment as unknown as MockSqlFragment
+  }
+
+  it('spares the log row of a run whose lock is still being heartbeated', async () => {
     await runTickRecovering(['connector-1'])
 
     /**
      * The sweep keys on `startedAt`, which no heartbeat refreshes, so age alone
      * would close a legitimately long in-process run's row and record a
-     * successful sync as failed.
+     * successful sync as failed. Every clause is pinned: sparing requires the
+     * connector to be locked, THIS row's run to be the holder, and that lock to
+     * be live — an orphan can satisfy at most two.
      */
-    const where = dbChainMockFns.where.mock.calls[1][0]
-    const liveness = flattenMockConditions(where).find(
-      (node: MockCondition) => typeof node.toSQL === 'function'
+    const rendered = sweepLivenessFragment().toSQL().sql.replace(/\s+/g, ' ').trim()
+
+    expect(rendered).toBe(
+      "NOT EXISTS ( SELECT 1 FROM ? WHERE ? = ? AND ? = ? AND ? = 'syncing' AND ? > ? )"
     )
-    expect(liveness).toBeDefined()
+  })
 
-    const rendered = (liveness as unknown as MockSqlFragment).toSQL().sql
-    expect(rendered).toContain('NOT EXISTS')
-    expect(rendered).toContain("'syncing'")
+  it('identifies the lock holder by token, not merely by the connector syncing', async () => {
+    await runTickRecovering(['connector-1'])
 
-    const bound = (liveness as unknown as MockSqlFragment).values
-    expect(bound).toContain(schemaMock.knowledgeConnector.syncLockToken)
-    expect(bound).toContain(schemaMock.knowledgeConnectorSyncLog.id)
+    /**
+     * Without the token clause the sweep spares every `started` row on a locked
+     * connector — including an orphan from a crashed run whose replacement now
+     * holds the lock, which would then never drain while that connector stays
+     * busy.
+     */
+    expect(sweepLivenessFragment().values).toContain(schemaMock.knowledgeConnector.syncLockToken)
+  })
+
+  it('requires the held lock to be heartbeated, not merely held', async () => {
+    await runTickRecovering(['connector-1'])
+
+    /**
+     * Without the freshness clause a run that died without being reclaimed — or
+     * one on an archived or deleted connector, which the reclaim skips entirely
+     * — keeps `status = 'syncing'` and its token forever, so its row is spared
+     * forever.
+     */
+    const bound = sweepLivenessFragment().values
+    expect(bound).toContain(schemaMock.knowledgeConnector.updatedAt)
+
+    const cutoff = bound.find(
+      (value): value is { value: Date } =>
+        typeof value === 'object' &&
+        value !== null &&
+        (value as { value?: unknown }).value instanceof Date
+    )
+    expect(cutoff).toBeDefined()
   })
 
   it('closes stale sync-log rows even when no connector was reclaimed this tick', async () => {

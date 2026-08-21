@@ -32,25 +32,37 @@ const DISPATCH_CONCURRENCY = 10
 const STALE_LOCK_ERROR_MESSAGE = 'Sync timed out (stale lock recovered)'
 
 /**
- * Excludes a sync-log row whose run still demonstrably holds its connector's
- * lock.
+ * Excludes a sync-log row belonging to a run that is demonstrably still alive.
  *
  * The sweep keys on `startedAt`, and nothing refreshes that — the heartbeat
  * renews `knowledge_connector.updatedAt`, and the log table has no equivalent
  * column. So a legitimately long in-process run keeps its connector lock but
  * would still have its log row closed as `failed` at the TTL, recording a
  * successful sync as a failure and losing its counters to
- * `loadPreviousListingObservation`. Matching the connector's `syncLockToken`
- * against the row's own id is exactly "this run is still the lock holder", so a
- * live run is spared while every orphan — reclaimed, replaced, or predating the
- * token column, where the token is NULL — is still swept.
+ * `loadPreviousListingObservation`, which reads only `completed` rows.
+ *
+ * The heartbeat is the single source of liveness truth, so this defers to it.
+ * Sparing requires all three of: the connector is locked, THIS row's run is the
+ * lock holder, and that lock is being heartbeated. An orphan can satisfy at most
+ * two, so none is ever stranded:
+ * - reclaimed after a hard kill — connector is `error`, token cleared;
+ * - a replacement holds the lock — the token is the successor's, not this row's;
+ * - died without being reclaimed, including on an archived or deleted connector
+ *   the reclaim skips entirely — `updatedAt` is stale.
+ *
+ * This re-references the connector row, which an earlier fix deliberately moved
+ * away from. That coupling was different: it restricted the sweep's candidate
+ * set to *this tick's reclaims*, which made a pre-existing backlog undrainable.
+ * This is a per-row liveness predicate — every stale row is still a candidate,
+ * so the sweep stays self-healing.
  */
-function runNoLongerHoldsItsLock(): SQL {
+function logRowNotHeldByLiveRun(staleCutoff: Date): SQL {
   return sql`NOT EXISTS (
     SELECT 1 FROM ${knowledgeConnector}
     WHERE ${knowledgeConnector.id} = ${knowledgeConnectorSyncLog.connectorId}
       AND ${knowledgeConnector.syncLockToken} = ${knowledgeConnectorSyncLog.id}
       AND ${knowledgeConnector.status} = 'syncing'
+      AND ${knowledgeConnector.updatedAt} > ${sql.param(staleCutoff, knowledgeConnector.updatedAt)}
   )`
 }
 
@@ -142,8 +154,8 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
      *
      * Age alone does not prove a run is dead: the in-process fallback path has
      * no duration cap, so a large self-hosted sync can genuinely still be
-     * working past the TTL. `runNoLongerHoldsItsLock` is what makes this safe —
-     * a run still holding its connector's lock is spared regardless of age.
+     * working past the TTL. `logRowNotHeldByLiveRun` is what makes this safe —
+     * a run whose lock is still being heartbeated is spared regardless of age.
      * The age predicate is also per-row on `startedAt`, so a fresh run's log row
      * can never be caught by it, even on a connector whose previous run is being
      * reclaimed in this same tick.
@@ -159,7 +171,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         and(
           eq(knowledgeConnectorSyncLog.status, 'started'),
           lte(knowledgeConnectorSyncLog.startedAt, staleCutoff),
-          runNoLongerHoldsItsLock()
+          logRowNotHeldByLiveRun(staleCutoff)
         )
       )
       .returning({ id: knowledgeConnectorSyncLog.id })
