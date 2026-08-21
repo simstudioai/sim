@@ -462,11 +462,18 @@ export interface ListSecretReferencesInput {
  *  - no workspace secret exists → the caller must actually hold a personal secret of that name,
  *    which stops a member enumerating arbitrary names for a map they have no claim to.
  */
+/**
+ * Which branch authorized the read. `personal` depends on no workspace value existing under the
+ * name — a condition another request can change — so only that branch needs re-checking after
+ * the scan. An `admin` caller stays authorized however the name resolves, and pays nothing.
+ */
+type SecretReferencesGrant = 'admin' | 'personal'
+
 async function requireSecretReferencesReadAccess(params: {
   workspaceId: string
   name: string
   userId: string
-}): Promise<void> {
+}): Promise<SecretReferencesGrant> {
   const [workspaceAccess, keyAccess] = await Promise.all([
     checkWorkspaceAccess(params.workspaceId, params.userId),
     getWorkspaceEnvKeyAdminAccess({
@@ -475,7 +482,7 @@ async function requireSecretReferencesReadAccess(params: {
       userId: params.userId,
     }),
   ])
-  if (workspaceAccess.canAdmin || keyAccess.adminKeys.has(params.name)) return
+  if (workspaceAccess.canAdmin || keyAccess.adminKeys.has(params.name)) return 'admin'
 
   const forbidden = new ForbiddenOperationError(
     'SECRET_ADMIN_ACCESS_REQUIRED',
@@ -501,6 +508,7 @@ async function requireSecretReferencesReadAccess(params: {
     envKey: params.name,
   })
   if (!owned) throw forbidden
+  return 'personal'
 }
 
 export const listSecretReferencesUseCase = defineAuthorizedWorkspaceUseCase({
@@ -509,10 +517,11 @@ export const listSecretReferencesUseCase = defineAuthorizedWorkspaceUseCase({
     resolveWorkspaceContext(input.workspaceId),
   authorizationOptions,
   async execute({ principal, input, context }) {
-    await requireSecretReferencesReadAccess({
+    const userId = principalUserId(principal)
+    const grant = await requireSecretReferencesReadAccess({
       workspaceId: context.workspaceId,
       name: input.name,
-      userId: principalUserId(principal),
+      userId,
     })
 
     /**
@@ -520,6 +529,28 @@ export const listSecretReferencesUseCase = defineAuthorizedWorkspaceUseCase({
      * for the personal one it shadows. Narrowing by scope would report a personal secret as
      * unreferenced the moment a workspace variable of the same name existed.
      */
-    return scanSecretReferences({ workspaceId: context.workspaceId, name: input.name })
+    const scan = await scanSecretReferences({
+      workspaceId: context.workspaceId,
+      name: input.name,
+    })
+
+    /**
+     * Re-check the one input that can change under us. A `personal` grant rests on no workspace
+     * value existing under this name; a workspace secret created between the check and the scan
+     * would make the very map now in hand admin-gated. The read is cheap and skipped entirely
+     * for an `admin` grant, and failing closed here costs a non-admin nothing they were entitled
+     * to keep — the request is simply refused the way it would have been a moment later.
+     */
+    if (
+      grant === 'personal' &&
+      (await hasWorkspaceEnvValue({ workspaceId: context.workspaceId, envKey: input.name }))
+    ) {
+      throw new ForbiddenOperationError(
+        'SECRET_ADMIN_ACCESS_REQUIRED',
+        'Credential admin permission required to view this secret usage'
+      )
+    }
+
+    return scan
   },
 })
