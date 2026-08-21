@@ -717,6 +717,8 @@ async function markDocumentsQueued(documentIds: string[], queuedAt: Date): Promi
       // Spent here because this is the one write every dispatch passes through,
       // and it is already guarded — so the budget cannot be charged twice for a
       // single dispatch, nor skipped by a caller that dispatches another way.
+      // Refunded by `clearDocumentsQueued` when the dispatch provably never
+      // happened, so only attempts a worker could have seen are ever spent.
       processingAttempts: sql`${document.processingAttempts} + 1`,
     })
     .where(and(inArray(document.id, documentIds), eq(document.processingStatus, 'pending')))
@@ -733,6 +735,18 @@ async function markDocumentsQueued(documentIds: string[], queuedAt: Date): Promi
  * failure is the one case where nothing was dispatched, so the stamp can be
  * taken back and the next sweep is free to reclaim them immediately.
  *
+ * The attempt {@link markDocumentsQueued} charged is refunded in the same
+ * statement. The budget exists to stop re-billing a document that keeps failing
+ * the same way *in processing*; an attempt that never reached a worker teaches
+ * it nothing. Leaving it spent let an infrastructure outage — a Trigger.dev
+ * region error, an exhausted quota — burn the allowance without a single run,
+ * and {@link MAX_PROCESSING_ATTEMPTS} such outages dead-letter a document the
+ * connector sweep then permanently excludes (`processingAttempts <
+ * MAX_PROCESSING_ATTEMPTS`), stranding it with no automatic recovery left.
+ * Floored at zero so a refund can never drive the count negative, and scoped by
+ * the same guard as the stamp, so it can only ever give back the charge this
+ * call made.
+ *
  * Scoped three ways so it can only ever undo its own write: to the ids in this
  * batch, to rows still `pending` (a worker that has since claimed one keeps its
  * timestamps — see {@link markDocumentsQueued}), and to the exact stamp this
@@ -742,7 +756,10 @@ async function markDocumentsQueued(documentIds: string[], queuedAt: Date): Promi
 async function clearDocumentsQueued(documentIds: string[], queuedAt: Date): Promise<void> {
   await db
     .update(document)
-    .set({ processingQueuedAt: null })
+    .set({
+      processingQueuedAt: null,
+      processingAttempts: sql`GREATEST(${document.processingAttempts} - 1, 0)`,
+    })
     .where(
       and(
         inArray(document.id, documentIds),
