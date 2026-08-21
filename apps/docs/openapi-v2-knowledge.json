@@ -1401,7 +1401,7 @@
       "post": {
         "operationId": "createKnowledgeTag",
         "summary": "Create Tag",
-        "description": "Define a tag on a knowledge base. Define a tag here, write its `tagSlot` on a document with `PATCH /api/v2/knowledge/{id}/documents/{documentId}`, then filter by its `displayName` on the document list or on search. Omit `tagSlot` to take the next free slot for the field type; a field type with no free slot left is a `400` naming it, since the remedy is a different type or a deleted definition rather than a retry. A workspace API key is rejected with `403`; use a personal API key.",
+        "description": "Define a tag on a knowledge base. Define a tag here, write its `tagSlot` on a document with `PATCH /api/v2/knowledge/{id}/documents/{documentId}`, then filter by its `displayName` on the document list or on search. Omit `tagSlot` to take the next free slot for the field type; a field type with no free slot left is a `400` naming it, since the remedy is a different type or a deleted definition rather than a retry. A `tagSlot` already taken, or a `displayName` already defined on this knowledge base, is a `409` naming which of the two to change. A workspace API key is rejected with `403`; use a personal API key.",
         "tags": ["Knowledge Bases"],
         "parameters": [
           {
@@ -1460,6 +1460,9 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
           },
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
@@ -3782,7 +3785,7 @@
       "patch": {
         "operationId": "updateKnowledgeTag",
         "summary": "Update Tag",
-        "description": "Rename a tag or change the value type stored in its slot. Renaming changes the name filters and document reads use; the slot, and every value in it, is untouched. A workspace API key is rejected with `403`; use a personal API key.",
+        "description": "Rename a tag or change the value type stored in its slot. Renaming changes the name filters and document reads use; the slot, and every value in it, is untouched. A name another tag on this knowledge base already holds is a `409`. A workspace API key is rejected with `403`; use a personal API key.",
         "tags": ["Knowledge Bases"],
         "parameters": [
           {
@@ -3852,6 +3855,9 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
           },
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"

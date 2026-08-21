@@ -248,6 +248,79 @@ describe('knowledge tag application use cases', () => {
     expect(mocks.recordAudit).not.toHaveBeenCalled()
   })
 
+  /**
+   * Neither uniqueness invariant can be checked before the write: the read that
+   * would check it and the insert that depends on the answer are separate
+   * statements. `tagSlot` is a caller parameter too, so an occupied slot reaches
+   * the index on the first try — a 500 for an ordinary well-formed request.
+   */
+  it.each([
+    ['kb_tag_definitions_kb_slot_idx', /slot is already in use/i],
+    ['kb_tag_definitions_kb_display_name_idx', /name already exists/i],
+  ])('reports a create that loses at %s as a conflict', async (constraint, message) => {
+    mocks.createTag.mockRejectedValueOnce(
+      Object.assign(new Error('duplicate key value violates unique constraint'), {
+        code: '23505',
+        constraint_name: constraint,
+      })
+    )
+
+    await expect(
+      createKnowledgeTag.execute({
+        principal: sessionPrincipal,
+        input: {
+          knowledgeBaseId: 'knowledge-b',
+          tagSlot: 'tag1',
+          displayName: 'Region',
+          fieldType: 'text',
+        },
+      })
+    ).rejects.toMatchObject({ code: 'conflict', message: expect.stringMatching(message) })
+
+    expect(mocks.recordAudit).not.toHaveBeenCalled()
+  })
+
+  it('reports a rename onto a taken name as a conflict', async () => {
+    mocks.updateTag.mockRejectedValueOnce(
+      Object.assign(new Error('duplicate key value violates unique constraint'), {
+        code: '23505',
+        constraint_name: 'kb_tag_definitions_kb_display_name_idx',
+      })
+    )
+
+    await expect(
+      updateKnowledgeTag.execute({
+        principal: sessionPrincipal,
+        input: {
+          knowledgeBaseId: 'knowledge-b',
+          tagDefinitionId: 'tag-1',
+          updates: { displayName: 'Region' },
+        },
+      })
+    ).rejects.toMatchObject({ code: 'conflict' })
+  })
+
+  /** A not-null or foreign-key violation is a real fault and must stay one. */
+  it('propagates a non-uniqueness database failure', async () => {
+    mocks.createTag.mockRejectedValueOnce(
+      Object.assign(new Error('null value in column violates not-null constraint'), {
+        code: '23502',
+      })
+    )
+
+    await expect(
+      createKnowledgeTag.execute({
+        principal: sessionPrincipal,
+        input: {
+          knowledgeBaseId: 'knowledge-b',
+          tagSlot: 'tag1',
+          displayName: 'Region',
+          fieldType: 'text',
+        },
+      })
+    ).rejects.toThrow('not-null constraint')
+  })
+
   it('accepts a create slot matching its field type', async () => {
     const tagDefinition = { ...tagContext.tagDefinition, id: 'tag-new' }
     mocks.createTag.mockResolvedValueOnce(tagDefinition)

@@ -1122,34 +1122,6 @@ Also available as `sim files mv`.
 
 </CommandTable>
 
-### sim files purge
-
-Permanently delete a file and its stored bytes
-
-```bash
-sim files purge <fileId> [options]
-```
-
-**Arguments**
-
-<CommandTable>
-
-| Argument | Required | Description |
-| --- | --- | --- |
-| `fileId` | Yes | File identifier. |
-
-</CommandTable>
-
-**Options**
-
-<CommandTable>
-
-| Option | Required | Description |
-| --- | --- | --- |
-| `-y, --yes` | Yes | Confirm this destructive operation. |
-
-</CommandTable>
-
 ### sim files text list
 
 Read File Text
@@ -5462,7 +5434,7 @@ sim workflows restore create <id>
 Revert Workflow To Version
 
 ```bash
-sim workflows revert create <id> <version>
+sim workflows revert create <id> <version> [options]
 ```
 
 **Arguments**
@@ -5473,6 +5445,16 @@ sim workflows revert create <id> <version>
 | --- | --- | --- |
 | `id` | Yes | Unique workflow identifier. |
 | `version` | Yes | Numeric deployment version, or `active` for the currently live version. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `-y, --yes` | Yes | Confirm this destructive operation. |
 
 </CommandTable>
 

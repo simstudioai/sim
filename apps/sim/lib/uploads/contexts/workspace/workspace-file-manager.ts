@@ -2161,65 +2161,6 @@ export interface PermanentlyDeleteWorkspaceFileResult {
   objectDeleted: boolean
 }
 
-/**
- * Irreversibly destroys an archived workspace file: its row first, then its
- * stored bytes.
- *
- * The ordering is deliberate and must not be reversed. Row and object deletion
- * commit independently, so one of them can survive a crash between the two.
- * Deleting the row first leaves at most an orphaned object, which the storage
- * cleanup job reclaims and which nothing user-facing references. Deleting the
- * object first would leave a live row pointing at bytes that no longer exist —
- * a file that lists, opens, and downloads as a hard error with no path back.
- *
- * A failure to delete the object is therefore reported, not thrown: the
- * caller's request has genuinely succeeded once the row is gone.
- */
-export async function permanentlyDeleteWorkspaceFile(
-  workspaceId: string,
-  fileId: string
-): Promise<PermanentlyDeleteWorkspaceFileResult> {
-  logger.info(`Permanently deleting workspace file: ${fileId}`)
-
-  const fileRecord = await findWorkspaceFileForLifecycle(db, workspaceId, fileId)
-  if (!fileRecord) {
-    throw new OrchestrationError('not_found', 'File not found')
-  }
-
-  /**
-   * Permanent deletion is the second step of a deliberate two-step. Requiring
-   * the file to already be archived means no single request can destroy a live
-   * file's bytes.
-   */
-  if (!fileRecord.deletedAt) {
-    throw new OrchestrationError(
-      'conflict',
-      `"${fileRecord.originalName}" is not archived. Archive it first with DELETE /api/v2/files/${fileId}`
-    )
-  }
-
-  const file = mapWorkspaceFileRecord(fileRecord, workspaceId, new Map())
-
-  await db
-    .delete(workspaceFiles)
-    .where(and(eq(workspaceFiles.id, fileId), eq(workspaceFiles.workspaceId, workspaceId)))
-
-  let objectDeleted = true
-  try {
-    await deleteFile({ key: file.key, context: file.storageContext ?? 'workspace' })
-  } catch (error) {
-    objectDeleted = false
-    logger.warn('Permanently deleted workspace file row but left its stored object orphaned', {
-      workspaceId,
-      fileId,
-      key: file.key,
-      error: getErrorMessage(error),
-    })
-  }
-
-  return { file, objectDeleted }
-}
-
 export async function restoreWorkspaceFile(workspaceId: string, fileId: string): Promise<void> {
   logger.info(`Restoring workspace file: ${fileId}`)
 

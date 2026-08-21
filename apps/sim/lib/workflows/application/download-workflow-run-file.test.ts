@@ -209,6 +209,26 @@ describe('downloadWorkflowRunFileStream', () => {
     ).rejects.toThrow('s3 unavailable')
   })
 
+  /**
+   * A run's log row outlives its bytes, so an object retention has collected is
+   * reachable through a perfectly valid run and file id. It resolves to the same
+   * shared not-found message as an unknown id, deliberately: separating them
+   * would tell a caller which ids exist.
+   */
+  it.each(['NoSuchKey', 'BlobNotFound', 'NotFound'])(
+    'reports a swept object (%s) as not found rather than a fault',
+    async (name) => {
+      mocks.downloadFileStream.mockRejectedValueOnce(Object.assign(new Error('gone'), { name }))
+
+      await expect(
+        downloadWorkflowRunFileStream.execute({
+          principal: workspaceKeyPrincipal,
+          input: input(),
+        })
+      ).rejects.toMatchObject({ code: 'not_found' })
+    }
+  )
+
   it('falls back to a generic content type when the record has none', async () => {
     mocks.getRunFiles.mockResolvedValueOnce(terminalRun([runFile({ type: '' })]))
 

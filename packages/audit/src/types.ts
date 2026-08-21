@@ -87,7 +87,6 @@ export const AuditAction = {
    * Irreversible destruction of a file's row and stored bytes. Deliberately not
    * a reuse of {@link FILE_DELETED}, which records the recoverable archive step.
    */
-  FILE_PERMANENTLY_DELETED: 'file.permanently_deleted',
   FILE_RESTORED: 'file.restored',
   FILE_MOVED: 'file.moved',
   FILE_SHARED: 'file.shared',

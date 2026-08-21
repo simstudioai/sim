@@ -346,6 +346,13 @@ export const CLI_CONTRACT: CliContract = {
   applyWorkflowVariables: {
     confirm: 'This replaces the workflow’s variables and cannot be undone.',
   },
+  // A revert is a graph write too: it overwrites the draft with an older
+  // deployment's graph. Nothing about the name says "delete", so the destructive
+  // sweep does not reach it, and the work it discards is whatever is in the
+  // draft right now.
+  revertWorkflowVersion: {
+    confirm: 'This overwrites the draft graph with the selected version and cannot be undone.',
+  },
   moveWorkflows: {
     flags: {
       workflowIds: { name: 'workflow', list: true },
@@ -742,11 +749,6 @@ export const CLI_CONTRACT: CliContract = {
     positionals: ['path'],
     flags: { path: FOLDER_PATH_INPUT },
     describe: 'Restore an archived file folder',
-  },
-  permanentlyDeleteFile: {
-    command: 'files purge',
-    describe: 'Permanently delete a file and its stored bytes',
-    confirm: 'This deletes the file and its stored bytes for good. It cannot be undone.',
   },
   bulkDownloadFiles: {
     command: 'files bulk-download',

@@ -902,50 +902,6 @@ export const v2ExtractFileContract = defineRouteContract({
   },
 })
 
-export const v2PermanentlyDeleteFileQuerySchema = z
-  .object({
-    workspaceId: workspaceIdSchema.describe('Workspace that owns the archived file.'),
-  })
-  .strict()
-export type V2PermanentlyDeleteFileQuery = z.output<typeof v2PermanentlyDeleteFileQuerySchema>
-
-export const v2PermanentlyDeleteFileDataSchema = z
-  .object({
-    id: workspaceFileIdSchema.describe('Identifier of the destroyed file.'),
-    deleted: z.literal(true).describe('Always true; the row no longer exists.'),
-    objectDeleted: z
-      .boolean()
-      .describe(
-        'Whether the stored bytes were removed along with the row. False means the object outlived its row and awaits the storage sweep; the file is gone either way and the request does not need retrying.'
-      ),
-  })
-  .strict()
-  .meta({
-    id: 'V2FilePermanentDeletion',
-    title: 'Permanent file deletion result',
-    description: 'Outcome of irreversibly destroying an archived workspace file.',
-  })
-export type V2FilePermanentDeletion = z.output<typeof v2PermanentlyDeleteFileDataSchema>
-
-/**
- * Irreversibly destroys an archived file's row and stored bytes.
- *
- * A distinct path rather than a flag on the ordinary delete: a query parameter
- * that turns a recoverable archive into an irreversible destruction is the kind
- * of thing a client sets by accident, and the two acts carry different minimum
- * roles, which one route declaration cannot express.
- */
-export const v2PermanentlyDeleteFileContract = defineRouteContract({
-  method: 'DELETE',
-  path: '/api/v2/files/[fileId]/permanent',
-  params: v2FileParamsSchema,
-  query: v2PermanentlyDeleteFileQuerySchema,
-  response: {
-    mode: 'json',
-    schema: v2DataResponse(v2PermanentlyDeleteFileDataSchema),
-  },
-})
-
 export const v2RestoreFileContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/files/[fileId]/restore',

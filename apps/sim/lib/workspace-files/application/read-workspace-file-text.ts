@@ -11,9 +11,11 @@ import {
   formatFileSize,
   getFileExtension,
   MAX_TEXT_EXTRACTION_BYTES,
+  needsRenderedArtifact,
 } from '@/lib/uploads/utils/file-utils'
 import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
+import { resolveRenderedWorkspaceArtifact } from '@/lib/workspace-files/application/resolve-rendered-workspace-artifact'
 import { resolveActiveWorkspaceFileContext } from '@/lib/workspace-files/application/workspace-file-context'
 
 export interface ReadWorkspaceFileTextInput {
@@ -38,9 +40,27 @@ export interface ReadWorkspaceFileTextResult {
   byteCount: number
 }
 
+/**
+ * Reads an ordinary uploaded file's bytes.
+ *
+ * The stored size is authoritative for these, so an oversized file is refused
+ * before any bytes are fetched. It is NOT authoritative for a generation source,
+ * which is why that path is bounded by the artifact ceiling instead.
+ */
+async function readSourceBuffer(file: WorkspaceFileRecord, maxBytes: number): Promise<Buffer> {
+  if (file.size > maxBytes) {
+    throw new OrchestrationError(
+      'payload_too_large',
+      `"${file.name}" is ${formatFileSize(file.size)}, above the ${formatFileSize(maxBytes)} text-extraction limit; download the raw bytes with GET /api/v2/files/${file.id}`
+    )
+  }
+  return fetchWorkspaceFileBuffer(file, { maxBytes })
+}
+
 async function executeReadWorkspaceFileText({
   input,
   context,
+  principal,
 }: AuthorizedWorkspaceUseCaseContext<
   typeof fileOperations.readContent,
   ReadWorkspaceFileTextInput,
@@ -58,14 +78,24 @@ async function executeReadWorkspaceFileText({
   }
 
   const maxBytes = Math.min(input.maxBytes ?? MAX_TEXT_EXTRACTION_BYTES, MAX_TEXT_EXTRACTION_BYTES)
-  if (file.size > maxBytes) {
-    throw new OrchestrationError(
-      'payload_too_large',
-      `"${file.name}" is ${formatFileSize(file.size)}, above the ${formatFileSize(maxBytes)} text-extraction limit; download the raw bytes with GET /api/v2/files/${file.id}`
-    )
-  }
 
-  const content = await fetchWorkspaceFileBuffer(file, { maxBytes })
+  /**
+   * A generated document stores its generation SOURCE under a document-shaped
+   * name, so parsing `file.key` by extension alone feeds a PDF parser
+   * JavaScript — a 500 on `.pdf`, and on `.docx` a "successful" extraction of
+   * the generator script reported as undegraded content. The compiled artifact
+   * is what the name promises, so it is what gets parsed. Matches the download
+   * path, which resolves the same artifact for the same reason.
+   */
+  const content = needsRenderedArtifact(file.type, file.name)
+    ? (
+        await resolveRenderedWorkspaceArtifact(file, principal, {
+          maxBytes,
+          tooLargeMessage: (limit) =>
+            `"${file.name}" renders to more than ${limit}, above the text-extraction limit; download the raw bytes with GET /api/v2/files/${file.id}`,
+        })
+      ).buffer
+    : await readSourceBuffer(file, maxBytes)
   const parsed = await parseBuffer(content, extension)
   const metadata = parsed.metadata ?? {}
 

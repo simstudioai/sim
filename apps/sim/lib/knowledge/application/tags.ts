@@ -1,4 +1,5 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
+import { getPostgresConstraintName, getPostgresErrorCode } from '@sim/utils/errors'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { defineAuthorizedKnowledgeUseCase } from '@/lib/knowledge/application/authorized-knowledge-use-case'
@@ -78,6 +79,47 @@ export interface DeleteKnowledgeDocumentTagDefinitionsInput
   action?: 'cleanup' | 'all'
 }
 
+/** The two unique indexes on `knowledge_base_tag_definitions`, by name. */
+const TAG_SLOT_UNIQUE_INDEX = 'kb_tag_definitions_kb_slot_idx'
+const TAG_DISPLAY_NAME_UNIQUE_INDEX = 'kb_tag_definitions_kb_display_name_idx'
+
+/**
+ * Reports a tag uniqueness violation as a conflict rather than a fault.
+ *
+ * Neither slot occupancy nor display-name uniqueness is checked before the
+ * write, and neither can be: the read that would check them and the insert that
+ * depends on the answer are separate statements, so two concurrent creates both
+ * pass and one loses at the index. Even single-threaded, `tagSlot` is a caller
+ * parameter and the next-free-slot search only runs when it is omitted, so a
+ * caller naming an occupied slot reaches the index directly.
+ *
+ * The index name distinguishes the two so the message says which value to
+ * change. Anything else propagates — a foreign-key or not-null violation is a
+ * real fault and must not be reported as the caller's conflict.
+ */
+function tagUniquenessConflict(error: unknown): never {
+  if (getPostgresErrorCode(error) === '23505') {
+    const constraint = getPostgresConstraintName(error)
+    if (constraint === TAG_SLOT_UNIQUE_INDEX) {
+      throw new OrchestrationError(
+        'conflict',
+        'That tag slot is already in use in this knowledge base; omit tagSlot to take the next free one.'
+      )
+    }
+    if (constraint === TAG_DISPLAY_NAME_UNIQUE_INDEX) {
+      throw new OrchestrationError(
+        'conflict',
+        'A tag with that name already exists in this knowledge base'
+      )
+    }
+    throw new OrchestrationError(
+      'conflict',
+      'That tag conflicts with one that already exists in this knowledge base'
+    )
+  }
+  throw error
+}
+
 export const listKnowledgeTags = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.listTags,
   resolveContext: ({ input }: { input: ListKnowledgeTagsInput }) =>
@@ -121,7 +163,7 @@ export const createKnowledgeTag = defineAuthorizedKnowledgeUseCase({
         fieldType,
       },
       generateRequestId()
-    )
+    ).catch(tagUniquenessConflict)
     return { tagDefinition, knowledgeBaseId: context.knowledgeBaseId }
   },
   projectAudit: ({ input, context, result }) => ({
@@ -156,7 +198,7 @@ export const updateKnowledgeTag = defineAuthorizedKnowledgeUseCase({
         context.tagDefinitionId,
         input.updates,
         generateRequestId()
-      ),
+      ).catch(tagUniquenessConflict),
       knowledgeBaseId: context.knowledgeBaseId,
     }
   },

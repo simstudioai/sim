@@ -11,6 +11,7 @@ import {
 } from '@/lib/workflows/application/context'
 import { workflowOperations } from '@/lib/workflows/application/operations'
 import { getWorkflowRunFiles } from '@/lib/workflows/executor/execution-run-files'
+import { classifyRunFileStorageError } from '@/lib/workflows/executor/run-file-storage-error'
 import type { UserFile } from '@/executor/types'
 
 /**
@@ -73,10 +74,21 @@ async function executeDownloadWorkflowRunFile({
    * the key itself names. This mirrors `getVerifiedStorageContext`, which
    * treats a recorded context that disagrees with its key as untrustworthy.
    */
-  const stream = await downloadFileStream({
-    key: file.key,
-    context: inferContextFromKey(file.key),
-  })
+  let stream: Awaited<ReturnType<typeof downloadFileStream>>
+  try {
+    stream = await downloadFileStream({
+      key: file.key,
+      context: inferContextFromKey(file.key),
+    })
+  } catch (error) {
+    /**
+     * An object retention has already collected is one of the four ways this
+     * read fails to resolve, and the shared message covers it deliberately —
+     * naming the storage cause here would separate "no such file" from "the
+     * bytes are gone", which is exactly the probe the single message prevents.
+     */
+    throw classifyRunFileStorageError(error, FILE_NOT_FOUND_MESSAGE)
+  }
 
   return {
     file,

@@ -38,8 +38,8 @@ export const knowledgeTagOpenApiRoutes = [
     knowledgeOperation({
       operationId: 'createKnowledgeTag',
       summary: 'Create Tag',
-      description: `Define a tag on a knowledge base. ${TAG_LOOP} Omit \`tagSlot\` to take the next free slot for the field type; a field type with no free slot left is a \`400\` naming it, since the remedy is a different type or a deleted definition rather than a retry. ${WORKSPACE_API_KEY_DENIED}`,
-      errors: RESOURCE_ERRORS,
+      description: `Define a tag on a knowledge base. ${TAG_LOOP} Omit \`tagSlot\` to take the next free slot for the field type; a field type with no free slot left is a \`400\` naming it, since the remedy is a different type or a deleted definition rather than a retry. A \`tagSlot\` already taken, or a \`displayName\` already defined on this knowledge base, is a \`409\` naming which of the two to change. ${WORKSPACE_API_KEY_DENIED}`,
+      errors: RESOURCE_CONFLICT_ERRORS,
       success: { description: 'The created tag definition.' },
     }),
     {
@@ -70,8 +70,8 @@ export const knowledgeTagOpenApiRoutes = [
     knowledgeOperation({
       operationId: 'updateKnowledgeTag',
       summary: 'Update Tag',
-      description: `Rename a tag or change the value type stored in its slot. Renaming changes the name filters and document reads use; the slot, and every value in it, is untouched. ${WORKSPACE_API_KEY_DENIED}`,
-      errors: RESOURCE_ERRORS,
+      description: `Rename a tag or change the value type stored in its slot. Renaming changes the name filters and document reads use; the slot, and every value in it, is untouched. A name another tag on this knowledge base already holds is a \`409\`. ${WORKSPACE_API_KEY_DENIED}`,
+      errors: RESOURCE_CONFLICT_ERRORS,
       success: { description: 'The updated tag definition.' },
     }),
     {

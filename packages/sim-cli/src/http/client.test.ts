@@ -955,6 +955,7 @@ describe('destructive operations are gated', () => {
     'bulkDeleteTables',
     'bulkUpdateKnowledgeChunks',
     'replaceWorkflowState',
+    'revertWorkflowVersion',
     'updateRowsByFilter',
   ])
 
@@ -1027,7 +1028,6 @@ describe('destructive operations are gated', () => {
     'restoreTable',
     'restoreWorkflow',
     'resumeWorkflow',
-    'revertWorkflowVersion',
     'rollbackWorkflow',
     'runRowEnrichment',
     'runTableColumn',

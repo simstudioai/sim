@@ -18,7 +18,6 @@ import {
   v2ListFileFoldersContract,
   v2ListFilesContract,
   v2MoveFileItemsContract,
-  v2PermanentlyDeleteFileContract,
   v2ReadFileTextContract,
   v2RelocateFileFolderContract,
   v2RenameFileContract,
@@ -376,8 +375,8 @@ const declaredRoutes = [
     filesOperation({
       operationId: 'readFileText',
       summary: 'Read File Text',
-      description: `Extract a file's text. Answers \`400\` for a type no parser supports, naming the raw-bytes download as the escape hatch, and \`413\` for a file above the extraction ceiling. **\`degraded: true\` means text extraction did not fully succeed and the returned text may be incomplete or synthesized from the file's raw bytes. Do not treat it as authoritative content.** The legacy \`.doc\` and \`.ppt\` parsers deliberately return best-effort content rather than failing, so this flag — not an error status — is how a partial extraction is reported. \`truncated\` separately reports that a parser limit stopped extraction early. ${HEAD_MIRRORS_GET}`,
-      errors: [...RESOURCE_ERRORS, 'PayloadTooLarge'],
+      description: `Extract a file's text. Answers \`400\` for a type no parser supports, naming the raw-bytes download as the escape hatch, and \`413\` for a file above the extraction ceiling. A generated document is extracted from its compiled artifact rather than its generation source, so one still compiling answers \`409\` and is worth retrying. **\`degraded: true\` means text extraction did not fully succeed and the returned text may be incomplete or synthesized from the file's raw bytes. Do not treat it as authoritative content.** The legacy \`.doc\` and \`.ppt\` parsers deliberately return best-effort content rather than failing, so this flag — not an error status — is how a partial extraction is reported. \`truncated\` separately reports that a parser limit stopped extraction early. ${HEAD_MIRRORS_GET}`,
+      errors: [...RESOURCE_CONFLICT_ERRORS, 'PayloadTooLarge'],
       success: { description: 'The extracted text and its extraction-quality flags.' },
     }),
     {
@@ -549,37 +548,6 @@ const declaredRoutes = [
         'File response',
         'A single workspace file.',
         [{ data: FILE_EXAMPLE }]
-      ),
-    }
-  ),
-  defineOpenApiRoute(
-    v2PermanentlyDeleteFileContract,
-    filesOperation({
-      operationId: 'permanentlyDeleteFile',
-      summary: 'Permanently Delete File',
-      description:
-        "Irreversibly destroy an archived file's row and its stored bytes. `DELETE /api/v2/files/{fileId}` only archives — its bytes are never removed — so this is the second half of a deliberate two-step: a file that is not already archived answers `409` naming the archive step. There is no undo, and no restore path afterwards. Requires the `admin` role, which also places it out of reach of workspace API keys.",
-      errors: [...RESOURCE_CONFLICT_ERRORS],
-      success: { description: 'The file was destroyed.' },
-    }),
-    {
-      params: documentedSchema(
-        v2PermanentlyDeleteFileContract.params,
-        'PermanentlyDeleteFileParams',
-        'Permanent delete path parameters',
-        'Archived file selected for destruction.'
-      ),
-      query: documentedSchema(
-        v2PermanentlyDeleteFileContract.query,
-        'PermanentlyDeleteFileQuery',
-        'Permanent delete query',
-        'Workspace scope for the archived file.'
-      ),
-      response: documentedSchema(
-        v2PermanentlyDeleteFileContract.response.schema,
-        'FilePermanentDeletionResponse',
-        'Permanent file deletion response',
-        'Outcome of irreversibly destroying an archived workspace file.'
       ),
     }
   ),

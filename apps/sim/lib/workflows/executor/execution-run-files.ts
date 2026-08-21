@@ -9,6 +9,7 @@ import { materializeExecutionData } from '@/lib/logs/execution/trace-store'
 import { downloadFile } from '@/lib/uploads/core/storage-service'
 import { formatFileSize, inferContextFromKey } from '@/lib/uploads/utils/file-utils'
 import { isRunOutputFileKey } from '@/lib/workflows/executor/run-file-scope'
+import { classifyRunFileStorageError } from '@/lib/workflows/executor/run-file-storage-error'
 import type { UserFile } from '@/executor/types'
 
 /** Run states whose recorded output is final and therefore safe to address. */
@@ -201,11 +202,25 @@ export async function describeWorkflowRunFiles(
 
   let inlinedBytes = 0
   return mapWithConcurrency(files, INLINE_RUN_FILE_CONCURRENCY, async (file) => {
-    const content = await downloadFile({
-      key: file.key,
-      context: inferContextFromKey(file.key),
-      maxBytes: cap,
-    })
+    let content: Buffer
+    try {
+      content = await downloadFile({
+        key: file.key,
+        context: inferContextFromKey(file.key),
+        maxBytes: cap,
+      })
+    } catch (error) {
+      /**
+       * Retention sweeps a run's objects while its log row remains, so a
+       * recorded file can outlive its bytes. That is an absent object, not a
+       * server fault, and it is reachable by any caller asking a settled run for
+       * its inline files.
+       */
+      throw classifyRunFileStorageError(
+        error,
+        `File "${file.name}" is no longer available in storage; its bytes have been removed by retention.`
+      )
+    }
     inlinedBytes += content.length
     if (inlinedBytes > MAX_INLINE_RUN_FILE_TOTAL_BYTES) {
       throw inlineTotalExceededError(

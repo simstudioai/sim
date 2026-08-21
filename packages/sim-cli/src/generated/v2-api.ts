@@ -6312,25 +6312,6 @@ export type MoveWorkflowsResponse = {
   data: MoveWorkflowsResponseRef0
 }
 
-/** `DELETE /api/v2/files/[fileId]/permanent` */
-export type PermanentlyDeleteFileParams = {
-  fileId: string
-}
-
-export type PermanentlyDeleteFileQuery = {
-  workspaceId: string
-}
-
-type PermanentlyDeleteFileResponseRef0 = {
-  id: string
-  deleted: true
-  objectDeleted: boolean
-}
-
-export type PermanentlyDeleteFileResponse = {
-  data: PermanentlyDeleteFileResponseRef0
-}
-
 /** `POST /api/v2/logs/query` */
 export type QueryLogsQuery = Record<string, unknown>
 
@@ -12640,21 +12621,6 @@ export const V2_OPERATIONS = {
         kind: 'string',
         required: true,
         describe: 'Destination folder path; `/` moves the workflows to the workspace root.',
-      },
-    },
-  },
-  permanentlyDeleteFile: {
-    method: 'DELETE',
-    path: '/api/v2/files/[fileId]/permanent',
-    pathParams: ['fileId'] as const,
-    pathParamDocs: { fileId: 'File identifier.' },
-    responseMode: 'json',
-    summary: 'Permanently Delete File',
-    query: {
-      workspaceId: {
-        kind: 'string',
-        required: true,
-        describe: 'Workspace that owns the archived file.',
       },
     },
   },

@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   getFile: vi.fn(),
+  fetchServable: vi.fn(),
   fetchBuffer: vi.fn(),
   parseBuffer: vi.fn(),
   resolvePermission: vi.fn(),
@@ -31,12 +32,17 @@ vi.mock('@/lib/uploads/contexts/workspace', () => ({
   getWorkspaceFile: mocks.getFile,
 }))
 
+vi.mock('@/lib/workspace-files/application/fetch-servable-workspace-file-buffer', () => ({
+  fetchAuthorizedServableWorkspaceFileBuffer: mocks.fetchServable,
+}))
+
 vi.mock('@/lib/file-parsers', () => ({
   isSupportedFileType: (extension: string) =>
     ['txt', 'pdf', 'doc', 'docx', 'pptx'].includes(extension),
   parseBuffer: mocks.parseBuffer,
 }))
 
+import { DocCompileUserError } from '@/lib/copilot/tools/server/files/doc-compile-error'
 import { readWorkspaceFileText } from '@/lib/workspace-files/application/read-workspace-file-text'
 
 const WORKSPACE_ID = 'workspace-1'
@@ -80,6 +86,10 @@ describe('readWorkspaceFileText', () => {
     mocks.resolveContext.mockResolvedValue(fileContext)
     mocks.getFile.mockResolvedValue(fileRecord())
     mocks.fetchBuffer.mockResolvedValue(Buffer.from('hello there!'))
+    mocks.fetchServable.mockResolvedValue({
+      buffer: Buffer.from('%PDF-1.7 rendered'),
+      contentType: 'application/pdf',
+    })
     mocks.parseBuffer.mockResolvedValue({ content: 'hello there!', metadata: {} })
   })
 
@@ -221,5 +231,70 @@ describe('readWorkspaceFileText', () => {
     await expect(
       readWorkspaceFileText.execute({ principal: principals[2], input: input() })
     ).rejects.toThrow('s3 unavailable')
+  })
+
+  /**
+   * A generated document stores its generation SOURCE — pdf-lib JavaScript under
+   * a `.pdf` name — so parsing `file.key` by extension feeds the PDF parser a
+   * script. That is a 500 on `.pdf`, and on `.docx` a "successful" extraction of
+   * the generator source reported as undegraded content. Both are worse than an
+   * error, because a caller cannot tell the difference.
+   */
+  it.each([
+    ['report.pdf', 'text/x-pdflibjs'],
+    ['report.pdf', 'text/x-python-pdf'],
+    ['memo.docx', 'text/x-docxjs'],
+    ['deck.pptx', 'text/x-pptxgenjs'],
+  ])('extracts %s from its compiled artifact, not its %s source', async (name, type) => {
+    mocks.getFile.mockResolvedValueOnce(fileRecord({ name, type, size: 900 }))
+    mocks.parseBuffer.mockResolvedValueOnce({ content: 'Quarterly results', metadata: {} })
+
+    const result = await readWorkspaceFileText.execute({ principal: principals[2], input: input() })
+
+    expect(mocks.fetchServable).toHaveBeenCalledTimes(1)
+    expect(mocks.fetchBuffer).not.toHaveBeenCalled()
+    expect(mocks.parseBuffer.mock.calls[0][0].toString()).toBe('%PDF-1.7 rendered')
+    expect(result.text).toBe('Quarterly results')
+  })
+
+  /** A genuinely uploaded PDF carries its real MIME and must keep reading its own bytes. */
+  it('reads an uploaded pdf from storage rather than an artifact', async () => {
+    mocks.getFile.mockResolvedValueOnce(
+      fileRecord({ name: 'scan.pdf', type: 'application/pdf', size: 900 })
+    )
+
+    await readWorkspaceFileText.execute({ principal: principals[2], input: input() })
+
+    expect(mocks.fetchBuffer).toHaveBeenCalledTimes(1)
+    expect(mocks.fetchServable).not.toHaveBeenCalled()
+  })
+
+  /** An artifact still compiling is retryable, so it must not read as a fault. */
+  it('reports a still-compiling artifact as a conflict', async () => {
+    mocks.getFile.mockResolvedValueOnce(
+      fileRecord({ name: 'report.pdf', type: 'text/x-pdflibjs', size: 900 })
+    )
+    mocks.fetchServable.mockRejectedValueOnce(
+      new DocCompileUserError('not ready', { pending: true })
+    )
+
+    await expect(
+      readWorkspaceFileText.execute({ principal: principals[2], input: input() })
+    ).rejects.toMatchObject({ code: 'conflict' })
+  })
+
+  /**
+   * The stored size of a generation source bounds nothing — it is text that
+   * renders to orders of magnitude more — so the source pre-check must not be
+   * what decides, and the artifact carries its own ceiling.
+   */
+  it('bounds a generated document by its artifact, not its source size', async () => {
+    mocks.getFile.mockResolvedValueOnce(
+      fileRecord({ name: 'report.pdf', type: 'text/x-pdflibjs', size: 900 })
+    )
+
+    await readWorkspaceFileText.execute({ principal: principals[2], input: input() })
+
+    expect(mocks.fetchServable.mock.calls[0][2]).toMatchObject({ maxBytes: expect.any(Number) })
   })
 })

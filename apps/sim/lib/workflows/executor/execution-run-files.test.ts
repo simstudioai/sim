@@ -169,6 +169,40 @@ describe('describeWorkflowRunFiles', () => {
     ).rejects.toMatchObject({ code: 'payload_too_large' })
   })
 
+  /**
+   * Retention sweeps a run's objects while its log row remains, so asking a
+   * settled run for its inline files can reach an object that is gone. That is
+   * an absent object, not a server fault — propagating the provider error would
+   * render a 500 for a well-formed request.
+   */
+  it.each(['NoSuchKey', 'BlobNotFound', 'NotFound'])(
+    'reports a swept object (%s) as not found rather than a fault',
+    async (name) => {
+      mocks.downloadFile.mockRejectedValueOnce(Object.assign(new Error('gone'), { name }))
+
+      await expect(
+        describeWorkflowRunFiles(filesMap([runFile({ name: 'report.pdf' })]), {
+          workflowId: WORKFLOW_ID,
+          runId: RUN_ID,
+          includeBase64: true,
+        })
+      ).rejects.toMatchObject({ code: 'not_found' })
+    }
+  )
+
+  /** A missing bucket is a misconfiguration worth alerting on, not an absent file. */
+  it('propagates a storage outage rather than reporting it as not found', async () => {
+    mocks.downloadFile.mockRejectedValueOnce(new Error('s3 unavailable'))
+
+    await expect(
+      describeWorkflowRunFiles(filesMap([runFile()]), {
+        workflowId: WORKFLOW_ID,
+        runId: RUN_ID,
+        includeBase64: true,
+      })
+    ).rejects.toThrow('s3 unavailable')
+  })
+
   it('bounds how many inline reads are in flight at once', async () => {
     let inFlight = 0
     let peak = 0
