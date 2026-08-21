@@ -258,6 +258,10 @@ describe('completeDispatch cancellation safety', () => {
    * unguarded complete would overwrite it and publish a completion event after
    * the cancellation one. The claim guard cannot cover this: the cancel arrives
    * long after the claim.
+   *
+   * All three post-claim exits — budget exhausted, window drained, and the empty
+   * chunk — route through `completeDispatch`, so guarding it once covers every
+   * one of them and this test is what holds that guard in place.
    */
   it('emits no completion event when the dispatch is no longer active', async () => {
     dbChainMockFns.limit.mockResolvedValue([

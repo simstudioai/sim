@@ -521,17 +521,10 @@ export async function dispatcherStep(
     : await windowQuery(db)
 
   if (chunk.length === 0) {
-    await markDispatchComplete(dispatchId)
-    await appendTableEvent({
-      kind: 'dispatch',
-      tableId: dispatch.tableId,
-      dispatchId,
-      status: 'complete',
-      scope: dispatch.scope,
-      cursor: dispatch.cursor,
-      mode: dispatch.mode,
-      isManualRun: dispatch.isManualRun,
-    })
+    // Through the shared, guarded completion like the other two exits: this
+    // runs after the claim, so a cancel arriving during the window query would
+    // otherwise be overwritten with `complete`.
+    await completeDispatch(dispatch, dispatch.cursor)
     return 'done'
   }
 
