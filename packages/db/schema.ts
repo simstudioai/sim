@@ -2548,6 +2548,17 @@ export const document = pgTable(
     // Processing status
     processingStatus: text('processing_status').notNull().default('pending'), // 'pending', 'processing', 'completed', 'failed'
     /**
+     * Dispatches spent on this document since its last successful pass.
+     *
+     * A bounded retry budget, not a dispatch generation. The stuck-document
+     * sweep re-dispatches a failing document every sync for the whole retry
+     * window, and each dispatch re-parses and re-embeds it — so a document that
+     * fails deterministically was billed once per sync indefinitely. Past the
+     * budget it becomes a dead letter: still visible and still user-retryable,
+     * but no longer swept. Reset to 0 whenever a pass completes.
+     */
+    processingAttempts: integer('processing_attempts').notNull().default(0),
+    /**
      * When indexing was last dispatched to a worker, which is not when a worker
      * picked it up — a document sits at `pending` in between. Recovery sweeps
      * measure queue wait from here; `processingStartedAt` is written only once a

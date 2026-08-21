@@ -1,8 +1,11 @@
 /**
- * Wall-clock ceiling for a single connector sync run. A large document library
- * needs more than the half hour this used to allow: a 2,600-document site
- * exhausted the old budget and was killed mid-listing, leaving its `syncing`
- * lock set until the scheduler reclaimed it.
+ * Wall-clock ceiling for a single connector sync run.
+ *
+ * Raised from the half hour this used to allow, which a large document library
+ * exhausted mid-listing: the run was killed partway through pagination, leaving
+ * its `syncing` lock set until the scheduler reclaimed it. Listing dominates a
+ * large sync's wall clock, so the ceiling has to cover a full enumeration rather
+ * than a typical one.
  */
 export const CONNECTOR_SYNC_MAX_DURATION_SECONDS = 3600
 

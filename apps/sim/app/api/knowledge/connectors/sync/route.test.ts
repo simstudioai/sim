@@ -12,14 +12,16 @@ import {
   flattenMockConditions,
   hasMockCondition,
   type MockCondition,
+  queueTableRows,
   resetDbChainMock,
   schemaMock,
 } from '@sim/testing'
-import type { NextRequest } from 'next/server'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { type NextRequest, NextResponse } from 'next/server'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   CONNECTOR_FAILURE_BACKOFF_CAP_MINUTES,
   CONNECTOR_FAILURE_BACKOFF_STEP_MINUTES,
+  CONNECTOR_SYNC_STALE_LOCK_TTL_MS,
   connectorFailureBackoffMinutes,
   MAX_CONSECUTIVE_FAILURES,
 } from '@/lib/knowledge/connectors/sync-limits'
@@ -81,10 +83,27 @@ function setPayloadForUpdate(index: number): Record<string, unknown> {
   return dbChainMockFns.set.mock.calls[index][0] as Record<string, unknown>
 }
 
+/** Fixed so the reclaim cutoff can be compared by value, not merely by type. */
+const NOW = new Date('2026-08-20T12:00:00.000Z')
+const EXPECTED_STALE_CUTOFF = new Date(NOW.getTime() - CONNECTOR_SYNC_STALE_LOCK_TTL_MS)
+
+/** The `.where()` condition of the nth `db.update()` chain in call order. */
+function whereForUpdate(index: number): unknown {
+  return dbChainMockFns.where.mock.calls[index][0]
+}
+
 beforeEach(() => {
   vi.clearAllMocks()
   resetDbChainMock()
   mockVerifyCronAuth.mockReturnValue(null)
+  mockDispatchSync.mockResolvedValue(undefined)
+  mockResolveSystemBillingAttribution.mockResolvedValue({ workspaceId: 'ws-1' })
+  vi.useFakeTimers()
+  vi.setSystemTime(NOW)
+})
+
+afterEach(() => {
+  vi.useRealTimers()
 })
 
 describe('connector sync scheduler stale-lock reaper', () => {
@@ -193,7 +212,7 @@ describe('connector sync scheduler stale-lock reaper', () => {
     const payload = setPayloadForUpdate(1)
     expect(payload.status).toBe('failed')
     expect(renderedSql(payload.completedAt)).toContain('now()')
-    expect(payload.errorMessage).toEqual(expect.any(String))
+    expect(payload.errorMessage).toBe('Sync timed out (stale lock recovered)')
 
     const where = dbChainMockFns.where.mock.calls[1][0]
     expect(
@@ -234,11 +253,26 @@ describe('connector sync scheduler stale-lock reaper', () => {
      * connector to be locked, THIS row's run to be the holder, and that lock to
      * be live — an orphan can satisfy at most two.
      */
-    const rendered = sweepLivenessFragment().toSQL().sql.replace(/\s+/g, ' ').trim()
+    const fragment = sweepLivenessFragment()
 
-    expect(rendered).toBe(
+    expect(fragment.toSQL().sql.replace(/\s+/g, ' ').trim()).toBe(
       "NOT EXISTS ( SELECT 1 FROM ? WHERE ? = ? AND ? = ? AND ? = 'syncing' AND ? > ? )"
     )
+
+    /**
+     * The rendered SQL above is seven `?` carrying every operand, so the shape
+     * assertion alone cannot tell one column from another. The bound values are
+     * the only place the predicate's operands are observable, and they are
+     * checked positionally so a swapped column fails on the exact slot.
+     */
+    const bound = fragment.values
+    expect(bound[0]).toBe(schemaMock.knowledgeConnector)
+    expect(bound[1]).toBe(schemaMock.knowledgeConnector.id)
+    expect(bound[2]).toBe(schemaMock.knowledgeConnectorSyncLog.connectorId)
+    expect(bound[3]).toBe(schemaMock.knowledgeConnector.syncLockToken)
+    expect(bound[4]).toBe(schemaMock.knowledgeConnectorSyncLog.id)
+    expect(bound[5]).toBe(schemaMock.knowledgeConnector.status)
+    expect(bound[6]).toBe(schemaMock.knowledgeConnector.updatedAt)
   })
 
   it('identifies the lock holder by token, not merely by the connector syncing', async () => {
@@ -250,7 +284,13 @@ describe('connector sync scheduler stale-lock reaper', () => {
      * holds the lock, which would then never drain while that connector stays
      * busy.
      */
-    expect(sweepLivenessFragment().values).toContain(schemaMock.knowledgeConnector.syncLockToken)
+    const bound = sweepLivenessFragment().values
+
+    // Compared against the LOG ROW's id: matching the connector id instead makes
+    // the correlation trivially true, so `NOT EXISTS` never spares anything.
+    expect(bound[3]).toBe(schemaMock.knowledgeConnector.syncLockToken)
+    expect(bound[4]).toBe(schemaMock.knowledgeConnectorSyncLog.id)
+    expect(bound[4]).not.toBe(schemaMock.knowledgeConnectorSyncLog.connectorId)
   })
 
   it('requires the held lock to be heartbeated, not merely held', async () => {
@@ -263,15 +303,11 @@ describe('connector sync scheduler stale-lock reaper', () => {
      * forever.
      */
     const bound = sweepLivenessFragment().values
-    expect(bound).toContain(schemaMock.knowledgeConnector.updatedAt)
+    expect(bound[6]).toBe(schemaMock.knowledgeConnector.updatedAt)
 
-    const cutoff = bound.find(
-      (value): value is { value: Date } =>
-        typeof value === 'object' &&
-        value !== null &&
-        (value as { value?: unknown }).value instanceof Date
-    )
-    expect(cutoff).toBeDefined()
+    // Compared by value: `toBeDefined()` passed even for `new Date()`, which
+    // spares nothing and closes rows started a second ago.
+    expect((bound[7] as { value: Date }).value).toEqual(EXPECTED_STALE_CUTOFF)
   })
 
   it('closes stale sync-log rows even when no connector was reclaimed this tick', async () => {
@@ -329,5 +365,103 @@ describe('connector sync scheduler stale-lock reaper', () => {
 
     // `updatedAt` shares the server clock the nextSyncAt interval math uses.
     expect(renderedSql(setPayloadForUpdate(0).updatedAt)).toContain('now()')
+  })
+})
+
+describe('connector sync scheduler reclaim predicate', () => {
+  it('reclaims only connectors that are syncing and past the stale cutoff', async () => {
+    await runTickRecovering(['connector-1'])
+
+    const where = whereForUpdate(0)
+
+    /**
+     * Asserted against the CONNECTOR's own columns. While every mock column was
+     * its bare name, `knowledgeConnector.status` and
+     * `knowledgeConnectorSyncLog.status` were both `'status'`, so this passed
+     * for a predicate guarding the wrong table entirely.
+     */
+    expect(
+      hasMockCondition(
+        where,
+        (node: MockCondition) =>
+          node.type === 'eq' &&
+          node.left === schemaMock.knowledgeConnector.status &&
+          node.right === 'syncing'
+      )
+    ).toBe(true)
+
+    // Deleting this clause reclaims every syncing connector on every tick.
+    const cutoff = flattenMockConditions(where).find(
+      (node: MockCondition) =>
+        node.type === 'lte' && node.left === schemaMock.knowledgeConnector.updatedAt
+    )
+    expect(cutoff).toBeDefined()
+    expect(cutoff?.right).toEqual(EXPECTED_STALE_CUTOFF)
+
+    for (const column of [
+      schemaMock.knowledgeConnector.archivedAt,
+      schemaMock.knowledgeConnector.deletedAt,
+    ]) {
+      expect(
+        hasMockCondition(
+          where,
+          (node: MockCondition) => node.type === 'isNull' && node.column === column
+        )
+      ).toBe(true)
+    }
+  })
+})
+
+describe('connector sync scheduler authentication and dispatch', () => {
+  it('rejects an unauthenticated request without touching the database', async () => {
+    mockVerifyCronAuth.mockReturnValue(
+      NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    )
+
+    const response = await GET(cronRequest())
+
+    // Deleting the auth check leaves an unauthenticated cron endpoint.
+    expect(response.status).toBe(401)
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
+    expect(mockDispatchSync).not.toHaveBeenCalled()
+  })
+
+  it('dispatches a sync for every due connector with its workspace billing context', async () => {
+    queueTableRows(schemaMock.knowledgeConnector, [
+      { id: 'due-1', workspaceId: 'ws-1' },
+      { id: 'due-2', workspaceId: 'ws-2' },
+    ])
+
+    const response = await GET(cronRequest())
+
+    // Deleting the dispatch call means no connector ever syncs.
+    expect(await response.json()).toMatchObject({ success: true, count: 2 })
+    expect(mockResolveSystemBillingAttribution).toHaveBeenCalledWith('ws-1')
+    expect(mockResolveSystemBillingAttribution).toHaveBeenCalledWith('ws-2')
+    expect(mockDispatchSync).toHaveBeenCalledTimes(2)
+    expect(mockDispatchSync).toHaveBeenCalledWith(
+      'due-1',
+      expect.objectContaining({ billingAttribution: { workspaceId: 'ws-1' } })
+    )
+  })
+
+  it('skips a connector missing workspace billing context without failing the tick', async () => {
+    queueTableRows(schemaMock.knowledgeConnector, [
+      { id: 'due-1', workspaceId: null },
+      { id: 'due-2', workspaceId: 'ws-2' },
+    ])
+
+    const response = await GET(cronRequest())
+
+    expect(response.status).toBe(200)
+    expect(mockDispatchSync).toHaveBeenCalledTimes(1)
+    expect(mockDispatchSync).toHaveBeenCalledWith('due-2', expect.anything())
+  })
+
+  it('reports a tick with nothing due', async () => {
+    const response = await GET(cronRequest())
+
+    expect(await response.json()).toMatchObject({ success: true, count: 0 })
+    expect(mockDispatchSync).not.toHaveBeenCalled()
   })
 })

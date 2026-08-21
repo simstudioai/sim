@@ -16,6 +16,7 @@ import {
   assertBillingAttributionSnapshot,
   type BillingAttributionSnapshot,
 } from '@/lib/billing/core/billing-attribution'
+import { env, envNumber } from '@/lib/core/config/env'
 import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
 import { resolveCredentialTokenIdentity } from '@/lib/credentials/access'
 import {
@@ -25,6 +26,11 @@ import {
 } from '@/lib/knowledge/connectors/sync-limits'
 import type { DocumentData } from '@/lib/knowledge/documents/service'
 import { hardDeleteDocuments, processDocumentsWithQueue } from '@/lib/knowledge/documents/service'
+import {
+  type DocumentProcessingStatus,
+  isDocumentProcessingStatus,
+  MAX_PROCESSING_ATTEMPTS,
+} from '@/lib/knowledge/documents/types'
 import { refreshAccessTokenIfNeeded } from '@/lib/oauth/credential-service'
 import { StorageService } from '@/lib/uploads'
 import { buildStorageKeySegment } from '@/lib/uploads/core/storage-key'
@@ -85,43 +91,102 @@ const MAX_SAFE_TITLE_LENGTH = 200
  * await no heartbeat could interrupt; chunking gives the beat somewhere to run.
  */
 const STUCK_RETRY_DISPATCH_CHUNK_SIZE = 25
-const STALE_PROCESSING_MINUTES = 45
-/** Largest connector corpus observed in production, which sets the queue drain to beat. */
-const LARGEST_OBSERVED_CORPUS_DOCUMENTS = 7_730
-/** `document-processing-queue`'s `concurrencyLimit` — global, shared by every workspace. */
-const PROCESSING_QUEUE_CONCURRENCY = 20
-/** Wall time a typical document occupies a queue slot, parse through embedding. */
-const TYPICAL_DOCUMENT_OCCUPANCY_MINUTES = 1
-/** Headroom for the queue being shared: another tenant's backlog cuts our share of it. */
-const QUEUE_CONTENTION_FACTOR = 2
+/**
+ * Concurrent `knowledge-process-document` runs, shared by every workspace.
+ *
+ * Read from the same env var the task itself is configured with rather than
+ * restated, so the drain estimate below cannot describe a queue depth the
+ * deployment does not actually run.
+ */
+const PROCESSING_QUEUE_CONCURRENCY = envNumber(env.KB_CONFIG_CONCURRENCY_LIMIT, 20)
+
+/**
+ * Worst-case wall clock for one document's processing: the task's own duration
+ * ceiling times its retry budget, both read from the env vars
+ * `knowledge-process-document` is configured with.
+ */
+export function worstCaseProcessingMinutes(
+  maxDurationSeconds: number,
+  maxAttempts: number
+): number {
+  return (maxDurationSeconds * maxAttempts) / 60
+}
+
+/** Headroom over the worst case, so ordinary jitter never reclaims a live run. */
+const STALE_PROCESSING_HEADROOM = 1.5
+
+/** Floor preserving the previously hard-coded value at the default env. */
+const STALE_PROCESSING_FLOOR_MINUTES = 45
+
+/**
+ * Minutes a `processing` document is given before the sweep calls its run
+ * abandoned. Never below the worst case a legitimate run can take.
+ */
+export function resolveStaleProcessingMinutes(
+  maxDurationSeconds: number,
+  maxAttempts: number
+): number {
+  return Math.max(
+    STALE_PROCESSING_FLOOR_MINUTES,
+    Math.ceil(
+      worstCaseProcessingMinutes(maxDurationSeconds, maxAttempts) * STALE_PROCESSING_HEADROOM
+    )
+  )
+}
+
+/**
+ * How long a document may sit in `processing` before the sweep treats its run as
+ * abandoned — and deletes its embeddings and re-dispatches it.
+ *
+ * DERIVED, not fixed at 45. The sweep reclaims by deleting live work, so this
+ * must exceed the longest a legitimate run can take. That bound is
+ * `KB_CONFIG_MAX_DURATION` x `KB_CONFIG_MAX_ATTEMPTS`, which an operator can
+ * raise: at the previous hard-coded 45, setting `KB_CONFIG_MAX_DURATION` above
+ * 900s silently made every long run look abandoned, so the sweep would delete
+ * the embeddings of documents that were still being indexed and bill a second
+ * pass. Deriving it keeps the invariant true at any configuration; the floor
+ * preserves today's value at the defaults.
+ */
+const STALE_PROCESSING_MINUTES = resolveStaleProcessingMinutes(
+  envNumber(env.KB_CONFIG_MAX_DURATION, 600),
+  envNumber(env.KB_CONFIG_MAX_ATTEMPTS, 3)
+)
 /**
  * Grace period a document waiting on the processing queue gets before the
  * stuck-document sweep may reclaim it.
  *
- * Derived rather than chosen, so the next person can re-run the arithmetic with
- * their own numbers instead of trusting this one: the sweep must not reclaim a
- * document that a full queue drain has simply not reached yet, so the grace is
- * that drain — corpus / concurrency x per-document occupancy — times a
- * contention factor for the queue being shared across workspaces. At the values
- * above that is 7,730 / 20 x 1 x 2 = 773 minutes, just under thirteen hours.
+ * {@link STALE_PROCESSING_MINUTES} bounds a run that has already begun, derived
+ * from the task's own duration and retry budget. Queue *wait* is a different
+ * quantity: it is backlog / concurrency, not run duration.
+ * `document-processing-queue` has a global concurrency of
+ * {@link PROCESSING_QUEUE_CONCURRENCY} shared by every workspace, so a corpus large
+ * enough to approach `CONNECTOR_SYNC_MAX_DURATION_SECONDS` enqueues thousands of
+ * documents that drain in waves of that width — at roughly a minute of occupancy each,
+ * a few hours, and longer while other workspaces hold slots.
  *
- * Each input is measurable and should be re-measured when it moves: corpus size
- * from the largest connector in production, concurrency from
- * `knowledge-process-document`'s queue config, occupancy from run durations.
- * Note the failure mode is asymmetric — too small silently re-bills live work,
- * too large only delays recovery of documents nothing is processing — so round
- * up, never down.
+ * Four hours is chosen against three bounds that are all constants in this
+ * repository rather than any one deployment's corpus: it is well above that
+ * drain estimate, an order of magnitude above the one-hour sync ceiling, and
+ * still well under the 1,440-minute default sync interval — so a
+ * default-configured connector waits no longer for recovery than it already did.
  */
-const QUEUED_DISPATCH_GRACE_MINUTES = Math.ceil(
-  (LARGEST_OBSERVED_CORPUS_DOCUMENTS / PROCESSING_QUEUE_CONCURRENCY) *
-    TYPICAL_DOCUMENT_OCCUPANCY_MINUTES *
-    QUEUE_CONTENTION_FACTOR
-)
+const QUEUED_DISPATCH_GRACE_MINUTES = 240
 const RETRY_WINDOW_DAYS = 7
+
+/**
+ * Processing states the stuck-document sweep may reclaim from.
+ *
+ * One constant used by BOTH the candidate SELECT and the reset UPDATE. The
+ * UPDATE has to re-assert what the SELECT filtered on — the ownership re-check
+ * between them covers `connectorId` only, so a document that completed in that
+ * window would otherwise be reset and have its embeddings deleted. Sharing the
+ * list means the two cannot drift into disagreeing about what is reclaimable.
+ */
+export const SWEEPABLE_PROCESSING_STATUSES = ['pending', 'failed', 'processing'] as const
 
 /** The processing state the stuck-document sweep decides on, one row at a time. */
 export interface StuckDocumentSweepCandidate {
-  processingStatus: string
+  processingStatus: DocumentProcessingStatus
   processingQueuedAt: Date | null
   processingStartedAt: Date | null
   processingCompletedAt: Date | null
@@ -140,10 +205,13 @@ export interface StuckDocumentSweepCandidate {
  * pass, so queued documents get {@link QUEUED_DISPATCH_GRACE_MINUTES} before
  * they are considered lost.
  *
- * Queue wait is measured from `processingQueuedAt`, stamped by
- * `processDocumentsWithQueue` — the funnel every dispatch passes through — so
- * no caller can dispatch without recording when. It falls back to `uploadedAt`
- * when NULL, which covers rows written before the column existed.
+ * Queue wait is measured from `processingQueuedAt`, stamped in one place —
+ * `markDocumentsQueued`, which every dispatch funnels through, so the column
+ * always describes the attempt that is live right now.
+ * It falls back to `uploadedAt` when NULL, which covers a document dispatched
+ * by the sync that created it (`uploadedAt` then sits within that sync's own
+ * runtime, an over-estimate bounded by the one-hour sync ceiling) and rows
+ * written before the column existed.
  *
  * `failed` is not a terminal state and gets the same grace. `processDocumentAsync`
  * records the failure and then rethrows, so `knowledge-process-document` retries
@@ -196,7 +264,9 @@ export function isStuckDocumentSweepEligible(doc: StuckDocumentSweepCandidate, n
         now.getTime() - doc.processingStartedAt.getTime() > STALE_PROCESSING_MINUTES * 60 * 1000
       )
     }
-    default:
+    // No `default`: a status added to DocumentProcessingStatus must fail
+    // type-check here rather than silently reading as "not eligible".
+    case 'completed':
       return false
   }
 }
@@ -384,8 +454,15 @@ export function chunkOpsByByteBudget(
   return chunks
 }
 
-/** Single-roundtrip liveness check used between batches. */
-async function checkSyncLiveness(
+/**
+ * Single-roundtrip check that this sync's targets still exist.
+ *
+ * Named for presence rather than liveness deliberately: this file uses
+ * "liveness" in its distributed-systems sense — a run proving it is still
+ * working, via {@link heartbeatSyncLock} — and reusing the word for a row
+ * existence check conflated two unrelated questions three lines apart.
+ */
+async function checkSyncTargetPresence(
   connectorId: string,
   knowledgeBaseId: string
 ): Promise<{ connectorDeleted: boolean; knowledgeBaseDeleted: boolean }> {
@@ -493,12 +570,30 @@ export async function completeSyncLog(
  * for the heartbeat is what turns a beat into an ownership probe.
  */
 export function stillHoldsSyncLock(connectorId: string, syncLockToken: string) {
+  return and(holdsSyncLockToken(connectorId, syncLockToken), connectorIsLive())
+}
+
+/** The archived/deleted half of {@link stillHoldsSyncLock}. */
+function connectorIsLive() {
+  return and(isNull(knowledgeConnector.archivedAt), isNull(knowledgeConnector.deletedAt))
+}
+
+/**
+ * Ownership only: this run still holds the lock, regardless of whether the
+ * connector has since been archived or deleted.
+ *
+ * The heartbeat guards on this rather than on {@link stillHoldsSyncLock} so a
+ * connector deleted mid-sync does not read as lock loss. It would otherwise
+ * raise `SyncLockLostException` before `checkSyncTargetPresence` ever ran, skipping
+ * the leftover-document cleanup that `ConnectorDeletedException` performs and
+ * leaving the sync-log row `started` until the sweep mislabelled it. Deletion is
+ * the liveness check's verdict to reach, not the heartbeat's.
+ */
+export function holdsSyncLockToken(connectorId: string, syncLockToken: string) {
   return and(
     eq(knowledgeConnector.id, connectorId),
     eq(knowledgeConnector.status, 'syncing'),
-    eq(knowledgeConnector.syncLockToken, syncLockToken),
-    isNull(knowledgeConnector.archivedAt),
-    isNull(knowledgeConnector.deletedAt)
+    eq(knowledgeConnector.syncLockToken, syncLockToken)
   )
 }
 
@@ -547,7 +642,7 @@ export async function heartbeatSyncLock(
   const beat = await db
     .update(knowledgeConnector)
     .set({ updatedAt: new Date() })
-    .where(stillHoldsSyncLock(connectorId, syncLockToken))
+    .where(holdsSyncLockToken(connectorId, syncLockToken))
     .returning({ id: knowledgeConnector.id })
 
   return beat.length > 0
@@ -771,11 +866,25 @@ export function countDeletionEligibleOwned(
 export function buildReconciliationHoldNotice(
   withheld: number,
   cap: number,
-  ownedDocCount: number
+  ownedDocCount: number,
+  softHeld: boolean,
+  hardHeld: boolean
 ): string {
+  /**
+   * Stated per held generation. A hard-only hold withholds documents that a
+   * previous sync already tombstoned, so they have been invisible since then —
+   * telling the operator they are "still indexed" would be false.
+   */
+  const consequence =
+    softHeld && hardHeld
+      ? 'Documents removed at the source are still indexed, and documents already pending removal were not purged.'
+      : softHeld
+        ? 'Documents removed at the source are still indexed.'
+        : 'Documents already pending removal were not purged; they stay hidden from search either way.'
+
   return (
-    `Withheld ${withheld} document removal(s) — more than the ${cap} allowed in one sync ` +
-    `of ${ownedDocCount} documents. Documents deleted at the source are still indexed. ` +
+    `Withheld ${withheld} document removal(s) — more than the ${cap} allowed per generation ` +
+    `in one sync of ${ownedDocCount} documents. ${consequence} ` +
     'Check the source is returning its full contents, then run a full sync to apply the removals.'
   )
 }
@@ -931,6 +1040,15 @@ export function resolveReconciliationDeleteCap(
  * the connector never reconciles again. Capping each generation against the same
  * ceiling keeps the per-sync blast radius bounded without that deadlock.
  *
+ * Note the ceiling this yields: each generation may spend the cap independently,
+ * so a single sync can remove up to 2x the cap — with the default ratio, about
+ * half the corpus, not a quarter. That is deliberate. The two generations are
+ * different populations: the hard deletes were already gated by this cap on the
+ * sync that tombstoned them, and have been invisible ever since, so confirming
+ * them costs no additional visible documents. The quarter-of-a-corpus figure
+ * describes what one sync may newly hide, which is the number that matters for a
+ * source that has started lying about its contents.
+ *
  * `fullSync` bypasses the cap, matching its meaning everywhere else here — an
  * explicit human request to reconcile against this listing right now, which is
  * the documented escape hatch for a genuine mass deletion.
@@ -1042,11 +1160,13 @@ export function shouldRunIncrementalSync(
 /**
  * A stored document's identity, as read back for reconciliation.
  *
- * `userExcluded` is optional because only the tombstoned read projects it — the
- * live read filters excluded rows out in SQL, so an absent flag there means
- * "not excluded" and the deletion guards below read the same either way.
+ * `userExcluded` is required, not optional. Both reads project it, so the
+ * deletion guards in {@link partitionSyncReconciliation} enforce something on
+ * their own rather than restating a filter the SQL already applied — if that
+ * filter were ever dropped, the guard would still hold. An optional flag made
+ * the guard a silent no-op on any read that forgot to select it.
  */
-type ReconciliationDoc = { id: string; externalId: string | null; userExcluded?: boolean }
+type ReconciliationDoc = { id: string; externalId: string | null; userExcluded: boolean }
 
 /**
  * Partitions a connector's stored documents against the current listing into
@@ -1499,6 +1619,10 @@ export async function executeSync(
           id: document.id,
           externalId: document.externalId,
           contentHash: document.contentHash,
+          // Projected as well as filtered: the SQL predicate and the in-memory
+          // guard in partitionSyncReconciliation must both hold, so dropping
+          // either one alone cannot make an excluded document deletable.
+          userExcluded: document.userExcluded,
         })
         .from(document)
         .where(
@@ -1624,15 +1748,17 @@ export async function executeSync(
     // per-file cap never hydrate/upload together and exhaust the worker heap.
     const batches = chunkOpsByByteBudget(pendingOps, CONTENT_INFLIGHT_BUDGET_BYTES, SYNC_BATCH_SIZE)
     for (const rawBatch of batches) {
-      await beatIfDue()
-
-      const liveness = await checkSyncLiveness(connectorId, connector.knowledgeBaseId)
-      if (liveness.connectorDeleted) {
+      const presence = await checkSyncTargetPresence(connectorId, connector.knowledgeBaseId)
+      if (presence.connectorDeleted) {
         throw new ConnectorDeletedException(connectorId)
       }
-      if (liveness.knowledgeBaseDeleted) {
+      if (presence.knowledgeBaseDeleted) {
         throw new Error(`Knowledge base ${connector.knowledgeBaseId} was deleted during sync`)
       }
+
+      // After liveness: a deleted connector must raise ConnectorDeletedException
+      // and run its cleanup, not be reported as a lost lock.
+      await beatIfDue()
 
       // Oversized/skipped docs become visible `failed` rows (never silent). They are
       // flagged either at listing time (skip ops here) or discovered only at fetch
@@ -1900,7 +2026,9 @@ export async function executeSync(
       reconciliationHoldNotice = buildReconciliationHoldNotice(
         capped.withheld,
         capped.cap,
-        ownedDocCount
+        ownedDocCount,
+        capped.softHeld,
+        capped.hardHeld
       )
       logger.error('Reconciliation deletions held — exceeds per-sync blast-radius cap', {
         connectorId,
@@ -1927,6 +2055,14 @@ export async function executeSync(
     let safeResurrectIds: string[] = []
     let safeSoftDeleteIds: string[] = []
     let safeHardDeleteIds: string[] = []
+
+    /**
+     * Probes ownership before the reconciliation writes rather than after them:
+     * the soft-delete transaction and `hardDeleteDocuments` below are the most
+     * destructive block in this file, and a run that has lost its lock must not
+     * execute them alongside its replacement.
+     */
+    await beatIfDue()
 
     if (candidateIds.length > 0) {
       /**
@@ -2006,13 +2142,11 @@ export async function executeSync(
       result.docsDeleted += await hardDeleteDocuments(safeHardDeleteIds, syncLogId, connectorId)
     }
 
-    await beatIfDue()
-
-    const postBatchLiveness = await checkSyncLiveness(connectorId, connector.knowledgeBaseId)
-    if (postBatchLiveness.connectorDeleted) {
+    const postBatchPresence = await checkSyncTargetPresence(connectorId, connector.knowledgeBaseId)
+    if (postBatchPresence.connectorDeleted) {
       throw new ConnectorDeletedException(connectorId)
     }
-    if (postBatchLiveness.knowledgeBaseDeleted) {
+    if (postBatchPresence.knowledgeBaseDeleted) {
       throw new Error(`Knowledge base ${connector.knowledgeBaseId} was deleted during sync`)
     }
 
@@ -2046,7 +2180,10 @@ export async function executeSync(
       .where(
         and(
           eq(document.connectorId, connectorId),
-          inArray(document.processingStatus, ['pending', 'failed', 'processing']),
+          inArray(document.processingStatus, SWEEPABLE_PROCESSING_STATUSES),
+          // Dead letters are left alone: past the budget, re-dispatching only
+          // re-bills a document that has failed the same way every time.
+          lt(document.processingAttempts, MAX_PROCESSING_ATTEMPTS),
           lt(document.uploadedAt, syncStartedAt),
           gt(document.uploadedAt, retryCutoff),
           eq(document.userExcluded, false),
@@ -2055,9 +2192,11 @@ export async function executeSync(
           isNull(document.deletedAt)
         )
       )
-    const stuckDocs = sweepCandidates.filter((doc) =>
-      isStuckDocumentSweepEligible(doc, sweepEvaluatedAt)
-    )
+    const stuckDocs = sweepCandidates
+      .filter((row): row is typeof row & { processingStatus: DocumentProcessingStatus } =>
+        isDocumentProcessingStatus(row.processingStatus)
+      )
+      .filter((doc) => isStuckDocumentSweepEligible(doc, sweepEvaluatedAt))
 
     if (stuckDocs.length > 0) {
       logger.info(`Retrying ${stuckDocs.length} stuck documents`, { connectorId })
@@ -2096,18 +2235,14 @@ export async function executeSync(
           if (retryDocs.length > 0) {
             const retryDocIds = retryDocs.map((doc) => doc.id)
 
-            await tx.delete(embedding).where(inArray(embedding.documentId, retryDocIds))
-
-            await tx
+            const reset = await tx
               .update(document)
               .set({
                 processingStatus: 'pending',
-                /**
-                 * Records when this re-dispatch was queued, so a later sweep can
-                 * tell a document still waiting for a worker from one whose
-                 * dispatch was lost. See {@link isStuckDocumentSweepEligible}.
-                 */
-                processingQueuedAt: sweepEvaluatedAt,
+                // `processingQueuedAt` is not stamped here: the dispatch below
+                // funnels through `markDocumentsQueued`, which stamps it for
+                // every caller. Setting it here wrote a value that was
+                // immediately overwritten.
                 processingStartedAt: null,
                 processingCompletedAt: null,
                 processingError: null,
@@ -2115,7 +2250,32 @@ export async function executeSync(
                 tokenCount: 0,
                 characterCount: 0,
               })
-              .where(inArray(document.id, retryDocIds))
+              /**
+               * Re-asserts the status the candidate SELECT filtered on.
+               *
+               * The ownership re-check above covers `connectorId` only, so
+               * between the SELECT and this write a worker could have claimed
+               * or finished the document. Resetting it then would delete the
+               * embeddings of a pass that had already completed and bill a
+               * second one — the same TOCTOU the connector-side writes in this
+               * file were guarded against.
+               */
+              .where(
+                and(
+                  inArray(document.id, retryDocIds),
+                  inArray(document.processingStatus, SWEEPABLE_PROCESSING_STATUSES)
+                )
+              )
+              .returning({ id: document.id })
+
+            // Embeddings are dropped only for documents this sweep actually
+            // reset. Deleting first would strip a pass that completed between
+            // the candidate SELECT and this write.
+            const resetIds = reset.map((row) => row.id)
+            if (resetIds.length > 0) {
+              await tx.delete(embedding).where(inArray(embedding.documentId, resetIds))
+            }
+            retryDocs = retryDocs.filter((doc) => resetIds.includes(doc.id))
           }
         })
 
@@ -2137,6 +2297,14 @@ export async function executeSync(
           )
         }
       } catch (error) {
+        /**
+         * Kept out of the best-effort swallow below. A run that has provably
+         * lost its lock would otherwise be mislabelled an enqueue failure, fall
+         * through, and publish `completeSyncLog(..., 'completed')` — which the
+         * replacement run then reads as corroboration of its own listing.
+         */
+        if (error instanceof SyncLockLostException) throw error
+
         logger.warn('Failed to enqueue stuck documents for reprocessing', {
           connectorId,
           count: stuckDocs.length,

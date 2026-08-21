@@ -179,6 +179,9 @@ describe('knowledge document indexing usage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
+    // The processing claim is guarded and returns the row it claimed; without a
+    // stub every worker would read as 'already completed' and return early.
+    dbChainMockFns.returning.mockResolvedValue([{ id: 'document-1' }])
     mockCheckActorUsageLimits.mockResolvedValue({ isExceeded: false })
     mockGetFileMetadataByKeys.mockImplementation(async (_keys: string[], context: string) =>
       context === 'workspace' ? [SOURCE_BINDING] : []

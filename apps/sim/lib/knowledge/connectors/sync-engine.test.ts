@@ -741,11 +741,11 @@ describe('isStuckDocumentSweepEligible', () => {
   })
 
   /**
-   * Pinned to the derivation in sync-engine (corpus 7,730 / concurrency 20 x
-   * 1 minute occupancy x 2 contention). A change to any input should fail here
-   * so it is re-checked deliberately rather than absorbed silently.
+   * Pinned to `QUEUED_DISPATCH_GRACE_MINUTES` in sync-engine. A change to it
+   * should fail here so it is re-checked deliberately rather than absorbed
+   * silently.
    */
-  const GRACE_MINUTES = 773
+  const GRACE_MINUTES = 240
 
   it('leaves a document dispatched by the previous sync and still queued alone', () => {
     expect(
@@ -1267,18 +1267,50 @@ describe('buildReconciliationHoldNotice', () => {
      * swapped, which inverts the message into "withheld 250 — more than the 500
      * allowed" and misleads the operator it exists to inform.
      */
-    expect(buildReconciliationHoldNotice(500, 250, 1000)).toBe(
-      'Withheld 500 document removal(s) — more than the 250 allowed in one sync ' +
-        'of 1000 documents. Documents deleted at the source are still indexed. ' +
+    expect(buildReconciliationHoldNotice(500, 250, 1000, true, false)).toBe(
+      'Withheld 500 document removal(s) — more than the 250 allowed per generation ' +
+        'in one sync of 1000 documents. Documents removed at the source are still indexed. ' +
         'Check the source is returning its full contents, then run a full sync to apply the removals.'
+    )
+  })
+
+  it('does not claim withheld documents are indexed when only the purge was held', async () => {
+    const { buildReconciliationHoldNotice } = await import('@/lib/knowledge/connectors/sync-engine')
+
+    /**
+     * A hard-only hold withholds documents a previous sync already tombstoned,
+     * so they have been invisible since then. Telling the operator they are
+     * "still indexed" was simply false.
+     */
+    const notice = buildReconciliationHoldNotice(500, 250, 1000, false, true)
+
+    expect(notice).toContain('already pending removal were not purged')
+    expect(notice).not.toContain('are still indexed')
+  })
+
+  it('names both consequences when both generations were held', async () => {
+    const { buildReconciliationHoldNotice } = await import('@/lib/knowledge/connectors/sync-engine')
+
+    const notice = buildReconciliationHoldNotice(900, 250, 1000, true, true)
+
+    expect(notice).toContain('are still indexed')
+    expect(notice).toContain('already pending removal were not purged')
+  })
+
+  it('describes the cap as per generation, since a sync may spend it twice', async () => {
+    const { buildReconciliationHoldNotice } = await import('@/lib/knowledge/connectors/sync-engine')
+
+    // Saying "allowed in one sync" understated the real ceiling by 2x.
+    expect(buildReconciliationHoldNotice(500, 250, 1000, true, false)).toContain(
+      '250 allowed per generation'
     )
   })
 
   it('cannot be satisfied by swapping the withheld and cap counts', async () => {
     const { buildReconciliationHoldNotice } = await import('@/lib/knowledge/connectors/sync-engine')
 
-    expect(buildReconciliationHoldNotice(500, 250, 1000)).not.toBe(
-      buildReconciliationHoldNotice(250, 500, 1000)
+    expect(buildReconciliationHoldNotice(500, 250, 1000, true, false)).not.toBe(
+      buildReconciliationHoldNotice(250, 500, 1000, true, false)
     )
   })
 })
@@ -1586,11 +1618,11 @@ describe('sync lock ownership across a reclaim and reacquire', () => {
 
   /** The connector row once run B has taken the lock that run A used to hold. */
   const rowHeldByB = {
-    id: 'c-1',
-    status: 'syncing',
-    syncLockToken: RUN_B,
-    archivedAt: null,
-    deletedAt: null,
+    [schemaMock.knowledgeConnector.id]: 'c-1',
+    [schemaMock.knowledgeConnector.status]: 'syncing',
+    [schemaMock.knowledgeConnector.syncLockToken]: RUN_B,
+    [schemaMock.knowledgeConnector.archivedAt]: null,
+    [schemaMock.knowledgeConnector.deletedAt]: null,
   }
 
   it('rejects the reclaimed run A and admits the live run B', async () => {
@@ -1610,11 +1642,9 @@ describe('sync lock ownership across a reclaim and reacquire', () => {
     const { stillHoldsSyncLock } = await import('@/lib/knowledge/connectors/sync-engine')
 
     const reclaimed = {
-      id: 'c-1',
-      status: 'error',
-      syncLockToken: null,
-      archivedAt: null,
-      deletedAt: null,
+      ...rowHeldByB,
+      [schemaMock.knowledgeConnector.status]: 'error',
+      [schemaMock.knowledgeConnector.syncLockToken]: null,
     }
 
     expect(conditionMatchesRow(stillHoldsSyncLock('c-1', RUN_A), reclaimed)).toBe(false)
@@ -1623,7 +1653,7 @@ describe('sync lock ownership across a reclaim and reacquire', () => {
   it('admits the run that still holds its own lock', async () => {
     const { stillHoldsSyncLock } = await import('@/lib/knowledge/connectors/sync-engine')
 
-    const heldByA = { ...rowHeldByB, syncLockToken: RUN_A }
+    const heldByA = { ...rowHeldByB, [schemaMock.knowledgeConnector.syncLockToken]: RUN_A }
 
     expect(conditionMatchesRow(stillHoldsSyncLock('c-1', RUN_A), heldByA)).toBe(true)
   })
@@ -1631,7 +1661,11 @@ describe('sync lock ownership across a reclaim and reacquire', () => {
   it('rejects a run whose connector was paused mid-sync', async () => {
     const { stillHoldsSyncLock } = await import('@/lib/knowledge/connectors/sync-engine')
 
-    const paused = { ...rowHeldByB, status: 'paused', syncLockToken: RUN_A }
+    const paused = {
+      ...rowHeldByB,
+      [schemaMock.knowledgeConnector.status]: 'paused',
+      [schemaMock.knowledgeConnector.syncLockToken]: RUN_A,
+    }
 
     expect(conditionMatchesRow(stillHoldsSyncLock('c-1', RUN_A), paused)).toBe(false)
   })
@@ -1810,5 +1844,75 @@ describe('executeSync heartbeats during the listing phase', () => {
 
     // All three pages fetched: the time gate keeps a fast listing beat-free.
     expect(mockListDocuments).toHaveBeenCalledTimes(3)
+  })
+})
+
+describe('resolveStaleProcessingMinutes', () => {
+  it('preserves the previously hard-coded value at the default configuration', async () => {
+    const { resolveStaleProcessingMinutes } = await import('@/lib/knowledge/connectors/sync-engine')
+
+    expect(resolveStaleProcessingMinutes(600, 3)).toBe(45)
+  })
+
+  it('always exceeds the longest a legitimate run can take', async () => {
+    const { resolveStaleProcessingMinutes, worstCaseProcessingMinutes } = await import(
+      '@/lib/knowledge/connectors/sync-engine'
+    )
+
+    /**
+     * The sweep reclaims by deleting embeddings and re-dispatching, so a value
+     * at or below the worst-case run makes it delete live work. At the previous
+     * fixed 45, raising KB_CONFIG_MAX_DURATION past 900s did exactly that.
+     */
+    for (const [maxDuration, maxAttempts] of [
+      [600, 3],
+      [900, 3],
+      [3600, 3],
+      [600, 10],
+      [7200, 5],
+    ]) {
+      expect(resolveStaleProcessingMinutes(maxDuration, maxAttempts)).toBeGreaterThan(
+        worstCaseProcessingMinutes(maxDuration, maxAttempts)
+      )
+    }
+  })
+})
+
+describe('SWEEPABLE_PROCESSING_STATUSES', () => {
+  it('never includes a completed document', async () => {
+    const { SWEEPABLE_PROCESSING_STATUSES } = await import('@/lib/knowledge/connectors/sync-engine')
+
+    /**
+     * The sweep reclaims by deleting embeddings and re-dispatching, so a
+     * completed document entering this list means a finished, already-billed
+     * pass is discarded and paid for twice.
+     */
+    expect(SWEEPABLE_PROCESSING_STATUSES).not.toContain('completed')
+    expect([...SWEEPABLE_PROCESSING_STATUSES].sort()).toEqual(['failed', 'pending', 'processing'])
+  })
+
+  it('covers every non-terminal state so nothing is stranded', async () => {
+    const { SWEEPABLE_PROCESSING_STATUSES } = await import('@/lib/knowledge/connectors/sync-engine')
+    const { DOCUMENT_PROCESSING_STATUSES } = await import('@/lib/knowledge/documents/types')
+
+    const unreclaimable = DOCUMENT_PROCESSING_STATUSES.filter(
+      (status) => !SWEEPABLE_PROCESSING_STATUSES.includes(status as never)
+    )
+    expect(unreclaimable).toEqual(['completed'])
+  })
+})
+
+describe('MAX_PROCESSING_ATTEMPTS', () => {
+  it('bounds sweep spend without stranding a recoverable document too early', async () => {
+    const { MAX_PROCESSING_ATTEMPTS } = await import('@/lib/knowledge/documents/types')
+
+    /**
+     * One attempt is spent per dispatch, not per Trigger.dev retry, so a
+     * short-interval connector can burn several inside one transient outage.
+     * Below 4 that is reachable in a single bad window; above ~10 the budget
+     * stops bounding the spend it exists to bound.
+     */
+    expect(MAX_PROCESSING_ATTEMPTS).toBeGreaterThanOrEqual(4)
+    expect(MAX_PROCESSING_ATTEMPTS).toBeLessThanOrEqual(10)
   })
 })

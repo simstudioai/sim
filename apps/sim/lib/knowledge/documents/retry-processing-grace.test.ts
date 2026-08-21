@@ -1,7 +1,14 @@
 /**
  * @vitest-environment node
  */
-import { dbChainMock, dbChainMockFns, flattenMockConditions, resetDbChainMock } from '@sim/testing'
+import {
+  dbChainMock,
+  dbChainMockFns,
+  hasMockCondition,
+  type MockCondition,
+  resetDbChainMock,
+  schemaMock,
+} from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@sim/db', () => dbChainMock)
@@ -45,54 +52,19 @@ describe('retryDocumentProcessing requeue stamp', () => {
     resetDbChainMock()
   })
 
-  it('stamps the requeue time on the dispatch column', async () => {
-    const before = Date.now()
+  it('clears the previous attempt terminal state', async () => {
     const values = await captureRequeueValues()
-    const after = Date.now()
 
-    expect(values.processingQueuedAt).toBeInstanceOf(Date)
-    const stamp = values.processingQueuedAt as Date
-    expect(stamp.getTime()).toBeGreaterThanOrEqual(before)
-    expect(stamp.getTime()).toBeLessThanOrEqual(after)
+    // The queue stamp itself is written by `markDocumentsQueued` on dispatch,
+    // covered below — the reset's job is only to undo the prior attempt.
     expect(values.processingCompletedAt).toBeNull()
+    expect(values.processingError).toBeNull()
   })
 
   it('leaves processingStartedAt null so the API reports no start time', async () => {
     const values = await captureRequeueValues()
 
     expect(values.processingStartedAt).toBeNull()
-  })
-
-  it('leaves the requeued document outside the reach of the next connector sync', async () => {
-    const values = await captureRequeueValues()
-    const uploadedAt = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
-    const sweptAt = new Date(Date.now() + 60 * 1000)
-
-    expect(
-      isStuckDocumentSweepEligible(
-        {
-          processingStatus: values.processingStatus as string,
-          processingQueuedAt: values.processingQueuedAt as Date | null,
-          processingStartedAt: values.processingStartedAt as Date | null,
-          processingCompletedAt: values.processingCompletedAt as Date | null,
-          uploadedAt,
-        },
-        sweptAt
-      )
-    ).toBe(false)
-
-    expect(
-      isStuckDocumentSweepEligible(
-        {
-          processingStatus: 'pending',
-          processingQueuedAt: null,
-          processingStartedAt: null,
-          processingCompletedAt: null,
-          uploadedAt,
-        },
-        sweptAt
-      )
-    ).toBe(true)
   })
 })
 
@@ -135,31 +107,130 @@ describe('processDocumentsWithQueue dispatch stamp', () => {
     expect(values.processingStartedAt).toBeNull()
   })
 
-  it('withdraws the stamp when every dispatch fails', async () => {
-    await dispatch()
-
-    const withdrawal = dbChainMockFns.set.mock.calls.find(
-      (call) => (call[0] as Record<string, unknown> | undefined)?.processingQueuedAt === null
-    )
-    expect(withdrawal).toBeDefined()
-  })
-
-  it('scopes the withdrawal to this batch, to pending rows, and to its own stamp', async () => {
+  it('puts the dispatched document outside the reach of the next connector sync', async () => {
     await dispatch()
 
     const stampCall = dbChainMockFns.set.mock.calls.find(
-      (call) => (call[0] as Record<string, unknown> | undefined)?.processingQueuedAt instanceof Date
+      (call) => (call[0] as Record<string, unknown> | undefined)?.processingQueuedAt !== undefined
     )
-    const stamp = (stampCall?.[0] as Record<string, unknown>).processingQueuedAt as Date
+    const values = stampCall?.[0] as Record<string, unknown>
+    const uploadedAt = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+    const sweptAt = new Date(Date.now() + 60 * 1000)
 
-    const scoped = dbChainMockFns.where.mock.calls.some((call) => {
-      const nodes = flattenMockConditions(call[0])
-      return (
-        nodes.some((node) => node.type === 'inArray' && Array.isArray(node.values)) &&
-        nodes.some((node) => node.type === 'eq' && node.right === 'pending') &&
-        nodes.some((node) => node.type === 'eq' && node.right === stamp)
+    /**
+     * The invariant the retry used to protect with its own inline stamp: a
+     * document dispatched moments ago must not be reclaimed by a sweep that
+     * would otherwise age it from a month-old `uploadedAt`.
+     */
+    expect(
+      isStuckDocumentSweepEligible(
+        {
+          processingStatus: 'pending',
+          processingQueuedAt: values.processingQueuedAt as Date | null,
+          processingStartedAt: values.processingStartedAt as Date | null,
+          uploadedAt,
+        },
+        sweptAt
       )
-    })
-    expect(scoped).toBe(true)
+    ).toBe(false)
+
+    // Without the stamp the same document ages from `uploadedAt` and is taken.
+    expect(
+      isStuckDocumentSweepEligible(
+        {
+          processingStatus: 'pending',
+          processingQueuedAt: null,
+          processingStartedAt: null,
+          uploadedAt,
+        },
+        sweptAt
+      )
+    ).toBe(true)
+  })
+})
+
+describe('retryDocumentProcessing double-click guard', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
+  it('only requeues a document in a terminal state', async () => {
+    dbChainMockFns.returning.mockResolvedValue([{ id: 'doc-1' }])
+
+    await retryDocumentProcessing('kb-1', 'doc-1', DOC_DATA, 'req-1', undefined).catch(() => {})
+
+    /**
+     * Unguarded, a second click reset a document the first had already queued,
+     * so both dispatches ran, both indexed, and both billed.
+     */
+    const guard = dbChainMockFns.where.mock.calls.find((call) =>
+      hasMockCondition(
+        call[0],
+        (node: MockCondition) =>
+          node.type === 'inArray' && node.column === schemaMock.document.processingStatus
+      )
+    )
+    expect(guard).toBeDefined()
+    expect(
+      hasMockCondition(
+        guard?.[0],
+        (node: MockCondition) =>
+          node.type === 'inArray' &&
+          Array.isArray(node.values) &&
+          node.values.join(',') === 'completed,failed'
+      )
+    ).toBe(true)
+  })
+
+  it('does not dispatch or drop embeddings when it claimed nothing', async () => {
+    // The guarded reset matched no rows: another click already queued this doc.
+    dbChainMockFns.returning.mockResolvedValue([])
+
+    const result = await retryDocumentProcessing('kb-1', 'doc-1', DOC_DATA, 'req-1', undefined)
+
+    expect(result).toMatchObject({ success: true, status: 'pending' })
+    expect(result.message).toContain('already queued')
+    expect(dbChainMockFns.delete).not.toHaveBeenCalled()
+    // No dispatch means no queue stamp was written either.
+    expect(
+      dbChainMockFns.set.mock.calls.some(
+        (call) => (call[0] as Record<string, unknown> | undefined)?.processingQueuedAt !== undefined
+      )
+    ).toBe(false)
+  })
+})
+
+describe('processing attempt budget', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+    dbChainMockFns.limit.mockResolvedValue([{ userId: 'user-1', workspaceId: null }])
+  })
+
+  it('spends one attempt per dispatch, in the same guarded write', async () => {
+    await processDocumentsWithQueue(
+      [{ documentId: 'doc-1', ...DOC_DATA }],
+      'kb-1',
+      {},
+      'req-1',
+      undefined
+    ).catch(() => {})
+
+    const stampCall = dbChainMockFns.set.mock.calls.find(
+      (call) => (call[0] as Record<string, unknown> | undefined)?.processingQueuedAt !== undefined
+    )
+    const values = stampCall?.[0] as Record<string, unknown>
+
+    /**
+     * Charged as a SQL increment rather than a read-then-write, and in the same
+     * statement as the queue stamp, so two concurrent dispatches cannot both
+     * read the same count and spend one attempt between them.
+     */
+    expect(values.processingAttempts).toBeDefined()
+    expect(typeof values.processingAttempts).not.toBe('number')
+    expect((values.processingAttempts as { toSQL: () => { sql: string } }).toSQL().sql).toContain(
+      '+ 1'
+    )
   })
 })

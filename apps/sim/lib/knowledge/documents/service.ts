@@ -23,6 +23,7 @@ import {
   inArray,
   isNotNull,
   isNull,
+  ne,
   type SQL,
   sql,
 } from 'drizzle-orm'
@@ -702,7 +703,14 @@ async function resolveDocumentProcessingBillingContext(
 async function markDocumentsQueued(documentIds: string[], queuedAt: Date): Promise<void> {
   await db
     .update(document)
-    .set({ processingQueuedAt: queuedAt, processingStartedAt: null })
+    .set({
+      processingQueuedAt: queuedAt,
+      processingStartedAt: null,
+      // Spent here because this is the one write every dispatch passes through,
+      // and it is already guarded — so the budget cannot be charged twice for a
+      // single dispatch, nor skipped by a caller that dispatches another way.
+      processingAttempts: sql`${document.processingAttempts} + 1`,
+    })
     .where(and(inArray(document.id, documentIds), eq(document.processingStatus, 'pending')))
 }
 
@@ -971,7 +979,16 @@ export async function processDocumentAsync(
           processingError: 'Document or knowledge base no longer exists',
           processingCompletedAt: new Date(),
         })
-        .where(eq(document.id, documentId))
+        // Never overwrite a finished pass, and never resurrect state on a row
+        // that has since been archived or deleted.
+        .where(
+          and(
+            eq(document.id, documentId),
+            ne(document.processingStatus, 'completed'),
+            isNull(document.archivedAt),
+            isNull(document.deletedAt)
+          )
+        )
       return
     }
 
@@ -983,7 +1000,17 @@ export async function processDocumentAsync(
       mimeType: ctx.mimeType,
     }
 
-    await db
+    /**
+     * Claiming is guarded on the document not already being `completed`.
+     *
+     * Without a status predicate this write was reachable for a finished
+     * document — a late or duplicate dispatch would flip `completed` back to
+     * `processing`, discard the pass that had already indexed and billed, and
+     * index it a second time. `pending`, `failed` and `processing` stay
+     * claimable so a Trigger.dev retry of the same run still proceeds; the
+     * commit CAS downstream is what keeps two live workers from both finishing.
+     */
+    const claimed = await db
       .update(document)
       .set({
         processingStatus: 'processing',
@@ -992,8 +1019,21 @@ export async function processDocumentAsync(
         processingError: null,
       })
       .where(
-        and(eq(document.id, documentId), isNull(document.archivedAt), isNull(document.deletedAt))
+        and(
+          eq(document.id, documentId),
+          ne(document.processingStatus, 'completed'),
+          isNull(document.archivedAt),
+          isNull(document.deletedAt)
+        )
       )
+      .returning({ id: document.id })
+
+    if (claimed.length === 0) {
+      logger.info(
+        `[${documentId}] Skipping document processing: already completed, archived, or deleted`
+      )
+      return
+    }
 
     logger.info(`[${documentId}] Status updated to 'processing', starting document processor`)
 
@@ -1267,6 +1307,9 @@ export async function processDocumentAsync(
                 processingStatus: 'completed',
                 processingCompletedAt: now,
                 processingError: null,
+                // A completed pass clears the budget: the next failure starts
+                // from a full allowance rather than inheriting a stale count.
+                processingAttempts: 0,
               })
               .where(
                 and(
@@ -2572,26 +2615,21 @@ export async function retryDocumentProcessing(
   billingAttribution: BillingAttributionSnapshot | undefined
 ): Promise<{ success: boolean; status: string; message: string }> {
   /**
-   * When this requeue was dispatched.
+   * Only a document in a terminal state may be retried.
    *
-   * The document sits at `pending` until a worker claims it, and for a
-   * connector-owned document the connector sweep
-   * (`isStuckDocumentSweepEligible`) measures queue wait from
-   * `processingQueuedAt`, falling back to `uploadedAt`. Leaving it unset would
-   * fall the sweep back on `uploadedAt`, which for a document synced days ago
-   * is arbitrarily old — so the next sync would reclaim the document out from
-   * under this very retry, duplicating its work and billing a second indexing
-   * pass.
+   * Unguarded, a double-click issued two full passes: the second reset a
+   * document that the first had already queued, so both dispatches ran, both
+   * indexed, and both billed. Restricting the transition to `completed` or
+   * `failed` makes the second click match no rows, and the empty `returning`
+   * below stops it dispatching.
    */
-  const requeuedAt = new Date()
-  await db.transaction(async (tx) => {
-    await tx.delete(embedding).where(eq(embedding.documentId, documentId))
-
-    await tx
+  const requeued = await db.transaction(async (tx) => {
+    const reset = await tx
       .update(document)
       .set({
         processingStatus: 'pending',
-        processingQueuedAt: requeuedAt,
+        // `processingQueuedAt` is stamped by `markDocumentsQueued` on the
+        // dispatch below, for this and every other caller.
         processingStartedAt: null,
         processingCompletedAt: null,
         processingError: null,
@@ -2599,8 +2637,32 @@ export async function retryDocumentProcessing(
         tokenCount: 0,
         characterCount: 0,
       })
-      .where(eq(document.id, documentId))
+      .where(
+        and(
+          eq(document.id, documentId),
+          inArray(document.processingStatus, ['completed', 'failed']),
+          isNull(document.archivedAt),
+          isNull(document.deletedAt)
+        )
+      )
+      .returning({ id: document.id })
+
+    // Embeddings are dropped only for a document this call actually claimed,
+    // so a losing double-click cannot wipe the winner's in-flight work.
+    if (reset.length > 0) {
+      await tx.delete(embedding).where(eq(embedding.documentId, documentId))
+    }
+    return reset.length > 0
   })
+
+  if (!requeued) {
+    logger.info(`[${requestId}] Document retry skipped, already queued: ${documentId}`)
+    return {
+      success: true,
+      status: 'pending',
+      message: 'Document is already queued for processing',
+    }
+  }
 
   await processDocumentsWithQueue(
     [

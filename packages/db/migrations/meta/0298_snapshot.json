@@ -1,5 +1,5 @@
 {
-  "id": "f97abcd2-e8ef-4ab8-af02-6bae4d9bf64c",
+  "id": "7d6f83e8-3845-40a9-b29d-81764850f548",
   "prevId": "c9c21e6c-7324-484b-b303-ab7b4fd9ab6d",
   "version": "7",
   "dialect": "postgresql",
@@ -4774,6 +4774,13 @@
           "primaryKey": false,
           "notNull": true,
           "default": "'pending'"
+        },
+        "processing_attempts": {
+          "name": "processing_attempts",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
         },
         "processing_queued_at": {
           "name": "processing_queued_at",
