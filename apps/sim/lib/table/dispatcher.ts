@@ -405,7 +405,7 @@ export async function dispatcherStep(
   // user already saw the column flip to empty/Pending before any cell
   // started enqueueing.
   if (dispatch.status === 'pending') {
-    await db
+    const claimed = await db
       .update(tableRunDispatches)
       // Opens the heartbeat at the instant a holder takes the dispatch, so the
       // cleanup sweep ages it from that rather than from `requested_at`, which
@@ -424,6 +424,19 @@ export async function dispatcherStep(
           inArray(tableRunDispatches.status, [...ACTIVE_DISPATCH_STATUSES])
         )
       )
+      .returning({ id: tableRunDispatches.id })
+
+    /**
+     * Losing that race ends the step. Guarding the write without reading its
+     * outcome is the worse half of a fix: the row correctly stays `cancelled`,
+     * while this step goes on to announce `dispatching`, stamp cells and enqueue
+     * a window for it — and an empty window would then call the unguarded
+     * `markDispatchComplete` and overwrite `cancelled` with `complete`.
+     */
+    if (claimed.length === 0) {
+      logger.info(`[${dispatchId}] dispatch was cancelled before this step claimed it`)
+      return 'done'
+    }
     // Announce the dispatch the moment it starts — before the first window's
     // cells finish. Without this, auto-fired and capped dispatches (no client-
     // side optimistic seed) emit their first `dispatch` event only after window
@@ -844,6 +857,14 @@ export async function cancelStaleDispatches(
    * beating, nothing executing — is still collected. The subquery rides the
    * partial `(table_id, status)` index that already covers exactly these three
    * statuses.
+   *
+   * Narrowed to the dispatch's OWN groups, because `table_row_executions` has no
+   * dispatch column. Table-scoped, a live dispatch's cells would read as
+   * evidence that an abandoned dispatch beside it was still working, and the
+   * abandoned one would never be reclaimed — the stuck overlay this sweep exists
+   * to clear, now permanent. Two active dispatches over the SAME groups can
+   * still mask each other, but that is the state `markActiveDispatchesCancelled`
+   * already prevents: starting a run cancels prior work on its scope.
    */
   const isStale = () =>
     and(
@@ -852,6 +873,9 @@ export async function cancelStaleDispatches(
       sql`NOT EXISTS (
         SELECT 1 FROM ${tableRowExecutions}
         WHERE ${tableRowExecutions.tableId} = ${tableRunDispatches.tableId}
+          AND ${tableRowExecutions.groupId} IN (
+            SELECT jsonb_array_elements_text(${tableRunDispatches.scope} -> 'groupIds')
+          )
           AND ${tableRowExecutions.status} IN ('queued', 'running', 'pending')
           AND ${tableRowExecutions.updatedAt} >= ${sql.param(staleBefore, tableRowExecutions.updatedAt)}
       )`

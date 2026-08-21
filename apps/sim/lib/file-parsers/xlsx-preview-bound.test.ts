@@ -79,4 +79,23 @@ describe('XlsxParser preview bound', () => {
     expect(result.metadata?.truncated).toBe(true)
     expect(result.content).toContain('200,000 total rows')
   })
+
+  /**
+   * A sheet whose declared range fits inside the window was not cut short, even
+   * though blank rows mean fewer rows survive conversion than the range names.
+   * Comparing the declared count against the converted length reported those as
+   * truncated.
+   */
+  it('does not report truncation for a small sheet containing blank rows', async () => {
+    // A genuinely empty row — empty strings are still cells and are not skipped.
+    const sheet = XLSX.utils.aoa_to_sheet([['header-a', 'header-b'], [], ['row-2-a', 'row-2-b']])
+    const book = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(book, sheet, 'Sheet1')
+    const buffer = XLSX.write(book, { type: 'buffer', bookType: 'xlsx' }) as Buffer
+
+    const result = await new XlsxParser().parseBuffer(buffer)
+
+    expect(result.metadata?.truncated).toBe(false)
+    expect(result.content).not.toContain('total rows, showing first')
+  })
 })

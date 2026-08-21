@@ -114,6 +114,13 @@ describe('cancelStaleDispatches', () => {
     expect(chunks.some((chunk) => chunk.includes('NOT EXISTS'))).toBe(true)
     expect(chunks).toContain('tableRowExecutions.updatedAt')
     expect(chunks).toContain('tableRowExecutions.tableId')
+    /**
+     * Narrowed to the dispatch's own groups: row executions carry no dispatch
+     * column, so a table-wide probe lets a LIVE dispatch's cells vouch for an
+     * ABANDONED one beside it, and the abandoned row is never reclaimed.
+     */
+    expect(chunks).toContain('tableRowExecutions.groupId')
+    expect(chunks.some((chunk) => chunk.includes('jsonb_array_elements_text'))).toBe(true)
   })
 
   it('emits the terminal event so a stuck client overlay clears', async () => {
@@ -165,12 +172,33 @@ describe('dispatcherStep pending transition', () => {
    * resurrected the row, and with a fresh heartbeat the sweep would then wait
    * out another full window before reclaiming what it had already given up on.
    */
+  it('stops the step when the claim loses the race', async () => {
+    mockGetTableById.mockResolvedValue({
+      id: 'table-1',
+      schema: { workflowGroups: [{ id: 'group-1' }] },
+    })
+    dbChainMockFns.limit.mockResolvedValue([{ ...ABANDONED_ROW, status: 'pending' }])
+    // The guarded claim matched nothing — a Stop-all or the sweep got there first.
+    dbChainMockFns.returning.mockResolvedValue([])
+
+    const result = await dispatcherStep('tdsp_1')
+
+    /**
+     * Guarding the write without reading its outcome is the worse half of a fix:
+     * the row correctly stays cancelled while the step announces `dispatching`,
+     * stamps cells and enqueues a window for it.
+     */
+    expect(result).toBe('done')
+    expect(mockAppendTableEvent).not.toHaveBeenCalled()
+  })
+
   it('re-asserts the status it read before claiming the dispatch', async () => {
     mockGetTableById.mockResolvedValue({
       id: 'table-1',
       schema: { workflowGroups: [{ id: 'group-1' }] },
     })
     dbChainMockFns.limit.mockResolvedValue([{ ...ABANDONED_ROW, status: 'pending' }])
+    dbChainMockFns.returning.mockResolvedValue([{ id: 'tdsp_1' }])
 
     await dispatcherStep('tdsp_1').catch(() => {})
 

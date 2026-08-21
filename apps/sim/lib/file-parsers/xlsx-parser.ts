@@ -177,12 +177,16 @@ export class XlsxParser implements FileParser {
         }
 
         /**
-         * Compared against the DECLARED row count, not the converted one. The
-         * conversion is now bounded to the preview window, so the converted
-         * length can never exceed it — comparing the two made this unreachable
-         * and silently dropped the notice from every sheet larger than the cap.
+         * Truncated means the WINDOW cut the sheet short, which is a question
+         * about the declared range against the cap — not about how many rows
+         * survived conversion. Comparing the converted length to the cap made
+         * this unreachable once the conversion was bounded (the two are equal by
+         * construction); comparing the declared count to the converted length
+         * instead reported truncation for any sheet merely containing blank
+         * rows, since those are now skipped. The CSV parser asks the same
+         * question the same way.
          */
-        if (rowCount > rowsToProcess) {
+        if (rowCount > CONFIG.MAX_PREVIEW_ROWS) {
           content += truncationNotice(
             `${rowCount.toLocaleString()} total rows, showing first ${rowsToProcess.toLocaleString()}`
           )
