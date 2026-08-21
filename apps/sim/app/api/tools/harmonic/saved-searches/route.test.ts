@@ -293,7 +293,7 @@ describe('POST /api/tools/harmonic/saved-searches', () => {
     mockFetch
       .mockResolvedValueOnce(providerResponse('{not-json'))
       .mockResolvedValueOnce(
-        providerResponse('[]', 200, { 'content-length': String(512 * 1024 + 1) })
+        providerResponse('[]', 200, { 'content-length': String(1024 * 1024 + 1) })
       )
 
     for (let requestNumber = 0; requestNumber < 2; requestNumber++) {
@@ -324,18 +324,20 @@ describe('POST /api/tools/harmonic/saved-searches', () => {
     expect(body.savedSearches).toHaveLength(HARMONIC_SAVED_SEARCH_SELECTOR_MAX_OPTIONS)
   })
 
-  it('fails instead of silently truncating more than the option ceiling', async () => {
+  it('truncates to the option ceiling instead of failing the whole selector', async () => {
     mockFetch.mockResolvedValueOnce(
       providerResponse(
-        Array.from({ length: HARMONIC_SAVED_SEARCH_SELECTOR_MAX_OPTIONS + 1 }, (_, index) =>
+        Array.from({ length: HARMONIC_SAVED_SEARCH_SELECTOR_MAX_OPTIONS + 25 }, (_, index) =>
           peopleSearch(index + 1)
         )
       )
     )
 
     const response = await POST(request(REQUEST_BODY), {})
+    const body = await json(response)
 
-    expect(response.status).toBe(502)
+    expect(response.status).toBe(200)
+    expect(body.savedSearches).toHaveLength(HARMONIC_SAVED_SEARCH_SELECTOR_MAX_OPTIONS)
   })
 
   it.each([

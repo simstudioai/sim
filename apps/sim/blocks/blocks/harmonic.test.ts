@@ -21,9 +21,18 @@ describe('HarmonicBlock', () => {
   it('maps every dropdown operation onto exactly one registered tool', () => {
     expect(operationIds).toEqual([
       'harmonic_search_people_scout',
+      'harmonic_enrich_person',
+      'harmonic_get_person',
+      'harmonic_batch_get_people',
+      'harmonic_get_company_employees',
       'harmonic_list_people_saved_searches',
       'harmonic_get_people_saved_search_results',
-      'harmonic_batch_get_people',
+      'harmonic_get_people_saved_search_net_new_results',
+      'harmonic_clear_people_saved_search_net_new_results',
+      'harmonic_submit_email_enrichment_job',
+      'harmonic_get_email_enrichment_job',
+      'harmonic_get_email_enrichment_usage',
+      'harmonic_get_enrichment_status',
     ])
     expect(operationIds.map((id) => selectTool({ operation: id }))).toEqual(operationIds)
     expect(new Set(operationIds)).toEqual(new Set(HarmonicBlock.tools.access))
@@ -133,11 +142,39 @@ describe('HarmonicBlock', () => {
         description: 'Reusable Harmonic team API-key credential',
       },
       query: { type: 'string', description: 'Natural-language Harmonic Scout people query' },
+      linkedinUrl: { type: 'string', description: 'LinkedIn profile URL to enrich' },
+      email: { type: 'string', description: 'Email address used as an enrichment fallback' },
+      personId: { type: 'string', description: 'Harmonic person ID or full person URN' },
+      companyContextUrns: {
+        type: 'array',
+        description: 'Company URNs scoping the returned experience context',
+      },
+      companyId: { type: 'string', description: 'Harmonic company ID or full company URN' },
+      employeeGroupType: { type: 'string', description: 'Employee role group filter' },
+      employeeStatus: { type: 'string', description: 'Employment status filter' },
+      userConnectionStatus: { type: 'string', description: 'Team or user connection filter' },
       savedSearchId: { type: 'string', description: 'People saved-search ID or full URN' },
+      newResultsSince: {
+        type: 'string',
+        description: 'UTC cutoff for net-new saved-search matches',
+      },
       personIds: { type: 'array', description: 'Numeric Harmonic person IDs to retrieve' },
-      personUrns: { type: 'array', description: 'Harmonic person URNs to retrieve' },
-      size: { type: 'number', description: 'Saved-search page size, clamped to 1-100' },
-      cursor: { type: 'string', description: 'Opaque saved-search pagination cursor' },
+      personUrns: {
+        type: 'array',
+        description: 'Harmonic person URNs to retrieve or acknowledge',
+      },
+      personLinkedinUrls: {
+        type: 'array',
+        description: 'LinkedIn profile URLs to submit for email enrichment',
+      },
+      clearScope: {
+        type: 'string',
+        description: 'Whether to clear only the listed person URNs or every net-new result',
+      },
+      jobId: { type: 'string', description: 'Harmonic email enrichment job ID' },
+      enrichmentUrns: { type: 'array', description: 'Harmonic enrichment URNs to check' },
+      size: { type: 'number', description: 'Page size, clamped to 1-100' },
+      cursor: { type: 'string', description: 'Opaque pagination cursor' },
     })
   })
 
@@ -253,6 +290,7 @@ describe('HarmonicBlock', () => {
       new Set([
         'harmonic_search_people_scout',
         'harmonic_get_people_saved_search_results',
+        'harmonic_get_people_saved_search_net_new_results',
         'harmonic_batch_get_people',
       ])
     )

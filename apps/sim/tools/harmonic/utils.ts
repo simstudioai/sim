@@ -1,5 +1,10 @@
 import type {
   HarmonicContact,
+  HarmonicDroppedIdentifier,
+  HarmonicEmailJobCounts,
+  HarmonicEmailJobItem,
+  HarmonicEnrichmentOutput,
+  HarmonicEnrichmentStatus,
   HarmonicExperienceMetadata,
   HarmonicLocationMetadata,
   HarmonicPageInfo,
@@ -14,6 +19,28 @@ export const HARMONIC_API_BASE = 'https://api.harmonic.ai'
 export const HARMONIC_PAGE_SIZE_DEFAULT = 50
 export const HARMONIC_PAGE_SIZE_MAX = 100
 export const HARMONIC_BATCH_PEOPLE_MAX = 500
+export const HARMONIC_EMAIL_ENRICHMENT_MAX = 5000
+export const HARMONIC_ENRICHMENT_STATUS_MAX = 500
+export const HARMONIC_CLEAR_NET_NEW_MAX = 500
+export const HARMONIC_EMPLOYEE_GROUP_TYPES = [
+  'CEO',
+  'FOUNDERS_AND_CEO',
+  'EXECUTIVES',
+  'FOUNDERS',
+  'LEADERSHIP',
+  'NON_LEADERSHIP',
+  'ALL',
+  'ADVISORS',
+  'NON_PARTNERS',
+] as const
+export const HARMONIC_EMPLOYEE_STATUSES = ['ACTIVE', 'NOT_ACTIVE', 'ACTIVE_AND_NOT_ACTIVE'] as const
+export const HARMONIC_USER_CONNECTION_STATUSES = [
+  'USER_CONNECTION',
+  'TEAM_CONNECTION',
+  'NO_CONNECTION',
+] as const
+/** Terminal states for a bulk email-enrichment job; `results` stays null until one is reached. */
+export const HARMONIC_EMAIL_JOB_TERMINAL_STATUSES = new Set(['COMPLETED', 'FAILED'])
 export const HARMONIC_PERSON_INCLUDE_FIELDS = [
   'entity_urn',
   'id',
@@ -33,6 +60,9 @@ export const HARMONIC_PERSON_INCLUDE_FIELDS = [
 const PERSON_URN_PATTERN = /^urn:harmonic:person:[^\s]+$/
 const SAVED_SEARCH_URN_PATTERN = /^urn:harmonic:saved_search:[^\s]+$/
 const USER_URN_PATTERN = /^urn:harmonic:user:[^\s]+$/
+const ENRICHMENT_URN_PATTERN = /^urn:harmonic:enrichment:[^\s]+$/
+const COMPANY_OR_PERSON_URN_PATTERN = /^urn:harmonic:(company|person):[^\s]+$/
+const DATE_ONLY_PATTERN = /^\d{4}-\d{2}-\d{2}$/
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const SAFE_DECIMAL_INTEGER_PATTERN = /^-?\d+$/
 const RFC3339_DATE_TIME_PATTERN =
@@ -608,4 +638,313 @@ export function nullableResponseNumber(value: unknown): number | null {
 
 export function nullableResponseString(value: unknown): string | null {
   return asString(value)
+}
+
+function requireResponseString(value: unknown, context: string): string {
+  const normalized = asString(value)
+  if (!normalized) throw new Error(`Harmonic returned ${context} without a valid value`)
+  return normalized
+}
+
+function requireResponseNumber(value: unknown, context: string): number {
+  const normalized = asNumber(value)
+  if (normalized === null || !Number.isSafeInteger(normalized)) {
+    throw new Error(`Harmonic returned ${context} without a valid count`)
+  }
+  return normalized
+}
+
+function enumOption(
+  value: unknown,
+  allowed: readonly string[],
+  paramName: string
+): string | undefined {
+  const normalized = asString(value)
+  if (!normalized) return undefined
+  const match = allowed.find((option) => option === normalized.toUpperCase())
+  if (!match) {
+    throw new Error(`Harmonic "${paramName}" must be one of: ${allowed.join(', ')}`)
+  }
+  return match
+}
+
+/**
+ * Harmonic accepts `YYYY-MM-DD` or `YYYY-MM-DDTHH:00:00Z` here. Anything else is
+ * rejected locally so a malformed filter cannot silently widen the delta window.
+ */
+export function normalizeNewResultsSince(value: unknown): string | undefined {
+  const normalized = asString(value)
+  if (!normalized) return undefined
+  if (DATE_ONLY_PATTERN.test(normalized)) return normalized
+  if (RFC3339_DATE_TIME_PATTERN.test(normalized)) return normalized
+  throw new Error(
+    'Harmonic "newResultsSince" must be YYYY-MM-DD or an RFC 3339 timestamp such as 2026-01-31T00:00:00Z'
+  )
+}
+
+export function buildEnrichPersonUrl(linkedinUrl: unknown, email: unknown): string {
+  const normalizedLinkedin = asString(linkedinUrl)
+  const normalizedEmail = asString(email)
+  if (!normalizedLinkedin && !normalizedEmail) {
+    throw new Error('Harmonic Enrich Person requires a LinkedIn profile URL or an email address')
+  }
+
+  const url = new URL(`${HARMONIC_API_BASE}/persons`)
+  if (normalizedLinkedin) url.searchParams.set('linkedin_url', normalizedLinkedin)
+  if (normalizedEmail) url.searchParams.set('email', normalizedEmail)
+  return url.toString()
+}
+
+export function buildGetPersonUrl(personId: unknown, companyContextUrns: unknown): string {
+  const url = new URL(
+    `${HARMONIC_API_BASE}/persons/${encodeURIComponent(requireIdentifier(personId, 'personId'))}`
+  )
+  for (const urn of uniqueStrings(parseArrayParam(companyContextUrns, 'companyContextUrns'))) {
+    url.searchParams.append('company_context_urns', urn)
+  }
+  return url.toString()
+}
+
+export function buildCompanyEmployeesUrl(
+  companyId: unknown,
+  options: {
+    employeeGroupType?: unknown
+    employeeStatus?: unknown
+    userConnectionStatus?: unknown
+    size?: unknown
+    cursor?: unknown
+  }
+): string {
+  const url = new URL(
+    `${HARMONIC_API_BASE}/companies/${encodeURIComponent(
+      requireIdentifier(companyId, 'companyId')
+    )}/employees`
+  )
+  url.searchParams.set('size', String(clampPageSize(options.size)))
+  const groupType = enumOption(
+    options.employeeGroupType,
+    HARMONIC_EMPLOYEE_GROUP_TYPES,
+    'employeeGroupType'
+  )
+  if (groupType) url.searchParams.set('employee_group_type', groupType)
+  const status = enumOption(options.employeeStatus, HARMONIC_EMPLOYEE_STATUSES, 'employeeStatus')
+  if (status) url.searchParams.set('employee_status', status)
+  const connection = enumOption(
+    options.userConnectionStatus,
+    HARMONIC_USER_CONNECTION_STATUSES,
+    'userConnectionStatus'
+  )
+  if (connection) url.searchParams.set('user_connection_status', connection)
+  const cursor = asOpaqueString(options.cursor)
+  if (cursor) url.searchParams.set('cursor', cursor)
+  return url.toString()
+}
+
+export function buildNetNewResultsUrl(
+  savedSearchId: unknown,
+  size: unknown,
+  cursor: unknown,
+  newResultsSince: unknown
+): string {
+  const url = new URL(
+    `${HARMONIC_API_BASE}/savedSearches/${encodeURIComponent(
+      requireIdentifier(savedSearchId, 'savedSearchId')
+    )}/net_new_results`
+  )
+  url.searchParams.set('size', String(clampPageSize(size)))
+  const normalizedCursor = asOpaqueString(cursor)
+  if (normalizedCursor) url.searchParams.set('cursor', normalizedCursor)
+  const since = normalizeNewResultsSince(newResultsSince)
+  if (since) url.searchParams.set('new_results_since', since)
+  return url.toString()
+}
+
+/**
+ * Omitting `entity_urns` tells Harmonic to clear the entire net-new queue, so an
+ * empty URN list must never reach the wire by accident. Clearing everything has to
+ * be asked for explicitly through `clearScope`.
+ */
+export function buildClearNetNewResultsUrl(
+  savedSearchId: unknown,
+  personUrns: unknown,
+  clearScope: unknown
+): string {
+  const url = new URL(
+    `${HARMONIC_API_BASE}/savedSearches/${encodeURIComponent(
+      requireIdentifier(savedSearchId, 'savedSearchId')
+    )}/clear_net_new_results`
+  )
+
+  const scope = asString(clearScope) ?? 'selected'
+  if (scope !== 'selected' && scope !== 'all') {
+    throw new Error('Harmonic "clearScope" must be either "selected" or "all"')
+  }
+
+  const urns = parsePersonUrns(personUrns)
+  if (scope === 'all') {
+    if (urns.length > 0) {
+      throw new Error(
+        'Harmonic Clear Net-New Results cannot combine specific person URNs with clearing everything'
+      )
+    }
+    return url.toString()
+  }
+
+  if (urns.length === 0) {
+    throw new Error(
+      'Harmonic Clear Net-New Results requires at least one person URN, or clearScope set to "all" to clear every net-new result'
+    )
+  }
+  if (urns.length > HARMONIC_CLEAR_NET_NEW_MAX) {
+    throw new Error(
+      `Sim sends at most ${HARMONIC_CLEAR_NET_NEW_MAX} person URNs per Harmonic clear request to bound the query string; split the batch`
+    )
+  }
+  for (const urn of urns) url.searchParams.append('entity_urns', urn)
+  return url.toString()
+}
+
+export function buildEnrichmentStatusUrl(enrichmentUrns: unknown): string {
+  const urns = uniqueStrings(parseArrayParam(enrichmentUrns, 'enrichmentUrns'))
+  if (urns.length === 0) {
+    throw new Error('Harmonic Get Enrichment Status requires at least one enrichment URN')
+  }
+  if (urns.length > HARMONIC_ENRICHMENT_STATUS_MAX) {
+    throw new Error(
+      `Sim sends at most ${HARMONIC_ENRICHMENT_STATUS_MAX} enrichment identifiers per Harmonic request to bound the query string; split the batch`
+    )
+  }
+
+  /** Harmonic documents both the bare enrichment UUID (`ids`) and the full URN (`urns`). */
+  const url = new URL(`${HARMONIC_API_BASE}/enrichment_status`)
+  for (const urn of urns) {
+    if (ENRICHMENT_URN_PATTERN.test(urn)) {
+      url.searchParams.append('urns', urn)
+    } else if (UUID_PATTERN.test(urn)) {
+      url.searchParams.append('ids', urn)
+    } else {
+      throw new Error(
+        'Harmonic "enrichmentUrns" must contain enrichment URNs or bare enrichment UUIDs'
+      )
+    }
+  }
+  return url.toString()
+}
+
+export function buildEmailEnrichmentJobBody(
+  personUrns: unknown,
+  personLinkedinUrls: unknown
+): Record<string, unknown> {
+  const urns = parsePersonUrns(personUrns)
+  /**
+   * Harmonic reports unusable entries per item as `dropped[].reason = INVALID_URL`
+   * without consuming quota, so one odd URL must not fail the whole batch.
+   * Recognisable profile URLs are canonicalised; anything else is forwarded intact
+   * for Harmonic to adjudicate. Only values that are not absolute http(s) URLs at
+   * all are rejected here, because those are a local mistake, not a provider call.
+   */
+  const linkedinUrls = uniqueStrings(parseArrayParam(personLinkedinUrls, 'personLinkedinUrls')).map(
+    (value) => {
+      const normalized = normalizeLinkedinProfileUrl(value)
+      if (normalized) return normalized
+      try {
+        const parsed = new URL(value)
+        if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+          throw new Error('unsupported scheme')
+        }
+        return value
+      } catch {
+        throw new Error(
+          'Harmonic "personLinkedinUrls" must contain absolute http(s) URLs; Harmonic reports unmatched profiles in dropped'
+        )
+      }
+    }
+  )
+
+  /**
+   * Harmonic documents these as mutually exclusive — "Provide exactly one of the
+   * two arrays" — so sending both is rejected locally rather than letting the
+   * provider silently pick one and bill for it.
+   */
+  if (urns.length > 0 && linkedinUrls.length > 0) {
+    throw new Error(
+      'Harmonic Submit Email Enrichment Job accepts person URNs or LinkedIn URLs, not both'
+    )
+  }
+  const identifiers = urns.length > 0 ? urns : linkedinUrls
+  if (identifiers.length === 0) {
+    throw new Error(
+      'Harmonic Submit Email Enrichment Job requires at least one person URN or LinkedIn profile URL'
+    )
+  }
+  if (identifiers.length > HARMONIC_EMAIL_ENRICHMENT_MAX) {
+    throw new Error(
+      `Harmonic Submit Email Enrichment Job accepts at most ${HARMONIC_EMAIL_ENRICHMENT_MAX} people`
+    )
+  }
+
+  return urns.length > 0 ? { person_urns: urns } : { person_linkedin_urls: linkedinUrls }
+}
+
+export function normalizePersonUrnList(value: unknown, context: string): string[] {
+  return uniqueStrings(responseArray(value, context).map((urn) => requirePersonUrn(urn, 'results')))
+}
+
+export function normalizeOptionalPerson(value: unknown): HarmonicContact | null {
+  if (value === undefined || value === null) return null
+  const person = asRecord(value)
+  if (!person) throw new Error('Harmonic returned an invalid person record')
+  return normalizePerson(person)
+}
+
+export function normalizeDroppedIdentifiers(value: unknown): HarmonicDroppedIdentifier[] {
+  if (value === undefined || value === null) return []
+  return responseArray(value, 'dropped identifiers').map((entry) => {
+    const dropped = responseRecord(entry, 'dropped identifier')
+    return {
+      submittedIdentifier: requireResponseString(
+        dropped.submitted_identifier,
+        'a dropped identifier'
+      ),
+      reason: requireResponseString(dropped.reason, 'a dropped identifier reason'),
+    }
+  })
+}
+
+export function normalizeEmailJobCounts(value: unknown): HarmonicEmailJobCounts {
+  const counts = responseRecord(value, 'email enrichment counts')
+  return {
+    totalProcessed: requireResponseNumber(counts.total_processed, 'total_processed'),
+    totalSucceeded: requireResponseNumber(counts.total_succeeded, 'total_succeeded'),
+    totalFailed: requireResponseNumber(counts.total_failed, 'total_failed'),
+    totalSkipped: requireResponseNumber(counts.total_skipped, 'total_skipped'),
+    totalNotFound: requireResponseNumber(counts.total_not_found, 'total_not_found'),
+  }
+}
+
+export function normalizeEmailJobResults(value: unknown): HarmonicEmailJobItem[] | null {
+  if (value === undefined || value === null) return null
+  return responseArray(value, 'email enrichment results').map((entry) => {
+    const item = responseRecord(entry, 'email enrichment result')
+    return {
+      personUrn: requirePersonUrn(item.person_urn, 'results'),
+      status: requireResponseString(item.status, 'an email enrichment result status'),
+    }
+  })
+}
+
+export function normalizeEnrichmentStatuses(value: unknown): HarmonicEnrichmentStatus[] {
+  return responseArray(value, 'enrichment statuses').map((entry) => {
+    const record = responseRecord(entry, 'enrichment status') as HarmonicEnrichmentOutput
+    const enrichedEntityUrn = asString(record.enriched_entity_urn)
+    if (enrichedEntityUrn && !COMPANY_OR_PERSON_URN_PATTERN.test(enrichedEntityUrn)) {
+      throw new Error('Harmonic returned an enrichment status with an invalid entity URN')
+    }
+    return {
+      enrichmentUrn: asString(record.entity_urn),
+      status: asString(record.status),
+      message: asString(record.message),
+      enrichedEntityUrn,
+    }
+  })
 }

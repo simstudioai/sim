@@ -113,6 +113,56 @@ export interface HarmonicSavedSearchOutput {
   updated_at?: unknown
 }
 
+export interface HarmonicEnrichmentOutput {
+  entity_urn?: unknown
+  status?: unknown
+  message?: unknown
+  enriched_entity_urn?: unknown
+}
+
+export interface HarmonicDroppedPerson {
+  submitted_identifier?: unknown
+  reason?: unknown
+}
+
+export interface HarmonicPersonJobResultOutput {
+  person_urn?: unknown
+  status?: unknown
+}
+
+export interface HarmonicPersonJobCountsOutput {
+  total_processed?: unknown
+  total_succeeded?: unknown
+  total_failed?: unknown
+  total_skipped?: unknown
+  total_not_found?: unknown
+}
+
+export interface HarmonicEnrichmentStatus {
+  enrichmentUrn: string | null
+  status: string | null
+  message: string | null
+  enrichedEntityUrn: string | null
+}
+
+export interface HarmonicDroppedIdentifier {
+  submittedIdentifier: string
+  reason: string
+}
+
+export interface HarmonicEmailJobItem {
+  personUrn: string
+  status: string
+}
+
+export interface HarmonicEmailJobCounts {
+  totalProcessed: number
+  totalSucceeded: number
+  totalFailed: number
+  totalSkipped: number
+  totalNotFound: number
+}
+
 interface HarmonicAuthParams {
   accessToken: string
 }
@@ -162,6 +212,134 @@ export interface HarmonicGetPeopleSavedSearchResultsResponse extends ToolRespons
 export interface HarmonicBatchGetPeopleResponse extends ToolResponse {
   output: {
     contacts: HarmonicContact[]
+    count: number
+  }
+}
+
+export interface HarmonicEnrichPersonParams extends HarmonicAuthParams {
+  linkedinUrl?: string
+  email?: string
+}
+
+export interface HarmonicGetPersonParams extends HarmonicAuthParams {
+  personId: string
+  companyContextUrns?: string[] | string
+}
+
+export interface HarmonicGetCompanyEmployeesParams extends HarmonicAuthParams {
+  companyId: string
+  employeeGroupType?: string
+  employeeStatus?: string
+  userConnectionStatus?: string
+  size?: number | string
+  cursor?: string
+}
+
+export interface HarmonicGetPeopleSavedSearchNetNewResultsParams extends HarmonicAuthParams {
+  savedSearchId: string
+  size?: number | string
+  cursor?: string
+  newResultsSince?: string
+}
+
+export interface HarmonicClearPeopleSavedSearchNetNewResultsParams extends HarmonicAuthParams {
+  savedSearchId: string
+  personUrns?: string[] | string
+  clearScope?: 'selected' | 'all'
+}
+
+export interface HarmonicSubmitEmailEnrichmentJobParams extends HarmonicAuthParams {
+  personUrns?: string[] | string
+  personLinkedinUrls?: string[] | string
+}
+
+export interface HarmonicGetEmailEnrichmentJobParams extends HarmonicAuthParams {
+  jobId: string
+}
+
+export type HarmonicGetEmailEnrichmentUsageParams = HarmonicAuthParams
+
+export interface HarmonicGetEnrichmentStatusParams extends HarmonicAuthParams {
+  enrichmentUrns?: string[] | string
+}
+
+export interface HarmonicEnrichPersonResponse extends ToolResponse {
+  output: {
+    contact: HarmonicContact | null
+    enrichmentUrn: string | null
+    mergedPersonUrn: string | null
+    requestedEntityUrn: string | null
+    found: boolean
+    enrichmentQueued: boolean
+  }
+}
+
+export interface HarmonicGetPersonResponse extends ToolResponse {
+  output: {
+    contact: HarmonicContact | null
+    found: boolean
+  }
+}
+
+export interface HarmonicGetCompanyEmployeesResponse extends ToolResponse {
+  output: {
+    personUrns: string[]
+    totalCount: number | null
+    pageInfo: HarmonicPageInfo | null
+  }
+}
+
+export interface HarmonicGetPeopleSavedSearchNetNewResultsResponse extends ToolResponse {
+  output: {
+    contacts: HarmonicContact[]
+    personUrns: string[]
+    cursor: string | null
+    pageInfo: HarmonicPageInfo | null
+  }
+}
+
+export interface HarmonicClearPeopleSavedSearchNetNewResultsResponse extends ToolResponse {
+  output: {
+    cleared: boolean
+    clearedPersonUrns: string[] | null
+  }
+}
+
+export interface HarmonicSubmitEmailEnrichmentJobResponse extends ToolResponse {
+  output: {
+    jobId: string
+    status: string
+    acceptedCount: number
+    monthlyRemaining: number
+    createdAt: string
+    dropped: HarmonicDroppedIdentifier[]
+  }
+}
+
+export interface HarmonicGetEmailEnrichmentJobResponse extends ToolResponse {
+  output: {
+    jobId: string
+    status: string
+    isTerminal: boolean
+    counts: HarmonicEmailJobCounts
+    results: HarmonicEmailJobItem[] | null
+    succeededPersonUrns: string[]
+    createdAt: string
+    completedAt: string | null
+  }
+}
+
+export interface HarmonicGetEmailEnrichmentUsageResponse extends ToolResponse {
+  output: {
+    monthlyUsage: number
+    monthlyLimit: number
+    monthlyRemaining: number
+  }
+}
+
+export interface HarmonicGetEnrichmentStatusResponse extends ToolResponse {
+  output: {
+    enrichments: HarmonicEnrichmentStatus[]
     count: number
   }
 }
@@ -237,4 +415,45 @@ export const HARMONIC_SAVED_SEARCH_OUTPUT_PROPERTIES = {
   creatorUrn: { type: 'string', description: 'Creator user URN' },
   createdAt: { type: 'string', description: 'Creation timestamp' },
   updatedAt: { type: 'string', description: 'Last update timestamp' },
+} as const satisfies Record<string, OutputProperty>
+
+export const HARMONIC_DROPPED_IDENTIFIER_OUTPUT_PROPERTIES = {
+  submittedIdentifier: { type: 'string', description: 'Identifier submitted to Harmonic' },
+  reason: {
+    type: 'string',
+    description:
+      'Why Harmonic dropped it (NOT_FOUND, INVALID_URL, ALREADY_HAS_EMAIL, RECENTLY_ATTEMPTED)',
+  },
+} as const satisfies Record<string, OutputProperty>
+
+export const HARMONIC_EMAIL_JOB_ITEM_OUTPUT_PROPERTIES = {
+  personUrn: { type: 'string', description: 'Harmonic person URN' },
+  status: {
+    type: 'string',
+    description: 'Per-person job status (PENDING, SUCCESS, NOT_FOUND, FAILED, SKIPPED)',
+  },
+} as const satisfies Record<string, OutputProperty>
+
+export const HARMONIC_EMAIL_JOB_COUNTS_OUTPUT_PROPERTIES = {
+  totalProcessed: { type: 'number', description: 'People processed' },
+  totalSucceeded: { type: 'number', description: 'People with an email found' },
+  totalFailed: { type: 'number', description: 'People whose enrichment failed' },
+  totalSkipped: { type: 'number', description: 'People skipped' },
+  totalNotFound: { type: 'number', description: 'People Harmonic could not resolve' },
+} as const satisfies Record<string, OutputProperty>
+
+export const HARMONIC_ENRICHMENT_STATUS_OUTPUT_PROPERTIES = {
+  enrichmentUrn: { type: 'string', nullable: true, description: 'Harmonic enrichment URN' },
+  status: {
+    type: 'string',
+    nullable: true,
+    description:
+      'Enrichment job status (QUEUED, IN_PROGRESS, COMPLETE, FAILED, NOT_FOUND, EXPERIENCES_HIDDEN)',
+  },
+  message: { type: 'string', nullable: true, description: 'Provider status message' },
+  enrichedEntityUrn: {
+    type: 'string',
+    nullable: true,
+    description: 'Resulting company or person URN once enrichment completes',
+  },
 } as const satisfies Record<string, OutputProperty>

@@ -4,17 +4,57 @@ import { AuthMode, IntegrationType } from '@/blocks/types'
 
 const HARMONIC_OPERATIONS = [
   'harmonic_search_people_scout',
+  'harmonic_enrich_person',
+  'harmonic_get_person',
+  'harmonic_batch_get_people',
+  'harmonic_get_company_employees',
   'harmonic_list_people_saved_searches',
   'harmonic_get_people_saved_search_results',
-  'harmonic_batch_get_people',
+  'harmonic_get_people_saved_search_net_new_results',
+  'harmonic_clear_people_saved_search_net_new_results',
+  'harmonic_submit_email_enrichment_job',
+  'harmonic_get_email_enrichment_job',
+  'harmonic_get_email_enrichment_usage',
+  'harmonic_get_enrichment_status',
 ] as const
 
-const PAGED_OPERATIONS = ['harmonic_get_people_saved_search_results'] as const
+/** Operations that accept Harmonic's shared `size` + `cursor` pagination. */
+const PAGED_OPERATIONS = [
+  'harmonic_get_people_saved_search_results',
+  'harmonic_get_people_saved_search_net_new_results',
+  'harmonic_get_company_employees',
+] as const
 
+/** Operations addressed by a people saved-search ID or URN. */
+const SAVED_SEARCH_OPERATIONS = [
+  'harmonic_get_people_saved_search_results',
+  'harmonic_get_people_saved_search_net_new_results',
+  'harmonic_clear_people_saved_search_net_new_results',
+] as const
+
+/** Operations that take a list of person URNs. */
+const PERSON_URN_OPERATIONS = [
+  'harmonic_batch_get_people',
+  'harmonic_clear_people_saved_search_net_new_results',
+  'harmonic_submit_email_enrichment_job',
+] as const
+
+/** Operations returning the shared `contacts` collection. */
 const CONTACT_OPERATIONS = [
   'harmonic_search_people_scout',
   'harmonic_get_people_saved_search_results',
+  'harmonic_get_people_saved_search_net_new_results',
   'harmonic_batch_get_people',
+] as const
+
+/** Operations returning a single `contact`. */
+const SINGLE_CONTACT_OPERATIONS = ['harmonic_enrich_person', 'harmonic_get_person'] as const
+
+/** Operations returning `personUrns`. */
+const PERSON_URN_OUTPUT_OPERATIONS = [
+  'harmonic_get_people_saved_search_results',
+  'harmonic_get_people_saved_search_net_new_results',
+  'harmonic_get_company_employees',
 ] as const
 
 type HarmonicOperation = (typeof HARMONIC_OPERATIONS)[number]
@@ -45,6 +85,20 @@ export const HarmonicBlock: BlockConfig = {
     sentences: {
       byOperation: {
         harmonic_search_people_scout: [{ text: 'Search people for', field: 'query', core: true }],
+        harmonic_enrich_person: [
+          'Enrich person',
+          { text: 'from', field: 'linkedinUrl' },
+          { text: 'or', field: 'email' },
+        ],
+        harmonic_get_person: [{ text: 'Get person', field: 'personId', core: true }],
+        harmonic_batch_get_people: [
+          'Get people in batch',
+          { text: 'by URNs', field: 'personUrns' },
+          { text: 'or IDs', field: 'personIds' },
+        ],
+        harmonic_get_company_employees: [
+          { text: 'List employees of', field: 'companyId', core: true },
+        ],
         harmonic_list_people_saved_searches: ['List people saved searches'],
         harmonic_get_people_saved_search_results: [
           {
@@ -53,10 +107,31 @@ export const HarmonicBlock: BlockConfig = {
             core: true,
           },
         ],
-        harmonic_batch_get_people: [
-          'Get people in batch',
-          { text: 'by URNs', field: 'personUrns' },
-          { text: 'or IDs', field: 'personIds' },
+        harmonic_get_people_saved_search_net_new_results: [
+          {
+            text: 'Read net-new contacts from saved search',
+            field: ['savedSearchSelector', 'savedSearchIdManual'],
+            core: true,
+          },
+        ],
+        harmonic_clear_people_saved_search_net_new_results: [
+          {
+            text: 'Clear net-new results on saved search',
+            field: ['savedSearchSelector', 'savedSearchIdManual'],
+            core: true,
+          },
+        ],
+        harmonic_submit_email_enrichment_job: [
+          'Enrich emails',
+          { text: 'for', field: 'personUrns' },
+          { text: 'or', field: 'personLinkedinUrls' },
+        ],
+        harmonic_get_email_enrichment_job: [
+          { text: 'Check email enrichment job', field: 'jobId', core: true },
+        ],
+        harmonic_get_email_enrichment_usage: ['Check email enrichment usage'],
+        harmonic_get_enrichment_status: [
+          { text: 'Check enrichment status for', field: 'enrichmentUrns', core: true },
         ],
       },
     },
@@ -89,15 +164,27 @@ export const HarmonicBlock: BlockConfig = {
       type: 'dropdown',
       options: [
         { label: 'Search People with Scout', id: 'harmonic_search_people_scout' },
-        {
-          label: 'List People Saved Searches',
-          id: 'harmonic_list_people_saved_searches',
-        },
+        { label: 'Enrich Person', id: 'harmonic_enrich_person' },
+        { label: 'Get Person', id: 'harmonic_get_person' },
+        { label: 'Batch Get People', id: 'harmonic_batch_get_people' },
+        { label: 'Get Company Employees', id: 'harmonic_get_company_employees' },
+        { label: 'List People Saved Searches', id: 'harmonic_list_people_saved_searches' },
         {
           label: 'Get People Saved Search Results',
           id: 'harmonic_get_people_saved_search_results',
         },
-        { label: 'Batch Get People', id: 'harmonic_batch_get_people' },
+        {
+          label: 'Get People Saved Search Net-New Results',
+          id: 'harmonic_get_people_saved_search_net_new_results',
+        },
+        {
+          label: 'Clear People Saved Search Net-New Results',
+          id: 'harmonic_clear_people_saved_search_net_new_results',
+        },
+        { label: 'Submit Email Enrichment Job', id: 'harmonic_submit_email_enrichment_job' },
+        { label: 'Get Email Enrichment Job', id: 'harmonic_get_email_enrichment_job' },
+        { label: 'Get Email Enrichment Usage', id: 'harmonic_get_email_enrichment_usage' },
+        { label: 'Get Enrichment Status', id: 'harmonic_get_enrichment_status' },
       ],
       value: () => 'harmonic_search_people_scout',
     },
@@ -113,6 +200,111 @@ export const HarmonicBlock: BlockConfig = {
       paramVisibility: 'user-or-llm',
     },
     {
+      id: 'linkedinUrl',
+      title: 'LinkedIn Profile URL',
+      canvasNoun: 'a LinkedIn profile',
+      type: 'short-input',
+      placeholder: 'https://www.linkedin.com/in/example',
+      description: 'Enrich Person requires a LinkedIn profile URL or an email address',
+      condition: { field: 'operation', value: 'harmonic_enrich_person' },
+      paramVisibility: 'user-or-llm',
+    },
+    {
+      id: 'email',
+      title: 'Email',
+      canvasNoun: 'an email address',
+      type: 'short-input',
+      placeholder: 'person@example.com',
+      description: 'Used as a fallback when the LinkedIn URL is absent or does not match',
+      condition: { field: 'operation', value: 'harmonic_enrich_person' },
+      paramVisibility: 'user-or-llm',
+    },
+    {
+      id: 'personId',
+      title: 'Person ID or URN',
+      canvasNoun: 'a person',
+      type: 'short-input',
+      placeholder: '22 or urn:harmonic:person:22',
+      condition: { field: 'operation', value: 'harmonic_get_person' },
+      required: { field: 'operation', value: 'harmonic_get_person' },
+      paramVisibility: 'user-or-llm',
+    },
+    {
+      id: 'companyContextUrns',
+      title: 'Company Context URNs',
+      type: 'code',
+      language: 'json',
+      placeholder: '["urn:harmonic:company:1"]',
+      description: 'Scopes the returned experience context to these companies',
+      condition: { field: 'operation', value: 'harmonic_get_person' },
+      mode: 'advanced',
+      paramVisibility: 'user-or-llm',
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Return ONLY a JSON array of Harmonic company URNs from the provided input. Preserve each URN exactly and omit duplicates.',
+        generationType: 'json-array',
+      },
+    },
+    {
+      id: 'companyId',
+      title: 'Company ID or URN',
+      canvasNoun: 'a company',
+      type: 'short-input',
+      placeholder: '1 or urn:harmonic:company:1',
+      condition: { field: 'operation', value: 'harmonic_get_company_employees' },
+      required: { field: 'operation', value: 'harmonic_get_company_employees' },
+      paramVisibility: 'user-or-llm',
+    },
+    {
+      id: 'employeeGroupType',
+      title: 'Employee Group',
+      type: 'dropdown',
+      options: [
+        { label: 'All', id: 'ALL' },
+        { label: 'Founders', id: 'FOUNDERS' },
+        { label: 'Founders and CEO', id: 'FOUNDERS_AND_CEO' },
+        { label: 'CEO', id: 'CEO' },
+        { label: 'Executives', id: 'EXECUTIVES' },
+        { label: 'Leadership', id: 'LEADERSHIP' },
+        { label: 'Non-leadership', id: 'NON_LEADERSHIP' },
+        { label: 'Advisors', id: 'ADVISORS' },
+        { label: 'Non-partners', id: 'NON_PARTNERS' },
+      ],
+      value: () => 'ALL',
+      condition: { field: 'operation', value: 'harmonic_get_company_employees' },
+      mode: 'advanced',
+      paramVisibility: 'user-or-llm',
+    },
+    {
+      id: 'employeeStatus',
+      title: 'Employment Status',
+      type: 'dropdown',
+      options: [
+        { label: 'Active', id: 'ACTIVE' },
+        { label: 'Not active', id: 'NOT_ACTIVE' },
+        { label: 'Active and not active', id: 'ACTIVE_AND_NOT_ACTIVE' },
+      ],
+      value: () => 'ACTIVE',
+      condition: { field: 'operation', value: 'harmonic_get_company_employees' },
+      mode: 'advanced',
+      paramVisibility: 'user-or-llm',
+    },
+    {
+      id: 'userConnectionStatus',
+      title: 'Connection Status',
+      type: 'dropdown',
+      options: [
+        { label: 'Any', id: '' },
+        { label: 'Connected to the team', id: 'TEAM_CONNECTION' },
+        { label: 'Not connected', id: 'NO_CONNECTION' },
+      ],
+      value: () => '',
+      condition: { field: 'operation', value: 'harmonic_get_company_employees' },
+      mode: 'advanced',
+      paramVisibility: 'user-or-llm',
+    },
+    {
       id: 'savedSearchSelector',
       title: 'Saved Search',
       canvasNoun: 'a saved search',
@@ -123,8 +315,8 @@ export const HarmonicBlock: BlockConfig = {
       placeholder: 'Select a people saved search',
       dependsOn: ['credential'],
       mode: 'basic',
-      condition: { field: 'operation', value: 'harmonic_get_people_saved_search_results' },
-      required: { field: 'operation', value: 'harmonic_get_people_saved_search_results' },
+      condition: { field: 'operation', value: [...SAVED_SEARCH_OPERATIONS] },
+      required: { field: 'operation', value: [...SAVED_SEARCH_OPERATIONS] },
       paramVisibility: 'user-or-llm',
     },
     {
@@ -135,9 +327,29 @@ export const HarmonicBlock: BlockConfig = {
       canonicalParamId: 'savedSearchId',
       placeholder: 'Saved search ID or urn:harmonic:saved_search:...',
       mode: 'advanced',
-      condition: { field: 'operation', value: 'harmonic_get_people_saved_search_results' },
-      required: { field: 'operation', value: 'harmonic_get_people_saved_search_results' },
+      condition: { field: 'operation', value: [...SAVED_SEARCH_OPERATIONS] },
+      required: { field: 'operation', value: [...SAVED_SEARCH_OPERATIONS] },
       paramVisibility: 'user-or-llm',
+    },
+    {
+      id: 'newResultsSince',
+      title: 'New Results Since',
+      type: 'short-input',
+      placeholder: '2026-01-31 or 2026-01-31T00:00:00Z',
+      description: 'Only return people matched after this UTC point',
+      condition: {
+        field: 'operation',
+        value: 'harmonic_get_people_saved_search_net_new_results',
+      },
+      mode: 'advanced',
+      paramVisibility: 'user-or-llm',
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Convert the described moment into a UTC timestamp formatted as YYYY-MM-DDTHH:00:00Z. Return ONLY the timestamp - no explanations, no extra text.',
+        generationType: 'timestamp',
+        placeholder: 'Describe the cutoff, e.g. "the start of last week"',
+      },
     },
     {
       id: 'personUrns',
@@ -145,8 +357,9 @@ export const HarmonicBlock: BlockConfig = {
       type: 'code',
       language: 'json',
       placeholder: '["urn:harmonic:person:22", "urn:harmonic:person:1690"]',
-      description: 'Batch Get requires at least one Person URN or Person ID',
-      condition: { field: 'operation', value: 'harmonic_batch_get_people' },
+      description:
+        'Batch Get requires at least one Person URN or Person ID. Clear Net-New Results clears everything when omitted',
+      condition: { field: 'operation', value: [...PERSON_URN_OPERATIONS] },
       paramVisibility: 'user-or-llm',
       wandConfig: {
         enabled: true,
@@ -154,6 +367,22 @@ export const HarmonicBlock: BlockConfig = {
           'Return ONLY a JSON array of Harmonic person URNs from the provided input. Preserve each URN exactly and omit duplicates.',
         generationType: 'json-array',
       },
+    },
+    {
+      id: 'clearScope',
+      title: 'Clear Scope',
+      type: 'dropdown',
+      options: [
+        { label: 'Only the person URNs below', id: 'selected' },
+        { label: 'Every net-new result', id: 'all' },
+      ],
+      value: () => 'selected',
+      description: 'Clearing every net-new result discards the whole backlog for this saved search',
+      condition: {
+        field: 'operation',
+        value: 'harmonic_clear_people_saved_search_net_new_results',
+      },
+      paramVisibility: 'user-or-llm',
     },
     {
       id: 'personIds',
@@ -174,11 +403,56 @@ export const HarmonicBlock: BlockConfig = {
       },
     },
     {
+      id: 'personLinkedinUrls',
+      title: 'LinkedIn Profile URLs',
+      type: 'code',
+      language: 'json',
+      placeholder: '["https://www.linkedin.com/in/example"]',
+      description:
+        'Alternative to Person URNs for email enrichment; supply one list or the other, 1-5000 entries',
+      condition: { field: 'operation', value: 'harmonic_submit_email_enrichment_job' },
+      mode: 'advanced',
+      paramVisibility: 'user-or-llm',
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Return ONLY a JSON array of LinkedIn profile URLs from the provided input. Omit duplicates.',
+        generationType: 'json-array',
+      },
+    },
+    {
+      id: 'jobId',
+      title: 'Job ID',
+      canvasNoun: 'a job',
+      type: 'short-input',
+      placeholder: 'Job ID from Submit Email Enrichment Job',
+      condition: { field: 'operation', value: 'harmonic_get_email_enrichment_job' },
+      required: { field: 'operation', value: 'harmonic_get_email_enrichment_job' },
+      paramVisibility: 'user-or-llm',
+    },
+    {
+      id: 'enrichmentUrns',
+      title: 'Enrichment URNs',
+      type: 'code',
+      language: 'json',
+      placeholder: '["urn:harmonic:enrichment:1"]',
+      description: 'Enrichment URNs returned by Enrich Person',
+      condition: { field: 'operation', value: 'harmonic_get_enrichment_status' },
+      required: { field: 'operation', value: 'harmonic_get_enrichment_status' },
+      paramVisibility: 'user-or-llm',
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Return ONLY a JSON array of Harmonic enrichment URNs from the provided input. Preserve each URN exactly and omit duplicates.',
+        generationType: 'json-array',
+      },
+    },
+    {
       id: 'size',
       title: 'Page Size',
       type: 'short-input',
       placeholder: '1-100',
-      description: 'Number of records to return; defaults to 50 and is capped to the 1-100 range',
+      description: 'Number of records to return; defaults to 50 and Sim caps each page at 100',
       value: () => '50',
       condition: { field: 'operation', value: [...PAGED_OPERATIONS] },
       mode: 'advanced',
@@ -198,9 +472,18 @@ export const HarmonicBlock: BlockConfig = {
   tools: {
     access: [
       'harmonic_search_people_scout',
+      'harmonic_enrich_person',
+      'harmonic_get_person',
+      'harmonic_batch_get_people',
+      'harmonic_get_company_employees',
       'harmonic_list_people_saved_searches',
       'harmonic_get_people_saved_search_results',
-      'harmonic_batch_get_people',
+      'harmonic_get_people_saved_search_net_new_results',
+      'harmonic_clear_people_saved_search_net_new_results',
+      'harmonic_submit_email_enrichment_job',
+      'harmonic_get_email_enrichment_job',
+      'harmonic_get_email_enrichment_usage',
+      'harmonic_get_enrichment_status',
     ],
     config: {
       tool: (params) => {
@@ -217,7 +500,9 @@ export const HarmonicBlock: BlockConfig = {
       params: (params) => {
         const operation = String(params.operation ?? '')
         const isPaged = (PAGED_OPERATIONS as readonly string[]).includes(operation)
-        const isBatchGet = operation === 'harmonic_batch_get_people'
+        const usesSavedSearch = (SAVED_SEARCH_OPERATIONS as readonly string[]).includes(operation)
+        const usesPersonUrns = (PERSON_URN_OPERATIONS as readonly string[]).includes(operation)
+        const isEmployees = operation === 'harmonic_get_company_employees'
 
         return {
           operation: undefined,
@@ -228,14 +513,42 @@ export const HarmonicBlock: BlockConfig = {
           savedSearchIdManual: undefined,
           oauthCredential: params.oauthCredential,
           query: operation === 'harmonic_search_people_scout' ? params.query : undefined,
-          savedSearchId:
-            operation === 'harmonic_get_people_saved_search_results'
-              ? params.savedSearchId
+          linkedinUrl: operation === 'harmonic_enrich_person' ? params.linkedinUrl : undefined,
+          email: operation === 'harmonic_enrich_person' ? params.email : undefined,
+          personId: operation === 'harmonic_get_person' ? params.personId : undefined,
+          companyContextUrns:
+            operation === 'harmonic_get_person'
+              ? optionalValue(params.companyContextUrns)
+              : undefined,
+          companyId: isEmployees ? params.companyId : undefined,
+          employeeGroupType: isEmployees ? optionalValue(params.employeeGroupType) : undefined,
+          employeeStatus: isEmployees ? optionalValue(params.employeeStatus) : undefined,
+          userConnectionStatus: isEmployees
+            ? optionalValue(params.userConnectionStatus)
+            : undefined,
+          savedSearchId: usesSavedSearch ? params.savedSearchId : undefined,
+          newResultsSince:
+            operation === 'harmonic_get_people_saved_search_net_new_results'
+              ? optionalValue(params.newResultsSince)
               : undefined,
           size: isPaged ? optionalValue(params.size) : undefined,
           cursor: isPaged ? optionalValue(params.cursor) : undefined,
-          personIds: isBatchGet ? optionalValue(params.personIds) : undefined,
-          personUrns: isBatchGet ? optionalValue(params.personUrns) : undefined,
+          personIds:
+            operation === 'harmonic_batch_get_people' ? optionalValue(params.personIds) : undefined,
+          personUrns: usesPersonUrns ? optionalValue(params.personUrns) : undefined,
+          clearScope:
+            operation === 'harmonic_clear_people_saved_search_net_new_results'
+              ? (optionalValue(params.clearScope) ?? 'selected')
+              : undefined,
+          personLinkedinUrls:
+            operation === 'harmonic_submit_email_enrichment_job'
+              ? optionalValue(params.personLinkedinUrls)
+              : undefined,
+          jobId: operation === 'harmonic_get_email_enrichment_job' ? params.jobId : undefined,
+          enrichmentUrns:
+            operation === 'harmonic_get_enrichment_status'
+              ? optionalValue(params.enrichmentUrns)
+              : undefined,
         }
       },
     },
@@ -248,11 +561,36 @@ export const HarmonicBlock: BlockConfig = {
       description: 'Reusable Harmonic team API-key credential',
     },
     query: { type: 'string', description: 'Natural-language Harmonic Scout people query' },
+    linkedinUrl: { type: 'string', description: 'LinkedIn profile URL to enrich' },
+    email: { type: 'string', description: 'Email address used as an enrichment fallback' },
+    personId: { type: 'string', description: 'Harmonic person ID or full person URN' },
+    companyContextUrns: {
+      type: 'array',
+      description: 'Company URNs scoping the returned experience context',
+    },
+    companyId: { type: 'string', description: 'Harmonic company ID or full company URN' },
+    employeeGroupType: { type: 'string', description: 'Employee role group filter' },
+    employeeStatus: { type: 'string', description: 'Employment status filter' },
+    userConnectionStatus: { type: 'string', description: 'Team or user connection filter' },
     savedSearchId: { type: 'string', description: 'People saved-search ID or full URN' },
+    newResultsSince: {
+      type: 'string',
+      description: 'UTC cutoff for net-new saved-search matches',
+    },
     personIds: { type: 'array', description: 'Numeric Harmonic person IDs to retrieve' },
-    personUrns: { type: 'array', description: 'Harmonic person URNs to retrieve' },
-    size: { type: 'number', description: 'Saved-search page size, clamped to 1-100' },
-    cursor: { type: 'string', description: 'Opaque saved-search pagination cursor' },
+    personUrns: { type: 'array', description: 'Harmonic person URNs to retrieve or acknowledge' },
+    personLinkedinUrls: {
+      type: 'array',
+      description: 'LinkedIn profile URLs to submit for email enrichment',
+    },
+    clearScope: {
+      type: 'string',
+      description: 'Whether to clear only the listed person URNs or every net-new result',
+    },
+    jobId: { type: 'string', description: 'Harmonic email enrichment job ID' },
+    enrichmentUrns: { type: 'array', description: 'Harmonic enrichment URNs to check' },
+    size: { type: 'number', description: 'Page size, clamped to 1-100' },
+    cursor: { type: 'string', description: 'Opaque pagination cursor' },
   },
 
   outputs: {
@@ -262,6 +600,37 @@ export const HarmonicBlock: BlockConfig = {
         'Normalized contacts with personUrn, personId, fullName, firstName, lastName, headline, currentTitles, currentCompanyNames, currentCompanyUrns, primaryEmail, emails, phoneNumbers, linkedinUrl, formattedLocation, city, state, country, profilePictureUrl, summary, and isRedacted; unavailable array fields are null',
       condition: { field: 'operation', value: [...CONTACT_OPERATIONS] },
     },
+    contact: {
+      type: 'json',
+      description:
+        'A single normalized contact with the same fields as contacts, or null when Harmonic has no such person',
+      condition: { field: 'operation', value: [...SINGLE_CONTACT_OPERATIONS] },
+    },
+    found: {
+      type: 'boolean',
+      description: 'Whether Harmonic returned a person profile',
+      condition: { field: 'operation', value: [...SINGLE_CONTACT_OPERATIONS] },
+    },
+    enrichmentUrn: {
+      type: 'string',
+      description: 'Enrichment URN to poll with Get Enrichment Status',
+      condition: { field: 'operation', value: 'harmonic_enrich_person' },
+    },
+    mergedPersonUrn: {
+      type: 'string',
+      description: 'URN this person was merged into, when Harmonic deduplicated the record',
+      condition: { field: 'operation', value: 'harmonic_enrich_person' },
+    },
+    requestedEntityUrn: {
+      type: 'string',
+      description: 'Person URN Harmonic matched the request to',
+      condition: { field: 'operation', value: 'harmonic_enrich_person' },
+    },
+    enrichmentQueued: {
+      type: 'boolean',
+      description: 'Whether Harmonic queued a background refresh for this person',
+      condition: { field: 'operation', value: 'harmonic_enrich_person' },
+    },
     taskId: {
       type: 'string',
       description: 'Harmonic Scout task identifier',
@@ -269,18 +638,26 @@ export const HarmonicBlock: BlockConfig = {
     },
     status: {
       type: 'string',
-      description: 'Terminal Harmonic Scout task status',
-      condition: { field: 'operation', value: 'harmonic_search_people_scout' },
+      description: 'Terminal Harmonic Scout task status, or an email enrichment job status',
+      condition: {
+        field: 'operation',
+        value: [
+          'harmonic_search_people_scout',
+          'harmonic_submit_email_enrichment_job',
+          'harmonic_get_email_enrichment_job',
+        ],
+      },
     },
     count: {
       type: 'number',
-      description: 'Number of contacts or saved searches returned',
+      description: 'Number of contacts, saved searches, or enrichment statuses returned',
       condition: {
         field: 'operation',
         value: [
           'harmonic_search_people_scout',
           'harmonic_list_people_saved_searches',
           'harmonic_batch_get_people',
+          'harmonic_get_enrichment_status',
         ],
       },
     },
@@ -292,18 +669,120 @@ export const HarmonicBlock: BlockConfig = {
     },
     personUrns: {
       type: 'array',
-      description: 'Harmonic person URNs returned by the saved search',
-      condition: { field: 'operation', value: 'harmonic_get_people_saved_search_results' },
+      description: 'Harmonic person URNs returned by the saved search or company employee list',
+      condition: { field: 'operation', value: [...PERSON_URN_OUTPUT_OPERATIONS] },
     },
     totalCount: {
       type: 'number',
-      description: 'Total number of matching saved-search results',
-      condition: { field: 'operation', value: 'harmonic_get_people_saved_search_results' },
+      description: 'Total number of matching results',
+      condition: {
+        field: 'operation',
+        value: ['harmonic_get_people_saved_search_results', 'harmonic_get_company_employees'],
+      },
     },
     pageInfo: {
       type: 'json',
       description: 'Pagination metadata with currentCursor, nextCursor, and hasNext',
-      condition: { field: 'operation', value: 'harmonic_get_people_saved_search_results' },
+      condition: { field: 'operation', value: [...PAGED_OPERATIONS] },
+    },
+    cursor: {
+      type: 'string',
+      description: 'Cursor echoed by the net-new results endpoint',
+      condition: {
+        field: 'operation',
+        value: 'harmonic_get_people_saved_search_net_new_results',
+      },
+    },
+    cleared: {
+      type: 'boolean',
+      description: 'Whether Harmonic accepted the net-new acknowledgement',
+      condition: {
+        field: 'operation',
+        value: 'harmonic_clear_people_saved_search_net_new_results',
+      },
+    },
+    clearedPersonUrns: {
+      type: 'array',
+      description: 'Person URNs acknowledged, or null when every net-new result was cleared',
+      condition: {
+        field: 'operation',
+        value: 'harmonic_clear_people_saved_search_net_new_results',
+      },
+    },
+    jobId: {
+      type: 'string',
+      description: 'Harmonic email enrichment job identifier',
+      condition: {
+        field: 'operation',
+        value: ['harmonic_submit_email_enrichment_job', 'harmonic_get_email_enrichment_job'],
+      },
+    },
+    acceptedCount: {
+      type: 'number',
+      description: 'People accepted into the email enrichment job',
+      condition: { field: 'operation', value: 'harmonic_submit_email_enrichment_job' },
+    },
+    dropped: {
+      type: 'array',
+      description: 'Dropped identifiers with submittedIdentifier and reason',
+      condition: { field: 'operation', value: 'harmonic_submit_email_enrichment_job' },
+    },
+    createdAt: {
+      type: 'string',
+      description: 'Email enrichment job creation timestamp',
+      condition: {
+        field: 'operation',
+        value: ['harmonic_submit_email_enrichment_job', 'harmonic_get_email_enrichment_job'],
+      },
+    },
+    completedAt: {
+      type: 'string',
+      description: 'Email enrichment job completion timestamp',
+      condition: { field: 'operation', value: 'harmonic_get_email_enrichment_job' },
+    },
+    isTerminal: {
+      type: 'boolean',
+      description: 'Whether the email enrichment job finished',
+      condition: { field: 'operation', value: 'harmonic_get_email_enrichment_job' },
+    },
+    counts: {
+      type: 'json',
+      description:
+        'Email enrichment tallies with totalProcessed, totalSucceeded, totalFailed, totalSkipped, and totalNotFound',
+      condition: { field: 'operation', value: 'harmonic_get_email_enrichment_job' },
+    },
+    results: {
+      type: 'array',
+      description: 'Per-person email enrichment outcomes with personUrn and status',
+      condition: { field: 'operation', value: 'harmonic_get_email_enrichment_job' },
+    },
+    succeededPersonUrns: {
+      type: 'array',
+      description: 'Person URNs whose email was found; pass these to Batch Get People',
+      condition: { field: 'operation', value: 'harmonic_get_email_enrichment_job' },
+    },
+    monthlyUsage: {
+      type: 'number',
+      description: 'Emails enriched so far this month',
+      condition: { field: 'operation', value: 'harmonic_get_email_enrichment_usage' },
+    },
+    monthlyLimit: {
+      type: 'number',
+      description: 'Monthly email enrichment allowance',
+      condition: { field: 'operation', value: 'harmonic_get_email_enrichment_usage' },
+    },
+    monthlyRemaining: {
+      type: 'number',
+      description: 'Enrichments left this month',
+      condition: {
+        field: 'operation',
+        value: ['harmonic_submit_email_enrichment_job', 'harmonic_get_email_enrichment_usage'],
+      },
+    },
+    enrichments: {
+      type: 'array',
+      description: 'Enrichment statuses with enrichmentUrn, status, message, and enrichedEntityUrn',
+      condition: { field: 'operation', value: 'harmonic_get_enrichment_status' },
     },
   },
 }
@@ -353,6 +832,34 @@ export const HarmonicBlockMeta = {
         'Audit a Harmonic people cohort for missing email, LinkedIn, company, and role data before outreach.',
       content:
         '# Audit Contact Coverage\n\nCheck whether a saved-search cohort is ready for scoring or outreach.\n\n## Steps\n1. Resolve the search with List People Saved Searches and page Get People Saved Search Results.\n2. Send any URN-only results through Batch Get People in batches of at most 500.\n3. Deduplicate by personUrn and flag contacts missing email, LinkedIn URL, current company, or current title.\n4. Calculate coverage rates per field without filling missing values from assumptions.\n\n## Output\nReturn the normalized contact table, field coverage rates, duplicate count, and rows requiring manual review.',
+    },
+    {
+      name: 'enrich-known-identifiers',
+      description:
+        'Turn LinkedIn URLs or email addresses a workflow already holds into Harmonic contacts.',
+      content:
+        '# Enrich Known Identifiers\n\nUse Enrich Person when the workflow already has an identifier rather than a description of who to find.\n\n## Steps\n1. Prefer the LinkedIn profile URL; supply the email only as a fallback identifier.\n2. Run Enrich Person once per identifier and keep personUrn from every match.\n3. When Harmonic reports the person is not on file, capture the enrichment it scheduled and poll Get Enrichment Status until it is COMPLETE or FAILED.\n4. Read the resulting person with Get Person or Batch Get People once enrichment completes.\n\n## Output\nReturn the hydrated contacts, the identifiers still pending enrichment, and the identifiers Harmonic could not resolve. Do not invent contact fields for unresolved rows.',
+    },
+    {
+      name: 'source-company-employees',
+      description:
+        'Build an account-based contact list from a company by role group and employment status.',
+      content:
+        '# Source Company Employees\n\nUse Get Company Employees when the request names an account rather than a person.\n\n## Steps\n1. Resolve the company ID or URN, then run Get Company Employees with the requested role group, such as FOUNDERS or EXECUTIVES.\n2. Follow pageInfo.nextCursor while pageInfo.hasNext is true, using a page size no greater than 100.\n3. Harmonic returns person URNs only, so hydrate them with Batch Get People in batches of at most 500.\n4. Deduplicate by personUrn before scoring or outreach.\n\n## Output\nReturn the company, the role group used, the hydrated contacts, and the total employee count Harmonic reported.',
+    },
+    {
+      name: 'monitor-saved-search-net-new',
+      description:
+        'Poll only the newly matching people on a subscribed saved search and acknowledge them.',
+      content:
+        '# Monitor Saved Search Net-New\n\nUse the net-new feed instead of re-reading a whole saved search on every run.\n\n## Steps\n1. Confirm the saved search is subscribed in the Harmonic console; net-new results are unavailable otherwise and there is no API to subscribe.\n2. Run Get People Saved Search Net-New Results, optionally bounding the window with newResultsSince.\n3. Page with pageInfo.nextCursor until pageInfo.hasNext is false, collecting contacts and URN-only rows.\n4. Only after every page and every downstream write succeeds, run Clear People Saved Search Net-New Results for the person URNs you processed.\n\n## Output\nReturn the newly matching contacts, the URNs acknowledged, and whether the run completed before anything was cleared.',
+    },
+    {
+      name: 'enrich-contact-emails',
+      description:
+        'Run Harmonic bulk email enrichment and read the resolved addresses back onto contacts.',
+      content:
+        '# Enrich Contact Emails\n\nUse bulk email enrichment when a cohort lacks addresses.\n\n## Steps\n1. Run Get Email Enrichment Usage and stop if monthlyRemaining is below the batch size.\n2. Submit person URNs or LinkedIn URLs, never both in one job, at most 5000 per job.\n3. Record the dropped identifiers and their reasons; RECENTLY_ATTEMPTED and ALREADY_HAS_EMAIL are not failures.\n4. Poll Get Email Enrichment Job until isTerminal is true, then pass succeededPersonUrns to Batch Get People, because the job rows never contain the address itself.\n\n## Output\nReturn the hydrated contacts with their emails, the per-status counts, the dropped identifiers, and the remaining monthly quota.',
     },
   ],
   templates: [

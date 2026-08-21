@@ -22,7 +22,7 @@ export const dynamic = 'force-dynamic'
 const logger = createLogger('HarmonicSavedSearchesAPI')
 const HARMONIC_SAVED_SEARCHES_URL = 'https://api.harmonic.ai/savedSearches'
 const SELECTOR_REQUEST_MAX_BYTES = 8 * 1024
-const PROVIDER_RESPONSE_MAX_BYTES = 512 * 1024
+const PROVIDER_RESPONSE_MAX_BYTES = 1024 * 1024
 const PROVIDER_RESPONSE_MAX_ROWS = 2_000
 const PROVIDER_FETCH_TIMEOUT_MS = 10_000
 
@@ -116,7 +116,16 @@ function normalizeSavedSearches(value: unknown): SavedSearchOption[] {
     }
     if (existingByUrn) continue
     if (byUrn.size >= HARMONIC_SAVED_SEARCH_SELECTOR_MAX_OPTIONS) {
-      throw new Error('Harmonic returned too many people saved searches')
+      /**
+       * `GET /savedSearches` is unpaginated, so this ceiling bounds customer data
+       * rather than a provider catalog. Every sibling selector with a data-driven
+       * bound truncates and warns; failing here would leave the dropdown dead with
+       * no in-place recovery.
+       */
+      logger.warn('Harmonic saved-search list hit the option ceiling; list may be incomplete', {
+        cap: HARMONIC_SAVED_SEARCH_SELECTOR_MAX_OPTIONS,
+      })
+      break
     }
     byUrn.set(option.urn, option)
     urnById.set(option.id, option.urn)

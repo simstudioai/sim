@@ -4,9 +4,18 @@
 import { describe, expect, it } from 'vitest'
 import { extractErrorMessage } from '@/tools/error-extractors'
 import { harmonicBatchGetPeopleTool } from '@/tools/harmonic/batch_get_people'
+import { harmonicClearPeopleSavedSearchNetNewResultsTool } from '@/tools/harmonic/clear_people_saved_search_net_new_results'
+import { harmonicEnrichPersonTool } from '@/tools/harmonic/enrich_person'
+import { harmonicGetCompanyEmployeesTool } from '@/tools/harmonic/get_company_employees'
+import { harmonicGetEmailEnrichmentJobTool } from '@/tools/harmonic/get_email_enrichment_job'
+import { harmonicGetEmailEnrichmentUsageTool } from '@/tools/harmonic/get_email_enrichment_usage'
+import { harmonicGetEnrichmentStatusTool } from '@/tools/harmonic/get_enrichment_status'
+import { harmonicGetPeopleSavedSearchNetNewResultsTool } from '@/tools/harmonic/get_people_saved_search_net_new_results'
 import { harmonicGetPeopleSavedSearchResultsTool } from '@/tools/harmonic/get_people_saved_search_results'
+import { harmonicGetPersonTool } from '@/tools/harmonic/get_person'
 import { harmonicListPeopleSavedSearchesTool } from '@/tools/harmonic/list_people_saved_searches'
 import { harmonicSearchPeopleScoutTool } from '@/tools/harmonic/search_people_scout'
+import { harmonicSubmitEmailEnrichmentJobTool } from '@/tools/harmonic/submit_email_enrichment_job'
 import {
   HARMONIC_PERSON_INCLUDE_FIELDS,
   HARMONIC_SCOUT_PEOPLE_SCHEMA,
@@ -15,9 +24,18 @@ import type { ToolConfig } from '@/tools/types'
 
 const allTools = [
   harmonicSearchPeopleScoutTool,
+  harmonicEnrichPersonTool,
+  harmonicGetPersonTool,
+  harmonicBatchGetPeopleTool,
+  harmonicGetCompanyEmployeesTool,
   harmonicListPeopleSavedSearchesTool,
   harmonicGetPeopleSavedSearchResultsTool,
-  harmonicBatchGetPeopleTool,
+  harmonicGetPeopleSavedSearchNetNewResultsTool,
+  harmonicClearPeopleSavedSearchNetNewResultsTool,
+  harmonicSubmitEmailEnrichmentJobTool,
+  harmonicGetEmailEnrichmentJobTool,
+  harmonicGetEmailEnrichmentUsageTool,
+  harmonicGetEnrichmentStatusTool,
 ] as const
 
 const buildUrl = (tool: ToolConfig, params: Record<string, unknown>): string =>
@@ -30,6 +48,13 @@ const buildBody = (tool: ToolConfig, params: Record<string, unknown>): Record<st
   }
   return body as Record<string, unknown>
 }
+
+/** Harmonic answers job submission with 202; the executor still runs transformResponse. */
+const accepted202Response = (body: unknown) =>
+  new Response(JSON.stringify(body), {
+    status: 202,
+    headers: { 'Content-Type': 'application/json' },
+  })
 
 const jsonResponse = (body: unknown) =>
   new Response(JSON.stringify(body), {
@@ -90,12 +115,21 @@ const personFixture = {
 }
 
 describe('Harmonic authentication and registry-facing contracts', () => {
-  it('exports exactly the four supported snake_case tool IDs', () => {
+  it('exports exactly the supported snake_case tool IDs', () => {
     expect(allTools.map((tool) => tool.id)).toEqual([
       'harmonic_search_people_scout',
+      'harmonic_enrich_person',
+      'harmonic_get_person',
+      'harmonic_batch_get_people',
+      'harmonic_get_company_employees',
       'harmonic_list_people_saved_searches',
       'harmonic_get_people_saved_search_results',
-      'harmonic_batch_get_people',
+      'harmonic_get_people_saved_search_net_new_results',
+      'harmonic_clear_people_saved_search_net_new_results',
+      'harmonic_submit_email_enrichment_job',
+      'harmonic_get_email_enrichment_job',
+      'harmonic_get_email_enrichment_usage',
+      'harmonic_get_enrichment_status',
     ])
   })
 
@@ -119,6 +153,60 @@ describe('Harmonic authentication and registry-facing contracts', () => {
         { personIds: [1] },
         'POST',
         'https://api.harmonic.ai/persons/batchGet',
+      ],
+      [
+        harmonicEnrichPersonTool,
+        { linkedinUrl: 'https://www.linkedin.com/in/ada' },
+        'POST',
+        'https://api.harmonic.ai/persons?linkedin_url=https%3A%2F%2Fwww.linkedin.com%2Fin%2Fada',
+      ],
+      [
+        harmonicGetPersonTool,
+        { personId: 'urn:harmonic:person:123' },
+        'GET',
+        'https://api.harmonic.ai/persons/urn%3Aharmonic%3Aperson%3A123',
+      ],
+      [
+        harmonicGetCompanyEmployeesTool,
+        { companyId: '1' },
+        'GET',
+        'https://api.harmonic.ai/companies/1/employees?size=50',
+      ],
+      [
+        harmonicGetPeopleSavedSearchNetNewResultsTool,
+        { savedSearchId: 'search-1' },
+        'GET',
+        'https://api.harmonic.ai/savedSearches/search-1/net_new_results?size=50',
+      ],
+      [
+        harmonicClearPeopleSavedSearchNetNewResultsTool,
+        { savedSearchId: 'search-1', clearScope: 'all' },
+        'POST',
+        'https://api.harmonic.ai/savedSearches/search-1/clear_net_new_results',
+      ],
+      [
+        harmonicSubmitEmailEnrichmentJobTool,
+        { personUrns: ['urn:harmonic:person:1'] },
+        'POST',
+        'https://api.harmonic.ai/email_enrichment/jobs',
+      ],
+      [
+        harmonicGetEmailEnrichmentJobTool,
+        { jobId: 'job-1' },
+        'GET',
+        'https://api.harmonic.ai/email_enrichment/jobs/job-1',
+      ],
+      [
+        harmonicGetEmailEnrichmentUsageTool,
+        {},
+        'GET',
+        'https://api.harmonic.ai/email_enrichment/usage',
+      ],
+      [
+        harmonicGetEnrichmentStatusTool,
+        { enrichmentUrns: ['urn:harmonic:enrichment:1'] },
+        'GET',
+        'https://api.harmonic.ai/enrichment_status?urns=urn%3Aharmonic%3Aenrichment%3A1',
       ],
     ]
 
@@ -197,6 +285,58 @@ describe('Harmonic authentication and registry-facing contracts', () => {
     )
     expect(validationMessage).not.toContain('private-body-value')
     expect(validationMessage).not.toContain('private-urn-value')
+  })
+
+  it('surfaces FastAPI string detail aborts instead of a bare status message', () => {
+    for (const [status, detail] of [
+      [403, 'Do not have enough permissions to access the resource'],
+      [404, 'Saved search not found'],
+    ] as const) {
+      expect(
+        extractErrorMessage({ status, data: { detail } }, harmonicBatchGetPeopleTool.errorExtractor)
+      ).toBe(detail)
+    }
+
+    expect(
+      extractErrorMessage(
+        { status: 400, data: { detail: '   ' } },
+        harmonicBatchGetPeopleTool.errorExtractor
+      )
+    ).toBe('Request failed with status 400')
+  })
+
+  it('keeps the scheduled enrichment URN out of the 404 envelope and in the message', () => {
+    expect(
+      extractErrorMessage(
+        {
+          status: 404,
+          data: {
+            detail: {
+              message:
+                'Person not found; scheduled for enrichment, check back in a few hours. Use /enrichment_status endpoint to get status of the enrichment.',
+              enrichment_urn: 'urn:harmonic:enrichment:abc',
+            },
+          },
+        },
+        harmonicEnrichPersonTool.errorExtractor
+      )
+    ).toBe(
+      'Person not found; scheduled for enrichment, check back in a few hours. Use /enrichment_status endpoint to get status of the enrichment. (urn:harmonic:enrichment:abc)'
+    )
+
+    expect(
+      extractErrorMessage(
+        { status: 404, data: { detail: { message: 'Person not found' } } },
+        harmonicEnrichPersonTool.errorExtractor
+      )
+    ).toBe('Person not found')
+
+    expect(
+      extractErrorMessage(
+        { status: 404, data: { detail: { enrichment_urn: 'urn:harmonic:enrichment:abc' } } },
+        harmonicEnrichPersonTool.errorExtractor
+      )
+    ).toBe('Request failed with status 404')
   })
 
   it('does not expose the resolved credential in local validation errors', () => {
@@ -741,5 +881,380 @@ describe('Harmonic people retrieval', () => {
       summary: null,
       isRedacted: true,
     })
+  })
+})
+
+describe('Harmonic person enrichment', () => {
+  it('requires a LinkedIn URL or an email and sends both when supplied', () => {
+    expect(() => buildUrl(harmonicEnrichPersonTool, {})).toThrow(
+      'requires a LinkedIn profile URL or an email address'
+    )
+    expect(
+      buildUrl(harmonicEnrichPersonTool, {
+        linkedinUrl: 'https://www.linkedin.com/in/ada',
+        email: 'ada@example.com',
+      })
+    ).toBe(
+      'https://api.harmonic.ai/persons?linkedin_url=https%3A%2F%2Fwww.linkedin.com%2Fin%2Fada&email=ada%40example.com'
+    )
+  })
+
+  it('projects an enriched person and flags a queued background refresh', async () => {
+    const enriched = await harmonicEnrichPersonTool.transformResponse!(
+      new Response(
+        JSON.stringify({
+          ...personFixture,
+          enrichment_urn: 'urn:harmonic:enrichment:9',
+          merged_person_urn: 'urn:harmonic:person:456',
+          requested_entity_urn: 'urn:harmonic:person:123',
+        }),
+        { status: 201, headers: { 'Content-Type': 'application/json' } }
+      ),
+      {}
+    )
+
+    expect(enriched.output.found).toBe(true)
+    expect(enriched.output.contact?.fullName).toBe('Ada Lovelace')
+    expect(enriched.output.enrichmentUrn).toBe('urn:harmonic:enrichment:9')
+    expect(enriched.output.mergedPersonUrn).toBe('urn:harmonic:person:456')
+    expect(enriched.output.enrichmentQueued).toBe(true)
+    expectOutputParity(harmonicEnrichPersonTool, enriched.output)
+  })
+
+  it('reports a null body as not found rather than throwing', async () => {
+    for (const tool of [harmonicEnrichPersonTool, harmonicGetPersonTool]) {
+      const result = await tool.transformResponse!(jsonResponse(null), {})
+      expect(result.output.found).toBe(false)
+      expect(result.output.contact).toBeNull()
+    }
+  })
+
+  it('repeats company context URNs as query parameters', () => {
+    expect(
+      buildUrl(harmonicGetPersonTool, {
+        personId: '123',
+        companyContextUrns: '["urn:harmonic:company:1","urn:harmonic:company:1"]',
+      })
+    ).toBe('https://api.harmonic.ai/persons/123?company_context_urns=urn%3Aharmonic%3Acompany%3A1')
+  })
+})
+
+describe('Harmonic company employees', () => {
+  it('validates enum filters, clamps size, and preserves opaque cursors', () => {
+    expect(
+      buildUrl(harmonicGetCompanyEmployeesTool, {
+        companyId: 'urn:harmonic:company:1',
+        employeeGroupType: 'founders',
+        employeeStatus: 'ACTIVE_AND_NOT_ACTIVE',
+        userConnectionStatus: 'TEAM_CONNECTION',
+        size: 5000,
+        cursor: 'Wzc1MjAwXQ==',
+      })
+    ).toBe(
+      'https://api.harmonic.ai/companies/urn%3Aharmonic%3Acompany%3A1/employees?size=100&employee_group_type=FOUNDERS&employee_status=ACTIVE_AND_NOT_ACTIVE&user_connection_status=TEAM_CONNECTION&cursor=Wzc1MjAwXQ%3D%3D'
+    )
+    expect(() =>
+      buildUrl(harmonicGetCompanyEmployeesTool, { companyId: '1', employeeGroupType: 'INTERNS' })
+    ).toThrow('"employeeGroupType" must be one of')
+  })
+
+  it('returns person URNs only, deduplicated, with pagination metadata', async () => {
+    const result = await harmonicGetCompanyEmployeesTool.transformResponse!(
+      jsonResponse({
+        count: 2,
+        page_info: { next: 'next-cursor', current: null, has_next: true },
+        results: ['urn:harmonic:person:1', 'urn:harmonic:person:1', 'urn:harmonic:person:2'],
+      }),
+      {}
+    )
+
+    expect(result.output.personUrns).toEqual(['urn:harmonic:person:1', 'urn:harmonic:person:2'])
+    expect(result.output.totalCount).toBe(2)
+    expect(result.output.pageInfo).toEqual({
+      nextCursor: 'next-cursor',
+      currentCursor: null,
+      hasNext: true,
+    })
+    expectOutputParity(harmonicGetCompanyEmployeesTool, result.output)
+  })
+
+  it('fails closed when Harmonic returns a non-person URN', async () => {
+    await expect(
+      harmonicGetCompanyEmployeesTool.transformResponse!(
+        jsonResponse({ results: ['urn:harmonic:company:9'] }),
+        {}
+      )
+    ).rejects.toThrow('must contain only person URNs')
+  })
+})
+
+describe('Harmonic saved-search net-new results', () => {
+  it('reads the urns collection rather than results, and validates the since filter', async () => {
+    const result = await harmonicGetPeopleSavedSearchNetNewResultsTool.transformResponse!(
+      jsonResponse({
+        urns: [personFixture, 'urn:harmonic:person:777'],
+        cursor: 'echoed-cursor',
+        page_info: { next: null, current: 'now', has_next: false },
+      }),
+      {}
+    )
+
+    expect(result.output.contacts).toHaveLength(1)
+    expect(result.output.personUrns).toEqual(['urn:harmonic:person:123', 'urn:harmonic:person:777'])
+    expect(result.output.cursor).toBe('echoed-cursor')
+    expectOutputParity(harmonicGetPeopleSavedSearchNetNewResultsTool, result.output)
+
+    expect(
+      buildUrl(harmonicGetPeopleSavedSearchNetNewResultsTool, {
+        savedSearchId: '5',
+        newResultsSince: '2026-01-31',
+      })
+    ).toContain('new_results_since=2026-01-31')
+    expect(() =>
+      buildUrl(harmonicGetPeopleSavedSearchNetNewResultsTool, {
+        savedSearchId: '5',
+        newResultsSince: 'last tuesday',
+      })
+    ).toThrow('"newResultsSince" must be YYYY-MM-DD')
+  })
+
+  it('acknowledges specific URNs as repeated query parameters and echoes them back', async () => {
+    const params = { savedSearchId: '5', personUrns: ['urn:harmonic:person:1'] }
+    expect(buildUrl(harmonicClearPeopleSavedSearchNetNewResultsTool, params)).toBe(
+      'https://api.harmonic.ai/savedSearches/5/clear_net_new_results?entity_urns=urn%3Aharmonic%3Aperson%3A1'
+    )
+
+    const cleared = await harmonicClearPeopleSavedSearchNetNewResultsTool.transformResponse!(
+      jsonResponse({}),
+      params
+    )
+    expect(cleared.output).toEqual({
+      cleared: true,
+      clearedPersonUrns: ['urn:harmonic:person:1'],
+    })
+  })
+
+  it('never clears the whole backlog without an explicit scope', () => {
+    for (const params of [
+      { savedSearchId: '5' },
+      { savedSearchId: '5', personUrns: [] },
+      { savedSearchId: '5', personUrns: '[]' },
+      { savedSearchId: '5', personUrns: '', clearScope: 'selected' },
+    ]) {
+      expect(() => buildUrl(harmonicClearPeopleSavedSearchNetNewResultsTool, params)).toThrow(
+        'requires at least one person URN'
+      )
+    }
+
+    expect(() =>
+      buildUrl(harmonicClearPeopleSavedSearchNetNewResultsTool, {
+        savedSearchId: '5',
+        personUrns: ['urn:harmonic:person:1'],
+        clearScope: 'all',
+      })
+    ).toThrow('cannot combine specific person URNs with clearing everything')
+
+    expect(() =>
+      buildUrl(harmonicClearPeopleSavedSearchNetNewResultsTool, {
+        savedSearchId: '5',
+        clearScope: 'everything',
+      })
+    ).toThrow('"clearScope" must be either')
+  })
+
+  it('clears every net-new result only when the scope says so', async () => {
+    const params = { savedSearchId: '5', clearScope: 'all' }
+    expect(buildUrl(harmonicClearPeopleSavedSearchNetNewResultsTool, params)).toBe(
+      'https://api.harmonic.ai/savedSearches/5/clear_net_new_results'
+    )
+    const clearedAll = await harmonicClearPeopleSavedSearchNetNewResultsTool.transformResponse!(
+      jsonResponse({}),
+      params
+    )
+    expect(clearedAll.output.clearedPersonUrns).toBeNull()
+  })
+})
+
+describe('Harmonic email enrichment', () => {
+  it('rejects mixing identifier kinds and enforces the documented ceiling', () => {
+    expect(() => buildBody(harmonicSubmitEmailEnrichmentJobTool, {})).toThrow(
+      'requires at least one person URN or LinkedIn profile URL'
+    )
+    expect(() =>
+      buildBody(harmonicSubmitEmailEnrichmentJobTool, {
+        personUrns: ['urn:harmonic:person:1'],
+        personLinkedinUrls: ['https://www.linkedin.com/in/ada'],
+      })
+    ).toThrow('accepts person URNs or LinkedIn URLs, not both')
+    expect(() =>
+      buildBody(harmonicSubmitEmailEnrichmentJobTool, {
+        personUrns: Array.from({ length: 5001 }, (_, index) => `urn:harmonic:person:${index}`),
+      })
+    ).toThrow('at most 5000 people')
+    expect(() =>
+      buildBody(harmonicSubmitEmailEnrichmentJobTool, {
+        personLinkedinUrls: ['not-a-url'],
+      })
+    ).toThrow('must contain absolute http(s) URLs')
+  })
+
+  it('forwards unrecognised profile URLs so Harmonic can drop them per item', () => {
+    expect(
+      buildBody(harmonicSubmitEmailEnrichmentJobTool, {
+        personLinkedinUrls: [
+          'https://www.linkedin.com/in/ada?trk=nav',
+          'https://linkedin.com.evil.example/in/ada',
+        ],
+      })
+    ).toEqual({
+      person_linkedin_urls: [
+        'https://www.linkedin.com/in/ada',
+        'https://linkedin.com.evil.example/in/ada',
+      ],
+    })
+  })
+
+  it('sends exactly one identifier array', () => {
+    expect(
+      buildBody(harmonicSubmitEmailEnrichmentJobTool, {
+        personUrns: '["urn:harmonic:person:1","urn:harmonic:person:1"]',
+      })
+    ).toEqual({ person_urns: ['urn:harmonic:person:1'] })
+    expect(
+      buildBody(harmonicSubmitEmailEnrichmentJobTool, {
+        personLinkedinUrls: ['https://www.linkedin.com/in/ada?trk=nav'],
+      })
+    ).toEqual({ person_linkedin_urls: ['https://www.linkedin.com/in/ada'] })
+  })
+
+  it("projects the submitted job from Harmonic's documented 202 with its dropped identifiers", async () => {
+    const submitted = await harmonicSubmitEmailEnrichmentJobTool.transformResponse!(
+      accepted202Response({
+        job_id: 'job-1',
+        status: 'PENDING',
+        accepted_count: 2,
+        monthly_remaining: 98,
+        created_at: '2026-08-20T00:00:00Z',
+        dropped: [{ submitted_identifier: 'urn:harmonic:person:9', reason: 'ALREADY_HAS_EMAIL' }],
+      }),
+      {}
+    )
+
+    expect(submitted.output.jobId).toBe('job-1')
+    expect(submitted.output.dropped).toEqual([
+      { submittedIdentifier: 'urn:harmonic:person:9', reason: 'ALREADY_HAS_EMAIL' },
+    ])
+    expectOutputParity(harmonicSubmitEmailEnrichmentJobTool, submitted.output)
+  })
+
+  it('keeps results null until the job is terminal and surfaces succeeded URNs after', async () => {
+    const counts = {
+      total_processed: 2,
+      total_succeeded: 1,
+      total_failed: 0,
+      total_skipped: 0,
+      total_not_found: 1,
+    }
+
+    const running = await harmonicGetEmailEnrichmentJobTool.transformResponse!(
+      jsonResponse({
+        job_id: 'job-1',
+        status: 'IN_PROGRESS',
+        counts,
+        results: null,
+        created_at: '2026-08-20T00:00:00Z',
+      }),
+      {}
+    )
+    expect(running.output.isTerminal).toBe(false)
+    expect(running.output.results).toBeNull()
+    expect(running.output.succeededPersonUrns).toEqual([])
+
+    const done = await harmonicGetEmailEnrichmentJobTool.transformResponse!(
+      jsonResponse({
+        job_id: 'job-1',
+        status: 'COMPLETED',
+        counts,
+        results: [
+          { person_urn: 'urn:harmonic:person:1', status: 'SUCCESS' },
+          { person_urn: 'urn:harmonic:person:2', status: 'NOT_FOUND' },
+        ],
+        created_at: '2026-08-20T00:00:00Z',
+        completed_at: '2026-08-20T00:05:00Z',
+      }),
+      {}
+    )
+    expect(done.output.isTerminal).toBe(true)
+    expect(done.output.succeededPersonUrns).toEqual(['urn:harmonic:person:1'])
+    expect(done.output.counts.totalNotFound).toBe(1)
+    expectOutputParity(harmonicGetEmailEnrichmentJobTool, done.output)
+  })
+
+  it('reads the monthly quota counters', async () => {
+    const usage = await harmonicGetEmailEnrichmentUsageTool.transformResponse!(
+      jsonResponse({ monthly_usage: 10, monthly_limit: 100, monthly_remaining: 90 }),
+      {}
+    )
+    expect(usage.output).toEqual({ monthlyUsage: 10, monthlyLimit: 100, monthlyRemaining: 90 })
+
+    await expect(
+      harmonicGetEmailEnrichmentUsageTool.transformResponse!(
+        jsonResponse({ monthly_usage: 10, monthly_limit: null, monthly_remaining: 90 }),
+        {}
+      )
+    ).rejects.toThrow('without usable counters')
+  })
+})
+
+describe('Harmonic enrichment status', () => {
+  it('requires enrichment URNs and rejects other URN families', () => {
+    expect(() => buildUrl(harmonicGetEnrichmentStatusTool, {})).toThrow(
+      'requires at least one enrichment URN'
+    )
+    expect(() =>
+      buildUrl(harmonicGetEnrichmentStatusTool, { enrichmentUrns: ['urn:harmonic:person:1'] })
+    ).toThrow('must contain enrichment URNs or bare enrichment UUIDs')
+  })
+
+  it('routes bare UUIDs to ids and full URNs to urns, as Harmonic documents both', () => {
+    expect(
+      buildUrl(harmonicGetEnrichmentStatusTool, {
+        enrichmentUrns: [
+          '242437b6-eb4d-476b-b348-3c1bcc2d7069',
+          'urn:harmonic:enrichment:242437b6-eb4d-476b-b348-3c1bcc2d7069',
+        ],
+      })
+    ).toBe(
+      'https://api.harmonic.ai/enrichment_status?ids=242437b6-eb4d-476b-b348-3c1bcc2d7069&urns=urn%3Aharmonic%3Aenrichment%3A242437b6-eb4d-476b-b348-3c1bcc2d7069'
+    )
+  })
+
+  it('projects each enrichment status and validates the resolved entity URN', async () => {
+    const result = await harmonicGetEnrichmentStatusTool.transformResponse!(
+      jsonResponse([
+        {
+          entity_urn: 'urn:harmonic:enrichment:1',
+          status: 'COMPLETE',
+          message: null,
+          enriched_entity_urn: 'urn:harmonic:person:123',
+        },
+      ]),
+      {}
+    )
+    expect(result.output.count).toBe(1)
+    expect(result.output.enrichments[0]).toEqual({
+      enrichmentUrn: 'urn:harmonic:enrichment:1',
+      status: 'COMPLETE',
+      message: null,
+      enrichedEntityUrn: 'urn:harmonic:person:123',
+    })
+    expectOutputParity(harmonicGetEnrichmentStatusTool, result.output)
+
+    await expect(
+      harmonicGetEnrichmentStatusTool.transformResponse!(
+        jsonResponse([{ entity_urn: 'urn:harmonic:enrichment:1', enriched_entity_urn: 'nope' }]),
+        {}
+      )
+    ).rejects.toThrow('invalid entity URN')
   })
 })

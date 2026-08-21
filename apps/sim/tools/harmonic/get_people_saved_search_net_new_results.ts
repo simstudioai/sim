@@ -2,28 +2,27 @@ import { ErrorExtractorId } from '@/tools/error-extractors'
 import {
   HARMONIC_CONTACT_OUTPUT_PROPERTIES,
   HARMONIC_PAGE_INFO_OUTPUT_PROPERTIES,
-  type HarmonicGetPeopleSavedSearchResultsParams,
-  type HarmonicGetPeopleSavedSearchResultsResponse,
+  type HarmonicGetPeopleSavedSearchNetNewResultsParams,
+  type HarmonicGetPeopleSavedSearchNetNewResultsResponse,
 } from '@/tools/harmonic/types'
 import {
-  buildPagedUrl,
+  buildNetNewResultsUrl,
   harmonicHeaders,
   normalizePageInfo,
   normalizePeopleResults,
-  nullableResponseNumber,
-  requireIdentifier,
+  nullableResponseString,
   responseRecord,
 } from '@/tools/harmonic/utils'
 import type { ToolConfig } from '@/tools/types'
 
-export const harmonicGetPeopleSavedSearchResultsTool: ToolConfig<
-  HarmonicGetPeopleSavedSearchResultsParams,
-  HarmonicGetPeopleSavedSearchResultsResponse
+export const harmonicGetPeopleSavedSearchNetNewResultsTool: ToolConfig<
+  HarmonicGetPeopleSavedSearchNetNewResultsParams,
+  HarmonicGetPeopleSavedSearchNetNewResultsResponse
 > = {
-  id: 'harmonic_get_people_saved_search_results',
-  name: 'Harmonic Get People Saved Search Results',
+  id: 'harmonic_get_people_saved_search_net_new_results',
+  name: 'Harmonic Get People Saved Search Net-New Results',
   description:
-    'Get one page of a Harmonic people saved search. Full records become contacts; URN-only rows are exposed for Batch Get People.',
+    'Get only the people newly matching a subscribed Harmonic people saved search, so a monitor does not reprocess the whole result set.',
   version: '1.0.0',
   oauth: { required: true, provider: 'harmonic' },
   errorExtractor: ErrorExtractorId.HARMONIC_ERRORS,
@@ -53,29 +52,40 @@ export const harmonicGetPeopleSavedSearchResultsTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Opaque next-page cursor from a previous response',
     },
+    newResultsSince: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Only return matches after this UTC point, as YYYY-MM-DD or YYYY-MM-DDTHH:00:00Z',
+    },
   },
 
   request: {
     url: (params) =>
-      buildPagedUrl(
-        `/savedSearches:results/${encodeURIComponent(
-          requireIdentifier(params.savedSearchId, 'savedSearchId')
-        )}`,
+      buildNetNewResultsUrl(
+        params.savedSearchId,
         params.size,
-        params.cursor
+        params.cursor,
+        params.newResultsSince
       ),
     method: 'GET',
     headers: (params) => harmonicHeaders(params.accessToken),
   },
 
+  /**
+   * Harmonic keys this collection `urns` rather than `results`, but the element
+   * union is identical to the saved-search results endpoint, so the shared
+   * person projection applies unchanged.
+   */
   transformResponse: async (response) => {
-    const data = responseRecord(await response.json(), 'saved-search results')
-    const people = normalizePeopleResults(data.results)
+    const data = responseRecord(await response.json(), 'saved-search net-new results')
+    const people = normalizePeopleResults(data.urns)
     return {
       success: true,
       output: {
         ...people,
-        totalCount: nullableResponseNumber(data.count),
+        cursor: nullableResponseString(data.cursor),
         pageInfo: normalizePageInfo(data.page_info),
       },
     }
@@ -84,15 +94,15 @@ export const harmonicGetPeopleSavedSearchResultsTool: ToolConfig<
   outputs: {
     contacts: {
       type: 'array',
-      description: 'Full person records returned by the saved search, normalized as contacts',
+      description: 'Newly matching people returned as full profiles, normalized as contacts',
       items: { type: 'object', properties: HARMONIC_CONTACT_OUTPUT_PROPERTIES },
     },
     personUrns: {
       type: 'array',
-      description: 'All person URNs in the page, including rows returned without full profiles',
+      description: 'All newly matching person URNs, including rows returned without full profiles',
       items: { type: 'string', description: 'Harmonic person URN' },
     },
-    totalCount: { type: 'number', nullable: true, description: 'Total matching people' },
+    cursor: { type: 'string', nullable: true, description: 'Cursor echoed by Harmonic' },
     pageInfo: {
       type: 'object',
       nullable: true,

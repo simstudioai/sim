@@ -213,7 +213,7 @@ const ERROR_EXTRACTORS: ErrorExtractorConfig[] = [
   {
     id: 'harmonic-errors',
     description:
-      'Harmonic API message errors and FastAPI validation detail arrays without echoed request input',
+      'Harmonic API message errors, string and object FastAPI detail aborts including the enrichment URN, and validation detail arrays without echoed request input',
     examples: ['Harmonic'],
     extract: (errorInfo) => {
       const data = errorInfo?.data
@@ -221,6 +221,31 @@ const ERROR_EXTRACTORS: ErrorExtractorConfig[] = [
 
       const message = typeof data.message === 'string' ? data.message.trim() : ''
       if (message) return message
+
+      /**
+       * Harmonic's Kong edge answers with `message`, but the FastAPI application
+       * behind it renders every non-422 abort as a bare string `detail`. Without
+       * this branch those become `Request failed with status 403`, because a tool
+       * that names an extractor gets no fallback chain.
+       */
+      if (typeof data.detail === 'string') {
+        const detail = data.detail.trim()
+        return detail || undefined
+      }
+
+      /**
+       * `POST /persons` answers 404 with an object detail carrying the enrichment
+       * Harmonic just scheduled. The URN is the only handle on that job, so it is
+       * appended to the message rather than dropped with the rest of the envelope.
+       */
+      if (data.detail && typeof data.detail === 'object' && !Array.isArray(data.detail)) {
+        const detail = data.detail as { message?: unknown; enrichment_urn?: unknown }
+        const detailMessage = typeof detail.message === 'string' ? detail.message.trim() : ''
+        if (!detailMessage) return undefined
+        const enrichmentUrn =
+          typeof detail.enrichment_urn === 'string' ? detail.enrichment_urn.trim() : ''
+        return enrichmentUrn ? `${detailMessage} (${enrichmentUrn})` : detailMessage
+      }
 
       if (!Array.isArray(data.detail)) return undefined
       const details = data.detail
