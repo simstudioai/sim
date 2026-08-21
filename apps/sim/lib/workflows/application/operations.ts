@@ -69,11 +69,25 @@ export const workflowOperations = {
     workspaceApiKey: 'allow',
     ...ALL_WORKFLOW_PRINCIPAL_POLICY,
   }),
+  /**
+   * Denied to workspace API keys for the same reason as its sibling
+   * {@link applyOperations} below, and stated here because the two are the only
+   * doors that write a whole graph through this surface.
+   *
+   * A replace stores blocks and their tool wiring wholesale. The policies that
+   * decide which of those a member may add — the EE permission config and block
+   * visibility — take a human subject, and an actorless workspace key has none;
+   * both available substitutes fail *open*. Allowing one here made `PUT …/state`
+   * a way to store what `POST …/operations` refuses.
+   *
+   * Personal keys keep the capability, so headless authoring is unaffected for a
+   * credential that names a human.
+   */
   replaceState: defineWorkspaceOperation({
     id: 'workflows.state.replace',
     minimumRole: 'write',
-    workspaceApiKey: 'allow',
-    ...ALL_WORKFLOW_PRINCIPAL_POLICY,
+    workspaceApiKey: 'deny',
+    ...HUMAN_WORKFLOW_PRINCIPAL_POLICY,
   }),
   /**
    * Denied to workspace API keys, unlike its sibling writes.

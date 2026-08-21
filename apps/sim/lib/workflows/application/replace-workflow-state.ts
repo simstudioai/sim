@@ -30,6 +30,12 @@ const logger = createLogger('ReplaceWorkflowState')
  * Deliberately not `resolvePrincipalAttribution`: that answers a workspace API
  * key with the workspace's billing owner, which is correct for billing and
  * wrong for anything that reads a person's own grants.
+ *
+ * `workflows.state.replace` now admits only principals that name a human, so
+ * the `null` branch is unreachable through this operation. It is kept as a
+ * fail-safe: if that policy is ever widened, the reference pass degrades and
+ * says so in `lint.notes` rather than silently resolving one person's grants
+ * against another's.
  */
 function humanSubjectUserId(principal: Principal): string | null {
   try {

@@ -349,21 +349,21 @@ describe('replaceWorkflowState', () => {
   })
 
   /**
-   * This operation admits workspace API keys, which have no human subject. The
-   * identity that would stand in for one is the workspace's billing owner — a
-   * different person — so resolving credential references against it would both
-   * misreport what the workflow can reach and disclose that person's grants.
+   * A replace stores blocks and their tool wiring wholesale, and the policies
+   * deciding which of those a member may add take a human subject. A workspace
+   * API key has none, and both substitutes fail open — the billing owner is a
+   * different, typically less-constrained person — so the operation refuses one
+   * outright rather than writing a graph it cannot evaluate. Without this,
+   * `PUT …/state` stored what `POST …/operations` refuses.
    */
   describe('reference resolution identity', () => {
-    it('skips the reference pass for a workspace API key and says so', async () => {
-      const result = await replaceWorkflowState.execute({
-        principal: { kind: 'workspace_api_key', workspaceId: 'workspace-1', keyId: 'key-1' },
-        input,
-      })
-
-      expect(result.lint.notes).toContain(REFERENCES_UNCHECKED_NOTE)
-      expect(result.lint.unresolvedReferences).toEqual([])
-      expect(result.lint.fieldIssues).toEqual(expect.any(Array))
+    it('refuses a workspace API key, which names no human to evaluate', async () => {
+      await expect(
+        replaceWorkflowState.execute({
+          principal: { kind: 'workspace_api_key', workspaceId: 'workspace-1', keyId: 'key-1' },
+          input,
+        })
+      ).rejects.toThrow()
     })
 
     it('runs the reference pass for a human principal', async () => {
