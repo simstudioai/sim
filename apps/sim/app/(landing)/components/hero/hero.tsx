@@ -90,7 +90,10 @@ export function Hero() {
             and Managing AI Agents.
           </>
         }
-        description='Open source, with 1,000+ integrations and every major LLM. Build, deploy, and manage agents visually, conversationally, or with code.'
+        description={[
+          'Sim is an AI agent and workflow builder for teams creating agents that automate real work. Design workflows visually, describe what you need in natural language, or use code for complete control.',
+          'Connect your agents to 1,000+ integrations and every major LLM, then deploy, monitor, and improve them from one collaborative workspace.',
+        ]}
       />
 
       <div

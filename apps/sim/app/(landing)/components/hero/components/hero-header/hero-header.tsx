@@ -5,7 +5,8 @@ import { HeroCta } from '@/app/(landing)/components/hero-cta'
 import { LANDING_HERO_CTA_GAP } from '@/app/(landing)/components/landing-layout'
 
 interface LandingHeroHeaderProps {
-  description: string
+  /** A single paragraph, or an array of paragraphs rendered stacked within the same measure. */
+  description: string | string[]
   eyebrow?: ReactNode
   heading: ReactNode
   headingId: string
@@ -33,9 +34,22 @@ export function LandingHeroHeader({
           {heading}
         </h1>
 
-        <p className='w-full min-w-0 max-w-[58ch] text-pretty text-[var(--text-muted)] text-base leading-[1.5]'>
-          {description}
-        </p>
+        {Array.isArray(description) ? (
+          <div className='flex w-full min-w-0 max-w-[58ch] flex-col gap-3'>
+            {description.map((paragraph) => (
+              <p
+                key={paragraph}
+                className='text-pretty text-[var(--text-muted)] text-base leading-[1.5]'
+              >
+                {paragraph}
+              </p>
+            ))}
+          </div>
+        ) : (
+          <p className='w-full min-w-0 max-w-[58ch] text-pretty text-[var(--text-muted)] text-base leading-[1.5]'>
+            {description}
+          </p>
+        )}
 
         <div className={cn('max-sm:w-full', LANDING_HERO_CTA_GAP)}>
           <HeroCta />
