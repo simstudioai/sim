@@ -46,6 +46,18 @@ export interface CbInsightsOrgListResponse extends ToolResponse {
   }
 }
 
+/**
+ * Business relationships is the one paged multi-organization endpoint that
+ * reports no total — its documented response carries `orgs` and `nextPageToken`
+ * only.
+ */
+export interface CbInsightsPagedOrgListResponse extends ToolResponse {
+  output: {
+    orgs: CbInsightsRecord[]
+    nextPageToken: string | null
+  }
+}
+
 export interface CbInsightsPagedItemsResponse extends ToolResponse {
   output: CbInsightsPageInfo & {
     items: CbInsightsRecord[]
@@ -145,6 +157,7 @@ export interface CbInsightsFundingsResponse extends ToolResponse {
 export type CbInsightsResponse =
   | CbInsightsListResponse
   | CbInsightsOrgListResponse
+  | CbInsightsPagedOrgListResponse
   | CbInsightsPagedItemsResponse
   | CbInsightsItemsResponse
   | CbInsightsObjectResponse

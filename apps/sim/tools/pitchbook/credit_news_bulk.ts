@@ -1,6 +1,41 @@
+import { ErrorExtractorId } from '@/tools/error-extractors'
 import type { PitchbookCreditNewsBulkParams, PitchbookResponse } from '@/tools/pitchbook/types'
 import { PITCHBOOK_API_BASE, pitchbookAuthHeaders, throwIfNotOk } from '@/tools/pitchbook/utils'
 import type { ToolConfig } from '@/tools/types'
+
+/**
+ * Normalize the caller's article ids into the numeric list PitchBook expects.
+ *
+ * The block runs the code subblock through `JSON.parse`, which happily yields a
+ * non-array for input like `{}` or `5`, and a direct tool call can hand the raw
+ * text over untouched. Both reach here, so parse a string, reject anything that
+ * is not a list of numbers, and fail with a message that names the problem
+ * instead of a bare `.map is not a function`.
+ */
+function toArticleIds(value: unknown): number[] {
+  let raw = value
+  if (typeof raw === 'string') {
+    const trimmed = raw.trim()
+    if (trimmed === '') raw = []
+    else {
+      try {
+        raw = JSON.parse(trimmed)
+      } catch {
+        throw new Error('Article IDs must be a JSON array of numbers, e.g. [11041384, 2142401]')
+      }
+    }
+  }
+  if (!Array.isArray(raw)) {
+    throw new Error('Article IDs must be a JSON array of numbers, e.g. [11041384, 2142401]')
+  }
+  return raw.map((articleId) => {
+    const parsed = Number(articleId)
+    if (!Number.isFinite(parsed)) {
+      throw new Error(`Article ID "${String(articleId)}" is not a number`)
+    }
+    return parsed
+  })
+}
 
 export const pitchbookCreditNewsBulkTool: ToolConfig<
   PitchbookCreditNewsBulkParams,
@@ -11,6 +46,7 @@ export const pitchbookCreditNewsBulkTool: ToolConfig<
   description:
     'Retrieve many credit analysis articles in full in a single call, reporting which IDs were found, missing, or duplicated',
   version: '1.0.0',
+  errorExtractor: ErrorExtractorId.PITCHBOOK_ERRORS,
 
   params: {
     apiKey: {
@@ -24,6 +60,7 @@ export const pitchbookCreditNewsBulkTool: ToolConfig<
       required: true,
       visibility: 'user-or-llm',
       description: 'Credit news article IDs to fetch, e.g. [11041384, 2142401]',
+      items: { type: 'number', description: 'Credit news article ID' },
     },
     currency: {
       type: 'string',
@@ -35,14 +72,14 @@ export const pitchbookCreditNewsBulkTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `${PITCHBOOK_API_BASE}/credit-analysis/credit-news`,
+    url: () => `${PITCHBOOK_API_BASE}/credit-analysis/credit-news`,
     method: 'POST',
     headers: (params) => ({
       ...pitchbookAuthHeaders(params.apiKey, params.currency),
       'Content-Type': 'application/json',
     }),
     body: (params) => ({
-      items: (params.articleIds ?? []).map((articleId) => ({ articleId: Number(articleId) })),
+      items: toArticleIds(params.articleIds).map((articleId) => ({ articleId })),
     }),
   },
 

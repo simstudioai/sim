@@ -1,3 +1,4 @@
+import { ErrorExtractorId } from '@/tools/error-extractors'
 import type {
   PitchbookSearchResponse,
   PitchbookServiceProviderSearchParams,
@@ -20,6 +21,7 @@ export const pitchbookServiceProviderSearchTool: ToolConfig<
   description:
     'Search PitchBook for service providers by type, location, and the deals they have worked on',
   version: '1.0.0',
+  errorExtractor: ErrorExtractorId.PITCHBOOK_ERRORS,
 
   params: {
     apiKey: {

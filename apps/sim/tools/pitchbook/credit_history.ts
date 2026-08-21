@@ -1,3 +1,4 @@
+import { ErrorExtractorId } from '@/tools/error-extractors'
 import type { PitchbookResponse, PitchbookUsageWindowParams } from '@/tools/pitchbook/types'
 import { PITCHBOOK_API_BASE, pitchbookAuthHeaders, throwIfNotOk } from '@/tools/pitchbook/utils'
 import type { ToolConfig } from '@/tools/types'
@@ -9,6 +10,7 @@ export const pitchbookCreditHistoryTool: ToolConfig<PitchbookUsageWindowParams, 
     description:
       'Retrieve API credit usage and remaining balance per contract, for up to the last 90 days',
     version: '1.0.0',
+    errorExtractor: ErrorExtractorId.PITCHBOOK_ERRORS,
 
     params: {
       apiKey: {

@@ -1,3 +1,4 @@
+import { ErrorExtractorId } from '@/tools/error-extractors'
 import type { PitchbookResponse, PitchbookSandboxEntitiesParams } from '@/tools/pitchbook/types'
 import { PITCHBOOK_API_BASE, pitchbookAuthHeaders, throwIfNotOk } from '@/tools/pitchbook/utils'
 import type { ToolConfig } from '@/tools/types'
@@ -25,6 +26,7 @@ export const pitchbookSandboxEntitiesTool: ToolConfig<
   description:
     'List the entities a sandbox API key is allowed to query, so test workflows have real IDs to run against',
   version: '1.0.0',
+  errorExtractor: ErrorExtractorId.PITCHBOOK_ERRORS,
 
   params: {
     apiKey: {
