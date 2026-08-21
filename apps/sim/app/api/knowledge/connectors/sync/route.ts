@@ -32,6 +32,29 @@ const DISPATCH_CONCURRENCY = 10
 const STALE_LOCK_ERROR_MESSAGE = 'Sync timed out (stale lock recovered)'
 
 /**
+ * Excludes a sync-log row whose run still demonstrably holds its connector's
+ * lock.
+ *
+ * The sweep keys on `startedAt`, and nothing refreshes that — the heartbeat
+ * renews `knowledge_connector.updatedAt`, and the log table has no equivalent
+ * column. So a legitimately long in-process run keeps its connector lock but
+ * would still have its log row closed as `failed` at the TTL, recording a
+ * successful sync as a failure and losing its counters to
+ * `loadPreviousListingObservation`. Matching the connector's `syncLockToken`
+ * against the row's own id is exactly "this run is still the lock holder", so a
+ * live run is spared while every orphan — reclaimed, replaced, or predating the
+ * token column, where the token is NULL — is still swept.
+ */
+function runNoLongerHoldsItsLock(): SQL {
+  return sql`NOT EXISTS (
+    SELECT 1 FROM ${knowledgeConnector}
+    WHERE ${knowledgeConnector.id} = ${knowledgeConnectorSyncLog.connectorId}
+      AND ${knowledgeConnector.syncLockToken} = ${knowledgeConnectorSyncLog.id}
+      AND ${knowledgeConnector.status} = 'syncing'
+  )`
+}
+
+/**
  * The reclaimed connector's new consecutive-failure count.
  *
  * A hard kill (OOM/SIGKILL) skips `executeSync`'s `catch` and `finally`
@@ -117,12 +140,13 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
      * stay stranded forever. Keying off the row's own `startedAt` instead makes
      * the sweep self-healing and lets it drain the existing backlog.
      *
-     * Safe on liveness: the run ceiling is
-     * {@link CONNECTOR_SYNC_MAX_DURATION_SECONDS} and this TTL is twice that, so
-     * a row older than the cutoff belongs to a run the platform has already
-     * killed and which cannot still be writing. The predicate is per-row on
-     * `startedAt`, so a fresh run's log row can never be caught by it — even on
-     * a connector whose previous run is being reclaimed in this same tick.
+     * Age alone does not prove a run is dead: the in-process fallback path has
+     * no duration cap, so a large self-hosted sync can genuinely still be
+     * working past the TTL. `runNoLongerHoldsItsLock` is what makes this safe —
+     * a run still holding its connector's lock is spared regardless of age.
+     * The age predicate is also per-row on `startedAt`, so a fresh run's log row
+     * can never be caught by it, even on a connector whose previous run is being
+     * reclaimed in this same tick.
      */
     const closedSyncLogs = await db
       .update(knowledgeConnectorSyncLog)
@@ -134,7 +158,8 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       .where(
         and(
           eq(knowledgeConnectorSyncLog.status, 'started'),
-          lte(knowledgeConnectorSyncLog.startedAt, staleCutoff)
+          lte(knowledgeConnectorSyncLog.startedAt, staleCutoff),
+          runNoLongerHoldsItsLock()
         )
       )
       .returning({ id: knowledgeConnectorSyncLog.id })

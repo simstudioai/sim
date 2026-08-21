@@ -9,6 +9,7 @@
  */
 import {
   dbChainMockFns,
+  flattenMockConditions,
   hasMockCondition,
   type MockCondition,
   resetDbChainMock,
@@ -211,6 +212,29 @@ describe('connector sync scheduler stale-lock reaper', () => {
           node.type === 'lte' && node.left === schemaMock.knowledgeConnectorSyncLog.startedAt
       )
     ).toBe(true)
+  })
+
+  it('spares the log row of a run that still holds its connector lock', async () => {
+    await runTickRecovering(['connector-1'])
+
+    /**
+     * The sweep keys on `startedAt`, which no heartbeat refreshes, so age alone
+     * would close a legitimately long in-process run's row and record a
+     * successful sync as failed.
+     */
+    const where = dbChainMockFns.where.mock.calls[1][0]
+    const liveness = flattenMockConditions(where).find(
+      (node: MockCondition) => typeof node.toSQL === 'function'
+    )
+    expect(liveness).toBeDefined()
+
+    const rendered = (liveness as unknown as MockSqlFragment).toSQL().sql
+    expect(rendered).toContain('NOT EXISTS')
+    expect(rendered).toContain("'syncing'")
+
+    const bound = (liveness as unknown as MockSqlFragment).values
+    expect(bound).toContain(schemaMock.knowledgeConnector.syncLockToken)
+    expect(bound).toContain(schemaMock.knowledgeConnectorSyncLog.id)
   })
 
   it('closes stale sync-log rows even when no connector was reclaimed this tick', async () => {
