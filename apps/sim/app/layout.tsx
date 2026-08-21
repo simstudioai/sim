@@ -19,7 +19,7 @@ import { QueryProvider } from '@/app/_shell/providers/query-provider'
 import { SessionProvider } from '@/app/_shell/providers/session-provider'
 import { ThemeProvider } from '@/app/_shell/providers/theme-provider'
 import { TooltipProvider } from '@/app/_shell/providers/tooltip-provider'
-import { PublicEnvScript } from '@/app/_shell/public-env-script'
+import { PublicEnvScript, publicEnvHtmlAttributes } from '@/app/_shell/public-env-script'
 import { season } from '@/app/_styles/fonts/season/season'
 
 export const viewport: Viewport = {
@@ -40,7 +40,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   const themeCSS = generateThemeCSS()
 
   return (
-    <html lang='en' suppressHydrationWarning>
+    <html lang='en' suppressHydrationWarning {...publicEnvHtmlAttributes()}>
       <head>
         {isReactScanEnabled && (
           <Script

@@ -11,29 +11,87 @@ import { createEnv } from '@t3-oss/env-nextjs'
 import { z } from 'zod'
 
 /**
+ * Attribute on the `<html>` element carrying the same `NEXT_PUBLIC_*` snapshot
+ * `<PublicEnvScript>` assigns to `window.__ENV`.
+ *
+ * That script is rendered from the component tree, so it lands at the end of
+ * `<head>` — measured at ~13 KB after the `<script async>` bootstrap tags React
+ * emits in the preamble. An `async` script runs the moment its fetch resolves,
+ * and Next's `appBootstrap` calls `hydrate()` **synchronously** when
+ * `self.__next_s` is empty, which it always is here: `disableNextScript` emits a
+ * plain inline tag rather than a `beforeInteractive` one, and that queue was the
+ * only thing that used to order the assignment ahead of hydration. So on a warm
+ * cache both module bodies and the first commit can run before the parser has
+ * reached the assignment.
+ *
+ * An attribute has no such ordering problem. `<html>` is the first tag in the
+ * document — ~490 bytes ahead of the first bootstrap script — so
+ * `document.documentElement` already carries this value by the time *any*
+ * script, framework or application, is able to execute. This is the race-free
+ * transport; `window.__ENV` stays the public global and the preferred read.
+ */
+export const PUBLIC_ENV_ATTRIBUTE = 'data-public-env'
+
+let cachedEnvAttribute: string | null = null
+let cachedEnvAttributeValues: Record<string, string> | null = null
+
+/**
+ * `NEXT_PUBLIC_*` values read off {@link PUBLIC_ENV_ATTRIBUTE}. Only consulted
+ * when `window.__ENV` has not been assigned yet, which is a window of
+ * milliseconds — but one that module bodies and the first commit both land in.
+ *
+ * The parse is memoized against the raw attribute, not against having run once,
+ * so the cache can never serve a value the document no longer carries. Each call
+ * costs one `getAttribute` and a string compare, and only until `window.__ENV`
+ * exists — after that {@link getEnv} short-circuits before reaching here.
+ */
+function readDocumentPublicEnv(): Record<string, string> | null {
+  if (typeof document === 'undefined') return null
+
+  const serialized = document.documentElement?.getAttribute(PUBLIC_ENV_ATTRIBUTE)
+  if (!serialized) return null
+  if (serialized === cachedEnvAttribute) return cachedEnvAttributeValues
+
+  cachedEnvAttribute = serialized
+  cachedEnvAttributeValues = null
+
+  try {
+    const parsed: unknown = JSON.parse(serialized)
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      cachedEnvAttributeValues = parsed as Record<string, string>
+    }
+  } catch {
+    /* A malformed attribute must not take the page down; fall through to the other sources. */
+  }
+
+  return cachedEnvAttributeValues
+}
+
+/**
  * Reads NEXT_PUBLIC_* env vars in both client and server contexts.
- * Client reads `window.__ENV` (populated by `<PublicEnvScript>`); server reads `process.env`.
+ * Server reads `process.env`. The client prefers `window.__ENV` (assigned by
+ * `<PublicEnvScript>`), falling back to {@link PUBLIC_ENV_ATTRIBUTE} for reads
+ * that happen before the parser reaches that script — see the attribute's own
+ * docs for why that window exists.
+ *
  * We do not use next-runtime-env's `env()` helper because it calls `unstable_noStore()`,
  * which Next 16.2+ rejects outside a request scope.
  */
 const getEnv = (variable: string): string | undefined => {
   if (typeof window === 'undefined') return process.env[variable]
-  return window.__ENV?.[variable] ?? process.env[variable]
+  return window.__ENV?.[variable] ?? readDocumentPublicEnv()?.[variable] ?? process.env[variable]
 }
 
 /**
  * Whether `window.__ENV` was still unset when this module first evaluated in the
  * browser. Always `false` on the server.
  *
- * Module bodies run inside the framework bootstrap, which an `async` chunk can
- * start before the parser has reached the inline assignment at the end of
- * `<head>`. Reads made during render are unaffected: nothing renders until the
- * RSC payload arrives, and that streams from `<body>` — after the assignment.
- * Module-scope reads have no such ordering, and the values they derive
- * (`isHosted` and the other flags in `env-flags`) stay frozen for the session.
- *
- * Reported once per load so the rate is measurable rather than assumed; it is
- * what decides whether those flags need to become lazy.
+ * This is the rate at which the ordering race described on
+ * {@link PUBLIC_ENV_ATTRIBUTE} is lost. It is no longer a correctness signal —
+ * {@link getEnv} resolves the same values off the `<html>` attribute in that
+ * window — but it stays reported so the race remains measurable rather than
+ * assumed, and so a regression that removes the attribute is visible as reads
+ * starting to fail again rather than as silence.
  */
 export const publicEnvMissingAtModuleInit =
   typeof window !== 'undefined' && window.__ENV === undefined

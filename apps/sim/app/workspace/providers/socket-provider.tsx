@@ -30,7 +30,9 @@ import { backoffWithJitter } from '@sim/utils/retry'
 import { useQueryClient } from '@tanstack/react-query'
 import { useParams } from 'next/navigation'
 import type { Socket } from 'socket.io-client'
+import { getEnv } from '@/lib/core/config/env'
 import { getSocketUrl } from '@/lib/core/utils/urls'
+import { captureClientEvent } from '@/lib/posthog/client'
 import {
   type SocketJoinCommand,
   SocketJoinController,
@@ -53,6 +55,14 @@ import { useWorkflowRegistry as useWorkflowRegistryStore } from '@/stores/workfl
 const logger = createLogger('SocketContext')
 
 const TAB_SESSION_ID_KEY = 'sim_tab_session_id'
+
+/**
+ * Consecutive connect failures before the realtime connection is reported as
+ * failing. Three attempts at the 1s base delay lands around the same few seconds
+ * as the "Reconnecting…" toast, so the event marks a real outage rather than the
+ * sub-second transport hiccups that recover on the first retry.
+ */
+const CONNECT_FAILURES_BEFORE_REPORT = 3
 
 /** Bounded auto-retry budget for auth-class connect failures before going terminal. */
 const MAX_AUTH_RETRY_ATTEMPTS = 5
@@ -174,6 +184,8 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
   const authRetryAttemptsRef = useRef(0)
   const authRetryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const sessionRejectedRef = useRef(false)
+  const connectFailureCountRef = useRef(0)
+  const connectFailureReportedRef = useRef(false)
   const queryClient = useQueryClient()
 
   const params = useParams()
@@ -375,6 +387,15 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
       try {
         const { io } = await import('socket.io-client')
         const socketUrl = getSocketUrl()
+        /* Origin only: enough to tell a misresolved host from a down service,
+           without putting a path or query into an analytics payload. `new URL`
+           rather than `URL.parse`, which is unavailable on Safari below 18. */
+        let socketOrigin = 'unparseable'
+        try {
+          socketOrigin = new URL(socketUrl).origin
+        } catch {
+          /* Reported as-is; an unparseable socket URL is itself the finding. */
+        }
 
         logger.info('Attempting to connect to Socket.IO server', {
           url: socketUrl,
@@ -409,11 +430,52 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
           },
         })
 
+        /**
+         * Reports a realtime connection that is not coming back.
+         *
+         * A socket that never connects raises no exception anywhere — every
+         * failure path here is handled, so error tracking sees nothing and the
+         * only user-visible trace is a "Reconnecting…" toast. Socket.IO then
+         * retries the same URL forever, so the failure is both permanent and
+         * silent. This is the one signal that distinguishes "the realtime
+         * service is down" from "this client resolved the wrong URL", which is
+         * why the origin is reported alongside the reason.
+         *
+         * Fires at most once per socket instance, at the point the toast
+         * appears, rather than once per retry.
+         *
+         * Called from `connect_error` and nowhere else. That is the only handler
+         * that sees exactly one event per attempt: a failed *reconnect* also
+         * emits the manager's `reconnect_error` (`manager.reconnect()` calls
+         * `open()`, whose error path emits `error` — which the socket re-emits as
+         * `connect_error` — and then emits `reconnect_error` itself), so counting
+         * in both would advance twice per try and trip the threshold early.
+         */
+        const reportPersistentConnectFailure = (reason: string) => {
+          connectFailureCountRef.current += 1
+          if (
+            connectFailureReportedRef.current ||
+            connectFailureCountRef.current < CONNECT_FAILURES_BEFORE_REPORT
+          ) {
+            return
+          }
+          connectFailureReportedRef.current = true
+
+          captureClientEvent('realtime_connection_failing', {
+            socket_origin: socketOrigin,
+            expected_socket_origin_configured: Boolean(getEnv('NEXT_PUBLIC_SOCKET_URL')?.trim()),
+            attempts: connectFailureCountRef.current,
+            reason,
+          })
+        }
+
         socketInstance.on('connect', () => {
           setIsConnected(true)
           setIsConnecting(false)
           setIsReconnecting(false)
           authRetryAttemptsRef.current = 0
+          connectFailureCountRef.current = 0
+          connectFailureReportedRef.current = false
           clearAuthRetryTimeout()
           setCurrentSocketId(socketInstance.id ?? null)
           logger.info('Socket connected successfully', {
@@ -451,6 +513,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
               message: error.message,
             })
             setIsReconnecting(true)
+            reportPersistentConnectFailure(error.message)
             return
           }
 
@@ -518,6 +581,8 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
           logger.info('Socket reconnection attempt', { attemptNumber })
         })
 
+        /* Deliberately does not count toward the outage report — the socket's
+           own `connect_error` already fired for this same attempt. */
         socketInstance.io.on('reconnect_error', (error: Error) => {
           logger.warn('Socket reconnection attempt failed, will retry', {
             message: error.message,

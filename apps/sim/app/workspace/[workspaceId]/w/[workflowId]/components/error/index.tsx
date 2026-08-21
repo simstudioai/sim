@@ -1,16 +1,21 @@
 'use client'
 
-import { Component, type ReactNode, useEffect } from 'react'
+import { Component, type ErrorInfo, type ReactNode } from 'react'
 import { Button } from '@sim/emcn'
 import { RefreshCw } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
+import { truncate } from '@sim/utils/string'
 import { ReactFlowProvider } from 'reactflow'
+import { captureClientEvent } from '@/lib/posthog/client'
 import { Panel } from '@/app/workspace/[workspaceId]/w/[workflowId]/components'
 import { usePreventZoom } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
 import { Sidebar } from '@/app/workspace/[workspaceId]/w/components/sidebar/sidebar'
 import { readCollapsedCookie } from '@/stores/sidebar/store'
 
 const logger = createLogger('ErrorBoundary')
+
+/** Keeps a runaway stack out of the event payload without losing the top frames. */
+const MAX_REPORTED_COMPONENT_STACK = 2000
 
 /**
  * Shared Error UI Component
@@ -90,6 +95,33 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
     return { hasError: true, error }
   }
 
+  /**
+   * Reports what was caught. This boundary latches for the life of the document
+   * and its fallback names nothing, so without this the only trace of a canvas
+   * crash is React's own console output on whichever machine happened to hit it
+   * — leaving an intermittent failure with no evidence to diagnose from.
+   * `error.name` is carried separately from the message because it is what
+   * separates the failure classes from each other.
+   */
+  public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    const componentStack = errorInfo.componentStack ?? undefined
+
+    logger.error('Workflow canvas crashed', {
+      name: error.name,
+      message: error.message,
+      stack: error.stack,
+      componentStack,
+    })
+
+    captureClientEvent('workflow_canvas_crashed', {
+      error_name: error.name,
+      error_message: error.message,
+      component_stack: componentStack
+        ? truncate(componentStack, MAX_REPORTED_COMPONENT_STACK)
+        : undefined,
+    })
+  }
+
   public render() {
     if (this.state.hasError) {
       return this.props.fallback || <ErrorUI />
@@ -97,21 +129,4 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
 
     return this.props.children
   }
-}
-
-/**
- * Next.js Error Page Component
- * Renders when a workflow-specific error occurs
- */
-interface NextErrorProps {
-  error: Error & { digest?: string }
-  reset: () => void
-}
-
-export function NextError({ error, reset }: NextErrorProps) {
-  useEffect(() => {
-    logger.error('Workflow error:', { error })
-  }, [error])
-
-  return <ErrorUI onReset={reset} />
 }
