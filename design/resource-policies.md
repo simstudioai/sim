@@ -100,10 +100,7 @@ Policies store stable subject references, never session IDs, API keys, delegatio
         "type": "workflow",
         "workflowId": "wf_support"
       },
-      "actions": [
-        "credential_groups.credentials.list",
-        "credential_groups.credentials.use"
-      ]
+      "actions": ["credential_groups.credentials.use"]
     },
     {
       "id": "support-admins",
@@ -111,10 +108,7 @@ Policies store stable subject references, never session IDs, API keys, delegatio
         "type": "access_control_group",
         "accessControlGroupId": "pg_support_admins"
       },
-      "actions": [
-        "credential_groups.credentials.list",
-        "credential_groups.credentials.use"
-      ]
+      "actions": ["credential_groups.credentials.use"]
     }
   ]
 }
@@ -261,7 +255,7 @@ Routes, blocks, tools, Copilot adapters, and executor handlers do not query poli
 
 ## Current implementation
 
-The generic policy document, strict parser, optimistic repository, subject evaluator, and subject-management validation are implemented. Credential Groups are the first resource type and currently expose one managed permission in the UI: list and use every credential in the group.
+The generic policy document, strict parser, optimistic repository, subject evaluator, and subject-management validation are implemented. Credential Groups are the first resource type and currently expose one managed permission in the UI: use every credential in the group.
 
 Future resource types extend the exact resource/action registry and call the same evaluator from their application operations. Knowledge Base/table enforcement and log-provenance redaction remain separate follow-up work.
 
@@ -288,7 +282,7 @@ Provenance and viewer-specific log shielding are a later phase. They use the sam
 1. Add strict policy types, validation, storage, and evaluator.
 2. Add admin policy read/write application operations and audit.
 3. Add deployed-workflow authority to execution identity.
-4. Integrate Credential Group list and use authorization.
+4. Integrate Credential Group credential-use authorization.
 5. Add user, workspace-role, and Access Control Group subject resolution.
 6. Add policy management UI on Credential Groups.
 7. Extend the same evaluator to Knowledge Bases and tables.

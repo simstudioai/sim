@@ -2,10 +2,7 @@ import { z } from 'zod'
 
 export const RESOURCE_POLICY_VERSION = 1 as const
 export const RESOURCE_POLICY_RESOURCE_TYPES = ['credential_group'] as const
-export const RESOURCE_POLICY_ACTIONS = [
-  'credential_groups.credentials.list',
-  'credential_groups.credentials.use',
-] as const
+export const RESOURCE_POLICY_ACTIONS = ['credential_groups.credentials.use'] as const
 export type ResourcePolicyResourceType = (typeof RESOURCE_POLICY_RESOURCE_TYPES)[number]
 export type ResourcePolicyAction = (typeof RESOURCE_POLICY_ACTIONS)[number]
 

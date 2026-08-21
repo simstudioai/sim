@@ -13,10 +13,7 @@ describe('resource policy documents', () => {
         {
           id: 'grant-1',
           subject: { type: 'workflow' as const, workflowId: 'workflow-1' },
-          actions: [
-            'credential_groups.credentials.list' as const,
-            'credential_groups.credentials.use' as const,
-          ],
+          actions: ['credential_groups.credentials.use' as const],
         },
       ],
     }
@@ -53,7 +50,7 @@ describe('resource policy documents', () => {
             {
               id: 'grant-2',
               subject: { type: 'workflow', workflowId: 'workflow-1' },
-              actions: ['credential_groups.credentials.list'],
+              actions: ['credential_groups.credentials.use'],
             },
           ],
         },

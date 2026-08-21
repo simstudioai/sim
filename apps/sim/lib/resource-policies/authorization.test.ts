@@ -78,7 +78,7 @@ function policy(subject: Record<string, unknown>) {
         {
           id: 'grant-1',
           subject,
-          actions: ['credential_groups.credentials.list', 'credential_groups.credentials.use'],
+          actions: ['credential_groups.credentials.use'],
         },
       ],
     },
@@ -98,7 +98,7 @@ describe('findResourcePolicyGrant', () => {
       context,
       resourceType: 'credential_group' as const,
       resourceId: 'group-1',
-      action: 'credential_groups.credentials.list' as const,
+      action: 'credential_groups.credentials.use' as const,
     }
 
     await expect(

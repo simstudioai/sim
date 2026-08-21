@@ -142,7 +142,7 @@ describe('Credential Group access policy operations', () => {
           {
             id: expect.any(String),
             subject,
-            actions: ['credential_groups.credentials.list', 'credential_groups.credentials.use'],
+            actions: ['credential_groups.credentials.use'],
           },
         ],
       },

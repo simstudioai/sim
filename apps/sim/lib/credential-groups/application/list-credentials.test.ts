@@ -230,21 +230,6 @@ describe('listCredentialGroupCredentials', () => {
     })
   })
 
-  it('lists the entire group for a matching resource-policy grant', async () => {
-    mocks.findPolicyGrant.mockResolvedValueOnce({
-      id: 'grant-1',
-      subject: { type: 'workflow', workflowId: 'workflow-1' },
-      actions: ['credential_groups.credentials.list', 'credential_groups.credentials.use'],
-    })
-
-    await listCredentialGroupCredentials.execute({ principal: executorPrincipal(), input })
-
-    expect(mocks.loadEnrollmentAccess).not.toHaveBeenCalled()
-    expect(mocks.listCredentials).toHaveBeenCalledWith(
-      expect.objectContaining({ credentialGroupEnrollmentId: undefined })
-    )
-  })
-
   it('filters by canonical providers active in the group', async () => {
     await listCredentialGroupCredentials.execute({
       principal: executorPrincipal(),

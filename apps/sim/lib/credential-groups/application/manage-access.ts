@@ -16,10 +16,7 @@ import {
   resourcePolicySubjectSchema,
 } from '@/lib/resource-policies/types'
 
-const CREDENTIAL_GROUP_ALL_ACTIONS = [
-  'credential_groups.credentials.list',
-  'credential_groups.credentials.use',
-] as const
+const CREDENTIAL_GROUP_ACCESS_ACTIONS = ['credential_groups.credentials.use'] as const
 
 interface CredentialGroupAccessTargetInput {
   assertedWorkspaceId: string
@@ -91,7 +88,7 @@ export const updateCredentialGroupAccess = defineAuthorizedWorkspaceUseCase({
           grants: input.grants.map((grant, index) => ({
             id: grant.id ?? generateId(),
             subject: subjects[index],
-            actions: [...CREDENTIAL_GROUP_ALL_ACTIONS],
+            actions: [...CREDENTIAL_GROUP_ACCESS_ACTIONS],
           })),
         },
       })
