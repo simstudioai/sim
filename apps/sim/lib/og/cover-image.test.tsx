@@ -6,6 +6,7 @@ import { join } from 'node:path'
 import { parse as parseFont } from 'opentype.js'
 import { describe, expect, it } from 'vitest'
 import {
+  COVER_MAX_CAPTION_LINES,
   COVER_MAX_TITLE_LINES,
   COVER_TITLE_BOX_WIDTH,
   createCoverOgImage,
@@ -47,10 +48,11 @@ describe('cover OG layout', () => {
       expect(measure(line, layout.fontSize)).toBeLessThanOrEqual(COVER_TITLE_BOX_WIDTH)
     }
     if (subtitle) {
-      expect(layout.subtitle).not.toBeNull()
-      expect(measure(layout.subtitle as string, SUBTITLE_FONT_SIZE)).toBeLessThanOrEqual(
-        COVER_TITLE_BOX_WIDTH
-      )
+      expect(layout.subtitleLines.length).toBeGreaterThan(0)
+      expect(layout.subtitleLines.length).toBeLessThanOrEqual(COVER_MAX_CAPTION_LINES)
+      for (const line of layout.subtitleLines) {
+        expect(measure(line, SUBTITLE_FONT_SIZE)).toBeLessThanOrEqual(COVER_TITLE_BOX_WIDTH)
+      }
     }
     return layout
   }
@@ -59,7 +61,7 @@ describe('cover OG layout', () => {
     const layout = expectWithinCanvas('Protected file')
     expect(layout.lines.map(plain)).toEqual(['Protected file'])
     expect(layout.fontSize).toBe(110)
-    expect(layout.subtitle).toBeNull()
+    expect(layout.subtitleLines).toEqual([])
   })
 
   it('breaks a hyphenated file name after a hyphen', () => {
@@ -95,17 +97,27 @@ describe('cover OG layout', () => {
     expect(layout.lines[COVER_MAX_TITLE_LINES - 1].endsWith('…')).toBe(true)
   })
 
-  it('truncates a caption too long for one line', () => {
+  it('wraps a catalog-length caption onto a second line', () => {
+    const layout = expectWithinCanvas(
+      'Integrations',
+      'Connect 240 apps and services and 3800+ tools to AI agents in Sim — visually, conversationally, or with code.'
+    )
+    expect(layout.subtitleLines).toHaveLength(2)
+    expect(layout.subtitleLines.join('')).not.toContain('…')
+  })
+
+  it('truncates a caption too long even for two lines', () => {
     const layout = expectWithinCanvas(
       'report.pdf',
       `${'Very Long Workspace Name '.repeat(10)}· Shared by Someone`
     )
-    expect((layout.subtitle as string).endsWith('…')).toBe(true)
+    expect(layout.subtitleLines).toHaveLength(COVER_MAX_CAPTION_LINES)
+    expect(layout.subtitleLines[COVER_MAX_CAPTION_LINES - 1].endsWith('…')).toBe(true)
   })
 
-  it('leaves a caption that already fits intact', () => {
+  it('leaves a caption that already fits on one line intact', () => {
     const layout = expectWithinCanvas('report.pdf', 'Design · Shared by Someone')
-    expect(plain(layout.subtitle as string)).toBe('Design · Shared by Someone')
+    expect(layout.subtitleLines.map(plain)).toEqual(['Design · Shared by Someone'])
   })
 
   /**
@@ -118,7 +130,7 @@ describe('cover OG layout', () => {
     const layout = expectWithinCanvas('two words.pdf', 'Design · Shared by Someone')
     expect(layout.lines[0]).toContain('\u00a0')
     expect(layout.lines.join('')).not.toContain(' ')
-    expect(layout.subtitle).not.toContain(' ')
+    expect(layout.subtitleLines.join('')).not.toContain(' ')
   })
 })
 
