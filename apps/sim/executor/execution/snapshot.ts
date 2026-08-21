@@ -64,11 +64,11 @@ export class ExecutionSnapshot {
 
   toJSON(): string {
     return JSON.stringify({
-      version: EXECUTION_SNAPSHOT_VERSION,
       metadata: {
         ...this.metadata,
         principal: serializePrincipal(this.metadata.principal),
       },
+      version: EXECUTION_SNAPSHOT_VERSION,
       workflow: this.workflow,
       input: this.input,
       workflowVariables: this.workflowVariables,
