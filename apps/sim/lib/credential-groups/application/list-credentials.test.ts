@@ -153,48 +153,40 @@ describe('listCredentialGroupCredentials', () => {
     expect(mocks.listCredentials).not.toHaveBeenCalled()
   })
 
-  it('rejects workflows whose original principal has no human subject', async () => {
+  it('lists credentials when the original principal has no human subject', async () => {
     const principal = executorPrincipal()
+    principal.subjectUserId = undefined
     principal.delegationContext.principal = {
       kind: 'workspace_api_key',
       workspaceId: 'workspace-1',
       keyId: 'workspace-key-1',
     }
 
-    await expect(
-      listCredentialGroupCredentials.execute({ principal, input })
-    ).rejects.toMatchObject({
-      code: 'forbidden',
-      message: 'Credential Group enrollment access required',
-    })
+    await listCredentialGroupCredentials.execute({ principal, input })
+
     expect(mocks.loadEnrollmentAccess).not.toHaveBeenCalled()
-    expect(mocks.listCredentials).not.toHaveBeenCalled()
+    expect(mocks.listCredentials).toHaveBeenCalledWith(
+      expect.not.objectContaining({ credentialGroupEnrollmentId: expect.anything() })
+    )
   })
 
-  it('rejects a user who is not enrolled in the group', async () => {
+  it('lists credentials without requiring the actor to be enrolled', async () => {
     mocks.loadEnrollmentAccess.mockResolvedValueOnce(null)
 
-    await expect(
-      listCredentialGroupCredentials.execute({ principal: executorPrincipal(), input })
-    ).rejects.toMatchObject({
-      code: 'forbidden',
-      message: 'Credential Group enrollment access required',
-    })
-    expect(mocks.listCredentials).not.toHaveBeenCalled()
+    await listCredentialGroupCredentials.execute({ principal: executorPrincipal(), input })
+
+    expect(mocks.loadEnrollmentAccess).not.toHaveBeenCalled()
+    expect(mocks.listCredentials).toHaveBeenCalled()
   })
 
-  it('rejects an executor subject that does not match the original workflow principal', async () => {
+  it('does not use the executor subject to filter credential references', async () => {
     const principal = executorPrincipal()
     principal.subjectUserId = 'different-user'
 
-    await expect(
-      listCredentialGroupCredentials.execute({ principal, input })
-    ).rejects.toMatchObject({
-      code: 'forbidden',
-      message: 'Credential Group enrollment access required',
-    })
+    await listCredentialGroupCredentials.execute({ principal, input })
+
     expect(mocks.loadEnrollmentAccess).not.toHaveBeenCalled()
-    expect(mocks.listCredentials).not.toHaveBeenCalled()
+    expect(mocks.listCredentials).toHaveBeenCalled()
   })
 
   it('returns a bounded page after current workspace and entitlement checks', async () => {
@@ -211,7 +203,6 @@ describe('listCredentialGroupCredentials', () => {
       credentialGroupId: 'group-1',
       limit: 50,
       cursor: undefined,
-      credentialGroupEnrollmentId: 'enrollment-1',
       credentialProviderIds: undefined,
       credentialGroupOptionIds: ['option-1'],
     })
@@ -243,14 +234,14 @@ describe('listCredentialGroupCredentials', () => {
     )
   })
 
-  it('ignores caller-supplied email and uses the principal enrollment', async () => {
+  it('does not use caller-supplied identity fields to filter credential references', async () => {
     await listCredentialGroupCredentials.execute({
       principal: executorPrincipal(),
       input: { ...input, email: ' Person@Example.COM ' },
     })
 
     expect(mocks.listCredentials).toHaveBeenCalledWith(
-      expect.objectContaining({ credentialGroupEnrollmentId: 'enrollment-1' })
+      expect.not.objectContaining({ credentialGroupEnrollmentId: expect.anything() })
     )
   })
 

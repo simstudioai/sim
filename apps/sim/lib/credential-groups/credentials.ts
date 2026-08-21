@@ -44,7 +44,6 @@ interface ListCredentialGroupCredentialReferencesInput {
   credentialGroupId: string
   limit: number
   cursor?: string
-  credentialGroupEnrollmentId: string
   credentialProviderIds?: string[]
   credentialGroupOptionIds: string[]
 }
@@ -97,7 +96,6 @@ export async function listCredentialGroupCredentialReferences({
   credentialGroupId,
   limit,
   cursor,
-  credentialGroupEnrollmentId,
   credentialProviderIds,
   credentialGroupOptionIds,
 }: ListCredentialGroupCredentialReferencesInput): Promise<{
@@ -125,7 +123,6 @@ export async function listCredentialGroupCredentialReferences({
           eq(credential.type, 'managed_oauth'),
           eq(credential.managedOauthStatus, 'active'),
           eq(credentialGroupEnrollment.credentialGroupId, credentialGroupId),
-          eq(credentialGroupEnrollment.id, credentialGroupEnrollmentId),
           inArray(credential.credentialGroupOptionId, credentialGroupOptionIds),
           credentialProviderIds?.length
             ? inArray(credential.providerId, credentialProviderIds)
@@ -159,7 +156,6 @@ export async function listCredentialGroupCredentialReferences({
         eq(credential.type, 'managed_oauth'),
         eq(credential.managedOauthStatus, 'active'),
         eq(credentialGroupEnrollment.credentialGroupId, credentialGroupId),
-        eq(credentialGroupEnrollment.id, credentialGroupEnrollmentId),
         inArray(credential.credentialGroupOptionId, credentialGroupOptionIds),
         credentialProviderIds?.length
           ? inArray(credential.providerId, credentialProviderIds)
