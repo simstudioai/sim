@@ -358,7 +358,7 @@ export const HarmonicBlock: BlockConfig = {
       language: 'json',
       placeholder: '["urn:harmonic:person:22", "urn:harmonic:person:1690"]',
       description:
-        'Batch Get requires at least one Person URN or Person ID. Clear Net-New Results clears everything when omitted',
+        'Batch Get requires at least one Person URN or Person ID. Clear Net-New Results requires at least one URN unless Clear Scope is set to every net-new result',
       condition: { field: 'operation', value: [...PERSON_URN_OPERATIONS] },
       paramVisibility: 'user-or-llm',
       wandConfig: {
@@ -838,7 +838,7 @@ export const HarmonicBlockMeta = {
       description:
         'Turn LinkedIn URLs or email addresses a workflow already holds into Harmonic contacts.',
       content:
-        '# Enrich Known Identifiers\n\nUse Enrich Person when the workflow already has an identifier rather than a description of who to find.\n\n## Steps\n1. Prefer the LinkedIn profile URL; supply the email only as a fallback identifier.\n2. Run Enrich Person once per identifier and keep personUrn from every match.\n3. When Harmonic reports the person is not on file, capture the enrichment it scheduled and poll Get Enrichment Status until it is COMPLETE or FAILED.\n4. Read the resulting person with Get Person or Batch Get People once enrichment completes.\n\n## Output\nReturn the hydrated contacts, the identifiers still pending enrichment, and the identifiers Harmonic could not resolve. Do not invent contact fields for unresolved rows.',
+        '# Enrich Known Identifiers\n\nUse Enrich Person when the workflow already has an identifier rather than a description of who to find.\n\n## Steps\n1. Prefer the LinkedIn profile URL; supply the email only as a fallback identifier.\n2. Run Enrich Person once per identifier and keep personUrn from every match.\n3. A person Harmonic does not have yet fails the block rather than returning a row: the error names the enrichment that was scheduled and carries its URN. Handle that error instead of treating it as a match, and poll Get Enrichment Status with the URN until it is COMPLETE or FAILED.\n4. Read the resulting person with Get Person or Batch Get People once enrichment completes.\n\n## Output\nReturn the hydrated contacts, the identifiers still pending enrichment, and the identifiers Harmonic could not resolve. Do not invent contact fields for unresolved rows.',
     },
     {
       name: 'source-company-employees',

@@ -34,11 +34,8 @@ export const HARMONIC_EMPLOYEE_GROUP_TYPES = [
   'NON_PARTNERS',
 ] as const
 export const HARMONIC_EMPLOYEE_STATUSES = ['ACTIVE', 'NOT_ACTIVE', 'ACTIVE_AND_NOT_ACTIVE'] as const
-export const HARMONIC_USER_CONNECTION_STATUSES = [
-  'USER_CONNECTION',
-  'TEAM_CONNECTION',
-  'NO_CONNECTION',
-] as const
+/** Harmonic documents per-user connection filtering as unsupported via the API. */
+export const HARMONIC_USER_CONNECTION_STATUSES = ['TEAM_CONNECTION', 'NO_CONNECTION'] as const
 /** Terminal states for a bulk email-enrichment job; `results` stays null until one is reached. */
 export const HARMONIC_EMAIL_JOB_TERMINAL_STATUSES = new Set(['COMPLETED', 'FAILED'])
 export const HARMONIC_PERSON_INCLUDE_FIELDS = [
@@ -61,6 +58,7 @@ const PERSON_URN_PATTERN = /^urn:harmonic:person:[^\s]+$/
 const SAVED_SEARCH_URN_PATTERN = /^urn:harmonic:saved_search:[^\s]+$/
 const USER_URN_PATTERN = /^urn:harmonic:user:[^\s]+$/
 const ENRICHMENT_URN_PATTERN = /^urn:harmonic:enrichment:[^\s]+$/
+const COMPANY_URN_PATTERN = /^urn:harmonic:company:[^\s]+$/
 const COMPANY_OR_PERSON_URN_PATTERN = /^urn:harmonic:(company|person):[^\s]+$/
 const DATE_ONLY_PATTERN = /^\d{4}-\d{2}-\d{2}$/
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -230,14 +228,14 @@ function requireUserUrn(value: unknown): string {
   return normalized
 }
 
+/**
+ * Passed through rather than checked against a fixed set. This value is display
+ * metadata that nothing downstream branches on, and Harmonic owns the enum — an
+ * allow-list would turn any value they add into a hard failure of the entire list,
+ * while the selector reading the same rows kept working.
+ */
 function requireUserSavedSearchType(value: unknown): string {
-  const normalized = requireSavedSearchString(value, 'user_saved_search_type')
-  if (!HARMONIC_USER_SAVED_SEARCH_TYPES.has(normalized)) {
-    throw new Error(
-      'Harmonic returned a people saved search with an invalid user_saved_search_type'
-    )
-  }
-  return normalized
+  return requireSavedSearchString(value, 'user_saved_search_type')
 }
 
 function requireSavedSearchTimestamp(value: unknown, field: string): string {
@@ -355,10 +353,6 @@ function normalizePersonIds(values: unknown[]): number[] {
 
 export function parsePersonUrns(value: unknown, paramName = 'personUrns'): string[] {
   return normalizePersonUrns(parseArrayParam(value, paramName), paramName)
-}
-
-export function parsePersonIds(value: unknown): number[] {
-  return normalizePersonIds(parseArrayParam(value, 'personIds'))
 }
 
 export function clampPageSize(value: unknown): number {
@@ -700,6 +694,9 @@ export function buildGetPersonUrl(personId: unknown, companyContextUrns: unknown
     `${HARMONIC_API_BASE}/persons/${encodeURIComponent(requireIdentifier(personId, 'personId'))}`
   )
   for (const urn of uniqueStrings(parseArrayParam(companyContextUrns, 'companyContextUrns'))) {
+    if (!COMPANY_URN_PATTERN.test(urn)) {
+      throw new Error('Harmonic "companyContextUrns" must contain only company URNs')
+    }
     url.searchParams.append('company_context_urns', urn)
   }
   return url.toString()
@@ -831,6 +828,39 @@ export function buildEnrichmentStatusUrl(enrichmentUrns: unknown): string {
   return url.toString()
 }
 
+/**
+ * `linkedin.com/in/x`, `www.linkedin.com/in/x` and a trailing slash all name one
+ * profile, so a recognized profile folds to a host-and-path key. Regional
+ * subdomains (`uk.linkedin.com`) are deliberately left distinct: folding them
+ * would claim an equivalence Harmonic does not document.
+ *
+ * This key is only ever applied to a URL `normalizeLinkedinProfileUrl` already
+ * canonicalized — one with no query or fragment left. A URL forwarded verbatim for
+ * Harmonic to adjudicate keeps every component significant, so it deduplicates on
+ * its exact text; dropping the query or port there would silently discard a
+ * distinct identifier the caller asked to submit.
+ */
+function linkedinProfileKey(canonicalUrl: string): string {
+  try {
+    const parsed = new URL(canonicalUrl)
+    const host = parsed.hostname.toLowerCase().replace(/^www\./, '')
+    return `${host}${parsed.pathname.replace(/\/+$/, '')}`
+  } catch {
+    return canonicalUrl
+  }
+}
+
+function dedupeByKey(entries: Array<{ url: string; key: string }>): string[] {
+  const seen = new Set<string>()
+  const result: string[] = []
+  for (const entry of entries) {
+    if (seen.has(entry.key)) continue
+    seen.add(entry.key)
+    result.push(entry.url)
+  }
+  return result
+}
+
 export function buildEmailEnrichmentJobBody(
   personUrns: unknown,
   personLinkedinUrls: unknown
@@ -843,34 +873,49 @@ export function buildEmailEnrichmentJobBody(
    * for Harmonic to adjudicate. Only values that are not absolute http(s) URLs at
    * all are rejected here, because those are a local mistake, not a provider call.
    */
-  const linkedinUrls = uniqueStrings(parseArrayParam(personLinkedinUrls, 'personLinkedinUrls')).map(
-    (value) => {
+  /**
+   * Blank and non-string entries are dropped first so `['']` reads as "no LinkedIn
+   * URLs supplied" rather than tripping the mutual-exclusivity check below or
+   * failing the per-URL parse.
+   */
+  const rawLinkedinUrls = uniqueStrings(parseArrayParam(personLinkedinUrls, 'personLinkedinUrls'))
+
+  /**
+   * Harmonic documents these as mutually exclusive — "Provide exactly one of the
+   * two arrays" — so sending both is rejected locally rather than letting the
+   * provider silently pick one and bill for it. This runs before any per-URL work
+   * so the clearer of the two errors wins when both problems are present.
+   */
+  if (urns.length > 0 && rawLinkedinUrls.length > 0) {
+    throw new Error(
+      'Harmonic Submit Email Enrichment Job accepts person URNs or LinkedIn URLs, not both'
+    )
+  }
+
+  /**
+   * Canonicalise first, then deduplicate. Harmonic canonicalizes and silently
+   * deduplicates server-side and reserves quota afterwards, so this is not what
+   * protects the bill — it keeps Sim's own 1-5000 accounting in step with the set
+   * Harmonic will actually accept, so a batch of equivalent URLs is not rejected
+   * locally for exceeding a cap it never reaches.
+   */
+  const linkedinUrls = dedupeByKey(
+    rawLinkedinUrls.map((value) => {
       const normalized = normalizeLinkedinProfileUrl(value)
-      if (normalized) return normalized
+      if (normalized) return { url: normalized, key: linkedinProfileKey(normalized) }
       try {
-        const parsed = new URL(value)
+        const parsed = new URL(String(value))
         if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
           throw new Error('unsupported scheme')
         }
-        return value
+        return { url: String(value), key: String(value) }
       } catch {
         throw new Error(
           'Harmonic "personLinkedinUrls" must contain absolute http(s) URLs; Harmonic reports unmatched profiles in dropped'
         )
       }
-    }
+    })
   )
-
-  /**
-   * Harmonic documents these as mutually exclusive — "Provide exactly one of the
-   * two arrays" — so sending both is rejected locally rather than letting the
-   * provider silently pick one and bill for it.
-   */
-  if (urns.length > 0 && linkedinUrls.length > 0) {
-    throw new Error(
-      'Harmonic Submit Email Enrichment Job accepts person URNs or LinkedIn URLs, not both'
-    )
-  }
   const identifiers = urns.length > 0 ? urns : linkedinUrls
   if (identifiers.length === 0) {
     throw new Error(

@@ -120,24 +120,6 @@ export interface HarmonicEnrichmentOutput {
   enriched_entity_urn?: unknown
 }
 
-export interface HarmonicDroppedPerson {
-  submitted_identifier?: unknown
-  reason?: unknown
-}
-
-export interface HarmonicPersonJobResultOutput {
-  person_urn?: unknown
-  status?: unknown
-}
-
-export interface HarmonicPersonJobCountsOutput {
-  total_processed?: unknown
-  total_succeeded?: unknown
-  total_failed?: unknown
-  total_skipped?: unknown
-  total_not_found?: unknown
-}
-
 export interface HarmonicEnrichmentStatus {
   enrichmentUrn: string | null
   status: string | null

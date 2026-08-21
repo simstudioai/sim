@@ -213,7 +213,7 @@ const ERROR_EXTRACTORS: ErrorExtractorConfig[] = [
   {
     id: 'harmonic-errors',
     description:
-      'Harmonic API message errors, string and object FastAPI detail aborts including the enrichment URN, and validation detail arrays without echoed request input',
+      'Harmonic API message errors, string and object FastAPI detail aborts including the enrichment URN, bulk email-enrichment error codes with their quota counters, and validation detail arrays without echoed request input',
     examples: ['Harmonic'],
     extract: (errorInfo) => {
       const data = errorInfo?.data
@@ -241,10 +241,28 @@ const ERROR_EXTRACTORS: ErrorExtractorConfig[] = [
       if (data.detail && typeof data.detail === 'object' && !Array.isArray(data.detail)) {
         const detail = data.detail as { message?: unknown; enrichment_urn?: unknown }
         const detailMessage = typeof detail.message === 'string' ? detail.message.trim() : ''
-        if (!detailMessage) return undefined
         const enrichmentUrn =
           typeof detail.enrichment_urn === 'string' ? detail.enrichment_urn.trim() : ''
+        if (!detailMessage) return enrichmentUrn || undefined
         return enrichmentUrn ? `${detailMessage} (${enrichmentUrn})` : detailMessage
+      }
+
+      /**
+       * The bulk email-enrichment endpoint answers 422/429 with a code in `error`
+       * and no message anywhere — `{error: 'MONTHLY_QUOTA_INSUFFICIENT', needed,
+       * available, submitted}`. These are the most actionable failures on that path.
+       *
+       * Gated on one of the documented numeric counters being present. `error` alone
+       * is far too common a key to claim: `extractErrorMessage` without an explicit
+       * id walks every extractor in order, so a bare `error` check here would swallow
+       * OAuth's `{error, error_description}` and return the code instead of the text.
+       */
+      const emailJobCounters = (['needed', 'available', 'submitted'] as const).filter(
+        (key) => typeof data[key] === 'number'
+      )
+      if (typeof data.error === 'string' && data.error.trim() && emailJobCounters.length > 0) {
+        const code = data.error.trim()
+        return `${code} (${emailJobCounters.map((key) => `${key} ${data[key]}`).join(', ')})`
       }
 
       if (!Array.isArray(data.detail)) return undefined
