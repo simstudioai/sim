@@ -72,6 +72,7 @@ import {
   isOrgScopedSubscription,
 } from '@/lib/billing/subscriptions/utils'
 import { toDecimal } from '@/lib/billing/utils/decimal'
+import { countPendingSeatInvitations } from '@/lib/billing/validation/seat-management'
 import { env } from '@/lib/core/config/env'
 import { executeTransactionallyIdempotent } from '@/lib/core/idempotency/transaction'
 import { enqueueOutboxEvent } from '@/lib/core/outbox/service'
@@ -83,6 +84,8 @@ interface PaginationInput {
   limit: number
   offset: number
 }
+
+const MAX_ADMIN_MEMBER_WORKSPACE_SELECTION = 1_000
 
 export interface AdminMutationActor {
   id: string | null
@@ -1119,8 +1122,12 @@ export async function updateDashboardEnterpriseSeats(
       .select({ value: count() })
       .from(member)
       .where(eq(member.organizationId, organizationId))
-    if (seats < (memberCountRow?.value ?? 0)) {
-      throw new Error('Seat capacity cannot be below current internal membership')
+    const pendingSeats = await countPendingSeatInvitations(organizationId, tx)
+    const requiredSeats = (memberCountRow?.value ?? 0) + pendingSeats
+    if (seats < requiredSeats) {
+      throw new Error(
+        `Seat capacity cannot be below ${requiredSeats} occupied or reserved seats (${memberCountRow?.value ?? 0} members and ${pendingSeats} pending invitations)`
+      )
     }
     await enqueueEnterpriseMetadataIntent(tx, {
       subscriptionId: subscriptionRow.id,
@@ -1135,7 +1142,7 @@ export async function updateDashboardEnterpriseSeats(
     action: AuditAction.ORG_SEAT_PROVISIONED,
     resourceType: AuditResourceType.ORGANIZATION,
     resourceId: organizationId,
-    description: `Admin set Enterprise seat capacity to ${seats}`,
+    description: `Admin requested Enterprise seat capacity ${seats}`,
     metadata: { seats },
   })
 }
@@ -1346,7 +1353,7 @@ export async function updateDashboardOrganizationLimits(
   },
   actor: AdminMutationActor
 ) {
-  await db.transaction(async (tx) => {
+  const providerBacked = await db.transaction(async (tx) => {
     await acquireOrganizationMutationLock(tx, organizationId)
     const [org] = await tx
       .select()
@@ -1413,7 +1420,7 @@ export async function updateDashboardOrganizationLimits(
           }
         },
       })
-      return
+      return true
     }
 
     const [memberCountRow] = await tx
@@ -1447,6 +1454,7 @@ export async function updateDashboardOrganizationLimits(
         })
         .where(eq(subscription.id, subscriptionRow.id))
     }
+    return false
   })
   recordAudit({
     actorId: actor.id,
@@ -1455,7 +1463,9 @@ export async function updateDashboardOrganizationLimits(
     action: AuditAction.ORGANIZATION_UPDATED,
     resourceType: AuditResourceType.ORGANIZATION,
     resourceId: organizationId,
-    description: 'Admin updated organization limits',
+    description: providerBacked
+      ? 'Admin requested Enterprise organization-limit update'
+      : 'Admin updated organization limits',
     metadata: values,
   })
 }
@@ -1681,35 +1691,62 @@ export async function grantDashboardUserBalance(
 
 export async function getDashboardMemberTransferPreflight(
   destinationOrganizationId: string,
-  userId: string
+  userId: string,
+  workspacePage: PaginationInput = { search: '', limit: 50, offset: 0 }
 ) {
-  const [[destination], [target], personalWorkspaces] = await Promise.all([
-    db
-      .select({ id: organization.id })
-      .from(organization)
-      .where(eq(organization.id, destinationOrganizationId))
-      .limit(1),
-    db
-      .select({
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        memberId: member.id,
-        role: member.role,
-        organizationId: member.organizationId,
-        organizationName: organization.name,
-      })
-      .from(user)
-      .leftJoin(member, eq(member.userId, user.id))
-      .leftJoin(organization, eq(organization.id, member.organizationId))
-      .where(eq(user.id, userId))
-      .limit(1),
-    db
-      .select({ id: workspace.id, name: workspace.name, archivedAt: workspace.archivedAt })
-      .from(workspace)
-      .where(ownedAttachableWorkspacesWhere({ userId, includeArchived: true }))
-      .orderBy(workspace.name, workspace.id),
-  ])
+  const search = workspacePage.search.trim()
+  const limit = Math.min(Math.max(workspacePage.limit, 1), 250)
+  const offset = Math.max(workspacePage.offset, 0)
+  const allPersonalWorkspacesWhere = ownedAttachableWorkspacesWhere({
+    userId,
+    includeArchived: true,
+  })
+  const matchingPersonalWorkspacesWhere = and(
+    allPersonalWorkspacesWhere,
+    search ? or(eq(workspace.id, search), ilike(workspace.name, `%${search}%`)) : undefined
+  )
+  const [[destination], [target], personalWorkspaceCount, personalWorkspaces, selectionRows] =
+    await Promise.all([
+      db
+        .select({ id: organization.id })
+        .from(organization)
+        .where(eq(organization.id, destinationOrganizationId))
+        .limit(1),
+      db
+        .select({
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          memberId: member.id,
+          role: member.role,
+          organizationId: member.organizationId,
+          organizationName: organization.name,
+        })
+        .from(user)
+        .leftJoin(member, eq(member.userId, user.id))
+        .leftJoin(organization, eq(organization.id, member.organizationId))
+        .where(eq(user.id, userId))
+        .limit(1),
+      db.select({ value: count() }).from(workspace).where(matchingPersonalWorkspacesWhere),
+      db
+        .select({ id: workspace.id, name: workspace.name, archivedAt: workspace.archivedAt })
+        .from(workspace)
+        .where(matchingPersonalWorkspacesWhere)
+        .orderBy(workspace.name, workspace.id)
+        .limit(limit)
+        .offset(offset),
+      db
+        .select({
+          id: workspace.id,
+          name: workspace.name,
+          archivedAt: workspace.archivedAt,
+          total: sql<number>`count(*) over()`.mapWith(Number),
+        })
+        .from(workspace)
+        .where(allPersonalWorkspacesWhere)
+        .orderBy(workspace.id)
+        .limit(MAX_ADMIN_MEMBER_WORKSPACE_SELECTION + 1),
+    ])
   if (!destination) throw new Error('Destination organization not found')
   if (!target) throw new Error('User not found')
 
@@ -1724,6 +1761,9 @@ export async function getDashboardMemberTransferPreflight(
       : credentialDependencies.length > 0
         ? 'Reconnect or remove source-organization credentials owned by this user before transfer'
         : null
+  const matchingWorkspaceTotal = personalWorkspaceCount[0]?.value ?? 0
+  const totalEligibleWorkspaces = selectionRows[0]?.total ?? 0
+  const includesAllEligible = totalEligibleWorkspaces <= MAX_ADMIN_MEMBER_WORKSPACE_SELECTION
 
   return {
     user: { id: target.id, name: target.name, email: target.email },
@@ -1736,6 +1776,24 @@ export async function getDashboardMemberTransferPreflight(
       name: row.name,
       archived: row.archivedAt !== null,
     })),
+    workspacePagination: {
+      total: matchingWorkspaceTotal,
+      limit,
+      offset,
+      hasMore: offset + personalWorkspaces.length < matchingWorkspaceTotal,
+    },
+    workspaceSelection: {
+      totalEligible: totalEligibleWorkspaces,
+      defaultSelectedIds: includesAllEligible ? selectionRows.map((row) => row.id) : [],
+      defaultSelectedWorkspaces: includesAllEligible
+        ? selectionRows.map(({ total: _total, archivedAt, ...row }) => ({
+            ...row,
+            archived: archivedAt !== null,
+          }))
+        : [],
+      includesAllEligible,
+      limit: MAX_ADMIN_MEMBER_WORKSPACE_SELECTION,
+    },
     credentialDependencies,
     canAdd: reason === null,
     reason,

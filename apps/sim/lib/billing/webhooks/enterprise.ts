@@ -1,10 +1,10 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
-import { member, organization, outboxEvent, session, subscription, user } from '@sim/db/schema'
+import { organization, outboxEvent, session, subscription, user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { isRecordLike } from '@sim/utils/object'
-import { and, count, eq, inArray, sql } from 'drizzle-orm'
+import { and, eq, inArray, sql } from 'drizzle-orm'
 import type Stripe from 'stripe'
 import { getEmailSubject, renderEnterpriseSubscriptionEmail } from '@/components/emails'
 import {
@@ -25,6 +25,7 @@ import {
   enterpriseOperationMatchesStripeSubscription,
   parseEnterpriseProvisionPayload,
 } from '@/lib/billing/enterprise-outbox'
+import { getEnterpriseIssuanceSeatRequirement } from '@/lib/billing/enterprise-provisioning'
 import { acquireOrganizationMutationLock } from '@/lib/billing/organizations/membership'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
 import {
@@ -261,13 +262,21 @@ async function reconcileManualEnterpriseSubscription(
       }
     }
 
-    const [currentMemberCount] = await tx
-      .select({ value: count() })
-      .from(member)
-      .where(eq(member.organizationId, referenceId))
-    if (seats < (currentMemberCount?.value ?? 0)) {
+    const seatRequirement = await getEnterpriseIssuanceSeatRequirement({
+      executor: tx,
+      organizationId: referenceId,
+      workspaceIds:
+        operationNewlyApplied && correlatedOperation
+          ? correlatedOperation.request.workspaceIds
+          : [],
+      invitationEmails:
+        operationNewlyApplied && correlatedOperation
+          ? correlatedOperation.request.invitations.map((invite) => invite.email)
+          : [],
+    })
+    if (isEntitled && seats < seatRequirement.requiredSeats) {
       throw new Error(
-        `Enterprise seat capacity ${seats} is below current internal membership ${currentMemberCount?.value ?? 0}`
+        `Enterprise seat capacity ${seats} is below ${seatRequirement.requiredSeats} occupied or reserved seats`
       )
     }
 

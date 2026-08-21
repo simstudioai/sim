@@ -82,6 +82,7 @@ import {
   enqueueOutboxEvent,
   type OutboxEventContext,
   type OutboxHandler,
+  outboxEventHasSourceOperationId,
 } from '@/lib/core/outbox/service'
 import type { DbOrTx } from '@/lib/db/types'
 import { DIRECT_GRANT_EMAIL_EVENT_TYPE } from '@/lib/invitations/direct-grant'
@@ -101,6 +102,7 @@ const TERMINAL_STATUSES = new Set<string>(TERMINAL_SUBSCRIPTION_STATUSES)
 const ENTERPRISE_WEBHOOK_ACKNOWLEDGEMENT_GRACE_MS = 30 * 60 * 1000
 const ENTERPRISE_WEBHOOK_ACKNOWLEDGEMENT_POLL_MS = 30 * 1000
 const MAX_ENTERPRISE_WORKSPACE_SELECTION = 1_000
+const MAX_ENTERPRISE_MIGRATED_INVITATION_EMAILS = 10_000
 const MAX_ENTERPRISE_PROVISIONING_LOOKUP_ORGANIZATIONS = 250
 const ENTERPRISE_MEMBER_RECONCILIATION_BATCH_SIZE = 50
 const MAX_ENTERPRISE_FOLLOW_UP_FAILURE_DETAILS = 100
@@ -637,7 +639,7 @@ async function assertEnterpriseWorkspaceSelection({
   }
 }
 
-async function getEnterpriseIssuanceSeatRequirement({
+export async function getEnterpriseIssuanceSeatRequirement({
   executor,
   organizationId,
   workspaceIds,
@@ -675,10 +677,10 @@ async function getEnterpriseIssuanceSeatRequirement({
             )
           )
           .groupBy(invitation.email)
-          .limit(100_001)
-  if (migratedInvitationRows.length > 100_000) {
+          .limit(MAX_ENTERPRISE_MIGRATED_INVITATION_EMAILS + 1)
+  if (migratedInvitationRows.length > MAX_ENTERPRISE_MIGRATED_INVITATION_EMAILS) {
     throw new EnterpriseProvisioningError(
-      'The selected workspace sweep carries more pending invitations than Enterprise supports'
+      `The selected workspace sweep carries more than ${MAX_ENTERPRISE_MIGRATED_INVITATION_EMAILS.toLocaleString()} pending invitation recipients. Reduce the workspace selection or resolve older invitations before issuing Enterprise; none were omitted.`
     )
   }
   const migratedInvitationEmails = [
@@ -1277,13 +1279,24 @@ async function getEnterpriseInvitationProgress(
   return result
 }
 
-function getEnterpriseFollowUpOperationId(eventType: string, payload: unknown): string | null {
-  if (!isRecordLike(payload)) return null
-  const key =
-    eventType === ENTERPRISE_MEMBER_RECONCILIATION_EVENT_TYPE
-      ? payload.provisioningOperationId
-      : payload.sourceOperationId
-  return typeof key === 'string' && key.length > 0 ? key : null
+function getEnterpriseFollowUpOperationIds(eventType: string, payload: unknown): string[] {
+  if (!isRecordLike(payload)) return []
+  if (eventType === ENTERPRISE_MEMBER_RECONCILIATION_EVENT_TYPE) {
+    return typeof payload.provisioningOperationId === 'string' &&
+      payload.provisioningOperationId.length > 0
+      ? [payload.provisioningOperationId]
+      : []
+  }
+  const operationIds = new Set<string>()
+  if (typeof payload.sourceOperationId === 'string' && payload.sourceOperationId.length > 0) {
+    operationIds.add(payload.sourceOperationId)
+  }
+  if (Array.isArray(payload.sourceOperationIds)) {
+    for (const operationId of payload.sourceOperationIds) {
+      if (typeof operationId === 'string' && operationId.length > 0) operationIds.add(operationId)
+    }
+  }
+  return [...operationIds]
 }
 
 function getEnterpriseFollowUpFailure(
@@ -1323,7 +1336,7 @@ async function getEnterpriseFollowUpProgress(
     ${outboxEvent.payload} ->> 'provisioningOperationId',
     ${outboxEvent.payload} ->> 'sourceOperationId'
   )`
-  const progressRows =
+  const scalarProgressRows =
     uniqueOperationIds.length === 0
       ? []
       : await db
@@ -1343,10 +1356,48 @@ async function getEnterpriseFollowUpProgress(
           .where(
             and(
               inArray(outboxEvent.eventType, [...ENTERPRISE_FOLLOW_UP_EVENT_TYPES]),
+              ne(outboxEvent.eventType, MIGRATED_INVITATION_EMAIL_EVENT_TYPE),
               inArray(operationIdExpression, uniqueOperationIds)
             )
           )
           .groupBy(operationIdExpression)
+
+  const arrayOperationIdExpression = sql<string>`source_operations.operation_id`
+  const sourceOperationRows = sql`lateral jsonb_array_elements_text(
+    case
+      when jsonb_typeof(${outboxEvent.payload} -> 'sourceOperationIds') = 'array'
+      then ${outboxEvent.payload} -> 'sourceOperationIds'
+      else '[]'::jsonb
+    end
+  ) as source_operations(operation_id)`
+  const arrayProgressRows =
+    uniqueOperationIds.length === 0
+      ? []
+      : await db
+          .select({
+            operationId: arrayOperationIdExpression,
+            selected: count(),
+            completed:
+              sql<number>`count(*) filter (where ${outboxEvent.status} = 'completed')`.mapWith(
+                Number
+              ),
+            failed:
+              sql<number>`count(*) filter (where ${outboxEvent.status} = 'dead_letter')`.mapWith(
+                Number
+              ),
+          })
+          .from(outboxEvent)
+          .innerJoin(sourceOperationRows, sql`true`)
+          .where(
+            and(
+              eq(outboxEvent.eventType, MIGRATED_INVITATION_EMAIL_EVENT_TYPE),
+              sql`coalesce(${outboxEvent.payload} -> 'sourceOperationIds', '[]'::jsonb) ?| array[${sql.join(
+                uniqueOperationIds.map((operationId) => sql`${operationId}`),
+                sql`, `
+              )}]::text[]`
+            )
+          )
+          .groupBy(arrayOperationIdExpression)
 
   const failedRows =
     options.includeFailures && uniqueOperationIds.length === 1
@@ -1362,7 +1413,13 @@ async function getEnterpriseFollowUpProgress(
             and(
               inArray(outboxEvent.eventType, [...ENTERPRISE_FOLLOW_UP_EVENT_TYPES]),
               eq(outboxEvent.status, 'dead_letter'),
-              eq(operationIdExpression, uniqueOperationIds[0])
+              or(
+                eq(
+                  sql<string>`${outboxEvent.payload} ->> 'provisioningOperationId'`,
+                  uniqueOperationIds[0]
+                ),
+                outboxEventHasSourceOperationId(uniqueOperationIds[0])
+              )
             )
           )
           .orderBy(outboxEvent.createdAt, outboxEvent.id)
@@ -1379,24 +1436,26 @@ async function getEnterpriseFollowUpProgress(
       failed: [],
     })
   }
-  for (const row of progressRows) {
+  for (const row of [...scalarProgressRows, ...arrayProgressRows]) {
     const progress = result.get(row.operationId)
     if (!progress) continue
-    progress.selected = row.selected
-    progress.completed = row.completed
-    progress.failedCount = row.failed
-    progress.pending = Math.max(0, row.selected - row.completed - row.failed)
+    progress.selected += row.selected
+    progress.completed += row.completed
+    progress.failedCount += row.failed
+    progress.pending = Math.max(0, progress.selected - progress.completed - progress.failedCount)
   }
   for (const row of failedRows) {
-    const operationId = getEnterpriseFollowUpOperationId(row.eventType, row.payload)
     const detail = getEnterpriseFollowUpFailure(row.eventType, row.payload)
-    const progress = operationId ? result.get(operationId) : undefined
-    if (!progress || !detail) continue
-    progress.failed.push({
-      eventId: row.id,
-      ...detail,
-      error: row.lastError,
-    })
+    if (!detail) continue
+    for (const operationId of getEnterpriseFollowUpOperationIds(row.eventType, row.payload)) {
+      const progress = result.get(operationId)
+      if (!progress) continue
+      progress.failed.push({
+        eventId: row.id,
+        ...detail,
+        error: row.lastError,
+      })
+    }
   }
   return result
 }
@@ -2483,12 +2542,16 @@ export const provisionEnterpriseInStripe: OutboxHandler<unknown> = async (rawPay
       })
     }
 
-    const [finalMemberCount] = await db
-      .select({ value: count() })
-      .from(member)
-      .where(eq(member.organizationId, request.organizationId))
-    if (request.seats < (finalMemberCount?.value ?? 0)) {
-      throw new Error('Enterprise seat capacity is below current internal membership')
+    const finalSeatRequirement = await getEnterpriseIssuanceSeatRequirement({
+      executor: db,
+      organizationId: request.organizationId,
+      workspaceIds: request.workspaceIds,
+      invitationEmails: request.invitations.map((invite) => invite.email),
+    })
+    if (request.seats < finalSeatRequirement.requiredSeats) {
+      throw new Error(
+        'Enterprise seat capacity is below current occupied or reserved seats, including the selected workspace sweep'
+      )
     }
   }
 
@@ -2594,13 +2657,18 @@ export const syncEnterpriseMetadataInStripe: OutboxHandler<unknown> = async (
 
     const latestPayload = enterpriseMetadataSyncPayloadSchema.safeParse(latest.payload)
     if (!latestPayload.success) throw new Error('Latest Enterprise metadata intent is invalid')
-    const [currentMembers] = await db
-      .select({ value: count() })
-      .from(member)
-      .where(eq(member.organizationId, subscriptionRow.referenceId))
     const desiredSeats = Number(latestPayload.data.metadata.seats)
-    if (!Number.isSafeInteger(desiredSeats) || desiredSeats < (currentMembers?.value ?? 0)) {
-      throw new Error('Enterprise seat intent is below current internal membership')
+    const currentSeatRequirement = await getEnterpriseIssuanceSeatRequirement({
+      executor: db,
+      organizationId: subscriptionRow.referenceId,
+      workspaceIds: [],
+      invitationEmails: [],
+    })
+    if (
+      !Number.isSafeInteger(desiredSeats) ||
+      desiredSeats < currentSeatRequirement.requiredSeats
+    ) {
+      throw new Error('Enterprise seat intent is below current occupied or reserved seats')
     }
 
     const metadata: Record<string, string> = {}

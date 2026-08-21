@@ -546,9 +546,28 @@ describe('createWorkspaceInvitation', () => {
   })
 
   it('reuses an existing Enterprise seat reservation when extending a pending invitation', async () => {
-    queueWhereResponses([[]])
+    queueTableRows(userTable, [])
     const context = makeContext(['ws-2'])
     context.targets[0].invitePolicy.requiresSeat = true
+    mockCreatePendingInvitation.mockImplementationOnce(
+      async (input: CreatePendingInvitationInput) => {
+        await input.validateLockedContext?.({
+          tx: dbChainMock.db as unknown as DbOrTx,
+          organizationId: 'org-1',
+          workspaceIds: ['ws-2'],
+        })
+        return {
+          invitationId: 'inv-existing',
+          token: 'tok-existing',
+          expiresAt: new Date(),
+          created: false,
+          addedWorkspaceIds: ['ws-2'],
+          grants: [{ workspaceId: 'ws-2', permission: 'write' }],
+          mutationUpdatedAt: new Date('2026-07-30T12:00:00.000Z'),
+          mutationOrganizationId: 'org-1',
+        }
+      }
+    )
     mockFindPendingOrganizationInvitation.mockResolvedValueOnce({ id: 'inv-existing' })
 
     await createWorkspaceInvitation({
@@ -560,6 +579,43 @@ describe('createWorkspaceInvitation', () => {
 
     expect(mockValidateSeatAvailability).not.toHaveBeenCalled()
     expect(mockCreatePendingInvitation).toHaveBeenCalled()
+  })
+
+  it('checks a new Enterprise seat reservation under the organization lock', async () => {
+    queueTableRows(userTable, [])
+    const context = makeContext(['ws-2'])
+    context.targets[0].invitePolicy.requiresSeat = true
+    mockValidateSeatAvailability.mockResolvedValueOnce({
+      canInvite: false,
+      reason: 'No available seats.',
+    })
+    mockCreatePendingInvitation.mockImplementationOnce(
+      async (input: CreatePendingInvitationInput) => {
+        await input.validateLockedContext?.({
+          tx: dbChainMock.db as unknown as DbOrTx,
+          organizationId: 'org-1',
+          workspaceIds: ['ws-2'],
+        })
+        throw new Error('unreachable')
+      }
+    )
+
+    await expect(
+      createWorkspaceInvitation({
+        context,
+        email: 'new@example.com',
+        permission: 'write',
+        request,
+      })
+    ).rejects.toMatchObject({ status: 400 })
+
+    expect(mockAcquireOrganizationMutationLock).toHaveBeenCalled()
+    expect(mockValidateSeatAvailability).toHaveBeenCalledWith('org-1', 1, {
+      executor: dbChainMock.db,
+    })
+    expect(mockAcquireOrganizationMutationLock.mock.invocationCallOrder[0]).toBeLessThan(
+      mockValidateSeatAvailability.mock.invocationCallOrder[0]
+    )
   })
 
   it('rejects when every selected workspace is already invited', async () => {

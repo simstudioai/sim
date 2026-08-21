@@ -251,21 +251,6 @@ export async function prepareWorkspaceInvitationContext({
 }
 
 /**
- * Throws the invite-flow seat error when the organization cannot take one
- * more internal member.
- */
-async function assertSeatAvailable(organizationId: string, email: string): Promise<void> {
-  const seatValidation = await validateSeatAvailability(organizationId, 1)
-  if (!seatValidation.canInvite) {
-    throw new WorkspaceInvitationError({
-      message: seatValidation.reason || 'No available seats for this organization.',
-      status: 400,
-      email,
-    })
-  }
-}
-
-/**
  * External collaborators hold workspace access without consuming a seat, so
  * the economics only work when the invitee already pays Sim somewhere else —
  * their own Pro/Max plan, or an organization that seats them. Admitting a free
@@ -293,6 +278,8 @@ async function validateLockedWorkspaceInvitationContext({
   existingUserId,
   observedInviteeOrganizationId,
   requiresOrganizationAdmin,
+  requiresSeatReservation,
+  inviteeEmail,
 }: {
   tx: DbOrTx
   context: WorkspaceInvitationContext
@@ -301,6 +288,8 @@ async function validateLockedWorkspaceInvitationContext({
   existingUserId?: string
   observedInviteeOrganizationId: string | null
   requiresOrganizationAdmin: boolean
+  requiresSeatReservation: boolean
+  inviteeEmail: string
 }): Promise<void> {
   /**
    * Sending already holds the invitation/workspace advisory locks. Take the
@@ -381,6 +370,21 @@ async function validateLockedWorkspaceInvitationContext({
       throw new WorkspaceInvitationError({
         message: 'Your organization role changed. Review the invitation and try again.',
         status: 409,
+      })
+    }
+  }
+
+  if (
+    organizationId &&
+    requiresSeatReservation &&
+    !(await findPendingOrganizationInvitation(tx, organizationId, inviteeEmail))
+  ) {
+    const seatValidation = await validateSeatAvailability(organizationId, 1, { executor: tx })
+    if (!seatValidation.canInvite) {
+      throw new WorkspaceInvitationError({
+        message: seatValidation.reason || 'No available seats for this organization.',
+        status: 400,
+        email: inviteeEmail,
       })
     }
   }
@@ -680,23 +684,6 @@ export async function createWorkspaceInvitation({
   }
   const newWorkspaceIds = newTargets.map((target) => target.workspaceId)
 
-  /**
-   * Only a new internal Enterprise invitation reserves a new seat. Extending
-   * the one already pending for this organization/email reuses its reservation,
-   * including when the plan is currently at capacity.
-   */
-  const existingPendingInvitation = organizationId
-    ? await findPendingOrganizationInvitation(db, organizationId, normalizedEmail)
-    : null
-  if (
-    membershipIntent === 'internal' &&
-    organizationId &&
-    context.targets[0].invitePolicy.requiresSeat &&
-    !existingPendingInvitation
-  ) {
-    await assertSeatAvailable(organizationId, normalizedEmail)
-  }
-
   let invitationRecord: Awaited<ReturnType<typeof createPendingInvitation>>
   try {
     invitationRecord = await createPendingInvitation({
@@ -719,6 +706,9 @@ export async function createWorkspaceInvitation({
           existingUserId: existingUser?.id,
           observedInviteeOrganizationId: existingMembership?.organizationId ?? null,
           requiresOrganizationAdmin: membershipIntent === 'internal' && membership === 'admin',
+          requiresSeatReservation:
+            membershipIntent === 'internal' && context.targets[0].invitePolicy.requiresSeat,
+          inviteeEmail: normalizedEmail,
         }),
     })
   } catch (error) {

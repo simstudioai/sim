@@ -336,22 +336,6 @@ export async function createAdminInvitationOperation(input: {
     return created
   })
 
-  await recordAuditOnce(`${input.operationId}:requested`, {
-    actorId: input.actor.id,
-    actorName: input.actor.name,
-    actorEmail: input.actor.email,
-    action: AuditAction.ORGANIZATION_UPDATED,
-    resourceType: AuditResourceType.ORGANIZATION,
-    resourceId: input.organizationId,
-    description: 'Admin requested a durable organization invitation batch',
-    metadata: {
-      invitationOperationId: input.operationId,
-      recipientCount: emails.length,
-      workspaceCount: workspaceIds.length,
-      role: input.role,
-      permission: input.permission,
-    },
-  })
   return buildAdminInvitationOperationView(row)
 }
 
@@ -437,6 +421,22 @@ export async function retryAdminInvitationOperationJob(
 const processAdminInvitationOperation: OutboxHandler<unknown> = async (rawPayload, context) => {
   const payload = parseAdminInvitationOperationPayload(rawPayload)
   if (!payload) throw new Error('Invalid Admin invitation-operation payload')
+  await recordAuditOnce(`${context.eventId}:requested`, {
+    actorId: payload.request.actor.id,
+    actorName: payload.request.actor.name,
+    actorEmail: payload.request.actor.email,
+    action: AuditAction.ORGANIZATION_UPDATED,
+    resourceType: AuditResourceType.ORGANIZATION,
+    resourceId: payload.request.organizationId,
+    description: 'Admin requested a durable organization invitation batch',
+    metadata: {
+      invitationOperationId: context.eventId,
+      recipientCount: payload.request.emails.length,
+      workspaceCount: payload.request.workspaceIds.length,
+      role: payload.request.role,
+      permission: payload.request.permission,
+    },
+  })
   const operationIdExpression = sql<string>`${outboxEvent.payload} ->> 'provisioningOperationId'`
   const [invitationTotals] = await db
     .select({

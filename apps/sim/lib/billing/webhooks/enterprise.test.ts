@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   patchOutboxEventPayload: vi.fn(),
   enqueueOutboxEvent: vi.fn(),
   enqueueOutboxEvents: vi.fn(),
+  getEnterpriseIssuanceSeatRequirement: vi.fn(),
   reapplyPaidOrgJoinBillingForExistingMemberTx: vi.fn(),
 }))
 
@@ -35,6 +36,10 @@ vi.mock('@/components/emails', () => ({
 vi.mock('@/lib/billing/organizations/membership', () => ({
   acquireOrganizationMutationLock: vi.fn(),
   reapplyPaidOrgJoinBillingForExistingMemberTx: mocks.reapplyPaidOrgJoinBillingForExistingMemberTx,
+}))
+
+vi.mock('@/lib/billing/enterprise-provisioning', () => ({
+  getEnterpriseIssuanceSeatRequirement: mocks.getEnterpriseIssuanceSeatRequirement,
 }))
 
 vi.mock('@/lib/billing/stripe-client', () => ({
@@ -208,6 +213,7 @@ describe('Enterprise webhook issuance correlation', () => {
     mocks.reapplyPaidOrgJoinBillingForExistingMemberTx.mockResolvedValue(undefined)
     mocks.enqueueOutboxEvent.mockResolvedValue('move-event')
     mocks.enqueueOutboxEvents.mockResolvedValue(['move-event'])
+    mocks.getEnterpriseIssuanceSeatRequirement.mockResolvedValue({ requiredSeats: 1 })
   })
 
   afterAll(() => {
@@ -327,6 +333,7 @@ describe('Enterprise webhook issuance correlation', () => {
       status: 'incomplete',
     })
     mocks.subscriptionsRetrieve.mockResolvedValue(subscription)
+    mocks.getEnterpriseIssuanceSeatRequirement.mockResolvedValue({ requiredSeats: 99 })
     queueSuccessfulExistingSubscriptionReconciliation({
       operation: operationPayload({
         workspaceIds: ['workspace-1'],
@@ -349,6 +356,25 @@ describe('Enterprise webhook issuance correlation', () => {
     expect(dbChainMockFns.set).toHaveBeenCalledWith(
       expect.objectContaining({ status: 'incomplete' })
     )
+  })
+
+  it('refuses an entitled issuance when live reservations outgrow its Stripe seat capacity', async () => {
+    const subscription = stripeSubscription({ operationId: 'operation-1', seats: 12 })
+    mocks.subscriptionsRetrieve.mockResolvedValue(subscription)
+    mocks.getEnterpriseIssuanceSeatRequirement.mockResolvedValue({ requiredSeats: 13 })
+    queueSuccessfulExistingSubscriptionReconciliation({
+      operation: operationPayload({
+        workspaceIds: ['workspace-1'],
+        invitations: [{ email: 'new@example.com', role: 'member', permission: 'write' }],
+      }),
+    })
+
+    await expect(handleManualEnterpriseSubscription(eventFor(subscription))).rejects.toThrow(
+      'below 13 occupied or reserved seats'
+    )
+
+    expect(mocks.enqueueOutboxEvents).not.toHaveBeenCalled()
+    expect(mocks.patchOutboxEventPayload).not.toHaveBeenCalled()
   })
 
   it('allows later Stripe metadata edits after the issuance was already applied', async () => {

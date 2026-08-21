@@ -68,6 +68,7 @@ vi.mock('@/lib/core/outbox/service', () => ({
     ...(consumeAttempt ? {} : { consumeAttempt: false }),
   }),
   enqueueOutboxEvent: mocks.enqueue,
+  outboxEventHasSourceOperationId: vi.fn(() => undefined),
   patchOutboxEventPayload: mocks.patchPayload,
 }))
 vi.mock('@/lib/invitations/workspace-invitations', () => ({
@@ -259,6 +260,34 @@ describe('Enterprise issuance preflight', () => {
         sufficient: false,
       },
     })
+  })
+
+  it('blocks an oversized workspace-sweep invitation expansion without truncating it', async () => {
+    queueTableRows(schemaMock.user, [{ id: 'owner-1', name: 'Owner', email: 'owner@example.com' }])
+    queueTableRows(schemaMock.member, [])
+    queueTableRows(schemaMock.workspace, [{ value: 1 }])
+    queueTableRows(schemaMock.workspace, [{ id: 'workspace-1', name: 'One', archivedAt: null }])
+    queueTableRows(schemaMock.workspace, [
+      { id: 'workspace-1', name: 'One', archivedAt: null, total: 1 },
+    ])
+    queueTableRows(schemaMock.workspace, [{ id: 'workspace-1' }])
+    queueTableRows(
+      schemaMock.invitation,
+      Array.from({ length: 10_001 }, (_, index) => ({ email: `pending-${index}@example.com` }))
+    )
+
+    await expect(
+      reviewEnterpriseProvisioning({
+        ownerUserId: 'owner-1',
+        organizationName: 'Acme',
+        invoiceAmountUsd: 1_200,
+        billingInterval: 'year',
+        reportingPeriodAnchorDate: '2026-08-01',
+        workspaceIds: ['workspace-1'],
+        invitations: [],
+        seats: 10_001,
+      })
+    ).rejects.toThrow('none were omitted')
   })
 
   it('returns a product error for an invalid reporting anchor', async () => {
@@ -1156,7 +1185,18 @@ describe('Enterprise issuance outbox handler', () => {
     arrangeWorkerReads([], [], 13)
 
     await expect(provisionEnterpriseInStripe(operationPayload(), context())).rejects.toThrow(
-      'seat capacity is below current internal membership'
+      'seat capacity is below current occupied or reserved seats'
+    )
+
+    expect(mocks.subscriptionsCreate).not.toHaveBeenCalled()
+  })
+
+  it('rechecks pending seat reservations immediately before Stripe create', async () => {
+    arrangeWorkerReads([], [], 1)
+    queueTableRows(schemaMock.invitation, [{ count: 12 }])
+
+    await expect(provisionEnterpriseInStripe(operationPayload(), context())).rejects.toThrow(
+      'seat capacity is below current occupied or reserved seats'
     )
 
     expect(mocks.subscriptionsCreate).not.toHaveBeenCalled()
@@ -1250,6 +1290,37 @@ describe('Enterprise metadata outbox handler', () => {
         idempotencyKey: 'enterprise-config:local-sub-1:metadata-event-1:delivery:0:attempt:0',
       }
     )
+  })
+
+  it('does not send a seat decrease below current pending reservations to Stripe', async () => {
+    const payload = {
+      subscriptionId: 'local-sub-1',
+      revision: 5,
+      deliveryRevision: 0,
+      metadata: {
+        plan: 'enterprise',
+        referenceId: 'org-1',
+        seats: 15,
+      },
+    }
+    queueTableRows(schemaMock.subscription, [
+      { stripeSubscriptionId: 'sub_1', referenceId: 'org-1', metadata: {} },
+    ])
+    queueTableRows(schemaMock.subscription, [{ metadata: {} }])
+    queueTableRows(schemaMock.outboxEvent, [{ id: 'metadata-event-capacity', payload }])
+    queueTableRows(schemaMock.member, [{ value: 10 }])
+    queueTableRows(schemaMock.invitation, [{ count: 6 }])
+
+    await expect(
+      syncEnterpriseMetadataInStripe(payload, {
+        eventId: 'metadata-event-capacity',
+        eventType: 'stripe.sync-enterprise-metadata',
+        attempts: 0,
+        checkpointPayload: vi.fn(),
+      })
+    ).rejects.toThrow('seat intent is below current occupied or reserved seats')
+
+    expect(mocks.subscriptionsUpdate).not.toHaveBeenCalled()
   })
 
   it('unsets nullable metadata overrides in Stripe', async () => {

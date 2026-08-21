@@ -389,22 +389,6 @@ export async function requestDashboardSubscriptionCancellation({
     }
   })
 
-  await recordAuditOnce(`${operationId}:cancellation-requested`, {
-    actorId: actor.id,
-    actorName: actor.name,
-    actorEmail: actor.email,
-    action: AuditAction.SUBSCRIPTION_CANCELLED,
-    resourceType: AuditResourceType.SUBSCRIPTION,
-    resourceId: cancellation.subscriptionId,
-    description: `Admin requested ${timing === 'period_end' ? 'period-end' : 'immediate'} organization subscription cancellation`,
-    metadata: {
-      organizationId,
-      requestOperationId: operationId,
-      providerOperationId: cancellation.outboxEventId,
-      timing,
-      reason: reason ?? null,
-    },
-  })
   return {
     success: true as const,
     operationId: cancellation.operationId,

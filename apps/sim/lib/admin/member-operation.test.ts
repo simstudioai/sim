@@ -57,6 +57,11 @@ vi.mock('@/lib/core/outbox/service', () => ({
     ...(consumeAttempt ? {} : { consumeAttempt: false }),
   }),
   enqueueOutboxEvent: mocks.enqueue,
+  outboxEventHasSourceOperationId: vi.fn(() => undefined),
+  outboxPayloadHasSourceOperationId: vi.fn(
+    (payload: { sourceOperationId?: string; sourceOperationIds?: string[] }, operationId: string) =>
+      payload.sourceOperationId === operationId || payload.sourceOperationIds?.includes(operationId)
+  ),
 }))
 
 import {

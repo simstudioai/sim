@@ -6,6 +6,7 @@ import {
   permissions,
   subscription,
   usageLog,
+  user,
   workspace,
 } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
@@ -17,6 +18,7 @@ const mocks = vi.hoisted(() => ({
   provisionings: new Map(),
   resolveMetadataIntent: vi.fn(),
   enqueueOutboxEvent: vi.fn(),
+  countPendingSeatInvitations: vi.fn(),
 }))
 
 vi.mock('@sim/audit', () => ({
@@ -64,18 +66,106 @@ vi.mock('@/lib/billing/organizations/membership', () => ({
   transferOrganizationOwnership: vi.fn(),
 }))
 vi.mock('@/lib/billing/organizations/seats', () => ({ reconcileOrganizationSeats: vi.fn() }))
+vi.mock('@/lib/billing/validation/seat-management', () => ({
+  countPendingSeatInvitations: mocks.countPendingSeatInvitations,
+}))
 vi.mock('@/lib/core/idempotency/transaction', () => ({
   executeTransactionallyIdempotent: vi.fn(),
 }))
 vi.mock('@/lib/core/outbox/service', () => ({ enqueueOutboxEvent: mocks.enqueueOutboxEvent }))
 
 import {
+  getDashboardMemberTransferPreflight,
   getDashboardOrganization,
   listDashboardOrganizations,
   toDashboardConfigurationUpdate,
   updateDashboardEnterpriseBillingTerms,
+  updateDashboardEnterpriseSeats,
   updateDashboardOrganizationLimits,
 } from '@/lib/admin/dashboard'
+
+describe('getDashboardMemberTransferPreflight', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
+  it('pages workspace choices and exposes an empty default selection above the exact cap', async () => {
+    queueTableRows(organization, [{ id: 'org-destination' }])
+    queueTableRows(user, [
+      {
+        id: 'user-1',
+        name: 'User',
+        email: 'user@example.com',
+        memberId: null,
+        role: null,
+        organizationId: null,
+        organizationName: null,
+      },
+    ])
+    queueTableRows(workspace, [{ value: 75 }])
+    queueTableRows(workspace, [
+      { id: 'workspace-51', name: 'Matching workspace', archivedAt: null },
+    ])
+    queueTableRows(workspace, [
+      {
+        id: 'workspace-1',
+        name: 'First eligible workspace',
+        archivedAt: null,
+        total: 1_205,
+      },
+    ])
+
+    const result = await getDashboardMemberTransferPreflight('org-destination', 'user-1', {
+      search: 'matching',
+      limit: 25,
+      offset: 50,
+    })
+
+    expect(result.personalWorkspaces).toEqual([
+      { id: 'workspace-51', name: 'Matching workspace', archived: false },
+    ])
+    expect(result.workspacePagination).toEqual({
+      total: 75,
+      limit: 25,
+      offset: 50,
+      hasMore: true,
+    })
+    expect(result.workspaceSelection).toEqual({
+      totalEligible: 1_205,
+      defaultSelectedIds: [],
+      defaultSelectedWorkspaces: [],
+      includesAllEligible: false,
+      limit: 1_000,
+    })
+    expect(dbChainMockFns.limit).toHaveBeenCalledWith(1_001)
+  })
+})
+
+describe('updateDashboardEnterpriseSeats', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
+  it('refuses to reduce capacity below members plus live pending seat reservations', async () => {
+    queueTableRows(subscription, [
+      { id: 'sub-1', plan: 'enterprise', status: 'active', metadata: { seats: 10 } },
+    ])
+    queueTableRows(member, [{ value: 5 }])
+    mocks.countPendingSeatInvitations.mockResolvedValue(2)
+
+    await expect(
+      updateDashboardEnterpriseSeats('org-1', 6, {
+        id: 'admin-1',
+        name: 'Admin',
+        email: 'admin@example.com',
+      })
+    ).rejects.toThrow('below 7 occupied or reserved seats')
+
+    expect(mocks.enqueueOutboxEvent).not.toHaveBeenCalled()
+  })
+})
 
 afterAll(() => {
   resetDbChainMock()

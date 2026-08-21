@@ -295,6 +295,55 @@ export async function patchOutboxEventPayload(
   return result.length > 0
 }
 
+/**
+ * Adds a durable parent-operation correlation to an outbox event without
+ * replacing correlations already attached by another coalesced mutation.
+ */
+export async function addOutboxEventSourceOperationId(
+  executor: Pick<typeof db, 'update'>,
+  eventId: string,
+  operationId: string
+): Promise<boolean> {
+  const result = await executor
+    .update(outboxEvent)
+    .set({
+      payload: sql`jsonb_set(
+        coalesce(${outboxEvent.payload}::jsonb, '{}'::jsonb),
+        '{sourceOperationIds}',
+        case
+          when coalesce(${outboxEvent.payload}::jsonb -> 'sourceOperationIds', '[]'::jsonb)
+            @> jsonb_build_array(${operationId}::text)
+          then coalesce(${outboxEvent.payload}::jsonb -> 'sourceOperationIds', '[]'::jsonb)
+          else coalesce(${outboxEvent.payload}::jsonb -> 'sourceOperationIds', '[]'::jsonb)
+            || jsonb_build_array(${operationId}::text)
+        end,
+        true
+      )::json`,
+    })
+    .where(eq(outboxEvent.id, eventId))
+    .returning({ id: outboxEvent.id })
+  return result.length > 0
+}
+
+/** Matches both ordinary single-parent events and coalesced multi-parent events. */
+export function outboxEventHasSourceOperationId(operationId: string) {
+  return sql<boolean>`(
+    ${outboxEvent.payload} ->> 'sourceOperationId' = ${operationId}
+    or coalesce(${outboxEvent.payload} -> 'sourceOperationIds', '[]'::jsonb)
+      @> jsonb_build_array(${operationId}::text)
+  )`
+}
+
+/** Runtime equivalent of `outboxEventHasSourceOperationId` for locked-row checks. */
+export function outboxPayloadHasSourceOperationId(payload: unknown, operationId: string): boolean {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return false
+  const record = payload as Record<string, unknown>
+  return (
+    record.sourceOperationId === operationId ||
+    (Array.isArray(record.sourceOperationIds) && record.sourceOperationIds.includes(operationId))
+  )
+}
+
 /** Cap on how many dead-lettered rows a single reconciler scan materializes. */
 const DEAD_LETTER_SCAN_LIMIT = 100
 

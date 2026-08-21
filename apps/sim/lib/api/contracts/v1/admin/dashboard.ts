@@ -333,8 +333,10 @@ export const adminDashboardAddMemberBodySchema = z.object({
   personalWorkspaceIds: z.array(z.string().min(1)).max(1_000).default([]),
 })
 
-export const adminDashboardMemberPreflightQuerySchema = z.object({
+export const adminDashboardMemberPreflightQuerySchema = adminDashboardSearchQuerySchema.extend({
   userId: z.string().min(1),
+  limit: adminV1PaginationQuerySchema.shape.limit.default(50),
+  offset: adminV1PaginationQuerySchema.shape.offset.default(0),
 })
 
 export const adminDashboardMemberPreflightSchema = z.object({
@@ -343,6 +345,35 @@ export const adminDashboardMemberPreflightSchema = z.object({
   personalWorkspaces: z.array(
     z.object({ id: z.string(), name: z.string(), archived: z.boolean() })
   ),
+  workspacePagination: adminV1PaginationMetaSchema,
+  workspaceSelection: z
+    .object({
+      totalEligible: z.number().int().min(0),
+      defaultSelectedIds: z.array(z.string().min(1)).max(1_000),
+      defaultSelectedWorkspaces: z
+        .array(z.object({ id: z.string(), name: z.string(), archived: z.boolean() }))
+        .max(1_000),
+      includesAllEligible: z.boolean(),
+      limit: z.literal(1_000),
+    })
+    .superRefine((selection, context) => {
+      const validCompleteSelection =
+        selection.includesAllEligible &&
+        selection.totalEligible <= selection.limit &&
+        selection.defaultSelectedIds.length === selection.totalEligible &&
+        selection.defaultSelectedWorkspaces.length === selection.totalEligible
+      const validBoundedSelection =
+        !selection.includesAllEligible &&
+        selection.totalEligible > selection.limit &&
+        selection.defaultSelectedIds.length === 0 &&
+        selection.defaultSelectedWorkspaces.length === 0
+      if (!validCompleteSelection && !validBoundedSelection) {
+        context.addIssue({
+          code: 'custom',
+          message: 'Default workspace selection must be complete or explicitly empty above limit',
+        })
+      }
+    }),
   credentialDependencies: z.array(
     z.object({
       id: z.string(),

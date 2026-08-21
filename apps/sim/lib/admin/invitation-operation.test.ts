@@ -94,10 +94,7 @@ describe('Admin invitation operation', () => {
       expect.objectContaining({ email: 'a@example.com', source: 'admin', sequence: 0 }),
       expect.objectContaining({ email: 'b@example.com', source: 'admin', sequence: 1 }),
     ])
-    expect(mocks.recordAuditOnce).toHaveBeenCalledWith(
-      '11111111-1111-4111-8111-111111111111:requested',
-      expect.objectContaining({ resourceId: 'org-1' })
-    )
+    expect(mocks.recordAuditOnce).not.toHaveBeenCalled()
   })
 
   it('waits for every recipient before the parent operation completes', async () => {
@@ -130,5 +127,9 @@ describe('Admin invitation operation', () => {
       reason: 'Waiting for invitation recipients',
       consumeAttempt: false,
     })
+    expect(mocks.recordAuditOnce).toHaveBeenCalledWith(
+      '11111111-1111-4111-8111-111111111111:requested',
+      expect.objectContaining({ resourceId: 'org-1' })
+    )
   })
 })

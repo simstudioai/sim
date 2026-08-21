@@ -38,6 +38,7 @@ export const POST = withRouteHandler(
         auditActor: actor,
         auditOperationId: parsed.data.body.operationId,
         operationCorrelationId: parsed.data.body.operationId,
+        durableOperationId: parsed.data.body.operationId,
       })
       const data = await toWorkspaceMoveOperationView(summary, parsed.data.body.operationId)
       return NextResponse.json({ data })

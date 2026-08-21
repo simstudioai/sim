@@ -19,6 +19,8 @@ import {
   deferOutboxHandler,
   enqueueOutboxEvent,
   type OutboxHandler,
+  outboxEventHasSourceOperationId,
+  outboxPayloadHasSourceOperationId,
 } from '@/lib/core/outbox/service'
 import type { DbOrTx } from '@/lib/db/types'
 import {
@@ -127,7 +129,6 @@ async function getMemberOperationFollowUpJobs(
   operationId: string,
   executor: DbOrTx = db
 ): Promise<AdminMemberOperationView['followUpJobs']> {
-  const operationIdExpression = sql<string>`${outboxEvent.payload} ->> 'sourceOperationId'`
   const [progress] = await executor
     .select({
       selected: count(),
@@ -142,7 +143,7 @@ async function getMemberOperationFollowUpJobs(
     .where(
       and(
         eq(outboxEvent.eventType, MIGRATED_INVITATION_EMAIL_EVENT_TYPE),
-        eq(operationIdExpression, operationId)
+        outboxEventHasSourceOperationId(operationId)
       )
     )
   const selected = progress?.selected ?? 0
@@ -161,7 +162,7 @@ async function getMemberOperationFollowUpJobs(
             and(
               eq(outboxEvent.eventType, MIGRATED_INVITATION_EMAIL_EVENT_TYPE),
               eq(outboxEvent.status, 'dead_letter'),
-              eq(operationIdExpression, operationId)
+              outboxEventHasSourceOperationId(operationId)
             )
           )
           .orderBy(outboxEvent.createdAt, outboxEvent.id)
@@ -446,9 +447,7 @@ export async function retryAdminMemberFollowUpJob(
     if (
       !job ||
       getMemberFollowUpSubject(job.eventType, job.payload) === null ||
-      !job.payload ||
-      typeof job.payload !== 'object' ||
-      (job.payload as Record<string, unknown>).sourceOperationId !== operationId
+      !outboxPayloadHasSourceOperationId(job.payload, operationId)
     ) {
       throw new Error('Member-operation follow-up job not found')
     }
