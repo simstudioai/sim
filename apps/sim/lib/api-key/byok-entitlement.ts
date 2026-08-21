@@ -54,29 +54,34 @@ export async function isOrganizationBYOKEntitled(organizationId: string): Promis
  * plan change to appear, which is true of a workflow run and false of the
  * settings page.
  */
-export function isOrganizationBYOKEntitledCached(organizationId: string): Promise<boolean> {
-  if (!isHosted) return Promise.resolve(false)
+export async function isOrganizationBYOKEntitledCached(organizationId: string): Promise<boolean> {
+  if (!isHosted) return false
 
   const cached = entitlementCache.get(organizationId)
-  if (cached !== undefined) return Promise.resolve(cached)
+  if (cached !== undefined) return cached
 
   /**
-   * `coalesceLocally` around a read-through cache is the shape
-   * `oauth/credential-service.ts` uses. It collapses a parallel or loop block's
-   * N simultaneous misses onto one resolution, and — unlike caching the promise
-   * directly — bounds a *hung* billing read at its settle deadline instead of
-   * wedging every caller for the whole TTL.
+   * `coalesceLocally` collapses a parallel or loop block's N simultaneous
+   * misses onto one resolution, and bounds a *hung* billing read at its settle
+   * deadline rather than wedging every caller for the whole TTL.
    *
-   * Writing the cache only on the success path is what keeps a momentary
-   * outage from being recorded as a plan lapse; `onError: 'throw'` is what
-   * makes that outage distinguishable, since the resolver otherwise maps a
-   * failed read to `false` exactly like a real lapse.
+   * The cache write stays out here, on the value this caller actually received,
+   * rather than inside the producer. `coalesceLocally` does not cancel a
+   * producer it timed out — it keeps running detached — so a write from inside
+   * could land after a retry already cached a fresher answer and overwrite it
+   * for a full TTL. A caller that timed out throws instead of reaching this
+   * line, and the abandoned producer resolves into nothing.
+   *
+   * Only reaching the write on success is also what keeps a momentary outage
+   * from being recorded as a plan lapse; `onError: 'throw'` is what makes that
+   * outage distinguishable, since the resolver otherwise maps a failed read to
+   * `false` exactly like a real lapse.
    */
-  return coalesceLocally(`byok-entitlement:${organizationId}`, async () => {
-    const entitled = await resolveOrganizationPlan(organizationId, { onError: 'throw' })
-    entitlementCache.set(organizationId, entitled)
-    return entitled
-  })
+  const entitled = await coalesceLocally(`byok-entitlement:${organizationId}`, () =>
+    resolveOrganizationPlan(organizationId, { onError: 'throw' })
+  )
+  entitlementCache.set(organizationId, entitled)
+  return entitled
 }
 
 /**

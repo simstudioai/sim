@@ -128,6 +128,33 @@ describe('organization BYOK entitlement', () => {
     expect(mockResolveOrganizationPlan).toHaveBeenCalledTimes(2)
   })
 
+  /**
+   * `coalesceLocally` does not cancel a producer it timed out, so a write from
+   * inside the producer could land after a retry cached a fresher answer and
+   * overwrite it for a full TTL. Keeping the write on the value the caller
+   * received means an abandoned producer resolves into nothing.
+   */
+  it('ignores a producer that settles after its caller gave up', async () => {
+    let releaseAbandoned: (value: boolean) => void = () => {}
+    mockResolveOrganizationPlan.mockReturnValueOnce(
+      new Promise<boolean>((resolve) => {
+        releaseAbandoned = resolve
+      })
+    )
+
+    const abandoned = isOrganizationBYOKEntitledCached(ORGANIZATION_ID)
+    abandoned.catch(() => {})
+    __resetCoalesceLocallyForTests()
+
+    mockResolveOrganizationPlan.mockResolvedValue(false)
+    await expect(isOrganizationBYOKEntitledCached(ORGANIZATION_ID)).resolves.toBe(false)
+
+    releaseAbandoned(true)
+    await Promise.resolve()
+
+    await expect(isOrganizationBYOKEntitledCached(ORGANIZATION_ID)).resolves.toBe(false)
+  })
+
   it('never consults billing off hosted, on either path', async () => {
     mockIsHosted.value = false
 
