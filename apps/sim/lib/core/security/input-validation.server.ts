@@ -18,6 +18,7 @@ import {
   request as undiciRequest,
 } from 'undici'
 import { isHosted, isPrivateDatabaseHostsAllowed } from '@/lib/core/config/env-flags'
+import type { HttpRedirectPolicy } from '@/lib/core/security/http-redirect-policy'
 import { type ValidationResult, validateExternalUrl } from '@/lib/core/security/input-validation'
 import { nodeReadableToWebStream } from '@/lib/core/utils/node-stream'
 import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
@@ -365,17 +366,12 @@ export interface SecureFetchOptions {
   maxResponseBytes?: number
   signal?: AbortSignal
   /**
-   * Drop the Authorization header when following a redirect. A cross-origin hop already
-   * drops every caller header unconditionally; this narrows same-origin hops too, for
-   * endpoints that redirect to a target carrying its own signed URL.
+   * Drop the Authorization header when following any redirect, including a same-origin hop.
+   * Use this for endpoints that redirect to a target carrying its own signed URL.
    */
   stripAuthOnRedirect?: boolean
-  /**
-   * Refuse a redirect that would resend the request body, because for this
-   * caller a second delivery is unsafe (`once`/`billable`). Redirects that drop
-   * the body still follow — they cannot repeat the write.
-   */
-  refuseBodyPreservingRedirect?: boolean
+  /** Omit for the historical behavior used by existing workflows. */
+  redirectPolicy?: HttpRedirectPolicy
   /**
    * Pre-validated, IP-pinned `http://` proxy URL (see {@link validateAndPinProxyUrl}).
    * When set, the connection routes through this proxy and target-IP pinning is
@@ -540,6 +536,8 @@ const ENTITY_HEADERS = [
   'content-length',
   'content-type',
   'content-encoding',
+  'content-language',
+  'content-location',
   'transfer-encoding',
 ] as const
 
@@ -561,60 +559,27 @@ interface RedirectHopPolicy {
   method: string
   /** Whether the body — and the entity headers describing it — must be dropped. */
   dropBody: boolean
-  /** Whether every caller-supplied header must be dropped (cross-origin hop). */
-  dropHeaders: boolean
 }
 
 /**
  * Decides how a request may be replayed on a redirect target, per RFC 9110 section 15.4.
  *
- * Both redirect followers in this file route through here so they cannot drift. They had
- * drifted: {@link secureFetchWithPinnedIP} replayed the original method and body on
- * 301/302/303 — delivering a non-idempotent write twice — and forwarded `Authorization`
- * and every other caller header to whatever origin the upstream named, while
- * {@link followRedirectsGuarded} implemented the correct rules a hundred lines above it.
- *
- * Throws when a faithful replay would forward a body across an origin boundary: the
- * redirect target is chosen by the peer, so a preserved 307/308 body would hand the
- * caller's payload — and any credential inside it — to an open-redirect destination.
+ * `HEAD` is deliberately preserved on 303. Fetch only changes a 303 to GET when the
+ * current method is neither GET nor HEAD.
  */
-function resolveRedirectHop(args: {
-  status: number
-  method: string
-  hasBody: boolean
-  sameOrigin: boolean
-  /**
-   * Set by a delivery whose duplicate is unsafe (`once`, `billable`). Only a
-   * body-PRESERVING hop can deliver twice inside one attempt, so only that is
-   * refused — a 303, or a 301/302 on POST, becomes a bodyless GET and cannot
-   * repeat the write, which is why those still follow. Refusing every redirect
-   * instead would fail the upload-and-parse endpoints that legitimately answer
-   * a POST with a redirect to storage.
-   */
-  refuseBodyPreservingRedirect?: boolean
-}): RedirectHopPolicy {
+function resolveRedirectHop(args: { status: number; method: string }): RedirectHopPolicy {
   const method = args.method.toUpperCase()
-  // 303 always, and 301/302 on POST by long-standing client convention, degrade to a
-  // bodyless GET. A retained Content-Length/Content-Type on a bodyless GET is malformed.
+  const isGetOrHead = method === 'GET' || method === 'HEAD'
   const dropBody =
-    args.status === 303 || ((args.status === 301 || args.status === 302) && method === 'POST')
-  const preservesBody = args.hasBody && !dropBody
-  if (!args.sameOrigin && preservesBody) {
-    throw new Error('Blocked by SSRF policy: cross-origin redirect would forward a request body')
-  }
-  if (args.refuseBodyPreservingRedirect && preservesBody) {
-    throw new Error(
-      `Redirect would resend the request body to the redirect target, which for this delivery could ` +
-        `deliver it twice. HTTP ${args.status} preserves the method and body; only a redirect that ` +
-        `drops the body is followed for a delivery whose duplicate is unsafe.`
-    )
-  }
+    (args.status === 303 && !isGetOrHead) ||
+    ((args.status === 301 || args.status === 302) && method === 'POST')
   return {
     method: dropBody ? 'GET' : method,
     dropBody,
-    dropHeaders: !args.sameOrigin,
   }
 }
+
+const CROSS_ORIGIN_CREDENTIAL_HEADERS = ['authorization', 'proxy-authorization', 'cookie'] as const
 
 /**
  * Manual, revalidating redirect follower used by the guarded fetch. Auto-follow
@@ -667,13 +632,16 @@ export async function followRedirectsGuarded(
     const hopPolicy = resolveRedirectHop({
       status,
       method,
-      hasBody: body !== undefined && body !== null,
-      sameOrigin: nextUrl.origin === currentUrl.origin,
     })
     method = hopPolicy.method
     if (hopPolicy.dropBody) body = undefined
-    if (hopPolicy.dropHeaders) {
+    if (nextUrl.origin !== currentUrl.origin) {
       headers = undefined
+      if (body !== undefined && body !== null) {
+        throw new Error(
+          'Blocked by SSRF policy: cross-origin redirect would forward a request body'
+        )
+      }
     } else if (hopPolicy.dropBody && headers !== undefined) {
       const sanitized = new Headers(headers as HeadersInit)
       for (const name of ENTITY_HEADERS) sanitized.delete(name)
@@ -1097,19 +1065,32 @@ export async function secureFetchWithPinnedIP(
               settledReject(new Error(`Redirect blocked: ${validation.error}`))
               return
             }
-            const hop = resolveRedirectHop({
-              status: statusCode,
-              method: options.method ?? 'GET',
-              hasBody: options.body !== undefined && options.body !== null,
-              sameOrigin: new URL(redirectUrl).origin === parsed.origin,
-              refuseBodyPreservingRedirect: options.refuseBodyPreservingRedirect,
-            })
-            let redirectHeaders = hop.dropHeaders ? undefined : options.headers
+            const redirectPolicy = options.redirectPolicy
+            const hop =
+              redirectPolicy?.mode === 'standard'
+                ? resolveRedirectHop({ status: statusCode, method: options.method ?? 'GET' })
+                : { method: options.method ?? 'GET', dropBody: false }
+            const isCrossOrigin = new URL(redirectUrl).origin !== parsed.origin
+            let redirectHeaders = options.headers
             if (redirectHeaders && hop.dropBody) {
               redirectHeaders = stripHeaders(redirectHeaders, ENTITY_HEADERS)
             }
-            // A cross-origin hop already dropped every header; this keeps the opt-in
-            // promise on the same-origin hops it still applies to.
+            if (
+              redirectHeaders &&
+              redirectPolicy &&
+              isCrossOrigin &&
+              (redirectPolicy.mode === 'standard' ||
+                !redirectPolicy.sendCredentialsOnCrossOriginRedirect)
+            ) {
+              const sensitiveHeaders = redirectPolicy.sendCredentialsOnCrossOriginRedirect
+                ? ['host']
+                : [
+                    'host',
+                    ...CROSS_ORIGIN_CREDENTIAL_HEADERS,
+                    ...(redirectPolicy.sensitiveHeaders ?? []),
+                  ]
+              redirectHeaders = stripHeaders(redirectHeaders, sensitiveHeaders)
+            }
             if (redirectHeaders && options.stripAuthOnRedirect) {
               redirectHeaders = stripHeaders(redirectHeaders, ['authorization'])
             }
