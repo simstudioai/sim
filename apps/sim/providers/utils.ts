@@ -1559,6 +1559,17 @@ export function prepareToolExecution(
     billingAttribution?: BillingAttributionSnapshot
     /** Invoking run's execution id — see `ProviderRequest.executionId`. */
     executionId?: string
+    /** Invoking agent block's id — see `ProviderRequest.blockId`. */
+    blockId?: string
+    /**
+     * The model's own id for this tool call. It is what makes a keyed tool's
+     * idempotency token distinguishing on the agent path: one agent block can
+     * issue the same tool several times inside one execution, and `executionId`
+     * plus `blockId` alone would collapse them into a single token the provider
+     * would dedupe down to one delivery. Stable across retries because it is read
+     * from the model's response rather than minted per attempt.
+     */
+    invocationId?: string
   }
 ): {
   toolParams: Record<string, any>
@@ -1627,6 +1638,8 @@ export function prepareToolExecution(
               : {}),
             ...(request.callChain ? { callChain: request.callChain } : {}),
             ...(request.executionId ? { executionId: request.executionId } : {}),
+            ...(request.blockId ? { blockId: request.blockId } : {}),
+            ...(request.invocationId ? { invocationId: request.invocationId } : {}),
             ...(request.billingAttribution
               ? { billingAttribution: request.billingAttribution }
               : {}),

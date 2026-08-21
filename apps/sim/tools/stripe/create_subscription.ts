@@ -1,9 +1,19 @@
+import {
+  defineStripeKeyedSite,
+  type StripeDeliveryContextParams,
+  stripeIdempotencyHeader,
+} from '@/tools/stripe/idempotency'
 import type { CreateSubscriptionParams, SubscriptionResponse } from '@/tools/stripe/types'
 import { SUBSCRIPTION_METADATA_OUTPUT_PROPERTIES, SUBSCRIPTION_OUTPUT } from '@/tools/stripe/types'
 import type { ToolConfig } from '@/tools/types'
 
+const DELIVERY = defineStripeKeyedSite(
+  'stripe_create_subscription',
+  'the customer would be subscribed twice and billed twice every period'
+)
+
 export const stripeCreateSubscriptionTool: ToolConfig<
-  CreateSubscriptionParams,
+  CreateSubscriptionParams & StripeDeliveryContextParams,
   SubscriptionResponse
 > = {
   id: 'stripe_create_subscription',
@@ -59,9 +69,18 @@ export const stripeCreateSubscriptionTool: ToolConfig<
   request: {
     url: () => 'https://api.stripe.com/v1/subscriptions',
     method: 'POST',
+    /**
+     * The `Idempotency-Key` must be the *same* on every delivery of one
+     * instruction rather than fresh per attempt — it is what lets Stripe
+     * recognize a resend and replay its first answer instead of acting again. A
+     * value minted at request-build time is the inverse of the header's purpose:
+     * it is stable only inside the transport loop, and every retry layer above
+     * that re-enters tool preparation and looks to Stripe like a new write.
+     */
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,
       'Content-Type': 'application/x-www-form-urlencoded',
+      ...stripeIdempotencyHeader(DELIVERY, params),
     }),
     body: (params) => {
       const formData = new URLSearchParams()

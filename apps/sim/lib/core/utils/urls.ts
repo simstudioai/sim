@@ -51,9 +51,35 @@ export function getBaseUrl(): string {
  * Returns the base URL used by server-side internal API calls.
  * Falls back to NEXT_PUBLIC_APP_URL when INTERNAL_API_BASE_URL is not set.
  */
+/**
+ * Whether this process is a Trigger.dev worker rather than the app container.
+ *
+ * `TRIGGER_SECRET_KEY` and `TRIGGER_DEV_ENABLED` are both present on the app too
+ * — it needs them to dispatch — so neither discriminates. `trigger.config.ts`
+ * syncs exactly one worker-only marker, `DB_APP_NAME='sim-trigger'`, which is
+ * what this reads.
+ */
+function isTriggerWorkerRuntime(): boolean {
+  return getEnv('DB_APP_NAME') === 'sim-trigger'
+}
+
 export function getInternalApiBaseUrl(): string {
   const internalBaseUrl = getEnv('INTERNAL_API_BASE_URL')?.trim()
-  if (!internalBaseUrl) {
+  /*
+   * `INTERNAL_API_BASE_URL` describes a route that exists only from inside the
+   * app container — a loopback address, or a cluster-internal Service name. A
+   * Trigger.dev worker runs in Trigger's infrastructure, so that route resolves
+   * to the worker itself, where nothing is listening.
+   *
+   * This is not hypothetical: several modules run in BOTH runtimes and call this.
+   * `lib/guardrails/mask-client.ts` is the sharp one — its own TSDoc notes the
+   * log-redaction persist path runs inside the trigger.dev runtime — so setting
+   * the variable produced `PII redaction failed: Unable to connect` on every
+   * worker-side redaction. Ignoring it here makes the variable safe to set from
+   * a shared secret store instead of relying on every operator to remember which
+   * runtimes may read it.
+   */
+  if (!internalBaseUrl || isTriggerWorkerRuntime()) {
     return getBaseUrl()
   }
 

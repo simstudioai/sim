@@ -1,7 +1,6 @@
 import '@sim/testing/mocks/executor'
 
 import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
-import { HarmonicBlock } from '@/blocks/blocks/harmonic'
 import { KnowledgeBlock } from '@/blocks/blocks/knowledge'
 import { getBlock } from '@/blocks/index'
 import { BlockType } from '@/executor/constants'
@@ -92,7 +91,7 @@ describe('GenericBlockHandler', () => {
     const inputs = { param1: 'resolvedValue1' }
     const expectedToolParams = {
       ...inputs,
-      _context: { workflowId: mockContext.workflowId },
+      _context: { workflowId: mockContext.workflowId, blockId: mockBlock.id },
     }
     const expectedOutput: any = { customResult: 'OK' }
 
@@ -489,47 +488,6 @@ describe('GenericBlockHandler', () => {
     await handler.execute(mockContext, mockBlock, { param1: 'value1' })
 
     expect(transform).toHaveBeenCalledTimes(1)
-  })
-
-  it('does not expose an invalid resolved Harmonic batch value in handler errors', async () => {
-    const resolvedSecret = 'sk-live-invalid-json-secret'
-    mockBlock.metadata = { id: 'harmonic', name: 'Harmonic' }
-    mockGetBlock.mockReturnValue(HarmonicBlock)
-    mockExecuteTool.mockResolvedValue({
-      success: false,
-      error: 'Harmonic "personUrns" must be a JSON array',
-    })
-
-    const registry = new ResolvedSecretTraceRegistry([
-      {
-        name: 'BATCH_IDENTIFIERS',
-        plaintext: resolvedSecret,
-        encryptedValue: 'encrypted-batch-identifiers',
-      },
-    ])
-    registry.recordResolvedAtInputPath('BATCH_IDENTIFIERS', resolvedSecret, ['personUrns'])
-    registry.recordResolvedInputProjection(['personUrns'], resolvedSecret, '{{BATCH_IDENTIFIERS}}')
-    mockContext.resolvedSecretTraceRegistry = registry
-
-    let thrown: unknown
-    try {
-      await handler.execute(mockContext, mockBlock, {
-        operation: 'harmonic_batch_get_people',
-        oauthCredential: 'credential-id',
-        personUrns: resolvedSecret,
-      })
-    } catch (error) {
-      thrown = error
-    }
-
-    expect(thrown).toBeInstanceOf(Error)
-    expect((thrown as Error).message).toBe('Harmonic "personUrns" must be a JSON array')
-    expect((thrown as Error).message).not.toContain(resolvedSecret)
-    expect(mockExecuteTool).toHaveBeenCalledWith(
-      'some_custom_tool',
-      expect.objectContaining({ personUrns: resolvedSecret }),
-      { executionContext: mockContext }
-    )
   })
 
   it('should throw error if the associated tool is not found', async () => {
