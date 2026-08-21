@@ -77,6 +77,7 @@ export interface UpdateKnowledgeConnectorInput extends KnowledgeConnectorApplica
     syncIntervalMinutes?: number
     status?: 'active' | 'paused'
   }
+  resolveBillingAttribution?(workspaceId: string): Promise<BillingAttributionSnapshot>
 }
 
 export interface DeleteKnowledgeConnectorInput extends KnowledgeConnectorApplicationInput {
@@ -347,6 +348,13 @@ export const updateKnowledgeConnector = defineAuthorizedKnowledgeUseCase({
       knowledgeBase: connectorTarget(context),
       connectorId: context.connectorId,
       updates: input.updates,
+      resolveBillingAttribution: () => {
+        const workspaceId = requireConnectorWorkspaceId(context)
+        return (
+          input.resolveBillingAttribution?.(workspaceId) ??
+          resolveKnowledgeBillingAttribution(principal, context)
+        )
+      },
       validateSourceConfig: (connector, sourceConfig) => {
         const workspaceId = requireConnectorWorkspaceId(context)
         return validateConnectorSourceConfig({

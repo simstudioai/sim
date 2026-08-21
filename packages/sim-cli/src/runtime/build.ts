@@ -235,8 +235,11 @@ function addLeafCommand(
   const group = groupFor(groups, groupName)
 
   if (rest.length > 1) {
-    const [subName, ...tail] = rest
-    nestedGroup(group, subName).addCommand(buildLeaf(operation, spec, tail.join(' ')))
+    let parent = group
+    for (const segment of rest.slice(0, -1)) {
+      parent = nestedGroup(parent, segment)
+    }
+    parent.addCommand(buildLeaf(operation, spec, rest[rest.length - 1]))
     return
   }
 

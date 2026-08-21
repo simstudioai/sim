@@ -354,7 +354,7 @@ const declaredRoutes = [
     knowledgeOperation({
       operationId: 'updateKnowledgeConnector',
       summary: 'Update Knowledge Connector',
-      description: `Update connector source configuration, schedule, or active state. Authentication material cannot be changed through this operation. ${WORKSPACE_API_KEY_DENIED}`,
+      description: `Update connector source configuration, schedule, or active state. Replacing source configuration on a runnable connector queues an immediate synchronization; paused connectors retain the change without synchronizing until resumed. Source configuration cannot be replaced while synchronization is already in progress. Authentication material cannot be changed through this operation. ${WORKSPACE_API_KEY_DENIED}`,
       errors: RESOURCE_CONFLICT_ERRORS,
       success: { description: 'The updated connector.' },
     }),
