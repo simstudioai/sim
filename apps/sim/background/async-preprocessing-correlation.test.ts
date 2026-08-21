@@ -227,6 +227,98 @@ describe('async preprocessing correlation threading', () => {
     )
   })
 
+  it('restores a legacy authenticated workflow job as its recorded user actor', async () => {
+    mockPreprocessExecution.mockResolvedValueOnce({
+      success: true,
+      actorUserId: 'actor-1',
+      workflowRecord: {
+        id: 'workflow-1',
+        userId: 'owner-1',
+        workspaceId: 'workspace-1',
+        variables: {},
+      },
+      billingAttribution,
+      executionTimeout: {},
+    })
+    mockExecuteWorkflowCore.mockResolvedValueOnce({
+      success: true,
+      status: 'success',
+      output: { ok: true },
+      metadata: { duration: 10, userId: 'actor-1' },
+    })
+
+    await executeWorkflowJob({
+      workflowId: 'workflow-1',
+      userId: 'actor-1',
+      workspaceId: 'workspace-1',
+      billingAttribution,
+      triggerType: 'api',
+      executionId: 'legacy-user-execution',
+      requestId: 'legacy-user-request',
+      enforceCredentialAccess: true,
+    })
+
+    expect(mockExecutionSnapshot).toHaveBeenCalledWith(
+      expect.objectContaining({
+        principal: {
+          kind: 'session',
+          userId: 'actor-1',
+          sessionId: 'legacy-queued-workflow',
+        },
+      }),
+      expect.anything(),
+      undefined,
+      expect.any(Object),
+      expect.any(Array)
+    )
+  })
+
+  it('restores an identity-ambiguous legacy workflow job as actorless', async () => {
+    mockPreprocessExecution.mockResolvedValueOnce({
+      success: true,
+      actorUserId: 'actor-1',
+      workflowRecord: {
+        id: 'workflow-1',
+        userId: 'owner-1',
+        workspaceId: 'workspace-1',
+        variables: {},
+      },
+      billingAttribution,
+      executionTimeout: {},
+    })
+    mockExecuteWorkflowCore.mockResolvedValueOnce({
+      success: true,
+      status: 'success',
+      output: { ok: true },
+      metadata: { duration: 10, userId: 'actor-1' },
+    })
+
+    await executeWorkflowJob({
+      workflowId: 'workflow-1',
+      userId: 'actor-1',
+      workspaceId: 'workspace-1',
+      billingAttribution,
+      triggerType: 'api',
+      executionId: 'legacy-actorless-execution',
+      requestId: 'legacy-actorless-request',
+    })
+
+    expect(mockExecutionSnapshot).toHaveBeenCalledWith(
+      expect.objectContaining({
+        principal: {
+          kind: 'system',
+          serviceId: 'internal',
+          workspaceId: 'workspace-1',
+          workflowId: 'workflow-1',
+        },
+      }),
+      expect.anything(),
+      undefined,
+      expect.any(Object),
+      expect.any(Array)
+    )
+  })
+
   it('passes validated workflow input provenance from the queued payload into core execution', async () => {
     const provenance = {
       version: 1 as const,
