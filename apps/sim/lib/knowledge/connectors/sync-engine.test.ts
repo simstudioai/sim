@@ -8,11 +8,12 @@ import {
   flattenMockConditions,
   hasMockCondition,
   type MockCondition,
+  queueTableRows,
   resetDbChainMock,
   schemaMock,
 } from '@sim/testing'
 import { generateShortId } from '@sim/utils/id'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   classifySuspectListing,
   evaluateListingSafety,
@@ -34,7 +35,14 @@ vi.mock('@/background/knowledge-connector-sync', () => ({
   knowledgeConnectorSync: { trigger: vi.fn() },
 }))
 
-const { mockMapTags } = vi.hoisted(() => ({ mockMapTags: vi.fn() }))
+const { mockMapTags, mockListDocuments } = vi.hoisted(() => ({
+  mockMapTags: vi.fn(),
+  mockListDocuments: vi.fn(),
+}))
+
+vi.mock('@/lib/billing/core/billing-attribution', () => ({
+  assertBillingAttributionSnapshot: (snapshot: unknown) => snapshot,
+}))
 
 vi.mock('@/connectors/registry.server', () => ({
   CONNECTOR_REGISTRY: {
@@ -43,6 +51,11 @@ vi.mock('@/connectors/registry.server', () => ({
     },
     'no-tags': {
       name: 'No Tags',
+    },
+    paged: {
+      name: 'Paged',
+      auth: { mode: 'apiKey', optional: true },
+      listDocuments: mockListDocuments,
     },
   },
 }))
@@ -1714,5 +1727,88 @@ describe('heartbeatSyncLock', () => {
 
     dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'c-1' }])
     expect(await heartbeatSyncLock('c-1', 'run-a')).toBe(true)
+  })
+})
+
+describe('executeSync heartbeats during the listing phase', () => {
+  const CONNECTOR = {
+    id: 'c-1',
+    knowledgeBaseId: 'kb-1',
+    connectorType: 'paged',
+    credentialId: null,
+    encryptedApiKey: null,
+    sourceConfig: {},
+    syncMode: 'full',
+    syncIntervalMinutes: 1440,
+    status: 'active',
+    lastSyncAt: null,
+    lastSyncDocCount: null,
+    consecutiveFailures: 0,
+    syncLockToken: null,
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-08-20T00:00:00.000Z'))
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  /** Drives executeSync as far as the pagination loop. */
+  function primeSyncUpToListing() {
+    queueTableRows(schemaMock.knowledgeConnector, [CONNECTOR])
+    queueTableRows(schemaMock.knowledgeBase, [{ userId: 'u-1', workspaceId: 'ws-1' }])
+    // The lock CAS; every later `.returning()` falls through to the empty default,
+    // which is what makes the heartbeat below report a lost lock.
+    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'c-1' }])
+  }
+
+  it('beats between pages and abandons the run when the lock was reclaimed', async () => {
+    const { executeSync } = await import('@/lib/knowledge/connectors/sync-engine')
+    const { SYNC_LOCK_HEARTBEAT_INTERVAL_MS } = await import(
+      '@/lib/knowledge/connectors/sync-limits'
+    )
+
+    primeSyncUpToListing()
+
+    /**
+     * Listing is where a large source spends most of its wall clock, so a page
+     * that pushes the run past the heartbeat interval must trigger a beat before
+     * the next page — not only once listing has finished.
+     */
+    mockListDocuments.mockImplementation(async () => {
+      vi.setSystemTime(new Date(Date.now() + SYNC_LOCK_HEARTBEAT_INTERVAL_MS + 1_000))
+      return { documents: [], hasMore: true, nextCursor: 'page-2' }
+    })
+
+    const result = await executeSync('c-1', {
+      billingAttribution: { workspaceId: 'ws-1' } as never,
+    })
+
+    // Aborted on the beat before page 2 rather than paging on under a lost lock.
+    expect(mockListDocuments).toHaveBeenCalledTimes(1)
+    expect(result.error).toBe('sync_superseded')
+  })
+
+  it('does not beat when pages return faster than the interval', async () => {
+    const { executeSync } = await import('@/lib/knowledge/connectors/sync-engine')
+
+    primeSyncUpToListing()
+
+    let pages = 0
+    mockListDocuments.mockImplementation(async () => {
+      pages += 1
+      vi.setSystemTime(new Date(Date.now() + 1_000))
+      return { documents: [], hasMore: pages < 3, nextCursor: `page-${pages}` }
+    })
+
+    await executeSync('c-1', { billingAttribution: { workspaceId: 'ws-1' } as never })
+
+    // All three pages fetched: the time gate keeps a fast listing beat-free.
+    expect(mockListDocuments).toHaveBeenCalledTimes(3)
   })
 })

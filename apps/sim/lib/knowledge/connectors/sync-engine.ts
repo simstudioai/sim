@@ -76,6 +76,15 @@ const DEFAULT_OP_SIZE_BYTES = 4 * 1024 * 1024
 const CONTENT_INFLIGHT_BUDGET_BYTES = 64 * 1024 * 1024
 const MAX_PAGES = 500
 const MAX_SAFE_TITLE_LENGTH = 200
+/**
+ * How many stuck documents are re-dispatched per call.
+ *
+ * The retry backlog is unbounded, and on the in-process fallback path
+ * `processDocumentsWithQueue` parses, embeds, and indexes every document it is
+ * given before returning. Handing it the whole backlog made the retry a single
+ * await no heartbeat could interrupt; chunking gives the beat somewhere to run.
+ */
+const STUCK_RETRY_DISPATCH_CHUNK_SIZE = 25
 const STALE_PROCESSING_MINUTES = 45
 /** Largest connector corpus observed in production, which sets the queue drain to beat. */
 const LARGEST_OBSERVED_CORPUS_DOCUMENTS = 7_730
@@ -1309,6 +1318,20 @@ export async function executeSync(
   const syncStartedAt = new Date()
   /** Seeded at lock acquisition, which wrote `updatedAt` itself. */
   let lastHeartbeatAtMs = Date.now()
+
+  /**
+   * Refreshes the lock if the interval has elapsed, and aborts the run if it has
+   * been reclaimed. Called at the top of every unbounded loop in this sync — the
+   * time gate makes each call nearly free, so placement only has to guarantee
+   * that no unbounded phase runs without reaching one.
+   */
+  const beatIfDue = async (): Promise<void> => {
+    if (!shouldHeartbeatSyncLock(Date.now(), lastHeartbeatAtMs)) return
+    if (!(await heartbeatSyncLock(connectorId, syncLogId))) {
+      throw new SyncLockLostException(connectorId)
+    }
+    lastHeartbeatAtMs = Date.now()
+  }
   await db.insert(knowledgeConnectorSyncLog).values({
     id: syncLogId,
     connectorId,
@@ -1416,6 +1439,14 @@ export async function executeSync(
     )
 
     for (let pageNum = 0; hasMore && pageNum < MAX_PAGES; pageNum++) {
+      /**
+       * Listing is where a large source spends most of its wall clock — the
+       * batch loop below does not start until every page has been fetched — so
+       * without this a big listing outran the TTL and was reclaimed as a hard
+       * failure, which is the exact ratchet the heartbeat exists to prevent.
+       */
+      await beatIfDue()
+
       if (pageNum > 0 && connectorConfig.auth.mode === 'oauth') {
         accessToken = await resolveAccessToken(connector, connectorConfig, credentialUserId)
       }
@@ -1593,12 +1624,7 @@ export async function executeSync(
     // per-file cap never hydrate/upload together and exhaust the worker heap.
     const batches = chunkOpsByByteBudget(pendingOps, CONTENT_INFLIGHT_BUDGET_BYTES, SYNC_BATCH_SIZE)
     for (const rawBatch of batches) {
-      if (shouldHeartbeatSyncLock(Date.now(), lastHeartbeatAtMs)) {
-        if (!(await heartbeatSyncLock(connectorId, syncLogId))) {
-          throw new SyncLockLostException(connectorId)
-        }
-        lastHeartbeatAtMs = Date.now()
-      }
+      await beatIfDue()
 
       const liveness = await checkSyncLiveness(connectorId, connector.knowledgeBaseId)
       if (liveness.connectorDeleted) {
@@ -1980,12 +2006,7 @@ export async function executeSync(
       result.docsDeleted += await hardDeleteDocuments(safeHardDeleteIds, syncLogId, connectorId)
     }
 
-    if (shouldHeartbeatSyncLock(Date.now(), lastHeartbeatAtMs)) {
-      if (!(await heartbeatSyncLock(connectorId, syncLogId))) {
-        throw new SyncLockLostException(connectorId)
-      }
-      lastHeartbeatAtMs = Date.now()
-    }
+    await beatIfDue()
 
     const postBatchLiveness = await checkSyncLiveness(connectorId, connector.knowledgeBaseId)
     if (postBatchLiveness.connectorDeleted) {
@@ -2098,9 +2119,11 @@ export async function executeSync(
           }
         })
 
-        if (retryDocs.length > 0) {
+        for (let i = 0; i < retryDocs.length; i += STUCK_RETRY_DISPATCH_CHUNK_SIZE) {
+          await beatIfDue()
+
           await processDocumentsWithQueue(
-            retryDocs.map((doc) => ({
+            retryDocs.slice(i, i + STUCK_RETRY_DISPATCH_CHUNK_SIZE).map((doc) => ({
               documentId: doc.id,
               filename: doc.filename ?? 'document.txt',
               fileUrl: doc.fileUrl ?? '',
