@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { workflowExecutionLogs } from '@sim/db/schema'
+import { customBlock, workflowExecutionLogs } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { inArray } from 'drizzle-orm'
@@ -29,16 +29,17 @@ export interface ChildTraceDropCounts {
   depthLimited: number
   /** `maxRows` was already exhausted by shallower boundaries. */
   rowLimited: number
+  /** The block's publisher has not opened its runs to consumers. */
+  policyClosed: number
   /** The child-log lookup itself failed, so nothing could be joined. */
   failed: number
 }
 
 export interface HydrateChildTracesOptions {
   /**
-   * The user reading the log. NOT an authorization input — whether the child run
-   * may be joined was decided by its publisher at write time. Carried only so
-   * large-value materialization and secret projection have an owner to attribute
-   * their reads to.
+   * The user reading the log. NOT an authorization input — the only policy is the
+   * publisher's, and it is the same answer for every reader. Carried so large-value
+   * materialization and secret projection have an owner to attribute their reads to.
    */
   viewerUserId: string
   maxDepth?: number
@@ -79,11 +80,22 @@ function collectBoundarySpans(spans: TraceSpan[], into: TraceSpan[]): void {
  * Joins a custom block's child run into its parent's trace, so an orchestrator
  * workflow's log shows the whole cross-workspace execution in one waterfall.
  *
- * There is deliberately NO authorization here. Whether a block's runs may be shown
- * to consumers is the publisher's org-wide decision, and it was already applied at
- * write time: the handler persists `childExecutionId` only for a block whose
- * publisher opted in, so the presence of a handle IS the permission. A boundary the
- * publisher did not open carries no handle, and there is nothing here to refuse.
+ * There is deliberately no check on the READER: whether a block's runs may be shown
+ * to consumers is the publisher's org-wide decision and is the same answer for
+ * everyone. That decision is read here, live, per boundary — not inferred from the
+ * handle's presence.
+ *
+ * Reading it live rather than trusting the handle is what makes the policy safe to
+ * apply to logs that already exist. A handle persisted before the policy existed
+ * meant something else entirely ("a child ran; authorize the reader"), and treating
+ * it as consent would hand out the internals of every block whose publisher never
+ * opted in. It also means turning the policy OFF closes the runs already recorded,
+ * which is what a governance switch has to do to be worth anything.
+ *
+ * The two halves are not redundant. The handler withholds the handle at write time,
+ * so a run executed while the block was closed stays closed forever, even if the
+ * publisher opens the block later; this check then decides whether the runs that DO
+ * carry a handle may still be shown.
  *
  * The consequence is deliberate and worth stating: for an opted-in block, anyone who
  * can read the consuming workflow's log sees the source workflow's block names,
@@ -106,6 +118,7 @@ export async function hydrateChildTraces(
     missing: 0,
     depthLimited: 0,
     rowLimited: 0,
+    policyClosed: 0,
     failed: 0,
   }
   let hydrated = 0
@@ -114,6 +127,9 @@ export async function hydrateChildTraces(
   // Execution ids already joined in this read. Guards against a malformed tree
   // pointing back at an ancestor run and looping forever.
   const seen = new Set<string>()
+  // One policy read per source workflow, reused across every boundary that resolves
+  // to it — a parent with 30 custom-block spans usually spans 1-2 blocks.
+  const policyByWorkflowId = new Map<string, boolean>()
 
   let frontier = spans
   for (let depth = 0; ; depth++) {
@@ -162,6 +178,38 @@ export async function hydrateChildTraces(
 
     const rowByExecutionId = new Map(rows.map((row) => [row.executionId, row]))
 
+    // `custom_block.workflow_id` is unique (publish enforces one block per workflow),
+    // so the child run's own workflow identifies the block whose policy governs it.
+    // This works for an Agent-tool boundary too, whose span carries no block type.
+    const workflowIdsToRead = Array.from(
+      new Set(
+        rows
+          .map((row) => row.workflowId)
+          .filter((id): id is string => typeof id === 'string' && !policyByWorkflowId.has(id))
+      )
+    )
+    if (workflowIdsToRead.length > 0) {
+      try {
+        const blocks = await db
+          .select({
+            workflowId: customBlock.workflowId,
+            traceChildRuns: customBlock.traceChildRuns,
+          })
+          .from(customBlock)
+          .where(inArray(customBlock.workflowId, workflowIdsToRead))
+        // Seeded closed first, so a workflow with no custom block row — unpublished,
+        // or a block since deleted — has no publisher left to consent and stays shut.
+        for (const id of workflowIdsToRead) policyByWorkflowId.set(id, false)
+        for (const block of blocks) policyByWorkflowId.set(block.workflowId, block.traceChildRuns)
+      } catch (error) {
+        logger.warn('Failed to read custom-block trace policy; leaving boundaries unexpanded', {
+          count: workflowIdsToRead.length,
+          error: getErrorMessage(error),
+        })
+        for (const id of workflowIdsToRead) policyByWorkflowId.set(id, false)
+      }
+    }
+
     const nextFrontier: TraceSpan[] = []
     await Promise.all(
       admitted.map(async (span) => {
@@ -172,6 +220,13 @@ export async function hydrateChildTraces(
         if (!row?.workspaceId) {
           span.childTraceAccess = 'missing'
           dropped.missing++
+          return
+        }
+        if (!row.workflowId || policyByWorkflowId.get(row.workflowId) !== true) {
+          // Same verdict the write path records on a closed block, so a reader cannot
+          // tell whether the policy shut at run time or since.
+          span.childTraceAccess = 'disabled'
+          dropped.policyClosed++
           return
         }
 

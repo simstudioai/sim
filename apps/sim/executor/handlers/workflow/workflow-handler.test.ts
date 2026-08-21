@@ -10,6 +10,7 @@ import { createTimeoutAbortController, getExecutionDeadlineAt } from '@/lib/core
 import { getBlock } from '@/blocks/registry'
 import { BlockType } from '@/executor/constants'
 import { BoundarySafeError } from '@/executor/errors/boundary'
+import { ChildWorkflowError } from '@/executor/errors/child-workflow-error'
 import {
   findMissingRequiredCustomBlockInputs,
   remapCustomBlockInputKeys,
@@ -1381,7 +1382,10 @@ describe('WorkflowBlockHandler', () => {
       }
 
       it('publishes the child run handle when the publisher opted in', async () => {
-        const output: any = await handler.execute(customBlockContext(), customBlock(), {})
+        const output = (await handler.execute(customBlockContext(), customBlock(), {})) as Record<
+          string,
+          unknown
+        >
 
         expect(typeof output._childExecutionId).toBe('string')
         expect(output._childExecutionId).not.toBe('parent-execution-id')
@@ -1393,7 +1397,10 @@ describe('WorkflowBlockHandler', () => {
         // nothing for a reader to join, so the decision cannot be undone downstream.
         closeTracePolicy()
 
-        const output: any = await handler.execute(customBlockContext(), customBlock(), {})
+        const output = (await handler.execute(customBlockContext(), customBlock(), {})) as Record<
+          string,
+          unknown
+        >
 
         expect(output._childExecutionId).toBeUndefined()
         expect(output._childTraceDisabled).toBe(true)
@@ -1405,10 +1412,10 @@ describe('WorkflowBlockHandler', () => {
         // by placing a param the executor happens to read.
         closeTracePolicy()
 
-        const output: any = await handler.execute(customBlockContext(), customBlock(), {
+        const output = (await handler.execute(customBlockContext(), customBlock(), {
           traceChildRun: true,
           traceChildRuns: true,
-        })
+        })) as Record<string, unknown>
 
         expect(output._childExecutionId).toBeUndefined()
         expect(output._childTraceDisabled).toBe(true)
@@ -1418,11 +1425,11 @@ describe('WorkflowBlockHandler', () => {
         closeTracePolicy()
         const emitOnly = { onBlockStart: vi.fn(), onBlockComplete: vi.fn() }
 
-        const output: any = await handler.execute(
+        const output = (await handler.execute(
           customBlockContext({ liveTraceViewerUserId: 'viewer-1', liveStreamCallbacks: emitOnly }),
           customBlock(),
           {}
-        )
+        )) as Record<string, unknown>
 
         expect(output.childTraceSpans).toBeUndefined()
         expect(output._childWorkflowInstanceId).toBeUndefined()
@@ -1452,7 +1459,10 @@ describe('WorkflowBlockHandler', () => {
         // Chat deployments and the public API leave `liveTraceViewerUserId` unset —
         // their consumer may be an anonymous visitor. Opting into org-wide tracing is
         // not consent to stream a publisher's raw agent tokens to the internet.
-        const output: any = await handler.execute(customBlockContext(), customBlock(), {})
+        const output = (await handler.execute(customBlockContext(), customBlock(), {})) as Record<
+          string,
+          unknown
+        >
 
         expect(output.childTraceSpans).toBeUndefined()
         expect(output._childWorkflowInstanceId).toBeUndefined()
@@ -1467,12 +1477,14 @@ describe('WorkflowBlockHandler', () => {
         closeTracePolicy()
         mockExecutorExecute.mockRejectedValue(new Error('child blew up'))
 
-        const error: any = await handler
+        const thrown = await handler
           .execute(customBlockContext(), customBlock(), {})
           .catch((e: unknown) => e)
 
-        expect(error.consumerFacing.ref).toBeTruthy()
-        expect(error.message).toContain(error.consumerFacing.ref)
+        expect(ChildWorkflowError.isChildWorkflowError(thrown)).toBe(true)
+        const error = thrown as ChildWorkflowError
+        expect(error.consumerFacing?.ref).toBeTruthy()
+        expect(error.message).toContain(error.consumerFacing?.ref as string)
         expect(error.childExecutionId).toBeUndefined()
         expect(error.childTraceDisabled).toBe(true)
       })
@@ -1480,10 +1492,12 @@ describe('WorkflowBlockHandler', () => {
       it('carries the handle on a failure from an opted-in block', async () => {
         mockExecutorExecute.mockRejectedValue(new Error('child blew up'))
 
-        const error: any = await handler
+        const thrown = await handler
           .execute(customBlockContext(), customBlock(), {})
           .catch((e: unknown) => e)
 
+        expect(ChildWorkflowError.isChildWorkflowError(thrown)).toBe(true)
+        const error = thrown as ChildWorkflowError
         expect(typeof error.childExecutionId).toBe('string')
         expect(error.childTraceDisabled).toBeUndefined()
       })

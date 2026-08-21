@@ -4,16 +4,24 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { TraceSpan } from '@/lib/logs/types'
 
-const { mockSelect, mockCheckWorkspaceAccess, mockMaterialize } = vi.hoisted(() => ({
-  mockSelect: vi.fn(),
-  mockCheckWorkspaceAccess: vi.fn(),
-  mockMaterialize: vi.fn(),
-}))
+const { mockSelect, mockSelectPolicies, mockCheckWorkspaceAccess, mockMaterialize } = vi.hoisted(
+  () => ({
+    mockSelect: vi.fn(),
+    mockSelectPolicies: vi.fn(),
+    mockCheckWorkspaceAccess: vi.fn(),
+    mockMaterialize: vi.fn(),
+  })
+)
 
+// Two queries per depth now — the child log rows, then the publisher policy for the
+// blocks they belong to. Routed by table so neither test has to know the call order.
 vi.mock('@sim/db', () => ({
   db: {
-    select: () => ({
-      from: () => ({ where: (...args: unknown[]) => mockSelect(...args) }),
+    select: (columns: Record<string, unknown>) => ({
+      from: () => ({
+        where: (...args: unknown[]) =>
+          'traceChildRuns' in columns ? mockSelectPolicies(...args) : mockSelect(...args),
+      }),
     }),
   },
 }))
@@ -71,6 +79,13 @@ describe('hydrateChildTraces', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockSelect.mockResolvedValue([])
+    // Publishers of every source workflow the tests reference have opted in; the
+    // closed-policy cases override this.
+    mockSelectPolicies.mockImplementation(() =>
+      Promise.resolve(
+        ['wf-source', 'wf-b', 'wf-c'].map((workflowId) => ({ workflowId, traceChildRuns: true }))
+      )
+    )
     mockCheckWorkspaceAccess.mockResolvedValue({ hasAccess: true })
     mockMaterialize.mockResolvedValue({ traceSpans: [childSpan()] })
   })
@@ -97,10 +112,10 @@ describe('hydrateChildTraces', () => {
     expect(spans[0].childWorkflowSnapshotId).toBe('snap-1')
   })
 
-  it('joins the run without consulting the reader at all', async () => {
-    // Permission was settled at write time by the block's publisher: a handle exists
-    // only for a block they opted in. Re-deciding here — against a consumer who by
-    // design has no access to the source workspace — would refuse every real read.
+  it('joins an opted-in run without consulting the reader at all', async () => {
+    // The publisher's policy is the whole answer and is the same for everyone. Adding
+    // a reader check — against a consumer who by design has no access to the source
+    // workspace — would refuse every read the feature exists to serve.
     mockSelect.mockResolvedValue([
       {
         executionId: 'child-exec-1',
@@ -117,6 +132,99 @@ describe('hydrateChildTraces', () => {
     expect(result.hydrated).toBe(1)
     expect(spans[0].childTraceAccess).toBe('granted')
     expect(mockCheckWorkspaceAccess).not.toHaveBeenCalled()
+  })
+
+  it('refuses a handle whose block is not opted in, however it got there', async () => {
+    // The decisive case: handles persisted before this policy existed meant "a child
+    // ran, authorize the reader", not "the publisher consented". Reading presence as
+    // consent would hand out the internals of every block that never opted in.
+    mockSelect.mockResolvedValue([
+      {
+        executionId: 'child-exec-1',
+        workspaceId: 'ws-source',
+        workflowId: 'wf-source',
+        stateSnapshotId: 'snap-1',
+        executionData: {},
+      },
+    ])
+    mockSelectPolicies.mockResolvedValue([{ workflowId: 'wf-source', traceChildRuns: false }])
+    const spans = [boundarySpan('child-exec-1')]
+
+    const result = await hydrateChildTraces(spans, { viewerUserId: 'user-1' })
+
+    expect(result.hydrated).toBe(0)
+    expect(result.dropped.policyClosed).toBe(1)
+    expect(spans[0].childTraceAccess).toBe('disabled')
+    expect(spans[0].children).toEqual([])
+    // Nothing about the source may be materialized for a closed block.
+    expect(mockMaterialize).not.toHaveBeenCalled()
+    expect(spans[0].childWorkflowSnapshotId).toBeUndefined()
+  })
+
+  it('fails closed when the block behind a handle no longer exists', async () => {
+    // Unpublished, or deleted: there is no publisher left to have consented.
+    mockSelect.mockResolvedValue([
+      {
+        executionId: 'child-exec-1',
+        workspaceId: 'ws-source',
+        workflowId: 'wf-source',
+        stateSnapshotId: null,
+        executionData: {},
+      },
+    ])
+    mockSelectPolicies.mockResolvedValue([])
+    const spans = [boundarySpan('child-exec-1')]
+
+    const result = await hydrateChildTraces(spans, { viewerUserId: 'user-1' })
+
+    expect(result.dropped.policyClosed).toBe(1)
+    expect(spans[0].childTraceAccess).toBe('disabled')
+  })
+
+  it('fails closed when the policy read itself throws', async () => {
+    mockSelect.mockResolvedValue([
+      {
+        executionId: 'child-exec-1',
+        workspaceId: 'ws-source',
+        workflowId: 'wf-source',
+        stateSnapshotId: null,
+        executionData: {},
+      },
+    ])
+    mockSelectPolicies.mockRejectedValue(new Error('policy read failed'))
+    const spans = [boundarySpan('child-exec-1')]
+
+    const result = await hydrateChildTraces(spans, { viewerUserId: 'user-1' })
+
+    expect(result.dropped.policyClosed).toBe(1)
+    expect(spans[0].childTraceAccess).toBe('disabled')
+  })
+
+  it('reads each block policy once no matter how many boundaries resolve to it', async () => {
+    mockSelect.mockResolvedValue([
+      {
+        executionId: 'child-exec-1',
+        workspaceId: 'ws-source',
+        workflowId: 'wf-source',
+        stateSnapshotId: null,
+        executionData: {},
+      },
+      {
+        executionId: 'child-exec-2',
+        workspaceId: 'ws-source',
+        workflowId: 'wf-source',
+        stateSnapshotId: null,
+        executionData: {},
+      },
+    ])
+    const spans = [
+      boundarySpan('child-exec-1'),
+      { ...boundarySpan('child-exec-2'), id: 'span-2', blockId: 'blk-2' },
+    ]
+
+    await hydrateChildTraces(spans, { viewerUserId: 'user-1' })
+
+    expect(mockSelectPolicies).toHaveBeenCalledTimes(1)
   })
 
   it('marks a missing child log row rather than failing the parent read', async () => {

@@ -304,15 +304,16 @@ export interface TraceSpan {
   childTraceDisabled?: boolean
   /**
    * Set by read-time hydration on a span carrying {@link childExecutionId}: whether
-   * the child run was joined, whether it still exists, and — for `truncated` —
-   * whether hydration simply never attempted it (past the nesting/row cap, or the
-   * lookup failed). Carries no authorization verdict: permission was settled at
-   * write time by the block's publisher. `truncated` must never be conflated with
-   * an empty child: a boundary span with no children and no marker is
-   * indistinguishable from a leaf block, which would render a partial trace as a
-   * complete one. Never persisted — it describes one read, not the run.
+   * the child run was joined, whether the block's publisher currently allows it
+   * (`disabled`), whether the run still exists, and — for `truncated` — whether
+   * hydration simply never attempted it (past the nesting/row cap, or the lookup
+   * failed). It carries no verdict about the READER; the only policy is the
+   * publisher's. `truncated` must never be conflated with an empty child: a boundary
+   * span with no children and no marker is indistinguishable from a leaf block, which
+   * would render a partial trace as a complete one. Never persisted — it describes
+   * one read, not the run.
    */
-  childTraceAccess?: 'granted' | 'missing' | 'truncated'
+  childTraceAccess?: 'granted' | 'disabled' | 'missing' | 'truncated'
   model?: string
   cost?: {
     input?: number
