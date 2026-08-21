@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
+import { PLAID_TOOL_REQUEST_MAX_BYTES } from '@/lib/api/contracts/tools/plaid'
 import { extractErrorMessage } from '@/tools/error-extractors'
 import {
   buildPlaidInternalBody,
@@ -62,12 +63,22 @@ describe('splitPlaidList', () => {
       501
     )
   })
+
+  it('rejects serialized list values larger than the Plaid tool route can admit', () => {
+    expect(() => splitPlaidList('x'.repeat(PLAID_TOOL_REQUEST_MAX_BYTES), 'accountIds')).toThrow(
+      `accountIds exceeds the ${PLAID_TOOL_REQUEST_MAX_BYTES}-byte Plaid tool request limit`
+    )
+    expect(() => splitPlaidList(Array(100_000).fill(''), 'accountIds')).toThrow(
+      `accountIds exceeds the ${PLAID_TOOL_REQUEST_MAX_BYTES}-byte Plaid tool request limit`
+    )
+  })
 })
 
 describe('Plaid request enums and formats', () => {
   it('normalizes and validates request country codes', () => {
     expect(parsePlaidCountryCodes(undefined)).toEqual(['US'])
     expect(parsePlaidCountryCodes('us, gb')).toEqual(['US', 'GB'])
+    expect(parsePlaidCountryCodes(Array(100).fill('us, GB'))).toEqual(['US', 'GB'])
     expect(() => parsePlaidCountryCodes('ZZ')).toThrow(
       'countryCodes contains unsupported Plaid country code: ZZ'
     )

@@ -149,16 +149,6 @@ export const credentialOperations = {
     principalKinds: ['delegated'],
     delegatedServices: ['executor'],
   }),
-  useServiceAccount: defineCredentialOperation(
-    defineWorkspaceOperation({
-      id: 'credentials.service_accounts.use',
-      minimumRole: 'read',
-      workspaceApiKey: 'deny',
-      principalKinds: ['delegated'],
-      delegatedServices: ['executor'],
-    }),
-    'member'
-  ),
 } as const
 
 export interface CredentialUserOperation<Id extends string = string>

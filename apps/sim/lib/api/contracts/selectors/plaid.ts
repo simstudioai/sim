@@ -1,16 +1,13 @@
 import { z } from 'zod'
-import { PLAID_SUPPORTED_COUNTRY_CODES } from '@/lib/api/contracts/tools/plaid'
+import { plaidCountryCodesSchema } from '@/lib/api/contracts/tools/plaid'
 import type { ContractBodyInput, ContractJsonResponse } from '@/lib/api/contracts/types'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
 const credentialIdSchema = z.string().trim().min(1).max(512)
 const workspaceIdSchema = z.string().trim().min(1).max(512)
 const providerTextSchema = z.string().trim().min(1)
-const countryCodesSchema = z
-  .array(z.enum(PLAID_SUPPORTED_COUNTRY_CODES))
-  .min(1)
-  .max(PLAID_SUPPORTED_COUNTRY_CODES.length)
 const accountEligibilitySchema = z.enum(['all', 'auth', 'transactions'])
+export const PLAID_OPTIONS_REQUEST_MAX_BYTES = 64 * 1024
 
 export const plaidOptionsBodySchema = z.discriminatedUnion('kind', [
   z
@@ -27,7 +24,7 @@ export const plaidOptionsBodySchema = z.discriminatedUnion('kind', [
       workspaceId: workspaceIdSchema,
       credentialId: credentialIdSchema,
       query: providerTextSchema,
-      country_codes: countryCodesSchema,
+      country_codes: plaidCountryCodesSchema,
     })
     .strict(),
   z
@@ -36,7 +33,7 @@ export const plaidOptionsBodySchema = z.discriminatedUnion('kind', [
       workspaceId: workspaceIdSchema,
       credentialId: credentialIdSchema,
       institution_id: providerTextSchema,
-      country_codes: countryCodesSchema,
+      country_codes: plaidCountryCodesSchema,
     })
     .strict(),
 ])

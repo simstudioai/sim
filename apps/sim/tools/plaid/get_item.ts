@@ -3,6 +3,7 @@ import type { PlaidGetItemParams, PlaidGetItemResponse } from '@/tools/plaid/typ
 import {
   PLAID_ITEM_OUTPUT_PROPERTIES,
   PLAID_ITEM_STATUS_OUTPUT_PROPERTIES,
+  PLAID_REQUEST_ID_OUTPUT_PROPERTY,
 } from '@/tools/plaid/types'
 import {
   buildPlaidInternalBody,
@@ -10,6 +11,7 @@ import {
   mapPlaidItemStatus,
   plaidBaseParamFields,
   plaidRecord,
+  requirePlaidStringField,
 } from '@/tools/plaid/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -39,6 +41,7 @@ export const plaidGetItemTool: ToolConfig<PlaidGetItemParams, PlaidGetItemRespon
     return {
       success: true,
       output: {
+        requestId: requirePlaidStringField(data, 'request_id', 'item.request_id'),
         item: mapPlaidItem(data.item),
         ...(status !== undefined ? { status } : {}),
       },
@@ -46,6 +49,7 @@ export const plaidGetItemTool: ToolConfig<PlaidGetItemParams, PlaidGetItemRespon
   },
 
   outputs: {
+    requestId: PLAID_REQUEST_ID_OUTPUT_PROPERTY,
     item: {
       type: 'object',
       description: 'Item metadata',

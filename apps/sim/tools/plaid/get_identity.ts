@@ -3,6 +3,7 @@ import type { PlaidGetIdentityParams, PlaidGetIdentityResponse } from '@/tools/p
 import {
   PLAID_ACCOUNT_OUTPUT_PROPERTIES,
   PLAID_IDENTITY_OWNER_OUTPUT_PROPERTIES,
+  PLAID_REQUEST_ID_OUTPUT_PROPERTY,
 } from '@/tools/plaid/types'
 import {
   buildPlaidInternalBody,
@@ -10,6 +11,7 @@ import {
   plaidBaseParamFields,
   plaidRecord,
   requirePlaidArrayField,
+  requirePlaidStringField,
   splitPlaidList,
 } from '@/tools/plaid/utils'
 import type { ToolConfig } from '@/tools/types'
@@ -54,6 +56,7 @@ export const plaidGetIdentityTool: ToolConfig<PlaidGetIdentityParams, PlaidGetId
     return {
       success: true,
       output: {
+        requestId: requirePlaidStringField(data, 'request_id', 'identity.request_id'),
         accounts: mapped,
         count: mapped.length,
       },
@@ -61,6 +64,7 @@ export const plaidGetIdentityTool: ToolConfig<PlaidGetIdentityParams, PlaidGetId
   },
 
   outputs: {
+    requestId: PLAID_REQUEST_ID_OUTPUT_PROPERTY,
     accounts: {
       type: 'array',
       description: 'Accounts with their owners identity data',

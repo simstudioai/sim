@@ -1,12 +1,16 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
 import type { PlaidGetAccountsParams, PlaidGetAccountsResponse } from '@/tools/plaid/types'
-import { PLAID_ACCOUNT_OUTPUT_PROPERTIES } from '@/tools/plaid/types'
+import {
+  PLAID_ACCOUNT_OUTPUT_PROPERTIES,
+  PLAID_REQUEST_ID_OUTPUT_PROPERTY,
+} from '@/tools/plaid/types'
 import {
   buildPlaidInternalBody,
   mapPlaidAccount,
   plaidBaseParamFields,
   plaidRecord,
   requirePlaidArrayField,
+  requirePlaidStringField,
   splitPlaidList,
 } from '@/tools/plaid/utils'
 import type { ToolConfig } from '@/tools/types'
@@ -51,6 +55,7 @@ export const plaidGetAccountsTool: ToolConfig<PlaidGetAccountsParams, PlaidGetAc
     return {
       success: true,
       output: {
+        requestId: requirePlaidStringField(data, 'request_id', 'accounts.request_id'),
         accounts: mapped,
         count: mapped.length,
       },
@@ -58,6 +63,7 @@ export const plaidGetAccountsTool: ToolConfig<PlaidGetAccountsParams, PlaidGetAc
   },
 
   outputs: {
+    requestId: PLAID_REQUEST_ID_OUTPUT_PROPERTY,
     accounts: {
       type: 'array',
       description: 'Accounts linked to the Item',

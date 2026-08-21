@@ -1,12 +1,16 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
 import type { PlaidGetBalancesParams, PlaidGetBalancesResponse } from '@/tools/plaid/types'
-import { PLAID_ACCOUNT_OUTPUT_PROPERTIES } from '@/tools/plaid/types'
+import {
+  PLAID_ACCOUNT_OUTPUT_PROPERTIES,
+  PLAID_REQUEST_ID_OUTPUT_PROPERTY,
+} from '@/tools/plaid/types'
 import {
   buildPlaidInternalBody,
   mapPlaidAccount,
   plaidBaseParamFields,
   plaidRecord,
   requirePlaidArrayField,
+  requirePlaidStringField,
   splitPlaidList,
   toPlaidOptionalDateTime,
 } from '@/tools/plaid/utils'
@@ -61,6 +65,7 @@ export const plaidGetBalancesTool: ToolConfig<PlaidGetBalancesParams, PlaidGetBa
     return {
       success: true,
       output: {
+        requestId: requirePlaidStringField(data, 'request_id', 'balances.request_id'),
         accounts: mapped,
         count: mapped.length,
       },
@@ -68,6 +73,7 @@ export const plaidGetBalancesTool: ToolConfig<PlaidGetBalancesParams, PlaidGetBa
   },
 
   outputs: {
+    requestId: PLAID_REQUEST_ID_OUTPUT_PROPERTY,
     accounts: {
       type: 'array',
       description: 'Accounts with refreshed real-time balances',

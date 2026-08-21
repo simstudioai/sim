@@ -10,7 +10,12 @@ import type {
 } from '@/hooks/selectors/types'
 import { parsePlaidCountryCodes } from '@/tools/plaid/utils'
 
-type PlaidSelectorKey = Extract<SelectorKey, 'plaid.accounts' | 'plaid.institutions'>
+type PlaidAccountSelectorKey = Extract<
+  SelectorKey,
+  'plaid.accounts' | 'plaid.accounts.auth' | 'plaid.accounts.transactions'
+>
+type PlaidSelectorKey = Extract<SelectorKey, `plaid.${string}`>
+type PlaidAccountEligibility = 'all' | 'auth' | 'transactions'
 
 function requirePlaidContext(context: SelectorContext, key: PlaidSelectorKey) {
   if (!context.workspaceId) throw new Error(`Missing workspace ID for ${key} selector`)
@@ -21,23 +26,41 @@ function requirePlaidContext(context: SelectorContext, key: PlaidSelectorKey) {
   }
 }
 
-function plaidAccountEligibility(operation: string | undefined): 'all' | 'auth' | 'transactions' {
-  if (operation === 'get_auth') return 'auth'
-  if (operation === 'sync_transactions') return 'transactions'
-  return 'all'
-}
+function createPlaidAccountSelector(
+  key: PlaidAccountSelectorKey,
+  eligibility: PlaidAccountEligibility
+): SelectorDefinition {
+  const fetchAccountOptions = async (args: SelectorQueryArgs): Promise<SelectorOption[]> => {
+    const scope = requirePlaidContext(args.context, key)
+    const data = await requestJson(plaidOptionsContract, {
+      body: {
+        kind: 'accounts',
+        ...scope,
+        eligibility,
+      },
+      signal: args.signal,
+    })
+    return data.options
+  }
 
-async function fetchAccountOptions(args: SelectorQueryArgs): Promise<SelectorOption[]> {
-  const scope = requirePlaidContext(args.context, 'plaid.accounts')
-  const data = await requestJson(plaidOptionsContract, {
-    body: {
-      kind: 'accounts',
-      ...scope,
-      eligibility: plaidAccountEligibility(args.context.operation),
+  return {
+    key,
+    contracts: [plaidOptionsContract],
+    staleTime: SELECTOR_STALE,
+    getQueryKey: ({ context }: SelectorQueryArgs) => [
+      'selectors',
+      key,
+      context.workspaceId ?? 'none',
+      context.oauthCredential ?? 'none',
+    ],
+    enabled: ({ context }) => Boolean(context.workspaceId && context.oauthCredential),
+    fetchList: fetchAccountOptions,
+    fetchById: async (args: SelectorQueryArgs) => {
+      if (!args.detailId) return null
+      return (await fetchAccountOptions(args)).find((option) => option.id === args.detailId) ?? null
     },
-    signal: args.signal,
-  })
-  return data.options
+    resolvesUnknownIds: true,
+  }
 }
 
 function plaidCountryQueryKey(value: string | undefined): string {
@@ -50,25 +73,12 @@ function plaidCountryQueryKey(value: string | undefined): string {
 }
 
 export const plaidSelectors = {
-  'plaid.accounts': {
-    key: 'plaid.accounts',
-    contracts: [plaidOptionsContract],
-    staleTime: SELECTOR_STALE,
-    getQueryKey: ({ context }: SelectorQueryArgs) => [
-      'selectors',
-      'plaid.accounts',
-      context.workspaceId ?? 'none',
-      context.oauthCredential ?? 'none',
-      plaidAccountEligibility(context.operation),
-    ],
-    enabled: ({ context }) => Boolean(context.workspaceId && context.oauthCredential),
-    fetchList: fetchAccountOptions,
-    fetchById: async (args: SelectorQueryArgs) => {
-      if (!args.detailId) return null
-      return (await fetchAccountOptions(args)).find((option) => option.id === args.detailId) ?? null
-    },
-    resolvesUnknownIds: true,
-  },
+  'plaid.accounts': createPlaidAccountSelector('plaid.accounts', 'all'),
+  'plaid.accounts.auth': createPlaidAccountSelector('plaid.accounts.auth', 'auth'),
+  'plaid.accounts.transactions': createPlaidAccountSelector(
+    'plaid.accounts.transactions',
+    'transactions'
+  ),
   'plaid.institutions': {
     key: 'plaid.institutions',
     contracts: [plaidOptionsContract],

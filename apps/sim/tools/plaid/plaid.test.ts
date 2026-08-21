@@ -2,8 +2,15 @@
  * @vitest-environment node
  */
 import { describe, expect, it, vi } from 'vitest'
+import { plaidOptionsBodySchema } from '@/lib/api/contracts/selectors/plaid'
+import {
+  PLAID_SYNC_CURSOR_MAX_LENGTH,
+  PLAID_TOOL_REQUEST_MAX_BYTES,
+  plaidOperationBodySchema,
+} from '@/lib/api/contracts/tools/plaid'
 import { PlaidBlock, PlaidBlockMeta } from '@/blocks/blocks/plaid'
 import { filterOutputForLog } from '@/executor/utils/output-filter'
+import { Serializer } from '@/serializer/index'
 import { plaidGetAccountsTool } from '@/tools/plaid/get_accounts'
 import { plaidGetAuthTool } from '@/tools/plaid/get_auth'
 import { plaidGetBalancesTool } from '@/tools/plaid/get_balances'
@@ -20,13 +27,17 @@ vi.unmock('@/blocks/registry')
 const buildParams = PlaidBlock.tools?.config?.params
 if (!buildParams) throw new Error('PlaidBlock params transform missing')
 
-const creds = { plaidCredentialId: 'cred_plaid_item_1' }
-const runtimeCreds = creds
+const creds = { oauthCredential: 'cred_plaid_item_1' }
+const runtimeCreds = { plaidCredentialId: 'cred_plaid_item_1' }
 
 async function transform(tool: ToolConfig<any, any>, body: unknown): Promise<ToolResponse> {
   if (!tool.transformResponse) throw new Error(`${tool.id} transform missing`)
+  const payload =
+    typeof body === 'object' && body !== null && !Array.isArray(body)
+      ? { request_id: 'request-1', ...body }
+      : body
   return tool.transformResponse(
-    new Response(JSON.stringify(body), { headers: { 'Content-Type': 'application/json' } })
+    new Response(JSON.stringify(payload), { headers: { 'Content-Type': 'application/json' } })
   )
 }
 
@@ -95,20 +106,50 @@ describe('PlaidBlock tools.config.params', () => {
   })
 
   it('uses native selectors with canonical advanced manual fallbacks', () => {
+    expect(PlaidBlock.subBlocks.find((subBlock) => subBlock.id === 'credential')).toMatchObject({
+      canonicalParamId: 'oauthCredential',
+      mode: 'basic',
+    })
+    expect(
+      PlaidBlock.subBlocks.find((subBlock) => subBlock.id === 'manualCredential')
+    ).toMatchObject({
+      canonicalParamId: 'oauthCredential',
+      mode: 'advanced',
+    })
     expect(
       PlaidBlock.subBlocks.find((subBlock) => subBlock.id === 'accountIdsSelector')
     ).toMatchObject({
       selectorKey: 'plaid.accounts',
       canonicalParamId: 'accountIds',
       multiSelect: true,
-      dependsOn: ['credential', 'operation'],
+      dependsOn: ['credential'],
+      condition: { field: 'operation', value: ['get_accounts', 'get_balances', 'get_identity'] },
     })
     expect(
       PlaidBlock.subBlocks.find((subBlock) => subBlock.id === 'manualAccountIds')
     ).toMatchObject({ canonicalParamId: 'accountIds', mode: 'advanced' })
     expect(
+      PlaidBlock.subBlocks.find((subBlock) => subBlock.id === 'authAccountIdsSelector')
+    ).toMatchObject({
+      selectorKey: 'plaid.accounts.auth',
+      canonicalParamId: 'authAccountIds',
+      multiSelect: true,
+      dependsOn: ['credential'],
+      condition: { field: 'operation', value: 'get_auth' },
+    })
+    expect(
+      PlaidBlock.subBlocks.find((subBlock) => subBlock.id === 'manualAuthAccountIds')
+    ).toMatchObject({
+      canonicalParamId: 'authAccountIds',
+      mode: 'advanced',
+    })
+    expect(
       PlaidBlock.subBlocks.find((subBlock) => subBlock.id === 'accountIdSelector')
-    ).toMatchObject({ dependsOn: ['credential', 'operation'] })
+    ).toMatchObject({
+      selectorKey: 'plaid.accounts.transactions',
+      dependsOn: ['credential'],
+      condition: { field: 'operation', value: 'sync_transactions' },
+    })
     expect(
       PlaidBlock.subBlocks.find((subBlock) => subBlock.id === 'institutionSelector')
     ).toMatchObject({
@@ -119,6 +160,9 @@ describe('PlaidBlock tools.config.params', () => {
     expect(
       PlaidBlock.subBlocks.find((subBlock) => subBlock.id === 'manualInstitutionId')
     ).toMatchObject({ canonicalParamId: 'institutionId', mode: 'advanced' })
+    expect(PlaidBlock.inputs).toHaveProperty('oauthCredential')
+    expect(PlaidBlock.inputs).toHaveProperty('authAccountIds')
+    expect(PlaidBlock.inputs).not.toHaveProperty('plaidCredentialId')
   })
 
   it('binds every retained tool only to an opaque reusable credential ID', () => {
@@ -137,6 +181,41 @@ describe('PlaidBlock tools.config.params', () => {
     }
   })
 
+  it('serializes a selected canvas credential before the adapter derives plaidCredentialId', () => {
+    const serializer = new Serializer()
+    const workflow = serializer.serializeWorkflow(
+      {
+        plaid: {
+          id: 'plaid',
+          type: 'plaid',
+          name: 'Plaid Get Balances',
+          position: { x: 0, y: 0 },
+          subBlocks: {
+            operation: { value: 'get_balances' },
+            credential: { value: 'cred_plaid_item_1' },
+            manualCredential: { value: '' },
+            accountIdsSelector: { value: [] },
+            manualAccountIds: { value: '' },
+          },
+          outputs: {},
+          enabled: true,
+        } as any,
+      },
+      [],
+      {},
+      undefined,
+      true
+    )
+
+    expect(workflow.blocks[0].config.params).toMatchObject({
+      operation: 'get_balances',
+      oauthCredential: 'cred_plaid_item_1',
+    })
+    expect(buildParams(workflow.blocks[0].config.params)).toMatchObject({
+      plaidCredentialId: 'cred_plaid_item_1',
+    })
+  })
+
   it('does not promote unsupported first-time Agent connection flows', () => {
     expect(PlaidBlockMeta).not.toHaveProperty('skills')
     expect(PlaidBlockMeta.templates.every((template) => !template.modules.includes('agent'))).toBe(
@@ -146,7 +225,22 @@ describe('PlaidBlock tools.config.params', () => {
 
   it('forwards only the reusable credential for Item authentication', () => {
     expect(buildParams({ ...creds, operation: 'get_item' })).toEqual({
+      oauthCredential: undefined,
       plaidCredentialId: 'cred_plaid_item_1',
+    })
+  })
+
+  it('maps the Auth-only account field to the public tool accountIds parameter', () => {
+    expect(
+      buildParams({
+        ...creds,
+        operation: 'get_auth',
+        authAccountIds: ['acc_1', 'acc_2'],
+      })
+    ).toEqual({
+      oauthCredential: undefined,
+      plaidCredentialId: 'cred_plaid_item_1',
+      accountIds: ['acc_1', 'acc_2'],
     })
   })
 
@@ -201,6 +295,7 @@ describe('PlaidBlock tools.config.params', () => {
       daysRequested: null,
     }
     const mergedInputs = { ...rawInputs, ...buildParams(rawInputs) }
+    expect(mergedInputs.oauthCredential).toBeUndefined()
 
     const request = prepareToolRequest(plaidSyncTransactionsTool, mergedInputs)
 
@@ -265,15 +360,96 @@ describe('plaid_sync_transactions request body', () => {
     ).toThrow('count must be a valid number')
   })
 
-  it('rejects invalid count and boolean values while accepting provider cursors', () => {
+  it('rejects invalid count, boolean, and cursor values at provider bounds', () => {
     expect(() => body({ ...runtimeCreds, count: 0 })).toThrow('count must be at least 1')
-    expect(body({ ...runtimeCreds, cursor: 'x'.repeat(10_001) }).input.cursor).toHaveLength(10_001)
+    expect(
+      body({ ...runtimeCreds, cursor: 'x'.repeat(PLAID_SYNC_CURSOR_MAX_LENGTH) }).input.cursor
+    ).toHaveLength(PLAID_SYNC_CURSOR_MAX_LENGTH)
+    expect(() =>
+      body({ ...runtimeCreds, cursor: 'x'.repeat(PLAID_SYNC_CURSOR_MAX_LENGTH + 1) })
+    ).toThrow(`cursor must be at most ${PLAID_SYNC_CURSOR_MAX_LENGTH} characters`)
     expect(() =>
       body({
         ...runtimeCreds,
         includeOriginalDescription: 'no' as unknown as boolean,
       })
     ).toThrow('includeOriginalDescription must be true or false')
+  })
+
+  it("preserves Plaid's special now cursor through the prepared request", () => {
+    const request = prepareToolRequest(plaidSyncTransactionsTool, {
+      ...runtimeCreds,
+      cursor: 'now',
+    })
+
+    expect(JSON.parse(request.body ?? '').input.cursor).toBe('now')
+  })
+})
+
+describe('plaid_search_institutions request body', () => {
+  it('omits a blank product filter from the prepared request', () => {
+    const request = prepareToolRequest(plaidSearchInstitutionsTool, {
+      ...runtimeCreds,
+      query: 'Bank',
+      products: '   ',
+    })
+
+    expect(JSON.parse(request.body ?? '')).toEqual({
+      operation: 'plaid_search_institutions',
+      credentialId: 'cred_plaid_item_1',
+      input: { query: 'Bank', country_codes: ['US'] },
+    })
+  })
+})
+
+describe('Plaid route request contracts', () => {
+  it('enforces cursor and product bounds while deduplicating country codes', () => {
+    expect(
+      plaidOperationBodySchema.safeParse({
+        operation: 'plaid_sync_transactions',
+        credentialId: 'credential-1',
+        input: { cursor: 'x'.repeat(PLAID_SYNC_CURSOR_MAX_LENGTH) },
+      }).success
+    ).toBe(true)
+    expect(
+      plaidOperationBodySchema.safeParse({
+        operation: 'plaid_sync_transactions',
+        credentialId: 'credential-1',
+        input: { cursor: 'x'.repeat(PLAID_SYNC_CURSOR_MAX_LENGTH + 1) },
+      }).success
+    ).toBe(false)
+    expect(
+      plaidOperationBodySchema.safeParse({
+        operation: 'plaid_search_institutions',
+        credentialId: 'credential-1',
+        input: { query: 'Bank', country_codes: ['US'], products: [] },
+      }).success
+    ).toBe(false)
+
+    const parsed = plaidOperationBodySchema.parse({
+      operation: 'plaid_search_institutions',
+      credentialId: 'credential-1',
+      input: {
+        query: 'Bank',
+        country_codes: Array(100).fill('US'),
+      },
+    })
+    if (parsed.operation !== 'plaid_search_institutions') {
+      throw new Error('Expected institution search request')
+    }
+    expect(parsed.input.country_codes).toEqual(['US'])
+
+    const selectorParsed = plaidOptionsBodySchema.parse({
+      kind: 'institution_search',
+      workspaceId: 'workspace-1',
+      credentialId: 'credential-1',
+      query: 'Bank',
+      country_codes: Array(100).fill('GB'),
+    })
+    if (selectorParsed.kind !== 'institution_search') {
+      throw new Error('Expected institution selector request')
+    }
+    expect(selectorParsed.country_codes).toEqual(['GB'])
   })
 })
 
@@ -290,9 +466,70 @@ describe('Plaid account selector normalization', () => {
   ])('normalizes selector arrays and manual comma-separated values', (accountIds, expected) => {
     expect(body({ ...runtimeCreds, accountIds }).input).toEqual({ account_ids: expected })
   })
+
+  it('rejects a normalized list when the complete internal request exceeds the route ceiling', () => {
+    expect(() =>
+      prepareToolRequest(plaidGetAccountsTool, {
+        ...runtimeCreds,
+        accountIds: ['x'.repeat(PLAID_TOOL_REQUEST_MAX_BYTES - 4)],
+      })
+    ).toThrow(
+      `Plaid tool request exceeds the ${PLAID_TOOL_REQUEST_MAX_BYTES}-byte Sim request limit`
+    )
+  })
 })
 
 describe('Plaid endpoint success contracts', () => {
+  const item = {
+    item_id: 'item_1',
+    webhook: null,
+    error: null,
+    available_products: [],
+    billed_products: ['transactions'],
+    consent_expiration_time: null,
+    update_type: 'background',
+  }
+  const validResponses = [
+    [
+      'transaction sync',
+      plaidSyncTransactionsTool,
+      {
+        added: [],
+        modified: [],
+        removed: [],
+        next_cursor: '',
+        has_more: false,
+        transactions_update_status: 'HISTORICAL_UPDATE_COMPLETE',
+      },
+    ],
+    ['accounts', plaidGetAccountsTool, { accounts: [account] }],
+    ['balances', plaidGetBalancesTool, { accounts: [account] }],
+    ['identity', plaidGetIdentityTool, { accounts: [{ ...account, owners: [] }] }],
+    [
+      'auth',
+      plaidGetAuthTool,
+      {
+        accounts: [account],
+        numbers: { ach: [], eft: [], international: [], bacs: [] },
+      },
+    ],
+    ['item', plaidGetItemTool, { item }],
+    ['institution search', plaidSearchInstitutionsTool, { institutions: [institution] }],
+    ['institution', plaidGetInstitutionTool, { institution }],
+  ] as const
+
+  it.each(validResponses)('maps the %s request ID to requestId', async (_label, tool, response) => {
+    await expect(transform(tool, response)).resolves.toMatchObject({
+      output: { requestId: 'request-1' },
+    })
+  })
+
+  it.each(validResponses)('requires the %s request ID', async (label, tool, response) => {
+    await expect(transform(tool, { ...response, request_id: undefined })).rejects.toThrow(
+      `${label}.request_id must be a string`
+    )
+  })
+
   it('rejects missing sync pagination state instead of reporting a complete empty page', async () => {
     await expect(
       transform(plaidSyncTransactionsTool, {
@@ -403,15 +640,6 @@ describe('Plaid endpoint success contracts', () => {
   })
 
   it('preserves optional Item omission and rejects missing required Item state', async () => {
-    const item = {
-      item_id: 'item_1',
-      webhook: null,
-      error: null,
-      available_products: [],
-      billed_products: ['transactions'],
-      consent_expiration_time: null,
-      update_type: 'background',
-    }
     const result = await transform(plaidGetItemTool, { item })
     expect(result.output.item).toEqual(item)
     expect(result.output).not.toHaveProperty('status')
@@ -431,6 +659,15 @@ describe('Plaid endpoint success contracts', () => {
 })
 
 describe('Plaid output metadata', () => {
+  it('declares requestId on every retained tool output', () => {
+    for (const tool of retainedTools) {
+      expect(tool.outputs?.requestId).toEqual({
+        type: 'string',
+        description: 'Unique Plaid request ID for troubleshooting and support',
+      })
+    }
+  })
+
   it('marks Item required, optional, and nullable fields exactly', () => {
     const item = plaidGetItemTool.outputs?.item
     const status = plaidGetItemTool.outputs?.status

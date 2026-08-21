@@ -1,8 +1,9 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
 import type { PlaidOperationBody, PlaidOperationResponse } from '@/lib/api/contracts/tools/plaid'
+import { defineWorkspaceOperation } from '@/lib/core/application'
 import { defineAuthorizedCredentialUseCase } from '@/lib/credentials/application/authorized-credential-use-case'
 import { resolveCredentialApplicationContext } from '@/lib/credentials/application/credential-context'
-import { credentialOperations } from '@/lib/credentials/application/operations'
+import { defineCredentialOperation } from '@/lib/credentials/application/operations'
 import { decryptPlaidServiceAccountCredential } from '@/lib/credentials/plaid-service-account'
 import { PLAID_SERVICE_ACCOUNT_PROVIDER_ID } from '@/lib/oauth/types'
 import { executePlaidProviderRequest } from '@/tools/plaid/utils.server'
@@ -12,8 +13,19 @@ export interface UsePlaidServiceAccountInput {
   signal: AbortSignal
 }
 
+const usePlaidCredentialOperation = defineCredentialOperation(
+  defineWorkspaceOperation({
+    id: 'credentials.plaid.use',
+    minimumRole: 'read',
+    workspaceApiKey: 'deny',
+    principalKinds: ['delegated'],
+    delegatedServices: ['executor'],
+  }),
+  'member'
+)
+
 export const usePlaidServiceAccount = defineAuthorizedCredentialUseCase({
-  operation: credentialOperations.useServiceAccount,
+  operation: usePlaidCredentialOperation,
   resolveContext: ({
     principal,
     input,

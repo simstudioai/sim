@@ -130,7 +130,7 @@ describe('Plaid provider operation mapping', () => {
 
   it('keeps application credentials in the server request and rejects redirects', async () => {
     const fetchMock = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ item: { item_id: 'item-1' } }), {
+      new Response(JSON.stringify({ item: { item_id: 'item-1' }, request_id: 'request-1' }), {
         status: 200,
         headers: { 'Content-Type': 'application/json' },
       })
@@ -140,7 +140,7 @@ describe('Plaid provider operation mapping', () => {
 
     await expect(
       executePlaidProviderRequest({ body: mappingCases[0].body, credential, signal })
-    ).resolves.toEqual({ item: { item_id: 'item-1' } })
+    ).resolves.toEqual({ item: { item_id: 'item-1' }, request_id: 'request-1' })
 
     expect(fetchMock).toHaveBeenCalledWith(
       'https://sandbox.plaid.com/item/get',
@@ -153,6 +153,26 @@ describe('Plaid provider operation mapping', () => {
         }),
       })
     )
+  })
+
+  it('omits an empty institution product filter defensively', () => {
+    expect(
+      buildPlaidProviderRequest(
+        {
+          ...base,
+          operation: 'plaid_search_institutions',
+          input: { query: 'Bank', country_codes: ['US'], products: [] },
+        },
+        credential.accessToken
+      )
+    ).toEqual({
+      path: '/institutions/search',
+      payload: {
+        query: 'Bank',
+        country_codes: ['US'],
+        options: { include_optional_metadata: true },
+      },
+    })
   })
 
   it('projects bounded Plaid errors and redacts reflected stored secrets', async () => {
@@ -203,6 +223,50 @@ describe('Plaid provider operation mapping', () => {
     }),
   ])('rejects malformed or oversized provider responses', async (response) => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response))
+    await expect(
+      executePlaidProviderRequest({
+        body: mappingCases[0].body,
+        credential,
+        signal: new AbortController().signal,
+      })
+    ).rejects.toBeInstanceOf(PlaidGatewayError)
+  })
+
+  it('rejects a streamed provider response over 10 MiB without a Content-Length header', async () => {
+    const chunk = new Uint8Array(64 * 1024)
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        for (
+          let index = 0;
+          index <= PLAID_OPERATION_RESPONSE_MAX_BYTES / chunk.byteLength;
+          index += 1
+        ) {
+          controller.enqueue(chunk)
+        }
+        controller.close()
+      },
+    })
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(stream, { status: 200 })))
+
+    await expect(
+      executePlaidProviderRequest({
+        body: mappingCases[0].body,
+        credential,
+        signal: new AbortController().signal,
+      })
+    ).rejects.toBeInstanceOf(PlaidGatewayError)
+  })
+
+  it('rejects a successful provider response without a request ID', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValue(
+          new Response(JSON.stringify({ item: { item_id: 'item-1' } }), { status: 200 })
+        )
+    )
+
     await expect(
       executePlaidProviderRequest({
         body: mappingCases[0].body,

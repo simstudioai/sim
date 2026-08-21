@@ -1,6 +1,9 @@
 import type { WorkflowExecutionDelegatedPrincipal } from '@sim/auth/principal'
 import type { NextRequest } from 'next/server'
-import { plaidOperationContract } from '@/lib/api/contracts/tools/plaid'
+import {
+  PLAID_TOOL_REQUEST_MAX_BYTES,
+  plaidOperationContract,
+} from '@/lib/api/contracts/tools/plaid'
 import {
   createInternalSessionOrExecutorAuth,
   defineInternalJsonRoute,
@@ -8,7 +11,6 @@ import {
   internalRateLimits,
 } from '@/lib/api/server/routes'
 import { CREDENTIAL_DELEGATION_AUDIENCE } from '@/lib/credentials/application/authorization'
-import { credentialOperations } from '@/lib/credentials/application/operations'
 import { usePlaidServiceAccount } from '@/lib/credentials/application/use-plaid-service-account'
 import { plaidErrorPolicy } from '@/app/api/tools/plaid/error-policy'
 
@@ -34,10 +36,10 @@ const plaidExecutorAuth = {
 export const POST = defineInternalJsonRoute({
   contract: plaidOperationContract,
   auth: plaidExecutorAuth,
-  operation: credentialOperations.useServiceAccount,
+  operation: usePlaidServiceAccount.operation,
   rateLimit: internalRateLimits.none({ reason: 'Executor-only provider proxy' }),
   errorPolicy: plaidErrorPolicy,
-  parseOptions: { maxBodyBytes: 256 * 1024 },
+  parseOptions: { maxBodyBytes: PLAID_TOOL_REQUEST_MAX_BYTES },
   mapInput: ({ body }, { request }) => ({ body, signal: request.signal }),
   useCase: usePlaidServiceAccount,
 })

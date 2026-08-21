@@ -11,6 +11,8 @@ import { getSelectorDefinition } from '@/hooks/selectors/registry'
 import type { SelectorQueryArgs } from '@/hooks/selectors/types'
 
 const accounts = getSelectorDefinition('plaid.accounts')
+const authAccounts = getSelectorDefinition('plaid.accounts.auth')
+const transactionAccounts = getSelectorDefinition('plaid.accounts.transactions')
 const institutions = getSelectorDefinition('plaid.institutions')
 
 function args(overrides: Partial<SelectorQueryArgs> = {}): SelectorQueryArgs {
@@ -19,7 +21,6 @@ function args(overrides: Partial<SelectorQueryArgs> = {}): SelectorQueryArgs {
     context: {
       workspaceId: 'workspace-1',
       oauthCredential: 'credential-1',
-      operation: 'get_accounts',
     },
     ...overrides,
   }
@@ -35,7 +36,6 @@ describe('Plaid selectors', () => {
       'plaid.accounts',
       'workspace-1',
       'credential-1',
-      'all',
     ])
     expect(
       accounts.enabled?.(
@@ -65,41 +65,39 @@ describe('Plaid selectors', () => {
   })
 
   it.each([
-    ['get_auth', 'auth'],
-    ['sync_transactions', 'transactions'],
-  ] as const)('scopes %s account options to %s eligibility', async (operation, eligibility) => {
-    mockRequestJson.mockResolvedValue({ options: [] })
-    const scoped = args({
-      context: { workspaceId: 'workspace-1', oauthCredential: 'credential-1', operation },
-    })
+    ['plaid.accounts', accounts, 'all'],
+    ['plaid.accounts.auth', authAccounts, 'auth'],
+    ['plaid.accounts.transactions', transactionAccounts, 'transactions'],
+  ] as const)(
+    'gives %s fixed account eligibility independent of operation context',
+    async (key, definition, eligibility) => {
+      mockRequestJson.mockResolvedValue({ options: [] })
+      const scoped = args({ key })
 
-    expect(accounts.getQueryKey(scoped)).toContain(eligibility)
-    await accounts.fetchList?.(scoped)
-    expect(mockRequestJson).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({ body: expect.objectContaining({ eligibility }) })
-    )
-  })
+      expect(definition.getQueryKey(scoped)).toContain(key)
+      await definition.fetchList?.(scoped)
+      expect(mockRequestJson).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ body: expect.objectContaining({ eligibility }) })
+      )
+    }
+  )
 
-  it('hydrates only an eligible saved account for the current operation', async () => {
+  it('hydrates only an account returned by the fixed Auth selector', async () => {
     const authArgs = args({
-      context: {
-        workspaceId: 'workspace-1',
-        oauthCredential: 'credential-1',
-        operation: 'get_auth',
-      },
+      key: 'plaid.accounts.auth',
       detailId: 'acc-checking',
     })
     mockRequestJson.mockResolvedValue({
       options: [{ id: 'acc-checking', label: 'Checking ••••0000' }],
     })
 
-    await expect(accounts.fetchById?.(authArgs)).resolves.toEqual({
+    await expect(authAccounts.fetchById?.(authArgs)).resolves.toEqual({
       id: 'acc-checking',
       label: 'Checking ••••0000',
     })
     await expect(
-      accounts.fetchById?.({ ...authArgs, detailId: 'acc-ineligible' })
+      authAccounts.fetchById?.({ ...authArgs, detailId: 'acc-ineligible' })
     ).resolves.toBeNull()
     expect(mockRequestJson).toHaveBeenLastCalledWith(
       expect.anything(),

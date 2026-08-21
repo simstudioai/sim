@@ -1,6 +1,9 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
 import type { PlaidGetInstitutionParams, PlaidGetInstitutionResponse } from '@/tools/plaid/types'
-import { PLAID_INSTITUTION_OUTPUT_PROPERTIES } from '@/tools/plaid/types'
+import {
+  PLAID_INSTITUTION_OUTPUT_PROPERTIES,
+  PLAID_REQUEST_ID_OUTPUT_PROPERTY,
+} from '@/tools/plaid/types'
 import {
   buildPlaidInternalBody,
   mapPlaidInstitution,
@@ -8,6 +11,7 @@ import {
   plaidBaseParamFields,
   plaidRecord,
   requirePlaidInputString,
+  requirePlaidStringField,
 } from '@/tools/plaid/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -54,12 +58,14 @@ export const plaidGetInstitutionTool: ToolConfig<
     return {
       success: true,
       output: {
+        requestId: requirePlaidStringField(data, 'request_id', 'institution.request_id'),
         institution: mapPlaidInstitution(data.institution),
       },
     }
   },
 
   outputs: {
+    requestId: PLAID_REQUEST_ID_OUTPUT_PROPERTY,
     institution: {
       type: 'object',
       description: 'Institution details',

@@ -1,4 +1,7 @@
-import { plaidOptionsContract } from '@/lib/api/contracts/selectors/plaid'
+import {
+  PLAID_OPTIONS_REQUEST_MAX_BYTES,
+  plaidOptionsContract,
+} from '@/lib/api/contracts/selectors/plaid'
 import {
   defineInternalJsonRoute,
   internalRateLimits,
@@ -16,7 +19,7 @@ export const POST = defineInternalJsonRoute({
   operation: credentialOperations.read,
   rateLimit: internalRateLimits.none({ reason: 'Bounded editor selector request' }),
   errorPolicy: plaidErrorPolicy,
-  parseOptions: { maxBodyBytes: 64 * 1024 },
+  parseOptions: { maxBodyBytes: PLAID_OPTIONS_REQUEST_MAX_BYTES },
   mapInput: ({ body }, { request }) => ({ body, signal: request.signal }),
   useCase: listPlaidOptions,
 })

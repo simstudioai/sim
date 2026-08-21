@@ -1,5 +1,9 @@
 import { truncate } from '@sim/utils/string'
-import type { PlaidOperationBody, PlaidOperationResponse } from '@/lib/api/contracts/tools/plaid'
+import {
+  type PlaidOperationBody,
+  type PlaidOperationResponse,
+  plaidOperationResponseSchema,
+} from '@/lib/api/contracts/tools/plaid'
 import { readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import type { PlaidServiceAccountSecretBlob } from '@/lib/credentials/plaid-service-account'
 
@@ -144,7 +148,7 @@ export function buildPlaidProviderRequest(
         payload: {
           query: body.input.query,
           country_codes: body.input.country_codes,
-          ...(body.input.products ? { products: body.input.products } : {}),
+          ...(body.input.products?.length ? { products: body.input.products } : {}),
           options: { include_optional_metadata: true },
         },
       }
@@ -227,5 +231,7 @@ export async function executePlaidProviderRequest(args: {
     if (response.status < 400 || response.status >= 600) throw new PlaidGatewayError()
     throw new PlaidProviderError(response.status, sanitizePlaidProviderError(body, args.credential))
   }
-  return body
+  const success = plaidOperationResponseSchema.safeParse(body)
+  if (!success.success) throw new PlaidGatewayError('Plaid returned an invalid response')
+  return success.data
 }

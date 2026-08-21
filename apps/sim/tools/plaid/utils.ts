@@ -1,5 +1,6 @@
 import {
   PLAID_SUPPORTED_COUNTRY_CODES,
+  PLAID_TOOL_REQUEST_MAX_BYTES,
   type PlaidOperationBody,
   type PlaidSupportedCountryCode,
 } from '@/lib/api/contracts/tools/plaid'
@@ -24,6 +25,7 @@ import type {
 } from '@/tools/plaid/types'
 
 const PLAID_COUNTRY_CODES = new Set<string>(PLAID_SUPPORTED_COUNTRY_CODES)
+const UTF8_ENCODER = new TextEncoder()
 
 export const plaidCredentialParamFields = {
   plaidCredentialId: {
@@ -47,11 +49,19 @@ export function buildPlaidInternalBody<O extends PlaidOperationBody['operation']
   params: { plaidCredentialId: unknown },
   input: PlaidOperationInput<O>
 ): Extract<PlaidOperationBody, { operation: O }> {
-  return {
+  const body = {
     operation,
     credentialId: requirePlaidInputString(params.plaidCredentialId, 'Plaid credential'),
     input,
   } as Extract<PlaidOperationBody, { operation: O }>
+
+  if (UTF8_ENCODER.encode(JSON.stringify(body)).byteLength > PLAID_TOOL_REQUEST_MAX_BYTES) {
+    throw new Error(
+      `Plaid tool request exceeds the ${PLAID_TOOL_REQUEST_MAX_BYTES}-byte Sim request limit`
+    )
+  }
+
+  return body
 }
 
 /**
@@ -105,27 +115,65 @@ export function toPlaidOptionalBoolean(
 
 /** Normalizes a selector array or advanced comma-separated list. */
 export function splitPlaidList(value: unknown, fieldLabel = 'Plaid list'): string[] | undefined {
-  if (value == null || (typeof value === 'string' && value.trim() === '')) return undefined
+  if (value == null) return undefined
   const source = Array.isArray(value) ? value : [value]
-  if (!source.every((item): item is string => typeof item === 'string')) {
-    throw new Error(`${fieldLabel} must be a string or an array of strings`)
+  const requestLimitMessage = `${fieldLabel} exceeds the ${PLAID_TOOL_REQUEST_MAX_BYTES}-byte Plaid tool request limit`
+
+  // Account for the source array before normalizing it so very large collections of
+  // empty strings cannot bypass the request budget without producing output items.
+  if (source.length * 3 + 1 > PLAID_TOOL_REQUEST_MAX_BYTES) {
+    throw new Error(requestLimitMessage)
   }
-  const items = source
-    .flatMap((item) => item.split(','))
-    .map((item) => item.trim())
-    .filter(Boolean)
+
+  const items: string[] = []
+  let sourceSerializedLowerBoundBytes = 2
+  let serializedBytes = 2
+  for (const [sourceIndex, valueItem] of source.entries()) {
+    if (typeof valueItem !== 'string') {
+      throw new Error(`${fieldLabel} must be a string or an array of strings`)
+    }
+
+    // UTF-8 plus JSON escaping cannot be smaller than the UTF-16 code-unit count.
+    // Check that lower bound before slice/trim/JSON.stringify allocate normalized copies.
+    sourceSerializedLowerBoundBytes += (sourceIndex > 0 ? 1 : 0) + valueItem.length + 2
+    if (sourceSerializedLowerBoundBytes > PLAID_TOOL_REQUEST_MAX_BYTES) {
+      throw new Error(requestLimitMessage)
+    }
+
+    let segmentStart = 0
+    for (let index = 0; index <= valueItem.length; index += 1) {
+      if (index !== valueItem.length && valueItem.charCodeAt(index) !== 44) continue
+      const item = valueItem.slice(segmentStart, index).trim()
+      segmentStart = index + 1
+      if (!item) continue
+
+      const itemBytes = UTF8_ENCODER.encode(JSON.stringify(item)).byteLength
+      const nextSerializedBytes = serializedBytes + (items.length > 0 ? 1 : 0) + itemBytes
+      if (nextSerializedBytes > PLAID_TOOL_REQUEST_MAX_BYTES) {
+        throw new Error(requestLimitMessage)
+      }
+      items.push(item)
+      serializedBytes = nextSerializedBytes
+    }
+  }
   return items.length > 0 ? items : undefined
 }
 
 /** Parses and validates Plaid's closed request country-code enum. */
 export function parsePlaidCountryCodes(value: unknown): PlaidSupportedCountryCode[] {
-  const codes = (splitPlaidList(value, 'countryCodes') ?? ['US']).map((code) => code.toUpperCase())
-  if (codes.length > PLAID_COUNTRY_CODES.size) {
-    throw new Error(`countryCodes must contain at most ${PLAID_COUNTRY_CODES.size} values`)
+  const codes = splitPlaidList(value, 'countryCodes') ?? ['US']
+  const normalized: PlaidSupportedCountryCode[] = []
+  const seen = new Set<string>()
+  for (const code of codes) {
+    const upperCode = code.toUpperCase()
+    if (!PLAID_COUNTRY_CODES.has(upperCode)) {
+      throw new Error(`countryCodes contains unsupported Plaid country code: ${upperCode}`)
+    }
+    if (seen.has(upperCode)) continue
+    normalized.push(upperCode as PlaidSupportedCountryCode)
+    seen.add(upperCode)
   }
-  const invalid = codes.find((code) => !PLAID_COUNTRY_CODES.has(code))
-  if (invalid) throw new Error(`countryCodes contains unsupported Plaid country code: ${invalid}`)
-  return codes as PlaidSupportedCountryCode[]
+  return normalized
 }
 
 /** Parses open-world Plaid product identifiers without guessing provider limits. */

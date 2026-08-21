@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 import { createMockRequest, resetEnvMock } from '@sim/testing'
+import { NextRequest } from 'next/server'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { MockInvalidBindingError, mockBindDelegation, mockExecute, mockGetSession } = vi.hoisted(
@@ -19,22 +20,18 @@ vi.mock('@/lib/auth/internal-delegation', () => ({
   InvalidInternalDelegationBindingError: MockInvalidBindingError,
 }))
 vi.unmock('@/lib/auth/internal')
-vi.mock('@/lib/credentials/application/use-plaid-service-account', async () => {
-  const { credentialOperations } = await vi.importActual<
-    typeof import('@/lib/credentials/application/operations')
-  >('@/lib/credentials/application/operations')
-  return {
-    usePlaidServiceAccount: {
-      operation: credentialOperations.useServiceAccount,
-      execute: mockExecute,
-    },
-  }
-})
+vi.mock('@/lib/credentials/application/use-plaid-service-account', () => ({
+  usePlaidServiceAccount: {
+    operation: { id: 'credentials.plaid.use' },
+    execute: mockExecute,
+  },
+}))
 
+import { PLAID_TOOL_REQUEST_MAX_BYTES } from '@/lib/api/contracts/tools/plaid'
 import { generateInternalDelegationToken, generateInternalToken } from '@/lib/auth/internal'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { POST } from '@/app/api/tools/plaid/route'
-import { PlaidProviderError } from '@/tools/plaid/utils.server'
+import { PlaidGatewayError, PlaidProviderError } from '@/tools/plaid/utils.server'
 
 const WORKFLOW_ID = '550e8400-e29b-41d4-a716-446655440001'
 const WORKSPACE_ID = '550e8400-e29b-41d4-a716-446655440000'
@@ -51,6 +48,21 @@ function request(
   headers: Record<string, string> = { authorization: `Bearer ${delegationToken}` }
 ) {
   return createMockRequest('POST', requestBody, headers)
+}
+
+function rawRequest(
+  requestBody: string,
+  {
+    headers = { authorization: `Bearer ${delegationToken}` },
+    signal,
+  }: { headers?: Record<string, string>; signal?: AbortSignal } = {}
+) {
+  return new NextRequest('http://localhost:3000/api/tools/plaid', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', ...headers },
+    body: requestBody,
+    signal,
+  })
 }
 
 beforeAll(async () => {
@@ -81,7 +93,11 @@ beforeEach(() => {
       executionId: claims.executionId,
     },
   }))
-  mockExecute.mockResolvedValue({ item: { item_id: 'item-1' } })
+  mockExecute.mockResolvedValue({
+    item: { item_id: 'item-1' },
+    request_id: 'request-1',
+    future_provider_field: { enabled: true },
+  })
 })
 
 describe('POST /api/tools/plaid', () => {
@@ -90,7 +106,11 @@ describe('POST /api/tools/plaid', () => {
     const response = await POST(incoming)
 
     expect(response.status).toBe(200)
-    await expect(response.json()).resolves.toEqual({ item: { item_id: 'item-1' } })
+    await expect(response.json()).resolves.toEqual({
+      item: { item_id: 'item-1' },
+      request_id: 'request-1',
+      future_provider_field: { enabled: true },
+    })
     expect(mockExecute).toHaveBeenCalledWith(
       expect.objectContaining({
         principal: expect.objectContaining({
@@ -144,6 +164,75 @@ describe('POST /api/tools/plaid', () => {
     expect(mockExecute).not.toHaveBeenCalled()
   })
 
+  it('rejects invalid JSON before application execution', async () => {
+    const response = await POST(rawRequest('{"operation":'))
+
+    expect(response.status).toBe(400)
+    await expect(response.json()).resolves.toMatchObject({
+      error: 'Request body must be valid JSON',
+    })
+    expect(mockExecute).not.toHaveBeenCalled()
+  })
+
+  it('rejects an actual body larger than the Plaid tool-route ceiling', async () => {
+    const response = await POST(
+      rawRequest(
+        JSON.stringify({
+          ...body,
+          padding: 'x'.repeat(PLAID_TOOL_REQUEST_MAX_BYTES),
+        })
+      )
+    )
+
+    expect(response.status).toBe(413)
+    await expect(response.json()).resolves.toMatchObject({
+      error: `Request body exceeds the maximum allowed size of ${PLAID_TOOL_REQUEST_MAX_BYTES} bytes`,
+    })
+    expect(mockExecute).not.toHaveBeenCalled()
+  })
+
+  it('rejects an empty institution products array at the authenticated route boundary', async () => {
+    const response = await POST(
+      request({
+        operation: 'plaid_search_institutions',
+        credentialId: 'credential-1',
+        input: {
+          query: 'Bank',
+          country_codes: ['US'],
+          products: [],
+        },
+      })
+    )
+
+    expect(response.status).toBe(400)
+    expect(mockExecute).not.toHaveBeenCalled()
+  })
+
+  it('accepts a 256-character sync cursor and rejects a 257-character cursor', async () => {
+    const acceptedBody = {
+      operation: 'plaid_sync_transactions' as const,
+      credentialId: 'credential-1',
+      input: { cursor: 'x'.repeat(256) },
+    }
+    const accepted = await POST(request(acceptedBody))
+
+    expect(accepted.status).toBe(200)
+    expect(mockExecute).toHaveBeenCalledWith(
+      expect.objectContaining({ input: expect.objectContaining({ body: acceptedBody }) })
+    )
+
+    mockExecute.mockClear()
+    const rejected = await POST(
+      request({
+        ...acceptedBody,
+        input: { cursor: 'x'.repeat(257) },
+      })
+    )
+
+    expect(rejected.status).toBe(400)
+    expect(mockExecute).not.toHaveBeenCalled()
+  })
+
   it('accepts RFC3339 balance timestamps with a numeric offset', async () => {
     const offsetBody = {
       operation: 'plaid_get_balances',
@@ -189,5 +278,51 @@ describe('POST /api/tools/plaid', () => {
       error_code: 'ITEM_LOGIN_REQUIRED',
       error_type: 'ITEM_ERROR',
     })
+  })
+
+  it('projects Plaid gateway failures as a safe 502 response', async () => {
+    mockExecute.mockRejectedValueOnce(new PlaidGatewayError('Plaid request timed out'))
+
+    const response = await POST(request())
+
+    expect(response.status).toBe(502)
+    await expect(response.json()).resolves.toMatchObject({ error: 'Plaid request timed out' })
+  })
+
+  it('returns 499 when application execution fails after the client disconnects', async () => {
+    const controller = new AbortController()
+    mockExecute.mockImplementationOnce(async () => {
+      controller.abort()
+      throw new DOMException('The operation was aborted.', 'AbortError')
+    })
+
+    const response = await POST(
+      rawRequest(JSON.stringify(body), {
+        signal: controller.signal,
+      })
+    )
+
+    expect(response.status).toBe(499)
+    await expect(response.json()).resolves.toMatchObject({ error: 'Client cancelled request' })
+  })
+
+  it('fails closed on an unexpected application error', async () => {
+    mockExecute.mockRejectedValueOnce(new Error('database-password-should-not-leak'))
+
+    const response = await POST(request())
+
+    expect(response.status).toBe(500)
+    const responseBody = await response.json()
+    expect(responseBody).toMatchObject({ error: 'Internal server error' })
+    expect(JSON.stringify(responseBody)).not.toContain('database-password-should-not-leak')
+  })
+
+  it('fails closed when application output violates the response contract', async () => {
+    mockExecute.mockResolvedValueOnce({ item: { item_id: 'item-1' } })
+
+    const response = await POST(request())
+
+    expect(response.status).toBe(500)
+    await expect(response.json()).resolves.toMatchObject({ error: 'Internal server error' })
   })
 })

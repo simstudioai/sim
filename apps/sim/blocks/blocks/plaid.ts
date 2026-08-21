@@ -18,7 +18,6 @@ const ACCOUNT_FILTER_OPERATIONS = [
   'get_accounts',
   'get_balances',
   'get_identity',
-  'get_auth',
 ] satisfies PlaidOperation[]
 
 export const PlaidBlock: BlockConfig<PlaidResponse> = {
@@ -60,7 +59,7 @@ export const PlaidBlock: BlockConfig<PlaidResponse> = {
         ],
         get_auth: [
           'Fetch account and routing numbers',
-          { text: ', for accounts', field: ['accountIdsSelector', 'manualAccountIds'] },
+          { text: ', for accounts', field: ['authAccountIdsSelector', 'manualAuthAccountIds'] },
         ],
         get_item: ['Fetch the linked Item and its health'],
         search_institutions: [
@@ -84,7 +83,7 @@ export const PlaidBlock: BlockConfig<PlaidResponse> = {
       type: 'oauth-input',
       serviceId: 'plaid',
       credentialKind: 'service-account',
-      canonicalParamId: 'plaidCredentialId',
+      canonicalParamId: 'oauthCredential',
       mode: 'basic',
       placeholder: 'Select Plaid Item credential',
       required: true,
@@ -93,10 +92,22 @@ export const PlaidBlock: BlockConfig<PlaidResponse> = {
       id: 'manualCredential',
       title: 'Plaid Item',
       type: 'short-input',
-      canonicalParamId: 'plaidCredentialId',
+      canonicalParamId: 'oauthCredential',
       mode: 'advanced',
       placeholder: 'Enter credential ID',
       required: true,
+    },
+    {
+      // Plaid's public tool contract deliberately keeps the explicit
+      // `plaidCredentialId` name, while the canvas uses the conventional
+      // `oauthCredential` canonical pair. Registering the derived tool field
+      // here tells required-field analysis that the adapter supplies it; the
+      // value itself is produced by tools.config.params below.
+      id: 'plaidCredentialId',
+      type: 'short-input',
+      hidden: true,
+      hideFromCopilot: true,
+      paramVisibility: 'hidden',
     },
     {
       id: 'operation',
@@ -179,7 +190,7 @@ export const PlaidBlock: BlockConfig<PlaidResponse> = {
       canonicalParamId: 'accountIds',
       multiSelect: true,
       placeholder: 'Filter by linked accounts',
-      dependsOn: ['credential', 'operation'],
+      dependsOn: ['credential'],
       mode: 'basic',
       condition: { field: 'operation', value: ACCOUNT_FILTER_OPERATIONS },
     },
@@ -191,6 +202,28 @@ export const PlaidBlock: BlockConfig<PlaidResponse> = {
       placeholder: 'Comma-separated account IDs (defaults to all)',
       mode: 'advanced',
       condition: { field: 'operation', value: ACCOUNT_FILTER_OPERATIONS },
+    },
+    {
+      id: 'authAccountIdsSelector',
+      title: 'Accounts',
+      type: 'project-selector',
+      selectorKey: 'plaid.accounts.auth',
+      serviceId: 'plaid',
+      canonicalParamId: 'authAccountIds',
+      multiSelect: true,
+      placeholder: 'Filter by Auth-eligible accounts',
+      dependsOn: ['credential'],
+      mode: 'basic',
+      condition: { field: 'operation', value: 'get_auth' },
+    },
+    {
+      id: 'manualAuthAccountIds',
+      title: 'Account IDs',
+      type: 'short-input',
+      canonicalParamId: 'authAccountIds',
+      placeholder: 'Comma-separated Auth-eligible account IDs (defaults to all)',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'get_auth' },
     },
     {
       id: 'minLastUpdatedDatetime',
@@ -218,11 +251,11 @@ export const PlaidBlock: BlockConfig<PlaidResponse> = {
       id: 'accountIdSelector',
       title: 'Account',
       type: 'project-selector',
-      selectorKey: 'plaid.accounts',
+      selectorKey: 'plaid.accounts.transactions',
       serviceId: 'plaid',
       canonicalParamId: 'accountId',
       placeholder: 'Scope the sync to one account',
-      dependsOn: ['credential', 'operation'],
+      dependsOn: ['credential'],
       mode: 'basic',
       condition: { field: 'operation', value: 'sync_transactions' },
     },
@@ -275,7 +308,12 @@ export const PlaidBlock: BlockConfig<PlaidResponse> = {
       params: (params) => {
         const { operation } = params
         const result: Record<string, unknown> = {
-          plaidCredentialId: params.plaidCredentialId,
+          // Generic tool execution treats a truthy oauthCredential as a request
+          // to resolve an OAuth access token. Plaid's internal route owns its
+          // credential authorization/decryption, so consume the canvas-only
+          // canonical value while deriving the public Plaid tool parameter.
+          oauthCredential: undefined,
+          plaidCredentialId: params.oauthCredential,
         }
 
         switch (operation) {
@@ -303,8 +341,10 @@ export const PlaidBlock: BlockConfig<PlaidResponse> = {
           }
           case 'get_accounts':
           case 'get_identity':
-          case 'get_auth':
             if (params.accountIds) result.accountIds = params.accountIds
+            break
+          case 'get_auth':
+            if (params.authAccountIds) result.accountIds = params.authAccountIds
             break
           case 'get_balances':
             if (params.accountIds) result.accountIds = params.accountIds
@@ -331,7 +371,7 @@ export const PlaidBlock: BlockConfig<PlaidResponse> = {
   },
   inputs: {
     operation: { type: 'string', description: 'Operation to perform' },
-    plaidCredentialId: {
+    oauthCredential: {
       type: 'string',
       description: 'ID of a preconnected reusable Plaid Item credential',
     },
@@ -340,6 +380,7 @@ export const PlaidBlock: BlockConfig<PlaidResponse> = {
     countryCodes: { type: 'string', description: 'Comma-separated Plaid-supported country codes' },
     products: { type: 'string', description: 'Comma-separated products institutions must support' },
     accountIds: { type: 'string', description: 'Comma-separated account IDs filter' },
+    authAccountIds: { type: 'string', description: 'Comma-separated Auth-eligible account IDs' },
     accountId: {
       type: 'string',
       description: 'Single account ID to scope the transaction sync (and its cursor) to',
@@ -378,6 +419,7 @@ export const PlaidBlock: BlockConfig<PlaidResponse> = {
     status: { type: 'json', description: 'Item health status and last webhook' },
     institutions: { type: 'json', description: 'Institutions matching the search' },
     institution: { type: 'json', description: 'Institution details' },
+    requestId: { type: 'string', description: 'Plaid request ID for support and troubleshooting' },
   },
 }
 

@@ -85,6 +85,17 @@ describe('usePlaidServiceAccount application composition', () => {
     mocks.executeProvider.mockResolvedValue({ accounts: [] })
   })
 
+  it('declares a Plaid-local executor operation with credential membership', () => {
+    expect(usePlaidServiceAccount.operation).toMatchObject({
+      id: 'credentials.plaid.use',
+      minimumRole: 'read',
+      minimumCredentialRole: 'member',
+      workspaceApiKey: 'deny',
+      principalKinds: ['delegated'],
+      delegatedServices: ['executor'],
+    })
+  })
+
   it('authorizes, validates Plaid custody, executes the provider request, and audits projection', async () => {
     const signal = new AbortController().signal
     const body = {
@@ -115,7 +126,7 @@ describe('usePlaidServiceAccount application composition', () => {
           provider: 'plaid-service-account',
           credentialType: 'service_account',
           toolId: 'plaid_get_accounts',
-          operation: 'credentials.service_accounts.use',
+          operation: 'credentials.plaid.use',
         }),
       })
     )

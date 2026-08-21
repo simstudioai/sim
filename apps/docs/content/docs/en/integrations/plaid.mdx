@@ -23,10 +23,12 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 - Select the stored Plaid Item once per block. Reconnect after rotating the Item access token or app credentials for that same Item and environment; use a new credential for a different Item or environment. The opaque credential ID stays the same for existing workflows. Deleting the Sim credential removes only the local encrypted copy and does not revoke or remove the Item at Plaid.
 - Plaid Item credentials are workspace credentials and are available according to workspace credential permissions. Use dedicated, access-controlled workflows for Auth and Identity data.
-- Transaction Sync returns one page per call. Preserve `nextCursor` and continue while `hasMore` is true. If Plaid returns `TRANSACTIONS_SYNC_MUTATION_DURING_PAGINATION`, discard that batch and restart from the cursor where the batch began. A cursor belongs to its account-filter stream; start with no cursor after changing the account filter.
-- Account fields offer single- and multi-account selectors backed by the selected Item. Institution lookup offers searchable results and hydrates a saved selection by ID. Advanced manual fields remain available for account or institution IDs that cannot be loaded in the editor. Account filters are optional and default to all accounts on the Item.
+- Transaction Sync returns one page per call. Preserve `nextCursor` and continue while `hasMore` is true. Cursors are at most 256 characters. If Plaid returns `TRANSACTIONS_SYNC_MUTATION_DURING_PAGINATION`, discard that batch and restart from the cursor where the batch began. A cursor belongs to its account-filter stream; start with no cursor after changing the account filter. `daysRequested` applies only before Transactions is initialized; in Production, values below 30 still request at least 30 days.
+- Account fields offer single- and multi-account selectors backed by the selected Item. Institution lookup offers searchable results and hydrates a saved selection by ID. Advanced manual fields remain available for account or institution IDs that cannot be loaded in the editor. Account filters are optional and default to all accounts on the Item. The standard Auth selector includes checking, savings, and cash-management accounts but cannot prove that an account is debitable, and it excludes limited-purpose checking accounts that a Plaid customer has specifically enabled; use the advanced manual field only when the account is known to be eligible for the configured Auth use case.
 - Institution search returns at most ten matches. The Search Institutions action remains available when you need its full institution records or want to supply non-US country codes and product filters.
-- Get Balances usually completes in under ten seconds but can take 30 seconds or more. `minLastUpdatedDatetime` is an RFC 3339 date-time and is required by Plaid only for certain Capital One non-depository requests.
+- Get Balances usually completes in under ten seconds but can take 30 seconds or more. Each successful `/accounts/balance/get` call is billable. For evaluating insufficient-funds risk on a proposed ACH transaction, Plaid recommends `/signal/evaluate`; use Get Balances for other real-time balance needs. `minLastUpdatedDatetime` is an RFC 3339 date-time and is required by Plaid only for certain Capital One non-depository requests.
+- Every successful action returns `requestId`. Include it when troubleshooting in Plaid's Activity Log or contacting Plaid Support.
+- Sim accepts Plaid provider responses up to 10 MiB. Account endpoints are not automatically paginated; each action returns the single response supplied by Plaid.
 - Get Auth account and routing numbers, and Get Identity personally identifiable information, are standard tool outputs. They can enter workflow and execution state, downstream blocks, Agent or model context, and requests to the configured model provider. `hiddenFromDisplay` suppresses only the Get Auth source block's `numbers` field from log display; it does not enforce non-persistence or prevent downstream access. Send Auth numbers only to an approved non-Plaid-partner payment processor, and do not route Auth or Identity data to Agents, models, or durable sinks unless that transmission and retention are explicitly approved.
 - Plaid Sandbox is useful for contract testing but does not reproduce all Production institution behavior. Product access, optional fields, consent, and institution-specific errors still need Production validation.
 {/* MANUAL-CONTENT-END */}
@@ -48,16 +50,17 @@ Incrementally sync transactions for a linked Item. Omit the cursor on the first 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `cursor` | string | No | Cursor from a previous sync \(nextCursor\); omit to start from the beginning |
+| `cursor` | string | No | Cursor from a previous sync \(nextCursor\), up to 256 characters; omit to start from the beginning |
 | `count` | number | No | Number of updates to fetch per page \(Plaid requires 1-500; default 100\) |
 | `accountId` | string | No | Scope the sync \(and cursor\) to a single account ID |
 | `includeOriginalDescription` | boolean | No | Include the unmodified original_description from the institution |
-| `daysRequested` | number | No | Days of history to request \(Plaid allows 1-730; default 90\). Only applies before Transactions is initialized on the Item |
+| `daysRequested` | number | No | Days of history to request \(Plaid allows 1-730; default 90 and Production requests at least 30\). Only applies before Transactions is initialized on the Item |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
+| `requestId` | string | Unique Plaid request ID for troubleshooting and support |
 | `added` | array | Transactions added since the cursor |
 |   ↳ `transaction_id` | string | Unique ID of the transaction |
 |   ↳ `account_id` | string | ID of the account the transaction belongs to |
@@ -161,6 +164,7 @@ List the accounts linked to an Item with their names, types, and balances. Balan
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
+| `requestId` | string | Unique Plaid request ID for troubleshooting and support |
 | `accounts` | array | Accounts linked to the Item |
 |   ↳ `account_id` | string | Unique Plaid account ID |
 |   ↳ `name` | string | Account name |
@@ -195,6 +199,7 @@ Get real-time balances for the accounts linked to an Item. The live institution 
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
+| `requestId` | string | Unique Plaid request ID for troubleshooting and support |
 | `accounts` | array | Accounts with refreshed real-time balances |
 |   ↳ `account_id` | string | Unique Plaid account ID |
 |   ↳ `name` | string | Account name |
@@ -228,6 +233,7 @@ Get account-holder identity information (names, emails, phone numbers, and addre
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
+| `requestId` | string | Unique Plaid request ID for troubleshooting and support |
 | `accounts` | array | Accounts with their owners identity data |
 |   ↳ `account_id` | string | Unique Plaid account ID |
 |   ↳ `name` | string | Account name |
@@ -279,6 +285,7 @@ Get account and routing numbers for depository accounts linked to an Item (ACH f
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
+| `requestId` | string | Unique Plaid request ID for troubleshooting and support |
 | `accounts` | array | Depository accounts on the Item |
 |   ↳ `account_id` | string | Unique Plaid account ID |
 |   ↳ `name` | string | Account name |
@@ -330,6 +337,7 @@ Get metadata and health status for a linked Item, including its institution, ena
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
+| `requestId` | string | Unique Plaid request ID for troubleshooting and support |
 | `item` | object | Item metadata |
 |   ↳ `item_id` | string | Unique ID of the Item |
 |   ↳ `institution_id` | string | Plaid institution ID the Item is linked to |
@@ -380,6 +388,7 @@ Search financial institutions supported by Plaid by name, returning at most 10
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
+| `requestId` | string | Unique Plaid request ID for troubleshooting and support |
 | `institutions` | array | Institutions matching the search |
 |   ↳ `institution_id` | string | Unique Plaid institution ID |
 |   ↳ `name` | string | Institution name |
@@ -388,7 +397,7 @@ Search financial institutions supported by Plaid by name, returning at most 10
 |   ↳ `url` | string | Institution website URL |
 |   ↳ `primary_color` | string | Institution brand color \(hex\) |
 |   ↳ `routing_numbers` | array | Known routing numbers for the institution |
-|   ↳ `oauth` | boolean | Whether the institution uses an OAuth login flow |
+|   ↳ `oauth` | boolean | Whether some Items may require OAuth or the institution may be migrating to OAuth |
 | `count` | number | Number of institutions returned |
 
 ### Plaid Get Institution
@@ -406,6 +415,7 @@ Get details for a financial institution by its Plaid institution ID
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
+| `requestId` | string | Unique Plaid request ID for troubleshooting and support |
 | `institution` | object | Institution details |
 |   ↳ `institution_id` | string | Unique Plaid institution ID |
 |   ↳ `name` | string | Institution name |
@@ -414,6 +424,6 @@ Get details for a financial institution by its Plaid institution ID
 |   ↳ `url` | string | Institution website URL |
 |   ↳ `primary_color` | string | Institution brand color \(hex\) |
 |   ↳ `routing_numbers` | array | Known routing numbers for the institution |
-|   ↳ `oauth` | boolean | Whether the institution uses an OAuth login flow |
+|   ↳ `oauth` | boolean | Whether some Items may require OAuth or the institution may be migrating to OAuth |
 
 

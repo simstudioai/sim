@@ -3,7 +3,10 @@ import type {
   PlaidSearchInstitutionsParams,
   PlaidSearchInstitutionsResponse,
 } from '@/tools/plaid/types'
-import { PLAID_INSTITUTION_OUTPUT_PROPERTIES } from '@/tools/plaid/types'
+import {
+  PLAID_INSTITUTION_OUTPUT_PROPERTIES,
+  PLAID_REQUEST_ID_OUTPUT_PROPERTY,
+} from '@/tools/plaid/types'
 import {
   buildPlaidInternalBody,
   mapPlaidInstitution,
@@ -13,6 +16,7 @@ import {
   plaidRecord,
   requirePlaidArrayField,
   requirePlaidInputString,
+  requirePlaidStringField,
 } from '@/tools/plaid/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -76,6 +80,7 @@ export const plaidSearchInstitutionsTool: ToolConfig<
     return {
       success: true,
       output: {
+        requestId: requirePlaidStringField(data, 'request_id', 'institution search.request_id'),
         institutions: mapped,
         count: mapped.length,
       },
@@ -83,6 +88,7 @@ export const plaidSearchInstitutionsTool: ToolConfig<
   },
 
   outputs: {
+    requestId: PLAID_REQUEST_ID_OUTPUT_PROPERTY,
     institutions: {
       type: 'array',
       description: 'Institutions matching the search',

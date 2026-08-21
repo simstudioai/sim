@@ -1,9 +1,13 @@
+import { PLAID_SYNC_CURSOR_MAX_LENGTH } from '@/lib/api/contracts/tools/plaid'
 import { ErrorExtractorId } from '@/tools/error-extractors'
 import type {
   PlaidSyncTransactionsParams,
   PlaidSyncTransactionsResponse,
 } from '@/tools/plaid/types'
-import { PLAID_TRANSACTION_OUTPUT_PROPERTIES } from '@/tools/plaid/types'
+import {
+  PLAID_REQUEST_ID_OUTPUT_PROPERTY,
+  PLAID_TRANSACTION_OUTPUT_PROPERTIES,
+} from '@/tools/plaid/types'
 import {
   buildPlaidInternalBody,
   mapPlaidRemovedTransaction,
@@ -36,7 +40,8 @@ export const plaidSyncTransactionsTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Cursor from a previous sync (nextCursor); omit to start from the beginning',
+      description:
+        'Cursor from a previous sync (nextCursor), up to 256 characters; omit to start from the beginning',
     },
     count: {
       type: 'number',
@@ -61,7 +66,7 @@ export const plaidSyncTransactionsTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Days of history to request (Plaid allows 1-730; default 90). Only applies before Transactions is initialized on the Item',
+        'Days of history to request (Plaid allows 1-730; default 90 and Production requests at least 30). Only applies before Transactions is initialized on the Item',
     },
   },
 
@@ -71,7 +76,9 @@ export const plaidSyncTransactionsTool: ToolConfig<
     headers: () => ({ 'Content-Type': 'application/json' }),
     body: (params) =>
       buildPlaidInternalBody('plaid_sync_transactions', params, {
-        cursor: toPlaidOptionalString(params.cursor, 'cursor'),
+        cursor: toPlaidOptionalString(params.cursor, 'cursor', {
+          maxLength: PLAID_SYNC_CURSOR_MAX_LENGTH,
+        }),
         count: toPlaidOptionalNumber(params.count, 'count', {
           integer: true,
           min: 1,
@@ -99,6 +106,7 @@ export const plaidSyncTransactionsTool: ToolConfig<
     return {
       success: true,
       output: {
+        requestId: requirePlaidStringField(data, 'request_id', 'transaction sync.request_id'),
         added: added.map((entry, index) =>
           mapPlaidTransaction(entry, `transaction sync.added[${index}]`)
         ),
@@ -120,6 +128,7 @@ export const plaidSyncTransactionsTool: ToolConfig<
   },
 
   outputs: {
+    requestId: PLAID_REQUEST_ID_OUTPUT_PROPERTY,
     added: {
       type: 'array',
       description: 'Transactions added since the cursor',

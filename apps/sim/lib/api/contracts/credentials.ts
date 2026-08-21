@@ -1,7 +1,8 @@
 import { z } from 'zod'
 import { defineRouteContract } from '@/lib/api/contracts/types'
+import { PLAID_SERVICE_ACCOUNT_REQUIRED_FIELDS } from '@/lib/credentials/plaid-service-account-form'
 import { getServiceAccountRequiredFields } from '@/lib/credentials/service-account-fields'
-import type { OAuthProvider } from '@/lib/oauth/types'
+import { type OAuthProvider, PLAID_SERVICE_ACCOUNT_PROVIDER_ID } from '@/lib/oauth/types'
 
 const ENV_VAR_NAME_REGEX = /^[A-Za-z0-9_]+$/
 
@@ -189,6 +190,18 @@ export const createCredentialBodySchema = z
     }
 
     if (data.type === 'service_account') {
+      if (data.providerId === PLAID_SERVICE_ACCOUNT_PROVIDER_ID) {
+        for (const field of PLAID_SERVICE_ACCOUNT_REQUIRED_FIELDS) {
+          if (!data[field]) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              message: `${field} is required for ${PLAID_SERVICE_ACCOUNT_PROVIDER_ID} credentials`,
+              path: [field],
+            })
+          }
+        }
+        return
+      }
       for (const field of getServiceAccountRequiredFields(data.providerId)) {
         if (!data[field]) {
           ctx.addIssue({

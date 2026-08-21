@@ -237,15 +237,19 @@ export interface PlaidNumbers {
   bacs: PlaidBacsNumbers[]
 }
 
+export interface PlaidSuccessOutput {
+  requestId: string
+}
+
 export interface PlaidGetItemResponse extends ToolResponse {
-  output: {
+  output: PlaidSuccessOutput & {
     item: PlaidItem
     status?: PlaidItemStatus | null
   }
 }
 
 export interface PlaidSyncTransactionsResponse extends ToolResponse {
-  output: {
+  output: PlaidSuccessOutput & {
     added: PlaidTransaction[]
     modified: PlaidTransaction[]
     removed: PlaidRemovedTransaction[]
@@ -256,20 +260,20 @@ export interface PlaidSyncTransactionsResponse extends ToolResponse {
 }
 
 export interface PlaidSearchInstitutionsResponse extends ToolResponse {
-  output: {
+  output: PlaidSuccessOutput & {
     institutions: PlaidInstitution[]
     count: number
   }
 }
 
 export interface PlaidGetInstitutionResponse extends ToolResponse {
-  output: {
+  output: PlaidSuccessOutput & {
     institution: PlaidInstitution
   }
 }
 
 export interface PlaidGetAccountsResponse extends ToolResponse {
-  output: {
+  output: PlaidSuccessOutput & {
     accounts: PlaidAccount[]
     count: number
   }
@@ -278,14 +282,14 @@ export interface PlaidGetAccountsResponse extends ToolResponse {
 export type PlaidGetBalancesResponse = PlaidGetAccountsResponse
 
 export interface PlaidGetAuthResponse extends ToolResponse {
-  output: {
+  output: PlaidSuccessOutput & {
     accounts: PlaidAccount[]
     numbers: PlaidNumbers
   }
 }
 
 export interface PlaidGetIdentityResponse extends ToolResponse {
-  output: {
+  output: PlaidSuccessOutput & {
     accounts: PlaidIdentityAccount[]
     count: number
   }
@@ -299,6 +303,11 @@ export type PlaidResponse =
   | PlaidGetAccountsResponse
   | PlaidGetAuthResponse
   | PlaidGetIdentityResponse
+
+export const PLAID_REQUEST_ID_OUTPUT_PROPERTY: ToolOutputProperty = {
+  type: 'string',
+  description: 'Unique Plaid request ID for troubleshooting and support',
+}
 
 export const PLAID_ERROR_OUTPUT_PROPERTIES: Record<string, ToolOutputProperty> = {
   error_type: { type: 'string', description: 'Broad Plaid error category' },
@@ -828,5 +837,9 @@ export const PLAID_INSTITUTION_OUTPUT_PROPERTIES: Record<string, ToolOutputPrope
     description: 'Known routing numbers for the institution',
     items: { type: 'string', description: 'Routing number' },
   },
-  oauth: { type: 'boolean', description: 'Whether the institution uses an OAuth login flow' },
+  oauth: {
+    type: 'boolean',
+    description:
+      'Whether some Items may require OAuth or the institution may be migrating to OAuth',
+  },
 }

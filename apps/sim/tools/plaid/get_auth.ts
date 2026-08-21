@@ -3,6 +3,7 @@ import type { PlaidGetAuthParams, PlaidGetAuthResponse } from '@/tools/plaid/typ
 import {
   PLAID_ACCOUNT_OUTPUT_PROPERTIES,
   PLAID_NUMBERS_OUTPUT_PROPERTIES,
+  PLAID_REQUEST_ID_OUTPUT_PROPERTY,
 } from '@/tools/plaid/types'
 import {
   buildPlaidInternalBody,
@@ -11,6 +12,7 @@ import {
   plaidBaseParamFields,
   plaidRecord,
   requirePlaidArrayField,
+  requirePlaidStringField,
   splitPlaidList,
 } from '@/tools/plaid/utils'
 import type { ToolConfig } from '@/tools/types'
@@ -53,6 +55,7 @@ export const plaidGetAuthTool: ToolConfig<PlaidGetAuthParams, PlaidGetAuthRespon
     return {
       success: true,
       output: {
+        requestId: requirePlaidStringField(data, 'request_id', 'auth.request_id'),
         accounts: accounts.map((account, index) =>
           mapPlaidAccount(account, `auth.accounts[${index}]`)
         ),
@@ -62,6 +65,7 @@ export const plaidGetAuthTool: ToolConfig<PlaidGetAuthParams, PlaidGetAuthRespon
   },
 
   outputs: {
+    requestId: PLAID_REQUEST_ID_OUTPUT_PROPERTY,
     accounts: {
       type: 'array',
       description: 'Depository accounts on the Item',

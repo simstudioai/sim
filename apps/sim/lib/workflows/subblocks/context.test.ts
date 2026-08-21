@@ -152,17 +152,36 @@ describe('buildSelectorContextFromBlock', () => {
     ).toBe('advanced-team')
   })
 
-  it('exposes Plaid operation, country codes, and the canonical credential to selectors', () => {
+  it('exposes Plaid country codes and the active canonical credential to selectors', () => {
     const ctx = buildSelectorContextFromBlock('plaid', {
       operation: { id: 'operation', type: 'dropdown', value: 'search_institutions' },
       credential: { id: 'credential', type: 'oauth-input', value: 'plaid-credential-1' },
       countryCodes: { id: 'countryCodes', type: 'short-input', value: 'US,CA' },
     })
 
-    expect(ctx.operation).toBe('search_institutions')
     expect(ctx.oauthCredential).toBe('plaid-credential-1')
     expect(ctx.countryCodes).toBe('US,CA')
+    expect((ctx as Record<string, unknown>).operation).toBeUndefined()
     expect((ctx as Record<string, unknown>).plaidCredentialId).toBeUndefined()
+  })
+
+  it('resolves Plaid advanced credentials through oauthCredential without exposing operation', () => {
+    const ctx = buildSelectorContextFromBlock(
+      'plaid',
+      {
+        operation: { id: 'operation', type: 'dropdown', value: 'get_auth' },
+        credential: { id: 'credential', type: 'oauth-input', value: 'basic-credential' },
+        manualCredential: {
+          id: 'manualCredential',
+          type: 'short-input',
+          value: 'advanced-credential',
+        },
+      },
+      { canonicalModes: { oauthCredential: 'advanced' } }
+    )
+
+    expect(ctx.oauthCredential).toBe('advanced-credential')
+    expect((ctx as Record<string, unknown>).operation).toBeUndefined()
   })
 
   it('should ignore subblock keys not in SELECTOR_CONTEXT_FIELDS', () => {
@@ -172,7 +191,7 @@ describe('buildSelectorContextFromBlock', () => {
     })
 
     expect((ctx as Record<string, unknown>).query).toBeUndefined()
-    expect(ctx.operation).toBe('search')
+    expect((ctx as Record<string, unknown>).operation).toBeUndefined()
   })
 })
 
