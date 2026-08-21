@@ -2494,6 +2494,9 @@ function TerminalHandoffDisplay({ data }: { data: CredentialItemData }) {
   )
 }
 
+// sim_key stays in the routing set so a payload carrying one still takes the
+// card path (CredentialDisplay renders its reveal separately) — but it is an
+// output, so the card itself never shows it as a row.
 const CREDENTIAL_CARD_TYPES: ReadonlySet<CredentialTagType> = new Set([
   'secret_input',
   'link',
@@ -2502,7 +2505,7 @@ const CREDENTIAL_CARD_TYPES: ReadonlySet<CredentialTagType> = new Set([
 ])
 
 function isCredentialCardItemVisible(item: CredentialItemData, canEdit: boolean): boolean {
-  if (item.type === 'sim_key') return true
+  if (item.type === 'sim_key') return false
   if (item.type === 'secret_input') return item.scope === 'personal' || canEdit
   if (item.type === 'link') {
     return canEdit && Boolean(item.provider) && Boolean(item.value && isSafeHttpUrl(item.value))
@@ -2582,13 +2585,8 @@ function CredentialItemDisplay({
     )
   }
 
-  if (data.type === 'sim_key') {
-    // SecretReveal masks itself when there's no value, so a value-less tag (the
-    // model's placeholder / persisted form) renders masked and a Sim-filled tag
-    // reveals the key + copy button — no separate "redacted" flag needed.
-    return <SecretReveal value={data.value} />
-  }
-
+  // sim_key never reaches here: CredentialDisplay renders its reveal chip
+  // standalone (SecretReveal masks itself when the tag carries no value).
   return null
 }
 
@@ -2679,18 +2677,13 @@ function CredentialInputCard({
   const integrationRows = visibleRows.filter(
     ({ item }) => item.type === 'link' || item.type === 'service_account'
   )
-  const secretRows = visibleRows.filter(
-    ({ item }) => item.type === 'secret_input' || item.type === 'sim_key'
-  )
-  const requiredSecretRows = secretRows.filter(({ item }) => item.type === 'secret_input')
+  const secretRows = visibleRows.filter(({ item }) => item.type === 'secret_input')
   const title =
     integrationRows.length > 0 && secretRows.length > 0
       ? 'Set up credentials'
       : integrationRows.length > 0
         ? 'Connect integrations'
-        : requiredSecretRows.length > 0
-          ? 'Add secrets'
-          : 'API key'
+        : 'Add secrets'
   const rows = [
     ...integrationRows.map(({ item, dataIndex, integrationIndex }, index) => (
       <CredentialItemDisplay
@@ -2740,7 +2733,7 @@ function CredentialInputCard({
     const personalVariables: Record<string, string> = {}
     const enteredSecretIndexes: number[] = []
 
-    for (const { item, secretIndex } of requiredSecretRows) {
+    for (const { item, secretIndex } of secretRows) {
       if (secretIndex === undefined) continue
       const name = item.name?.trim()
       const value = secretDrafts[secretIndex] ?? ''
@@ -2789,7 +2782,7 @@ function CredentialInputCard({
     return true
   }
 
-  const needsContinuation = integrationRows.length > 0 || requiredSecretRows.length > 0
+  const needsContinuation = integrationRows.length > 0 || secretRows.length > 0
   const credentialSummary = [
     ...integrationRows.map(({ item, integrationIndex }) => ({
       label: getCredentialProviderDisplayName(item.provider ?? 'Integration'),
@@ -2802,9 +2795,6 @@ function CredentialInputCard({
         : ('Skipped' as const),
     })),
     ...secretRows.map(({ item, secretIndex }) => {
-      if (item.type === 'sim_key') {
-        return { label: item.name ?? 'Sim API key', status: 'Added' as const }
-      }
       const saved = submitted
         ? submitted.secrets[secretIndex ?? -1]?.status === 'saved'
         : savedSecretRows.has(secretIndex ?? -1)
@@ -2817,8 +2807,6 @@ function CredentialInputCard({
 
   // An abandoned card recaps from local progress only: a row the user connected
   // or saved before moving on keeps its status, everything else reads "Skipped".
-  // Only a card that asked for something can be abandoned — a standalone
-  // `sim_key` row is a reveal widget, not a prompt, so it stays as it is.
   if (submitted || locallySubmitted || (abandoned && needsContinuation)) {
     return (
       <InteractionCardRecap
@@ -2866,28 +2854,45 @@ export function CredentialDisplay({
   abandoned?: boolean
   onContinue?: (message: string) => void
 }) {
+  // A sim_key is an OUTPUT — the workspace API key the platform filled in —
+  // never a setup request, so it renders as its own reveal chip outside any
+  // card. Inside the question-style card it read as something to submit, and
+  // the card's recap swallowed the key after Submit. The reveal also outlives
+  // submission/abandonment: the key must stay retrievable. The full payload
+  // still flows to the card so row indexes (OAuth controlIds, submission
+  // pairing) stay stable — the card simply renders no sim_key rows.
+  const simKeyReveals = data
+    .map((item, index) =>
+      item.type === 'sim_key' ? <SecretReveal key={`sim-key-${index}`} value={item.value} /> : null
+    )
+    .filter(Boolean)
+  const inputItems = data.filter((item) => item.type !== 'sim_key')
   const usesCredentialCard = data.every((item) => CREDENTIAL_CARD_TYPES.has(item.type))
 
-  if (usesCredentialCard) {
-    return (
-      <CredentialInputCard
-        data={data}
-        interactionId={interactionId}
-        submitted={submitted}
-        abandoned={abandoned}
-        onContinue={onContinue}
-      />
-    )
-  }
-
-  return (
-    <div className={cn(data.length > 1 && 'space-y-3')}>
-      {data.map((item, index) => (
+  const inputControls = usesCredentialCard ? (
+    <CredentialInputCard
+      data={data}
+      interactionId={interactionId}
+      submitted={submitted}
+      abandoned={abandoned}
+      onContinue={onContinue}
+    />
+  ) : inputItems.length > 0 ? (
+    <div className={cn(inputItems.length > 1 && 'space-y-3')}>
+      {inputItems.map((item, index) => (
         <CredentialItemDisplay
           key={`${item.type}-${item.provider ?? item.name ?? index}`}
           data={item}
         />
       ))}
+    </div>
+  ) : null
+
+  if (simKeyReveals.length === 0) return inputControls
+  return (
+    <div className='space-y-3'>
+      {simKeyReveals}
+      {inputControls}
     </div>
   )
 }
