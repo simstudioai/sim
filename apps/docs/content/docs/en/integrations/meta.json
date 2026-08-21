@@ -2,6 +2,7 @@
   "pages": [
     "index",
     "a2a",
+    "affinity",
     "agentmail",
     "agentphone",
     "agiloft",
@@ -114,6 +115,7 @@
     "granola",
     "greenhouse",
     "greptile",
+    "harmonic",
     "hex",
     "hubspot",
     "hubspot-service-account",
