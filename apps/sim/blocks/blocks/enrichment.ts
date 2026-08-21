@@ -97,6 +97,14 @@ export const EnrichmentBlock: BlockConfig<EnrichmentRunResponse> = {
             core: true,
           },
         ],
+        'linkedin-profile': [
+          {
+            text: 'Find the LinkedIn profile for',
+            field: 'linkedin-profile__fullName',
+            core: true,
+          },
+          { text: 'at', field: 'linkedin-profile__companyDomain' },
+        ],
         'phone-number': [
           { text: 'Find the phone number for', field: 'phone-number__fullName', core: true },
           { text: 'at', field: 'phone-number__companyDomain' },

@@ -1,6 +1,7 @@
 import { companyDomainEnrichment } from '@/enrichments/company-domain'
 import { companyInfoEnrichment } from '@/enrichments/company-info'
 import { emailVerificationEnrichment } from '@/enrichments/email-verification'
+import { linkedinProfileEnrichment } from '@/enrichments/linkedin-profile'
 import { phoneNumberEnrichment } from '@/enrichments/phone-number'
 import type { EnrichmentConfig, EnrichmentRegistry } from '@/enrichments/types'
 import { workEmailEnrichment } from '@/enrichments/work-email'
@@ -8,6 +9,7 @@ import { workEmailEnrichment } from '@/enrichments/work-email'
 export const ENRICHMENT_REGISTRY: EnrichmentRegistry = {
   [workEmailEnrichment.id]: workEmailEnrichment,
   [emailVerificationEnrichment.id]: emailVerificationEnrichment,
+  [linkedinProfileEnrichment.id]: linkedinProfileEnrichment,
   [phoneNumberEnrichment.id]: phoneNumberEnrichment,
   [companyDomainEnrichment.id]: companyDomainEnrichment,
   [companyInfoEnrichment.id]: companyInfoEnrichment,
