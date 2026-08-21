@@ -1,0 +1,1 @@
+ALTER TABLE "knowledge_connector" ADD COLUMN "sync_lock_token" text;
