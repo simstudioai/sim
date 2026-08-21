@@ -152,33 +152,21 @@ export const genericWebhookTrigger: TriggerConfig = {
   ],
 
   /**
-   * Body fields stay undeclared because a generic webhook receives whatever JSON the caller
-   * sends. The request metadata below is known ahead of time, so it can be offered for reference.
+   * Deliberately empty, and it must stay that way.
    *
-   * `method` and `headers` are conditioned on the switch that produces them, so the reference
-   * dropdown never offers a field the running webhook will not send. Both truthy forms are
-   * matched because a YAML- or Copilot-authored workflow can write the string rather than the
-   * boolean — the same tolerance `isProviderConfigFlagEnabled` applies at delivery time.
+   * A generic webhook receives whatever the caller sends, so its output shape is unknowable. The
+   * executor treats any non-empty output declaration as an exhaustive schema: `collectBlockData`
+   * registers it, and `resolveBlockReference` then throws `InvalidFieldError` for any reference
+   * outside it that resolves to `undefined`. Declaring `method`, `query` and `headers` here
+   * therefore did not add three completions — it made those three the *only* legal fields, and
+   * every workflow reading a body field failed the moment a delivery omitted it.
+   *
+   * The metadata is still merged into the input at delivery time by the generic provider's
+   * `formatInput`; it is only undeclared, which is what keeps the block's shape open. Offering
+   * these as editor completions needs a way to mark outputs as hints rather than a closed schema,
+   * which is a change to `getRegistrySchema`, not to this list.
    */
-  outputs: {
-    method: {
-      type: 'string',
-      description:
-        'HTTP method of the request. Yields to a body field of the same name if the caller sends one.',
-      condition: { field: 'acceptOtherMethods', value: [true, 'true'] },
-    },
-    query: {
-      type: 'object',
-      description:
-        'Query parameters from the request URL, when it has any. Yields to a body field of the same name if the caller sends one.',
-    },
-    headers: {
-      type: 'object',
-      description:
-        'Request headers, excluding the ones that carry credentials. Yields to a body field of the same name if the caller sends one.',
-      condition: { field: 'exposeRequestHeaders', value: [true, 'true'] },
-    },
-  },
+  outputs: {},
 
   webhook: {
     method: 'POST',
