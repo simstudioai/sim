@@ -329,19 +329,33 @@ async function prepareDeploymentOperation(
   }
 
   if (operation.status === 'active') {
-    await cleanupRetiredWebhooksForOperation({
-      payload,
-      workflow: workflowRecord as Record<string, unknown>,
-      context,
+    /**
+     * Resuming an attempt that already activated: every remaining step is
+     * fenced to this generation, so once a newer one exists they can only
+     * fail, identically, on every retry until the event dead-letters. The
+     * terminal short circuit above cannot catch this — a superseded-after-
+     * activation attempt keeps its own `active` status — and the newer
+     * generation adopts the leftover work anyway, retired registrations
+     * included (it collects every retired row below its own fence).
+     */
+    context.signal.throwIfAborted()
+    const isCurrent = await isDeploymentOperationCurrent({
+      workflowId: payload.workflowId,
+      operationId: payload.operationId,
+      generation: payload.generation,
     })
-    await cleanupInactiveDeploymentsForOperation({
-      payload,
-      workflow: workflowRecord as Record<string, unknown>,
-      checkpoints,
-      checkpoint,
-      context,
-    })
-    await emitPostActivationSideEffects({
+    context.signal.throwIfAborted()
+    if (!isCurrent) {
+      logger.info('Skipping post-activation work for a superseded generation', {
+        workflowId: payload.workflowId,
+        operationId: payload.operationId,
+        generation: payload.generation,
+        errorCode: DEPLOYMENT_ERROR_CODES.operationSuperseded,
+      })
+      return
+    }
+
+    await runPostActivationWork({
       payload,
       operation,
       workflow: workflowRecord as Record<string, unknown>,
@@ -491,25 +505,50 @@ async function prepareDeploymentOperation(
   notifyMcpToolServers(affectedMcpServers)
   context.signal.throwIfAborted()
 
-  await cleanupRetiredWebhooksForOperation({
-    payload,
-    workflow: workflowRecord as Record<string, unknown>,
-    context,
-  })
-  await cleanupInactiveDeploymentsForOperation({
-    payload,
-    workflow: workflowRecord as Record<string, unknown>,
-    checkpoints,
-    checkpoint,
-    context,
-  })
-  await emitPostActivationSideEffects({
+  await runPostActivationWork({
     payload,
     operation,
     workflow: workflowRecord as Record<string, unknown>,
     checkpoints,
     checkpoint,
     context,
+  })
+}
+
+/**
+ * Runs everything that follows a committed cutover — notifications first.
+ *
+ * The ordering is load-bearing. The audit entry, analytics event, socket
+ * notification, and workspace event all describe an activation that is
+ * already durable, and each is individually checkpointed. Retiring the
+ * previous generation's external subscriptions is best-effort cleanup that
+ * makes one provider call per retired row and is by far the slowest, most
+ * failure-prone step here. Running cleanup first put every one of those
+ * notifications behind it, so a single flaky provider — or the handler
+ * timeout its latency burns through — silently cost the deploy its audit
+ * trail and left clients on the old version until something else refreshed
+ * them. Nothing below depends on the cleanup having run.
+ */
+async function runPostActivationWork(params: {
+  payload: PrepareDeploymentV2Payload
+  operation: WorkflowDeploymentOperation
+  workflow: Record<string, unknown>
+  checkpoints: DeploymentPreparationCheckpoints
+  checkpoint: (patch: Partial<DeploymentPreparationCheckpoints>) => Promise<void>
+  context: OutboxEventContext
+}): Promise<void> {
+  await emitPostActivationSideEffects(params)
+  await cleanupRetiredWebhooksForOperation({
+    payload: params.payload,
+    workflow: params.workflow,
+    context: params.context,
+  })
+  await cleanupInactiveDeploymentsForOperation({
+    payload: params.payload,
+    workflow: params.workflow,
+    checkpoints: params.checkpoints,
+    checkpoint: params.checkpoint,
+    context: params.context,
   })
 }
 

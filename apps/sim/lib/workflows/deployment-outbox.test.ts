@@ -524,6 +524,66 @@ describe('versioned deployment preparation outbox', () => {
     expect(mockActivateDeploymentOperation).not.toHaveBeenCalled()
   })
 
+  /**
+   * The production shape: an attempt activates, its post-activation phase is
+   * interrupted (handler timeout), and a redeploy lands before the reaper
+   * requeues it. Every resumed attempt then re-fails the same generation
+   * fence, so without the guard it exhausts the retry budget and dead-letters.
+   */
+  it('skips post-activation work once a newer deploy supersedes an activated attempt', async () => {
+    mockGetDeploymentOperation.mockResolvedValue(operation({ status: 'active', completedAt: NOW }))
+    queueTableRows(schemaMock.workflow, [
+      { id: 'workflow-1', name: 'Workflow', workspaceId: 'workspace-1' },
+    ])
+    mockCleanupRetiredWebhookRegistrations.mockRejectedValue(
+      new Error('Webhook registration operation is stale')
+    )
+
+    await expect(handler()(payload(), context(new AbortController(), 3))).resolves.toBeUndefined()
+
+    expect(mockCleanupRetiredWebhookRegistrations).not.toHaveBeenCalled()
+    expect(mockRecordAudit).not.toHaveBeenCalled()
+    expect(mockMarkDeploymentOperationFailed).not.toHaveBeenCalled()
+    expect(mockRecordDeploymentOperationRetry).not.toHaveBeenCalled()
+  })
+
+  it('resumes post-activation work while the activated attempt is still current', async () => {
+    mockIsDeploymentOperationCurrent.mockResolvedValue(true)
+    mockGetDeploymentOperation.mockResolvedValue(operation({ status: 'active', completedAt: NOW }))
+    queueTableRows(schemaMock.workflow, [
+      { id: 'workflow-1', name: 'Workflow', workspaceId: 'workspace-1' },
+    ])
+
+    await handler()(payload(), context())
+
+    expect(mockCleanupRetiredWebhookRegistrations).toHaveBeenCalledTimes(1)
+    expect(mockRecordAudit).toHaveBeenCalledTimes(1)
+    expect(mockEmitWorkflowDeployedEvent).toHaveBeenCalledTimes(1)
+  })
+
+  /**
+   * Retiring the previous generation's provider subscriptions is the slowest
+   * step after cutover; a deploy that already went live must not lose its
+   * audit trail or its "deployment changed" notification when that step fails.
+   */
+  it('records and notifies an activated deploy before retiring old subscriptions', async () => {
+    mockIsDeploymentOperationCurrent.mockResolvedValue(true)
+    mockGetDeploymentOperation.mockResolvedValue(operation({ status: 'active', completedAt: NOW }))
+    queueTableRows(schemaMock.workflow, [
+      { id: 'workflow-1', name: 'Workflow', workspaceId: 'workspace-1' },
+    ])
+    mockCleanupRetiredWebhookRegistrations.mockRejectedValue(new Error('provider unavailable'))
+
+    await expect(handler()(payload(), context())).rejects.toThrow('provider unavailable')
+
+    expect(mockRecordAudit).toHaveBeenCalledTimes(1)
+    expect(mockCaptureServerEvent).toHaveBeenCalledTimes(1)
+    expect(mockEmitWorkflowDeployedEvent).toHaveBeenCalledTimes(1)
+    expect(mockRecordAudit.mock.invocationCallOrder[0]).toBeLessThan(
+      mockCleanupRetiredWebhookRegistrations.mock.invocationCallOrder[0]
+    )
+  })
+
   it('keeps v1 cleanup from deleting a candidate owned by the current v2 operation', async () => {
     queueTableRows(schemaMock.workflow, [
       { id: 'workflow-1', name: 'Workflow', workspaceId: 'workspace-1' },

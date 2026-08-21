@@ -63,6 +63,14 @@ const FENCE: WebhookRegistrationOperationFence = {
   deploymentVersionId: 'version-3',
 }
 
+/** The redeploy that lands seconds after {@link FENCE} and supersedes it. */
+const NEXT_FENCE: WebhookRegistrationOperationFence = {
+  workflowId: 'workflow-1',
+  operationId: 'operation-2',
+  generation: 4,
+  deploymentVersionId: 'version-4',
+}
+
 interface UpdateCall {
   payload: Record<string, unknown>
   condition: Condition
@@ -123,6 +131,15 @@ function createTx(selectResults: unknown[][]) {
   }
 
   return { tx: tx as unknown as DbOrTx, updates, inserts, updateResults }
+}
+
+/** Routes `db.transaction` at a queue-driven tx so store writes are observable. */
+function runInTx(selectResults: unknown[][]) {
+  const harness = createTx(selectResults)
+  dbChainMockFns.transaction.mockImplementation(
+    async (callback: (tx: DbOrTx) => Promise<unknown>) => callback(harness.tx)
+  )
+  return harness
 }
 
 function activeRow(overrides: Record<string, unknown> = {}) {
@@ -223,14 +240,6 @@ describe('prepareWebhookRegistrationIntents', () => {
       throw new Error('db.transaction not configured for this test')
     })
   })
-
-  function runInTx(selectResults: unknown[][]) {
-    const harness = createTx(selectResults)
-    dbChainMockFns.transaction.mockImplementation(
-      async (callback: (tx: DbOrTx) => Promise<unknown>) => callback(harness.tx)
-    )
-    return harness
-  }
 
   const desired = {
     blockId: 'block-1',
@@ -339,5 +348,69 @@ describe('prepareWebhookRegistrationIntents', () => {
     ).rejects.toBeInstanceOf(StaleWebhookRegistrationOperationError)
     expect(inserts).toHaveLength(0)
     expect(updates).toHaveLength(0)
+  })
+})
+
+describe('redeploys racing within seconds', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+    mockClaimWebhookPath.mockResolvedValue('hooks/a')
+    dbChainMockFns.transaction.mockImplementation(async () => {
+      throw new Error('db.transaction not configured for this test')
+    })
+  })
+
+  const desired = {
+    blockId: 'block-1',
+    provider: 'slack',
+    path: 'hooks/a',
+    routingKey: null,
+    providerConfig: { url: 'https://example.test' },
+    configFingerprint: 'fp-new',
+  }
+
+  it('no-ops the superseded attempt and still lands the newer registration', async () => {
+    mockIsDeploymentOperationCurrent.mockResolvedValue(false)
+    const superseded = runInTx([[{ id: 'workflow-1' }]])
+
+    await expect(
+      prepareWebhookRegistrationIntents({ fence: FENCE, desired: [desired] })
+    ).rejects.toBeInstanceOf(StaleWebhookRegistrationOperationError)
+    expect(superseded.inserts).toHaveLength(0)
+    expect(superseded.updates).toHaveLength(0)
+    expect(mockClaimWebhookPath).not.toHaveBeenCalled()
+
+    mockIsDeploymentOperationCurrent.mockResolvedValue(true)
+    const winner = runInTx([[{ id: 'workflow-1' }], [], [activeRow()], [], []])
+
+    const work = await prepareWebhookRegistrationIntents({ fence: NEXT_FENCE, desired: [desired] })
+
+    expect(mockClaimWebhookPath).toHaveBeenCalledWith(expect.anything(), {
+      path: 'hooks/a',
+      workflowId: 'workflow-1',
+      generation: 4,
+    })
+    expect(work.candidates).toHaveLength(1)
+    expect(winner.inserts).toHaveLength(1)
+    expect(winner.inserts[0].values).toEqual(
+      expect.objectContaining({
+        registrationStatus: 'candidate',
+        registrationGeneration: 4,
+        deploymentVersionId: 'version-4',
+      })
+    )
+
+    const activation = createTx([[{ id: 'workflow-1' }], [], []])
+    await activateWebhookRegistrations(activation.tx, NEXT_FENCE)
+
+    expect(activation.updates[1].payload).toEqual(
+      expect.objectContaining({
+        registrationStatus: 'active',
+        deploymentVersionId: 'version-4',
+        isActive: true,
+        archivedAt: null,
+      })
+    )
   })
 })
