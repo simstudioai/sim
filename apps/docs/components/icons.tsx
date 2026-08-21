@@ -563,6 +563,28 @@ export function ChartBarIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
+export function HarmonicIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...props} viewBox='0 1 26 30.1' fill='none' role='img' xmlns='http://www.w3.org/2000/svg'>
+      {/** svg-path-precision-exception: Preserves Harmonic's supplied brand-mark coordinates. */}
+      <path
+        d='M6.49743 1.08252L12.9949 4.83381V12.3364L6.49743 16.0877L0 12.3364V4.83381L6.49743 1.08252Z'
+        fill='#FE5D45'
+      />
+      {/** svg-path-precision-exception: Preserves Harmonic's supplied brand-mark coordinates. */}
+      <path
+        d='M6.49743 16.0874L12.9949 19.8387V27.3413L6.49743 31.0926L0 27.3413V19.8387L6.49743 16.0874Z'
+        fill='#FE5D45'
+      />
+      {/** svg-path-precision-exception: Preserves Harmonic's supplied brand-mark coordinates. */}
+      <path
+        d='M19.5026 8.58496L26 12.3363V19.8388L19.5026 23.5901L13.0051 19.8388V12.3363L19.5026 8.58496Z'
+        fill='#FE5D45'
+      />
+    </svg>
+  )
+}
+
 export function HubspotIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg

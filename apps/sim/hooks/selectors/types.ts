@@ -20,6 +20,7 @@ export type SelectorKey =
   | 'clickup.lists'
   | 'confluence.spaces'
   | 'google.tasks.lists'
+  | 'harmonic.savedSearches'
   | 'managedAgent.agents'
   | 'managedAgent.environments'
   | 'managedAgent.vaults'
