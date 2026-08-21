@@ -40,6 +40,21 @@ function tabButton(id: string): HTMLButtonElement {
   return button
 }
 
+function stripItem(id: string): HTMLElement {
+  const item = container?.querySelector<HTMLElement>(`[data-tab-strip-item="${id}"]`)
+  if (!item) throw new Error(`Missing tab item ${id}`)
+  return item
+}
+
+/** jsdom fires no real DragEvent, and the strip writes to `dataTransfer`. */
+function dragStartEvent(): MouseEvent {
+  const event = new MouseEvent('dragstart', { bubbles: true, cancelable: true })
+  Object.defineProperty(event, 'dataTransfer', {
+    value: { effectAllowed: '', dropEffect: '', setData: vi.fn(), setDragImage: vi.fn() },
+  })
+  return event
+}
+
 function scrollRow(): HTMLDivElement {
   const row = container?.querySelector<HTMLDivElement>('.overflow-x-auto')
   if (!row) throw new Error('Missing scrolling tab row')
@@ -93,7 +108,74 @@ describe('TabStrip interactions', () => {
 
     act(() => tabButton('two').click())
 
-    expect(onSelect).toHaveBeenCalledWith('two', 'pointer')
+    expect(onSelect.mock.calls[0]?.slice(0, 2)).toEqual(['two', 'pointer'])
+  })
+
+  it('forwards the originating click so callers can read its modifiers', () => {
+    const onSelect = vi.fn()
+    mount(renderStrip(tabs, onSelect))
+
+    act(() => {
+      tabButton('two').dispatchEvent(
+        new MouseEvent('click', { bubbles: true, cancelable: true, shiftKey: true })
+      )
+    })
+
+    expect(onSelect.mock.calls[0]?.[2]?.shiftKey).toBe(true)
+  })
+
+  it('marks a tab in a multi-selection without making it the active tab', () => {
+    mount(renderStrip(tabs.map((tab) => ({ ...tab, selected: tab.id === 'two' }))))
+
+    expect(tabButton('two').className).toContain('bg-[var(--surface-active)]')
+    expect(tabButton('two').getAttribute('aria-selected')).toBe('false')
+    // The active tab owns the surface below it, so it never takes the
+    // secondary highlight even when it is part of the selection.
+    expect(tabButton('one').className).not.toContain('bg-[var(--surface-active)]')
+  })
+
+  // Supplying both `newTabControl` and `onNew` is a type error, so the built-in
+  // button can never be silently shadowed by a caller's own control.
+  it('fills the new-tab slot with a supplied control, and the end slot with actions', () => {
+    mount(
+      <TabStrip
+        tabs={tabs}
+        onSelect={vi.fn()}
+        newTabControl={<button type='button'>Add resource</button>}
+        endActions={<button type='button'>Download</button>}
+      />
+    )
+
+    expect(container?.querySelector('[aria-label="New tab"]')).toBeNull()
+    expect(container?.textContent).toContain('Add resource')
+    expect(container?.textContent).toContain('Download')
+  })
+
+  it('tracks a plain tab drag as a reorder', () => {
+    mount(<TabStrip tabs={tabs} onSelect={vi.fn()} onReorder={vi.fn()} />)
+
+    const item = stripItem('two')
+    act(() => item.dispatchEvent(dragStartEvent()))
+
+    expect(item.className).toContain('opacity-30')
+  })
+
+  it('lets the drag owner declare a gesture is not a reorder', () => {
+    mount(
+      <TabStrip
+        tabs={tabs}
+        onSelect={vi.fn()}
+        onReorder={vi.fn()}
+        onTabDragStart={(_event, _id, drag) => drag.preventReorder()}
+      />
+    )
+
+    const item = stripItem('two')
+    act(() => item.dispatchEvent(dragStartEvent()))
+
+    // Nothing is being tracked, so the tab never dims and no drop indicator
+    // offers a move the strip has been told will not happen.
+    expect(item.className).not.toContain('opacity-30')
   })
 
   it('closes an unpinned tab with the middle mouse button', () => {
