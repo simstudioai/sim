@@ -4689,12 +4689,16 @@ const WorkflowContent = React.memo(
          before its node mounts is retried on the mounting commit instead of dropped. */
       const node = displayNodes.find((candidate) => candidate.id === deepLinkBlockId)
       if (!node) {
-        /* Once any node has mounted the canvas is populated, so an id still missing belongs to a
-           block deleted since the link was made. Drop it rather than hold it: the param is
-           already stripped, so a target kept here would re-check on every canvas update forever
-           and shadow a later link to the same block. The workflow simply keeps its default
-           framing, which is what the link did before it carried a target. */
-        if (displayNodes.length > 0) setDeepLinkBlockId(null)
+        /* Absent is only conclusive once THIS workflow's graph is the one loaded. `isWorkflowReady`
+           is that test — it pins `hydration.workflowId` and `activeWorkflowId` to the id in the
+           URL — where a count of mounted nodes is not: arriving from another workflow, the store
+           still holds that graph, so nodes are present while the linked workflow is still
+           hydrating and a valid target would be thrown away.
+
+           Releasing it matters because the param is already stripped: a target held forever would
+           re-check on every canvas update and shadow a later link to the same block. Dropping it
+           leaves the default framing, which is what the link did before it carried a target. */
+        if (isWorkflowReady) setDeepLinkBlockId(null)
         return
       }
 
@@ -4723,6 +4727,7 @@ const WorkflowContent = React.memo(
       displayNodes,
       embedded,
       focusBlockInView,
+      isWorkflowReady,
       workflowIdParam,
     ])
 
