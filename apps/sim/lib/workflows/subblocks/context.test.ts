@@ -7,8 +7,12 @@ vi.unmock('@/blocks/registry')
 
 import * as blocksBarrel from '@/blocks'
 import { getAllBlocks, getBlock as getRealBlock } from '@/blocks/registry'
-import { buildSelectorContextFromBlock, SELECTOR_CONTEXT_FIELDS } from './context'
-import { buildCanonicalIndex, isCanonicalPair } from './visibility'
+import {
+  buildSelectorContextFromBlock,
+  getSelectorContextSubBlocks,
+  SELECTOR_CONTEXT_FIELDS,
+} from './context'
+import { buildCanonicalIndex, isCanonicalPair, resolveDependencyValue } from './visibility'
 
 /**
  * Under `isolate: false` the module under test may already be cached from an
@@ -22,6 +26,10 @@ const getBlockSpy = vi.spyOn(blocksBarrel, 'getBlock').mockImplementation(getRea
 afterAll(() => {
   getBlockSpy.mockRestore()
 })
+
+function subBlocksFromValues(values: Record<string, unknown>): Record<string, { value: unknown }> {
+  return Object.fromEntries(Object.entries(values).map(([id, value]) => [id, { value }]))
+}
 
 describe('buildSelectorContextFromBlock', () => {
   it('should extract knowledgeBaseId from knowledgeBaseSelector via canonical mapping', () => {
@@ -153,14 +161,10 @@ describe('buildSelectorContextFromBlock', () => {
   })
 
   it('preserves Gmail action credential resolution in basic and advanced modes', () => {
-    const subBlocks = {
-      credential: { id: 'credential', type: 'oauth-input', value: 'action-basic' },
-      manualCredential: {
-        id: 'manualCredential',
-        type: 'short-input',
-        value: 'action-advanced',
-      },
-    }
+    const subBlocks = subBlocksFromValues({
+      credential: 'action-basic',
+      manualCredential: 'action-advanced',
+    })
 
     expect(buildSelectorContextFromBlock('gmail', subBlocks).oauthCredential).toBe('action-basic')
     expect(
@@ -170,30 +174,41 @@ describe('buildSelectorContextFromBlock', () => {
     ).toBe('action-advanced')
   })
 
-  it('uses the trigger credential when a Gmail action block is converted to trigger mode', () => {
-    const ctx = buildSelectorContextFromBlock(
-      'gmail',
+  it('uses trigger credentials with and without canonical metadata after action conversion', () => {
+    const clickupValues = {
+      selectedTriggerId: 'clickup_task_created',
+      credential: 'dormant-action',
+      triggerCredentials: 'active-trigger',
+    }
+    const cases = [
+      { blockType: 'clickup', values: clickupValues },
       {
-        credential: { id: 'credential', type: 'oauth-input', value: 'dormant-action' },
-        triggerCredentials: {
-          id: 'triggerCredentials',
-          type: 'oauth-input',
-          value: 'active-trigger',
-        },
+        blockType: 'airtable',
+        values: { credential: 'dormant-action', triggerCredentials: 'active-trigger' },
       },
-      { triggerMode: true }
-    )
+    ]
 
-    expect(ctx.oauthCredential).toBe('active-trigger')
+    for (const { blockType, values } of cases) {
+      expect(
+        buildSelectorContextFromBlock(blockType, subBlocksFromValues(values), {
+          triggerMode: true,
+        }).oauthCredential
+      ).toBe('active-trigger')
+    }
+
+    const clickupConfig = getRealBlock('clickup')
+    const triggerCanonicalIndex = buildCanonicalIndex(
+      getSelectorContextSubBlocks(clickupConfig?.subBlocks ?? [], clickupValues, true)
+    )
+    expect(resolveDependencyValue('triggerCredentials', clickupValues, triggerCanonicalIndex)).toBe(
+      'active-trigger'
+    )
   })
 
-  it('does not leak a dormant Gmail action credential when the trigger credential is blank', () => {
+  it('does not leak a dormant action credential when an unmapped trigger credential is blank', () => {
     const ctx = buildSelectorContextFromBlock(
-      'gmail',
-      {
-        credential: { id: 'credential', type: 'oauth-input', value: 'dormant-action' },
-        triggerCredentials: { id: 'triggerCredentials', type: 'oauth-input', value: '' },
-      },
+      'airtable',
+      subBlocksFromValues({ credential: 'dormant-action', triggerCredentials: '' }),
       { triggerMode: true }
     )
 
