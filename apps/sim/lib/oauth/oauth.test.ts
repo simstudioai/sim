@@ -190,6 +190,29 @@ describe('Bitbucket OAuth Connector', () => {
     })
   })
 
+  it('normalizes Bitbucket’s singular scope response field', async () => {
+    const getToken = getBitbucketConnector().getToken
+    if (!getToken) throw new Error('Bitbucket connector must define getToken')
+
+    const tokens = await withMockFetch(
+      createMockFetch({
+        json: {
+          access_token: 'bitbucket_access_token',
+          refresh_token: 'bitbucket_refresh_token',
+          scope: 'account repository pullrequest webhook',
+          token_type: 'bearer',
+        },
+      }),
+      () =>
+        getToken({
+          code: 'authorization_code',
+          redirectURI: 'http://localhost:3000/api/auth/oauth2/callback/bitbucket',
+        })
+    )
+
+    expect(tokens.scopes).toEqual(['account', 'repository', 'pullrequest', 'webhook'])
+  })
+
   it('uses account_id before uuid and always synthesizes an internal email', async () => {
     const connector = getBitbucketConnector()
     const getUserInfo = connector.getUserInfo

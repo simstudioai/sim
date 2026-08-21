@@ -196,7 +196,7 @@ function buildCommonOutputs(): Record<string, TriggerOutput> {
     },
     payload: {
       type: 'json',
-      description: 'Full raw Bitbucket webhook payload',
+      description: 'Full parsed Bitbucket webhook payload',
     },
   }
 }
