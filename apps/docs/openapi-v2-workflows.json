@@ -2783,7 +2783,7 @@
       "get": {
         "operationId": "getWorkflowRunV2",
         "summary": "Get Workflow Run",
-        "description": "Get current workflow run state, optionally including final and block outputs. With `includeOutput`, `files` lists the files the run produced, each with a `downloadPath`; add `includeFileBase64` to inline their bytes, which answers `413` naming the download path for a file above the 16 MiB inline ceiling. Because inlining reads object storage, this `GET` is not a safe read. A `HEAD` skips the effect but is authorized exactly as the `GET` is, so it answers `400`, `401`, `403`, or `404` wherever the `GET` would and an empty `200` otherwise. Skipping the effect means skipping the read that produces the payload, so that `200` carries none of the response headers documented below — it answers whether the `GET` would be allowed, not what the `GET` would return.",
+        "description": "Get current workflow run state, optionally including final and block outputs. With `includeOutput`, `files` lists the files the run produced, each with a `downloadPath`; add `includeFileBase64` to inline their bytes, which answers `413` naming the download path when a single file, or the run's inlined total, exceeds the 16 MiB ceiling. Because inlining reads object storage, this `GET` is not a safe read. A `HEAD` skips the effect but is authorized exactly as the `GET` is, so it answers `400`, `401`, `403`, or `404` wherever the `GET` would and an empty `200` otherwise. Skipping the effect means skipping the read that produces the payload, so that `200` carries none of the response headers documented below — it answers whether the `GET` would be allowed, not what the `GET` would return.",
         "tags": ["Workflow Runs"],
         "parameters": [
           {
@@ -2890,6 +2890,9 @@
           },
           "409": {
             "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"

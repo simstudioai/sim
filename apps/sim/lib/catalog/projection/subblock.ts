@@ -1,5 +1,5 @@
 import type { SubBlockConfig } from '@/blocks/types'
-import { PROVIDER_DEFINITIONS } from '@/providers/models'
+import { DYNAMIC_MODEL_PROVIDERS, PROVIDER_DEFINITIONS } from '@/providers/models'
 
 /**
  * Surface-neutral projection of a block's sub-block (its configuration fields)
@@ -129,7 +129,7 @@ function normalizeRequired(required: SubBlockConfig['required']): {
 function staticModelOptions(): CatalogSubBlockOption[] {
   const models: CatalogSubBlockOption[] = []
   for (const provider of Object.values(PROVIDER_DEFINITIONS)) {
-    if (DYNAMIC_MODEL_PROVIDERS.has(provider.id)) continue
+    if (DYNAMIC_MODEL_PROVIDER_IDS.has(provider.id)) continue
     for (const model of provider.models ?? []) {
       if (model.sunset?.status === 'deprecated') continue
       models.push({ id: model.id, label: model.id })
@@ -138,16 +138,15 @@ function staticModelOptions(): CatalogSubBlockOption[] {
   return models
 }
 
-/** Providers whose model list is fetched at runtime rather than declared in code. */
-const DYNAMIC_MODEL_PROVIDERS = new Set([
-  'ollama',
-  'ollama-cloud',
-  'vllm',
-  'openrouter',
-  'fireworks',
-  'together',
-  'baseten',
-])
+/**
+ * Providers whose model list is fetched at runtime rather than declared in code.
+ *
+ * Derived from the canonical list rather than restated: the local copy had
+ * drifted by one member (`litellm`), and a projection that disagrees with the
+ * registry about which providers are dynamic answers a different question than
+ * the app does.
+ */
+const DYNAMIC_MODEL_PROVIDER_IDS = new Set<string>(DYNAMIC_MODEL_PROVIDERS)
 
 /** Shape of the providers store this projection substitutes while resolving options. */
 interface ProvidersStateLike {

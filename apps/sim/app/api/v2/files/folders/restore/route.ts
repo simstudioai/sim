@@ -1,27 +1,11 @@
 import { v2RestoreFileFolderContract } from '@/lib/api/contracts/v2/files'
 import { defineV2JsonRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/routes'
-import { buildFolderPath, parentFolderPath, parseFolderPath } from '@/lib/folders/paths'
 import { v2FileErrorPolicies } from '@/lib/workspace-files/api'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { restoreWorkspaceFileFolderOperation } from '@/lib/workspace-files/application/workspace-file-folders'
-import { parseWorkspaceFileFolderDisplayPath } from '@/lib/workspace-files/folder-display-path'
-
+import { toV2Folder } from '@/app/api/v2/files/folders/utils'
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
-
-function toV2Folder(folder: { name: string; path: string; createdAt: Date; updatedAt: Date }) {
-  const segments = folder.path.startsWith('/')
-    ? parseFolderPath(folder.path)
-    : parseWorkspaceFileFolderDisplayPath(folder.path)
-  const path = buildFolderPath(segments)
-  return {
-    name: folder.name,
-    path,
-    parentPath: parentFolderPath(path),
-    createdAt: folder.createdAt.toISOString(),
-    updatedAt: folder.updatedAt.toISOString(),
-  }
-}
 
 /**
  * POST /api/v2/files/folders/restore — restore a soft-deleted folder tree.

@@ -1142,8 +1142,8 @@ const declaredRoutes = [
     workflowRunOperation({
       operationId: 'getWorkflowRunV2',
       summary: 'Get Workflow Run',
-      description: `Get current workflow run state, optionally including final and block outputs. With \`includeOutput\`, \`files\` lists the files the run produced, each with a \`downloadPath\`; add \`includeFileBase64\` to inline their bytes, which answers \`413\` naming the download path for a file above the 16 MiB inline ceiling. Because inlining reads object storage, this \`GET\` is not a safe read. ${HEAD_MIRRORS_GET}`,
-      errors: RESOURCE_CONFLICT_ERRORS,
+      description: `Get current workflow run state, optionally including final and block outputs. With \`includeOutput\`, \`files\` lists the files the run produced, each with a \`downloadPath\`; add \`includeFileBase64\` to inline their bytes, which answers \`413\` naming the download path when a single file, or the run's inlined total, exceeds the 16 MiB ceiling. Because inlining reads object storage, this \`GET\` is not a safe read. ${HEAD_MIRRORS_GET}`,
+      errors: [...RESOURCE_CONFLICT_ERRORS, 'PayloadTooLarge'],
       success: jsonSuccess('The workflow run status.'),
     }),
     {

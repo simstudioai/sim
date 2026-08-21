@@ -386,7 +386,7 @@ const declaredRoutes = [
       operationId: 'listTableRows',
       summary: 'List Rows',
       description:
-        "List a plain cursor page in default row order. Pages are capped at 5MB by default and may contain fewer rows than the requested limit; continue until nextCursor is null. Use the query endpoint for predicate filtering and sorting. Set `includeRunState=true` to attach each row's per-workflow-group run outcomes; a page whose run state exceeds the response ceiling is a `413`.",
+        "List a plain cursor page in default row order. Pages are capped at 5MB by default and may contain fewer rows than the requested limit; continue until nextCursor is null. Use the query endpoint for predicate filtering and sorting. Set `includeRunState=true` to attach each row's per-workflow-group run outcomes; the row limit is capped when it is set.",
       errors: RESOURCE_ERRORS,
       success: { description: 'A page of table rows.' },
     }),
@@ -653,7 +653,7 @@ const declaredRoutes = [
       operationId: 'queryTableRows',
       summary: 'Query Rows',
       description:
-        "Query rows with a typed predicate, ordered sort specification, and opaque cursor pagination. Bounded pages are capped at 5MB by default and may contain fewer rows than the requested limit; continue until nextCursor is null. A predicate larger than the request-body ceiling is a `413`. Set `includeRunState: true` to attach each row's per-workflow-group run outcomes; a page whose run state exceeds the response ceiling is also a `413`. Row totals live on the companion `POST /api/v2/tables/{tableId}/query/count`, which is a separate snapshot — a caller needing a consistent pair should take the count first and treat it as a floor.",
+        "Query rows with a typed predicate, ordered sort specification, and opaque cursor pagination. Bounded pages are capped at 5MB by default and may contain fewer rows than the requested limit; continue until nextCursor is null. A predicate larger than the request-body ceiling is a `413`. Set `includeRunState: true` to attach each row's per-workflow-group run outcomes; the row limit is capped when it is set. Row totals live on the companion `POST /api/v2/tables/{tableId}/query/count`, which is a separate snapshot — a caller needing a consistent pair should take the count first and treat it as a floor.",
       errors: TABLE_QUERY_ERRORS,
       success: { description: 'A page of matching table rows.' },
     }),
