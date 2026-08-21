@@ -77,6 +77,7 @@ import {
   acceptEnterpriseOwnerClaim,
   enterpriseOwnerClaimOutboxHandlers,
   getEnterpriseOwnerClaimDetails,
+  retryEnterpriseOwnerClaim,
   reviewEnterpriseOwnerClaim,
   revokeEnterpriseOwnerClaim,
 } from '@/lib/billing/enterprise-owner-claim'
@@ -371,5 +372,37 @@ describe('Enterprise future-owner claims', () => {
     ).resolves.toEqual({ success: false, kind: 'revoked' })
     expect(mocks.createOrganization).not.toHaveBeenCalled()
     expect(mocks.enqueue).not.toHaveBeenCalled()
+  })
+
+  it('repairs the parent claim when activation already attached provisioning', async () => {
+    const accepted = {
+      acceptedAt: '2026-08-20T12:00:00.000Z',
+      ownerUserId: 'owner-1',
+      organizationId: 'org-1',
+      workspaceIds: ['workspace-1'],
+      reportingPeriodAnchorDate: '2026-08-20',
+      activationEventId: 'activation-1',
+      createdDefaultWorkspaceId: null,
+    }
+    const acceptedPayload = { ...claimPayload(), acceptance: accepted }
+    const activationRow = {
+      ...claimRow({ claimId: 'claim-1', provisioningOperationId: 'provisioning-1' }),
+      id: 'activation-1',
+      eventType: 'enterprise.activate-owner-claim',
+    }
+    queueTableRows(outboxEvent, [claimRow(acceptedPayload)])
+    queueTableRows(outboxEvent, [activationRow])
+    queueTableRows(outboxEvent, [
+      claimRow({ ...acceptedPayload, provisioningOperationId: 'provisioning-1' }),
+    ])
+    queueTableRows(outboxEvent, [activationRow])
+
+    const result = await retryEnterpriseOwnerClaim('claim-1')
+
+    expect(result).toMatchObject({ status: 'applied', provisioningOperationId: 'provisioning-1' })
+    expect(mocks.patchPayload).toHaveBeenCalledWith(expect.anything(), 'claim-1', {
+      provisioningOperationId: 'provisioning-1',
+    })
+    expect(mocks.issueProvisioning).not.toHaveBeenCalled()
   })
 })

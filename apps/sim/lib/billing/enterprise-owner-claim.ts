@@ -448,21 +448,25 @@ export async function getEnterpriseOwnerClaimView(
   return toClaimView(row, payload)
 }
 
-export async function getPendingEnterpriseOwnerClaimsPage(params: {
+export async function getOpenEnterpriseOwnerClaimsPage(params: {
   limit: number
   offset: number
 }): Promise<{ data: EnterpriseOwnerClaimView[]; total: number }> {
-  const unacceptedClaim = and(
+  const openClaim = and(
     eq(outboxEvent.eventType, ENTERPRISE_OWNER_CLAIM_EVENT_TYPE),
-    sql`${outboxEvent.payload} -> 'acceptance' is null`,
-    sql`${outboxEvent.payload} -> 'revokedAt' is null`
+    sql`${outboxEvent.payload} -> 'revokedAt' is null`,
+    sql`${outboxEvent.payload} -> 'provisioningOperationId' is null`,
+    or(
+      sql`${outboxEvent.payload} -> 'acceptance' is not null`,
+      sql`(${outboxEvent.payload} ->> 'expiresAt')::timestamptz > now()`
+    )
   )
   const [countRows, rows] = await Promise.all([
-    db.select({ value: count() }).from(outboxEvent).where(unacceptedClaim),
+    db.select({ value: count() }).from(outboxEvent).where(openClaim),
     db
       .select()
       .from(outboxEvent)
-      .where(unacceptedClaim)
+      .where(openClaim)
       .orderBy(desc(outboxEvent.createdAt), desc(outboxEvent.id))
       .limit(params.limit)
       .offset(params.offset),
@@ -646,6 +650,9 @@ export async function retryEnterpriseOwnerClaim(
       throw new Error('Enterprise owner activation payload is invalid')
     provisioningOperationId =
       payload.provisioningOperationId ?? activationPayload.data.provisioningOperationId ?? null
+    if (!payload.provisioningOperationId && provisioningOperationId) {
+      await patchOutboxEventPayload(tx, claimId, { provisioningOperationId })
+    }
     if (activationRow.status === 'dead_letter') {
       await resetOutboxEventForRetry(tx, activationRow.id)
       eventIdToProcess = activationRow.id

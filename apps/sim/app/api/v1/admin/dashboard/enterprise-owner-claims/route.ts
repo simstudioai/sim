@@ -8,7 +8,7 @@ import { parseRequest } from '@/lib/api/server'
 import { dollarsToCredits } from '@/lib/billing/credits/conversion'
 import {
   createEnterpriseOwnerClaim,
-  getPendingEnterpriseOwnerClaimsPage,
+  getOpenEnterpriseOwnerClaimsPage,
 } from '@/lib/billing/enterprise-owner-claim'
 import { EnterpriseProvisioningError } from '@/lib/billing/enterprise-provisioning'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -36,7 +36,7 @@ export const GET = withRouteHandler(
     if (!parsed.success) return parsed.response
     try {
       const { limit, offset } = parsed.data.query
-      const result = await getPendingEnterpriseOwnerClaimsPage({ limit, offset })
+      const result = await getOpenEnterpriseOwnerClaimsPage({ limit, offset })
       return listResponse(result.data, {
         total: result.total,
         limit,
