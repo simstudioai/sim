@@ -17,6 +17,7 @@ import {
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
 import { env } from '@/lib/core/config/env'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { getSocketServerUrl } from '@/lib/core/utils/urls'
 import { MAX_PLAN_REQUIRED } from '@/lib/execution/remote-sandbox/workspace-sandboxes'
 import {
@@ -64,7 +65,8 @@ async function getCurrentWorkflowStateFromDb(
     .from(workflowTable)
     .where(eq(workflowTable.id, workflowId))
     .limit(1)
-  if (!workflowRecord) throw new Error(`Workflow ${workflowId} not found in database`)
+  if (!workflowRecord)
+    throw new OrchestrationError('not_found', `Workflow ${workflowId} not found in database`)
   const normalized = await loadWorkflowFromNormalizedTables(workflowId)
   if (!normalized) throw new Error('Workflow has no normalized data')
 
@@ -112,7 +114,16 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, unknown>
       action: 'write',
     })
     if (!authorization.allowed) {
-      throw new Error(authorization.message || 'Unauthorized workflow access')
+      // Classified, not a bare Error: the copilot error projection passes a
+      // classified message through to the model verbatim, while an
+      // unclassified throw collapses into "system error, please retry" —
+      // which invites blind retries of a call that can never succeed.
+      throw new OrchestrationError(
+        authorization.status === 404 ? 'not_found' : 'forbidden',
+        authorization.status === 404
+          ? `Workflow not found: ${workflowId}. Pass the workflow's canonical id (copy it from workflows/**/meta.json or the tool result that created it) — a workflow name or @-mention is not an id.`
+          : authorization.message || 'Unauthorized workflow access'
+      )
     }
 
     await assertWorkflowMutable(workflowId)
