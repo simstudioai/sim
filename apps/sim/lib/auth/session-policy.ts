@@ -25,9 +25,14 @@ export interface ResolvedSessionPolicy {
  * Read on every session create and refresh, keyed by organization, so an
  * unbounded `Map` grew for the life of the process. `LRUCache` supplies both
  * the TTL and a ceiling; `invalidateSessionPolicyCache` still evicts by key.
+ *
+ * The ceiling is a memory backstop rather than an operating limit: exceeding it
+ * only costs an extra indexed lookup per miss, which is what happened before
+ * any caching existed, but it would be a hit-rate cliff on a warm path. Entries
+ * are a few dozen bytes, so the headroom is nearly free.
  */
 const policyCache = new LRUCache<string, ResolvedSessionPolicy>({
-  max: 1000,
+  max: 20_000,
   ttl: SESSION_POLICY_CACHE_TTL_MS,
 })
 

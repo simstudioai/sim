@@ -18,13 +18,21 @@ export const SECURITY_POLICY_VERSION_CACHE_TTL_MS = 60 * 1000
 const DEFAULT_VERSION = 1
 
 /**
- * Read on every session create and refresh, keyed by organization, so an
- * unbounded `Map` grew for the life of the process. `LRUCache` supplies both
+ * Read on every session read, keyed by organization, so an unbounded `Map`
+ * grew for the life of the process. `LRUCache` supplies both
  * the TTL and a ceiling; `invalidateSecurityPolicyVersionCache` still evicts
  * by key. Reads must test `!== undefined`, since the value is a number.
+ *
+ * The ceiling is a memory backstop, not an operating limit. `getSessionCookieCacheVersion`
+ * feeds Better Auth's `session.cookieCache.version`, so these are read on every session
+ * read — if the live key set ever exceeded the cap, LRU would start evicting inside the
+ * TTL and each miss becomes one indexed lookup. That degrades to exactly the behaviour
+ * before any caching existed (never a wrong answer), but it is a hit-rate cliff on a hot
+ * path, so the cap is set far above any plausible per-instance working set in a 60s window.
+ * Entries are a few dozen bytes, so the headroom costs single-digit MB at worst.
  */
 const versionCache = new LRUCache<string, number>({
-  max: 1000,
+  max: 20_000,
   ttl: SECURITY_POLICY_VERSION_CACHE_TTL_MS,
 })
 
@@ -80,7 +88,7 @@ interface MembershipCacheEntry {
 }
 
 const membershipCache = new LRUCache<string, MembershipCacheEntry>({
-  max: 10_000,
+  max: 100_000,
   ttl: SECURITY_POLICY_VERSION_CACHE_TTL_MS,
 })
 
