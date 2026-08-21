@@ -189,7 +189,7 @@ describe('knowledge and files request-slice strictness', () => {
    * download, and permanent delete.
    */
   it('sweeps every documented query and body slice', () => {
-    expect(slices.length).toBe(95)
+    expect(slices.length).toBe(107)
   })
 
   it.each(slices)('%s rejects an undeclared key', (_name, schema) => {

@@ -1,3 +1,4 @@
+import { foldSearchWhitespace } from '@sim/utils/string'
 import {
   getWorkflowSearchSubBlockResourceKind,
   parseWorkflowSearchSubBlockResources,
@@ -138,18 +139,6 @@ export function parseStructuredResourceReferences(
   selectorContext?: SelectorContext
 ): StructuredResourceReference[] {
   return parseWorkflowSearchSubBlockResources(value, subBlockConfig, selectorContext)
-}
-
-/**
- * Maps every Unicode whitespace character to a plain space, one-to-one.
- * Agent-authored block names and values routinely carry non-breaking or
- * narrow spaces that render identically to " " but never equal a typed
- * space, silently hiding matches. The replacement is length-preserving
- * (every `\s` character is a single UTF-16 unit), so indexes into the
- * folded string remain valid ranges into the original.
- */
-export function foldSearchWhitespace(value: string): string {
-  return value.replace(/\s/g, ' ')
 }
 
 export function matchesSearchText(

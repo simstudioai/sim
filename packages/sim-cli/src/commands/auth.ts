@@ -9,19 +9,32 @@ import {
   pollForKey,
 } from '../auth/device-flow'
 import {
+  configPath,
   credentialsPath,
+  DEFAULT_PROFILE,
   deleteProfile,
+  listAuthenticationDependents,
   listProfiles,
   type ResolvedProfile,
   readCredentialsProfile,
+  resolveAuthenticationProfileName,
   type SettingSource,
   writeConfigProfile,
   writeCredentialsProfile,
 } from '../config/index'
-import { clientFrom, profileFrom } from '../context'
-import { type GetWorkspaceResponse, V2_OPERATIONS } from '../generated/v2-api'
-import { resolvePath, SimApiError, type SimClient } from '../http/client'
+import { clientFrom, globalsOf, profileFrom } from '../context'
+import {
+  type GetWorkspaceResponse,
+  type ListWorkspacesResponse,
+  V2_OPERATIONS,
+} from '../generated/v2-api'
+import { requestAllPages, resolvePath, SimApiError, type SimClient } from '../http/client'
 import { printRecord, safeOneLine } from '../output/render'
+
+type SelectableWorkspace = ListWorkspacesResponse['data'][number]
+
+const PROFILE_NAME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]*$/
+const MAX_INTERACTIVE_WORKSPACES = 1000
 
 /**
  * Best-effort browser launch. Failure is not an error: the URL is always printed
@@ -88,6 +101,128 @@ async function confirmProfileOverwrite(profileName: string): Promise<boolean> {
   }
 }
 
+function selectedProfileName(command: Command): string {
+  return globalsOf(command).profile || process.env.SIM_PROFILE || DEFAULT_PROFILE
+}
+
+function validateNewProfileName(profileName: string): void {
+  if (!PROFILE_NAME_PATTERN.test(profileName)) {
+    throw new SimApiError(
+      `Invalid profile name "${profileName}". Use letters, numbers, dots, underscores, or hyphens, starting with a letter or number.`,
+      0
+    )
+  }
+  if (listProfiles().includes(profileName)) {
+    throw new SimApiError(
+      `Profile "${profileName}" already exists. Remove it first with: sim logout --all --profile ${profileName}`,
+      0
+    )
+  }
+}
+
+function requireStoredAuthentication(profile: ResolvedProfile): string {
+  const authProfile = resolveAuthenticationProfileName(profile.name)
+  const storedKey = readCredentialsProfile(authProfile).api_key
+  if (profile.sources.apiKey !== 'credentials' || !storedKey) {
+    throw new SimApiError(
+      `Cannot create a shared profile from "${profile.name}": the active API key is not stored. Run: sim login --profile ${authProfile}`,
+      0
+    )
+  }
+  if (profile.sources.endpoint === 'flag' || profile.sources.endpoint === 'env') {
+    throw new SimApiError(
+      `Cannot create a shared profile from "${profile.name}": the active endpoint comes from ${profile.sources.endpoint}. Save it with: sim configure --profile ${authProfile} --set-endpoint ${profile.endpoint}`,
+      0
+    )
+  }
+  return authProfile
+}
+
+async function getWorkspaceById(
+  client: Pick<SimClient, 'request'>,
+  workspaceId: string
+): Promise<SelectableWorkspace> {
+  const operation = V2_OPERATIONS.getWorkspace
+  const response = await client.request<GetWorkspaceResponse>(
+    resolvePath(operation.path, { workspaceId }),
+    { method: operation.method }
+  )
+  return response.data
+}
+
+async function chooseWorkspace(client: Pick<SimClient, 'request'>): Promise<SelectableWorkspace> {
+  if (!process.stdin.isTTY) {
+    throw new SimApiError(
+      'No workspace provided. Pass --workspace <id> when creating a profile non-interactively.',
+      0
+    )
+  }
+
+  const operation = V2_OPERATIONS.listWorkspaces
+  const workspaces = await requestAllPages<SelectableWorkspace>(client, operation.path, {
+    method: operation.method,
+    query: { sortBy: 'name', sortOrder: 'asc' },
+    pageSize: 100,
+    limit: MAX_INTERACTIVE_WORKSPACES + 1,
+  })
+  if (workspaces.length === 0) {
+    throw new SimApiError('The active API key cannot access any workspaces.', 0)
+  }
+  if (workspaces.length > MAX_INTERACTIVE_WORKSPACES) {
+    throw new SimApiError(
+      `The active API key can access more than ${MAX_INTERACTIVE_WORKSPACES} workspaces, which is too many to show interactively. Pass --workspace <id> instead.`,
+      0
+    )
+  }
+
+  console.log('\nAvailable workspaces:')
+  for (const [index, workspace] of workspaces.entries()) {
+    console.log(`  ${index + 1}) ${safeOneLine(workspace.name)} (${workspace.id})`)
+  }
+
+  const prompt = createInterface({ input: process.stdin, output: process.stderr })
+  try {
+    const answer = await prompt.question(`Choose a workspace [1-${workspaces.length}]: `)
+    const selected = Number(answer.trim())
+    if (!Number.isInteger(selected) || selected < 1 || selected > workspaces.length) {
+      throw new SimApiError(
+        `Invalid workspace selection "${safeOneLine(answer)}". Choose a number from 1 to ${workspaces.length}.`,
+        0
+      )
+    }
+    return workspaces[selected - 1]
+  } finally {
+    prompt.close()
+  }
+}
+
+function addProfileCommand(): Command {
+  return new Command('add')
+    .description('Add a workspace profile that shares the active stored login')
+    .argument('<name>', 'Name for the new profile')
+    .option('-w, --workspace <id>', 'Existing workspace to use; omit for an interactive picker')
+    .action(async (profileName: string, _options: unknown, command: Command) => {
+      validateNewProfileName(profileName)
+
+      const { client, profile } = clientFrom(command)
+      const authProfile = requireStoredAuthentication(profile)
+      const workspaceId = globalsOf(command).workspace
+      const workspace = workspaceId
+        ? await getWorkspaceById(client, workspaceId)
+        : await chooseWorkspace(client)
+
+      writeConfigProfile(profileName, {
+        auth_profile: authProfile,
+        workspace: workspace.id,
+      })
+
+      console.log(chalk.green(`✓ Added profile "${profileName}" in ${configPath()}`))
+      console.log(`  Workspace: ${safeOneLine(workspace.name)} (${workspace.id})`)
+      console.log(`  Authentication: ${authProfile}`)
+      console.log(chalk.dim(`  Try: sim --profile ${profileName} whoami`))
+    })
+}
+
 export function loginCommand(): Command {
   return new Command('login')
     .description('Authorize this terminal and store an API key for the profile')
@@ -97,6 +232,14 @@ export function loginCommand(): Command {
     .action(
       async (options: { scope: string; browser: boolean; yes?: boolean }, command: Command) => {
         const profile = profileFrom(command)
+        const authProfile = resolveAuthenticationProfileName(profile.name)
+
+        if (authProfile !== profile.name) {
+          throw new SimApiError(
+            `Profile "${profile.name}" shares authentication with "${authProfile}". Run: sim login --profile ${authProfile}`,
+            0
+          )
+        }
 
         if (options.scope !== 'platform' && options.scope !== 'copilot') {
           throw new SimApiError(`Unknown scope "${options.scope}". Use platform or copilot.`, 0)
@@ -180,16 +323,31 @@ export function logoutCommand(): Command {
     .description("Remove the profile's stored API key")
     .option('--all', 'Remove the profile entirely, including its settings')
     .action((options: { all?: boolean }, command: Command) => {
-      const profile = profileFrom(command)
-
       if (options.all) {
-        const removed = deleteProfile(profile.name)
+        const profileName = selectedProfileName(command)
+        const dependents = listAuthenticationDependents(profileName)
+        if (dependents.length > 0) {
+          throw new SimApiError(
+            `Cannot remove authentication profile "${profileName}" because it is used by: ${dependents.join(', ')}. Remove those profiles first.`,
+            0
+          )
+        }
+        const removed = deleteProfile(profileName)
         if (!removed.config && !removed.credentials) {
-          console.log(chalk.dim(`Nothing stored for profile "${profile.name}".`))
+          console.log(chalk.dim(`Nothing stored for profile "${profileName}".`))
           return
         }
-        console.log(chalk.green(`✓ Removed profile "${profile.name}".`))
+        console.log(chalk.green(`✓ Removed profile "${profileName}".`))
         return
+      }
+
+      const profile = profileFrom(command)
+      const authProfile = resolveAuthenticationProfileName(profile.name)
+      if (authProfile !== profile.name) {
+        throw new SimApiError(
+          `Profile "${profile.name}" shares authentication with "${authProfile}". Log out of the authentication profile instead: sim logout --profile ${authProfile}`,
+          0
+        )
       }
 
       if (!readCredentialsProfile(profile.name).api_key) {
@@ -392,21 +550,31 @@ export function whoamiCommand(): Command {
 }
 
 export function profilesCommand(): Command {
-  return new Command('profiles')
+  const command = new Command('profiles')
     .alias('profile')
-    .description('List the profiles defined in the config and credentials files')
-    .action((_options: unknown, command: Command) => {
-      const profiles = listProfiles()
-      if (profiles.length === 0) {
-        console.log(chalk.dim('No profiles yet. Run: sim login'))
-        return
-      }
+    .description('List profiles or add a workspace profile that shares a stored login')
 
-      const active = profileFrom(command).name
-      for (const name of profiles) {
-        const marker = name === active ? chalk.green('*') : ' '
-        const hasKey = Boolean(readCredentialsProfile(name).api_key)
-        console.log(`${marker} ${name}${hasKey ? '' : chalk.dim('  (no key)')}`)
-      }
-    })
+  const printProfiles = (_options: unknown, actionCommand: Command): void => {
+    const profiles = listProfiles()
+    if (profiles.length === 0) {
+      console.log(chalk.dim('No profiles yet. Run: sim login'))
+      return
+    }
+
+    const active = selectedProfileName(actionCommand)
+    for (const name of profiles) {
+      const marker = name === active ? chalk.green('*') : ' '
+      const authProfile = resolveAuthenticationProfileName(name)
+      const hasKey = Boolean(readCredentialsProfile(authProfile).api_key)
+      const authentication = authProfile === name ? '' : chalk.dim(`  (auth: ${authProfile})`)
+      console.log(`${marker} ${name}${hasKey ? '' : chalk.dim('  (no key)')}${authentication}`)
+    }
+  }
+
+  command.action(printProfiles)
+  command.addCommand(
+    new Command('list').description('List configured profiles').action(printProfiles)
+  )
+  command.addCommand(addProfileCommand())
+  return command
 }

@@ -399,7 +399,7 @@
       "delete": {
         "operationId": "deleteKnowledgeBase",
         "summary": "Delete Knowledge Base",
-        "description": "Delete a knowledge base and its documents. This is a soft delete: list recoverable knowledge bases with `GET /api/v2/knowledge/archived` and recover one with `POST /api/v2/knowledge/{id}/restore`.",
+        "description": "Delete a knowledge base and its documents.",
         "tags": ["Knowledge Bases"],
         "parameters": [
           {
@@ -471,47 +471,46 @@
         }
       }
     },
-    "/api/v2/knowledge/archived": {
+    "/api/v2/knowledge/{id}/connectors": {
       "get": {
-        "operationId": "listArchivedKnowledgeBases",
-        "summary": "List Archived Knowledge Bases",
-        "description": "List the workspace's soft-deleted knowledge bases, newest first, with search, sorting, and opaque cursor pagination. Each entry carries the `deletedAt` instant it was archived; recover one with `POST /api/v2/knowledge/{id}/restore`. `folderPath` is not reported: archiving a folder archives what is under it, so an archived knowledge base frequently has no active containing folder.",
+        "operationId": "listKnowledgeConnectors",
+        "summary": "List Knowledge Connectors",
+        "description": "List external sources connected to a knowledge base with opaque cursor pagination. Stored API keys and encrypted secret material are never returned. A workspace API key is rejected with `403`; use a personal API key.",
         "tags": ["Knowledge Bases"],
         "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Unique knowledge base identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Unique knowledge base identifier."
+            }
+          },
           {
             "name": "workspaceId",
             "in": "query",
             "required": true,
-            "description": "Workspace whose archived knowledge bases should be listed.",
+            "description": "Workspace that owns the knowledge base.",
             "schema": {
               "type": "string",
               "minLength": 1,
               "maxLength": 128,
-              "description": "Workspace whose archived knowledge bases should be listed."
-            }
-          },
-          {
-            "name": "search",
-            "in": "query",
-            "required": false,
-            "description": "Case-insensitive substring match against the resource name.",
-            "schema": {
-              "description": "Case-insensitive substring match against the resource name.",
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 200
+              "description": "Workspace that owns the knowledge base."
             }
           },
           {
             "name": "sortBy",
             "in": "query",
             "required": false,
-            "description": "Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.",
+            "description": "Field used to sort the result.",
             "schema": {
-              "default": "updatedAt",
-              "description": "Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.",
+              "default": "createdAt",
+              "description": "Field used to sort the result.",
               "type": "string",
-              "enum": ["name", "createdAt", "updatedAt"]
+              "enum": ["connectorType", "createdAt", "updatedAt"]
             }
           },
           {
@@ -530,10 +529,10 @@
             "name": "limit",
             "in": "query",
             "required": false,
-            "description": "Maximum archived knowledge bases to return per page. Must be a whole number from 1 to 100. Defaults to 50.",
+            "description": "Maximum connectors to return per page. Must be a whole number from 1 to 100. Defaults to 50.",
             "schema": {
               "default": 50,
-              "description": "Maximum archived knowledge bases to return per page. Must be a whole number from 1 to 100. Defaults to 50.",
+              "description": "Maximum connectors to return per page. Must be a whole number from 1 to 100. Defaults to 50.",
               "type": "integer",
               "minimum": 1,
               "maximum": 100
@@ -553,7 +552,7 @@
         ],
         "responses": {
           "200": {
-            "description": "A page of archived knowledge bases.",
+            "description": "A page of knowledge connectors.",
             "headers": {
               "X-RateLimit-Limit": {
                 "$ref": "#/components/headers/X-RateLimit-Limit"
@@ -568,7 +567,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/V2ArchivedKnowledgeBaseListResponse"
+                  "$ref": "#/components/schemas/V2KnowledgeConnectorListResponse"
                 }
               }
             }
@@ -595,13 +594,11 @@
             "$ref": "#/components/responses/ServiceUnavailable"
           }
         }
-      }
-    },
-    "/api/v2/knowledge/{id}/restore": {
+      },
       "post": {
-        "operationId": "restoreKnowledgeBase",
-        "summary": "Restore Knowledge Base",
-        "description": "Un-archive a soft-deleted knowledge base along with its documents and connectors. Idempotent: a knowledge base that is already active is returned unchanged with no audit entry recorded. Restoring into an archived workspace is a `409`, and a knowledge base whose folder is still archived is returned to the workspace root. A workspace folder tree over 10,000 folders is a `413`.",
+        "operationId": "createKnowledgeConnector",
+        "summary": "Create Knowledge Connector",
+        "description": "Validate and connect an external source, then queue its initial synchronization. The apiKey field is write-only and is never returned. A workspace API key is rejected with `403`; use a personal API key.",
         "tags": ["Knowledge Bases"],
         "parameters": [
           {
@@ -618,18 +615,18 @@
         ],
         "requestBody": {
           "required": true,
-          "description": "Workspace scope for the knowledge base.",
+          "description": "Workspace, connector type, authentication reference, source configuration, and sync schedule.",
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/RestoreKnowledgeBaseRequest"
+                "$ref": "#/components/schemas/CreateKnowledgeConnectorRequest"
               }
             }
           }
         },
         "responses": {
-          "200": {
-            "description": "The restored knowledge base.",
+          "201": {
+            "description": "The created connector without secret material.",
             "headers": {
               "X-RateLimit-Limit": {
                 "$ref": "#/components/headers/X-RateLimit-Limit"
@@ -644,7 +641,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/V2KnowledgeBaseResponse"
+                  "$ref": "#/components/schemas/V2KnowledgeConnectorResponse"
                 }
               }
             }
@@ -679,39 +676,51 @@
         }
       }
     },
-    "/api/v2/knowledge/{id}/documents/from-workspace-files": {
-      "post": {
-        "operationId": "addWorkspaceFilesToKnowledgeBase",
-        "summary": "Index Workspace Files",
-        "description": "Index files the workspace already stores, without re-uploading their bytes. Each reference is authorized against the file it names, so a reference the caller cannot read, one over the 100 MB document limit, or one whose type is not supported is reported in `failed` while the rest are queued — a partial outcome is a `200`, not a multi-status. Queued documents return with `processingStatus` pending; poll `GET /api/v2/knowledge/{id}/documents/{documentId}`. A workspace API key is rejected with `403`; use a personal API key.",
+    "/api/v2/knowledge/{id}/connectors/{connectorId}": {
+      "get": {
+        "operationId": "getKnowledgeConnector",
+        "summary": "Get Knowledge Connector",
+        "description": "Retrieve one connector and its ten most recent synchronization attempts. Stored API keys and encrypted secret material are never returned. A workspace API key is rejected with `403`; use a personal API key.",
         "tags": ["Knowledge Bases"],
         "parameters": [
           {
             "name": "id",
             "in": "path",
             "required": true,
-            "description": "Unique knowledge base identifier.",
+            "description": "Knowledge base that owns the connector.",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "Unique knowledge base identifier."
+              "description": "Knowledge base that owns the connector."
+            }
+          },
+          {
+            "name": "connectorId",
+            "in": "path",
+            "required": true,
+            "description": "Connector selected for the operation.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Connector selected for the operation."
+            }
+          },
+          {
+            "name": "workspaceId",
+            "in": "query",
+            "required": true,
+            "description": "Workspace that owns the knowledge base.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "description": "Workspace that owns the knowledge base."
             }
           }
         ],
-        "requestBody": {
-          "required": true,
-          "description": "Workspace scope and the workspace file references to index.",
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/AddWorkspaceFilesToKnowledgeBaseRequest"
-              }
-            }
-          }
-        },
         "responses": {
           "200": {
-            "description": "Files queued for indexing, with any that could not be.",
+            "description": "The connector and recent synchronization history.",
             "headers": {
               "X-RateLimit-Limit": {
                 "$ref": "#/components/headers/X-RateLimit-Limit"
@@ -726,7 +735,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/V2AddWorkspaceFilesToKnowledgeBaseResponse"
+                  "$ref": "#/components/schemas/V2KnowledgeConnectorDetailResponse"
                 }
               }
             }
@@ -737,8 +746,492 @@
           "401": {
             "$ref": "#/components/responses/Unauthorized"
           },
-          "402": {
-            "$ref": "#/components/responses/UsageLimitExceeded"
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      },
+      "patch": {
+        "operationId": "updateKnowledgeConnector",
+        "summary": "Update Knowledge Connector",
+        "description": "Update connector source configuration, schedule, or active state. Authentication material cannot be changed through this operation. A workspace API key is rejected with `403`; use a personal API key.",
+        "tags": ["Knowledge Bases"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Knowledge base that owns the connector.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Knowledge base that owns the connector."
+            }
+          },
+          {
+            "name": "connectorId",
+            "in": "path",
+            "required": true,
+            "description": "Connector selected for the operation.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Connector selected for the operation."
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Workspace scope and at least one mutable connector field.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateKnowledgeConnectorRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated connector.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2KnowledgeConnectorResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteKnowledgeConnector",
+        "summary": "Delete Knowledge Connector",
+        "description": "Delete a connector and optionally its synchronized documents. Documents are retained by default. A workspace API key is rejected with `403`; use a personal API key.",
+        "tags": ["Knowledge Bases"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Knowledge base that owns the connector.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Knowledge base that owns the connector."
+            }
+          },
+          {
+            "name": "connectorId",
+            "in": "path",
+            "required": true,
+            "description": "Connector selected for the operation.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Connector selected for the operation."
+            }
+          },
+          {
+            "name": "workspaceId",
+            "in": "query",
+            "required": true,
+            "description": "Workspace that owns the knowledge base.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "description": "Workspace that owns the knowledge base."
+            }
+          },
+          {
+            "name": "deleteDocuments",
+            "in": "query",
+            "required": false,
+            "description": "Also permanently delete documents produced by this connector.",
+            "schema": {
+              "description": "Also permanently delete documents produced by this connector.",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Connector deletion acknowledgement and document counts.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2KnowledgeConnectorDeleteResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/knowledge/{id}/connectors/{connectorId}/sync": {
+      "post": {
+        "operationId": "syncKnowledgeConnector",
+        "summary": "Sync Knowledge Connector",
+        "description": "Queue a connector synchronization. Rehydration forces existing documents to be fetched and indexed again. A workspace API key is rejected with `403`; use a personal API key.",
+        "tags": ["Knowledge Bases"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Knowledge base that owns the connector.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Knowledge base that owns the connector."
+            }
+          },
+          {
+            "name": "connectorId",
+            "in": "path",
+            "required": true,
+            "description": "Connector selected for the operation.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Connector selected for the operation."
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Workspace scope and optional full rehydration control.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SyncKnowledgeConnectorRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Synchronization was queued.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2KnowledgeConnectorSyncResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/knowledge/{id}/connectors/{connectorId}/documents": {
+      "get": {
+        "operationId": "listKnowledgeConnectorDocuments",
+        "summary": "List Knowledge Connector Documents",
+        "description": "List documents produced by one connector with opaque cursor pagination. Excluded documents are omitted unless explicitly requested. A workspace API key is rejected with `403`; use a personal API key.",
+        "tags": ["Knowledge Bases"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Knowledge base that owns the connector.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Knowledge base that owns the connector."
+            }
+          },
+          {
+            "name": "connectorId",
+            "in": "path",
+            "required": true,
+            "description": "Connector selected for the operation.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Connector selected for the operation."
+            }
+          },
+          {
+            "name": "workspaceId",
+            "in": "query",
+            "required": true,
+            "description": "Workspace that owns the knowledge base.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "description": "Workspace that owns the knowledge base."
+            }
+          },
+          {
+            "name": "includeExcluded",
+            "in": "query",
+            "required": false,
+            "description": "Include documents explicitly excluded by a user.",
+            "schema": {
+              "description": "Include documents explicitly excluded by a user.",
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Maximum connector documents to return per page. Must be a whole number from 1 to 100. Defaults to 50.",
+            "schema": {
+              "default": 50,
+              "description": "Maximum connector documents to return per page. Must be a whole number from 1 to 100. Defaults to 50.",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "description": "Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.",
+            "schema": {
+              "description": "Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.",
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of connector documents.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2KnowledgeConnectorDocumentListResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      },
+      "patch": {
+        "operationId": "updateKnowledgeConnectorDocuments",
+        "summary": "Update Knowledge Connector Documents",
+        "description": "Exclude connector documents from knowledge search or restore previously excluded documents. Only documents produced by the selected connector can change. A workspace API key is rejected with `403`; use a personal API key.",
+        "tags": ["Knowledge Bases"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Knowledge base that owns the connector.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Knowledge base that owns the connector."
+            }
+          },
+          {
+            "name": "connectorId",
+            "in": "path",
+            "required": true,
+            "description": "Connector selected for the operation.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Connector selected for the operation."
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Workspace, restore or exclude operation, and selected document identifiers.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateKnowledgeConnectorDocumentsRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The selected connector documents were updated.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2KnowledgeConnectorDocumentsUpdateResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
           },
           "403": {
             "$ref": "#/components/responses/Forbidden"
@@ -2330,6 +2823,296 @@
           },
           "409": {
             "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/knowledge/archived": {
+      "get": {
+        "operationId": "listArchivedKnowledgeBases",
+        "summary": "List Archived Knowledge Bases",
+        "description": "List the workspace's soft-deleted knowledge bases, newest first, with search, sorting, and opaque cursor pagination. Each entry carries the `deletedAt` instant it was archived; recover one with `POST /api/v2/knowledge/{id}/restore`. `folderPath` is not reported: archiving a folder archives what is under it, so an archived knowledge base frequently has no active containing folder.",
+        "tags": ["Knowledge Bases"],
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "in": "query",
+            "required": true,
+            "description": "Workspace whose archived knowledge bases should be listed.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "description": "Workspace whose archived knowledge bases should be listed."
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "description": "Case-insensitive substring match against the resource name.",
+            "schema": {
+              "description": "Case-insensitive substring match against the resource name.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          },
+          {
+            "name": "sortBy",
+            "in": "query",
+            "required": false,
+            "description": "Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.",
+            "schema": {
+              "default": "updatedAt",
+              "description": "Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.",
+              "type": "string",
+              "enum": ["name", "createdAt", "updatedAt"]
+            }
+          },
+          {
+            "name": "sortOrder",
+            "in": "query",
+            "required": false,
+            "description": "Sort direction.",
+            "schema": {
+              "default": "desc",
+              "description": "Sort direction.",
+              "type": "string",
+              "enum": ["asc", "desc"]
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Maximum archived knowledge bases to return per page. Must be a whole number from 1 to 100. Defaults to 50.",
+            "schema": {
+              "default": 50,
+              "description": "Maximum archived knowledge bases to return per page. Must be a whole number from 1 to 100. Defaults to 50.",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "description": "Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.",
+            "schema": {
+              "description": "Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.",
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of archived knowledge bases.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2ArchivedKnowledgeBaseListResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/knowledge/{id}/restore": {
+      "post": {
+        "operationId": "restoreKnowledgeBase",
+        "summary": "Restore Knowledge Base",
+        "description": "Un-archive a soft-deleted knowledge base along with its documents and connectors. Idempotent: a knowledge base that is already active is returned unchanged with no audit entry recorded. Restoring into an archived workspace is a `409`, and a knowledge base whose folder is still archived is returned to the workspace root. A workspace folder tree over 10,000 folders is a `413`.",
+        "tags": ["Knowledge Bases"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Unique knowledge base identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Unique knowledge base identifier."
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Workspace scope for the knowledge base.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RestoreKnowledgeBaseRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The restored knowledge base.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2KnowledgeBaseResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/knowledge/{id}/documents/from-workspace-files": {
+      "post": {
+        "operationId": "addWorkspaceFilesToKnowledgeBase",
+        "summary": "Index Workspace Files",
+        "description": "Index files the workspace already stores, without re-uploading their bytes. Each reference is authorized against the file it names, so a reference the caller cannot read, one over the 100 MB document limit, or one whose type is not supported is reported in `failed` while the rest are queued — a partial outcome is a `200`, not a multi-status. Queued documents return with `processingStatus` pending; poll `GET /api/v2/knowledge/{id}/documents/{documentId}`. A workspace API key is rejected with `403`; use a personal API key.",
+        "tags": ["Knowledge Bases"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Unique knowledge base identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Unique knowledge base identifier."
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Workspace scope and the workspace file references to index.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddWorkspaceFilesToKnowledgeBaseRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Files queued for indexing, with any that could not be.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2AddWorkspaceFilesToKnowledgeBaseResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "402": {
+            "$ref": "#/components/responses/UsageLimitExceeded"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
           },
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
@@ -4201,20 +4984,25 @@
         "title": "Knowledge deletion response",
         "description": "Deletion acknowledgement containing the removed resource identifier."
       },
-      "V2ArchivedKnowledgeBase": {
+      "V2KnowledgeConnector": {
         "type": "object",
         "properties": {
           "id": {
             "type": "string",
-            "description": "Unique knowledge base identifier.",
-            "examples": ["7c9e6679-7425-40de-944b-e07fc1f90ae7"]
+            "minLength": 1,
+            "description": "Unique connector identifier."
           },
-          "name": {
+          "knowledgeBaseId": {
             "type": "string",
-            "description": "Human-readable knowledge base name.",
-            "examples": ["Product Documentation"]
+            "minLength": 1,
+            "description": "Knowledge base synced by the connector."
           },
-          "description": {
+          "connectorType": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Registered external source type."
+          },
+          "credentialId": {
             "anyOf": [
               {
                 "type": "string"
@@ -4223,90 +5011,130 @@
                 "type": "null"
               }
             ],
-            "description": "Knowledge base description, or null when none is set.",
-            "examples": ["All product documentation and guides"]
+            "description": "OAuth credential identifier, or null for API-key and unauthenticated sources."
           },
-          "tokenCount": {
-            "type": "number",
-            "description": "Total tokens across indexed documents.",
-            "examples": [48213]
-          },
-          "embeddingModel": {
-            "type": "string",
-            "description": "Embedding model used to index documents.",
-            "examples": ["text-embedding-3-small"]
-          },
-          "embeddingDimension": {
-            "type": "number",
-            "description": "Dimensionality of the embedding vectors.",
-            "examples": [1536]
-          },
-          "chunkingConfig": {
-            "$ref": "#/components/schemas/V2KnowledgeChunkingConfig"
-          },
-          "docCount": {
-            "description": "Number of documents in the knowledge base.",
-            "examples": [12],
-            "type": "number"
-          },
-          "connectorTypes": {
-            "description": "External connector types that have synced documents into the knowledge base.",
-            "examples": [["notion", "google_drive"]],
-            "type": "array",
-            "items": {
+          "sourceConfig": {
+            "type": "object",
+            "propertyNames": {
               "type": "string"
-            }
+            },
+            "additionalProperties": {
+              "description": "Connector-specific source configuration value."
+            },
+            "description": "Connector-specific source selection and filtering configuration."
+          },
+          "syncMode": {
+            "type": "string",
+            "description": "Synchronization mode used by the connector."
+          },
+          "syncIntervalMinutes": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "description": "Scheduled synchronization interval in minutes; zero disables scheduled syncs."
+          },
+          "status": {
+            "type": "string",
+            "enum": ["active", "paused", "syncing", "error", "disabled"],
+            "description": "Current connector state."
+          },
+          "lastSyncAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Time of the most recent synchronization, or null before the first sync."
+          },
+          "lastSyncError": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Most recent synchronization error, or null when none is recorded."
+          },
+          "lastSyncDocCount": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Documents observed by the most recent synchronization."
+          },
+          "nextSyncAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Next scheduled synchronization time, or null when not scheduled."
+          },
+          "consecutiveFailures": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "description": "Number of consecutive synchronization failures."
           },
           "createdAt": {
             "type": "string",
-            "description": "ISO 8601 timestamp when the knowledge base was created.",
             "format": "date-time",
-            "examples": ["2025-01-10T09:00:00Z"]
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "description": "Time the connector was created."
           },
           "updatedAt": {
             "type": "string",
-            "description": "ISO 8601 timestamp when the knowledge base was last modified.",
-            "format": "date-time",
-            "examples": ["2025-06-18T16:45:00Z"]
-          },
-          "ownerEmail": {
-            "type": "string",
-            "format": "email",
-            "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$",
-            "description": "Current email address of the knowledge base owner.",
-            "examples": ["owner@example.com"]
-          },
-          "deletedAt": {
-            "type": "string",
             "format": "date-time",
             "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
-            "description": "ISO 8601 timestamp when the knowledge base was archived."
+            "description": "Time the connector was last updated."
           }
         },
         "required": [
           "id",
-          "name",
-          "description",
-          "tokenCount",
-          "embeddingModel",
-          "embeddingDimension",
-          "chunkingConfig",
+          "knowledgeBaseId",
+          "connectorType",
+          "credentialId",
+          "sourceConfig",
+          "syncMode",
+          "syncIntervalMinutes",
+          "status",
+          "lastSyncAt",
+          "lastSyncError",
+          "lastSyncDocCount",
+          "nextSyncAt",
+          "consecutiveFailures",
           "createdAt",
-          "updatedAt",
-          "ownerEmail",
-          "deletedAt"
+          "updatedAt"
         ],
         "additionalProperties": false,
-        "title": "Archived knowledge base",
-        "description": "A soft-deleted knowledge base that can still be restored."
+        "title": "Knowledge connector",
+        "description": "An external document source linked to a knowledge base, without secret material."
       },
-      "V2ArchivedKnowledgeBaseListResponse": {
+      "V2KnowledgeConnectorListResponse": {
         "type": "object",
         "properties": {
           "data": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/V2ArchivedKnowledgeBase"
+              "$ref": "#/components/schemas/V2KnowledgeConnector"
             },
             "description": "Items in the current page."
           },
@@ -4324,10 +5152,72 @@
         },
         "required": ["data", "nextCursor"],
         "additionalProperties": false,
-        "title": "Archived knowledge base list response",
-        "description": "A cursor-paginated page of archived knowledge bases."
+        "title": "Knowledge connector list response",
+        "description": "A cursor-paginated page of connectors without secret material.",
+        "examples": [
+          {
+            "data": [
+              {
+                "id": "kc-9f8e7d6c",
+                "knowledgeBaseId": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
+                "connectorType": "notion",
+                "credentialId": "cred-4b3a2c1d",
+                "sourceConfig": {
+                  "pageIds": ["page-123"]
+                },
+                "syncMode": "full",
+                "syncIntervalMinutes": 1440,
+                "status": "active",
+                "lastSyncAt": "2026-06-20T14:02:11.000Z",
+                "lastSyncError": null,
+                "lastSyncDocCount": 42,
+                "nextSyncAt": "2026-06-21T14:02:11.000Z",
+                "consecutiveFailures": 0,
+                "createdAt": "2026-06-01T09:14:00.000Z",
+                "updatedAt": "2026-06-20T14:02:11.000Z"
+              }
+            ],
+            "nextCursor": null
+          }
+        ]
       },
-      "RestoreKnowledgeBaseRequest": {
+      "V2KnowledgeConnectorResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2KnowledgeConnector"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Knowledge connector response",
+        "description": "A single connector without secret material.",
+        "examples": [
+          {
+            "data": {
+              "id": "kc-9f8e7d6c",
+              "knowledgeBaseId": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
+              "connectorType": "notion",
+              "credentialId": "cred-4b3a2c1d",
+              "sourceConfig": {
+                "pageIds": ["page-123"]
+              },
+              "syncMode": "full",
+              "syncIntervalMinutes": 1440,
+              "status": "active",
+              "lastSyncAt": "2026-06-20T14:02:11.000Z",
+              "lastSyncError": null,
+              "lastSyncDocCount": 42,
+              "nextSyncAt": "2026-06-21T14:02:11.000Z",
+              "consecutiveFailures": 0,
+              "createdAt": "2026-06-01T09:14:00.000Z",
+              "updatedAt": "2026-06-20T14:02:11.000Z"
+            }
+          }
+        ]
+      },
+      "CreateKnowledgeConnectorRequest": {
         "type": "object",
         "properties": {
           "workspaceId": {
@@ -4335,113 +5225,702 @@
             "minLength": 1,
             "maxLength": 128,
             "description": "Workspace that owns the knowledge base."
+          },
+          "connectorType": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100,
+            "description": "Registered connector type."
+          },
+          "credentialId": {
+            "description": "OAuth credential identifier for connectors that require OAuth.",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          },
+          "apiKey": {
+            "description": "Write-only API key for connectors that use API-key authentication.",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 10000
+          },
+          "sourceConfig": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "description": "Connector-specific source configuration value."
+            },
+            "description": "Connector-specific source selection and filtering configuration."
+          },
+          "syncIntervalMinutes": {
+            "default": 1440,
+            "description": "Scheduled synchronization interval in minutes; zero disables scheduling.",
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 525600
           }
         },
-        "required": ["workspaceId"],
+        "required": ["workspaceId", "connectorType", "sourceConfig"],
         "additionalProperties": false,
-        "title": "Restore knowledge base request",
-        "description": "Workspace scope for the knowledge base.",
+        "title": "Create knowledge connector request",
+        "description": "Workspace, connector type, authentication reference, source configuration, and sync schedule.",
         "examples": [
           {
-            "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64"
+            "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+            "connectorType": "notion",
+            "credentialId": "cred-4b3a2c1d",
+            "sourceConfig": {
+              "pageIds": ["page-123"]
+            },
+            "syncIntervalMinutes": 1440
           }
         ]
       },
-      "V2AddedWorkspaceFileDocument": {
+      "V2KnowledgeConnectorSyncLog": {
         "type": "object",
         "properties": {
-          "documentId": {
+          "id": {
             "type": "string",
-            "description": "Identifier of the queued knowledge document."
+            "minLength": 1,
+            "description": "Unique synchronization log identifier."
           },
-          "filename": {
+          "connectorId": {
             "type": "string",
-            "description": "Filename recorded on the knowledge document."
+            "minLength": 1,
+            "description": "Connector that produced the log."
           },
-          "mimeType": {
+          "status": {
             "type": "string",
-            "description": "MIME type of the source workspace file."
+            "minLength": 1,
+            "description": "Synchronization outcome or current state."
           },
-          "fileSize": {
+          "startedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "description": "Time synchronization started."
+          },
+          "completedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Time synchronization completed, or null while it is running."
+          },
+          "docsAdded": {
             "type": "integer",
             "minimum": 0,
             "maximum": 9007199254740991,
-            "description": "File size in bytes."
+            "description": "Documents added."
+          },
+          "docsUpdated": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "description": "Documents updated."
+          },
+          "docsDeleted": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "description": "Documents deleted."
+          },
+          "docsUnchanged": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "description": "Documents unchanged."
+          },
+          "docsFailed": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "description": "Documents that failed to synchronize."
+          },
+          "errorMessage": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Synchronization error, or null."
           }
         },
-        "required": ["documentId", "filename", "mimeType", "fileSize"],
+        "required": [
+          "id",
+          "connectorId",
+          "status",
+          "startedAt",
+          "completedAt",
+          "docsAdded",
+          "docsUpdated",
+          "docsDeleted",
+          "docsUnchanged",
+          "docsFailed",
+          "errorMessage"
+        ],
         "additionalProperties": false,
-        "title": "Indexed workspace file",
-        "description": "A workspace file that was queued for indexing into a knowledge base."
+        "title": "Knowledge connector sync log",
+        "description": "One synchronization attempt for a knowledge connector."
       },
-      "V2AddWorkspaceFilesToKnowledgeBaseData": {
+      "V2KnowledgeConnectorDetail": {
         "type": "object",
         "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Unique connector identifier."
+          },
           "knowledgeBaseId": {
             "type": "string",
-            "description": "Knowledge base the files were added to."
+            "minLength": 1,
+            "description": "Knowledge base synced by the connector."
           },
-          "added": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/V2AddedWorkspaceFileDocument"
-            },
-            "description": "Files queued for indexing, in request order."
+          "connectorType": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Registered external source type."
           },
-          "failed": {
-            "type": "array",
-            "items": {
+          "credentialId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "OAuth credential identifier, or null for API-key and unauthenticated sources."
+          },
+          "sourceConfig": {
+            "type": "object",
+            "propertyNames": {
               "type": "string"
             },
-            "description": "References that could not be indexed, echoed exactly as they were sent."
+            "additionalProperties": {
+              "description": "Connector-specific source configuration value."
+            },
+            "description": "Connector-specific source selection and filtering configuration."
+          },
+          "syncMode": {
+            "type": "string",
+            "description": "Synchronization mode used by the connector."
+          },
+          "syncIntervalMinutes": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "description": "Scheduled synchronization interval in minutes; zero disables scheduled syncs."
+          },
+          "status": {
+            "type": "string",
+            "enum": ["active", "paused", "syncing", "error", "disabled"],
+            "description": "Current connector state."
+          },
+          "lastSyncAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Time of the most recent synchronization, or null before the first sync."
+          },
+          "lastSyncError": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Most recent synchronization error, or null when none is recorded."
+          },
+          "lastSyncDocCount": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Documents observed by the most recent synchronization."
+          },
+          "nextSyncAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Next scheduled synchronization time, or null when not scheduled."
+          },
+          "consecutiveFailures": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "description": "Number of consecutive synchronization failures."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "description": "Time the connector was created."
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "description": "Time the connector was last updated."
+          },
+          "syncLogs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V2KnowledgeConnectorSyncLog"
+            },
+            "description": "The ten most recent synchronization attempts."
           }
         },
-        "required": ["knowledgeBaseId", "added", "failed"],
+        "required": [
+          "id",
+          "knowledgeBaseId",
+          "connectorType",
+          "credentialId",
+          "sourceConfig",
+          "syncMode",
+          "syncIntervalMinutes",
+          "status",
+          "lastSyncAt",
+          "lastSyncError",
+          "lastSyncDocCount",
+          "nextSyncAt",
+          "consecutiveFailures",
+          "createdAt",
+          "updatedAt",
+          "syncLogs"
+        ],
         "additionalProperties": false,
-        "title": "Add workspace files data",
-        "description": "Outcome of indexing workspace files into a knowledge base."
+        "title": "Knowledge connector detail",
+        "description": "A knowledge connector and its recent synchronization history."
       },
-      "V2AddWorkspaceFilesToKnowledgeBaseResponse": {
+      "V2KnowledgeConnectorDetailResponse": {
         "type": "object",
         "properties": {
           "data": {
             "description": "Response data.",
-            "$ref": "#/components/schemas/V2AddWorkspaceFilesToKnowledgeBaseData"
+            "$ref": "#/components/schemas/V2KnowledgeConnectorDetail"
           }
         },
         "required": ["data"],
         "additionalProperties": false,
-        "title": "Index workspace files response",
-        "description": "Documents queued for indexing and references that could not be."
+        "title": "Knowledge connector detail response",
+        "description": "A connector and recent synchronization history without secret material.",
+        "examples": [
+          {
+            "data": {
+              "id": "kc-9f8e7d6c",
+              "knowledgeBaseId": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
+              "connectorType": "notion",
+              "credentialId": "cred-4b3a2c1d",
+              "sourceConfig": {
+                "pageIds": ["page-123"]
+              },
+              "syncMode": "full",
+              "syncIntervalMinutes": 1440,
+              "status": "active",
+              "lastSyncAt": "2026-06-20T14:02:11.000Z",
+              "lastSyncError": null,
+              "lastSyncDocCount": 42,
+              "nextSyncAt": "2026-06-21T14:02:11.000Z",
+              "consecutiveFailures": 0,
+              "createdAt": "2026-06-01T09:14:00.000Z",
+              "updatedAt": "2026-06-20T14:02:11.000Z",
+              "syncLogs": []
+            }
+          }
+        ]
       },
-      "AddWorkspaceFilesToKnowledgeBaseRequest": {
+      "UpdateKnowledgeConnectorRequest": {
         "type": "object",
         "properties": {
           "workspaceId": {
             "type": "string",
             "minLength": 1,
             "maxLength": 128,
-            "description": "Workspace that owns both the files and the base."
+            "description": "Workspace that owns the knowledge base."
           },
-          "fileReferences": {
+          "sourceConfig": {
+            "description": "Replacement source selection and filtering configuration.",
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "description": "Connector-specific source configuration value."
+            }
+          },
+          "syncIntervalMinutes": {
+            "description": "New scheduled synchronization interval in minutes.",
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 525600
+          },
+          "status": {
+            "description": "New connector state.",
+            "type": "string",
+            "enum": ["active", "paused"]
+          }
+        },
+        "required": ["workspaceId"],
+        "additionalProperties": false,
+        "title": "Update knowledge connector request",
+        "description": "Workspace scope and at least one mutable connector field.",
+        "examples": [
+          {
+            "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+            "status": "paused"
+          }
+        ]
+      },
+      "V2KnowledgeConnectorDeleteData": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Deleted connector identifier."
+          },
+          "deleted": {
+            "type": "boolean",
+            "const": true,
+            "description": "Whether the connector was deleted."
+          },
+          "documentsDeleted": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "description": "Connector documents deleted."
+          },
+          "documentsKept": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "description": "Connector documents retained."
+          }
+        },
+        "required": ["id", "deleted", "documentsDeleted", "documentsKept"],
+        "additionalProperties": false,
+        "title": "Knowledge connector deletion data",
+        "description": "Connector deletion acknowledgement and affected document counts."
+      },
+      "V2KnowledgeConnectorDeleteResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2KnowledgeConnectorDeleteData"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Knowledge connector delete response",
+        "description": "Deletion acknowledgement and affected document counts.",
+        "examples": [
+          {
+            "data": {
+              "id": "kc-9f8e7d6c",
+              "deleted": true,
+              "documentsDeleted": 0,
+              "documentsKept": 42
+            }
+          }
+        ]
+      },
+      "V2KnowledgeConnectorSyncData": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Connector queued for synchronization."
+          },
+          "syncTriggered": {
+            "type": "boolean",
+            "const": true,
+            "description": "Whether synchronization was queued."
+          }
+        },
+        "required": ["id", "syncTriggered"],
+        "additionalProperties": false,
+        "title": "Knowledge connector sync data",
+        "description": "Acknowledgement that connector synchronization was queued."
+      },
+      "V2KnowledgeConnectorSyncResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2KnowledgeConnectorSyncData"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Knowledge connector sync response",
+        "description": "Acknowledgement that synchronization was queued.",
+        "examples": [
+          {
+            "data": {
+              "id": "kc-9f8e7d6c",
+              "syncTriggered": true
+            }
+          }
+        ]
+      },
+      "SyncKnowledgeConnectorRequest": {
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "Workspace that owns the knowledge base."
+          },
+          "rehydrate": {
+            "default": false,
+            "description": "Re-fetch and re-index every existing connector document.",
+            "type": "boolean"
+          }
+        },
+        "required": ["workspaceId"],
+        "additionalProperties": false,
+        "title": "Sync knowledge connector request",
+        "description": "Workspace scope and optional full rehydration control.",
+        "examples": [
+          {
+            "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+            "rehydrate": false
+          }
+        ]
+      },
+      "V2KnowledgeConnectorDocument": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Unique document identifier."
+          },
+          "filename": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Document filename."
+          },
+          "externalId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Identifier assigned by the external source."
+          },
+          "sourceUrl": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Original external source URL."
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "Whether the document is enabled for knowledge search."
+          },
+          "userExcluded": {
+            "type": "boolean",
+            "description": "Whether a user explicitly excluded the document from connector sync results."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "description": "Time the document was first synchronized."
+          },
+          "processingStatus": {
+            "type": "string",
+            "description": "Current document processing state."
+          }
+        },
+        "required": [
+          "id",
+          "filename",
+          "externalId",
+          "sourceUrl",
+          "enabled",
+          "userExcluded",
+          "createdAt",
+          "processingStatus"
+        ],
+        "additionalProperties": false,
+        "title": "Knowledge connector document",
+        "description": "A knowledge document produced by an external connector."
+      },
+      "V2KnowledgeConnectorDocumentListResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V2KnowledgeConnectorDocument"
+            },
+            "description": "Items in the current page."
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Opaque cursor for the next page. Send it back as `cursor`; `null` means there is nothing further to fetch. Never construct one yourself."
+          }
+        },
+        "required": ["data", "nextCursor"],
+        "additionalProperties": false,
+        "title": "Knowledge connector document list response",
+        "description": "A cursor-paginated page of connector documents.",
+        "examples": [
+          {
+            "data": [
+              {
+                "id": "doc-8a7b6c5d",
+                "filename": "Product requirements",
+                "externalId": "page-123",
+                "sourceUrl": "https://www.notion.so/page-123",
+                "enabled": true,
+                "userExcluded": false,
+                "createdAt": "2026-06-01T09:15:00.000Z",
+                "processingStatus": "completed"
+              }
+            ],
+            "nextCursor": null
+          }
+        ]
+      },
+      "V2KnowledgeConnectorDocumentsUpdateData": {
+        "type": "object",
+        "properties": {
+          "operation": {
+            "type": "string",
+            "enum": ["restore", "exclude"],
+            "description": "Operation that was applied."
+          },
+          "updatedCount": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "description": "Documents changed."
+          },
+          "documentIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Identifiers of documents changed."
+          }
+        },
+        "required": ["operation", "updatedCount", "documentIds"],
+        "additionalProperties": false,
+        "title": "Knowledge connector documents update data",
+        "description": "Outcome of restoring or excluding connector documents."
+      },
+      "V2KnowledgeConnectorDocumentsUpdateResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2KnowledgeConnectorDocumentsUpdateData"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Knowledge connector documents update response",
+        "description": "Operation result and identifiers actually changed.",
+        "examples": [
+          {
+            "data": {
+              "operation": "exclude",
+              "updatedCount": 1,
+              "documentIds": ["doc-8a7b6c5d"]
+            }
+          }
+        ]
+      },
+      "UpdateKnowledgeConnectorDocumentsRequest": {
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "Workspace that owns the knowledge base."
+          },
+          "operation": {
+            "type": "string",
+            "enum": ["restore", "exclude"],
+            "description": "Whether to restore or exclude the selected documents."
+          },
+          "documentIds": {
             "minItems": 1,
             "maxItems": 100,
             "type": "array",
             "items": {
               "type": "string",
-              "minLength": 1
+              "minLength": 1,
+              "maxLength": 255
             },
-            "description": "Workspace file identifiers or storage keys to index. Duplicates resolving to the same file are indexed once."
+            "description": "Connector document identifiers to update."
           }
         },
-        "required": ["workspaceId", "fileReferences"],
+        "required": ["workspaceId", "operation", "documentIds"],
         "additionalProperties": false,
-        "title": "Index workspace files request",
-        "description": "Workspace scope and the workspace file references to index.",
+        "title": "Update knowledge connector documents request",
+        "description": "Workspace, restore or exclude operation, and selected document identifiers.",
         "examples": [
           {
             "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
-            "fileReferences": ["handbook.pdf"]
+            "operation": "exclude",
+            "documentIds": ["doc-8a7b6c5d"]
           }
         ]
       },
@@ -4756,8 +6235,7 @@
         "properties": {
           "id": {
             "type": "string",
-            "description": "Unique tag definition identifier. Address the definition with it on `PATCH` and `DELETE /api/v2/knowledge/{id}/tags/{tagId}`.",
-            "examples": ["3f0d2b18-9a41-4d6e-8c52-1b7e5a0f9c34"]
+            "description": "Tag definition identifier. Published because `PATCH` and `DELETE /knowledge/{id}/tags/{tagId}` address a definition by it; without it those operations are unreachable from a list read."
           },
           "displayName": {
             "type": "string",
@@ -4771,7 +6249,7 @@
           },
           "fieldType": {
             "type": "string",
-            "description": "Value type stored in the slot; it determines the valid filter operators. One of `text`, `number`, `date`, `boolean`. Read as a plain string rather than an enum: the column is schemaless and a row written before the current set would fail a strict response parse.",
+            "description": "Value type stored in the slot; it determines the valid filter operators.",
             "examples": ["text"]
           }
         },
@@ -6085,6 +7563,250 @@
         "additionalProperties": false,
         "title": "Delete knowledge folder response",
         "description": "Folder deletion acknowledgement and deleted-resource counts."
+      },
+      "V2ArchivedKnowledgeBase": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique knowledge base identifier.",
+            "examples": ["7c9e6679-7425-40de-944b-e07fc1f90ae7"]
+          },
+          "name": {
+            "type": "string",
+            "description": "Human-readable knowledge base name.",
+            "examples": ["Product Documentation"]
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Knowledge base description, or null when none is set.",
+            "examples": ["All product documentation and guides"]
+          },
+          "tokenCount": {
+            "type": "number",
+            "description": "Total tokens across indexed documents.",
+            "examples": [48213]
+          },
+          "embeddingModel": {
+            "type": "string",
+            "description": "Embedding model used to index documents.",
+            "examples": ["text-embedding-3-small"]
+          },
+          "embeddingDimension": {
+            "type": "number",
+            "description": "Dimensionality of the embedding vectors.",
+            "examples": [1536]
+          },
+          "chunkingConfig": {
+            "$ref": "#/components/schemas/V2KnowledgeChunkingConfig"
+          },
+          "docCount": {
+            "description": "Number of documents in the knowledge base.",
+            "examples": [12],
+            "type": "number"
+          },
+          "connectorTypes": {
+            "description": "External connector types that have synced documents into the knowledge base.",
+            "examples": [["notion", "google_drive"]],
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "createdAt": {
+            "type": "string",
+            "description": "ISO 8601 timestamp when the knowledge base was created.",
+            "format": "date-time",
+            "examples": ["2025-01-10T09:00:00Z"]
+          },
+          "updatedAt": {
+            "type": "string",
+            "description": "ISO 8601 timestamp when the knowledge base was last modified.",
+            "format": "date-time",
+            "examples": ["2025-06-18T16:45:00Z"]
+          },
+          "ownerEmail": {
+            "type": "string",
+            "format": "email",
+            "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$",
+            "description": "Current email address of the knowledge base owner.",
+            "examples": ["owner@example.com"]
+          },
+          "deletedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "description": "ISO 8601 timestamp when the knowledge base was archived."
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "description",
+          "tokenCount",
+          "embeddingModel",
+          "embeddingDimension",
+          "chunkingConfig",
+          "createdAt",
+          "updatedAt",
+          "ownerEmail",
+          "deletedAt"
+        ],
+        "additionalProperties": false,
+        "title": "Archived knowledge base",
+        "description": "A soft-deleted knowledge base that can still be restored."
+      },
+      "V2ArchivedKnowledgeBaseListResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V2ArchivedKnowledgeBase"
+            },
+            "description": "Items in the current page."
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Opaque cursor for the next page. Send it back as `cursor`; `null` means there is nothing further to fetch. Never construct one yourself."
+          }
+        },
+        "required": ["data", "nextCursor"],
+        "additionalProperties": false,
+        "title": "Archived knowledge base list response",
+        "description": "A cursor-paginated page of archived knowledge bases."
+      },
+      "RestoreKnowledgeBaseRequest": {
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "Workspace that owns the knowledge base."
+          }
+        },
+        "required": ["workspaceId"],
+        "additionalProperties": false,
+        "title": "Restore knowledge base request",
+        "description": "Workspace scope for the knowledge base.",
+        "examples": [
+          {
+            "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64"
+          }
+        ]
+      },
+      "V2AddedWorkspaceFileDocument": {
+        "type": "object",
+        "properties": {
+          "documentId": {
+            "type": "string",
+            "description": "Identifier of the queued knowledge document."
+          },
+          "filename": {
+            "type": "string",
+            "description": "Filename recorded on the knowledge document."
+          },
+          "mimeType": {
+            "type": "string",
+            "description": "MIME type of the source workspace file."
+          },
+          "fileSize": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "description": "File size in bytes."
+          }
+        },
+        "required": ["documentId", "filename", "mimeType", "fileSize"],
+        "additionalProperties": false,
+        "title": "Indexed workspace file",
+        "description": "A workspace file that was queued for indexing into a knowledge base."
+      },
+      "V2AddWorkspaceFilesToKnowledgeBaseData": {
+        "type": "object",
+        "properties": {
+          "knowledgeBaseId": {
+            "type": "string",
+            "description": "Knowledge base the files were added to."
+          },
+          "added": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V2AddedWorkspaceFileDocument"
+            },
+            "description": "Files queued for indexing, in request order."
+          },
+          "failed": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "References that could not be indexed, echoed exactly as they were sent."
+          }
+        },
+        "required": ["knowledgeBaseId", "added", "failed"],
+        "additionalProperties": false,
+        "title": "Add workspace files data",
+        "description": "Outcome of indexing workspace files into a knowledge base."
+      },
+      "V2AddWorkspaceFilesToKnowledgeBaseResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2AddWorkspaceFilesToKnowledgeBaseData"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Index workspace files response",
+        "description": "Documents queued for indexing and references that could not be."
+      },
+      "AddWorkspaceFilesToKnowledgeBaseRequest": {
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "Workspace that owns both the files and the base."
+          },
+          "fileReferences": {
+            "minItems": 1,
+            "maxItems": 100,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "description": "Workspace file identifiers or storage keys to index. Duplicates resolving to the same file are indexed once."
+          }
+        },
+        "required": ["workspaceId", "fileReferences"],
+        "additionalProperties": false,
+        "title": "Index workspace files request",
+        "description": "Workspace scope and the workspace file references to index.",
+        "examples": [
+          {
+            "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+            "fileReferences": ["handbook.pdf"]
+          }
+        ]
       },
       "V2KnowledgeChunk": {
         "type": "object",

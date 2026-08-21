@@ -1,4 +1,4 @@
-import { foldSearchWhitespace } from '@/lib/workflows/search-replace/resources/references'
+import { foldSearchWhitespace } from '@sim/utils/string'
 import type {
   WorkflowSearchMatch,
   WorkflowSearchMatchKind,

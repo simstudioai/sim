@@ -30,6 +30,7 @@ These apply to every command, and may be written before or after it.
 
 | Group | Description |
 | --- | --- |
+| [`sim profiles`](/cli/profiles) | List profiles or add a workspace profile that shares a stored login |
 | [`sim audit-logs`](/cli/audit-logs) | Manage audit logs |
 | [`sim billing`](/cli/billing) | Manage billing |
 | [`sim blocks`](/cli/blocks) | Manage blocks |
@@ -100,14 +101,6 @@ sim whoami [options]
 | `--no-verify` | No | Skip the API check and only print the resolved settings. |
 
 </CommandTable>
-
-## List the profiles defined in the config and credentials files
-
-```bash
-sim profiles
-```
-
-Also available as `sim profile`.
 
 ## Set a profile's endpoint, default workspace, or output format
 

@@ -459,6 +459,196 @@ sim knowledge create [options]
 
 </CommandTable>
 
+## Create knowledge connector
+
+```bash
+sim knowledge connectors create <id> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `id` | Yes | Unique knowledge base identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--connector-type <value>` | Yes | Registered connector type. |
+| `--credential-id <value>` | No | OAuth credential identifier for connectors that require OAuth. |
+| `--api-key <value>` | No | Write-only API key for connectors that use API-key authentication. |
+| `--source-config <json\|@file>` | Yes | Connector-specific source selection and filtering configuration. (JSON, or @path / @- to read a file or stdin). |
+| `--sync-interval-minutes <value>` | No | Scheduled synchronization interval in minutes; zero disables scheduling. |
+
+</CommandTable>
+
+## Delete knowledge connector
+
+```bash
+sim knowledge connectors delete <id> <connectorId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `id` | Yes | Knowledge base that owns the connector. |
+| `connectorId` | Yes | Connector selected for the operation. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--delete-documents` | No | Also permanently delete documents produced by this connector. |
+| `--no-delete-documents` | No | Send --delete-documents as false. |
+| `-y, --yes` | Yes | Confirm this destructive operation. |
+
+</CommandTable>
+
+## Get knowledge connector
+
+```bash
+sim knowledge connectors get <id> <connectorId>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `id` | Yes | Knowledge base that owns the connector. |
+| `connectorId` | Yes | Connector selected for the operation. |
+
+</CommandTable>
+
+## List knowledge connector documents
+
+```bash
+sim knowledge connectors documents list <id> <connectorId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `id` | Yes | Knowledge base that owns the connector. |
+| `connectorId` | Yes | Connector selected for the operation. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--include-excluded` | No | Include documents explicitly excluded by a user. |
+| `--no-include-excluded` | No | Send --include-excluded as false. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+
+</CommandTable>
+
+## List knowledge connectors
+
+```bash
+sim knowledge connectors list <id> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `id` | Yes | Unique knowledge base identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--sort-by <value>` | No | Field used to sort the result. Accepted values: `connectorType`, `createdAt`, `updatedAt`. |
+| `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+
+</CommandTable>
+
+## Update knowledge connector
+
+```bash
+sim knowledge connectors update <id> <connectorId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `id` | Yes | Knowledge base that owns the connector. |
+| `connectorId` | Yes | Connector selected for the operation. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--source-config <json\|@file>` | No | Replacement source selection and filtering configuration. (JSON, or @path / @- to read a file or stdin). |
+| `--sync-interval-minutes <value>` | No | New scheduled synchronization interval in minutes. |
+| `--status <value>` | No | New connector state. Accepted values: `active`, `paused`. |
+
+</CommandTable>
+
+## Update knowledge connector documents
+
+```bash
+sim knowledge connectors documents update <id> <connectorId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `id` | Yes | Knowledge base that owns the connector. |
+| `connectorId` | Yes | Connector selected for the operation. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--operation <value>` | Yes | Whether to restore or exclude the selected documents. Accepted values: `restore`, `exclude`. |
+| `--document <value...>` | Yes | Connector document identifiers to update. (space-separated, or @path / @- with one value per line). |
+
+</CommandTable>
+
 ## Create a knowledge folder at a path
 
 ```bash
@@ -801,6 +991,34 @@ sim knowledge search [options]
 | `--no-reranker-enabled` | No | Send --reranker-enabled as false. |
 | `--reranker-model <value>` | No | Reranking model to use when `rerankerEnabled` is true. Defaults to `rerank-v4.0-fast`. Accepted values: `rerank-v4.0-pro`, `rerank-v4.0-fast`, `rerank-v3.5`. |
 | `--reranker-input-count <value>` | No | How many candidate chunks to retrieve before reranking. Defaults to four times `topK`, capped at 100. A larger pool costs more retrieval work but gives the reranker more to choose from. |
+
+</CommandTable>
+
+## Sync knowledge connector
+
+```bash
+sim knowledge sync create <id> <connectorId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `id` | Yes | Knowledge base that owns the connector. |
+| `connectorId` | Yes | Connector selected for the operation. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--rehydrate` | No | Re-fetch and re-index every existing connector document. |
+| `--no-rehydrate` | No | Send --rehydrate as false. |
 
 </CommandTable>
 

@@ -53,6 +53,8 @@ const PAGED_LISTS = [
   'GET /api/v2/custom-tools',
   'GET /api/v2/files',
   'GET /api/v2/knowledge',
+  'GET /api/v2/knowledge/[id]/connectors',
+  'GET /api/v2/knowledge/[id]/connectors/[connectorId]/documents',
   'GET /api/v2/knowledge/[id]/documents',
   'GET /api/v2/knowledge/[id]/documents/[documentId]/chunks',
   'GET /api/v2/knowledge/archived',
@@ -60,6 +62,7 @@ const PAGED_LISTS = [
   'GET /api/v2/mcp-servers',
   'GET /api/v2/secrets',
   'GET /api/v2/skills',
+  'GET /api/v2/skills/[id]/editors',
   'GET /api/v2/tables',
   'GET /api/v2/tables/[tableId]/rows',
   'POST /api/v2/logs/query',
@@ -70,6 +73,7 @@ const PAGED_LISTS = [
   'GET /api/v2/workflows/[id]/versions',
   'GET /api/v2/workflow-mcp-servers',
   'GET /api/v2/workspaces/[workspaceId]/members',
+  'GET /api/v2/workspaces',
 ] as const
 
 /**
@@ -172,6 +176,11 @@ const CURSOR_BINDINGS: Record<string, readonly string[]> = {
     'recursive',
   ],
   'GET /api/v2/knowledge': ['workspaceId', 'folderPath', 'search', 'sortBy', 'sortOrder'],
+  'GET /api/v2/knowledge/[id]/connectors': ['workspaceId', 'sortBy', 'sortOrder'],
+  'GET /api/v2/knowledge/[id]/connectors/[connectorId]/documents': [
+    'workspaceId',
+    'includeExcluded',
+  ],
   'GET /api/v2/knowledge/[id]/documents': [
     // Asserted scope rather than a filter, but this list shipped before the
     // distinction was drawn. The value is constant for any one sequence, so
@@ -234,6 +243,7 @@ const CURSOR_BINDINGS: Record<string, readonly string[]> = {
   'GET /api/v2/secrets': ['workspaceId', 'scope', 'search', 'sortBy', 'sortOrder'],
   'GET /api/v2/skills': ['workspaceId', 'search', 'sortBy', 'sortOrder'],
   'GET /api/v2/tables': ['workspaceId', 'scope', 'folderPath', 'search', 'sortBy', 'sortOrder'],
+  'GET /api/v2/skills/[id]/editors': ['workspaceId', 'sortBy', 'sortOrder'],
   'GET /api/v2/tables/[tableId]/rows': [],
   'POST /api/v2/tables/[tableId]/query': ['predicate', 'sort'],
   'GET /api/v2/tools': [
@@ -258,6 +268,7 @@ const CURSOR_BINDINGS: Record<string, readonly string[]> = {
   'GET /api/v2/workflow-mcp-servers': ['workspaceId', 'sortBy', 'sortOrder'],
   'GET /api/v2/chat-deployments': ['workspaceId', 'workflowId', 'isActive', 'sortBy', 'sortOrder'],
   'GET /api/v2/workspaces/[workspaceId]/members': [],
+  'GET /api/v2/workspaces': ['sortBy', 'sortOrder'],
 }
 
 /**
@@ -281,8 +292,11 @@ const CURSOR_BINDINGS: Record<string, readonly string[]> = {
  * resolves the path before fingerprinting it.
  */
 const CURSOR_BOUND_PATH_PARAMS: Record<string, readonly string[]> = {
+  'GET /api/v2/knowledge/[id]/connectors': ['id'],
+  'GET /api/v2/knowledge/[id]/connectors/[connectorId]/documents': ['id', 'connectorId'],
   'GET /api/v2/knowledge/[id]/documents': ['id'],
   'GET /api/v2/knowledge/[id]/documents/[documentId]/chunks': ['id', 'documentId'],
+  'GET /api/v2/skills/[id]/editors': ['id'],
   'GET /api/v2/tables/[tableId]/rows': ['tableId'],
   'POST /api/v2/tables/[tableId]/query': ['tableId'],
   'GET /api/v2/workflows/[id]/runs': ['id'],

@@ -1444,6 +1444,44 @@ export type CreateKnowledgeChunkResponse = {
   data: CreateKnowledgeChunkResponseRef0
 }
 
+/** `POST /api/v2/knowledge/[id]/connectors` */
+export type CreateKnowledgeConnectorParams = {
+  id: string
+}
+
+export type CreateKnowledgeConnectorQuery = Record<string, unknown>
+
+export type CreateKnowledgeConnectorBody = {
+  workspaceId: string
+  connectorType: string
+  credentialId?: string
+  apiKey?: string
+  sourceConfig: Record<string, unknown>
+  syncIntervalMinutes?: number
+}
+
+type CreateKnowledgeConnectorResponseRef0 = {
+  id: string
+  knowledgeBaseId: string
+  connectorType: string
+  credentialId: string | null
+  sourceConfig: Record<string, unknown>
+  syncMode: string
+  syncIntervalMinutes: number
+  status: 'active' | 'paused' | 'syncing' | 'error' | 'disabled'
+  lastSyncAt: string | null
+  lastSyncError: string | null
+  lastSyncDocCount: number | null
+  nextSyncAt: string | null
+  consecutiveFailures: number
+  createdAt: string
+  updatedAt: string
+}
+
+export type CreateKnowledgeConnectorResponse = {
+  data: CreateKnowledgeConnectorResponseRef0
+}
+
 /** `POST /api/v2/knowledge/[id]/documents/uploads` */
 export type CreateKnowledgeDocumentUploadParams = {
   id: string
@@ -1682,19 +1720,7 @@ export type CreateServiceAccountCredentialBody = {
   displayName?: string
   description?: string
   id?: string
-  serviceAccountJson?: string
-  apiToken?: string
-  domain?: string
-  signingSecret?: string
-  botToken?: string
-  clientId?: string
-  clientSecret?: string
-  certificateId?: string
-  orgId?: string
-  dataCenter?: string
-  authMethod?: string
-  privateKey?: string
-  username?: string
+  credentials: string
 }
 
 type CreateServiceAccountCredentialResponseRef0 = {
@@ -2442,6 +2468,28 @@ type DeleteKnowledgeChunkResponseRef0 = {
 
 export type DeleteKnowledgeChunkResponse = {
   data: DeleteKnowledgeChunkResponseRef0
+}
+
+/** `DELETE /api/v2/knowledge/[id]/connectors/[connectorId]` */
+export type DeleteKnowledgeConnectorParams = {
+  id: string
+  connectorId: string
+}
+
+export type DeleteKnowledgeConnectorQuery = {
+  workspaceId: string
+  deleteDocuments?: boolean
+}
+
+type DeleteKnowledgeConnectorResponseRef0 = {
+  id: string
+  deleted: true
+  documentsDeleted: number
+  documentsKept: number
+}
+
+export type DeleteKnowledgeConnectorResponse = {
+  data: DeleteKnowledgeConnectorResponseRef0
 }
 
 /** `DELETE /api/v2/knowledge/[id]/documents/[documentId]` */
@@ -3777,6 +3825,53 @@ export type GetKnowledgeChunkResponse = {
   data: GetKnowledgeChunkResponseRef0
 }
 
+/** `GET /api/v2/knowledge/[id]/connectors/[connectorId]` */
+export type GetKnowledgeConnectorParams = {
+  id: string
+  connectorId: string
+}
+
+export type GetKnowledgeConnectorQuery = {
+  workspaceId: string
+}
+
+type GetKnowledgeConnectorResponseRef0 = {
+  id: string
+  connectorId: string
+  status: string
+  startedAt: string
+  completedAt: string | null
+  docsAdded: number
+  docsUpdated: number
+  docsDeleted: number
+  docsUnchanged: number
+  docsFailed: number
+  errorMessage: string | null
+}
+
+type GetKnowledgeConnectorResponseRef1 = {
+  id: string
+  knowledgeBaseId: string
+  connectorType: string
+  credentialId: string | null
+  sourceConfig: Record<string, unknown>
+  syncMode: string
+  syncIntervalMinutes: number
+  status: 'active' | 'paused' | 'syncing' | 'error' | 'disabled'
+  lastSyncAt: string | null
+  lastSyncError: string | null
+  lastSyncDocCount: number | null
+  nextSyncAt: string | null
+  consecutiveFailures: number
+  createdAt: string
+  updatedAt: string
+  syncLogs: Array<GetKnowledgeConnectorResponseRef0>
+}
+
+export type GetKnowledgeConnectorResponse = {
+  data: GetKnowledgeConnectorResponseRef1
+}
+
 /** `GET /api/v2/knowledge/[id]/documents/[documentId]` */
 export type GetKnowledgeDocumentParams = {
   id: string
@@ -4686,6 +4781,29 @@ export type GetWorkspaceResponse = {
   data: GetWorkspaceResponseRef0
 }
 
+/** `POST /api/v2/skills/[id]/editors` */
+export type GrantSkillEditorParams = {
+  id: string
+}
+
+export type GrantSkillEditorQuery = Record<string, unknown>
+
+export type GrantSkillEditorBody = {
+  workspaceId: string
+  email: string
+}
+
+type GrantSkillEditorResponseRef0 = {
+  email: string
+  name: string | null
+  image: string | null
+  isWorkspaceAdmin: boolean
+}
+
+export type GrantSkillEditorResponse = {
+  data: GrantSkillEditorResponseRef0
+}
+
 /** `POST /api/v2/workflows/import` */
 export type ImportWorkflowQuery = Record<string, unknown>
 
@@ -5287,6 +5405,71 @@ export type ListKnowledgeChunksResponse = {
   nextCursor: string | null
 }
 
+/** `GET /api/v2/knowledge/[id]/connectors/[connectorId]/documents` */
+export type ListKnowledgeConnectorDocumentsParams = {
+  id: string
+  connectorId: string
+}
+
+export type ListKnowledgeConnectorDocumentsQuery = {
+  workspaceId: string
+  includeExcluded?: boolean
+  limit?: number
+  cursor?: string
+}
+
+type ListKnowledgeConnectorDocumentsResponseRef0 = {
+  id: string
+  filename: string
+  externalId: string | null
+  sourceUrl: string | null
+  enabled: boolean
+  userExcluded: boolean
+  createdAt: string
+  processingStatus: string
+}
+
+export type ListKnowledgeConnectorDocumentsResponse = {
+  data: Array<ListKnowledgeConnectorDocumentsResponseRef0>
+  nextCursor: string | null
+}
+
+/** `GET /api/v2/knowledge/[id]/connectors` */
+export type ListKnowledgeConnectorsParams = {
+  id: string
+}
+
+export type ListKnowledgeConnectorsQuery = {
+  workspaceId: string
+  sortBy?: 'connectorType' | 'createdAt' | 'updatedAt'
+  sortOrder?: 'asc' | 'desc'
+  limit?: number
+  cursor?: string
+}
+
+type ListKnowledgeConnectorsResponseRef0 = {
+  id: string
+  knowledgeBaseId: string
+  connectorType: string
+  credentialId: string | null
+  sourceConfig: Record<string, unknown>
+  syncMode: string
+  syncIntervalMinutes: number
+  status: 'active' | 'paused' | 'syncing' | 'error' | 'disabled'
+  lastSyncAt: string | null
+  lastSyncError: string | null
+  lastSyncDocCount: number | null
+  nextSyncAt: string | null
+  consecutiveFailures: number
+  createdAt: string
+  updatedAt: string
+}
+
+export type ListKnowledgeConnectorsResponse = {
+  data: Array<ListKnowledgeConnectorsResponseRef0>
+  nextCursor: string | null
+}
+
 /** `GET /api/v2/knowledge/[id]/documents` */
 export type ListKnowledgeDocumentsParams = {
   id: string
@@ -5582,6 +5765,31 @@ type ListSecretsResponseRef0 = {
 
 export type ListSecretsResponse = {
   data: Array<ListSecretsResponseRef0>
+  nextCursor: string | null
+}
+
+/** `GET /api/v2/skills/[id]/editors` */
+export type ListSkillEditorsParams = {
+  id: string
+}
+
+export type ListSkillEditorsQuery = {
+  workspaceId: string
+  sortBy?: 'email' | 'name'
+  sortOrder?: 'asc' | 'desc'
+  limit?: number
+  cursor?: string
+}
+
+type ListSkillEditorsResponseRef0 = {
+  email: string
+  name: string | null
+  image: string | null
+  isWorkspaceAdmin: boolean
+}
+
+export type ListSkillEditorsResponse = {
+  data: Array<ListSkillEditorsResponseRef0>
   nextCursor: string | null
 }
 
@@ -6036,6 +6244,29 @@ type ListWorkspaceMembersResponseRef0 = {
 
 export type ListWorkspaceMembersResponse = {
   data: Array<ListWorkspaceMembersResponseRef0>
+  nextCursor: string | null
+}
+
+/** `GET /api/v2/workspaces` */
+export type ListWorkspacesQuery = {
+  sortBy?: 'name' | 'createdAt' | 'updatedAt'
+  sortOrder?: 'asc' | 'desc'
+  limit?: number
+  cursor?: string
+}
+
+type ListWorkspacesResponseRef0 = {
+  id: string
+  name: string
+  color: string
+  logoUrl: string | null
+  memberCount: number
+  createdAt: string
+  updatedAt: string
+}
+
+export type ListWorkspacesResponse = {
+  data: Array<ListWorkspacesResponseRef0>
   nextCursor: string | null
 }
 
@@ -6907,6 +7138,25 @@ export type RevertWorkflowVersionResponse = {
   data: RevertWorkflowVersionResponseRef0
 }
 
+/** `DELETE /api/v2/skills/[id]/editors` */
+export type RevokeSkillEditorParams = {
+  id: string
+}
+
+export type RevokeSkillEditorQuery = {
+  workspaceId: string
+  email: string
+}
+
+type RevokeSkillEditorResponseRef0 = {
+  email: string
+  revoked: true
+}
+
+export type RevokeSkillEditorResponse = {
+  data: RevokeSkillEditorResponseRef0
+}
+
 /** `POST /api/v2/workflows/[id]/rollback` */
 export type RollbackWorkflowParams = {
   id: string
@@ -7212,6 +7462,28 @@ type SetSecretResponseRef0 = {
 
 export type SetSecretResponse = {
   data: SetSecretResponseRef0
+}
+
+/** `POST /api/v2/knowledge/[id]/connectors/[connectorId]/sync` */
+export type SyncKnowledgeConnectorParams = {
+  id: string
+  connectorId: string
+}
+
+export type SyncKnowledgeConnectorQuery = Record<string, unknown>
+
+export type SyncKnowledgeConnectorBody = {
+  workspaceId: string
+  rehydrate?: boolean
+}
+
+type SyncKnowledgeConnectorResponseRef0 = {
+  id: string
+  syncTriggered: true
+}
+
+export type SyncKnowledgeConnectorResponse = {
+  data: SyncKnowledgeConnectorResponseRef0
 }
 
 /** `GET /api/v2/tables/exports/[exportId]/download` */
@@ -7594,6 +7866,67 @@ type UpdateKnowledgeChunkResponseRef0 = {
 
 export type UpdateKnowledgeChunkResponse = {
   data: UpdateKnowledgeChunkResponseRef0
+}
+
+/** `PATCH /api/v2/knowledge/[id]/connectors/[connectorId]` */
+export type UpdateKnowledgeConnectorParams = {
+  id: string
+  connectorId: string
+}
+
+export type UpdateKnowledgeConnectorQuery = Record<string, unknown>
+
+export type UpdateKnowledgeConnectorBody = {
+  workspaceId: string
+  sourceConfig?: Record<string, unknown>
+  syncIntervalMinutes?: number
+  status?: 'active' | 'paused'
+}
+
+type UpdateKnowledgeConnectorResponseRef0 = {
+  id: string
+  knowledgeBaseId: string
+  connectorType: string
+  credentialId: string | null
+  sourceConfig: Record<string, unknown>
+  syncMode: string
+  syncIntervalMinutes: number
+  status: 'active' | 'paused' | 'syncing' | 'error' | 'disabled'
+  lastSyncAt: string | null
+  lastSyncError: string | null
+  lastSyncDocCount: number | null
+  nextSyncAt: string | null
+  consecutiveFailures: number
+  createdAt: string
+  updatedAt: string
+}
+
+export type UpdateKnowledgeConnectorResponse = {
+  data: UpdateKnowledgeConnectorResponseRef0
+}
+
+/** `PATCH /api/v2/knowledge/[id]/connectors/[connectorId]/documents` */
+export type UpdateKnowledgeConnectorDocumentsParams = {
+  id: string
+  connectorId: string
+}
+
+export type UpdateKnowledgeConnectorDocumentsQuery = Record<string, unknown>
+
+export type UpdateKnowledgeConnectorDocumentsBody = {
+  workspaceId: string
+  operation: 'restore' | 'exclude'
+  documentIds: Array<string>
+}
+
+type UpdateKnowledgeConnectorDocumentsResponseRef0 = {
+  operation: 'restore' | 'exclude'
+  updatedCount: number
+  documentIds: Array<string>
+}
+
+export type UpdateKnowledgeConnectorDocumentsResponse = {
+  data: UpdateKnowledgeConnectorDocumentsResponseRef0
 }
 
 /** `PATCH /api/v2/knowledge/[id]/documents/[documentId]` */
@@ -9091,6 +9424,40 @@ export const V2_OPERATIONS = {
       },
     },
   },
+  createKnowledgeConnector: {
+    method: 'POST',
+    path: '/api/v2/knowledge/[id]/connectors',
+    pathParams: ['id'] as const,
+    pathParamDocs: { id: 'Unique knowledge base identifier.' },
+    responseMode: 'json',
+    summary: 'Create Knowledge Connector',
+    body: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns the knowledge base.',
+      },
+      connectorType: { kind: 'string', required: true, describe: 'Registered connector type.' },
+      credentialId: {
+        kind: 'string',
+        describe: 'OAuth credential identifier for connectors that require OAuth.',
+      },
+      apiKey: {
+        kind: 'string',
+        describe: 'Write-only API key for connectors that use API-key authentication.',
+      },
+      sourceConfig: {
+        kind: 'object',
+        required: true,
+        describe: 'Connector-specific source selection and filtering configuration.',
+      },
+      syncIntervalMinutes: {
+        kind: 'integer',
+        default: 1440,
+        describe: 'Scheduled synchronization interval in minutes; zero disables scheduling.',
+      },
+    },
+  },
   createKnowledgeDocumentUpload: {
     method: 'POST',
     path: '/api/v2/knowledge/[id]/documents/uploads',
@@ -9314,22 +9681,12 @@ export const V2_OPERATIONS = {
         kind: 'string',
         describe: 'Required only when provider discovery requests a client-generated ID.',
       },
-      serviceAccountJson: {
+      credentials: {
         kind: 'string',
-        describe: 'Write-only Google service-account JSON key.',
+        required: true,
+        describe:
+          'Write-only JSON object string containing the fields declared by credential-provider discovery.',
       },
-      apiToken: { kind: 'string', describe: 'Write-only provider API token.' },
-      domain: { kind: 'string', describe: 'Provider account domain.' },
-      signingSecret: { kind: 'string', describe: 'Write-only webhook signing secret.' },
-      botToken: { kind: 'string', describe: 'Write-only bot token.' },
-      clientId: { kind: 'string', describe: 'OAuth client identifier.' },
-      clientSecret: { kind: 'string', describe: 'Write-only OAuth client secret.' },
-      certificateId: { kind: 'string', describe: 'Provider certificate mapping identifier.' },
-      orgId: { kind: 'string', describe: 'Provider organization ID.' },
-      dataCenter: { kind: 'string', describe: 'Provider data center.' },
-      authMethod: { kind: 'string', describe: 'Provider authentication method.' },
-      privateKey: { kind: 'string', describe: 'Write-only PEM private key.' },
-      username: { kind: 'string', describe: 'Provider run-as username.' },
     },
   },
   createSkill: {
@@ -9661,6 +10018,28 @@ export const V2_OPERATIONS = {
         kind: 'string',
         required: true,
         describe: 'Workspace that owns the knowledge base.',
+      },
+    },
+  },
+  deleteKnowledgeConnector: {
+    method: 'DELETE',
+    path: '/api/v2/knowledge/[id]/connectors/[connectorId]',
+    pathParams: ['id', 'connectorId'] as const,
+    pathParamDocs: {
+      id: 'Knowledge base that owns the connector.',
+      connectorId: 'Connector selected for the operation.',
+    },
+    responseMode: 'json',
+    summary: 'Delete Knowledge Connector',
+    query: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns the knowledge base.',
+      },
+      deleteDocuments: {
+        kind: 'boolean',
+        describe: 'Also permanently delete documents produced by this connector.',
       },
     },
   },
@@ -10293,6 +10672,24 @@ export const V2_OPERATIONS = {
       },
     },
   },
+  getKnowledgeConnector: {
+    method: 'GET',
+    path: '/api/v2/knowledge/[id]/connectors/[connectorId]',
+    pathParams: ['id', 'connectorId'] as const,
+    pathParamDocs: {
+      id: 'Knowledge base that owns the connector.',
+      connectorId: 'Connector selected for the operation.',
+    },
+    responseMode: 'json',
+    summary: 'Get Knowledge Connector',
+    query: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns the knowledge base.',
+      },
+    },
+  },
   getKnowledgeDocument: {
     method: 'GET',
     path: '/api/v2/knowledge/[id]/documents/[documentId]',
@@ -10609,6 +11006,24 @@ export const V2_OPERATIONS = {
     pathParamDocs: { workspaceId: 'Workspace to retrieve.' },
     responseMode: 'json',
     summary: 'Get Workspace',
+  },
+  grantSkillEditor: {
+    method: 'POST',
+    path: '/api/v2/skills/[id]/editors',
+    pathParams: ['id'] as const,
+    pathParamDocs: {
+      id: 'Unique skill identifier. A built-in skill is `builtin-` followed by its name, for example `builtin-research`.',
+    },
+    responseMode: 'json',
+    summary: 'Grant Skill Editor',
+    body: {
+      workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the skill.' },
+      email: {
+        kind: 'string',
+        required: true,
+        describe: 'Email address of a current workspace member.',
+      },
+    },
   },
   importWorkflow: {
     method: 'POST',
@@ -11241,6 +11656,77 @@ export const V2_OPERATIONS = {
       },
     },
   },
+  listKnowledgeConnectorDocuments: {
+    method: 'GET',
+    path: '/api/v2/knowledge/[id]/connectors/[connectorId]/documents',
+    pathParams: ['id', 'connectorId'] as const,
+    pathParamDocs: {
+      id: 'Knowledge base that owns the connector.',
+      connectorId: 'Connector selected for the operation.',
+    },
+    responseMode: 'json',
+    summary: 'List Knowledge Connector Documents',
+    query: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns the knowledge base.',
+      },
+      includeExcluded: {
+        kind: 'boolean',
+        describe: 'Include documents explicitly excluded by a user.',
+      },
+      limit: {
+        kind: 'integer',
+        default: 50,
+        describe:
+          'Maximum connector documents to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
+      },
+      cursor: {
+        kind: 'string',
+        describe:
+          'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+      },
+    },
+  },
+  listKnowledgeConnectors: {
+    method: 'GET',
+    path: '/api/v2/knowledge/[id]/connectors',
+    pathParams: ['id'] as const,
+    pathParamDocs: { id: 'Unique knowledge base identifier.' },
+    responseMode: 'json',
+    summary: 'List Knowledge Connectors',
+    query: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns the knowledge base.',
+      },
+      sortBy: {
+        kind: 'enum',
+        values: ['connectorType', 'createdAt', 'updatedAt'] as const,
+        default: 'createdAt',
+        describe: 'Field used to sort the result.',
+      },
+      sortOrder: {
+        kind: 'enum',
+        values: ['asc', 'desc'] as const,
+        default: 'desc',
+        describe: 'Sort direction.',
+      },
+      limit: {
+        kind: 'integer',
+        default: 50,
+        describe:
+          'Maximum connectors to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
+      },
+      cursor: {
+        kind: 'string',
+        describe:
+          'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+      },
+    },
+  },
   listKnowledgeDocuments: {
     method: 'GET',
     path: '/api/v2/knowledge/[id]/documents',
@@ -11584,6 +12070,43 @@ export const V2_OPERATIONS = {
         default: 50,
         describe:
           'Maximum secrets to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
+      },
+      cursor: {
+        kind: 'string',
+        describe:
+          'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+      },
+    },
+  },
+  listSkillEditors: {
+    method: 'GET',
+    path: '/api/v2/skills/[id]/editors',
+    pathParams: ['id'] as const,
+    pathParamDocs: {
+      id: 'Unique skill identifier. A built-in skill is `builtin-` followed by its name, for example `builtin-research`.',
+    },
+    responseMode: 'json',
+    summary: 'List Skill Editors',
+    query: {
+      workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the skill.' },
+      sortBy: {
+        kind: 'enum',
+        values: ['email', 'name'] as const,
+        default: 'email',
+        describe:
+          'Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.',
+      },
+      sortOrder: {
+        kind: 'enum',
+        values: ['asc', 'desc'] as const,
+        default: 'asc',
+        describe: 'Sort direction.',
+      },
+      limit: {
+        kind: 'integer',
+        default: 50,
+        describe:
+          'Maximum skill editors to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
       },
       cursor: {
         kind: 'string',
@@ -12048,6 +12571,39 @@ export const V2_OPERATIONS = {
       },
     },
   },
+  listWorkspaces: {
+    method: 'GET',
+    path: '/api/v2/workspaces',
+    pathParams: [] as const,
+    responseMode: 'json',
+    summary: 'List Workspaces',
+    query: {
+      sortBy: {
+        kind: 'enum',
+        values: ['name', 'createdAt', 'updatedAt'] as const,
+        default: 'createdAt',
+        describe:
+          'Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.',
+      },
+      sortOrder: {
+        kind: 'enum',
+        values: ['asc', 'desc'] as const,
+        default: 'desc',
+        describe: 'Sort direction.',
+      },
+      limit: {
+        kind: 'integer',
+        default: 50,
+        describe:
+          'Maximum workspaces to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
+      },
+      cursor: {
+        kind: 'string',
+        describe:
+          'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+      },
+    },
+  },
   moveFileItems: {
     method: 'POST',
     path: '/api/v2/files/move',
@@ -12453,6 +13009,24 @@ export const V2_OPERATIONS = {
     responseMode: 'json',
     summary: 'Revert Workflow To Version',
   },
+  revokeSkillEditor: {
+    method: 'DELETE',
+    path: '/api/v2/skills/[id]/editors',
+    pathParams: ['id'] as const,
+    pathParamDocs: {
+      id: 'Unique skill identifier. A built-in skill is `builtin-` followed by its name, for example `builtin-research`.',
+    },
+    responseMode: 'json',
+    summary: 'Revoke Skill Editor',
+    query: {
+      workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the skill.' },
+      email: {
+        kind: 'string',
+        required: true,
+        describe: 'Email address of a current workspace member.',
+      },
+    },
+  },
   rollbackWorkflow: {
     method: 'POST',
     path: '/api/v2/workflows/[id]/rollback',
@@ -12623,6 +13197,29 @@ export const V2_OPERATIONS = {
         kind: 'string',
         describe:
           'What the secret is for, shown to teammates. Workspace scope only — sending it for a personal secret is rejected. Omit it to leave an existing description untouched; send null or an empty string to clear one.',
+      },
+    },
+  },
+  syncKnowledgeConnector: {
+    method: 'POST',
+    path: '/api/v2/knowledge/[id]/connectors/[connectorId]/sync',
+    pathParams: ['id', 'connectorId'] as const,
+    pathParamDocs: {
+      id: 'Knowledge base that owns the connector.',
+      connectorId: 'Connector selected for the operation.',
+    },
+    responseMode: 'json',
+    summary: 'Sync Knowledge Connector',
+    body: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns the knowledge base.',
+      },
+      rehydrate: {
+        kind: 'boolean',
+        default: false,
+        describe: 'Re-fetch and re-index every existing connector document.',
       },
     },
   },
@@ -12828,6 +13425,66 @@ export const V2_OPERATIONS = {
       enabled: {
         kind: 'boolean',
         describe: 'Whether the chunk participates in search. Disabling keeps it indexed.',
+      },
+    },
+  },
+  updateKnowledgeConnector: {
+    method: 'PATCH',
+    path: '/api/v2/knowledge/[id]/connectors/[connectorId]',
+    pathParams: ['id', 'connectorId'] as const,
+    pathParamDocs: {
+      id: 'Knowledge base that owns the connector.',
+      connectorId: 'Connector selected for the operation.',
+    },
+    responseMode: 'json',
+    summary: 'Update Knowledge Connector',
+    body: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns the knowledge base.',
+      },
+      sourceConfig: {
+        kind: 'object',
+        describe: 'Replacement source selection and filtering configuration.',
+      },
+      syncIntervalMinutes: {
+        kind: 'integer',
+        describe: 'New scheduled synchronization interval in minutes.',
+      },
+      status: {
+        kind: 'enum',
+        values: ['active', 'paused'] as const,
+        describe: 'New connector state.',
+      },
+    },
+  },
+  updateKnowledgeConnectorDocuments: {
+    method: 'PATCH',
+    path: '/api/v2/knowledge/[id]/connectors/[connectorId]/documents',
+    pathParams: ['id', 'connectorId'] as const,
+    pathParamDocs: {
+      id: 'Knowledge base that owns the connector.',
+      connectorId: 'Connector selected for the operation.',
+    },
+    responseMode: 'json',
+    summary: 'Update Knowledge Connector Documents',
+    body: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns the knowledge base.',
+      },
+      operation: {
+        kind: 'enum',
+        required: true,
+        values: ['restore', 'exclude'] as const,
+        describe: 'Whether to restore or exclude the selected documents.',
+      },
+      documentIds: {
+        kind: 'array',
+        required: true,
+        describe: 'Connector document identifiers to update.',
       },
     },
   },

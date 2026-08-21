@@ -534,8 +534,11 @@ describe('knowledge connector application use cases', () => {
         { id: 'document-4', filename: 'd.txt', userExcluded: true },
       ],
       counts: { active: 5, excluded: 2 },
+      hasMore: false,
+      offset: 2,
+      limit: 2,
     })
-    expect(dbChainMockFns.limit).toHaveBeenCalledWith(2)
+    expect(dbChainMockFns.limit).toHaveBeenCalledWith(3)
     expect(dbChainMockFns.offset).toHaveBeenCalledWith(2)
   })
 

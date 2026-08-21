@@ -269,6 +269,19 @@ export interface SubBlockConfig {
   type: SubBlockType
   mode?: 'basic' | 'advanced' | 'both' | 'trigger' | 'trigger-advanced' // Default is 'both' if not specified. 'trigger' means only shown in trigger mode. 'trigger-advanced' is the advanced side of a trigger field — either a canonical pair member or a standalone field shown under the block-level advanced toggle
   canonicalParamId?: string
+  /**
+   * Declares that the stored value is markdown, so workflow search matches it
+   * against the text it RENDERS as rather than its source.
+   *
+   * The rich-text editor backslash-escapes every markdown-significant character
+   * in prose, so a Note body the reader sees as `SB_ACTION` is stored as
+   * `SB\_ACTION` and would otherwise be unfindable by what is on screen. Ranges
+   * stay in source coordinates, so replace still rewrites the escaped span.
+   *
+   * Omit for every ordinary field: a code or plain-text value is searched as
+   * stored, where a backslash is the author's own character.
+   */
+  searchTextFormat?: 'markdown'
   /** Controls parameter visibility in agent/tool-input context */
   paramVisibility?: 'user-or-llm' | 'user-only' | 'llm-only' | 'hidden'
   /**

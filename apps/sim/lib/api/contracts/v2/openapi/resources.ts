@@ -55,7 +55,10 @@ import {
   v2CreateSkillContract,
   v2DeleteSkillContract,
   v2GetSkillContract,
+  v2GrantSkillEditorContract,
+  v2ListSkillEditorsContract,
   v2ListSkillsContract,
+  v2RevokeSkillEditorContract,
   v2UpdateSkillContract,
 } from '@/lib/api/contracts/v2/skills'
 import {
@@ -69,12 +72,194 @@ import {
 import {
   v2GetWorkspaceContract,
   v2ListWorkspaceMembersContract,
+  v2ListWorkspacesContract,
 } from '@/lib/api/contracts/v2/workspaces'
 import {
   defineOpenApiDocument,
   defineOpenApiRoute,
   type OpenApiOperationMetadata,
 } from '@/lib/api/openapi/types'
+
+const BLOCK_SUMMARY_EXAMPLE = {
+  id: 'slack',
+  name: 'Slack',
+  description: 'Send messages and read channels in Slack.',
+  category: 'tools',
+  integrationType: 'communication',
+  source: 'builtin',
+  authMode: 'oauth',
+  triggerAllowed: true,
+  triggerCapable: true,
+  triggerIds: ['slack_webhook'],
+  toolIds: ['slack_message', 'slack_canvas_read'],
+  operationIds: ['send', 'read'],
+  preview: false,
+  docsLink: 'https://docs.sim.ai/tools/slack',
+  tags: ['messaging'],
+} as const
+
+const BLOCK_DETAIL_EXAMPLE = {
+  ...BLOCK_SUMMARY_EXAMPLE,
+  inputSchema: [
+    {
+      id: 'operation',
+      type: 'dropdown',
+      title: 'Operation',
+      required: true,
+      options: [
+        { id: 'send', label: 'Send message' },
+        { id: 'read', label: 'Read messages' },
+      ],
+    },
+  ],
+  operationInputSchema: {
+    send: [{ id: 'text', type: 'long-input', title: 'Message', required: true }],
+  },
+  inputDefinitions: {
+    channel: { type: 'string', description: 'Channel to post into.' },
+  },
+  operations: {
+    send: {
+      toolId: 'slack_message',
+      toolName: 'Slack Send Message',
+      description: 'Send a message to a Slack channel.',
+      inputs: { text: { type: 'string', required: true, description: 'Message body.' } },
+      outputs: { ts: { type: 'string', description: 'Message timestamp.' } },
+      inputSchema: [{ id: 'text', type: 'long-input', title: 'Message', required: true }],
+    },
+  },
+  tools: [
+    {
+      id: 'slack_message',
+      name: 'Slack Send Message',
+      description: 'Send a message to a Slack channel.',
+      version: '1.0.0',
+      hostedApiKey: 'none',
+      oauth: { required: true, provider: 'slack', requiredScopes: ['chat:write'] },
+      params: { text: { type: 'string', required: true, description: 'Message body.' } },
+      outputs: { ts: { type: 'string', description: 'Message timestamp.' } },
+    },
+  ],
+  triggers: [
+    {
+      id: 'slack_webhook',
+      outputs: { text: { type: 'string', description: 'Message text.' } },
+      configFields: {
+        channels: { type: 'short-input', required: false, title: 'Channels' },
+      },
+    },
+  ],
+  outputs: { ts: { type: 'string', description: 'Message timestamp.' } },
+} as const
+
+const CONNECTOR_TYPE_EXAMPLE = {
+  connectorType: 'google_drive',
+  name: 'Google Drive',
+  description: 'Sync documents from a Google Drive folder.',
+  version: '1.0.0',
+  auth: {
+    mode: 'oauth',
+    provider: 'google-drive',
+    requiredScopes: ['https://www.googleapis.com/auth/drive.readonly'],
+  },
+  configFields: [
+    {
+      id: 'folderSelector',
+      title: 'Folder',
+      type: 'selector',
+      selectorKey: 'google-drive-folder',
+      mimeType: 'application/vnd.google-apps.folder',
+      mode: 'basic',
+      canonicalParamId: 'folderId',
+      required: true,
+    },
+    {
+      id: 'manualFolderId',
+      title: 'Folder ID',
+      type: 'short-input',
+      placeholder: 'Enter the folder ID',
+      mode: 'advanced',
+      canonicalParamId: 'folderId',
+    },
+  ],
+  supportsIncrementalSync: true,
+  tagDefinitions: [{ id: 'owner', displayName: 'Owner', fieldType: 'text' }],
+} as const
+
+const ENRICHMENT_EXAMPLE = {
+  id: 'work-email',
+  name: 'Work email',
+  description: 'Find a person’s work email from their name and company.',
+  inputs: [
+    { id: 'fullName', name: 'Full name', type: 'string', required: true },
+    { id: 'domain', name: 'Company domain', type: 'string', required: true },
+  ],
+  outputs: [{ id: 'email', name: 'Work email', type: 'string' }],
+  providers: [
+    { id: 'hunter', label: 'Hunter', toolId: 'hunter_email_finder' },
+    { id: 'pdl', label: 'People Data Labs', toolId: 'peopledatalabs_person_enrich' },
+  ],
+} as const
+
+/**
+ * `GET /api/v2/meta` resolves no workspace and no resource, so it cannot emit
+ * the `403` every workspace-scoped operation can, nor a `404`. A documented
+ * status an operation cannot emit is worse than none.
+ */
+const META_ERRORS = [
+  'BadRequest',
+  'Unauthorized',
+  'RateLimited',
+  'InternalError',
+  'ServiceUnavailable',
+] as const satisfies readonly ErrorResponseId[]
+
+const TOOL_SUMMARY_EXAMPLE = {
+  id: 'slack_message',
+  name: 'Slack Send Message',
+  description: 'Send a message to a Slack channel.',
+  version: '1.0.0',
+  hostedApiKey: 'none',
+  oauth: { required: true, provider: 'slack', requiredScopes: ['chat:write'] },
+} as const
+
+const TOOL_DETAIL_EXAMPLE = {
+  ...TOOL_SUMMARY_EXAMPLE,
+  params: {
+    channel: { type: 'string', required: true, description: 'Channel ID to post into.' },
+    text: { type: 'string', required: true, description: 'Message body.' },
+  },
+  outputs: { ts: { type: 'string', description: 'Message timestamp.' } },
+} as const
+
+const WORKFLOW_MCP_SERVER_EXAMPLE = {
+  id: 'wfmcp_01J8ZK3QW4M6X2R9T7B5C0V2',
+  name: 'Support agents',
+  description: 'Ticket triage and escalation workflows.',
+  isPublic: false,
+  mcpServerUrl: 'https://www.sim.ai/api/mcp/serve/wfmcp_01J8ZK3QW4M6X2R9T7B5C0V2',
+  createdAt: '2026-06-12T10:30:00.000Z',
+  updatedAt: '2026-06-12T10:30:00.000Z',
+} as const
+
+const WORKFLOW_MCP_SERVER_LIST_EXAMPLE = {
+  ...WORKFLOW_MCP_SERVER_EXAMPLE,
+  toolCount: 1,
+  toolNames: ['triage_ticket'],
+} as const
+
+const WORKFLOW_MCP_TOOL_EXAMPLE = {
+  id: 'wfmcptool_01J8ZK3QW4M6X2R9T7B5C0V3',
+  serverId: WORKFLOW_MCP_SERVER_EXAMPLE.id,
+  workflowId: '3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36',
+  toolName: 'triage_ticket',
+  toolDescription: 'Execute Ticket triage workflow',
+  mcpServerUrl: WORKFLOW_MCP_SERVER_EXAMPLE.mcpServerUrl,
+  apiEndpoint: 'https://www.sim.ai/api/v2/workflows/3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36/execute',
+  updated: false,
+  createdAt: '2026-06-12T10:30:00.000Z',
+  updatedAt: '2026-06-12T10:30:00.000Z',
+} as const
 
 const WORKSPACE_ID = 'a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64'
 
@@ -153,6 +338,13 @@ const SKILL_SUMMARY_EXAMPLE = {
 const SKILL_EXAMPLE = {
   ...SKILL_SUMMARY_EXAMPLE,
   content: '# Refund policy\n\nAlways check the order date first.',
+} as const
+
+const SKILL_EDITOR_EXAMPLE = {
+  email: 'jane@example.com',
+  name: 'Jane Smith',
+  image: null,
+  isWorkspaceAdmin: false,
 } as const
 
 const CUSTOM_TOOL_DECLARATION_EXAMPLE = {
@@ -297,206 +489,30 @@ function resourceOperation(
   }
 }
 
-const WORKFLOW_MCP_SERVER_EXAMPLE = {
-  id: 'wfmcp_01J8ZK3QW4M6X2R9T7B5C0V2',
-  name: 'Support agents',
-  description: 'Ticket triage and escalation workflows.',
-  isPublic: false,
-  mcpServerUrl: 'https://www.sim.ai/api/mcp/serve/wfmcp_01J8ZK3QW4M6X2R9T7B5C0V2',
-  createdAt: '2026-06-12T10:30:00.000Z',
-  updatedAt: '2026-06-12T10:30:00.000Z',
-} as const
-
-const WORKFLOW_MCP_SERVER_LIST_EXAMPLE = {
-  ...WORKFLOW_MCP_SERVER_EXAMPLE,
-  toolCount: 1,
-  toolNames: ['triage_ticket'],
-} as const
-
-const WORKFLOW_MCP_TOOL_EXAMPLE = {
-  id: 'wfmcptool_01J8ZK3QW4M6X2R9T7B5C0V3',
-  serverId: WORKFLOW_MCP_SERVER_EXAMPLE.id,
-  workflowId: '3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36',
-  toolName: 'triage_ticket',
-  toolDescription: 'Execute Ticket triage workflow',
-  mcpServerUrl: WORKFLOW_MCP_SERVER_EXAMPLE.mcpServerUrl,
-  apiEndpoint: 'https://www.sim.ai/api/v2/workflows/3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36/execute',
-  updated: false,
-  createdAt: '2026-06-12T10:30:00.000Z',
-  updatedAt: '2026-06-12T10:30:00.000Z',
-} as const
-
-const BLOCK_SUMMARY_EXAMPLE = {
-  id: 'slack',
-  name: 'Slack',
-  description: 'Send messages and read channels in Slack.',
-  category: 'tools',
-  integrationType: 'communication',
-  source: 'builtin',
-  authMode: 'oauth',
-  triggerAllowed: true,
-  triggerCapable: true,
-  triggerIds: ['slack_webhook'],
-  toolIds: ['slack_message', 'slack_canvas_read'],
-  operationIds: ['send', 'read'],
-  preview: false,
-  docsLink: 'https://docs.sim.ai/tools/slack',
-  tags: ['messaging'],
-} as const
-
-const BLOCK_DETAIL_EXAMPLE = {
-  ...BLOCK_SUMMARY_EXAMPLE,
-  inputSchema: [
-    {
-      id: 'operation',
-      type: 'dropdown',
-      title: 'Operation',
-      required: true,
-      options: [
-        { id: 'send', label: 'Send message' },
-        { id: 'read', label: 'Read messages' },
-      ],
-    },
-  ],
-  operationInputSchema: {
-    send: [{ id: 'text', type: 'long-input', title: 'Message', required: true }],
-  },
-  inputDefinitions: {
-    channel: { type: 'string', description: 'Channel to post into.' },
-  },
-  operations: {
-    send: {
-      toolId: 'slack_message',
-      toolName: 'Slack Send Message',
-      description: 'Send a message to a Slack channel.',
-      inputs: { text: { type: 'string', required: true, description: 'Message body.' } },
-      outputs: { ts: { type: 'string', description: 'Message timestamp.' } },
-      inputSchema: [{ id: 'text', type: 'long-input', title: 'Message', required: true }],
-    },
-  },
-  tools: [
-    {
-      id: 'slack_message',
-      name: 'Slack Send Message',
-      description: 'Send a message to a Slack channel.',
-      version: '1.0.0',
-      hostedApiKey: 'none',
-      oauth: { required: true, provider: 'slack', requiredScopes: ['chat:write'] },
-      params: { text: { type: 'string', required: true, description: 'Message body.' } },
-      outputs: { ts: { type: 'string', description: 'Message timestamp.' } },
-    },
-  ],
-  triggers: [
-    {
-      id: 'slack_webhook',
-      outputs: { text: { type: 'string', description: 'Message text.' } },
-      configFields: {
-        channels: { type: 'short-input', required: false, title: 'Channels' },
-      },
-    },
-  ],
-  outputs: { ts: { type: 'string', description: 'Message timestamp.' } },
-} as const
-
-const TOOL_SUMMARY_EXAMPLE = {
-  id: 'slack_message',
-  name: 'Slack Send Message',
-  description: 'Send a message to a Slack channel.',
-  version: '1.0.0',
-  hostedApiKey: 'none',
-  oauth: { required: true, provider: 'slack', requiredScopes: ['chat:write'] },
-} as const
-
-const TOOL_DETAIL_EXAMPLE = {
-  ...TOOL_SUMMARY_EXAMPLE,
-  params: {
-    channel: { type: 'string', required: true, description: 'Channel ID to post into.' },
-    text: { type: 'string', required: true, description: 'Message body.' },
-  },
-  outputs: { ts: { type: 'string', description: 'Message timestamp.' } },
-} as const
-
-const CONNECTOR_TYPE_EXAMPLE = {
-  connectorType: 'google_drive',
-  name: 'Google Drive',
-  description: 'Sync documents from a Google Drive folder.',
-  version: '1.0.0',
-  auth: {
-    mode: 'oauth',
-    provider: 'google-drive',
-    requiredScopes: ['https://www.googleapis.com/auth/drive.readonly'],
-  },
-  configFields: [
-    {
-      id: 'folderSelector',
-      title: 'Folder',
-      type: 'selector',
-      selectorKey: 'google-drive-folder',
-      mimeType: 'application/vnd.google-apps.folder',
-      mode: 'basic',
-      canonicalParamId: 'folderId',
-      required: true,
-    },
-    {
-      id: 'manualFolderId',
-      title: 'Folder ID',
-      type: 'short-input',
-      placeholder: 'Enter the folder ID',
-      mode: 'advanced',
-      canonicalParamId: 'folderId',
-    },
-  ],
-  supportsIncrementalSync: true,
-  tagDefinitions: [{ id: 'owner', displayName: 'Owner', fieldType: 'text' }],
-} as const
-
-const ENRICHMENT_EXAMPLE = {
-  id: 'work-email',
-  name: 'Work email',
-  description: 'Find a person’s work email from their name and company.',
-  inputs: [
-    { id: 'fullName', name: 'Full name', type: 'string', required: true },
-    { id: 'domain', name: 'Company domain', type: 'string', required: true },
-  ],
-  outputs: [{ id: 'email', name: 'Work email', type: 'string' }],
-  providers: [
-    { id: 'hunter', label: 'Hunter', toolId: 'hunter_email_finder' },
-    { id: 'pdl', label: 'People Data Labs', toolId: 'peopledatalabs_person_enrich' },
-  ],
-} as const
-
-/**
- * `GET /api/v2/meta` resolves no workspace and no resource, so it cannot emit
- * the `403` every workspace-scoped operation can, nor a `404`. A documented
- * status an operation cannot emit is worse than none.
- */
-const META_ERRORS = [
-  'BadRequest',
-  'Unauthorized',
-  'RateLimited',
-  'InternalError',
-  'ServiceUnavailable',
-] as const satisfies readonly ErrorResponseId[]
-
 const declaredRoutes = [
   defineOpenApiRoute(
-    v2GetMetaContract,
-    resourceOperation('Meta', {
-      operationId: 'getApiMeta',
-      summary: 'Get API Capabilities',
+    v2ListWorkspacesContract,
+    resourceOperation('Workspaces', {
+      operationId: 'listWorkspaces',
+      summary: 'List Workspaces',
       description:
-        'Report facts about the calling API key: whether it is in the v2 rollout cohort, whether it is personal or workspace-scoped, and when it expires. Every other v2 endpoint answers 404 both when the path does not exist and when your credential is not in the rollout cohort; call this endpoint to tell the two apart. It is the one v2 endpoint the rollout gate does not apply to, and it still requires a valid key.',
-      errors: META_ERRORS,
-      success: { description: 'Rollout and lifecycle facts about the calling key.' },
+        'List active workspaces available to the API key with opaque cursor pagination. A personal API key sees every accessible workspace that permits personal API keys; a workspace API key sees only its bound workspace.',
+      errors: RESOURCE_ERRORS,
+      success: { description: 'Public metadata for workspaces available to the API key.' },
     }),
     {
-      query: v2GetMetaContract.query,
+      query: documentedSchema(
+        v2ListWorkspacesContract.query,
+        'ListWorkspacesQuery',
+        'List workspaces query',
+        'Sorting and pagination controls for accessible workspaces.'
+      ),
       response: documentedSchema(
-        v2GetMetaContract.response.schema,
-        'GetApiMetaResponse',
-        'API capabilities response',
-        'Rollout cohort, key type, and expiry for the calling key.',
-        [{ data: { v2Enabled: true, keyType: 'personal', expiresAt: null } }]
+        v2ListWorkspacesContract.response.schema,
+        'ListWorkspacesResponse',
+        'List workspaces response',
+        'Public metadata for workspaces available to the API key.',
+        [{ data: [WORKSPACE_EXAMPLE], nextCursor: null }]
       ),
     }
   ),
@@ -751,142 +767,6 @@ const declaredRoutes = [
     }
   ),
   defineOpenApiRoute(
-    v2ListWorkflowMcpServersContract,
-    resourceOperation('MCP Servers', {
-      operationId: 'listWorkflowMcpServers',
-      summary: 'List Workflow MCP Servers',
-      description: `List the MCP servers a workspace *publishes*. These serve deployed workflows as tools to outside MCP clients, which is the opposite direction from \`GET /api/v2/mcp-servers\` — that lists external servers Sim calls. Each entry carries the endpoint clients connect to and the tool names it exposes. ${WORKSPACE_API_KEY_DENIED}`,
-      errors: RESOURCE_ERRORS,
-      success: { description: 'A page of published MCP servers.' },
-    }),
-    {
-      query: v2ListWorkflowMcpServersContract.query,
-      response: documentedSchema(
-        v2ListWorkflowMcpServersContract.response.schema,
-        'ListWorkflowMcpServersResponse',
-        'List workflow MCP servers response',
-        'A cursor-paginated page of published MCP servers.',
-        [{ data: [WORKFLOW_MCP_SERVER_LIST_EXAMPLE], nextCursor: null }]
-      ),
-    }
-  ),
-  defineOpenApiRoute(
-    v2CreateWorkflowMcpServerContract,
-    resourceOperation('MCP Servers', {
-      operationId: 'createWorkflowMcpServer',
-      summary: 'Create Workflow MCP Server',
-      description: `Publish a new MCP server for a workspace, optionally seeding it with workflows to expose as tools. Every workflow named in \`workflowIds\` must already be deployed. Setting \`isPublic\` lets any MCP client holding the server URL execute the workflows it publishes without a Sim API key. ${WORKSPACE_API_KEY_DENIED}`,
-      errors: RESOURCE_CONFLICT_ERRORS,
-      success: { description: 'The published MCP server.' },
-    }),
-    {
-      query: v2CreateWorkflowMcpServerContract.query,
-      body: v2CreateWorkflowMcpServerContract.body,
-      response: documentedSchema(
-        v2CreateWorkflowMcpServerContract.response.schema,
-        'CreateWorkflowMcpServerResponse',
-        'Create workflow MCP server response',
-        'The published MCP server.',
-        [{ data: WORKFLOW_MCP_SERVER_EXAMPLE }]
-      ),
-    }
-  ),
-  defineOpenApiRoute(
-    v2UpdateWorkflowMcpServerContract,
-    resourceOperation('MCP Servers', {
-      operationId: 'updateWorkflowMcpServer',
-      summary: 'Update Workflow MCP Server',
-      description: `Rename, re-describe, or change the public visibility of a published MCP server. Merge-patch shaped: an omitted key is unchanged and \`description: null\` clears the description. Publishing and unpublishing the workflows it serves are separate operations on its \`tools\` sub-resource. ${WORKSPACE_API_KEY_DENIED}`,
-      errors: RESOURCE_CONFLICT_ERRORS,
-      success: { description: 'The updated MCP server.' },
-    }),
-    {
-      query: v2UpdateWorkflowMcpServerContract.query,
-      params: v2UpdateWorkflowMcpServerContract.params,
-      body: v2UpdateWorkflowMcpServerContract.body,
-      response: documentedSchema(
-        v2UpdateWorkflowMcpServerContract.response.schema,
-        'UpdateWorkflowMcpServerResponse',
-        'Update workflow MCP server response',
-        'The updated MCP server.',
-        [{ data: { ...WORKFLOW_MCP_SERVER_EXAMPLE, isPublic: true } }]
-      ),
-    }
-  ),
-  defineOpenApiRoute(
-    v2DeleteWorkflowMcpServerContract,
-    resourceOperation('MCP Servers', {
-      operationId: 'deleteWorkflowMcpServer',
-      summary: 'Delete Workflow MCP Server',
-      description: `Unpublish an MCP server. Every tool it served stops answering and connected clients lose the endpoint. The workflows themselves are untouched — their own deployments stay live and executable through the workflow API. ${WORKSPACE_API_KEY_DENIED}`,
-      errors: RESOURCE_ERRORS,
-      success: { description: 'The MCP server was unpublished.' },
-    }),
-    {
-      query: v2DeleteWorkflowMcpServerContract.query,
-      params: v2DeleteWorkflowMcpServerContract.params,
-      response: documentedSchema(
-        v2DeleteWorkflowMcpServerContract.response.schema,
-        'DeleteWorkflowMcpServerResponse',
-        'Delete workflow MCP server response',
-        'Acknowledgement that the MCP server was unpublished.',
-        [{ data: { id: WORKFLOW_MCP_SERVER_EXAMPLE.id, deleted: true } }]
-      ),
-    }
-  ),
-  defineOpenApiRoute(
-    v2DeployWorkflowMcpToolContract,
-    resourceOperation('MCP Servers', {
-      operationId: 'deployWorkflowMcpTool',
-      summary: 'Publish Workflow As MCP Tool',
-      description: `Publish a deployed workflow as a tool on an MCP server. The tool's input schema is generated from the deployed workflow's input format, so the workflow must already be deployed. Idempotent per workflow: a server carries at most one tool per workflow, so a repeat call replaces the existing tool and answers \`200\` with \`updated: true\` rather than conflicting. ${WORKSPACE_API_KEY_DENIED}`,
-      errors: RESOURCE_CONFLICT_ERRORS,
-      success: { description: 'The published tool.' },
-    }),
-    {
-      query: v2DeployWorkflowMcpToolContract.query,
-      params: v2DeployWorkflowMcpToolContract.params,
-      body: v2DeployWorkflowMcpToolContract.body,
-      response: documentedSchema(
-        v2DeployWorkflowMcpToolContract.response.schema,
-        'DeployWorkflowMcpToolResponse',
-        'Publish workflow as MCP tool response',
-        'The published tool.',
-        [{ data: WORKFLOW_MCP_TOOL_EXAMPLE }]
-      ),
-    }
-  ),
-  defineOpenApiRoute(
-    v2UndeployWorkflowMcpToolContract,
-    resourceOperation('MCP Servers', {
-      operationId: 'undeployWorkflowMcpTool',
-      summary: 'Unpublish Workflow MCP Tool',
-      description: `Remove a workflow from an MCP server. Addressed by workflow rather than by tool identifier, because a server carries at most one live tool per workflow. The workflow's own deployment is untouched. ${WORKSPACE_API_KEY_DENIED}`,
-      errors: RESOURCE_ERRORS,
-      success: { description: 'The tool was removed.' },
-    }),
-    {
-      query: v2UndeployWorkflowMcpToolContract.query,
-      params: v2UndeployWorkflowMcpToolContract.params,
-      response: documentedSchema(
-        v2UndeployWorkflowMcpToolContract.response.schema,
-        'UndeployWorkflowMcpToolResponse',
-        'Unpublish workflow MCP tool response',
-        'Acknowledgement that the tool was removed.',
-        [
-          {
-            data: {
-              id: WORKFLOW_MCP_TOOL_EXAMPLE.id,
-              serverId: WORKFLOW_MCP_TOOL_EXAMPLE.serverId,
-              workflowId: WORKFLOW_MCP_TOOL_EXAMPLE.workflowId,
-              deleted: true,
-            },
-          },
-        ]
-      ),
-    }
-  ),
-  defineOpenApiRoute(
     v2ListSkillsContract,
     resourceOperation('Skills', {
       operationId: 'listSkills',
@@ -1039,6 +919,107 @@ const declaredRoutes = [
         'Delete skill response',
         'Acknowledgement that the skill was deleted.',
         [{ data: { id: SKILL_EXAMPLE.id, deleted: true } }]
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2ListSkillEditorsContract,
+    resourceOperation('Skills', {
+      operationId: 'listSkillEditors',
+      summary: 'List Skill Editors',
+      description:
+        'List explicit skill editors and workspace administrators with opaque cursor pagination. Internal user and membership identifiers are never returned.',
+      errors: RESOURCE_ERRORS,
+      success: { description: 'Users who can edit the skill.' },
+    }),
+    {
+      params: documentedSchema(
+        v2ListSkillEditorsContract.params,
+        'ListSkillEditorsParams',
+        'List skill editors path parameters',
+        'Skill whose editor roster should be listed.'
+      ),
+      query: documentedSchema(
+        v2ListSkillEditorsContract.query,
+        'ListSkillEditorsQuery',
+        'List skill editors query',
+        'Workspace, sorting, and pagination controls for the editor roster.'
+      ),
+      response: documentedSchema(
+        v2ListSkillEditorsContract.response.schema,
+        'ListSkillEditorsResponse',
+        'List skill editors response',
+        'Public identity fields for users who can edit the skill.',
+        [{ data: [SKILL_EDITOR_EXAMPLE], nextCursor: null }]
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2GrantSkillEditorContract,
+    resourceOperation('Skills', {
+      operationId: 'grantSkillEditor',
+      summary: 'Grant Skill Editor',
+      description: `Grant editor access to a current workspace member by email. The caller must already be a skill editor or workspace administrator. Workspace administrators already have derived editor access and cannot receive an explicit grant. A retried existing grant returns 200; a newly created grant returns 201. ${WORKSPACE_API_KEY_DENIED}`,
+      errors: RESOURCE_ERRORS,
+      success: {
+        byStatus: {
+          200: { description: 'The workspace member was already a skill editor.' },
+          201: { description: 'The skill editor grant was created.' },
+        },
+      },
+    }),
+    {
+      query: v2GrantSkillEditorContract.query,
+      params: documentedSchema(
+        v2GrantSkillEditorContract.params,
+        'GrantSkillEditorParams',
+        'Grant skill editor path parameters',
+        'Skill whose editor roster should be changed.'
+      ),
+      body: documentedSchema(
+        v2GrantSkillEditorContract.body,
+        'GrantSkillEditorRequest',
+        'Grant skill editor request',
+        'Workspace scope and email of the member to grant.',
+        [{ workspaceId: WORKSPACE_ID, email: SKILL_EDITOR_EXAMPLE.email }]
+      ),
+      response: documentedSchema(
+        v2GrantSkillEditorContract.response.schema,
+        'GrantSkillEditorResponse',
+        'Grant skill editor response',
+        'Public identity fields for the editor.',
+        [{ data: SKILL_EDITOR_EXAMPLE }]
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2RevokeSkillEditorContract,
+    resourceOperation('Skills', {
+      operationId: 'revokeSkillEditor',
+      summary: 'Revoke Skill Editor',
+      description: `Revoke an explicit editor grant by email. The caller must already be a skill editor or workspace administrator. Workspace administrators have derived access that cannot be revoked. ${WORKSPACE_API_KEY_DENIED}`,
+      errors: RESOURCE_ERRORS,
+      success: { description: 'The explicit editor grant was revoked.' },
+    }),
+    {
+      params: documentedSchema(
+        v2RevokeSkillEditorContract.params,
+        'RevokeSkillEditorParams',
+        'Revoke skill editor path parameters',
+        'Skill whose editor roster should be changed.'
+      ),
+      query: documentedSchema(
+        v2RevokeSkillEditorContract.query,
+        'RevokeSkillEditorQuery',
+        'Revoke skill editor query',
+        'Workspace scope and email whose explicit grant should be revoked.'
+      ),
+      response: documentedSchema(
+        v2RevokeSkillEditorContract.response.schema,
+        'RevokeSkillEditorResponse',
+        'Revoke skill editor response',
+        'Acknowledgement that the explicit editor grant was revoked.',
+        [{ data: { email: SKILL_EDITOR_EXAMPLE.email, revoked: true } }]
       ),
     }
   ),
@@ -1261,7 +1242,7 @@ const declaredRoutes = [
     resourceOperation('Credentials', {
       operationId: 'createServiceAccountCredential',
       summary: 'Create Service-Account Credential',
-      description: `Verify and store one service-account credential. Use provider discovery to select a service-account provider and submit its required fields. Secret fields are write-only and are never returned. A retried source match returns the existing credential with 200; a newly created credential returns 201. ${WORKSPACE_API_KEY_DENIED}`,
+      description: `Verify and store one service-account credential. Use provider discovery to select a service-account provider, then encode its required fields as the JSON object string in credentials. The credentials string is write-only and is never returned. A retried source match returns the existing credential with 200; a newly created credential returns 201. ${WORKSPACE_API_KEY_DENIED}`,
       errors: RESOURCE_CONFLICT_ERRORS,
       success: {
         byStatus: {
@@ -1276,16 +1257,15 @@ const declaredRoutes = [
         v2CreateServiceAccountCredentialContract.body,
         'CreateServiceAccountCredentialRequest',
         'Create service-account credential request',
-        'Provider identifier, optional display metadata, and the write-only fields declared by provider discovery.',
+        'Provider identifier, optional display metadata, and a write-only JSON object string containing the fields declared by provider discovery.',
         [
           {
             workspaceId: WORKSPACE_ID,
             type: 'service_account',
             providerId: 'zoom-service-account',
             displayName: 'Zoom automation',
-            clientId: 'YOUR_CLIENT_ID',
-            clientSecret: 'YOUR_CLIENT_SECRET',
-            orgId: 'YOUR_ACCOUNT_ID',
+            credentials:
+              '{"clientId":"YOUR_CLIENT_ID","clientSecret":"YOUR_CLIENT_SECRET","orgId":"YOUR_ACCOUNT_ID"}',
           },
         ]
       ),
@@ -1321,44 +1301,6 @@ const declaredRoutes = [
         'Create credential connection response',
         'Short-lived Sim browser entrypoint and its expiry.',
         [{ data: CREDENTIAL_CONNECTION_EXAMPLE }]
-      ),
-    }
-  ),
-  defineOpenApiRoute(
-    v2UpdateCredentialContract,
-    resourceOperation('Credentials', {
-      operationId: 'updateCredential',
-      summary: 'Update Credential',
-      description: `Rotate a service-account credential's secret material, or rename it. Send only the fields to change: an omitted field is left unchanged, and \`description: null\` clears the stored description. Secret fields are write-only and are never returned, and only a service-account credential has any: sending one for a credential of another type answers \`400\` rather than dropping it. The provider re-verifies replacement secret material before it replaces the stored secret, so a rejected secret leaves the stored one untouched and answers \`400\` with the provider's code in \`error.details.providerErrorCode\`; a provider that cannot be reached answers \`503\`. The credential ID is preserved, so every workflow, deployment, paused run, knowledge connector, and webhook that references it keeps working — which disconnecting and re-creating does not. Credential admin access is required. ${WORKSPACE_API_KEY_DENIED}`,
-      errors: RESOURCE_CONFLICT_ERRORS,
-      success: { description: 'The updated credential without secret material.' },
-    }),
-    {
-      params: documentedSchema(
-        v2UpdateCredentialContract.params,
-        'UpdateCredentialParams',
-        'Update credential path parameters',
-        'Credential selected for update.'
-      ),
-      query: documentedSchema(
-        v2UpdateCredentialContract.query,
-        'UpdateCredentialQuery',
-        'Update credential query',
-        'Workspace expected to own the credential.'
-      ),
-      body: documentedSchema(
-        v2UpdateCredentialContract.body,
-        'UpdateCredentialRequest',
-        'Update credential request',
-        'Replacement display metadata and the write-only fields declared by provider discovery.',
-        [{ clientSecret: 'YOUR_ROTATED_CLIENT_SECRET' }]
-      ),
-      response: documentedSchema(
-        v2UpdateCredentialContract.response.schema,
-        'UpdateCredentialResponse',
-        'Update credential response',
-        'Updated credential metadata without secret material.',
-        [{ data: CREDENTIAL_EXAMPLE }]
       ),
     }
   ),
@@ -1498,6 +1440,201 @@ const declaredRoutes = [
             },
           },
         ]
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2GetMetaContract,
+    resourceOperation('Meta', {
+      operationId: 'getApiMeta',
+      summary: 'Get API Capabilities',
+      description:
+        'Report facts about the calling API key: whether it is in the v2 rollout cohort, whether it is personal or workspace-scoped, and when it expires. Every other v2 endpoint answers 404 both when the path does not exist and when your credential is not in the rollout cohort; call this endpoint to tell the two apart. It is the one v2 endpoint the rollout gate does not apply to, and it still requires a valid key.',
+      errors: META_ERRORS,
+      success: { description: 'Rollout and lifecycle facts about the calling key.' },
+    }),
+    {
+      query: v2GetMetaContract.query,
+      response: documentedSchema(
+        v2GetMetaContract.response.schema,
+        'GetApiMetaResponse',
+        'API capabilities response',
+        'Rollout cohort, key type, and expiry for the calling key.',
+        [{ data: { v2Enabled: true, keyType: 'personal', expiresAt: null } }]
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2ListWorkflowMcpServersContract,
+    resourceOperation('MCP Servers', {
+      operationId: 'listWorkflowMcpServers',
+      summary: 'List Workflow MCP Servers',
+      description: `List the MCP servers a workspace *publishes*. These serve deployed workflows as tools to outside MCP clients, which is the opposite direction from \`GET /api/v2/mcp-servers\` — that lists external servers Sim calls. Each entry carries the endpoint clients connect to and the tool names it exposes. ${WORKSPACE_API_KEY_DENIED}`,
+      errors: RESOURCE_ERRORS,
+      success: { description: 'A page of published MCP servers.' },
+    }),
+    {
+      query: v2ListWorkflowMcpServersContract.query,
+      response: documentedSchema(
+        v2ListWorkflowMcpServersContract.response.schema,
+        'ListWorkflowMcpServersResponse',
+        'List workflow MCP servers response',
+        'A cursor-paginated page of published MCP servers.',
+        [{ data: [WORKFLOW_MCP_SERVER_LIST_EXAMPLE], nextCursor: null }]
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2CreateWorkflowMcpServerContract,
+    resourceOperation('MCP Servers', {
+      operationId: 'createWorkflowMcpServer',
+      summary: 'Create Workflow MCP Server',
+      description: `Publish a new MCP server for a workspace, optionally seeding it with workflows to expose as tools. Every workflow named in \`workflowIds\` must already be deployed. Setting \`isPublic\` lets any MCP client holding the server URL execute the workflows it publishes without a Sim API key. ${WORKSPACE_API_KEY_DENIED}`,
+      errors: RESOURCE_CONFLICT_ERRORS,
+      success: { description: 'The published MCP server.' },
+    }),
+    {
+      query: v2CreateWorkflowMcpServerContract.query,
+      body: v2CreateWorkflowMcpServerContract.body,
+      response: documentedSchema(
+        v2CreateWorkflowMcpServerContract.response.schema,
+        'CreateWorkflowMcpServerResponse',
+        'Create workflow MCP server response',
+        'The published MCP server.',
+        [{ data: WORKFLOW_MCP_SERVER_EXAMPLE }]
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2UpdateWorkflowMcpServerContract,
+    resourceOperation('MCP Servers', {
+      operationId: 'updateWorkflowMcpServer',
+      summary: 'Update Workflow MCP Server',
+      description: `Rename, re-describe, or change the public visibility of a published MCP server. Merge-patch shaped: an omitted key is unchanged and \`description: null\` clears the description. Publishing and unpublishing the workflows it serves are separate operations on its \`tools\` sub-resource. ${WORKSPACE_API_KEY_DENIED}`,
+      errors: RESOURCE_CONFLICT_ERRORS,
+      success: { description: 'The updated MCP server.' },
+    }),
+    {
+      query: v2UpdateWorkflowMcpServerContract.query,
+      params: v2UpdateWorkflowMcpServerContract.params,
+      body: v2UpdateWorkflowMcpServerContract.body,
+      response: documentedSchema(
+        v2UpdateWorkflowMcpServerContract.response.schema,
+        'UpdateWorkflowMcpServerResponse',
+        'Update workflow MCP server response',
+        'The updated MCP server.',
+        [{ data: { ...WORKFLOW_MCP_SERVER_EXAMPLE, isPublic: true } }]
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2DeleteWorkflowMcpServerContract,
+    resourceOperation('MCP Servers', {
+      operationId: 'deleteWorkflowMcpServer',
+      summary: 'Delete Workflow MCP Server',
+      description: `Unpublish an MCP server. Every tool it served stops answering and connected clients lose the endpoint. The workflows themselves are untouched — their own deployments stay live and executable through the workflow API. ${WORKSPACE_API_KEY_DENIED}`,
+      errors: RESOURCE_ERRORS,
+      success: { description: 'The MCP server was unpublished.' },
+    }),
+    {
+      query: v2DeleteWorkflowMcpServerContract.query,
+      params: v2DeleteWorkflowMcpServerContract.params,
+      response: documentedSchema(
+        v2DeleteWorkflowMcpServerContract.response.schema,
+        'DeleteWorkflowMcpServerResponse',
+        'Delete workflow MCP server response',
+        'Acknowledgement that the MCP server was unpublished.',
+        [{ data: { id: WORKFLOW_MCP_SERVER_EXAMPLE.id, deleted: true } }]
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2DeployWorkflowMcpToolContract,
+    resourceOperation('MCP Servers', {
+      operationId: 'deployWorkflowMcpTool',
+      summary: 'Publish Workflow As MCP Tool',
+      description: `Publish a deployed workflow as a tool on an MCP server. The tool's input schema is generated from the deployed workflow's input format, so the workflow must already be deployed. Idempotent per workflow: a server carries at most one tool per workflow, so a repeat call replaces the existing tool and answers \`200\` with \`updated: true\` rather than conflicting. ${WORKSPACE_API_KEY_DENIED}`,
+      errors: RESOURCE_CONFLICT_ERRORS,
+      success: { description: 'The published tool.' },
+    }),
+    {
+      query: v2DeployWorkflowMcpToolContract.query,
+      params: v2DeployWorkflowMcpToolContract.params,
+      body: v2DeployWorkflowMcpToolContract.body,
+      response: documentedSchema(
+        v2DeployWorkflowMcpToolContract.response.schema,
+        'DeployWorkflowMcpToolResponse',
+        'Publish workflow as MCP tool response',
+        'The published tool.',
+        [{ data: WORKFLOW_MCP_TOOL_EXAMPLE }]
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2UndeployWorkflowMcpToolContract,
+    resourceOperation('MCP Servers', {
+      operationId: 'undeployWorkflowMcpTool',
+      summary: 'Unpublish Workflow MCP Tool',
+      description: `Remove a workflow from an MCP server. Addressed by workflow rather than by tool identifier, because a server carries at most one live tool per workflow. The workflow's own deployment is untouched. ${WORKSPACE_API_KEY_DENIED}`,
+      errors: RESOURCE_ERRORS,
+      success: { description: 'The tool was removed.' },
+    }),
+    {
+      query: v2UndeployWorkflowMcpToolContract.query,
+      params: v2UndeployWorkflowMcpToolContract.params,
+      response: documentedSchema(
+        v2UndeployWorkflowMcpToolContract.response.schema,
+        'UndeployWorkflowMcpToolResponse',
+        'Unpublish workflow MCP tool response',
+        'Acknowledgement that the tool was removed.',
+        [
+          {
+            data: {
+              id: WORKFLOW_MCP_TOOL_EXAMPLE.id,
+              serverId: WORKFLOW_MCP_TOOL_EXAMPLE.serverId,
+              workflowId: WORKFLOW_MCP_TOOL_EXAMPLE.workflowId,
+              deleted: true,
+            },
+          },
+        ]
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2UpdateCredentialContract,
+    resourceOperation('Credentials', {
+      operationId: 'updateCredential',
+      summary: 'Update Credential',
+      description: `Rotate a service-account credential's secret material, or rename it. Send only the fields to change: an omitted field is left unchanged, and \`description: null\` clears the stored description. Secret fields are write-only and are never returned, and only a service-account credential has any: sending one for a credential of another type answers \`400\` rather than dropping it. The provider re-verifies replacement secret material before it replaces the stored secret, so a rejected secret leaves the stored one untouched and answers \`400\` with the provider's code in \`error.details.providerErrorCode\`; a provider that cannot be reached answers \`503\`. The credential ID is preserved, so every workflow, deployment, paused run, knowledge connector, and webhook that references it keeps working — which disconnecting and re-creating does not. Credential admin access is required. ${WORKSPACE_API_KEY_DENIED}`,
+      errors: RESOURCE_CONFLICT_ERRORS,
+      success: { description: 'The updated credential without secret material.' },
+    }),
+    {
+      params: documentedSchema(
+        v2UpdateCredentialContract.params,
+        'UpdateCredentialParams',
+        'Update credential path parameters',
+        'Credential selected for update.'
+      ),
+      query: documentedSchema(
+        v2UpdateCredentialContract.query,
+        'UpdateCredentialQuery',
+        'Update credential query',
+        'Workspace expected to own the credential.'
+      ),
+      body: documentedSchema(
+        v2UpdateCredentialContract.body,
+        'UpdateCredentialRequest',
+        'Update credential request',
+        'Replacement display metadata and the write-only fields declared by provider discovery.',
+        [{ clientSecret: 'YOUR_ROTATED_CLIENT_SECRET' }]
+      ),
+      response: documentedSchema(
+        v2UpdateCredentialContract.response.schema,
+        'UpdateCredentialResponse',
+        'Update credential response',
+        'Updated credential metadata without secret material.',
+        [{ data: CREDENTIAL_EXAMPLE }]
       ),
     }
   ),
@@ -1676,7 +1813,7 @@ export const resourcesOpenApiDocument = defineOpenApiDocument({
   info: {
     title: 'Sim API v2 — Workspace Resources',
     description:
-      'Version 2 of the Sim REST API for API-key capabilities, workspace metadata, members, MCP servers, skills, custom tools, credentials, write-only secrets, and the block, tool, connector-type, and enrichment catalogs.',
+      'Version 2 of the Sim REST API for workspace metadata, members, MCP servers, skills, custom tools, credentials, and write-only secrets.',
     version: '2.0.0',
     contact: {
       name: 'Sim Support',
@@ -1700,8 +1837,7 @@ export const resourcesOpenApiDocument = defineOpenApiDocument({
     },
     {
       name: 'MCP Servers',
-      description:
-        'Register and manage the external Model Context Protocol servers Sim calls, and publish workspace workflows as MCP servers other clients call.',
+      description: 'Register and manage Model Context Protocol servers.',
     },
     {
       name: 'Skills',
@@ -1714,7 +1850,7 @@ export const resourcesOpenApiDocument = defineOpenApiDocument({
     {
       name: 'Credentials',
       description:
-        'Discover providers, create service-account credentials, connect or reconnect OAuth accounts, rotate secret material in place, disconnect credentials, and list connections without secret material.',
+        'Discover providers, create service-account credentials, connect or reconnect OAuth accounts, disconnect credentials, and list connections without secret material.',
     },
     {
       name: 'Secrets',
@@ -1723,7 +1859,7 @@ export const resourcesOpenApiDocument = defineOpenApiDocument({
     {
       name: 'Catalog',
       description:
-        'Discover the blocks, built-in tools, knowledge-base connector types, and table enrichments available in a workspace.',
+        'Discover the blocks, tools, connector types, and enrichments this workspace can build with.',
     },
   ],
   security: V2_API_KEY_SECURITY,

@@ -1376,6 +1376,7 @@ const GOOGLE_OAUTH_SERVICES = new Set([
   'google-forms',
   'google-groups',
   'google-meet',
+  'google-chat',
   'vertex-ai',
 ])
 

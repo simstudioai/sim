@@ -2,9 +2,11 @@ import { airtableConnectorMeta } from '@/connectors/airtable/meta'
 import { asanaConnectorMeta } from '@/connectors/asana/meta'
 import { ashbyConnectorMeta } from '@/connectors/ashby/meta'
 import { azureDevopsConnectorMeta } from '@/connectors/azure-devops/meta'
+import { bitbucketConnectorMeta } from '@/connectors/bitbucket/meta'
 import { boxConnectorMeta } from '@/connectors/box/meta'
 import { clickupConnectorMeta } from '@/connectors/clickup/meta'
 import { confluenceConnectorMeta } from '@/connectors/confluence/meta'
+import { databricksConnectorMeta } from '@/connectors/databricks/meta'
 import { discordConnectorMeta } from '@/connectors/discord/meta'
 import { docusignConnectorMeta } from '@/connectors/docusign/meta'
 import { dropboxConnectorMeta } from '@/connectors/dropbox/meta'
@@ -15,6 +17,7 @@ import { gitlabConnectorMeta } from '@/connectors/gitlab/meta'
 import { gmailConnectorMeta } from '@/connectors/gmail/meta'
 import { gongConnectorMeta } from '@/connectors/gong/meta'
 import { googleCalendarConnectorMeta } from '@/connectors/google-calendar/meta'
+import { googleChatConnectorMeta } from '@/connectors/google-chat/meta'
 import { googleDocsConnectorMeta } from '@/connectors/google-docs/meta'
 import { googleDriveConnectorMeta } from '@/connectors/google-drive/meta'
 import { googleFormsConnectorMeta } from '@/connectors/google-forms/meta'
@@ -54,6 +57,7 @@ import { typeformConnectorMeta } from '@/connectors/typeform/meta'
 import type { ConnectorMeta, ConnectorMetaRegistry } from '@/connectors/types'
 import { webflowConnectorMeta } from '@/connectors/webflow/meta'
 import { wordpressConnectorMeta } from '@/connectors/wordpress/meta'
+import { workdayConnectorMeta } from '@/connectors/workday/meta'
 import { xConnectorMeta } from '@/connectors/x/meta'
 import { youtubeConnectorMeta } from '@/connectors/youtube/meta'
 import { zendeskConnectorMeta } from '@/connectors/zendesk/meta'
@@ -72,9 +76,11 @@ export const CONNECTOR_META_REGISTRY: ConnectorMetaRegistry = {
   asana: asanaConnectorMeta,
   ashby: ashbyConnectorMeta,
   azure_devops: azureDevopsConnectorMeta,
+  bitbucket: bitbucketConnectorMeta,
   box: boxConnectorMeta,
   clickup: clickupConnectorMeta,
   confluence: confluenceConnectorMeta,
+  databricks: databricksConnectorMeta,
   discord: discordConnectorMeta,
   docusign: docusignConnectorMeta,
   dropbox: dropboxConnectorMeta,
@@ -85,6 +91,7 @@ export const CONNECTOR_META_REGISTRY: ConnectorMetaRegistry = {
   gmail: gmailConnectorMeta,
   gong: gongConnectorMeta,
   google_calendar: googleCalendarConnectorMeta,
+  google_chat: googleChatConnectorMeta,
   google_docs: googleDocsConnectorMeta,
   google_drive: googleDriveConnectorMeta,
   google_forms: googleFormsConnectorMeta,
@@ -123,6 +130,7 @@ export const CONNECTOR_META_REGISTRY: ConnectorMetaRegistry = {
   typeform: typeformConnectorMeta,
   webflow: webflowConnectorMeta,
   wordpress: wordpressConnectorMeta,
+  workday: workdayConnectorMeta,
   x: xConnectorMeta,
   youtube: youtubeConnectorMeta,
   zendesk: zendeskConnectorMeta,

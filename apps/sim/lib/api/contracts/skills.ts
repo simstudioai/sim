@@ -125,19 +125,25 @@ export const deleteSkillContract = defineRouteContract({
   },
 })
 
-export const skillIdParamsSchema = z.object({
-  id: z.string().min(1, 'Skill id is required'),
-})
+export const skillIdParamsSchema = z
+  .object({
+    id: z.string().min(1, 'Skill id is required'),
+  })
+  .strict()
 
-export const upsertSkillMemberBodySchema = z.object({
-  userId: z.string().min(1, 'User id is required'),
-})
+export const upsertSkillMemberBodySchema = z
+  .object({
+    userId: z.string().min(1, 'User id is required'),
+  })
+  .strict()
 
 export type UpsertSkillMemberBody = z.input<typeof upsertSkillMemberBodySchema>
 
-export const removeSkillMemberQuerySchema = z.object({
-  userId: z.string().min(1, 'User id is required'),
-})
+export const removeSkillMemberQuerySchema = z
+  .object({
+    userId: z.string().min(1, 'User id is required'),
+  })
+  .strict()
 
 export const listSkillMembersContract = defineRouteContract({
   method: 'GET',
@@ -158,6 +164,7 @@ export const upsertSkillMemberContract = defineRouteContract({
   body: upsertSkillMemberBodySchema,
   response: {
     mode: 'json',
+    status: [200, 201],
     schema: z.object({
       success: z.literal(true),
     }),

@@ -61,6 +61,305 @@
       "tags": ["secrets-management", "identity"]
     },
     {
+      "type": "affinity",
+      "slug": "affinity",
+      "name": "Affinity",
+      "description": "Read and write companies, people, lists, notes, and relationships in Affinity",
+      "longDescription": "Integrates the Affinity v2 API into the workflow. Read and search companies, people, and opportunities, page the rows of any list or saved view, read and write field values one at a time or a hundred at once, write and reply to notes, create reminders, follow logged calls, emails, meetings, and transcripts, find warm introductions through shared work and investment history, search notes and files by keyword, find companies from a description in plain language, and follow the field-value change feed for delta sync. What each operation can reach depends on the permissions granted to the API key.",
+      "bgColor": "#1B1C1E",
+      "iconName": "AffinityIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/affinity",
+      "operations": [
+        {
+          "name": "List Companies",
+          "description": "Page through companies. Companies come back without field data unless Field IDs or Field Types asks for it."
+        },
+        {
+          "name": "Get Company",
+          "description": "Look up one company by ID. Field data is returned only for the Field IDs or Field Types asked for."
+        },
+        {
+          "name": "Search Companies",
+          "description": "Search companies by filters, sorts, and a free-text term. Requires the \"Export All Organizations directory\" permission."
+        },
+        {
+          "name": "List People",
+          "description": "Page through persons. Persons come back without field data unless Field IDs or Field Types asks for it."
+        },
+        {
+          "name": "Get Person",
+          "description": "Look up one person by ID. Field data is returned only for the Field IDs or Field Types asked for."
+        },
+        {
+          "name": "Search People",
+          "description": "Search persons by filters, sorts, and a free-text term. Requires the \"Export All People directory\" permission."
+        },
+        {
+          "name": "List Opportunities",
+          "description": "Page through opportunities. Field data lives on the list entry, not here — read it through the list or saved view the opportunity belongs to."
+        },
+        {
+          "name": "Get Opportunity",
+          "description": "Read one opportunity and the list it belongs to. Its field data lives on the list entry."
+        },
+        {
+          "name": "List Notes On Entity",
+          "description": "List the notes relevant to one company, person, or opportunity — directly attached notes plus notes reaching it through its people and meetings."
+        },
+        {
+          "name": "List Lists Holding Entity",
+          "description": "List every list a company or person appears on that the caller can view."
+        },
+        {
+          "name": "List Rows Holding Entity",
+          "description": "Page through a company's or person's rows across every list, each carrying that list's field values and when the entity was added."
+        },
+        {
+          "name": "List Entity Relationships",
+          "description": "List who knows a company or person, scored 0.0 to 1.0 by how much the two actually interact. Strongest first by default."
+        },
+        {
+          "name": "List Field Metadata",
+          "description": "List the non-list company or person fields, with the value type, filter operators, and sort support of each. Start here to find the Field IDs the read and write tools take."
+        },
+        {
+          "name": "List Field Dropdown Options",
+          "description": "List the selectable options on a dropdown or ranked-dropdown company or person field. Writing such a field needs the option ID, not its text."
+        },
+        {
+          "name": "List Entity Field Values",
+          "description": "Page through a company's or person's non-list field values. List fields are not returned here — read those through the list entry."
+        },
+        {
+          "name": "Get Entity Field Value",
+          "description": "Read one non-list field value from a company or person."
+        },
+        {
+          "name": "Update Entity Field Value",
+          "description": "Write one non-list field value on a company or person. The value type must match how the field is defined."
+        },
+        {
+          "name": "Batch Update Entity Fields",
+          "description": "Write up to 100 non-list field values on one company or person in a single request."
+        },
+        {
+          "name": "List Lists",
+          "description": "Page through the lists in the organization that the caller can view."
+        },
+        {
+          "name": "Create List",
+          "description": "Create a list. Its type fixes which entities it can hold, and the API key holder becomes its creator and owner."
+        },
+        {
+          "name": "Get List",
+          "description": "Read one list — its name, type, owner, and privacy setting."
+        },
+        {
+          "name": "List List Fields",
+          "description": "List the fields available on one list, including its list-specific columns. Use these Field IDs when reading or writing list entries."
+        },
+        {
+          "name": "List List Field Dropdown Options",
+          "description": "List the selectable options on a dropdown, ranked-dropdown, or status-dropdown field of a list."
+        },
+        {
+          "name": "Create List Field Dropdown Option",
+          "description": "Add a selectable option to a dropdown field on a list. A ranked or status option also needs a rank and a color."
+        },
+        {
+          "name": "Get List Field Dropdown Option",
+          "description": "Read one dropdown option on a list field."
+        },
+        {
+          "name": "Update List Field Dropdown Option",
+          "description": "Change a dropdown option on a list field. Every field is optional — supply only what should change, and only fields the option's kind actually has."
+        },
+        {
+          "name": "Delete List Field Dropdown Option",
+          "description": "Permanently delete a dropdown option on a list field. Every list entry currently set to it is cleared, and those values cannot be recovered."
+        },
+        {
+          "name": "List List Entries",
+          "description": "Page through the rows of a list. Rows come back without field data unless Field IDs or Field Types asks for it."
+        },
+        {
+          "name": "Search List Entries",
+          "description": "Search the rows of one list by filters, sorts, and a free-text term. Requires the \"Export data from Lists\" permission."
+        },
+        {
+          "name": "Get List Entry",
+          "description": "Read one row of a list with its entity. Field data is returned only for the Field IDs or Field Types asked for."
+        },
+        {
+          "name": "List List Entry Fields",
+          "description": "Page through every field value on one list row, including the list-specific columns. All fields are returned unless narrowed."
+        },
+        {
+          "name": "Get List Entry Field",
+          "description": "Read one field value on a list row."
+        },
+        {
+          "name": "Update List Entry Field",
+          "description": "Write one field value on a list row. Requires the \"Export data from Lists\" permission."
+        },
+        {
+          "name": "Batch Update List Entry Fields",
+          "description": "Write up to 100 field values on one list row in a single request. Requires the \"Export data from Lists\" permission."
+        },
+        {
+          "name": "List List Entry Field Value Changes",
+          "description": "Page through the history of one list row — who changed which field, when, and to what."
+        },
+        {
+          "name": "List Saved Views",
+          "description": "List the saved views on a list that the caller can view."
+        },
+        {
+          "name": "Get Saved View",
+          "description": "Read one saved view — its name, kind, and creation date."
+        },
+        {
+          "name": "List Saved View Entries",
+          "description": "Page through the rows of a saved view. The view's own filters and columns decide which rows and which field data come back."
+        },
+        {
+          "name": "List Notes",
+          "description": "Page through every note the caller can see. Replies are excluded."
+        },
+        {
+          "name": "Create Note",
+          "description": "Write a note — attached to companies, persons, and opportunities, anchored to a meeting, call, or chat message, or posted as a reply to an existing note."
+        },
+        {
+          "name": "Search Notes",
+          "description": "Search notes by keyword, ordered by relevance. Narrow to specific notes or to one company, or leave both unset to search the whole account."
+        },
+        {
+          "name": "Get Note",
+          "description": "Read one note with its body, author, mentions, and attached records."
+        },
+        {
+          "name": "Update Note",
+          "description": "Rewrite a note's body or replace which records it is attached to. Each list of IDs replaces that association wholesale, an empty list clears it, and omitting one leaves it untouched. A note's type cannot be changed."
+        },
+        {
+          "name": "Delete Note",
+          "description": "Delete a note you created. Deleting a root note also deletes its replies; deleting a reply removes only that reply."
+        },
+        {
+          "name": "List Note Replies",
+          "description": "Page through the replies on one note, including AI Notetaker replies."
+        },
+        {
+          "name": "List Note Attached Companies",
+          "description": "List the companies directly attached to one note."
+        },
+        {
+          "name": "List Note Attached People",
+          "description": "List the persons directly attached to one note."
+        },
+        {
+          "name": "List Note Attached Opportunities",
+          "description": "List the opportunities directly attached to one note."
+        },
+        {
+          "name": "List Calls",
+          "description": "Page through logged calls and their participants. Only calls the API key holder can see are returned."
+        },
+        {
+          "name": "List Chat Messages",
+          "description": "Page through logged chat messages and their participants. Only messages the API key holder can see are returned."
+        },
+        {
+          "name": "List Emails",
+          "description": "Page through email metadata — subject, participants, and timestamps. Affinity never exposes email bodies through the API."
+        },
+        {
+          "name": "List Meetings",
+          "description": "Page through past and upcoming meetings with their organizer and attendees."
+        },
+        {
+          "name": "List Transcripts",
+          "description": "Page through meeting transcript metadata. Read one transcript to get what was actually said."
+        },
+        {
+          "name": "Get Transcript",
+          "description": "Read one transcript with its first 100 fragments. Page the fragments endpoint for a longer meeting."
+        },
+        {
+          "name": "List Transcript Fragments",
+          "description": "Page through everything said in a meeting, segment by segment with the speaker."
+        },
+        {
+          "name": "List Reminders",
+          "description": "Page through the reminders the caller can see. Filter by status to surface what is overdue."
+        },
+        {
+          "name": "Create Reminder",
+          "description": "Create a reminder on one company, person, or opportunity. A recurring reminder resets whenever the chosen signal happens instead of firing once."
+        },
+        {
+          "name": "List Merges",
+          "description": "Page through the company or person merges the organization has run, with the status and the records involved in each."
+        },
+        {
+          "name": "Create Merge",
+          "description": "Fold a duplicate company or person into the record you are keeping. The merge runs asynchronously — poll the returned task to see it finish. Requires the \"Manage duplicates\" permission and an admin role."
+        },
+        {
+          "name": "Get Merge",
+          "description": "Read the status of one company or person merge, including why it failed if it did."
+        },
+        {
+          "name": "List Merge Tasks",
+          "description": "Page through merge tasks, each summarizing how many of its merges are in progress, succeeded, or failed."
+        },
+        {
+          "name": "Get Merge Task",
+          "description": "Read one merge task and how its merges are progressing. Poll this after starting a merge."
+        },
+        {
+          "name": "Semantic Search",
+          "description": "Find companies from a description in plain language — industry, technology, stage, or business model. Currently searches companies only."
+        },
+        {
+          "name": "Search Files",
+          "description": "Search files by keyword, ordered by relevance. Narrow to specific files or to one company, or leave both unset to search the whole account."
+        },
+        {
+          "name": "List Coworker Connections",
+          "description": "Find warm paths into a company through shared work history: who in your Affinity data once worked alongside the people you want to reach. Grouped by target, strongest first."
+        },
+        {
+          "name": "List Investor Executive Connections",
+          "description": "Find warm paths into a company through investment history: which investors in your Affinity data backed a company the people you want to reach once led. Grouped by target, strongest first."
+        },
+        {
+          "name": "List Field Value Changes",
+          "description": "Page through field value changes across the whole workspace. Built for delta sync: follow nextCursor to the end of a run, then resume from the last cursor next time."
+        },
+        {
+          "name": "List Users",
+          "description": "Page through the internal users in the organization. Email addresses and roles are returned only to callers with the \"Manage Users\" permission."
+        },
+        {
+          "name": "Get User",
+          "description": "Read one internal user. A user and their person record share the same numeric ID, so a person ID works here."
+        },
+        {
+          "name": "Get Current User",
+          "description": "Verify an Affinity API key and return the tenant, the user behind the key, and the scopes the grant carries."
+        }
+      ],
+      "operationCount": 70,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "sales",
+      "tags": ["sales-engagement", "enrichment"]
+    },
+    {
       "type": "agentmail",
       "slug": "agentmail",
       "name": "AgentMail",

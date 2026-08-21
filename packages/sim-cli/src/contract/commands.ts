@@ -193,6 +193,15 @@ export const CLI_CONTRACT: CliContract = {
     pathArgumentNames: KNOWLEDGE_BASE_PATH_ARGUMENT,
     confirm: 'This deletes every tag definition no document in the knowledge base still uses.',
   },
+  listKnowledgeConnectorDocuments: {
+    command: 'knowledge connectors documents list',
+  },
+  updateKnowledgeConnectorDocuments: {
+    command: 'knowledge connectors documents update',
+    flags: {
+      documentIds: { name: 'document', list: true },
+    },
+  },
   // `DELETE /workflows/[id]/deploy` is an undeploy, not a delete.
   undeployWorkflow: {
     command: 'workflows undeploy',
@@ -221,11 +230,18 @@ export const CLI_CONTRACT: CliContract = {
     pathArgumentNames: KNOWLEDGE_BASE_PATH_ARGUMENT,
     confirm: 'This deletes the document and its embeddings.',
   },
+  deleteKnowledgeConnector: {
+    confirm:
+      'This deletes the connector; --delete-documents also deletes its synchronized documents.',
+  },
   deleteFile: { confirm: 'This archives the file.' },
   deleteCredential: {
     confirm: 'This disconnects the credential and removes its stored authentication.',
   },
   deleteSkill: { confirm: 'This deletes the skill.' },
+  revokeSkillEditor: {
+    confirm: 'This revokes the explicit skill editor grant for the selected email.',
+  },
   deleteCustomTool: { confirm: 'This deletes the custom tool.' },
   deleteMcpServer: {
     confirm: 'This removes the MCP server and the tools it provides.',
