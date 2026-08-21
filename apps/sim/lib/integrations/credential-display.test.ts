@@ -60,6 +60,7 @@ const EXPECTED_COVERAGE: Record<string, string[]> = {
     'google-tasks',
     'google-vault',
   ],
+  'harmonic-service-account': [],
   'hubspot-service-account': ['hubspot'],
   'linear-service-account': ['linear'],
   'monday-service-account': ['monday'],

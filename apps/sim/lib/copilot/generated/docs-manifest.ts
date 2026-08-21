@@ -165,6 +165,7 @@ export const DOCS_MANIFEST: readonly string[] = [
   'integrations/granola.mdx',
   'integrations/greenhouse.mdx',
   'integrations/greptile.mdx',
+  'integrations/harmonic.mdx',
   'integrations/hex.mdx',
   'integrations/hubspot-service-account.mdx',
   'integrations/hubspot-setup.mdx',

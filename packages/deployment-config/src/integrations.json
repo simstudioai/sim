@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-08-20",
+  "updatedAt": "2026-08-21",
   "integrations": [
     {
       "type": "onepassword",
@@ -10450,6 +10450,77 @@
       "category": "tools",
       "integrationType": "devops",
       "tags": ["version-control", "knowledge-base"]
+    },
+    {
+      "type": "harmonic",
+      "slug": "harmonic",
+      "name": "Harmonic",
+      "description": "Search and enrich private-market contacts",
+      "longDescription": "Connect a reusable Harmonic team API key, use Scout to find people with natural-language criteria, select team-visible people saved searches, and hydrate person identifiers into normalized contacts for downstream tables, CRM, scoring, and outreach workflows.",
+      "bgColor": "#FFFFFF",
+      "iconName": "HarmonicIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/harmonic",
+      "operations": [
+        {
+          "name": "Search People with Scout",
+          "description": "Ask Harmonic Scout to find people using natural language and return a stable, workflow-ready contacts table."
+        },
+        {
+          "name": "Enrich Person",
+          "description": "Resolve a LinkedIn profile URL or email address into a normalized Harmonic contact, queueing enrichment when the person is not yet in Harmonic."
+        },
+        {
+          "name": "Get Person",
+          "description": "Fetch one Harmonic person by numeric ID or URN, including any email resolved by a completed enrichment job."
+        },
+        {
+          "name": "Batch Get People",
+          "description": "Fetch full Harmonic person profiles for up to 500 combined numeric IDs and person URNs."
+        },
+        {
+          "name": "Get Company Employees",
+          "description": "List person URNs for a company, filtered by role group and employment status. Pair with Batch Get People to hydrate contacts."
+        },
+        {
+          "name": "List People Saved Searches",
+          "description": "List the team-shared Harmonic saved searches that target people. Use a returned ID or URN to fetch results."
+        },
+        {
+          "name": "Get People Saved Search Results",
+          "description": "Get one page of a Harmonic people saved search. Full records become contacts; URN-only rows are exposed for Batch Get People."
+        },
+        {
+          "name": "Get People Saved Search Net-New Results",
+          "description": "Get only the people newly matching a subscribed Harmonic people saved search, so a monitor does not reprocess the whole result set."
+        },
+        {
+          "name": "Clear People Saved Search Net-New Results",
+          "description": "Acknowledge net-new people on a saved search so the next poll returns only fresh matches. Clearing everything requires setting the scope explicitly."
+        },
+        {
+          "name": "Submit Email Enrichment Job",
+          "description": "Queue bulk email enrichment for up to 5,000 people, given either person URNs or LinkedIn profile URLs."
+        },
+        {
+          "name": "Get Email Enrichment Job",
+          "description": "Check a Harmonic bulk email enrichment job. Per-person results appear once the job is terminal; fetch the emails with Get Person or Batch Get People."
+        },
+        {
+          "name": "Get Email Enrichment Usage",
+          "description": "Read the team monthly email-enrichment quota. Check this before a large batch to avoid a quota rejection."
+        },
+        {
+          "name": "Get Enrichment Status",
+          "description": "Check enrichment jobs Harmonic queued for people it did not already have, and read the person URN each one produced."
+        }
+      ],
+      "operationCount": 13,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "sales",
+      "tags": ["enrichment", "automation", "agentic"]
     },
     {
       "type": "hex",

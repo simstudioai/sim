@@ -2072,6 +2072,21 @@ import {
 } from '@/tools/greptile'
 import { guardrailsValidateTool } from '@/tools/guardrails'
 import {
+  harmonicBatchGetPeopleTool,
+  harmonicClearPeopleSavedSearchNetNewResultsTool,
+  harmonicEnrichPersonTool,
+  harmonicGetCompanyEmployeesTool,
+  harmonicGetEmailEnrichmentJobTool,
+  harmonicGetEmailEnrichmentUsageTool,
+  harmonicGetEnrichmentStatusTool,
+  harmonicGetPeopleSavedSearchNetNewResultsTool,
+  harmonicGetPeopleSavedSearchResultsTool,
+  harmonicGetPersonTool,
+  harmonicListPeopleSavedSearchesTool,
+  harmonicSearchPeopleScoutTool,
+  harmonicSubmitEmailEnrichmentJobTool,
+} from '@/tools/harmonic'
+import {
   hexCancelRunTool,
   hexCreateCollectionTool,
   hexCreateGroupTool,
@@ -5998,6 +6013,20 @@ export const tools: Record<string, ToolConfig> = {
   granola_update_webhook_endpoint: granolaUpdateWebhookEndpointTool,
   granola_delete_webhook_endpoint: granolaDeleteWebhookEndpointTool,
   guardrails_validate: guardrailsValidateTool,
+  harmonic_batch_get_people: harmonicBatchGetPeopleTool,
+  harmonic_clear_people_saved_search_net_new_results:
+    harmonicClearPeopleSavedSearchNetNewResultsTool,
+  harmonic_enrich_person: harmonicEnrichPersonTool,
+  harmonic_get_company_employees: harmonicGetCompanyEmployeesTool,
+  harmonic_get_email_enrichment_job: harmonicGetEmailEnrichmentJobTool,
+  harmonic_get_email_enrichment_usage: harmonicGetEmailEnrichmentUsageTool,
+  harmonic_get_enrichment_status: harmonicGetEnrichmentStatusTool,
+  harmonic_get_people_saved_search_net_new_results: harmonicGetPeopleSavedSearchNetNewResultsTool,
+  harmonic_get_people_saved_search_results: harmonicGetPeopleSavedSearchResultsTool,
+  harmonic_get_person: harmonicGetPersonTool,
+  harmonic_list_people_saved_searches: harmonicListPeopleSavedSearchesTool,
+  harmonic_search_people_scout: harmonicSearchPeopleScoutTool,
+  harmonic_submit_email_enrichment_job: harmonicSubmitEmailEnrichmentJobTool,
   hex_cancel_run: hexCancelRunTool,
   hex_create_collection: hexCreateCollectionTool,
   hex_create_group: hexCreateGroupTool,
