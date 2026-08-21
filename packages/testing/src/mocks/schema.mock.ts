@@ -1283,6 +1283,7 @@ export const schemaMock = {
     nextSyncAt: 'knowledgeConnector.nextSyncAt',
     consecutiveFailures: 'knowledgeConnector.consecutiveFailures',
     syncLockToken: 'knowledgeConnector.syncLockToken',
+    syncLockLeaseAt: 'knowledgeConnector.syncLockLeaseAt',
     createdAt: 'knowledgeConnector.createdAt',
     updatedAt: 'knowledgeConnector.updatedAt',
     archivedAt: 'knowledgeConnector.archivedAt',

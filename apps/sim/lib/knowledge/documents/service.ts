@@ -24,6 +24,7 @@ import {
   isNotNull,
   isNull,
   ne,
+  or,
   type SQL,
   sql,
 } from 'drizzle-orm'
@@ -67,7 +68,10 @@ import {
   mergeDurableSecretProvenance,
 } from '@/lib/execution/durable-secret-provenance'
 import { processDocument } from '@/lib/knowledge/documents/document-processor'
-import { failStaleDocumentProcessingClaim } from '@/lib/knowledge/documents/processing-claim'
+import {
+  failStaleDocumentProcessingClaim,
+  recordUndispatchedDocumentFailure,
+} from '@/lib/knowledge/documents/processing-claim'
 import { enqueueKnowledgeDocumentProcessing } from '@/lib/knowledge/documents/processing-outbox-event'
 import {
   assertDocumentProcessingBillingContext,
@@ -82,7 +86,11 @@ import {
   buildTagFilterCondition,
   type TagFilterCondition,
 } from '@/lib/knowledge/documents/tag-filter'
-import type { DocumentSortField, SortOrder } from '@/lib/knowledge/documents/types'
+import {
+  type DocumentSortField,
+  QUEUED_DISPATCH_GRACE_MS,
+  type SortOrder,
+} from '@/lib/knowledge/documents/types'
 import { getEmbeddingModelInfo } from '@/lib/knowledge/embedding-models'
 import { generateEmbeddings } from '@/lib/knowledge/embeddings'
 import { runWithKnowledgeModelInputProvenance } from '@/lib/knowledge/model-input-provenance'
@@ -2615,14 +2623,29 @@ export async function retryDocumentProcessing(
   billingAttribution: BillingAttributionSnapshot | undefined
 ): Promise<{ success: boolean; status: string; message: string }> {
   /**
-   * Only a document in a terminal state may be retried.
+   * A document may be retried from a terminal state, or from a `pending` state
+   * old enough that its dispatch is certainly lost.
    *
    * Unguarded, a double-click issued two full passes: the second reset a
    * document that the first had already queued, so both dispatches ran, both
-   * indexed, and both billed. Restricting the transition to `completed` or
-   * `failed` makes the second click match no rows, and the empty `returning`
-   * below stops it dispatching.
+   * indexed, and both billed. A terminal-only guard closes that, but it also
+   * strands a document that never left `pending` — a worker killed before its
+   * claim UPDATE burns an attempt without changing status, and once the
+   * processing-attempt budget is spent the connector sweep drops it too. The row
+   * then matches nothing anywhere.
+   *
+   * The `pending` arm is admitted only past {@link QUEUED_DISPATCH_GRACE_MS},
+   * which is the same grace the connector sweep waits out, so a second click
+   * still lands inside a live dispatch's window and still matches no rows.
+   *
+   * Age is measured from `COALESCE(processingQueuedAt, uploadedAt)`, exactly as
+   * `isStuckDocumentSweepEligible` measures it. `processingQueuedAt` is NULL
+   * only for a document no dispatch has ever stamped, and falling back to
+   * `uploadedAt` — rather than treating NULL as retryable — keeps the grace
+   * window closed for a document created moments ago whose first dispatch is
+   * still in flight.
    */
+  const queuedGraceCutoff = new Date(Date.now() - QUEUED_DISPATCH_GRACE_MS)
   const requeued = await db.transaction(async (tx) => {
     const reset = await tx
       .update(document)
@@ -2640,7 +2663,13 @@ export async function retryDocumentProcessing(
       .where(
         and(
           eq(document.id, documentId),
-          inArray(document.processingStatus, ['completed', 'failed']),
+          or(
+            inArray(document.processingStatus, ['completed', 'failed']),
+            and(
+              eq(document.processingStatus, 'pending'),
+              sql`COALESCE(${document.processingQueuedAt}, ${document.uploadedAt}) < ${sql.param(queuedGraceCutoff, document.processingQueuedAt)}`
+            )
+          ),
           isNull(document.archivedAt),
           isNull(document.deletedAt)
         )
@@ -2664,21 +2693,44 @@ export async function retryDocumentProcessing(
     }
   }
 
-  await processDocumentsWithQueue(
-    [
-      {
-        documentId,
-        filename: docData.filename,
-        fileUrl: docData.fileUrl,
-        fileSize: docData.fileSize,
-        mimeType: docData.mimeType,
-      },
-    ],
-    knowledgeBaseId,
-    {},
-    requestId,
-    billingAttribution
-  )
+  /**
+   * The reset committed in its own transaction above, so a throwing dispatch
+   * would leave the row at `pending` with nothing queued behind it — and the
+   * grace window means the same click cannot recover it until that window
+   * elapses again.
+   * Recording the failure returns it to `failed`, which is immediately
+   * retryable and visible in the document list with its reason.
+   */
+  try {
+    await processDocumentsWithQueue(
+      [
+        {
+          documentId,
+          filename: docData.filename,
+          fileUrl: docData.fileUrl,
+          fileSize: docData.fileSize,
+          mimeType: docData.mimeType,
+        },
+      ],
+      knowledgeBaseId,
+      {},
+      requestId,
+      billingAttribution
+    )
+  } catch (error) {
+    const failureMessage = getErrorMessage(error, 'Document processing dispatch failed')
+    await recordUndispatchedDocumentFailure({
+      documentId,
+      knowledgeBaseId,
+      failureMessage,
+      requestId,
+    })
+    return {
+      success: false,
+      status: 'failed',
+      message: failureMessage,
+    }
+  }
 
   logger.info(`[${requestId}] Document retry initiated: ${documentId}`)
 

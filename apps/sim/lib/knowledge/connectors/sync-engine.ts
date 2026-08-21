@@ -20,6 +20,7 @@ import { env, envNumber } from '@/lib/core/config/env'
 import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
 import { resolveCredentialTokenIdentity } from '@/lib/credentials/access'
 import {
+  CONNECTOR_AUTO_DISABLED_ERROR,
   connectorFailureBackoffMinutes,
   MAX_CONSECUTIVE_FAILURES,
   SYNC_LOCK_HEARTBEAT_INTERVAL_MS,
@@ -30,6 +31,7 @@ import {
   type DocumentProcessingStatus,
   isDocumentProcessingStatus,
   MAX_PROCESSING_ATTEMPTS,
+  QUEUED_DISPATCH_GRACE_MS,
 } from '@/lib/knowledge/documents/types'
 import { refreshAccessTokenIfNeeded } from '@/lib/oauth/credential-service'
 import { StorageService } from '@/lib/uploads'
@@ -91,6 +93,20 @@ const MAX_SAFE_TITLE_LENGTH = 200
  * await no heartbeat could interrupt; chunking gives the beat somewhere to run.
  */
 const STUCK_RETRY_DISPATCH_CHUNK_SIZE = 25
+
+/**
+ * How many documents reconciliation hard-deletes per call.
+ *
+ * `hardDeleteDocuments` deletes storage objects, embeddings, and rows for its
+ * whole argument in serialized transactions, and a forced `fullSync` overriding
+ * a connector's listing cap can hand it tens of thousands of ids — one await
+ * spanning the widest gap between heartbeats in the sync, with the deletes
+ * themselves the slowest work in it. Chunking gives the beat somewhere to run,
+ * so a long purge stops looking dead to the reaper. Sized like the dispatch
+ * chunk above: small enough that a chunk cannot outlast the heartbeat interval,
+ * large enough that the per-call overhead stays negligible.
+ */
+const HARD_DELETE_CHUNK_SIZE = 25
 /**
  * Concurrent `knowledge-process-document` runs, shared by every workspace.
  *
@@ -151,26 +167,6 @@ const STALE_PROCESSING_MINUTES = resolveStaleProcessingMinutes(
   envNumber(env.KB_CONFIG_MAX_DURATION, 600),
   envNumber(env.KB_CONFIG_MAX_ATTEMPTS, 3)
 )
-/**
- * Grace period a document waiting on the processing queue gets before the
- * stuck-document sweep may reclaim it.
- *
- * {@link STALE_PROCESSING_MINUTES} bounds a run that has already begun, derived
- * from the task's own duration and retry budget. Queue *wait* is a different
- * quantity: it is backlog / concurrency, not run duration.
- * `document-processing-queue` has a global concurrency of
- * {@link PROCESSING_QUEUE_CONCURRENCY} shared by every workspace, so a corpus large
- * enough to approach `CONNECTOR_SYNC_MAX_DURATION_SECONDS` enqueues thousands of
- * documents that drain in waves of that width — at roughly a minute of occupancy each,
- * a few hours, and longer while other workspaces hold slots.
- *
- * Four hours is chosen against three bounds that are all constants in this
- * repository rather than any one deployment's corpus: it is well above that
- * drain estimate, an order of magnitude above the one-hour sync ceiling, and
- * still well under the 1,440-minute default sync interval — so a
- * default-configured connector waits no longer for recovery than it already did.
- */
-const QUEUED_DISPATCH_GRACE_MINUTES = 240
 const RETRY_WINDOW_DAYS = 7
 
 /**
@@ -202,8 +198,9 @@ export interface StuckDocumentSweepCandidate {
  * a worker claims it; `processing` is only written once a worker has actually
  * started. Reclaiming a `pending` document therefore risks racing a run that is
  * still queued, which both duplicates its work and bills a second indexing
- * pass, so queued documents get {@link QUEUED_DISPATCH_GRACE_MINUTES} before
- * they are considered lost.
+ * pass, so queued documents get {@link QUEUED_DISPATCH_GRACE_MS} before they
+ * are considered lost — the same grace the user-facing retry waits out before
+ * it will admit a `pending` document.
  *
  * Queue wait is measured from `processingQueuedAt`, stamped in one place —
  * `markDocumentsQueued`, which every dispatch funnels through, so the column
@@ -250,13 +247,11 @@ export function isStuckDocumentSweepEligible(doc: StuckDocumentSweepCandidate, n
     case 'failed': {
       const lastAttemptEndedAt =
         doc.processingCompletedAt ?? doc.processingQueuedAt ?? doc.uploadedAt
-      return (
-        now.getTime() - lastAttemptEndedAt.getTime() > QUEUED_DISPATCH_GRACE_MINUTES * 60 * 1000
-      )
+      return now.getTime() - lastAttemptEndedAt.getTime() > QUEUED_DISPATCH_GRACE_MS
     }
     case 'pending': {
       const queuedAt = doc.processingQueuedAt ?? doc.uploadedAt
-      return now.getTime() - queuedAt.getTime() > QUEUED_DISPATCH_GRACE_MINUTES * 60 * 1000
+      return now.getTime() - queuedAt.getTime() > QUEUED_DISPATCH_GRACE_MS
     }
     case 'processing': {
       if (!doc.processingStartedAt) return true
@@ -603,11 +598,17 @@ export function holdsSyncLockToken(connectorId: string, syncLockToken: string) {
  * `syncLockToken` is set here, in the same statement as `status`, so ownership
  * and the lock are established atomically — a token written afterwards would
  * leave a window where a terminal write could not identify its own run.
+ *
+ * `syncLockLeaseAt` opens the lease at the same instant. It is deliberately not
+ * `updatedAt`: the reaper reads the lease, and `updatedAt` moves on every
+ * unrelated write to the row, so a config edit on a wedged connector used to
+ * renew the lock it was meant to recover.
  */
 export function buildSyncLockAcquisition(syncLogId: string, now: Date) {
   return {
     status: 'syncing' as const,
     syncLockToken: syncLogId,
+    syncLockLeaseAt: now,
     updatedAt: now,
   }
 }
@@ -628,8 +629,12 @@ export function shouldHeartbeatSyncLock(
 }
 
 /**
- * Refreshes the connector's `updatedAt` to prove this run is still working, so
- * the scheduler's stale-lock reclaim does not treat a slow-but-live sync as dead.
+ * Extends the connector's lock lease to prove this run is still working, so the
+ * scheduler's stale-lock reclaim does not treat a slow-but-live sync as dead.
+ *
+ * Writes `syncLockLeaseAt` alone and deliberately leaves `updatedAt` untouched:
+ * a beat says nothing about the row's contents, and the two columns had to be
+ * separated so an unrelated write could stop passing for a heartbeat.
  *
  * Guarded on the run's own lock, so it doubles as an ownership probe: a false
  * return means the lock was reclaimed and this run must stop rather than keep
@@ -641,7 +646,7 @@ export async function heartbeatSyncLock(
 ): Promise<boolean> {
   const beat = await db
     .update(knowledgeConnector)
-    .set({ updatedAt: new Date() })
+    .set({ syncLockLeaseAt: new Date() })
     .where(holdsSyncLockToken(connectorId, syncLockToken))
     .returning({ id: knowledgeConnector.id })
 
@@ -909,15 +914,15 @@ export function buildSyncFailureUpdate(
 
   return {
     status: (disabled ? 'disabled' : 'error') as 'disabled' | 'error',
-    lastSyncError: disabled
-      ? 'Connector disabled after repeated sync failures. Please reconnect.'
-      : errorMessage,
+    lastSyncError: disabled ? CONNECTOR_AUTO_DISABLED_ERROR : errorMessage,
     nextSyncAt: disabled
       ? null
       : new Date(now.getTime() + connectorFailureBackoffMinutes(failures) * 60 * 1000),
     consecutiveFailures: failures,
-    // Releases the lock so a stale token can never match a later run.
+    // Releases the lock so a stale token can never match a later run, and closes
+    // its lease so the reaper is not left waiting out a TTL on a finished run.
     syncLockToken: null,
+    syncLockLeaseAt: null,
     updatedAt: now,
   }
 }
@@ -944,8 +949,10 @@ export function buildSyncSuccessUpdate(
     lastSyncDocCount: actualDocCount,
     nextSyncAt,
     consecutiveFailures: 0,
-    // Releases the lock so a stale token can never match a later run.
+    // Releases the lock so a stale token can never match a later run, and closes
+    // its lease so the reaper is not left waiting out a TTL on a finished run.
     syncLockToken: null,
+    syncLockLeaseAt: null,
     updatedAt: now,
   }
 }
@@ -1385,6 +1392,19 @@ export async function executeSync(
         status: 'error',
         nextSyncAt: null,
         lastSyncError: 'Knowledge base deleted',
+        /**
+         * Clears the lock alongside the status.
+         *
+         * This write runs BEFORE the lock is taken, but it is unconditional on
+         * status, so it can land on a row a previous run left `syncing` — a run
+         * that may still be alive. Flipping status without releasing the token
+         * left a row that was neither locked nor reclaimable: the reaper only
+         * looks at `syncing` rows, and the old run's terminal write could still
+         * match its own token and resurrect a state for a knowledge base that no
+         * longer exists. Releasing both makes the transition terminal.
+         */
+        syncLockToken: null,
+        syncLockLeaseAt: null,
         updatedAt: new Date(),
       })
       .where(eq(knowledgeConnector.id, connectorId))
@@ -2134,12 +2154,18 @@ export async function executeSync(
         { connectorId }
       )
     }
-    if (safeHardDeleteIds.length > 0) {
+    for (let i = 0; i < safeHardDeleteIds.length; i += HARD_DELETE_CHUNK_SIZE) {
+      await beatIfDue()
+
       // Re-verifies connectorId once more at the moment of the actual delete
       // query — the FOR UPDATE lock above only covers the window up to its
       // own commit; this closes the remaining gap between that commit and
       // this call.
-      result.docsDeleted += await hardDeleteDocuments(safeHardDeleteIds, syncLogId, connectorId)
+      result.docsDeleted += await hardDeleteDocuments(
+        safeHardDeleteIds.slice(i, i + HARD_DELETE_CHUNK_SIZE),
+        syncLogId,
+        connectorId
+      )
     }
 
     const postBatchPresence = await checkSyncTargetPresence(connectorId, connector.knowledgeBaseId)
@@ -2275,7 +2301,8 @@ export async function executeSync(
             if (resetIds.length > 0) {
               await tx.delete(embedding).where(inArray(embedding.documentId, resetIds))
             }
-            retryDocs = retryDocs.filter((doc) => resetIds.includes(doc.id))
+            const resetIdSet = new Set(resetIds)
+            retryDocs = retryDocs.filter((doc) => resetIdSet.has(doc.id))
           }
         })
 

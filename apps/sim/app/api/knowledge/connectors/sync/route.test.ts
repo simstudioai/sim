@@ -19,6 +19,7 @@ import {
 import { type NextRequest, NextResponse } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
+  CONNECTOR_AUTO_DISABLED_ERROR,
   CONNECTOR_FAILURE_BACKOFF_CAP_MINUTES,
   CONNECTOR_FAILURE_BACKOFF_STEP_MINUTES,
   CONNECTOR_SYNC_STALE_LOCK_TTL_MS,
@@ -63,6 +64,22 @@ function renderedSql(value: unknown): string {
 
 function numericBinds(value: unknown): number[] {
   return asFragment(value).values.filter((v): v is number => typeof v === 'number')
+}
+
+/**
+ * Asserts one operand is the lock-lease expression rather than a bare column.
+ *
+ * `sync_lock_lease_at` is written only by lock acquisition and the heartbeat, so
+ * it is the lease; `updated_at` moves on every unrelated write and merely used
+ * to double as one. It is read through COALESCE rather than backfilled: a plain
+ * `lease <= cutoff` is NULL-false, so a row already `syncing` when the column
+ * shipped would never be reclaimed at all.
+ */
+function expectLeaseExpression(value: unknown): void {
+  const fragment = asFragment(value)
+  expect(fragment.toSQL().sql).toBe('COALESCE(?, ?)')
+  expect(fragment.values[0]).toBe(schemaMock.knowledgeConnector.syncLockLeaseAt)
+  expect(fragment.values[1]).toBe(schemaMock.knowledgeConnector.updatedAt)
 }
 
 function cronRequest(): NextRequest {
@@ -198,6 +215,38 @@ describe('connector sync scheduler stale-lock reaper', () => {
     expect(setPayloadForUpdate(0).syncLockToken).toBeNull()
   })
 
+  it('closes the reclaimed run lease alongside its token', async () => {
+    await runTickRecovering(['connector-1'])
+
+    /**
+     * A reclaimed row is re-locked by its replacement, which opens a fresh
+     * lease. Leaving the dead run's lease behind would let the replacement
+     * inherit an already-expired one and be reclaimed on the very next tick.
+     */
+    expect(setPayloadForUpdate(0).syncLockLeaseAt).toBeNull()
+  })
+
+  it('tells the operator the connector is disabled when the reclaim disables it', async () => {
+    await runTickRecovering(['connector-1'])
+
+    /**
+     * `reclaimedStatus()` disables at the threshold and `reclaimedNextSyncAt()`
+     * then writes no next attempt, so an unconditional "timed out, will retry"
+     * message describes a retry that will never happen. The two CASE arms must
+     * pivot on the same comparison.
+     */
+    const error = setPayloadForUpdate(0).lastSyncError
+    expect(renderedSql(error)).toBe('CASE WHEN COALESCE(?, 0) + 1 >= ? THEN ? ELSE ? END')
+
+    const values = asFragment(error).values
+    expect(values[0]).toBe(schemaMock.knowledgeConnector.consecutiveFailures)
+    expect(values[1]).toBe(MAX_CONSECUTIVE_FAILURES)
+    // Sourced from the constant the in-process breaker writes, so the two
+    // writers of one verdict cannot drift into two different messages.
+    expect(values[2]).toBe(CONNECTOR_AUTO_DISABLED_ERROR)
+    expect(values[3]).toBe('Sync timed out (stale lock recovered)')
+  })
+
   it('does not stamp lastSyncAt when reclaiming a stale lock', async () => {
     await runTickRecovering(['connector-1'])
 
@@ -272,7 +321,7 @@ describe('connector sync scheduler stale-lock reaper', () => {
     expect(bound[3]).toBe(schemaMock.knowledgeConnector.syncLockToken)
     expect(bound[4]).toBe(schemaMock.knowledgeConnectorSyncLog.id)
     expect(bound[5]).toBe(schemaMock.knowledgeConnector.status)
-    expect(bound[6]).toBe(schemaMock.knowledgeConnector.updatedAt)
+    expectLeaseExpression(bound[6])
   })
 
   it('identifies the lock holder by token, not merely by the connector syncing', async () => {
@@ -303,7 +352,7 @@ describe('connector sync scheduler stale-lock reaper', () => {
      * forever.
      */
     const bound = sweepLivenessFragment().values
-    expect(bound[6]).toBe(schemaMock.knowledgeConnector.updatedAt)
+    expectLeaseExpression(bound[6])
 
     // Compared by value: `toBeDefined()` passed even for `new Date()`, which
     // spares nothing and closes rows started a second ago.
@@ -392,11 +441,12 @@ describe('connector sync scheduler reclaim predicate', () => {
 
     // Deleting this clause reclaims every syncing connector on every tick.
     const cutoff = flattenMockConditions(where).find(
-      (node: MockCondition) =>
-        node.type === 'lte' && node.left === schemaMock.knowledgeConnector.updatedAt
-    )
+      (node: MockCondition) => typeof node.toSQL === 'function'
+    ) as unknown as MockSqlFragment | undefined
     expect(cutoff).toBeDefined()
-    expect(cutoff?.right).toEqual(EXPECTED_STALE_CUTOFF)
+    expect(cutoff?.toSQL().sql).toBe('? <= ?')
+    expectLeaseExpression(cutoff?.values[0])
+    expect((cutoff?.values[1] as { value: Date }).value).toEqual(EXPECTED_STALE_CUTOFF)
 
     for (const column of [
       schemaMock.knowledgeConnector.archivedAt,

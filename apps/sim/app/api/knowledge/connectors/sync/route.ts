@@ -10,6 +10,7 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { dispatchSync } from '@/lib/knowledge/connectors/queue'
 import {
+  CONNECTOR_AUTO_DISABLED_ERROR,
   CONNECTOR_FAILURE_BACKOFF_CAP_MINUTES,
   CONNECTOR_FAILURE_BACKOFF_STEP_MINUTES,
   CONNECTOR_SYNC_STALE_LOCK_TTL_MS,
@@ -32,6 +33,35 @@ const DISPATCH_CONCURRENCY = 10
 const STALE_LOCK_ERROR_MESSAGE = 'Sync timed out (stale lock recovered)'
 
 /**
+ * How long the connector holding the lock has gone without proving it is alive.
+ *
+ * `sync_lock_lease_at` is written only by lock acquisition and the heartbeat, so
+ * it is the lease; `updated_at` is the row's modification time and merely used
+ * to double as one. Read through `COALESCE` rather than backfilled: a plain
+ * `lease <= cutoff` is NULL-false, so a row already `syncing` when this column
+ * shipped would never be reclaimed — strictly worse than the behaviour it
+ * replaces. The fallback also keeps the reaper correct against any future
+ * writer that takes the lock without opening a lease.
+ */
+function syncLockLease(): SQL {
+  return sql`COALESCE(${knowledgeConnector.syncLockLeaseAt}, ${knowledgeConnector.updatedAt})`
+}
+
+/**
+ * The error a reclaimed connector reports.
+ *
+ * Mirrors {@link reclaimedStatus}: once the reclaim disables the connector,
+ * {@link reclaimedNextSyncAt} sets no next attempt, so telling the operator the
+ * sync merely timed out describes a retry that will never happen. The disabled
+ * wording is the shared one `buildSyncFailureUpdate` writes, so the in-process
+ * breaker and this SQL breaker cannot drift into two different messages for one
+ * verdict.
+ */
+function reclaimedError(): SQL {
+  return sql`CASE WHEN COALESCE(${knowledgeConnector.consecutiveFailures}, 0) + 1 >= ${MAX_CONSECUTIVE_FAILURES} THEN ${CONNECTOR_AUTO_DISABLED_ERROR} ELSE ${STALE_LOCK_ERROR_MESSAGE} END`
+}
+
+/**
  * Excludes a sync-log row belonging to a run that is demonstrably still alive.
  *
  * The sweep keys on `startedAt`, and nothing refreshes that — the heartbeat
@@ -41,14 +71,15 @@ const STALE_LOCK_ERROR_MESSAGE = 'Sync timed out (stale lock recovered)'
  * successful sync as a failure and losing its counters to
  * `loadPreviousListingObservation`, which reads only `completed` rows.
  *
- * The heartbeat is the single source of liveness truth, so this defers to it.
+ * The heartbeat is the single source of liveness truth, so this defers to it,
+ * reading the same {@link syncLockLease} expression the reclaim predicate does.
  * Sparing requires all three of: the connector is locked, THIS row's run is the
  * lock holder, and that lock is being heartbeated. An orphan can satisfy at most
  * two, so none is ever stranded:
  * - reclaimed after a hard kill — connector is `error`, token cleared;
  * - a replacement holds the lock — the token is the successor's, not this row's;
  * - died without being reclaimed, including on an archived or deleted connector
- *   the reclaim skips entirely — `updatedAt` is stale.
+ *   the reclaim skips entirely — its lease is stale.
  *
  * This re-references the connector row, which an earlier fix deliberately moved
  * away from. That coupling was different: it restricted the sweep's candidate
@@ -62,7 +93,7 @@ function logRowNotHeldByLiveRun(staleCutoff: Date): SQL {
     WHERE ${knowledgeConnector.id} = ${knowledgeConnectorSyncLog.connectorId}
       AND ${knowledgeConnector.syncLockToken} = ${knowledgeConnectorSyncLog.id}
       AND ${knowledgeConnector.status} = 'syncing'
-      AND ${knowledgeConnector.updatedAt} > ${sql.param(staleCutoff, knowledgeConnector.updatedAt)}
+      AND ${syncLockLease()} > ${sql.param(staleCutoff, knowledgeConnector.syncLockLeaseAt)}
   )`
 }
 
@@ -114,18 +145,20 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       .update(knowledgeConnector)
       .set({
         status: reclaimedStatus(),
-        lastSyncError: STALE_LOCK_ERROR_MESSAGE,
+        lastSyncError: reclaimedError(),
         nextSyncAt: reclaimedNextSyncAt(),
         consecutiveFailures: reclaimedFailureCount(),
         // Releases the reclaimed run's ownership token so its terminal write can
-        // no longer match, even before a replacement takes the lock.
+        // no longer match, even before a replacement takes the lock, and closes
+        // its lease so a re-locked row starts from a fresh one.
         syncLockToken: null,
+        syncLockLeaseAt: null,
         updatedAt: sql`now()`,
       })
       .where(
         and(
           eq(knowledgeConnector.status, 'syncing'),
-          lte(knowledgeConnector.updatedAt, staleCutoff),
+          sql`${syncLockLease()} <= ${sql.param(staleCutoff, knowledgeConnector.syncLockLeaseAt)}`,
           isNull(knowledgeConnector.archivedAt),
           isNull(knowledgeConnector.deletedAt)
         )

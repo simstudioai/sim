@@ -17,6 +17,33 @@
 export const MAX_PROCESSING_ATTEMPTS = 5
 
 /**
+ * Grace period a document that is merely *queued* gets before either recovery
+ * path may take it: the connector sweep's reclaim, and the user-facing retry.
+ *
+ * `STALE_PROCESSING_MINUTES` bounds a run that has already begun, derived from
+ * the task's own duration and retry budget. Queue *wait* is a different
+ * quantity: it is backlog / concurrency, not run duration.
+ * `document-processing-queue` has a global concurrency shared by every
+ * workspace, so a corpus large enough to approach
+ * `CONNECTOR_SYNC_MAX_DURATION_SECONDS` enqueues thousands of documents that
+ * drain in waves of that width — at roughly a minute of occupancy each, a few
+ * hours, and longer while other workspaces hold slots.
+ *
+ * Four hours is chosen against three bounds that are all constants in this
+ * repository rather than any one deployment's corpus: it is well above that
+ * drain estimate, an order of magnitude above the one-hour sync ceiling, and
+ * still well under the 1,440-minute default sync interval — so a
+ * default-configured connector waits no longer for recovery than it already did.
+ *
+ * Shared rather than owned by the sweep because both recovery paths have to
+ * agree on when a queued dispatch is certainly lost. A retry that admitted a
+ * `pending` document sooner would re-dispatch one still waiting its turn and
+ * bill a second indexing pass — the double-billing the terminal-only guard was
+ * added to close.
+ */
+export const QUEUED_DISPATCH_GRACE_MS = 240 * 60 * 1000
+
+/**
  * Every value `document.processing_status` may hold.
  *
  * Shared rather than redeclared per consumer so a switch over it can be

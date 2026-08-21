@@ -1,5 +1,5 @@
 {
-  "id": "7d6f83e8-3845-40a9-b29d-81764850f548",
+  "id": "ae56869c-b65a-475c-bec9-6e081bddc59e",
   "prevId": "c9c21e6c-7324-484b-b303-ab7b4fd9ab6d",
   "version": "7",
   "dialect": "postgresql",
@@ -7880,6 +7880,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "sync_lock_lease_at": {
+          "name": "sync_lock_lease_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp",
@@ -8083,6 +8089,22 @@
             }
           ],
           "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "kcsl_started_at_partial_idx": {
+          "name": "kcsl_started_at_partial_idx",
+          "columns": [
+            {
+              "expression": "started_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"knowledge_connector_sync_log\".\"status\" = 'started'",
           "concurrently": false,
           "method": "btree",
           "with": {}

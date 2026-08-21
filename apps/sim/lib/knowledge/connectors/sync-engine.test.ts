@@ -741,7 +741,7 @@ describe('isStuckDocumentSweepEligible', () => {
   })
 
   /**
-   * Pinned to `QUEUED_DISPATCH_GRACE_MINUTES` in sync-engine. A change to it
+   * Pinned to `QUEUED_DISPATCH_GRACE_MS` in documents/types. A change to it
    * should fail here so it is re-checked deliberately rather than absorbed
    * silently.
    */
@@ -1368,6 +1368,49 @@ describe('buildSyncFailureUpdate', () => {
     expect(buildSyncFailureUpdate(now, 0, 'boom').syncLockToken).toBeNull()
     expect(buildSyncFailureUpdate(now, MAX_CONSECUTIVE_FAILURES, 'boom').syncLockToken).toBeNull()
   })
+
+  it('closes the lock lease alongside the token', async () => {
+    const { buildSyncFailureUpdate } = await import('@/lib/knowledge/connectors/sync-engine')
+
+    /**
+     * A run that ends leaves no lease behind. Otherwise the reaper waits out a
+     * full TTL against a lease belonging to a run that is already over.
+     */
+    expect(buildSyncFailureUpdate(now, 0, 'boom').syncLockLeaseAt).toBeNull()
+  })
+
+  it('sources the auto-disabled message from the constant the reaper shares', async () => {
+    const { buildSyncFailureUpdate } = await import('@/lib/knowledge/connectors/sync-engine')
+    const { CONNECTOR_AUTO_DISABLED_ERROR, MAX_CONSECUTIVE_FAILURES } = await import(
+      '@/lib/knowledge/connectors/sync-limits'
+    )
+
+    // Two writers advance one verdict; a second copy of the wording lets the
+    // in-process breaker and the SQL breaker disagree about what happened.
+    expect(buildSyncFailureUpdate(now, MAX_CONSECUTIVE_FAILURES, 'boom').lastSyncError).toBe(
+      CONNECTOR_AUTO_DISABLED_ERROR
+    )
+  })
+})
+
+describe('sync lock lease', () => {
+  const now = new Date('2026-08-20T00:00:00.000Z')
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
+  it('opens the lease in the same statement that takes the lock', async () => {
+    const { buildSyncLockAcquisition } = await import('@/lib/knowledge/connectors/sync-engine')
+
+    const values = buildSyncLockAcquisition('log-1', now)
+
+    // A lease opened after the lock leaves a window where the reaper reads a
+    // NULL lease and falls back to a stale `updatedAt`.
+    expect(values.syncLockLeaseAt).toEqual(now)
+    expect(values.syncLockToken).toBe('log-1')
+  })
 })
 
 describe('buildSyncSuccessUpdate', () => {
@@ -1390,6 +1433,15 @@ describe('buildSyncSuccessUpdate', () => {
     const { buildSyncSuccessUpdate } = await import('@/lib/knowledge/connectors/sync-engine')
 
     expect(buildSyncSuccessUpdate(now, 42, null, null).lastSyncError).toBeNull()
+  })
+
+  it('closes the lock lease alongside the token', async () => {
+    const { buildSyncSuccessUpdate } = await import('@/lib/knowledge/connectors/sync-engine')
+
+    const update = buildSyncSuccessUpdate(now, 42, null, null)
+
+    expect(update.syncLockToken).toBeNull()
+    expect(update.syncLockLeaseAt).toBeNull()
   })
 
   it('does not treat a held pass as a broken connector', async () => {
@@ -1733,12 +1785,20 @@ describe('heartbeatSyncLock', () => {
     resetDbChainMock()
   })
 
-  it('refreshes updatedAt under the run own lock guard', async () => {
+  it('extends the lock lease alone, under the run own lock guard', async () => {
     const { heartbeatSyncLock } = await import('@/lib/knowledge/connectors/sync-engine')
 
     await heartbeatSyncLock('c-1', 'run-a')
 
-    expect(dbChainMockFns.set.mock.calls[0][0]).toEqual({ updatedAt: expect.any(Date) })
+    /**
+     * Asserted whole, and the absence of `updatedAt` is the point. While the
+     * beat wrote the row mtime, every unrelated write to the row — a config
+     * edit, a status flip — was indistinguishable from a heartbeat and renewed
+     * a wedged run's lease, pushing its recovery out by another full TTL.
+     */
+    expect(dbChainMockFns.set.mock.calls[0][0]).toEqual({
+      syncLockLeaseAt: expect.any(Date),
+    })
 
     // Guarded, so a beat doubles as an ownership probe rather than a blind touch.
     const where = dbChainMockFns.where.mock.calls[0][0]
@@ -1914,5 +1974,161 @@ describe('MAX_PROCESSING_ATTEMPTS', () => {
      */
     expect(MAX_PROCESSING_ATTEMPTS).toBeGreaterThanOrEqual(4)
     expect(MAX_PROCESSING_ATTEMPTS).toBeLessThanOrEqual(10)
+  })
+})
+
+describe('executeSync hard-delete reconciliation', () => {
+  const OWNED_DOC_COUNT = 100
+  const LISTED_DOC_COUNT = 60
+
+  const CONNECTOR = {
+    id: 'c-1',
+    knowledgeBaseId: 'kb-1',
+    connectorType: 'paged',
+    credentialId: null,
+    encryptedApiKey: null,
+    sourceConfig: {},
+    syncMode: 'full',
+    syncIntervalMinutes: 1440,
+    status: 'active',
+    lastSyncAt: null,
+    lastSyncDocCount: OWNED_DOC_COUNT,
+    consecutiveFailures: 0,
+    syncLockToken: null,
+  }
+
+  /** Owned documents, all with the same hash so the listing reads as unchanged. */
+  const ownedDocs = Array.from({ length: OWNED_DOC_COUNT }, (_, i) => ({
+    id: `doc-${i}`,
+    externalId: `ext-${i}`,
+    contentHash: 'h',
+    deletedAt: null,
+    userExcluded: false,
+  }))
+  const missingIds = ownedDocs.slice(LISTED_DOC_COUNT).map((d) => d.id)
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
+  afterEach(() => {
+    resetDbChainMock()
+    vi.useRealTimers()
+  })
+
+  /** Primes every read the reconciliation path makes, in the order it makes them. */
+  function primeReconciliation() {
+    queueTableRows(schemaMock.knowledgeConnector, [CONNECTOR])
+    queueTableRows(schemaMock.knowledgeBase, [{ userId: 'u-1', workspaceId: 'ws-1' }])
+    // hasTombstonedDocs, then existingDocs / tombstonedDocs / excludedDocs.
+    queueTableRows(schemaMock.document, [])
+    queueTableRows(schemaMock.document, ownedDocs)
+    queueTableRows(schemaMock.document, [])
+    queueTableRows(schemaMock.document, [])
+    // The ownership re-check inside the reconciliation transaction.
+    queueTableRows(
+      schemaMock.document,
+      missingIds.map((id) => ({ id }))
+    )
+    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'c-1' }])
+
+    mockListDocuments.mockResolvedValue({
+      documents: ownedDocs.slice(0, LISTED_DOC_COUNT).map((d) => ({
+        externalId: d.externalId,
+        title: d.externalId,
+        content: 'body',
+        contentHash: 'h',
+        mimeType: 'text/plain',
+        metadata: {},
+      })),
+      hasMore: false,
+    })
+  }
+
+  it('hard-deletes in heartbeat-separated chunks instead of one unbeaten call', async () => {
+    const { executeSync } = await import('@/lib/knowledge/connectors/sync-engine')
+    const { hardDeleteDocuments } = await import('@/lib/knowledge/documents/service')
+
+    primeReconciliation()
+    vi.mocked(hardDeleteDocuments).mockResolvedValue(0)
+
+    await executeSync('c-1', {
+      billingAttribution: { workspaceId: 'ws-1' } as never,
+      fullSync: true,
+    })
+
+    const calls = vi.mocked(hardDeleteDocuments).mock.calls
+    expect(calls.length).toBeGreaterThan(1)
+
+    /**
+     * `hardDeleteDocuments` deletes storage objects, embeddings, and rows in
+     * serialized transactions, and a forced `fullSync` overriding a listing cap
+     * can hand it tens of thousands of ids. Passing the whole set was one await
+     * spanning the widest gap between heartbeats in the sync, so the reaper saw
+     * a working purge as a dead run.
+     */
+    for (const call of calls) {
+      expect((call[0] as string[]).length).toBeLessThanOrEqual(25)
+    }
+    expect(calls.flatMap((call) => call[0] as string[])).toEqual(missingIds)
+  })
+
+  it('releases the lock when it errors a connector whose knowledge base is gone', async () => {
+    const { executeSync } = await import('@/lib/knowledge/connectors/sync-engine')
+
+    queueTableRows(schemaMock.knowledgeConnector, [CONNECTOR])
+    queueTableRows(schemaMock.knowledgeBase, [])
+
+    const result = await executeSync('c-1', {
+      billingAttribution: { workspaceId: 'ws-1' } as never,
+    })
+
+    /**
+     * This write runs before the lock is taken but is unconditional on status,
+     * so it can land on a row a previous run left `syncing`. Flipping status
+     * without releasing the token and lease left a row that was neither locked
+     * nor reclaimable — the reaper only looks at `syncing` rows.
+     */
+    expect(result.error).toBe('knowledge_base_deleted')
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: 'error',
+        syncLockToken: null,
+        syncLockLeaseAt: null,
+      })
+    )
+  })
+
+  it('lets a heartbeat run between chunks of a long purge', async () => {
+    const { executeSync } = await import('@/lib/knowledge/connectors/sync-engine')
+    const { hardDeleteDocuments } = await import('@/lib/knowledge/documents/service')
+    const { SYNC_LOCK_HEARTBEAT_INTERVAL_MS } = await import(
+      '@/lib/knowledge/connectors/sync-limits'
+    )
+
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-08-20T00:00:00.000Z'))
+    primeReconciliation()
+
+    // Each chunk takes longer than the heartbeat interval, which is the case
+    // chunking exists for: without a beat between them the reaper reclaims a
+    // connector whose purge is still running.
+    vi.mocked(hardDeleteDocuments).mockImplementation(async () => {
+      vi.setSystemTime(new Date(Date.now() + SYNC_LOCK_HEARTBEAT_INTERVAL_MS + 1_000))
+      return 0
+    })
+    dbChainMockFns.returning.mockResolvedValue([{ id: 'c-1' }])
+
+    await executeSync('c-1', {
+      billingAttribution: { workspaceId: 'ws-1' } as never,
+      fullSync: true,
+    })
+
+    const beats = dbChainMockFns.set.mock.calls.filter(
+      (call) => (call[0] as Record<string, unknown> | undefined)?.syncLockLeaseAt instanceof Date
+    )
+    // One for the lock acquisition, then at least one more from inside the loop.
+    expect(beats.length).toBeGreaterThan(1)
   })
 })

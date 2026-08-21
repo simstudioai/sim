@@ -4,7 +4,7 @@
 import {
   dbChainMock,
   dbChainMockFns,
-  hasMockCondition,
+  flattenMockConditions,
   type MockCondition,
   resetDbChainMock,
   schemaMock,
@@ -23,6 +23,7 @@ import {
   processDocumentsWithQueue,
   retryDocumentProcessing,
 } from '@/lib/knowledge/documents/service'
+import { QUEUED_DISPATCH_GRACE_MS } from '@/lib/knowledge/documents/types'
 
 const DOC_DATA = {
   filename: 'report.pdf',
@@ -149,13 +150,46 @@ describe('processDocumentsWithQueue dispatch stamp', () => {
   })
 })
 
-describe('retryDocumentProcessing double-click guard', () => {
+describe('retryDocumentProcessing requeue guard', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
   })
 
-  it('only requeues a document in a terminal state', async () => {
+  /**
+   * Every node under `condition`, descending through BOTH `and` and `or`. The
+   * shared `flattenMockConditions` stops at `or`, which is the node this guard
+   * is built from — a predicate run through it silently reports `false`.
+   */
+  function flattenBranches(condition: unknown): MockCondition[] {
+    if (!condition || typeof condition !== 'object') return []
+    const node = condition as MockCondition
+    if ((node.type === 'and' || node.type === 'or') && Array.isArray(node.conditions)) {
+      return [node, ...node.conditions.flatMap(flattenBranches)]
+    }
+    return [node]
+  }
+
+  function hasBranch(condition: unknown, predicate: (node: MockCondition) => boolean): boolean {
+    return flattenBranches(condition).some(predicate)
+  }
+
+  /** The `or(...)` node the requeue's WHERE narrows the eligible statuses with. */
+  function statusGuard(): MockCondition {
+    const call = dbChainMockFns.where.mock.calls.find((c) =>
+      hasBranch(
+        c[0],
+        (node: MockCondition) =>
+          node.type === 'inArray' && node.column === schemaMock.document.processingStatus
+      )
+    )
+    expect(call).toBeDefined()
+    const guard = flattenMockConditions(call?.[0]).find((node: MockCondition) => node.type === 'or')
+    expect(guard).toBeDefined()
+    return guard as MockCondition
+  }
+
+  it('requeues from a terminal state', async () => {
     dbChainMockFns.returning.mockResolvedValue([{ id: 'doc-1' }])
 
     await retryDocumentProcessing('kb-1', 'doc-1', DOC_DATA, 'req-1', undefined).catch(() => {})
@@ -164,23 +198,88 @@ describe('retryDocumentProcessing double-click guard', () => {
      * Unguarded, a second click reset a document the first had already queued,
      * so both dispatches ran, both indexed, and both billed.
      */
-    const guard = dbChainMockFns.where.mock.calls.find((call) =>
-      hasMockCondition(
-        call[0],
-        (node: MockCondition) =>
-          node.type === 'inArray' && node.column === schemaMock.document.processingStatus
-      )
-    )
-    expect(guard).toBeDefined()
     expect(
-      hasMockCondition(
-        guard?.[0],
+      hasBranch(
+        statusGuard(),
         (node: MockCondition) =>
           node.type === 'inArray' &&
+          node.column === schemaMock.document.processingStatus &&
           Array.isArray(node.values) &&
           node.values.join(',') === 'completed,failed'
       )
     ).toBe(true)
+  })
+
+  it('also requeues a pending document whose dispatch is certainly lost', async () => {
+    dbChainMockFns.returning.mockResolvedValue([{ id: 'doc-1' }])
+
+    await retryDocumentProcessing('kb-1', 'doc-1', DOC_DATA, 'req-1', undefined).catch(() => {})
+
+    /**
+     * A terminal-only guard strands a document that never left `pending`: a
+     * worker killed before its claim UPDATE burns an attempt without changing
+     * status, and past the attempt budget the connector sweep drops it too.
+     */
+    expect(
+      hasBranch(
+        statusGuard(),
+        (node: MockCondition) =>
+          node.type === 'eq' &&
+          node.left === schemaMock.document.processingStatus &&
+          node.right === 'pending'
+      )
+    ).toBe(true)
+  })
+
+  it('ages the pending arm from the dispatch stamp on the shared grace', async () => {
+    vi.useFakeTimers()
+    const now = new Date('2026-08-20T12:00:00.000Z')
+    vi.setSystemTime(now)
+    try {
+      dbChainMockFns.returning.mockResolvedValue([{ id: 'doc-1' }])
+      await retryDocumentProcessing('kb-1', 'doc-1', DOC_DATA, 'req-1', undefined).catch(() => {})
+
+      const fragment = flattenBranches(statusGuard()).find(
+        (node: MockCondition) => typeof node.toSQL === 'function'
+      ) as unknown as { values: unknown[]; toSQL: () => { sql: string } }
+      expect(fragment).toBeDefined()
+
+      /**
+       * Pinned whole: an inverted comparison, or one that drops the COALESCE,
+       * admits a document dispatched seconds ago and bills a duplicate pass
+       * alongside the run still waiting in the queue.
+       */
+      expect(fragment.toSQL().sql).toBe('COALESCE(?, ?) < ?')
+      expect(fragment.values[0]).toBe(schemaMock.document.processingQueuedAt)
+      // NULL means no dispatch ever stamped the row; `uploadedAt` is the same
+      // fallback `isStuckDocumentSweepEligible` ages such a document from.
+      expect(fragment.values[1]).toBe(schemaMock.document.uploadedAt)
+      expect((fragment.values[2] as { value: Date }).value).toEqual(
+        new Date(now.getTime() - QUEUED_DISPATCH_GRACE_MS)
+      )
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('waits out the same grace the connector sweep waits out', async () => {
+    /**
+     * The two recovery paths must agree on when a queued dispatch is lost. A
+     * retry that admitted `pending` sooner would re-dispatch a document the
+     * sweep still considers live.
+     */
+    const uploadedAt = new Date('2026-08-20T00:00:00.000Z')
+    const justInsideGrace = new Date(uploadedAt.getTime() + QUEUED_DISPATCH_GRACE_MS)
+    const justOutsideGrace = new Date(justInsideGrace.getTime() + 1)
+    const candidate = {
+      processingStatus: 'pending' as const,
+      processingQueuedAt: null,
+      processingStartedAt: null,
+      uploadedAt,
+    }
+
+    expect(isStuckDocumentSweepEligible(candidate, justInsideGrace)).toBe(false)
+    expect(isStuckDocumentSweepEligible(candidate, justOutsideGrace)).toBe(true)
   })
 
   it('does not dispatch or drop embeddings when it claimed nothing', async () => {
@@ -232,5 +331,46 @@ describe('processing attempt budget', () => {
     expect((values.processingAttempts as { toSQL: () => { sql: string } }).toSQL().sql).toContain(
       '+ 1'
     )
+  })
+})
+
+describe('retryDocumentProcessing dispatch unwind', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
+  /**
+   * The reset commits in its own transaction, so a throwing dispatch leaves the
+   * row `pending` with nothing queued behind it — and the grace window means the
+   * same click cannot recover it for hours. Recording the failure returns it to
+   * `failed`, which is immediately retryable.
+   */
+  it('records the failure on the row it reset when the dispatch throws', async () => {
+    // The reset claims the document; the dispatch then fails for want of a
+    // billing context, which this suite deliberately does not stand up.
+    dbChainMockFns.returning.mockResolvedValue([{ id: 'doc-1' }])
+
+    const result = await retryDocumentProcessing('kb-1', 'doc-1', DOC_DATA, 'req-1', undefined)
+
+    expect(result.success).toBe(false)
+    const failedWrite = dbChainMockFns.set.mock.calls.find(
+      (call) => (call[0] as Record<string, unknown> | undefined)?.processingStatus === 'failed'
+    )
+    expect(failedWrite).toBeDefined()
+    expect((failedWrite?.[0] as Record<string, unknown>).processingError).toEqual(
+      expect.any(String)
+    )
+  })
+
+  it('does not report a dead document as a started retry', async () => {
+    dbChainMockFns.returning.mockResolvedValue([{ id: 'doc-1' }])
+
+    const result = await retryDocumentProcessing('kb-1', 'doc-1', DOC_DATA, 'req-1', undefined)
+
+    // Reporting success here paints the UI green over a document that will
+    // never be indexed.
+    expect(result.message).not.toContain('retry processing started')
+    expect(result.status).toBe('failed')
   })
 })

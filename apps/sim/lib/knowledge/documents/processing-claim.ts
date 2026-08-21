@@ -1,6 +1,11 @@
 import { db } from '@sim/db'
 import { document } from '@sim/db/schema'
+import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
+import { truncate } from '@sim/utils/string'
 import { and, eq, isNull } from 'drizzle-orm'
+
+const logger = createLogger('KnowledgeDocumentProcessingClaim')
 
 export const KNOWLEDGE_DOCUMENT_PROCESSING_STALE_THRESHOLD_MS = 10 * 60 * 1000
 
@@ -141,4 +146,56 @@ export async function failUndispatchedDocumentProcessing({
     .returning({ id: document.id })
 
   return Boolean(failed)
+}
+
+/** Log line every dispatch-failure unwind shares, so one query finds them all. */
+export const PROCESSING_DISPATCH_FAILURE_MESSAGE = 'Knowledge document processing dispatch failed'
+
+/** `processing_error` is displayed verbatim, so a provider stack trace is trimmed. */
+const DISPATCH_FAILURE_MESSAGE_MAX_LENGTH = 500
+
+interface RecordUndispatchedDocumentFailureParams {
+  documentId: string
+  knowledgeBaseId: string
+  failureMessage: string
+  requestId: string
+}
+
+/**
+ * Records a failed dispatch against the document it stranded.
+ *
+ * The one place every caller that dispatches processing unwinds through, so a
+ * document whose dispatch threw is never left silently `pending`: nothing sweeps
+ * upload documents (their `connector_id` is NULL, and the stuck-document sweep
+ * is connector-scoped), so without this the row is invisible and unrecoverable.
+ *
+ * Never throws. It runs on a path that is already handling a failure, and a
+ * second one must not displace the first.
+ */
+export async function recordUndispatchedDocumentFailure({
+  documentId,
+  knowledgeBaseId,
+  failureMessage,
+  requestId,
+}: RecordUndispatchedDocumentFailureParams): Promise<void> {
+  logger.error(PROCESSING_DISPATCH_FAILURE_MESSAGE, {
+    requestId,
+    documentId,
+    knowledgeBaseId,
+    error: failureMessage,
+  })
+  try {
+    await failUndispatchedDocumentProcessing({
+      documentId,
+      knowledgeBaseId,
+      error: truncate(failureMessage, DISPATCH_FAILURE_MESSAGE_MAX_LENGTH),
+    })
+  } catch (markError) {
+    logger.error('Failed to record a knowledge document dispatch failure', {
+      requestId,
+      documentId,
+      knowledgeBaseId,
+      error: getErrorMessage(markError),
+    })
+  }
 }

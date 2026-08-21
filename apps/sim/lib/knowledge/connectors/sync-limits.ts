@@ -47,6 +47,16 @@ export const CONNECTOR_SYNC_STALE_LOCK_TTL_MS = CONNECTOR_SYNC_MAX_DURATION_SECO
  */
 export const MAX_CONSECUTIVE_FAILURES = 10
 
+/**
+ * The error a connector carries once {@link MAX_CONSECUTIVE_FAILURES} disables it.
+ *
+ * Shared by the same two writers as the threshold itself. Reporting a timeout on
+ * a run that was actually auto-disabled tells the operator to wait for a retry
+ * that {@link MAX_CONSECUTIVE_FAILURES} has already cancelled.
+ */
+export const CONNECTOR_AUTO_DISABLED_ERROR =
+  'Connector disabled after repeated sync failures. Please reconnect.'
+
 /** Minutes of backoff added per consecutive failure. */
 export const CONNECTOR_FAILURE_BACKOFF_STEP_MINUTES = 30
 
