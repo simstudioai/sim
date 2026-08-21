@@ -344,23 +344,25 @@ export function useSecretUsage({ workspaceId, name, scope }: SecretUsageParams, 
  */
 export const SECRET_REFERENCES_STALE_TIME = 5 * 60 * 1000
 
-/** Reads where one secret is wired in. Only credential admins are authorized server-side. */
-export function useSecretReferences(
-  { workspaceId, name, scope }: SecretUsageParams,
-  enabled = true
-) {
+interface SecretReferencesParams {
+  workspaceId?: string
+  name?: string
+}
+
+/**
+ * Reads where one secret is wired in. Takes no scope: a reference names a key, not a scope, and
+ * the server authorizes against what the name resolves to. Only credential admins of a workspace
+ * secret — or the owner of a personal one — are authorized server-side.
+ */
+export function useSecretReferences({ workspaceId, name }: SecretReferencesParams, enabled = true) {
   return useQuery({
-    queryKey: workspaceCredentialKeys.references(workspaceId, name, scope),
+    queryKey: workspaceCredentialKeys.references(workspaceId, name),
     queryFn: ({ signal }) =>
       requestJson(getSecretReferencesContract, {
-        query: {
-          workspaceId: workspaceId as string,
-          name: name as string,
-          scope: scope as SecretUsageScope,
-        },
+        query: { workspaceId: workspaceId as string, name: name as string },
         signal,
       }),
-    enabled: Boolean(workspaceId && name && scope) && enabled,
+    enabled: Boolean(workspaceId && name) && enabled,
     staleTime: SECRET_REFERENCES_STALE_TIME,
   })
 }

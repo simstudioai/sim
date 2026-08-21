@@ -43,16 +43,24 @@ export const getSecretUsageContract = defineRouteContract({
   },
 })
 
-/** Ceilings on one scan's payload, matching the caps the scanner reports `truncated` against. */
+/**
+ * Ceilings on one scan's payload. These match the caps `lib/secrets/references/scan.ts` stops
+ * at — in particular `resources` is capped on EMITTED entries there, not on rows read, because
+ * one MCP server expands to an entry per matching header. Raising a bound here without raising
+ * the scanner's cap is harmless; lowering one below it makes the route reject its own response.
+ */
 const SECRET_REFERENCE_MAX_WORKFLOWS = 2000
 const SECRET_REFERENCE_MAX_BLOCKS = 2000
 const SECRET_REFERENCE_MAX_RESOURCES = 400
 
+/**
+ * No `scope`, unlike the usage query. A `{{KEY}}` reference names a key and not a scope, so the
+ * scan is name-based and the use case authorizes against what the name resolves to. A scope here
+ * would be a caller-controlled assertion that nothing narrows by — a bypass, not an input.
+ */
 export const secretReferencesQuerySchema = z.object({
   workspaceId: z.string().min(1, 'workspaceId is required'),
   name: z.string().min(1, 'Secret name is required'),
-  /** Selects the authorization check, not the scan — a `{{KEY}}` reference names no scope. */
-  scope: secretUsageScopeSchema,
 })
 
 export const secretReferenceBlockSchema = z.object({

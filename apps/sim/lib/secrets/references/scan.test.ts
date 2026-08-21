@@ -1,7 +1,7 @@
 /**
  * @vitest-environment node
  */
-import { queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { scanSecretReferences } from '@/lib/secrets/references/scan'
 
@@ -77,9 +77,9 @@ describe('scanSecretReferences', () => {
   })
 
   /**
-   * The SQL prefilter is a literal substring test, so a scan for `API_KEY` also reads every
-   * block naming `API_KEY_TEST`. Reporting those would send someone rotating one key to edit
-   * blocks that never touch it, so the scanner — not the prefilter — decides.
+   * The SQL prefilter matches the reference syntax, so these never reach the scanner in
+   * production — but the scanner stays the authority, and these pin that it agrees. Reporting
+   * them would send someone rotating one key to edit blocks that never touch it.
    */
   it('drops a block whose reference only shares a prefix with the name', async () => {
     queueTableRows(schemaMock.workflowBlocks, [
@@ -248,5 +248,51 @@ describe('scanSecretReferences', () => {
     const scan = await scanSecretReferences({ workspaceId: 'workspace-1', name: 'API_KEY' })
 
     expect(scan).toEqual({ workflows: [], resources: [], truncated: false })
+  })
+
+  /**
+   * A name outside the env-key charset can never sit inside `{{ }}`, so the scan short-circuits
+   * before touching the database — which is also what makes it safe to inline the name into the
+   * SQL regex without escaping.
+   */
+  it('scans nothing for a name that cannot be an env reference', async () => {
+    queueTableRows(schemaMock.workflowBlocks, [
+      blockRow({
+        blockId: 'block-1',
+        blockName: 'Fetch orders',
+        workflowId: 'workflow-1',
+        workflowName: 'Nightly sync',
+        subBlocks: shortInput('apiKey', '{{API_KEY}}'),
+      }),
+    ])
+
+    const scan = await scanSecretReferences({ workspaceId: 'workspace-1', name: 'API.*KEY' })
+
+    expect(scan).toEqual({ workflows: [], resources: [], truncated: false })
+    expect(dbChainMockFns.select).not.toHaveBeenCalled()
+  })
+
+  /**
+   * The row caps bound what is READ; one MCP server expands to an entry per matching header, so
+   * the emitted total is what has to stay inside the contract's array bound. Without this the
+   * route rejects its own response and a successful scan surfaces as a 500.
+   */
+  it('caps emitted resources so the response bound holds', async () => {
+    const headers: Record<string, string> = {}
+    for (let index = 0; index < 300; index++) headers[`X-Key-${index}`] = 'Bearer {{API_KEY}}'
+    queueTableRows(
+      schemaMock.mcpServers,
+      Array.from({ length: 3 }, (_, index) => ({
+        id: `server-${index}`,
+        name: `Server ${index}`,
+        url: 'https://example.com',
+        headers,
+      }))
+    )
+
+    const scan = await scanSecretReferences({ workspaceId: 'workspace-1', name: 'API_KEY' })
+
+    expect(scan.resources).toHaveLength(400)
+    expect(scan.truncated).toBe(true)
   })
 })

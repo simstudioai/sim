@@ -18,7 +18,6 @@ export const GET = defineInternalJsonRoute({
   mapInput: ({ query }) => ({
     workspaceId: query.workspaceId,
     name: query.name,
-    scope: query.scope,
   }),
   useCase: listSecretReferencesUseCase,
   /** The scan's shape is already the wire shape — nothing to project or serialize. */

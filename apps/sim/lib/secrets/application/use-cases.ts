@@ -366,24 +366,26 @@ export interface ListSecretUsageInput {
 }
 
 /**
- * Gates a secret's trails — its usage log and its reference list — behind the same permission
- * that reveals the value.
+ * Gates the usage trail behind the same permission that reveals the value.
  *
- * The usage trail names workflows, people, and run ids; the reference list names workflows,
- * blocks, and the tools and servers that carry the key. Someone who may use a secret but not
- * read it has no claim on either, and letting a Member enumerate who else uses a key would hand
- * back a slice of exactly what the value masking withholds. Workspace secrets therefore require
+ * The trail names workflows, people, and run ids. Someone who may use a secret but not read
+ * it has no claim on that, and letting a Member enumerate who else uses a key would hand back
+ * a slice of exactly what the value masking withholds. Workspace secrets therefore require
  * workspace-admin or credential-admin on that key — the same predicate
  * `maskWorkspaceEnvForViewer` applies — while a personal secret is only ever the caller's own.
- *
- * One predicate for both reads, so the two views can never disagree about who may see what.
  */
-async function requireSecretTrailReadAccess(params: {
+async function requireSecretUsageReadAccess(params: {
   workspaceId: string
   name: string
   scope: SecretScope
   userId: string
 }): Promise<void> {
+  /**
+   * Safe to trust the asserted scope here, and only here: the read below is NARROWED by it to
+   * `secretOwnerUserId`, so asserting `personal` for a workspace key returns the caller's own
+   * (empty) trail rather than the workspace one. A read that is not scope-narrowed must not
+   * reuse this — see {@link requireSecretReferencesReadAccess}.
+   */
   if (params.scope === 'personal') return
 
   const [workspaceAccess, keyAccess] = await Promise.all([
@@ -410,7 +412,7 @@ export const listSecretUsageUseCase = defineAuthorizedWorkspaceUseCase({
   authorizationOptions,
   async execute({ principal, input, context }) {
     const userId = principalUserId(principal)
-    await requireSecretTrailReadAccess({
+    await requireSecretUsageReadAccess({
       workspaceId: context.workspaceId,
       name: input.name,
       scope: input.scope,
@@ -433,10 +435,61 @@ export const listSecretUsageUseCase = defineAuthorizedWorkspaceUseCase({
   },
 })
 
+/**
+ * Deliberately carries no `scope`. A reference is found by name, so a scope here could only be
+ * an assertion the caller controls and the read never narrows by — exactly the shape that made
+ * the first cut of this operation bypassable. The name alone decides both access and result.
+ */
 export interface ListSecretReferencesInput {
   workspaceId: string
   name: string
-  scope: SecretScope
+}
+
+/**
+ * Gates the reference scan on what the NAME resolves to, never on the scope the caller asserts.
+ *
+ * The usage trail can trust `scope` because it narrows the read by it — a personal request is
+ * filtered to `secretOwnerUserId`, so asserting `personal` for a workspace key returns nothing.
+ * A reference scan cannot: `{{KEY}}` names a key and not a scope, so the scan is name-based and
+ * workspace-wide by construction. Reusing the trail's gate therefore made `scope=personal` a
+ * bypass — it returns before any check, and a member could read the admin-gated map for any
+ * workspace secret by naming it under personal scope.
+ *
+ * So the asserted scope is discarded here and the canonical name decides:
+ *  - a workspace secret exists under this name → only its admins (or a workspace admin) may look,
+ *    which is the same predicate that reveals its value;
+ *  - no workspace secret exists → the caller must actually hold a personal secret of that name,
+ *    which stops a member enumerating arbitrary names for a map they have no claim to.
+ */
+async function requireSecretReferencesReadAccess(params: {
+  workspaceId: string
+  name: string
+  userId: string
+}): Promise<void> {
+  const [workspaceAccess, keyAccess] = await Promise.all([
+    checkWorkspaceAccess(params.workspaceId, params.userId),
+    getWorkspaceEnvKeyAdminAccess({
+      workspaceId: params.workspaceId,
+      envKeys: [params.name],
+      userId: params.userId,
+    }),
+  ])
+  if (workspaceAccess.canAdmin || keyAccess.adminKeys.has(params.name)) return
+
+  const forbidden = new ForbiddenOperationError(
+    'SECRET_ADMIN_ACCESS_REQUIRED',
+    'Credential admin permission required to view this secret usage'
+  )
+
+  // A workspace secret under this name is admin-gated outright — a personal secret the caller
+  // happens to hold under the same name does not unlock the workspace one's reference map.
+  if (keyAccess.knownKeys.has(params.name)) throw forbidden
+
+  const owned = await getPersonalEnvCredentialMetadata({
+    userId: params.userId,
+    envKey: params.name,
+  })
+  if (!owned) throw forbidden
 }
 
 export const listSecretReferencesUseCase = defineAuthorizedWorkspaceUseCase({
@@ -445,17 +498,15 @@ export const listSecretReferencesUseCase = defineAuthorizedWorkspaceUseCase({
     resolveWorkspaceContext(input.workspaceId),
   authorizationOptions,
   async execute({ principal, input, context }) {
-    await requireSecretTrailReadAccess({
+    await requireSecretReferencesReadAccess({
       workspaceId: context.workspaceId,
       name: input.name,
-      scope: input.scope,
       userId: principalUserId(principal),
     })
 
     /**
-     * `scope` gates the read above but does not narrow it: a `{{KEY}}` in a workflow names a
-     * key, not a scope, so the same reference sites answer for a workspace secret and for the
-     * personal one it shadows. Narrowing by scope here would report a personal secret as
+     * Name-based, not scope-narrowed: the same reference sites answer for a workspace secret and
+     * for the personal one it shadows. Narrowing by scope would report a personal secret as
      * unreferenced the moment a workspace variable of the same name existed.
      */
     return scanSecretReferences({ workspaceId: context.workspaceId, name: input.name })

@@ -2,7 +2,7 @@
 
 import { Wrench } from '@sim/emcn/icons'
 import { McpIcon } from '@/components/icons'
-import type { SecretReferenceResourcePayload, SecretUsageScope } from '@/lib/api/contracts'
+import type { SecretReferenceResourcePayload } from '@/lib/api/contracts'
 import { DetailSection } from '@/app/workspace/[workspaceId]/components/credential-detail'
 import { IntegrationTile } from '@/app/workspace/[workspaceId]/integrations/components/integrations-showcase'
 import {
@@ -20,8 +20,14 @@ import { useSecretReferences } from '@/hooks/queries/credentials'
 interface SecretReferencesPanelProps {
   workspaceId: string
   secretName: string
-  scope: SecretUsageScope
 }
+
+/**
+ * Shown when a capped scan produced nothing to list. Distinct from "not referenced": the scan
+ * stopped early, so silence here is absence of evidence, and saying otherwise would invite
+ * deleting a key that four blocks past the cap still depend on.
+ */
+const TRUNCATED_NOTE = 'This secret is referenced in more places than can be listed here.'
 
 /** A custom tool and an MCP server can each carry the key more than once, so `id` alone is not a key. */
 function resourceKey(resource: SecretReferenceResourcePayload): string {
@@ -46,12 +52,8 @@ function resourceHref(workspaceId: string, resource: SecretReferenceResourcePayl
  * The companion to the Logs tab, and the half of the question runs cannot answer — a secret
  * four blocks depend on but nothing has executed yet has an empty trail and a full list here.
  */
-export function SecretReferencesPanel({
-  workspaceId,
-  secretName,
-  scope,
-}: SecretReferencesPanelProps) {
-  const { data, isPending, isError } = useSecretReferences({ workspaceId, name: secretName, scope })
+export function SecretReferencesPanel({ workspaceId, secretName }: SecretReferencesPanelProps) {
+  const { data, isPending, isError } = useSecretReferences({ workspaceId, name: secretName })
 
   if (isError) {
     return (
@@ -68,7 +70,7 @@ export function SecretReferencesPanel({
   if (data.workflows.length === 0 && data.resources.length === 0) {
     return (
       <SettingsEmptyState variant='inline'>
-        This secret is not referenced in any workflow.
+        {data.truncated ? TRUNCATED_NOTE : 'This secret is not referenced in any workflow.'}
       </SettingsEmptyState>
     )
   }
@@ -133,11 +135,7 @@ export function SecretReferencesPanel({
         </DetailSection>
       )}
 
-      {data.truncated && (
-        <p className='text-[var(--text-muted)] text-caption'>
-          This secret is referenced in more places than can be listed here.
-        </p>
-      )}
+      {data.truncated && <p className='text-[var(--text-muted)] text-caption'>{TRUNCATED_NOTE}</p>}
     </div>
   )
 }
