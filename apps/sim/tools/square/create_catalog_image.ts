@@ -1,3 +1,8 @@
+import {
+  defineSquareKeyedSite,
+  resolveSquareIdempotencyKey,
+  type SquareDeliveryContextParams,
+} from '@/tools/square/idempotency'
 import type { CatalogObjectResponse, CreateCatalogImageParams } from '@/tools/square/types'
 import {
   CATALOG_OBJECT_METADATA_OUTPUT_PROPERTIES,
@@ -5,8 +10,13 @@ import {
 } from '@/tools/square/types'
 import type { ToolConfig } from '@/tools/types'
 
+const DELIVERY = defineSquareKeyedSite(
+  'square_create_catalog_image',
+  "a second copy of the image would appear in the seller's catalog"
+)
+
 export const squareCreateCatalogImageTool: ToolConfig<
-  CreateCatalogImageParams,
+  CreateCatalogImageParams & SquareDeliveryContextParams,
   CatalogObjectResponse
 > = {
   id: 'square_create_catalog_image',
@@ -59,13 +69,19 @@ export const squareCreateCatalogImageTool: ToolConfig<
     headers: () => ({
       'Content-Type': 'application/json',
     }),
+    /**
+     * The token is resolved here rather than in the proxy route because the
+     * execution identity it derives from only exists on this side. The route
+     * assembles Square's multipart body and places the value it is given at
+     * `idempotency_key`.
+     */
     body: (params) => ({
       accessToken: params.apiKey,
       file: params.file,
       fileName: params.fileName,
       objectId: params.objectId,
       caption: params.caption,
-      idempotencyKey: params.idempotencyKey,
+      idempotencyKey: resolveSquareIdempotencyKey(DELIVERY, params),
     }),
   },
 

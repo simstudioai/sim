@@ -237,7 +237,7 @@ export class BlockExecutor {
       const output = await this.runHandlerWithRetry(blockCtx, block, blockLog, () =>
         handler.executeWithNode
           ? handler.executeWithNode(blockCtx, block, resolvedInputs, nodeMetadata)
-          : handler.execute(blockCtx, block, resolvedInputs)
+          : handler.execute(blockCtx, block, resolvedInputs, nodeMetadata)
       )
 
       const isStreamingExecution =

@@ -648,29 +648,45 @@ interface BlockExecutor {
   ): Promise<BlockOutput>
 }
 
+/**
+ * Per-invocation identity for one run of one block.
+ *
+ * `executionOrder` is the field a `keyed` delivery derives its idempotency token
+ * from. It is assigned once, before the block executor's retry wrapper, and is
+ * distinct per loop iteration and per parallel branch — so it is both stable
+ * across every retry layer and distinguishing between logically separate
+ * invocations. Both halves are required; see `KeyedDeliveryContext`.
+ */
+export interface BlockNodeMetadata {
+  nodeId: string
+  loopId?: string
+  parallelId?: string
+  branchIndex?: number
+  branchTotal?: number
+  originalBlockId?: string
+  isLoopNode?: boolean
+  executionOrder?: number
+}
+
 export interface BlockHandler {
   canHandle(block: SerializedBlock): boolean
 
+  /**
+   * `nodeMetadata` is optional so the many handlers that do not need an
+   * invocation identity keep their three-parameter signature.
+   */
   execute(
     ctx: ExecutionContext,
     block: SerializedBlock,
-    inputs: Record<string, any>
+    inputs: Record<string, any>,
+    nodeMetadata?: BlockNodeMetadata
   ): Promise<BlockOutput | StreamingExecution>
 
   executeWithNode?: (
     ctx: ExecutionContext,
     block: SerializedBlock,
     inputs: Record<string, any>,
-    nodeMetadata: {
-      nodeId: string
-      loopId?: string
-      parallelId?: string
-      branchIndex?: number
-      branchTotal?: number
-      originalBlockId?: string
-      isLoopNode?: boolean
-      executionOrder?: number
-    }
+    nodeMetadata: BlockNodeMetadata
   ) => Promise<BlockOutput | StreamingExecution>
 }
 

@@ -413,7 +413,8 @@ export function createBedrockStreamingToolLoopStream(
                 const { toolParams, executionParams } = prepareToolExecution(
                   tool,
                   toolArgs,
-                  request
+                  request,
+                  toolUse.toolUseId
                 )
                 const { rawResponse, modelResponse } = await executeProviderTool(
                   toolName,
