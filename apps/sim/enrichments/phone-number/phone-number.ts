@@ -1,12 +1,7 @@
 import { Phone } from '@sim/emcn/icons'
-import { filterUndefined, isRecordLike } from '@sim/utils/object'
-import {
-  firstNonEmpty,
-  normalizeDomain,
-  projectEnrichmentProviderFailure,
-  str,
-  toolProvider,
-} from '@/enrichments/providers'
+import { filterUndefined } from '@sim/utils/object'
+import { projectProspeoEnrichmentFailure } from '@/enrichments/provider-failures/prospeo'
+import { firstNonEmpty, normalizeDomain, str, toolProvider } from '@/enrichments/providers'
 import type { EnrichmentConfig } from '@/enrichments/types'
 
 /**
@@ -109,16 +104,7 @@ export const phoneNumberEnrichment: EnrichmentConfig = {
           enrich_mobile: true,
         })
       },
-      projectFailure: (failure) => {
-        if (
-          isRecordLike(failure.output) &&
-          isRecordLike(failure.output.data) &&
-          failure.output.data.error_code === 'NO_MATCH'
-        ) {
-          return { status: 'no_match' }
-        }
-        return projectEnrichmentProviderFailure(failure)
-      },
+      projectFailure: projectProspeoEnrichmentFailure,
       mapOutput: (output) => {
         const person = output.person as Record<string, unknown> | undefined
         const mobile = person?.mobile as Record<string, unknown> | undefined
