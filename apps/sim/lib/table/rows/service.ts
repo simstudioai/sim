@@ -1317,6 +1317,10 @@ export async function fetchRowsBounded(params: BoundedFetchParams): Promise<Boun
   const rows: Array<typeof userTableRows.$inferSelect> = []
   let bytes = 0
   let maxRowBytes = 0
+  // What each consumed row cost to FETCH, as stored. With a projection the
+  // response bytes above can be tiny while the SELECT still returns whole rows,
+  // so batch sizing must be bounded by this, not by the projected average.
+  let storedBytes = 0
   let hasMore = false
   let anchor = params.seek
   let anchorOffset = params.startOffset
@@ -1332,7 +1336,16 @@ export async function fetchRowsBounded(params: BoundedFetchParams): Promise<Boun
     const remaining = Math.max(1, cutBytes === undefined ? budgetBytes : cutBytes - bytes)
     const byAverage = Math.ceil(remaining / avg) + 1
     const varianceCap = Math.ceil((8 * remaining) / Math.max(maxRowBytes, 1))
-    return Math.max(1, Math.min(byAverage, TABLE_LIMITS.QUERY_BATCH_MAX_ROWS, varianceCap))
+    // A batch may hold about one budget's worth of rows AS STORED, whatever the
+    // projection keeps — without this a narrow selection over wide rows would
+    // size the next batch from a few projected bytes and ask for thousands of
+    // full rows. Unprojected, stored and projected bytes agree, so this is the
+    // budget-sized batch the drain already takes.
+    const fetchCap = Math.ceil(budgetBytes / Math.max(1, storedBytes / rows.length))
+    return Math.max(
+      1,
+      Math.min(byAverage, TABLE_LIMITS.QUERY_BATCH_MAX_ROWS, varianceCap, fetchCap)
+    )
   }
 
   const runBatch = (batchSeek: TableRowsCursor | undefined, batchOffset: number, ask: number) => {
@@ -1382,6 +1395,9 @@ export async function fetchRowsBounded(params: BoundedFetchParams): Promise<Boun
         ? { ...fetchedRow, data: projectRowData(fetchedRow.data as RowData, columnIds) }
         : fetchedRow
       const rowBytes = Buffer.byteLength(JSON.stringify(row.data))
+      const rowStoredBytes = columnIds
+        ? Buffer.byteLength(JSON.stringify(fetchedRow.data))
+        : rowBytes
       if (cutBytes !== undefined && rows.length > 0 && bytes + rowBytes > cutBytes) {
         // Unbounded queries promise the ENTIRE result — a partial page would be
         // silent truncation, so fail fast instead (the drain has only fetched
@@ -1406,6 +1422,7 @@ export async function fetchRowsBounded(params: BoundedFetchParams): Promise<Boun
       }
       rows.push(row)
       bytes += rowBytes
+      storedBytes += rowStoredBytes
       consumedSinceAnchor++
       if (rowBytes > maxRowBytes) maxRowBytes = rowBytes
       if (keysetValid && row.orderKey) {

@@ -11,6 +11,7 @@ const { fetched } = vi.hoisted(() => ({
       { id: 'col_b', label: 'Name' },
     ] as { id: string; label: string }[],
     isLoadingOptions: false,
+    hasLoadedOptions: true,
     fetchError: null as string | null,
   },
 }))
@@ -48,6 +49,7 @@ vi.mock(
       fetchedOptions: fetched.options,
       isDynamic: true,
       isLoadingOptions: fetched.isLoadingOptions,
+      hasLoadedOptions: fetched.hasLoadedOptions,
       fetchError: fetched.fetchError,
       hydratedOption: null,
       missingOptionId: null,
@@ -115,14 +117,28 @@ describe('Dropdown multi-select stale selections', () => {
     expect(html).toContain('Email [selected]')
   })
 
-  it('adds no row for a selection while the list is still loading', () => {
+  it('adds no row for a selection before the list has loaded', () => {
     fetched.isLoadingOptions = true
+    fetched.hasLoadedOptions = false
     try {
       const html = render()
       expect(html).toContain('<span class="truncate">col_gone</span>')
       expect(html).not.toContain('data-value="col_gone"')
     } finally {
       fetched.isLoadingOptions = false
+      fetched.hasLoadedOptions = true
+    }
+  })
+
+  it('still offers removable rows when the loaded list is empty (every column deleted)', () => {
+    const previous = fetched.options
+    fetched.options = []
+    try {
+      const html = render()
+      expect(html).toContain('data-value="col_a"')
+      expect(html).toContain('data-value="col_gone"')
+    } finally {
+      fetched.options = previous
     }
   })
 })

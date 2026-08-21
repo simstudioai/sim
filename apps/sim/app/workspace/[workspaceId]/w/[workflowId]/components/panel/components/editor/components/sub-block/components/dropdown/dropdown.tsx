@@ -159,6 +159,7 @@ export const Dropdown = memo(function Dropdown({
   const {
     fetchedOptions,
     isLoadingOptions,
+    hasLoadedOptions,
     fetchError,
     hydratedOption,
     isDynamic,
@@ -209,7 +210,8 @@ export const Dropdown = memo(function Dropdown({
       const stale = staleSelectionOptions({
         selected: multiValues,
         optionIds: new Set(opts.map((o) => (typeof o === 'string' ? o : o.id))),
-        listLoaded: normalizedFetchedOptions.length > 0 && !isLoadingOptions && fetchError === null,
+        // An empty list from a completed fetch is authoritative too (every column deleted).
+        listLoaded: hasLoadedOptions,
       })
       if (stale.length > 0) opts = [...opts, ...stale]
     }
@@ -221,8 +223,7 @@ export const Dropdown = memo(function Dropdown({
     evaluatedOptions,
     hydratedOption,
     multiValues,
-    isLoadingOptions,
-    fetchError,
+    hasLoadedOptions,
   ])
 
   /**

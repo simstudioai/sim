@@ -4,7 +4,11 @@
 import { describe, expect, it, vi } from 'vitest'
 
 const { source } = vi.hoisted(() => ({
-  source: { rows: [] as Array<{ id: string; data: Record<string, unknown> }> },
+  source: {
+    rows: [] as Array<{ id: string; data: Record<string, unknown> }>,
+    /** Every LIMIT the drain asked for, in order. */
+    asks: [] as number[],
+  },
 }))
 
 /**
@@ -21,6 +25,7 @@ vi.mock('@/lib/table/planner', () => {
       orderBy: () => chain,
       limit: (n: number) => {
         state.limit = n
+        source.asks.push(n)
         return chain
       },
       offset: (n: number) => {
@@ -93,5 +98,27 @@ describe('fetchRowsBounded column projection', () => {
     const result = await drain({ columnIds: new Set(['col_small', 'col_missing']) })
 
     expect(result.rows[0].data).toEqual({ col_small: 'row_1' })
+  })
+
+  it('sizes later batches by the rows as stored, not by the few projected bytes', async () => {
+    // 60 rows of ~200KB: the first batch is capped at 50, so the drain must size a second one.
+    const wide = Array.from({ length: 60 }, (_, index) => ({
+      id: `row_${index}`,
+      data: { col_big: 'x'.repeat(200 * 1024), col_small: `v${index}` },
+    }))
+    const previous = source.rows
+    source.rows = wide
+    source.asks = []
+    try {
+      const result = await drain({ columnIds: new Set(['col_small']) })
+
+      expect(result.rows).toHaveLength(60)
+      // A second batch sized from projected bytes would ask for thousands of full rows;
+      // bounded by stored bytes it asks for about a budget's worth (5MB / 200KB ≈ 26) + 1.
+      expect(source.asks.length).toBeGreaterThan(1)
+      expect(Math.max(...source.asks.slice(1))).toBeLessThanOrEqual(27)
+    } finally {
+      source.rows = previous
+    }
   })
 })
