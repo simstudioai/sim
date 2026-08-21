@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Sim API v2 — Workspace Resources",
-    "description": "Version 2 of the Sim REST API for workspace metadata, members, MCP servers, skills, custom tools, credentials, and write-only secrets.",
+    "description": "Version 2 of the Sim REST API for workspace metadata, members, MCP servers, skills, custom tools, credentials, write-only secrets, chat deployments, and the block, tool, connector-type, and enrichment catalogs.",
     "version": "2.0.0",
     "contact": {
       "name": "Sim Support",
@@ -2578,7 +2578,7 @@
       "get": {
         "operationId": "listSecrets",
         "summary": "List Secrets",
-        "description": "List workspace and caller-owned personal secret metadata with opaque cursor pagination. Only names, scope, role, and timestamps are returned; secret values are never returned. A workspace API key is rejected with `403`; use a personal API key.",
+        "description": "List workspace and caller-owned personal secret metadata with opaque cursor pagination. Only names, scope, description, role, and timestamps are returned; secret values are never returned. A workspace API key is rejected with `403`; use a personal API key.",
         "tags": ["Secrets"],
         "parameters": [
           {

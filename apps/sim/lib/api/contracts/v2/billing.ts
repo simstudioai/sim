@@ -34,12 +34,15 @@ export const v2BillingStatusQuerySchema = z
   .object({
     /**
      * Resolve status against one workspace's payer. A workspace-scoped API key
-     * is always pinned to its own workspace; passing a different id returns 403.
+     * is always pinned to its own workspace; passing a different id is concealed
+     * as `404 Workspace not found`, indistinguishable from an id that does not
+     * exist — the cross-tenant concealment every v2 resource read applies, not a
+     * 403.
      */
     workspaceId: workspaceIdSchema
       .optional()
       .describe(
-        'Workspace whose payer should be resolved. Workspace API keys are pinned to their own workspace.'
+        'Workspace whose payer should be resolved. A workspace API key is pinned to its own workspace: any other id answers `404 Workspace not found`, which is also what an id that does not exist answers.'
       ),
   })
   .strict()

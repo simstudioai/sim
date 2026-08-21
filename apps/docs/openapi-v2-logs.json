@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Sim API v2 — Logs",
-    "description": "Version 2 of the Sim REST API for listing workflow execution logs and retrieving complete diagnostic run snapshots.",
+    "description": "Version 2 of the Sim REST API for workflow execution logs: listing runs, searching them with sortable filters, retrieving complete diagnostic run snapshots, and reading bucketed execution statistics.",
     "version": "2.0.0",
     "contact": {
       "name": "Sim Support",
@@ -168,12 +168,12 @@
             "name": "details",
             "in": "query",
             "required": false,
-            "description": "Response detail level. `full` adds the `workflow` summary to every item. `includeTraceSpans=true` and `includeFinalOutput=true` each imply `full`, so either one adds `workflow` even when `details=basic` is sent explicitly.",
+            "description": "Response detail level. `full` adds the `workflow` summary to every workflow run; a job run never carries one, whatever this is set to. `includeTraceSpans=true` and `includeFinalOutput=true` each imply `full`, so either one adds `workflow` even when `details=basic` is sent explicitly.",
             "schema": {
               "default": "basic",
               "type": "string",
               "enum": ["basic", "full"],
-              "description": "Response detail level. `full` adds the `workflow` summary to every item. `includeTraceSpans=true` and `includeFinalOutput=true` each imply `full`, so either one adds `workflow` even when `details=basic` is sent explicitly."
+              "description": "Response detail level. `full` adds the `workflow` summary to every workflow run; a job run never carries one, whatever this is set to. `includeTraceSpans=true` and `includeFinalOutput=true` each imply `full`, so either one adds `workflow` even when `details=basic` is sent explicitly."
             }
           },
           {
@@ -279,10 +279,10 @@
             "name": "folderPaths",
             "in": "query",
             "required": false,
-            "description": "Comma-separated workflow folder paths to include. A path that names no folder narrows the result to nothing, so the response is an empty page rather than an error.",
+            "description": "Comma-separated workflow folder paths to include. A path covers its whole subtree, so `/prod` also selects runs in `/prod/nested`. A path that names no folder narrows the result to nothing, so the response is an empty page rather than an error.",
             "schema": {
               "type": "string",
-              "description": "Comma-separated workflow folder paths to include. A path that names no folder narrows the result to nothing, so the response is an empty page rather than an error."
+              "description": "Comma-separated workflow folder paths to include. A path covers its whole subtree, so `/prod` also selects runs in `/prod/nested`. A path that names no folder narrows the result to nothing, so the response is an empty page rather than an error."
             }
           }
         ],
@@ -339,7 +339,7 @@
       "get": {
         "operationId": "getLog",
         "summary": "Get Log",
-        "description": "Retrieve the diagnostic representation of a run, including its workflow snapshot, trace spans, final output, and cost. Trace spans are pruned on their own retention schedule, so an empty `traceSpans` array does not mean the run recorded none. A workspace folder tree over 10,000 folders is a `413`.",
+        "description": "Retrieve the diagnostic representation of a run, including its workflow snapshot, trace spans, final output, and cost. Trace spans are pruned on their own retention schedule, so an empty `traceSpans` array does not mean the run recorded none. A workspace folder tree over 10,000 folders is a `413`. Runs are hard-deleted once they pass the payer's log retention window, so an older run is simply absent rather than reported as removed. The window is 30 days from run start on the free plan, unbounded on Pro and Team, and set per organization on Enterprise with an optional per-workspace override.",
         "tags": ["Logs"],
         "parameters": [
           {

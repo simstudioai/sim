@@ -461,7 +461,7 @@ export const v2ListLogsQuerySchema = v1ListLogsQuerySchema
     details: z
       .enum(['basic', 'full'])
       .describe(
-        'Response detail level. `full` adds the `workflow` summary to every item. `includeTraceSpans=true` and `includeFinalOutput=true` each imply `full`, so either one adds `workflow` even when `details=basic` is sent explicitly.'
+        'Response detail level. `full` adds the `workflow` summary to every workflow run; a job run never carries one, whatever this is set to. `includeTraceSpans=true` and `includeFinalOutput=true` each imply `full`, so either one adds `workflow` even when `details=basic` is sent explicitly.'
       )
       .optional()
       .default('basic'),
@@ -498,7 +498,9 @@ export const v2ListLogsQuerySchema = v1ListLogsQuerySchema
     order: v2RunOrderSchema('execution'),
     folderPaths: z
       .string()
-      .describe(`Comma-separated workflow folder paths to include. ${V2_FOLDER_FILTER_MISS}`)
+      .describe(
+        `Comma-separated workflow folder paths to include. A path covers its whole subtree, so \`/prod\` also selects runs in \`/prod/nested\`. ${V2_FOLDER_FILTER_MISS}`
+      )
       .optional()
       .transform((value, ctx) => {
         if (value === undefined) return undefined

@@ -10671,7 +10671,7 @@ export const V2_OPERATIONS = {
       workspaceId: {
         kind: 'string',
         describe:
-          'Workspace whose payer should be resolved. Workspace API keys are pinned to their own workspace.',
+          'Workspace whose payer should be resolved. A workspace API key is pinned to its own workspace: any other id answers `404 Workspace not found`, which is also what an id that does not exist answers.',
       },
     },
   },
@@ -12054,7 +12054,7 @@ export const V2_OPERATIONS = {
         values: ['basic', 'full'] as const,
         default: 'basic',
         describe:
-          'Response detail level. `full` adds the `workflow` summary to every item. `includeTraceSpans=true` and `includeFinalOutput=true` each imply `full`, so either one adds `workflow` even when `details=basic` is sent explicitly.',
+          'Response detail level. `full` adds the `workflow` summary to every workflow run; a job run never carries one, whatever this is set to. `includeTraceSpans=true` and `includeFinalOutput=true` each imply `full`, so either one adds `workflow` even when `details=basic` is sent explicitly.',
       },
       includeTraceSpans: {
         kind: 'boolean',
@@ -12103,7 +12103,7 @@ export const V2_OPERATIONS = {
       folderPaths: {
         kind: 'string',
         describe:
-          'Comma-separated workflow folder paths to include. A path that names no folder narrows the result to nothing, so the response is an empty page rather than an error.',
+          'Comma-separated workflow folder paths to include. A path covers its whole subtree, so `/prod` also selects runs in `/prod/nested`. A path that names no folder narrows the result to nothing, so the response is an empty page rather than an error.',
       },
     },
   },

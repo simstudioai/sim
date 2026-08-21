@@ -43,9 +43,9 @@
             "name": "workspaceId",
             "in": "query",
             "required": false,
-            "description": "Workspace whose payer should be resolved. Workspace API keys are pinned to their own workspace.",
+            "description": "Workspace whose payer should be resolved. A workspace API key is pinned to its own workspace: any other id answers `404 Workspace not found`, which is also what an id that does not exist answers.",
             "schema": {
-              "description": "Workspace whose payer should be resolved. Workspace API keys are pinned to their own workspace.",
+              "description": "Workspace whose payer should be resolved. A workspace API key is pinned to its own workspace: any other id answers `404 Workspace not found`, which is also what an id that does not exist answers.",
               "type": "string",
               "minLength": 1,
               "maxLength": 128

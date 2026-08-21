@@ -849,7 +849,7 @@ const declaredRoutes = [
       summary: 'Complete Document Upload',
       description:
         'Verify a direct upload or assemble multipart parts, create the knowledge document, and queue asynchronous processing.',
-      errors: [...WORKSPACE_ERRORS, 'UsageLimitExceeded', 'NotFound', 'Conflict'],
+      errors: [...WORKSPACE_ERRORS, 'NotFound', 'Conflict'],
       success: { description: 'The completed upload and queued document.' },
     }),
     {

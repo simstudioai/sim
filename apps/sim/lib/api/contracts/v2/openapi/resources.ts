@@ -1347,7 +1347,7 @@ const declaredRoutes = [
     resourceOperation('Secrets', {
       operationId: 'listSecrets',
       summary: 'List Secrets',
-      description: `List workspace and caller-owned personal secret metadata with opaque cursor pagination. Only names, scope, role, and timestamps are returned; secret values are never returned. ${WORKSPACE_API_KEY_DENIED}`,
+      description: `List workspace and caller-owned personal secret metadata with opaque cursor pagination. Only names, scope, description, role, and timestamps are returned; secret values are never returned. ${WORKSPACE_API_KEY_DENIED}`,
       errors: RESOURCE_ERRORS,
       success: { description: 'Secret metadata visible to the caller.' },
     }),
@@ -1867,7 +1867,7 @@ export const resourcesOpenApiDocument = defineOpenApiDocument({
   info: {
     title: 'Sim API v2 — Workspace Resources',
     description:
-      'Version 2 of the Sim REST API for workspace metadata, members, MCP servers, skills, custom tools, credentials, and write-only secrets.',
+      'Version 2 of the Sim REST API for workspace metadata, members, MCP servers, skills, custom tools, credentials, write-only secrets, chat deployments, and the block, tool, connector-type, and enrichment catalogs.',
     version: '2.0.0',
     contact: {
       name: 'Sim Support',

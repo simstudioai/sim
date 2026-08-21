@@ -203,7 +203,7 @@ const declaredRoutes = [
     logsOperation({
       operationId: 'getLog',
       summary: 'Get Log',
-      description: `Retrieve the diagnostic representation of a run, including its workflow snapshot, trace spans, final output, and cost. Trace spans are pruned on their own retention schedule, so an empty \`traceSpans\` array does not mean the run recorded none. ${FOLDER_TREE_TOO_LARGE}`,
+      description: `Retrieve the diagnostic representation of a run, including its workflow snapshot, trace spans, final output, and cost. Trace spans are pruned on their own retention schedule, so an empty \`traceSpans\` array does not mean the run recorded none. ${FOLDER_TREE_TOO_LARGE} ${RUN_RETENTION}`,
       errors: [...RESOURCE_ERRORS, 'PayloadTooLarge'],
       success: { description: 'The requested diagnostic log representation.' },
     }),
@@ -292,7 +292,7 @@ export const logsOpenApiDocument = defineOpenApiDocument({
   info: {
     title: 'Sim API v2 — Logs',
     description:
-      'Version 2 of the Sim REST API for listing workflow execution logs and retrieving complete diagnostic run snapshots.',
+      'Version 2 of the Sim REST API for workflow execution logs: listing runs, searching them with sortable filters, retrieving complete diagnostic run snapshots, and reading bucketed execution statistics.',
     version: '2.0.0',
     contact: {
       name: 'Sim Support',

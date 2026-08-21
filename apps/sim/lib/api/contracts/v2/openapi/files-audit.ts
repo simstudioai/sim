@@ -826,8 +826,9 @@ const declaredRoutes = [
     filesOperation({
       operationId: 'bulkDeleteFiles',
       summary: 'Delete Files',
-      description: 'Delete up to 1,000 workspace files in one operation.',
-      errors: [...RESOURCE_CONFLICT_ERRORS, 'PayloadTooLarge'],
+      description:
+        'Delete up to 1,000 workspace files in one operation. This is the same soft delete as \`DELETE /api/v2/files/{fileId}\`: files are archived, not erased, and \`POST /api/v2/files/{fileId}/restore\` reverses each one.',
+      errors: [...RESOURCE_ERRORS, 'PayloadTooLarge'],
       success: { description: 'Count of deleted files.' },
     }),
     {

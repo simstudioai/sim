@@ -227,7 +227,8 @@ const declaredRoutes = [
     tableOperation({
       operationId: 'deleteTable',
       summary: 'Delete Table',
-      description: 'Delete a table and return an explicit deletion acknowledgement.',
+      description:
+        'Archive a table and return an explicit deletion acknowledgement. The table is soft-deleted, not erased: its rows are retained and `POST /api/v2/tables/{tableId}/restore` brings it back.',
       errors: TABLE_MUTATION_ERRORS,
       success: { description: 'Table deletion acknowledgement.' },
     }),
@@ -257,7 +258,7 @@ const declaredRoutes = [
     tableOperation({
       operationId: 'updateTable',
       summary: 'Update Table',
-      description: `Rename a table, edit its description, or move it to a canonical folder. At least one mutable field is required; lock flags remain read-only.\n\nNOT atomic: name, description, and folder are written independently, so a 4xx does not mean nothing changed. The error body carries \`details.applied\` naming the fields that landed — retry with only the ones missing from it.\n\n${FOLDER_TREE_TOO_LARGE}`,
+      description: `Rename a table, edit its description, or move it to a canonical folder. At least one mutable field is required; lock flags remain read-only.\n\nNOT atomic: name, description, and folder are written independently, so a 4xx does not mean nothing changed. When at least one field landed before the failure the error body carries \`details.applied\` naming those fields — retry with only the ones missing from it. Its absence means nothing was applied.\n\n${FOLDER_TREE_TOO_LARGE}`,
       errors: [...RESOURCE_CONFLICT_ERRORS, 'PayloadTooLarge'],
       success: { description: 'The updated table.' },
     }),
