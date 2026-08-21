@@ -403,14 +403,14 @@ export async function dispatcherStep(
   const table = await getTableById(dispatch.tableId)
   if (!table) {
     logger.warn(`[${dispatchId}] table ${dispatch.tableId} missing — completing dispatch`)
-    await markDispatchComplete(dispatchId)
+    await completeDispatchIfActive(dispatchId)
     return 'done'
   }
 
   const allGroups = table.schema.workflowGroups ?? []
   const targetGroups = allGroups.filter((g) => dispatch.scope.groupIds.includes(g.id))
   if (targetGroups.length === 0) {
-    await markDispatchComplete(dispatchId)
+    await completeDispatchIfActive(dispatchId)
     return 'done'
   }
 
@@ -445,7 +445,7 @@ export async function dispatcherStep(
      * outcome is the worse half of a fix: the row correctly stays `cancelled`,
      * while this step goes on to announce `dispatching`, stamp cells and enqueue
      * a window for it — and an empty window would then call the unguarded
-     * `markDispatchComplete` and overwrite `cancelled` with `complete`.
+     * completion path and overwrite `cancelled` with `complete`.
      */
     if (claimed.length === 0) {
       logger.info(`[${dispatchId}] dispatch was cancelled before this step claimed it`)
@@ -771,13 +771,6 @@ async function advanceCursor(dispatchId: string, newCursor: number): Promise<voi
   await db
     .update(tableRunDispatches)
     .set({ cursor: newCursor, heartbeatAt: new Date() })
-    .where(eq(tableRunDispatches.id, dispatchId))
-}
-
-export async function markDispatchComplete(dispatchId: string): Promise<void> {
-  await db
-    .update(tableRunDispatches)
-    .set({ status: 'complete', completedAt: new Date() })
     .where(eq(tableRunDispatches.id, dispatchId))
 }
 

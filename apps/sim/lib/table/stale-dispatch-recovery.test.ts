@@ -271,6 +271,36 @@ describe('completeDispatch cancellation safety', () => {
    * chunk — route through `completeDispatch`, so guarding it once covers every
    * one of them and this test is what holds that guard in place.
    */
+  /**
+   * The pre-claim exits await the table lookup, so a cancel can land in that
+   * window too — the reasoning that they run "before the claim, where forcing a
+   * terminal state is the intent" was wrong, since a dispatch cancelled mid-look
+   * up has not completed its scope either.
+   */
+  it('guards the completion taken when the table has gone missing', async () => {
+    mockGetTableById.mockResolvedValue(null)
+    dbChainMockFns.limit.mockResolvedValue([{ ...ABANDONED_ROW, status: 'dispatching' }])
+
+    await dispatcherStep('tdsp_1').catch(() => {})
+
+    const completeIndex = dbChainMockFns.set.mock.calls.findIndex(
+      (call) => (call[0] as Record<string, unknown> | undefined)?.status === 'complete'
+    )
+    expect(completeIndex).toBeGreaterThanOrEqual(0)
+
+    /**
+     * Matched by content, since `set` and `where` are separate spies: only a
+     * guarded completion carries this row's id AND its status together.
+     */
+    const guarded = dbChainMockFns.where.mock.calls
+      .map(([condition]) => collectChunks(condition))
+      .find(
+        (chunks) =>
+          chunks.includes('tableRunDispatches.id') && chunks.includes('tableRunDispatches.status')
+      )
+    expect(guarded).toBeDefined()
+  })
+
   it('emits no completion event when the dispatch is no longer active', async () => {
     dbChainMockFns.limit.mockResolvedValue([
       { ...ABANDONED_ROW, status: 'dispatching', limit: { type: 'rows', max: 1 } },
