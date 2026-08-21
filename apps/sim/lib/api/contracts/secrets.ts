@@ -43,6 +43,62 @@ export const getSecretUsageContract = defineRouteContract({
   },
 })
 
+/** Ceilings on one scan's payload, matching the caps the scanner reports `truncated` against. */
+const SECRET_REFERENCE_MAX_WORKFLOWS = 2000
+const SECRET_REFERENCE_MAX_BLOCKS = 2000
+const SECRET_REFERENCE_MAX_RESOURCES = 400
+
+export const secretReferencesQuerySchema = z.object({
+  workspaceId: z.string().min(1, 'workspaceId is required'),
+  name: z.string().min(1, 'Secret name is required'),
+  /** Selects the authorization check, not the scan — a `{{KEY}}` reference names no scope. */
+  scope: secretUsageScopeSchema,
+})
+
+export const secretReferenceBlockSchema = z.object({
+  blockId: z.string().min(1, 'blockId cannot be empty'),
+  blockName: z.string(),
+  blockType: z.string().min(1, 'blockType cannot be empty'),
+  /** A sub-block key carrying the reference — one per block, not necessarily the only one. */
+  field: z.string().min(1, 'field cannot be empty'),
+})
+
+export const secretReferenceWorkflowSchema = z.object({
+  workflowId: z.string().min(1, 'workflowId cannot be empty'),
+  workflowName: z.string(),
+  blocks: z
+    .array(secretReferenceBlockSchema)
+    .min(1, 'A referencing workflow must name at least one block')
+    .max(SECRET_REFERENCE_MAX_BLOCKS),
+})
+
+export const secretReferenceResourceSchema = z.object({
+  id: z.string().min(1, 'resource id cannot be empty'),
+  kind: z.enum(['custom-tool', 'mcp-server']),
+  name: z.string(),
+  /** Where inside the resource the reference lives — `code`, `url`, or `header: X`. */
+  field: z.string().min(1, 'field cannot be empty'),
+})
+
+export const getSecretReferencesContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/secrets/references',
+  query: secretReferencesQuerySchema,
+  response: {
+    mode: 'json',
+    schema: z.object({
+      workflows: z.array(secretReferenceWorkflowSchema).max(SECRET_REFERENCE_MAX_WORKFLOWS),
+      resources: z.array(secretReferenceResourceSchema).max(SECRET_REFERENCE_MAX_RESOURCES),
+      /** True when a scan cap was hit, so the lists are a prefix rather than the whole set. */
+      truncated: z.boolean(),
+    }),
+  },
+})
+
 export type SecretUsageScope = z.output<typeof secretUsageScopeSchema>
 export type SecretUsageQuery = z.input<typeof secretUsageQuerySchema>
 export type SecretUsageEntryPayload = z.output<typeof secretUsageEntrySchema>
+export type SecretReferencesQuery = z.input<typeof secretReferencesQuerySchema>
+export type SecretReferenceWorkflowPayload = z.output<typeof secretReferenceWorkflowSchema>
+export type SecretReferenceBlockPayload = z.output<typeof secretReferenceBlockSchema>
+export type SecretReferenceResourcePayload = z.output<typeof secretReferenceResourceSchema>

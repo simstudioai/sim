@@ -33,4 +33,13 @@ export const workspaceCredentialKeys = {
       scope ?? 'all',
       name ?? '',
     ] as const,
+  /** Keyed like {@link usage} — references are found by name, so the credential id is not the key. */
+  references: (workspaceId?: string, name?: string, scope?: string) =>
+    [
+      ...workspaceCredentialKeys.all,
+      'references',
+      workspaceId ?? 'none',
+      scope ?? 'all',
+      name ?? '',
+    ] as const,
 }

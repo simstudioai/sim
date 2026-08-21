@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Chip, ChipCopyInput, ChipLink, ChipTextarea } from '@sim/emcn'
+import { Chip, ChipCopyInput, ChipLink, ChipModalTabs, ChipTextarea } from '@sim/emcn'
 import { ArrowLeft, Clock, Key, Send } from '@sim/emcn/icons'
 import { useQueryState } from 'nuqs'
 import { SaveDiscardChips } from '@/components/settings/save-discard-actions'
@@ -20,10 +20,13 @@ import {
 import { SecretValueField } from '@/app/workspace/[workspaceId]/settings/components/secrets/components/secret-value-field'
 import { useSecretValue } from '@/app/workspace/[workspaceId]/settings/components/secrets/hooks/use-secret-value'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
+import { SecretReferencesPanel } from '@/app/workspace/[workspaceId]/settings/secrets/[credentialId]/components/secret-references-panel'
 import { SecretUsagePanel } from '@/app/workspace/[workspaceId]/settings/secrets/[credentialId]/components/secret-usage-panel'
 import {
   secretDetailViewParam,
   secretDetailViewUrlKeys,
+  secretUsageTabParam,
+  secretUsageTabUrlKeys,
 } from '@/app/workspace/[workspaceId]/settings/secrets/[credentialId]/search-params'
 import { useWorkspaceCredential } from '@/hooks/queries/credentials'
 
@@ -31,6 +34,18 @@ interface SecretDetailProps {
   workspaceId: string
   credentialId: string
 }
+
+type SecretUsageTab = 'references' | 'logs'
+
+/**
+ * References first: it answers where the key is wired in, which is what a rotation starts from,
+ * and it has an answer even for a secret nothing has run yet. Logs still opens by default, since
+ * that is what "See usage" showed before this tab existed.
+ */
+const SECRET_USAGE_TABS = [
+  { value: 'references', label: 'References' },
+  { value: 'logs', label: 'Logs' },
+] as const
 
 export function SecretDetail({ workspaceId, credentialId }: SecretDetailProps) {
   const secretsHref = `/workspace/${workspaceId}/settings/secrets`
@@ -43,6 +58,10 @@ export function SecretDetail({ workspaceId, credentialId }: SecretDetailProps) {
   const [view, setView] = useQueryState(secretDetailViewParam.key, {
     ...secretDetailViewParam.parser,
     ...secretDetailViewUrlKeys,
+  })
+  const [usageTab, setUsageTab] = useQueryState(secretUsageTabParam.key, {
+    ...secretUsageTabParam.parser,
+    ...secretUsageTabUrlKeys,
   })
 
   const valueField = useSecretValue({ workspaceId, credential })
@@ -160,13 +179,22 @@ export function SecretDetail({ workspaceId, credentialId }: SecretDetailProps) {
    * Usage is a destination reached from the header, the same shape as the Forks tab's
    * "See activity" — it replaces the secret rather than expanding inside it, so the two
    * readings never compete for the same column. Back returns with `replace`, since opening
-   * already pushed.
+   * already pushed, and clears the tab in the same batched write so no `?usage-tab=` lingers
+   * on the secret's own URL.
    */
   if (canViewUsage && view === 'usage') {
+    const secretName = credential.envKey || ''
+    const scope = isPersonal ? 'personal' : 'workspace'
     return (
       <CredentialDetailLayout
         back={
-          <Chip leftIcon={ArrowLeft} onClick={() => void setView(null, { history: 'replace' })}>
+          <Chip
+            leftIcon={ArrowLeft}
+            onClick={() => {
+              void setView(null, { history: 'replace' })
+              void setUsageTab(null, { history: 'replace' })
+            }}
+          >
             {credential.envKey || credential.displayName}
           </Chip>
         }
@@ -176,11 +204,17 @@ export function SecretDetail({ workspaceId, credentialId }: SecretDetailProps) {
           title='Usage'
           subtitle={credential.envKey || credential.displayName}
         />
-        <SecretUsagePanel
-          workspaceId={workspaceId}
-          secretName={credential.envKey || ''}
-          scope={isPersonal ? 'personal' : 'workspace'}
+        <ChipModalTabs
+          tabs={SECRET_USAGE_TABS}
+          value={usageTab}
+          onChange={(value) => void setUsageTab(value as SecretUsageTab)}
+          aria-label='Secret usage views'
         />
+        {usageTab === 'references' ? (
+          <SecretReferencesPanel workspaceId={workspaceId} secretName={secretName} scope={scope} />
+        ) : (
+          <SecretUsagePanel workspaceId={workspaceId} secretName={secretName} scope={scope} />
+        )}
       </CredentialDetailLayout>
     )
   }

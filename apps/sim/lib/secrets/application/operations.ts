@@ -31,6 +31,17 @@ export const secretOperations = {
     workspaceApiKey: 'deny',
     principalKinds: HUMAN_API_PRINCIPAL_KINDS,
   }),
+  /**
+   * Reading where a secret is wired in names workflows, blocks, and the tools and servers that
+   * carry it — the same shape of disclosure as {@link usage}, so it takes the same floor and
+   * the same narrowing in the use case.
+   */
+  references: defineWorkspaceOperation({
+    id: 'secrets.references',
+    minimumRole: 'read',
+    workspaceApiKey: 'deny',
+    principalKinds: HUMAN_API_PRINCIPAL_KINDS,
+  }),
 } as const
 
 export type SecretOperation = (typeof secretOperations)[keyof typeof secretOperations]

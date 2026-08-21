@@ -8,6 +8,7 @@ import {
   createCredentialDraftContract,
   createWorkspaceCredentialContract,
   deleteWorkspaceCredentialContract,
+  getSecretReferencesContract,
   getSecretUsageContract,
   getWorkspaceCredentialContract,
   listWorkspaceCredentialMembersContract,
@@ -333,5 +334,33 @@ export function useSecretUsage({ workspaceId, name, scope }: SecretUsageParams, 
       }),
     enabled: Boolean(workspaceId && name && scope) && enabled,
     staleTime: SECRET_USAGE_STALE_TIME,
+  })
+}
+
+/**
+ * References only move when someone edits a workflow, a custom tool, or an MCP server — far
+ * less often than the usage trail, which every run appends to. A longer window keeps the scan
+ * (which reads every candidate block in the workspace) off the wire on tab switches.
+ */
+export const SECRET_REFERENCES_STALE_TIME = 5 * 60 * 1000
+
+/** Reads where one secret is wired in. Only credential admins are authorized server-side. */
+export function useSecretReferences(
+  { workspaceId, name, scope }: SecretUsageParams,
+  enabled = true
+) {
+  return useQuery({
+    queryKey: workspaceCredentialKeys.references(workspaceId, name, scope),
+    queryFn: ({ signal }) =>
+      requestJson(getSecretReferencesContract, {
+        query: {
+          workspaceId: workspaceId as string,
+          name: name as string,
+          scope: scope as SecretUsageScope,
+        },
+        signal,
+      }),
+    enabled: Boolean(workspaceId && name && scope) && enabled,
+    staleTime: SECRET_REFERENCES_STALE_TIME,
   })
 }

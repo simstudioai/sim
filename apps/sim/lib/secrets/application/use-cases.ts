@@ -19,6 +19,7 @@ import {
   setWorkspaceSecret,
 } from '@/lib/credentials/secret-values'
 import { secretOperations } from '@/lib/secrets/application/operations'
+import { scanSecretReferences } from '@/lib/secrets/references/scan'
 import { getSecretUsage } from '@/lib/secrets/usage/queries'
 import { loadActiveWorkspaceContext } from '@/lib/uploads/contexts/workspace'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
@@ -365,15 +366,19 @@ export interface ListSecretUsageInput {
 }
 
 /**
- * Gates the usage trail behind the same permission that reveals the value.
+ * Gates a secret's trails — its usage log and its reference list — behind the same permission
+ * that reveals the value.
  *
- * The trail names workflows, people, and run ids. Someone who may use a secret but not read
- * it has no claim on that, and letting a Member enumerate who else uses a key would hand back
- * a slice of exactly what the value masking withholds. Workspace secrets therefore require
+ * The usage trail names workflows, people, and run ids; the reference list names workflows,
+ * blocks, and the tools and servers that carry the key. Someone who may use a secret but not
+ * read it has no claim on either, and letting a Member enumerate who else uses a key would hand
+ * back a slice of exactly what the value masking withholds. Workspace secrets therefore require
  * workspace-admin or credential-admin on that key — the same predicate
  * `maskWorkspaceEnvForViewer` applies — while a personal secret is only ever the caller's own.
+ *
+ * One predicate for both reads, so the two views can never disagree about who may see what.
  */
-async function requireSecretUsageReadAccess(params: {
+async function requireSecretTrailReadAccess(params: {
   workspaceId: string
   name: string
   scope: SecretScope
@@ -405,7 +410,7 @@ export const listSecretUsageUseCase = defineAuthorizedWorkspaceUseCase({
   authorizationOptions,
   async execute({ principal, input, context }) {
     const userId = principalUserId(principal)
-    await requireSecretUsageReadAccess({
+    await requireSecretTrailReadAccess({
       workspaceId: context.workspaceId,
       name: input.name,
       scope: input.scope,
@@ -425,5 +430,34 @@ export const listSecretUsageUseCase = defineAuthorizedWorkspaceUseCase({
       secretOwnerUserId: input.scope === 'personal' ? userId : '',
       limit: input.limit,
     })
+  },
+})
+
+export interface ListSecretReferencesInput {
+  workspaceId: string
+  name: string
+  scope: SecretScope
+}
+
+export const listSecretReferencesUseCase = defineAuthorizedWorkspaceUseCase({
+  operation: secretOperations.references,
+  resolveContext: ({ input }: { input: ListSecretReferencesInput }) =>
+    resolveWorkspaceContext(input.workspaceId),
+  authorizationOptions,
+  async execute({ principal, input, context }) {
+    await requireSecretTrailReadAccess({
+      workspaceId: context.workspaceId,
+      name: input.name,
+      scope: input.scope,
+      userId: principalUserId(principal),
+    })
+
+    /**
+     * `scope` gates the read above but does not narrow it: a `{{KEY}}` in a workflow names a
+     * key, not a scope, so the same reference sites answer for a workspace secret and for the
+     * personal one it shadows. Narrowing by scope here would report a personal secret as
+     * unreferenced the moment a workspace variable of the same name existed.
+     */
+    return scanSecretReferences({ workspaceId: context.workspaceId, name: input.name })
   },
 })
