@@ -46,7 +46,7 @@ vi.mock('@/lib/webhooks/processor', () => ({
   processPolledWebhookEvent: mockProcessPolledWebhookEvent,
 }))
 
-import type { WorkflowExecutionLog } from '@/lib/logs/types'
+import type { TraceSpan, WorkflowExecutionLog } from '@/lib/logs/types'
 import {
   emitExecutionCompletedEvent,
   emitWorkflowDeployedEvent,
@@ -110,6 +110,45 @@ function makeLog(overrides: Partial<WorkflowExecutionLog> = {}): WorkflowExecuti
     createdAt: '2026-06-09T00:00:01.000Z',
     ...overrides,
   }
+}
+
+function makeAgentTrace(toolStatus: 'success' | 'error'): TraceSpan[] {
+  const toolSpan: TraceSpan = {
+    id: 'agent-1-segment-1',
+    name: 'always_fail',
+    type: 'tool',
+    duration: 12361,
+    startTime: '2026-08-14T00:08:49.018Z',
+    endTime: '2026-08-14T00:09:01.379Z',
+    status: toolStatus,
+    toolCallId: 'tool-call-1',
+    ...(toolStatus === 'error'
+      ? { errorHandled: true, errorMessage: 'Intentional test tool failure' }
+      : {}),
+  }
+  const agentSpan: TraceSpan = {
+    id: 'agent-1-span',
+    blockId: 'agent-1',
+    name: 'Agent',
+    type: 'agent',
+    duration: 15984,
+    startTime: '2026-08-14T00:08:46.273Z',
+    endTime: '2026-08-14T00:09:02.257Z',
+    status: 'success',
+    children: [toolSpan],
+  }
+  return [
+    {
+      id: 'workflow-execution',
+      name: 'Workflow Execution',
+      type: 'workflow',
+      duration: 15992,
+      startTime: '2026-08-14T00:08:46.265Z',
+      endTime: '2026-08-14T00:09:02.257Z',
+      status: 'success',
+      children: [agentSpan],
+    },
+  ]
 }
 
 describe('emitExecutionCompletedEvent', () => {
@@ -187,6 +226,58 @@ describe('emitExecutionCompletedEvent', () => {
       event: 'execution_success',
       runId: 'exec-1',
     })
+  })
+
+  it('fires one agent_tool_error event alongside execution_success for a recovered failure', async () => {
+    const toolErrorSub = makeSubscription(makeConfig({ eventType: 'agent_tool_error' }), {
+      subscriberWorkflowId: 'wf-tool-error-sub',
+    })
+    const successSub = makeSubscription(makeConfig({ eventType: 'execution_success' }), {
+      subscriberWorkflowId: 'wf-success-sub',
+    })
+    mockFetchSubscriptions.mockResolvedValueOnce([toolErrorSub, successSub])
+
+    await emitExecutionCompletedEvent(
+      makeLog({
+        level: 'info',
+        executionData: {
+          finalOutput: { content: 'I recovered from the tool failure.' },
+          traceSpans: makeAgentTrace('error'),
+        },
+      })
+    )
+
+    expect(mockProcessPolledWebhookEvent).toHaveBeenCalledTimes(2)
+    expect(mockProcessPolledWebhookEvent.mock.calls[0][2]).toMatchObject({
+      event: 'agent_tool_error',
+      workflowId: 'wf-source',
+      workflowName: 'Source Workflow',
+      runId: 'exec-1',
+      toolError: {
+        agentBlockId: 'agent-1',
+        agentBlockName: 'Agent',
+        toolName: 'always_fail',
+        toolCallId: 'tool-call-1',
+        errorMessage: 'Intentional test tool failure',
+        durationMs: 12361,
+        recovered: true,
+      },
+    })
+    expect(mockProcessPolledWebhookEvent.mock.calls[1][2]).toMatchObject({
+      event: 'execution_success',
+      runId: 'exec-1',
+    })
+  })
+
+  it('does not fire agent_tool_error when every Agent tool call succeeded', async () => {
+    const toolErrorSub = makeSubscription(makeConfig({ eventType: 'agent_tool_error' }))
+    mockFetchSubscriptions.mockResolvedValueOnce([toolErrorSub])
+
+    await emitExecutionCompletedEvent(
+      makeLog({ executionData: { traceSpans: makeAgentTrace('success') } })
+    )
+
+    expect(mockProcessPolledWebhookEvent).not.toHaveBeenCalled()
   })
 
   it('respects the workflow scope filter, ignoring stale workflow ids', async () => {

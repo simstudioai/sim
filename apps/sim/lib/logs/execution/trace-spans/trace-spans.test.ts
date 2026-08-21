@@ -341,10 +341,27 @@ describe('buildTraceSpans', () => {
     expect(toolCall.output).toEqual({ analysis: 'completed' })
   })
 
-  it.concurrent('handles tool calls with errors in timeSegments', () => {
+  it.concurrent.each([
+    {
+      toolResult: {
+        error: true,
+        message: 'Tool execution failed',
+        tool: 'custom_failing_tool',
+      },
+      expectedMessage: 'Tool execution failed',
+    },
+    {
+      toolResult: {
+        success: false,
+        error: 'MCP server connection failed',
+      },
+      expectedMessage: 'MCP server connection failed',
+    },
+  ])('handles tool calls with errors in timeSegments', ({ toolResult, expectedMessage }) => {
     const mockExecutionResult: ExecutionResult = {
       success: true,
       output: { content: 'Final output' },
+      metadata: { duration: 3000, startTime: '2024-01-01T10:00:00.000Z' },
       logs: [
         {
           blockId: 'agent-4',
@@ -391,7 +408,7 @@ describe('buildTraceSpans', () => {
                 {
                   name: 'failing_tool',
                   arguments: { input: 'test' },
-                  error: 'Tool execution failed',
+                  result: toolResult,
                   duration: 1000,
                   startTime: '2024-01-01T10:00:01.000Z',
                   endTime: '2024-01-01T10:00:02.000Z',
@@ -407,7 +424,10 @@ describe('buildTraceSpans', () => {
     const { traceSpans } = buildTraceSpans(mockExecutionResult)
 
     expect(traceSpans).toHaveLength(1)
-    const agentSpan = traceSpans[0]
+    const workflowSpan = traceSpans[0]
+    expect(workflowSpan.status).toBe('success')
+    const agentSpan = workflowSpan.children![0]
+    expect(agentSpan.status).toBe('success')
     expect(agentSpan.children).toBeDefined()
     expect(agentSpan.children).toHaveLength(3)
 
@@ -416,8 +436,10 @@ describe('buildTraceSpans', () => {
     expect(toolSegment.name).toBe('failing_tool')
     expect(toolSegment.type).toBe('tool')
     expect(toolSegment.status).toBe('error')
+    expect(toolSegment.errorHandled).toBe(true)
+    expect(toolSegment.errorMessage).toBe(expectedMessage)
     expect(toolSegment.input).toEqual({ input: 'test' })
-    expect(toolSegment.output).toEqual({ error: 'Tool execution failed' })
+    expect(toolSegment.output).toEqual(toolResult)
   })
 
   it.concurrent('handles blocks without tool calls', () => {

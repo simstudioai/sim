@@ -16,6 +16,7 @@ export const SIM_WORKSPACE_EVENT_TRIGGER_ID = 'sim_workspace_event'
 export const SIM_PLAIN_EVENT_TYPES = [
   'execution_success',
   'execution_error',
+  'agent_tool_error',
   'workflow_deployed',
   'workflow_undeployed',
 ] as const
@@ -89,7 +90,10 @@ interface SimEventPayloadField {
   /** Restricts which event types surface this field in the tag dropdown. */
   condition?: SimEventPayloadFieldCondition
   /** Nested fields for json outputs, surfaced as dotted paths in the tag dropdown. */
-  properties?: Record<string, { type: 'string' | 'number' | 'json'; description: string }>
+  properties?: Record<
+    string,
+    { type: 'string' | 'number' | 'json' | 'boolean'; description: string }
+  >
 }
 
 /** Run summary fields shared by top-level plain events and the nested triggeringRun. */
@@ -140,7 +144,10 @@ export const SIM_EVENT_PAYLOAD_FIELDS = {
   },
   runId: {
     ...RUN_SUMMARY_FIELDS.runId,
-    condition: { field: 'eventType', value: [...SIM_PLAIN_RUN_EVENT_TYPES] },
+    condition: {
+      field: 'eventType',
+      value: [...SIM_PLAIN_RUN_EVENT_TYPES, 'agent_tool_error'],
+    },
   },
   durationMs: {
     ...RUN_SUMMARY_FIELDS.durationMs,
@@ -159,6 +166,41 @@ export const SIM_EVENT_PAYLOAD_FIELDS = {
     description: 'The run that tripped this condition',
     condition: { field: 'eventType', value: [...SIM_RUN_BACKED_RULE_EVENT_TYPES] },
     properties: RUN_SUMMARY_FIELDS,
+  },
+  toolError: {
+    type: 'json',
+    description: 'The failed Agent tool invocation',
+    condition: { field: 'eventType', value: 'agent_tool_error' },
+    properties: {
+      agentBlockId: {
+        type: 'string',
+        description: 'The Agent block ID',
+      },
+      agentBlockName: {
+        type: 'string',
+        description: 'The Agent block name',
+      },
+      toolName: {
+        type: 'string',
+        description: 'The failed tool name',
+      },
+      toolCallId: {
+        type: 'string',
+        description: 'The provider tool call ID, when available',
+      },
+      errorMessage: {
+        type: 'string',
+        description: 'The bounded tool failure message',
+      },
+      durationMs: {
+        type: 'number',
+        description: 'Tool invocation duration in milliseconds',
+      },
+      recovered: {
+        type: 'boolean',
+        description: 'Whether the Agent completed successfully after the failure',
+      },
+    },
   },
   version: {
     type: 'number',

@@ -718,7 +718,8 @@ const TraceDetailPane = memo(function TraceDetailPane({ span }: { span: TraceSpa
   if (span.iterationIndex !== undefined)
     metaEntries.push({ label: 'Iteration', value: String(span.iterationIndex + 1) })
 
-  const statusLabel = hasError ? 'Error' : 'Success'
+  const statusLabel =
+    isDirectError && span.errorHandled ? 'Handled error' : hasError ? 'Error' : 'Success'
 
   return (
     <div className='flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-3.5 pt-3 pb-4'>

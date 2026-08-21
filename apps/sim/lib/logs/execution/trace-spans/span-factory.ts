@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { isRecordLike } from '@sim/utils/object'
+import { truncate } from '@sim/utils/string'
 import type { ProviderTiming, TraceSpan } from '@/lib/logs/types'
 import {
   isConditionBlockType,
@@ -14,6 +15,7 @@ import type {
 } from '@/executor/types'
 
 const logger = createLogger('SpanFactory')
+const TOOL_CALL_ERROR_MAX_LENGTH = 4096
 
 /** A BlockLog that has already passed the id/type validity check. */
 type ValidBlockLog = BlockLog & { blockType: string }
@@ -22,6 +24,49 @@ type ValidBlockLog = BlockLog & { blockType: string }
 function normalizeTraceOutput(value: unknown): Record<string, unknown> | undefined {
   if (value === undefined) return undefined
   return isRecordLike(value) ? value : { value }
+}
+
+function nonEmptyString(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim().length > 0 ? value : undefined
+}
+
+/**
+ * Returns the canonical error message for a failed agent tool call.
+ *
+ * Providers expose failures through several normalized shapes. A nested
+ * `success: false` is explicit; the generic nested fallback requires Sim's
+ * complete error envelope so successful tool data with an `error` field is
+ * not misclassified.
+ */
+function getToolCallErrorMessage(
+  toolCall: BlockToolCall | undefined,
+  segmentErrorMessage?: string
+): string | undefined {
+  const rawResult = toolCall?.result ?? toolCall?.output
+  const result = isRecordLike(rawResult) ? rawResult : undefined
+  const topLevelError = nonEmptyString(toolCall?.error)
+  const segmentError = nonEmptyString(segmentErrorMessage)
+  const hasExplicitFailure =
+    toolCall?.success === false ||
+    toolCall?.status === 'error' ||
+    result?.success === false ||
+    topLevelError !== undefined ||
+    segmentError !== undefined
+  const hasStandardSimError =
+    result?.error === true &&
+    nonEmptyString(result.message) !== undefined &&
+    nonEmptyString(result.tool) !== undefined
+
+  if (!hasExplicitFailure && !hasStandardSimError) return undefined
+
+  const nestedMessage = nonEmptyString(result?.message) ?? nonEmptyString(result?.error)
+  const message =
+    topLevelError ??
+    segmentError ??
+    nestedMessage ??
+    `Tool ${toolCall?.name || 'call'} execution failed`
+
+  return truncate(message, TOOL_CALL_ERROR_MAX_LENGTH)
 }
 
 /**
@@ -212,6 +257,10 @@ function buildChildrenFromTimeSegments(
       const match = callsForName[currentIndex]
       toolCallIndices.set(normalizedName, currentIndex + 1)
       const output = normalizeTraceOutput(match?.result ?? match?.output)
+      const errorMessage = getToolCallErrorMessage(match, segment.errorMessage)
+      const errorHandled = Boolean(
+        errorMessage && span.type === 'agent' && span.status === 'success'
+      )
 
       const toolChild: TraceSpan = {
         id: `${span.id}-segment-${index}`,
@@ -220,13 +269,14 @@ function buildChildrenFromTimeSegments(
         duration: segment.duration,
         startTime: segmentStartTime,
         endTime: segmentEndTime,
-        status: match?.error || segment.errorMessage ? 'error' : 'success',
+        status: errorMessage ? 'error' : 'success',
         input: match?.arguments ?? match?.input,
         output: match?.error ? { error: match.error, ...output } : output,
+        ...(errorHandled && { errorHandled: true }),
       }
       if (segment.toolCallId) toolChild.toolCallId = segment.toolCallId
       if (segment.errorType) toolChild.errorType = segment.errorType
-      if (segment.errorMessage) toolChild.errorMessage = segment.errorMessage
+      if (errorMessage) toolChild.errorMessage = errorMessage
       return toolChild
     }
 
@@ -290,6 +340,8 @@ function buildChildrenFromToolCalls(span: TraceSpan, log: ValidBlockLog): TraceS
     const startTime = tc.startTime ?? log.startedAt
     const endTime = tc.endTime ?? log.endedAt
     const output = normalizeTraceOutput(tc.result ?? tc.output)
+    const errorMessage = getToolCallErrorMessage(tc)
+    const errorHandled = Boolean(errorMessage && span.type === 'agent' && span.status === 'success')
     return {
       id: `${span.id}-tool-${index}`,
       name: stripCustomToolPrefix(tc.name ?? 'unnamed-tool'),
@@ -297,9 +349,11 @@ function buildChildrenFromToolCalls(span: TraceSpan, log: ValidBlockLog): TraceS
       duration: tc.duration ?? 0,
       startTime,
       endTime,
-      status: tc.error ? 'error' : 'success',
+      status: errorMessage ? 'error' : 'success',
       input: tc.arguments ?? tc.input,
       output: tc.error ? { error: tc.error, ...output } : output,
+      ...(errorMessage && { errorMessage }),
+      ...(errorHandled && { errorHandled: true }),
     }
   })
 }
