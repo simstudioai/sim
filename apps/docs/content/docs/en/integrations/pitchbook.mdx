@@ -427,8 +427,6 @@ Retrieve the industry classification, verticals, keywords, and emerging spaces a
 |   ↳ `description` | string | Vertical label |
 | `keywords` | array | Keywords associated with the company |
 | `emergingSpaces` | array | Analyst-defined emerging spaces the company is placed in |
-|   ↳ `code` | string | Emerging space code |
-|   ↳ `description` | string | Emerging space label |
 
 ### PitchBook Company Investors
 
@@ -1840,8 +1838,14 @@ Retrieve what an investor targets: check size, deal size, valuation, revenue, ge
 |   ↳ `code` | string | Preference code |
 |   ↳ `description` | string | Preference label |
 | `preferredIndustry` | array | Industries the investor targets |
-|   ↳ `code` | string | Industry code |
-|   ↳ `description` | string | Industry label |
+|   ↳ `industryCode` | json | Most specific industry classification |
+|   ↳ `industrySector` | object | Top-level sector |
+|     ↳ `code` | string | Sector code |
+|     ↳ `description` | string | Sector label |
+|   ↳ `industryGroup` | object | Industry group within the sector |
+|     ↳ `code` | string | Group code |
+|     ↳ `description` | string | Group label |
+|   ↳ `primary` | boolean | Whether this is the primary industry |
 | `preferredDealTypes` | array | Deal types the investor targets |
 |   ↳ `code` | string | Deal type code |
 |   ↳ `description` | string | Deal type label |

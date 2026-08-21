@@ -425,6 +425,26 @@ const ERROR_EXTRACTORS: ErrorExtractorConfig[] = [
     },
   },
   {
+    id: 'pitchbook-errors',
+    description:
+      'PitchBook Public API error envelope: {reason, message}. An unauthorized response echoes the rejected key back inside `message` ("Active API key {KEY} not found"), so that case is replaced with a fixed string — the generic message fallback would otherwise put the credential in the block error, the run log, and any agent context reading the failure. Returns undefined unless the body carries a `message`, so that on the generic fallback chain — which every tool without an `errorExtractor` walks — a foreign 401 is never labelled a PitchBook auth failure',
+    examples: ['PitchBook'],
+    extract: (errorInfo) => {
+      const data = errorInfo?.data
+      if (!data || typeof data !== 'object' || Array.isArray(data)) return undefined
+
+      const reason = typeof data.reason === 'string' ? data.reason.trim() : ''
+      const message = typeof data.message === 'string' ? data.message.trim() : ''
+      if (!message) return undefined
+
+      if (errorInfo?.status === 401 || reason === 'UNAUTHORIZED') {
+        return 'PitchBook rejected the API key. Check that the key is active and has API access.'
+      }
+
+      return reason ? `${message} (${reason})` : message
+    },
+  },
+  {
     id: 'splunk-errors',
     description:
       'Splunk REST message envelope: {messages: [{type, text}]}. Under the output_mode=json every Splunk request pins, this is where a rejected SPL string explains itself — without it the failure reports only the HTTP status text',
@@ -533,6 +553,7 @@ export const ErrorExtractorId = {
   POSTHOG_ERRORS: 'posthog-errors',
   PROSPEO_ERRORS: 'prospeo-errors',
   CRUNCHBASE_ERRORS: 'crunchbase-errors',
+  PITCHBOOK_ERRORS: 'pitchbook-errors',
   SPLUNK_ERRORS: 'splunk-errors',
   PLAIN_TEXT_DATA: 'plain-text-data',
   HTTP_STATUS_TEXT: 'http-status-text',

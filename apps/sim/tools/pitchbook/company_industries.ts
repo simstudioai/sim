@@ -1,3 +1,4 @@
+import { ErrorExtractorId } from '@/tools/error-extractors'
 import type { PitchbookProfileParams, PitchbookResponse } from '@/tools/pitchbook/types'
 import { PITCHBOOK_API_BASE, pitchbookAuthHeaders, throwIfNotOk } from '@/tools/pitchbook/utils'
 import type { ToolConfig } from '@/tools/types'
@@ -9,6 +10,7 @@ export const pitchbookCompanyIndustriesTool: ToolConfig<PitchbookProfileParams, 
     description:
       'Retrieve the industry classification, verticals, keywords, and emerging spaces assigned to a company',
     version: '1.0.0',
+    errorExtractor: ErrorExtractorId.PITCHBOOK_ERRORS,
 
     params: {
       apiKey: {
@@ -107,16 +109,15 @@ export const pitchbookCompanyIndustriesTool: ToolConfig<PitchbookProfileParams, 
         description: 'Keywords associated with the company',
         items: { type: 'string', description: 'Keyword' },
       },
+      /**
+       * The recorded sample is an empty array and PitchBook does not publish the
+       * entry shape anywhere in the collection, so the items stay opaque rather
+       * than borrowing the sibling `verticals` shape.
+       */
       emergingSpaces: {
         type: 'array',
         description: 'Analyst-defined emerging spaces the company is placed in',
-        items: {
-          type: 'object',
-          properties: {
-            code: { type: 'string', description: 'Emerging space code' },
-            description: { type: 'string', description: 'Emerging space label' },
-          },
-        },
+        items: { type: 'json' },
       },
     },
   }

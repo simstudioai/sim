@@ -1,3 +1,4 @@
+import { ErrorExtractorId } from '@/tools/error-extractors'
 import type { PitchbookProfileParams, PitchbookResponse } from '@/tools/pitchbook/types'
 import { PITCHBOOK_API_BASE, pitchbookAuthHeaders, throwIfNotOk } from '@/tools/pitchbook/utils'
 import type { ToolConfig } from '@/tools/types'
@@ -9,6 +10,7 @@ export const pitchbookCompanyFinancialsTool: ToolConfig<PitchbookProfileParams, 
     description:
       'Retrieve reported financials for a private company across every available fiscal period. Annual data is returned by default.',
     version: '1.0.0',
+    errorExtractor: ErrorExtractorId.PITCHBOOK_ERRORS,
 
     params: {
       apiKey: {
