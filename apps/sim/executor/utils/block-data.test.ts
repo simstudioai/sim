@@ -24,7 +24,10 @@ function triggerBlock(type: string, params: Record<string, unknown> = {}): Seria
   } as unknown as SerializedBlock
 }
 
-function resolve(pathParts: string[], schema: ReturnType<typeof getBlockSchema>) {
+function resolve(
+  pathParts: string[],
+  schema: ReturnType<typeof getBlockSchema>
+): ReturnType<typeof resolveBlockReference> {
   return resolveBlockReference(
     'webhook1',
     pathParts,
