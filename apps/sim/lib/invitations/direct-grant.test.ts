@@ -203,6 +203,28 @@ describe('grantWorkspaceAccessDirectly', () => {
     ).rejects.toThrow('Provider unavailable')
   })
 
+  it('rejects malformed durable notification payloads instead of dropping fields', async () => {
+    await expect(
+      directGrantOutboxHandlers[DIRECT_GRANT_EMAIL_EVENT_TYPE](
+        {
+          email: 'member@example.com',
+          inviterName: 'Owner',
+          workspaceId: 'ws-1',
+        },
+        {
+          eventId: 'email-1',
+          eventType: DIRECT_GRANT_EMAIL_EVENT_TYPE,
+          attempts: 0,
+          maxAttempts: 10,
+          signal: new AbortController().signal,
+          checkpointPayload: vi.fn(),
+        }
+      )
+    ).rejects.toThrow('Invalid workspace-added email payload')
+
+    expect(mockSendWorkspaceAddedEmail).not.toHaveBeenCalled()
+  })
+
   it('preserves an actor-less platform admin in audit instead of substituting the owner', async () => {
     await grantWorkspaceAccessDirectly({
       ...baseInput,

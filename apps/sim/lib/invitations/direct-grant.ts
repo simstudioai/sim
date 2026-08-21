@@ -10,6 +10,7 @@ import {
 import { createLogger } from '@sim/logger'
 import { permissionSatisfies } from '@sim/platform-authz/workspace'
 import { generateId } from '@sim/utils/id'
+import { isRecordLike } from '@sim/utils/object'
 import { normalizeEmail } from '@sim/utils/string'
 import { and, eq, sql } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
@@ -371,7 +372,22 @@ export async function grantWorkspaceAccessDirectly(
   return result
 }
 
-const sendDirectGrantEmail: OutboxHandler<DirectGrantEmailPayload> = async (payload) => {
+const sendDirectGrantEmail: OutboxHandler = async (rawPayload) => {
+  if (
+    !isRecordLike(rawPayload) ||
+    typeof rawPayload.email !== 'string' ||
+    typeof rawPayload.inviterName !== 'string' ||
+    typeof rawPayload.workspaceId !== 'string' ||
+    typeof rawPayload.workspaceName !== 'string'
+  ) {
+    throw new Error('Invalid workspace-added email payload')
+  }
+  const payload: DirectGrantEmailPayload = {
+    email: rawPayload.email,
+    inviterName: rawPayload.inviterName,
+    workspaceId: rawPayload.workspaceId,
+    workspaceName: rawPayload.workspaceName,
+  }
   const result = await sendWorkspaceAddedEmail({
     email: payload.email,
     inviterName: payload.inviterName,

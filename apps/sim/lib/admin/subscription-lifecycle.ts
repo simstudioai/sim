@@ -416,16 +416,17 @@ export async function refundDashboardSubscriptionPayment({
   const stripe = requireStripeClient()
   const existingRefunds = await stripe.refunds.list({ charge: chargeId, limit: 100 })
   const existingRefund = existingRefunds.data.find(
-    (refund) => refund.metadata.simAdminOperationId === operationId
+    (refund) => refund.metadata?.simAdminOperationId === operationId
   )
   if (existingRefund) {
-    const subscriptionId = existingRefund.metadata.simSubscriptionId
+    const metadata = existingRefund.metadata ?? {}
+    const subscriptionId = metadata.simSubscriptionId
     if (
       existingRefund.amount !== amountCents ||
-      existingRefund.metadata.organizationId !== organizationId ||
+      metadata.organizationId !== organizationId ||
       !subscriptionId ||
       existingRefund.reason !== reason ||
-      (existingRefund.metadata.adminNote ?? null) !== (note ?? null)
+      (metadata.adminNote ?? null) !== (note ?? null)
     ) {
       throw new Error('Refund operation ID was already used with different parameters')
     }

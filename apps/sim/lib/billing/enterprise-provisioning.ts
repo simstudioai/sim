@@ -2142,7 +2142,9 @@ export async function retryEnterpriseFollowUpJob(
   if (
     !snapshot ||
     !snapshotDetail ||
-    getEnterpriseFollowUpOperationId(snapshot.eventType, snapshot.payload) !== operationId ||
+    !getEnterpriseFollowUpOperationIds(snapshot.eventType, snapshot.payload).includes(
+      operationId
+    ) ||
     (snapshotDetail.kind === 'member_reconciliation' &&
       snapshotDetail.subjectId !== operationPayload.request.organizationId)
   ) {
@@ -2165,7 +2167,7 @@ export async function retryEnterpriseFollowUpJob(
     if (
       !row ||
       !detail ||
-      getEnterpriseFollowUpOperationId(row.eventType, row.payload) !== operationId ||
+      !getEnterpriseFollowUpOperationIds(row.eventType, row.payload).includes(operationId) ||
       (detail.kind === 'member_reconciliation' &&
         detail.subjectId !== operationPayload.request.organizationId)
     ) {
