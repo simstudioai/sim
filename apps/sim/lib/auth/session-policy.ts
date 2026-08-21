@@ -3,6 +3,7 @@ import type { SessionPolicySettings } from '@sim/db/schema'
 import { organization } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq, sql } from 'drizzle-orm'
+import { LRUCache } from 'lru-cache'
 import { MIN_IDLE_TIMEOUT_HOURS } from '@/lib/api/contracts/organization'
 import { getMemberOrganizationId, invalidateMembershipCache } from '@/lib/auth/security-policy'
 import { isOrganizationFeatureEntitled } from '@/lib/billing/core/subscription'
@@ -20,12 +21,15 @@ export interface ResolvedSessionPolicy {
   idleTimeoutHours: number | null
 }
 
-interface PolicyCacheEntry {
-  policy: ResolvedSessionPolicy
-  fetchedAt: number
-}
-
-const policyCache = new Map<string, PolicyCacheEntry>()
+/**
+ * Read on every session create and refresh, keyed by organization, so an
+ * unbounded `Map` grew for the life of the process. `LRUCache` supplies both
+ * the TTL and a ceiling; `invalidateSessionPolicyCache` still evicts by key.
+ */
+const policyCache = new LRUCache<string, ResolvedSessionPolicy>({
+  max: 1000,
+  ttl: SESSION_POLICY_CACHE_TTL_MS,
+})
 
 const NO_POLICY: ResolvedSessionPolicy = {
   maxSessionHours: null,
@@ -46,9 +50,7 @@ export async function getSessionPolicy(
   if (!organizationId) return NO_POLICY
 
   const cached = policyCache.get(organizationId)
-  if (cached && Date.now() - cached.fetchedAt < SESSION_POLICY_CACHE_TTL_MS) {
-    return cached.policy
-  }
+  if (cached) return cached
 
   try {
     const [row] = await db
@@ -67,7 +69,7 @@ export async function getSessionPolicy(
           idleTimeoutHours: settings.idleTimeoutHours ?? null,
         }
       : NO_POLICY
-    policyCache.set(organizationId, { policy, fetchedAt: Date.now() })
+    policyCache.set(organizationId, policy)
     return policy
   } catch (error) {
     logger.error('Failed to resolve session policy; applying no policy', {
