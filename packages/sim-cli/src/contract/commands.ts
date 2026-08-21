@@ -89,6 +89,9 @@ function moveResource(command: string, resource: string): CommandVariantSpec {
  *   upsertTableRow        → sim tables upsert <tableId>
  */
 export const CLI_CONTRACT: CliContract = {
+  // Hidden in favour of the protocol `sim chat` command, which consumes the
+  // endpoint as an NDJSON stream so the reply prints as it generates.
+  chat: { hidden: true },
   createCredentialConnection: { hidden: true },
   createServiceAccountCredential: { hidden: true },
   getBillingStatus: {

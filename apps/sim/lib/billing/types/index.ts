@@ -32,6 +32,7 @@ export const enterpriseSubscriptionMetadataSchema = z
         )
       }, 'Reporting-period anchor must be a valid UTC date that is not in the future')
       .optional(),
+    reportingPeriodInterval: z.enum(['month', 'year']).optional(),
     concurrencyLimit: z.coerce
       .number()
       .int()
