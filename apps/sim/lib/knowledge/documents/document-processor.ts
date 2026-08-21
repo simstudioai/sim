@@ -289,7 +289,7 @@ async function getMistralApiKey(workspaceId?: string | null): Promise<string | n
   if (workspaceId) {
     const byokResult = await getBYOKKey(workspaceId, 'mistral')
     if (byokResult) {
-      logger.info('Using workspace BYOK key for Mistral OCR')
+      logger.info('Using BYOK key for Mistral OCR', { scope: byokResult.scope })
       return byokResult.apiKey
     }
   }

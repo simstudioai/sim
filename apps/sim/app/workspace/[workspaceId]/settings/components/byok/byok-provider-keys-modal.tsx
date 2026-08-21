@@ -2,6 +2,7 @@
 
 import { Chip, ChipModal, ChipModalBody, ChipModalFooter, ChipModalHeader } from '@sim/emcn'
 import type {
+  BYOKManagerCapabilities,
   BYOKManagerKey,
   BYOKManagerProvider,
 } from '@/app/workspace/[workspaceId]/settings/components/byok/byok-key-manager'
@@ -14,7 +15,7 @@ interface BYOKProviderKeysModalProps {
   keys: BYOKManagerKey[]
   /** Maximum keys allowed per provider; disables adding once reached. */
   maxKeys: number
-  readOnly?: boolean
+  capabilities: BYOKManagerCapabilities
   onAddKey: () => void
   onUpdateKey: (key: BYOKManagerKey) => void
   onDeleteKey: (key: BYOKManagerKey) => void
@@ -32,7 +33,7 @@ export function BYOKProviderKeysModal({
   provider,
   keys,
   maxKeys,
-  readOnly = false,
+  capabilities,
   onAddKey,
   onUpdateKey,
   onDeleteKey,
@@ -59,16 +60,16 @@ export function BYOKProviderKeysModal({
                   {key.maskedKey}
                 </span>
               </div>
-              {!readOnly && (
+              {(capabilities.update || capabilities.delete) && (
                 <div className='flex flex-shrink-0 items-center gap-2'>
-                  <Chip onClick={() => onUpdateKey(key)}>Update</Chip>
-                  <Chip onClick={() => onDeleteKey(key)}>Delete</Chip>
+                  {capabilities.update && <Chip onClick={() => onUpdateKey(key)}>Update</Chip>}
+                  {capabilities.delete && <Chip onClick={() => onDeleteKey(key)}>Delete</Chip>}
                 </div>
               )}
             </div>
           ))}
         </div>
-        {atCapacity && (
+        {capabilities.add && atCapacity && (
           <p className='px-2 text-[var(--text-muted)] text-caption'>
             Key limit reached ({maxKeys} keys per provider).
           </p>
@@ -76,14 +77,17 @@ export function BYOKProviderKeysModal({
       </ChipModalBody>
       <ChipModalFooter
         onCancel={close}
-        hideCancel={readOnly}
+        hideCancel={!capabilities.add}
         primaryAction={
-          readOnly
-            ? { label: 'Close', onClick: close }
-            : {
+          capabilities.add
+            ? {
                 label: 'Add Key',
                 onClick: onAddKey,
                 disabled: atCapacity,
+              }
+            : {
+                label: 'Close',
+                onClick: close,
               }
         }
       />
