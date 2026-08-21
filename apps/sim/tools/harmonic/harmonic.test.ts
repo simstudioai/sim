@@ -230,6 +230,7 @@ describe('Harmonic authentication and registry-facing contracts', () => {
       expect(headers.Authorization).toBeUndefined()
     }
 
+    /** One sample per registered tool: every URL builder interpolates user input. */
     const requestSamples: Array<[ToolConfig, Record<string, unknown>]> = [
       [harmonicSearchPeopleScoutTool, { accessToken: 'team-secret', query: 'find FDEs' }],
       [harmonicListPeopleSavedSearchesTool, { accessToken: 'team-secret' }],
@@ -238,7 +239,35 @@ describe('Harmonic authentication and registry-facing contracts', () => {
         { accessToken: 'team-secret', savedSearchId: 'urn:harmonic:saved_search:1' },
       ],
       [harmonicBatchGetPeopleTool, { accessToken: 'team-secret', personIds: [1] }],
+      [
+        harmonicEnrichPersonTool,
+        { accessToken: 'team-secret', linkedinUrl: 'https://www.linkedin.com/in/ada' },
+      ],
+      [harmonicGetPersonTool, { accessToken: 'team-secret', personId: '123' }],
+      [harmonicGetCompanyEmployeesTool, { accessToken: 'team-secret', companyId: '1' }],
+      [
+        harmonicGetPeopleSavedSearchNetNewResultsTool,
+        { accessToken: 'team-secret', savedSearchId: '5' },
+      ],
+      [
+        harmonicClearPeopleSavedSearchNetNewResultsTool,
+        { accessToken: 'team-secret', savedSearchId: '5', clearScope: 'all' },
+      ],
+      [
+        harmonicSubmitEmailEnrichmentJobTool,
+        { accessToken: 'team-secret', personUrns: ['urn:harmonic:person:1'] },
+      ],
+      [harmonicGetEmailEnrichmentJobTool, { accessToken: 'team-secret', jobId: 'job-1' }],
+      [harmonicGetEmailEnrichmentUsageTool, { accessToken: 'team-secret' }],
+      [
+        harmonicGetEnrichmentStatusTool,
+        { accessToken: 'team-secret', enrichmentUrns: ['urn:harmonic:enrichment:1'] },
+      ],
     ]
+    expect(requestSamples).toHaveLength(allTools.length)
+    expect(new Set(requestSamples.map(([tool]) => tool.id))).toEqual(
+      new Set(allTools.map((tool) => tool.id))
+    )
     for (const [tool, params] of requestSamples) {
       expect(buildUrl(tool, params)).not.toContain('team-secret')
       if (tool.request.body)
@@ -334,6 +363,13 @@ describe('Harmonic authentication and registry-facing contracts', () => {
     expect(
       extractErrorMessage(
         { status: 404, data: { detail: { enrichment_urn: 'urn:harmonic:enrichment:abc' } } },
+        harmonicEnrichPersonTool.errorExtractor
+      )
+    ).toBe('urn:harmonic:enrichment:abc')
+
+    expect(
+      extractErrorMessage(
+        { status: 404, data: { detail: {} } },
         harmonicEnrichPersonTool.errorExtractor
       )
     ).toBe('Request failed with status 404')
@@ -564,7 +600,6 @@ describe('Harmonic people retrieval', () => {
     ['entity_urn', 'urn:harmonic:company:1'],
     ['name', '   '],
     ['creator', 'urn:harmonic:company:1'],
-    ['user_saved_search_type', 'UNKNOWN'],
     ['created_at', 'yesterday'],
     ['created_at', '2026-02-31T12:34:56Z'],
     ['created_at', '2026-01-01T00:00:60Z'],
@@ -577,6 +612,14 @@ describe('Harmonic people retrieval', () => {
     await expect(
       harmonicListPeopleSavedSearchesTool.transformResponse!(jsonResponse([row]))
     ).rejects.toThrow(/saved search/)
+  })
+
+  it('passes an unrecognized user_saved_search_type through instead of failing the list', async () => {
+    const result = await harmonicListPeopleSavedSearchesTool.transformResponse!(
+      jsonResponse([{ ...validPeopleSavedSearch, user_saved_search_type: 'SOMETHING_NEW' }])
+    )
+    expect(result.output.savedSearches).toHaveLength(1)
+    expect(result.output.savedSearches[0].userSavedSearchType).toBe('SOMETHING_NEW')
   })
 
   it.each([
@@ -929,6 +972,15 @@ describe('Harmonic person enrichment', () => {
     }
   })
 
+  it('rejects company context URNs from another entity family', () => {
+    expect(() =>
+      buildUrl(harmonicGetPersonTool, {
+        personId: '123',
+        companyContextUrns: ['urn:harmonic:person:1'],
+      })
+    ).toThrow('"companyContextUrns" must contain only company URNs')
+  })
+
   it('repeats company context URNs as query parameters', () => {
     expect(
       buildUrl(harmonicGetPersonTool, {
@@ -1096,6 +1148,62 @@ describe('Harmonic email enrichment', () => {
         personLinkedinUrls: ['not-a-url'],
       })
     ).toThrow('must contain absolute http(s) URLs')
+  })
+
+  it('deduplicates LinkedIn URLs after canonicalisation so quota is not spent twice', () => {
+    expect(
+      buildBody(harmonicSubmitEmailEnrichmentJobTool, {
+        personLinkedinUrls: [
+          'https://www.linkedin.com/in/ada?utm_source=x',
+          'https://www.linkedin.com/in/ada',
+          'https://www.linkedin.com/in/ada#about',
+        ],
+      })
+    ).toEqual({ person_linkedin_urls: ['https://www.linkedin.com/in/ada'] })
+  })
+
+  it('reports the identifier conflict before complaining about any single URL', () => {
+    expect(() =>
+      buildBody(harmonicSubmitEmailEnrichmentJobTool, {
+        personUrns: ['urn:harmonic:person:1'],
+        personLinkedinUrls: ['not-a-url'],
+      })
+    ).toThrow('accepts person URNs or LinkedIn URLs, not both')
+  })
+
+  it('surfaces the bulk email error codes with their quota counters', () => {
+    expect(
+      extractErrorMessage(
+        {
+          status: 429,
+          data: {
+            error: 'MONTHLY_QUOTA_INSUFFICIENT',
+            needed: 500,
+            available: 20,
+            submitted: 500,
+          },
+        },
+        harmonicSubmitEmailEnrichmentJobTool.errorExtractor
+      )
+    ).toBe('MONTHLY_QUOTA_INSUFFICIENT (needed 500, available 20, submitted 500)')
+
+    expect(
+      extractErrorMessage(
+        { status: 422, data: { error: 'NO_ELIGIBLE_PEOPLE', submitted: 3, dropped: [] } },
+        harmonicSubmitEmailEnrichmentJobTool.errorExtractor
+      )
+    ).toBe('NO_ELIGIBLE_PEOPLE (submitted 3)')
+
+    /**
+     * `extractErrorMessage` with no id walks every extractor in order, so a bare
+     * `error` key here would hijack other providers' envelopes.
+     */
+    expect(
+      extractErrorMessage({
+        status: 400,
+        data: { error: 'invalid_grant', error_description: 'The grant is invalid' },
+      })
+    ).toBe('The grant is invalid')
   })
 
   it('forwards unrecognised profile URLs so Harmonic can drop them per item', () => {
