@@ -357,7 +357,7 @@ edges:
 
       const { eq } = await import('drizzle-orm')
       expect(dbChainMockFns.where).toHaveBeenCalled()
-      expect(eq).toHaveBeenCalledWith('userId', 'user-123')
+      expect(eq).toHaveBeenCalledWith('copilotFeedback.userId', 'user-123')
     })
 
     it('should handle database errors gracefully', async () => {

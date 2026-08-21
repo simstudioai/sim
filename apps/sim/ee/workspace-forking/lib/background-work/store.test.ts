@@ -57,8 +57,8 @@ describe('listSurfacedBackgroundWork', () => {
 
     expect(result.rows).toEqual(rows)
     expect(dbChainMockFns.orderBy).toHaveBeenCalledWith(
-      { type: 'desc', column: 'updatedAt' },
-      { type: 'desc', column: 'id' }
+      { type: 'desc', column: 'backgroundWorkStatus.updatedAt' },
+      { type: 'desc', column: 'backgroundWorkStatus.id' }
     )
     // Over-fetches one row past the default page size to detect another page.
     expect(dbChainMockFns.limit).toHaveBeenCalledWith(51)
@@ -163,7 +163,7 @@ describe('listSurfacedBackgroundWork', () => {
         conditions: [
           expect.objectContaining({
             type: 'lt',
-            left: 'updatedAt',
+            left: 'backgroundWorkStatus.updatedAt',
             right: expectedTimestampFragment,
           }),
           expect.objectContaining({
@@ -171,10 +171,14 @@ describe('listSurfacedBackgroundWork', () => {
             conditions: [
               expect.objectContaining({
                 type: 'eq',
-                left: 'updatedAt',
+                left: 'backgroundWorkStatus.updatedAt',
                 right: expectedTimestampFragment,
               }),
-              expect.objectContaining({ type: 'lt', left: 'id', right: 'job-2' }),
+              expect.objectContaining({
+                type: 'lt',
+                left: 'backgroundWorkStatus.id',
+                right: 'job-2',
+              }),
             ],
           }),
         ],
@@ -194,7 +198,7 @@ describe('listSurfacedBackgroundWork', () => {
     expect((keyset.conditions as MockCondition[])[0]).toEqual(
       expect.objectContaining({
         type: 'lt',
-        left: 'updatedAt',
+        left: 'backgroundWorkStatus.updatedAt',
         right: expect.objectContaining({ values: ['2026-07-01T09:00:00.000Z'] }),
       })
     )
@@ -239,10 +243,10 @@ describe('listSurfacedBackgroundWork', () => {
         conditions: [
           expect.objectContaining({
             type: 'eq',
-            left: 'updatedAt',
+            left: 'backgroundWorkStatus.updatedAt',
             right: expect.objectContaining({ values: [sharedAtCursor] }),
           }),
-          expect.objectContaining({ type: 'lt', left: 'id', right: 'job-b' }),
+          expect.objectContaining({ type: 'lt', left: 'backgroundWorkStatus.id', right: 'job-b' }),
         ],
       })
     )
@@ -299,8 +303,8 @@ describe('listSurfacedBackgroundWork', () => {
     expect(childrenWhere).toEqual({
       type: 'and',
       conditions: [
-        { type: 'eq', left: 'forkedFromWorkspaceId', right: 'ws-1' },
-        { type: 'isNull', column: 'archivedAt' },
+        { type: 'eq', left: 'workspace.forkedFromWorkspaceId', right: 'ws-1' },
+        { type: 'isNull', column: 'workspace.archivedAt' },
       ],
     })
   })
@@ -322,19 +326,23 @@ describe('listSurfacedBackgroundWork', () => {
     ]
     expect(orConditions).toHaveLength(3)
 
-    expect(orConditions[0]).toEqual({ type: 'eq', left: 'workspaceId', right: 'ws-1' })
+    expect(orConditions[0]).toEqual({
+      type: 'eq',
+      left: 'backgroundWorkStatus.workspaceId',
+      right: 'ws-1',
+    })
 
     const childIdClause = orConditions[1]
     expect(childIdClause.strings.join('?')).toContain("->> 'childWorkspaceId' =")
-    expect(childIdClause.values).toEqual(['metadata', 'ws-1'])
+    expect(childIdClause.values).toEqual(['backgroundWorkStatus.metadata', 'ws-1'])
 
     const otherIdClause = orConditions[2]
     expect(otherIdClause.strings.join('?')).toContain("->> 'otherWorkspaceId' =")
-    expect(otherIdClause.values).toEqual(['metadata', 'ws-1'])
+    expect(otherIdClause.values).toEqual(['backgroundWorkStatus.metadata', 'ws-1'])
 
     expect(statuses).toEqual({
       type: 'inArray',
-      column: 'status',
+      column: 'backgroundWorkStatus.status',
       values: ['pending', 'processing', 'completed', 'completed_with_warnings', 'failed'],
     })
   })
@@ -351,8 +359,16 @@ describe('listSurfacedBackgroundWork', () => {
     expect(childKeyedClause).toEqual({
       type: 'and',
       conditions: [
-        { type: 'inArray', column: 'workspaceId', values: ['fork-1', 'fork-2'] },
-        { type: 'inArray', column: 'kind', values: ['fork_sync', 'fork_rollback'] },
+        {
+          type: 'inArray',
+          column: 'backgroundWorkStatus.workspaceId',
+          values: ['fork-1', 'fork-2'],
+        },
+        {
+          type: 'inArray',
+          column: 'backgroundWorkStatus.kind',
+          values: ['fork_sync', 'fork_rollback'],
+        },
       ],
     })
   })

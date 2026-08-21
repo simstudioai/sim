@@ -23,6 +23,8 @@ import {
   inArray,
   isNotNull,
   isNull,
+  ne,
+  or,
   type SQL,
   sql,
 } from 'drizzle-orm'
@@ -66,7 +68,10 @@ import {
   mergeDurableSecretProvenance,
 } from '@/lib/execution/durable-secret-provenance'
 import { processDocument } from '@/lib/knowledge/documents/document-processor'
-import { failStaleDocumentProcessingClaim } from '@/lib/knowledge/documents/processing-claim'
+import {
+  failStaleDocumentProcessingClaim,
+  recordUndispatchedDocumentFailure,
+} from '@/lib/knowledge/documents/processing-claim'
 import { enqueueKnowledgeDocumentProcessing } from '@/lib/knowledge/documents/processing-outbox-event'
 import {
   assertDocumentProcessingBillingContext,
@@ -81,7 +86,11 @@ import {
   buildTagFilterCondition,
   type TagFilterCondition,
 } from '@/lib/knowledge/documents/tag-filter'
-import type { DocumentSortField, SortOrder } from '@/lib/knowledge/documents/types'
+import {
+  type DocumentSortField,
+  QUEUED_DISPATCH_GRACE_MS,
+  type SortOrder,
+} from '@/lib/knowledge/documents/types'
 import { getEmbeddingModelInfo } from '@/lib/knowledge/embedding-models'
 import { generateEmbeddings } from '@/lib/knowledge/embeddings'
 import { runWithKnowledgeModelInputProvenance } from '@/lib/knowledge/model-input-provenance'
@@ -702,7 +711,14 @@ async function resolveDocumentProcessingBillingContext(
 async function markDocumentsQueued(documentIds: string[], queuedAt: Date): Promise<void> {
   await db
     .update(document)
-    .set({ processingQueuedAt: queuedAt, processingStartedAt: null })
+    .set({
+      processingQueuedAt: queuedAt,
+      processingStartedAt: null,
+      // Spent here because this is the one write every dispatch passes through,
+      // and it is already guarded — so the budget cannot be charged twice for a
+      // single dispatch, nor skipped by a caller that dispatches another way.
+      processingAttempts: sql`${document.processingAttempts} + 1`,
+    })
     .where(and(inArray(document.id, documentIds), eq(document.processingStatus, 'pending')))
 }
 
@@ -971,7 +987,16 @@ export async function processDocumentAsync(
           processingError: 'Document or knowledge base no longer exists',
           processingCompletedAt: new Date(),
         })
-        .where(eq(document.id, documentId))
+        // Never overwrite a finished pass, and never resurrect state on a row
+        // that has since been archived or deleted.
+        .where(
+          and(
+            eq(document.id, documentId),
+            ne(document.processingStatus, 'completed'),
+            isNull(document.archivedAt),
+            isNull(document.deletedAt)
+          )
+        )
       return
     }
 
@@ -983,7 +1008,17 @@ export async function processDocumentAsync(
       mimeType: ctx.mimeType,
     }
 
-    await db
+    /**
+     * Claiming is guarded on the document not already being `completed`.
+     *
+     * Without a status predicate this write was reachable for a finished
+     * document — a late or duplicate dispatch would flip `completed` back to
+     * `processing`, discard the pass that had already indexed and billed, and
+     * index it a second time. `pending`, `failed` and `processing` stay
+     * claimable so a Trigger.dev retry of the same run still proceeds; the
+     * commit CAS downstream is what keeps two live workers from both finishing.
+     */
+    const claimed = await db
       .update(document)
       .set({
         processingStatus: 'processing',
@@ -992,8 +1027,21 @@ export async function processDocumentAsync(
         processingError: null,
       })
       .where(
-        and(eq(document.id, documentId), isNull(document.archivedAt), isNull(document.deletedAt))
+        and(
+          eq(document.id, documentId),
+          ne(document.processingStatus, 'completed'),
+          isNull(document.archivedAt),
+          isNull(document.deletedAt)
+        )
       )
+      .returning({ id: document.id })
+
+    if (claimed.length === 0) {
+      logger.info(
+        `[${documentId}] Skipping document processing: already completed, archived, or deleted`
+      )
+      return
+    }
 
     logger.info(`[${documentId}] Status updated to 'processing', starting document processor`)
 
@@ -1267,6 +1315,9 @@ export async function processDocumentAsync(
                 processingStatus: 'completed',
                 processingCompletedAt: now,
                 processingError: null,
+                // A completed pass clears the budget: the next failure starts
+                // from a full allowance rather than inheriting a stale count.
+                processingAttempts: 0,
               })
               .where(
                 and(
@@ -2572,26 +2623,36 @@ export async function retryDocumentProcessing(
   billingAttribution: BillingAttributionSnapshot | undefined
 ): Promise<{ success: boolean; status: string; message: string }> {
   /**
-   * When this requeue was dispatched.
+   * A document may be retried from a terminal state, or from a `pending` state
+   * old enough that its dispatch is certainly lost.
    *
-   * The document sits at `pending` until a worker claims it, and for a
-   * connector-owned document the connector sweep
-   * (`isStuckDocumentSweepEligible`) measures queue wait from
-   * `processingQueuedAt`, falling back to `uploadedAt`. Leaving it unset would
-   * fall the sweep back on `uploadedAt`, which for a document synced days ago
-   * is arbitrarily old — so the next sync would reclaim the document out from
-   * under this very retry, duplicating its work and billing a second indexing
-   * pass.
+   * Unguarded, a double-click issued two full passes: the second reset a
+   * document that the first had already queued, so both dispatches ran, both
+   * indexed, and both billed. A terminal-only guard closes that, but it also
+   * strands a document that never left `pending` — a worker killed before its
+   * claim UPDATE burns an attempt without changing status, and once the
+   * processing-attempt budget is spent the connector sweep drops it too. The row
+   * then matches nothing anywhere.
+   *
+   * The `pending` arm is admitted only past {@link QUEUED_DISPATCH_GRACE_MS},
+   * which is the same grace the connector sweep waits out, so a second click
+   * still lands inside a live dispatch's window and still matches no rows.
+   *
+   * Age is measured from `COALESCE(processingQueuedAt, uploadedAt)`, exactly as
+   * `isStuckDocumentSweepEligible` measures it. `processingQueuedAt` is NULL
+   * only for a document no dispatch has ever stamped, and falling back to
+   * `uploadedAt` — rather than treating NULL as retryable — keeps the grace
+   * window closed for a document created moments ago whose first dispatch is
+   * still in flight.
    */
-  const requeuedAt = new Date()
-  await db.transaction(async (tx) => {
-    await tx.delete(embedding).where(eq(embedding.documentId, documentId))
-
-    await tx
+  const queuedGraceCutoff = new Date(Date.now() - QUEUED_DISPATCH_GRACE_MS)
+  const requeued = await db.transaction(async (tx) => {
+    const reset = await tx
       .update(document)
       .set({
         processingStatus: 'pending',
-        processingQueuedAt: requeuedAt,
+        // `processingQueuedAt` is stamped by `markDocumentsQueued` on the
+        // dispatch below, for this and every other caller.
         processingStartedAt: null,
         processingCompletedAt: null,
         processingError: null,
@@ -2599,24 +2660,77 @@ export async function retryDocumentProcessing(
         tokenCount: 0,
         characterCount: 0,
       })
-      .where(eq(document.id, documentId))
+      .where(
+        and(
+          eq(document.id, documentId),
+          or(
+            inArray(document.processingStatus, ['completed', 'failed']),
+            and(
+              eq(document.processingStatus, 'pending'),
+              sql`COALESCE(${document.processingQueuedAt}, ${document.uploadedAt}) < ${sql.param(queuedGraceCutoff, document.processingQueuedAt)}`
+            )
+          ),
+          isNull(document.archivedAt),
+          isNull(document.deletedAt)
+        )
+      )
+      .returning({ id: document.id })
+
+    // Embeddings are dropped only for a document this call actually claimed,
+    // so a losing double-click cannot wipe the winner's in-flight work.
+    if (reset.length > 0) {
+      await tx.delete(embedding).where(eq(embedding.documentId, documentId))
+    }
+    return reset.length > 0
   })
 
-  await processDocumentsWithQueue(
-    [
-      {
-        documentId,
-        filename: docData.filename,
-        fileUrl: docData.fileUrl,
-        fileSize: docData.fileSize,
-        mimeType: docData.mimeType,
-      },
-    ],
-    knowledgeBaseId,
-    {},
-    requestId,
-    billingAttribution
-  )
+  if (!requeued) {
+    logger.info(`[${requestId}] Document retry skipped, already queued: ${documentId}`)
+    return {
+      success: true,
+      status: 'pending',
+      message: 'Document is already queued for processing',
+    }
+  }
+
+  /**
+   * The reset committed in its own transaction above, so a throwing dispatch
+   * would leave the row at `pending` with nothing queued behind it — and the
+   * grace window means the same click cannot recover it until that window
+   * elapses again.
+   * Recording the failure returns it to `failed`, which is immediately
+   * retryable and visible in the document list with its reason.
+   */
+  try {
+    await processDocumentsWithQueue(
+      [
+        {
+          documentId,
+          filename: docData.filename,
+          fileUrl: docData.fileUrl,
+          fileSize: docData.fileSize,
+          mimeType: docData.mimeType,
+        },
+      ],
+      knowledgeBaseId,
+      {},
+      requestId,
+      billingAttribution
+    )
+  } catch (error) {
+    const failureMessage = getErrorMessage(error, 'Document processing dispatch failed')
+    await recordUndispatchedDocumentFailure({
+      documentId,
+      knowledgeBaseId,
+      failureMessage,
+      requestId,
+    })
+    return {
+      success: false,
+      status: 'failed',
+      message: failureMessage,
+    }
+  }
 
   logger.info(`[${requestId}] Document retry initiated: ${documentId}`)
 

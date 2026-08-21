@@ -2548,6 +2548,17 @@ export const document = pgTable(
     // Processing status
     processingStatus: text('processing_status').notNull().default('pending'), // 'pending', 'processing', 'completed', 'failed'
     /**
+     * Dispatches spent on this document since its last successful pass.
+     *
+     * A bounded retry budget, not a dispatch generation. The stuck-document
+     * sweep re-dispatches a failing document every sync for the whole retry
+     * window, and each dispatch re-parses and re-embeds it — so a document that
+     * fails deterministically was billed once per sync indefinitely. Past the
+     * budget it becomes a dead letter: still visible and still user-retryable,
+     * but no longer swept. Reset to 0 whenever a pass completes.
+     */
+    processingAttempts: integer('processing_attempts').notNull().default(0),
+    /**
      * When indexing was last dispatched to a worker, which is not when a worker
      * picked it up — a document sits at `pending` in between. Recovery sweeps
      * measure queue wait from here; `processingStartedAt` is written only once a
@@ -4329,6 +4340,31 @@ export const knowledgeConnector = pgTable(
     lastSyncDocCount: integer('last_sync_doc_count'),
     nextSyncAt: timestamp('next_sync_at'),
     consecutiveFailures: integer('consecutive_failures').notNull().default(0),
+    /**
+     * Identifies the sync run that currently holds this connector's lock.
+     *
+     * `status = 'syncing'` only says *a* run holds it. After the scheduler
+     * reclaims a stale lock and dispatches a replacement, the original run would
+     * still see `syncing` and overwrite the replacement's state. Terminal writes
+     * match this token so a run can prove the lock is still *its own*.
+     */
+    syncLockToken: text('sync_lock_token'),
+    /**
+     * When the run holding this connector's lock last proved it was alive.
+     *
+     * Split off `updated_at`, which the stale-lock reaper used to read as a
+     * lease. `updated_at` is the row's modification time, so every unrelated
+     * write — a config edit, a status change — renewed the lease of a wedged
+     * run and pushed its recovery out by another full TTL. Only lock
+     * acquisition and the heartbeat write this column; both terminal helpers
+     * clear it alongside `sync_lock_token`.
+     *
+     * NULL on a row locked before this column existed, and on any future writer
+     * that forgets it, so every reader compares `COALESCE(lease, updated_at)`
+     * rather than the lease alone — a `lease <= cutoff` test is NULL-false and
+     * would make such a row permanently unreclaimable.
+     */
+    syncLockLeaseAt: timestamp('sync_lock_lease_at'),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
     archivedAt: timestamp('archived_at'),
@@ -4368,6 +4404,20 @@ export const knowledgeConnectorSyncLog = pgTable(
   },
   (table) => ({
     connectorIdIdx: index('kcsl_connector_id_idx').on(table.connectorId),
+    /**
+     * Serves the scheduler's five-minute sweep for orphaned `started` rows.
+     *
+     * This table is append-only and never pruned, and `connector_id` does not
+     * help a scan that filters on status and age, so the sweep was a sequential
+     * scan of all sync history on every tick. The predicate is partial rather
+     * than a composite `(status, started_at)`: `started` rows are a vanishing
+     * fraction of the table and the only ones the sweep ever reads, so indexing
+     * closed history buys nothing and costs write amplification on every
+     * completion.
+     */
+    startedPartialIdx: index('kcsl_started_at_partial_idx')
+      .on(table.startedAt)
+      .where(sql`${table.status} = 'started'`),
   })
 )
 

@@ -1,7 +1,13 @@
 /**
  * @vitest-environment node
  */
-import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import {
+  dbChainMockFns,
+  hasMockCondition,
+  type MockCondition,
+  resetDbChainMock,
+  schemaMock,
+} from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -134,6 +140,9 @@ describe('knowledge document processing source', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
+    // The processing claim is guarded and returns the row it claimed; without a
+    // stub every worker would read as 'already completed' and return early.
+    dbChainMockFns.returning.mockResolvedValue([{ id: 'document-1' }])
     dbChainMockFns.limit
       .mockResolvedValueOnce([PERSISTED_CONTEXT])
       .mockResolvedValueOnce([PERSISTED_PROVENANCE_ROW])
@@ -235,7 +244,7 @@ describe('knowledge document processing source', () => {
       .mockResolvedValueOnce([{ ...PERSISTED_CONTEXT, processingStatus: 'processing' }])
       .mockResolvedValueOnce([PERSISTED_PROVENANCE_ROW])
       .mockResolvedValueOnce([{ id: 'document-1' }])
-    dbChainMockFns.returning.mockReset().mockResolvedValueOnce([])
+    dbChainMockFns.returning.mockReset().mockResolvedValue([{ id: 'document-1' }])
 
     await processDocumentAsync('knowledge-base-1', 'document-1', {
       filename: 'stale.pdf',
@@ -252,5 +261,134 @@ describe('knowledge document processing source', () => {
         processingStartedAt: expect.any(Date),
       })
     )
+  })
+})
+
+describe('processDocumentAsync write guards', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+    dbChainMockFns.returning.mockResolvedValue([{ id: 'document-1' }])
+    mockCheckActorUsageLimits.mockResolvedValue({ isExceeded: false })
+    mockProcessDocument.mockResolvedValue({
+      chunks: [],
+      metadata: { chunkCount: 0, tokenCount: 0, characterCount: 0 },
+    })
+  })
+
+  /** Asserts the write that set `status` exists, and returns its guard clause. */
+  function guardForStatusWrite(status: string): unknown {
+    expect(
+      dbChainMockFns.set.mock.calls.some(
+        (call) => (call[0] as Record<string, unknown> | undefined)?.processingStatus === status
+      )
+    ).toBe(true)
+
+    // `set` and `where` are separate shared spies, so they cannot be correlated
+    // by index; the guard is identified by its own shape instead.
+    const guard = dbChainMockFns.where.mock.calls.find((call) =>
+      hasMockCondition(
+        call[0],
+        (node: MockCondition) =>
+          node.type === 'ne' &&
+          node.left === schemaMock.document.processingStatus &&
+          node.right === 'completed'
+      )
+    )
+    expect(guard).toBeDefined()
+    return guard?.[0]
+  }
+
+  it('never claims a document whose pass already completed', async () => {
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([PERSISTED_CONTEXT])
+      .mockResolvedValueOnce([PERSISTED_PROVENANCE_ROW])
+      .mockResolvedValueOnce([{ id: 'document-1' }])
+    mockGetFileMetadataByKeys.mockResolvedValue([SOURCE_BINDING])
+    mockGetBoundWorkspaceFileSecretProvenanceByMetadata.mockResolvedValue(
+      new Map([[SOURCE_BINDING.id, { status: 'exact', entries: [] }]])
+    )
+
+    await processDocumentAsync('knowledge-base-1', 'document-1', {
+      filename: 'a.pdf',
+      fileUrl: 'https://example.com/a.pdf',
+      fileSize: 1,
+      mimeType: 'text/plain',
+    })
+
+    /**
+     * Unguarded, a late or duplicate dispatch flipped `completed` back to
+     * `processing`, discarding a pass that had already indexed and billed.
+     */
+    expect(guardForStatusWrite('processing')).toBeDefined()
+  })
+
+  it('does not process or bill a document it failed to claim', async () => {
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([PERSISTED_CONTEXT])
+      .mockResolvedValueOnce([PERSISTED_PROVENANCE_ROW])
+      .mockResolvedValueOnce([{ id: 'document-1' }])
+    // The guarded claim matched no rows: another pass owns this document.
+    dbChainMockFns.returning.mockReset().mockResolvedValue([])
+
+    await processDocumentAsync('knowledge-base-1', 'document-1', {
+      filename: 'a.pdf',
+      fileUrl: 'https://example.com/a.pdf',
+      fileSize: 1,
+      mimeType: 'text/plain',
+    })
+
+    expect(mockProcessDocument).not.toHaveBeenCalled()
+  })
+
+  it('guards the missing-context failure write against a finished pass', async () => {
+    // No context row: the document or its knowledge base is gone.
+    dbChainMockFns.limit.mockResolvedValue([])
+
+    await processDocumentAsync('knowledge-base-1', 'document-1', {
+      filename: 'a.pdf',
+      fileUrl: 'https://example.com/a.pdf',
+      fileSize: 1,
+      mimeType: 'text/plain',
+    })
+
+    const where = guardForStatusWrite('failed')
+    for (const column of [schemaMock.document.archivedAt, schemaMock.document.deletedAt]) {
+      expect(
+        hasMockCondition(
+          where,
+          (node: MockCondition) => node.type === 'isNull' && node.column === column
+        )
+      ).toBe(true)
+    }
+  })
+
+  it('clears the retry budget when a pass completes', async () => {
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([PERSISTED_CONTEXT])
+      .mockResolvedValueOnce([PERSISTED_PROVENANCE_ROW])
+      .mockResolvedValueOnce([{ id: 'document-1' }])
+    mockGetFileMetadataByKeys.mockResolvedValue([SOURCE_BINDING])
+    mockGetBoundWorkspaceFileSecretProvenanceByMetadata.mockResolvedValue(
+      new Map([[SOURCE_BINDING.id, { status: 'exact', entries: [] }]])
+    )
+
+    await processDocumentAsync('knowledge-base-1', 'document-1', {
+      filename: 'a.pdf',
+      fileUrl: 'https://example.com/a.pdf',
+      fileSize: 1,
+      mimeType: 'text/plain',
+    })
+
+    /**
+     * Without the reset a document that failed four times and then succeeded
+     * would carry those attempts forever, so its next single failure would
+     * exhaust the budget and dead-letter a document that is actually healthy.
+     */
+    const completion = dbChainMockFns.set.mock.calls.find(
+      (call) => (call[0] as Record<string, unknown> | undefined)?.processingStatus === 'completed'
+    )
+    expect(completion).toBeDefined()
+    expect((completion?.[0] as Record<string, unknown>).processingAttempts).toBe(0)
   })
 })

@@ -270,7 +270,8 @@ function predicateColumn(node: MockCondition, field: 'left' | 'column'): string 
   const column = node[field]
   if (typeof column !== 'string')
     unsupportedPredicate(`${String(node.type)} with a non-column ${field}`)
-  return column
+  // Schema-mock columns are `table.column`; row fixtures are keyed by field name.
+  return column.slice(column.indexOf('.') + 1)
 }
 
 /**
@@ -445,7 +446,7 @@ describe('executeForkFileBlobCopies target name collisions', () => {
   it('absorbs only a primary-key conflict, so a name conflict can never be mistaken for a replay', async () => {
     await executeForkFileBlobCopies([collidingTask()], 'test')
 
-    expect(dbChainMockFns.onConflictDoNothing).toHaveBeenCalledWith({ target: 'id' })
+    expect(dbChainMockFns.onConflictDoNothing).toHaveBeenCalledWith({ target: 'workspaceFiles.id' })
   })
 
   it('copies a non-colliding file into the mirrored folder unchanged', async () => {
