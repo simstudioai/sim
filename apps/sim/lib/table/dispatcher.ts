@@ -47,6 +47,16 @@ const ACTIVE_DISPATCH_STATUSES = ['pending', 'dispatching'] as const
 /** Concurrent terminal-event writes when the stale sweep reclaims a batch. */
 const STALE_DISPATCH_EVENT_CONCURRENCY = 10
 
+/**
+ * How long past its stale threshold a dispatch may be spared by cell activity
+ * before it is reclaimed anyway. Bounds the one masking case the probe cannot
+ * resolve — two table-wide dispatches sharing a group — which continuous
+ * activity would otherwise hide forever. Far beyond any single window: the
+ * Trigger.dev run ceiling is ninety minutes, and a live dispatch heartbeats
+ * between windows no matter what its cells are doing.
+ */
+const DISPATCH_ABSOLUTE_STALE_MS = 24 * 60 * 60 * 1000
+
 export type DispatchStatus = 'pending' | 'dispatching' | 'complete' | 'cancelled'
 export type DispatchMode = 'all' | 'incomplete' | 'new'
 
@@ -926,11 +936,31 @@ export async function cancelStaleDispatches(
    * when it finishes, and the next sweep after a quiet window reclaims the
    * abandoned row.
    */
+  const abandonedBefore = new Date(staleBefore.getTime() - DISPATCH_ABSOLUTE_STALE_MS)
+  const notBeating = () =>
+    sql`COALESCE(${tableRunDispatches.heartbeatAt}, ${tableRunDispatches.requestedAt}) < ${sql.param(staleBefore, tableRunDispatches.heartbeatAt)}`
+
   const isStale = () =>
     and(
       inArray(tableRunDispatches.status, [...ACTIVE_DISPATCH_STATUSES]),
-      sql`COALESCE(${tableRunDispatches.heartbeatAt}, ${tableRunDispatches.requestedAt}) < ${sql.param(staleBefore, tableRunDispatches.heartbeatAt)}`,
-      sql`NOT ${hasRecentCellActivity(staleBefore)}`
+      notBeating(),
+      /**
+       * Cell activity spares a dispatch, but only up to a ceiling.
+       *
+       * The probe cannot tell whose cells it is looking at when two table-wide
+       * dispatches share a group — `table_row_executions` has no dispatch
+       * column — so an abandoned one is vouched for by its neighbour's work. On
+       * a quiet table that is a delay, since the neighbour eventually finishes;
+       * on a busy one, continuous auto-fired activity can keep it masked
+       * indefinitely.
+       *
+       * The ceiling bounds it. A live dispatch stamps its heartbeat between
+       * windows regardless of what its cells are doing, so only a single window
+       * outliving the ceiling would be reclaimed wrongly — and no window lasts a
+       * day, on any path. The right fix is a `dispatch_id` on the executions
+       * row; this keeps the gap bounded until that lands.
+       */
+      sql`(NOT ${hasRecentCellActivity(staleBefore)} OR COALESCE(${tableRunDispatches.heartbeatAt}, ${tableRunDispatches.requestedAt}) < ${sql.param(abandonedBefore, tableRunDispatches.heartbeatAt)})`
     )
 
   // Claimed as explicit ids first, then updated by id, so the bound is evaluated

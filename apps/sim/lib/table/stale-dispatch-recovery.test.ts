@@ -138,6 +138,14 @@ describe('cancelStaleDispatches', () => {
      * instead. Same NULL-rowIds pitfall `markActiveDispatchesCancelled` handles.
      */
     expect(joined).toContain('IS DISTINCT FROM')
+
+    /**
+     * Cell activity spares a dispatch only up to a ceiling. Two table-wide
+     * dispatches sharing a group cannot be told apart — row executions carry no
+     * dispatch column — so on a busy table continuous activity would otherwise
+     * mask an abandoned one forever rather than merely delaying it.
+     */
+    expect(joined.match(/COALESCE\(/g) ?? []).toHaveLength(2)
     expect(joined).not.toMatch(/jsonb_typeof\([^)]*\) <>/)
   })
 
