@@ -675,6 +675,14 @@ function ConnectorCard({
  * `syncing` lock by flipping the *connector* to `error`, and never rewrites the
  * log row, so a run killed mid-flight (deploy, OOM) stays `started` forever.
  * Past the stale-lock TTL that row is a crashed run, not a live one.
+ *
+ * Treating the TTL as a hard ceiling is a deliberate policy choice, not an
+ * assumption that no run can outlive it. The in-process fallback sync runs
+ * unawaited in the web process with no duration limit, so it genuinely can —
+ * but nothing writes to the row between lock acquisition and completion, so a
+ * live run past the TTL and a dead one are byte-identical to this component.
+ * Rendering it as still running is the failure this state exists to fix; the
+ * same TTL already governs the reclaim that takes its lock away.
  */
 type SyncLogState = 'running' | 'interrupted' | 'failed' | 'completed'
 
