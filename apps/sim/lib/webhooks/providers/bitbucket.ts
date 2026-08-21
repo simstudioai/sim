@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { safeCompare } from '@sim/security/compare'
 import { hmacSha256Hex } from '@sim/security/hmac'
+import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { toRecord, toRecordOrNull } from '@sim/utils/object'
 import { truncate } from '@sim/utils/string'
@@ -19,7 +20,10 @@ import type {
   SubscriptionResult,
   WebhookProviderHandler,
 } from '@/lib/webhooks/providers/types'
-import { createHmacVerifier } from '@/lib/webhooks/providers/utils'
+import {
+  buildFallbackDeliveryFingerprint,
+  createHmacVerifier,
+} from '@/lib/webhooks/providers/utils'
 import {
   BITBUCKET_API_BASE,
   bitbucketHeaders,
@@ -28,6 +32,7 @@ import {
 } from '@/tools/bitbucket/utils'
 
 const logger = createLogger('WebhookProvider:Bitbucket')
+const BITBUCKET_MANAGEMENT_REQUEST_TIMEOUT_MS = 15_000
 
 const PULL_REQUEST_TRIGGER_IDS = new Set([
   'bitbucket_pull_request_created',
@@ -65,6 +70,13 @@ const PULL_REQUEST_COMMENT_TRIGGER_IDS = new Set([
 
 function bitbucketHooksUrl(workspaceSlug: string, repoSlug: string): string {
   return `${BITBUCKET_API_BASE}${bitbucketRepositoryPath(workspaceSlug, repoSlug)}/hooks`
+}
+
+function fetchBitbucketManagement(url: string, init: RequestInit = {}): Promise<Response> {
+  return fetch(url, {
+    ...init,
+    signal: AbortSignal.timeout(BITBUCKET_MANAGEMENT_REQUEST_TIMEOUT_MS),
+  })
 }
 
 function validateBitbucketSignature(secret: string, signature: string, body: string): boolean {
@@ -150,7 +162,111 @@ function createBitbucketApiError(status: number, action: 'create' | 'delete', de
   )
 }
 
-async function cleanupBitbucketHookByUrl(
+type BitbucketCandidateLookup =
+  | { kind: 'absent' }
+  | { kind: 'found'; externalId: string }
+  | { kind: 'ambiguous'; matchCount: number }
+  | { kind: 'unavailable'; error: Error }
+
+function bitbucketHookDescription(triggerId: string, webhookId: string): string {
+  return `Sim workflow trigger (${triggerId}) [sim:${webhookId}]`
+}
+
+async function findBitbucketCandidateHook(
+  workspaceSlug: string,
+  repoSlug: string,
+  accessToken: string,
+  callbackUrl: string,
+  description: string,
+  requestId: string
+): Promise<BitbucketCandidateLookup> {
+  const hooksUrl = bitbucketHooksUrl(workspaceSlug, repoSlug)
+  let response: Response
+  try {
+    response = await fetchBitbucketManagement(`${hooksUrl}?pagelen=100`, {
+      headers: bitbucketHeaders(accessToken),
+    })
+  } catch (error) {
+    logger.warn(`[${requestId}] Could not inspect Bitbucket hooks for candidate reconciliation`, {
+      error: getErrorMessage(error),
+    })
+    return {
+      kind: 'unavailable',
+      error:
+        error instanceof Error
+          ? error
+          : new Error('Bitbucket candidate webhook lookup failed unexpectedly.'),
+    }
+  }
+
+  if (!response.ok) {
+    const detail = await readBitbucketErrorDetail(response)
+    return {
+      kind: 'unavailable',
+      error: createBitbucketApiError(response.status, 'create', detail),
+    }
+  }
+
+  const parsed = await response.json().catch(() => null)
+  const payload = toRecord(parsed)
+  if (!Array.isArray(payload.values)) {
+    return {
+      kind: 'unavailable',
+      error: new Error('Bitbucket returned a malformed webhook-list response.'),
+    }
+  }
+
+  const matchingHooks = payload.values.filter((value) => {
+    const hook = toRecord(value)
+    return hook.url === callbackUrl && hook.description === description
+  })
+
+  if (matchingHooks.length === 0) return { kind: 'absent' }
+  if (matchingHooks.length !== 1) {
+    return { kind: 'ambiguous', matchCount: matchingHooks.length }
+  }
+
+  const externalId = nullableString(toRecord(matchingHooks[0]).uuid)?.trim()
+  return externalId
+    ? { kind: 'found', externalId }
+    : { kind: 'ambiguous', matchCount: matchingHooks.length }
+}
+
+async function deleteProvenBitbucketCandidate(
+  workspaceSlug: string,
+  repoSlug: string,
+  accessToken: string,
+  externalId: string,
+  requestId: string
+): Promise<boolean> {
+  const hooksUrl = bitbucketHooksUrl(workspaceSlug, repoSlug)
+  let response: Response
+  try {
+    response = await fetchBitbucketManagement(
+      `${hooksUrl}/${encodeBitbucketSegment(externalId, 'externalId')}`,
+      {
+        method: 'DELETE',
+        headers: bitbucketHeaders(accessToken),
+      }
+    )
+  } catch (error) {
+    logger.warn(`[${requestId}] Failed to delete proven Bitbucket candidate ${externalId}`, {
+      error: getErrorMessage(error),
+    })
+    return false
+  }
+
+  if (!response.ok && response.status !== 404) {
+    logger.warn(
+      `[${requestId}] Failed to delete proven Bitbucket candidate ${externalId} (${response.status})`
+    )
+    return false
+  }
+
+  return true
+}
+
+async function rollbackAmbiguousBitbucketCandidate(
   workspaceSlug: string,
   repoSlug: string,
   accessToken: string,
@@ -158,39 +274,32 @@ async function cleanupBitbucketHookByUrl(
   description: string,
   requestId: string
 ): Promise<void> {
-  const hooksUrl = bitbucketHooksUrl(workspaceSlug, repoSlug)
-  const response = await fetch(`${hooksUrl}?pagelen=100`, {
-    headers: bitbucketHeaders(accessToken),
-  }).catch(() => null)
-  if (!response?.ok) return
+  const candidate = await findBitbucketCandidateHook(
+    workspaceSlug,
+    repoSlug,
+    accessToken,
+    callbackUrl,
+    description,
+    requestId
+  )
 
-  const payload = toRecord(await response.json().catch(() => null))
-  const hooks = Array.isArray(payload.values) ? payload.values : []
-  const matchingIds = hooks.flatMap((value) => {
-    const hook = toRecord(value)
-    return hook.url === callbackUrl &&
-      hook.description === description &&
-      typeof hook.uuid === 'string' &&
-      hook.uuid
-      ? [hook.uuid]
-      : []
-  })
-
-  await Promise.all(
-    matchingIds.map(async (uuid) => {
-      const deleteResponse = await fetch(
-        `${hooksUrl}/${encodeBitbucketSegment(uuid, 'externalId')}`,
-        {
-          method: 'DELETE',
-          headers: bitbucketHeaders(accessToken),
-        }
-      ).catch(() => null)
-      if (!deleteResponse || (!deleteResponse.ok && deleteResponse.status !== 404)) {
-        logger.warn(
-          `[${requestId}] Failed to roll back Bitbucket webhook ${uuid} after a malformed create response`
-        )
+  if (candidate.kind !== 'found') {
+    logger.warn(
+      `[${requestId}] Bitbucket candidate cleanup skipped because identity was not unique`,
+      {
+        lookup: candidate.kind,
+        matchCount: candidate.kind === 'ambiguous' ? candidate.matchCount : undefined,
       }
-    })
+    )
+    return
+  }
+
+  await deleteProvenBitbucketCandidate(
+    workspaceSlug,
+    repoSlug,
+    accessToken,
+    candidate.externalId,
+    requestId
   )
 }
 
@@ -315,6 +424,17 @@ function formatBitbucketInput(
 }
 
 export const bitbucketHandler: WebhookProviderHandler = {
+  /**
+   * Atlassian documents X-Request-UUID as request metadata, not as a stable retry identifier.
+   * A content fingerprint remains stable when Bitbucket resends the same event, while the shared
+   * idempotency service scopes it to this one event-specific webhook.
+   */
+  extractIdempotencyId(body) {
+    const payload = toRecordOrNull(body)
+    const repository = toRecordOrNull(payload?.repository)
+    return payload && repository ? `bitbucket:${buildFallbackDeliveryFingerprint(payload)}` : null
+  },
+
   verifyAuth: createHmacVerifier({
     configKey: 'webhookSecret',
     headerName: 'X-Hub-Signature',
@@ -337,11 +457,6 @@ export const bitbucketHandler: WebhookProviderHandler = {
     return true
   },
 
-  enrichHeaders(_ctx, headers) {
-    const requestUuid = headers['x-request-uuid']?.trim()
-    if (requestUuid) headers['x-sim-idempotency-key'] = requestUuid
-  },
-
   async formatInput({ body, headers, webhook }: FormatInputContext): Promise<FormatInputResult> {
     const config = getProviderConfig(webhook)
     return {
@@ -355,6 +470,10 @@ export const bitbucketHandler: WebhookProviderHandler = {
     const credentialId = config.credentialId as string | undefined
     const workspaceSlug = readRequiredConfigString(config, 'workspaceSlug', 'workspace')
     const repoSlug = readRequiredConfigString(config, 'repoSlug', 'repository')
+    const webhookId = nullableString(ctx.webhook.id)?.trim()
+    if (!webhookId) {
+      throw new Error('Bitbucket webhook ID is required to manage the repository webhook.')
+    }
 
     const { getBitbucketEventForTrigger } = await import('@/triggers/bitbucket/utils')
     const eventKey = triggerId ? getBitbucketEventForTrigger(triggerId) : undefined
@@ -364,20 +483,84 @@ export const bitbucketHandler: WebhookProviderHandler = {
 
     const accessToken = await resolveBitbucketAccessToken(credentialId, ctx.requestId)
     const callbackUrl = getNotificationUrl(ctx.webhook)
-    const description = `Sim workflow trigger (${triggerId})`
-    const webhookSecret = generateId()
+    const description = bitbucketHookDescription(triggerId, webhookId)
     const hooksUrl = bitbucketHooksUrl(workspaceSlug, repoSlug)
-    const response = await fetch(hooksUrl, {
-      method: 'POST',
-      headers: bitbucketHeaders(accessToken, { json: true }),
-      body: JSON.stringify({
+    const isStableCandidate = ctx.webhook.registrationStatus === 'candidate'
+
+    if (isStableCandidate) {
+      const existingCandidate = await findBitbucketCandidateHook(
+        workspaceSlug,
+        repoSlug,
+        accessToken,
+        callbackUrl,
         description,
-        url: callbackUrl,
-        active: true,
-        secret: webhookSecret,
-        events: [eventKey],
-      }),
-    })
+        ctx.requestId
+      )
+
+      if (existingCandidate.kind === 'unavailable') throw existingCandidate.error
+      if (existingCandidate.kind === 'ambiguous') {
+        throw new Error(
+          `Bitbucket candidate reconciliation found ${existingCandidate.matchCount} matching hooks; no hook was deleted.`
+        )
+      }
+      if (existingCandidate.kind === 'found') {
+        const checkpointedExternalId = nullableString(config.externalId)?.trim()
+        const checkpointedSecret = nullableString(config.webhookSecret)?.trim()
+        if (checkpointedExternalId === existingCandidate.externalId && checkpointedSecret) {
+          logger.info(
+            `[${ctx.requestId}] Reusing checkpointed Bitbucket candidate ${existingCandidate.externalId}`
+          )
+          return {
+            providerConfigUpdates: {
+              externalId: existingCandidate.externalId,
+              webhookSecret: checkpointedSecret,
+              eventTypes: [eventKey],
+            },
+          }
+        }
+
+        const deleted = await deleteProvenBitbucketCandidate(
+          workspaceSlug,
+          repoSlug,
+          accessToken,
+          existingCandidate.externalId,
+          ctx.requestId
+        )
+        if (!deleted) {
+          throw new Error(
+            'Could not safely remove a stale Bitbucket candidate webhook; no new hook was created.'
+          )
+        }
+      }
+    }
+
+    const webhookSecret = generateId()
+    let response: Response
+    try {
+      response = await fetchBitbucketManagement(hooksUrl, {
+        method: 'POST',
+        headers: bitbucketHeaders(accessToken, { json: true }),
+        body: JSON.stringify({
+          description,
+          url: callbackUrl,
+          active: true,
+          secret: webhookSecret,
+          events: [eventKey],
+        }),
+      })
+    } catch (error) {
+      if (isStableCandidate) {
+        await rollbackAmbiguousBitbucketCandidate(
+          workspaceSlug,
+          repoSlug,
+          accessToken,
+          callbackUrl,
+          description,
+          ctx.requestId
+        )
+      }
+      throw error
+    }
 
     if (!response.ok) {
       const detail = await readBitbucketErrorDetail(response)
@@ -387,20 +570,33 @@ export const bitbucketHandler: WebhookProviderHandler = {
         repoSlug,
         triggerId,
       })
-      throw createBitbucketApiError(response.status, 'create', detail)
+      const apiError = createBitbucketApiError(response.status, 'create', detail)
+      if (isStableCandidate && (response.status === 408 || response.status >= 500)) {
+        await rollbackAmbiguousBitbucketCandidate(
+          workspaceSlug,
+          repoSlug,
+          accessToken,
+          callbackUrl,
+          description,
+          ctx.requestId
+        )
+      }
+      throw apiError
     }
 
     const created = toRecord(await response.json().catch(() => null))
     const externalId = nullableString(created.uuid)?.trim() || null
     if (!externalId) {
-      await cleanupBitbucketHookByUrl(
-        workspaceSlug,
-        repoSlug,
-        accessToken,
-        callbackUrl,
-        description,
-        ctx.requestId
-      )
+      if (isStableCandidate) {
+        await rollbackAmbiguousBitbucketCandidate(
+          workspaceSlug,
+          repoSlug,
+          accessToken,
+          callbackUrl,
+          description,
+          ctx.requestId
+        )
+      }
       throw new Error('Bitbucket webhook was created but no hook UUID was returned.')
     }
 
@@ -432,7 +628,7 @@ export const bitbucketHandler: WebhookProviderHandler = {
 
       const accessToken = await resolveBitbucketAccessToken(credentialId, ctx.requestId)
       const hooksUrl = bitbucketHooksUrl(workspaceSlug, repoSlug)
-      const response = await fetch(
+      const response = await fetchBitbucketManagement(
         `${hooksUrl}/${encodeBitbucketSegment(externalId, 'externalId')}`,
         {
           method: 'DELETE',

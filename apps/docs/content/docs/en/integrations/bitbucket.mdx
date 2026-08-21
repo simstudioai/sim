@@ -1575,7 +1575,7 @@ Trigger workflow when a build status is created for a Bitbucket commit
 | `attemptNumber` | number | Bitbucket delivery attempt number |
 | `actor` | json | User or app that caused the event |
 | `repository` | json | Repository where the event occurred |
-| `payload` | json | Full raw Bitbucket webhook payload |
+| `payload` | json | Full parsed Bitbucket webhook payload |
 | `commitStatus` | json | Bitbucket commit status object |
 | `commitHash` | string | Hash of the commit with this status |
 | `statusKey` | string | Key identifying the build status |
@@ -1610,7 +1610,7 @@ Trigger workflow when a build status is updated for a Bitbucket commit
 | `attemptNumber` | number | Bitbucket delivery attempt number |
 | `actor` | json | User or app that caused the event |
 | `repository` | json | Repository where the event occurred |
-| `payload` | json | Full raw Bitbucket webhook payload |
+| `payload` | json | Full parsed Bitbucket webhook payload |
 | `commitStatus` | json | Bitbucket commit status object |
 | `commitHash` | string | Hash of the commit with this status |
 | `statusKey` | string | Key identifying the build status |
@@ -1645,7 +1645,7 @@ Trigger workflow when a comment is created on a Bitbucket commit
 | `attemptNumber` | number | Bitbucket delivery attempt number |
 | `actor` | json | User or app that caused the event |
 | `repository` | json | Repository where the event occurred |
-| `payload` | json | Full raw Bitbucket webhook payload |
+| `payload` | json | Full parsed Bitbucket webhook payload |
 | `comment` | json | Bitbucket comment object |
 | `commentId` | number | Repository-scoped comment ID |
 | `commentContent` | string | Raw text content of the comment |
@@ -1678,7 +1678,7 @@ Trigger workflow when approval is removed from a Bitbucket pull request
 | `attemptNumber` | number | Bitbucket delivery attempt number |
 | `actor` | json | User or app that caused the event |
 | `repository` | json | Repository where the event occurred |
-| `payload` | json | Full raw Bitbucket webhook payload |
+| `payload` | json | Full parsed Bitbucket webhook payload |
 | `pullRequest` | json | Bitbucket pull request object |
 | `pullRequestId` | number | Repository-scoped pull request ID |
 | `pullRequestTitle` | string | Pull request title |
@@ -1714,7 +1714,7 @@ Trigger workflow when a Bitbucket pull request is approved
 | `attemptNumber` | number | Bitbucket delivery attempt number |
 | `actor` | json | User or app that caused the event |
 | `repository` | json | Repository where the event occurred |
-| `payload` | json | Full raw Bitbucket webhook payload |
+| `payload` | json | Full parsed Bitbucket webhook payload |
 | `pullRequest` | json | Bitbucket pull request object |
 | `pullRequestId` | number | Repository-scoped pull request ID |
 | `pullRequestTitle` | string | Pull request title |
@@ -1750,7 +1750,7 @@ Trigger workflow when a changes request is removed from a Bitbucket pull request
 | `attemptNumber` | number | Bitbucket delivery attempt number |
 | `actor` | json | User or app that caused the event |
 | `repository` | json | Repository where the event occurred |
-| `payload` | json | Full raw Bitbucket webhook payload |
+| `payload` | json | Full parsed Bitbucket webhook payload |
 | `pullRequest` | json | Bitbucket pull request object |
 | `pullRequestId` | number | Repository-scoped pull request ID |
 | `pullRequestTitle` | string | Pull request title |
@@ -1786,7 +1786,7 @@ Trigger workflow when changes are requested on a Bitbucket pull request
 | `attemptNumber` | number | Bitbucket delivery attempt number |
 | `actor` | json | User or app that caused the event |
 | `repository` | json | Repository where the event occurred |
-| `payload` | json | Full raw Bitbucket webhook payload |
+| `payload` | json | Full parsed Bitbucket webhook payload |
 | `pullRequest` | json | Bitbucket pull request object |
 | `pullRequestId` | number | Repository-scoped pull request ID |
 | `pullRequestTitle` | string | Pull request title |
@@ -1822,7 +1822,7 @@ Trigger workflow when a comment is created on a Bitbucket pull request
 | `attemptNumber` | number | Bitbucket delivery attempt number |
 | `actor` | json | User or app that caused the event |
 | `repository` | json | Repository where the event occurred |
-| `payload` | json | Full raw Bitbucket webhook payload |
+| `payload` | json | Full parsed Bitbucket webhook payload |
 | `pullRequest` | json | Bitbucket pull request object |
 | `pullRequestId` | number | Repository-scoped pull request ID |
 | `pullRequestTitle` | string | Pull request title |
@@ -1860,7 +1860,7 @@ Trigger workflow when a comment is deleted from a Bitbucket pull request
 | `attemptNumber` | number | Bitbucket delivery attempt number |
 | `actor` | json | User or app that caused the event |
 | `repository` | json | Repository where the event occurred |
-| `payload` | json | Full raw Bitbucket webhook payload |
+| `payload` | json | Full parsed Bitbucket webhook payload |
 | `pullRequest` | json | Bitbucket pull request object |
 | `pullRequestId` | number | Repository-scoped pull request ID |
 | `pullRequestTitle` | string | Pull request title |
@@ -1898,7 +1898,7 @@ Trigger workflow when a resolved comment is reopened on a Bitbucket pull request
 | `attemptNumber` | number | Bitbucket delivery attempt number |
 | `actor` | json | User or app that caused the event |
 | `repository` | json | Repository where the event occurred |
-| `payload` | json | Full raw Bitbucket webhook payload |
+| `payload` | json | Full parsed Bitbucket webhook payload |
 | `pullRequest` | json | Bitbucket pull request object |
 | `pullRequestId` | number | Repository-scoped pull request ID |
 | `pullRequestTitle` | string | Pull request title |
@@ -1936,7 +1936,7 @@ Trigger workflow when a comment is resolved on a Bitbucket pull request
 | `attemptNumber` | number | Bitbucket delivery attempt number |
 | `actor` | json | User or app that caused the event |
 | `repository` | json | Repository where the event occurred |
-| `payload` | json | Full raw Bitbucket webhook payload |
+| `payload` | json | Full parsed Bitbucket webhook payload |
 | `pullRequest` | json | Bitbucket pull request object |
 | `pullRequestId` | number | Repository-scoped pull request ID |
 | `pullRequestTitle` | string | Pull request title |
@@ -1974,7 +1974,7 @@ Trigger workflow when a comment is updated on a Bitbucket pull request
 | `attemptNumber` | number | Bitbucket delivery attempt number |
 | `actor` | json | User or app that caused the event |
 | `repository` | json | Repository where the event occurred |
-| `payload` | json | Full raw Bitbucket webhook payload |
+| `payload` | json | Full parsed Bitbucket webhook payload |
 | `pullRequest` | json | Bitbucket pull request object |
 | `pullRequestId` | number | Repository-scoped pull request ID |
 | `pullRequestTitle` | string | Pull request title |
@@ -2012,7 +2012,7 @@ Trigger workflow when a Bitbucket pull request is created
 | `attemptNumber` | number | Bitbucket delivery attempt number |
 | `actor` | json | User or app that caused the event |
 | `repository` | json | Repository where the event occurred |
-| `payload` | json | Full raw Bitbucket webhook payload |
+| `payload` | json | Full parsed Bitbucket webhook payload |
 | `pullRequest` | json | Bitbucket pull request object |
 | `pullRequestId` | number | Repository-scoped pull request ID |
 | `pullRequestTitle` | string | Pull request title |
@@ -2047,7 +2047,7 @@ Trigger workflow when a Bitbucket pull request is declined
 | `attemptNumber` | number | Bitbucket delivery attempt number |
 | `actor` | json | User or app that caused the event |
 | `repository` | json | Repository where the event occurred |
-| `payload` | json | Full raw Bitbucket webhook payload |
+| `payload` | json | Full parsed Bitbucket webhook payload |
 | `pullRequest` | json | Bitbucket pull request object |
 | `pullRequestId` | number | Repository-scoped pull request ID |
 | `pullRequestTitle` | string | Pull request title |
@@ -2082,7 +2082,7 @@ Trigger workflow when a Bitbucket pull request is merged
 | `attemptNumber` | number | Bitbucket delivery attempt number |
 | `actor` | json | User or app that caused the event |
 | `repository` | json | Repository where the event occurred |
-| `payload` | json | Full raw Bitbucket webhook payload |
+| `payload` | json | Full parsed Bitbucket webhook payload |
 | `pullRequest` | json | Bitbucket pull request object |
 | `pullRequestId` | number | Repository-scoped pull request ID |
 | `pullRequestTitle` | string | Pull request title |
@@ -2117,7 +2117,7 @@ Trigger workflow when a Bitbucket pull request is updated
 | `attemptNumber` | number | Bitbucket delivery attempt number |
 | `actor` | json | User or app that caused the event |
 | `repository` | json | Repository where the event occurred |
-| `payload` | json | Full raw Bitbucket webhook payload |
+| `payload` | json | Full parsed Bitbucket webhook payload |
 | `pullRequest` | json | Bitbucket pull request object |
 | `pullRequestId` | number | Repository-scoped pull request ID |
 | `pullRequestTitle` | string | Pull request title |
@@ -2152,7 +2152,7 @@ Trigger workflow when commits are pushed to a Bitbucket repository
 | `attemptNumber` | number | Bitbucket delivery attempt number |
 | `actor` | json | User or app that caused the event |
 | `repository` | json | Repository where the event occurred |
-| `payload` | json | Full raw Bitbucket webhook payload |
+| `payload` | json | Full parsed Bitbucket webhook payload |
 | `push` | json | Push details, including changes and commits |
 
 
@@ -2182,7 +2182,7 @@ Trigger workflow when a Bitbucket repository is forked
 | `attemptNumber` | number | Bitbucket delivery attempt number |
 | `actor` | json | User or app that caused the event |
 | `repository` | json | Repository where the event occurred |
-| `payload` | json | Full raw Bitbucket webhook payload |
+| `payload` | json | Full parsed Bitbucket webhook payload |
 | `fork` | json | Newly created repository fork |
 
 
@@ -2212,6 +2212,6 @@ Trigger workflow when a Bitbucket repository is updated
 | `attemptNumber` | number | Bitbucket delivery attempt number |
 | `actor` | json | User or app that caused the event |
 | `repository` | json | Repository where the event occurred |
-| `payload` | json | Full raw Bitbucket webhook payload |
+| `payload` | json | Full parsed Bitbucket webhook payload |
 | `changes` | json | Repository fields changed by the update |
 

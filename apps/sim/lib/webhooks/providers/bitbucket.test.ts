@@ -20,6 +20,7 @@ vi.mock('@/lib/webhooks/provider-subscription-utils', () => ({
   getCredentialOwner: mockGetCredentialOwner,
 }))
 
+import { IdempotencyService } from '@/lib/core/idempotency/service'
 import { bitbucketHandler } from '@/lib/webhooks/providers/bitbucket'
 import {
   BITBUCKET_TRIGGER_EVENT_MAP,
@@ -28,6 +29,8 @@ import {
 } from '@/triggers/bitbucket/utils'
 
 const fetchMock = vi.fn()
+const CALLBACK_URL = 'https://app.example.com/api/webhooks/trigger/bitbucket-path'
+const CANDIDATE_DESCRIPTION = 'Sim workflow trigger (bitbucket_push) [sim:webhook-1]'
 
 const BASE_OUTPUT_KEYS = [
   'actor',
@@ -64,9 +67,18 @@ function emptyResponse(status: number): Response {
   return new Response(null, { status })
 }
 
-function subscriptionContext(providerConfig: Record<string, unknown>) {
+function subscriptionContext(
+  providerConfig: Record<string, unknown>,
+  webhookOverrides: Record<string, unknown> = {}
+) {
   return {
-    webhook: { id: 'webhook-1', path: 'bitbucket-path', providerConfig },
+    webhook: {
+      id: 'webhook-1',
+      path: 'bitbucket-path',
+      registrationStatus: 'candidate',
+      providerConfig,
+      ...webhookOverrides,
+    },
     workflow: {},
     userId: 'user-1',
     requestId: 'request-1',
@@ -107,6 +119,7 @@ describe('Bitbucket webhook provider', () => {
 
   afterEach(() => {
     vi.unstubAllGlobals()
+    vi.restoreAllMocks()
   })
 
   describe('verifyAuth', () => {
@@ -209,13 +222,75 @@ describe('Bitbucket webhook provider', () => {
     })
   })
 
-  it('copies Bitbucket request UUID into the provider-local idempotency header', () => {
-    const headers = { 'x-request-uuid': ' request-uuid ' }
-    bitbucketHandler.enrichHeaders!({} as never, headers)
-    expect(headers).toEqual({
-      'x-request-uuid': ' request-uuid ',
-      'x-sim-idempotency-key': 'request-uuid',
+  describe('idempotency', () => {
+    it('uses a stable content fingerprint instead of retry metadata', () => {
+      const firstAttemptBody = {
+        actor: { uuid: '{actor-1}', display_name: 'Ada' },
+        repository: { uuid: '{repo-1}' },
+        push: { changes: [{ created: true }] },
+      }
+      const retryBodyWithReorderedKeys = {
+        push: { changes: [{ created: true }] },
+        repository: { uuid: '{repo-1}' },
+        actor: { display_name: 'Ada', uuid: '{actor-1}' },
+      }
+      const firstAttemptHeaders = {
+        'x-request-uuid': '{request-1}',
+        'x-attempt-number': '1',
+      }
+      const retryHeaders = {
+        'x-request-uuid': '{request-2}',
+        'x-attempt-number': '2',
+      }
+
+      const firstKey = IdempotencyService.createWebhookIdempotencyKey(
+        'webhook-1',
+        firstAttemptHeaders,
+        firstAttemptBody,
+        'bitbucket'
+      )
+      const retryKey = IdempotencyService.createWebhookIdempotencyKey(
+        'webhook-1',
+        retryHeaders,
+        retryBodyWithReorderedKeys,
+        'bitbucket'
+      )
+
+      expect(firstAttemptHeaders).not.toEqual(retryHeaders)
+      expect(firstKey).toBe(retryKey)
+      expect(firstKey).toMatch(/^webhook-1:bitbucket:[a-f\d]{64}$/)
+      expect(bitbucketHandler.extractIdempotencyId!(firstAttemptBody)).toMatch(
+        /^bitbucket:[a-f\d]{64}$/
+      )
     })
+
+    it('distinguishes changed payloads', () => {
+      const first = bitbucketHandler.extractIdempotencyId!({
+        repository: { uuid: '{repo-1}' },
+        push: { changes: [{ created: true }] },
+      })
+      const second = bitbucketHandler.extractIdempotencyId!({
+        repository: { uuid: '{repo-1}' },
+        push: { changes: [{ created: false }] },
+      })
+
+      expect(first).not.toBe(second)
+    })
+
+    it('does not require a Bitbucket request UUID to derive a stable key', () => {
+      const payload = { repository: { uuid: '{repo-1}' }, changes: { name: {} } }
+
+      expect(bitbucketHandler.extractIdempotencyId!(payload)).toBe(
+        bitbucketHandler.extractIdempotencyId!(structuredClone(payload))
+      )
+    })
+
+    it.each([null, undefined, 'payload', 42, [], true, {}, { repository: null }])(
+      'returns null for an invalid payload: %j',
+      (payload) => {
+        expect(bitbucketHandler.extractIdempotencyId!(payload)).toBeNull()
+      }
+    )
   })
 
   describe('formatInput', () => {
@@ -258,6 +333,23 @@ describe('Bitbucket webhook provider', () => {
         expect(Object.keys(input as Record<string, unknown>).sort()).toEqual(
           Object.keys(buildBitbucketOutputs(triggerId as BitbucketTriggerId)).sort()
         )
+      }
+    )
+
+    it.each(Object.keys(BITBUCKET_TRIGGER_EVENT_MAP))(
+      'keeps output alignment and nulls event data for a malformed %s payload',
+      async (triggerId) => {
+        const { input } = await bitbucketHandler.formatInput!(deliveryContext(triggerId, {}))
+        const formatted = input as Record<string, unknown>
+        const outputKeys = Object.keys(buildBitbucketOutputs(triggerId as BitbucketTriggerId))
+
+        expect(Object.keys(formatted).sort()).toEqual(outputKeys.sort())
+        for (const key of outputKeys) {
+          if (['eventType', 'hookUuid', 'requestUuid', 'attemptNumber', 'payload'].includes(key)) {
+            continue
+          }
+          expect(formatted[key]).toBeNull()
+        }
       }
     )
 
@@ -468,9 +560,28 @@ describe('Bitbucket webhook provider', () => {
       workspaceSlug: 'team / blue',
       repoSlug: 'repo?admin=true',
     }
+    const hooksUrl =
+      'https://api.bitbucket.org/2.0/repositories/team%20%2F%20blue/repo%3Fadmin%3Dtrue/hooks'
+    const activeHook = {
+      uuid: '{active-hook}',
+      description: 'Sim workflow trigger (bitbucket_push) [sim:active-webhook]',
+      url: CALLBACK_URL,
+    }
+    const candidateHook = {
+      uuid: '{candidate-hook}',
+      description: CANDIDATE_DESCRIPTION,
+      url: CALLBACK_URL,
+    }
+
+    function hooksResponse(values: Array<Record<string, unknown>>): Response {
+      return jsonResponse(200, { values })
+    }
 
     it('creates one signed repository hook for the selected event', async () => {
-      fetchMock.mockResolvedValueOnce(jsonResponse(201, { uuid: '{hook-uuid}' }))
+      const timeoutSpy = vi.spyOn(AbortSignal, 'timeout')
+      fetchMock
+        .mockResolvedValueOnce(hooksResponse([]))
+        .mockResolvedValueOnce(jsonResponse(201, { uuid: '{hook-uuid}' }))
 
       const result = await bitbucketHandler.createSubscription!(subscriptionContext(validConfig))
 
@@ -480,11 +591,10 @@ describe('Bitbucket webhook provider', () => {
         'user-1',
         'request-1'
       )
-      expect(fetchMock).toHaveBeenCalledTimes(1)
-      const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit]
-      expect(url).toBe(
-        'https://api.bitbucket.org/2.0/repositories/team%20%2F%20blue/repo%3Fadmin%3Dtrue/hooks'
-      )
+      expect(fetchMock).toHaveBeenCalledTimes(2)
+      expect(fetchMock.mock.calls[0][0]).toBe(`${hooksUrl}?pagelen=100`)
+      const [url, init] = fetchMock.mock.calls[1] as [string, RequestInit]
+      expect(url).toBe(hooksUrl)
       expect(init.method).toBe('POST')
       expect(init.headers).toMatchObject({
         Accept: 'application/json',
@@ -493,8 +603,8 @@ describe('Bitbucket webhook provider', () => {
       })
       const sentBody = JSON.parse(String(init.body)) as Record<string, unknown>
       expect(sentBody).toEqual({
-        description: 'Sim workflow trigger (bitbucket_push)',
-        url: 'https://app.example.com/api/webhooks/trigger/bitbucket-path',
+        description: CANDIDATE_DESCRIPTION,
+        url: CALLBACK_URL,
         active: true,
         secret: expect.any(String),
         events: ['repo:push'],
@@ -504,6 +614,12 @@ describe('Bitbucket webhook provider', () => {
         webhookSecret: sentBody.secret,
         eventTypes: ['repo:push'],
       })
+      expect(timeoutSpy).toHaveBeenCalledTimes(2)
+      expect(timeoutSpy).toHaveBeenNthCalledWith(1, 15_000)
+      expect(timeoutSpy).toHaveBeenNthCalledWith(2, 15_000)
+      const firstSignal = (fetchMock.mock.calls[0][1] as RequestInit).signal
+      const secondSignal = (fetchMock.mock.calls[1][1] as RequestInit).signal
+      expect(firstSignal).not.toBe(secondSignal)
     })
 
     it.each([
@@ -512,18 +628,20 @@ describe('Bitbucket webhook provider', () => {
       [404, /repository not found/i],
       [429, /rate limited/i],
     ])('maps Bitbucket HTTP %s to an actionable error', async (status, message) => {
-      fetchMock.mockResolvedValueOnce(
-        jsonResponse(status, { error: { message: 'provider detail' } })
-      )
+      fetchMock
+        .mockResolvedValueOnce(hooksResponse([]))
+        .mockResolvedValueOnce(jsonResponse(status, { error: { message: 'provider detail' } }))
       await expect(
         bitbucketHandler.createSubscription!(subscriptionContext(validConfig))
       ).rejects.toThrow(message)
     })
 
     it('surfaces a Bitbucket webhook-limit rejection detail', async () => {
-      fetchMock.mockResolvedValueOnce(
-        jsonResponse(400, { error: { message: 'Repository webhook limit exceeded' } })
-      )
+      fetchMock
+        .mockResolvedValueOnce(hooksResponse([]))
+        .mockResolvedValueOnce(
+          jsonResponse(400, { error: { message: 'Repository webhook limit exceeded' } })
+        )
       await expect(
         bitbucketHandler.createSubscription!(subscriptionContext(validConfig))
       ).rejects.toThrow(/webhook limit exceeded/i)
@@ -541,36 +659,328 @@ describe('Bitbucket webhook provider', () => {
       expect(fetchMock).not.toHaveBeenCalled()
     })
 
+    it.each([undefined, null, '', '   '])(
+      'requires a nonblank webhook ID before managing a subscription',
+      async (webhookId) => {
+        await expect(
+          bitbucketHandler.createSubscription!(subscriptionContext(validConfig, { id: webhookId }))
+        ).rejects.toThrow(/webhook ID is required/i)
+
+        expect(fetchMock).not.toHaveBeenCalled()
+        expect(mockRefreshAccessTokenIfNeeded).not.toHaveBeenCalled()
+      }
+    )
+
     it.each([{}, { uuid: '   ' }])(
-      'rolls back a matching hook when a successful response has no usable UUID',
+      'rolls back only the proven redeploy candidate when a successful response has no usable UUID',
       async (createResponse) => {
         fetchMock
+          .mockResolvedValueOnce(hooksResponse([activeHook]))
           .mockResolvedValueOnce(jsonResponse(201, createResponse))
-          .mockResolvedValueOnce(
-            jsonResponse(200, {
-              values: [
-                {
-                  uuid: '{orphan-hook}',
-                  description: 'Sim workflow trigger (bitbucket_push)',
-                  url: 'https://app.example.com/api/webhooks/trigger/bitbucket-path',
-                },
-              ],
-            })
-          )
+          .mockResolvedValueOnce(hooksResponse([activeHook, candidateHook]))
           .mockResolvedValueOnce(emptyResponse(204))
 
         await expect(
           bitbucketHandler.createSubscription!(subscriptionContext(validConfig))
         ).rejects.toThrow(/no hook UUID/i)
 
-        expect(fetchMock).toHaveBeenCalledTimes(3)
-        expect(fetchMock.mock.calls[1][1]).toMatchObject({
+        expect(fetchMock).toHaveBeenCalledTimes(4)
+        expect(fetchMock.mock.calls[2][1]).toMatchObject({
           headers: { Authorization: 'Bearer oauth-token' },
         })
-        expect(fetchMock.mock.calls[2][0]).toContain('/hooks/%7Borphan-hook%7D')
-        expect(fetchMock.mock.calls[2][1]).toMatchObject({ method: 'DELETE' })
+        expect(fetchMock.mock.calls[3][0]).toBe(`${hooksUrl}/%7Bcandidate-hook%7D`)
+        expect(fetchMock.mock.calls[3][0]).not.toContain('active-hook')
+        expect(fetchMock.mock.calls[3][1]).toMatchObject({ method: 'DELETE' })
       }
     )
+
+    it('rolls back only the proven candidate after a lost create response', async () => {
+      const timeoutError = new DOMException('The operation timed out', 'TimeoutError')
+      const controllers = Array.from({ length: 4 }, () => new AbortController())
+      const timeoutSpy = vi.spyOn(AbortSignal, 'timeout')
+      for (const controller of controllers) timeoutSpy.mockReturnValueOnce(controller.signal)
+      fetchMock
+        .mockResolvedValueOnce(hooksResponse([activeHook]))
+        .mockImplementationOnce((_url, init: RequestInit) => {
+          const signal = init.signal as AbortSignal
+          return new Promise<Response>((_resolve, reject) => {
+            signal.addEventListener('abort', () => reject(signal.reason), { once: true })
+            controllers[1].abort(timeoutError)
+          })
+        })
+        .mockResolvedValueOnce(hooksResponse([activeHook, candidateHook]))
+        .mockResolvedValueOnce(emptyResponse(204))
+
+      await expect(
+        bitbucketHandler.createSubscription!(subscriptionContext(validConfig))
+      ).rejects.toMatchObject({ name: 'TimeoutError' })
+
+      expect(fetchMock).toHaveBeenCalledTimes(4)
+      expect(fetchMock.mock.calls[3][0]).toBe(`${hooksUrl}/%7Bcandidate-hook%7D`)
+      expect(fetchMock.mock.calls[3][0]).not.toContain('active-hook')
+      expect(timeoutSpy).toHaveBeenCalledTimes(4)
+      expect(timeoutSpy).toHaveBeenCalledWith(15_000)
+    })
+
+    it.each([408, 503])(
+      'reconciles an ambiguous HTTP %s create outcome without touching the active hook',
+      async (status) => {
+        fetchMock
+          .mockResolvedValueOnce(hooksResponse([activeHook]))
+          .mockResolvedValueOnce(
+            jsonResponse(status, { error: { message: 'temporarily unavailable' } })
+          )
+          .mockResolvedValueOnce(hooksResponse([activeHook, candidateHook]))
+          .mockResolvedValueOnce(emptyResponse(204))
+
+        await expect(
+          bitbucketHandler.createSubscription!(subscriptionContext(validConfig))
+        ).rejects.toThrow(new RegExp(`failed to create Bitbucket webhook: ${status}`, 'i'))
+
+        expect(fetchMock.mock.calls[3][0]).toBe(`${hooksUrl}/%7Bcandidate-hook%7D`)
+        expect(fetchMock.mock.calls[3][0]).not.toContain('active-hook')
+      }
+    )
+
+    it('leaves hooks untouched when an ambiguous response has multiple candidate matches', async () => {
+      fetchMock
+        .mockResolvedValueOnce(hooksResponse([activeHook]))
+        .mockResolvedValueOnce(jsonResponse(201, {}))
+        .mockResolvedValueOnce(
+          hooksResponse([
+            activeHook,
+            candidateHook,
+            { ...candidateHook, uuid: '{second-candidate-hook}' },
+          ])
+        )
+
+      await expect(
+        bitbucketHandler.createSubscription!(subscriptionContext(validConfig))
+      ).rejects.toThrow(/no hook UUID/i)
+
+      expect(fetchMock).toHaveBeenCalledTimes(3)
+      expect(
+        fetchMock.mock.calls.some(
+          ([, init]) => (init as RequestInit | undefined)?.method === 'DELETE'
+        )
+      ).toBe(false)
+    })
+
+    it.each([
+      ['no candidate matches', [activeHook]],
+      [
+        'the only candidate match has no usable UUID',
+        [activeHook, { ...candidateHook, uuid: ' ' }],
+      ],
+    ])('leaves hooks untouched when %s', async (_case, reconciliationHooks) => {
+      fetchMock
+        .mockResolvedValueOnce(hooksResponse([activeHook]))
+        .mockResolvedValueOnce(jsonResponse(201, {}))
+        .mockResolvedValueOnce(hooksResponse(reconciliationHooks))
+
+      await expect(
+        bitbucketHandler.createSubscription!(subscriptionContext(validConfig))
+      ).rejects.toThrow(/no hook UUID/i)
+
+      expect(fetchMock).toHaveBeenCalledTimes(3)
+      expect(
+        fetchMock.mock.calls.some(
+          ([, init]) => (init as RequestInit | undefined)?.method === 'DELETE'
+        )
+      ).toBe(false)
+    })
+
+    it('leaves hooks untouched when candidate lookup fails after an ambiguous response', async () => {
+      fetchMock
+        .mockResolvedValueOnce(hooksResponse([activeHook]))
+        .mockResolvedValueOnce(jsonResponse(201, {}))
+        .mockResolvedValueOnce(jsonResponse(500, { error: { message: 'list failed' } }))
+
+      await expect(
+        bitbucketHandler.createSubscription!(subscriptionContext(validConfig))
+      ).rejects.toThrow(/no hook UUID/i)
+
+      expect(fetchMock).toHaveBeenCalledTimes(3)
+      expect(
+        fetchMock.mock.calls.some(
+          ([, init]) => (init as RequestInit | undefined)?.method === 'DELETE'
+        )
+      ).toBe(false)
+    })
+
+    it('leaves hooks untouched when post-create reconciliation returns a malformed list', async () => {
+      fetchMock
+        .mockResolvedValueOnce(hooksResponse([activeHook]))
+        .mockResolvedValueOnce(jsonResponse(201, {}))
+        .mockResolvedValueOnce(jsonResponse(200, { unexpected: [] }))
+
+      await expect(
+        bitbucketHandler.createSubscription!(subscriptionContext(validConfig))
+      ).rejects.toThrow(/no hook UUID/i)
+
+      expect(fetchMock).toHaveBeenCalledTimes(3)
+      expect(
+        fetchMock.mock.calls.some(
+          ([, init]) => (init as RequestInit | undefined)?.method === 'DELETE'
+        )
+      ).toBe(false)
+    })
+
+    it('leaves hooks untouched when post-create reconciliation times out', async () => {
+      fetchMock
+        .mockResolvedValueOnce(hooksResponse([activeHook]))
+        .mockResolvedValueOnce(jsonResponse(201, {}))
+        .mockRejectedValueOnce(new DOMException('The operation timed out', 'TimeoutError'))
+
+      await expect(
+        bitbucketHandler.createSubscription!(subscriptionContext(validConfig))
+      ).rejects.toThrow(/no hook UUID/i)
+
+      expect(fetchMock).toHaveBeenCalledTimes(3)
+      expect(
+        fetchMock.mock.calls.some(
+          ([, init]) => (init as RequestInit | undefined)?.method === 'DELETE'
+        )
+      ).toBe(false)
+    })
+
+    it('does not retry or touch the active hook when proven-candidate deletion times out', async () => {
+      fetchMock
+        .mockResolvedValueOnce(hooksResponse([activeHook]))
+        .mockResolvedValueOnce(jsonResponse(201, {}))
+        .mockResolvedValueOnce(hooksResponse([activeHook, candidateHook]))
+        .mockRejectedValueOnce(new DOMException('The operation timed out', 'TimeoutError'))
+
+      await expect(
+        bitbucketHandler.createSubscription!(subscriptionContext(validConfig))
+      ).rejects.toThrow(/no hook UUID/i)
+
+      expect(fetchMock).toHaveBeenCalledTimes(4)
+      expect(fetchMock.mock.calls[3][0]).toBe(`${hooksUrl}/%7Bcandidate-hook%7D`)
+      expect(fetchMock.mock.calls[3][0]).not.toContain('active-hook')
+    })
+
+    it('does not retry or touch the active hook when proven-candidate deletion is non-OK', async () => {
+      fetchMock
+        .mockResolvedValueOnce(hooksResponse([activeHook]))
+        .mockResolvedValueOnce(jsonResponse(201, {}))
+        .mockResolvedValueOnce(hooksResponse([activeHook, candidateHook]))
+        .mockResolvedValueOnce(
+          jsonResponse(503, { error: { message: 'candidate deletion unavailable' } })
+        )
+
+      await expect(
+        bitbucketHandler.createSubscription!(subscriptionContext(validConfig))
+      ).rejects.toThrow(/no hook UUID/i)
+
+      expect(fetchMock).toHaveBeenCalledTimes(4)
+      expect(fetchMock.mock.calls[3][0]).toBe(`${hooksUrl}/%7Bcandidate-hook%7D`)
+      expect(fetchMock.mock.calls[3][0]).not.toContain('active-hook')
+      expect(fetchMock.mock.calls[3][1]).toMatchObject({ method: 'DELETE' })
+    })
+
+    it('removes one stale uncheckpointed candidate before retrying creation', async () => {
+      fetchMock
+        .mockResolvedValueOnce(hooksResponse([activeHook, candidateHook]))
+        .mockResolvedValueOnce(emptyResponse(204))
+        .mockResolvedValueOnce(jsonResponse(201, { uuid: '{new-candidate-hook}' }))
+
+      const result = await bitbucketHandler.createSubscription!(subscriptionContext(validConfig))
+
+      expect(fetchMock).toHaveBeenCalledTimes(3)
+      expect(fetchMock.mock.calls[1][0]).toBe(`${hooksUrl}/%7Bcandidate-hook%7D`)
+      expect(fetchMock.mock.calls[1][1]).toMatchObject({ method: 'DELETE' })
+      expect(fetchMock.mock.calls[2][1]).toMatchObject({ method: 'POST' })
+      expect(result?.providerConfigUpdates).toMatchObject({ externalId: '{new-candidate-hook}' })
+    })
+
+    it('continues creation when a stale candidate was already deleted', async () => {
+      fetchMock
+        .mockResolvedValueOnce(hooksResponse([activeHook, candidateHook]))
+        .mockResolvedValueOnce(emptyResponse(404))
+        .mockResolvedValueOnce(jsonResponse(201, { uuid: '{new-candidate-hook}' }))
+
+      const result = await bitbucketHandler.createSubscription!(subscriptionContext(validConfig))
+
+      expect(fetchMock).toHaveBeenCalledTimes(3)
+      expect(fetchMock.mock.calls[1][1]).toMatchObject({ method: 'DELETE' })
+      expect(fetchMock.mock.calls[2][1]).toMatchObject({ method: 'POST' })
+      expect(result?.providerConfigUpdates).toMatchObject({ externalId: '{new-candidate-hook}' })
+    })
+
+    it('reuses a matching checkpointed candidate without creating or deleting another hook', async () => {
+      fetchMock.mockResolvedValueOnce(hooksResponse([activeHook, candidateHook]))
+
+      const result = await bitbucketHandler.createSubscription!(
+        subscriptionContext({
+          ...validConfig,
+          externalId: '{candidate-hook}',
+          webhookSecret: 'checkpointed-secret',
+        })
+      )
+
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+      expect(result?.providerConfigUpdates).toEqual({
+        externalId: '{candidate-hook}',
+        webhookSecret: 'checkpointed-secret',
+        eventTypes: ['repo:push'],
+      })
+    })
+
+    it.each([
+      ['a mismatched UUID', { externalId: '{different-hook}', webhookSecret: 'old-secret' }],
+      ['a missing secret', { externalId: '{candidate-hook}' }],
+    ])('does not reuse a checkpoint with %s', async (_case, checkpoint) => {
+      fetchMock
+        .mockResolvedValueOnce(hooksResponse([activeHook, candidateHook]))
+        .mockResolvedValueOnce(emptyResponse(204))
+        .mockResolvedValueOnce(jsonResponse(201, { uuid: '{new-candidate-hook}' }))
+
+      const result = await bitbucketHandler.createSubscription!(
+        subscriptionContext({ ...validConfig, ...checkpoint })
+      )
+
+      expect(fetchMock).toHaveBeenCalledTimes(3)
+      expect(fetchMock.mock.calls[1][1]).toMatchObject({ method: 'DELETE' })
+      expect(fetchMock.mock.calls[2][1]).toMatchObject({ method: 'POST' })
+      expect(result?.providerConfigUpdates).toMatchObject({ externalId: '{new-candidate-hook}' })
+    })
+
+    it('aborts before creation when candidate preflight cannot establish a unique state', async () => {
+      fetchMock.mockResolvedValueOnce(
+        hooksResponse([candidateHook, { ...candidateHook, uuid: '{second-candidate-hook}' }])
+      )
+
+      await expect(
+        bitbucketHandler.createSubscription!(subscriptionContext(validConfig))
+      ).rejects.toThrow(/found 2 matching hooks/i)
+
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+    })
+
+    it('does not delete by ID-based description for legacy non-candidate creation', async () => {
+      fetchMock.mockResolvedValueOnce(jsonResponse(201, {}))
+
+      await expect(
+        bitbucketHandler.createSubscription!(
+          subscriptionContext(validConfig, { registrationStatus: undefined })
+        )
+      ).rejects.toThrow(/no hook UUID/i)
+
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+      expect(fetchMock.mock.calls[0][1]).toMatchObject({ method: 'POST' })
+    })
+
+    it('does not create when candidate preflight times out', async () => {
+      const timeoutError = new DOMException('The operation timed out', 'TimeoutError')
+      fetchMock.mockRejectedValueOnce(timeoutError)
+
+      await expect(
+        bitbucketHandler.createSubscription!(subscriptionContext(validConfig))
+      ).rejects.toMatchObject({ name: 'TimeoutError' })
+
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+    })
   })
 
   describe('deleteSubscription', () => {
@@ -630,6 +1040,30 @@ describe('Bitbucket webhook provider', () => {
           strict: true,
         })
       ).rejects.toThrow(/failed to delete Bitbucket webhook: 500/i)
+    })
+
+    it('handles management-request timeouts according to cleanup strictness', async () => {
+      const timeoutSpy = vi.spyOn(AbortSignal, 'timeout')
+      fetchMock
+        .mockRejectedValueOnce(new DOMException('The operation timed out', 'TimeoutError'))
+        .mockRejectedValueOnce(new DOMException('The operation timed out', 'TimeoutError'))
+
+      await expect(
+        bitbucketHandler.deleteSubscription!(subscriptionContext(validConfig))
+      ).resolves.toBeUndefined()
+      await expect(
+        bitbucketHandler.deleteSubscription!({
+          ...subscriptionContext(validConfig),
+          strict: true,
+        })
+      ).rejects.toMatchObject({ name: 'TimeoutError' })
+
+      expect(timeoutSpy).toHaveBeenCalledTimes(2)
+      expect(timeoutSpy).toHaveBeenNthCalledWith(1, 15_000)
+      expect(timeoutSpy).toHaveBeenNthCalledWith(2, 15_000)
+      expect((fetchMock.mock.calls[0][1] as RequestInit).signal).not.toBe(
+        (fetchMock.mock.calls[1][1] as RequestInit).signal
+      )
     })
 
     it('handles missing cleanup configuration according to strictness', async () => {
