@@ -2603,11 +2603,7 @@ export const syncEnterpriseMetadataInStripe: OutboxHandler<unknown> = async (
 
     const latestPayload = enterpriseMetadataSyncPayloadSchema.safeParse(latest.payload)
     if (!latestPayload.success) throw new Error('Latest Enterprise metadata intent is invalid')
-    if (latestPayload.data.terms) {
-      throw new Error(
-        'Enterprise commercial-term updates are no longer supported. Submit a reporting-period change instead.'
-      )
-    }
+    if (latestPayload.data.terms && latestPayload.data.commercialTermsRetiredAt) return
     const desiredSeats = Number(latestPayload.data.metadata.seats)
     const currentSeatRequirement = await getEnterpriseIssuanceSeatRequirement({
       executor: db,
@@ -2650,6 +2646,10 @@ export const syncEnterpriseMetadataInStripe: OutboxHandler<unknown> = async (
         context,
       })
       return waitForEnterpriseWebhookAcknowledgement(latestPayload.data.acknowledgement, context)
+    }
+    if (latestPayload.data.terms) {
+      await context.checkpointPayload({ commercialTermsRetiredAt: new Date().toISOString() })
+      return
     }
 
     const deliveryState: EnterpriseMetadataDeliveryState = {

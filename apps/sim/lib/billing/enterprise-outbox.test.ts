@@ -302,7 +302,35 @@ describe('Enterprise metadata intent admission state', () => {
     })
   })
 
-  it('releases a pending legacy commercial-term intent that Stripe never accepted', async () => {
+  it('keeps a legacy commercial-term intent pending until Stripe state is checked', async () => {
+    const state = await resolveEnterpriseMetadataIntent(
+      executorReturning([
+        {
+          id: 'config-2',
+          status: 'pending',
+          payload: {
+            subscriptionId: 'sub-local',
+            revision: 2,
+            metadata: { seats: 7 },
+            terms: { invoiceAmountCents: 500_00, billingInterval: 'year' },
+          },
+        },
+      ]),
+      'sub-local',
+      { seats: '10', simConfigRevision: '1', simConfigOperationId: 'config-1' }
+    )
+
+    expect(state.hasUnappliedIntent).toBe(true)
+    expect(state.effectiveSeatCapacity).toBe(7)
+    expect(state.configurationUpdate).toMatchObject({
+      id: 'config-2',
+      status: 'pending',
+      providerAccepted: false,
+      error: null,
+    })
+  })
+
+  it('releases a legacy commercial-term intent after Stripe confirms it was not applied', async () => {
     const state = await resolveEnterpriseMetadataIntent(
       executorReturning([
         {
@@ -316,6 +344,7 @@ describe('Enterprise metadata intent admission state', () => {
               reportingPeriodAnchorDate: '2026-05-01',
             },
             terms: { invoiceAmountCents: 500_00, billingInterval: 'year' },
+            commercialTermsRetiredAt: '2026-08-01T00:00:00.000Z',
           },
         },
       ]),

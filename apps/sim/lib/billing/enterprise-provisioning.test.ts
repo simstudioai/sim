@@ -1450,7 +1450,7 @@ describe('Enterprise metadata outbox handler', () => {
     expect(mocks.subscriptionsUpdate).not.toHaveBeenCalled()
   })
 
-  it('rejects persisted commercial-term intents before any Stripe API call', async () => {
+  it('retires a legacy commercial-term intent after Stripe confirms it was not applied', async () => {
     const payload = {
       subscriptionId: 'local-sub-1',
       revision: 7,
@@ -1471,17 +1471,114 @@ describe('Enterprise metadata outbox handler', () => {
     queueTableRows(schemaMock.subscription, [{ metadata: {} }])
     queueTableRows(schemaMock.outboxEvent, [{ id: 'legacy-terms-event', payload }])
     queueTableRows(schemaMock.member, [{ value: 10 }])
+    mocks.subscriptionsRetrieve.mockResolvedValue({
+      id: 'sub_1',
+      metadata: {},
+      items: { data: [] },
+      pause_collection: { behavior: 'keep_as_draft', resumes_at: null },
+    })
+    const checkpointPayload = vi.fn()
 
     await expect(
       syncEnterpriseMetadataInStripe(payload, {
         eventId: 'legacy-terms-event',
         eventType: 'stripe.sync-enterprise-metadata',
         attempts: 7,
-        checkpointPayload: vi.fn(),
+        checkpointPayload,
       })
-    ).rejects.toThrow('commercial-term updates are no longer supported')
+    ).resolves.toBeUndefined()
 
-    expect(mocks.subscriptionsRetrieve).not.toHaveBeenCalled()
+    expect(mocks.subscriptionsRetrieve).toHaveBeenCalledWith('sub_1')
+    expect(checkpointPayload).toHaveBeenCalledWith({
+      commercialTermsRetiredAt: expect.any(String),
+    })
+    expect(mocks.subscriptionsUpdate).not.toHaveBeenCalled()
+    expect(mocks.pricesCreate).not.toHaveBeenCalled()
+    expect(mocks.invoicesUpdate).not.toHaveBeenCalled()
+  })
+
+  it('finishes verification when Stripe already contains an accepted legacy commercial intent', async () => {
+    const payload = {
+      subscriptionId: 'local-sub-1',
+      revision: 7,
+      deliveryRevision: 2,
+      metadata: {
+        plan: 'enterprise',
+        referenceId: 'org-1',
+        seats: 15,
+        invoiceAmountCents: 120000,
+        reportingPeriodAnchorDate: '2026-05-01',
+      },
+      terms: { invoiceAmountCents: 120000, billingInterval: 'year' as const },
+      deliveryState: {
+        priorPause: { behavior: 'keep_as_draft' as const, resumesAt: null },
+        billingIntervalChanged: true,
+        providerAcceptedAt: '2026-08-21T18:00:00.000Z',
+      },
+      stripeProgress: { priceId: 'price_year' },
+    }
+    queueTableRows(schemaMock.subscription, [
+      { stripeSubscriptionId: 'sub_1', referenceId: 'org-1', metadata: {} },
+    ])
+    queueTableRows(schemaMock.subscription, [{ metadata: {} }])
+    queueTableRows(schemaMock.outboxEvent, [{ id: 'accepted-legacy-terms-event', payload }])
+    queueTableRows(schemaMock.member, [{ value: 10 }])
+    mocks.subscriptionsRetrieve.mockResolvedValue({
+      id: 'sub_1',
+      metadata: {
+        plan: 'enterprise',
+        referenceId: 'org-1',
+        seats: '15',
+        invoiceAmountCents: '120000',
+        reportingPeriodAnchorDate: '2026-05-01',
+        simConfigOperationId: 'accepted-legacy-terms-event',
+        simConfigRevision: '7',
+        simConfigDeliveryRevision: '2',
+      },
+      collection_method: 'send_invoice',
+      days_until_due: 30,
+      schedule: null,
+      pause_collection: { behavior: 'keep_as_draft', resumes_at: null },
+      items: {
+        data: [
+          {
+            quantity: 1,
+            price: {
+              currency: 'usd',
+              unit_amount: 120000,
+              recurring: { interval: 'year', interval_count: 1 },
+            },
+          },
+        ],
+      },
+    })
+    const checkpointPayload = vi.fn()
+
+    await expect(
+      syncEnterpriseMetadataInStripe(payload, {
+        eventId: 'accepted-legacy-terms-event',
+        eventType: 'stripe.sync-enterprise-metadata',
+        attempts: 7,
+        checkpointPayload,
+      })
+    ).resolves.toMatchObject({
+      outcome: 'deferred',
+      consumeAttempt: false,
+      reason: 'Waiting for the verified Stripe webhook acknowledgement',
+    })
+
+    expect(checkpointPayload).toHaveBeenNthCalledWith(1, {
+      deliveryState: expect.objectContaining({
+        providerAcceptedAt: '2026-08-21T18:00:00.000Z',
+        verifiedAt: expect.any(String),
+      }),
+    })
+    expect(checkpointPayload).toHaveBeenNthCalledWith(2, {
+      acknowledgement: expect.objectContaining({
+        startedAt: expect.any(String),
+        deadlineAt: expect.any(String),
+      }),
+    })
     expect(mocks.subscriptionsUpdate).not.toHaveBeenCalled()
     expect(mocks.pricesCreate).not.toHaveBeenCalled()
     expect(mocks.invoicesUpdate).not.toHaveBeenCalled()
@@ -1581,12 +1678,14 @@ describe('Enterprise metadata outbox handler', () => {
         attempts: 0,
         checkpointPayload,
       })
-    ).rejects.toThrow('commercial-term updates are no longer supported')
+    ).resolves.toBeUndefined()
 
-    expect(mocks.subscriptionsRetrieve).not.toHaveBeenCalled()
+    expect(mocks.subscriptionsRetrieve).toHaveBeenCalledWith('sub_1')
     expect(mocks.pricesCreate).not.toHaveBeenCalled()
     expect(mocks.subscriptionsUpdate).not.toHaveBeenCalled()
-    expect(checkpointPayload).not.toHaveBeenCalled()
+    expect(checkpointPayload).toHaveBeenCalledWith({
+      commercialTermsRetiredAt: expect.any(String),
+    })
   })
 
   it('does not touch a paused subscription for a legacy commercial intent', async () => {
@@ -1647,9 +1746,9 @@ describe('Enterprise metadata outbox handler', () => {
         attempts: 0,
         checkpointPayload: vi.fn(),
       })
-    ).rejects.toThrow('commercial-term updates are no longer supported')
+    ).resolves.toBeUndefined()
 
-    expect(mocks.subscriptionsRetrieve).not.toHaveBeenCalled()
+    expect(mocks.subscriptionsRetrieve).toHaveBeenCalledWith('sub_1')
     expect(mocks.invoicesUpdate).not.toHaveBeenCalled()
     expect(mocks.subscriptionsUpdate).not.toHaveBeenCalled()
   })
@@ -1713,14 +1812,14 @@ describe('Enterprise metadata outbox handler', () => {
         attempts: 0,
         checkpointPayload: vi.fn(),
       })
-    ).rejects.toThrow('commercial-term updates are no longer supported')
+    ).resolves.toBeUndefined()
 
-    expect(mocks.subscriptionsRetrieve).not.toHaveBeenCalled()
+    expect(mocks.subscriptionsRetrieve).toHaveBeenCalledWith('sub_1')
     expect(mocks.invoicesUpdate).not.toHaveBeenCalled()
     expect(mocks.subscriptionsUpdate).not.toHaveBeenCalled()
   })
 
-  it('rejects billing-term changes controlled by a Stripe Schedule', async () => {
+  it('retires a legacy billing-term intent without touching its Stripe Schedule', async () => {
     const payload = {
       subscriptionId: 'local-sub-1',
       revision: 6,
@@ -1751,8 +1850,8 @@ describe('Enterprise metadata outbox handler', () => {
         attempts: 0,
         checkpointPayload: vi.fn(),
       })
-    ).rejects.toThrow('commercial-term updates are no longer supported')
-    expect(mocks.subscriptionsRetrieve).not.toHaveBeenCalled()
+    ).resolves.toBeUndefined()
+    expect(mocks.subscriptionsRetrieve).toHaveBeenCalledWith('sub_1')
     expect(mocks.subscriptionsUpdate).not.toHaveBeenCalled()
   })
 

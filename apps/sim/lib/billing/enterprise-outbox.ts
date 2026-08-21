@@ -94,6 +94,7 @@ export const enterpriseMetadataSyncPayloadSchema = z.object({
       billingInterval: z.enum(['month', 'year']),
     })
     .optional(),
+  commercialTermsRetiredAt: z.string().datetime().optional(),
   stripeProgress: z.object({ priceId: z.string().min(1).optional() }).default({}),
   deliveryState: z
     .object({
@@ -426,10 +427,11 @@ export async function resolveEnterpriseMetadataIntent(
   const providerAccepted =
     parsed.data.deliveryState?.providerAcceptedAt !== undefined ||
     parsed.data.acknowledgement !== undefined
-  const obsoleteCommercialTerms = parsed.data.terms !== undefined && !providerAccepted
+  const retiredCommercialTerms =
+    parsed.data.terms !== undefined && parsed.data.commercialTermsRetiredAt !== undefined
   const hasUnappliedIntent =
     !operationApplied &&
-    !obsoleteCommercialTerms &&
+    !retiredCommercialTerms &&
     (latest.status !== 'dead_letter' || providerAccepted)
   const desiredMetadata = hasUnappliedIntent ? parsed.data.metadata : appliedMetadata
   const desiredSeats = positiveInteger(parsed.data.metadata.seats)
@@ -452,7 +454,7 @@ export async function resolveEnterpriseMetadataIntent(
       : {
           id: latest.id,
           status:
-            obsoleteCommercialTerms || latest.status === 'dead_letter'
+            retiredCommercialTerms || latest.status === 'dead_letter'
               ? 'failed'
               : latest.status === 'processing'
                 ? 'processing'
@@ -460,7 +462,7 @@ export async function resolveEnterpriseMetadataIntent(
           requestedMetadata: parsed.data.metadata,
           requestedTerms: parsed.data.terms ?? null,
           providerAccepted,
-          error: obsoleteCommercialTerms
+          error: retiredCommercialTerms
             ? 'Enterprise commercial-term updates are no longer supported. Submit a reporting-period change instead.'
             : latest.status === 'dead_letter'
               ? (latest.lastError ?? null)
