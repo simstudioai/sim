@@ -142,7 +142,7 @@ export function buildSelectorContextFromBlock(
   //
   // Only fills a gap: a block that does declare the canonical id has already set it above,
   // including the basic/advanced active-member resolution this loop cannot express.
-  if (!context.oauthCredential && (!opts?.triggerMode || !resolvedGroups.has('oauthCredential'))) {
+  if (!context.oauthCredential && !resolvedGroups.has('oauthCredential')) {
     for (const [subBlockId, subBlock] of Object.entries(subBlocks)) {
       if (contextConfigs.find((cfg) => cfg.id === subBlockId)?.type !== 'oauth-input') {
         continue

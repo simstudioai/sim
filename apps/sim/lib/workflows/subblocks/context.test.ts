@@ -172,6 +172,12 @@ describe('buildSelectorContextFromBlock', () => {
         canonicalModes: { oauthCredential: 'advanced' },
       }).oauthCredential
     ).toBe('action-advanced')
+    expect(
+      buildSelectorContextFromBlock(
+        'gmail',
+        subBlocksFromValues({ credential: '', triggerCredentials: 'dormant-trigger' })
+      ).oauthCredential
+    ).toBeUndefined()
   })
 
   it('uses trigger credentials with and without canonical metadata after action conversion', () => {
