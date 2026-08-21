@@ -858,13 +858,24 @@ export async function cancelStaleDispatches(
    * partial `(table_id, status)` index that already covers exactly these three
    * statuses.
    *
-   * Narrowed to the dispatch's OWN groups, because `table_row_executions` has no
-   * dispatch column. Table-scoped, a live dispatch's cells would read as
-   * evidence that an abandoned dispatch beside it was still working, and the
-   * abandoned one would never be reclaimed — the stuck overlay this sweep exists
-   * to clear, now permanent. Two active dispatches over the SAME groups can
-   * still mask each other, but that is the state `markActiveDispatchesCancelled`
-   * already prevents: starting a run cancels prior work on its scope.
+   * Narrowed to the dispatch's own scope — its groups, and its rows when it
+   * names any — because `table_row_executions` has no dispatch column. Left
+   * table-scoped, a live dispatch's cells read as evidence that an abandoned
+   * dispatch beside it was still working, and the abandoned one is never
+   * reclaimed: the stuck overlay this sweep exists to clear, made permanent.
+   *
+   * The row filter is what covers the auto-fired and row-scoped runs, which do
+   * NOT cancel overlapping dispatches — `cancelPriorRuns` in `workflow-columns`
+   * requires `isManualRun`, and the per-row path is a no-op for dispatch
+   * cancellation — so same-group coexistence is ordinary, not exceptional.
+   *
+   * What remains is two table-wide dispatches over the same groups, where
+   * nothing in the row execution distinguishes whose work it is. Closing that
+   * needs a `dispatch_id` on `table_row_executions`, threaded through six write
+   * sites including the shared cell-write path. Until then the residue is a
+   * delay rather than a permanent mask: the live dispatch's cells stop updating
+   * when it finishes, and the next sweep after a quiet window reclaims the
+   * abandoned row.
    */
   const isStale = () =>
     and(
@@ -875,6 +886,12 @@ export async function cancelStaleDispatches(
         WHERE ${tableRowExecutions.tableId} = ${tableRunDispatches.tableId}
           AND ${tableRowExecutions.groupId} IN (
             SELECT jsonb_array_elements_text(${tableRunDispatches.scope} -> 'groupIds')
+          )
+          AND (
+            jsonb_typeof(${tableRunDispatches.scope} -> 'rowIds') <> 'array'
+            OR ${tableRowExecutions.rowId} IN (
+              SELECT jsonb_array_elements_text(${tableRunDispatches.scope} -> 'rowIds')
+            )
           )
           AND ${tableRowExecutions.status} IN ('queued', 'running', 'pending')
           AND ${tableRowExecutions.updatedAt} >= ${sql.param(staleBefore, tableRowExecutions.updatedAt)}

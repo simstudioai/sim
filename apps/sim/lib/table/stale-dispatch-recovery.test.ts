@@ -121,6 +121,15 @@ describe('cancelStaleDispatches', () => {
      */
     expect(chunks).toContain('tableRowExecutions.groupId')
     expect(chunks.some((chunk) => chunk.includes('jsonb_array_elements_text'))).toBe(true)
+    /**
+     * Rows too, when the dispatch names any. Auto-fired and row-scoped runs do
+     * NOT cancel overlapping dispatches — `cancelPriorRuns` requires
+     * `isManualRun`, and the per-row path is a no-op for dispatch cancellation —
+     * so a live dispatch sharing a group is ordinary, and only the row filter
+     * keeps its cells from vouching for an abandoned neighbour.
+     */
+    expect(chunks).toContain('tableRowExecutions.rowId')
+    expect(chunks.some((chunk) => chunk.includes("'rowIds'"))).toBe(true)
   })
 
   it('emits the terminal event so a stuck client overlay clears', async () => {
