@@ -128,6 +128,7 @@ describe('Bitbucket OAuth Connector', () => {
         'pullrequest:write',
         'pipeline',
         'pipeline:write',
+        'webhook',
       ],
       responseType: 'code',
       pkce: false,
@@ -150,6 +151,7 @@ describe('Bitbucket OAuth Connector', () => {
       'pullrequest:write',
       'pipeline',
       'pipeline:write',
+      'webhook',
     ]
     const mockFetch = createMockFetch({
       json: {

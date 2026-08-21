@@ -1,7 +1,7 @@
 import { BitbucketIcon } from '@/components/icons'
-import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { getTrigger } from '@/triggers'
 
 const WORKSPACE_FIELD = ['workspacePicker', 'workspaceSlugInput'] as const
 const REPOSITORY_FIELD = ['repositoryPicker', 'repositorySlugInput'] as const
@@ -146,11 +146,12 @@ export const BitbucketBlock: BlockConfig = {
   name: 'Bitbucket',
   description: 'Work with Bitbucket Cloud repositories, pull requests, and pipelines',
   longDescription:
-    'Connect Bitbucket Cloud to inspect repositories and source, collaborate on pull requests, and diagnose or control pipelines. This action integration uses OAuth and does not create webhooks or triggers.',
+    'Connect Bitbucket Cloud to inspect repositories and source, collaborate on pull requests, diagnose or control pipelines, and start workflows from repository and pull request events. OAuth is used for actions and automatic webhook management.',
   docsLink: 'https://docs.sim.ai/integrations/bitbucket',
   category: 'tools',
   integrationType: IntegrationType.DevOps,
   authMode: AuthMode.OAuth,
+  triggerAllowed: true,
   bgColor: '#FFFFFF',
   iconColor: '#2684FF',
   icon: BitbucketIcon,
@@ -317,7 +318,15 @@ export const BitbucketBlock: BlockConfig = {
       canonicalParamId: 'oauthCredential',
       mode: 'basic',
       serviceId: 'bitbucket',
-      requiredScopes: getScopesForService('bitbucket'),
+      requiredScopes: [
+        'account',
+        'repository',
+        'repository:write',
+        'pullrequest',
+        'pullrequest:write',
+        'pipeline',
+        'pipeline:write',
+      ],
       placeholder: 'Select Bitbucket account',
       required: true,
     },
@@ -811,6 +820,25 @@ export const BitbucketBlock: BlockConfig = {
       },
       placeholder: 'Maximum bounded content to return',
     },
+    ...getTrigger('bitbucket_push').subBlocks,
+    ...getTrigger('bitbucket_repository_forked').subBlocks,
+    ...getTrigger('bitbucket_repository_updated').subBlocks,
+    ...getTrigger('bitbucket_commit_comment_created').subBlocks,
+    ...getTrigger('bitbucket_build_status_created').subBlocks,
+    ...getTrigger('bitbucket_build_status_updated').subBlocks,
+    ...getTrigger('bitbucket_pull_request_created').subBlocks,
+    ...getTrigger('bitbucket_pull_request_updated').subBlocks,
+    ...getTrigger('bitbucket_pull_request_approved').subBlocks,
+    ...getTrigger('bitbucket_pull_request_approval_removed').subBlocks,
+    ...getTrigger('bitbucket_pull_request_changes_requested').subBlocks,
+    ...getTrigger('bitbucket_pull_request_changes_request_removed').subBlocks,
+    ...getTrigger('bitbucket_pull_request_merged').subBlocks,
+    ...getTrigger('bitbucket_pull_request_declined').subBlocks,
+    ...getTrigger('bitbucket_pull_request_comment_created').subBlocks,
+    ...getTrigger('bitbucket_pull_request_comment_updated').subBlocks,
+    ...getTrigger('bitbucket_pull_request_comment_deleted').subBlocks,
+    ...getTrigger('bitbucket_pull_request_comment_resolved').subBlocks,
+    ...getTrigger('bitbucket_pull_request_comment_reopened').subBlocks,
   ],
   tools: {
     // Keep this list literal so the documentation generator can statically discover every action.
@@ -1121,6 +1149,30 @@ export const BitbucketBlock: BlockConfig = {
     stopped: { type: 'boolean', description: 'Whether a pipeline stop request succeeded' },
     log: { type: 'string', description: 'Bounded pipeline step log tail' },
     totalBytes: { type: 'number', description: 'Full pipeline log byte size when reported' },
+  },
+  triggers: {
+    enabled: true,
+    available: [
+      'bitbucket_push',
+      'bitbucket_repository_forked',
+      'bitbucket_repository_updated',
+      'bitbucket_commit_comment_created',
+      'bitbucket_build_status_created',
+      'bitbucket_build_status_updated',
+      'bitbucket_pull_request_created',
+      'bitbucket_pull_request_updated',
+      'bitbucket_pull_request_approved',
+      'bitbucket_pull_request_approval_removed',
+      'bitbucket_pull_request_changes_requested',
+      'bitbucket_pull_request_changes_request_removed',
+      'bitbucket_pull_request_merged',
+      'bitbucket_pull_request_declined',
+      'bitbucket_pull_request_comment_created',
+      'bitbucket_pull_request_comment_updated',
+      'bitbucket_pull_request_comment_deleted',
+      'bitbucket_pull_request_comment_resolved',
+      'bitbucket_pull_request_comment_reopened',
+    ],
   },
 }
 
