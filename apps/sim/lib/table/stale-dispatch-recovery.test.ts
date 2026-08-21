@@ -4,15 +4,19 @@
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockAppendTableEvent } = vi.hoisted(() => ({
+const { mockAppendTableEvent, mockGetTableById } = vi.hoisted(() => ({
   mockAppendTableEvent: vi.fn(),
+  mockGetTableById: vi.fn(),
 }))
 
 vi.mock('@/lib/table/events', () => ({
   appendTableEvent: mockAppendTableEvent,
 }))
+vi.mock('@/lib/table/service', () => ({
+  getTableById: mockGetTableById,
+}))
 
-import { cancelStaleDispatches } from '@/lib/table/dispatcher'
+import { cancelStaleDispatches, dispatcherStep } from '@/lib/table/dispatcher'
 
 const STALE_BEFORE = new Date('2026-08-21T17:00:00.000Z')
 
@@ -129,5 +133,49 @@ describe('cancelStaleDispatches', () => {
 
     expect(cancelled).toEqual([])
     expect(mockAppendTableEvent).not.toHaveBeenCalled()
+  })
+})
+
+describe('dispatcherStep pending transition', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
+  /**
+   * The step reads the dispatch, then awaits the table load before writing
+   * `dispatching`. A cancel landing in that window — a Stop-all, or the
+   * stale-dispatch sweep — must win: keying the write on the id alone
+   * resurrected the row, and with a fresh heartbeat the sweep would then wait
+   * out another full window before reclaiming what it had already given up on.
+   */
+  it('re-asserts the status it read before claiming the dispatch', async () => {
+    mockGetTableById.mockResolvedValue({
+      id: 'table-1',
+      schema: { workflowGroups: [{ id: 'group-1' }] },
+    })
+    dbChainMockFns.limit.mockResolvedValue([{ ...ABANDONED_ROW, status: 'pending' }])
+
+    await dispatcherStep('tdsp_1').catch(() => {})
+
+    // The write must actually happen, or this asserts nothing.
+    expect(
+      dbChainMockFns.set.mock.calls.some(
+        (call) => (call[0] as Record<string, unknown> | undefined)?.status === 'dispatching'
+      )
+    ).toBe(true)
+
+    /**
+     * `set` and `where` are separate spies, so their call indexes do not pair —
+     * `readDispatch`'s own select filed a `where` first. Match on the predicate
+     * that only the claim can produce: this row's id AND its status together.
+     */
+    const claimPredicate = dbChainMockFns.where.mock.calls
+      .map((call) => collectChunks(call[0]))
+      .find(
+        (chunks) =>
+          chunks.includes('tableRunDispatches.id') && chunks.includes('tableRunDispatches.status')
+      )
+    expect(claimPredicate).toBeDefined()
   })
 })

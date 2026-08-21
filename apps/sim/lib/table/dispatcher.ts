@@ -411,7 +411,19 @@ export async function dispatcherStep(
       // cleanup sweep ages it from that rather than from `requested_at`, which
       // was stamped when the run was merely requested.
       .set({ status: 'dispatching', heartbeatAt: new Date() })
-      .where(eq(tableRunDispatches.id, dispatchId))
+      /**
+       * Re-asserts the status this step read two awaits ago. `dispatchId` alone
+       * would resurrect a dispatch cancelled in that window — a Stop-all, or now
+       * the stale-dispatch sweep — back to `dispatching`, and with a fresh
+       * heartbeat the sweep would then wait out another full window before
+       * reclaiming what it had already given up on.
+       */
+      .where(
+        and(
+          eq(tableRunDispatches.id, dispatchId),
+          inArray(tableRunDispatches.status, [...ACTIVE_DISPATCH_STATUSES])
+        )
+      )
     // Announce the dispatch the moment it starts — before the first window's
     // cells finish. Without this, auto-fired and capped dispatches (no client-
     // side optimistic seed) emit their first `dispatch` event only after window
