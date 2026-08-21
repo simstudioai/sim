@@ -101,7 +101,10 @@ describe('renamed commands keep their surface', () => {
   it('documents the filter operators on the row count', () => {
     const help = commandAt('tables', 'rows', 'count').helpInformation()
     expect(help).toContain('--filter <json|@file>')
+    expect(help).toContain('{"field":"status","op":"eq","value":"active"}')
     expect(help).toContain('{"all":[{"field":"status","op":"eq","value":"active"}]}')
+    expect(help).toContain('{"any":[{"field":"status","op":"eq","value":"active"}]}')
+    expect(help).toContain('group entries may also be nested groups')
     expect(help).not.toContain('--predicate')
   })
 
