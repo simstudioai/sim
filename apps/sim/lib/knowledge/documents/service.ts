@@ -707,6 +707,36 @@ async function markDocumentsQueued(documentIds: string[], queuedAt: Date): Promi
 }
 
 /**
+ * Withdraws a queue stamp whose dispatch provably never happened.
+ *
+ * {@link markDocumentsQueued} runs before dispatch on purpose — `batchTrigger`
+ * chunks, so a batch can half-succeed, and stamping afterwards would leave the
+ * runs that did start with no stamp and no grace. The cost of that ordering is
+ * that a batch where *every* dispatch failed still carries a fresh stamp, and
+ * recovery sweeps would honour a grace period the documents did not earn. Total
+ * failure is the one case where nothing was dispatched, so the stamp can be
+ * taken back and the next sweep is free to reclaim them immediately.
+ *
+ * Scoped three ways so it can only ever undo its own write: to the ids in this
+ * batch, to rows still `pending` (a worker that has since claimed one keeps its
+ * timestamps — see {@link markDocumentsQueued}), and to the exact stamp this
+ * call wrote, so a concurrent dispatch that has already re-stamped a document
+ * is left alone.
+ */
+async function clearDocumentsQueued(documentIds: string[], queuedAt: Date): Promise<void> {
+  await db
+    .update(document)
+    .set({ processingQueuedAt: null })
+    .where(
+      and(
+        inArray(document.id, documentIds),
+        eq(document.processingStatus, 'pending'),
+        eq(document.processingQueuedAt, queuedAt)
+      )
+    )
+}
+
+/**
  * Dispatches document processing jobs via Trigger.dev's `batchTrigger` when
  * available, or in-process otherwise. Throws only when every dispatch fails;
  * partial failures are logged and recovered by the next sync's stuck-doc pass.
@@ -728,10 +758,9 @@ export async function processDocumentsWithQueue(
     buildJobPayload(doc, knowledgeBaseId, processingOptions, requestId, billingContext)
   )
 
-  await markDocumentsQueued(
-    createdDocuments.map((doc) => doc.documentId),
-    new Date()
-  )
+  const documentIds = createdDocuments.map((doc) => doc.documentId)
+  const queuedAt = new Date()
+  await markDocumentsQueued(documentIds, queuedAt)
 
   const useTrigger = isTriggerAvailable()
   logger.info(
@@ -748,6 +777,19 @@ export async function processDocumentsWithQueue(
   )
 
   if (dispatched === 0) {
+    /**
+     * Best-effort, unlike the stamp itself: failing to write the stamp means the
+     * grace cannot be promised and dispatching anyway is the unsafe direction, so
+     * that write throws. Failing to withdraw one only delays recovery by a grace
+     * period, so it must not mask the dispatch failure that is the real error.
+     */
+    try {
+      await clearDocumentsQueued(documentIds, queuedAt)
+    } catch (error) {
+      logger.warn(`[${requestId}] Failed to withdraw the queue stamp after a failed dispatch`, {
+        error: getErrorMessage(error),
+      })
+    }
     throw new Error(`All ${jobPayloads.length} document processing dispatches failed`)
   }
 }

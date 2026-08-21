@@ -1,7 +1,7 @@
 /**
  * @vitest-environment node
  */
-import { dbChainMock, dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { dbChainMock, dbChainMockFns, flattenMockConditions, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@sim/db', () => dbChainMock)
@@ -74,6 +74,7 @@ describe('retryDocumentProcessing requeue stamp', () => {
           processingStatus: values.processingStatus as string,
           processingQueuedAt: values.processingQueuedAt as Date | null,
           processingStartedAt: values.processingStartedAt as Date | null,
+          processingCompletedAt: values.processingCompletedAt as Date | null,
           uploadedAt,
         },
         sweptAt
@@ -86,6 +87,7 @@ describe('retryDocumentProcessing requeue stamp', () => {
           processingStatus: 'pending',
           processingQueuedAt: null,
           processingStartedAt: null,
+          processingCompletedAt: null,
           uploadedAt,
         },
         sweptAt
@@ -121,7 +123,7 @@ describe('processDocumentsWithQueue dispatch stamp', () => {
     const after = Date.now()
 
     const stampCall = dbChainMockFns.set.mock.calls.find(
-      (call) => (call[0] as Record<string, unknown> | undefined)?.processingQueuedAt !== undefined
+      (call) => (call[0] as Record<string, unknown> | undefined)?.processingQueuedAt instanceof Date
     )
     expect(stampCall).toBeDefined()
     const values = stampCall?.[0] as Record<string, unknown>
@@ -131,5 +133,33 @@ describe('processDocumentsWithQueue dispatch stamp', () => {
     expect(stamp.getTime()).toBeGreaterThanOrEqual(before)
     expect(stamp.getTime()).toBeLessThanOrEqual(after)
     expect(values.processingStartedAt).toBeNull()
+  })
+
+  it('withdraws the stamp when every dispatch fails', async () => {
+    await dispatch()
+
+    const withdrawal = dbChainMockFns.set.mock.calls.find(
+      (call) => (call[0] as Record<string, unknown> | undefined)?.processingQueuedAt === null
+    )
+    expect(withdrawal).toBeDefined()
+  })
+
+  it('scopes the withdrawal to this batch, to pending rows, and to its own stamp', async () => {
+    await dispatch()
+
+    const stampCall = dbChainMockFns.set.mock.calls.find(
+      (call) => (call[0] as Record<string, unknown> | undefined)?.processingQueuedAt instanceof Date
+    )
+    const stamp = (stampCall?.[0] as Record<string, unknown>).processingQueuedAt as Date
+
+    const scoped = dbChainMockFns.where.mock.calls.some((call) => {
+      const nodes = flattenMockConditions(call[0])
+      return (
+        nodes.some((node) => node.type === 'inArray' && Array.isArray(node.values)) &&
+        nodes.some((node) => node.type === 'eq' && node.right === 'pending') &&
+        nodes.some((node) => node.type === 'eq' && node.right === stamp)
+      )
+    })
+    expect(scoped).toBe(true)
   })
 })
