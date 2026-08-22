@@ -33,7 +33,7 @@ interface ChunkContextMenuProps {
 
 /**
  * Context menu for chunks table.
- * Shows chunk actions when right-clicking a row, or "Create chunk" when right-clicking empty space.
+ * Shows chunk actions when right-clicking a row, or "New chunk" when right-clicking empty space.
  * Supports batch operations when multiple chunks are selected.
  */
 export function ChunkContextMenu({
@@ -71,6 +71,7 @@ export function ChunkContextMenu({
   const hasEditSection = !isMultiSelect && (!!onEdit || !!onCopyContent)
   const hasStateSection = !!onToggleEnabled
   const hasDestructiveSection = !!onDelete
+  const hasActionsAboveDestructive = hasNavigationSection || hasEditSection || hasStateSection
 
   return (
     <DropdownMenu open={isOpen} onOpenChange={(open) => !open && onClose()} modal={false}>
@@ -102,11 +103,6 @@ export function ChunkContextMenu({
                 Open in new tab
               </DropdownMenuItem>
             )}
-            {hasNavigationSection &&
-              (hasEditSection || hasStateSection || hasDestructiveSection) && (
-                <DropdownMenuSeparator />
-              )}
-
             {!isMultiSelect && onEdit && (
               <DropdownMenuItem disabled={disableEdit} onSelect={onEdit}>
                 <Pencil />
@@ -119,10 +115,6 @@ export function ChunkContextMenu({
                 Copy content
               </DropdownMenuItem>
             )}
-            {hasEditSection && (hasStateSection || hasDestructiveSection) && (
-              <DropdownMenuSeparator />
-            )}
-
             {onToggleEnabled && (
               <DropdownMenuItem disabled={disableToggleEnabled} onSelect={onToggleEnabled}>
                 <Eye />
@@ -130,7 +122,7 @@ export function ChunkContextMenu({
               </DropdownMenuItem>
             )}
 
-            {hasStateSection && hasDestructiveSection && <DropdownMenuSeparator />}
+            {hasActionsAboveDestructive && hasDestructiveSection && <DropdownMenuSeparator />}
             {onDelete && (
               <DropdownMenuItem disabled={disableDelete} onSelect={onDelete}>
                 <Trash />
@@ -142,7 +134,7 @@ export function ChunkContextMenu({
           onAddChunk && (
             <DropdownMenuItem disabled={disableAddChunk} onSelect={onAddChunk}>
               <Plus />
-              Create chunk
+              New chunk
             </DropdownMenuItem>
           )
         )}

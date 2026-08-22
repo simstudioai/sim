@@ -55,6 +55,16 @@ export const FileRowContextMenu = memo(function FileRowContextMenu({
 }: FileRowContextMenuProps) {
   const isMultiSelect = selectedCount > 1
 
+  /**
+   * Everything that can render above `Delete`: Open/Pin need a single selection,
+   * Download needs its handler, and the edit trio needs `canEdit` — so a multi-select
+   * with no download and only a move target leaves `Move to` alone above the rule.
+   *
+   * @see `.claude/rules/sim-list-ordering.md` — one rule, before the destructive group.
+   */
+  const hasActionsAboveDestructive =
+    !isMultiSelect || !!onDownload || (!!onMove && !!moveOptions && moveOptions.length > 0)
+
   return (
     <DropdownMenu open={isOpen} onOpenChange={(open) => !open && onClose()} modal={false}>
       <DropdownMenuTrigger asChild>
@@ -91,7 +101,6 @@ export const FileRowContextMenu = memo(function FileRowContextMenu({
         )}
         {canEdit && (
           <>
-            <DropdownMenuSeparator />
             {!isMultiSelect && (
               <DropdownMenuItem onSelect={onRename}>
                 <Pencil />
@@ -120,6 +129,7 @@ export const FileRowContextMenu = memo(function FileRowContextMenu({
                 </DropdownMenuSubContent>
               </DropdownMenuSub>
             )}
+            {hasActionsAboveDestructive && <DropdownMenuSeparator />}
             <DropdownMenuItem onSelect={onDelete}>
               <Trash />
               {isMultiSelect ? `Delete ${selectedCount} items` : 'Delete'}

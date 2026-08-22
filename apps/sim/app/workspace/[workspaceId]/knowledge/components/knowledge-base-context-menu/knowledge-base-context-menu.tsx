@@ -75,6 +75,7 @@ export const KnowledgeBaseContextMenu = memo(function KnowledgeBaseContextMenu({
   const hasMoveSection = !disableEdit && !!onMove && !!moveOptions && moveOptions.length > 0
   const hasEditSection = (showEdit && !!onEdit) || hasMoveSection
   const hasDestructiveSection = showDelete && !!onDelete
+  const hasActionsAboveDestructive = hasNavigationSection || hasInfoSection || hasEditSection
 
   return (
     <DropdownMenu open={isOpen} onOpenChange={(open) => !open && onClose()} modal={false}>
@@ -104,10 +105,6 @@ export const KnowledgeBaseContextMenu = memo(function KnowledgeBaseContextMenu({
             Open in new tab
           </DropdownMenuItem>
         )}
-        {hasNavigationSection && (hasInfoSection || hasEditSection || hasDestructiveSection) && (
-          <DropdownMenuSeparator />
-        )}
-
         {showViewTags && onViewTags && (
           <DropdownMenuItem onSelect={onViewTags}>
             <TagIcon />
@@ -126,8 +123,6 @@ export const KnowledgeBaseContextMenu = memo(function KnowledgeBaseContextMenu({
             {pinned ? 'Unpin' : 'Pin'}
           </DropdownMenuItem>
         )}
-        {hasInfoSection && (hasEditSection || hasDestructiveSection) && <DropdownMenuSeparator />}
-
         {showEdit && onEdit && (
           <DropdownMenuItem disabled={disableEdit} onSelect={onEdit}>
             <Pencil />
@@ -147,7 +142,7 @@ export const KnowledgeBaseContextMenu = memo(function KnowledgeBaseContextMenu({
           </DropdownMenuSub>
         )}
 
-        {hasEditSection && hasDestructiveSection && <DropdownMenuSeparator />}
+        {hasActionsAboveDestructive && hasDestructiveSection && <DropdownMenuSeparator />}
         {showDelete && onDelete && (
           <DropdownMenuItem disabled={disableDelete} onSelect={onDelete}>
             <Trash />

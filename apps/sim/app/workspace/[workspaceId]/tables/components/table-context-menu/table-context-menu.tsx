@@ -57,6 +57,23 @@ export function TableContextMenu({
   disableImport = false,
   disableExport = false,
 }: TableContextMenuProps) {
+  /**
+   * `Move to` needs a NON-EMPTY `moveOptions`, not just the handler — the looser
+   * `onMove` alone draws the rule with nothing above it for a table whose other
+   * actions are all absent and whose move list is empty.
+   *
+   * @see `.claude/rules/sim-list-ordering.md` — one rule, before the destructive
+   * group, with both sides built from the items' exact render conditions.
+   */
+  const hasActionsAboveDestructive =
+    onViewSchema ||
+    onRename ||
+    onImportCsv ||
+    onExportCsv ||
+    (onMove && moveOptions && moveOptions.length > 0) ||
+    onCopyId ||
+    onTogglePin
+
   return (
     <DropdownMenu open={isOpen} onOpenChange={(open) => !open && onClose()} modal={false}>
       <DropdownMenuTrigger asChild>
@@ -114,8 +131,6 @@ export function TableContextMenu({
             </DropdownMenuSubContent>
           </DropdownMenuSub>
         )}
-        {(onViewSchema || onRename || onImportCsv || onExportCsv || onMove) &&
-          (onCopyId || onTogglePin || onDelete) && <DropdownMenuSeparator />}
         {onTogglePin && (
           <DropdownMenuItem onSelect={onTogglePin}>
             <Pin />
@@ -128,7 +143,7 @@ export function TableContextMenu({
             Copy ID
           </DropdownMenuItem>
         )}
-        {(onCopyId || onTogglePin) && onDelete && <DropdownMenuSeparator />}
+        {hasActionsAboveDestructive && onDelete && <DropdownMenuSeparator />}
         {onDelete && (
           <DropdownMenuItem disabled={disableDelete} onSelect={onDelete}>
             <Trash />

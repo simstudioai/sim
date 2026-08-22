@@ -169,13 +169,10 @@ export function ContextMenu({
         onCloseAutoFocus={(e) => e.preventDefault()}
       >
         {onAddToChat && (
-          <>
-            <DropdownMenuItem onSelect={onAddToChat}>
-              <Blimp />
-              {addToChatLabel}
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-          </>
+          <DropdownMenuItem onSelect={onAddToChat}>
+            <Blimp />
+            {addToChatLabel}
+          </DropdownMenuItem>
         )}
         {contextMenu.columnName && canEditCell && (
           <DropdownMenuItem disabled={disableEdit} onSelect={onEditCell}>

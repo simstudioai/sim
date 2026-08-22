@@ -137,3 +137,108 @@ describe('sidebar context menu dismissal', () => {
     expect(onClose).toHaveBeenCalled()
   })
 })
+
+describe('separators', () => {
+  function renderWith(props: Partial<React.ComponentProps<typeof ContextMenu>>) {
+    ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
+    container = document.createElement('div')
+    document.body.appendChild(container)
+    root = createRoot(container)
+    act(() =>
+      root?.render(
+        <ContextMenu
+          isOpen
+          position={{ x: 10, y: 10 }}
+          menuRef={{ current: null }}
+          onClose={() => {}}
+          onDelete={() => {}}
+          showRename={false}
+          showDuplicate={false}
+          {...props}
+        />
+      )
+    )
+  }
+
+  function menuShape(): string[] {
+    const content = document.querySelector('[role="menu"]')
+    if (!content) return []
+    return Array.from(content.children).map((el) =>
+      el.getAttribute('role') === 'separator' ? 'sep' : (el.textContent ?? '')
+    )
+  }
+
+  it('puts its one rule directly before the destructive action', () => {
+    renderWith({ showRename: true, onRename: () => {}, showDelete: true })
+    const shape = menuShape()
+    expect(shape.filter((s) => s === 'sep')).toHaveLength(1)
+    expect(shape[shape.indexOf('sep') + 1]).toBe('Delete')
+  })
+
+  it('renders no rule when nothing precedes the destructive action', () => {
+    renderWith({ showDelete: true })
+    expect(menuShape()).toEqual(['Delete'])
+  })
+
+  it('renders no rule when there is no destructive action', () => {
+    renderWith({ showRename: true, onRename: () => {}, showDelete: false })
+    const shape = menuShape()
+    expect(shape).not.toContain('sep')
+    expect(shape).toEqual(['Rename'])
+  })
+
+  it('never trails a rule when showLeave is set without an onLeave handler', () => {
+    renderWith({
+      showRename: true,
+      onRename: () => {},
+      showLeave: true,
+      onLeave: undefined,
+      showDelete: false,
+    })
+    const shape = menuShape()
+    expect(shape.at(-1)).not.toBe('sep')
+    expect(shape).toEqual(['Rename'])
+  })
+
+  it('draws the rule for Leave when its handler is present', () => {
+    renderWith({
+      showRename: true,
+      onRename: () => {},
+      showLeave: true,
+      onLeave: () => {},
+      showDelete: false,
+    })
+    expect(menuShape()).toEqual(['Rename', 'sep', 'Leave'])
+  })
+
+  it('never renders two rules back to back across a broad flag sweep', () => {
+    const noop = () => {}
+    for (const showOpenInNewTab of [true, false]) {
+      for (const showPin of [true, false]) {
+        for (const showLock of [true, false]) {
+          for (const showExport of [true, false]) {
+            for (const showDelete of [true, false]) {
+              act(() => root?.unmount())
+              container?.remove()
+              renderWith({
+                showOpenInNewTab,
+                onOpenInNewTab: noop,
+                showPin,
+                onTogglePin: noop,
+                showLock,
+                onToggleLock: noop,
+                showExport,
+                onExport: noop,
+                showDelete,
+              })
+              const shape = menuShape()
+              expect(shape.filter((s) => s === 'sep').length).toBeLessThanOrEqual(1)
+              expect(shape.at(0)).not.toBe('sep')
+              expect(shape.at(-1)).not.toBe('sep')
+            }
+          }
+        }
+      }
+    }
+  })
+})

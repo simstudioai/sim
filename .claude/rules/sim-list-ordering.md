@@ -26,6 +26,71 @@ Left-to-right becomes top-to-bottom. A toolbar reading `Filter · Sort · Export
 
 Platform-only entries (desktop **Browser** and **Terminal**) trail the shared set rather than interleaving, so the common prefix is identical on every platform.
 
+## Grouping: one rule, against the consequential group
+
+Order is governed above. **Separators are governed here** — and the answer is: use at most one.
+
+Put a single `DropdownMenuSeparator` against the **consequential group** — the actions that
+delete, detach, or change a run — and nowhere else. Everything on the other side of it runs
+uninterrupted in toolbar-mirroring order.
+
+That group trails in almost every menu, so in practice the rule reads "one rule immediately
+before Delete / Leave / Close / Hide". It leads in exactly one place: the **logs row menu**,
+where `Retry` and `Cancel Run` are the primary actions on a failed run and sit at the top, with
+the rule beneath them. Ordering follows the surface (see "The rule" above); the separator simply
+fences whichever end the consequential group occupies. A menu whose consequential actions are
+merely *disabled* still gets no extra rule — `disabled` is not a group.
+
+```tsx
+// ✗ Bad — four semantic bands the user meets nowhere else
+Open in new tab │─── Rename, Lock │─── Duplicate, Export │─── Delete
+
+// ✓ Good — one rule, isolating the irreversible action
+Open in new tab, Rename, Lock, Duplicate, Export │─── Delete
+```
+
+**Why one.** No toolbar in this app renders a divider — every header is a flat
+`HEADER_ACTION_CLUSTER` (`gap-1`) chip row and every bulk action bar a flat `gap-[5px]` run. A
+menu banded into navigation / status / edit / copy / destructive therefore teaches a taxonomy
+that appears on no other surface, and because each band is conditional, the same action lands in
+a different group depending on which sibling items happen to be visible. The one thing a rule
+genuinely buys is a stop before the action you cannot undo.
+
+A second rule is justified only when a menu mixes genuinely different *scopes* — cell-level and
+table-level actions in one menu, say — not different verbs.
+
+**The one standing exception: menus that emulate a native menu.** The text-editor menu
+(`editor-context-menu.tsx`), the terminal menu (`terminal-context-menu.tsx`), and the browser
+page menu (`browser-session.tsx`) each mirror the OS menu the user already knows — clipboard
+banding (`Cut · Copy · Paste │ Select all`) is a convention every text field on their machine
+teaches them. These keep their native banding, and that is the *same* principle as the ordering
+rule above: mirror the surface the user already reads. The test is whether a real menu outside
+Sim taught them the grouping. Our own resource, row, and action menus have no such precedent —
+the toolbars they mirror are flat — so they take the single rule.
+
+**Both sides of every rule must be guaranteed non-empty.** Write the separator's guard out of
+the *exact* render conditions of the items around it, never a looser approximation:
+
+```tsx
+// ✗ Bad — `showLeave` alone, while the Leave item needs `showLeave && onLeave`.
+//         A caller passing showLeave from a permission check with a conditional
+//         onLeave renders a trailing rule under the last item.
+{hasActionsAbove && (showLeave || showDelete) && <DropdownMenuSeparator />}
+
+// ✓ Good — each term is the item's own condition, verbatim
+const hasDestructiveSection = (showLeave && onLeave) || showDelete
+{hasActionsAboveDestructive && hasDestructiveSection && <DropdownMenuSeparator />}
+```
+
+This is the failure that put a dangling rule at the bottom of the logs row menu, where two
+unconditional separators sat above conditional items.
+
+**Do not add a prop to move a rule.** The shared workflow context menu grew
+`groupNonDestructiveActions` and `separateNavigationAction` for this; between them they moved one
+separator for one caller, four of six branches were unreachable, and `separateNavigationAction`
+had no observable effect anywhere in the repo. Both are gone. A menu that wants different
+grouping wants the standard grouping.
+
 ## Encode the order once
 
 An order duplicated across surfaces is an order that will drift. Export **one** constant and sort by it — do not hand-maintain a matching literal per menu.
