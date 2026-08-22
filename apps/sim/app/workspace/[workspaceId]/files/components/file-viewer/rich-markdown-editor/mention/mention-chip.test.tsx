@@ -12,9 +12,14 @@ import type { Editor } from '@tiptap/react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+const navigation = vi.hoisted(() => ({
+  push: vi.fn(),
+  params: {} as Record<string, string>,
+}))
+
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({ push: vi.fn() }),
-  useParams: () => ({}),
+  useRouter: () => ({ push: navigation.push }),
+  useParams: () => navigation.params,
 }))
 
 // Override the global `getAllBlocks: () => ({})` stub — `getIconColorMap` iterates it as an array.
@@ -25,38 +30,59 @@ function fakeNode(attrs: Record<string, unknown>) {
   return { attrs } as unknown as Parameters<typeof MentionChipView>[0]['node']
 }
 
-function fakeEditor(): Editor {
-  return { storage: { mentionMenu: { navigable: false } } } as unknown as Editor
+function fakeEditor(navigable = false): Editor {
+  return { storage: { mentionMenu: { navigable } } } as unknown as Editor
 }
 
 let container: HTMLDivElement | null = null
 let root: Root | null = null
+
+async function renderChip({
+  kind = 'file',
+  id = 'f1',
+  label = 'notes.md',
+  navigable = false,
+  workspaceId,
+}: {
+  kind?: string
+  id?: string
+  label?: string
+  navigable?: boolean
+  workspaceId?: string
+} = {}): Promise<HTMLElement> {
+  ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
+  navigation.params = workspaceId ? { workspaceId } : {}
+  container = document.createElement('div')
+  document.body.appendChild(container)
+  root = createRoot(container)
+
+  await act(async () => {
+    root?.render(
+      MentionChipView({
+        node: fakeNode({ kind, id, label }),
+        editor: fakeEditor(navigable),
+      } as Parameters<typeof MentionChipView>[0])
+    )
+  })
+
+  const chip = container.querySelector('.mention-chip') as HTMLElement
+  expect(chip).not.toBeNull()
+  return chip
+}
 
 afterEach(() => {
   if (root) act(() => root?.unmount())
   container?.remove()
   container = null
   root = null
+  navigation.params = {}
+  navigation.push.mockReset()
+  vi.restoreAllMocks()
 })
 
 describe('MentionChipView', () => {
   it('renders its wrapper with no explicit text-color utility class', async () => {
-    ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
-    container = document.createElement('div')
-    document.body.appendChild(container)
-    root = createRoot(container)
-
-    await act(async () => {
-      root?.render(
-        MentionChipView({
-          node: fakeNode({ kind: 'file', id: 'f1', label: 'notes.md' }),
-          editor: fakeEditor(),
-        } as Parameters<typeof MentionChipView>[0])
-      )
-    })
-
-    const chip = container.querySelector('.mention-chip') as HTMLElement
-    expect(chip).not.toBeNull()
+    const chip = await renderChip()
 
     // Any `text-*` utility targeting the wrapper itself — bare, or Tailwind's self-targeting
     // `[&]:text-*` arbitrary variant (as opposed to a descendant variant like `[&>svg]:text-*`,
@@ -78,5 +104,46 @@ describe('MentionChipView', () => {
     expect(container?.querySelector('svg')?.getAttribute('class')).toContain(
       'text-[var(--text-icon)]'
     )
+  })
+
+  it('routes an ordinary click to the canonical resource path', async () => {
+    const open = vi.spyOn(window, 'open').mockImplementation(() => null)
+    const chip = await renderChip({ navigable: true, workspaceId: 'ws1' })
+
+    act(() => chip.dispatchEvent(new MouseEvent('click', { bubbles: true })))
+
+    expect(navigation.push).toHaveBeenCalledOnce()
+    expect(navigation.push).toHaveBeenCalledWith('/workspace/ws1/files/f1')
+    expect(open).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['Cmd', { metaKey: true }],
+    ['Ctrl', { ctrlKey: true }],
+  ])('opens a %s-click in a new tab without routing the current tab', async (_name, modifier) => {
+    const open = vi.spyOn(window, 'open').mockImplementation(() => null)
+    const chip = await renderChip({ navigable: true, workspaceId: 'ws1' })
+
+    act(() =>
+      chip.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, ...modifier }))
+    )
+
+    expect(open).toHaveBeenCalledOnce()
+    expect(open).toHaveBeenCalledWith('/workspace/ws1/files/f1', '_blank', 'noopener,noreferrer')
+    expect(navigation.push).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['navigation is disabled', false, 'ws1', 'file'],
+    ['the workspace route is absent', true, undefined, 'file'],
+    ['the resource kind is unsupported', true, 'ws1', 'integration'],
+  ])('stays inert when %s', async (_case, navigable, workspaceId, kind) => {
+    const open = vi.spyOn(window, 'open').mockImplementation(() => null)
+    const chip = await renderChip({ navigable, workspaceId, kind })
+
+    act(() => chip.dispatchEvent(new MouseEvent('click', { bubbles: true })))
+
+    expect(navigation.push).not.toHaveBeenCalled()
+    expect(open).not.toHaveBeenCalled()
   })
 })
