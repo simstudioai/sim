@@ -178,6 +178,94 @@ describe('TabStrip interactions', () => {
     expect(item.className).not.toContain('opacity-30')
   })
 
+  describe('floating variant', () => {
+    const plain = tabs.filter((tab) => !tab.pinned)
+
+    function mountFloating(items = plain) {
+      mount(<TabStrip tabs={items} onSelect={vi.fn()} onClose={vi.fn()} variant='floating' />)
+    }
+
+    it('gives a shape to the active tab only', () => {
+      mountFloating()
+
+      expect(tabButton('one').className).toContain('bg-[var(--surface-active)]')
+      // A bare tab paints no surface of its own, which is what keeps the row
+      // from reading as a strip of buttons.
+      expect(tabButton('two').className).not.toContain('bg-[var(--surface-active)]')
+      expect(tabButton('two').className).not.toContain('border-[var(--border)]')
+    })
+
+    it('divides two adjacent bare tabs, but not a bare tab from a shaped one', () => {
+      // three/four are both bare and adjacent; two sits right after active one.
+      mountFloating([
+        { id: 'one', title: 'One', active: true },
+        { id: 'two', title: 'Two' },
+        { id: 'three', title: 'Three' },
+      ])
+
+      const divider = (id: string) => stripItem(id).querySelector('.w-px')
+      // 'two' follows the active tab, whose pill already separates them.
+      expect(divider('two')).toBeNull()
+      expect(divider('three')).not.toBeNull()
+      // Nothing precedes the first tab.
+      expect(divider('one')).toBeNull()
+    })
+
+    it('offers a close affordance on every tab, at rest only on the active one', () => {
+      mountFloating()
+
+      // `opacity-0` is not a substring of `opacity-100`, so these two assertions
+      // genuinely separate the states. (`toContain('pointer-events-none')` would
+      // not: the Button base carries `disabled:pointer-events-none`.)
+      const bare = container?.querySelector<HTMLElement>('[aria-label="Close Two"]')
+      expect(bare).not.toBeNull()
+      expect(bare?.className).toContain('opacity-0')
+      expect(bare?.className).toContain('group-hover:opacity-100')
+
+      const active = container?.querySelector<HTMLElement>('[aria-label="Close One"]')
+      expect(active?.className).not.toContain('opacity-0')
+    })
+
+    it('reserves the close slot on every tab, so activating one shifts nothing', () => {
+      mountFloating()
+
+      // Floating tabs are content-sized, so reserving only on the active tab
+      // would grow it on activation and shove the rest of the row sideways.
+      expect(tabButton('one').className).toContain('pr-8')
+      expect(tabButton('two').className).toContain('pr-8')
+    })
+
+    it('keeps a selected tab distinguishable from the active one', () => {
+      mountFloating([
+        { id: 'one', title: 'One', active: true, selected: true },
+        { id: 'two', title: 'Two', selected: true },
+      ])
+
+      // The active tab owns `--surface-active`; a selected tab takes the step
+      // below it, or the two would be one undifferentiated run of pills.
+      expect(tabButton('one').className).toContain('bg-[var(--surface-active)]')
+      expect(tabButton('two').className).toContain('bg-[var(--surface-4)]')
+      expect(tabButton('two').className).not.toContain('bg-[var(--surface-active)]')
+    })
+
+    it('lets tabs overflow rather than compress, so the strip can scroll', () => {
+      mountFloating()
+
+      // A flex child that both shrinks and has no floor collapses to fit its
+      // container, so scrollWidth never exceeds clientWidth and the edge fades,
+      // reveal-on-select and drag auto-scroll all go dead.
+      expect(stripItem('two').className).toContain('shrink-0')
+      expect(stripItem('two').className).not.toContain('min-w-0')
+    })
+
+    it('leaves the attached variant unchanged', () => {
+      mount(<TabStrip tabs={plain} onSelect={vi.fn()} onClose={vi.fn()} />)
+
+      expect(tabButton('one').className).toContain('bg-[var(--bg)]')
+      expect(stripItem('two').querySelector('.w-px')).toBeNull()
+    })
+  })
+
   it('closes an unpinned tab with the middle mouse button', () => {
     const onClose = vi.fn()
     mount(renderStrip(tabs, vi.fn(), onClose))
