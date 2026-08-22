@@ -109,6 +109,7 @@ const STATIC_CONNECT_SRC = [
   'https://*.supabase.co',
   'https://api.github.com',
   'https://github.com/*',
+  'https://status.sim.ai',
   'https://challenges.cloudflare.com',
   // Cal.com booking embed (landing /demo) — embed XHR/availability calls
   'https://app.cal.com',
