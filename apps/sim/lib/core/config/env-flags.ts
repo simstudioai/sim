@@ -86,6 +86,13 @@ export const isCopilotBillingProtocolRequired = isTruthy(env.COPILOT_BILLING_PRO
 export const isChatEnabled = !isTruthy(getEnv('NEXT_PUBLIC_CHAT_DISABLED'))
 
 /**
+ * Forces the sidebar service-status notice into its critical preview state.
+ * This is an explicit testing override; when unset, hosted deployments read
+ * the live status page and other deployments do not mount the notice.
+ */
+export const isStatusNoticePreviewEnabled = isTruthy(getEnv('NEXT_PUBLIC_STATUS_NOTICE_PREVIEW'))
+
+/**
  * Holds tools the catalog marks `requiresApproval` — shell commands, workflow
  * runs, sandboxed code, deployments, integration calls — behind an explicit
  * Allow / Skip prompt, blocking the mothership turn until the user answers.

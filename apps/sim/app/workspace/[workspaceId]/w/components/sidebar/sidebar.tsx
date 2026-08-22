@@ -38,7 +38,7 @@ import { usePostHog } from 'posthog-js/react'
 import { useSession } from '@/lib/auth/auth-client'
 import { focusVisibleBrowserOmnibox } from '@/lib/browser-agent/renderer-shortcuts'
 import { SIM_RESOURCES_DRAG_TYPE } from '@/lib/copilot/resource-types'
-import { isChatEnabled } from '@/lib/core/config/env-flags'
+import { isChatEnabled, isHosted, isStatusNoticePreviewEnabled } from '@/lib/core/config/env-flags'
 import { isMacPlatform } from '@/lib/core/utils/platform'
 import { buildFolderTree, getFolderPathNames } from '@/lib/folders/tree'
 import { captureEvent } from '@/lib/posthog/client'
@@ -62,6 +62,7 @@ import {
   SidebarNavChip,
   type SidebarNavItemData,
   SidebarSection,
+  StatusNotice,
   TablesRailFlyout,
   WorkflowList,
   WorkspaceHeader,
@@ -1479,7 +1480,7 @@ export const Sidebar = memo(function Sidebar({
                   ref={isCollapsed ? undefined : scrollContainerRef}
                   className={cn(
                     SIDEBAR_DIVIDER_PAD_BELOW_CLASS,
-                    'flex flex-1 flex-col overflow-y-auto overflow-x-hidden border-t transition-colors duration-150',
+                    'flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden border-t transition-colors duration-150',
                     !hasOverflowTop && 'border-transparent'
                   )}
                 >
@@ -1806,6 +1807,12 @@ export const Sidebar = memo(function Sidebar({
                     </SidebarSection>
                   </div>
                 </div>
+
+                {(isHosted || isStatusNoticePreviewEnabled) && !isCollapsed ? (
+                  <div className='flex-shrink-0 px-2 py-2'>
+                    <StatusNotice preview={isStatusNoticePreviewEnabled} />
+                  </div>
+                ) : null}
 
                 <SidebarFooter
                   workspaceId={workspaceId}

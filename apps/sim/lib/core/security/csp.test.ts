@@ -272,6 +272,10 @@ describe('buildTimeCSPDirectives', () => {
     expect(buildTimeCSPDirectives['font-src']).toContain('https://fonts.gstatic.com')
   })
 
+  it('allows the hosted app to read the Sim status page', () => {
+    expect(getMainCSPPolicy()).toMatch(/connect-src[^;]*https:\/\/status\.sim\.ai/)
+  })
+
   it('should allow data: and blob: for images', () => {
     expect(buildTimeCSPDirectives['img-src']).toContain('data:')
     expect(buildTimeCSPDirectives['img-src']).toContain('blob:')
