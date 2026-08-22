@@ -67,13 +67,26 @@ describe('durable secret provenance enforcement', () => {
   })
 
   it('reports an unrecognized surface rather than silently enforcing nothing', () => {
-    configure('memory,workspace-file')
+    configure('memory,not-a-surface')
 
     expect(isDurableSecretProvenanceEnforced('memory')).toBe(true)
     expect(mockLogger.error).toHaveBeenCalledWith(
       'Ignoring unrecognized durable secret provenance surfaces',
-      expect.objectContaining({ unrecognized: ['workspace-file'] })
+      expect.objectContaining({ unrecognized: ['not-a-surface'] })
     )
+  })
+
+  /**
+   * `workspace-file` was this test's example of an unrecognized name while the env documentation
+   * already offered it — so anyone who set it got a silent no-op and the fail-closed posture they
+   * were trying to change. It is a real surface now.
+   */
+  it('recognizes every surface its own configuration documents', () => {
+    configure('workspace-file')
+
+    expect(isDurableSecretProvenanceEnforced('workspace-file')).toBe(true)
+    expect(isDurableSecretProvenanceEnforced('table-row')).toBe(false)
+    expect(mockLogger.error).not.toHaveBeenCalled()
   })
 
   it('reports at error with the surface, cause, and affected count so it survives every LOG_LEVEL default', () => {

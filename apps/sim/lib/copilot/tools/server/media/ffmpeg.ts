@@ -114,7 +114,7 @@ export const ffmpegServerTool: BaseServerTool<FfmpegArgs, FfmpegResult> = {
           context: fileRecord.storageContext ?? 'workspace',
         })
         inputRequiresOpaqueError ||=
-          fileProvenance.status === 'unknown' || fileProvenance.entries.length > 0
+          fileProvenance.status !== 'exact' || fileProvenance.entries.length > 0
         const { content: buffer } = await executeCopilotFileUseCase(
           context,
           readWorkspaceFileContent,
@@ -139,7 +139,7 @@ export const ffmpegServerTool: BaseServerTool<FfmpegArgs, FfmpegResult> = {
 
       const inputProvenance = mergeWorkspaceFileSecretProvenance(...inputProvenances)
       inputRequiresOpaqueError ||=
-        inputProvenance.status === 'unknown' || inputProvenance.entries.length > 0
+        inputProvenance.status !== 'exact' || inputProvenance.entries.length > 0
       assertServerToolNotAborted(context)
       const result = await runFfmpegOperation(params.operation, mediaFiles, {
         text: params.text,

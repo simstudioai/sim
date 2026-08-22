@@ -2263,7 +2263,7 @@ export const workspaceFileSecretProvenance = pgTable(
   (table) => ({
     statusCheck: check(
       'workspace_file_secret_provenance_status_check',
-      sql`${table.status} IN ('exact', 'unknown')`
+      sql`${table.status} IN ('exact', 'unknown', 'unrecorded')`
     ),
   })
 )
