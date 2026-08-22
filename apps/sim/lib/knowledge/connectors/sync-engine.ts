@@ -656,7 +656,7 @@ export function stillHoldsSyncLock(connectorId: string, syncLockToken: string) {
 }
 
 /** The archived/deleted half of {@link stillHoldsSyncLock}. */
-function connectorIsLive() {
+export function connectorIsLive() {
   return and(isNull(knowledgeConnector.archivedAt), isNull(knowledgeConnector.deletedAt))
 }
 

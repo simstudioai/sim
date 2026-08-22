@@ -3450,8 +3450,8 @@
           },
           "status": {
             "type": "string",
-            "enum": ["active", "paused", "syncing", "error", "disabled"],
-            "description": "Current connector state."
+            "enum": ["active", "paused", "pending", "syncing", "error", "disabled"],
+            "description": "Current connector state. `pending` means a sync is queued but not yet running."
           },
           "lastSyncAt": {
             "anyOf": [
@@ -3840,8 +3840,8 @@
           },
           "status": {
             "type": "string",
-            "enum": ["active", "paused", "syncing", "error", "disabled"],
-            "description": "Current connector state."
+            "enum": ["active", "paused", "pending", "syncing", "error", "disabled"],
+            "description": "Current connector state. `pending` means a sync is queued but not yet running."
           },
           "lastSyncAt": {
             "anyOf": [

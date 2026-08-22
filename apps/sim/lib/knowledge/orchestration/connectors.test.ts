@@ -336,6 +336,33 @@ describe('performSyncKnowledgeConnector', () => {
     expect(mockDispatchSync).not.toHaveBeenCalled()
   })
 
+  it.each(['pending', 'paused', 'disabled'] as const)(
+    'refuses an on-demand sync on a %s connector',
+    async (status) => {
+      dbChainMockFns.limit.mockResolvedValueOnce([
+        { id: 'conn-1', connectorType: 'notion', status },
+      ])
+
+      const outcome = await performSyncKnowledgeConnector({
+        ...ACTOR,
+        knowledgeBase: KB,
+        connectorId: 'conn-1',
+        resolveBillingAttribution,
+      })
+
+      /**
+       * `pending` already has a run queued. `paused`/`disabled` have no way
+       * back: queueing overwrites `status`, and every exit from the run writes
+       * its own verdict — success writes `active`, a lost queue entry writes
+       * `error`, which the due-sweep then keeps syncing. One "Sync now" would
+       * silently resume the connector for good.
+       */
+      expect(outcome).toMatchObject({ success: false, errorCode: 'conflict' })
+      expect(resolveBillingAttribution).not.toHaveBeenCalled()
+      expect(mockDispatchSync).not.toHaveBeenCalled()
+    }
+  )
+
   it('dispatches and records who asked for it', async () => {
     dbChainMockFns.limit.mockResolvedValueOnce([
       { id: 'conn-1', connectorType: 'notion', status: 'active' },

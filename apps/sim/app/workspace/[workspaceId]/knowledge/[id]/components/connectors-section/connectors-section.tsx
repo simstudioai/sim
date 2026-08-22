@@ -1,7 +1,6 @@
 'use client'
 
-import type { Dispatch, SetStateAction } from 'react'
-import { useEffect, useId, useMemo, useRef, useState } from 'react'
+import { useId, useMemo, useState } from 'react'
 import {
   Badge,
   Button,
@@ -40,6 +39,7 @@ import { getTileIconColorClass } from '@/blocks/icon-color'
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
 import type { ConnectorData, SyncLogData } from '@/hooks/queries/kb/connectors'
 import {
+  isConnectorSyncingOrPending,
   useConnectorDetail,
   useDeleteConnector,
   useTriggerSync,
@@ -59,31 +59,21 @@ interface ConnectorsSectionProps {
   className?: string
 }
 
-/** 5-minute cooldown after a manual sync trigger */
-const SYNC_COOLDOWN_MS = 5 * 60 * 1000
-
 const EMPTY_REQUIRED_SCOPES: string[] = []
-
-type IdSetSetter = Dispatch<SetStateAction<Set<string>>>
-
-function addToSet(setter: IdSetSetter, id: string) {
-  setter((prev) => new Set(prev).add(id))
-}
-
-function removeFromSet(setter: IdSetSetter, id: string) {
-  setter((prev) => {
-    const next = new Set(prev)
-    next.delete(id)
-    return next
-  })
-}
 
 const STATUS_CONFIG = {
   active: { label: 'Active', variant: 'green' as const },
+  pending: { label: 'Queued', variant: 'blue' as const },
   syncing: { label: 'Syncing', variant: 'amber' as const },
   error: { label: 'Error', variant: 'red' as const },
   paused: { label: 'Paused', variant: 'gray' as const },
   disabled: { label: 'Disabled', variant: 'orange' as const },
+} as const
+
+/** Covers exactly the statuses {@link isConnectorSyncingOrPending} matches. */
+const SYNC_IN_FLIGHT_TOOLTIP = {
+  pending: 'Sync queued',
+  syncing: 'Sync in progress',
 } as const
 
 const CONNECTOR_ACTION_BUTTON_CLASSES =
@@ -110,58 +100,26 @@ export function ConnectorsSection({
   }
   const [editingConnector, setEditingConnector] = useState<ConnectorData | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [syncingIds, setSyncingIds] = useState<Set<string>>(() => new Set())
-  const [updatingIds, setUpdatingIds] = useState<Set<string>>(() => new Set())
 
-  const syncTriggeredAt = useRef<Record<string, number>>({})
-  const cooldownTimersRef = useRef<Set<ReturnType<typeof setTimeout>> | null>(null)
-  cooldownTimersRef.current ??= new Set()
-  const [, forceUpdate] = useState(0)
-
-  useEffect(() => {
-    return () => {
-      for (const timer of cooldownTimersRef.current ?? []) {
-        clearTimeout(timer)
-      }
-    }
-  }, [])
-
-  const isSyncOnCooldown = (connectorId: string) => {
-    const triggeredAt = syncTriggeredAt.current[connectorId]
-    if (!triggeredAt) return false
-    return Date.now() - triggeredAt < SYNC_COOLDOWN_MS
-  }
-
+  /**
+   * In-flight state is written optimistically into the connector list, so the
+   * row's own `status` is the only thing the UI reads — local id sets would not
+   * survive the modal holding them unmounting.
+   */
   const handleSync = (connectorId: string, rehydrate = false) => {
-    if (isSyncOnCooldown(connectorId)) return
-
-    syncTriggeredAt.current[connectorId] = Date.now()
-    addToSet(setSyncingIds, connectorId)
-
     triggerSync(
       { knowledgeBaseId, connectorId, rehydrate },
       {
-        onSuccess: () => {
-          setError(null)
-          const timer = setTimeout(() => {
-            cooldownTimersRef.current?.delete(timer)
-            forceUpdate((n) => n + 1)
-          }, SYNC_COOLDOWN_MS)
-          cooldownTimersRef.current?.add(timer)
-        },
+        onSuccess: () => setError(null),
         onError: (err) => {
           logger.error('Sync trigger failed', { error: err.message })
           setError(err.message)
-          delete syncTriggeredAt.current[connectorId]
-          forceUpdate((n) => n + 1)
         },
-        onSettled: () => removeFromSet(setSyncingIds, connectorId),
       }
     )
   }
 
   const handleTogglePause = (connector: ConnectorData) => {
-    addToSet(setUpdatingIds, connector.id)
     updateConnector(
       {
         knowledgeBaseId,
@@ -172,7 +130,6 @@ export function ConnectorsSection({
         },
       },
       {
-        onSettled: () => removeFromSet(setUpdatingIds, connector.id),
         onSuccess: () => setError(null),
         onError: (err) => {
           logger.error('Toggle pause failed', { error: err.message })
@@ -221,9 +178,6 @@ export function ConnectorsSection({
               workspaceId={workspaceId}
               knowledgeBaseId={knowledgeBaseId}
               canEdit={canEdit}
-              isSyncPending={syncingIds.has(connector.id)}
-              isUpdating={updatingIds.has(connector.id)}
-              syncCooldown={isSyncOnCooldown(connector.id)}
               onSync={(rehydrate) => handleSync(connector.id, rehydrate)}
               onTogglePause={() => handleTogglePause(connector)}
               onEdit={() => setEditingConnector(connector)}
@@ -280,9 +234,6 @@ interface ConnectorCardProps {
   workspaceId: string
   knowledgeBaseId: string
   canEdit: boolean
-  isSyncPending: boolean
-  isUpdating: boolean
-  syncCooldown: boolean
   onSync: (rehydrate?: boolean) => void
   onEdit: () => void
   onTogglePause: () => void
@@ -294,9 +245,6 @@ function ConnectorCard({
   workspaceId,
   knowledgeBaseId,
   canEdit,
-  isSyncPending,
-  isUpdating,
-  syncCooldown,
   onSync,
   onEdit,
   onTogglePause,
@@ -338,12 +286,17 @@ function ConnectorCard({
   const syncLogs = detail?.syncLogs ?? []
 
   const canFullResync = Boolean(connectorDef?.rehydrateOnFullSync)
-  const syncDisabled =
-    connector.status === 'syncing' ||
-    connector.status === 'disabled' ||
-    isSyncPending ||
-    syncCooldown
-  const syncTooltip = syncCooldown ? 'Sync recently triggered' : canFullResync ? 'Sync' : 'Sync now'
+  const syncInFlight = isConnectorSyncingOrPending(connector)
+  const isPaused = connector.status === 'paused'
+  /**
+   * A queued sync is what stops a second one being dispatched — the server
+   * rejects it as a conflict anyway, so the button reflects that rather than
+   * running a client-side cooldown timer alongside it.
+   */
+  const syncDisabled = syncInFlight || connector.status === 'disabled' || isPaused
+  const syncTooltip =
+    SYNC_IN_FLIGHT_TOOLTIP[connector.status as keyof typeof SYNC_IN_FLIGHT_TOOLTIP] ??
+    (isPaused ? 'Resume to sync' : canFullResync ? 'Sync' : 'Sync now')
 
   return (
     <div
@@ -378,9 +331,7 @@ function ConnectorCard({
             <div className='flex min-w-0 items-center gap-2'>
               <span className='flex min-w-0 items-center gap-1.5 text-[var(--text-primary)] text-small'>
                 <span className='truncate'>{connectorDef?.name || connector.connectorType}</span>
-                {(isSyncPending || connector.status === 'syncing') && (
-                  <Loader className='size-3 text-[var(--text-muted)]' animate />
-                )}
+                {syncInFlight && <Loader className='size-3 text-[var(--text-muted)]' animate />}
               </span>
               <Badge variant={statusConfig.variant} size='sm' dot className='flex-shrink-0'>
                 {statusConfig.label}
@@ -396,7 +347,7 @@ function ConnectorCard({
                   <span>{connector.lastSyncDocCount} docs</span>
                 </>
               )}
-              {connector.nextSyncAt && connector.status === 'active' && (
+              {connector.nextSyncAt && connector.status === 'active' && !syncInFlight && (
                 <>
                   <span>·</span>
                   <span>
@@ -435,12 +386,7 @@ function ConnectorCard({
                             className={CONNECTOR_ACTION_BUTTON_CLASSES}
                             disabled={syncDisabled}
                           >
-                            <RefreshCw
-                              className={cn(
-                                'size-3.5',
-                                connector.status === 'syncing' && 'animate-spin'
-                              )}
-                            />
+                            <RefreshCw className='size-3.5' />
                           </Button>
                         </DropdownMenuTrigger>
                       </span>
@@ -464,12 +410,7 @@ function ConnectorCard({
                         disabled={syncDisabled}
                         onClick={() => onSync(false)}
                       >
-                        <RefreshCw
-                          className={cn(
-                            'size-3.5',
-                            connector.status === 'syncing' && 'animate-spin'
-                          )}
-                        />
+                        <RefreshCw className='size-3.5' />
                       </Button>
                     </span>
                   </Tooltip.Trigger>
@@ -496,11 +437,8 @@ function ConnectorCard({
                     variant='ghost'
                     className={CONNECTOR_ACTION_BUTTON_CLASSES}
                     onClick={onTogglePause}
-                    disabled={isUpdating}
                   >
-                    {isUpdating ? (
-                      <Loader className='size-3.5' animate />
-                    ) : connector.status === 'paused' || connector.status === 'disabled' ? (
+                    {connector.status === 'paused' || connector.status === 'disabled' ? (
                       <Play className='size-3.5' />
                     ) : (
                       <Pause className='size-3.5' />
