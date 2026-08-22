@@ -1090,6 +1090,54 @@ describe('workspace file secret provenance', () => {
     )
   })
 
+  /**
+   * A fork or chat copy must not turn a readable absence into a permanent refusal. Folding
+   * `unrecorded` in with the refusals would hand the target a taint the source never carried, and
+   * nothing rewrites a file's provenance but another content write.
+   */
+  it('copies a recorded absence as an absence, not as a refusal', async () => {
+    const targetContentUpdatedAt = new Date('2026-08-04T00:00:01.000Z')
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([
+        {
+          userId: 'user-1',
+          workspaceId: 'workspace-2',
+          contentUpdatedAt: targetContentUpdatedAt,
+        },
+      ])
+      .mockResolvedValueOnce([
+        {
+          key: 'source-key',
+          userId: 'user-1',
+          workspaceId: 'workspace-1',
+          secretProvenanceVersion: 1,
+          fileContentUpdatedAt: CONTENT_UPDATED_AT,
+          provenanceContentUpdatedAt: CONTENT_UPDATED_AT,
+          status: 'unrecorded',
+          entries: [],
+        },
+      ])
+
+    await copyWorkspaceFileSecretProvenanceInTx(
+      dbChainMock.db as unknown as DbTransaction,
+      {
+        fileId: 'source-file',
+        key: 'source-key',
+        contentUpdatedAtMs: CONTENT_UPDATED_AT.getTime(),
+      },
+      'target-file'
+    )
+
+    expect(dbChainMockFns.values).toHaveBeenCalledWith(
+      expect.objectContaining({
+        fileId: 'target-file',
+        contentUpdatedAt: targetContentUpdatedAt,
+        status: 'unrecorded',
+        entries: [],
+      })
+    )
+  })
+
   it('preserves anonymous provenance across a byte-identical file copy', async () => {
     const targetContentUpdatedAt = new Date('2026-08-04T00:00:01.000Z')
     dbChainMockFns.limit

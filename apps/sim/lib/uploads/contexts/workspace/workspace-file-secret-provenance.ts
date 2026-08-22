@@ -585,8 +585,29 @@ export async function copyWorkspaceFileSecretProvenanceInTx(
   }
   if (
     source.provenanceContentUpdatedAt?.getTime() !== source.fileContentUpdatedAt.getTime() ||
+    !isValidStoredEntries(source.entries)
+  ) {
+    await replaceWorkspaceFileSecretProvenanceInTx(tx, targetFileId, target.contentUpdatedAt, {
+      status: 'unknown',
+    })
+    return
+  }
+  /**
+   * An absence copies as an absence. Folding it in with the refusals below would hand the target a
+   * taint the source never carried, and a fork or a chat copy would turn a readable file into a
+   * permanently refused one — the pathology this surface exists to undo, reached by copying.
+   *
+   * Safe to carry across the scope checks below, which exist to stop one workspace's secret entries
+   * landing in another's file. A recorded absence has no entries to carry.
+   */
+  if (source.status === 'unrecorded') {
+    await replaceWorkspaceFileSecretProvenanceInTx(tx, targetFileId, target.contentUpdatedAt, {
+      status: 'unrecorded',
+    })
+    return
+  }
+  if (
     source.status !== 'exact' ||
-    !isValidStoredEntries(source.entries) ||
     (source.entries.length > 0 &&
       (!source.workspaceId ||
         !target.workspaceId ||
