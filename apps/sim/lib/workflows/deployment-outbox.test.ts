@@ -317,6 +317,12 @@ describe('versioned deployment preparation outbox', () => {
       mockActivateDeploymentOperation.mock.invocationCallOrder[0]
     )
 
+    /**
+     * The resume still owns the latest generation, so it re-enters
+     * post-activation work and the checkpoints — not the generation gate —
+     * are what must keep analytics from being captured twice.
+     */
+    mockIsDeploymentOperationCurrent.mockResolvedValue(true)
     mockGetDeploymentOperation.mockResolvedValue(active)
     queueTableRows(schemaMock.workflow, [
       { id: 'workflow-1', name: 'Workflow', workspaceId: 'workspace-1' },
@@ -349,6 +355,7 @@ describe('versioned deployment preparation outbox', () => {
   })
 
   it('does not checkpoint analytics until durable PostHog delivery resolves', async () => {
+    mockIsDeploymentOperationCurrent.mockResolvedValue(true)
     const active = operation({ status: 'active', completedAt: NOW })
     mockGetDeploymentOperation.mockResolvedValue(active)
     queueTableRows(schemaMock.workflow, [
