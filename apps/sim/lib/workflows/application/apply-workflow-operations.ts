@@ -102,6 +102,8 @@ export interface ApplyWorkflowOperationsResult {
   skipped: SkippedItem[]
   deferred: SkippedItem[]
   inputValidationErrors: ValidationError[]
+  /** Requested `block_id` -> the id the block was given, when they differ. */
+  mintedBlockIds: Record<string, string>
   lint: WorkflowLintReport
   warnings: string[]
   needsRedeployment: boolean
@@ -273,6 +275,7 @@ export const applyWorkflowOperations = defineAuthorizedWorkflowUseCase({
       state: modifiedGraph,
       validationErrors,
       skippedItems,
+      mintedBlockIds,
     } = await withBlockVisibility(blockVisibility, async () =>
       applyOperationsToWorkflowState(baseGraph, filteredOperations, permissionConfig)
     )
@@ -365,6 +368,7 @@ export const applyWorkflowOperations = defineAuthorizedWorkflowUseCase({
         skipped: genuineSkippedItems,
         deferred: deferredItems,
         inputValidationErrors: validationErrors,
+        mintedBlockIds,
         lint,
         warnings: validation.warnings,
         needsRedeployment: await checkNeedsRedeployment(context.workflowId),
@@ -398,6 +402,7 @@ export const applyWorkflowOperations = defineAuthorizedWorkflowUseCase({
       skipped: genuineSkippedItems,
       deferred: deferredItems,
       inputValidationErrors: validationErrors,
+      mintedBlockIds,
       lint,
       warnings: [...validation.warnings, ...persisted.warnings],
       needsRedeployment: await checkNeedsRedeployment(context.workflowId),

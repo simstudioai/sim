@@ -200,6 +200,7 @@ describe('v2ApplyWorkflowOperationsDataSchema', () => {
         skipped: [{ type, operationType: 'add', blockId: 'block-1', reason: 'because' }],
         deferred: [],
         inputValidationErrors: [],
+        mintedBlockIds: {},
         lint: EMPTY_LINT,
         dryRun: false,
       })
@@ -221,6 +222,7 @@ describe('v2ApplyWorkflowOperationsDataSchema', () => {
       skipped: [],
       deferred: [],
       inputValidationErrors: [],
+      mintedBlockIds: {},
       lint: FULL_LINT,
       dryRun: false,
     })

@@ -486,6 +486,7 @@ type ApplyWorkflowOperationsResponseRef3 = {
   skipped: Array<ApplyWorkflowOperationsResponseRef0>
   deferred: Array<ApplyWorkflowOperationsResponseRef0>
   inputValidationErrors: Array<ApplyWorkflowOperationsResponseRef1>
+  mintedBlockIds: Record<string, string>
   lint: ApplyWorkflowOperationsResponseRef2
   dryRun: boolean
 }

@@ -165,7 +165,7 @@ export function applyOperationsToWorkflowState(
   const skippedItems: SkippedItem[] = []
 
   // Normalize block IDs to UUIDs before processing
-  const { normalizedOperations } = normalizeBlockIdsInOperations(operations)
+  const { normalizedOperations, idMapping } = normalizeBlockIdsInOperations(operations)
 
   // Order operations for deterministic application
   const orderedOperations = orderOperations(normalizedOperations)
@@ -288,7 +288,12 @@ export function applyOperationsToWorkflowState(
     )
   }
 
-  return { state: modifiedState, validationErrors, skippedItems }
+  return {
+    state: modifiedState,
+    validationErrors,
+    skippedItems,
+    mintedBlockIds: Object.fromEntries(idMapping),
+  }
 }
 
 /**

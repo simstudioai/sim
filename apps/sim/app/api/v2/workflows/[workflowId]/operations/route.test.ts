@@ -100,6 +100,7 @@ describe('/api/v2/workflows/[workflowId]/operations', () => {
       skipped: [],
       deferred: [],
       inputValidationErrors: [],
+      mintedBlockIds: { 'agent-1': 'a3f1c0b2-7a44-4c1d-9d3a-2b8e5f0a1c77' },
       lint: LINT,
       warnings: [],
       needsRedeployment: true,
@@ -127,6 +128,7 @@ describe('/api/v2/workflows/[workflowId]/operations', () => {
         skipped: [],
         deferred: [],
         inputValidationErrors: [],
+        mintedBlockIds: { 'agent-1': 'a3f1c0b2-7a44-4c1d-9d3a-2b8e5f0a1c77' },
         lint: LINT,
         warnings: [],
         needsRedeployment: true,
@@ -259,6 +261,7 @@ describe('/api/v2/workflows/[workflowId]/operations', () => {
       skipped: [],
       deferred: [],
       inputValidationErrors: [],
+      mintedBlockIds: { 'agent-1': 'a3f1c0b2-7a44-4c1d-9d3a-2b8e5f0a1c77' },
       lint: {
         ...LINT,
         sinks: [SINK],

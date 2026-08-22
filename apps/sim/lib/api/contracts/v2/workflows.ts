@@ -2529,12 +2529,40 @@ const v2WorkflowSkippedItemSchema = z
 
 export type V2WorkflowSkippedItem = z.output<typeof v2WorkflowSkippedItemSchema>
 
+/**
+ * The envelope every block-configuring `params` shares, published because a
+ * caller holding only the JSON type `object` cannot discover it. The wording is
+ * the guidance the Copilot tool catalog has carried for `edit_workflow` since
+ * before this endpoint existed — the two are the same engine, so they should
+ * not describe it differently.
+ */
+const WORKFLOW_OPERATION_PARAM_ENVELOPE =
+  "`inputs` carries the block's own configuration keyed by sub-block id, for example " +
+  '`inputs: { model: "gpt-4o", systemPrompt: "..." }` — never wrapped in `subBlocks`. ' +
+  'Block-level settings sit beside `inputs`, never inside it: `retry`, `triggerMode`, ' +
+  '`advancedMode`. `connections` is keyed by source handle and each value is a target ' +
+  'block id, `{ block, handle }`, or an array of either; `success` is accepted as an ' +
+  'alias for the `source` handle.'
+
+/**
+ * The keys `edit` accepts. Open because the per-block input set is defined by
+ * the block registry rather than by this contract, but the envelope around it
+ * is fixed and worth publishing — a caller that has only the type `object` can
+ * rename a block and nothing else.
+ */
 const v2WorkflowOperationParamsSchema = z
   .record(
     z.string(),
-    z.unknown().describe('One operation parameter; its shape depends on the target block type.')
+    z.unknown().describe('One operation parameter; see the description for the accepted keys.')
   )
-  .describe('Operation parameters; the accepted keys depend on the target block type.')
+  .describe(
+    'Fields to change on the target block. Send only what changes. Accepted keys: `inputs`, ' +
+      '`name`, `connections`, `removeEdges`, `nestedNodes`, `retry`, `triggerMode`, ' +
+      `\`advancedMode\`. ${WORKFLOW_OPERATION_PARAM_ENVELOPE} Re-sending \`connections\` ` +
+      "replaces that block's outgoing edges, so use `removeEdges` — " +
+      '`[{ targetBlockId, sourceHandle? }]`, `sourceHandle` defaulting to `source` — to drop ' +
+      'one edge without restating the rest.'
+  )
 
 const v2AddWorkflowBlockParamsSchema = z
   .object({
@@ -2548,7 +2576,11 @@ const v2AddWorkflowBlockParamsSchema = z
       .describe('Block display name.'),
   })
   .catchall(z.unknown().describe('One block-specific input or connection descriptor.'))
-  .describe('Block type and name, plus any block-specific inputs and connections.')
+  .describe(
+    'Block type and name, plus any block-specific configuration. Beyond `type` and `name` the ' +
+      'accepted keys are `inputs`, `connections`, `retry`, `triggerMode`, and `advancedMode`. ' +
+      WORKFLOW_OPERATION_PARAM_ENVELOPE
+  )
 
 const v2SubflowMembershipParamsSchema = z
   .object({
@@ -2576,7 +2608,11 @@ const v2InsertIntoSubflowParamsSchema = z
       .describe('Block display name.'),
   })
   .catchall(z.unknown().describe('One block-specific input or connection descriptor.'))
-  .describe('Container, block type and name, plus any block-specific inputs and connections.')
+  .describe(
+    'Container, block type and name, plus any block-specific configuration. Takes the same ' +
+      'keys as an `add`: `inputs`, `connections`, `retry`, `triggerMode`, `advancedMode`. ' +
+      WORKFLOW_OPERATION_PARAM_ENVELOPE
+  )
 
 const v2WorkflowOperationBlockIdSchema = z
   .string()
@@ -2726,6 +2762,11 @@ export const v2ApplyWorkflowOperationsDataSchema = v2WorkflowGraphWriteResultSch
       .array(v2WorkflowInputValidationErrorSchema)
       .describe(
         'Block inputs that were dropped rather than persisted, and only those. The rest of the operation still applied. References that merely fail to resolve stay persisted and are reported in `lint.unresolvedReferences` instead.'
+      ),
+    mintedBlockIds: z
+      .record(z.string(), z.string().describe('The id the block was actually given.'))
+      .describe(
+        'The id each newly created block was actually given, keyed by the `block_id` you asked for, and present only for the ones that differ. A `block_id` on an `add` or `insert_into_subflow` that is not already a UUID is replaced with a minted one, so this is how you learn what to reference afterwards. Within a single batch you can keep using your own ids — references between operations are remapped for you — but a later request must use the minted id, so send your own UUIDs when you want an id you chose to survive.'
       ),
     lint: v2WorkflowLintSchema,
     dryRun: z

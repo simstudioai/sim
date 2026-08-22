@@ -48,6 +48,7 @@ export const POST = defineV2JsonRoute({
         field: error.field,
         error: error.error,
       })),
+      mintedBlockIds: result.mintedBlockIds,
       lint: presentWorkflowLint(result.lint),
       warnings: result.warnings,
       needsRedeployment: result.needsRedeployment,

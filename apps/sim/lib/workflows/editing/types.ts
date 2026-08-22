@@ -153,6 +153,15 @@ export interface ApplyOperationsResult {
   state: any
   validationErrors: ValidationError[]
   skippedItems: SkippedItem[]
+  /**
+   * Requested `block_id` -> the id the block was actually given, for every
+   * `add`/`insert_into_subflow` whose requested id was not already a UUID.
+   *
+   * The engine mints a UUID for those so the graph holds one id shape, and
+   * without handing the mapping back a caller cannot reference what it just
+   * created except by re-reading the graph and matching on name.
+   */
+  mintedBlockIds: Record<string, string>
 }
 
 export interface OperationContext {

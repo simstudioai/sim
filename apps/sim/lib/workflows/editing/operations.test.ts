@@ -751,3 +751,33 @@ describe('forward-reference connections (pending resolution)', () => {
     expect(state.blocks[BLOCK_A].data?.pendingConnections).toBeUndefined()
   })
 })
+
+/**
+ * A caller that names a new block `triage` gets a UUID instead, because the
+ * graph holds one id shape. Without the mapping coming back out, it cannot
+ * reference what it just created except by re-reading the graph and matching on
+ * name — which is why `POST /workflows/{workflowId}/operations` publishes it.
+ */
+describe('minted block ids', () => {
+  it('reports the id a non-UUID block_id was replaced with', () => {
+    const { state, mintedBlockIds } = applyOperationsToWorkflowState(makeDependentWorkflow(), [
+      { operation_type: 'add', block_id: 'triage', params: { type: 'agent', name: 'Triage' } },
+    ])
+
+    expect(Object.keys(mintedBlockIds)).toEqual(['triage'])
+    const mintedId = mintedBlockIds.triage
+    expect(mintedId).not.toBe('triage')
+    expect(state.blocks[mintedId]).toBeDefined()
+    expect(state.blocks.triage).toBeUndefined()
+  })
+
+  it('reports nothing for a block_id that is already a UUID', () => {
+    const uuid = 'a3f1c0b2-7a44-4c1d-9d3a-2b8e5f0a1c77'
+    const { state, mintedBlockIds } = applyOperationsToWorkflowState(makeDependentWorkflow(), [
+      { operation_type: 'add', block_id: uuid, params: { type: 'agent', name: 'Kept' } },
+    ])
+
+    expect(mintedBlockIds).toEqual({})
+    expect(state.blocks[uuid]).toBeDefined()
+  })
+})
