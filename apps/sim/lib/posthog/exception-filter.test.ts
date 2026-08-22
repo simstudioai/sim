@@ -5,11 +5,34 @@ import type { CaptureResult } from 'posthog-js'
 import { describe, expect, it } from 'vitest'
 import { dropUnactionableExceptions } from '@/lib/posthog/exception-filter'
 
-function exceptionEvent(...exceptions: Array<{ type?: string; value?: string }>): CaptureResult {
+interface TestException {
+  type?: string
+  value?: string
+  mechanism?: { handled?: boolean }
+}
+
+/** Mirrors what PostHog's `window.onerror` / `unhandledrejection` wrappers build. */
+function browserRaised(...exceptions: TestException[]): CaptureResult {
+  const [head, ...rest] = exceptions
   return {
     uuid: 'test-uuid',
     event: '$exception',
-    properties: { $exception_list: exceptions },
+    properties: {
+      $exception_list: [
+        { ...head, mechanism: { handled: false } },
+        // PostHog forces chained cause links to handled: true regardless of the source.
+        ...rest.map((exception) => ({ ...exception, mechanism: { handled: true } })),
+      ],
+    },
+  } as CaptureResult
+}
+
+/** Mirrors what `posthog.captureException` builds — a deliberate report. */
+function deliberatelyReported(exception: TestException): CaptureResult {
+  return {
+    uuid: 'test-uuid',
+    event: '$exception',
+    properties: { $exception_list: [{ ...exception, mechanism: { handled: true } }] },
   } as CaptureResult
 }
 
@@ -34,15 +57,42 @@ describe('dropUnactionableExceptions', () => {
     'ResizeObserver loop limit exceeded',
     'Script error.',
   ])('drops the undiagnosable browser artifact %j', (value) => {
-    expect(dropUnactionableExceptions(exceptionEvent({ type: 'Error', value }))).toBeNull()
+    expect(dropUnactionableExceptions(browserRaised({ type: 'Error', value }))).toBeNull()
   })
 
-  it.each(['AbortError', 'Canceled'])('drops the cancellation signal %j', (type) => {
-    expect(dropUnactionableExceptions(exceptionEvent({ type, value: 'whatever' }))).toBeNull()
+  it('drops a cancellation whose name is the coerced type', () => {
+    expect(
+      dropUnactionableExceptions(browserRaised({ type: 'Canceled', value: 'Canceled' }))
+    ).toBeNull()
+  })
+
+  /**
+   * The shape a real aborted `fetch` produces: PostHog's DOMException coercer
+   * reports type `DOMException` and folds the name into the value, so a filter
+   * that only tested `type` would let every one of these through.
+   */
+  it('drops a cancellation whose name is folded into a DOMException value', () => {
+    expect(
+      dropUnactionableExceptions(
+        browserRaised({
+          type: 'DOMException',
+          value: 'AbortError: signal is aborted without reason',
+        })
+      )
+    ).toBeNull()
+  })
+
+  it('keeps a DOMException that is not a cancellation', () => {
+    const event = browserRaised({
+      type: 'DOMException',
+      value: "NotFoundError: Failed to execute 'removeChild' on 'Node'",
+    })
+
+    expect(dropUnactionableExceptions(event)).toBe(event)
   })
 
   it('keeps a real exception', () => {
-    const event = exceptionEvent({
+    const event = browserRaised({
       type: 'TypeError',
       value: "Cannot read properties of undefined (reading 'id')",
     })
@@ -50,8 +100,17 @@ describe('dropUnactionableExceptions', () => {
     expect(dropUnactionableExceptions(event)).toBe(event)
   })
 
+  it('keeps a deliberately reported exception even when it looks like noise', () => {
+    const event = deliberatelyReported({
+      type: 'AbortError',
+      value: 'signal is aborted without reason',
+    })
+
+    expect(dropUnactionableExceptions(event)).toBe(event)
+  })
+
   it('keeps a chained exception when only one link is noise', () => {
-    const event = exceptionEvent(
+    const event = browserRaised(
       { type: 'AbortError', value: 'signal is aborted without reason' },
       { type: 'RangeError', value: 'Maximum call stack size exceeded.' }
     )
@@ -60,7 +119,7 @@ describe('dropUnactionableExceptions', () => {
   })
 
   it('keeps an exception whose message merely mentions a filtered one', () => {
-    const event = exceptionEvent({
+    const event = browserRaised({
       type: 'TypeError',
       value: 'Failed to patch ResizeObserver loop completed with undelivered notifications',
     })
