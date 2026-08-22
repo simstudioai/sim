@@ -47,11 +47,25 @@ function selectBlockBoundaryPaths(
         if (path[0]) requiredProjectionRoots.add(path[0])
       }
     }
+    /**
+     * Tracked, but never required to project.
+     *
+     * A `secretProvenance` selection is the opposite mechanism to a projected model input: the
+     * value travels to an internal API unchanged, with its provenance alongside it in the private
+     * bundle, precisely so nothing has to be substituted. `table_insert_row` posts row data to the
+     * table API and declares no `modelInput` at all — there is no model egress on that path.
+     *
+     * Requiring those roots anyway made a projection failure fatal for tools that have no way to
+     * project: `createStructuredModelProjection` rescues only a `mode: 'project'` tool with an
+     * `applyProjected`, so for the twenty-odd `secretProvenance`-only tools it returns undefined on
+     * its first check. The Table block's `params` runs `parseJSON` on the projected `data` string,
+     * which throws once a placeholder stands where the JSON was, and the whole run's registry
+     * latched — costing provenance for every later boundary, including the table write itself.
+     *
+     * A root is required to project when a model will see it, which is what `modelInput` declares.
+     */
     for (const selection of tool.request.secretProvenance?.request?.(params) ?? []) {
       paths.push(...selection.inputPaths)
-      for (const path of selection.inputPaths) {
-        if (path[0]) requiredProjectionRoots.add(path[0])
-      }
     }
 
     const uniquePaths = new Map<string, ResolvedSecretInputPath>()

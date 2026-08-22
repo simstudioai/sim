@@ -1625,6 +1625,56 @@ describe('incompleteness diagnostics', () => {
     )
   })
 
+  /**
+   * A run that failed before producing provenance hands the crossing `undefined`. That is the
+   * expected shape of a failed crossing, not a guard catching something wrong, so it reports at
+   * warn under its own name instead of joining the originating faults as a would-be breach.
+   */
+  it('separates a crossing that carried no provenance from one that was rejected', async () => {
+    const absent = new ResolvedSecretTraceRegistry([], scope)
+    await absent.importCrossingProvenance(undefined, 'value', {
+      trusted: true,
+      origin: 'someSurface.failedRunCrossing',
+    })
+
+    expect(mockLogger.error).not.toHaveBeenCalled()
+    expect(mockLogger.warn).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({ reason: 'value-provenance-absent' })
+    )
+  })
+
+  it('still reports a rejected crossing as a fault', async () => {
+    const rejected = new ResolvedSecretTraceRegistry([], scope)
+    await rejected.importCrossingProvenance({ not: 'a bundle' }, 'value', { trusted: true })
+
+    expect(mockLogger.error).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({ reason: 'value-provenance-untrusted' })
+    )
+  })
+
+  /**
+   * A refusal is usually frames from its cause, which is what this struct exists to bridge — but it
+   * carried only *what* went wrong, so a downstream reporter printed a reason with no location.
+   */
+  it('carries the first guard location through to the diagnostics a refusal reports', () => {
+    const registry = new ResolvedSecretTraceRegistry([], scope)
+
+    registry.markIncomplete('structural-input-root-unprojected', {
+      detail: { blockType: 'table', tool: 'table_insert_row', inputPath: 'data' },
+    })
+    registry.markIncomplete('inherited-incomplete-source', {
+      detail: { blockType: 'later', tool: 'later_tool' },
+    })
+
+    expect(registry.getIncompletenessDiagnostics()?.detail).toEqual({
+      blockType: 'table',
+      tool: 'table_insert_row',
+      inputPath: 'data',
+    })
+  })
+
   it('names the guard that tripped rather than reporting unspecified', () => {
     const registry = new ResolvedSecretTraceRegistry([], scope)
 
