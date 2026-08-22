@@ -138,15 +138,6 @@ describe('sidebar context menu dismissal', () => {
   })
 })
 
-/**
- * Separator invariants. The menu carries exactly one rule, immediately before the
- * destructive group, and it may never render with an empty group on either side —
- * see the grouping section of `.claude/rules/sim-list-ordering.md`.
- *
- * These pin the shape the flag matrix used to get wrong: `showLeave` in the rule's
- * guard without the `&& onLeave` its item requires produced a trailing rule under
- * the last item, and nothing covered it.
- */
 describe('separators', () => {
   function renderWith(props: Partial<React.ComponentProps<typeof ContextMenu>>) {
     ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
@@ -169,7 +160,6 @@ describe('separators', () => {
     )
   }
 
-  /** Menu children in render order, each as 'sep' or its label. */
   function menuShape(): string[] {
     const content = document.querySelector('[role="menu"]')
     if (!content) return []

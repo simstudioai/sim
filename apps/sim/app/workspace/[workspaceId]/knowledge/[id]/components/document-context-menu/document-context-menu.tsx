@@ -71,7 +71,6 @@ export function DocumentContextMenu({
   const hasEditSection = !isMultiSelect && (!!onRename || !!onViewTags)
   const hasStateSection = !!onToggleEnabled
   const hasDestructiveSection = !!onDelete
-  /** @see `.claude/rules/sim-list-ordering.md` — one rule, before the destructive group. */
   const hasActionsAboveDestructive = hasNavigationSection || hasEditSection || hasStateSection
 
   return (

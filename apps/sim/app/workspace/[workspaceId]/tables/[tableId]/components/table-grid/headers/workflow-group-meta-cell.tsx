@@ -180,15 +180,15 @@ export function ColumnOptionsMenu({
               <DropdownMenuItem onSelect={() => onRunColumnIncomplete?.()}>
                 {runLabels.incomplete}
               </DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => onRunColumnAll?.()}>
-                {runLabels.all}
-              </DropdownMenuItem>
               {onRunColumnLimited &&
                 LIMITED_RUN_PRESETS.map((max) => (
                   <DropdownMenuItem key={max} onSelect={() => onRunColumnLimited(max)}>
                     {runLabels.limited(max)}
                   </DropdownMenuItem>
                 ))}
+              <DropdownMenuItem onSelect={() => onRunColumnAll?.()}>
+                {runLabels.all}
+              </DropdownMenuItem>
             </DropdownMenuSubContent>
           </DropdownMenuSub>
         )}
@@ -519,12 +519,12 @@ export function WorkflowGroupMetaCell({
               <DropdownMenuItem onSelect={handleRunIncomplete}>
                 {runLabels.incomplete}
               </DropdownMenuItem>
-              <DropdownMenuItem onSelect={handleRunAll}>{runLabels.all}</DropdownMenuItem>
               {LIMITED_RUN_PRESETS.map((max) => (
                 <DropdownMenuItem key={max} onSelect={() => handleRunLimited(max)}>
                   {runLabels.limited(max)}
                 </DropdownMenuItem>
               ))}
+              <DropdownMenuItem onSelect={handleRunAll}>{runLabels.all}</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         )}

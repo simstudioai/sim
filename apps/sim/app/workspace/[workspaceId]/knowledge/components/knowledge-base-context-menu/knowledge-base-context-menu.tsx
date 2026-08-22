@@ -75,7 +75,6 @@ export const KnowledgeBaseContextMenu = memo(function KnowledgeBaseContextMenu({
   const hasMoveSection = !disableEdit && !!onMove && !!moveOptions && moveOptions.length > 0
   const hasEditSection = (showEdit && !!onEdit) || hasMoveSection
   const hasDestructiveSection = showDelete && !!onDelete
-  /** @see `.claude/rules/sim-list-ordering.md` — one rule, before the destructive group. */
   const hasActionsAboveDestructive = hasNavigationSection || hasInfoSection || hasEditSection
 
   return (

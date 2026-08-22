@@ -165,29 +165,7 @@ export function ContextMenu({
   showUploadLogo = false,
   disableUploadLogo = false,
 }: ContextMenuProps) {
-  /**
-   * One rule, immediately before the destructive group — see the menu-grouping
-   * section of `.claude/rules/sim-list-ordering.md`.
-   *
-   * This menu previously carried four semantic bands (navigation / status / edit /
-   * copy / destructive) behind up to five separators. No toolbar in the app renders
-   * a divider — every header is a flat `gap-1` chip row — so those bands taught a
-   * taxonomy the user met nowhere else, and each caller's flag combination banded
-   * the same action differently (Pin alone here, Pin beside Duplicate there). Order
-   * still mirrors the surface's toolbar, which is what the ordering rule actually
-   * requires; only the rules between groups are gone.
-   *
-   * Every term below is the exact render condition of the item it stands for, so a
-   * separator can never outlive the group on either side of it. `showLeave` was the
-   * one asymmetric term — it omitted `&& onLeave`, so a caller passing `showLeave`
-   * from a permission check with a conditional `onLeave` (the `x ? fn : undefined`
-   * shape used for `onDuplicate`/`onTogglePin`/`onCloseTab` elsewhere) would have
-   * rendered a trailing rule under the last item.
-   */
   const hasActionsAboveDestructive =
-    /* No `openInNewTabPosition` term: the item renders in the 'first' slot or the
-       'last' one, and the prop is a closed two-value union, so `showOpenInNewTab &&
-       onOpenInNewTab` already means exactly "the nav item renders somewhere above". */
     (showOpenInNewTab && onOpenInNewTab) ||
     (showMarkAsRead && onMarkAsRead) ||
     (showMarkAsUnread && onMarkAsUnread) ||
