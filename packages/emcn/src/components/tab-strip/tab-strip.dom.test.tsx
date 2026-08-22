@@ -351,6 +351,29 @@ describe('TabStrip interactions', () => {
 
     act(() => root?.render(renderStrip(tabs.map((tab) => ({ ...tab, active: tab.id === 'two' })))))
 
-    expect(row.scrollTo).toHaveBeenCalledWith({ left: 180, behavior: 'smooth' })
+    // 280 - 100 would park the tab's right edge flush with the container's,
+    // which is exactly where the fade gradient sits — the tab would arrive
+    // half-faded. The extra 16px carries it clear of the gradient.
+    expect(row.scrollTo).toHaveBeenCalledWith({ left: 196, behavior: 'smooth' })
+  })
+
+  it('lets the last tab rest flush, since no gradient is drawn at a scroll extreme', () => {
+    mount(renderStrip(tabs))
+    const row = scrollRow()
+    Object.defineProperties(row, {
+      clientWidth: { configurable: true, value: 100 },
+      scrollWidth: { configurable: true, value: 300 },
+      scrollLeft: { configurable: true, value: 0, writable: true },
+    })
+    row.getBoundingClientRect = () => ({ left: 0, right: 100, width: 100 }) as DOMRect
+    const last = tabButton('two').parentElement as HTMLDivElement
+    // Flush against the end of the scrollable area.
+    last.getBoundingClientRect = () => ({ left: 200, right: 300, width: 100 }) as DOMRect
+    row.scrollTo = vi.fn()
+
+    act(() => root?.render(renderStrip(tabs.map((tab) => ({ ...tab, active: tab.id === 'two' })))))
+
+    // Wants 216; clamped to the 200 maximum rather than over-scrolling.
+    expect(row.scrollTo).toHaveBeenCalledWith({ left: 200, behavior: 'smooth' })
   })
 })
