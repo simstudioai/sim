@@ -22,6 +22,13 @@ import { Tooltip } from '../tooltip/tooltip'
 const DRAG_EDGE_ZONE = 40
 const DRAG_SCROLL_SPEED = 8
 const TITLE_TOOLTIP_HIDDEN_PX = 8
+/**
+ * Width of the scroll-edge fades, and so the margin a tab has to clear to be
+ * genuinely visible. Keep in step with the `w-4` on the gradients below: a tab
+ * revealed flush against the container edge lands under its gradient and reads
+ * as half-faded, which is indistinguishable from "there is more to scroll".
+ */
+const EDGE_FADE_PX = 16
 const TAB_TRANSITION = { duration: 0.1, ease: [0.2, 0, 0, 1] as const }
 
 /**
@@ -42,7 +49,7 @@ const TAB_TRANSITION = { duration: 0.1, ease: [0.2, 0, 0, 1] as const }
  */
 const TAB_WIDTH: Record<TabStripVariant, string> = {
   attached: 'w-[156px] min-w-[96px] shrink',
-  floating: 'max-w-[200px] shrink-0',
+  floating: 'max-w-[var(--tab-strip-max-tab-width,200px)] shrink-0',
 }
 
 /** The resting shape of a tab that is not the active one. */
@@ -223,6 +230,8 @@ interface TabStripBaseProps {
    * - `--tab-strip-band` (default `30px`) — the height of the tabs and the
    *   controls beside them, which is the band an overlaid control must match.
    * - `--tab-strip-inline-start` / `--tab-strip-inline-end` (default `8px`).
+   * - `--tab-strip-max-tab-width` (default `200px`) — the width a `floating`
+   *   tab's label ellipsizes at. `attached` is fixed-width and ignores it.
    */
   className?: string
 }
@@ -537,13 +546,22 @@ export function TabStrip({
     const nodeRect = node.getBoundingClientRect()
     const tabLeft = tabRect.left - nodeRect.left + node.scrollLeft
     const tabRight = tabLeft + tabRect.width
-    const nextLeft =
-      tabLeft < node.scrollLeft
-        ? tabLeft
-        : tabRight > node.scrollLeft + node.clientWidth
-          ? tabRight - node.clientWidth
+    // Inset by the fade on both sides so the tab comes to rest clear of the
+    // gradient rather than beneath it.
+    const viewLeft = node.scrollLeft + EDGE_FADE_PX
+    const viewRight = node.scrollLeft + node.clientWidth - EDGE_FADE_PX
+    const maxScrollLeft = Math.max(0, node.scrollWidth - node.clientWidth)
+    const target =
+      tabLeft < viewLeft
+        ? tabLeft - EDGE_FADE_PX
+        : tabRight > viewRight
+          ? tabRight - node.clientWidth + EDGE_FADE_PX
           : null
-    if (nextLeft === null) return
+    if (target === null) return
+    // The clamp is what lets the first and last tabs sit flush: there is no
+    // gradient at a scroll extreme, so no margin is needed to clear one.
+    const nextLeft = Math.max(0, Math.min(maxScrollLeft, target))
+    if (Math.abs(nextLeft - node.scrollLeft) < 1) return
     const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
     node.scrollTo({ left: nextLeft, behavior: reduceMotion ? 'auto' : 'smooth' })
   }, [activeRegularId, regularTabOrder])
@@ -846,6 +864,7 @@ export function TabStrip({
             </AnimatePresence>
           </div>
           {canScrollLeft && (
+            /* w-4 — see EDGE_FADE_PX */
             <div className='pointer-events-none absolute inset-y-0 left-0 z-20 w-4 bg-gradient-to-r from-[var(--bg)] to-transparent' />
           )}
           {canScrollRight && (

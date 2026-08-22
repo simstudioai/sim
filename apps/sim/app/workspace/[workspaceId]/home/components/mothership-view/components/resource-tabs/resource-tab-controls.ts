@@ -10,16 +10,21 @@ export const RESOURCE_TAB_ICON_CLASS = 'size-[16px] text-[var(--text-icon)]'
 /** Shared geometry for the resource header and controls positioned over it. */
 export const RESOURCE_HEADER_CLASSES = {
   layout:
-    '[--resource-header-controls-height:34px] [--resource-header-end-inset:16px] [--resource-header-fixed-reserve:54px] [--resource-header-toggle-size:30px]',
+    '[--resource-header-controls-height:43px] [--resource-header-end-inset:16px] [--resource-header-fixed-reserve:54px] [--resource-header-toggle-size:30px]',
   /**
    * Drives the tab strip from this header's own tokens rather than restating the
    * strip's defaults, so the height the overlaid controls below are positioned
    * against and the height the strip renders at cannot drift apart. Set on the
    * strip itself, not an ancestor — the browser and terminal strips nested in
    * this panel keep their own geometry.
+   *
+   * The `+ 1px` is the strip's own bottom border. The controls height is the
+   * CONTENT box both clusters centre in, so the strip's box has to be a pixel
+   * taller than it or the tabs would centre in 43px while the overlaid toggle
+   * centres in 44px, and the two rows would sit half a pixel apart.
    */
   stripGeometry:
-    '[--tab-strip-height:var(--resource-header-controls-height)] [--tab-strip-inline-start:var(--resource-header-end-inset)] [--tab-strip-inline-end:var(--resource-header-fixed-reserve)]',
+    '[--tab-strip-height:calc(var(--resource-header-controls-height)_+_1px)] [--tab-strip-max-tab-width:160px] [--tab-strip-inline-start:var(--resource-header-end-inset)] [--tab-strip-inline-end:var(--resource-header-fixed-reserve)]',
   /**
    * Centred, matching the `floating` strip: its tabs and controls sit centred in
    * the header band rather than hanging from the top, so an overlaid control has
