@@ -10,10 +10,17 @@
  * either of those in SQL would be a second spelling of the loaders — the exact
  * mistake the change this validates exists to remove.
  *
- * Usage (from apps/sim, with DATABASE_URL pointing at a read replica):
+ * Usage (from apps/sim, with DATABASE_URL pointing at a read replica). Note that
+ * `DATABASE_URL` must not carry libpq-only SSL params: postgres.js forwards any
+ * query param it does not recognize as a session parameter, so `sslrootcert`
+ * fails every query with `42704`. `?sslmode=verify-full` alone keeps full
+ * verification.
  *
- *   bun run scripts/dump-change-detection-states.ts --limit 500 > dump.jsonl
- *   bun run scripts/dump-change-detection-states.ts --limit 500 --raw > dump.jsonl   # keep secrets
+ *   bun run scripts/dump-change-detection-states.ts --out dump.jsonl --limit 500
+ *   bun run scripts/dump-change-detection-states.ts --out dump.jsonl --webhooks-only \
+ *     --simulate-focus                 # reproduce the panel-focus read-back
+ *   bun run scripts/dump-change-detection-states.ts --out dump.jsonl --raw
+ *                                      # keep credential values verbatim
  *
  * Values under credential-shaped keys are replaced with a deterministic hash by
  * default, so equality is preserved on both sides while the plaintext is not
@@ -31,6 +38,7 @@ import {
   loadWorkflowDeploymentSnapshot,
   materializeDeploymentState,
 } from '@/lib/workflows/persistence/utils'
+import type { BlockState, SubBlockState } from '@/stores/workflows/workflow/types'
 import { getTrigger, isTriggerValid } from '@/triggers'
 import { SYSTEM_SUBBLOCK_IDS } from '@/triggers/constants'
 import { resolveBlockTriggerId } from '@/triggers/webhook-url'
@@ -41,15 +49,13 @@ function hashValue(value: string): string {
   return `scrubbed:${createHash('sha256').update(value).digest('hex').slice(0, 16)}`
 }
 
-function scrubBlocks(blocks: Record<string, any> | undefined): Record<string, any> {
-  const out: Record<string, any> = {}
+function scrubBlocks(blocks: Record<string, BlockState>): Record<string, BlockState> {
+  const out: Record<string, BlockState> = {}
 
-  for (const [blockId, block] of Object.entries(blocks ?? {})) {
-    const subBlocks: Record<string, any> = {}
-    for (const [subId, subBlock] of Object.entries(
-      (block?.subBlocks ?? {}) as Record<string, any>
-    )) {
-      const value = subBlock?.value
+  for (const [blockId, block] of Object.entries(blocks)) {
+    const subBlocks: Record<string, SubBlockState> = {}
+    for (const [subId, subBlock] of Object.entries(block.subBlocks ?? {})) {
+      const value = subBlock.value
       subBlocks[subId] =
         SECRET_KEY_PATTERN.test(subId) && typeof value === 'string' && value.length > 0
           ? { ...subBlock, value: hashValue(value) }
@@ -74,12 +80,12 @@ function scrubBlocks(blocks: Record<string, any> | undefined): Record<string, an
  * misreports it.
  */
 function simulateFocus(
-  blocks: Record<string, any>,
+  blocks: Record<string, BlockState>,
   providerConfigByBlockId: Map<string, Record<string, unknown>>
-): Record<string, any> {
-  const out: Record<string, any> = {}
+): Record<string, BlockState> {
+  const out: Record<string, BlockState> = {}
 
-  for (const [blockId, block] of Object.entries(blocks ?? {})) {
+  for (const [blockId, block] of Object.entries(blocks)) {
     const providerConfig = providerConfigByBlockId.get(blockId)
     const triggerId = providerConfig ? resolveBlockTriggerId(block) : undefined
 
@@ -88,7 +94,7 @@ function simulateFocus(
       continue
     }
 
-    const subBlocks: Record<string, any> = { ...(block.subBlocks ?? {}) }
+    const subBlocks: Record<string, SubBlockState> = { ...(block.subBlocks ?? {}) }
     for (const subBlock of getTrigger(triggerId).subBlocks) {
       if (subBlock.mode !== 'trigger' && subBlock.mode !== 'trigger-advanced') continue
       if (SYSTEM_SUBBLOCK_IDS.includes(subBlock.id)) continue
@@ -102,7 +108,7 @@ function simulateFocus(
       subBlocks[subBlock.id] = {
         id: subBlock.id,
         type: subBlocks[subBlock.id]?.type ?? 'short-input',
-        value: configValue,
+        value: configValue as SubBlockState['value'],
       }
     }
 
