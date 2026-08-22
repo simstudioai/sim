@@ -84,7 +84,6 @@ import {
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/constants'
 import {
   useChatSelection,
-  useContextMenu,
   useFlyoutInlineRename,
   useFolderOperations,
   useHoverMenu,
@@ -115,6 +114,7 @@ import {
 } from '@/hooks/queries/mothership-chats'
 import { useUpdateWorkflow } from '@/hooks/queries/workflows'
 import type { Workspace } from '@/hooks/queries/workspace'
+import { useContextMenu } from '@/hooks/use-context-menu'
 import { useMothershipChatEvents } from '@/hooks/use-mothership-chat-events'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'

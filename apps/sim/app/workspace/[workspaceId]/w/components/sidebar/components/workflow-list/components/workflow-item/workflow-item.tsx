@@ -11,7 +11,6 @@ import { ContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/
 import { DeleteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/delete-modal/delete-modal'
 import { Avatars } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/workflow-item/avatars/avatars'
 import {
-  useContextMenu,
   useItemDrag,
   useItemRename,
   useSidebarListContext,
@@ -37,6 +36,7 @@ import {
 } from '@/hooks/queries/utils/folder-tree'
 import { getWorkflows } from '@/hooks/queries/utils/workflow-cache'
 import { useUpdateWorkflow } from '@/hooks/queries/workflows'
+import { useContextMenu } from '@/hooks/use-context-menu'
 import { useFolderStore } from '@/stores/folders/store'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 

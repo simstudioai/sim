@@ -34,6 +34,7 @@ import { WebLinksAddon } from '@xterm/addon-web-links'
 import { WebglAddon } from '@xterm/addon-webgl'
 import { type IBufferRange, Terminal } from '@xterm/xterm'
 import { useTheme } from 'next-themes'
+import { useContextMenu } from '@/hooks/use-context-menu'
 import '@xterm/xterm/css/xterm.css'
 import {
   describeRunningCommand,
@@ -73,7 +74,6 @@ import { useMothershipResources } from '@/app/workspace/[workspaceId]/home/compo
 import { TerminalContextMenu } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/terminal-session/terminal-context-menu'
 import { TerminalTabIcon } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/terminal-session/terminal-tab-icon'
 import { ContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/context-menu/context-menu'
-import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import { useDesktopPreferenceMutation } from '@/hooks/use-desktop-preference-mutation'
 import { useCopilotTerminalStore } from '@/stores/copilot-terminal/store'
 import type { ChatContext, TerminalTextSelection } from '@/stores/panel'

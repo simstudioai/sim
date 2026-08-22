@@ -128,7 +128,6 @@ import {
 } from '@/app/workspace/[workspaceId]/files/untitled-title'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
-import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import { usePinItem, usePinnedIds, useUnpinItem } from '@/hooks/queries/pinned-items'
 import { useWorkspaceMembersQuery, type WorkspaceMember } from '@/hooks/queries/workspace'
 import {
@@ -147,6 +146,7 @@ import {
   useUploadWorkspaceFile,
   useWorkspaceFiles,
 } from '@/hooks/queries/workspace-files'
+import { useContextMenu } from '@/hooks/use-context-menu'
 import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
 import { useInlineRename } from '@/hooks/use-inline-rename'
 import { usePermissionConfig } from '@/hooks/use-permission-config'

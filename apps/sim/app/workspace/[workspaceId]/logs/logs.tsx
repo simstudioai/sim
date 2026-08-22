@@ -49,6 +49,7 @@ import {
   type WorkflowData,
 } from '@/lib/logs/search-suggestions'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
+import { DELETED_WORKFLOW_LABEL } from '@/lib/workflows/workflow-labels'
 import type {
   FilterTag,
   ResourceAction,
@@ -94,7 +95,6 @@ import { useFilterStore } from '@/stores/logs/filters/store'
 import { CORE_TRIGGER_TYPES } from '@/stores/logs/filters/types'
 import { Dashboard, ExecutionSnapshot, LogDetails, LogRowContextMenu } from './components'
 import {
-  DELETED_WORKFLOW_LABEL,
   formatDate,
   getDisplayStatus,
   type LogStatus,
