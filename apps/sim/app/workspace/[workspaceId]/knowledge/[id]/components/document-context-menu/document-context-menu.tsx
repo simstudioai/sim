@@ -8,6 +8,10 @@ import {
   DropdownMenuTrigger,
 } from '@sim/emcn'
 import { Eye, Pencil, Plus, SquareArrowUpRight, TagIcon, Trash } from '@sim/emcn/icons'
+import {
+  selectionActionLabel,
+  selectionToggleActionLabel,
+} from '@/app/workspace/[workspaceId]/components/resource/selection-label'
 
 interface DocumentContextMenuProps {
   isOpen: boolean
@@ -26,9 +30,10 @@ interface DocumentContextMenuProps {
   disableToggleEnabled?: boolean
   disableDelete?: boolean
   disableAddDocument?: boolean
-  selectedCount?: number
+  selectedCount: number
   enabledCount?: number
   disabledCount?: number
+  hasExactToggleCount?: boolean
 }
 
 /**
@@ -53,19 +58,19 @@ export function DocumentContextMenu({
   disableToggleEnabled = false,
   disableDelete = false,
   disableAddDocument = false,
-  selectedCount = 1,
+  selectedCount,
   enabledCount = 0,
   disabledCount = 0,
+  hasExactToggleCount = true,
 }: DocumentContextMenuProps) {
   const isMultiSelect = selectedCount > 1
-
-  const getToggleLabel = () => {
-    if (isMultiSelect) {
-      if (disabledCount > 0) return 'Enable'
-      return 'Disable'
-    }
-    return isDocumentEnabled ? 'Disable' : 'Enable'
-  }
+  const toggleLabel = selectionToggleActionLabel({
+    selectedCount,
+    enabledCount,
+    disabledCount,
+    isSelectedItemEnabled: isDocumentEnabled,
+    hasExactAffectedCount: hasExactToggleCount,
+  })
 
   const hasNavigationSection = !isMultiSelect && (!!onOpenInNewTab || !!onOpenSource)
   const hasEditSection = !isMultiSelect && (!!onRename || !!onViewTags)
@@ -124,7 +129,7 @@ export function DocumentContextMenu({
             {onToggleEnabled && (
               <DropdownMenuItem disabled={disableToggleEnabled} onSelect={onToggleEnabled}>
                 <Eye />
-                {getToggleLabel()}
+                {toggleLabel}
               </DropdownMenuItem>
             )}
 
@@ -132,7 +137,7 @@ export function DocumentContextMenu({
             {onDelete && (
               <DropdownMenuItem disabled={disableDelete} onSelect={onDelete}>
                 <Trash />
-                Delete
+                {selectionActionLabel('Delete', selectedCount)}
               </DropdownMenuItem>
             )}
           </>

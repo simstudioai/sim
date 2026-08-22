@@ -13,6 +13,7 @@ import { type QueryClient, useQueryClient } from '@tanstack/react-query'
 import { useParams, usePathname, useRouter } from 'next/navigation'
 import type { DesktopSettingsSurface } from '@/components/settings/navigation'
 import { ORGANIZATION_PLANE_UNIFIED_SECTIONS } from '@/components/settings/navigation'
+import { SettingsIntentLink } from '@/components/settings/settings-intent-link'
 import { useSession } from '@/lib/auth/auth-client'
 import { getSubscriptionAccessState } from '@/lib/billing/client'
 import { canViewWorkspaceBillingSettings } from '@/lib/billing/workspace-permissions'
@@ -45,7 +46,7 @@ import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'
 
 /**
- * Sections whose JS chunk is warmed on hover.
+ * Sections whose JS chunk is warmed when a row receives navigation intent.
  *
  * Deliberately not all of them, and the reason is the boundary audit rather than bundle weight.
  * Each section is already `dynamic()`-imported by the settings panel, so naming it here adds an
@@ -58,7 +59,7 @@ import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'
  * Widening it means either raising the ratchet on the routes it exists to protect, or teaching
  * the audit to track async reach separately from initial-chunk weight.
  *
- * Every section still gets its route payload warmed — see `handlePrefetch`.
+ * Every section still gets its route payload warmed through {@link SettingsIntentLink}.
  */
 const SECTION_CHUNK_WARMERS: Partial<Record<SettingsSection, () => Promise<unknown>>> = {
   general: () => import('@/app/workspace/[workspaceId]/settings/components/general/general'),
@@ -271,13 +272,7 @@ export function SettingsSidebar({
 
   const { popSettingsReturnUrl, getSettingsHref } = useSettingsNavigation()
 
-  const handlePrefetch = (section: SettingsSection) => {
-    /**
-     * The route payload first, for every section. It is the slowest hop — the access gate runs
-     * on the server — and the one a row can never get for free, because Next only auto-prefetches
-     * `<Link>` and these rows are buttons that must run the unsaved-changes guard first.
-     */
-    router.prefetch(getSettingsHref({ section }))
+  const handleIntent = (section: SettingsSection) => {
     void SECTION_CHUNK_WARMERS[section]?.()
     SECTION_QUERY_WARMERS[section]?.(queryClient, workspaceId)
   }
@@ -382,6 +377,8 @@ export function SettingsSidebar({
                   {sectionItems.map((item) => {
                     const Icon = item.icon
                     const active = activeSection === item.id
+                    const section = item.id as SettingsSection
+                    const href = getSettingsHref({ section })
                     const selfHostedUnlocked = Boolean(item.selfHostedOverride && !isHosted)
                     const isLocked =
                       !selfHostedUnlocked &&
@@ -417,21 +414,25 @@ export function SettingsSidebar({
                         {content}
                       </a>
                     ) : (
-                      <button
-                        type='button'
+                      <SettingsIntentLink
+                        href={href}
+                        replace
+                        scroll={false}
+                        aria-current={active ? 'page' : undefined}
                         className={itemClassName}
-                        onMouseEnter={() => handlePrefetch(item.id)}
-                        onFocus={() => handlePrefetch(item.id)}
-                        onClick={() => {
-                          const section = item.id as SettingsSection
-                          if (section === activeSection) return
-                          requestLeave(() => {
-                            router.replace(getSettingsHref({ section }), { scroll: false })
-                          })
+                        onIntent={() => handleIntent(section)}
+                        onNavigate={(event) => {
+                          if (active) {
+                            event.preventDefault()
+                            return
+                          }
+                          if (!useSettingsDirtyStore.getState().isDirty) return
+                          event.preventDefault()
+                          requestLeave(() => router.replace(href, { scroll: false }))
                         }}
                       >
                         {content}
-                      </button>
+                      </SettingsIntentLink>
                     )
 
                     return (

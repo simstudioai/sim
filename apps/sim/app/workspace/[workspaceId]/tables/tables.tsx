@@ -1395,6 +1395,7 @@ export function Tables() {
         disableDelete={!canEdit}
         disableRename={!canEdit}
         disableImport={!canEdit}
+        selectedCount={selectedRowIds.size}
       />
 
       <FolderContextMenu
@@ -1417,6 +1418,7 @@ export function Tables() {
         onMove={canEdit ? handleMoveFolderFromMenu : undefined}
         moveOptions={canEdit ? activeFolderMoveOptions : undefined}
         canEdit={canEdit}
+        selectedCount={selectedRowIds.size}
       />
 
       {activeTable && (

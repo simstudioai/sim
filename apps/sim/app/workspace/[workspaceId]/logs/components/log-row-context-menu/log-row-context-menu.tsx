@@ -105,7 +105,7 @@ export const LogRowContextMenu = memo(function LogRowContextMenu({
         {isRetryable && (
           <DropdownMenuItem onSelect={onRetryExecution} disabled={isRetryPending}>
             <Redo />
-            {isRetryPending ? 'Retrying...' : 'Retry'}
+            {isRetryPending ? 'Retrying…' : 'Retry'}
           </DropdownMenuItem>
         )}
         {showCancelAction && (
@@ -131,6 +131,9 @@ export const LogRowContextMenu = memo(function LogRowContextMenu({
           <Eye />
           Open Snapshot
         </DropdownMenuItem>
+        {/* Stops acting on this run and starts acting on the page's filters — the
+            second of the two scope changes this menu has. */}
+        {(!isFilteredByThisWorkflow || hasActiveFilters) && <DropdownMenuSeparator />}
         {!isFilteredByThisWorkflow && (
           <DropdownMenuItem disabled={!hasWorkflow} onSelect={onToggleWorkflowFilter}>
             <ListFilter />

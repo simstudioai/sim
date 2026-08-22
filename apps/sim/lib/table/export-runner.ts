@@ -1,15 +1,11 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
+import { neutralizeCsvFormula, toCsvRow } from '@/lib/core/utils/csv'
 import { namedRowMapper } from '@/lib/table/cell-format'
 import { getColumnId } from '@/lib/table/column-keys'
 import { appendTableEvent } from '@/lib/table/events'
-import {
-  formatCsvCell,
-  neutralizeCsvFormula,
-  sanitizeExportFilename,
-  toCsvRow,
-} from '@/lib/table/export-format'
+import { formatCsvCell, sanitizeExportFilename } from '@/lib/table/export-format'
 import {
   markJobFailedInWorkspace,
   markJobReadyInWorkspace,

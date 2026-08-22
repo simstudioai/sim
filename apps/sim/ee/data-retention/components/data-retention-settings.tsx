@@ -1,6 +1,6 @@
 'use client'
 
-import { type ReactNode, useEffect, useRef, useState } from 'react'
+import { type ReactNode, useState } from 'react'
 import {
   Checkbox,
   Chip,
@@ -51,10 +51,11 @@ import {
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import { useSettingsUnsavedGuard } from '@/app/workspace/[workspaceId]/settings/hooks/use-settings-unsaved-guard'
 import {
+  type DataRetentionResponse,
   useOrganizationRetention,
   useUpdateOrganizationRetention,
 } from '@/ee/data-retention/hooks/data-retention'
-import { useWorkspacesQuery } from '@/hooks/queries/workspace'
+import { useWorkspacesQuery, type Workspace } from '@/hooks/queries/workspace'
 
 const logger = createLogger('DataRetentionSettings')
 
@@ -688,51 +689,49 @@ interface DataRetentionSettingsProps {
   organizationId: string
 }
 
-export function DataRetentionSettings({ organizationId: orgId }: DataRetentionSettingsProps) {
-  const { data, isLoading: retentionLoading } = useOrganizationRetention(orgId)
+interface DataRetentionFormProps {
+  initialData: DataRetentionResponse
+  orgId: string
+  workspaces: Workspace[]
+}
+
+function DataRetentionForm({ initialData: data, orgId, workspaces }: DataRetentionFormProps) {
   const updateMutation = useUpdateOrganizationRetention()
-  const { data: workspaces } = useWorkspacesQuery(Boolean(orgId))
-  const workspaceOptions = (workspaces ?? [])
+  const workspaceOptions = workspaces
     .filter((w) => w.organizationId === orgId)
     .map((w) => ({ value: w.id, label: w.name }))
   const workspaceName = (id: string) =>
     workspaceOptions.find((w) => w.value === id)?.label ?? 'Unknown workspace'
 
-  const piiEnabled = Boolean(data?.piiRedactionEnabled)
-  const piiGranularEnabled = Boolean(data?.piiGranularRedactionEnabled)
+  const piiEnabled = Boolean(data.piiRedactionEnabled)
+  const piiGranularEnabled = Boolean(data.piiGranularRedactionEnabled)
 
-  const [logDays, setLogDays] = useState('')
-  const [softDeleteDays, setSoftDeleteDays] = useState('')
-  const [taskCleanupDays, setTaskCleanupDays] = useState('')
-  const [defaultPii, setDefaultPii] = useState<Omit<PiiOverride, 'workspaceId'> | null>(null)
-  const [piiOverrides, setPiiOverrides] = useState<PiiOverride[]>([])
-  const [overrides, setOverrides] = useState<RetentionOverride[]>([])
+  const [logDays, setLogDays] = useState(() => hoursToDisplayDays(data.effective.logRetentionHours))
+  const [softDeleteDays, setSoftDeleteDays] = useState(() =>
+    hoursToDisplayDays(data.effective.softDeleteRetentionHours)
+  )
+  const [taskCleanupDays, setTaskCleanupDays] = useState(() =>
+    hoursToDisplayDays(data.effective.taskCleanupHours)
+  )
+  const [defaultPii, setDefaultPii] = useState<Omit<PiiOverride, 'workspaceId'> | null>(() => {
+    const defaultRule = data.configured.piiRedaction?.rules?.find(
+      (rule) => rule.workspaceId === null
+    )
+    return defaultRule ? { id: defaultRule.id, stages: normalizeRuleStages(defaultRule) } : null
+  })
+  const [piiOverrides, setPiiOverrides] = useState<PiiOverride[]>(() =>
+    (data.configured.piiRedaction?.rules ?? [])
+      .filter((rule) => rule.workspaceId !== null)
+      .map((rule) => ({
+        id: rule.id,
+        workspaceId: rule.workspaceId as string,
+        stages: normalizeRuleStages(rule),
+      }))
+  )
+  const [overrides, setOverrides] = useState<RetentionOverride[]>(
+    () => data.configured.retentionOverrides ?? []
+  )
   const [editing, setEditing] = useState<EditingPolicy | null>(null)
-  const hydratedOrgRef = useRef<string | null>(null)
-
-  useEffect(() => {
-    if (!data || !orgId || hydratedOrgRef.current === orgId) return
-    setLogDays(hoursToDisplayDays(data.effective.logRetentionHours))
-    setSoftDeleteDays(hoursToDisplayDays(data.effective.softDeleteRetentionHours))
-    setTaskCleanupDays(hoursToDisplayDays(data.effective.taskCleanupHours))
-
-    const rules = data.configured.piiRedaction?.rules ?? []
-    const defaultRule = rules.find((r) => r.workspaceId === null)
-    setDefaultPii(
-      defaultRule ? { id: defaultRule.id, stages: normalizeRuleStages(defaultRule) } : null
-    )
-    setPiiOverrides(
-      rules
-        .filter((r) => r.workspaceId !== null)
-        .map((r) => ({
-          id: r.id,
-          workspaceId: r.workspaceId as string,
-          stages: normalizeRuleStages(r),
-        }))
-    )
-    setOverrides(data.configured.retentionOverrides ?? [])
-    hydratedOrgRef.current = orgId
-  }, [data, orgId])
 
   const editingChanged =
     editing !== null &&
@@ -954,17 +953,16 @@ export function DataRetentionSettings({ organizationId: orgId }: DataRetentionSe
     }
   }
 
-  if (retentionLoading) return null
-
-  if (!data) {
-    return <SettingsEmptyState>Failed to load data retention settings.</SettingsEmptyState>
-  }
-
-  if (isBillingEnabled && !data.isEnterprise) {
-    return (
-      <SettingsEmptyState>Data retention is available on Enterprise plans only.</SettingsEmptyState>
-    )
-  }
+  const listActions = [
+    {
+      id: 'add-override',
+      text: 'Add override',
+      icon: Plus,
+      variant: 'primary' as const,
+      onSelect: openAddOverride,
+      disabled: freeWorkspaces.length === 0,
+    },
+  ]
 
   return (
     <>
@@ -985,17 +983,7 @@ export function DataRetentionSettings({ organizationId: orgId }: DataRetentionSe
           onRemove={removeCurrentOverride}
         />
       ) : (
-        <SettingsPanel
-          actions={[
-            {
-              text: 'Add override',
-              icon: Plus,
-              variant: 'primary',
-              onSelect: openAddOverride,
-              disabled: freeWorkspaces.length === 0,
-            },
-          ]}
-        >
+        <SettingsPanel actions={listActions}>
           <SettingsSection label='Retention policies'>
             <div className={RESOURCE_LIST_STACK}>
               <SettingsResourceRow
@@ -1027,4 +1015,38 @@ export function DataRetentionSettings({ organizationId: orgId }: DataRetentionSe
       />
     </>
   )
+}
+
+export function DataRetentionSettings({ organizationId: orgId }: DataRetentionSettingsProps) {
+  const { data, isLoading } = useOrganizationRetention(orgId)
+  const { data: workspaces = [] } = useWorkspacesQuery(Boolean(orgId))
+
+  if (isLoading) {
+    return (
+      <SettingsPanel
+        actions={[
+          {
+            id: 'add-override',
+            text: 'Add override',
+            icon: Plus,
+            variant: 'primary',
+            disabled: true,
+            onSelect: () => undefined,
+          },
+        ]}
+      />
+    )
+  }
+
+  if (!data) {
+    return <SettingsEmptyState>Failed to load data retention settings.</SettingsEmptyState>
+  }
+
+  if (isBillingEnabled && !data.isEnterprise) {
+    return (
+      <SettingsEmptyState>Data retention is available on Enterprise plans only.</SettingsEmptyState>
+    )
+  }
+
+  return <DataRetentionForm key={orgId} initialData={data} orgId={orgId} workspaces={workspaces} />
 }

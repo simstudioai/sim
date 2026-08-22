@@ -199,12 +199,16 @@ export function Billing({
   const isTeamAdmin = isOrgAdminRole(userRole)
   const shouldUseOrganizationBillingContext = isOrganizationScope
 
+  /**
+   * Invoice lookup is safe to start with the payer query: the endpoint returns an empty list
+   * when the payer has no Stripe customer. Waiting to derive `isFree` serialized two independent
+   * requests for every paid account and organization.
+   */
   const { data: invoicesData } = useInvoices({
     context: shouldUseOrganizationBillingContext ? 'organization' : 'user',
     organizationId: shouldUseOrganizationBillingContext
       ? (billingOrganizationId ?? undefined)
       : undefined,
-    enabled: !subscription.isFree,
   })
 
   const planIncludedAmount =

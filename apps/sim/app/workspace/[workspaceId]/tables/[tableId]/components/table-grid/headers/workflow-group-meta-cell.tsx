@@ -238,6 +238,9 @@ export function ColumnOptionsMenu({
             {isPinned ? 'Unpin column' : 'Pin column'}
           </DropdownMenuItem>
         )}
+        {/* Stops acting on this column and starts creating siblings — `Edit column`
+            above is unconditional, so the rule is always backed. */}
+        <DropdownMenuSeparator />
         <DropdownMenuItem onSelect={() => onInsertLeft(column.key)}>
           <ArrowLeft />
           Insert column left

@@ -8,6 +8,7 @@ import {
   type OrganizationSettingsSection,
   resolveWorkspaceNavigation,
   type WorkspaceSettingsSection,
+  workspaceSectionUsesPermissionConfig,
 } from '@/components/settings/navigation'
 import { getSession } from '@/lib/auth'
 import { isOrganizationOnEnterprisePlan } from '@/lib/billing'
@@ -23,7 +24,7 @@ import {
 } from '@/app/workspace/[workspaceId]/settings/navigation'
 import { resolveWorkspaceGroup } from '@/ee/access-control/utils/permission-check'
 import { isForkingAvailableForWorkspace } from '@/ee/workspace-forking/lib/lineage/authz'
-import { prefetchGeneralSettings } from './prefetch'
+import { SECTION_PREFETCHERS } from './prefetch'
 import { SettingsPage } from './settings'
 
 interface WorkspaceSettingsSectionPageProps {
@@ -58,20 +59,6 @@ const ORGANIZATION_SECTION_MAP: Partial<Record<SettingsSection, OrganizationSett
   'data-drains': 'data-drains',
   whitelabeling: 'whitelabeling',
 }
-
-/**
- * Sections whose first paint reads the general-settings query.
- *
- * Their bodies default a missing value (`?? true` / `?? false`) and drive a switch off it, so
- * without a hydrated entry they paint the fallback and visibly flip when the client fetch
- * lands. The workspace layout's `SettingsLoader` warms this key only after hydration, which
- * covers client navigation but not a direct load of one of these sections.
- */
-const GENERAL_SETTINGS_SECTIONS: ReadonlySet<SettingsSection> = new Set([
-  'general',
-  'billing',
-  'admin',
-])
 
 /**
  * Settings availability varies across workspaces, so a preserved section may
@@ -113,6 +100,18 @@ export default async function WorkspaceSettingsSectionPage({
   if (!hostContext) notFound()
   if (requiresPlatformAdmin && !isViewerPlatformAdmin) notFound()
 
+  const queryClient = getQueryClient()
+  /**
+   * Start the viewer-scoped prefetch as soon as workspace access is established. Organization
+   * and section-entitlement gates remain authoritative, but their independent reads no longer
+   * serialize in front of this data. The promise is still awaited before dehydration below.
+   */
+  const sectionPrefetch =
+    SECTION_PREFETCHERS[parsed]?.(queryClient, {
+      workspaceId,
+      userId: session.user.id,
+    }) ?? Promise.resolve()
+
   const workspaceSection = WORKSPACE_SECTION_MAP[parsed]
   if (workspaceSection) {
     /**
@@ -130,12 +129,14 @@ export default async function WorkspaceSettingsSectionPage({
      * check it could not act on. Passing `false` elsewhere is safe in the one direction that
      * matters: it can only remove `forks` from a list this gate is not asking about.
      *
-     * `permissionConfig` is deliberately NOT narrowed the same way. Its keys hide sections, so
-     * skipping the lookup for a section that turns out to be config-gated would reveal it —
-     * fail-open, where the others fail closed.
+     * Permission-group config is narrowed by the same policy map that hides navigation items.
+     * Every other section is independent of that config, so resolving the viewer's group for it
+     * can never change this gate's answer.
      */
     const [permissionGroup, forksAvailable] = await Promise.all([
-      hostContext.hostOrganizationId && hostContext.ownerBilling.isEnterprise
+      hostContext.hostOrganizationId &&
+      hostContext.ownerBilling.isEnterprise &&
+      workspaceSectionUsesPermissionConfig(workspaceSection)
         ? resolveWorkspaceGroup(session.user.id, hostContext.hostOrganizationId, workspaceId)
         : null,
       workspaceSection === 'forks'
@@ -206,17 +207,8 @@ export default async function WorkspaceSettingsSectionPage({
     }
   }
 
-  const queryClient = getQueryClient()
-  /**
-   * Scoped to the sections that actually read the key. The prefetch has to be awaited — an
-   * unsettled query is dropped from the dehydrated payload, so firing and forgetting would
-   * waterfall anyway — which means running it unconditionally charged the other ~25 sections
-   * a blocking round-trip for a cache entry they never touch. The viewer's profile is seeded
-   * by the workspace layout under a different key and is not repeated here.
-   */
-  if (GENERAL_SETTINGS_SECTIONS.has(parsed)) {
-    await prefetchGeneralSettings(queryClient)
-  }
+  /** Awaiting is required because unsettled queries are omitted from dehydration. */
+  await sectionPrefetch
 
   return (
     <HydrationBoundary state={dehydrate(queryClient)}>
