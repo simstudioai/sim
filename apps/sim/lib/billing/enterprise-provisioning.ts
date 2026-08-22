@@ -86,7 +86,7 @@ import {
   outboxEventHasSourceOperationId,
 } from '@/lib/core/outbox/service'
 import type { DbOrTx } from '@/lib/db/types'
-import { DIRECT_GRANT_EMAIL_EVENT_TYPE } from '@/lib/invitations/direct-grant'
+import { DIRECT_GRANT_EMAIL_EVENT_TYPE } from '@/lib/invitations/direct-grant-event'
 import { MAX_INVITE_EMAILS, MAX_INVITE_WORKSPACES } from '@/lib/invitations/limits'
 import { sendInvitationEmail } from '@/lib/invitations/send'
 import {
