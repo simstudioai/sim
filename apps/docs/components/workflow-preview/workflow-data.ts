@@ -103,6 +103,7 @@ export function toReactFlowElements(
         tools: block.tools,
         hideTargetHandle: block.hideTargetHandle,
         size: block.size,
+        parentId: block.parentId,
         index,
         animate,
         isHighlighted: highlightBlock === block.id || selectedBlock === block.id,
