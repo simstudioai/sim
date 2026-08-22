@@ -1621,17 +1621,24 @@ export async function executeSync(
       .where(eq(knowledgeConnector.id, connectorId))
       .limit(1)
 
-    if (options.dispatchToken && current?.syncLockToken !== options.dispatchToken) {
-      logger.info('Sync superseded by a newer dispatch, skipping', { connectorId })
-      return { ...result, error: 'dispatch_superseded' }
-    }
-
+    /**
+     * Status is checked before ownership because pausing a queued connector
+     * releases its token, so a mismatch is the *symptom* there and the status is
+     * the actual reason. Testing ownership first would report every
+     * pause-while-queued — the common case — as a superseded dispatch, losing
+     * the distinction this branch exists to draw.
+     */
     if (current?.status === 'paused' || current?.status === 'disabled') {
       logger.info('Connector is not accepting syncs, skipping', {
         connectorId,
         status: current.status,
       })
       return { ...result, error: 'connector_not_syncable' }
+    }
+
+    if (options.dispatchToken && current?.syncLockToken !== options.dispatchToken) {
+      logger.info('Sync superseded by a newer dispatch, skipping', { connectorId })
+      return { ...result, error: 'dispatch_superseded' }
     }
 
     logger.info('Sync already in progress, skipping', { connectorId })
