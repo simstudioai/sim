@@ -7,8 +7,6 @@ const {
   mockCanOpenOrganizationSettingsSection,
   mockGetSession,
   mockGetWorkspaceHostContext,
-  mockHasWorkspaceInboxAccess,
-  mockHasWorkspaceSandboxAccess,
   mockIsForkingAvailable,
   mockIsOrganizationOnEnterprisePlan,
   mockIsOrganizationSettingsSectionAvailable,
@@ -20,8 +18,6 @@ const {
   mockCanOpenOrganizationSettingsSection: vi.fn(),
   mockGetSession: vi.fn(),
   mockGetWorkspaceHostContext: vi.fn(),
-  mockHasWorkspaceInboxAccess: vi.fn(),
-  mockHasWorkspaceSandboxAccess: vi.fn(),
   mockIsForkingAvailable: vi.fn(),
   mockIsOrganizationOnEnterprisePlan: vi.fn(),
   mockIsOrganizationSettingsSectionAvailable: vi.fn(),
@@ -52,11 +48,6 @@ vi.mock('@/lib/auth', () => ({
 
 vi.mock('@/lib/billing', () => ({
   isOrganizationOnEnterprisePlan: mockIsOrganizationOnEnterprisePlan,
-}))
-
-vi.mock('@/lib/billing/core/subscription', () => ({
-  hasWorkspaceInboxAccess: mockHasWorkspaceInboxAccess,
-  hasWorkspaceSandboxAccess: mockHasWorkspaceSandboxAccess,
 }))
 
 vi.mock('@/lib/core/config/env', () => ({
@@ -159,8 +150,6 @@ describe('WorkspaceSettingsSectionPage unavailable sections', () => {
     mockResolveWorkspaceNavigation.mockReturnValue([])
     mockResolveWorkspaceGroup.mockResolvedValue(null)
     mockIsForkingAvailable.mockResolvedValue(false)
-    mockHasWorkspaceInboxAccess.mockResolvedValue(false)
-    mockHasWorkspaceSandboxAccess.mockResolvedValue(false)
     mockCanOpenOrganizationSettingsSection.mockResolvedValue(false)
     mockIsOrganizationOnEnterprisePlan.mockResolvedValue(false)
     mockIsOrganizationSettingsSectionAvailable.mockReturnValue(true)

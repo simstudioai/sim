@@ -11,7 +11,6 @@ import {
 } from '@/components/settings/navigation'
 import { getSession } from '@/lib/auth'
 import { isOrganizationOnEnterprisePlan } from '@/lib/billing'
-import { hasWorkspaceInboxAccess, hasWorkspaceSandboxAccess } from '@/lib/billing/core/subscription'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
 import { isBillingEnabled, isHosted } from '@/lib/core/config/env-flags'
 import { canOpenOrganizationSettingsSection } from '@/lib/organizations/settings-access'
@@ -117,19 +116,32 @@ export default async function WorkspaceSettingsSectionPage({
   const workspaceSection = WORKSPACE_SECTION_MAP[parsed]
   if (workspaceSection) {
     /**
-     * Credential-group availability is not re-resolved here: the host context already derived
-     * it from the same owner billing, so asking again is a second feature-flag lookup for an
-     * answer already in hand.
+     * The gate asks one question — is this section in the viewer's navigation — so it resolves
+     * only the entitlements that can answer it, and only for the section being opened.
+     *
+     * `credentialGroups` is already on the host context, derived from the same owner billing one
+     * await earlier, so asking again is a second feature-flag lookup for an answer in hand.
+     *
+     * `inbox` and `sandboxes` feed only `locked`, which marks a section as needing an upgrade
+     * rather than hiding it. This gate reads membership alone, so their two billing round-trips
+     * could not change the outcome for any section.
+     *
+     * `forks` is read only by the `forks` entry, so every other section resolved a lineage
+     * check it could not act on. Passing `false` elsewhere is safe in the one direction that
+     * matters: it can only remove `forks` from a list this gate is not asking about.
+     *
+     * `permissionConfig` is deliberately NOT narrowed the same way. Its keys hide sections, so
+     * skipping the lookup for a section that turns out to be config-gated would reveal it —
+     * fail-open, where the others fail closed.
      */
-    const [permissionGroup, forksAvailable, inboxAvailable, sandboxes] = await Promise.all([
+    const [permissionGroup, forksAvailable] = await Promise.all([
       hostContext.hostOrganizationId && hostContext.ownerBilling.isEnterprise
         ? resolveWorkspaceGroup(session.user.id, hostContext.hostOrganizationId, workspaceId)
         : null,
-      isForkingAvailableForWorkspace(hostContext.hostOrganizationId, session.user.id),
-      hasWorkspaceInboxAccess(workspaceId),
-      hasWorkspaceSandboxAccess(workspaceId),
+      workspaceSection === 'forks'
+        ? isForkingAvailableForWorkspace(hostContext.hostOrganizationId, session.user.id)
+        : Promise.resolve(false),
     ])
-    const credentialGroupsAvailable = hostContext.features?.credentialGroups ?? false
     const customBlocksAvailable = isHosted
       ? hostContext.ownerBilling.isEnterprise
       : isTruthy(getEnv('NEXT_PUBLIC_CUSTOM_BLOCKS_ENABLED'))
@@ -138,11 +150,11 @@ export default async function WorkspaceSettingsSectionPage({
       permissionConfig: permissionGroup?.config ?? {},
       entitlements: {
         byok: isHosted,
-        credentialGroups: credentialGroupsAvailable,
-        inbox: inboxAvailable,
+        credentialGroups: hostContext.features?.credentialGroups ?? false,
+        inbox: true,
         customBlocks: customBlocksAvailable,
         forks: forksAvailable,
-        sandboxes,
+        sandboxes: true,
       },
     })
     if (!navigation.some((item) => item.id === workspaceSection)) {

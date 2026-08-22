@@ -47,11 +47,16 @@ import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'
 /**
  * Sections whose JS chunk is warmed on hover.
  *
- * Deliberately not all of them. Naming a section's chunk from this file puts that section into
- * the module graph of the workflow editor and the other workspace routes this sidebar ships
- * with; listing all 28 measured ~200 extra modules across six of the app's hottest routes on
- * the boundary audit, to save one hop on a page the user is not currently on. These six were
- * already in the graph before this map existed, so warming them costs nothing new.
+ * Deliberately not all of them, and the reason is the boundary audit rather than bundle weight.
+ * Each section is already `dynamic()`-imported by the settings panel, so naming it here adds an
+ * async-chunk reference, not parsed JS — but `check-tool-registry-boundary` counts `import()`
+ * as a graph edge on purpose, and listing all of them measured +126..+172 modules against six of
+ * the app's hottest route baselines. Code-splitting this sidebar does not help: measured, it
+ * moves exactly one module, because the audit follows the dynamic edge either way.
+ *
+ * These six predate this map and are already inside those baselines, so warming them is free.
+ * Widening it means either raising the ratchet on the routes it exists to protect, or teaching
+ * the audit to track async reach separately from initial-chunk weight.
  *
  * Every section still gets its route payload warmed — see `handlePrefetch`.
  */
