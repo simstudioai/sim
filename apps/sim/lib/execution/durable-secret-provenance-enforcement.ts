@@ -10,7 +10,12 @@ const logger = createLogger('DurableSecretProvenanceEnforcement')
  * Named by the call site rather than derived, so the surface survives refactors and stays
  * greppable — the same convention the projection-refusal `site` strings use.
  */
-export const DURABLE_SECRET_PROVENANCE_SURFACES = ['memory', 'table-row', 'knowledge'] as const
+export const DURABLE_SECRET_PROVENANCE_SURFACES = [
+  'memory',
+  'table-row',
+  'knowledge',
+  'workspace-file',
+] as const
 
 export type DurableSecretProvenanceSurface = (typeof DURABLE_SECRET_PROVENANCE_SURFACES)[number]
 
@@ -62,9 +67,13 @@ let enforcedSurfaces: ReadonlySet<DurableSecretProvenanceSurface> | undefined
  * Set `DURABLE_SECRET_PROVENANCE_ENFORCED_SURFACES` to `all`, or to a comma-separated subset of
  * {@link DURABLE_SECRET_PROVENANCE_SURFACES}, to close a surface.
  *
- * Workspace files are deliberately not a surface here: their unknown check sits in the callers
- * rather than in the shared import, and one unknown file locks vfs reads, chat attachments, sandbox
- * mounts, and the file tool routes at once. They stay fail-closed until that is its own decision.
+ * Workspace files were held out of this list while their fail-closed posture was its own decision.
+ * That decision arrived as broken state: because a file that was never tracked already reads as
+ * exact-empty, refusing only the file whose provenance could not be recorded made a writer that
+ * momentarily could not vouch permanently worse off than one that never tried — with no way back,
+ * since nothing rewrites a file's provenance but another content write. Live files across several
+ * workspaces sat unreadable behind it, by every tool route at once, carrying exactly as much
+ * information about their contents as the untracked files beside them: none.
  */
 export function isDurableSecretProvenanceEnforced(
   surface: DurableSecretProvenanceSurface

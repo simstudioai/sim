@@ -4,6 +4,18 @@
 import { workspaceFileSecretProvenance, workspaceFiles } from '@sim/db/schema'
 import { dbChainMock, dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const { mockIsEnforced, mockReport } = vi.hoisted(() => ({
+  mockIsEnforced: vi.fn(() => false),
+  mockReport: vi.fn(),
+}))
+
+vi.mock('@/lib/execution/durable-secret-provenance-enforcement', () => ({
+  DURABLE_SECRET_PROVENANCE_SURFACES: ['memory', 'table-row', 'knowledge', 'workspace-file'],
+  isDurableSecretProvenanceEnforced: mockIsEnforced,
+  reportUnrecordedDurableProvenance: mockReport,
+}))
+
 import type { DbTransaction } from '@/lib/db/types'
 import {
   areModelSafeWorkspaceFileKeys,
@@ -26,6 +38,7 @@ describe('workspace file secret provenance', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
+    mockIsEnforced.mockReturnValue(false)
     dbChainMockFns.returning.mockResolvedValue([{ id: 'tracked-file' }])
   })
 
@@ -331,6 +344,8 @@ describe('workspace file secret provenance', () => {
       { key: 'safe-key' },
       { id: 'file-1700000000000', key: 'safe-key' },
       { id: 'wrong-id', key: 'safe-key' },
+      /** Unrecorded, so kept — the untracked keys below say the same thing and always were. */
+      { id: 'unknown-id', key: 'unknown-key' },
       { id: 'pre-marker-sidecar-id', key: 'pre-marker-sidecar-key' },
       { id: 'synthetic-execution-id', key: 'untracked-context-key' },
       { id: 'legacy-id', key: 'legacy-key' },
@@ -673,7 +688,11 @@ describe('workspace file secret provenance', () => {
     )
   })
 
-  it('rejects unavailable mounted-file provenance without importing it', async () => {
+  /**
+   * Unrecorded says exactly what an untracked file says, and that one has always mounted. There is
+   * nothing to import either way, so the mount proceeds and the workspace is told.
+   */
+  it('mounts an unrecorded file without importing provenance for it', async () => {
     const registry = {
       importProvenance: vi.fn(),
       isPermanentlyIncomplete: vi.fn().mockReturnValue(false),
@@ -694,8 +713,9 @@ describe('workspace file secret provenance', () => {
         identity: { fileId: 'file-1', key: 'file-key', context: 'workspace' },
         registry,
       })
-    ).resolves.toBe(false)
+    ).resolves.toBe(true)
     expect(registry.importProvenance).not.toHaveBeenCalled()
+    expect(mockReport).toHaveBeenCalledWith(expect.objectContaining({ surface: 'workspace-file' }))
   })
 
   it('rejects tracked mounted-file provenance when no complete runtime registry can import it', async () => {
@@ -730,7 +750,7 @@ describe('workspace file secret provenance', () => {
     ).resolves.toBe(false)
   })
 
-  it('rejects a tainted, unknown, stale, or cross-workspace model egress key', async () => {
+  it('rejects a tainted, stale, or cross-workspace model egress key', async () => {
     const rejectedRows = [
       {
         id: 'tainted-id',
@@ -742,17 +762,6 @@ describe('workspace file secret provenance', () => {
         provenanceContentUpdatedAt: CONTENT_UPDATED_AT,
         status: 'exact',
         entries: [{ name: 'API_KEY', encryptedValue: 'encrypted' }],
-      },
-      {
-        id: 'unknown-id',
-        key: 'unknown-key',
-        workspaceId: 'workspace-1',
-        context: 'workspace',
-        fileContentUpdatedAt: CONTENT_UPDATED_AT,
-        secretProvenanceVersion: 1,
-        provenanceContentUpdatedAt: CONTENT_UPDATED_AT,
-        status: 'unknown',
-        entries: [],
       },
       {
         id: 'stale-id',
@@ -1286,5 +1295,104 @@ describe('workspace file secret provenance', () => {
         entries: [],
       })
     )
+  })
+
+  /**
+   * The whole reason this surface was brought under the policy: a file that was never tracked
+   * already reads as safe two branches earlier, and an unrecorded one says exactly the same thing
+   * about its contents. Refusing only the second left files permanently unreadable for having
+   * tried to record provenance and failed.
+   */
+  it('reads an unrecorded file, as it already reads an untracked one', async () => {
+    queueTableRows(workspaceFiles, [
+      {
+        id: 'unrecorded-id',
+        key: 'unrecorded-key',
+        workspaceId: 'workspace-1',
+        context: 'workspace',
+        fileContentUpdatedAt: CONTENT_UPDATED_AT,
+        secretProvenanceVersion: 1,
+        provenanceContentUpdatedAt: CONTENT_UPDATED_AT,
+        status: 'unknown',
+        entries: [],
+      },
+    ])
+
+    await expect(isModelSafeWorkspaceFileKey('unrecorded-key')).resolves.toBe(true)
+    expect(mockReport).toHaveBeenCalledWith(
+      expect.objectContaining({ surface: 'workspace-file', cause: 'durable-provenance-unknown' })
+    )
+  })
+
+  it('refuses an unrecorded file again once the surface is closed', async () => {
+    mockIsEnforced.mockReturnValue(true)
+    queueTableRows(workspaceFiles, [
+      {
+        id: 'unrecorded-id',
+        key: 'unrecorded-key',
+        workspaceId: 'workspace-1',
+        context: 'workspace',
+        fileContentUpdatedAt: CONTENT_UPDATED_AT,
+        secretProvenanceVersion: 1,
+        provenanceContentUpdatedAt: CONTENT_UPDATED_AT,
+        status: 'unknown',
+        entries: [],
+      },
+    ])
+
+    await expect(isModelSafeWorkspaceFileKey('unrecorded-key')).resolves.toBe(false)
+    expect(mockReport).not.toHaveBeenCalled()
+  })
+
+  /**
+   * Narrower than "not exact" on purpose. A stale binding describes content that has since changed
+   * and a malformed sidecar is a fault; neither is the absence the policy covers, and neither may
+   * ride in on it.
+   */
+  it('still refuses a stale binding and a malformed sidecar', async () => {
+    for (const row of [
+      {
+        id: 'stale-id',
+        key: 'stale-key',
+        workspaceId: 'workspace-1',
+        context: 'workspace',
+        fileContentUpdatedAt: CONTENT_UPDATED_AT,
+        secretProvenanceVersion: 1,
+        provenanceContentUpdatedAt: new Date('2026-08-03T00:00:00.000Z'),
+        status: 'unknown',
+        entries: [],
+      },
+      {
+        id: 'malformed-id',
+        key: 'malformed-key',
+        workspaceId: 'workspace-1',
+        context: 'workspace',
+        fileContentUpdatedAt: CONTENT_UPDATED_AT,
+        secretProvenanceVersion: 1,
+        provenanceContentUpdatedAt: CONTENT_UPDATED_AT,
+        status: 'unknown',
+        entries: 'not-an-array',
+      },
+    ]) {
+      queueTableRows(workspaceFiles, [row])
+      await expect(isModelSafeWorkspaceFileKey(row.key)).resolves.toBe(false)
+    }
+  })
+
+  /**
+   * Bytes nobody vouched for do not become vouched-for by being combined with bytes that were.
+   * Falling through to the exact branch would have handed a later boundary a positive claim that
+   * neither input made — a stronger statement than either, produced by merging.
+   */
+  it('keeps an unrecorded contribution unrecorded when merged with an exact one', () => {
+    expect(
+      mergeWorkspaceFileSecretProvenance({ status: 'exact', entries: [] }, { status: 'unrecorded' })
+    ).toEqual({ status: 'unrecorded' })
+  })
+
+  it('still lets an unknown contribution dominate an unrecorded one', () => {
+    expect(
+      mergeWorkspaceFileSecretProvenance({ status: 'unrecorded' }, { status: 'unknown' })
+    ).toEqual({ status: 'unknown' })
   })
 })
