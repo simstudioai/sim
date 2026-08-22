@@ -59,6 +59,12 @@ export interface UseFetchedOptionsResult {
    */
   isDynamic: boolean
   isLoadingOptions: boolean
+  /**
+   * Whether `fetchedOptions` is the result of a completed, successful fetch for the current
+   * dependency values — an EMPTY list from such a fetch is authoritative (the source really has
+   * nothing), unlike the empty list held before the first fetch or after a failed one.
+   */
+  hasLoadedOptions: boolean
   fetchError: string | null
   hydratedOption: FetchedOption | null
   /** Stored id an authoritative lookup confirmed no longer exists. */
@@ -191,6 +197,7 @@ export function useFetchedOptions({
   }, [selectorDefinition, readSelectorContext])
 
   const [fetchedOptions, setFetchedOptions] = useState<FetchedOption[]>([])
+  const [hasLoadedOptions, setHasLoadedOptions] = useState(false)
   const [isLoadingOptions, setIsLoadingOptions] = useState(false)
   const [fetchError, setFetchError] = useState<string | null>(null)
   const [hydratedOption, setHydratedOption] = useState<FetchedOption | null>(null)
@@ -219,10 +226,12 @@ export function useFetchedOptions({
       const options = await fetchOptions()
       if (requestId !== fetchRequestIdRef.current) return
       setFetchedOptions(options)
+      setHasLoadedOptions(true)
     } catch (error) {
       if (requestId !== fetchRequestIdRef.current) return
       setFetchError(getErrorMessage(error, 'Failed to fetch options'))
       setFetchedOptions([])
+      setHasLoadedOptions(false)
     } finally {
       if (requestId === fetchRequestIdRef.current) {
         setIsLoadingOptions(false)
@@ -238,6 +247,7 @@ export function useFetchedOptions({
     if (previous && current !== previous) {
       fetchRequestIdRef.current += 1
       setFetchedOptions([])
+      setHasLoadedOptions(false)
       setIsLoadingOptions(false)
       setHydratedOption(null)
       setMissingOptionId(null)
@@ -327,6 +337,7 @@ export function useFetchedOptions({
     fetchedOptions,
     isDynamic: Boolean(fetchOptions),
     isLoadingOptions,
+    hasLoadedOptions,
     fetchError,
     hydratedOption,
     missingOptionId,

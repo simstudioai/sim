@@ -1809,6 +1809,52 @@ describe('canonical mode policy (fork/promote)', () => {
     expect(mapped.conflictColumnSelector.value).toBe('')
   })
 
+  it('preserves a selector-backed multi-column pick under a COPIED table like a column-selector', () => {
+    const tableBlock = () =>
+      blockWith([
+        {
+          id: 'tableSelector',
+          title: 'Table',
+          type: 'table-selector',
+          canonicalParamId: 'tableId',
+          mode: 'basic',
+        },
+        {
+          id: 'manualTableId',
+          title: 'Table ID',
+          type: 'short-input',
+          canonicalParamId: 'tableId',
+          mode: 'advanced',
+        },
+        {
+          id: 'outputColumns',
+          title: 'Columns to Return',
+          type: 'dropdown',
+          selectorKey: 'table.outputColumns',
+          multiSelect: true,
+          dependsOn: { any: ['tableSelector', 'manualTableId'] },
+        },
+      ])
+    const subBlocks = (): SubBlockRecord => ({
+      tableSelector: entry('tableSelector', 'table-selector', 'tbl-src'),
+      outputColumns: entry('outputColumns', 'dropdown', ['col_a', 'col_b']),
+    })
+    vi.mocked(getBlock).mockReturnValue(tableBlock())
+    // Fork-create: the copy keeps the same column ids, so the pick survives verbatim.
+    const forkTransform = createForkBootstrapTransform(((kind: string, id: string) =>
+      kind === 'table' && id === 'tbl-src' ? 'tbl-copy' : null) as never)
+    const forked = forkTransform(subBlocks(), 'table')
+    expect(forked.tableSelector.value).toBe('tbl-copy')
+    expect(forked.outputColumns.value).toEqual(['col_a', 'col_b'])
+    // Promote onto a MAPPED (different) table: column ids differ - the pick clears.
+    const mappedTransform = createForkSubBlockTransform((kind, id) =>
+      kind === 'table' && id === 'tbl-src' ? 'tbl-mapped' : null
+    )
+    const mapped = mappedTransform(subBlocks(), 'table')
+    expect(mapped.tableSelector.value).toBe('tbl-mapped')
+    expect(mapped.outputColumns.value).toBe('')
+  })
+
   it('collectClearedDependents skips a dormant canonical member (only the active mode matters)', () => {
     vi.mocked(getBlock).mockReturnValue(knowledgePairBlock())
     const targetDraft: SubBlockRecord = {
