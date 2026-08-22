@@ -18,6 +18,17 @@ export interface SearchResult {
   snippet?: string
 }
 
+/** Raw item shape returned by the Serply search endpoint. */
+interface SerplyResultItem {
+  title?: string
+  link?: string
+  description?: string
+}
+
+interface SerplySearchApiResponse {
+  results?: SerplyResultItem[]
+}
+
 export interface SearchResponse extends ToolResponse {
   output: {
     searchResults: SearchResult[]
@@ -70,10 +81,10 @@ export const searchTool: ToolConfig<SearchParams, SearchResponse> = {
   },
 
   transformResponse: async (response: Response) => {
-    const data = await response.json()
+    const data = (await response.json()) as SerplySearchApiResponse
     const results = Array.isArray(data.results) ? data.results : []
 
-    const searchResults: SearchResult[] = results.map((item: any) => ({
+    const searchResults: SearchResult[] = results.map((item) => ({
       title: item.title || '',
       link: item.link || '',
       snippet: item.description || undefined,
