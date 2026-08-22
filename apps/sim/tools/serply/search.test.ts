@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
+import type { SearchParams } from '@/tools/serply/search'
 import { searchTool } from '@/tools/serply/search'
 
 describe('serply searchTool', () => {
@@ -14,7 +15,7 @@ describe('serply searchTool', () => {
   })
 
   it('builds the query URL with the optional num param', () => {
-    const url = (searchTool.request.url as (params: any) => string)({
+    const url = (searchTool.request.url as (params: SearchParams) => string)({
       query: 'sim workflows',
       apiKey: 'test-key',
       num: 20,
