@@ -140,9 +140,14 @@ export function DeployModal({
   const userPermissions = useUserPermissionsContext()
   const canManageWorkspaceKeys = userPermissions.canAdmin
   const { config: permissionConfig, isPublicApiDisabled } = usePermissionConfig()
-  const { data: apiKeysData, isLoading: isLoadingKeys } = useApiKeys(workflowWorkspaceId || '')
+  const { data: apiKeysData, isLoading: isLoadingKeys } = useApiKeys(
+    workflowWorkspaceId || '',
+    'combined',
+    { enabled: open }
+  )
   const { data: workspaceSettingsData, isLoading: isLoadingSettings } = useWorkspaceSettings(
-    workflowWorkspaceId || ''
+    workflowWorkspaceId || '',
+    { enabled: open }
   )
   const apiKeyWorkspaceKeys = apiKeysData?.workspaceKeys || []
   const apiKeyPersonalKeys = apiKeysData?.personalKeys || []
@@ -170,7 +175,9 @@ export function DeployModal({
     refetch: refetchChatInfo,
   } = useChatDeploymentInfo(workflowId, { enabled: open })
 
-  const { data: mcpServers = [] } = useWorkflowMcpServers(workflowWorkspaceId || '')
+  const { data: mcpServers = [] } = useWorkflowMcpServers(workflowWorkspaceId || '', {
+    enabled: open,
+  })
   const hasMcpServers = mcpServers.length > 0
 
   const deployMutation = useDeployWorkflow()

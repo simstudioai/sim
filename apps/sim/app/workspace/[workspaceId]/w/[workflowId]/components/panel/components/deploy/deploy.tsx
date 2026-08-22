@@ -2,6 +2,8 @@
 
 import { useState } from 'react'
 import { Chip, Tooltip, toast } from '@sim/emcn'
+import { useQueryClient } from '@tanstack/react-query'
+import { useParams } from 'next/navigation'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { DeployModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/components/deploy-modal/deploy-modal'
 import {
@@ -10,6 +12,9 @@ import {
   useDeployReadiness,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/hooks'
 import { useCurrentWorkflow } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-current-workflow'
+import { apiKeysQueryOptions } from '@/hooks/queries/api-keys'
+import { workflowMcpServersQueryOptions } from '@/hooks/queries/workflow-mcp-servers'
+import { workspaceSettingsQueryOptions } from '@/hooks/queries/workspace'
 import type { WorkspaceUserPermissions } from '@/hooks/use-user-permissions'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
@@ -20,6 +25,9 @@ interface DeployProps {
 }
 
 export function Deploy({ activeWorkflowId, userPermissions, disabled = false }: DeployProps) {
+  const queryClient = useQueryClient()
+  const params = useParams()
+  const workspaceId = params.workspaceId as string | undefined
   const [isModalOpen, setIsModalOpen] = useState(false)
   const hydrationPhase = useWorkflowRegistry((state) => state.hydration.phase)
   const isRegistryLoading = hydrationPhase === 'idle' || hydrationPhase === 'state-loading'
@@ -151,6 +159,15 @@ export function Deploy({ activeWorkflowId, userPermissions, disabled = false }: 
     }
   }
 
+  const prefetchDeployModal = () => {
+    if (!workspaceId || isRegistryLoading || isDisabled) return
+    void Promise.all([
+      queryClient.prefetchQuery(apiKeysQueryOptions(workspaceId, 'combined')),
+      queryClient.prefetchQuery(workspaceSettingsQueryOptions(workspaceId)),
+      queryClient.prefetchQuery(workflowMcpServersQueryOptions(workspaceId)),
+    ])
+  }
+
   return (
     <>
       <Tooltip.Root>
@@ -159,6 +176,8 @@ export function Deploy({ activeWorkflowId, userPermissions, disabled = false }: 
             <Chip
               variant='border'
               onClick={onDeployClick}
+              onMouseEnter={prefetchDeployModal}
+              onFocus={prefetchDeployModal}
               disabled={isRegistryLoading || isDisabled}
             >
               {getButtonLabel()}
