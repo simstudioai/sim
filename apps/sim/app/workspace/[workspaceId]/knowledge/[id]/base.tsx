@@ -687,6 +687,7 @@ export function KnowledgeBase({
    * Handles selecting/deselecting a document
    */
   const handleSelectDocument = (docId: string, checked: boolean) => {
+    setIsSelectAllMode(false)
     setSelectedDocuments((prev) => {
       const newSet = new Set(prev)
       if (checked) {
@@ -908,6 +909,7 @@ export function KnowledgeBase({
       ? 0
       : pagination.total
     : selectedDocumentsList.filter((doc) => !doc.enabled).length
+  const selectedDocumentCount = isSelectAllMode ? pagination.total : selectedDocuments.size
 
   const handleDocumentContextMenu = useCallback(
     (e: React.MouseEvent, docId: string) => {
@@ -917,6 +919,7 @@ export function KnowledgeBase({
       const isCurrentlySelected = selectedDocuments.has(doc.id)
 
       if (!isCurrentlySelected) {
+        setIsSelectAllMode(false)
         setSelectedDocuments(new Set([doc.id]))
       }
 
@@ -1422,15 +1425,15 @@ export function KnowledgeBase({
         srTitle='Delete Documents'
         title='Delete Documents'
         text={[
-          `Are you sure you want to delete ${selectedDocuments.size} document${selectedDocuments.size === 1 ? '' : 's'}? `,
+          `Are you sure you want to delete ${selectedDocumentCount} document${selectedDocumentCount === 1 ? '' : 's'}? `,
           {
-            text: `This will permanently delete the selected document${selectedDocuments.size === 1 ? '' : 's'}.`,
+            text: `This will permanently delete the selected document${selectedDocumentCount === 1 ? '' : 's'}.`,
             error: true,
           },
           ' This action cannot be undone.',
         ]}
         confirm={{
-          label: `Delete ${selectedDocuments.size} Document${selectedDocuments.size === 1 ? '' : 's'}`,
+          label: `Delete ${selectedDocumentCount} Document${selectedDocumentCount === 1 ? '' : 's'}`,
           onClick: confirmBulkDelete,
           pending: isBulkOperating,
           pendingLabel: 'Deleting...',
@@ -1501,11 +1504,12 @@ export function KnowledgeBase({
         onClose={handleContextMenuClose}
         hasDocument={contextMenuDocument !== null}
         isDocumentEnabled={contextMenuDocument?.enabled ?? true}
-        selectedCount={selectedDocuments.size}
+        selectedCount={selectedDocumentCount}
         enabledCount={enabledCount}
         disabledCount={disabledCount}
+        hasExactToggleCount={!isSelectAllMode || enabledFilter !== 'all'}
         onOpenInNewTab={
-          contextMenuDocument && selectedDocuments.size === 1
+          contextMenuDocument && selectedDocumentCount === 1
             ? () => {
                 const urlParams = new URLSearchParams({
                   kbName: knowledgeBaseName,
@@ -1519,14 +1523,14 @@ export function KnowledgeBase({
             : undefined
         }
         onOpenSource={
-          contextMenuDocument?.sourceUrl && selectedDocuments.size === 1
+          contextMenuDocument?.sourceUrl && selectedDocumentCount === 1
             ? () => window.open(contextMenuDocument.sourceUrl!, '_blank', 'noopener,noreferrer')
             : undefined
         }
         onRename={contextMenuDocument ? () => handleRenameDocument(contextMenuDocument) : undefined}
         onToggleEnabled={
           contextMenuDocument
-            ? selectedDocuments.size > 1
+            ? selectedDocumentCount > 1
               ? () => {
                   if (disabledCount > 0) {
                     handleBulkEnable()
@@ -1538,13 +1542,13 @@ export function KnowledgeBase({
             : undefined
         }
         onViewTags={
-          contextMenuDocument && selectedDocuments.size === 1 && userPermissions.canEdit
+          contextMenuDocument && selectedDocumentCount === 1 && userPermissions.canEdit
             ? () => handleViewDocumentTags(contextMenuDocument)
             : undefined
         }
         onDelete={
           contextMenuDocument
-            ? selectedDocuments.size > 1
+            ? selectedDocumentCount > 1
               ? handleBulkDelete
               : () => handleDeleteDocument(contextMenuDocument.id)
             : undefined

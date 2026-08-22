@@ -35,7 +35,7 @@ function mountSurroundingMenu() {
   surroundingMenuItem = item
 }
 
-function renderMenu(onClose: () => void, onDelete: () => void = () => {}) {
+function renderMenu(onClose: () => void, onDelete: () => void = () => {}, selectedCount = 1) {
   ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
   mountSurroundingMenu()
   plainButton = document.createElement('button')
@@ -53,6 +53,7 @@ function renderMenu(onClose: () => void, onDelete: () => void = () => {}) {
         onDelete={onDelete}
         showRename={false}
         showDuplicate={false}
+        selectedCount={selectedCount}
       />
     )
   )
@@ -135,6 +136,16 @@ describe('sidebar context menu dismissal', () => {
     })
 
     expect(onClose).toHaveBeenCalled()
+  })
+
+  it('states when delete applies to a multi-item selection', () => {
+    renderMenu(vi.fn(), vi.fn(), 3)
+
+    expect(
+      Array.from(document.querySelectorAll('[role="menuitem"]')).some(
+        (item) => item.textContent === 'Delete 3 items'
+      )
+    ).toBe(true)
   })
 })
 

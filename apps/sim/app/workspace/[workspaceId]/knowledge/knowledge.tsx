@@ -1462,6 +1462,7 @@ export function Knowledge() {
           showDelete
           disableEdit={!canEdit}
           disableDelete={!canEdit}
+          selectedCount={selectedRowIds.size}
         />
       )}
 
@@ -1479,6 +1480,7 @@ export function Knowledge() {
           onMove={handleMoveFolderFromMenu}
           moveOptions={activeFolderMoveOptions}
           canEdit={canEdit}
+          selectedCount={selectedRowIds.size}
         />
       )}
 

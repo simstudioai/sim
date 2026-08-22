@@ -475,6 +475,10 @@ export const FolderItem = memo(function FolderItem({ workspaceId, folder }: Fold
   const isMixedSelection = useMemo(() => {
     return capturedSelectionRef.current?.isMixed ?? false
   }, [isContextMenuOpen])
+  const contextMenuSelectedCount = capturedSelectionRef.current
+    ? capturedSelectionRef.current.workflowIds.length +
+      capturedSelectionRef.current.folderIds.length
+    : 1
 
   const hasExportableContent = useMemo(() => {
     if (!capturedSelectionRef.current) return hasWorkflows
@@ -583,8 +587,8 @@ export const FolderItem = memo(function FolderItem({ workspaceId, folder }: Fold
         onDuplicate={handleDuplicate}
         onExport={handleExport}
         onDelete={handleOpenDeleteModal}
-        showCreate={!isMixedSelection}
-        showCreateFolder={!isMixedSelection}
+        showCreate={!isMixedSelection && selectedFolders.size <= 1}
+        showCreateFolder={!isMixedSelection && selectedFolders.size <= 1}
         showRename={!isMixedSelection && selectedFolders.size <= 1}
         showDuplicate={true}
         showExport={true}
@@ -605,6 +609,7 @@ export const FolderItem = memo(function FolderItem({ workspaceId, folder }: Fold
         showLock={!isMixedSelection && selectedFolders.size <= 1}
         disableLock={!userPermissions.canAdmin || inheritedFolderLocked}
         isLocked={effectiveLocked}
+        selectedCount={contextMenuSelectedCount}
       />
 
       <DeleteModal

@@ -26,6 +26,7 @@ import {
   Unlock,
   X,
 } from '@sim/emcn/icons'
+import { selectionActionLabel } from '@/app/workspace/[workspaceId]/components/resource/selection-label'
 
 interface ContextMenuProps {
   isOpen: boolean
@@ -96,6 +97,7 @@ interface ContextMenuProps {
   onUploadLogo?: () => void
   showUploadLogo?: boolean
   disableUploadLogo?: boolean
+  selectedCount?: number
 }
 
 /**
@@ -164,6 +166,7 @@ export function ContextMenu({
   onUploadLogo,
   showUploadLogo = false,
   disableUploadLogo = false,
+  selectedCount = 1,
 }: ContextMenuProps) {
   const hasActionsAboveDestructive =
     (showOpenInNewTab && onOpenInNewTab) ||
@@ -345,7 +348,7 @@ export function ContextMenu({
             }}
           >
             <Duplicate />
-            Duplicate
+            {selectionActionLabel('Duplicate', selectedCount)}
           </DropdownMenuItem>
         )}
         {showExport && onExport && (
@@ -357,7 +360,7 @@ export function ContextMenu({
             }}
           >
             <Download />
-            Export
+            {selectionActionLabel('Export', selectedCount)}
           </DropdownMenuItem>
         )}
         {openInNewTabPosition === 'last' && showOpenInNewTab && onOpenInNewTab && (
@@ -394,7 +397,7 @@ export function ContextMenu({
             }}
           >
             <Trash />
-            Delete
+            {selectionActionLabel('Delete', selectedCount)}
           </DropdownMenuItem>
         )}
         {showCloseTab && onCloseTab && (
