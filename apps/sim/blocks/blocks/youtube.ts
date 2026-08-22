@@ -15,6 +15,41 @@ export const YouTubeBlock: BlockConfig<YouTubeResponse> = {
   integrationType: IntegrationType.Communication,
   bgColor: '#FF0000',
   icon: YouTubeIcon,
+  canvasPresentation: {
+    defaultTitle: 'YouTube',
+    sentences: {
+      byOperation: {
+        youtube_search: [
+          { text: 'Search videos for', field: 'query', core: true },
+          { text: ', on channel', field: 'channelId' },
+          { text: ', published after', field: 'publishedAfter' },
+        ],
+        youtube_trending: [
+          'List trending videos',
+          { text: 'in region', field: 'regionCode' },
+          { text: ', category', field: 'videoCategoryId' },
+        ],
+        youtube_video_details: [{ text: 'Read details of video', field: 'videoId', core: true }],
+        youtube_video_categories: [
+          'List video categories',
+          { text: 'available in region', field: 'regionCode' },
+        ],
+        youtube_channel_info: [
+          { text: 'Read profile of channel', field: ['channelId', 'username'], core: true },
+        ],
+        youtube_channel_videos: [
+          { text: 'List videos from channel', field: 'channelId', core: true },
+        ],
+        youtube_channel_playlists: [
+          { text: 'List playlists on channel', field: 'channelId', core: true },
+        ],
+        youtube_playlist_items: [
+          { text: 'List videos in playlist', field: 'playlistId', core: true },
+        ],
+        youtube_comments: [{ text: 'List comments on video', field: 'videoId', core: true }],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',
@@ -64,6 +99,7 @@ export const YouTubeBlock: BlockConfig<YouTubeResponse> = {
     {
       id: 'channelId',
       title: 'Filter by Channel ID',
+      canvasNoun: 'a channel ID',
       type: 'short-input',
       placeholder: 'Filter results to a specific channel',
       condition: { field: 'operation', value: 'youtube_search' },

@@ -2,7 +2,6 @@
  * @vitest-environment node
  */
 import { hybridAuthMockFns, permissionsMock, permissionsMockFns } from '@sim/testing'
-import { getErrorMessage } from '@sim/utils/errors'
 import type { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -32,24 +31,41 @@ vi.mock('@/lib/table/rows/service', () => ({
 vi.mock('@/lib/table/billing', () => ({ getWorkspaceTableLimits: mockGetLimits }))
 vi.mock('@/app/api/table/utils', async () => {
   const { NextResponse } = await import('next/server')
+  const { asOrchestrationError, messageForOrchestrationError, statusForOrchestrationError } =
+    await import('@/lib/core/orchestration/types')
   return {
-    normalizeColumn: (column: unknown) => column,
     csvProxyBodyCapResponse: () => null,
     multipartErrorResponse: (error: { code: string; message: string }) =>
       NextResponse.json(
         { error: error.message },
         { status: error.code === 'FILE_TOO_LARGE' ? 413 : 400 }
       ),
-    rowWriteErrorResponse: (error: unknown) => {
-      const message = getErrorMessage(error)
-      return message.includes('row limit')
-        ? NextResponse.json({ error: message }, { status: 400 })
+    orchestrationOutcomeErrorResponse: (
+      outcome: { error?: string; errorCode?: OrchestrationErrorCode; lock?: string },
+      fallback: string
+    ) =>
+      NextResponse.json(
+        {
+          error: messageForOrchestrationError(outcome, fallback),
+          ...(outcome.lock ? { lock: outcome.lock } : {}),
+        },
+        { status: statusForOrchestrationError(outcome.errorCode) }
+      ),
+    orchestrationErrorResponse: (error: unknown) => {
+      const classified = asOrchestrationError(error)
+      return classified
+        ? NextResponse.json(
+            { error: classified.message },
+            { status: statusForOrchestrationError(classified.code) }
+          )
         : null
     },
   }
 })
 vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
+import { OrchestrationError, type OrchestrationErrorCode } from '@/lib/core/orchestration/types'
+import { TableLockedError } from '@/lib/table/mutation-locks'
 import { POST } from '@/app/api/table/import-csv/route'
 
 type Part =
@@ -184,7 +200,10 @@ describe('POST /api/table/import-csv', () => {
 
   it('returns 400 with the reason when an insert exceeds the plan row limit', async () => {
     mockBatchInsertRows.mockRejectedValueOnce(
-      new Error('This table has reached its row limit (1,000 rows) on your current plan.')
+      new OrchestrationError(
+        'validation',
+        'This table has reached its row limit (1,000 rows) on your current plan.'
+      )
     )
     const response = await POST(makeRequest(uploadParts(csvWithRows(250))))
     const data = await response.json()
@@ -202,6 +221,19 @@ describe('POST /api/table/import-csv', () => {
 
     expect(response.status).toBe(500)
     expect(mockDeleteTable).toHaveBeenCalledWith('tbl_1', expect.any(String))
+  })
+
+  it('names the lock that rejected the import on a 423', async () => {
+    // The lock kind is the only thing that tells a client which lock to clear; rendering the
+    // outcome by hand is how the field gets dropped from one route and not its sibling.
+    mockBatchInsertRows.mockRejectedValueOnce(new TableLockedError('insert'))
+
+    const response = await POST(makeRequest(uploadParts(csvWithRows(250))))
+    const data = await response.json()
+
+    expect(response.status).toBe(423)
+    expect(data.lock).toBe('insert')
+    expect(data.error).toMatch(/lock/i)
   })
 
   it('returns 401 when unauthenticated', async () => {

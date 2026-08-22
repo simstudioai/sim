@@ -19,6 +19,17 @@ function getTerminalContainer(): HTMLElement | null {
 }
 
 /**
+ * The toast stack also insets its bottom by `--terminal-height`, but is
+ * portalled to `<body>` and so shares no ancestor with the terminal. Writing it
+ * alongside keeps the notifications tracking the drag frame by frame instead of
+ * holding their pre-drag position until it commits. Usually absent — the stack
+ * only mounts while a toast is showing — in which case nothing extra is written.
+ */
+function getToastViewport(): (HTMLElement | null)[] {
+  return [document.querySelector<HTMLElement>('[data-toast-viewport]')]
+}
+
+/**
  * Updates the store height mid-drag only when it crosses the expanded
  * threshold, so `isExpanded` subscribers (header chevron, auto-open logic)
  * still flip live during the drag. Writes store state directly rather than
@@ -50,6 +61,7 @@ export function useTerminalResize() {
     cursor: 'ns-resize',
     cssVar: '--terminal-height',
     getTarget: getTerminalContainer,
+    getExtraTargets: getToastViewport,
     compute: computeTerminalHeight,
     commit: setTerminalHeight,
     onApply: syncExpandedThreshold,

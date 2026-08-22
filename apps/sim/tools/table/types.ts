@@ -61,6 +61,7 @@ export interface TableRowGetParams {
 /** v2 query params: typed predicate/sort objects + opaque cursor (no offset). */
 export interface TableRowQueryV2Params {
   tableId: string
+  columns?: string[]
   filter?: TablePredicateInput
   order?: SortSpec
   limit?: number
@@ -106,6 +107,12 @@ export interface TableQueryResponse extends ToolResponse {
     totalCount: number
     limit: number
     offset: number
+    /**
+     * Non-null when more rows match past this page — the only reliable end-of-data signal. A page
+     * can end early at the response byte budget, so `rowCount < limit` does NOT mean the last page,
+     * and advancing an offset by `limit` rather than by `rowCount` skips whatever the cut left out.
+     */
+    nextCursor: string | null
   }
 }
 

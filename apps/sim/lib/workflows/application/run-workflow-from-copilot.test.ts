@@ -1,0 +1,308 @@
+/**
+ * @vitest-environment node
+ */
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const { mocks } = vi.hoisted(() => ({
+  mocks: {
+    admission: vi.fn(),
+    executeWorkflow: vi.fn(),
+    latestState: vi.fn(),
+    loadDeployed: vi.fn(),
+    loadDraft: vi.fn(),
+    permission: vi.fn(),
+    resolveContext: vi.fn(),
+    resolveOptions: vi.fn(),
+    sourceState: vi.fn(),
+    validateInput: vi.fn(),
+  },
+}))
+
+vi.mock('@sim/platform-authz/workspace', () => ({
+  permissionSatisfies: (actual: string | null, required: string) => {
+    const rank = { read: 1, write: 2, admin: 3 } as const
+    return (
+      actual !== null && rank[actual as keyof typeof rank] >= rank[required as keyof typeof rank]
+    )
+  },
+  resolveEffectiveWorkspacePermission: mocks.permission,
+}))
+
+vi.mock('@/lib/workflows/application/context', () => ({
+  resolveActiveWorkflowApplicationContext: mocks.resolveContext,
+}))
+
+vi.mock('@/lib/workflows/execution-admission', () => ({
+  prepareWorkflowExecutionAdmission: mocks.admission,
+}))
+
+vi.mock('@/lib/workflows/executor/execution-state', () => ({
+  getExecutionInputForWorkflow: vi.fn(),
+  getExecutionStateForWorkflow: mocks.sourceState,
+  getLatestExecutionStateWithExecutionId: mocks.latestState,
+}))
+
+vi.mock('@/lib/workflows/executor/execute-workflow', () => ({
+  executeWorkflow: mocks.executeWorkflow,
+}))
+
+vi.mock('@/lib/workflows/persistence/utils', () => ({
+  loadDeployedWorkflowState: mocks.loadDeployed,
+  loadWorkflowFromNormalizedTables: mocks.loadDraft,
+  NoActiveDeploymentError: class NoActiveDeploymentError extends Error {},
+}))
+
+vi.mock('@/lib/workflows/triggers/run-options', () => ({
+  resolveTriggerRunOptions: mocks.resolveOptions,
+  validateTriggerInput: mocks.validateInput,
+}))
+
+vi.mock('@sim/workflow-persistence/subblocks', () => ({
+  mergeSubblockStateWithValues: vi.fn((blocks) => blocks),
+}))
+
+vi.mock('@sim/utils/id', () => ({ generateId: vi.fn(() => 'child-execution-1') }))
+vi.mock('@/lib/core/utils/request', () => ({ generateRequestId: vi.fn(() => 'request-1') }))
+
+import {
+  runFromBlockFromCopilot,
+  runWorkflowFromCopilot,
+} from '@/lib/workflows/application/run-workflow-from-copilot'
+
+const principal = {
+  kind: 'delegated' as const,
+  serviceId: 'copilot' as const,
+  subjectUserId: 'user-1',
+  workspaceId: 'workspace-1',
+  delegationId: 'tool-call-1',
+  audience: 'sim:workflows',
+  issuedAt: new Date('2026-01-01T00:00:00Z'),
+  expiresAt: new Date('2099-01-01T00:00:00Z'),
+}
+
+const context = {
+  workflowId: 'workflow-1',
+  workflow: {
+    id: 'workflow-1',
+    userId: 'owner-1',
+    workspaceId: 'workspace-1',
+    variables: {},
+  },
+  workspaceId: 'workspace-1',
+  workspaceOrganizationId: null,
+  allowPersonalApiKeys: true,
+  billedAccountUserId: 'billing-owner-1',
+}
+
+const lifecycle = {}
+
+describe('Copilot workflow run application commands', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.resolveContext.mockResolvedValue(context)
+    mocks.permission.mockResolvedValue('write')
+    mocks.loadDraft.mockResolvedValue({ blocks: { trigger: {} }, edges: [] })
+    mocks.resolveOptions.mockReturnValue([
+      { triggerBlockId: 'trigger', blockName: 'Start', mockPayload: { source: 'mock' } },
+    ])
+    mocks.validateInput.mockReturnValue({ ok: true })
+    mocks.admission.mockResolvedValue({ billingAttribution: undefined, targetReservation: false })
+    mocks.executeWorkflow.mockResolvedValue({ success: true, output: { ok: true }, logs: [] })
+  })
+
+  it('owns canonical authorization, trigger selection, admission, and execution', async () => {
+    const result = await runWorkflowFromCopilot.execute({
+      principal,
+      input: {
+        workflowId: 'workflow-1',
+        assertedWorkspaceId: 'workspace-1',
+        useDraftState: true,
+        lifecycle,
+        hasWorkflowInput: false,
+        useMockPayload: true,
+      },
+    })
+
+    expect(result).toMatchObject({ success: true, output: { ok: true } })
+    expect(mocks.resolveContext).toHaveBeenCalledWith({
+      workflowId: 'workflow-1',
+      assertedWorkspaceId: undefined,
+    })
+    expect(mocks.permission).toHaveBeenCalledBefore(mocks.loadDraft)
+    expect(mocks.admission).toHaveBeenCalledWith(
+      { userId: 'user-1', billingAttribution: undefined },
+      'workspace-1',
+      'child-execution-1'
+    )
+    expect(mocks.executeWorkflow).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'workflow-1' }),
+      'request-1',
+      { source: 'mock' },
+      'user-1',
+      expect.objectContaining({
+        useDraftState: true,
+        workflowTriggerType: 'copilot',
+        triggerBlockId: 'trigger',
+      }),
+      'child-execution-1'
+    )
+  })
+
+  it('runs under a caller-claimed execution id and stamps its copilot correlation', async () => {
+    // Set when the request handler wins the workflow-tool claim and runs the
+    // tool server-side. The claimed id must BE the child execution id, and the
+    // log row must carry the tool-call correlation, or a server-run tool call
+    // is unattributable where a browser-run one is not.
+    await runWorkflowFromCopilot.execute({
+      principal,
+      input: {
+        workflowId: 'workflow-1',
+        assertedWorkspaceId: 'workspace-1',
+        useDraftState: true,
+        lifecycle: {
+          ...lifecycle,
+          boundExecution: {
+            executionId: 'claimed-execution-1',
+            copilotToolCallId: 'tool-call-1',
+          },
+        },
+        hasWorkflowInput: false,
+        useMockPayload: true,
+      },
+    })
+
+    expect(mocks.admission).toHaveBeenCalledWith(
+      { userId: 'user-1', billingAttribution: undefined },
+      'workspace-1',
+      'claimed-execution-1'
+    )
+    expect(mocks.executeWorkflow).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'workflow-1' }),
+      'request-1',
+      { source: 'mock' },
+      'user-1',
+      expect.objectContaining({
+        trustedExecutionCorrelation: {
+          executionId: 'claimed-execution-1',
+          requestId: 'request-1',
+          source: 'workflow',
+          workflowId: 'workflow-1',
+          triggerType: 'copilot',
+          copilotToolCallId: 'tool-call-1',
+        },
+      }),
+      'claimed-execution-1'
+    )
+  })
+
+  it('does not stamp a correlation for an ordinary browser-routed run', async () => {
+    await runWorkflowFromCopilot.execute({
+      principal,
+      input: {
+        workflowId: 'workflow-1',
+        assertedWorkspaceId: 'workspace-1',
+        useDraftState: true,
+        lifecycle,
+        hasWorkflowInput: false,
+        useMockPayload: true,
+      },
+    })
+
+    expect(mocks.executeWorkflow.mock.calls.at(-1)?.[4]).not.toHaveProperty(
+      'trustedExecutionCorrelation'
+    )
+  })
+
+  it('rechecks current permission before loading execution state', async () => {
+    mocks.permission.mockResolvedValueOnce(null)
+
+    await expect(
+      runWorkflowFromCopilot.execute({
+        principal,
+        input: {
+          workflowId: 'workflow-1',
+          useDraftState: true,
+          lifecycle,
+          hasWorkflowInput: false,
+          useMockPayload: true,
+        },
+      })
+    ).rejects.toMatchObject({ code: 'forbidden' })
+
+    expect(mocks.loadDraft).not.toHaveBeenCalled()
+    expect(mocks.executeWorkflow).not.toHaveBeenCalled()
+  })
+
+  it('fails before execution when the selected durable definition is absent', async () => {
+    mocks.loadDraft.mockResolvedValueOnce(null)
+
+    await expect(
+      runWorkflowFromCopilot.execute({
+        principal,
+        input: {
+          workflowId: 'workflow-1',
+          useDraftState: true,
+          lifecycle,
+          hasWorkflowInput: false,
+          useMockPayload: true,
+        },
+      })
+    ).rejects.toMatchObject({ code: 'validation' })
+    expect(mocks.admission).not.toHaveBeenCalled()
+  })
+
+  it('owns canonical source snapshot lineage for run-from-block', async () => {
+    const snapshot = {
+      blockStates: {},
+      executedBlocks: [],
+      blockLogs: [],
+      decisions: {},
+      completedLoops: [],
+      activeExecutionPath: [],
+    }
+    mocks.sourceState.mockResolvedValueOnce(snapshot)
+
+    await runFromBlockFromCopilot.execute({
+      principal,
+      input: {
+        workflowId: 'workflow-1',
+        useDraftState: true,
+        lifecycle,
+        blockId: 'agent-1',
+        sourceExecutionId: 'source-execution-1',
+      },
+    })
+
+    expect(mocks.executeWorkflow).toHaveBeenCalledWith(
+      expect.any(Object),
+      'request-1',
+      undefined,
+      'user-1',
+      expect.objectContaining({
+        runFromBlock: {
+          startBlockId: 'agent-1',
+          sourceSnapshot: snapshot,
+          sourceExecutionId: 'source-execution-1',
+        },
+      }),
+      'child-execution-1'
+    )
+  })
+
+  it('propagates unexpected execution infrastructure failures', async () => {
+    mocks.executeWorkflow.mockRejectedValueOnce(new Error('database unavailable'))
+
+    await expect(
+      runWorkflowFromCopilot.execute({
+        principal,
+        input: {
+          workflowId: 'workflow-1',
+          useDraftState: true,
+          lifecycle,
+          hasWorkflowInput: false,
+          useMockPayload: true,
+        },
+      })
+    ).rejects.toThrow('database unavailable')
+  })
+})

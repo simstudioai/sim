@@ -14,7 +14,7 @@ import {
   workflowsPersistenceUtilsMock,
   workflowsPersistenceUtilsMockFns,
 } from '@sim/testing'
-import type { NextRequest } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   ADMISSION_ERROR_CODE,
@@ -135,7 +135,9 @@ import {
   checkWebhookPreprocessing,
   dispatchResolvedWebhookTarget,
   findAllWebhooksForPath,
+  handleProviderChallenges,
   handleWebhookEventFilter,
+  parseWebhookBody,
   processPolledWebhookEvent,
 } from '@/lib/webhooks/processor'
 
@@ -476,6 +478,44 @@ describe('webhook processor execution identity', () => {
     expect(mockReleaseExecutionSlot).not.toHaveBeenCalled()
   })
 
+  it('carries request query parameters into the queued payload', async () => {
+    await dispatchResolvedWebhookTarget(
+      makeWebhookRecord({ path: 'incoming/hook', provider: 'generic' }),
+      makeWorkflowRecord({}),
+      {},
+      createMockRequest(
+        'GET',
+        undefined,
+        {},
+        'http://localhost:3000/api/webhooks/trigger/incoming/hook?srcId=123&title=Hello%20World'
+      ) as NextRequest,
+      { requestId: 'request-1', path: 'incoming/hook' }
+    )
+
+    expect(mockEnqueue).toHaveBeenCalledWith(
+      'webhook-execution',
+      expect.objectContaining({ query: { srcId: '123', title: 'Hello World' } }),
+      expect.anything()
+    )
+  })
+
+  it('omits query from the queued payload when the request has none', async () => {
+    await dispatchResolvedWebhookTarget(
+      makeWebhookRecord({ path: 'incoming/hook', provider: 'generic' }),
+      makeWorkflowRecord({}),
+      { event: 'test' },
+      createMockRequest(
+        'POST',
+        { event: 'test' },
+        {},
+        'http://localhost:3000/api/webhooks/trigger/incoming/hook'
+      ) as NextRequest,
+      { requestId: 'request-1', path: 'incoming/hook' }
+    )
+
+    expect(mockEnqueue.mock.calls[0]?.[1]).not.toHaveProperty('query')
+  })
+
   it('runs database-inline webhook jobs through the queue cancellation signal', async () => {
     mockShouldExecuteInline.mockReturnValue(true)
     const result = await dispatchResolvedWebhookTarget(
@@ -676,5 +716,121 @@ describe('polled webhook reservation ownership', () => {
       expect.objectContaining({ executionId: 'generated-execution-id' }),
       controller.signal
     )
+  })
+})
+
+describe('parseWebhookBody', () => {
+  const parse = async (request: NextRequest) => {
+    const result = await parseWebhookBody(request, 'req-1')
+    if (result instanceof Response) throw new Error(`unexpected ${result.status} response`)
+    return result
+  }
+
+  it('flattens a multipart body, as Jotform posts submissions', async () => {
+    const form = new FormData()
+    form.set('formID', '231504059977966')
+    form.set('submissionID', '5678')
+    form.set('rawRequest', '{"q4_email":"bart@example.com"}')
+
+    const result = await parse(
+      new NextRequest('http://localhost:3000/api/webhooks/trigger/jotform-path', {
+        method: 'POST',
+        body: form,
+      })
+    )
+
+    expect(result.body).toEqual({
+      formID: '231504059977966',
+      submissionID: '5678',
+      rawRequest: '{"q4_email":"bart@example.com"}',
+    })
+  })
+
+  it('reduces an uploaded multipart part to its filename', async () => {
+    const form = new FormData()
+    form.set('attachment', new File(['file bytes'], 'receipt.pdf', { type: 'application/pdf' }))
+
+    const result = await parse(
+      new NextRequest('http://localhost:3000/api/webhooks/trigger/jotform-path', {
+        method: 'POST',
+        body: form,
+      })
+    )
+
+    expect(result.body).toEqual({ attachment: 'receipt.pdf' })
+  })
+
+  it('still rejects a body that matches no supported content type', async () => {
+    const response = await parseWebhookBody(
+      new NextRequest('http://localhost:3000/api/webhooks/trigger/jotform-path', {
+        method: 'POST',
+        body: 'not json',
+        headers: { 'content-type': 'application/json' },
+      }),
+      'req-1'
+    )
+
+    expect(response).toBeInstanceOf(Response)
+    expect((response as Response).status).toBe(400)
+  })
+})
+
+describe('handleProviderChallenges method gating', () => {
+  /**
+   * `getProviderHandler` is mocked module-wide here, so every provider in the challenge list
+   * resolves to the same stub. That is what this test wants: the behavior under test is the gate
+   * in `handleProviderChallenges`, not any one provider's matching logic.
+   */
+  const challenge = (method: string, challengeMethods?: readonly string[]) => {
+    const handleChallenge = vi.fn(() => new NextResponse('answered', { status: 200 }))
+    mockProviderHandler.current = challengeMethods
+      ? { handleChallenge, challengeMethods }
+      : { handleChallenge }
+
+    return {
+      handleChallenge,
+      response: handleProviderChallenges(
+        {},
+        new NextRequest('http://localhost:3000/api/webhooks/trigger/abc', { method }),
+        'req-1',
+        'abc'
+      ),
+    }
+  }
+
+  it('runs a handler that declares nothing on POST', async () => {
+    const { handleChallenge, response } = challenge('POST')
+
+    expect((await response)?.status).toBe(200)
+    expect(handleChallenge).toHaveBeenCalledOnce()
+  })
+
+  /**
+   * The regression this gate exists for: a challenge handler matching on payload shape alone runs
+   * before the webhook lookup, so on a method its provider never uses it would answer a delivery
+   * addressed to whoever actually owns the path.
+   */
+  it.each(['GET', 'PUT', 'PATCH', 'DELETE'])(
+    'does not run a handler that declares nothing on a %s delivery',
+    async (method) => {
+      const { handleChallenge, response } = challenge(method)
+
+      await expect(response).resolves.toBeNull()
+      expect(handleChallenge).not.toHaveBeenCalled()
+    }
+  )
+
+  it('runs a handler on a method it declares', async () => {
+    const { handleChallenge, response } = challenge('GET', ['GET', 'POST'])
+
+    expect((await response)?.status).toBe(200)
+    expect(handleChallenge).toHaveBeenCalledOnce()
+  })
+
+  it('does not run a declaring handler on a method outside its list', async () => {
+    const { handleChallenge, response } = challenge('DELETE', ['GET', 'POST'])
+
+    await expect(response).resolves.toBeNull()
+    expect(handleChallenge).not.toHaveBeenCalled()
   })
 })

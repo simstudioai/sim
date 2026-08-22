@@ -1,6 +1,14 @@
+import type { Principal } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { sha256Hex } from '@sim/security/hash'
-import { getErrorMessage } from '@sim/utils/errors'
+import { DocCompileUserError } from '@/lib/copilot/tools/server/files/doc-compile-error'
+import {
+  loadCompiledDoc,
+  loadPublishedCompiledDoc,
+  publishCompiledDocArtifact,
+  storeCompiledDoc,
+} from '@/lib/copilot/tools/server/files/doc-compiled-store'
+import { PPTX_SHIM_JS } from '@/lib/copilot/tools/server/files/pptx-shim'
 import { isDocSandboxEnabled } from '@/lib/core/config/env-flags'
 import { CodeLanguage } from '@/lib/execution/languages'
 import {
@@ -9,30 +17,13 @@ import {
   type SandboxFile,
 } from '@/lib/execution/remote-sandbox'
 import { runSandboxTask } from '@/lib/execution/sandbox/run-task'
-import {
-  fetchWorkspaceFileBuffer,
-  getWorkspaceFile,
-} from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import type { WorkspaceFileSecretProvenanceIdentity } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import { readWorkspaceFileContent } from '@/lib/workspace-files/application/read-workspace-file-content'
+import { readWorkspaceFileMetadata } from '@/lib/workspace-files/application/read-workspace-file-metadata'
 import { getContentType } from '@/app/api/files/utils'
 import type { SandboxTaskId } from '@/sandbox-tasks/registry'
-import { loadCompiledDoc, storeCompiledDoc } from './doc-compiled-store'
 
 const logger = createLogger('CopilotDocCompile')
-
-/**
- * Thrown when the user-authored Python script itself fails (raised an exception
- * or produced no output) — i.e. an error the agent should fix by editing the
- * script. Infra failures (E2B sandbox create/timeout, S3) propagate as plain
- * Errors so callers can return 5xx instead of telling the agent its script was
- * wrong.
- */
-export class DocCompileUserError extends Error {
-  constructor(message: string) {
-    super(message)
-    this.name = 'DocCompileUserError'
-  }
-}
 
 const PPTX_MIME = 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
 const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
@@ -113,20 +104,36 @@ export async function getE2BDocFormat(fileName: string): Promise<E2BDocFormat | 
 // "file not staged" and every workspace-image embed silently fails.
 const INPUT_PATH_RE = /\/home\/user\/inputs\/([A-Za-z0-9_-]+)/g
 const FILE_HELPER_RE =
-  /\b(?:getFileBase64|addImage|drawImage)\(\s*(?:[A-Za-z_$][\w$]*\s*,\s*)?['"]([A-Za-z0-9_-]+)['"]/g
+  /\b(?:getFileBase64|addImage|drawImage|input_path)\(\s*(?:[A-Za-z_$][\w$]*\s*,\s*)?['"]([A-Za-z0-9_-]+)['"]/g
+
+/**
+ * A .pptx or .docx source whose first line is `#!simdoc` is a template-clone
+ * script: Python against the simdoc Deck/Doc API (opening a retained reference
+ * staged via `input_path('wf_…')`), compiled by the Python engine instead of
+ * the Node engine. Only meaningful when the doc sandbox is enabled — the
+ * legacy isolated-vm path has no Python and refuses these sources explicitly.
+ */
+const SIMDOC_DECK_MARKER = '#!simdoc'
+
+export function isSimdocDeckSource(source: string): boolean {
+  return source.trimStart().startsWith(SIMDOC_DECK_MARKER)
+}
 
 // The doc source is user/LLM-controlled, so bound how much it can pull into the
-// sandbox: each `/home/user/inputs/<id>` reference is only ~35 bytes, so the
-// source-size cap alone does not bound staging. These caps prevent an
-// authenticated member from forcing thousands of (or very large) workspace files
-// to be downloaded and base64-held in-process per compile request.
-const MAX_STAGED_INPUTS = 20
+// sandbox by BYTES (per file and total) — an authenticated member must not be
+// able to force very large workspace downloads to be base64-held in-process per
+// compile. The count cap is deliberately GENEROUS: a deck rebuild references
+// every extracted image across the whole source (asset extraction ships at most
+// 200 media files), so real documents sit far under it — it exists only so the
+// per-reference metadata lookups stay bounded against a source stuffed with
+// thousands of id-like strings, which the byte caps alone cannot bound.
+const MAX_REFERENCED_INPUTS = 500
 const MAX_STAGED_FILE_BYTES = 25 * 1024 * 1024
 const MAX_STAGED_TOTAL_BYTES = 50 * 1024 * 1024
 
 interface ResolvedReferencedImage {
   fileId: string
-  record: NonNullable<Awaited<ReturnType<typeof getWorkspaceFile>>>
+  record: Awaited<ReturnType<typeof readWorkspaceFileMetadata.execute>>['file']
 }
 
 interface ReferencedImageResolution {
@@ -157,8 +164,8 @@ function referencedImageIdentities(
  * image-helper call sites and the legacy `/home/user/inputs/<id>` path. Matching
  * is scoped to the helper calls (not bare id-like strings in slide text), and the
  * caller skips any id that does not resolve to a real file, so over-matching is
- * harmless. Retention stops at one over the remote staging limit: callers need
- * only distinguish no references, an admissible set, and an oversized set.
+ * harmless. Retention stops at one over the reference cap: callers need only
+ * distinguish no references, an admissible set, and an oversized set.
  */
 export function collectReferencedFileIds(source: string): Set<string> {
   const ids = new Set<string>()
@@ -166,7 +173,7 @@ export function collectReferencedFileIds(source: string): Set<string> {
     for (const match of source.matchAll(re)) {
       if (match[1]) {
         ids.add(match[1])
-        if (ids.size > MAX_STAGED_INPUTS) return ids
+        if (ids.size > MAX_REFERENCED_INPUTS) return ids
       }
     }
   }
@@ -176,11 +183,14 @@ export function collectReferencedFileIds(source: string): Set<string> {
 async function resolveReferencedImages(
   source: string,
   workspaceId: string,
+  principal: Principal,
   ids = collectReferencedFileIds(source)
 ): Promise<ReferencedImageResolution> {
-  if (ids.size > MAX_STAGED_INPUTS) {
-    throw new Error(
-      `More than ${MAX_STAGED_INPUTS} referenced input files; maximum is ${MAX_STAGED_INPUTS}. Reference fewer files.`
+  if (ids.size > MAX_REFERENCED_INPUTS) {
+    // User-fixable, not transient: each reference costs a metadata read, so an
+    // oversized set is refused before any resolution work starts.
+    throw new DocCompileUserError(
+      `More than ${MAX_REFERENCED_INPUTS} referenced input files; maximum is ${MAX_REFERENCED_INPUTS}. Reference fewer files.`
     )
   }
   if (ids.size === 0) {
@@ -190,22 +200,10 @@ async function resolveReferencedImages(
   const images: ResolvedReferencedImage[] = []
   const identity: Array<Record<string, unknown>> = []
   for (const fileId of ids) {
-    let record: Awaited<ReturnType<typeof getWorkspaceFile>>
-    try {
-      record = await getWorkspaceFile(workspaceId, fileId)
-    } catch (err) {
-      logger.warn('Failed to resolve referenced image for doc compile', {
-        workspaceId,
-        fileId,
-        error: getErrorMessage(err),
-      })
-      identity.push({ fileId, state: 'unavailable' })
-      continue
-    }
-    if (!record) {
-      identity.push({ fileId, state: 'missing' })
-      continue
-    }
+    const { file: record } = await readWorkspaceFileMetadata.execute({
+      principal,
+      input: { fileId, assertedWorkspaceId: workspaceId },
+    })
     identity.push({
       fileId,
       key: record.key,
@@ -225,14 +223,9 @@ async function resolveReferencedImages(
 
 async function stageReferencedImages(
   resolution: ReferencedImageResolution,
-  workspaceId: string
+  workspaceId: string,
+  principal: Principal
 ): Promise<SandboxFile[]> {
-  if (resolution.referenceCount > MAX_STAGED_INPUTS) {
-    throw new Error(
-      `More than ${MAX_STAGED_INPUTS} referenced input files; maximum is ${MAX_STAGED_INPUTS}. Reference fewer files.`
-    )
-  }
-
   const files: SandboxFile[] = []
   let totalBytes = 0
   for (const { fileId, record } of resolution.images) {
@@ -245,21 +238,29 @@ async function stageReferencedImages(
       continue
     }
     if (totalBytes + (record.size ?? 0) > MAX_STAGED_TOTAL_BYTES) {
-      throw new Error(
-        `Referenced input files exceed the ${MAX_STAGED_TOTAL_BYTES} byte staging budget.`
+      throw new DocCompileUserError(
+        `Referenced input files exceed the ${Math.round(MAX_STAGED_TOTAL_BYTES / (1024 * 1024))} MB total staging budget (the whole document's references count). Use smaller/compressed copies of the largest images.`
       )
     }
-    let buffer: Buffer
-    try {
-      buffer = await fetchWorkspaceFileBuffer(record, { maxBytes: MAX_STAGED_FILE_BYTES })
-    } catch (err) {
-      logger.warn('Failed to stage referenced image for doc compile', {
-        workspaceId,
-        fileId,
-        error: getErrorMessage(err),
-      })
-      continue
+    const content = await readWorkspaceFileContent.execute({
+      principal,
+      input: {
+        fileId: record.id,
+        assertedWorkspaceId: workspaceId,
+        maxBytes: MAX_STAGED_FILE_BYTES,
+      },
+    })
+    const contentRecord = content.file
+    const expectedVersion = record.contentUpdatedAt ?? record.updatedAt
+    const actualVersion = contentRecord.contentUpdatedAt ?? contentRecord.updatedAt
+    if (
+      contentRecord.key !== record.key ||
+      (contentRecord.storageContext ?? 'workspace') !== (record.storageContext ?? 'workspace') ||
+      actualVersion.getTime() !== expectedVersion.getTime()
+    ) {
+      throw new Error(`Referenced input file changed during document compilation: ${fileId}`)
     }
+    const buffer = content.content
     // Enforce the per-file cap on actual bytes too: record.size can be null/stale,
     // in which case the pre-fetch check above is skipped and a single oversized
     // file would otherwise be fully base64-held in memory.
@@ -275,8 +276,10 @@ async function stageReferencedImages(
     // outside the catch above so it fails the compile rather than being skipped.
     totalBytes += buffer.length
     if (totalBytes > MAX_STAGED_TOTAL_BYTES) {
-      throw new Error(
-        `Referenced input files exceed the ${MAX_STAGED_TOTAL_BYTES} byte staging budget.`
+      // A user-fixable condition, not a transient failure: retrying with the
+      // same references can never succeed — the images must shrink.
+      throw new DocCompileUserError(
+        `Referenced input files exceed the ${Math.round(MAX_STAGED_TOTAL_BYTES / (1024 * 1024))} MB total staging budget (the whole document's references count). Use smaller/compressed copies of the largest images.`
       )
     }
     files.push({
@@ -311,12 +314,16 @@ except Exception as __sim_recalc_err:
     print("xlsx recalc skipped:", __sim_recalc_err)
 `.trim()
 
-interface CompileArgs {
+interface LegacyCompileArgs {
   source: string
   fileName: string
   workspaceId: string
   ownerKey?: string
   signal?: AbortSignal
+}
+
+interface CompileArgs extends LegacyCompileArgs {
+  filePrincipal: Principal
 }
 
 /**
@@ -326,11 +333,11 @@ interface CompileArgs {
  * Internal — callers use compileDoc (load-or-build + store).
  */
 async function compileDocViaE2BPython(
-  { source, workspaceId }: CompileArgs,
+  { source, workspaceId, filePrincipal }: CompileArgs,
   fmt: E2BDocFormat,
   referencedImages: ReferencedImageResolution
 ): Promise<Buffer> {
-  const sandboxFiles = await stageReferencedImages(referencedImages, workspaceId)
+  const sandboxFiles = await stageReferencedImages(referencedImages, workspaceId, filePrincipal)
   const outputSandboxPath = `/home/user/output.${fmt.ext}`
 
   // openpyxl writes formula strings but no cached values, so a web viewer (SheetJS)
@@ -366,7 +373,7 @@ async function compileDocViaE2BPython(
 // `pptx`/`docx` instances, geometry constants, and fileId-based image helpers
 // (reading staged /home/user/inputs/<id> files). pptx also gets `iconImage`
 // (react-icons → sharp → PNG), which only works here because the E2B sandbox is
-// a full Linux VM. The agent's edit_content source runs inside an async IIFE so
+// a full Linux VM. The agent's apply_file_edit source runs inside an async IIFE so
 // top-level await (addImage/iconImage) works; the finalizer writes the binary.
 const PPTX_NODE_PREAMBLE = `
 const PptxGenJS = require('pptxgenjs');
@@ -379,6 +386,7 @@ function __mime(b){ if(b.length>=2&&b[0]===0x89&&b[1]===0x50)return 'image/png';
 globalThis.getFileBase64 = async function(fileId){ const p='/home/user/inputs/'+fileId; if(!fs.existsSync(p)) throw new Error('getFileBase64: file not staged: '+fileId); const b=fs.readFileSync(p); return __mime(b)+';base64,'+b.toString('base64'); };
 globalThis.addImage = async function(slide, fileId, opts){ if(!opts||opts.x==null||opts.y==null||opts.w==null||opts.h==null) throw new Error('addImage: opts must include x, y, w, h'); const data=await globalThis.getFileBase64(fileId); slide.addImage(Object.assign({}, opts, { data })); };
 globalThis.iconImage = async function(IconComponent, color, size){ const React=require('react'); const RDS=require('react-dom/server'); const sharp=require('sharp'); const svg=RDS.renderToStaticMarkup(React.createElement(IconComponent,{color:color||'#000000',size:String(size||256)})); const png=await sharp(Buffer.from(svg)).png().toBuffer(); return 'image/png;base64,'+png.toString('base64'); };
+${PPTX_SHIM_JS}
 `.trim()
 
 const DOCX_NODE_PREAMBLE = `
@@ -408,11 +416,11 @@ fs.writeFileSync('/home/user/output.docx', __buf);
  * engines. Throws DocCompileUserError on a script error.
  */
 async function compileDocViaE2BNode(
-  { source, fileName, workspaceId }: CompileArgs,
+  { source, fileName, workspaceId, filePrincipal }: CompileArgs,
   ext: 'pptx' | 'docx',
   referencedImages: ReferencedImageResolution
 ): Promise<Buffer> {
-  const sandboxFiles = await stageReferencedImages(referencedImages, workspaceId)
+  const sandboxFiles = await stageReferencedImages(referencedImages, workspaceId, filePrincipal)
   const outputSandboxPath = `/home/user/output.${ext}`
   const preamble = ext === 'pptx' ? PPTX_NODE_PREAMBLE : DOCX_NODE_PREAMBLE
   const finalize = ext === 'pptx' ? PPTX_NODE_FINALIZE : DOCX_NODE_FINALIZE
@@ -424,8 +432,22 @@ ${finalize}
 })().then(() => console.log('__DOC_OK__')).catch((e) => { console.error('__DOC_ERR__' + (e && e.message ? e.message : String(e))); process.exit(1); });
 `
 
+  // After a successful build, run simdoc's structural validation in the same
+  // sandbox call. It catches the defect classes Office rejects or silently
+  // discards (chart axis faults, stacked-label positions, broken
+  // relationships) that a successful compile and a clean render both miss.
+  // Best-effort by construction: on an image built before simdoc existed the
+  // command produces no sentinel and the compile proceeds unvalidated.
+  const command = `NODE_PATH=$(npm root -g) node /home/user/script.js
+__doc_status=$?
+if [ $__doc_status -eq 0 ] && [ -f /home/user/output.${ext} ]; then
+  __simdoc_report=$(python3 -m simdoc validate /home/user/output.${ext} 2>/dev/null | tr '\\n' ' ')
+  if [ -n "$__simdoc_report" ]; then echo "__SIMDOC_VALIDATE__$__simdoc_report"; fi
+fi
+exit $__doc_status`
+
   const result = await executeShellInSandbox({
-    code: 'NODE_PATH=$(npm root -g) node /home/user/script.js',
+    code: command,
     envs: {},
     timeoutMs: DOC_COMPILE_TIMEOUT_MS,
     sandboxKind: 'doc',
@@ -446,6 +468,7 @@ ${finalize}
   const out = `${result.stdout || ''}\n${result.error || ''}`
   const errMatch = out.match(/__DOC_ERR__([\s\S]*)/)
   if (out.includes('__DOC_OK__') && result.exportedFileContent) {
+    assertSimdocValidationPassed(out, ext)
     return Buffer.from(result.exportedFileContent, 'base64')
   }
   if (errMatch) {
@@ -463,20 +486,74 @@ ${finalize}
   )
 }
 
+interface SimdocIssue {
+  code?: string
+  part?: string
+  message?: string
+  fix?: string
+}
+
+const MAX_REPORTED_VALIDATION_ISSUES = 10
+
+/**
+ * Parses the __SIMDOC_VALIDATE__ sentinel a pptx compile emits and throws a
+ * DocCompileUserError when the built deck failed structural validation. A
+ * missing or unparseable sentinel means the toolkit is absent or misbehaved —
+ * that degrades to an unvalidated compile, never a failed one.
+ */
+function assertSimdocValidationPassed(compileOutput: string, ext: string): void {
+  const sentinel = compileOutput.match(/__SIMDOC_VALIDATE__(.*)/)
+  if (!sentinel?.[1]) return
+  let report: { ok?: boolean; issues?: SimdocIssue[] }
+  try {
+    report = JSON.parse(sentinel[1].trim())
+  } catch {
+    logger.warn('simdoc validation output was not parseable; compile proceeds unvalidated')
+    return
+  }
+  if (report.ok !== false || !Array.isArray(report.issues) || report.issues.length === 0) return
+  const lines = report.issues.slice(0, MAX_REPORTED_VALIDATION_ISSUES).map((issue) => {
+    const location = issue.part ? ` ${issue.part}:` : ''
+    const fix = issue.fix ? ` Fix: ${issue.fix}.` : ''
+    return `- [${issue.code ?? 'issue'}]${location} ${issue.message ?? 'unknown'}.${fix}`
+  })
+  const extra =
+    report.issues.length > lines.length ? `\n(+${report.issues.length - lines.length} more)` : ''
+  const app = ext === 'docx' ? 'Word' : 'PowerPoint'
+  throw new DocCompileUserError(
+    `${ext.toUpperCase()} structural validation failed — ${app} would reject or silently discard content in this file. Fix the source and retry:\n${lines.join('\n')}${extra}`
+  )
+}
+
 async function buildCompiledDoc(
   args: CompileArgs,
   fmt: E2BDocFormat,
   referencedImages: ReferencedImageResolution
 ): Promise<CompiledDocResult> {
-  const { source, fileName, workspaceId } = args
-  const buffer =
-    fmt.engine === 'node'
+  const { source, fileName, workspaceId, filePrincipal } = args
+  const cloneDeck = (fmt.ext === 'pptx' || fmt.ext === 'docx') && isSimdocDeckSource(source)
+  const buffer = cloneDeck
+    ? await compileDocViaE2BPython(
+        {
+          source: wrapSimdocDeckSource(source, fmt.ext as 'pptx' | 'docx'),
+          fileName,
+          workspaceId,
+          filePrincipal,
+        },
+        fmt,
+        referencedImages
+      )
+    : fmt.engine === 'node'
       ? await compileDocViaE2BNode(
-          { source, fileName, workspaceId },
+          { source, fileName, workspaceId, filePrincipal },
           fmt.ext as 'pptx' | 'docx',
           referencedImages
         )
-      : await compileDocViaE2BPython({ source, fileName, workspaceId }, fmt, referencedImages)
+      : await compileDocViaE2BPython(
+          { source, fileName, workspaceId, filePrincipal },
+          fmt,
+          referencedImages
+        )
   await storeCompiledDoc(
     workspaceId,
     source,
@@ -491,6 +568,57 @@ async function buildCompiledDoc(
     contentType: fmt.contentType,
     ...(contributingFiles.length > 0 ? { contributingFiles } : {}),
   }
+}
+
+// Template-clone scripts author against the simdoc Deck (pptx) / Doc (docx)
+// API. The prelude supplies input_path (staged workspace files) and
+// OUTPUT_PATH; the finalizer saves the expected variable (scripts never save
+// themselves, mirroring the JS engines' finalizers) and then structurally
+// validates the result in-process. The validation import degrades on images
+// built before simdoc existed.
+function simdocPrelude(ext: 'pptx' | 'docx'): string {
+  return `
+import os as __sim_os
+OUTPUT_PATH = '/home/user/output.${ext}'
+def input_path(file_id):
+    __p = '/home/user/inputs/' + file_id
+    if not __sim_os.path.exists(__p):
+        raise FileNotFoundError(
+            'input_path: file not staged: ' + file_id +
+            ' (pass the workspace file id as a string literal at the call site)'
+        )
+    return __p
+`.trim()
+}
+
+function simdocFinalize(ext: 'pptx' | 'docx'): string {
+  const variable = ext === 'pptx' ? 'deck' : 'doc'
+  const className = ext === 'pptx' ? 'Deck' : 'Doc'
+  return `
+try:
+    ${variable}
+except NameError as __sim_err:
+    raise RuntimeError(
+        "simdoc ${ext} scripts must create a ${className} named '${variable}': ${variable} = ${className}.open(input_path('wf_...'))"
+    ) from __sim_err
+${variable}.save(OUTPUT_PATH)
+try:
+    from simdoc.validate import validate_file as __sim_validate
+except ImportError:
+    __sim_validate = None
+if __sim_validate is not None:
+    __sim_report = __sim_validate(OUTPUT_PATH)
+    if not __sim_report.ok:
+        import json as __sim_json
+        raise RuntimeError(
+            'structural validation failed: '
+            + __sim_json.dumps([__i.to_dict() for __i in __sim_report.issues[:10]])
+        )
+`.trim()
+}
+
+function wrapSimdocDeckSource(source: string, ext: 'pptx' | 'docx'): string {
+  return `${simdocPrelude(ext)}\n${source}\n${simdocFinalize(ext)}`
 }
 
 interface CompilableFormat {
@@ -509,12 +637,17 @@ const COMPILABLE_FORMATS: Record<string, CompilableFormat> = {
 }
 
 async function compileDocInLegacySandbox(
-  args: CompileArgs,
+  args: LegacyCompileArgs,
   fmt: E2BDocFormat
 ): Promise<CompiledDocResult> {
   const format = COMPILABLE_FORMATS[`.${fmt.ext}`]
   if (!format) {
-    throw new DocCompileUserError('Document is still being generated')
+    throw new DocCompileUserError('Document is still being generated', { pending: true })
+  }
+  if ((fmt.ext === 'pptx' || fmt.ext === 'docx') && isSimdocDeckSource(args.source)) {
+    throw new DocCompileUserError(
+      'Template-clone scripts (#!simdoc) require the document sandbox, which is not enabled. Build the document with the injected JavaScript library instead.'
+    )
   }
 
   const cacheKey = sha256Hex(`.${fmt.ext}${args.source}${args.workspaceId}`)
@@ -562,7 +695,12 @@ export async function compileDoc(args: CompileArgs): Promise<CompiledDocResult> 
   if (!isDocSandboxEnabled) return compileDocInLegacySandbox(args, fmt)
 
   const referencedFileIds = collectReferencedFileIds(source)
-  const referencedImages = await resolveReferencedImages(source, workspaceId, referencedFileIds)
+  const referencedImages = await resolveReferencedImages(
+    source,
+    workspaceId,
+    args.filePrincipal,
+    referencedFileIds
+  )
 
   const existing = await loadCompiledDoc(
     workspaceId,
@@ -571,6 +709,14 @@ export async function compileDoc(args: CompileArgs): Promise<CompiledDocResult> 
     referencedImages.artifactIdentity
   )
   if (existing) {
+    if (referencedImages.artifactIdentity) {
+      await publishCompiledDocArtifact(
+        workspaceId,
+        source,
+        fmt.ext,
+        referencedImages.artifactIdentity
+      )
+    }
     const contributingFiles = referencedImageIdentities(referencedImages)
     return {
       buffer: existing,
@@ -590,17 +736,34 @@ export async function loadCompiledDocByExt(
   workspaceId: string,
   source: string,
   ext: string,
-  options: { allowLegacyReferencedArtifact?: boolean } = {}
+  options: {
+    allowLegacyReferencedArtifact?: boolean
+    allowPublishedReferencedArtifact?: boolean
+    filePrincipal?: Principal
+  } = {}
 ): Promise<{ buffer: Buffer; contentType: string } | null> {
   const fmt = await getE2BDocFormat(`x.${ext}`)
   if (!fmt) return null
   const referencedFileIds = collectReferencedFileIds(source)
-  if (referencedFileIds.size > MAX_STAGED_INPUTS) {
+  if (!options.filePrincipal) {
+    if (referencedFileIds.size === 0) {
+      const buffer = await loadCompiledDoc(workspaceId, source, fmt.ext)
+      return buffer ? { buffer, contentType: fmt.contentType } : null
+    }
+    if (options.allowPublishedReferencedArtifact) {
+      const publishedBuffer = await loadPublishedCompiledDoc(workspaceId, source, fmt.ext)
+      if (publishedBuffer) return { buffer: publishedBuffer, contentType: fmt.contentType }
+    }
     if (!options.allowLegacyReferencedArtifact) return null
     const legacyBuffer = await loadCompiledDoc(workspaceId, source, fmt.ext)
     return legacyBuffer ? { buffer: legacyBuffer, contentType: fmt.contentType } : null
   }
-  const referencedImages = await resolveReferencedImages(source, workspaceId, referencedFileIds)
+  const referencedImages = await resolveReferencedImages(
+    source,
+    workspaceId,
+    options.filePrincipal,
+    referencedFileIds
+  )
   const buffer = await loadCompiledDoc(
     workspaceId,
     source,
@@ -647,7 +810,7 @@ export async function resolveServableDoc(
       workspaceId,
       storedBytes.toString('utf-8'),
       fmt.ext,
-      { allowLegacyReferencedArtifact: true }
+      { allowLegacyReferencedArtifact: true, allowPublishedReferencedArtifact: true }
     )
     return artifact ? { kind: 'artifact', ...artifact } : { kind: 'unavailable' }
   } catch (error) {
@@ -706,10 +869,11 @@ export async function resolveServableDocBytes(args: {
   rawBuffer: Buffer
   fileName: string
   workspaceId: string | undefined
+  filePrincipal?: Principal
   ownerKey?: string
   signal?: AbortSignal
 }): Promise<CompiledDocResult> {
-  const { rawBuffer, fileName, workspaceId, ownerKey, signal } = args
+  const { rawBuffer, fileName, workspaceId, filePrincipal, ownerKey, signal } = args
   const ext = fileName.slice(fileName.lastIndexOf('.')).toLowerCase()
   const extNoDot = ext.replace(/^\./, '')
   const format = COMPILABLE_FORMATS[ext]
@@ -728,17 +892,35 @@ export async function resolveServableDocBytes(args: {
   const source = rawBuffer.toString('utf-8')
 
   if (workspaceId) {
-    if (!isDocSandboxEnabled || collectReferencedFileIds(source).size > 0) {
-      return compileDoc({ source, fileName, workspaceId, ownerKey, signal })
+    if (!isDocSandboxEnabled) {
+      const fmt = await getE2BDocFormat(fileName)
+      if (!fmt) throw new Error(`Unsupported document format: ${fileName}`)
+      return compileDocInLegacySandbox({ source, fileName, workspaceId, ownerKey, signal }, fmt)
     }
-    const stored = await loadCompiledDocByExt(workspaceId, source, extNoDot)
+    const referencedFileIds = collectReferencedFileIds(source)
+    if (referencedFileIds.size > 0) {
+      if (!filePrincipal) {
+        const published = await loadCompiledDocByExt(workspaceId, source, extNoDot, {
+          allowPublishedReferencedArtifact: true,
+        })
+        if (published) return published
+        throw new Error(
+          'Referenced document resolution requires an authorized workspace file principal'
+        )
+      }
+      return compileDoc({ source, fileName, workspaceId, filePrincipal, ownerKey, signal })
+    }
+    const stored = await loadCompiledDocByExt(workspaceId, source, extNoDot, {
+      allowLegacyReferencedArtifact: true,
+      filePrincipal,
+    })
     if (stored) return stored
-    throw new DocCompileUserError('Document is still being generated')
+    throw new DocCompileUserError('Document is still being generated', { pending: true })
   }
 
   // Reaches here only for xlsx, which has no isolated-vm fallback. Returning these
   // bytes would expose generation source as a spreadsheet.
-  if (!format) throw new DocCompileUserError('Document is still being generated')
+  if (!format) throw new DocCompileUserError('Document is still being generated', { pending: true })
 
   const cacheKey = sha256Hex(`${ext}${source}${workspaceId ?? ''}`)
   const cached = compiledDocCache.get(cacheKey)

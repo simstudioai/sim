@@ -1,12 +1,13 @@
 import { z } from 'zod'
 import { type ContractJsonResponse, defineRouteContract } from '@/lib/api/contracts/types'
+import { v2TimestampSchema } from '@/lib/api/contracts/v2/shared'
 import type { McpToolSchema, McpToolSchemaProperty } from '@/lib/mcp/types'
 
 const MAX_MCP_REFRESH_SERVER_IDS = 100
 
 const dateStringSchema = z.preprocess(
   (value) => (value instanceof Date ? value.toISOString() : value),
-  z.string()
+  v2TimestampSchema
 )
 
 const optionalStringFromNullableSchema = z.preprocess(
@@ -17,7 +18,7 @@ const optionalStringFromNullableSchema = z.preprocess(
 const optionalDateStringFromNullableSchema = z.preprocess((value) => {
   if (value instanceof Date) return value.toISOString()
   return value === null ? undefined : value
-}, z.string().optional())
+}, v2TimestampSchema.optional())
 
 const optionalNumberFromNullableSchema = z.preprocess(
   (value) => (value === null ? undefined : value),
@@ -120,7 +121,13 @@ export const mcpServerSchema = z
     url: optionalStringFromNullableSchema,
     timeout: optionalNumberFromNullableSchema,
     retries: optionalNumberFromNullableSchema,
+    /**
+     * Header *values* are the upstream credential and are served only to callers
+     * who may already rewrite them; readers get `hasHeaders`/`headerNames` alone.
+     */
     headers: optionalHeadersFromNullableSchema,
+    hasHeaders: z.boolean().optional(),
+    headerNames: z.array(z.string()).optional(),
     enabled: z.boolean(),
     connectionStatus: optionalConnectionStatusFromNullableSchema,
     lastError: z.string().nullable().optional(),
@@ -259,11 +266,6 @@ export const mcpJsonRpcMessageSchema = z
     jsonrpc: z.literal('2.0'),
   })
   .passthrough()
-
-export const mcpRequestBodySchema = z.union([
-  mcpJsonRpcMessageSchema,
-  z.array(mcpJsonRpcMessageSchema),
-])
 
 export const mcpToolCallParamsSchema = z
   .object({
@@ -407,27 +409,6 @@ export const discoverMcpToolsContract = defineRouteContract({
   },
 })
 export type DiscoverMcpToolsResponse = ContractJsonResponse<typeof discoverMcpToolsContract>
-
-export const refreshMcpToolsContract = defineRouteContract({
-  method: 'POST',
-  path: '/api/mcp/tools/discover',
-  query: mcpWorkspaceQuerySchema,
-  body: refreshMcpToolsBodySchema,
-  response: {
-    mode: 'json',
-    schema: mcpSuccessResponseSchema(
-      z.object({
-        refreshed: z.array(z.object({ serverId: z.string(), toolCount: z.number() })),
-        failed: z.array(z.object({ serverId: z.string(), error: z.string() })),
-        summary: z.object({
-          total: z.number(),
-          successful: z.number(),
-          failed: z.number(),
-        }),
-      })
-    ),
-  },
-})
 
 export const listStoredMcpToolsContract = defineRouteContract({
   method: 'GET',

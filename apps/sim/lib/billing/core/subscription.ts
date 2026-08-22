@@ -1,3 +1,4 @@
+import { cache } from 'react'
 import { db } from '@sim/db'
 import { member, organization, subscription, user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
@@ -18,6 +19,7 @@ import {
 } from '@/lib/billing/plan-helpers'
 import {
   checkEnterprisePlan,
+  checkOrgPlan,
   checkProPlan,
   checkTeamPlan,
   ENTITLED_SUBSCRIPTION_STATUSES,
@@ -429,11 +431,7 @@ export async function isEnterpriseOrgAdminOrOwner(userId: string): Promise<boole
   }
 }
 
-/**
- * Check if an organization has an enterprise plan
- * Used for Access Control (Permission Groups) feature gating
- */
-export async function isOrganizationOnEnterprisePlan(organizationId: string): Promise<boolean> {
+async function resolveOrganizationEnterprisePlan(organizationId: string): Promise<boolean> {
   try {
     if (!isBillingEnabled) {
       return true
@@ -455,6 +453,78 @@ export async function isOrganizationOnEnterprisePlan(organizationId: string): Pr
     return false
   }
 }
+
+/**
+ * Resolves whether an organization holds a paying organization plan — Pro for
+ * Teams, Max for Teams, or Enterprise — without request memoization.
+ *
+ * Gates features every paying organization gets, as opposed to
+ * {@link resolveOrganizationEnterprisePlan}, which gates the Enterprise-only
+ * tier. A billing-blocked organization resolves false either way.
+ */
+interface ResolveOrganizationPlanOptions {
+  /**
+   * What a billing-read failure resolves to. `'return-false'` (default) fails
+   * closed, which is what a one-shot gate wants. A caller that *caches* the
+   * answer must pass `'throw'`: a swallowed failure is indistinguishable from a
+   * real plan lapse, so caching it would hold the gate shut for the whole TTL
+   * over what may be a momentary outage.
+   */
+  onError?: 'return-false' | 'throw'
+}
+
+export async function resolveOrganizationPlan(
+  organizationId: string,
+  options: ResolveOrganizationPlanOptions = {}
+): Promise<boolean> {
+  try {
+    if (!isBillingEnabled) {
+      return true
+    }
+
+    /**
+     * The block state and the subscription row are independent reads, so they
+     * go out together — this runs on the workflow execution path, where a
+     * second serial round trip is per-block latency. A blocked organization
+     * pays for one subscription read it does not use, which is the rare case.
+     */
+    const [blocked, orgSub] = await Promise.all([
+      isOrganizationBillingBlocked(organizationId),
+      /**
+       * The subscription read soft-fails to `null` by default, which would
+       * arrive here as a perfectly ordinary "no usable subscription" and return
+       * a successful `false` — the outer catch never sees it. A caller that
+       * asked to throw needs that failure propagated too, or a cached answer
+       * would still record an outage as a plan lapse.
+       */
+      getOrganizationSubscriptionUsable(
+        organizationId,
+        options.onError === 'throw' ? { onError: 'throw' } : {}
+      ),
+    ])
+
+    if (blocked) {
+      return false
+    }
+
+    return !!orgSub && checkOrgPlan(orgSub)
+  } catch (error) {
+    logger.error('Error checking organization plan status', { error, organizationId })
+    if (options.onError === 'throw') {
+      throw error
+    }
+    return false
+  }
+}
+
+/**
+ * Check if an organization has an enterprise plan
+ * Used for Access Control (Permission Groups) feature gating
+ *
+ * Request-memoized: a settings render gates several sections on the same
+ * organization's plan, and it cannot change mid-render.
+ */
+export const isOrganizationOnEnterprisePlan = cache(resolveOrganizationEnterprisePlan)
 
 /**
  * Entitlement for a single org-scoped enterprise feature.
@@ -612,10 +682,15 @@ async function hasWorkspaceTierAccess(
  * Whether the workspace's payer is on a usable Max-or-Enterprise subscription.
  * Shared by the inbox (Sim Mailer), live sync, and custom sandboxes, which all
  * sit on the same entitlement tier.
+ *
+ * Request-memoized: these features are gated side by side on one settings render,
+ * each otherwise repeating the identical workspace and subscription reads. The
+ * per-feature deployment and env short-circuits live in the wrappers and still run
+ * per call.
  */
-async function hasMaxTierWorkspaceAccess(workspaceId: string): Promise<boolean> {
-  return hasWorkspaceTierAccess(workspaceId, isMaxTier)
-}
+const hasMaxTierWorkspaceAccess = cache(
+  (workspaceId: string): Promise<boolean> => hasWorkspaceTierAccess(workspaceId, isMaxTier)
+)
 
 /**
  * Check whether a workspace is entitled to the inbox (Sim Mailer) feature.
@@ -702,7 +777,7 @@ export async function hasWorkspaceLiveSyncAccess(workspaceId: string): Promise<b
  * Existing Function execution deliberately does not consult it (see
  * `resolveWorkspaceSandbox`), so a workspace that downgrades keeps running the
  * sandboxes it already built. New Copilot discovery, mutations, attachments,
- * and direct function_execute selections do re-check it.
+ * and direct run_function selections do re-check it.
  */
 export async function hasWorkspaceSandboxAccess(workspaceId: string): Promise<boolean> {
   try {

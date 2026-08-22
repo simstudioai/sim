@@ -7,13 +7,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   mockBuildCustomBlockConfig,
-  mockGetCustomBlockIcon,
+  mockGetCustomBlockTile,
   mockHydrateClientCustomBlocks,
   mockUseCustomBlocks,
   mockUseOrgBrandConfig,
 } = vi.hoisted(() => ({
   mockBuildCustomBlockConfig: vi.fn(),
-  mockGetCustomBlockIcon: vi.fn(),
+  mockGetCustomBlockTile: vi.fn(),
   mockHydrateClientCustomBlocks: vi.fn(),
   mockUseCustomBlocks: vi.fn(),
   mockUseOrgBrandConfig: vi.fn(),
@@ -32,7 +32,7 @@ vi.mock('@/blocks/custom/client-overlay', () => ({
 }))
 
 vi.mock('@/blocks/custom/custom-block-icon', () => ({
-  getCustomBlockIcon: mockGetCustomBlockIcon,
+  getCustomBlockTile: mockGetCustomBlockTile,
 }))
 
 vi.mock('@/ee/whitelabeling/components/branding-provider', () => ({
@@ -72,7 +72,7 @@ describe('CustomBlocksLoader', () => {
         },
       ],
     })
-    mockGetCustomBlockIcon.mockReturnValue(() => null)
+    mockGetCustomBlockTile.mockReturnValue({ icon: () => null, bgColor: '#TILE' })
     mockBuildCustomBlockConfig.mockReturnValue({ type: 'custom_host_block' })
   })
 
@@ -88,12 +88,12 @@ describe('CustomBlocksLoader', () => {
     })
 
     expect(mockUseCustomBlocks).toHaveBeenCalledWith('workspace-b')
-    expect(mockGetCustomBlockIcon).toHaveBeenCalledWith(null, 'https://host-b.example/logo.png')
+    expect(mockGetCustomBlockTile).toHaveBeenCalledWith(null, 'https://host-b.example/logo.png')
     expect(mockBuildCustomBlockConfig).toHaveBeenCalledWith(
       expect.objectContaining({ type: 'custom_host_block' }),
       [],
       expect.objectContaining({
-        bgColor: 'transparent',
+        bgColor: '#TILE',
         hideFromToolbar: false,
       })
     )

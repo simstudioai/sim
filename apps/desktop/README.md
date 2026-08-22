@@ -35,6 +35,7 @@ src/main/           # main process (bundled to dist/main.cjs)
   browser-sites/    # imported site directory, safeStorage at rest
   browser-import/   # one-shot import of profiles, cookies and passwords
 src/preload/        # contextBridge IPC bridge (bundled to dist/preload.cjs)
+native/             # Node-API/AppKit bridge for native macOS Help docs search
 static/             # bundled local pages (offline.html)
 e2e/                # Playwright _electron smoke suite
 ```
@@ -103,7 +104,7 @@ Pre-release share (no Developer ID yet): `SIM_DESKTOP_DEFAULT_ORIGIN=https://www
 The build also derives the app icon from `SIM_DESKTOP_DEFAULT_ORIGIN`. Every channel uses the exact production icon with its white background and black `sim` mark. Non-production channels add a thin outline using existing platform colors: dev uses orange, staging uses Loop blue, and localhost uses Workflow violet. The macOS menu-bar icon also carries a compact `D`, `S`, or `L` subscript for those environments; production remains unmarked. Native Icon Composer assets live in `build/`; `scripts/build.ts` copies the selected variant to the ignored `build/generated-icon.icon` path consumed by electron-builder. Electron-builder compiles it to `Assets.car` and derives the legacy `.icns` fallback from the same source. Matching 512px PNGs in `static/` provide the Dock icon for unpackaged runs.
 
 CI (`.github/workflows/desktop-release.yml`, wired into `ci.yml`):
-- Runs only after `create-release` on a `vX.Y.Z:` commit to main — **never before**: `scripts/create-single-release.ts` skips creation if the tag exists, so a desktop job publishing first would eat the changelog. The job builds `--publish never` and uploads assets with `gh release upload --clobber` (idempotent re-runs).
+- Stable builds run only after `create-release` on a `vX.Y.Z:` commit to main — **never before**: `scripts/create-single-release.ts` skips creation if the tag exists, so a desktop job publishing first would eat the changelog. Stable assets remain on `simstudioai/sim`; dev/staging assets publish to the public `simstudioai/sim-desktop-releases` repository so source-repository followers are not notified for internal shell builds. The job builds `--publish never` and uploads assets with `gh release upload --clobber` (idempotent re-runs).
 - **Secrets gate**: `check-desktop-signing` in `ci.yml` probes the six Apple secrets and skips the desktop job with a warning until they exist — releases never fail on a missing Apple account, and the first release after the secrets land ships desktop artifacts automatically. Manual/one-off builds: Actions → "Desktop Release (macOS)" → Run workflow with a `vX.Y.Z` version (`publish: false` uploads artifacts to the run instead of the release).
 - The product semver is **injected** from the release tag into `apps/desktop/package.json` at build time (repo package versions are placeholders). A mismatch guard fails the build.
 - Fuses are flipped at package time (`electronFuses` in `electron-builder.yml`): runAsNode off, NODE_OPTIONS off, inspect args off, ASAR-only + integrity validation, cookie encryption on, `strictlyRequireAllFuses` so new fuses fail loudly on Electron bumps.
@@ -119,6 +120,7 @@ Required repo secrets (owner: whoever holds the Apple Developer account; calenda
 | `APPLE_API_KEY_ID` | API key ID |
 | `APPLE_API_ISSUER` | API issuer ID |
 | `APPLE_TEAM_ID` | Developer team ID |
+| `DESKTOP_RELEASE_TOKEN` | Fine-grained GitHub token with `Contents: write` on only `simstudioai/sim-desktop-releases`; used to create, upload, publish, and prune dev/staging releases |
 
 ## Desktop-only features (how to add them cleanly)
 
@@ -167,8 +169,8 @@ Raw local file bytes are never exposed through the preload bridge and cannot be 
 
 ## Auto-update, channels, rollout, rollback
 
-- `electron-updater` reads the GitHub Releases feed (`publish` is pinned to `simstudioai/sim`); deltas via `.zip.blockmap`. Install is prompt-based (Restart Now / Later; Later installs on quit) — never forced mid-session.
-- Channels: stable builds (`X.Y.Z`) follow `latest`; `-beta.N` builds follow `beta` (never attach a beta `latest-mac.yml` to a stable tag).
+- `electron-updater` reads the deployment's `/api/desktop/update` feed; production resolves stable releases from `simstudioai/sim`, while dev/staging resolve prereleases from `simstudioai/sim-desktop-releases`. Artifact downloads go directly to GitHub and deltas use `.zip.blockmap`. Install is prompt-based (Restart Now / Later; Later installs on quit) — never forced mid-session.
+- Streams: production follows stable `X.Y.Z` releases, dev follows `-dev.N`, and staging follows `-staging.N`. The feed still recognizes legacy `-alpha.N`/`-beta.N` releases during migration.
 - Staged rollout: after publishing, edit `stagingPercentage: 10` into the release's `latest-mac.yml`, then raise as crash metrics stay clean.
 - Rollback: a pulled release must be superseded by a **higher** version — users on the broken build will not reinstall an equal one. (A blocked-versions kill-switch was removed as unwired dead code; reintroduce it in `updater.ts` if a remote config source ever exists to feed it.)
 - Ship the DMG and tell users to install to `/Applications` — App Translocation breaks Squirrel.Mac updates from quarantined paths.

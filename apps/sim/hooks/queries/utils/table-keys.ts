@@ -25,9 +25,18 @@ export const tableKeys = {
   exportJobs: (workspaceId?: string) =>
     [...tableKeys.all, 'export-jobs', workspaceId ?? ''] as const,
   rowsRoot: (tableId: string) => [...tableKeys.detail(tableId), 'rows'] as const,
+  /**
+   * Prefix covering only the paged row lists. `rowsRoot` is a shared parent — `find`
+   * hangs off it holding a different shape — so anything walking the cache for row
+   * pages must start here.
+   */
+  infiniteRowsRoot: (tableId: string) => [...tableKeys.rowsRoot(tableId), 'infinite'] as const,
   infiniteRows: (tableId: string, paramsKey: string) =>
-    [...tableKeys.rowsRoot(tableId), 'infinite', paramsKey] as const,
+    [...tableKeys.infiniteRowsRoot(tableId), paramsKey] as const,
   rowWrites: (tableId: string) => [...tableKeys.rowsRoot(tableId), 'write'] as const,
+  /** Bounded single-page row read for chart files (`.chart` previews). */
+  sample: (tableId: string, paramsKey: string) =>
+    [...tableKeys.rowsRoot(tableId), 'sample', paramsKey] as const,
   find: (tableId: string, paramsKey: string) =>
     [...tableKeys.rowsRoot(tableId), 'find', paramsKey] as const,
   /** Deliberately NOT under `detail` — the non-exact `invalidateQueries` on that

@@ -1,4 +1,7 @@
 import { z } from 'zod'
+import { resolvedSecretTraceProvenanceSchema } from '@/lib/api/contracts/primitives'
+import { defineRouteContract } from '@/lib/api/contracts/types'
+import { RESOLVED_SECRET_PROVENANCE_FIELD } from '@/lib/execution/private-tool-metadata'
 import { DEFAULT_RERANKER_MODEL, rerankerModelSchema } from '@/lib/knowledge/reranker-models'
 
 export const knowledgeSearchTagFilterSchema = z.object({
@@ -85,3 +88,64 @@ export const knowledgeSearchBodySchema = z
     }
   )
 export type KnowledgeSearchBody = z.output<typeof knowledgeSearchBodySchema>
+
+export const internalKnowledgeSearchBodySchema = z.intersection(
+  knowledgeSearchBodySchema,
+  z.object({
+    workflowId: z.string().optional(),
+    skipUsageBilling: z.boolean().optional(),
+    [RESOLVED_SECRET_PROVENANCE_FIELD]: resolvedSecretTraceProvenanceSchema.optional(),
+  })
+)
+
+export const internalKnowledgeSearchResultSchema = z.object({
+  documentId: z.string(),
+  documentName: z.string().nullable(),
+  sourceUrl: z.string().nullable(),
+  content: z.string(),
+  chunkIndex: z.number(),
+  metadata: z.record(z.string(), z.unknown()),
+  similarity: z.number(),
+  rerankerScore: z.number().optional(),
+})
+
+export const internalKnowledgeSearchContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/knowledge/search',
+  body: internalKnowledgeSearchBodySchema,
+  response: {
+    mode: 'json',
+    schema: z.object({
+      success: z.literal(true),
+      data: z.object({
+        results: z.array(internalKnowledgeSearchResultSchema),
+        query: z.string(),
+        knowledgeBaseIds: z.array(z.string()),
+        knowledgeBaseId: z.string(),
+        topK: z.number(),
+        totalResults: z.number(),
+        cost: z
+          .object({
+            input: z.number(),
+            output: z.number(),
+            total: z.number(),
+            tokens: z.object({
+              prompt: z.number(),
+              completion: z.number(),
+              total: z.number(),
+            }),
+            model: z.string(),
+            pricing: z.object({
+              input: z.number(),
+              output: z.number(),
+              updatedAt: z.string().optional(),
+            }),
+            rerankerCost: z.number().optional(),
+            rerankerModel: z.string().optional(),
+            rerankerSearchUnits: z.number().optional(),
+          })
+          .optional(),
+      }),
+    }),
+  },
+})

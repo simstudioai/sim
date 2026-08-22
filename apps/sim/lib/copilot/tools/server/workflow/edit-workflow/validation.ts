@@ -11,6 +11,7 @@ import { getSkillById } from '@/lib/workflows/skills/operations'
 import {
   buildCanonicalIndex,
   buildSubBlockValues,
+  getCanonicalSubBlocksForSurface,
   isCanonicalPair,
   resolveCanonicalMode,
 } from '@/lib/workflows/subblocks/visibility'
@@ -22,7 +23,11 @@ import { BlockType, EDGE, normalizeName } from '@/executor/constants'
 import { isAutoModel, isKnownModelId, suggestModelIdsForUnknownModel } from '@/providers/models'
 import { isPiByokOnlyMode } from '@/providers/pi-providers'
 import { getTool } from '@/tools/utils'
-import { TRIGGER_RUNTIME_SUBBLOCK_IDS, TRIGGER_WEBHOOK_URL_FIELD } from '@/triggers/constants'
+import {
+  TRIGGER_ROUTING_FIELD,
+  TRIGGER_RUNTIME_SUBBLOCK_IDS,
+  TRIGGER_WEBHOOK_URL_FIELD,
+} from '@/triggers/constants'
 import type {
   EdgeHandleValidationResult,
   EditWorkflowOperation,
@@ -73,6 +78,17 @@ export function validateInputsForBlock(
       error: `"${TRIGGER_WEBHOOK_URL_FIELD}" is read-only. The webhook URL is auto-assigned by Sim and cannot be changed by the agent or the user.`,
     })
     inputs = omit(inputs, [TRIGGER_WEBHOOK_URL_FIELD])
+  }
+
+  if (TRIGGER_ROUTING_FIELD in inputs) {
+    errors.push({
+      blockId,
+      blockType,
+      field: TRIGGER_ROUTING_FIELD,
+      value: inputs[TRIGGER_ROUTING_FIELD],
+      error: `"${TRIGGER_ROUTING_FIELD}" is read-only. Event routing is derived from the selected credential and cannot be edited on the block.`,
+    })
+    inputs = omit(inputs, [TRIGGER_ROUTING_FIELD])
   }
 
   const blockConfig = getBlock(blockType)
@@ -1019,11 +1035,18 @@ function collectSelectorFields(
     const blockConfig = getBlock(blockType)
     if (!blockConfig) continue
 
-    const canonicalIndex = buildCanonicalIndex(blockConfig.subBlocks)
+    // Scoped to the block's active surface: a trigger field sharing a `canonicalParamId` with an
+    // action pair matches neither of its members, so an unscoped index skipped every trigger
+    // selector as "inactive" while still validating the dormant action ones.
+    const activeSubBlocks = getCanonicalSubBlocksForSurface(
+      blockConfig.subBlocks,
+      blockData.triggerMode === true
+    )
+    const canonicalIndex = buildCanonicalIndex(activeSubBlocks)
     const allValues = buildSubBlockValues(blockData.subBlocks || {})
     const canonicalModeOverrides = blockData.data?.canonicalModes
 
-    for (const subBlockConfig of blockConfig.subBlocks) {
+    for (const subBlockConfig of activeSubBlocks) {
       if (!SELECTOR_TYPES.has(subBlockConfig.type)) continue
 
       // oauth-input credentials are only validated when explicitly requested
@@ -1109,7 +1132,7 @@ export async function validateWorkflowSelectorIds(
         blockType: selector.blockType,
         field: selector.fieldName,
         value: selector.value,
-        error: `Invalid ${selector.selectorType} ID(s): ${result.invalid.join(', ')} - ID(s) do not exist or user doesn't have access${warningInfo}`,
+        error: `Invalid ${selector.selectorType} ID(s): ${result.invalid.join(', ')} — they do not exist in this workspace or you lack access. Discover valid ids first (glob/read the matching workspace resource, e.g. environment/credentials.json, knowledgebases/*/meta.json, tables/*/meta.json) instead of guessing${warningInfo}`,
       })
     } else if (result.warning) {
       // Log warnings that don't have errors (shouldn't happen for credentials but may for other selectors)
@@ -1718,7 +1741,7 @@ export async function preValidateCredentialInputs(
           blockType: credInput.blockType,
           field: credInput.fieldName,
           value: credInput.value,
-          error: `Invalid credential ID "${credInput.value}" - credential does not exist or user doesn't have access${warningInfo}`,
+          error: `Invalid credential ID "${credInput.value}" for ${credInput.blockType}.${credInput.fieldName} — the field was removed from the block. Read environment/credentials.json for connected credential ids, or use oauth_get_auth_link (via the auth agent) to connect the provider first; never invent credential ids${warningInfo}`,
         })
       }
 

@@ -6,7 +6,7 @@ import { parseRequest } from '@/lib/api/server'
 import { authorizeCredentialUse } from '@/lib/auth/credential-access'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
+import { refreshAccessTokenIfNeeded } from '@/lib/oauth/credential-service'
 import { extractTitleFromItem } from '@/tools/notion/utils'
 
 const logger = createLogger('NotionDatabasesAPI')

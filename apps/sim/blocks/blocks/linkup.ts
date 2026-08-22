@@ -13,6 +13,16 @@ export const LinkupBlock: BlockConfig<LinkupSearchToolResponse> = {
   integrationType: IntegrationType.Search,
   bgColor: '#D6D3C7',
   icon: LinkupIcon,
+  canvasPresentation: {
+    defaultTitle: 'Linkup',
+    sentences: {
+      default: [
+        { text: 'Search the web for', field: 'q', core: true },
+        { text: ', within', field: 'includeDomains' },
+        { text: ', since', field: 'fromDate' },
+      ],
+    },
+  },
 
   subBlocks: [
     {

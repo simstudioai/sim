@@ -36,13 +36,13 @@ export const skillEditorSchema = z.object({
 
 export type SkillEditor = z.output<typeof skillEditorSchema>
 
-const skillNameSchema = z
+export const skillNameSchema = z
   .string()
   .min(1, 'Skill name is required')
   .max(64)
   .regex(/^[a-z0-9]+(-[a-z0-9]+)*$/, 'Name must be kebab-case (e.g. my-skill)')
-const skillDescriptionSchema = z.string().min(1, 'Description is required').max(1024)
-const skillContentSchema = z
+export const skillDescriptionSchema = z.string().min(1, 'Description is required').max(1024)
+export const skillContentSchema = z
   .string()
   .min(1, 'Content is required')
   .max(50_000, 'Content is too large')
@@ -125,19 +125,25 @@ export const deleteSkillContract = defineRouteContract({
   },
 })
 
-export const skillIdParamsSchema = z.object({
-  id: z.string().min(1, 'Skill id is required'),
-})
+export const skillIdParamsSchema = z
+  .object({
+    id: z.string().min(1, 'Skill id is required'),
+  })
+  .strict()
 
-export const upsertSkillMemberBodySchema = z.object({
-  userId: z.string().min(1, 'User id is required'),
-})
+export const upsertSkillMemberBodySchema = z
+  .object({
+    userId: z.string().min(1, 'User id is required'),
+  })
+  .strict()
 
 export type UpsertSkillMemberBody = z.input<typeof upsertSkillMemberBodySchema>
 
-export const removeSkillMemberQuerySchema = z.object({
-  userId: z.string().min(1, 'User id is required'),
-})
+export const removeSkillMemberQuerySchema = z
+  .object({
+    userId: z.string().min(1, 'User id is required'),
+  })
+  .strict()
 
 export const listSkillMembersContract = defineRouteContract({
   method: 'GET',
@@ -158,6 +164,7 @@ export const upsertSkillMemberContract = defineRouteContract({
   body: upsertSkillMemberBodySchema,
   response: {
     mode: 'json',
+    status: [200, 201],
     schema: z.object({
       success: z.literal(true),
     }),

@@ -18,19 +18,63 @@ import { TokenServiceAccountValidationError } from '@/lib/credentials/token-serv
 
 const {
   mockCheckWorkspaceAccess,
+  mockGetCredentialActorContext,
   mockGetCredentialCreationWorkspaceContext,
+  mockGetBlockVisibility,
+  mockCreateIntegrationCredentialVisibility,
+  mockIsCredentialVisible,
+  mockLoadWorkspace,
+  mockResolveWorkspacePermission,
+  mockSyncWorkspaceOAuthCredentials,
   mockVerifyAndBuildServiceAccountSecret,
 } = vi.hoisted(() => ({
   mockCheckWorkspaceAccess: vi.fn(),
+  mockGetCredentialActorContext: vi.fn(),
   mockGetCredentialCreationWorkspaceContext: vi.fn(),
+  mockGetBlockVisibility: vi.fn(),
+  mockCreateIntegrationCredentialVisibility: vi.fn(),
+  mockIsCredentialVisible: vi.fn(),
+  mockLoadWorkspace: vi.fn(),
+  mockResolveWorkspacePermission: vi.fn(),
+  mockSyncWorkspaceOAuthCredentials: vi.fn(),
   mockVerifyAndBuildServiceAccountSecret: vi.fn(),
 }))
 
 vi.mock('@sim/audit', () => auditMock)
 vi.mock('@/lib/posthog/server', () => posthogServerMock)
 
+vi.mock('@/lib/core/config/block-visibility', () => ({
+  getBlockVisibility: mockGetBlockVisibility,
+}))
+
+vi.mock('@/lib/integrations/credential-visibility.server', () => ({
+  createIntegrationCredentialVisibility: mockCreateIntegrationCredentialVisibility,
+}))
+
 vi.mock('@/lib/workspaces/permissions/utils', () => ({
   checkWorkspaceAccess: mockCheckWorkspaceAccess,
+}))
+
+vi.mock('@/lib/workspaces/application/workspace-context', () => ({
+  loadActiveWorkspaceApplicationContext: mockLoadWorkspace,
+}))
+
+vi.mock('@sim/platform-authz/workspace', () => ({
+  permissionSatisfies: (actual: string | null, required: string) =>
+    actual === 'admin' || actual === required || (actual === 'write' && required === 'read'),
+  resolveEffectiveWorkspacePermission: mockResolveWorkspacePermission,
+}))
+
+vi.mock('@/lib/credentials/access', () => ({
+  canUseCredential: (access: { member: unknown; isAdmin: boolean; hasWorkspaceAccess: boolean }) =>
+    access.hasWorkspaceAccess && (Boolean(access.member) || access.isAdmin),
+  getCredentialActorContext: mockGetCredentialActorContext,
+  isSharedCredentialType: (type: string) => type !== 'env_personal',
+  requireOrdinaryCredentialType: (type: string) => {
+    if (type === 'managed_oauth') throw new Error('Managed OAuth credential reached test surface')
+    return type
+  },
+  SHARED_CREDENTIAL_TYPES: ['oauth', 'env_workspace', 'service_account'],
 }))
 
 vi.mock('@/lib/credentials/environment', () => ({
@@ -38,7 +82,7 @@ vi.mock('@/lib/credentials/environment', () => ({
 }))
 
 vi.mock('@/lib/credentials/oauth', () => ({
-  syncWorkspaceOAuthCredentialsForUser: vi.fn(),
+  syncWorkspaceOAuthCredentialsForUser: mockSyncWorkspaceOAuthCredentials,
 }))
 
 vi.mock('@/lib/oauth', () => ({
@@ -57,6 +101,12 @@ vi.mock('@/lib/credentials/service-account-secret', () => ({
 import { GET, POST } from '@/app/api/credentials/route'
 
 const WORKSPACE_ID = '11111111-2222-4333-8444-555555555555'
+const WORKSPACE_CONTEXT = {
+  workspaceId: WORKSPACE_ID,
+  workspaceOrganizationId: 'org-1',
+  allowPersonalApiKeys: true,
+  billedAccountUserId: 'user-1',
+}
 
 describe('GET /api/credentials', () => {
   beforeEach(() => {
@@ -64,11 +114,24 @@ describe('GET /api/credentials', () => {
     resetDbChainMock()
     authMockFns.mockGetSession.mockResolvedValue({
       user: { id: 'user-1', name: 'Test User', email: 'test@example.com' },
+      session: { id: 'session-1' },
     })
+    mockLoadWorkspace.mockResolvedValue(WORKSPACE_CONTEXT)
+    mockResolveWorkspacePermission.mockResolvedValue('read')
     mockCheckWorkspaceAccess.mockResolvedValue({
       hasAccess: true,
       canWrite: true,
       canAdmin: false,
+    })
+    mockGetBlockVisibility.mockResolvedValue({
+      revealed: new Set(),
+      disabled: new Set(),
+      previewTagged: new Set(),
+    })
+    mockIsCredentialVisible.mockReturnValue(true)
+    mockCreateIntegrationCredentialVisibility.mockReturnValue({
+      isCredentialVisible: mockIsCredentialVisible,
+      isOAuthServiceVisible: vi.fn(),
     })
   })
 
@@ -111,6 +174,118 @@ describe('GET /api/credentials', () => {
         role: 'admin',
       }),
     ])
+    expect(mockGetBlockVisibility).not.toHaveBeenCalled()
+  })
+
+  it('hides a service-account credential when its gating block is preview-hidden', async () => {
+    mockIsCredentialVisible.mockReturnValue(false)
+    queueTableRows(credential, [
+      {
+        id: 'slack-credential',
+        workspaceId: WORKSPACE_ID,
+        type: 'service_account',
+        displayName: 'Slack custom bot',
+        description: null,
+        providerId: 'slack-custom-bot',
+        accountId: null,
+        envKey: null,
+        envOwnerUserId: null,
+        createdBy: 'user-1',
+        createdAt: new Date('2026-08-01T00:00:00.000Z'),
+        updatedAt: new Date('2026-08-01T00:00:00.000Z'),
+        memberRole: 'admin',
+      },
+      {
+        id: 'google-credential',
+        workspaceId: WORKSPACE_ID,
+        type: 'oauth',
+        displayName: 'Google account',
+        description: null,
+        providerId: 'google-email',
+        accountId: 'google-account',
+        envKey: null,
+        envOwnerUserId: null,
+        createdBy: 'user-1',
+        createdAt: new Date('2026-08-01T00:00:00.000Z'),
+        updatedAt: new Date('2026-08-01T00:00:00.000Z'),
+        memberRole: 'admin',
+      },
+    ])
+
+    const response = await GET(
+      createMockRequest(
+        'GET',
+        undefined,
+        {},
+        `http://localhost:3000/api/credentials?workspaceId=${WORKSPACE_ID}`
+      )
+    )
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({
+      credentials: [expect.objectContaining({ id: 'google-credential' })],
+    })
+    expect(mockGetBlockVisibility).toHaveBeenCalledWith({ userId: 'user-1', orgId: 'org-1' })
+    expect(mockCreateIntegrationCredentialVisibility).toHaveBeenCalledWith({
+      allowedIntegrationTypes: null,
+      blockVisibility: {
+        revealed: new Set(),
+        disabled: new Set(),
+        previewTagged: new Set(),
+      },
+    })
+    expect(mockIsCredentialVisible).toHaveBeenCalledExactlyOnceWith({
+      providerId: 'slack-custom-bot',
+      type: 'service_account',
+    })
+  })
+
+  it('normalizes padded, blank, and duplicate legacy query values', async () => {
+    queueTableRows(credential, [])
+    const url = new URL('http://localhost:3000/api/credentials')
+    url.searchParams.append('workspaceId', ` ${WORKSPACE_ID} `)
+    url.searchParams.append('workspaceId', 'not-the-selected-value')
+    url.searchParams.set('type', '')
+    url.searchParams.set('providerId', '')
+    url.searchParams.set('credentialId', ' ')
+
+    const response = await GET(createMockRequest('GET', undefined, {}, url.toString()))
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({ credentials: [] })
+    expect(mockLoadWorkspace).toHaveBeenCalledWith(WORKSPACE_ID)
+  })
+
+  it('uses the legacy workspace-scoped id/account lookup without sync, filters, or shape drift', async () => {
+    queueTableRows(credential, [])
+    queueTableRows(credential, [
+      {
+        id: 'credential-1',
+        displayName: 'Google account',
+        type: 'oauth',
+        providerId: 'google-email',
+      },
+    ])
+    const url = new URL('http://localhost:3000/api/credentials')
+    url.searchParams.set('workspaceId', WORKSPACE_ID)
+    url.searchParams.set('credentialId', ' account-1 ')
+    url.searchParams.set('type', 'env_workspace')
+    url.searchParams.set('providerId', 'different-provider')
+
+    const response = await GET(createMockRequest('GET', undefined, {}, url.toString()))
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({
+      credential: {
+        id: 'credential-1',
+        displayName: 'Google account',
+        type: 'oauth',
+        providerId: 'google-email',
+      },
+    })
+    expect(mockSyncWorkspaceOAuthCredentials).not.toHaveBeenCalled()
+    expect(mockCheckWorkspaceAccess).not.toHaveBeenCalled()
+    expect(mockGetBlockVisibility).not.toHaveBeenCalled()
   })
 })
 
@@ -120,7 +295,10 @@ describe('POST /api/credentials', () => {
     resetDbChainMock()
     authMockFns.mockGetSession.mockResolvedValue({
       user: { id: 'user-1', name: 'Test User', email: 'test@example.com' },
+      session: { id: 'session-1' },
     })
+    mockLoadWorkspace.mockResolvedValue(WORKSPACE_CONTEXT)
+    mockResolveWorkspacePermission.mockResolvedValue('write')
     mockCheckWorkspaceAccess.mockResolvedValue({
       hasAccess: true,
       canWrite: true,
@@ -131,6 +309,27 @@ describe('POST /api/credentials', () => {
       organizationId: 'org-1',
       memberUserIds: ['user-1'],
       canWrite: true,
+    })
+    mockGetCredentialActorContext.mockResolvedValue({
+      credential: {
+        id: 'credential-1',
+        workspaceId: WORKSPACE_ID,
+        type: 'service_account',
+        displayName: 'Service account',
+        description: null,
+        providerId: 'zoom-service-account',
+        accountId: null,
+        envKey: null,
+        envOwnerUserId: null,
+        encryptedServiceAccountKey: 'encrypted-blob',
+        createdBy: 'user-1',
+        createdAt: new Date('2026-08-11T00:00:00.000Z'),
+        updatedAt: new Date('2026-08-11T00:00:00.000Z'),
+      },
+      member: { role: 'admin', status: 'active' },
+      hasWorkspaceAccess: true,
+      canWriteWorkspace: true,
+      isAdmin: true,
     })
   })
 
@@ -143,6 +342,25 @@ describe('POST /api/credentials', () => {
         auditMetadata: { principalKind: 'tenant', principalId: 'acct_123' },
         principal: { kind: 'tenant', id: 'acct_123' },
       })
+      queueTableRows(credential, [])
+      queueTableRows(credential, [])
+      queueTableRows(credential, [
+        {
+          id: 'credential-1',
+          workspaceId: WORKSPACE_ID,
+          type: 'service_account',
+          displayName: 'Zoom account acct_123',
+          description: null,
+          providerId: 'zoom-service-account',
+          accountId: null,
+          envKey: null,
+          envOwnerUserId: null,
+          encryptedServiceAccountKey: 'encrypted-blob',
+          createdBy: 'user-1',
+          createdAt: new Date('2026-08-11T00:00:00.000Z'),
+          updatedAt: new Date('2026-08-11T00:00:00.000Z'),
+        },
+      ])
 
       const req = createMockRequest('POST', {
         workspaceId: WORKSPACE_ID,
@@ -154,8 +372,10 @@ describe('POST /api/credentials', () => {
       })
 
       const response = await POST(req)
+      const body = await response.json()
 
       expect(response.status).toBe(201)
+      expect(body.credential).not.toHaveProperty('encryptedServiceAccountKey')
       expect(mockVerifyAndBuildServiceAccountSecret).toHaveBeenCalledTimes(1)
       expect(mockVerifyAndBuildServiceAccountSecret).toHaveBeenCalledWith(
         'zoom-service-account',
@@ -163,6 +383,58 @@ describe('POST /api/credentials', () => {
           clientId: 'zoom-client-id',
           clientSecret: 'zoom-secret',
           orgId: 'acct_123',
+        })
+      )
+    })
+
+    it('threads NetSuite certificate credentials through the create contract', async () => {
+      mockVerifyAndBuildServiceAccountSecret.mockResolvedValueOnce({
+        providerId: 'netsuite-service-account',
+        encryptedServiceAccountKey: 'encrypted-netsuite-blob',
+        displayName: 'Oracle NetSuite 1234567',
+        auditMetadata: { principalKind: 'tenant', principalId: '1234567' },
+        principal: { kind: 'tenant', id: '1234567' },
+      })
+      queueTableRows(credential, [])
+      queueTableRows(credential, [])
+      queueTableRows(credential, [
+        {
+          id: 'credential-netsuite',
+          workspaceId: WORKSPACE_ID,
+          type: 'service_account',
+          displayName: 'Oracle NetSuite 1234567',
+          description: null,
+          providerId: 'netsuite-service-account',
+          accountId: null,
+          envKey: null,
+          envOwnerUserId: null,
+          encryptedServiceAccountKey: 'encrypted-netsuite-blob',
+          createdBy: 'user-1',
+          createdAt: new Date('2026-08-11T00:00:00.000Z'),
+          updatedAt: new Date('2026-08-11T00:00:00.000Z'),
+        },
+      ])
+
+      const response = await POST(
+        createMockRequest('POST', {
+          workspaceId: WORKSPACE_ID,
+          type: 'service_account',
+          providerId: 'netsuite-service-account',
+          orgId: 'https://1234567.suitetalk.api.netsuite.com',
+          clientId: 'netsuite-client-id',
+          certificateId: 'netsuite-certificate-id',
+          privateKey: '-----BEGIN PRIVATE KEY-----key',
+        })
+      )
+
+      expect(response.status).toBe(201)
+      expect(mockVerifyAndBuildServiceAccountSecret).toHaveBeenCalledWith(
+        'netsuite-service-account',
+        expect.objectContaining({
+          orgId: 'https://1234567.suitetalk.api.netsuite.com',
+          clientId: 'netsuite-client-id',
+          certificateId: 'netsuite-certificate-id',
+          privateKey: '-----BEGIN PRIVATE KEY-----key',
         })
       )
     })

@@ -1,37 +1,5 @@
-import { TableIcon } from '@/components/icons'
-import { requestJson } from '@/lib/api/client/request'
-import { listTablesContract } from '@/lib/api/contracts/tables'
-import type { TableDefinition } from '@/lib/table'
-import { getQueryClient } from '@/app/_shell/providers/get-query-client'
-import { tableKeys } from '@/hooks/queries/utils/table-keys'
-import { readActiveWorkflowContext, readBlockValues } from '@/triggers/editor-state'
+import { Table } from '@sim/emcn/icons'
 import type { TriggerConfig } from '@/triggers/types'
-
-async function fetchTableColumns(blockId: string): Promise<Array<{ label: string; id: string }>> {
-  const { activeWorkflowId, workspaceId } = await readActiveWorkflowContext()
-  if (!activeWorkflowId || !workspaceId) return []
-
-  const blockValues = await readBlockValues(blockId)
-  const tableId = (blockValues?.tableSelector as string) || (blockValues?.manualTableId as string)
-  if (!tableId) return []
-
-  const tables = await getQueryClient().fetchQuery({
-    queryKey: tableKeys.list(workspaceId),
-    queryFn: async ({ signal }): Promise<TableDefinition[]> => {
-      const response = await requestJson(listTablesContract, {
-        query: { workspaceId, scope: 'active' },
-        signal,
-      })
-      return (response.data.tables ?? []) as TableDefinition[]
-    },
-    staleTime: 60 * 1000,
-  })
-
-  const table = tables.find((t: TableDefinition) => t.id === tableId)
-  if (!table?.schema?.columns) return []
-
-  return table.schema.columns.map((col) => ({ id: col.name, label: col.name }))
-}
 
 export const tableNewRowTrigger: TriggerConfig = {
   id: 'table_new_row',
@@ -39,7 +7,7 @@ export const tableNewRowTrigger: TriggerConfig = {
   provider: 'table',
   description: 'Triggers when rows are inserted or updated in a table',
   version: '1.0.0',
-  icon: TableIcon,
+  icon: Table,
 
   subBlocks: [
     {
@@ -79,15 +47,14 @@ export const tableNewRowTrigger: TriggerConfig = {
       id: 'watchColumns',
       title: 'Watch Columns',
       type: 'dropdown',
+      selectorKey: 'table.columns',
       multiSelect: true,
-      options: [],
       placeholder: 'All columns',
       description: 'Only fire when these columns change. Leave empty to fire on any update.',
       required: false,
       mode: 'trigger',
       condition: { field: 'eventType', value: 'update' },
       dependsOn: { any: ['tableSelector', 'manualTableId'] },
-      fetchOptions: fetchTableColumns,
     },
     {
       id: 'includeHeaders',

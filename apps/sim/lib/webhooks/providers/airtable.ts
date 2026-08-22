@@ -5,6 +5,11 @@ import { eq } from 'drizzle-orm'
 import { validateAirtableId } from '@/lib/core/security/input-validation'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import {
+  getOAuthToken,
+  refreshAccessTokenIfNeeded,
+  resolveOAuthAccountId,
+} from '@/lib/oauth/credential-service'
+import {
   getCredentialOwner,
   getNotificationUrl,
   getProviderConfig,
@@ -16,11 +21,6 @@ import type {
   SubscriptionResult,
   WebhookProviderHandler,
 } from '@/lib/webhooks/providers/types'
-import {
-  getOAuthToken,
-  refreshAccessTokenIfNeeded,
-  resolveOAuthAccountId,
-} from '@/app/api/auth/oauth/utils'
 
 const logger = createLogger('WebhookProvider:Airtable')
 

@@ -23,6 +23,7 @@ export const stripeWebhookTrigger: TriggerConfig = {
     {
       id: 'eventTypes',
       title: 'Event Types to Listen For',
+      canvasNoun: 'any event',
       type: 'dropdown',
       multiSelect: true,
       options: [

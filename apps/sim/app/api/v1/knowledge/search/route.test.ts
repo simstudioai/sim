@@ -44,7 +44,7 @@ const SYSTEM_BILLING_ATTRIBUTION = {
   payerSubscription: null,
 }
 
-vi.mock('@/app/api/knowledge/search/utils', () => ({
+vi.mock('@/lib/knowledge/search/queries', () => ({
   executeKnowledgeSearch: mockExecuteKnowledgeSearch,
   generateSearchEmbedding: mockGenerateSearchEmbedding,
   getDocumentMetadataByIds: mockGetDocumentMetadataByIds,

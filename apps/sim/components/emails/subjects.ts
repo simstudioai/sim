@@ -10,6 +10,7 @@ export type EmailSubjectType =
   | 'reset-password'
   | 'existing-account'
   | 'invitation'
+  | 'enterprise-owner-invitation'
   | 'batch-invitation'
   | 'workspace-added'
   | 'enterprise-subscription'
@@ -20,6 +21,7 @@ export type EmailSubjectType =
   | 'abandoned-checkout'
   | 'free-tier-exhausted'
   | 'schedule-disabled'
+  | 'subprocessor-change'
   | 'onboarding-followup'
   | 'welcome'
 
@@ -46,6 +48,8 @@ export function getEmailSubject(type: EmailSubjectType): string {
       return `Sign-up attempt with your ${brandName} email`
     case 'invitation':
       return `You've been invited to join a team on ${brandName}`
+    case 'enterprise-owner-invitation':
+      return `Activate your Enterprise organization on ${brandName}`
     case 'batch-invitation':
       return `You've been invited to join a team and workspaces on ${brandName}`
     case 'workspace-added':
@@ -66,6 +70,8 @@ export function getEmailSubject(type: EmailSubjectType): string {
       return `You've run out of free credits on ${brandName}`
     case 'schedule-disabled':
       return `A schedule was turned off on ${brandName}`
+    case 'subprocessor-change':
+      return `Upcoming change to ${brandName} sub-processors`
     case 'onboarding-followup':
       return `Quick question about ${brandName}`
     case 'welcome':
@@ -102,4 +108,12 @@ export function getRequestConfirmationSubject(userSubject: string, requestType?:
 /** Names the resource being unlocked rather than the brand — that is what the recipient opened. */
 export function getOtpSubject(resourceLabel: string): string {
   return `Verification code for ${resourceLabel}`
+}
+
+/** Names both the inviter and workspace so an external recipient can identify the request. */
+export function getCredentialGroupInvitationSubject(
+  inviterName: string,
+  workspaceName: string
+): string {
+  return `${inviterName} invited you to connect accounts for ${workspaceName} on ${getBrandConfig().name}`
 }

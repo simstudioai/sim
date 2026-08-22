@@ -1,93 +1,96 @@
 /**
  * @vitest-environment node
  */
-import { authMockFns, permissionsMock, permissionsMockFns } from '@sim/testing'
+import { authMockFns } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockUpdateWorkspaceFileDimensions } = vi.hoisted(() => ({
-  mockUpdateWorkspaceFileDimensions: vi.fn(),
+const mocks = vi.hoisted(() => ({ updateDimensions: vi.fn() }))
+
+vi.mock('@/lib/workspace-files/application/update-workspace-file-dimensions', () => ({
+  updateWorkspaceFileDimensionsOperation: {
+    operation: { id: 'files.update_metadata', minimumRole: 'write', workspaceApiKey: 'allow' },
+    execute: mocks.updateDimensions,
+  },
 }))
 
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
-  updateWorkspaceFileDimensions: mockUpdateWorkspaceFileDimensions,
-}))
-vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
-
-const WS = '7727ef3f-8cf6-4686-b063-2bb006a10785'
-const FILE = 'wf_abc123'
-const KEY = 'workspace/7727ef3f/screenshot.png'
-
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { PATCH } from '@/app/api/workspaces/[id]/files/[fileId]/dimensions/route'
 
-const routeContext = { params: Promise.resolve({ id: WS, fileId: FILE }) }
+const WORKSPACE_ID = '7727ef3f-8cf6-4686-b063-2bb006a10785'
+const FILE_ID = 'wf_abc123'
+const KEY = 'workspace/7727ef3f/screenshot.png'
+const USER = { id: 'user-1' }
+const PRINCIPAL = { kind: 'session' as const, userId: USER.id, sessionId: 'session-1' }
+const context = { params: Promise.resolve({ id: WORKSPACE_ID, fileId: FILE_ID }) }
 
-function buildRequest(body: unknown): NextRequest {
-  return new NextRequest(`http://localhost/api/workspaces/${WS}/files/${FILE}/dimensions`, {
-    method: 'PATCH',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(body),
-  })
+function request(body: unknown): NextRequest {
+  return new NextRequest(
+    `http://localhost/api/workspaces/${WORKSPACE_ID}/files/${FILE_ID}/dimensions`,
+    {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    }
+  )
 }
 
 describe('PATCH /api/workspaces/[id]/files/[fileId]/dimensions', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    authMockFns.mockGetSession.mockResolvedValue({ user: { id: 'user-1' } })
-    permissionsMockFns.mockGetUserEntityPermissions.mockResolvedValue('write')
-    mockUpdateWorkspaceFileDimensions.mockResolvedValue(true)
+    authMockFns.mockGetSession.mockResolvedValue({ user: USER, session: { id: 'session-1' } })
+    mocks.updateDimensions.mockResolvedValue({ success: true })
   })
 
-  it('stores dimensions for a writer, keyed to the content version', async () => {
-    const res = await PATCH(buildRequest({ key: KEY, width: 1600, height: 900 }), routeContext)
-    expect(res.status).toBe(200)
-    expect(await res.json()).toEqual({ success: true })
-    expect(mockUpdateWorkspaceFileDimensions).toHaveBeenCalledWith(WS, FILE, {
-      key: KEY,
-      width: 1600,
-      height: 900,
+  it('updates dimensions through the shared operation', async () => {
+    const req = request({ key: KEY, width: 1600, height: 900 })
+    const response = await PATCH(req, context)
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({ success: true })
+    expect(mocks.updateDimensions).toHaveBeenCalledWith({
+      principal: PRINCIPAL,
+      input: {
+        fileId: FILE_ID,
+        assertedWorkspaceId: WORKSPACE_ID,
+        key: KEY,
+        width: 1600,
+        height: 900,
+      },
+      request: req,
     })
   })
 
-  it('allows an admin', async () => {
-    permissionsMockFns.mockGetUserEntityPermissions.mockResolvedValue('admin')
-    const res = await PATCH(buildRequest({ key: KEY, width: 10, height: 20 }), routeContext)
-    expect(res.status).toBe(200)
-    expect(mockUpdateWorkspaceFileDimensions).toHaveBeenCalledOnce()
+  it('preserves the stale content-version result', async () => {
+    mocks.updateDimensions.mockResolvedValue({ success: false })
+    const response = await PATCH(request({ key: KEY, width: 10, height: 20 }), context)
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({ success: false })
   })
 
-  it('reports success:false when the content-version guard rejects the write (key changed)', async () => {
-    mockUpdateWorkspaceFileDimensions.mockResolvedValue(false)
-    const res = await PATCH(buildRequest({ key: KEY, width: 10, height: 20 }), routeContext)
-    expect(res.status).toBe(200)
-    expect(await res.json()).toEqual({ success: false })
-  })
-
-  it('rejects an unauthenticated caller before touching the DB', async () => {
+  it('authenticates before parsing or dispatching', async () => {
     authMockFns.mockGetSession.mockResolvedValue(null)
-    const res = await PATCH(buildRequest({ key: KEY, width: 10, height: 10 }), routeContext)
-    expect(res.status).toBe(401)
-    expect(mockUpdateWorkspaceFileDimensions).not.toHaveBeenCalled()
+    const response = await PATCH(request({ key: KEY, width: 10, height: 10 }), context)
+
+    expect(response.status).toBe(401)
+    expect(mocks.updateDimensions).not.toHaveBeenCalled()
   })
 
-  it('rejects a read-only member (backfill requires write)', async () => {
-    permissionsMockFns.mockGetUserEntityPermissions.mockResolvedValue('read')
-    const res = await PATCH(buildRequest({ key: KEY, width: 10, height: 10 }), routeContext)
-    expect(res.status).toBe(403)
-    expect(mockUpdateWorkspaceFileDimensions).not.toHaveBeenCalled()
+  it('rejects invalid dimensions after authentication', async () => {
+    const response = await PATCH(request({ key: KEY, width: 0, height: 10 }), context)
+
+    expect(response.status).toBe(400)
+    expect(mocks.updateDimensions).not.toHaveBeenCalled()
   })
 
-  it('rejects a missing key or non-positive / non-integer dimensions', async () => {
-    for (const body of [
-      { width: 10, height: 10 }, // missing key
-      { key: KEY, width: 0, height: 10 },
-      { key: KEY, width: 10, height: -5 },
-      { key: KEY, width: 10.5, height: 10 },
-      { key: KEY, width: 10 },
-    ]) {
-      const res = await PATCH(buildRequest(body), routeContext)
-      expect(res.status).toBe(400)
-    }
-    expect(mockUpdateWorkspaceFileDimensions).not.toHaveBeenCalled()
+  it('renders typed authorization errors', async () => {
+    mocks.updateDimensions.mockRejectedValue(
+      new OrchestrationError('forbidden', 'Insufficient workspace permissions')
+    )
+    const response = await PATCH(request({ key: KEY, width: 10, height: 10 }), context)
+
+    expect(response.status).toBe(403)
+    expect(mocks.updateDimensions).toHaveBeenCalled()
   })
 })

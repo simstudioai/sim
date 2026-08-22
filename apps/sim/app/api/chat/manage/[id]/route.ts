@@ -12,17 +12,14 @@ import { isDev } from '@/lib/core/config/env-flags'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import { getEmailDomain } from '@/lib/core/utils/urls'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { checkNeedsRedeployment } from '@/lib/workflows/deployment-status'
 import {
   getWorkflowDeploymentSummary,
   performChatUndeploy,
   performFullDeploy,
 } from '@/lib/workflows/orchestration'
 import { checkChatAccess } from '@/app/api/chat/utils'
-import {
-  checkNeedsRedeployment,
-  createErrorResponse,
-  createSuccessResponse,
-} from '@/app/api/workflows/utils'
+import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
 import {
   ChatDeployAuthNotAllowedError,
   validateChatDeployAuth,

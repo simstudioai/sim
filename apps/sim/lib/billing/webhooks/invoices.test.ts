@@ -288,9 +288,11 @@ describe('invoice billing recovery', () => {
       (call) => call[0] as { type?: string; column?: string; left?: string }
     )
     const allMemberStatsLockIndex = whereArgs.findIndex(
-      (arg) => arg?.type === 'inArray' && arg?.column === 'userId'
+      (arg) => arg?.type === 'inArray' && arg?.column === 'userStats.userId'
     )
-    const orgLockIndex = whereArgs.findIndex((arg) => arg?.type === 'eq' && arg?.left === 'id')
+    const orgLockIndex = whereArgs.findIndex(
+      (arg) => arg?.type === 'eq' && arg?.left === 'organization.id'
+    )
     expect(allMemberStatsLockIndex).toBeGreaterThanOrEqual(0)
     expect(orgLockIndex).toBeGreaterThanOrEqual(0)
     expect(allMemberStatsLockIndex).toBeLessThan(orgLockIndex)

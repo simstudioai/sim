@@ -3,6 +3,14 @@ import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { createVersionedToolSelector } from '@/blocks/utils'
 
+/*
+ * Mutually exclusive alternates, not canonical pairs — an order carries either
+ * a whole contract count or its fixed-point form, and a price on either the yes
+ * or the no side. First one configured wins.
+ */
+const ORDER_COUNT_FIELD = ['count', 'countFp'] as const
+const ORDER_PRICE_FIELD = ['yesPrice', 'noPrice'] as const
+
 export const KalshiBlock: BlockConfig = {
   type: 'kalshi',
   name: 'Kalshi (Legacy)',
@@ -18,6 +26,89 @@ export const KalshiBlock: BlockConfig = {
   bgColor: '#09C285',
   iconColor: '#09C285',
   icon: KalshiIcon,
+  canvasPresentation: {
+    defaultTitle: 'Kalshi',
+    sentences: {
+      byOperation: {
+        get_markets: [
+          'List markets',
+          { text: ', with status', field: 'status' },
+          { text: ', in series', field: 'seriesTicker' },
+          { text: ', in event', field: 'eventTicker' },
+        ],
+        get_market: [{ text: 'Read market', field: 'ticker', core: true }],
+        get_events: [
+          'List events',
+          { text: ', with status', field: 'status' },
+          { text: ', in series', field: 'seriesTicker' },
+        ],
+        get_event: [{ text: 'Read event', field: 'eventTicker', core: true }],
+        get_balance: ['Read account balance and portfolio value'],
+        get_positions: [
+          'List open positions',
+          { text: ', on market', field: 'tickerFilter' },
+          { text: ', in event', field: 'eventTicker' },
+        ],
+        get_orders: [
+          'List orders',
+          { text: ', with status', field: 'orderStatus' },
+          { text: ', on market', field: 'tickerFilter' },
+          { text: ', in event', field: 'eventTicker' },
+        ],
+        get_order: [{ text: 'Read order', field: 'orderIdParam', core: true }],
+        get_orderbook: [{ text: 'Read the orderbook for market', field: 'ticker', core: true }],
+        get_trades: ['List recent trades across every market'],
+        get_candlesticks: [
+          {
+            text: 'Read',
+            field: 'periodInterval',
+            after: 'candlesticks',
+            core: true,
+          },
+          { text: 'for market', field: 'tickerCandlesticks', core: true },
+        ],
+        get_event_candlesticks: [
+          {
+            text: 'Read',
+            field: 'periodInterval',
+            after: 'candlesticks',
+            core: true,
+          },
+          { text: 'across event', field: 'eventTicker', core: true },
+        ],
+        get_fills: [
+          'List fills',
+          { text: ', on market', field: 'tickerFills' },
+          { text: ', for order', field: 'orderId' },
+        ],
+        get_settlements: [
+          'List settlements',
+          { text: ', in event', field: 'eventTicker' },
+          { text: ', on market', field: 'tickerFilter' },
+        ],
+        get_series_by_ticker: [{ text: 'Read series', field: 'seriesTickerGet', core: true }],
+        get_series_list: [
+          'List series',
+          { text: ', in category', field: 'category' },
+          { text: ', tagged', field: 'tags' },
+        ],
+        get_exchange_status: ['Read current exchange trading status'],
+        get_exchange_schedule: ['Read the exchange trading schedule'],
+        get_exchange_announcements: ['List exchange-wide announcements'],
+        create_order: [
+          { text: 'Place', field: 'action', after: 'order', core: true },
+          { text: 'for', field: ORDER_COUNT_FIELD, after: 'contracts' },
+          { text: 'on', field: 'tickerOrder', core: true },
+        ],
+        cancel_order: [{ text: 'Cancel order', field: 'orderIdParam', core: true }],
+        amend_order: [
+          { text: 'Amend order', field: 'orderIdParam', core: true },
+          { text: 'to', field: 'countAmend', after: 'contracts' },
+          { text: 'at', field: ORDER_PRICE_FIELD, after: 'cents' },
+        ],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',

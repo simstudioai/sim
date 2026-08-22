@@ -14,13 +14,14 @@
 import { db } from '@sim/db'
 import { member, usageLog, userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq, gte, inArray, lt, or, sql, sum } from 'drizzle-orm'
+import { and, eq, gte, inArray, isNull, lt, lte, or, sql, sum } from 'drizzle-orm'
 import { DAILY_REFRESH_RATE } from '@/lib/billing/constants'
 import type { DbClient } from '@/lib/db/types'
 
 const logger = createLogger('DailyRefresh')
 
 const MS_PER_DAY = 86_400_000
+const MAX_BILLING_PERIOD_DAYS = 370
 
 /**
  * Optional per-user date window. `usageLog` rows outside
@@ -146,6 +147,64 @@ export async function computeDailyRefreshConsumed(
   })
 
   return totalConsumed
+}
+
+export async function computeOrganizationDailyRefreshConsumed(
+  params: {
+    organizationId: string
+    periodStart: Date
+    periodEnd?: Date | null
+    planDollars: number
+    seats?: number
+  },
+  executor: DbClient = db
+): Promise<number> {
+  const { organizationId, periodStart, periodEnd, planDollars, seats = 1 } = params
+  if (planDollars <= 0) return 0
+
+  const now = new Date()
+  const cap = periodEnd && periodEnd < now ? periodEnd : now
+  if (cap <= periodStart) return 0
+  const dayCount = Math.ceil((cap.getTime() - periodStart.getTime()) / MS_PER_DAY)
+  if (dayCount > MAX_BILLING_PERIOD_DAYS) {
+    throw new Error('Organization billing period exceeds the supported annual bound')
+  }
+
+  const dailyRefreshDollars = planDollars * DAILY_REFRESH_RATE * seats
+  const rows = await executor
+    .select({
+      dayIndex:
+        sql<number>`FLOOR((EXTRACT(EPOCH FROM ${usageLog.createdAt}) - ${Math.floor(periodStart.getTime() / 1000)}) / 86400)`.as(
+          'day_index'
+        ),
+      dayTotal: sum(usageLog.cost).as('day_total'),
+    })
+    .from(usageLog)
+    .innerJoin(
+      member,
+      and(eq(member.userId, usageLog.userId), eq(member.organizationId, organizationId))
+    )
+    .leftJoin(userStats, eq(userStats.userId, member.userId))
+    .where(
+      and(
+        eq(usageLog.billingEntityType, 'organization'),
+        eq(usageLog.billingEntityId, organizationId),
+        eq(usageLog.billingPeriodStart, periodStart),
+        gte(usageLog.createdAt, periodStart),
+        lt(usageLog.createdAt, cap),
+        or(
+          isNull(userStats.proPeriodCostSnapshotAt),
+          lte(userStats.proPeriodCostSnapshotAt, periodStart),
+          gte(usageLog.createdAt, userStats.proPeriodCostSnapshotAt)
+        )
+      )
+    )
+    .groupBy(sql`day_index`)
+
+  return rows.reduce((total, row) => {
+    const dayUsage = Number.parseFloat(row.dayTotal ?? '0')
+    return total + Math.min(dayUsage, dailyRefreshDollars)
+  }, 0)
 }
 
 /**

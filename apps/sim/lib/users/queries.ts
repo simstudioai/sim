@@ -2,11 +2,12 @@ import { db } from '@sim/db'
 import { settings, user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { eq } from 'drizzle-orm'
+import { eq, inArray } from 'drizzle-orm'
 import type { UserSettingsApi } from '@/lib/api/contracts/user'
 import { normalizeStringArray } from '@/lib/core/utils/arrays'
 
 const logger = createLogger('UserQueries')
+const MAX_USER_EMAIL_BATCH = 1000
 
 /**
  * Default user settings returned for unauthenticated users or when no
@@ -23,6 +24,7 @@ export const defaultUserSettings: UserSettingsApi = {
   errorNotificationsEnabled: true,
   snapToGridSize: 0,
   showActionBar: true,
+  autoFocusOnClick: true,
   copilotAutoAllowedTools: [],
   timezone: null,
   lastActiveWorkspaceId: null,
@@ -49,6 +51,7 @@ export async function getUserSettings(userId: string | null): Promise<UserSettin
       errorNotificationsEnabled: settings.errorNotificationsEnabled,
       snapToGridSize: settings.snapToGridSize,
       showActionBar: settings.showActionBar,
+      autoFocusOnClick: settings.autoFocusOnClick,
       copilotAutoAllowedTools: settings.copilotAutoAllowedTools,
       timezone: settings.timezone,
       lastActiveWorkspaceId: settings.lastActiveWorkspaceId,
@@ -75,6 +78,7 @@ export async function getUserSettings(userId: string | null): Promise<UserSettin
     errorNotificationsEnabled: userSettings.errorNotificationsEnabled ?? true,
     snapToGridSize: userSettings.snapToGridSize ?? 0,
     showActionBar: userSettings.showActionBar ?? true,
+    autoFocusOnClick: userSettings.autoFocusOnClick ?? true,
     copilotAutoAllowedTools: normalizeStringArray(userSettings.copilotAutoAllowedTools),
     timezone: userSettings.timezone ?? null,
     lastActiveWorkspaceId: userSettings.lastActiveWorkspaceId ?? null,
@@ -99,6 +103,47 @@ export async function getUserEmailById(userId: string): Promise<string | null> {
     logger.warn('Failed to load user email', { userId, error: getErrorMessage(error) })
     return null
   }
+}
+
+/**
+ * Resolves a bounded set of user IDs to current email addresses in one query.
+ * A non-existent user is an integrity failure for public attribution and is
+ * never replaced with the raw ID or a placeholder.
+ */
+export async function getUserEmailsByIds(userIds: readonly string[]): Promise<Map<string, string>> {
+  const uniqueIds = Array.from(new Set(userIds))
+  if (uniqueIds.length === 0) return new Map()
+  if (uniqueIds.length > MAX_USER_EMAIL_BATCH) {
+    throw new Error(`Cannot resolve more than ${MAX_USER_EMAIL_BATCH} user emails at once`)
+  }
+
+  const rows = await db
+    .select({ id: user.id, email: user.email })
+    .from(user)
+    .where(inArray(user.id, uniqueIds))
+
+  const emailByUserId = new Map(rows.map((row) => [row.id, row.email]))
+  const missingIds = uniqueIds.filter((id) => !emailByUserId.has(id))
+  if (missingIds.length > 0) {
+    throw new Error(`Unable to resolve email for user IDs: ${missingIds.join(', ')}`)
+  }
+
+  return emailByUserId
+}
+
+/** Returns one previously resolved email or throws on an incomplete projection. */
+export function requireResolvedUserEmail(
+  emailByUserId: ReadonlyMap<string, string>,
+  userId: string
+): string {
+  const email = emailByUserId.get(userId)
+  if (!email) throw new Error(`Unable to resolve email for user ID: ${userId}`)
+  return email
+}
+
+/** Resolves one required public attribution email. */
+export async function getRequiredUserEmail(userId: string): Promise<string> {
+  return requireResolvedUserEmail(await getUserEmailsByIds([userId]), userId)
 }
 
 /**

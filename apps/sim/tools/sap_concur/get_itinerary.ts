@@ -8,6 +8,11 @@ import {
 } from '@/tools/sap_concur/utils'
 import type { ToolConfig } from '@/tools/types'
 
+/**
+ * Concur Trips v1.1 serves this endpoint as XML only — there is no JSON representation.
+ * The shared proxy therefore surfaces the payload as a raw XML string in `data`, which
+ * downstream blocks are expected to parse.
+ */
 export const getItineraryTool: ToolConfig<GetItineraryParams, SapConcurProxyResponse> = {
   id: 'sap_concur_get_itinerary',
   name: 'SAP Concur Get Trip',
@@ -66,7 +71,8 @@ export const getItineraryTool: ToolConfig<GetItineraryParams, SapConcurProxyResp
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'User identifier type (login, xmlsyncid, uuid)',
+      description:
+        'User identifier type. The only value documented for Trips v1.1 is "login" (the value is the user login id); xmlsyncid and uuid are Travel Profile v2 identifier types and are not documented for this endpoint.',
     },
     useridValue: {
       type: 'string',
@@ -78,7 +84,8 @@ export const getItineraryTool: ToolConfig<GetItineraryParams, SapConcurProxyResp
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Optional system format (e.g., GDS) for the response',
+      description:
+        'Optional response format. The only supported value is "Tripit", which returns a completely different XML document rooted at <Response><Trip> instead of the standard itinerary document.',
     },
   },
   request: {
@@ -96,6 +103,7 @@ export const getItineraryTool: ToolConfig<GetItineraryParams, SapConcurProxyResp
         ...baseProxyBody(params),
         path: `/api/travel/trip/v1.1/${encodeURIComponent(tripId)}`,
         method: 'GET',
+        accept: 'application/xml',
         ...(Object.keys(query).length > 0 ? { query } : {}),
       }
     },
@@ -104,127 +112,9 @@ export const getItineraryTool: ToolConfig<GetItineraryParams, SapConcurProxyResp
   outputs: {
     status: { type: 'number', description: 'HTTP status code returned by Concur' },
     data: {
-      type: 'json',
-      description: 'Trip detail payload (Itinerary v1.1)',
-      properties: {
-        ItinLocator: {
-          type: 'string',
-          description: 'Concur trip locator (trip ID)',
-          optional: true,
-        },
-        ClientLocator: {
-          type: 'string',
-          description: 'Client (booking source) trip locator',
-          optional: true,
-        },
-        ItinSourceName: {
-          type: 'string',
-          description: 'Booking source name',
-          optional: true,
-        },
-        BookedVia: {
-          type: 'string',
-          description: 'How the trip was booked (e.g. ConcurTravel, Direct)',
-          optional: true,
-        },
-        TripName: {
-          type: 'string',
-          description: 'Trip name',
-          optional: true,
-        },
-        Status: {
-          type: 'string',
-          description: 'Trip status (e.g. Confirmed, Cancelled)',
-          optional: true,
-        },
-        Description: {
-          type: 'string',
-          description: 'Trip description',
-          optional: true,
-        },
-        Comments: {
-          type: 'string',
-          description: 'Comments attached to the trip',
-          optional: true,
-        },
-        CancelComments: {
-          type: 'string',
-          description: 'Cancellation comments (when applicable)',
-          optional: true,
-        },
-        ProjectName: {
-          type: 'string',
-          description: 'Associated project name',
-          optional: true,
-        },
-        StartDateUtc: {
-          type: 'string',
-          description: 'Trip start datetime in UTC',
-          optional: true,
-        },
-        EndDateUtc: {
-          type: 'string',
-          description: 'Trip end datetime in UTC',
-          optional: true,
-        },
-        StartDateLocal: {
-          type: 'string',
-          description: 'Trip start datetime in local time',
-          optional: true,
-        },
-        EndDateLocal: {
-          type: 'string',
-          description: 'Trip end datetime in local time',
-          optional: true,
-        },
-        DateCreatedUtc: {
-          type: 'string',
-          description: 'Trip creation timestamp (UTC)',
-          optional: true,
-        },
-        DateModifiedUtc: {
-          type: 'string',
-          description: 'Trip last-modified timestamp (UTC)',
-          optional: true,
-        },
-        DateBookedLocal: {
-          type: 'string',
-          description: 'Booking date in local time',
-          optional: true,
-        },
-        UserLoginId: {
-          type: 'string',
-          description: 'Login id of the trip owner',
-          optional: true,
-        },
-        BookedByFirstName: {
-          type: 'string',
-          description: 'First name of the booker',
-          optional: true,
-        },
-        BookedByLastName: {
-          type: 'string',
-          description: 'Last name of the booker',
-          optional: true,
-        },
-        IsPersonal: {
-          type: 'boolean',
-          description: 'Whether the trip is flagged personal',
-          optional: true,
-        },
-        RuleViolations: {
-          type: 'array',
-          description: 'Travel rule violations attached to the trip',
-          optional: true,
-          items: { type: 'json' },
-        },
-        Bookings: {
-          type: 'array',
-          description: 'Bookings (air/hotel/car/rail) attached to the trip',
-          optional: true,
-          items: { type: 'json' },
-        },
-      },
+      type: 'string',
+      description:
+        'Raw XML trip document returned by Concur (Trips v1.1 emits application/xml only, so this is a string and not a parsed object). The document is rooted at <Itinerary> and contains id, ItinLocator, ClientLocator, ItinSourceName, BookedVia, TripName, Status, Description, Comments, CancelComments, ProjectName, StartDateUtc, EndDateUtc, StartDateLocal, EndDateLocal, DateCreatedUtc, DateModifiedUtc, DateBookedLocal, BookedByFirstName, BookedByLastName, IsPersonal, RuleViolations, and Bookings > Booking. When systemFormat=Tripit is passed the document is rooted at <Response><Trip> instead.',
     },
   },
 }

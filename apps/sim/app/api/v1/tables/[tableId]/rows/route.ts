@@ -33,7 +33,7 @@ import { signalTableRowsChanged } from '@/lib/table/events'
 import { createExactEmptyTableRowSecretProvenance } from '@/lib/table/rows/secret-provenance'
 import { queryRows } from '@/lib/table/rows/service'
 import { resolveFilterSelectValues } from '@/lib/table/select-values'
-import { accessError, checkAccess, rowWriteErrorResponse } from '@/app/api/table/utils'
+import { accessError, checkAccess, orchestrationErrorResponse } from '@/app/api/table/utils'
 import {
   checkRateLimit,
   checkWorkspaceScope,
@@ -109,7 +109,7 @@ async function handleBatchInsert(
       },
     })
   } catch (error) {
-    const response = rowWriteErrorResponse(error)
+    const response = orchestrationErrorResponse(error)
     if (response) return response
 
     logger.error(`[${requestId}] Error batch inserting rows:`, error)
@@ -306,7 +306,7 @@ export const POST = withRouteHandler(
       const validationResponse = v1ValidationErrorResponseFromError(error)
       if (validationResponse) return validationResponse
 
-      const response = rowWriteErrorResponse(error)
+      const response = orchestrationErrorResponse(error)
       if (response) return response
 
       logger.error(`[${requestId}] Error inserting row:`, error)
@@ -402,7 +402,7 @@ export const PUT = withRouteHandler(async (request: NextRequest, context: TableR
       return NextResponse.json({ error: error.message }, { status: 400 })
     }
 
-    const response = rowWriteErrorResponse(error)
+    const response = orchestrationErrorResponse(error)
     if (response) return response
 
     logger.error(`[${requestId}] Error updating rows by filter:`, error)
@@ -497,7 +497,7 @@ export const DELETE = withRouteHandler(
         return NextResponse.json({ error: error.message }, { status: 400 })
       }
 
-      const response = rowWriteErrorResponse(error)
+      const response = orchestrationErrorResponse(error)
       if (response) return response
 
       logger.error(`[${requestId}] Error deleting rows:`, error)

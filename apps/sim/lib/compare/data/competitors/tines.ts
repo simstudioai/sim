@@ -635,14 +635,39 @@ export const tinesProfile: CompetitorProfile = {
       },
       customCodeSteps: {
         value:
-          'No general-purpose custom-code action. Logic is expressed via built-in "Formulas"/functions and HTTP Request actions rather than a Python/JS code node',
-        shortValue: 'No general-purpose code step; Formulas and HTTP actions',
-        confidence: 'estimated',
+          'Yes: the Run Script action executes builder-authored code inline in a workflow (the script must define a `main` function), running in AWS Lambda in the same region as the tenant. It is currently limited to the `python3.13` runtime, so there is no JavaScript or other-language option. Lighter-weight logic is also expressible via built-in "Formulas"/functions without a code action.',
+        shortValue: 'Yes: Run Script action, Python only',
+        confidence: 'verified',
         sources: [
+          {
+            url: 'https://www.tines.com/docs/actions/tools/run-script/',
+            label: 'Run script | Docs | Tines',
+            asOf: '2026-08-10',
+          },
           {
             url: 'https://www.tines.com/docs/formulas/functions/',
             label: 'Functions docs',
             asOf: '2026-07-02',
+          },
+        ],
+      },
+      codeSandboxRuntime: {
+        value:
+          'Yes: the Run Script action exposes a Requirements field where builders declare PyPI dependencies "in the format of a requirements.txt file with each requirement separated by a new line" (e.g. numpy==1.25), built at runtime as AWS Lambda layers with a 250MB unzipped package limit. Tines also supports custom runtimes, user-built runtime archives that bundle specific package versions, system libraries, custom Python builds, and extra files such as certificates or config files.',
+        detail:
+          'The runtime is limited to Python (python3.13 on the managed Lambda path); there is no Node/other-language option. Custom runtimes must be built on Amazon Linux 2023 to match Lambda, and are scoped either to Cloud (Lambda) or to Docker, meaning the Tines command runner reached over a tunnel for self-hosted execution. Timeout (10s default, 110s max) and networking mode (Standard, Dedicated, or No networking) are configurable per action.',
+        shortValue: 'Yes: requirements.txt deps plus custom runtimes',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://www.tines.com/docs/actions/tools/run-script/',
+            label: 'Run script | Docs | Tines',
+            asOf: '2026-08-10',
+          },
+          {
+            url: 'https://www.tines.com/docs/actions/tools/run-script/custom-runtimes/',
+            label: 'Custom runtimes | Docs | Tines',
+            asOf: '2026-08-10',
           },
         ],
       },
@@ -914,6 +939,26 @@ export const tinesProfile: CompetitorProfile = {
             url: 'https://saml-doc.okta.com/SAML_Docs/How-to-Configure-SAML-2.0-for-Tines.html',
             label: 'How to Configure SAML 2.0 for Tines - Okta',
             asOf: '2026-07-02',
+          },
+        ],
+      },
+      sessionPolicy: {
+        value:
+          'Yes: Tines states it "supports the ability for administrators to set a custom session timeout length to adhere to your organization\'s policies." Users are automatically logged out of the Tines UI after a period of inactivity, defaulting to 1 day.',
+        detail:
+          'The documented control is an inactivity timeout with an admin-set length; Tines does not publish a separate absolute session lifetime cap measured from sign-in, nor the permitted range of timeout values or any plan gating on the setting.',
+        shortValue: 'Yes: admin-set session timeout, 1 day default',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://www.tines.com/security/',
+            label: 'Security at Tines',
+            asOf: '2026-08-10',
+          },
+          {
+            url: 'https://www.tines.com/tines-security-best-practices/',
+            label: 'Tines security best practices',
+            asOf: '2026-08-10',
           },
         ],
       },

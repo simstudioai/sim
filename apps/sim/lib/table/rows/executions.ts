@@ -5,7 +5,7 @@
  * directly from `@/lib/table/rows/executions`.
  */
 
-import { tableRowExecutions } from '@sim/db/schema'
+import { tableRowExecutions, userTableRows } from '@sim/db/schema'
 import { and, eq, inArray, type SQL, sql } from 'drizzle-orm'
 import type { DbOrTx } from '@/lib/db/types'
 import { getColumnId } from '@/lib/table/column-keys'
@@ -353,13 +353,22 @@ export async function writeExecutionsPatch(
 export async function stripGroupExecutions(
   trx: DbOrTx,
   tableId: string,
-  groupIds: Iterable<string>
+  groupIds: Iterable<string>,
+  options?: { expectedWorkspaceId?: string }
 ): Promise<void> {
   const ids = Array.from(new Set(groupIds))
   if (ids.length === 0) return
-  await trx
-    .delete(tableRowExecutions)
-    .where(
-      and(eq(tableRowExecutions.tableId, tableId), inArray(tableRowExecutions.groupId, ids)) as SQL
-    )
+  await trx.delete(tableRowExecutions).where(
+    and(
+      eq(tableRowExecutions.tableId, tableId),
+      inArray(tableRowExecutions.groupId, ids),
+      options?.expectedWorkspaceId
+        ? sql`EXISTS (
+              SELECT 1 FROM ${userTableRows}
+              WHERE ${userTableRows.id} = ${tableRowExecutions.rowId}
+                AND ${userTableRows.workspaceId} = ${options.expectedWorkspaceId}
+            )`
+        : undefined
+    ) as SQL
+  )
 }

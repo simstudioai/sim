@@ -112,7 +112,24 @@ vi.mock('@/lib/execution/event-buffer', () => ({
   }),
 }))
 
-import { POST } from './route'
+import { cancelWorkflowExecutionContract } from '@/lib/api/contracts/workflows'
+import { POST as cancelExecution } from './route'
+
+/**
+ * Drives the route and validates every success body against the contract that
+ * `requestJson` enforces on the client. The route builds its responses by hand
+ * rather than through a declarative builder, so nothing else checks that the
+ * two agree — and a `reason` the contract omits makes the client throw on a
+ * cancellation that actually applied. Routing every case in this suite through
+ * here covers each `NextResponse.json` shape the route can return.
+ */
+const POST = async (...args: Parameters<typeof cancelExecution>) => {
+  const response = await cancelExecution(...args)
+  if (response.status < 400) {
+    cancelWorkflowExecutionContract.response.schema.parse(await response.clone().json())
+  }
+  return response
+}
 
 const makeRequest = () =>
   new NextRequest('http://localhost/api/workflows/wf-1/executions/ex-1/cancel', {
@@ -993,6 +1010,7 @@ describe('POST /api/workflows/[id]/executions/[executionId]/cancel', () => {
     expect(response.status).toBe(200)
     await expect(response.json()).resolves.toMatchObject({
       success: true,
+      durablyRecorded: false,
       reason: 'already_cancelled',
     })
     expect(mockCancelByExecution).not.toHaveBeenCalled()
@@ -1303,6 +1321,7 @@ describe('POST /api/workflows/[id]/executions/[executionId]/cancel', () => {
     expect(mockSet).toHaveBeenCalledWith({
       status: 'cancelled',
       endedAt: expect.any(Date),
+      totalDurationMs: expect.anything(),
       executionDeadlineAt: null,
     })
   })
@@ -1323,6 +1342,7 @@ describe('POST /api/workflows/[id]/executions/[executionId]/cancel', () => {
     expect(mockSet).toHaveBeenCalledWith({
       status: 'cancelled',
       endedAt: expect.any(Date),
+      totalDurationMs: expect.anything(),
       executionDeadlineAt: null,
     })
   })

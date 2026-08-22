@@ -26,6 +26,9 @@ vi.mock('@/lib/table/trigger', () => ({
   fireTableTrigger: vi.fn(),
 }))
 
+vi.mock('@/lib/table/workflow-group-deps', () => ({
+  stripGroupDeps: vi.fn(),
+}))
 vi.mock('@/lib/table/workflow-columns', () => ({
   assertValidSchema: vi.fn(),
   scheduleRunsForRows: vi.fn(),
@@ -45,7 +48,12 @@ vi.mock('@/lib/table/validation', () => ({
   checkBatchUniqueConstraintsDb: vi.fn(async () => ({ valid: true, errors: [] })),
 }))
 
-import { deleteRowsByFilter, queryRows, updateRowsByFilter } from '@/lib/table/rows/service'
+import {
+  deleteRowsByFilter,
+  queryRows,
+  requireTableRowIds,
+  updateRowsByFilter,
+} from '@/lib/table/rows/service'
 
 const COLUMNS: ColumnDefinition[] = [
   { name: 'name', type: 'string' },
@@ -99,7 +107,6 @@ describe('service filter threading', () => {
   })
 
   it('updateRowsByFilter forwards table.schema.columns to buildFilterClause', async () => {
-    dbChainMockFns.where.mockResolvedValueOnce([])
     await updateRowsByFilter(
       TABLE,
       { filter: { birthDate: { $lt: '2024-06-01' } }, data: { name: 'x' } },
@@ -114,8 +121,20 @@ describe('service filter threading', () => {
     )
   })
 
+  it('treats an empty bulk patch as a no-op before selecting rows', async () => {
+    const result = await updateRowsByFilter(
+      TABLE,
+      { filter: { score: { $gt: 0 } }, data: {} },
+      'req-1'
+    )
+
+    expect(result).toEqual({ affectedCount: 0, affectedRowIds: [] })
+    expect(buildFilterClause).not.toHaveBeenCalled()
+    expect(dbChainMockFns.select).not.toHaveBeenCalled()
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
+  })
+
   it('deleteRowsByFilter forwards table.schema.columns to buildFilterClause', async () => {
-    dbChainMockFns.where.mockResolvedValueOnce([])
     await deleteRowsByFilter(TABLE, { filter: { score: { $gt: 90 } } }, 'req-1')
 
     expect(buildFilterClause).toHaveBeenCalledTimes(1)
@@ -124,6 +143,28 @@ describe('service filter threading', () => {
       expect.any(String),
       COLUMNS
     )
+  })
+
+  it('verifies explicit row selections in bounded canonical-scope chunks', async () => {
+    const rowIds = Array.from(
+      { length: TABLE_LIMITS.DELETE_BATCH_SIZE + 1 },
+      (_, index) => `row-${index}`
+    )
+    dbChainMockFns.where
+      .mockResolvedValueOnce([{ count: TABLE_LIMITS.DELETE_BATCH_SIZE }])
+      .mockResolvedValueOnce([{ count: 1 }])
+
+    await expect(requireTableRowIds(TABLE.id, TABLE.workspaceId, rowIds)).resolves.toBeUndefined()
+    expect(dbChainMockFns.select).toHaveBeenCalledTimes(2)
+    expect(dbChainMockFns.where).toHaveBeenCalledTimes(2)
+  })
+
+  it('conceals a missing explicit row selection', async () => {
+    dbChainMockFns.where.mockResolvedValueOnce([{ count: 0 }])
+
+    await expect(
+      requireTableRowIds(TABLE.id, TABLE.workspaceId, ['missing-row'])
+    ).rejects.toMatchObject({ code: 'not_found' })
   })
 })
 
@@ -143,10 +184,10 @@ describe('bulk update/delete limited-subset ordering', () => {
     expect(dbChainMockFns.limit).toHaveBeenCalledWith(5)
   })
 
-  it('does not order an unbounded updateRowsByFilter', async () => {
-    dbChainMockFns.where.mockResolvedValueOnce([])
+  it('walks every update match in bounded pages when no operation limit is supplied', async () => {
     await updateRowsByFilter(TABLE, { filter: { score: { $gt: 0 } }, data: { name: 'x' } }, 'req-1')
-    expect(dbChainMockFns.orderBy).not.toHaveBeenCalled()
+    expect(dbChainMockFns.orderBy).toHaveBeenCalled()
+    expect(dbChainMockFns.limit).toHaveBeenCalledWith(TABLE_LIMITS.UPDATE_BATCH_SIZE)
   })
 
   it('orders the match query when deleteRowsByFilter has a limit', async () => {
@@ -154,15 +195,19 @@ describe('bulk update/delete limited-subset ordering', () => {
     expect(dbChainMockFns.orderBy).toHaveBeenCalled()
     expect(dbChainMockFns.limit).toHaveBeenCalledWith(3)
   })
+
+  it('walks every delete match in bounded pages when no operation limit is supplied', async () => {
+    await deleteRowsByFilter(TABLE, { filter: { score: { $gt: 0 } } }, 'req-1')
+    expect(dbChainMockFns.orderBy).toHaveBeenCalled()
+    expect(dbChainMockFns.limit).toHaveBeenCalledWith(TABLE_LIMITS.DELETE_PAGE_SIZE)
+  })
 })
 
 describe('queryRows byte budget', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
-    // The bounded-page byte cut is opt-in; pin it on rather than inheriting
-    // whatever the developer's local `.env` happens to set.
-    setEnv({ TABLE_MAX_PAGE_BYTES: TABLE_LIMITS.MAX_QUERY_RESULT_BYTES })
+    setEnv({ TABLE_MAX_PAGE_BYTES: undefined })
   })
 
   const row = (i: number, blobBytes: number) => ({
@@ -173,6 +218,21 @@ describe('queryRows byte budget', () => {
     createdAt: new Date('2024-01-01'),
     updatedAt: new Date('2024-01-01'),
   })
+
+  const mockRowsPastFormerBatchSafetyLimit = () => {
+    const largeRow = row(1, TABLE_LIMITS.MAX_ROW_SIZE_BYTES)
+    const smallRow = row(2, 0)
+    const state = { drainBatch: 0 }
+    dbChainMockFns.limit.mockResolvedValueOnce([])
+    dbChainMockFns.limit.mockImplementation(async (ask: number) => {
+      state.drainBatch++
+      if (state.drainBatch > 1001) return []
+      const rows = Array.from({ length: ask }, () => smallRow)
+      if (state.drainBatch === 1) rows[0] = largeRow
+      return rows
+    })
+    return state
+  }
 
   it('returns an empty page with a null cursor', async () => {
     const result = await queryRows(TABLE, { includeTotal: false, withExecutions: false }, 'req-1')
@@ -201,6 +261,16 @@ describe('queryRows byte budget', () => {
     expect(result.nextCursor).toBeNull()
   })
 
+  it('returns an entire under-budget result past the former batch safety limit', async () => {
+    const state = mockRowsPastFormerBatchSafetyLimit()
+
+    const result = await queryRows(TABLE, { includeTotal: false, withExecutions: false }, 'req-1')
+
+    expect(state.drainBatch).toBe(1002)
+    expect(result.rows.length).toBeGreaterThan(TABLE_LIMITS.MAX_QUERY_LIMIT)
+    expect(result.nextCursor).toBeNull()
+  })
+
   it('byte-cuts a BOUNDED page and returns a resume cursor instead of throwing', async () => {
     const perRow = Math.floor(TABLE_LIMITS.MAX_QUERY_RESULT_BYTES * 0.6)
     dbChainMockFns.limit.mockResolvedValueOnce([])
@@ -221,12 +291,9 @@ describe('queryRows byte budget', () => {
     })
   })
 
-  it('does NOT byte-cut a bounded page when TABLE_MAX_PAGE_BYTES is unset', async () => {
-    // Default-off: a short page is only safe for a client that terminates on
-    // `nextCursor === null`. A pre-existing v1 pager stopping at
-    // `rows.length < limit` would read the cut as end-of-data and truncate.
-    setEnv({ TABLE_MAX_PAGE_BYTES: undefined })
-    const perRow = Math.floor(TABLE_LIMITS.MAX_QUERY_RESULT_BYTES * 0.6)
+  it('honors a smaller bounded-page byte override', async () => {
+    setEnv({ TABLE_MAX_PAGE_BYTES: 3 * 1024 * 1024 })
+    const perRow = 2 * 1024 * 1024
     dbChainMockFns.limit.mockResolvedValueOnce([])
     dbChainMockFns.limit.mockResolvedValueOnce([row(1, perRow), row(2, perRow)])
 
@@ -236,8 +303,8 @@ describe('queryRows byte budget', () => {
       'req-1'
     )
 
-    expect(result.rows).toHaveLength(2)
-    expect(result.nextCursor).toBeNull()
+    expect(result.rows).toHaveLength(1)
+    expect(result.nextCursor).not.toBeNull()
   })
 
   it('still fails fast on an UNBOUNDED query with TABLE_MAX_PAGE_BYTES unset', async () => {

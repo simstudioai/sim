@@ -37,7 +37,11 @@ declare module '@/lib/table/constants?constants-test' {
   export * from '@/lib/table/constants'
 }
 
-import { getBillingDisabledTableLimits } from '@/lib/table/constants?constants-test'
+import {
+  getBillingDisabledTableLimits,
+  getMaxPageBytes,
+  TABLE_LIMITS,
+} from '@/lib/table/constants?constants-test'
 
 describe('getBillingDisabledTableLimits', () => {
   beforeEach(() => {
@@ -64,5 +68,21 @@ describe('getBillingDisabledTableLimits', () => {
       maxTables: 7,
       maxRowsPerTable: 2500,
     })
+  })
+})
+
+describe('getMaxPageBytes', () => {
+  beforeEach(() => {
+    for (const key of Object.keys(mockEnv)) delete mockEnv[key]
+  })
+
+  it('defaults bounded pages to the 5MB query-result budget', () => {
+    expect(getMaxPageBytes()).toBe(TABLE_LIMITS.MAX_QUERY_RESULT_BYTES)
+  })
+
+  it('allows a positive integer environment override', () => {
+    mockEnv.TABLE_MAX_PAGE_BYTES = String(2 * 1024 * 1024)
+
+    expect(getMaxPageBytes()).toBe(2 * 1024 * 1024)
   })
 })

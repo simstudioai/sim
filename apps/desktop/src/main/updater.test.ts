@@ -8,6 +8,7 @@ const autoUpdaterMock = {
   allowDowngrade: false,
   autoDownload: true,
   autoInstallOnAppQuit: false,
+  autoRunAppAfterInstall: true,
   logger: null as unknown,
   on: vi.fn(),
   setFeedURL: vi.fn(),
@@ -25,6 +26,8 @@ import {
   isNewerVersion,
   parseSemver,
   resolveUpdateChannel,
+  type UpdaterHandle,
+  updateCheckIntervalMs,
 } from '@/main/updater'
 
 describe('resolveUpdateChannel', () => {
@@ -34,8 +37,24 @@ describe('resolveUpdateChannel', () => {
   })
 
   it('maps prerelease versions to their channel', () => {
-    expect(resolveUpdateChannel('1.2.3-beta.1')).toBe('beta')
-    expect(resolveUpdateChannel('1.2.3-alpha.2')).toBe('alpha')
+    expect(resolveUpdateChannel('1.2.3-dev.2')).toBe('dev')
+    expect(resolveUpdateChannel('1.2.3-staging.1')).toBe('staging')
+  })
+
+  it('keeps legacy alpha and beta builds on their environment streams', () => {
+    expect(resolveUpdateChannel('1.2.3-alpha.2')).toBe('dev')
+    expect(resolveUpdateChannel('1.2.3-beta.1')).toBe('staging')
+  })
+})
+
+describe('updateCheckIntervalMs', () => {
+  it('checks dev and staging builds every five minutes', () => {
+    expect(updateCheckIntervalMs('1.2.3-dev.2')).toBe(5 * 60 * 1000)
+    expect(updateCheckIntervalMs('1.2.3-staging.1')).toBe(5 * 60 * 1000)
+  })
+
+  it('checks production builds every thirty minutes', () => {
+    expect(updateCheckIntervalMs('1.2.3')).toBe(30 * 60 * 1000)
   })
 })
 
@@ -49,6 +68,7 @@ describe('parseSemver', () => {
   it('returns null for garbage', () => {
     expect(parseSemver('latest')).toBeNull()
     expect(parseSemver('1.2')).toBeNull()
+    expect(parseSemver('1.2.3garbage')).toBeNull()
     expect(parseSemver('')).toBeNull()
   })
 })
@@ -125,7 +145,11 @@ describe('initUpdater state machine', () => {
     }
   }
 
-  async function createUpdater(options?: { autoDownload?: boolean; feedAvailable?: boolean }) {
+  async function createUpdater(options?: {
+    autoDownload?: boolean
+    feedAvailable?: boolean | 'no-release'
+    probeOriginFeed?: (feedUrl: string) => Promise<boolean | 'no-release'>
+  }) {
     const states: DesktopUpdateState[] = []
     const handle = initUpdater({
       getWindow: () => null,
@@ -135,7 +159,7 @@ describe('initUpdater state machine', () => {
       onStateChange: (state) => states.push(state),
       loadAutoUpdater: () =>
         autoUpdaterMock as unknown as typeof import('electron-updater')['autoUpdater'],
-      probeOriginFeed: async () => options?.feedAvailable ?? false,
+      probeOriginFeed: options?.probeOriginFeed ?? (async () => options?.feedAvailable ?? false),
       canSelfUpdate: async () => true,
     })
     // Engine selection (signature detection) resolves asynchronously.
@@ -150,7 +174,7 @@ describe('initUpdater state machine', () => {
     autoUpdaterMock.checkForUpdates.mockClear()
     autoUpdaterMock.downloadUpdate.mockClear()
     autoUpdaterMock.quitAndInstall.mockClear()
-    // Keep the update-downloaded dialog from resolving into quitAndInstall.
+    autoUpdaterMock.autoRunAppAfterInstall = false
     vi.mocked(dialog.showMessageBox).mockResolvedValue({ response: 1, checkboxChecked: false })
   })
 
@@ -176,12 +200,14 @@ describe('initUpdater state machine', () => {
       { status: 'downloading', version: '2.0.0', percent: 42 },
       { status: 'ready', version: '2.0.0' },
     ])
+    expect(dialog.showMessageBox).not.toHaveBeenCalled()
+    expect(autoUpdaterMock.quitAndInstall).not.toHaveBeenCalled()
 
     handle.install()
     expect(autoUpdaterMock.quitAndInstall).toHaveBeenCalledTimes(1)
   })
 
-  it('stops at available and downloads on demand when auto-download is off', async () => {
+  it('downloads, installs, and relaunches from one Update action', async () => {
     autoUpdaterMock.autoDownload = false
     const { handle } = await createUpdater({ autoDownload: false })
 
@@ -191,6 +217,11 @@ describe('initUpdater state machine', () => {
     handle.check()
     expect(autoUpdaterMock.downloadUpdate).toHaveBeenCalledTimes(1)
     expect(autoUpdaterMock.checkForUpdates).not.toHaveBeenCalled()
+
+    emit('update-downloaded', { version: '2.0.0' })
+    expect(dialog.showMessageBox).not.toHaveBeenCalled()
+    expect(autoUpdaterMock.autoRunAppAfterInstall).toBe(true)
+    expect(autoUpdaterMock.quitAndInstall).toHaveBeenCalledTimes(1)
   })
 
   it('checks from idle and ignores re-entrant checks while busy', async () => {
@@ -204,12 +235,48 @@ describe('initUpdater state machine', () => {
     expect(autoUpdaterMock.checkForUpdates).toHaveBeenCalledTimes(1)
   })
 
+  it('does not lose an interactive check while updater capability is initializing', async () => {
+    let resolveCapability: ((capable: boolean) => void) | undefined
+    const capability = new Promise<boolean>((resolve) => {
+      resolveCapability = resolve
+    })
+    const states: DesktopUpdateState[] = []
+    const handle = initUpdater({
+      getWindow: () => null,
+      events,
+      appOrigin: () => 'https://www.dev.sim.ai',
+      onStateChange: (state) => states.push(state),
+      loadAutoUpdater: () =>
+        autoUpdaterMock as unknown as typeof import('electron-updater')['autoUpdater'],
+      probeOriginFeed: async () => true,
+      canSelfUpdate: () => capability,
+    })
+
+    handle.check()
+    expect(states).toEqual([{ status: 'checking' }])
+
+    resolveCapability?.(true)
+    await vi.advanceTimersByTimeAsync(0)
+    expect(autoUpdaterMock.checkForUpdates).toHaveBeenCalledTimes(1)
+  })
+
   it('resets to idle when a downloaded update is a blocked downgrade', async () => {
     const { handle } = await createUpdater()
     emit('update-downloaded', { version: '0.0.1' })
     expect(handle.getState()).toEqual({ status: 'idle' })
     handle.install()
     expect(autoUpdaterMock.quitAndInstall).not.toHaveBeenCalled()
+  })
+
+  it('never exposes an equal, older, malformed, or cross-stream candidate as an update', async () => {
+    const { handle } = await createUpdater()
+
+    for (const version of ['1.0.0', '0.9.9', 'nightly', '2.0.0-dev.1']) {
+      emit('update-available', { version })
+      expect(handle.getState()).toEqual({ status: 'idle' })
+    }
+
+    expect(autoUpdaterMock.downloadUpdate).not.toHaveBeenCalled()
   })
 
   it('surfaces updater errors and recovers via update-not-available', async () => {
@@ -221,7 +288,8 @@ describe('initUpdater state machine', () => {
   })
 
   it('switches to the per-env origin feed when the origin serves one', async () => {
-    await createUpdater({ feedAvailable: true })
+    const { handle } = await createUpdater({ feedAvailable: true })
+    handle.check()
     await vi.advanceTimersByTimeAsync(0)
     expect(autoUpdaterMock.setFeedURL).toHaveBeenCalledWith({
       provider: 'generic',
@@ -232,27 +300,70 @@ describe('initUpdater state machine', () => {
   })
 
   it('keeps the packaged GitHub feed when the origin has no feed', async () => {
-    await createUpdater({ feedAvailable: false })
+    const { handle } = await createUpdater({ feedAvailable: false })
+    handle.check()
     await vi.advanceTimersByTimeAsync(0)
     expect(autoUpdaterMock.setFeedURL).not.toHaveBeenCalled()
   })
 
-  it('skips checks on prerelease builds when the origin feed is down', async () => {
+  it('completes an interactive check immediately when the environment has no release', async () => {
+    const { handle, states } = await createUpdater({ feedAvailable: 'no-release' })
+
+    handle.check()
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(states).toEqual([{ status: 'checking' }, { status: 'idle' }])
+    expect(autoUpdaterMock.checkForUpdates).not.toHaveBeenCalled()
+  })
+
+  it('re-probes a no-release environment so a newly published update appears without restart', async () => {
+    const probeOriginFeed = vi
+      .fn<(feedUrl: string) => Promise<boolean | 'no-release'>>()
+      .mockResolvedValueOnce('no-release')
+      .mockResolvedValueOnce(true)
+    const { handle } = await createUpdater({ probeOriginFeed })
+
+    handle.check()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(handle.getState()).toEqual({ status: 'idle' })
+    expect(autoUpdaterMock.checkForUpdates).not.toHaveBeenCalled()
+
+    handle.check()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(probeOriginFeed).toHaveBeenCalledTimes(2)
+    expect(autoUpdaterMock.setFeedURL).toHaveBeenCalledTimes(1)
+    expect(autoUpdaterMock.checkForUpdates).toHaveBeenCalledTimes(1)
+  })
+
+  it('recovers an interactive check when the feed probe times out', async () => {
+    const probeOriginFeed = vi.fn(() => new Promise<boolean>(() => {}))
+    const { handle } = await createUpdater({ probeOriginFeed })
+
+    handle.check()
+    expect(handle.getState()).toEqual({ status: 'checking' })
+    await vi.advanceTimersByTimeAsync(10_000)
+
+    expect(handle.getState()).toEqual({ status: 'error' })
+    expect(autoUpdaterMock.checkForUpdates).not.toHaveBeenCalled()
+  })
+
+  it('fails interactive checks promptly on prerelease builds when the origin feed is down', async () => {
     // The GitHub fallback is stable-only: a Sim Dev shell can never apply a
     // prod-identity artifact, so it must not check against it.
-    vi.mocked(app.getVersion).mockReturnValue('1.0.1-alpha.7')
+    vi.mocked(app.getVersion).mockReturnValue('1.0.1-dev.7')
     try {
       const { handle } = await createUpdater({ feedAvailable: false })
       handle.check()
       await vi.advanceTimersByTimeAsync(0)
       expect(autoUpdaterMock.checkForUpdates).not.toHaveBeenCalled()
+      expect(handle.getState()).toEqual({ status: 'error' })
     } finally {
       vi.mocked(app.getVersion).mockReturnValue('1.0.0')
     }
   })
 
   it('checks prerelease builds normally through the origin feed', async () => {
-    vi.mocked(app.getVersion).mockReturnValue('1.0.1-alpha.7')
+    vi.mocked(app.getVersion).mockReturnValue('1.0.1-dev.7')
     try {
       const { handle } = await createUpdater({ feedAvailable: true })
       handle.check()
@@ -262,17 +373,33 @@ describe('initUpdater state machine', () => {
       vi.mocked(app.getVersion).mockReturnValue('1.0.0')
     }
   })
+
+  it.each([
+    ['1.0.1-dev.7', 5 * 60 * 1000],
+    ['1.0.1-staging.7', 5 * 60 * 1000],
+    ['1.0.1', 30 * 60 * 1000],
+  ])('schedules %s update polling every %i milliseconds', async (version, interval) => {
+    vi.mocked(app.getVersion).mockReturnValue(version)
+    const intervalSpy = vi.spyOn(globalThis, 'setInterval')
+    try {
+      await createUpdater({ feedAvailable: true })
+      expect(intervalSpy).toHaveBeenCalledWith(expect.any(Function), interval)
+    } finally {
+      intervalSpy.mockRestore()
+      vi.mocked(app.getVersion).mockReturnValue('1.0.0')
+    }
+  })
 })
 
-function manifest(version: string): string {
+function manifest(version: string, repository = 'simstudioai/sim'): string {
   return [
     `version: ${version}`,
     'files:',
-    `  - url: https://github.com/simstudioai/sim/releases/download/v${version}/Sim-${version}-universal-mac.zip`,
+    `  - url: https://github.com/${repository}/releases/download/v${version}/Sim-${version}-universal-mac.zip`,
     '    sha512: abc',
-    `  - url: https://github.com/simstudioai/sim/releases/download/v${version}/Sim-${version}-universal.dmg`,
+    `  - url: https://github.com/${repository}/releases/download/v${version}/Sim-${version}-universal.dmg`,
     '    sha512: def',
-    `path: https://github.com/simstudioai/sim/releases/download/v${version}/Sim-${version}-universal-mac.zip`,
+    `path: https://github.com/${repository}/releases/download/v${version}/Sim-${version}-universal-mac.zip`,
     "releaseDate: '2026-07-23T00:00:00.000Z'",
   ].join('\n')
 }
@@ -326,6 +453,26 @@ describe('initUpdater manual mode (no Developer ID signature)', () => {
     expect(shell.openExternal).toHaveBeenCalledTimes(2)
   })
 
+  it('offers prerelease-repository assets as manual downloads', async () => {
+    const fetchManifest = vi.fn(async () =>
+      manifest('9.9.9-dev.1', 'simstudioai/sim-desktop-releases')
+    )
+    const { handle } = await createManualUpdater(fetchManifest)
+
+    handle.check()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(handle.getState()).toEqual({
+      status: 'available',
+      version: '9.9.9-dev.1',
+      manual: true,
+    })
+
+    handle.check()
+    expect(shell.openExternal).toHaveBeenCalledWith(
+      'https://github.com/simstudioai/sim-desktop-releases/releases/download/v9.9.9-dev.1/Sim-9.9.9-dev.1-universal.dmg'
+    )
+  })
+
   it('refuses a manifest whose download urls are not http(s)', async () => {
     const hostile = [
       'version: 9.9.9',
@@ -362,6 +509,19 @@ describe('initUpdater manual mode (no Developer ID signature)', () => {
       "releaseDate: '2026-07-23T00:00:00.000Z'",
     ].join('\n')
     const { handle } = await createManualUpdater(async () => offHost)
+
+    handle.check()
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(handle.getState()).toMatchObject({ status: 'error', manual: true })
+    handle.check()
+    handle.install()
+    expect(shell.openExternal).not.toHaveBeenCalled()
+  })
+
+  it('refuses assets from other repositories on github.com', async () => {
+    const offRepository = manifest('9.9.9', 'simstudioai/not-desktop-releases')
+    const { handle } = await createManualUpdater(async () => offRepository)
 
     handle.check()
     await vi.advanceTimersByTimeAsync(0)
@@ -477,9 +637,32 @@ describe('checkForUpdatesInteractive', () => {
     await vi.advanceTimersByTimeAsync(0)
 
     expect(dialog.showMessageBox).toHaveBeenCalledWith(
-      expect.objectContaining({ message: 'Sim is up to date' })
+      expect.objectContaining({
+        type: 'info',
+        buttons: ['OK'],
+        defaultId: 0,
+        message: 'You’re up to date!',
+        detail: `Sim ${app.getVersion()} is currently the newest version available.`,
+      })
     )
     expect(shell.openExternal).not.toHaveBeenCalled()
+  })
+
+  it('fails a hung interactive check after twelve seconds instead of waiting thirty', async () => {
+    const handle: UpdaterHandle = {
+      setAutoDownload: () => {},
+      getState: () => ({ status: 'checking' }),
+      check: vi.fn(),
+      install: vi.fn(),
+      onState: () => () => {},
+    }
+
+    checkForUpdatesInteractive({ getWindow: () => null, events, handle })
+    await vi.advanceTimersByTimeAsync(12_000)
+
+    expect(dialog.showMessageBox).toHaveBeenCalledWith(
+      expect.objectContaining({ message: 'Could not check for updates' })
+    )
   })
 
   it('only explains packaged-build updates when unpackaged', async () => {

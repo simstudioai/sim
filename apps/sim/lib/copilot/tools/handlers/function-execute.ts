@@ -1,6 +1,8 @@
+import type { Principal } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { omit } from '@sim/utils/object'
 import { hasWorkspaceSandboxAccess } from '@/lib/billing/core/subscription'
+import { resolveCopilotFilePrincipal } from '@/lib/copilot/auth/file-delegation'
 import { applySecretMountPolicy } from '@/lib/copilot/secret-mount-policy'
 import type { ToolExecutionContext, ToolExecutionResult } from '@/lib/copilot/tool-executor/types'
 import {
@@ -10,6 +12,7 @@ import {
 } from '@/lib/copilot/tools/secret-mount-materializer.server'
 import { decodeVfsPathSegments, encodeVfsPathSegments } from '@/lib/copilot/vfs/path-utils'
 import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
+import { neutralizeCsvFormula, toCsvRow } from '@/lib/core/utils/csv'
 import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import type { PrivateSecretProvenanceBundleV1 } from '@/lib/execution/model-input-provenance'
 import {
@@ -17,9 +20,10 @@ import {
   PRIVATE_SECRET_PROVENANCE_FIELD,
 } from '@/lib/execution/private-tool-metadata'
 import { MAX_PLAN_REQUIRED } from '@/lib/execution/remote-sandbox/workspace-sandboxes'
+import { recordSecretUsage } from '@/lib/secrets/usage/record'
 import { getColumnId } from '@/lib/table/column-keys'
 import { TABLE_LIMITS } from '@/lib/table/constants'
-import { formatCsvCell, neutralizeCsvFormula, toCsvRow } from '@/lib/table/export-format'
+import { formatCsvCell } from '@/lib/table/export-format'
 import {
   isTableSnapshotSafeForModelMount,
   loadTableRowSecretProvenance,
@@ -27,13 +31,9 @@ import {
 import { queryRows } from '@/lib/table/rows/service'
 import { getTableById, listTables } from '@/lib/table/service'
 import { getOrCreateTableSnapshot, SNAPSHOT_MAX_BYTES } from '@/lib/table/snapshot-cache'
-import { listWorkspaceFileFolders } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
 import {
-  fetchServableWorkspaceFileBuffer,
-  fetchWorkspaceFileBuffer,
   findWorkspaceFileRecord,
   getSandboxWorkspaceFilePath,
-  listWorkspaceFiles,
   type WorkspaceFileRecord,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { importWorkspaceFileSecretProvenanceForRuntime } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
@@ -43,6 +43,15 @@ import {
   hasCloudStorage,
 } from '@/lib/uploads/core/storage-service'
 import { isGeneratedDocumentSourceType } from '@/lib/uploads/utils/file-utils'
+import { fetchAuthorizedServableWorkspaceFileBuffer } from '@/lib/workspace-files/application/fetch-servable-workspace-file-buffer'
+import { listAllWorkspaceFiles } from '@/lib/workspace-files/application/list-workspace-files'
+import { readWorkspaceFileContent } from '@/lib/workspace-files/application/read-workspace-file-content'
+import { downloadWorkspaceFileRecord } from '@/lib/workspace-files/application/read-workspace-file-record'
+import { listWorkspaceFileFoldersOperation } from '@/lib/workspace-files/application/workspace-file-folders'
+import {
+  buildWorkspaceFileFolderDisplayPath,
+  parseWorkspaceFileFolderDisplayPath,
+} from '@/lib/workspace-files/folder-display-path'
 import { extractCodeSecretNames } from '@/executor/utils/code-secret-references'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import { executeTool as executeAppTool } from '@/tools'
@@ -137,8 +146,15 @@ async function pushWorkspaceFileMount(
   mountPath: string,
   mounted: MountedBytes,
   workspaceId: string,
+  principal: Principal,
   registry?: ResolvedSecretTraceRegistry
 ): Promise<void> {
+  record = (
+    await downloadWorkspaceFileRecord.execute({
+      principal,
+      input: { fileId: record.id, assertedWorkspaceId: workspaceId },
+    })
+  ).file
   await importMountedWorkspaceFileProvenance({ workspaceId, record, mountPath, registry })
 
   // A generated document stores its generator source, so a presigned URL for
@@ -188,7 +204,7 @@ async function pushWorkspaceFileMount(
   }
 
   const { buffer, contentType } = rendersFromSource
-    ? await fetchServableWorkspaceFileBuffer(record, {
+    ? await fetchAuthorizedServableWorkspaceFileBuffer(record, principal, {
         maxBytes: Math.min(MAX_FILE_SIZE, remainingBudget),
       }).catch((error) => {
         if (!isPayloadSizeLimitError(error)) throw error
@@ -196,7 +212,19 @@ async function pushWorkspaceFileMount(
           `Input file "${mountPath}" renders to more than the ${MAX_FILE_SIZE / 1024 / 1024}MB per-file mount limit, or than the mount budget left. Mount fewer or smaller files.`
         )
       })
-    : { buffer: await fetchWorkspaceFileBuffer(record), contentType: record.type }
+    : {
+        buffer: (
+          await readWorkspaceFileContent.execute({
+            principal,
+            input: {
+              fileId: record.id,
+              assertedWorkspaceId: workspaceId,
+              maxBytes: Math.min(MAX_FILE_SIZE, remainingBudget),
+            },
+          })
+        ).content,
+        contentType: record.type,
+      }
   // Keyed off the resolved type: a rendered document's source MIME is `text/x-…`, and
   // decoding the binary as UTF-8 would corrupt it just as surely as shipping the source.
   const isText = /^text\/|application\/json|application\/xml|application\/csv/.test(
@@ -228,10 +256,10 @@ function unmountableNamespaceReason(filePath: string): string | null {
   const path = `${filePath.replace(/^\/+|\/+$/g, '')}/`
 
   if (path.startsWith('uploads/')) {
-    return 'uploads/ files are not mountable into the sandbox. Use materialize_file to save it to a files/... path first, then mount that canonical path.'
+    return 'uploads/ files are not mountable into the sandbox. Use save_upload to save it to a files/... path first, then mount that canonical path.'
   }
   if (path.startsWith('internal/tool-results/')) {
-    return 'tool-result artifacts are stored by the copilot backend, not in workspace storage, so read and grep reach them but the sandbox cannot. This path is correct — searching for a different one will not find anything. Either read or grep the artifact and inline the values you need in code, or re-run the tool that produced it with an output path under files/ (function_execute: outputs.files[].path, user_table: outputPath) and mount that files/... path.'
+    return 'tool-result artifacts are stored by the copilot backend, not in workspace storage, so read and grep reach them but the sandbox cannot. This path is correct — searching for a different one will not find anything. Either read or grep the artifact and inline the values you need in code, or re-run the tool that produced it with an output path under files/ (run_function: outputs.files[].path, user_table: outputPath) and mount that files/... path.'
   }
   if (path.startsWith('internal/')) {
     return 'internal/ paths are served by the copilot backend, not from workspace storage, so read and grep reach them but the sandbox cannot. This path is correct — read or grep it and inline the values you need in code instead of mounting it.'
@@ -291,18 +319,25 @@ export async function resolveInputFiles(
   inputTables?: unknown[],
   inputDirectories?: unknown[],
   provenanceUserId?: string,
-  resolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry
+  resolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry,
+  filePrincipal?: Principal
 ): Promise<SandboxFile[]> {
   const sandboxFiles: SandboxFile[] = []
   const mounted: MountedBytes = { buffered: 0, url: 0 }
 
   if (inputFiles?.length && workspaceId) {
+    if (!filePrincipal) {
+      throw new Error('Workspace file mounts require a trusted Copilot principal')
+    }
     if (inputFiles.length > MAX_MOUNTED_FILES) {
       throw new Error(
         `Too many input files (${inputFiles.length}). Maximum is ${MAX_MOUNTED_FILES}. Mount fewer files.`
       )
     }
-    const allFiles = await listWorkspaceFiles(workspaceId)
+    const { files: allFiles } = await listAllWorkspaceFiles.execute({
+      principal: filePrincipal,
+      input: { workspaceId, scope: 'active' },
+    })
     for (const fileRef of inputFiles) {
       const filePath =
         typeof fileRef === 'string'
@@ -332,14 +367,24 @@ export async function resolveInputFiles(
         mountPath,
         mounted,
         workspaceId,
+        filePrincipal,
         resolvedSecretTraceRegistry
       )
     }
   }
 
   if (inputDirectories?.length && workspaceId) {
-    const folders = await listWorkspaceFileFolders(workspaceId)
-    const allFiles = await listWorkspaceFiles(workspaceId, { folders })
+    if (!filePrincipal) {
+      throw new Error('Workspace directory mounts require a trusted Copilot principal')
+    }
+    const { folders } = await listWorkspaceFileFoldersOperation.execute({
+      principal: filePrincipal,
+      input: { workspaceId },
+    })
+    const { files: allFiles } = await listAllWorkspaceFiles.execute({
+      principal: filePrincipal,
+      input: { workspaceId, scope: 'active' },
+    })
     for (const dirRef of inputDirectories) {
       const dirPath =
         typeof dirRef === 'string'
@@ -349,7 +394,7 @@ export async function resolveInputFiles(
             : undefined
       if (!dirPath) continue
       const folderSegments = decodeVfsPathSegments(dirPath.replace(/^\/?files\/?/, ''))
-      const folderDisplayPath = folderSegments.join('/')
+      const folderDisplayPath = buildWorkspaceFileFolderDisplayPath(folderSegments)
       const folder = folders.find((candidate) => candidate.path === folderDisplayPath)
       if (!folder) {
         const unmountable = unmountableNamespaceReason(dirPath)
@@ -364,7 +409,7 @@ export async function resolveInputFiles(
         dirRef !== null &&
         (dirRef as CanonicalDirectoryInput).sandboxPath
           ? (dirRef as CanonicalDirectoryInput).sandboxPath!
-          : `/home/user/files/${encodeVfsPathSegments(folder.path.split('/'))}`
+          : `/home/user/files/${encodeVfsPathSegments(parseWorkspaceFileFolderDisplayPath(folder.path))}`
       const descendants = allFiles.filter((file) => {
         if (!file.folderPath) return false
         return file.folderPath === folder.path || file.folderPath.startsWith(`${folder.path}/`)
@@ -374,7 +419,7 @@ export async function resolveInputFiles(
           `Input directory contains too many files (${descendants.length}). Maximum is ${MAX_MOUNTED_FILES}. Mount a smaller directory or individual files.`
         )
       }
-      logger.info('Mounting workspace directory for function_execute', {
+      logger.info('Mounting workspace directory for run_function', {
         vfsPath: dirPath,
         sandboxPath: mountRoot,
         fileCount: descendants.length,
@@ -410,6 +455,7 @@ export async function resolveInputFiles(
           `${mountRoot}/${relativePath}`,
           mounted,
           workspaceId,
+          filePrincipal,
           resolvedSecretTraceRegistry
         )
       }
@@ -592,6 +638,16 @@ export async function executeFunctionExecute(
     'internalSandboxProfile',
     PRIVATE_SECRET_PROVENANCE_FIELD,
   ])
+  // The copilot tool doc promises `timeout` in SECONDS ("Sim converts to
+  // milliseconds", default 10, cap 300); the underlying function tool takes
+  // MILLISECONDS. Nothing converted, so `timeout: 120` armed a 120ms abort.
+  // Values ≤ 600 are read as seconds; larger values are assumed to already be
+  // milliseconds (a model habit worth tolerating). Both clamp to the 300s cap.
+  if (typeof enrichedParams.timeout === 'number' && Number.isFinite(enrichedParams.timeout)) {
+    const raw = enrichedParams.timeout
+    const ms = raw <= 600 ? raw * 1000 : raw
+    enrichedParams.timeout = Math.min(Math.max(ms, 1000), 300_000)
+  }
   if (params.sandboxId !== undefined) {
     if (typeof params.sandboxId !== 'string' || !params.sandboxId.trim()) {
       throw new Error('sandboxId must be a non-empty Sim sandbox id')
@@ -615,9 +671,15 @@ export async function executeFunctionExecute(
   let mountedRegistry: ResolvedSecretTraceRegistry | undefined
   let crossingValue: unknown
 
+  /**
+   * Hoisted so the usage trail in `finally` attributes the run to the same identity the mount
+   * authorized against. Deriving it a second time down there let the two disagree whenever
+   * `secretActorUserId` was explicitly null.
+   */
+  const secretActorUserId =
+    context.secretActorUserId === undefined ? context.userId : context.secretActorUserId
+
   try {
-    const secretActorUserId =
-      context.secretActorUserId === undefined ? context.userId : context.secretActorUserId
     let mounted: MaterializedCopilotCodeSecrets = { envVars: {}, catalogEntries: [] }
     if (requestedNames.length > 0) {
       if (!secretActorUserId) {
@@ -668,7 +730,10 @@ export async function executeFunctionExecute(
           inputTables,
           inputDirectories,
           secretActorUserId ?? context.userId,
-          mountedRegistry
+          mountedRegistry,
+          inputFiles.length > 0 || inputDirectories.length > 0
+            ? resolveCopilotFilePrincipal(context)
+            : undefined
         )
         if (resolved.length > 0) {
           const existing = (enrichedParams._sandboxFiles as SandboxFile[]) || []
@@ -698,6 +763,14 @@ export async function executeFunctionExecute(
     }
 
     try {
+      /**
+       * The copilot-facing tool is named `run_function`, but the app-tool
+       * registry id stays `function_execute` — the validator in tools/index.ts
+       * only admits `internalSandboxProfile` for that id, and every copilot
+       * call carries the internal `mothership` profile. Renaming this inner id
+       * without renaming the registry breaks every copilot sandbox call with
+       * "An internal sandbox profile may only be used with function_execute".
+       */
       const result = await executeAppTool('function_execute', enrichedParams, {
         resolvedSecretTraceRegistry: mountedRegistry,
         ...(context.abortSignal ? { signal: context.abortSignal } : {}),
@@ -716,6 +789,21 @@ export async function executeFunctionExecute(
         context.resolvedSecretTraceRegistry,
         crossingValue
       )
+    }
+    /**
+     * Copilot-run code is a real read of a workspace secret and has to appear in the trail;
+     * without this an admin reviewing a secret sees "never used" for one someone read through
+     * Mothership. Read from the registry rather than `requestedNames` so only names the code
+     * actually resolved are counted. The headless inbox runner reaches the same handler, so
+     * it is covered here too.
+     */
+    if (mountedRegistry && context.workspaceId) {
+      recordSecretUsage(mountedRegistry.getResolvedSecretUsage(), {
+        workspaceId: context.workspaceId,
+        source: 'copilot',
+        actorUserId: secretActorUserId ?? null,
+        trigger: 'copilot',
+      })
     }
     completePendingActivation?.()
   }

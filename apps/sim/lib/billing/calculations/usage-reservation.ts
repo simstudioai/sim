@@ -235,6 +235,8 @@ export class UsageReservationUnavailableError extends Error {
   readonly code = ADMISSION_ERROR_DESCRIPTOR.RESERVATION_INFRASTRUCTURE.code
   readonly statusCode = ADMISSION_ERROR_DESCRIPTOR.RESERVATION_INFRASTRUCTURE.statusCode
   readonly retryable = ADMISSION_ERROR_DESCRIPTOR.RESERVATION_INFRASTRUCTURE.retryable
+  readonly retryAfterSeconds =
+    ADMISSION_ERROR_DESCRIPTOR.RESERVATION_INFRASTRUCTURE.retryAfterSeconds
 
   constructor(message: string, cause?: unknown) {
     super(message)

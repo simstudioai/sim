@@ -33,6 +33,10 @@ import {
 } from '@/lib/execution/payloads/large-value-metadata'
 import { compactBlockLogs, compactExecutionPayload } from '@/lib/execution/payloads/serializer'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
+import {
+  cancelledExecutionLogFields,
+  terminalExecutionLogFields,
+} from '@/lib/logs/execution/cancellation'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { cleanupExecutionBase64Cache } from '@/lib/uploads/utils/user-file-base64.server'
 import { executeWorkflowCore } from '@/lib/workflows/executor/execution-core'
@@ -105,6 +109,20 @@ async function releaseCancelledResumeReservations(
   )
 }
 
+/**
+ * A resume attempt that was not admitted, carrying the status the caller should
+ * see. Every admission refusal must be raised through this rather than a bare
+ * `Error`: the resume surfaces classify a failure by its `statusCode`, so an
+ * untyped throw for an ordinary client mistake — a stale `contextId`, an
+ * already-resumed pause — reaches the caller as a `500`.
+ *
+ * `retryable` says whether an automatic resume should try the attempt again.
+ * Only a pause still finalizing its snapshot is; a pause that is absent, in the
+ * wrong state, or of the wrong kind will read the same on every retry.
+ *
+ * Messages must stay free of identifiers, snapshot contents, and ORM detail —
+ * they are forwarded verbatim to API callers.
+ */
 class ResumeAdmissionError extends Error {
   constructor(
     message: string,
@@ -232,6 +250,32 @@ function clearAutomaticResumeWaitingMetadataSql(contextId: string): SQL {
       THEN ${pausedExecutions.metadata} - 'automaticResumeWaiting'
     ELSE ${pausedExecutions.metadata}
   END`
+}
+
+/**
+ * The terminal columns a `workflow_execution_logs` row keeps when a partial
+ * resume moves it back to `pending`.
+ *
+ * The revival claim excludes only `cancelled`, so it also matches a row
+ * `markResumeFailed` already ended: one context's resume fails, a sibling
+ * context resumes successfully afterwards, and the run becomes live again
+ * carrying the end timestamp and duration of the attempt that failed. A live row
+ * must not carry a terminal stamp — and because `elapsedDurationMsSql` preserves
+ * a `pending` row's `total_duration_ms` as its pause checkpoint, leaving it
+ * there also hands the next terminal write a duration frozen at the failed
+ * resume rather than one it recomputes.
+ *
+ * A row revived from a non-terminal status is the opposite case: its columns are
+ * the checkpoint `completeWithPause` banked, which is precisely what that
+ * preservation rule exists to keep, so they survive untouched. The row's own
+ * status decides, read — like every expression in the same `SET` — against the
+ * pre-update row.
+ */
+const revivedExecutionLogStamp = {
+  endedAt: sql<Date | null>`CASE WHEN ${workflowExecutionLogs.status} IN ('failed', 'completed') THEN NULL ELSE ${workflowExecutionLogs.endedAt} END`,
+  totalDurationMs: sql<
+    number | null
+  >`CASE WHEN ${workflowExecutionLogs.status} IN ('failed', 'completed') THEN NULL ELSE ${workflowExecutionLogs.totalDurationMs} END`,
 }
 
 function withoutAutomaticResumeWaitingReason(
@@ -654,29 +698,35 @@ export class PauseResumeManager {
         .then((rows) => rows[0])
 
       if (!pausedExecution) {
-        throw new Error('Paused execution not found or already resumed')
+        throw new ResumeAdmissionError('Paused execution not found or already resumed', 404, false)
       }
 
       if (!isResumablePausedStatus(pausedExecution.status)) {
-        throw new Error('Paused execution is not resumable')
+        throw new ResumeAdmissionError('Paused execution is not resumable', 409, false)
       }
 
       const pausePoints = pausedExecution.pausePoints as Record<string, any>
       const pausePoint = pausePoints?.[contextId]
       if (!pausePoint) {
-        throw new Error('Pause point not found for execution')
+        throw new ResumeAdmissionError('Pause point not found for execution', 404, false)
       }
       if (pausePoint.resumeStatus !== 'paused') {
-        throw new Error('Pause point already resumed or in progress')
+        throw new ResumeAdmissionError('Pause point already resumed or in progress', 409, false)
       }
       if (!pausePoint.snapshotReady) {
-        throw new Error('Snapshot not ready; execution still finalizing pause')
+        throw new ResumeAdmissionError(
+          'Snapshot not ready; execution still finalizing pause',
+          409,
+          true
+        )
       }
 
       const pauseKind: PauseKind = pausePoint.pauseKind ?? 'human'
       if (allowedPauseKinds && !allowedPauseKinds.includes(pauseKind)) {
-        throw new Error(
-          `Pause kind '${pauseKind}' is not allowed for this resume endpoint (allowed: ${allowedPauseKinds.join(', ')})`
+        throw new ResumeAdmissionError(
+          `Pause kind '${pauseKind}' is not allowed for this resume endpoint (allowed: ${allowedPauseKinds.join(', ')})`,
+          400,
+          false
         )
       }
 
@@ -692,7 +742,7 @@ export class PauseResumeManager {
         .limit(1)
         .then((rows) => rows[0])
 
-      const resumeExecutionId = executionId
+      const resumeExecutionId = generateId()
       const now = new Date()
 
       if (activeResume) {
@@ -1139,12 +1189,7 @@ export class PauseResumeManager {
       })()
 
       const submissionPayload =
-        normalizedResumeInputRaw &&
-        typeof normalizedResumeInputRaw === 'object' &&
-        !Array.isArray(normalizedResumeInputRaw) &&
-        normalizedResumeInputRaw.submission &&
-        typeof normalizedResumeInputRaw.submission === 'object' &&
-        !Array.isArray(normalizedResumeInputRaw.submission)
+        isRecordLike(normalizedResumeInputRaw) && isRecordLike(normalizedResumeInputRaw.submission)
           ? (normalizedResumeInputRaw.submission as Record<string, any>)
           : (normalizedResumeInputRaw as Record<string, any>)
 
@@ -2083,7 +2128,7 @@ export class PauseResumeManager {
       } else {
         await tx
           .update(workflowExecutionLogs)
-          .set({ status: 'pending', executionDeadlineAt: null })
+          .set({ status: 'pending', executionDeadlineAt: null, ...revivedExecutionLogStamp })
           .where(
             and(
               eq(workflowExecutionLogs.executionId, targetParentExecutionId),
@@ -2152,7 +2197,7 @@ export class PauseResumeManager {
 
       await tx
         .update(workflowExecutionLogs)
-        .set({ status: 'failed' })
+        .set(terminalExecutionLogFields('failed', now))
         .where(
           and(
             eq(workflowExecutionLogs.executionId, args.parentExecutionId),
@@ -2595,7 +2640,7 @@ export class PauseResumeManager {
       if (!cancellationAlreadyTerminal) {
         const [cancelledExecution] = await tx
           .update(workflowExecutionLogs)
-          .set({ status: 'cancelled', endedAt: now, executionDeadlineAt: null })
+          .set(cancelledExecutionLogFields(now))
           .where(
             and(
               eq(workflowExecutionLogs.executionId, executionId),

@@ -1,3 +1,4 @@
+import { isRecordLike } from '@sim/utils/object'
 /**
  * Provider-neutral HTTP client for the Claude Platform Managed Agents API.
  *
@@ -743,7 +744,7 @@ export function parseSessionSnapshot(raw: unknown): SessionSnapshot {
   }
 
   if (typeof body.title === 'string') snapshot.title = body.title
-  if (body.metadata && typeof body.metadata === 'object' && !Array.isArray(body.metadata)) {
+  if (isRecordLike(body.metadata)) {
     const metadata: Record<string, string> = {}
     for (const [key, value] of Object.entries(body.metadata as Record<string, unknown>)) {
       if (typeof value === 'string') metadata[key] = value

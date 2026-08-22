@@ -14,6 +14,7 @@ import {
   validateUrlWithDNS,
 } from '@/lib/core/security/input-validation.server'
 import { sanitizeUrlForLog } from '@/lib/core/utils/logging'
+import { refreshAccessTokenIfNeeded, resolveOAuthAccountId } from '@/lib/oauth/credential-service'
 import {
   getCredentialOwner,
   getNotificationUrl,
@@ -29,7 +30,6 @@ import type {
   SubscriptionResult,
   WebhookProviderHandler,
 } from '@/lib/webhooks/providers/types'
-import { refreshAccessTokenIfNeeded, resolveOAuthAccountId } from '@/app/api/auth/oauth/utils'
 
 const logger = createLogger('WebhookProvider:MicrosoftTeams')
 

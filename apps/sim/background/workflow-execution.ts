@@ -76,6 +76,14 @@ export type WorkflowExecutionPayload = {
   executionTimeoutMs?: number
   /** Authenticated input provenance validated by the workflow execution boundary. */
   trustedInitialResolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceV1
+  /**
+   * Identity decisions the enqueuing surface already made. They must ride the
+   * payload because the worker has no request to re-derive them from, and a
+   * queued run that dropped them would resolve its personal variables as the
+   * workflow owner while still authorizing workspace variables as the actor.
+   */
+  enforceCredentialAccess?: boolean
+  isPublicApiAccess?: boolean
 }
 
 /**
@@ -193,6 +201,8 @@ export async function executeWorkflowJob(
           useDraftState: false,
           startTime: new Date().toISOString(),
           isClientSession: false,
+          enforceCredentialAccess: payload.enforceCredentialAccess ?? false,
+          isPublicApiAccess: payload.isPublicApiAccess ?? false,
           callChain: payload.callChain,
           correlation,
           executionMode: payload.executionMode ?? 'async',

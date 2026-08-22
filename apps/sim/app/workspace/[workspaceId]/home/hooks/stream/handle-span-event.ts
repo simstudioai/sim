@@ -14,6 +14,8 @@ import {
 
 type SpanEvent = Extract<PersistedStreamEventEnvelope, { type: 'span' }>
 
+const BROWSER_SUBAGENT_ID = 'browser'
+
 /**
  * Side effects for subagent span lifecycle. The model owns the subagent
  * group/nesting/close (via `reduceEvent`); this handler only seeds the file
@@ -41,6 +43,17 @@ export function handleSpanEvent(
   const parentToolCallId = scopedParentToolCallId ?? parentToolCallIdFromData
   const isPendingPause = spanData?.pending === true
   const name = typeof payload.agent === 'string' ? payload.agent : scopedAgentId
+  const runId = scopedSpanId ?? parentToolCallId
+
+  if (name === BROWSER_SUBAGENT_ID && runId) {
+    if (payload.event === MothershipStreamV1SpanLifecycleEvent.start) {
+      state.browserAgentRunIds.add(runId)
+      deps.startBrowserAgentRun(runId)
+    } else {
+      state.browserAgentRunIds.delete(runId)
+      deps.endBrowserAgentRun(runId)
+    }
+  }
 
   if (payload.event === MothershipStreamV1SpanLifecycleEvent.start && name === FILE_SUBAGENT_ID) {
     // Seed the pending preview session only on a freshly-opened lane (the agent
@@ -78,7 +91,7 @@ export function handleSpanEvent(
       )
       deps.setResources((rs) => rs.filter((r) => r.id !== 'streaming-file'))
       if (lastFileResource) {
-        deps.setActiveResourceId(lastFileResource.id)
+        deps.onResourceEventRef.current?.(lastFileResource.id)
       }
     }
     ops.flush()

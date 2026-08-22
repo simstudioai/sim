@@ -1,10 +1,5 @@
 import { MAX_INLINE_MATERIALIZATION_BYTES } from '@/lib/execution/payloads/limits'
-import {
-  getResolvedSecretMatchPolicy,
-  isNonIdentifyingSecretLiteral,
-  type ResolvedSecretMatchPolicy,
-  satisfiesResolvedSecretMatchPolicy,
-} from '@/executor/utils/resolved-secret-match-policy'
+import { isNonIdentifyingSecretLiteral } from '@/executor/utils/resolved-secret-match-policy'
 import { getResolvedSecretMatcherCapacityFailure } from '@/executor/utils/resolved-secret-matcher-capacity'
 
 const MAX_MATCH_EVENTS = 1_000_000
@@ -17,8 +12,6 @@ export const OPAQUE_RESOLVED_SECRET_REPLACEMENT = '[REDACTED_SECRET]'
 interface SecretReplacement {
   plaintext: string
   replacement: string
-  /** Absent on a detect matcher, where every literal matches at any offset. */
-  policy?: ResolvedSecretMatchPolicy
 }
 
 interface SecretTrieNode {
@@ -47,19 +40,6 @@ export interface CreateResolvedSecretMatcherOptions {
    * the exact plaintext that produced it; overlapping secret literals remain detectable.
    */
   preserveNamedProvenanceLabels?: boolean
-  /**
-   * `'detect'` (the default) matches every literal at any offset. Use it wherever a hit only
-   * classifies content — provenance export, file-safety scans — because there a coincidental hit
-   * costs an over-broad label while a missed hit can wrongly certify content as secret-free.
-   *
-   * `'render'` restricts literals below {@link MIN_UNANCHORED_MATCH_LENGTH} to word-boundary hits.
-   * Use it wherever a hit rewrites text. A projection's own post-check must be built with the same
-   * options as the projection it verifies: it asks "did I substitute what I promised", so reading a
-   * wider match set would make it demand replacements the projector deliberately declined and drop
-   * the content instead. That does mean such a check cannot see a short literal sitting inside an
-   * unrelated token — that occurrence is defined as coincidental here, not overlooked.
-   */
-  mode?: 'detect' | 'render'
 }
 
 class ResolvedSecretMatcherError extends Error {
@@ -243,8 +223,7 @@ export function containsResolvedSecret(value: string, matcher: ResolvedSecretMat
           protectedSpan?.start ?? -1,
           protectedSpan?.end ?? -1,
           protectedSpan?.plaintexts
-        ) &&
-        satisfiesResolvedSecretMatchPolicy(value, start, end, outputNode.replacement.policy)
+        )
       ) {
         return true
       }
@@ -322,9 +301,8 @@ export function sanitizeResolvedSecretString(
   onMatch?: (plaintext: string) => void
 ): string {
   /**
-   * A substitution can leave a literal the previous pass could not act on: it may expose a word
-   * boundary that suppressed a narrow-policy match (`<key>test` becoming `{{KEY}}test`), and an
-   * empty replacement can splice its neighbours into a literal that was not present in the input.
+   * A substitution can leave a literal the previous pass could not act on: an empty replacement can
+   * splice its neighbours into a literal that was not present in the input.
    * Each pass strictly consumes matches, so this converges in practice; the bound is what keeps a
    * pathological chain from looping, and the throw past it stays the fail-closed backstop callers
    * already handle by dropping the value.
@@ -419,7 +397,6 @@ function substituteResolvedSecrets(
           protectedSpan?.end ?? -1,
           protectedSpan?.plaintexts
         ) &&
-        satisfiesResolvedSecretMatchPolicy(value, start, end, outputNode.replacement.policy) &&
         start >= emitCursor
       ) {
         const slot = start % windowSize
@@ -460,8 +437,7 @@ export function createResolvedSecretMatcher(
   for (const match of matches) {
     /**
      * Dropped before any construction-time check runs, so no later stage can be talked into
-     * treating one of these as protectable — including the wide-match-set checks below, which
-     * deliberately ignore the narrow policy.
+     * treating one of these as protectable.
      */
     if (!match.plaintext || isNonIdentifyingSecretLiteral(match.plaintext)) continue
     const current = replacementByPlaintext.get(match.plaintext)
@@ -516,7 +492,6 @@ export function createResolvedSecretMatcher(
 
   const exactReplacements = new Map<string, string>()
   const protectedReplacementPlaintexts = new Map<string, ReadonlySet<string>>()
-  const assigned: SecretReplacement[] = []
   for (const { plaintext, replacement } of provisional) {
     const node = findTerminalNode(detector.root, plaintext)
     const namedReplacement = isNamedResolvedSecretReplacement(replacement)
@@ -534,18 +509,7 @@ export function createResolvedSecretMatcher(
       plaintext,
       replacement: safeReplacement,
     }
-    assigned.push(node.replacement)
     exactReplacements.set(plaintext, safeReplacement)
-  }
-
-  /**
-   * Applied only after every construction-time safety check above has run, so those checks always
-   * see the widest match set and a narrow policy can never talk one of them out of failing closed.
-   */
-  if (options.mode === 'render') {
-    for (const replacement of assigned) {
-      replacement.policy = getResolvedSecretMatchPolicy(replacement.plaintext)
-    }
   }
 
   detector.exactReplacements = exactReplacements

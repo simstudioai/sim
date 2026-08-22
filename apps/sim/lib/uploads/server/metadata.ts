@@ -4,7 +4,12 @@ import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, isNotNull, isNull, sql } from 'drizzle-orm'
 import type { DbOrTx, DbTransaction } from '@/lib/db/types'
-import type { StorageContext } from '../shared/types'
+import { inferContextFromKey } from '@/lib/uploads/utils/file-utils'
+import {
+  isWorkspaceScopedContext,
+  type StorageContext,
+  toLegacyWorkspaceFileSize,
+} from '../shared/types'
 
 const logger = createLogger('FileMetadata')
 
@@ -43,7 +48,7 @@ function isSameFileMetadataInsert(
     existing.context === options.context &&
     existing.originalName === options.originalName &&
     existing.contentType === options.contentType &&
-    existing.size === options.size &&
+    (existing.sizeBytes ?? existing.size) === options.size &&
     existing.deletedAt === null &&
     (options.id === undefined || existing.id === options.id)
   )
@@ -118,7 +123,8 @@ async function insertFileMetadataWithExecutor(
         originalName,
         displayName: originalName,
         contentType,
-        size,
+        size: toLegacyWorkspaceFileSize(size),
+        sizeBytes: size,
         deletedAt: null,
         uploadedAt: new Date(),
         contentUpdatedAt: sql<Date>`GREATEST(CURRENT_TIMESTAMP, ${workspaceFiles.contentUpdatedAt} + INTERVAL '1 millisecond')`,
@@ -146,7 +152,8 @@ async function insertFileMetadataWithExecutor(
         originalName,
         displayName: originalName,
         contentType,
-        size,
+        size: toLegacyWorkspaceFileSize(size),
+        sizeBytes: size,
         deletedAt: null,
         uploadedAt: new Date(),
       })
@@ -190,7 +197,8 @@ async function insertImmutableFileMetadataWithExecutor(
       originalName,
       displayName: originalName,
       contentType,
-      size,
+      size: toLegacyWorkspaceFileSize(size),
+      sizeBytes: size,
       deletedAt: null,
       uploadedAt: new Date(),
     })
@@ -267,7 +275,8 @@ export async function insertFileMetadataMany(
         originalName: row.originalName,
         displayName: row.originalName,
         contentType: row.contentType,
-        size: row.size,
+        size: toLegacyWorkspaceFileSize(row.size),
+        sizeBytes: row.size,
         deletedAt: null,
         uploadedAt: new Date(),
       }))
@@ -330,6 +339,34 @@ export async function getFileMetadataByKey(
     .limit(1)
 
   return record ?? null
+}
+
+/**
+ * Resolve the storage context a stored object must be read and authorized under.
+ * This is the sanctioned way to ask that question — `inferContextFromKey` alone
+ * answers only bucket and tenancy (see its contract).
+ *
+ * The two layers divide as follows. The key prefix is authoritative for *where
+ * the bytes live*: it is written server-side at upload and cannot be forged to
+ * change tenant. `workspace_files.context` is authoritative for *which module
+ * owns the object*: it too is server-authored, but unlike the key it is mutable,
+ * which it has to be — `materialize_file` promotes a chat attachment to a
+ * workspace file by flipping that column, and rewriting the storage key on every
+ * such transition would mean copying the bytes to say the same thing twice.
+ *
+ * So only the `workspace/` prefix is ambiguous — it carries the two
+ * `WORKSPACE_SCOPED_CONTEXTS` — and only it costs a lookup. Every other prefix
+ * maps to exactly one module and returns immediately.
+ *
+ * An unbound key keeps its inferred context: absent metadata is not evidence of
+ * anything, and the caller's own not-found handling is the right answer.
+ */
+export async function resolveStoredFileContext(key: string): Promise<StorageContext> {
+  const inferred = inferContextFromKey(key)
+  if (inferred !== 'workspace') return inferred
+
+  const metadata = await getFileMetadataByKey(key)
+  return isWorkspaceScopedContext(metadata?.context) ? metadata.context : inferred
 }
 
 /**
@@ -433,8 +470,8 @@ export interface KnowledgeBaseFileOwnership {
  * Record the ownership binding for a single knowledge-base upload. KB file
  * authorization (`verifyKBFileAccess`) resolves the owning workspace from this
  * binding, so every KB object must have exactly one. Single source of truth for
- * the binding shape across the presigned, batch-presigned, and multipart upload
- * paths — keep all callers routed through here so they cannot drift.
+ * the binding shape for knowledge upload sessions — keep all callers routed
+ * through here so they cannot drift.
  */
 export async function recordKnowledgeBaseFileOwnership(
   ownership: KnowledgeBaseFileOwnership,
@@ -448,19 +485,4 @@ export async function recordKnowledgeBaseFileOwnership(
     ...ownership,
     context: 'knowledge-base',
   })
-}
-
-/**
- * Bulk variant of {@link recordKnowledgeBaseFileOwnership} for batch upload flows.
- * Idempotent against the active-key unique index (ON CONFLICT DO NOTHING).
- */
-export async function recordKnowledgeBaseFileOwnershipMany(
-  ownerships: KnowledgeBaseFileOwnership[]
-): Promise<void> {
-  if (ownerships.length === 0) {
-    return
-  }
-  await insertFileMetadataMany(
-    ownerships.map((ownership) => ({ ...ownership, context: 'knowledge-base' }))
-  )
 }

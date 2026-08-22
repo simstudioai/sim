@@ -1,6 +1,6 @@
 import { document } from '@sim/db/schema'
 import { and, eq, gt, gte, lt, lte, ne, type SQL, sql } from 'drizzle-orm'
-import { parseBooleanValue } from '@/lib/knowledge/tags/utils'
+import { coerceTagFilterValue, escapeLikePattern } from '@/lib/knowledge/tags/utils'
 
 /**
  * A single tag filter applied to a document list query.
@@ -33,27 +33,27 @@ const ALLOWED_TAG_SLOTS = new Set([
   'boolean3',
 ])
 
-const DATE_ONLY_PATTERN = /^\d{4}-\d{2}-\d{2}$/
-
-function escapeLikePattern(s: string): string {
-  return s.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_')
-}
-
 /**
  * Builds a SQL predicate for a single tag filter against the document table.
  *
  * Text comparisons are case-insensitive and date comparisons are evaluated on
  * the calendar day, matching the semantics of the knowledge base search filter
- * (`app/api/knowledge/search/utils.ts`). Returns `undefined` when the slot,
- * operator, or value is not usable so the caller can skip the condition.
+ * (`lib/knowledge/search/queries.ts`). The value is coerced by the same
+ * function the tag-value gate validates with, so a value that passed validation
+ * always compiles. Returns `undefined` only when the slot, operator, or value is
+ * genuinely unusable — which, after validation, is a bug the caller reports
+ * rather than a predicate it may skip.
  */
 export function buildTagFilterCondition(filter: TagFilterCondition): SQL | undefined {
   if (!ALLOWED_TAG_SLOTS.has(filter.tagSlot)) return undefined
 
   const col = document[filter.tagSlot as keyof typeof document]
 
+  const coerced = coerceTagFilterValue(filter.value, filter.fieldType)
+  if (!coerced.ok) return undefined
+
   if (filter.fieldType === 'text') {
-    const v = String(filter.value ?? '')
+    const v = coerced.value as string
     switch (filter.operator) {
       case 'eq':
         return sql`LOWER(${col}) = LOWER(${v})`
@@ -81,8 +81,7 @@ export function buildTagFilterCondition(filter: TagFilterCondition): SQL | undef
   }
 
   if (filter.fieldType === 'number') {
-    const num = Number(filter.value)
-    if (Number.isNaN(num)) return undefined
+    const num = coerced.value as number
     switch (filter.operator) {
       case 'eq':
         return eq(col as typeof document.number1, num)
@@ -97,8 +96,10 @@ export function buildTagFilterCondition(filter: TagFilterCondition): SQL | undef
       case 'lte':
         return lte(col as typeof document.number1, num)
       case 'between': {
-        const numTo = Number(filter.valueTo)
-        if (Number.isNaN(numTo)) return undefined
+        if (filter.valueTo === undefined || filter.valueTo === null) return undefined
+        const coercedTo = coerceTagFilterValue(filter.valueTo, 'number')
+        if (!coercedTo.ok) return undefined
+        const numTo = coercedTo.value as number
         return and(
           gte(col as typeof document.number1, num),
           lte(col as typeof document.number1, numTo)
@@ -110,8 +111,7 @@ export function buildTagFilterCondition(filter: TagFilterCondition): SQL | undef
   }
 
   if (filter.fieldType === 'date') {
-    const v = String(filter.value ?? '')
-    if (!DATE_ONLY_PATTERN.test(v)) return undefined
+    const v = coerced.value as string
     switch (filter.operator) {
       case 'eq':
         return sql`${col}::date = ${v}::date`
@@ -126,8 +126,9 @@ export function buildTagFilterCondition(filter: TagFilterCondition): SQL | undef
       case 'lte':
         return sql`${col}::date <= ${v}::date`
       case 'between': {
-        const valueTo = String(filter.valueTo ?? '')
-        if (!DATE_ONLY_PATTERN.test(valueTo)) return undefined
+        const coercedTo = coerceTagFilterValue(filter.valueTo, 'date')
+        if (!coercedTo.ok) return undefined
+        const valueTo = coercedTo.value as string
         return and(sql`${col}::date >= ${v}::date`, sql`${col}::date <= ${valueTo}::date`)
       }
       default:
@@ -136,9 +137,7 @@ export function buildTagFilterCondition(filter: TagFilterCondition): SQL | undef
   }
 
   if (filter.fieldType === 'boolean') {
-    const boolVal =
-      typeof filter.value === 'boolean' ? filter.value : parseBooleanValue(String(filter.value))
-    if (boolVal === null) return undefined
+    const boolVal = coerced.value as boolean
     switch (filter.operator) {
       case 'eq':
         return eq(col as typeof document.boolean1, boolVal)

@@ -15,6 +15,79 @@ export const HexBlock: BlockConfig<HexResponse> = {
   bgColor: '#14151A',
   icon: HexIcon,
   authMode: AuthMode.ApiKey,
+  canvasPresentation: {
+    defaultTitle: 'Hex',
+    sentences: {
+      byOperation: {
+        run_project: [
+          { text: 'Run project', field: 'projectId', core: true },
+          { text: ', with inputs', field: 'inputParams' },
+          { text: ', using saved view', field: 'viewId' },
+        ],
+        get_run_status: [
+          { text: 'Check the status of run', field: 'runId', core: true },
+          { text: 'in project', field: 'projectId' },
+        ],
+        get_project_runs: [
+          { text: 'List runs of project', field: 'projectId', core: true },
+          { text: ', with status', field: 'runStatusFilter' },
+          { text: ', up to', field: 'limit', after: 'runs' },
+        ],
+        cancel_run: [
+          { text: 'Cancel run', field: 'runId', core: true },
+          { text: 'in project', field: 'projectId' },
+        ],
+        list_projects: [
+          'List projects',
+          { text: 'in collection', field: 'collectionId' },
+          { text: ', with status', field: 'statusFilter' },
+          { text: ', owned by', field: 'ownerEmail' },
+        ],
+        get_project: [{ text: 'Fetch metadata for project', field: 'projectId', core: true }],
+        update_project: [
+          { text: 'Update project', field: 'projectId', core: true },
+          { text: 'status to', field: 'projectStatus' },
+        ],
+        get_queried_tables: [
+          { text: 'List tables queried by project', field: 'projectId', core: true },
+          { text: ', up to', field: 'limit', after: 'tables' },
+        ],
+        list_users: [
+          'List users',
+          { text: 'in group', field: 'groupId' },
+          { text: ', up to', field: 'limit' },
+        ],
+        list_groups: ['List groups', { text: ', up to', field: 'limit' }],
+        get_group: [{ text: 'Fetch group', field: 'groupIdInput', core: true }],
+        list_collections: ['List collections', { text: ', up to', field: 'limit' }],
+        get_collection: [{ text: 'Fetch collection', field: 'collectionId', core: true }],
+        create_collection: [
+          { text: 'Create collection', field: 'collectionName', core: true },
+          { text: ', described as', field: 'collectionDescription' },
+        ],
+        update_collection: [
+          { text: 'Update collection', field: 'collectionId', core: true },
+          { text: ', renaming to', field: 'collectionName' },
+          { text: ', described as', field: 'collectionDescription' },
+        ],
+        list_data_connections: ['List data connections', { text: ', up to', field: 'limit' }],
+        get_data_connection: [
+          { text: 'Fetch data connection', field: 'dataConnectionId', core: true },
+        ],
+        create_group: [
+          { text: 'Create group', field: 'groupName', core: true },
+          { text: ', with members', field: 'groupMemberUserIds' },
+        ],
+        update_group: [
+          { text: 'Update group', field: 'groupIdInput', core: true },
+          { text: ', renaming to', field: 'groupName' },
+          { text: ', adding members', field: 'groupAddUserIds' },
+        ],
+        delete_group: [{ text: 'Delete group', field: 'groupIdInput', core: true }],
+        deactivate_user: [{ text: 'Deactivate user', field: 'userId', core: true }],
+      },
+    },
+  },
 
   subBlocks: [
     {

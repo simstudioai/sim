@@ -23,6 +23,11 @@
  */
 import type { BrowserKnownSession } from '@sim/browser-protocol'
 import type { DesktopPreferences, SimDesktopApi } from '@sim/desktop-bridge'
+import { truncate } from '@sim/utils/string'
+import {
+  DESKTOP_TERMINAL_HINT_ID_MAX_LENGTH,
+  DESKTOP_TERMINAL_HINT_TEXT_MAX_LENGTH,
+} from '@/lib/copilot/chat/desktop-capabilities'
 
 /** The preload bridge, or undefined outside the desktop app (and on the server). */
 export function getDesktopBridge(): SimDesktopApi | undefined {
@@ -52,6 +57,16 @@ export function hasTerminal(): boolean {
 
 /** True when the shell exposes device-level desktop preferences. */
 export function hasDesktopSettings(): boolean {
+  return isDesktopApp()
+}
+
+/**
+ * True when an internal link must navigate the current view rather than open a
+ * second one. The shell has no tab strip, so its window-open policy routes a
+ * same-origin `window.open` to a full new Sim window — where a browser would
+ * have added a background tab, the desktop app throws up another window.
+ */
+export function prefersInPlaceNavigation(): boolean {
   return isDesktopApp()
 }
 
@@ -162,13 +177,21 @@ export async function getDesktopChatCapabilities(
       ? await bridge.terminal
           .getTabs(scopeId)
           .then((state) =>
-            state.tabs.map((tab) => ({
-              id: tab.terminalId,
-              ...(tab.cwd ? { cwd: tab.cwd } : {}),
-              ...(tab.running ? { running: tab.running } : {}),
-              ...(tab.interactive ? { interactive: true as const } : {}),
-              ...(tab.active ? { active: true as const } : {}),
-            }))
+            state.tabs
+              .filter((tab) => tab.terminalId.length <= DESKTOP_TERMINAL_HINT_ID_MAX_LENGTH)
+              .map((tab) => ({
+                id: tab.terminalId,
+                ...(tab.cwd
+                  ? { cwd: truncate(tab.cwd, DESKTOP_TERMINAL_HINT_TEXT_MAX_LENGTH, '') }
+                  : {}),
+                ...(tab.running
+                  ? {
+                      running: truncate(tab.running, DESKTOP_TERMINAL_HINT_TEXT_MAX_LENGTH, ''),
+                    }
+                  : {}),
+                ...(tab.interactive ? { interactive: true as const } : {}),
+                ...(tab.active ? { active: true as const } : {}),
+              }))
           )
           .catch(() => [])
       : []

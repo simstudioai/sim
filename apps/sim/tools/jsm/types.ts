@@ -1,12 +1,5 @@
 import type { ToolResponse } from '@/tools/types'
 
-/** Reusable date output properties with ISO 8601, friendly, and epoch formats */
-export const DATE_OUTPUT_PROPERTIES = {
-  iso8601: { type: 'string', description: 'ISO 8601 formatted date' },
-  friendly: { type: 'string', description: 'Human-readable date' },
-  epochMillis: { type: 'number', description: 'Unix epoch milliseconds' },
-} as const
-
 /** Reusable user output properties */
 export const USER_OUTPUT_PROPERTIES = {
   accountId: { type: 'string', description: 'Atlassian account ID' },

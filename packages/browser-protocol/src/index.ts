@@ -33,11 +33,14 @@ export const BROWSER_TOOL_NAMES = [
   'browser_screenshot',
   'browser_extract',
   'browser_click',
+  'browser_click_at',
   'browser_type',
+  'browser_insert_text',
   'browser_press_key',
   'browser_scroll',
   'browser_select_option',
   'browser_hover',
+  'browser_drag',
   'browser_request_takeover',
 ] as const
 
@@ -136,7 +139,7 @@ export interface BrowserPanelSnapshot {
 
 /**
  * Browser-chrome commands from the panel header (URL bar, back/forward,
- * reload) plus `takeover-done`, sent by the Done chip on the chat's
+ * reload) plus `takeover-done`, sent by the question card on the chat's
  * `browser_request_takeover` tool row when the user finishes a
  * hand-control-back request. Page interactions need no protocol — the user
  * acts on the real embedded page directly, and its right-click menu is native
@@ -161,6 +164,8 @@ export interface BrowserPanelAction {
   url?: string
   /** Stable tab id for `duplicate-tab`, `switch-tab`, and `close-tab`. */
   tabId?: string
+  /** Optional free-text instruction submitted with `takeover-done`. */
+  takeoverResponse?: string
 }
 
 /** Live state of the active page, pushed to the panel header. */
@@ -225,6 +230,12 @@ export interface BrowserTabState {
 export interface BrowserTabsState {
   tabs: BrowserTabState[]
   activeTabId: string | null
+  /** Tab currently driven by the agent when it differs from the user's visible tab. */
+  automationTabId?: string | null
+  /** True while a browser tool is actively driving that tab. */
+  automationActive?: boolean
+  /** True while automation is paused for the user on this tab. */
+  automationNeedsAttention?: boolean
   /** Chat scope that owns this tab set. */
   scopeId: string
 }

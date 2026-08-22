@@ -18,10 +18,12 @@
  *   client receives each update exactly once, from its own task's local broadcast — no adapter
  *   amplification, and every task's doc stays converged. (Awareness/presence stay on the adapter: they
  *   are ephemeral and need no convergence or replay.)
- * - {@link attachRoom} does a synchronous catch-up read from the head of the stream when a task first
- *   opens a file, so a late-joining task (the normal case under autoscaling) loads the current shared
- *   state before its first client syncs. Catch-up + tail are seamless: the tailer resumes from the
- *   exact id catch-up stopped at.
+ * - {@link attachRoom} reads the stream from the head when a task first opens a file, and the relay
+ *   AWAITS it before attaching a client, so a late-joining task (the normal case under autoscaling)
+ *   holds the current shared state before its first client syncs — a client must never watch the
+ *   catch-up land entry by entry, which is the document's edit history replaying on screen. Catch-up +
+ *   tail are seamless: the tailer resumes from the exact id catch-up stopped at, and {@link catchUp}
+ *   can re-run at any time for a caller that must converge without waiting on the tailer.
  * - The one-time seed is written via the atomic {@link seedIfEmpty} (append-iff-empty in one Redis
  *   step), so exactly one task ever writes the seed cluster-wide (the fix for split-brain) — even if two
  *   tasks race. {@link shouldSeed} is a Redis lock + empty-stream check layered on top ONLY as an
@@ -158,6 +160,12 @@ const SEED_LOCK_TTL_MS = FILE_DOC_TIMEOUTS.seedRequestMs + 4_000
 const STREAM_TTL_SEC = 600
 /** Refresh every occupied stream's TTL on this cadence, so a live doc's stream never expires. */
 const HEARTBEAT_MS = 60_000
+/** Cap on the delay between reconnection attempts — the strategy retries indefinitely (see `init`). */
+const RECONNECT_MAX_DELAY_MS = 3_000
+/** Cap on the reader's own retry backoff after a failed read. */
+const READER_RETRY_MAX_MS = 10_000
+/** After the first failure of a streak, log one reader failure in this many. */
+const READER_ERROR_LOG_EVERY = 20
 
 const streamKey = (name: string) => `${STREAM_PREFIX}${name}`
 
@@ -183,6 +191,18 @@ function applyEntryToDoc(
       error: getErrorMessage(error),
     })
   }
+}
+
+/**
+ * Whether stream id `id` sorts after `than`. A Redis stream id is `<ms>-<seq>`, so a lexicographic
+ * compare is wrong the moment the millisecond part changes digit length (`'9999-0' > '10000-0'`);
+ * compare the two parts numerically instead. The initial `'0'` (nothing applied) has no `-seq` part,
+ * which reads as sequence 0 — before every real entry.
+ */
+function isAfterStreamId(id: string, than: string): boolean {
+  const [ms, seq = '0'] = id.split('-')
+  const [thanMs, thanSeq = '0'] = than.split('-')
+  return Number(ms) === Number(thanMs) ? Number(seq) > Number(thanSeq) : Number(ms) > Number(thanMs)
 }
 
 /** Whether a doc carries the seed flag (mirrors the relay's `isDocSeeded`), so the store can tell the
@@ -232,10 +252,17 @@ export class FileDocStore {
     const options = {
       url: this.redisUrl,
       socket: {
-        reconnectStrategy: (retries: number) => {
-          if (retries > 10) return new Error('FileDocStore Redis reconnection failed')
-          return Math.min(retries * 100, 3000)
-        },
+        /**
+         * Never stop reconnecting. Returning an `Error` here tells node-redis to give up and CLOSE the
+         * client — and a closed client rejects every command with "The client is closed" for the rest of
+         * the process's life. So an outage longer than the retry budget does not degrade this task, it
+         * takes it out silently: its rooms stop receiving other tasks' updates, its own edits stop
+         * reaching the shared stream, seeds and locks fail, and the only symptom is a warning per retry.
+         * This process holds live documents whose sole convergence path is this connection, so a
+         * connection it can rebuild is always worth rebuilding.
+         */
+        reconnectStrategy: (retries: number) =>
+          backoffWithJitter(retries + 1, null, { baseMs: 100, maxMs: RECONNECT_MAX_DELAY_MS }),
       },
     }
     this.write = createClient(options)
@@ -260,10 +287,9 @@ export class FileDocStore {
   }
 
   /**
-   * Register a locally-opened room and load the shared state into its doc: read the whole stream from
-   * the head, apply every entry (origin {@link REDIS_ORIGIN}), and remember the last id so the tailer
-   * resumes exactly after it. A brand-new file has an empty stream and loads nothing (it is seeded
-   * shortly after, via {@link shouldSeed}). No-op when disabled.
+   * Register a locally-opened room and load the shared state into its doc ({@link catchUp}). A
+   * brand-new file has an empty stream and loads nothing (it is seeded shortly after, via
+   * {@link shouldSeed}). No-op when disabled.
    */
   async attachRoom(name: string, doc: Y.Doc): Promise<void> {
     if (!this.enabled || !this.write) return
@@ -277,12 +303,31 @@ export class FileDocStore {
       realEdited: false,
     }
     this.rooms.set(name, room)
+    await this.catchUp(name)
+  }
+
+  /**
+   * PULL the shared state into a registered room: read the stream and apply every entry the doc has
+   * not integrated yet (origin {@link REDIS_ORIGIN}), advancing `lastId` so the tailer resumes exactly
+   * after it. This is the ONLY way a room loads shared state, so a caller that must not depend on the
+   * tailer's asynchronous push — the join, which may not serve a client a half-assembled document —
+   * can converge on demand. Idempotent and safe to call repeatedly; no-op when disabled or the room is
+   * not registered (a fast open→close detached it). Never throws.
+   */
+  async catchUp(name: string): Promise<void> {
+    if (!this.enabled || !this.write) return
+    const room = this.rooms.get(name)
+    if (!room) return
     try {
       const entries = await this.write.xRange(streamKey(name), '-', '+')
       for (const entry of entries) {
-        // The room can be detached + its doc destroyed while catch-up is in flight (a fast open→close);
-        // stop touching it the moment that happens.
+        // The room can be detached + its doc destroyed while the read is in flight (a fast
+        // open→close); stop touching it the moment that happens.
         if (this.rooms.get(name) !== room) return
+        // Applying a Yjs update twice is a no-op, but `applyEntry`'s bookkeeping is not: re-applying
+        // the SEED after `seededObserved` latched would count it as a post-seed edit and let a
+        // compaction snapshot claim content no user ever typed. Skip what this room already holds.
+        if (!isAfterStreamId(entry.id, room.lastId)) continue
         this.applyEntry(room, entry.id, entry.message)
       }
       await this.write.expire(streamKey(name), STREAM_TTL_SEC)
@@ -619,6 +664,7 @@ export class FileDocStore {
    * apply new entries. One blocking connection for the whole process regardless of open-file count.
    */
   private async runReader(): Promise<void> {
+    let failures = 0
     while (this.running && this.read) {
       const snapshot = new Map(this.rooms)
       if (snapshot.size === 0) {
@@ -630,6 +676,12 @@ export class FileDocStore {
           [...snapshot].map(([name, room]) => ({ key: streamKey(name), id: room.lastId })),
           { BLOCK: READ_BLOCK_MS, COUNT: READ_COUNT }
         )
+        // The streak ends HERE, on the read returning at all — not further down once entries are
+        // applied. A blocking read that times out with nothing new is the idle steady state, and it
+        // proves the connection works just as well as one carrying messages; leaving the streak
+        // standing through it would keep an old outage's count alive indefinitely, so the next
+        // unrelated blip would open at the backoff cap and log a failure count it never earned.
+        failures = 0
         if (!res) continue
         for (const stream of res) {
           const name = stream.name.slice(STREAM_PREFIX.length)
@@ -642,9 +694,37 @@ export class FileDocStore {
         }
       } catch (error) {
         if (!this.running) break
-        logger.warn('FileDocStore reader error; retrying', { error: getErrorMessage(error) })
-        await sleep(500)
+        await this.recoverReader(++failures, error)
       }
+    }
+  }
+
+  /**
+   * A failed read is either a transient blip or a connection that is gone, and this loop cannot tell
+   * them apart — so it backs off instead of retrying at the read cadence. Without that, a connection
+   * that cannot serve reads spins this loop forever at two attempts a second, one warning each, which
+   * is how an outage turns into thousands of identical log lines that bury the reason for it.
+   *
+   * It also re-opens a CLOSED client. node-redis reconnects a client that merely dropped, but never one
+   * it has closed; the strategy above no longer closes one, so this covers a client closed some other
+   * way (an explicit disconnect, a shutdown that raced a read) rather than leaving the tailer dead.
+   *
+   * Logs the first failure of a streak and then one in every {@link READER_ERROR_LOG_EVERY}, carrying
+   * the streak length, so a real outage stays visible without filling the log.
+   */
+  private async recoverReader(failures: number, error: unknown): Promise<void> {
+    if (failures === 1 || failures % READER_ERROR_LOG_EVERY === 0) {
+      logger.warn(`FileDocStore reader failed ${failures}x in a row; retrying`, {
+        error: getErrorMessage(error),
+      })
+    }
+    await sleep(backoffWithJitter(failures, null, { baseMs: 500, maxMs: READER_RETRY_MAX_MS }))
+    if (this.running && this.read && !this.read.isOpen) {
+      await this.read.connect().catch((reconnectError) => {
+        logger.warn('FileDocStore could not re-open the reader connection', {
+          error: getErrorMessage(reconnectError),
+        })
+      })
     }
   }
 

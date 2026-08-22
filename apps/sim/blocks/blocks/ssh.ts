@@ -16,6 +16,65 @@ export const SSHBlock: BlockConfig<SSHResponse> = {
   integrationType: IntegrationType.DevOps,
   bgColor: '#000000',
   icon: SshIcon,
+  canvasPresentation: {
+    defaultTitle: 'SSH',
+    sentences: {
+      byOperation: {
+        ssh_execute_command: [
+          { text: 'Run', field: 'command', core: true },
+          { text: 'on', field: 'host' },
+          { text: ', from', field: 'workingDirectory' },
+        ],
+        ssh_execute_script: [
+          { text: 'Run a script on', field: 'host', core: true },
+          { text: ', from', field: 'scriptWorkingDirectory' },
+        ],
+        ssh_check_command_exists: [
+          { text: 'Check whether', field: 'commandName', after: 'is installed', core: true },
+          { text: 'on', field: 'host' },
+        ],
+        ssh_upload_file: [
+          { text: 'Upload', field: 'fileName', core: true },
+          { text: 'to', field: 'remotePath', core: true },
+          { text: 'on', field: 'host' },
+        ],
+        ssh_download_file: [
+          { text: 'Download', field: 'downloadRemotePath', core: true },
+          { text: 'from', field: 'host' },
+        ],
+        ssh_list_directory: [
+          { text: 'List files in', field: 'listPath', core: true },
+          { text: 'on', field: 'host' },
+        ],
+        ssh_check_file_exists: [
+          { text: 'Check whether', field: 'checkPath', after: 'exists', core: true },
+          { text: 'on', field: 'host' },
+        ],
+        ssh_create_directory: [
+          { text: 'Create directory', field: 'createPath', core: true },
+          { text: 'on', field: 'host' },
+        ],
+        ssh_delete_file: [
+          { text: 'Delete', field: 'deletePath', core: true },
+          { text: 'from', field: 'host' },
+        ],
+        ssh_move_rename: [
+          { text: 'Move', field: 'sourcePath', core: true },
+          { text: 'to', field: 'destinationPath' },
+          { text: 'on', field: 'host' },
+        ],
+        ssh_get_system_info: [{ text: 'Read system info from', field: 'host', core: true }],
+        ssh_read_file_content: [
+          { text: 'Read', field: 'readPath', core: true },
+          { text: 'from', field: 'host' },
+        ],
+        ssh_write_file_content: [
+          { text: 'Write content to', field: 'writePath', core: true },
+          { text: 'on', field: 'host' },
+        ],
+      },
+    },
+  },
   subBlocks: [
     // Operation selector
     {
@@ -91,6 +150,7 @@ export const SSHBlock: BlockConfig<SSHResponse> = {
       id: 'privateKey',
       title: 'Private Key',
       type: 'code',
+      password: true,
       placeholder: '-----BEGIN OPENSSH PRIVATE KEY-----\n...',
       condition: { field: 'authMethod', value: 'privateKey' },
       dependsOn: ['authMethod'],

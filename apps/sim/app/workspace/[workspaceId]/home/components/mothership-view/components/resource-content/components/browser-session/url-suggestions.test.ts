@@ -2,6 +2,9 @@ import type { BrowserKnownSession, BrowserSessionEvidence } from '@sim/browser-p
 import type { BrowserCredentialMetadata, BrowserSiteInfo } from '@sim/desktop-bridge'
 import { describe, expect, it } from 'vitest'
 import {
+  buildOmniboxSuggestions,
+  googleSearchUrl,
+  isSearchQueryInput,
   mergeSuggestionSources,
   moveActiveIndex,
   rankSuggestions,
@@ -70,7 +73,11 @@ describe('mergeSuggestionSources', () => {
       [session('github.com', '2026-01-01T00:00:00.000Z', 'sign-in-completed')],
       []
     )
-    const [saved] = mergeSuggestionSources([], [credential('https://gitlab.com')])
+    const [saved] = mergeSuggestionSources(
+      [],
+      [credential('https://gitlab.com')],
+      [site('gitlab.com', { visits: 1 })]
+    )
 
     expect(signedIn.tier).toBe(SUGGESTION_TIER.ACCOUNT)
     expect(saved.tier).toBe(SUGGESTION_TIER.ACCOUNT)
@@ -79,7 +86,8 @@ describe('mergeSuggestionSources', () => {
   it('holds a host known only by its cookie below one with an account', () => {
     const merged = mergeSuggestionSources(
       [session('cookies.com')],
-      [credential('https://saved.com')]
+      [credential('https://saved.com')],
+      [site('saved.com', { visits: 1 })]
     )
 
     expect(merged.find((entry) => entry.hostname === 'cookies.com')?.tier).toBe(
@@ -88,10 +96,11 @@ describe('mergeSuggestionSources', () => {
     expect(hostnames(rankSuggestions(merged, ''))).toEqual(['saved.com', 'cookies.com'])
   })
 
-  it('suggests hosts with a saved password, carrying the imported icon', () => {
+  it('decorates a visited host with its saved-password icon', () => {
     const merged = mergeSuggestionSources(
       [],
-      [credential('https://news.ycombinator.com', { icon: 'data:image/png;base64,AAA' })]
+      [credential('https://news.ycombinator.com', { icon: 'data:image/png;base64,AAA' })],
+      [site('news.ycombinator.com', { visits: 12 })]
     )
 
     expect(merged[0]).toMatchObject({
@@ -99,6 +108,10 @@ describe('mergeSuggestionSources', () => {
       url: 'https://news.ycombinator.com',
       icon: 'data:image/png;base64,AAA',
     })
+  })
+
+  it('does not suggest a host known only from a saved credential', () => {
+    expect(mergeSuggestionSources([], [credential('https://saved-only.com')])).toEqual([])
   })
 
   it('lists a host present in both sources once', () => {
@@ -169,7 +182,7 @@ describe('mergeSuggestionSources with an imported directory', () => {
     const merged = mergeSuggestionSources(
       [],
       [credential('https://github.com', { icon: 'data:from-vault' })],
-      [site('github.com', { name: 'GitHub', icon: 'data:from-directory' })]
+      [site('github.com', { name: 'GitHub', icon: 'data:from-directory', visits: 1 })]
     )
 
     expect(merged).toHaveLength(1)
@@ -193,6 +206,16 @@ describe('mergeSuggestionSources with an imported directory', () => {
         visits: 42,
       },
     ])
+  })
+
+  it('does not offer an imported host without positive visit evidence', () => {
+    expect(
+      mergeSuggestionSources(
+        [],
+        [],
+        [site('cookie-only.com'), site('zero-visits.com', { visits: 0 })]
+      )
+    ).toEqual([])
   })
 
   it('lists a host that was both imported and saved once, at the tier its account earned', () => {
@@ -244,13 +267,21 @@ describe('mergeSuggestionSources with an imported directory', () => {
   })
 
   it('reaches an imported host by the name the source browser gave it', () => {
-    const merged = mergeSuggestionSources([], [], [site('mail.google.com', { name: 'Gmail' })])
+    const merged = mergeSuggestionSources(
+      [],
+      [],
+      [site('mail.google.com', { name: 'Gmail', visits: 1 })]
+    )
 
     expect(hostnames(rankSuggestions(merged, 'gmail'))).toEqual(['mail.google.com'])
   })
 
   it('skips a site record with no hostname rather than offering a bare https://', () => {
-    const merged = mergeSuggestionSources([], [], [site(''), site('github.com')])
+    const merged = mergeSuggestionSources(
+      [],
+      [],
+      [site('', { visits: 1 }), site('github.com', { visits: 1 })]
+    )
 
     expect(hostnames(merged)).toEqual(['github.com'])
   })
@@ -260,8 +291,8 @@ describe('mergeSuggestionSources with an imported directory', () => {
       [],
       [],
       [
-        site('github.com', { importedAt: 'whenever' }),
-        site('gitlab.com', { importedAt: undefined }),
+        site('github.com', { importedAt: 'whenever', visits: 1 }),
+        site('gitlab.com', { importedAt: undefined, visits: 1 }),
       ]
     )
 
@@ -390,6 +421,65 @@ describe('rankSuggestions', () => {
     rankSuggestions(corpus, '')
 
     expect(corpus).toEqual(original)
+  })
+})
+
+describe('buildOmniboxSuggestions', () => {
+  it('leads with the exact search, keeps matching sites, then adds live completions', () => {
+    const results = buildOmniboxSuggestions(
+      [suggestion('mail.google.com', 100, 'Gmail')],
+      'gmail',
+      ['gmail login', 'gmail account']
+    )
+
+    expect(results.map((result) => [result.kind, result.url])).toEqual([
+      ['search', googleSearchUrl('gmail')],
+      ['site', 'https://mail.google.com'],
+      ['search', googleSearchUrl('gmail login')],
+      ['search', googleSearchUrl('gmail account')],
+    ])
+  })
+
+  it('does not send URL-looking input through search completions', () => {
+    const results = buildOmniboxSuggestions([suggestion('github.com', 100)], 'github.com', [
+      'github.com login',
+    ])
+
+    expect(results).toHaveLength(1)
+    expect(results[0]).toMatchObject({ kind: 'site', hostname: 'github.com' })
+  })
+
+  it('deduplicates completions and caps the combined dropdown', () => {
+    const results = buildOmniboxSuggestions(
+      [],
+      'sim ai',
+      ['sim ai', 'SIM AI', 'sim ai workflow', 'sim ai agents'],
+      2
+    )
+
+    expect(results.map((result) => result.kind === 'search' && result.query)).toEqual([
+      'sim ai',
+      'sim ai workflow',
+    ])
+  })
+
+  it('keeps an empty omnibox local-only', () => {
+    const results = buildOmniboxSuggestions([suggestion('github.com', 100)], '', [
+      'ignored remote completion',
+    ])
+
+    expect(results).toHaveLength(1)
+    expect(results[0]).toMatchObject({ kind: 'site', hostname: 'github.com' })
+  })
+})
+
+describe('isSearchQueryInput', () => {
+  it('distinguishes searches from navigable addresses', () => {
+    expect(isSearchQueryInput('what is the best browser')).toBe(true)
+    expect(isSearchQueryInput('electron')).toBe(true)
+    expect(isSearchQueryInput('sim.ai/docs')).toBe(false)
+    expect(isSearchQueryInput('https://sim.ai')).toBe(false)
+    expect(isSearchQueryInput('localhost:3000')).toBe(false)
   })
 })
 

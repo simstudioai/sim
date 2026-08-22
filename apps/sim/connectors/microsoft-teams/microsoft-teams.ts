@@ -15,8 +15,22 @@ import {
 
 const logger = createLogger('MicrosoftTeamsConnector')
 
-const GRAPH_API_BASE = 'https://graph.microsoft.com/v1.0'
+const GRAPH_API_ORIGIN = 'https://graph.microsoft.com'
+const GRAPH_API_BASE = `${GRAPH_API_ORIGIN}/v1.0`
+
+/**
+ * Graph caps `$top` on channel messages at 50 per page (default 20).
+ * https://learn.microsoft.com/graph/api/channel-list-messages
+ */
 const MESSAGES_PER_PAGE = 50
+
+/**
+ * Hard ceiling on `@odata.nextLink` hops drained per channel. Message paging is
+ * driven entirely by server-issued skip tokens, so without a cap a channel that
+ * keeps returning pages (e.g. one filled with system event messages that the
+ * user-message filter discards) would loop indefinitely inside a single sync.
+ */
+const MAX_MESSAGE_PAGES = 200
 
 interface TeamsMessage {
   id: string
@@ -39,6 +53,10 @@ interface TeamsMessage {
     content: string
   }
   subject?: string | null
+  /** Populated by `$expand=replies`; absent on the reply objects themselves. */
+  replies?: TeamsMessage[]
+  /** Present when a message has more replies than the expand page size. */
+  'replies@odata.nextLink'?: string
 }
 
 interface TeamsChannel {
@@ -58,6 +76,34 @@ interface TeamsChannelsResponse {
 }
 
 /**
+ * Resolves a relative Graph path or an absolute `@odata.nextLink` to a request
+ * URL, refusing any absolute URL that does not point at Microsoft Graph. The
+ * access token travels in the `Authorization` header, so following a
+ * server-supplied link to another origin would hand that token to a third
+ * party. Mirrors `assertGraphNextPageUrl` used by the Graph tool routes.
+ */
+function resolveGraphUrl(path: string): string {
+  if (!path.startsWith('https://')) return `${GRAPH_API_BASE}${path}`
+
+  const url = new URL(path.trim())
+  if (url.origin !== GRAPH_API_ORIGIN) {
+    throw new Error('Refusing to follow a non-Microsoft Graph @odata.nextLink')
+  }
+  return url.toString()
+}
+
+/** Carries the HTTP status so callers can tell a deleted channel from a fault. */
+class GraphApiError extends Error {
+  constructor(
+    readonly status: number,
+    body: string
+  ) {
+    super(`Microsoft Graph API error: ${status} ${body}`.trim())
+    this.name = 'GraphApiError'
+  }
+}
+
+/**
  * Calls the Microsoft Graph API with the given path and access token.
  */
 async function graphApiGet<T>(
@@ -65,7 +111,7 @@ async function graphApiGet<T>(
   accessToken: string,
   retryOptions?: Parameters<typeof fetchWithRetry>[2]
 ): Promise<T> {
-  const url = path.startsWith('https://') ? path : `${GRAPH_API_BASE}${path}`
+  const url = resolveGraphUrl(path)
 
   const response = await fetchWithRetry(
     url,
@@ -81,77 +127,148 @@ async function graphApiGet<T>(
 
   if (!response.ok) {
     const errorBody = await response.text().catch(() => '')
-    throw new Error(`Microsoft Graph API error: ${response.status} ${errorBody}`)
+    throw new GraphApiError(response.status, errorBody)
   }
 
   return (await response.json()) as T
 }
 
 /**
- * Fetches all messages from a channel, up to a maximum count, handling pagination.
+ * Resolves the configured message budget, falling back to the default for
+ * missing, non-numeric, or non-positive values.
+ *
+ * `validateConfig` rejects those inputs on save, but a config written before
+ * validation tightened (or edited out-of-band) would otherwise yield `NaN`
+ * here, which makes every budget comparison false and returns every channel
+ * with zero messages — dropping it from the listing entirely.
+ */
+function resolveMaxMessages(value: unknown): number {
+  if (value === undefined || value === null || value === '') return DEFAULT_MAX_MESSAGES
+  const parsed = Number(value)
+  return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : DEFAULT_MAX_MESSAGES
+}
+
+/** Real user/app posts, excluding system event messages and tombstones. */
+function isUserMessage(message: TeamsMessage): boolean {
+  return message.messageType === 'message' && !message.deletedDateTime
+}
+
+/** A root channel message together with the replies retained for it. */
+interface TeamsThread {
+  root: TeamsMessage
+  replies: TeamsMessage[]
+}
+
+/**
+ * Fetches conversation threads from a channel, newest first, up to a total
+ * message budget shared by root messages and their replies.
+ *
+ * `GET /teams/{id}/channels/{id}/messages` returns root messages *without*
+ * replies, so `$expand=replies` is required to capture threaded conversation
+ * content. `$top` and `$expand` are the only OData parameters this endpoint
+ * supports.
  */
 async function fetchChannelMessages(
   accessToken: string,
   teamId: string,
   channelId: string,
   maxMessages: number
-): Promise<{ messages: TeamsMessage[]; lastActivityTs?: string }> {
-  const allMessages: TeamsMessage[] = []
-  let nextLink: string | undefined
+): Promise<{ threads: TeamsThread[]; messageCount: number; lastActivityTs?: string }> {
+  const threads: TeamsThread[] = []
   let lastActivityTs: string | undefined
+  let remaining = maxMessages
+  let truncated = false
+  let pages = 0
 
-  const initialPath = `/teams/${encodeURIComponent(teamId)}/channels/${encodeURIComponent(channelId)}/messages?$top=${Math.min(MESSAGES_PER_PAGE, maxMessages)}`
+  let currentUrl = `/teams/${encodeURIComponent(teamId)}/channels/${encodeURIComponent(channelId)}/messages?$top=${Math.min(MESSAGES_PER_PAGE, maxMessages)}&$expand=replies`
 
-  let currentUrl: string = initialPath
-
-  while (allMessages.length < maxMessages) {
+  while (currentUrl && remaining > 0 && pages < MAX_MESSAGE_PAGES) {
     const data = await graphApiGet<TeamsMessagesResponse>(currentUrl, accessToken)
-    const messages = data.value || []
+    pages += 1
 
-    if (messages.length === 0) break
+    for (const message of data.value || []) {
+      if (!isUserMessage(message)) continue
+      if (remaining <= 0) {
+        truncated = true
+        break
+      }
 
-    // Filter to actual user messages (skip system/event messages)
-    const userMessages = messages.filter(
-      (msg) => msg.messageType === 'message' && !msg.deletedDateTime
-    )
+      /** Replies arrive newest-first, matching the root ordering. */
+      const replies = (message.replies || []).filter(isUserMessage)
+      if (message['replies@odata.nextLink']) truncated = true
 
-    // Messages are sorted by lastModifiedDateTime (per Graph docs), so the first
-    // user message on the first page reflects the most recent activity.
-    if (!lastActivityTs && userMessages.length > 0) {
-      const first = userMessages[0]
-      lastActivityTs = first.lastModifiedDateTime || first.createdDateTime
+      remaining -= 1
+      const keptReplies = replies.slice(0, remaining)
+      remaining -= keptReplies.length
+      if (keptReplies.length < replies.length) truncated = true
+
+      if (!lastActivityTs) {
+        /**
+         * Graph sorts channel messages by the last modified date of the entire
+         * reply chain, so the first thread is the most recently active one —
+         * but the freshest timestamp in it may belong to a reply, not the root.
+         */
+        const candidates = [message, ...replies].map(
+          (m) => m.lastModifiedDateTime || m.createdDateTime
+        )
+        lastActivityTs = candidates.reduce((a, b) => (Date.parse(b) > Date.parse(a) ? b : a))
+      }
+
+      threads.push({ root: message, replies: keptReplies })
     }
 
-    allMessages.push(...userMessages)
-
-    nextLink = data['@odata.nextLink']
-    if (!nextLink) break
-    currentUrl = nextLink
+    const nextLink = data['@odata.nextLink']
+    currentUrl = nextLink ?? ''
+    if (currentUrl && remaining <= 0) truncated = true
   }
 
-  return { messages: allMessages.slice(0, maxMessages), lastActivityTs }
+  if (currentUrl && pages >= MAX_MESSAGE_PAGES) truncated = true
+
+  if (truncated) {
+    logger.warn('Microsoft Teams channel content truncated; indexed a partial message history', {
+      teamId,
+      channelId,
+      maxMessages,
+      pages,
+      threads: threads.length,
+    })
+  }
+
+  const messageCount = threads.reduce((total, thread) => total + 1 + thread.replies.length, 0)
+  return { threads, messageCount, lastActivityTs }
+}
+
+/** Renders one message as "[ISO timestamp] username: text", or '' when blank. */
+function formatMessage(message: TeamsMessage, prefix: string): string {
+  const bodyText =
+    message.body?.contentType === 'html'
+      ? htmlToPlainText(message.body.content)
+      : (message.body?.content ?? '')
+
+  if (!bodyText.trim()) return ''
+
+  const userName =
+    message.from?.user?.displayName || message.from?.application?.displayName || 'unknown'
+
+  return `${prefix}[${message.createdDateTime}] ${userName}: ${bodyText}`
 }
 
 /**
- * Converts fetched messages into a single document content string.
- * Each line: "[ISO timestamp] username: message text"
+ * Converts fetched threads into a single document content string, oldest first,
+ * with each thread's replies indented beneath its root message.
  */
-function formatMessages(messages: TeamsMessage[]): string {
+function formatMessages(threads: TeamsThread[]): string {
   const lines: string[] = []
 
-  // Process in reverse so oldest messages come first
-  const chronological = [...messages].reverse()
+  // Process in reverse so oldest threads come first
+  for (const thread of [...threads].reverse()) {
+    const rootLine = formatMessage(thread.root, '')
+    if (rootLine) lines.push(rootLine)
 
-  for (const msg of chronological) {
-    const bodyText =
-      msg.body.contentType === 'html' ? htmlToPlainText(msg.body.content) : msg.body.content
-
-    if (!bodyText.trim()) continue
-
-    const timestamp = msg.createdDateTime
-    const userName = msg.from?.user?.displayName || msg.from?.application?.displayName || 'unknown'
-
-    lines.push(`[${timestamp}] ${userName}: ${bodyText}`)
+    for (const reply of [...thread.replies].reverse()) {
+      const replyLine = formatMessage(reply, '    ')
+      if (replyLine) lines.push(replyLine)
+    }
   }
 
   return lines.join('\n')
@@ -163,7 +280,8 @@ function formatMessages(messages: TeamsMessage[]): string {
 async function resolveChannel(
   accessToken: string,
   teamId: string,
-  channelInput: string
+  channelInput: string,
+  retryOptions?: Parameters<typeof fetchWithRetry>[2]
 ): Promise<TeamsChannel | null> {
   const trimmed = channelInput.trim()
 
@@ -174,7 +292,7 @@ async function resolveChannel(
   let currentUrl: string = initialPath
 
   do {
-    const data = await graphApiGet<TeamsChannelsResponse>(currentUrl, accessToken)
+    const data = await graphApiGet<TeamsChannelsResponse>(currentUrl, accessToken, retryOptions)
     const channels = data.value || []
 
     // Try matching by ID first, then by display name (case-insensitive)
@@ -210,9 +328,7 @@ export const microsoftTeamsConnector: ConnectorConfig = {
       throw new Error('At least one channel is required')
     }
 
-    const maxMessages = sourceConfig.maxMessages
-      ? Number(sourceConfig.maxMessages)
-      : DEFAULT_MAX_MESSAGES
+    const maxMessages = resolveMaxMessages(sourceConfig.maxMessages)
 
     logger.info('Syncing Microsoft Teams channels', {
       teamId,
@@ -228,14 +344,14 @@ export const microsoftTeamsConnector: ConnectorConfig = {
         throw new Error(`Channel not found: ${channelInput}`)
       }
 
-      const { messages, lastActivityTs } = await fetchChannelMessages(
+      const { threads, messageCount, lastActivityTs } = await fetchChannelMessages(
         accessToken,
         teamId,
         channel.id,
         maxMessages
       )
 
-      const content = formatMessages(messages)
+      const content = formatMessages(threads)
       if (!content.trim()) {
         logger.info(`No messages found in channel: ${channel.displayName}`)
         continue
@@ -254,7 +370,7 @@ export const microsoftTeamsConnector: ConnectorConfig = {
         contentHash,
         metadata: {
           channelName: channel.displayName,
-          messageCount: messages.length,
+          messageCount,
           lastActivity: lastActivityTs || undefined,
           description: channel.description || undefined,
         },
@@ -278,23 +394,20 @@ export const microsoftTeamsConnector: ConnectorConfig = {
       return null
     }
 
-    const maxMessages = sourceConfig.maxMessages
-      ? Number(sourceConfig.maxMessages)
-      : DEFAULT_MAX_MESSAGES
+    const maxMessages = resolveMaxMessages(sourceConfig.maxMessages)
 
     try {
-      // Fetch channel info
-      const channelPath = `/teams/${encodeURIComponent(teamId)}/channels/${encodeURIComponent(externalId)}`
+      const channelPath = `/teams/${encodeURIComponent(teamId)}/channels/${encodeURIComponent(externalId)}?$select=id,displayName,description`
       const channel = await graphApiGet<TeamsChannel>(channelPath, accessToken)
 
-      const { messages, lastActivityTs } = await fetchChannelMessages(
+      const { threads, messageCount, lastActivityTs } = await fetchChannelMessages(
         accessToken,
         teamId,
         externalId,
         maxMessages
       )
 
-      const content = formatMessages(messages)
+      const content = formatMessages(threads)
       if (!content.trim()) return null
 
       const contentHash = await computeContentHash(content)
@@ -310,17 +423,25 @@ export const microsoftTeamsConnector: ConnectorConfig = {
         contentHash,
         metadata: {
           channelName: channel.displayName,
-          messageCount: messages.length,
+          messageCount,
           lastActivity: lastActivityTs || undefined,
           description: channel.description || undefined,
         },
       }
     } catch (error) {
+      /**
+       * Only a channel that is genuinely gone resolves to `null`. Every other
+       * failure is rethrown so the sync engine records a visible failed document
+       * instead of dropping the channel from the run with no counter and no log.
+       */
+      if (error instanceof GraphApiError && (error.status === 404 || error.status === 410)) {
+        return null
+      }
       logger.warn('Failed to get Microsoft Teams channel document', {
         externalId,
         error: toError(error).message,
       })
-      return null
+      throw toError(error)
     }
   },
 
@@ -346,7 +467,12 @@ export const microsoftTeamsConnector: ConnectorConfig = {
 
     try {
       for (const channelInput of channelInputs) {
-        const channel = await resolveChannel(accessToken, teamId, channelInput)
+        const channel = await resolveChannel(
+          accessToken,
+          teamId,
+          channelInput,
+          VALIDATE_RETRY_OPTIONS
+        )
         if (!channel) {
           return { valid: false, error: `Channel not found: ${channelInput}` }
         }

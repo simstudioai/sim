@@ -179,6 +179,8 @@ export function buildTableUsageLimitClear(args: {
     tableId,
     rowId,
     data: {},
+    /** No cell values are written, so there is nothing to stamp. */
+    secretProvenance: undefined,
     workspaceId,
     executionsPatch: { [groupId]: null },
     cancellationGuard: { groupId, executionId },
@@ -580,7 +582,7 @@ async function runWorkflowAndWriteTerminal(
           await enrichmentRegistry.importCrossingProvenance(inputProvenance, enrichInputs, {
             trusted: true,
           })
-          const { result, cost, error, detail } = await runEnrichment(enrichment, enrichInputs, {
+          const { result, cost, detail } = await runEnrichment(enrichment, enrichInputs, {
             tableId,
             rowId,
             workspaceId,
@@ -597,20 +599,6 @@ async function runWorkflowAndWriteTerminal(
                 timedOut: timeoutController.isTimedOut(),
                 timeoutMs: timeoutController.timeoutMs,
               }),
-              enrichmentDetails: detail,
-            })
-            return 'error'
-          }
-
-          // Every provider that ran errored (auth / rate-limit / outage) — surface
-          // it rather than writing a blank cell that looks like "no data found".
-          if (error) {
-            await writeState({
-              status: 'error',
-              executionId,
-              jobId: null,
-              workflowId: statusId,
-              error,
               enrichmentDetails: detail,
             })
             return 'error'

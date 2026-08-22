@@ -1,0 +1,434 @@
+---
+title: Files
+description: Manage files — every subcommand, argument, and flag
+---
+
+import { CommandTable } from '@/components/ui/command-table'
+
+`sim files` is also spelled `sim file`.
+
+Every command below also accepts the [global options](/cli/commands#global-options).
+
+## Delete several files at once
+
+```bash
+sim files batch-delete [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--file-ids <value...>` | Yes | File identifiers to update. (space-separated, or @path / @- with one value per line). |
+| `-y, --yes` | Yes | Confirm this destructive operation. |
+
+</CommandTable>
+
+## Create file
+
+```bash
+sim files create [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--name <value>` | Yes | File name, including its extension. Path separators and dot segments are rejected. |
+| `--content-type <value>` | No | MIME type. When omitted, it is inferred from the file extension. |
+| `--folder <value>` | No | Folder path as shown in the app; the leading / is optional. |
+| `--content <value>` | No | Initial file content. Omit or send an empty string for a zero-byte file. The 70,000,000-character bound guards the JSON envelope; the decoded bytes must be at most 50 MiB, and a longer base64 payload is rejected with `413`. Use an upload session for anything larger. |
+| `--encoding <value>` | No | Encoding of the content field. Accepted values: `utf-8`, `base64`. |
+
+</CommandTable>
+
+## Create a file folder at a path
+
+```bash
+sim files folders create <path>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `path` | Yes | Folder path as shown in the app; the leading / is optional |
+
+</CommandTable>
+
+## Delete folder
+
+```bash
+sim files folders delete <path> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `path` | Yes | Folder path as shown in the app; the leading / is optional |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--recursive` | No | Delete the folder and its descendants. |
+| `-y, --yes` | Yes | Confirm this destructive operation. |
+
+</CommandTable>
+
+## List folders
+
+```bash
+sim files folders list [options]
+```
+
+Also available as `sim files folders ls`.
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--parent <value>` | No | Direct parent folder path. |
+| `--search <value>` | No | Case-insensitive substring match against the folder name. |
+| `--sort-by <value>` | No | Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order. Accepted values: `name`, `createdAt`, `updatedAt`. |
+| `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
+
+</CommandTable>
+
+## Rename or move a file folder
+
+```bash
+sim files folders move <path> <destination>
+```
+
+Also available as `sim files folders mv`.
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `path` | Yes | Folder path as shown in the app; the leading / is optional |
+| `destination` | Yes | Folder path as shown in the app; the leading / is optional |
+
+</CommandTable>
+
+## Delete file
+
+```bash
+sim files delete <fileId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `fileId` | Yes | File identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `-y, --yes` | Yes | Confirm this destructive operation. |
+
+</CommandTable>
+
+## Show file metadata and sharing status
+
+```bash
+sim files describe <fileId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `fileId` | Yes | File identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--scope <value>` | No | Which lifecycle set to read from: `active` (default) resolves live files only and returns `404` for a file a `DELETE` soft-deleted; `archived` also resolves soft-deleted files, so metadata stays readable before `POST /files/&#123;fileId&#125;/restore`. Authorization is identical for both. Accepted values: `active`, `archived`. |
+
+</CommandTable>
+
+## Show a file’s share settings
+
+```bash
+sim files share get <fileId>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `fileId` | Yes | File identifier. |
+
+</CommandTable>
+
+## Enable or disable sharing for a file
+
+```bash
+sim files share set <fileId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `fileId` | Yes | File identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--is-active <true\|false>` | Yes | Whether the share should resolve. Disabling preserves the token and the whole access configuration, so re-enabling restores the share as it was; enabling rewrites the credentials the resulting mode does not use. Accepted values: `true`, `false`. |
+| `--auth-type <value>` | No | How access to the share is gated. The stored mode is kept when omitted. Enabling `public` clears the stored password and empties `allowedEmails`; `password` empties `allowedEmails`; `email` and `sso` clear the stored password. Accepted values: `public`, `password`, `email`, `sso`. |
+| `--password <value>` | No | Password for a password-gated share. Kept when omitted; enabling `password` with neither a supplied nor a stored password is a 400. |
+| `--allowed-emails <value...>` | No | Allowed addresses or `@domain` patterns for email and SSO shares. Kept when omitted; enabling `email` or `sso` with an empty resulting list is a 400. (space-separated, or @path / @- with one value per line). |
+
+</CommandTable>
+
+## List files
+
+```bash
+sim files list [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--folder <value>` | No | Folder path as shown in the app; the leading / is optional. |
+| `--recursive <value>` | No | Whether the folder filter includes files in subfolders. Defaults to true when a search is set, false otherwise, so listing a folder shows that folder while searching one looks through everything in it. Ignored when no folder filter is set, which already spans the workspace. The listed spellings are the whole accepted vocabulary and are case-sensitive; any other value is rejected. Accepted values: `true`, `1`, `yes`, `on`, `y`, `enabled`, `false`, `0`, `no`, `off`, `n`, `disabled`. |
+| `--scope <value>` | No | Which lifecycle set to list: `active` (default) for live files, `archived` for files a `DELETE` soft-deleted. `folderPath` resolves against active folders only, so pairing it with `scope=archived` returns an empty page when the containing folder was archived too. Accepted values: `active`, `archived`. |
+| `--search <value>` | No | Case-insensitive substring match against the file name. |
+| `--sort-by <value>` | No | Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order. Accepted values: `name`, `size`, `uploadedAt`, `updatedAt`. |
+| `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+
+</CommandTable>
+
+## Move files into another folder
+
+```bash
+sim files move [options]
+```
+
+Also available as `sim files mv`.
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--file-ids <value...>` | Yes | File identifiers to update. (space-separated, or @path / @- with one value per line). |
+| `--to <value>` | No | Destination folder path; omit for root. |
+
+</CommandTable>
+
+## Rename a file
+
+```bash
+sim files rename <fileId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `fileId` | Yes | File identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--name <value>` | Yes | New file name, including its extension. |
+
+</CommandTable>
+
+## Restore an archived file
+
+```bash
+sim files restore <fileId>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `fileId` | Yes | File identifier. |
+
+</CommandTable>
+
+## Replace a file’s contents
+
+```bash
+sim files set-content <fileId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `fileId` | Yes | File identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--content <value>` | Yes | Complete replacement content for the file. The 70,000,000-character bound guards the JSON envelope; the decoded bytes must be at most 50 MiB, and a longer base64 payload is rejected with `413`. |
+| `--encoding <value>` | No | Content encoding. Accepted values: `utf-8`, `base64`. |
+
+</CommandTable>
+
+## Upload a file to the workspace
+
+```bash
+sim files upload <path> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `path` | Yes | Local file to upload |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--folder <path>` | No | Folder path as shown in the app; defaults to the root folder. |
+| `--name <name>` | No | Store it under a different name. |
+
+</CommandTable>
+
+## Get a file’s content
+
+```bash
+sim files get <fileId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `fileId` | Yes | File whose content to read |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `-o, --output-file <path>` | No | Write content to a file instead of stdout. |
+| `--force` | No | Overwrite --output-file if it already exists. |
+
+</CommandTable>
+
+## List file resources and child folders together
+
+```bash
+sim files ls [path] [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `path` | No | Folder path to list; defaults to the root folder |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--search <text>` | No | Filter folders and resources by name. |
+| `--limit <n>` | No | Maximum combined items to return (0 for everything). Defaults to `100`. |
+
+</CommandTable>
+
+## Create a file directory at a path
+
+```bash
+sim files mkdir <path>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `path` | Yes | Folder path to create; the leading / is optional |
+
+</CommandTable>

@@ -31,6 +31,16 @@ Reference an earlier output inside an expression with a [connection tag](/workfl
 <user.email>.endsWith('@company.com') && <user.plan> === 'pro'
 ```
 
+Read an [environment variable](/workflows/variables#environment-variables) with `{{KEY}}`:
+
+```javascript
+{{MAX_RETRIES}} === 3
+{{FEATURE_ON}} === true
+{{TIER}} === 'pro'
+```
+
+Numbers, booleans, and `null` compare as literals. Every other value is bound as a string, so an apostrophe, quote, or newline inside a secret cannot change what the expression means.
+
 <Callout type="info">
 If an expression throws, for example because it reads a field that is not there, the block errors and the run follows the [error path](/workflows/connections) if one is connected. Guard missing values with optional chaining (`?.`) or a null check.
 </Callout>

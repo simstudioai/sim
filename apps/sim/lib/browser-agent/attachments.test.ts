@@ -15,6 +15,10 @@ describe('buildResourceAttachments', () => {
       pageState: null,
       tabs: [],
       activeTabId: null,
+      automationTabId: null,
+      automationActive: false,
+      automationNeedsAttention: false,
+      agentRunIds: [],
       sessionAlive: true,
       suspended: false,
     }

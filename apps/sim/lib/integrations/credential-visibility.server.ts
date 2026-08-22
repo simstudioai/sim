@@ -62,10 +62,21 @@ export function createIntegrationCredentialVisibility({
     else ownersByProviderId.set(providerId, [service])
   }
 
-  for (const service of oauthOwners) {
-    addOwner(oauthOwnersByProviderId, service.providerId, service)
-    if (service.serviceAccountProviderId) {
-      addOwner(serviceAccountOwnersByProviderId, service.serviceAccountProviderId, service)
+  for (const service of oauthServices) {
+    if (service.authType === 'oauth') {
+      addOwner(oauthOwnersByProviderId, service.providerId, service)
+      // A second authorization server for the same service (`salesforce-sandbox`)
+      // issues ordinary OAuth credentials, so they own visibility exactly like
+      // the primary provider's do.
+      for (const extraProviderId of service.additionalProviderIds ?? []) {
+        addOwner(oauthOwnersByProviderId, extraProviderId, service)
+      }
+    }
+    const serviceAccountProviderId =
+      service.serviceAccountProviderId ??
+      (service.authType === 'service_account' ? service.providerId : undefined)
+    if (serviceAccountProviderId) {
+      addOwner(serviceAccountOwnersByProviderId, serviceAccountProviderId, service)
     }
   }
 

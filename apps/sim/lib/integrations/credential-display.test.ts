@@ -1,6 +1,8 @@
 /**
  * @vitest-environment node
  */
+
+import integrationsJson from '@sim/deployment-config/integrations.json'
 import { describe, expect, it } from 'vitest'
 import {
   getIntegrationsForCredentialProvider,
@@ -9,7 +11,6 @@ import {
   isFamilyServiceAccount,
   resolveCredentialDisplay,
 } from '@/lib/integrations/credential-display'
-import integrationsJson from '@/lib/integrations/integrations.json'
 import { resolveOAuthServiceForIntegration } from '@/lib/integrations/oauth-service'
 import type { Integration } from '@/lib/integrations/types'
 import { OAUTH_PROVIDERS } from '@/lib/oauth/oauth'
@@ -59,10 +60,14 @@ const EXPECTED_COVERAGE: Record<string, string[]> = {
     'google-tasks',
     'google-vault',
   ],
+  'harmonic-service-account': [],
   'hubspot-service-account': ['hubspot'],
   'linear-service-account': ['linear'],
   'monday-service-account': ['monday'],
   'notion-service-account': ['notion'],
+  // NetSuite remains an API-key catalog integration, like Snowflake, while its
+  // block uses the shared reusable-credential selector.
+  'netsuite-service-account': [],
   'pipedrive-service-account': ['pipedrive'],
   'salesforce-service-account': ['salesforce'],
   'shopify-service-account': ['shopify'],
@@ -95,6 +100,16 @@ const serviceAccount = (providerId: string) => ({
 })
 
 describe('service-account coverage', () => {
+  it('exposes NetSuite reusable credentials without changing its API-key catalog class', () => {
+    const netSuiteIntegration = INTEGRATIONS.find((integration) => integration.type === 'netsuite')
+    expect(netSuiteIntegration?.authType).toBe('api-key')
+    expect(OAUTH_PROVIDERS.netsuite.services.netsuite).toMatchObject({
+      providerId: 'netsuite',
+      serviceAccountProviderId: 'netsuite-service-account',
+      authType: 'service_account',
+    })
+  })
+
   it('pins the table to exactly the registered service-account provider ids', () => {
     expect(REGISTERED_SERVICE_ACCOUNT_IDS).toEqual(Object.keys(EXPECTED_COVERAGE).sort())
   })

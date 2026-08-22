@@ -8,7 +8,29 @@ import { computeContentHash, parseTagDate } from '@/connectors/utils'
 const logger = createLogger('DiscordConnector')
 
 const DISCORD_API_BASE = 'https://discord.com/api/v10'
+/** Discord caps `GET /channels/{id}/messages` at `limit=100`. */
 const MESSAGES_PER_PAGE = 100
+/** Upper bound on `maxMessages` so a mistyped value cannot page the API forever. */
+const MAX_MESSAGES_CEILING = 50_000
+/** Discord snowflakes are numeric strings; reject anything else before path interpolation. */
+const SNOWFLAKE_PATTERN = /^\d{15,25}$/
+
+/**
+ * Message types whose `content` is user-authored prose worth indexing.
+ * `0` = DEFAULT, `19` = REPLY.
+ */
+const INDEXABLE_MESSAGE_TYPES = new Set([0, 19])
+
+/**
+ * Normalizes the optional `maxMessages` config value to a positive integer,
+ * falling back to the default for missing, non-numeric, or out-of-range input.
+ */
+function resolveMaxMessages(raw: unknown): number {
+  if (raw === undefined || raw === null || raw === '') return DEFAULT_MAX_MESSAGES
+  const parsed = Math.floor(Number(raw))
+  if (!Number.isFinite(parsed) || parsed <= 0) return DEFAULT_MAX_MESSAGES
+  return Math.min(parsed, MAX_MESSAGES_CEILING)
+}
 
 interface DiscordMessage {
   id: string
@@ -31,6 +53,30 @@ interface DiscordChannel {
   topic?: string | null
   guild_id?: string
   type: number
+}
+
+/**
+ * Trims a user-supplied channel ID and returns it only if it is a Discord
+ * snowflake, so nothing else can be interpolated into an API path.
+ */
+function normalizeChannelId(raw: unknown): string | null {
+  if (typeof raw !== 'string') return null
+  const trimmed = raw.trim()
+  return SNOWFLAKE_PATTERN.test(trimmed) ? trimmed : null
+}
+
+/**
+ * Carries the HTTP status so callers can tell a deleted channel (404 Unknown Channel)
+ * from a transient fault (429, 5xx) that must not be swallowed.
+ */
+class DiscordApiError extends Error {
+  constructor(
+    message: string,
+    readonly status: number
+  ) {
+    super(message)
+    this.name = 'DiscordApiError'
+  }
 }
 
 /**
@@ -60,24 +106,30 @@ async function discordApiGet(
 
   if (!response.ok) {
     const body = await response.text().catch(() => '')
-    throw new Error(`Discord API error ${response.status}: ${body}`)
+    throw new DiscordApiError(`Discord API error ${response.status}: ${body}`, response.status)
   }
 
   return response.json()
 }
 
 /**
- * Fetches all messages from a channel, up to a maximum count, using `before`-based pagination.
+ * Fetches all messages from a channel, up to a maximum count, using `before`-based
+ * snowflake pagination (Discord exposes no cursor and no total count).
  * Discord returns messages newest-first; we collect them all then reverse for chronological order.
+ *
+ * `truncated` is true when the `maxMessages` cap — rather than a short page — ended
+ * paging, so callers can log that older history may not be indexed. Discord reports no
+ * total count, so a channel holding exactly `maxMessages` messages also reports true.
  */
 async function fetchChannelMessages(
   botToken: string,
   channelId: string,
   maxMessages: number
-): Promise<{ messages: DiscordMessage[]; lastActivityTs?: string }> {
+): Promise<{ messages: DiscordMessage[]; lastActivityTs?: string; truncated: boolean }> {
   const allMessages: DiscordMessage[] = []
   let beforeId: string | undefined
   let lastActivityTs: string | undefined
+  let truncated = false
 
   while (allMessages.length < maxMessages) {
     const limit = Math.min(MESSAGES_PER_PAGE, maxMessages - allMessages.length)
@@ -92,9 +144,9 @@ async function fetchChannelMessages(
       params
     )) as DiscordMessage[]
 
-    if (!messages || messages.length === 0) break
+    if (!Array.isArray(messages) || messages.length === 0) break
 
-    if (!lastActivityTs && messages.length > 0) {
+    if (!lastActivityTs) {
       lastActivityTs = messages[0].timestamp
     }
 
@@ -103,34 +155,48 @@ async function fetchChannelMessages(
     // The last message in the batch is the oldest; use its ID for the next page
     beforeId = messages[messages.length - 1].id
 
-    // If we got fewer than requested, there are no more messages
+    // A short page means the channel history is exhausted; a full page means more remains
     if (messages.length < limit) break
+    if (allMessages.length >= maxMessages) truncated = true
   }
 
-  return { messages: allMessages.slice(0, maxMessages), lastActivityTs }
+  return { messages: allMessages.slice(0, maxMessages), lastActivityTs, truncated }
 }
 
 /**
  * Converts fetched messages into a single document content string.
  * Each line: "[ISO timestamp] username: message content"
  * Messages are returned chronologically (oldest first).
+ *
+ * `contentStripped` is true when indexable messages existed but every one of
+ * them had an empty `content`. Discord blanks `content` (along with `embeds`,
+ * `attachments`, and `components`) for applications without the
+ * `MESSAGE_CONTENT` privileged intent, so this shape almost always means the
+ * intent is disabled rather than that the channel is genuinely empty.
  */
-function formatMessages(messages: DiscordMessage[]): string {
+function formatMessages(messages: DiscordMessage[]): {
+  content: string
+  contentStripped: boolean
+} {
   const lines: string[] = []
+  let indexableCount = 0
 
   // Discord returns newest first; reverse for chronological order
   const chronological = [...messages].reverse()
 
   for (const msg of chronological) {
-    // Skip system messages (type 0 = DEFAULT, type 19 = REPLY are user messages)
-    if (msg.type !== 0 && msg.type !== 19) continue
+    if (!INDEXABLE_MESSAGE_TYPES.has(msg.type)) continue
+    indexableCount++
     if (!msg.content) continue
 
     const userName = msg.author.username
     lines.push(`[${msg.timestamp}] ${userName}: ${msg.content}`)
   }
 
-  return lines.join('\n')
+  return {
+    content: lines.join('\n'),
+    contentStripped: indexableCount > 0 && lines.length === 0,
+  }
 }
 
 export const discordConnector: ConnectorConfig = {
@@ -140,33 +206,51 @@ export const discordConnector: ConnectorConfig = {
     accessToken: string,
     sourceConfig: Record<string, unknown>,
     _cursor?: string,
-    _syncContext?: Record<string, unknown>
+    syncContext?: Record<string, unknown>
   ): Promise<ExternalDocumentList> => {
-    const channelId = sourceConfig.channelId as string
-    if (!channelId?.trim()) {
-      throw new Error('Channel ID is required')
+    const channelId = normalizeChannelId(sourceConfig.channelId)
+    if (!channelId) {
+      throw new Error('A valid numeric Discord channel ID is required')
     }
 
-    const maxMessages = sourceConfig.maxMessages
-      ? Number(sourceConfig.maxMessages)
-      : DEFAULT_MAX_MESSAGES
+    const maxMessages = resolveMaxMessages(sourceConfig.maxMessages)
 
     logger.info('Syncing Discord channel', { channelId, maxMessages })
 
-    const channel = (await discordApiGet(
-      `/channels/${channelId.trim()}`,
-      accessToken
-    )) as DiscordChannel
+    const channel = (await discordApiGet(`/channels/${channelId}`, accessToken)) as DiscordChannel
 
-    const { messages, lastActivityTs } = await fetchChannelMessages(
+    const { messages, lastActivityTs, truncated } = await fetchChannelMessages(
       accessToken,
-      channel.id,
+      channelId,
       maxMessages
     )
 
-    const content = formatMessages(messages)
+    if (truncated) {
+      logger.warn('Discord channel history truncated by maxMessages; older messages not indexed', {
+        channelId,
+        maxMessages,
+      })
+    }
+
+    const { content, contentStripped } = formatMessages(messages)
     if (!content.trim()) {
-      logger.info('No messages found in Discord channel', { channelId: channel.id })
+      if (contentStripped) {
+        /**
+         * The channel still has messages, but Discord returned them with blank
+         * `content` — the `MESSAGE_CONTENT` privileged intent is almost certainly
+         * disabled for this bot. Emitting an empty listing here would let the sync
+         * engine hard-delete the already-stored channel document (the connector owns
+         * a single document, so it sits below the engine's suspect-empty-listing
+         * threshold). Cap the listing so deletion reconciliation is skipped.
+         */
+        logger.warn(
+          'Discord returned messages with empty content; enable the MESSAGE_CONTENT privileged intent for this bot',
+          { channelId, messageCount: messages.length }
+        )
+        if (syncContext) syncContext.listingCapped = true
+      } else {
+        logger.info('No messages found in Discord channel', { channelId })
+      }
       return { documents: [], hasMore: false }
     }
 
@@ -200,23 +284,24 @@ export const discordConnector: ConnectorConfig = {
     sourceConfig: Record<string, unknown>,
     externalId: string
   ): Promise<ExternalDocument | null> => {
-    const maxMessages = sourceConfig.maxMessages
-      ? Number(sourceConfig.maxMessages)
-      : DEFAULT_MAX_MESSAGES
+    const maxMessages = resolveMaxMessages(sourceConfig.maxMessages)
+
+    const channelId = normalizeChannelId(externalId)
+    if (!channelId) {
+      logger.warn('Discord getDocument called with a non-snowflake external ID', { externalId })
+      return null
+    }
 
     try {
-      const channel = (await discordApiGet(
-        `/channels/${externalId}`,
-        accessToken
-      )) as DiscordChannel
+      const channel = (await discordApiGet(`/channels/${channelId}`, accessToken)) as DiscordChannel
 
       const { messages, lastActivityTs } = await fetchChannelMessages(
         accessToken,
-        externalId,
+        channelId,
         maxMessages
       )
 
-      const content = formatMessages(messages)
+      const { content } = formatMessages(messages)
       if (!content.trim()) return null
 
       const contentHash = await computeContentHash(content)
@@ -238,11 +323,20 @@ export const discordConnector: ConnectorConfig = {
         },
       }
     } catch (error) {
+      /**
+       * Only a 404 (Unknown Channel) means the channel is genuinely gone. Every other
+       * failure — 429, 5xx, network faults — is rethrown so the sync engine records a
+       * failed row instead of silently dropping a channel that still exists.
+       */
+      if (error instanceof DiscordApiError && error.status === 404) {
+        logger.info('Discord channel not found', { externalId })
+        return null
+      }
       logger.warn('Failed to get Discord channel document', {
         externalId,
         error: toError(error).message,
       })
-      return null
+      throw toError(error)
     }
   },
 
@@ -250,11 +344,19 @@ export const discordConnector: ConnectorConfig = {
     accessToken: string,
     sourceConfig: Record<string, unknown>
   ): Promise<{ valid: boolean; error?: string }> => {
-    const channelId = sourceConfig.channelId as string | undefined
+    const rawChannelId = sourceConfig.channelId
     const maxMessages = sourceConfig.maxMessages as string | undefined
 
-    if (!channelId?.trim()) {
+    if (typeof rawChannelId !== 'string' || !rawChannelId.trim()) {
       return { valid: false, error: 'Channel ID is required' }
+    }
+
+    const channelId = normalizeChannelId(rawChannelId)
+    if (!channelId) {
+      return {
+        valid: false,
+        error: 'Channel ID must be a Discord snowflake (a numeric ID, e.g. 123456789012345678)',
+      }
     }
 
     if (maxMessages && (Number.isNaN(Number(maxMessages)) || Number(maxMessages) <= 0)) {
@@ -262,17 +364,15 @@ export const discordConnector: ConnectorConfig = {
     }
 
     try {
-      await discordApiGet(
-        `/channels/${channelId.trim()}`,
-        accessToken,
-        undefined,
-        VALIDATE_RETRY_OPTIONS
-      )
+      await discordApiGet(`/channels/${channelId}`, accessToken, undefined, VALIDATE_RETRY_OPTIONS)
       return { valid: true }
     } catch (error) {
       const message = getErrorMessage(error, 'Failed to validate configuration')
       if (message.includes('401') || message.includes('403')) {
-        return { valid: false, error: 'Invalid bot token or missing permissions for this channel' }
+        return {
+          valid: false,
+          error: 'Invalid bot token, or the bot lacks View Channel access to this channel',
+        }
       }
       if (message.includes('404')) {
         return { valid: false, error: `Channel not found: ${channelId}` }

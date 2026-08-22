@@ -14,6 +14,15 @@ export const WorkflowInputBlock: BlockConfig = {
   docsLink: 'https://docs.sim.ai/workflows/blocks/workflow',
   bgColor: '#6366F1',
   icon: WorkflowIcon,
+  canvasPresentation: {
+    defaultTitle: 'Workflow',
+    sentences: {
+      default: [
+        { text: 'Run', field: ['workflowId', 'manualWorkflowId'], core: true },
+        { text: ', with inputs', field: 'inputMapping' },
+      ],
+    },
+  },
   subBlocks: [
     {
       id: 'workflowId',

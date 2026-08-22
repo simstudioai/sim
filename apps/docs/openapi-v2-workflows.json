@@ -1,0 +1,5059 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Sim API v2 — Workflows",
+    "description": "Version 2 of the Sim REST API for workflow management, deployment versions, execution, run lifecycle, folders, and portable import and export.",
+    "version": "2.0.0",
+    "contact": {
+      "name": "Sim Support",
+      "email": "help@sim.ai",
+      "url": "https://www.sim.ai"
+    },
+    "license": {
+      "name": "Apache 2.0",
+      "url": "https://www.apache.org/licenses/LICENSE-2.0.html"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://www.sim.ai",
+      "description": "Production"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Workflows",
+      "description": "Manage and execute workflow definitions, folders, deployment versions, and portable imports and exports."
+    },
+    {
+      "name": "Workflow Runs",
+      "description": "Inspect, resume, and cancel workflow runs."
+    }
+  ],
+  "security": [
+    {
+      "apiKey": []
+    }
+  ],
+  "paths": {
+    "/api/v2/workflows": {
+      "get": {
+        "operationId": "listWorkflows",
+        "summary": "List Workflows",
+        "description": "List workflows in a workspace with folder and deployment filters, search, sorting, and opaque cursor pagination. A workspace folder tree over 10,000 folders is a `413`.",
+        "tags": ["Workflows"],
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "in": "query",
+            "required": true,
+            "description": "Workspace whose workflows should be listed.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "description": "Workspace whose workflows should be listed."
+            }
+          },
+          {
+            "name": "folderPath",
+            "in": "query",
+            "required": false,
+            "description": "Restrict results to workflows in this folder path. A path that names no folder narrows the result to nothing, so the response is an empty page rather than an error.",
+            "schema": {
+              "description": "Restrict results to workflows in this folder path. A path that names no folder narrows the result to nothing, so the response is an empty page rather than an error.",
+              "$ref": "#/components/schemas/FolderPathInput"
+            }
+          },
+          {
+            "name": "deployedOnly",
+            "in": "query",
+            "required": false,
+            "description": "Return only workflows with an active deployment when true.",
+            "schema": {
+              "description": "Return only workflows with an active deployment when true.",
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Maximum workflows to return per page. Must be a whole number from 1 to 100. Defaults to 50.",
+            "schema": {
+              "default": 50,
+              "description": "Maximum workflows to return per page. Must be a whole number from 1 to 100. Defaults to 50.",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "description": "Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.",
+            "schema": {
+              "description": "Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.",
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "description": "Case-insensitive substring match against the resource name.",
+            "schema": {
+              "description": "Case-insensitive substring match against the resource name.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          },
+          {
+            "name": "sortBy",
+            "in": "query",
+            "required": false,
+            "description": "Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.",
+            "schema": {
+              "default": "position",
+              "description": "Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.",
+              "type": "string",
+              "enum": ["position", "name", "createdAt", "updatedAt", "runCount"]
+            }
+          },
+          {
+            "name": "sortOrder",
+            "in": "query",
+            "required": false,
+            "description": "Sort direction.",
+            "schema": {
+              "default": "asc",
+              "description": "Sort direction.",
+              "type": "string",
+              "enum": ["asc", "desc"]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of workflows.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowListResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      },
+      "post": {
+        "operationId": "createWorkflowV2",
+        "summary": "Create Workflow",
+        "description": "Create a workflow in a workspace root or canonical workflow folder. A workspace folder tree over 10,000 folders is a `413`.",
+        "tags": ["Workflows"],
+        "requestBody": {
+          "required": true,
+          "description": "Name, description, workspace, and optional folder for a new workflow.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateWorkflowRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The created workflow.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateWorkflowResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "423": {
+            "$ref": "#/components/responses/Locked"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/workflows/{id}": {
+      "get": {
+        "operationId": "getWorkflow",
+        "summary": "Get Workflow",
+        "description": "Get a workflow with its variables and deployed API-trigger inputs. A workspace folder tree over 10,000 folders is a `413`.",
+        "tags": ["Workflows"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Unique workflow identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Unique workflow identifier.",
+              "examples": ["3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36"]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The requested workflow.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowDetailResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      },
+      "patch": {
+        "operationId": "updateWorkflowV2",
+        "summary": "Update Workflow",
+        "description": "Rename, describe, or move a workflow to a canonical folder path. A workspace folder tree over 10,000 folders is a `413`.",
+        "tags": ["Workflows"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Unique workflow identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Unique workflow identifier.",
+              "examples": ["3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36"]
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Fields to update on an existing workflow.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateWorkflowRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated workflow.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpdateWorkflowResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "423": {
+            "$ref": "#/components/responses/Locked"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteWorkflowV2",
+        "summary": "Delete Workflow",
+        "description": "Permanently delete a workflow and its associated mutable state.",
+        "tags": ["Workflows"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Unique workflow identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Unique workflow identifier.",
+              "examples": ["3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36"]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The workflow was deleted.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeleteWorkflowResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "423": {
+            "$ref": "#/components/responses/Locked"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/workflows/{id}/versions": {
+      "get": {
+        "operationId": "listWorkflowVersionsV2",
+        "summary": "List Workflow Versions",
+        "description": "List immutable deployment versions of a workflow, newest first.",
+        "tags": ["Workflows"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Unique workflow identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Unique workflow identifier.",
+              "examples": ["3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36"]
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Maximum deployment versions to return per page. Must be a whole number from 1 to 100. Defaults to 50.",
+            "schema": {
+              "default": 50,
+              "description": "Maximum deployment versions to return per page. Must be a whole number from 1 to 100. Defaults to 50.",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "description": "Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.",
+            "schema": {
+              "description": "Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.",
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of deployment versions.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowVersionListResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/workflows/{id}/versions/{version}": {
+      "get": {
+        "operationId": "getWorkflowVersionV2",
+        "summary": "Get Workflow Version",
+        "description": "Get an immutable deployment version and its pinned workflow graph snapshot.",
+        "tags": ["Workflows"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Unique workflow identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Unique workflow identifier."
+            }
+          },
+          {
+            "name": "version",
+            "in": "path",
+            "required": true,
+            "description": "Numeric deployment version.",
+            "schema": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 2147483647,
+              "description": "Numeric deployment version.",
+              "examples": [3]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The requested deployment version.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowVersionDetailResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/workflows/{id}/deployment": {
+      "get": {
+        "operationId": "getWorkflowDeployment",
+        "summary": "Get Workflow Deployment",
+        "description": "Read the current deployment state of a workflow: whether a version is live, when it went live, the most recent deployment attempt with its readiness and failure payload, and whether the editable draft has since diverged from the live version. This is the only operation that publishes `needsRedeployment`.",
+        "tags": ["Workflows"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Unique workflow identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Unique workflow identifier.",
+              "examples": ["3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36"]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The current deployment state.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowDeploymentResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/workflows/{id}/deploy": {
+      "post": {
+        "operationId": "deployWorkflow",
+        "summary": "Deploy Workflow",
+        "description": "Create and asynchronously activate a deployment version. Not idempotent: every call mints a new version, so a retry after a timeout creates a second one. A deployment that would conflict with an existing webhook path is a `409`. A workspace API key is rejected with `403`; use a personal API key.",
+        "tags": ["Workflows"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Unique workflow identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Unique workflow identifier.",
+              "examples": ["3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36"]
+            }
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "description": "Optional metadata for the new deployment version.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeployWorkflowRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The accepted deployment attempt.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeployWorkflowResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "423": {
+            "$ref": "#/components/responses/Locked"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "undeployWorkflow",
+        "summary": "Undeploy Workflow",
+        "description": "Deactivate the currently serving workflow version. A workspace API key is rejected with `403`; use a personal API key.",
+        "tags": ["Workflows"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Unique workflow identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Unique workflow identifier.",
+              "examples": ["3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36"]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The workflow was undeployed.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UndeployWorkflowResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "423": {
+            "$ref": "#/components/responses/Locked"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/workflows/{id}/rollback": {
+      "post": {
+        "operationId": "rollbackWorkflow",
+        "summary": "Rollback Workflow",
+        "description": "Asynchronously reactivate a previous deployment version, selecting the preceding active version when no version is supplied. A workspace API key is rejected with `403`; use a personal API key.",
+        "tags": ["Workflows"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Unique workflow identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Unique workflow identifier.",
+              "examples": ["3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36"]
+            }
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "description": "Optional deployment version to reactivate.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RollbackWorkflowRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The accepted rollback attempt.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RollbackWorkflowResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "423": {
+            "$ref": "#/components/responses/Locked"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/workflows/{id}/export": {
+      "get": {
+        "operationId": "exportWorkflow",
+        "summary": "Export Workflow",
+        "description": "Export a portable, secret-sanitized workflow. Workspace-scoped bindings must be selected again after import. Exporting records an audit event, so it is not a safe read. A `HEAD` skips the effect but is authorized exactly as the `GET` is, so it answers `400`, `401`, `403`, or `404` wherever the `GET` would and an empty `200` otherwise. Skipping the effect means skipping the read that produces the payload, so that `200` carries none of the response headers documented below — it answers whether the `GET` would be allowed, not what the `GET` would return. A workspace folder tree over 10,000 folders is a `413`.",
+        "tags": ["Workflows"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Unique workflow identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Unique workflow identifier.",
+              "examples": ["3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36"]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The workflow export payload.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExportWorkflowResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/workflows/import": {
+      "post": {
+        "operationId": "importWorkflow",
+        "summary": "Import Workflow",
+        "description": "Create a workflow from a portable export object, bare state, or JSON string. A workspace folder tree over 10,000 folders is a `413`.",
+        "tags": ["Workflows"],
+        "requestBody": {
+          "required": true,
+          "description": "Portable workflow data and destination metadata for an import.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImportWorkflowRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The imported workflow.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportWorkflowResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "423": {
+            "$ref": "#/components/responses/Locked"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/workflows/{id}/execute": {
+      "post": {
+        "operationId": "executeWorkflowV2",
+        "summary": "Execute Workflow",
+        "description": "Execute a deployed workflow synchronously, asynchronously, or as Server-Sent Events. Public workflows permit anonymous synchronous and streaming execution; asynchronous execution requires an API key. A synchronous run that exceeds its execution timeout returns HTTP 200 with `status: \"failed\"` and `error.code: \"TIMEOUT\"` rather than an HTTP error, so branch on `status`. Each option carries the modes it requires and the modes that reject it; a violated combination is a 400.",
+        "tags": ["Workflows"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {}
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Unique workflow identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Unique workflow identifier.",
+              "examples": ["3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36"]
+            }
+          },
+          {
+            "name": "x-run-id",
+            "in": "header",
+            "required": false,
+            "description": "Caller-supplied run identifier, available only to API-key callers. A one-shot uniqueness claim, NOT an idempotency key: reusing a value fails with `409` and `error.details.code: \"RUN_ID_CONFLICT\"` rather than replaying the original result. To retry safely, send a fresh value per attempt, or omit the header and let the server allocate one.",
+            "schema": {
+              "description": "Caller-supplied run identifier, available only to API-key callers. A one-shot uniqueness claim, NOT an idempotency key: reusing a value fails with `409` and `error.details.code: \"RUN_ID_CONFLICT\"` rather than replaying the original result. To retry safely, send a fresh value per attempt, or omit the header and let the server allocate one.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9._:-]+$",
+              "examples": ["run_8f14e45f-ceea-467f-a"]
+            }
+          },
+          {
+            "name": "x-sim-via",
+            "in": "header",
+            "required": false,
+            "description": "Comma-separated workflow identifiers naming the workflow-to-workflow call chain that led to this request. Each hop appends its own workflow id, and Sim sets it automatically; supply it yourself only when relaying an existing chain. A chain at the maximum depth is rejected with `409` and `error.details.code: \"CALL_CHAIN_DEPTH_EXCEEDED\"`.",
+            "schema": {
+              "description": "Comma-separated workflow identifiers naming the workflow-to-workflow call chain that led to this request. Each hop appends its own workflow id, and Sim sets it automatically; supply it yourself only when relaying an existing chain. A chain at the maximum depth is rejected with `409` and `error.details.code: \"CALL_CHAIN_DEPTH_EXCEEDED\"`.",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Input and execution-mode options for a deployed workflow. Each option carries the modes it requires and the modes that reject it; a violated combination is a 400.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExecuteWorkflowRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "A synchronous run result or Server-Sent Event stream.",
+            "headers": {
+              "X-Run-Id": {
+                "$ref": "#/components/headers/X-Run-Id"
+              },
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExecuteWorkflowSyncResponse"
+                }
+              },
+              "text/event-stream": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "The asynchronous run was queued.",
+            "headers": {
+              "X-Run-Id": {
+                "$ref": "#/components/headers/X-Run-Id"
+              },
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExecuteWorkflowQueuedResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "402": {
+            "$ref": "#/components/responses/UsageLimitExceeded"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/RunIdConflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "499": {
+            "$ref": "#/components/responses/ClientClosedRequest"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/workflows/{id}/runs": {
+      "get": {
+        "operationId": "listWorkflowRunsV2",
+        "summary": "List Workflow Runs",
+        "description": "List recorded runs of a workflow with filtering and opaque cursor pagination. Runs are hard-deleted once they pass the payer's log retention window, so an older run is simply absent rather than reported as removed. The window is 30 days from run start on the free plan, unbounded on Pro and Team, and set per organization on Enterprise with an optional per-workspace override.",
+        "tags": ["Workflow Runs"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Unique workflow identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Unique workflow identifier.",
+              "examples": ["3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36"]
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "description": "Filter by run status.",
+            "schema": {
+              "description": "Filter by run status.",
+              "type": "string",
+              "enum": ["pending", "running", "completed", "failed", "cancelled", "paused"]
+            }
+          },
+          {
+            "name": "trigger",
+            "in": "query",
+            "required": false,
+            "description": "Filter by trigger type.",
+            "schema": {
+              "description": "Filter by trigger type.",
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "name": "startDate",
+            "in": "query",
+            "required": false,
+            "description": "Only include runs started at or after this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected, as is year `0000`, which names no storable instant.",
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+              "description": "Only include runs started at or after this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected, as is year `0000`, which names no storable instant."
+            }
+          },
+          {
+            "name": "endDate",
+            "in": "query",
+            "required": false,
+            "description": "Only include runs started at or before this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected, as is year `0000`, which names no storable instant.",
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+              "description": "Only include runs started at or before this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected, as is year `0000`, which names no storable instant."
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Maximum workflow runs to return per page. Must be a whole number from 1 to 100. Defaults to 50.",
+            "schema": {
+              "default": 50,
+              "description": "Maximum workflow runs to return per page. Must be a whole number from 1 to 100. Defaults to 50.",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "description": "Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.",
+            "schema": {
+              "description": "Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.",
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "name": "order",
+            "in": "query",
+            "required": false,
+            "description": "Sort direction by run start time. This list is sortable only by run start time, so it takes `order` in place of `sortBy`/`sortOrder`, which it rejects.",
+            "schema": {
+              "default": "desc",
+              "description": "Sort direction by run start time. This list is sortable only by run start time, so it takes `order` in place of `sortBy`/`sortOrder`, which it rejects.",
+              "type": "string",
+              "enum": ["asc", "desc"]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of workflow runs.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowRunListResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/workflows/{id}/runs/{runId}": {
+      "get": {
+        "operationId": "getWorkflowRunV2",
+        "summary": "Get Workflow Run",
+        "description": "Get current workflow run state, optionally including final and block outputs.",
+        "tags": ["Workflow Runs"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Unique workflow identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Unique workflow identifier."
+            }
+          },
+          {
+            "name": "runId",
+            "in": "path",
+            "required": true,
+            "description": "Unique workflow run identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9._:-]+$",
+              "description": "Unique workflow run identifier.",
+              "examples": ["run_8f14e45f-ceea-467f-a"]
+            }
+          },
+          {
+            "name": "includeOutput",
+            "in": "query",
+            "required": false,
+            "description": "Include the final workflow output when true. It does not gate `blockOutputs`, which `selectedOutputs` selects on its own.",
+            "schema": {
+              "description": "Include the final workflow output when true. It does not gate `blockOutputs`, which `selectedOutputs` selects on its own.",
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "selectedOutputs",
+            "in": "query",
+            "required": false,
+            "description": "Comma-separated block output references to include, as `blockId` or `blockId.path`. Block *names* are not resolved here — unlike the execute request, this resource reads a recorded run and matches ids only, so a name selects nothing and yields an empty `blockOutputs`.",
+            "schema": {
+              "description": "Comma-separated block output references to include, as `blockId` or `blockId.path`. Block *names* are not resolved here — unlike the execute request, this resource reads a recorded run and matches ids only, so a name selects nothing and yields an empty `blockOutputs`.",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The workflow run status.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowRunStatusResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/workflows/{id}/runs/{runId}/resume": {
+      "post": {
+        "operationId": "resumeWorkflowRunV2",
+        "summary": "Resume Workflow Run",
+        "description": "Resume one human-in-the-loop pause context. The resumed attempt receives a new run identifier and may complete synchronously or return a queue receipt.",
+        "tags": ["Workflow Runs"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Unique workflow identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Unique workflow identifier."
+            }
+          },
+          {
+            "name": "runId",
+            "in": "path",
+            "required": true,
+            "description": "Unique workflow run identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9._:-]+$",
+              "description": "Unique workflow run identifier.",
+              "examples": ["run_8f14e45f-ceea-467f-a"]
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Pause context and optional input used to resume a workflow run.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResumeWorkflowRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The resumed workflow attempt completed synchronously.",
+            "headers": {
+              "X-Run-Id": {
+                "$ref": "#/components/headers/X-Run-Id"
+              },
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResumeWorkflowSyncResponse"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "The resumed workflow attempt was queued.",
+            "headers": {
+              "X-Run-Id": {
+                "$ref": "#/components/headers/X-Run-Id"
+              },
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResumeWorkflowQueuedResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "402": {
+            "$ref": "#/components/responses/UsageLimitExceeded"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/workflows/{id}/runs/{runId}/cancel": {
+      "post": {
+        "operationId": "cancelRunV2",
+        "summary": "Cancel Workflow Run",
+        "description": "Request cancellation of a running, queued, or paused workflow run. Cancelling a run already in a terminal state succeeds with no effect. A run produced by a table workflow group is a `409` when its cell can no longer accept the cancellation.",
+        "tags": ["Workflow Runs"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Unique workflow identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Unique workflow identifier."
+            }
+          },
+          {
+            "name": "runId",
+            "in": "path",
+            "required": true,
+            "description": "Unique workflow run identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9._:-]+$",
+              "description": "Unique workflow run identifier.",
+              "examples": ["run_8f14e45f-ceea-467f-a"]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The cancellation outcome.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CancelWorkflowRunResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/workflows/folders": {
+      "get": {
+        "operationId": "listWorkflowsFolders",
+        "summary": "List Workflow Folders",
+        "description": "List canonical workflow folders in a workspace. The bounded set is returned in one page; `nextCursor` is always null. A workspace folder tree over 10,000 folders is a `413`.",
+        "tags": ["Workflows"],
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "in": "query",
+            "required": true,
+            "description": "Workspace whose folders should be listed.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "description": "Workspace whose folders should be listed."
+            }
+          },
+          {
+            "name": "parentPath",
+            "in": "query",
+            "required": false,
+            "description": "Restrict results to direct children of this parent path.",
+            "schema": {
+              "description": "Restrict results to direct children of this parent path.",
+              "$ref": "#/components/schemas/FolderPathInput"
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "description": "Case-insensitive substring match against the folder name.",
+            "schema": {
+              "description": "Case-insensitive substring match against the folder name.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          },
+          {
+            "name": "sortBy",
+            "in": "query",
+            "required": false,
+            "description": "Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.",
+            "schema": {
+              "default": "name",
+              "description": "Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.",
+              "type": "string",
+              "enum": ["name", "createdAt", "updatedAt"]
+            }
+          },
+          {
+            "name": "sortOrder",
+            "in": "query",
+            "required": false,
+            "description": "Sort direction.",
+            "schema": {
+              "default": "asc",
+              "description": "Sort direction.",
+              "type": "string",
+              "enum": ["asc", "desc"]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A list of workflow folders.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowFolderListResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      },
+      "post": {
+        "operationId": "createWorkflowsFolder",
+        "summary": "Create Workflow Folder",
+        "description": "Create a canonical workflow folder in a workspace. A workspace folder tree over 10,000 folders is a `413`.",
+        "tags": ["Workflows"],
+        "requestBody": {
+          "required": true,
+          "description": "Workspace and canonical path for a new workflow folder.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateWorkflowFolderRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The created workflow folder.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateWorkflowFolderResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "423": {
+            "$ref": "#/components/responses/Locked"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      },
+      "patch": {
+        "operationId": "relocateWorkflowsFolder",
+        "summary": "Rename or Move Workflow Folder",
+        "description": "Rename or move a workflow folder and its descendants to a canonical path. A workspace folder tree over 10,000 folders is a `413`.",
+        "tags": ["Workflows"],
+        "requestBody": {
+          "required": true,
+          "description": "Current and destination paths for a workflow folder.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RelocateWorkflowFolderRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The relocated workflow folder.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RelocateWorkflowFolderResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "423": {
+            "$ref": "#/components/responses/Locked"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteWorkflowsFolder",
+        "summary": "Delete Workflow Folder",
+        "description": "Delete a workflow folder, optionally including its descendants and workflows.",
+        "tags": ["Workflows"],
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "in": "query",
+            "required": true,
+            "description": "Workspace containing the folder.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "description": "Workspace containing the folder."
+            }
+          },
+          {
+            "name": "path",
+            "in": "query",
+            "required": true,
+            "description": "Path of the folder to delete.",
+            "schema": {
+              "description": "Path of the folder to delete.",
+              "$ref": "#/components/schemas/NonRootFolderPathInput"
+            }
+          },
+          {
+            "name": "recursive",
+            "in": "query",
+            "required": false,
+            "description": "Delete the folder's nested files and folders too. An empty folder deletes either way; a non-empty one needs this. The listed spellings are the whole accepted vocabulary and are case-sensitive; any other value is rejected.",
+            "schema": {
+              "description": "Delete the folder's nested files and folders too. An empty folder deletes either way; a non-empty one needs this. The listed spellings are the whole accepted vocabulary and are case-sensitive; any other value is rejected.",
+              "enum": [
+                "true",
+                "1",
+                "yes",
+                "on",
+                "y",
+                "enabled",
+                "false",
+                "0",
+                "no",
+                "off",
+                "n",
+                "disabled"
+              ],
+              "default": "false",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The workflow folder was deleted.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeleteWorkflowFolderResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "423": {
+            "$ref": "#/components/responses/Locked"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "apiKey": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-API-Key",
+        "description": "Your Sim API key, personal or workspace-scoped. Generate one under Settings, then API Keys. Operations that reject workspace keys say so in their own description."
+      }
+    },
+    "headers": {
+      "X-RateLimit-Limit": {
+        "description": "Maximum requests allowed in the current window.",
+        "schema": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "title": "Rate limit",
+          "description": "Maximum requests allowed in the current window."
+        }
+      },
+      "X-RateLimit-Remaining": {
+        "description": "Requests remaining in the current window.",
+        "schema": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "title": "Rate limit remaining",
+          "description": "Requests remaining in the current window."
+        }
+      },
+      "X-RateLimit-Reset": {
+        "description": "ISO 8601 timestamp when the current rate-limit window resets.",
+        "schema": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+          "title": "Rate limit reset",
+          "description": "ISO 8601 timestamp when the current rate-limit window resets."
+        }
+      },
+      "Retry-After": {
+        "description": "Seconds to wait before retrying, sent on `429` and `503`. Add jitter rather than retrying at exactly this offset.",
+        "schema": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "title": "Retry after",
+          "description": "Seconds to wait before retrying, sent on `429` and `503`. Add jitter rather than retrying at exactly this offset."
+        }
+      },
+      "X-Run-Id": {
+        "description": "Identifier assigned to the workflow run.",
+        "schema": {
+          "type": "string",
+          "minLength": 1,
+          "title": "Run identifier",
+          "description": "Identifier assigned to the workflow run."
+        }
+      }
+    },
+    "responses": {
+      "BadRequest": {
+        "description": "The request is invalid. This includes a query parameter sent with no value (`?limit=`, `?search=`), which is rejected rather than read as zero, empty, or the parameter default — omit the parameter instead.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2Error"
+            },
+            "example": {
+              "error": {
+                "code": "BAD_REQUEST",
+                "message": "Invalid request"
+              }
+            }
+          }
+        }
+      },
+      "Unauthorized": {
+        "description": "The API key is missing or invalid.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2Error"
+            },
+            "example": {
+              "error": {
+                "code": "UNAUTHORIZED",
+                "message": "API key required"
+              }
+            }
+          }
+        }
+      },
+      "UsageLimitExceeded": {
+        "description": "The workspace has exceeded its usage or billing limits.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2Error"
+            },
+            "example": {
+              "error": {
+                "code": "USAGE_LIMIT_EXCEEDED",
+                "message": "Usage limit exceeded. Please upgrade your plan to continue."
+              }
+            }
+          }
+        }
+      },
+      "Forbidden": {
+        "description": "The caller lacks the rights this operation requires. When the cause is one a caller can act on, `error.details.code` names it. A resource in a workspace the caller cannot reach at all answers `404` instead, so absence and denial are indistinguishable.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2Error"
+            },
+            "example": {
+              "error": {
+                "code": "FORBIDDEN",
+                "message": "Insufficient workspace permissions",
+                "details": {
+                  "code": "INSUFFICIENT_WORKSPACE_ROLE"
+                }
+              }
+            }
+          }
+        }
+      },
+      "NotFound": {
+        "description": "The requested resource was not found.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2Error"
+            },
+            "example": {
+              "error": {
+                "code": "NOT_FOUND",
+                "message": "Not found"
+              }
+            }
+          }
+        }
+      },
+      "Conflict": {
+        "description": "The request conflicts with current resource state.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2Error"
+            },
+            "example": {
+              "error": {
+                "code": "CONFLICT",
+                "message": "Webhook path already in use"
+              }
+            }
+          }
+        }
+      },
+      "RunIdConflict": {
+        "description": "The run cannot be started, for one of two causes named by `error.details.code`: `RUN_ID_CONFLICT` when the supplied `X-Run-Id` is already claimed, and `CALL_CHAIN_DEPTH_EXCEEDED` when the incoming `X-Sim-Via` chain has reached the maximum workflow-to-workflow call depth.",
+        "headers": {
+          "X-Run-Id": {
+            "$ref": "#/components/headers/X-Run-Id"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2Error"
+            },
+            "example": {
+              "error": {
+                "code": "CONFLICT",
+                "message": "Run ID has already been used",
+                "details": {
+                  "code": "RUN_ID_CONFLICT",
+                  "runId": "0f7c1a2e-9b3d-4c58-8a21-6d4e5f7a9b01"
+                }
+              }
+            }
+          }
+        }
+      },
+      "PayloadTooLarge": {
+        "description": "The request, or a resource collection it must materialize, exceeds the allowed size: an oversized request body, a generated artifact past the download ceiling, or a workspace folder tree too large to load in full.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2Error"
+            },
+            "example": {
+              "error": {
+                "code": "PAYLOAD_TOO_LARGE",
+                "message": "Request body is too large"
+              }
+            }
+          }
+        }
+      },
+      "Locked": {
+        "description": "The resource is locked and cannot be modified.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2Error"
+            },
+            "example": {
+              "error": {
+                "code": "LOCKED",
+                "message": "Workflow is locked"
+              }
+            }
+          }
+        }
+      },
+      "RateLimited": {
+        "description": "The caller exceeded the request rate limit.",
+        "headers": {
+          "Retry-After": {
+            "$ref": "#/components/headers/Retry-After"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2Error"
+            },
+            "example": {
+              "error": {
+                "code": "RATE_LIMITED",
+                "message": "API rate limit exceeded",
+                "details": {
+                  "retryAfter": "2026-01-01T00:00:30.000Z"
+                }
+              }
+            }
+          }
+        }
+      },
+      "ClientClosedRequest": {
+        "description": "The client closed the connection before the response was produced. An abort can leave the run going, so `error.details.runId` carries the run id — reconcile against the runs resource rather than starting another run.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2Error"
+            },
+            "example": {
+              "error": {
+                "code": "CLIENT_CLOSED_REQUEST",
+                "message": "Client cancelled request",
+                "details": {
+                  "runId": "0f7c1a2e-9b3d-4c58-8a21-6d4e5f7a9b01"
+                }
+              }
+            }
+          }
+        }
+      },
+      "InternalError": {
+        "description": "An unexpected server error occurred.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2Error"
+            },
+            "example": {
+              "error": {
+                "code": "INTERNAL_ERROR",
+                "message": "Internal server error"
+              }
+            }
+          }
+        }
+      },
+      "ServiceUnavailable": {
+        "description": "A required service is temporarily unavailable. `Retry-After` carries the seconds to wait; treat it as a floor and add jitter. The header is omitted when `error.details.code` is `ASYNC_ENQUEUE_AMBIGUOUS`, because the run may already have started — reconcile against the returned run id instead of retrying.",
+        "headers": {
+          "Retry-After": {
+            "$ref": "#/components/headers/Retry-After"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2Error"
+            },
+            "example": {
+              "error": {
+                "code": "SERVICE_UNAVAILABLE",
+                "message": "Service temporarily unavailable"
+              }
+            }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "V2Error": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "description": "Stable machine-readable error code."
+              },
+              "message": {
+                "type": "string",
+                "description": "Human-readable explanation of the error."
+              },
+              "details": {
+                "description": "Structured error details. On a `403` whose cause a caller can act on, this carries a `code` from a closed set:\n- `INSUFFICIENT_WORKSPACE_ROLE` — The caller has access to the workspace but its role is below the one this operation requires.\n- `PERSONAL_API_KEYS_DISABLED` — The workspace's organization does not allow personal API keys. Use a workspace API key.\n- `WORKSPACE_KEY_OPERATION_NOT_PERMITTED` — This operation is not available to a workspace-scoped API key. Use a personal API key.\n- `PRINCIPAL_KIND_NOT_PERMITTED` — This operation does not accept the caller’s kind of API key.\n- `ORGANIZATION_MEMBERSHIP_REQUIRED` — The caller is not a member of the organization it named.\n- `ORGANIZATION_ADMIN_REQUIRED` — The caller is a member of the organization but not an admin or owner.\n- `ENTERPRISE_PLAN_REQUIRED` — The organization has no active enterprise subscription.\n- `ORGANIZATION_PLAN_REQUIRED` — The organization has no active organization subscription (Pro for Teams, Max for Teams, or Enterprise).\n- `AUDIT_LOGS_DISABLED` — Audit logging is not enabled for this deployment.\n- `SKILL_EDITOR_ACCESS_REQUIRED` — The caller can write in the workspace but is not an editor of this skill.\n- `SECRET_ADMIN_ACCESS_REQUIRED` — The caller can write in the workspace but is not an admin of this secret. Ask a workspace admin, or someone holding admin on the secret, to grant access or set the value.\n- `WORKSPACE_RESOURCE_LIMIT_REACHED` — The workspace already holds the maximum number of resources of this kind. Delete one, or contact Sim to raise the limit; the message names the ceiling.\n- `PUBLIC_SHARING_NOT_ALLOWED` — The workspace's organization does not permit sharing this resource publicly. An organization admin controls the policy.\n- `CREDENTIAL_ADMIN_ACCESS_REQUIRED` — The caller can reach the workspace but cannot administer this credential.\n- `MCP_SERVER_URL_NOT_ALLOWED` — The supplied MCP server URL is outside the allowed domains or resolves to an internal address."
+              }
+            },
+            "required": ["code", "message"],
+            "additionalProperties": false,
+            "description": "Canonical error details."
+          }
+        },
+        "required": ["error"],
+        "additionalProperties": false,
+        "title": "v2 error response",
+        "description": "Canonical error envelope returned by the public v2 API.",
+        "examples": [
+          {
+            "error": {
+              "code": "BAD_REQUEST",
+              "message": "The request is invalid."
+            }
+          }
+        ]
+      },
+      "FolderPathInput": {
+        "title": "Folder path input",
+        "description": "Folder path. A missing leading slash is normalized before validation. Segments are percent-encoded, so a folder shown as \"New folder\" is `/New%20folder`: everything outside `A-Z a-z 0-9 - _ . ~` is escaped as uppercase hex, and only that exact encoding is accepted. A trailing slash, an empty segment, and a literal `.` or `..` segment are rejected. At most 64 segments and 4096 encoded bytes.",
+        "maxLength": 4096,
+        "type": "string"
+      },
+      "WorkflowListItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique workflow identifier.",
+            "examples": ["3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36"]
+          },
+          "name": {
+            "type": "string",
+            "description": "Workflow name.",
+            "examples": ["Customer support triage"]
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Workflow description, or null when none is set."
+          },
+          "folderPath": {
+            "type": "string",
+            "title": "Folder path",
+            "description": "Canonical containing-folder path; `/` is the workspace root.",
+            "maxLength": 4096,
+            "examples": ["/Operations"]
+          },
+          "workspaceId": {
+            "type": "string",
+            "description": "Workspace that owns the workflow."
+          },
+          "isDeployed": {
+            "type": "boolean",
+            "description": "Whether the workflow has an active deployment."
+          },
+          "deployedAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ISO 8601 activation timestamp, or null when not deployed.",
+            "format": "date-time"
+          },
+          "runCount": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "description": "Runs that finished successfully. Failed, cancelled, and paused runs are not counted, and the counter is never reduced when a run ages out of log retention — so it does not match the size of `GET /api/v2/workflows/{id}/runs`, in either direction."
+          },
+          "lastRunAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ISO 8601 timestamp of the latest run counted by `runCount`, or null when none has been. Stamped by the same successful-run path, so a workflow whose only runs failed reports null here.",
+            "format": "date-time"
+          },
+          "createdAt": {
+            "type": "string",
+            "description": "ISO 8601 timestamp when the workflow was created.",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "description": "ISO 8601 timestamp when the workflow was last updated.",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "description",
+          "folderPath",
+          "workspaceId",
+          "isDeployed",
+          "deployedAt",
+          "runCount",
+          "lastRunAt",
+          "createdAt",
+          "updatedAt"
+        ],
+        "additionalProperties": false,
+        "title": "Workflow summary",
+        "description": "Summary of a workflow and its deployment and run state."
+      },
+      "WorkflowListResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkflowListItem"
+            },
+            "description": "Items in the current page."
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Opaque cursor for the next page. Send it back as `cursor`; `null` means there is nothing further to fetch. Never construct one yourself."
+          }
+        },
+        "required": ["data", "nextCursor"],
+        "additionalProperties": false,
+        "title": "Workflow list response",
+        "description": "A cursor-paginated page of workflow summaries.",
+        "examples": [
+          {
+            "data": [
+              {
+                "id": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36",
+                "name": "Customer support triage",
+                "description": "Routes incoming support requests to the right team.",
+                "folderPath": "/Operations",
+                "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+                "isDeployed": true,
+                "deployedAt": "2026-06-12T10:30:00.000Z",
+                "runCount": 42,
+                "lastRunAt": "2026-08-09T18:04:11.000Z",
+                "createdAt": "2026-05-01T09:00:00.000Z",
+                "updatedAt": "2026-08-09T18:04:11.000Z"
+              }
+            ],
+            "nextCursor": null
+          }
+        ]
+      },
+      "CreateWorkflowResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/WorkflowListItem"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Create workflow response",
+        "description": "The created workflow summary.",
+        "examples": [
+          {
+            "data": {
+              "id": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36",
+              "name": "Customer support triage",
+              "description": "Routes incoming support requests to the right team.",
+              "folderPath": "/Operations",
+              "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+              "isDeployed": true,
+              "deployedAt": "2026-06-12T10:30:00.000Z",
+              "runCount": 42,
+              "lastRunAt": "2026-08-09T18:04:11.000Z",
+              "createdAt": "2026-05-01T09:00:00.000Z",
+              "updatedAt": "2026-08-09T18:04:11.000Z"
+            }
+          }
+        ]
+      },
+      "CreateWorkflowRequest": {
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "Workspace in which to create the workflow."
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255,
+            "description": "Workflow name."
+          },
+          "description": {
+            "description": "Optional workflow description.",
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 50000
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "folderPath": {
+            "$ref": "#/components/schemas/FolderPathInput"
+          }
+        },
+        "required": ["workspaceId", "name"],
+        "additionalProperties": false,
+        "title": "Create workflow request",
+        "description": "Name, description, workspace, and optional folder for a new workflow."
+      },
+      "WorkflowInputField": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Input field name."
+          },
+          "type": {
+            "type": "string",
+            "description": "Input field type."
+          },
+          "description": {
+            "description": "Optional input field description.",
+            "type": "string"
+          }
+        },
+        "required": ["name", "type"],
+        "additionalProperties": false,
+        "title": "Workflow input field",
+        "description": "A deployed API trigger input exposed by a workflow."
+      },
+      "WorkflowDetail": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique workflow identifier.",
+            "examples": ["3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36"]
+          },
+          "name": {
+            "type": "string",
+            "description": "Workflow name.",
+            "examples": ["Customer support triage"]
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Workflow description, or null when none is set."
+          },
+          "folderPath": {
+            "type": "string",
+            "title": "Folder path",
+            "description": "Canonical containing-folder path; `/` is the workspace root.",
+            "maxLength": 4096,
+            "examples": ["/Operations"]
+          },
+          "workspaceId": {
+            "type": "string",
+            "description": "Workspace that owns the workflow."
+          },
+          "isDeployed": {
+            "type": "boolean",
+            "description": "Whether the workflow has an active deployment."
+          },
+          "deployedAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ISO 8601 activation timestamp, or null when not deployed.",
+            "format": "date-time"
+          },
+          "runCount": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "description": "Runs that finished successfully. Failed, cancelled, and paused runs are not counted, and the counter is never reduced when a run ages out of log retention — so it does not match the size of `GET /api/v2/workflows/{id}/runs`, in either direction."
+          },
+          "lastRunAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ISO 8601 timestamp of the latest run counted by `runCount`, or null when none has been. Stamped by the same successful-run path, so a workflow whose only runs failed reports null here.",
+            "format": "date-time"
+          },
+          "createdAt": {
+            "type": "string",
+            "description": "ISO 8601 timestamp when the workflow was created.",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "description": "ISO 8601 timestamp when the workflow was last updated.",
+            "format": "date-time"
+          },
+          "variables": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "description": "Structured workflow variable value."
+            },
+            "description": "Workflow-scoped variables keyed by variable identifier."
+          },
+          "inputs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkflowInputField"
+            },
+            "description": "Input fields exposed by the workflow API trigger."
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "description",
+          "folderPath",
+          "workspaceId",
+          "isDeployed",
+          "deployedAt",
+          "runCount",
+          "lastRunAt",
+          "createdAt",
+          "updatedAt",
+          "variables",
+          "inputs"
+        ],
+        "additionalProperties": false,
+        "title": "Workflow detail",
+        "description": "Full workflow summary with variables and API-trigger input fields."
+      },
+      "WorkflowDetailResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/WorkflowDetail"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Workflow detail response",
+        "description": "Detailed workflow metadata, variables, and trigger inputs.",
+        "examples": [
+          {
+            "data": {
+              "id": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36",
+              "name": "Customer support triage",
+              "description": "Routes incoming support requests to the right team.",
+              "folderPath": "/Operations",
+              "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+              "isDeployed": true,
+              "deployedAt": "2026-06-12T10:30:00.000Z",
+              "runCount": 42,
+              "lastRunAt": "2026-08-09T18:04:11.000Z",
+              "createdAt": "2026-05-01T09:00:00.000Z",
+              "updatedAt": "2026-08-09T18:04:11.000Z",
+              "variables": {},
+              "inputs": []
+            }
+          }
+        ]
+      },
+      "UpdateWorkflowResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/WorkflowListItem"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Update workflow response",
+        "description": "The updated workflow summary.",
+        "examples": [
+          {
+            "data": {
+              "id": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36",
+              "name": "Customer support triage",
+              "description": "Routes incoming support requests to the right team.",
+              "folderPath": "/Operations",
+              "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+              "isDeployed": true,
+              "deployedAt": "2026-06-12T10:30:00.000Z",
+              "runCount": 42,
+              "lastRunAt": "2026-08-09T18:04:11.000Z",
+              "createdAt": "2026-05-01T09:00:00.000Z",
+              "updatedAt": "2026-08-09T18:04:11.000Z"
+            }
+          }
+        ]
+      },
+      "UpdateWorkflowRequest": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "description": "Replacement workflow name.",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          },
+          "description": {
+            "description": "Replacement workflow description; null clears it.",
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 50000
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "folderPath": {
+            "description": "Destination folder path; `/` moves the workflow to the workspace root.",
+            "$ref": "#/components/schemas/FolderPathInput"
+          }
+        },
+        "additionalProperties": false,
+        "title": "Update workflow request",
+        "description": "Fields to update on an existing workflow."
+      },
+      "DeleteWorkflowResult": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Identifier of the deleted workflow."
+          },
+          "deleted": {
+            "type": "boolean",
+            "const": true,
+            "description": "Confirms that the workflow was deleted."
+          }
+        },
+        "required": ["id", "deleted"],
+        "additionalProperties": false,
+        "title": "Delete workflow result",
+        "description": "Confirmation that a workflow was deleted."
+      },
+      "DeleteWorkflowResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/DeleteWorkflowResult"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Delete workflow response",
+        "description": "Confirmation that the workflow was deleted.",
+        "examples": [
+          {
+            "data": {
+              "id": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36",
+              "deleted": true
+            }
+          }
+        ]
+      },
+      "WorkflowVersion": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique deployment-version identifier."
+          },
+          "version": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991,
+            "description": "Monotonically increasing deployment version number."
+          },
+          "name": {
+            "description": "Optional deployment-version label.",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "description": {
+            "description": "Optional deployment-version release note.",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "isActive": {
+            "type": "boolean",
+            "description": "Whether this version is currently serving executions."
+          },
+          "createdAt": {
+            "type": "string",
+            "description": "ISO 8601 timestamp when this version was created.",
+            "format": "date-time"
+          },
+          "deployedBy": {
+            "description": "Display name of the user who created the deployment, when available.",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "latestOperationStatus": {
+            "description": "Latest lifecycle-operation status for this version.",
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": ["preparing", "activating", "active", "failed", "superseded"]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": ["id", "version", "isActive", "createdAt"],
+        "additionalProperties": false,
+        "title": "Workflow version",
+        "description": "A saved deployment version of a workflow."
+      },
+      "WorkflowVersionListResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkflowVersion"
+            },
+            "description": "Items in the current page."
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Opaque cursor for the next page. Send it back as `cursor`; `null` means there is nothing further to fetch. Never construct one yourself."
+          }
+        },
+        "required": ["data", "nextCursor"],
+        "additionalProperties": false,
+        "title": "Workflow version list response",
+        "description": "A cursor-paginated page of deployment versions.",
+        "examples": [
+          {
+            "data": [
+              {
+                "id": "version_3",
+                "version": 3,
+                "name": "Escalation routing",
+                "description": "Adds the priority escalation branch.",
+                "isActive": true,
+                "createdAt": "2026-06-12T10:30:00.000Z",
+                "deployedBy": "Jane Smith",
+                "latestOperationStatus": "active"
+              }
+            ],
+            "nextCursor": null
+          }
+        ]
+      },
+      "DeployedWorkflowState": {
+        "title": "Deployed workflow state",
+        "description": "Workflow graph snapshot pinned by a deployment version.",
+        "type": "object",
+        "additionalProperties": true
+      },
+      "WorkflowVersionDetail": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique deployment-version identifier."
+          },
+          "version": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991,
+            "description": "Monotonically increasing deployment version number."
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Version label, or null when unset."
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Version release note, or null when unset."
+          },
+          "isActive": {
+            "type": "boolean",
+            "description": "Whether this version is currently serving executions."
+          },
+          "createdAt": {
+            "type": "string",
+            "description": "ISO 8601 timestamp when this version was created.",
+            "format": "date-time"
+          },
+          "state": {
+            "description": "Deployed workflow graph snapshot pinned by this version, with credential-bearing values redacted to null: `oauth-input`, `password: true`, table sub-block values, sensitive nested tool parameters, and any parameter without authoritative codec metadata.",
+            "$ref": "#/components/schemas/DeployedWorkflowState"
+          }
+        },
+        "required": ["id", "version", "name", "description", "isActive", "createdAt", "state"],
+        "additionalProperties": false,
+        "title": "Workflow version detail",
+        "description": "A deployment version together with the workflow state it pins."
+      },
+      "WorkflowVersionDetailResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/WorkflowVersionDetail"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Workflow version detail response",
+        "description": "The deployment version and its pinned workflow graph.",
+        "examples": [
+          {
+            "data": {
+              "id": "version_3",
+              "version": 3,
+              "name": "Escalation routing",
+              "description": "Adds the priority escalation branch.",
+              "isActive": true,
+              "createdAt": "2026-06-12T10:30:00.000Z",
+              "state": {
+                "blocks": {},
+                "edges": []
+              }
+            }
+          }
+        ]
+      },
+      "ActiveDeploymentSummary": {
+        "type": "object",
+        "properties": {
+          "deploymentVersionId": {
+            "type": "string",
+            "description": "Identifier of the active deployment version."
+          },
+          "version": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991,
+            "description": "Numeric active deployment version."
+          },
+          "deployedAt": {
+            "type": "string",
+            "description": "ISO 8601 timestamp when this version became active.",
+            "format": "date-time"
+          }
+        },
+        "required": ["deploymentVersionId", "version", "deployedAt"],
+        "additionalProperties": false,
+        "title": "Active deployment",
+        "description": "Summary of the workflow version currently serving API executions."
+      },
+      "DeploymentOperationSummary": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique deployment operation identifier."
+          },
+          "deploymentVersionId": {
+            "type": "string",
+            "description": "Deployment version targeted by this operation."
+          },
+          "version": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991,
+            "description": "Numeric deployment version."
+          },
+          "action": {
+            "type": "string",
+            "enum": ["deploy", "activate"],
+            "description": "Operation being performed on the deployment version."
+          },
+          "status": {
+            "type": "string",
+            "enum": ["preparing", "activating", "active", "failed", "superseded"],
+            "description": "Current deployment lifecycle status."
+          },
+          "isCurrent": {
+            "default": true,
+            "description": "Whether this operation still describes the current deployment attempt.",
+            "type": "boolean"
+          },
+          "readiness": {
+            "$ref": "#/components/schemas/DeploymentReadiness"
+          },
+          "requestedAt": {
+            "type": "string",
+            "description": "ISO 8601 timestamp when the deployment operation was requested.",
+            "format": "date-time"
+          },
+          "activatedAt": {
+            "description": "ISO 8601 activation timestamp, or null before activation completes.",
+            "format": "date-time",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "error": {
+            "description": "Deployment failure details, or null when no failure occurred.",
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DeploymentOperationError"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "deploymentVersionId",
+          "version",
+          "action",
+          "status",
+          "isCurrent",
+          "readiness",
+          "requestedAt"
+        ],
+        "additionalProperties": false,
+        "title": "Deployment operation",
+        "description": "Lifecycle state of a deployment or version-activation attempt."
+      },
+      "DeploymentReadiness": {
+        "type": "object",
+        "properties": {
+          "webhooks": {
+            "type": "string",
+            "enum": ["pending", "ready", "not_applicable"],
+            "description": "Webhook synchronization readiness."
+          },
+          "schedules": {
+            "type": "string",
+            "enum": ["pending", "ready", "not_applicable"],
+            "description": "Schedule synchronization readiness."
+          },
+          "mcp": {
+            "type": "string",
+            "enum": ["pending", "ready", "not_applicable"],
+            "description": "MCP synchronization readiness."
+          }
+        },
+        "required": ["webhooks", "schedules", "mcp"],
+        "additionalProperties": false,
+        "title": "Deployment readiness",
+        "description": "Readiness of the side effects required to activate a deployment."
+      },
+      "DeploymentOperationError": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "Stable deployment failure code."
+          },
+          "message": {
+            "type": "string",
+            "description": "Human-readable deployment failure message."
+          },
+          "retryable": {
+            "type": "boolean",
+            "description": "Whether retrying the deployment may succeed."
+          }
+        },
+        "required": ["code", "message", "retryable"],
+        "additionalProperties": false,
+        "title": "Deployment operation error",
+        "description": "Failure details for a deployment lifecycle operation."
+      },
+      "WorkflowDeployment": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique workflow identifier.",
+            "examples": ["3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36"]
+          },
+          "isDeployed": {
+            "type": "boolean",
+            "description": "Whether a workflow version is currently live and available for API execution."
+          },
+          "deployedAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ISO 8601 timestamp associated with the deployment, or null when unavailable.",
+            "format": "date-time",
+            "examples": ["2026-06-12T10:30:00.000Z"]
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Non-fatal synchronization warnings. Empty when there is nothing to report."
+          },
+          "activeDeployment": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ActiveDeploymentSummary"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Currently live deployment version, or null while no version is active."
+          },
+          "latestDeploymentAttempt": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DeploymentOperationSummary"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Most recent deployment lifecycle attempt, or null when none is available."
+          },
+          "needsRedeployment": {
+            "type": "boolean",
+            "description": "Whether the editable draft has diverged from the live deployment version. False while a deployment attempt is still preparing or activating, and false when nothing is deployed."
+          }
+        },
+        "required": [
+          "id",
+          "isDeployed",
+          "deployedAt",
+          "warnings",
+          "activeDeployment",
+          "latestDeploymentAttempt",
+          "needsRedeployment"
+        ],
+        "additionalProperties": false,
+        "title": "Workflow deployment",
+        "description": "Current deployment state of a workflow, including draft-versus-live drift and the most recent deployment attempt."
+      },
+      "WorkflowDeploymentResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/WorkflowDeployment"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Workflow deployment response",
+        "description": "Current deployment state, including draft-versus-live drift.",
+        "examples": [
+          {
+            "data": {
+              "id": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36",
+              "isDeployed": true,
+              "needsRedeployment": true,
+              "deployedAt": "2026-06-12T10:30:00.000Z",
+              "warnings": [],
+              "activeDeployment": {
+                "deploymentVersionId": "depver_01J8ZK3QW4M6X2R9T7B5C0V2",
+                "version": 3,
+                "deployedAt": "2026-06-12T10:30:00.000Z"
+              },
+              "latestDeploymentAttempt": {
+                "id": "depop_01J8ZK3QW4M6X2R9T7B5C0V1",
+                "deploymentVersionId": "depver_01J8ZK3QW4M6X2R9T7B5C0V2",
+                "version": 3,
+                "action": "deploy",
+                "status": "active",
+                "isCurrent": true,
+                "readiness": {
+                  "webhooks": "ready",
+                  "schedules": "ready",
+                  "mcp": "not_applicable"
+                },
+                "requestedAt": "2026-06-12T10:29:58.000Z",
+                "activatedAt": "2026-06-12T10:30:00.000Z",
+                "error": null
+              }
+            }
+          }
+        ]
+      },
+      "DeployResult": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique workflow identifier.",
+            "examples": ["3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36"]
+          },
+          "isDeployed": {
+            "type": "boolean",
+            "description": "Whether a workflow version is currently live and available for API execution."
+          },
+          "deployedAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ISO 8601 timestamp associated with the deployment, or null when unavailable.",
+            "format": "date-time",
+            "examples": ["2026-06-12T10:30:00.000Z"]
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Non-fatal synchronization warnings. Empty when there is nothing to report."
+          },
+          "activeDeployment": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ActiveDeploymentSummary"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Currently live deployment version, or null while no version is active."
+          },
+          "latestDeploymentAttempt": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DeploymentOperationSummary"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Most recent deployment lifecycle attempt, or null when none is available."
+          },
+          "version": {
+            "description": "Deployment version created for this attempt, when available.",
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "id",
+          "isDeployed",
+          "deployedAt",
+          "warnings",
+          "activeDeployment",
+          "latestDeploymentAttempt"
+        ],
+        "additionalProperties": false,
+        "title": "Deploy result",
+        "description": "Deployment attempt accepted for processing. Activation is asynchronous, and `latestDeploymentAttempt` is the attempt handle — returned only here. Poll activation with `isDeployed` and `deployedAt` on the workflow, or `isActive` on `GET /workflows/{id}/versions`."
+      },
+      "DeployWorkflowResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/DeployResult"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Deploy workflow response",
+        "description": "Current deployment state after accepting the attempt.",
+        "examples": [
+          {
+            "data": {
+              "id": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36",
+              "isDeployed": false,
+              "deployedAt": null,
+              "warnings": [],
+              "activeDeployment": null,
+              "latestDeploymentAttempt": {
+                "id": "depop_01J8ZK3QW4M6X2R9T7B5C0V1",
+                "deploymentVersionId": "depver_01J8ZK3QW4M6X2R9T7B5C0V2",
+                "version": 3,
+                "action": "deploy",
+                "status": "preparing",
+                "isCurrent": true,
+                "readiness": {
+                  "webhooks": "pending",
+                  "schedules": "ready",
+                  "mcp": "not_applicable"
+                },
+                "requestedAt": "2026-06-12T10:30:00.000Z",
+                "activatedAt": null,
+                "error": null
+              },
+              "version": 3
+            }
+          }
+        ]
+      },
+      "DeployWorkflowRequest": {
+        "default": {},
+        "title": "Deploy workflow request",
+        "description": "Optional metadata for the new deployment version.",
+        "examples": [
+          {
+            "name": "Escalation routing",
+            "description": "Adds the priority escalation branch."
+          }
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "description": "Optional label for the deployment version.",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "description": {
+            "description": "Optional release note for the deployment version.",
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 50000
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "UndeployResult": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique workflow identifier.",
+            "examples": ["3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36"]
+          },
+          "isDeployed": {
+            "type": "boolean",
+            "description": "Whether a workflow version is currently live and available for API execution."
+          },
+          "deployedAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ISO 8601 timestamp associated with the deployment, or null when unavailable.",
+            "format": "date-time",
+            "examples": ["2026-06-12T10:30:00.000Z"]
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Non-fatal synchronization warnings. Empty when there is nothing to report."
+          },
+          "activeDeployment": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ActiveDeploymentSummary"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Currently live deployment version, or null while no version is active."
+          },
+          "latestDeploymentAttempt": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DeploymentOperationSummary"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Most recent deployment lifecycle attempt, or null when none is available."
+          }
+        },
+        "required": [
+          "id",
+          "isDeployed",
+          "deployedAt",
+          "warnings",
+          "activeDeployment",
+          "latestDeploymentAttempt"
+        ],
+        "additionalProperties": false,
+        "title": "Undeploy result",
+        "description": "Deployment state after a successful undeploy. `isDeployed` is false and no workflow version is active."
+      },
+      "UndeployWorkflowResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/UndeployResult"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Undeploy workflow response",
+        "description": "Deployment state after deactivating the active version.",
+        "examples": [
+          {
+            "data": {
+              "id": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36",
+              "isDeployed": false,
+              "deployedAt": null,
+              "warnings": [],
+              "activeDeployment": null,
+              "latestDeploymentAttempt": null
+            }
+          }
+        ]
+      },
+      "RollbackResult": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique workflow identifier.",
+            "examples": ["3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36"]
+          },
+          "isDeployed": {
+            "type": "boolean",
+            "description": "Whether a workflow version is currently live and available for API execution."
+          },
+          "deployedAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ISO 8601 timestamp associated with the deployment, or null when unavailable.",
+            "format": "date-time",
+            "examples": ["2026-06-12T10:30:00.000Z"]
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Non-fatal synchronization warnings. Empty when there is nothing to report."
+          },
+          "activeDeployment": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ActiveDeploymentSummary"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Currently live deployment version, or null while no version is active."
+          },
+          "latestDeploymentAttempt": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DeploymentOperationSummary"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Most recent deployment lifecycle attempt, or null when none is available."
+          },
+          "version": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991,
+            "description": "Deployment version selected for re-activation."
+          }
+        },
+        "required": [
+          "id",
+          "isDeployed",
+          "deployedAt",
+          "warnings",
+          "activeDeployment",
+          "latestDeploymentAttempt",
+          "version"
+        ],
+        "additionalProperties": false,
+        "title": "Rollback result",
+        "description": "Rollback attempt accepted for processing. Activation is asynchronous; inspect `isDeployed` and `latestDeploymentAttempt` for current state."
+      },
+      "RollbackWorkflowResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/RollbackResult"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Rollback workflow response",
+        "description": "Current deployment state after accepting the rollback attempt.",
+        "examples": [
+          {
+            "data": {
+              "id": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36",
+              "isDeployed": false,
+              "deployedAt": null,
+              "warnings": [],
+              "activeDeployment": null,
+              "latestDeploymentAttempt": {
+                "id": "depop_01J8ZK4RX5N7Y3S0U8D6E1W2",
+                "deploymentVersionId": "depver_01J8ZK4RX5N7Y3S0U8D6E1W3",
+                "version": 2,
+                "action": "activate",
+                "status": "activating",
+                "isCurrent": true,
+                "readiness": {
+                  "webhooks": "ready",
+                  "schedules": "ready",
+                  "mcp": "not_applicable"
+                },
+                "requestedAt": "2026-06-12T10:30:00.000Z",
+                "activatedAt": null,
+                "error": null
+              },
+              "version": 2
+            }
+          }
+        ]
+      },
+      "RollbackWorkflowRequest": {
+        "default": {},
+        "title": "Rollback workflow request",
+        "description": "Optional deployment version to reactivate.",
+        "examples": [
+          {
+            "version": 2
+          }
+        ],
+        "type": "object",
+        "properties": {
+          "version": {
+            "description": "Deployment version to reactivate. Omit to select the previous active version.",
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483647
+          }
+        },
+        "additionalProperties": false
+      },
+      "WorkflowExportPayload": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "string",
+            "const": "1.0",
+            "description": "Workflow export format version."
+          },
+          "exportedAt": {
+            "type": "string",
+            "description": "ISO 8601 timestamp when the export was created.",
+            "format": "date-time"
+          },
+          "workflow": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "description": "Identifier of the source workflow."
+              },
+              "name": {
+                "type": "string",
+                "description": "Name of the exported workflow."
+              },
+              "description": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Description of the exported workflow, or null when unset."
+              },
+              "workspaceId": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Identifier of the source workspace, or null for legacy exports."
+              },
+              "folderPath": {
+                "type": "string",
+                "title": "Folder path",
+                "description": "Canonical containing-folder path; `/` is the workspace root.",
+                "maxLength": 4096
+              }
+            },
+            "required": ["id", "name", "description", "workspaceId", "folderPath"],
+            "additionalProperties": false,
+            "description": "Source workflow metadata."
+          },
+          "state": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "Secret-sanitized workflow graph, edges, loops, parallels, metadata, and variables."
+          }
+        },
+        "required": ["version", "exportedAt", "workflow", "state"],
+        "additionalProperties": false,
+        "title": "Workflow export payload",
+        "description": "Portable, secret-sanitized workflow export. Workspace-scoped bindings must be selected again after import."
+      },
+      "ExportWorkflowResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/WorkflowExportPayload"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Export workflow response",
+        "description": "Portable, secret-sanitized workflow data.",
+        "examples": [
+          {
+            "data": {
+              "version": "1.0",
+              "exportedAt": "2026-08-09T18:04:11.000Z",
+              "workflow": {
+                "id": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36",
+                "name": "Customer support triage",
+                "description": "Routes incoming support requests to the right team.",
+                "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+                "folderPath": "/Operations"
+              },
+              "state": {
+                "blocks": {},
+                "edges": []
+              }
+            }
+          }
+        ]
+      },
+      "ImportedWorkflow": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Identifier of the imported workflow."
+          },
+          "name": {
+            "type": "string",
+            "description": "Imported workflow name."
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Imported workflow description."
+          },
+          "workspaceId": {
+            "type": "string",
+            "description": "Workspace that owns the imported workflow."
+          },
+          "folderPath": {
+            "type": "string",
+            "title": "Folder path",
+            "description": "Canonical containing-folder path.",
+            "maxLength": 4096
+          },
+          "createdAt": {
+            "type": "string",
+            "description": "ISO 8601 timestamp when the workflow was imported.",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "description": "ISO 8601 timestamp when the workflow was last updated.",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "description",
+          "workspaceId",
+          "folderPath",
+          "createdAt",
+          "updatedAt"
+        ],
+        "additionalProperties": false,
+        "title": "Imported workflow",
+        "description": "Workflow created by an import operation."
+      },
+      "ImportWorkflowResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/ImportedWorkflow"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Import workflow response",
+        "description": "The workflow created by the import.",
+        "examples": [
+          {
+            "data": {
+              "id": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36",
+              "name": "Customer support triage",
+              "description": "Routes incoming support requests to the right team.",
+              "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+              "folderPath": "/Operations",
+              "createdAt": "2026-05-01T09:00:00.000Z",
+              "updatedAt": "2026-08-09T18:04:11.000Z"
+            }
+          }
+        ]
+      },
+      "ImportWorkflowRequest": {
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "Workspace in which to import the workflow."
+          },
+          "workflow": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "description": "JSON string containing a workflow export object or bare workflow state."
+              },
+              {
+                "type": "object",
+                "additionalProperties": true,
+                "description": "Workflow export object or bare workflow state."
+              }
+            ],
+            "description": "Workflow export object, bare workflow state, or JSON string containing either form."
+          },
+          "folderPath": {
+            "description": "Destination folder path; omit for the workspace root.",
+            "$ref": "#/components/schemas/FolderPathInput"
+          },
+          "name": {
+            "description": "Override for the imported workflow name.",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "description": {
+            "description": "Override for the imported workflow description.",
+            "type": "string",
+            "maxLength": 2000
+          }
+        },
+        "required": ["workspaceId", "workflow"],
+        "additionalProperties": false,
+        "title": "Import workflow request",
+        "description": "Portable workflow data and destination metadata for an import."
+      },
+      "ExecutionError": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string",
+            "description": "Human-readable workflow execution failure message."
+          },
+          "code": {
+            "type": "string",
+            "enum": [
+              "TIMEOUT",
+              "CANCELLED",
+              "USAGE_LIMIT_EXCEEDED",
+              "INVALID_INPUT",
+              "BLOCK_EXECUTION_FAILED",
+              "CHILD_WORKFLOW_FAILED",
+              "EXECUTION_FAILED"
+            ],
+            "description": "Stable machine-readable execution failure code. `BLOCK_EXECUTION_FAILED` and `CHILD_WORKFLOW_FAILED` are reported only where block attribution is available; elsewhere a block-level failure is reported as `EXECUTION_FAILED`."
+          },
+          "blockId": {
+            "description": "Identifier of the failing block. Present on the synchronous execute response only; the polled run resource and the resume response cannot attribute a block.",
+            "type": "string"
+          },
+          "blockName": {
+            "description": "Display name of the failing block. Present on the synchronous execute response only.",
+            "type": "string"
+          },
+          "blockType": {
+            "description": "Integration or block type that failed. Present on the synchronous execute response only.",
+            "type": "string"
+          }
+        },
+        "required": ["message", "code"],
+        "additionalProperties": false,
+        "title": "Execution error",
+        "description": "Structured in-band failure details for a workflow run."
+      },
+      "WorkflowRunResult": {
+        "type": "object",
+        "properties": {
+          "runId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9._:-]+$",
+            "description": "Unique workflow run identifier.",
+            "examples": ["run_8f14e45f-ceea-467f-a"]
+          },
+          "workflowId": {
+            "type": "string",
+            "description": "Workflow that produced the run."
+          },
+          "status": {
+            "type": "string",
+            "enum": ["completed", "failed", "paused", "cancelled"],
+            "description": "Terminal or paused run status."
+          },
+          "output": {
+            "description": "Workflow output, including partial output on failure."
+          },
+          "error": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ExecutionError"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Structured execution failure, or null when none occurred."
+          },
+          "startedAt": {
+            "description": "ISO 8601 timestamp when execution started.",
+            "format": "date-time",
+            "type": "string"
+          },
+          "endedAt": {
+            "description": "ISO 8601 timestamp when execution ended.",
+            "format": "date-time",
+            "type": "string"
+          },
+          "durationMs": {
+            "description": "Execution duration in milliseconds.",
+            "type": "number",
+            "minimum": 0
+          }
+        },
+        "required": ["runId", "workflowId", "status", "output", "error"],
+        "additionalProperties": false,
+        "title": "Workflow run result",
+        "description": "Synchronous workflow run output and in-band execution status. Run failures are reported in band, not as HTTP errors — a run that exceeds its execution timeout returns HTTP 200 with `status: \"failed\"` and `error.code: \"TIMEOUT\"`, so branch on `status`."
+      },
+      "ExecuteWorkflowSyncResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/WorkflowRunResult"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Synchronous workflow execution response",
+        "description": "Completed, failed, paused, or cancelled synchronous workflow run.",
+        "examples": [
+          {
+            "data": {
+              "runId": "run_8f14e45f-ceea-467f-a",
+              "workflowId": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36",
+              "status": "completed",
+              "output": {
+                "result": "Ticket routed to Support"
+              },
+              "error": null,
+              "startedAt": "2026-08-09T18:04:10.000Z",
+              "endedAt": "2026-08-09T18:04:11.000Z",
+              "durationMs": 1000
+            }
+          }
+        ]
+      },
+      "QueuedWorkflowRun": {
+        "type": "object",
+        "properties": {
+          "runId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9._:-]+$",
+            "description": "Unique workflow run identifier.",
+            "examples": ["run_8f14e45f-ceea-467f-a"]
+          },
+          "statusUrl": {
+            "type": "string",
+            "format": "uri",
+            "description": "Absolute URL of the workflow run resource."
+          }
+        },
+        "required": ["runId", "statusUrl"],
+        "additionalProperties": false,
+        "title": "Queued workflow run",
+        "description": "Receipt returned when a workflow run is queued."
+      },
+      "ExecuteWorkflowQueuedResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/QueuedWorkflowRun"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Queued workflow execution response",
+        "description": "Receipt returned for an asynchronous workflow run.",
+        "examples": [
+          {
+            "data": {
+              "runId": "run_8f14e45f-ceea-467f-a",
+              "statusUrl": "https://www.sim.ai/api/v2/workflows/3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36/runs/run_8f14e45f-ceea-467f-a"
+            }
+          }
+        ]
+      },
+      "ExecuteWorkflowRequest": {
+        "type": "object",
+        "properties": {
+          "input": {
+            "description": "Workflow input keyed by deployed trigger input-field name.",
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "description": "Value supplied for one workflow input field."
+            }
+          },
+          "async": {
+            "default": false,
+            "description": "Queue the run and return a 202 receipt when true. Requires an API key, cannot be combined with `stream`, and rejects all streaming and output-shaping options (`selectedOutputs`, `includeThinking`, `includeToolCalls`, `includeFileBase64`, `base64MaxBytes`).",
+            "type": "boolean"
+          },
+          "executionTimeoutSeconds": {
+            "description": "Requested server-side timeout for an asynchronous run, in seconds. An upper bound, not the effective timeout: the run uses the smaller of this value and the plan's execution timeout, so requesting more than the plan allows silently yields the plan timeout. Rejected with `400` unless `async` is true.",
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 604800
+          },
+          "stream": {
+            "default": false,
+            "description": "Return Server-Sent Events instead of JSON when true. Cannot be combined with `async`.",
+            "type": "boolean"
+          },
+          "selectedOutputs": {
+            "description": "Block output references to include in a streamed response. Rejected when `async` is true.",
+            "maxItems": 100,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "includeThinking": {
+            "default": false,
+            "description": "Include model reasoning events in an agent-event stream. Requires `stream: true` and the `X-Sim-Stream-Protocol: agent-events-v1` request header, and is rejected when `async` is true.",
+            "type": "boolean"
+          },
+          "includeToolCalls": {
+            "default": false,
+            "description": "Include tool-call events in an agent-event stream. Requires `stream: true` and the `X-Sim-Stream-Protocol: agent-events-v1` request header, and is rejected when `async` is true.",
+            "type": "boolean"
+          },
+          "includeFileBase64": {
+            "description": "Inline eligible output files as base64 content. Rejected when `async` is true.",
+            "type": "boolean"
+          },
+          "base64MaxBytes": {
+            "description": "Maximum total bytes of file content to inline as base64. Rejected when `async` is true.",
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 10485760
+          }
+        },
+        "additionalProperties": false,
+        "title": "Execute workflow request",
+        "description": "Input and execution-mode options for a deployed workflow. Each option carries the modes it requires and the modes that reject it; a violated combination is a 400.",
+        "examples": [
+          {
+            "input": {
+              "ticketId": "ticket_123"
+            }
+          },
+          {
+            "input": {
+              "ticketId": "ticket_123"
+            },
+            "async": true
+          },
+          {
+            "input": {
+              "ticketId": "ticket_123"
+            },
+            "stream": true
+          }
+        ]
+      },
+      "WorkflowRunListItem": {
+        "type": "object",
+        "properties": {
+          "runId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9._:-]+$",
+            "description": "Unique workflow run identifier.",
+            "examples": ["run_8f14e45f-ceea-467f-a"]
+          },
+          "workflowId": {
+            "type": "string",
+            "description": "Workflow that produced the run."
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "running",
+              "paused",
+              "redacting",
+              "completed",
+              "failed",
+              "cancelled"
+            ],
+            "description": "Current or terminal run status. `redacting` is transient, reported while a finished run's output is being scrubbed. `paused` means the run is waiting to be resumed — either held at a human-in-the-loop pause point, or left paused by a resume attempt that did not complete. Only the single-run response distinguishes the two, through `paused.automaticResumeWaitingReason`."
+          },
+          "trigger": {
+            "type": "string",
+            "description": "Trigger type that started the run."
+          },
+          "startedAt": {
+            "type": "string",
+            "description": "ISO 8601 timestamp when the run started.",
+            "format": "date-time"
+          },
+          "endedAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ISO 8601 timestamp when the run ended, or null while active.",
+            "format": "date-time"
+          },
+          "durationMs": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Run duration in milliseconds, or null while active."
+          },
+          "cost": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "total": {
+                    "type": "number",
+                    "description": "Total credits consumed by the run."
+                  }
+                },
+                "required": ["total"],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Credit cost, or null when unavailable."
+          }
+        },
+        "required": [
+          "runId",
+          "workflowId",
+          "status",
+          "trigger",
+          "startedAt",
+          "endedAt",
+          "durationMs",
+          "cost"
+        ],
+        "additionalProperties": false,
+        "title": "Workflow run summary",
+        "description": "Summary of a recorded workflow run."
+      },
+      "WorkflowRunListResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkflowRunListItem"
+            },
+            "description": "Items in the current page."
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Opaque cursor for the next page. Send it back as `cursor`; `null` means there is nothing further to fetch. Never construct one yourself."
+          }
+        },
+        "required": ["data", "nextCursor"],
+        "additionalProperties": false,
+        "title": "Workflow run list response",
+        "description": "A cursor-paginated page of workflow run summaries.",
+        "examples": [
+          {
+            "data": [
+              {
+                "runId": "run_8f14e45f-ceea-467f-a",
+                "workflowId": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36",
+                "status": "completed",
+                "trigger": "api",
+                "startedAt": "2026-08-09T18:04:10.000Z",
+                "endedAt": "2026-08-09T18:04:11.000Z",
+                "durationMs": 1000,
+                "cost": {
+                  "total": 12
+                }
+              }
+            ],
+            "nextCursor": null
+          }
+        ]
+      },
+      "WorkflowRunStatus": {
+        "type": "object",
+        "properties": {
+          "runId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9._:-]+$",
+            "description": "Unique workflow run identifier.",
+            "examples": ["run_8f14e45f-ceea-467f-a"]
+          },
+          "workflowId": {
+            "type": "string",
+            "description": "Workflow that produced the run."
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "running",
+              "paused",
+              "redacting",
+              "completed",
+              "failed",
+              "cancelled",
+              "queued"
+            ],
+            "description": "Current or terminal run status. `redacting` is transient, reported while a finished run's output is being scrubbed. `paused` means the run is waiting to be resumed — either held at a human-in-the-loop pause point, or left paused by a resume attempt that did not complete. Only the single-run response distinguishes the two, through `paused.automaticResumeWaitingReason`."
+          },
+          "trigger": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Trigger type that started the run. Backfilled as `api` for a run that is still queued, so it is populated from the first poll."
+          },
+          "startedAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ISO 8601 start timestamp. A queued run reports the time it was enqueued, so it is populated from the first poll.",
+            "format": "date-time"
+          },
+          "endedAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ISO 8601 end timestamp, or null while nonterminal.",
+            "format": "date-time"
+          },
+          "durationMs": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Run duration in milliseconds, or null while active."
+          },
+          "paused": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "contextId": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Resume context identifier, or null while every pause point is mid-resume."
+                  },
+                  "pausedAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                    "description": "ISO 8601 timestamp when the execution entered the paused state."
+                  },
+                  "resumeAt": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "date-time",
+                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "ISO 8601 scheduled automatic-resume timestamp, or null when no resume time is set."
+                  },
+                  "pauseKind": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "enum": ["time", "human"]
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Whether the pause waits for time or human input, or null when unspecified."
+                  },
+                  "blockedOnBlockId": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Workflow block awaiting resume, or null when no block is identified."
+                  },
+                  "automaticResumeWaitingReason": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Why automatic resume is waiting, or null when it is not — on a paused run, null means it is waiting on human input. Recorded whenever a resume attempt fails and cleared once one succeeds. A non-retryable or exhausted failure is prefixed `Automatic resume requires manual intervention: `."
+                  },
+                  "pausePointCount": {
+                    "type": "number",
+                    "description": "Number of pause points tracked for the execution."
+                  },
+                  "resumedCount": {
+                    "type": "number",
+                    "description": "Number of pause points that have resumed."
+                  }
+                },
+                "required": [
+                  "contextId",
+                  "pausedAt",
+                  "resumeAt",
+                  "pauseKind",
+                  "blockedOnBlockId",
+                  "automaticResumeWaitingReason",
+                  "pausePointCount",
+                  "resumedCount"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Current pause details, or null when the run is not paused."
+          },
+          "cost": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "total": {
+                    "type": "number",
+                    "description": "Total credits consumed by the run."
+                  }
+                },
+                "required": ["total"],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Credit cost, or null when unavailable."
+          },
+          "error": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ExecutionError"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Structured execution failure, or null when none occurred. Reclassified from the persisted error message, so `blockId`/`blockName`/`blockType` are absent and a block-level failure reports `EXECUTION_FAILED` here even when the same run reported `BLOCK_EXECUTION_FAILED` on its synchronous execute response."
+          },
+          "output": {
+            "anyOf": [
+              {
+                "description": "Final workflow output value."
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Final workflow output when requested, otherwise null."
+          },
+          "blockOutputs": {
+            "anyOf": [
+              {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {
+                  "description": "Output value produced by one workflow block."
+                }
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Outputs of the blocks named by `selectedOutputs`, or null when none were requested. Gated by `selectedOutputs` alone — `includeOutput` governs `output` only."
+          }
+        },
+        "required": [
+          "runId",
+          "workflowId",
+          "status",
+          "trigger",
+          "startedAt",
+          "endedAt",
+          "durationMs",
+          "paused",
+          "cost",
+          "error",
+          "output",
+          "blockOutputs"
+        ],
+        "additionalProperties": false,
+        "title": "Workflow run status",
+        "description": "Detailed current state of a workflow run."
+      },
+      "WorkflowRunStatusResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/WorkflowRunStatus"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Workflow run status response",
+        "description": "Detailed current state of a workflow run.",
+        "examples": [
+          {
+            "data": {
+              "runId": "run_8f14e45f-ceea-467f-a",
+              "workflowId": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36",
+              "status": "completed",
+              "trigger": "api",
+              "startedAt": "2026-08-09T18:04:10.000Z",
+              "endedAt": "2026-08-09T18:04:11.000Z",
+              "durationMs": 1000,
+              "paused": null,
+              "cost": {
+                "total": 12
+              },
+              "error": null,
+              "output": {
+                "result": "Ticket routed to Support"
+              },
+              "blockOutputs": null
+            }
+          }
+        ]
+      },
+      "ResumeWorkflowSyncResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/WorkflowRunResult"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Synchronous workflow resume response",
+        "description": "Completed, failed, paused, or cancelled resumed workflow run.",
+        "examples": [
+          {
+            "data": {
+              "runId": "run_8f14e45f-ceea-467f-a",
+              "workflowId": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36",
+              "status": "completed",
+              "output": {
+                "result": "Ticket routed to Support"
+              },
+              "error": null,
+              "startedAt": "2026-08-09T18:04:10.000Z",
+              "endedAt": "2026-08-09T18:04:11.000Z",
+              "durationMs": 1000
+            }
+          }
+        ]
+      },
+      "QueuedWorkflowResume": {
+        "type": "object",
+        "properties": {
+          "runId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9._:-]+$",
+            "description": "Unique workflow run identifier.",
+            "examples": ["run_8f14e45f-ceea-467f-a"]
+          },
+          "statusUrl": {
+            "type": "string",
+            "format": "uri",
+            "description": "Absolute URL of the workflow run resource."
+          },
+          "queuePosition": {
+            "description": "Current queue position, when available.",
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": ["runId", "statusUrl"],
+        "additionalProperties": false,
+        "title": "Queued workflow resume",
+        "description": "Receipt returned when a resumed workflow attempt is queued."
+      },
+      "ResumeWorkflowQueuedResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/QueuedWorkflowResume"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Queued workflow resume response",
+        "description": "Receipt returned when a resumed workflow attempt is queued.",
+        "examples": [
+          {
+            "data": {
+              "runId": "run_8f14e45f-ceea-467f-a",
+              "statusUrl": "https://www.sim.ai/api/v2/workflows/3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36/runs/run_8f14e45f-ceea-467f-a"
+            }
+          }
+        ]
+      },
+      "ResumeWorkflowRequest": {
+        "type": "object",
+        "properties": {
+          "contextId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Human-in-the-loop pause-context identifier."
+          },
+          "input": {
+            "description": "Input supplied to the paused workflow block."
+          }
+        },
+        "required": ["contextId"],
+        "additionalProperties": false,
+        "title": "Resume workflow request",
+        "description": "Pause context and optional input used to resume a workflow run.",
+        "examples": [
+          {
+            "contextId": "ctx_123",
+            "input": {
+              "approved": true
+            }
+          }
+        ]
+      },
+      "CancelWorkflowRunResult": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "description": "Whether cancellation was accepted."
+          },
+          "runId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9._:-]+$",
+            "description": "Unique workflow run identifier.",
+            "examples": ["run_8f14e45f-ceea-467f-a"]
+          },
+          "redisAvailable": {
+            "type": "boolean",
+            "description": "Whether the distributed cancellation channel was available."
+          },
+          "durablyRecorded": {
+            "type": "boolean",
+            "description": "Whether this request durably recorded a cancellation. Always false for a run that was already terminal, where the request is satisfied but nothing was written."
+          },
+          "locallyAborted": {
+            "type": "boolean",
+            "description": "Whether an in-process execution was aborted."
+          },
+          "pausedCancelled": {
+            "type": "boolean",
+            "description": "Whether a paused execution was cancelled."
+          },
+          "reason": {
+            "description": "Machine-readable cancellation outcome, present on every cancellation including full successes. `recorded` is the success value. `already_cancelled`, `already_completed`, and `already_failed` mean the run had already reached that terminal state, so nothing was cancelled and `durablyRecorded` is false. `redis_unavailable` and `redis_write_failed` mean the distributed cancellation signal was not written, so an already-running execution may not observe the cancellation. `paused_event_publish_failed` and `paused_database_cancel_failed` name the failing step for a paused run.",
+            "type": "string",
+            "enum": [
+              "recorded",
+              "already_cancelled",
+              "already_completed",
+              "already_failed",
+              "redis_unavailable",
+              "redis_write_failed",
+              "paused_event_publish_failed",
+              "paused_database_cancel_failed"
+            ]
+          }
+        },
+        "required": [
+          "success",
+          "runId",
+          "redisAvailable",
+          "durablyRecorded",
+          "locallyAborted",
+          "pausedCancelled"
+        ],
+        "additionalProperties": false,
+        "title": "Cancel workflow run result",
+        "description": "Outcome of a workflow run cancellation request. Cancellation is best-effort: a run already in a terminal state succeeds with no effect, reported as `durablyRecorded: false` with an `already_*` reason naming the state observed."
+      },
+      "CancelWorkflowRunResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/CancelWorkflowRunResult"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Cancel workflow run response",
+        "description": "Outcome of the cancellation request.",
+        "examples": [
+          {
+            "data": {
+              "success": true,
+              "runId": "run_8f14e45f-ceea-467f-a",
+              "redisAvailable": true,
+              "durablyRecorded": true,
+              "locallyAborted": true,
+              "pausedCancelled": false,
+              "reason": "recorded"
+            }
+          }
+        ]
+      },
+      "WorkflowFolder": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Folder name."
+          },
+          "path": {
+            "type": "string",
+            "title": "Non-root folder path",
+            "description": "Canonical folder path used as the public folder identifier.",
+            "maxLength": 4096
+          },
+          "parentPath": {
+            "type": "string",
+            "title": "Folder path",
+            "description": "Canonical parent path; `/` is the root.",
+            "maxLength": 4096
+          },
+          "createdAt": {
+            "type": "string",
+            "description": "ISO 8601 timestamp when the folder was created.",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "description": "ISO 8601 timestamp when the folder was last updated.",
+            "format": "date-time"
+          },
+          "locked": {
+            "type": "boolean",
+            "description": "Whether the folder is currently locked for mutation."
+          }
+        },
+        "required": ["name", "path", "parentPath", "createdAt", "updatedAt", "locked"],
+        "additionalProperties": false,
+        "title": "Workflow folder",
+        "description": "A canonical workflow folder and its mutation lock state."
+      },
+      "WorkflowFolderListResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkflowFolder"
+            },
+            "description": "Items in the current page."
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Always `null` — this list has no `cursor` or `limit` param and returns its whole bounded set in one page. Present so the list can gain pages later without a shape change."
+          }
+        },
+        "required": ["data", "nextCursor"],
+        "additionalProperties": false,
+        "title": "Workflow folder list response",
+        "description": "A list of canonical workflow folders.",
+        "examples": [
+          {
+            "data": [
+              {
+                "name": "Operations",
+                "path": "/Operations",
+                "parentPath": "/",
+                "createdAt": "2026-05-01T09:00:00.000Z",
+                "updatedAt": "2026-05-01T09:00:00.000Z",
+                "locked": false
+              }
+            ],
+            "nextCursor": null
+          }
+        ]
+      },
+      "CreateWorkflowFolderResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/WorkflowFolder"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Create workflow folder response",
+        "description": "The created workflow folder.",
+        "examples": [
+          {
+            "data": {
+              "name": "Operations",
+              "path": "/Operations",
+              "parentPath": "/",
+              "createdAt": "2026-05-01T09:00:00.000Z",
+              "updatedAt": "2026-05-01T09:00:00.000Z",
+              "locked": false
+            }
+          }
+        ]
+      },
+      "NonRootFolderPathInput": {
+        "title": "Non-root folder path input",
+        "description": "Non-root folder path. A missing leading slash is normalized before validation. Segments are percent-encoded, so a folder shown as \"New folder\" is `/New%20folder`: everything outside `A-Z a-z 0-9 - _ . ~` is escaped as uppercase hex, and only that exact encoding is accepted. A trailing slash, an empty segment, and a literal `.` or `..` segment are rejected. At most 64 segments and 4096 encoded bytes.",
+        "maxLength": 4096,
+        "type": "string"
+      },
+      "CreateWorkflowFolderRequest": {
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "Workspace in which to create the folder."
+          },
+          "path": {
+            "description": "Path of the folder to create.",
+            "$ref": "#/components/schemas/NonRootFolderPathInput"
+          }
+        },
+        "required": ["workspaceId", "path"],
+        "additionalProperties": false,
+        "title": "Create workflow folder request",
+        "description": "Workspace and canonical path for a new workflow folder."
+      },
+      "RelocateWorkflowFolderResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/WorkflowFolder"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Relocate workflow folder response",
+        "description": "The relocated workflow folder.",
+        "examples": [
+          {
+            "data": {
+              "name": "Support",
+              "path": "/Support",
+              "parentPath": "/",
+              "createdAt": "2026-05-01T09:00:00.000Z",
+              "updatedAt": "2026-05-01T09:00:00.000Z",
+              "locked": false
+            }
+          }
+        ]
+      },
+      "RelocateWorkflowFolderRequest": {
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "Workspace containing the folder."
+          },
+          "path": {
+            "description": "Current folder path.",
+            "$ref": "#/components/schemas/NonRootFolderPathInput"
+          },
+          "destinationPath": {
+            "description": "New full path for the folder and its descendants.",
+            "$ref": "#/components/schemas/NonRootFolderPathInput"
+          }
+        },
+        "required": ["workspaceId", "path", "destinationPath"],
+        "additionalProperties": false,
+        "title": "Relocate workflow folder request",
+        "description": "Current and destination paths for a workflow folder."
+      },
+      "DeleteWorkflowFolderResult": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "title": "Folder path",
+            "description": "Path of the deleted workflow folder.",
+            "maxLength": 4096
+          },
+          "deleted": {
+            "type": "boolean",
+            "const": true,
+            "description": "Confirms that the folder was deleted."
+          },
+          "deletedItems": {
+            "type": "object",
+            "properties": {
+              "folders": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991,
+                "description": "Number of folders deleted."
+              },
+              "workflows": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991,
+                "description": "Number of workflows deleted."
+              }
+            },
+            "required": ["folders", "workflows"],
+            "additionalProperties": false,
+            "description": "Resources removed by the deletion."
+          }
+        },
+        "required": ["path", "deleted", "deletedItems"],
+        "additionalProperties": false,
+        "title": "Delete workflow folder result",
+        "description": "Confirmation and deletion counts for a workflow folder."
+      },
+      "DeleteWorkflowFolderResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/DeleteWorkflowFolderResult"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Delete workflow folder response",
+        "description": "Confirmation and counts for the deleted folder.",
+        "examples": [
+          {
+            "data": {
+              "path": "/Operations",
+              "deleted": true,
+              "deletedItems": {
+                "folders": 1,
+                "workflows": 0
+              }
+            }
+          }
+        ]
+      }
+    }
+  },
+  "x-generated-by": "scripts/generate-openapi.ts"
+}

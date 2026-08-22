@@ -36,6 +36,7 @@ import { MaxBadge } from '@/app/workspace/[workspaceId]/knowledge/[id]/component
 import { useConnectorConfigFields } from '@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-config-fields'
 import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import { getBlock } from '@/blocks'
+import { withBrandIcon } from '@/blocks/brand-icon'
 import { getTileIconColorClass } from '@/blocks/icon-color'
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
 import type { ConnectorMeta } from '@/connectors/types'
@@ -82,6 +83,9 @@ export function AddConnectorModal({
 
   const connectorConfig = selectedType ? CONNECTOR_META_REGISTRY[selectedType] : null
   const isApiKeyMode = connectorConfig?.auth.mode === 'apiKey'
+  /** True when the connector declares its key optional (public sources need none). */
+  const isApiKeyOptional =
+    connectorConfig?.auth.mode === 'apiKey' && connectorConfig.auth.optional === true
   const connectorProviderId = useMemo(
     () =>
       connectorConfig && connectorConfig.auth.mode === 'oauth'
@@ -160,7 +164,7 @@ export function AddConnectorModal({
   const canSubmit = useMemo(() => {
     if (!connectorConfig) return false
     if (isApiKeyMode) {
-      if (!apiKeyValue.trim()) return false
+      if (!isApiKeyOptional && !apiKeyValue.trim()) return false
     } else {
       if (!effectiveCredentialId) return false
     }
@@ -174,6 +178,7 @@ export function AddConnectorModal({
   }, [
     connectorConfig,
     isApiKeyMode,
+    isApiKeyOptional,
     apiKeyValue,
     effectiveCredentialId,
     isFieldVisible,
@@ -207,7 +212,11 @@ export function AddConnectorModal({
       {
         knowledgeBaseId,
         connectorType: selectedType,
-        ...(isApiKeyMode ? { apiKey: apiKeyValue } : { credentialId: effectiveCredentialId! }),
+        ...(isApiKeyMode
+          ? apiKeyValue.trim()
+            ? { apiKey: apiKeyValue }
+            : {}
+          : { credentialId: effectiveCredentialId! }),
         sourceConfig: finalSourceConfig,
         syncIntervalMinutes: syncInterval,
       },
@@ -324,7 +333,7 @@ export function AddConnectorModal({
                         (cred): ComboboxOption => ({
                           label: cred.name || cred.provider,
                           value: cred.id,
-                          icon: connectorConfig.icon,
+                          icon: withBrandIcon(connectorConfig.icon),
                         })
                       ),
                       {

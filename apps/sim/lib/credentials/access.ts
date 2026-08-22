@@ -12,6 +12,15 @@ type ActiveCredentialMember = typeof credentialMember.$inferSelect
 type CredentialRecord = typeof credential.$inferSelect
 
 export type CredentialType = (typeof credentialTypeEnum.enumValues)[number]
+export type OrdinaryCredentialType = Exclude<CredentialType, 'managed_oauth'>
+
+/** Narrows credentials exposed through ordinary user-managed credential surfaces. */
+export function requireOrdinaryCredentialType(type: CredentialType): OrdinaryCredentialType {
+  if (type === 'managed_oauth') {
+    throw new Error('Managed OAuth credential reached an ordinary credential surface')
+  }
+  return type
+}
 
 /**
  * Credential types shared at the workspace level — every type except a user's
@@ -110,6 +119,18 @@ export interface CredentialActorContext {
   hasWorkspaceAccess: boolean
   canWriteWorkspace: boolean
   isAdmin: boolean
+}
+
+/**
+ * Whether a user may *use* a credential: they still have access to its workspace
+ * and are either an active member or a derived credential admin.
+ *
+ * Deliberately distinct from the admin-only rule that governs *managing* a
+ * credential (rename, delete, membership changes) — that one has no member
+ * fallback. Do not fold the two together.
+ */
+export function canUseCredential(access: CredentialActorContext): boolean {
+  return access.hasWorkspaceAccess && (Boolean(access.member) || access.isAdmin)
 }
 
 /**

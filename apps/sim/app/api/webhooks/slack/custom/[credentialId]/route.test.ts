@@ -24,7 +24,7 @@ vi.mock('@/lib/core/admission/gate', () => ({
   admissionRejectedResponse: () => new Response(null, { status: 503 }),
 }))
 
-vi.mock('@/app/api/auth/oauth/utils', () => ({
+vi.mock('@/lib/oauth/credential-service', () => ({
   getSlackBotCredential: mockGetSlackBotCredential,
 }))
 

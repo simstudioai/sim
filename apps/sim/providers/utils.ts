@@ -52,6 +52,7 @@ import {
 } from '@/providers/models'
 import {
   getProviderToolInputProvenance,
+  getProviderToolModelInputRegistry,
   registerPreparedProviderToolInputProvenance,
 } from '@/providers/tool-input-provenance'
 import type { ProviderId, ProviderToolConfig } from '@/providers/types'
@@ -81,12 +82,21 @@ function isDefaultWorkflowDescription(
  * Fetches workflow metadata (name and description) from the API
  */
 async function fetchWorkflowMetadata(
-  workflowId: string
+  workflowId: string,
+  executionContext: WorkflowToolExecutionContext | undefined
 ): Promise<{ name: string; description: string | null } | null> {
   try {
-    const { buildAuthHeaders, buildAPIUrl } = await import('@/executor/utils/http')
+    if (!executionContext?.userId) {
+      throw new Error('Workflow metadata enrichment requires a trusted execution subject')
+    }
+    const { buildAPIUrl, buildExecutorDelegationHeaders } = await import('@/executor/utils/http')
+    const { executionScopeForTarget } = await import('@/executor/utils/delegation')
 
-    const headers = await buildAuthHeaders()
+    const headers = await buildExecutorDelegationHeaders({
+      subjectUserId: executionContext.userId,
+      workflowId,
+      ...executionScopeForTarget(executionContext, workflowId),
+    })
     const url = buildAPIUrl(`/api/workflows/${workflowId}`)
 
     const response = await fetch(url.toString(), { headers })
@@ -276,26 +286,34 @@ export function getAllModelProviders(): Record<string, ProviderId> {
   )
 }
 
+/**
+ * The provider that declares `model`, or `null` when none does.
+ *
+ * The non-guessing half of {@link getProviderFromModel}. A caller that *gates*
+ * on the answer needs "unknown" to stay distinct from "ollama": this registry
+ * holds chat models only, so every embedding, speech, image and video model id
+ * would otherwise read as an Ollama model and be judged against an allowlist
+ * that was never about it.
+ */
+export function findProviderFromModel(model: string): ProviderId | null {
+  const normalizedModel = model.toLowerCase()
+
+  const declared = getAllModelProviders()[normalizedModel]
+  if (declared) return declared
+
+  for (const [id, config] of Object.entries(providers)) {
+    for (const pattern of config.modelPatterns ?? []) {
+      if (pattern.test(normalizedModel)) return id as ProviderId
+    }
+  }
+
+  return null
+}
+
 export function getProviderFromModel(model: string): ProviderId {
   const normalizedModel = model.toLowerCase()
 
-  let providerId: ProviderId | null = null
-
-  if (normalizedModel in getAllModelProviders()) {
-    providerId = getAllModelProviders()[normalizedModel]
-  } else {
-    for (const [id, config] of Object.entries(providers)) {
-      if (config.modelPatterns) {
-        for (const pattern of config.modelPatterns) {
-          if (pattern.test(normalizedModel)) {
-            providerId = id as ProviderId
-            break
-          }
-        }
-      }
-      if (providerId) break
-    }
-  }
+  let providerId = findProviderFromModel(model)
 
   if (!providerId) {
     logger.warn(`No provider found for model: ${model}, defaulting to ollama`)
@@ -768,7 +786,9 @@ export async function transformBlockTool(
   const userProvidedParams = block.params || {}
 
   const canonicalGroups: CanonicalGroup[] = blockDef?.subBlocks
-    ? Object.values(buildCanonicalIndex(blockDef.subBlocks).groupsById).filter(isCanonicalPair)
+    ? // canonical-index-unscoped: an agent tool resolves against `block.params`, which only ever
+      // holds action-surface values — a tool is never invoked in trigger mode.
+      Object.values(buildCanonicalIndex(blockDef.subBlocks).groupsById).filter(isCanonicalPair)
     : []
 
   const resolvedResourceParams = resolveCanonicalResourceParams(
@@ -790,7 +810,10 @@ export async function transformBlockTool(
   if (toolId === 'workflow_executor' && resolvedResourceParams.workflowId) {
     uniqueToolId = `${toolConfig.id}_${resolvedResourceParams.workflowId}`
 
-    const workflowMetadata = await fetchWorkflowMetadata(resolvedResourceParams.workflowId)
+    const workflowMetadata = await fetchWorkflowMetadata(
+      resolvedResourceParams.workflowId,
+      enrichmentContext
+    )
     if (workflowMetadata) {
       toolName = workflowMetadata.name || toolConfig.name
       if (
@@ -1538,7 +1561,28 @@ export function prepareToolExecution(
     billingAttribution?: BillingAttributionSnapshot
     /** Invoking run's execution id — see `ProviderRequest.executionId`. */
     executionId?: string
-  }
+    /** Invoking agent block's id — see `ProviderRequest.blockId`. */
+    blockId?: string
+    /**
+     * The model's own id for this tool call. It is what makes a keyed tool's
+     * idempotency token distinguishing on the agent path: one agent block can
+     * issue the same tool several times inside one execution, and `executionId`
+     * plus `blockId` alone would collapse them into a single token the provider
+     * would dedupe down to one delivery. Stable across retries because it is read
+     * from the model's response rather than minted per attempt.
+     */
+    invocationId?: string
+  },
+  /**
+   * The model's own id for this tool call, read from the provider's response.
+   *
+   * Required rather than optional — `string | undefined` — so the argument
+   * cannot be forgotten. A provider with no model-supplied id must pass
+   * `undefined` explicitly and take the loud fallback; omitting it entirely
+   * would silently leave `invocationId` unset, which is the unstable-token path
+   * this parameter exists to close.
+   */
+  toolCallId: string | undefined
 ): {
   toolParams: Record<string, any>
   executionParams: Record<string, any>
@@ -1550,11 +1594,27 @@ export function prepareToolExecution(
   // scoped to "Selected secrets" with an empty list is an explicit deny, and a
   // model emitting `mountedSecrets: ['STRIPE_KEY']` would otherwise mount it.
   const modelParams = stripModelBlockedParams(tool.modelBlockedParams, llmArgs)
-  let toolParams = mergeToolParameters(tool.params || {}, modelParams) as Record<string, any>
+  const modelInputRegistry = getProviderToolModelInputRegistry(tool)
+  const modelReferenceResolution = modelInputRegistry?.resolveModelExposedEnvReferences(modelParams)
+  if (modelReferenceResolution && !modelReferenceResolution.complete) {
+    throw new Error('Agent tool input environment references could not be safely resolved')
+  }
+  const resolvedModelParams = modelReferenceResolution?.value ?? modelParams
+  let toolParams = mergeToolParameters(tool.params || {}, resolvedModelParams)
   const inputProvenance = getProviderToolInputProvenance(tool)
-  const inputRegistry = inputProvenance?.registry.forkForInputPaths([inputProvenance.sourcePath])
-  let projectedToolParams = inputProvenance
-    ? (mergeToolParameters(inputProvenance.projectedParams, modelParams) as Record<string, any>)
+  let inputRegistry = inputProvenance?.registry.forkForInputPaths([inputProvenance.sourcePath])
+  if (modelReferenceResolution?.matched) {
+    if (inputRegistry) {
+      inputRegistry.mergeToolCallRegistry(modelReferenceResolution.registry)
+    } else {
+      inputRegistry = modelReferenceResolution.registry
+    }
+  }
+  if (inputRegistry && !inputRegistry.isComplete()) {
+    throw new Error('Agent tool input environment references could not be safely resolved')
+  }
+  let projectedToolParams = inputRegistry
+    ? mergeToolParameters(inputProvenance?.projectedParams ?? tool.params ?? {}, modelParams)
     : undefined
 
   if (tool.paramsTransform) {
@@ -1590,6 +1650,10 @@ export function prepareToolExecution(
               : {}),
             ...(request.callChain ? { callChain: request.callChain } : {}),
             ...(request.executionId ? { executionId: request.executionId } : {}),
+            ...(request.blockId ? { blockId: request.blockId } : {}),
+            ...((toolCallId ?? request.invocationId)
+              ? { invocationId: toolCallId ?? request.invocationId }
+              : {}),
             ...(request.billingAttribution
               ? { billingAttribution: request.billingAttribution }
               : {}),
@@ -1609,7 +1673,7 @@ export function prepareToolExecution(
     ...(tool.parameters ? { _toolSchema: tool.parameters } : {}),
   }
 
-  if (inputProvenance && inputRegistry) {
+  if (inputRegistry) {
     const inputPaths = [['params']] as const
     if (projectedToolParams) {
       inputRegistry.recordTransformedInputProjection(

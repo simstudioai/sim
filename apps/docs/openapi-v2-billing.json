@@ -1,0 +1,751 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Sim API v2 — Billing",
+    "description": "Version 2 of the Sim REST API for billing standing, credit allowance, storage quota, and cursor-paginated usage history.",
+    "version": "2.0.0",
+    "contact": {
+      "name": "Sim Support",
+      "email": "help@sim.ai",
+      "url": "https://www.sim.ai"
+    },
+    "license": {
+      "name": "Apache 2.0",
+      "url": "https://www.apache.org/licenses/LICENSE-2.0.html"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://www.sim.ai",
+      "description": "Production"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Billing",
+      "description": "Inspect billing standing, credit allowance, storage quota, and usage history."
+    }
+  ],
+  "security": [
+    {
+      "apiKey": []
+    }
+  ],
+  "paths": {
+    "/api/v2/billing/status": {
+      "get": {
+        "operationId": "getBillingStatus",
+        "summary": "Get Billing Status",
+        "description": "Return the current plan, billing standing, credit allowance, and storage quota. `credits` and `storage` report the payer's pooled allowances and are null unless the caller can manage that payer's billing; they are always null for a workspace API key. Billing history lives at `GET /api/v2/billing/logs`.",
+        "tags": ["Billing"],
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "in": "query",
+            "required": false,
+            "description": "Workspace whose payer should be resolved. Workspace API keys are pinned to their own workspace.",
+            "schema": {
+              "description": "Workspace whose payer should be resolved. Workspace API keys are pinned to their own workspace.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The current billing and storage status.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2BillingStatusResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/billing/logs": {
+      "get": {
+        "operationId": "listBillingLogs",
+        "summary": "List Billing Logs",
+        "description": "List the credit-denominated billing ledger with source filtering and opaque cursor pagination. `period` defaults to `30d`, so an unqualified request covers only the last 30 days: paginating to `nextCursor: null` exhausts that window, not the whole ledger. An inverted custom window is a 400 rather than an empty page.",
+        "tags": ["Billing"],
+        "parameters": [
+          {
+            "name": "source",
+            "in": "query",
+            "required": false,
+            "description": "Restrict results to one usage source.",
+            "schema": {
+              "description": "Restrict results to one usage source.",
+              "type": "string",
+              "enum": [
+                "workflow",
+                "wand",
+                "sim-chat",
+                "mcp_copilot",
+                "mothership_block",
+                "knowledge-base",
+                "voice-input",
+                "enrichment",
+                "voice-output"
+              ]
+            }
+          },
+          {
+            "name": "workspaceId",
+            "in": "query",
+            "required": false,
+            "description": "Restrict results to one workspace whose payer the caller can inspect.",
+            "schema": {
+              "description": "Restrict results to one workspace whose payer the caller can inspect.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "period",
+            "in": "query",
+            "required": false,
+            "description": "Relative window, all history, or a custom date range. `startDate` and `endDate` are accepted only with `custom`; every other value computes its own window.",
+            "schema": {
+              "default": "30d",
+              "description": "Relative window, all history, or a custom date range. `startDate` and `endDate` are accepted only with `custom`; every other value computes its own window.",
+              "type": "string",
+              "enum": ["1d", "7d", "30d", "all", "custom"]
+            }
+          },
+          {
+            "name": "startDate",
+            "in": "query",
+            "required": false,
+            "description": "Only include usage events recorded at or after this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. Requires `period=custom`. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected, as is year `0000`, which names no storable instant.",
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+              "description": "Only include usage events recorded at or after this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. Requires `period=custom`. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected, as is year `0000`, which names no storable instant."
+            }
+          },
+          {
+            "name": "endDate",
+            "in": "query",
+            "required": false,
+            "description": "Only include usage events recorded at or before this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. Requires `period=custom`, and defaults to now when omitted. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected, as is year `0000`, which names no storable instant.",
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+              "description": "Only include usage events recorded at or before this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. Requires `period=custom`, and defaults to now when omitted. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected, as is year `0000`, which names no storable instant."
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Maximum usage events per page. Must be a whole number from 1 to 100. Defaults to 50.",
+            "schema": {
+              "default": 50,
+              "description": "Maximum usage events per page. Must be a whole number from 1 to 100. Defaults to 50.",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "description": "Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.",
+            "schema": {
+              "description": "Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.",
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of usage events.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2BillingLogListResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "apiKey": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-API-Key",
+        "description": "Your Sim API key, personal or workspace-scoped. Generate one under Settings, then API Keys. Operations that reject workspace keys say so in their own description."
+      }
+    },
+    "headers": {
+      "X-RateLimit-Limit": {
+        "description": "Maximum requests allowed in the current window.",
+        "schema": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "title": "Rate limit",
+          "description": "Maximum requests allowed in the current window."
+        }
+      },
+      "X-RateLimit-Remaining": {
+        "description": "Requests remaining in the current window.",
+        "schema": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "title": "Rate limit remaining",
+          "description": "Requests remaining in the current window."
+        }
+      },
+      "X-RateLimit-Reset": {
+        "description": "ISO 8601 timestamp when the current rate-limit window resets.",
+        "schema": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+          "title": "Rate limit reset",
+          "description": "ISO 8601 timestamp when the current rate-limit window resets."
+        }
+      },
+      "Retry-After": {
+        "description": "Seconds to wait before retrying, sent on `429` and `503`. Add jitter rather than retrying at exactly this offset.",
+        "schema": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "title": "Retry after",
+          "description": "Seconds to wait before retrying, sent on `429` and `503`. Add jitter rather than retrying at exactly this offset."
+        }
+      },
+      "X-Run-Id": {
+        "description": "Identifier assigned to the workflow run.",
+        "schema": {
+          "type": "string",
+          "minLength": 1,
+          "title": "Run identifier",
+          "description": "Identifier assigned to the workflow run."
+        }
+      }
+    },
+    "responses": {
+      "BadRequest": {
+        "description": "The request is invalid. This includes a query parameter sent with no value (`?limit=`, `?search=`), which is rejected rather than read as zero, empty, or the parameter default — omit the parameter instead.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2Error"
+            },
+            "example": {
+              "error": {
+                "code": "BAD_REQUEST",
+                "message": "Invalid request"
+              }
+            }
+          }
+        }
+      },
+      "Unauthorized": {
+        "description": "The API key is missing or invalid.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2Error"
+            },
+            "example": {
+              "error": {
+                "code": "UNAUTHORIZED",
+                "message": "API key required"
+              }
+            }
+          }
+        }
+      },
+      "Forbidden": {
+        "description": "The caller lacks the rights this operation requires. When the cause is one a caller can act on, `error.details.code` names it. A resource in a workspace the caller cannot reach at all answers `404` instead, so absence and denial are indistinguishable.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2Error"
+            },
+            "example": {
+              "error": {
+                "code": "FORBIDDEN",
+                "message": "Insufficient workspace permissions",
+                "details": {
+                  "code": "INSUFFICIENT_WORKSPACE_ROLE"
+                }
+              }
+            }
+          }
+        }
+      },
+      "NotFound": {
+        "description": "The requested resource was not found.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2Error"
+            },
+            "example": {
+              "error": {
+                "code": "NOT_FOUND",
+                "message": "Not found"
+              }
+            }
+          }
+        }
+      },
+      "RateLimited": {
+        "description": "The caller exceeded the request rate limit.",
+        "headers": {
+          "Retry-After": {
+            "$ref": "#/components/headers/Retry-After"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2Error"
+            },
+            "example": {
+              "error": {
+                "code": "RATE_LIMITED",
+                "message": "API rate limit exceeded",
+                "details": {
+                  "retryAfter": "2026-01-01T00:00:30.000Z"
+                }
+              }
+            }
+          }
+        }
+      },
+      "InternalError": {
+        "description": "An unexpected server error occurred.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2Error"
+            },
+            "example": {
+              "error": {
+                "code": "INTERNAL_ERROR",
+                "message": "Internal server error"
+              }
+            }
+          }
+        }
+      },
+      "ServiceUnavailable": {
+        "description": "A required service is temporarily unavailable. `Retry-After` carries the seconds to wait; treat it as a floor and add jitter. The header is omitted when `error.details.code` is `ASYNC_ENQUEUE_AMBIGUOUS`, because the run may already have started — reconcile against the returned run id instead of retrying.",
+        "headers": {
+          "Retry-After": {
+            "$ref": "#/components/headers/Retry-After"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2Error"
+            },
+            "example": {
+              "error": {
+                "code": "SERVICE_UNAVAILABLE",
+                "message": "Service temporarily unavailable"
+              }
+            }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "V2Error": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "description": "Stable machine-readable error code."
+              },
+              "message": {
+                "type": "string",
+                "description": "Human-readable explanation of the error."
+              },
+              "details": {
+                "description": "Structured error details. On a `403` whose cause a caller can act on, this carries a `code` from a closed set:\n- `INSUFFICIENT_WORKSPACE_ROLE` — The caller has access to the workspace but its role is below the one this operation requires.\n- `PERSONAL_API_KEYS_DISABLED` — The workspace's organization does not allow personal API keys. Use a workspace API key.\n- `WORKSPACE_KEY_OPERATION_NOT_PERMITTED` — This operation is not available to a workspace-scoped API key. Use a personal API key.\n- `PRINCIPAL_KIND_NOT_PERMITTED` — This operation does not accept the caller’s kind of API key.\n- `ORGANIZATION_MEMBERSHIP_REQUIRED` — The caller is not a member of the organization it named.\n- `ORGANIZATION_ADMIN_REQUIRED` — The caller is a member of the organization but not an admin or owner.\n- `ENTERPRISE_PLAN_REQUIRED` — The organization has no active enterprise subscription.\n- `ORGANIZATION_PLAN_REQUIRED` — The organization has no active organization subscription (Pro for Teams, Max for Teams, or Enterprise).\n- `AUDIT_LOGS_DISABLED` — Audit logging is not enabled for this deployment.\n- `SKILL_EDITOR_ACCESS_REQUIRED` — The caller can write in the workspace but is not an editor of this skill.\n- `SECRET_ADMIN_ACCESS_REQUIRED` — The caller can write in the workspace but is not an admin of this secret. Ask a workspace admin, or someone holding admin on the secret, to grant access or set the value.\n- `WORKSPACE_RESOURCE_LIMIT_REACHED` — The workspace already holds the maximum number of resources of this kind. Delete one, or contact Sim to raise the limit; the message names the ceiling.\n- `PUBLIC_SHARING_NOT_ALLOWED` — The workspace's organization does not permit sharing this resource publicly. An organization admin controls the policy.\n- `CREDENTIAL_ADMIN_ACCESS_REQUIRED` — The caller can reach the workspace but cannot administer this credential.\n- `MCP_SERVER_URL_NOT_ALLOWED` — The supplied MCP server URL is outside the allowed domains or resolves to an internal address."
+              }
+            },
+            "required": ["code", "message"],
+            "additionalProperties": false,
+            "description": "Canonical error details."
+          }
+        },
+        "required": ["error"],
+        "additionalProperties": false,
+        "title": "v2 error response",
+        "description": "Canonical error envelope returned by the public v2 API.",
+        "examples": [
+          {
+            "error": {
+              "code": "BAD_REQUEST",
+              "message": "The request is invalid."
+            }
+          }
+        ]
+      },
+      "V2BillingStatus": {
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Workspace whose payer was resolved, or null for account billing."
+          },
+          "period": {
+            "type": "object",
+            "properties": {
+              "start": {
+                "type": "string",
+                "description": "ISO 8601 start of the current billing period, or 1970-01-01T00:00:00.000Z when no Stripe subscription defines one.",
+                "format": "date-time"
+              },
+              "end": {
+                "type": "string",
+                "description": "ISO 8601 end of the current billing period, or 9999-12-31T00:00:00.000Z when no Stripe subscription defines one.",
+                "format": "date-time"
+              }
+            },
+            "required": ["start", "end"],
+            "additionalProperties": false,
+            "description": "Current billing period. Only a Stripe subscription defines a real period; without one — notably on the free plan — this is the open interval 1970-01-01 to 9999-12-31 and must not be read as a monthly window."
+          },
+          "plan": {
+            "type": "string",
+            "description": "Current billing plan."
+          },
+          "status": {
+            "type": "string",
+            "enum": ["active", "limit_exceeded", "billing_blocked"],
+            "description": "Current billing standing."
+          },
+          "credits": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "used": {
+                    "type": "number",
+                    "description": "Credits consumed so far. The counter is reset by Stripe invoice webhooks, so on a paid plan it covers the current billing period; on the free plan nothing resets it and the value is lifetime consumption."
+                  },
+                  "limit": {
+                    "type": "number",
+                    "description": "Credit allowance for the reporting window — per billing period on a paid plan, lifetime on the free plan."
+                  },
+                  "remaining": {
+                    "type": "number",
+                    "description": "Allowance minus consumption, over the same window."
+                  }
+                },
+                "required": ["used", "limit", "remaining"],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The payer's credit usage and allowance — periodic on a paid plan, lifetime on the free plan, where the counter never resets. Null when the caller cannot manage that payer's billing. Always null for a workspace API key."
+          },
+          "storage": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "usedBytes": {
+                    "type": "number",
+                    "minimum": 0,
+                    "description": "Storage currently consumed, in bytes."
+                  },
+                  "limitBytes": {
+                    "type": "number",
+                    "minimum": 0,
+                    "description": "Storage quota, in bytes."
+                  },
+                  "percentUsed": {
+                    "type": "number",
+                    "minimum": 0,
+                    "description": "Percentage of the storage quota consumed."
+                  }
+                },
+                "required": ["usedBytes", "limitBytes", "percentUsed"],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The payer's storage consumption and quota, or null when the caller cannot manage that payer's billing. Always null for a workspace API key."
+          }
+        },
+        "required": ["workspaceId", "period", "plan", "status", "credits", "storage"],
+        "additionalProperties": false,
+        "title": "Billing status",
+        "description": "Current billing standing, credit allowance, and storage quota."
+      },
+      "V2BillingStatusResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2BillingStatus"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Billing status response",
+        "description": "Current billing standing, credit allowance, and storage quota.",
+        "examples": [
+          {
+            "data": {
+              "workspaceId": null,
+              "period": {
+                "start": "2026-07-01T00:00:00.000Z",
+                "end": "2026-08-01T00:00:00.000Z"
+              },
+              "plan": "pro",
+              "status": "active",
+              "credits": {
+                "used": 512,
+                "limit": 20000,
+                "remaining": 19488
+              },
+              "storage": {
+                "usedBytes": 5242880,
+                "limitBytes": 1073741824,
+                "percentUsed": 0.48828125
+              }
+            }
+          }
+        ]
+      },
+      "V2BillingLogEntry": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique usage-event identifier."
+          },
+          "createdAt": {
+            "type": "string",
+            "description": "ISO 8601 timestamp when the usage event was recorded.",
+            "format": "date-time"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "workflow",
+              "wand",
+              "sim-chat",
+              "mcp_copilot",
+              "mothership_block",
+              "knowledge-base",
+              "voice-input",
+              "enrichment",
+              "voice-output"
+            ],
+            "description": "Product surface that consumed the credits."
+          },
+          "workspaceId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Workspace attributed to the event, or null for account-level usage."
+          },
+          "workflow": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "description": "Workflow identifier."
+                  },
+                  "name": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Workflow display name, when available."
+                  }
+                },
+                "required": ["id", "name"],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Workflow attributed to the event, when applicable."
+          },
+          "runId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Workflow run attributed to the event, when applicable."
+          },
+          "creditCost": {
+            "type": "number",
+            "description": "Credits apportioned to the event so page rows sum to the rounded page total; may be zero for a sub-credit event."
+          }
+        },
+        "required": ["id", "createdAt", "source", "workspaceId", "workflow", "runId", "creditCost"],
+        "additionalProperties": false,
+        "title": "Billing log entry",
+        "description": "One credit-consuming usage event in the billing ledger."
+      },
+      "V2BillingLogListResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V2BillingLogEntry"
+            },
+            "description": "Items in the current page."
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Opaque cursor for the next page. Send it back as `cursor`; `null` means there is nothing further to fetch. Never construct one yourself."
+          }
+        },
+        "required": ["data", "nextCursor"],
+        "additionalProperties": false,
+        "title": "Billing log list response",
+        "description": "A cursor-paginated page of credit-consuming usage events.",
+        "examples": [
+          {
+            "data": [
+              {
+                "id": "log_1",
+                "createdAt": "2026-07-29T18:04:11.000Z",
+                "source": "sim-chat",
+                "workspaceId": "ws_1",
+                "workflow": null,
+                "runId": null,
+                "creditCost": 12
+              }
+            ],
+            "nextCursor": null
+          }
+        ]
+      }
+    }
+  },
+  "x-generated-by": "scripts/generate-openapi.ts"
+}

@@ -39,7 +39,7 @@ export const typeformConnectorMeta: ConnectorMeta = {
       options: [
         { label: 'Completed only', id: 'completed' },
         { label: 'Partial & completed', id: 'partial' },
-        { label: 'All (including started)', id: 'all' },
+        { label: 'All available (partial & completed)', id: 'all' },
       ],
       description: 'Which responses to sync by completion status. Defaults to completed only.',
     },
@@ -50,7 +50,8 @@ export const typeformConnectorMeta: ConnectorMeta = {
       required: false,
       mode: 'advanced',
       placeholder: 'e.g. 2024-01-01T00:00:00Z',
-      description: 'Only sync responses submitted on or after this date (ISO 8601, UTC).',
+      description:
+        'Only sync responses on or after this date (ISO 8601, UTC). Compared against submitted_at for completed responses, staged_at for partial, landed_at for started.',
     },
     {
       id: 'until',
@@ -59,7 +60,7 @@ export const typeformConnectorMeta: ConnectorMeta = {
       required: false,
       mode: 'advanced',
       placeholder: 'e.g. 2024-12-31T23:59:59Z',
-      description: 'Only sync responses submitted on or before this date (ISO 8601, UTC).',
+      description: 'Only sync responses on or before this date (ISO 8601, UTC).',
     },
     {
       id: 'query',

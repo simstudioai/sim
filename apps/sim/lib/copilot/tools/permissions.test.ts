@@ -34,8 +34,8 @@ describe('copilotWriteDeniedMessage', () => {
   })
 
   it('omits the operation label when there is no operation', () => {
-    expect(copilotWriteDeniedMessage('knowledge_base', undefined, 'read')).toBe(
-      "Permission denied: knowledge_base requires write access. You have 'read' permission."
+    expect(copilotWriteDeniedMessage('manage_knowledge_base', undefined, 'read')).toBe(
+      "Permission denied: manage_knowledge_base requires write access. You have 'read' permission."
     )
   })
 })

@@ -14,6 +14,60 @@ export const LaunchDarklyBlock: BlockConfig = {
   bgColor: '#191919',
   iconColor: '#405BFF',
   icon: LaunchDarklyIcon,
+  canvasPresentation: {
+    defaultTitle: 'LaunchDarkly',
+    sentences: {
+      byOperation: {
+        list_flags: [
+          'List feature flags',
+          { text: 'in project', field: 'projectKey' },
+          { text: ', tagged', field: 'tag' },
+        ],
+        get_flag: [
+          { text: 'Read flag', field: 'flagKey', core: true },
+          { text: 'in project', field: 'projectKey' },
+        ],
+        create_flag: [
+          { text: 'Create flag', field: 'flagName', core: true },
+          { text: 'with key', field: 'newFlagKey' },
+        ],
+        update_flag: [
+          { text: 'Update flag', field: 'flagKey', core: true },
+          { text: ', renaming to', field: 'updateName' },
+          { text: ', adding tags', field: 'addTags' },
+        ],
+        toggle_flag: [
+          { text: 'Set flag', field: 'flagKey', core: true },
+          { text: 'to', field: 'enabled' },
+          { text: 'in', field: 'environmentKey' },
+        ],
+        delete_flag: [
+          { text: 'Delete flag', field: 'flagKey', core: true },
+          { text: 'from project', field: 'projectKey' },
+        ],
+        get_flag_status: [
+          { text: 'Read rollout status of flag', field: 'flagKey', core: true },
+          { text: 'in', field: 'environmentKey' },
+        ],
+        list_projects: ['List all projects', { text: ', up to', field: 'limit', after: 'results' }],
+        list_environments: ['List environments', { text: 'in project', field: 'projectKey' }],
+        list_segments: [
+          'List user segments',
+          { text: 'in project', field: 'projectKey' },
+          { text: ', scoped to', field: 'environmentKey' },
+        ],
+        list_members: [
+          'List account members',
+          { text: ', up to', field: 'limit', after: 'results' },
+        ],
+        get_audit_log: [
+          'List audit log entries',
+          { text: ', matching', field: 'spec' },
+          { text: ', up to', field: 'limit', after: 'results' },
+        ],
+      },
+    },
+  },
   authMode: AuthMode.ApiKey,
 
   subBlocks: [

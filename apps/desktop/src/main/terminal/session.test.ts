@@ -1,5 +1,46 @@
-import { describe, expect, it } from 'vitest'
-import { stripAnsi, stripTerminalQueries, toInputChunks } from '@/main/terminal/session'
+import type { TerminalCommandEvent } from '@sim/terminal-protocol'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import {
+  stripAnsi,
+  stripTerminalQueries,
+  TerminalSession,
+  toInputChunks,
+} from '@/main/terminal/session'
+
+const ptyStub = vi.hoisted(() => ({
+  dataHandler: null as ((data: string) => void) | null,
+  exitHandler: null as (() => void) | null,
+  writes: [] as string[],
+}))
+
+vi.mock('@lydell/node-pty', () => ({
+  spawn: () => ({
+    pid: 1234,
+    onData: (handler: (data: string) => void) => {
+      ptyStub.dataHandler = handler
+    },
+    onExit: (handler: () => void) => {
+      ptyStub.exitHandler = handler
+    },
+    write: (data: string) => ptyStub.writes.push(data),
+    resize: vi.fn(),
+    kill: vi.fn(),
+    pause: vi.fn(),
+    resume: vi.fn(),
+  }),
+}))
+
+vi.mock('@/main/terminal/shell-integration', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/main/terminal/shell-integration')>()
+  return { ...actual, createNonce: () => 'test-nonce' }
+})
+
+afterEach(() => {
+  vi.useRealTimers()
+  ptyStub.dataHandler = null
+  ptyStub.exitHandler = null
+  ptyStub.writes.length = 0
+})
 
 describe('toInputChunks', () => {
   it('separates Enter from the text so the text is actually submitted', () => {
@@ -91,5 +132,93 @@ describe('stripTerminalQueries', () => {
 
   it('leaves text with no queries untouched', () => {
     expect(stripTerminalQueries('plain output\n')).toBe('plain output\n')
+  })
+})
+
+describe('TerminalSession command lifecycle', () => {
+  it('keeps normal long-command activity until the foreground process exits', async () => {
+    vi.useFakeTimers()
+    const originalShell = process.env.SHELL
+    process.env.SHELL = '/bin/zsh'
+    const commandEvents: TerminalCommandEvent[] = []
+    const session = TerminalSession.create({
+      terminalId: 'terminal-1',
+      cwd: '/tmp',
+      cols: 80,
+      rows: 24,
+      callbacks: {
+        onData: () => {},
+        onState: () => {},
+        onCommand: (event) => commandEvents.push(event),
+        onExit: () => {},
+      },
+    })
+
+    try {
+      const resultPromise = session.runCommand('sleep 10', 'tool-call-long', 100)
+      ptyStub.dataHandler?.('\u001b]633;C;test-nonce\u0007working\n')
+      await vi.advanceTimersByTimeAsync(100)
+      expect(await resultPromise).toMatchObject({ status: 'running' })
+      expect(commandEvents.filter((event) => event.phase === 'end')).toEqual([])
+
+      ptyStub.dataHandler?.('\u001b]633;D;0;test-nonce\u0007')
+      expect(commandEvents.at(-1)).toMatchObject({
+        terminalId: 'terminal-1',
+        phase: 'end',
+        command: 'sleep 10',
+        toolCallId: 'tool-call-long',
+        exitCode: 0,
+      })
+    } finally {
+      session.dispose()
+      if (originalShell === undefined) process.env.SHELL = undefined
+      else process.env.SHELL = originalShell
+    }
+  })
+
+  it('ends tool activity when an interactive command detaches, not when its process exits', async () => {
+    vi.useFakeTimers()
+    const originalShell = process.env.SHELL
+    process.env.SHELL = '/bin/zsh'
+    const commandEvents: TerminalCommandEvent[] = []
+    const session = TerminalSession.create({
+      terminalId: 'terminal-1',
+      cwd: '/tmp',
+      cols: 80,
+      rows: 24,
+      callbacks: {
+        onData: () => {},
+        onState: () => {},
+        onCommand: (event) => commandEvents.push(event),
+        onExit: () => {},
+      },
+    })
+
+    try {
+      const resultPromise = session.runCommand('vim', 'tool-call-1', 10_000)
+      ptyStub.dataHandler?.('\u001b]633;C;test-nonce\u0007\u001b[?1049h')
+      expect(await resultPromise).toMatchObject({ status: 'interactive' })
+
+      expect(commandEvents.at(-1)).toMatchObject({
+        terminalId: 'terminal-1',
+        phase: 'end',
+        command: 'vim',
+        toolCallId: 'tool-call-1',
+      })
+
+      ptyStub.dataHandler?.('\u001b]633;D;0;test-nonce\u0007')
+
+      expect(commandEvents.at(-1)).toMatchObject({
+        terminalId: 'terminal-1',
+        phase: 'end',
+        command: 'vim',
+        exitCode: 0,
+      })
+      expect(commandEvents.at(-1)?.toolCallId).toBeUndefined()
+    } finally {
+      session.dispose()
+      if (originalShell === undefined) process.env.SHELL = undefined
+      else process.env.SHELL = originalShell
+    }
   })
 })

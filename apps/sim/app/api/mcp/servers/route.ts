@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import { mcpServers } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { permissionSatisfies } from '@sim/platform-authz/workspace'
 import { toError } from '@sim/utils/errors'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
@@ -13,6 +14,7 @@ import {
   withMcpAuth,
 } from '@/lib/mcp/middleware'
 import { performCreateMcpServer, performDeleteMcpServer } from '@/lib/mcp/orchestration'
+import { projectInternalMcpServer } from '@/lib/mcp/projection'
 import {
   createMcpErrorResponse,
   createMcpSuccessResponse,
@@ -27,29 +29,35 @@ export const dynamic = 'force-dynamic'
  * GET - List all registered MCP servers for the workspace
  */
 export const GET = withRouteHandler(
-  withMcpAuth('read')(async (request: NextRequest, { userId, workspaceId, requestId }) => {
-    try {
-      logger.info(`[${requestId}] Listing MCP servers for workspace ${workspaceId}`)
+  withMcpAuth('read')(
+    async (request: NextRequest, { userId, workspaceId, requestId, permission }) => {
+      try {
+        logger.info(`[${requestId}] Listing MCP servers for workspace ${workspaceId}`)
 
-      const rows = await db
-        .select()
-        .from(mcpServers)
-        .where(and(eq(mcpServers.workspaceId, workspaceId), isNull(mcpServers.deletedAt)))
+        const rows = await db
+          .select()
+          .from(mcpServers)
+          .where(and(eq(mcpServers.workspaceId, workspaceId), isNull(mcpServers.deletedAt)))
 
-      const servers = rows.map(({ oauthClientSecret: _secret, ...rest }) => ({
-        ...rest,
-        hasOauthClientSecret: !!_secret,
-      }))
+        /**
+         * Header values are the upstream credential and are stored unencrypted, so
+         * they are withheld from anyone who cannot already rewrite them. Editors and
+         * admins still receive them because the settings form round-trips the
+         * existing values on save.
+         */
+        const includeHeaderValues = permissionSatisfies(permission, 'write')
+        const servers = rows.map((row) => projectInternalMcpServer(row, { includeHeaderValues }))
 
-      logger.info(
-        `[${requestId}] Listed ${servers.length} MCP servers for workspace ${workspaceId}`
-      )
-      return createMcpSuccessResponse({ servers })
-    } catch (error) {
-      logger.error(`[${requestId}] Error listing MCP servers:`, error)
-      return createMcpErrorResponse(toError(error), 'Failed to list MCP servers', 500)
+        logger.info(
+          `[${requestId}] Listed ${servers.length} MCP servers for workspace ${workspaceId}`
+        )
+        return createMcpSuccessResponse({ servers })
+      } catch (error) {
+        logger.error(`[${requestId}] Error listing MCP servers:`, error)
+        return createMcpErrorResponse(toError(error), 'Failed to list MCP servers', 500)
+      }
     }
-  })
+  )
 )
 
 /**

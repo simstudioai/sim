@@ -371,6 +371,8 @@ export async function headGcsObject(
     return {
       size: Number(fileMetadata.size) || 0,
       contentType: fileMetadata.contentType,
+      uploadId: readUploadId(fileMetadata.metadata as Record<string, string> | undefined),
+      version: String(fileMetadata.generation ?? ''),
       ...(fileMetadata.metadata
         ? { metadata: fileMetadata.metadata as Record<string, string> }
         : {}),
@@ -382,6 +384,20 @@ export async function headGcsObject(
     }
     throw error
   }
+}
+
+/** Deletes an upload object only if it is still the generation the caller inspected. */
+export async function deleteGcsObjectVersion(params: {
+  key: string
+  generation: string
+  customConfig: GcsConfig
+}): Promise<void> {
+  if (!params.generation) throw new Error('GCS upload object is missing its generation')
+  const storage = await getGcsClient()
+  await storage
+    .bucket(params.customConfig.bucket)
+    .file(params.key, { generation: params.generation })
+    .delete({ ifGenerationMatch: params.generation })
 }
 
 /**
@@ -437,8 +453,8 @@ export async function deleteFromGcs(key: string, customConfig?: GcsConfig): Prom
 
 /**
  * Normalize an ETag to the quoted form GCS expects in CompleteMultipartUpload.
- * The shared browser upload client strips quotes from part ETags (S3 tolerates
- * either form), so quotes are restored here before building the completion XML.
+ * Accept either form so server-uploaded and provider-listed parts share the same
+ * completion path.
  */
 function normalizeEtag(etag: string): string {
   return etag.startsWith('"') ? etag : `"${etag}"`
@@ -460,7 +476,7 @@ function escapeXml(value: string): string {
  * of the SDK.
  */
 async function gcsXmlApiRequest(
-  method: 'POST' | 'PUT' | 'DELETE',
+  method: 'GET' | 'POST' | 'PUT' | 'DELETE',
   bucket: string,
   key: string,
   query: string,
@@ -489,20 +505,31 @@ async function gcsXmlApiRequest(
   return response
 }
 
+function decodeXml(value: string): string {
+  return value
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&')
+}
+
 /**
  * Initiate a multipart upload for GCS (XML API, S3-compatible semantics)
  */
 export async function initiateGcsMultipartUpload(
   options: GcsMultipartUploadInit
 ): Promise<{ uploadId: string; key: string }> {
-  const { fileName, contentType, customConfig, customKey, purpose } = options
+  const { fileName, contentType, customConfig, customKey, purpose, metadata } = options
 
   const config = customConfig || { bucket: GCS_CONFIG.bucket }
 
   const safeFileName = sanitizeFileName(fileName)
   const finalKey = customKey || `kb/${generateId()}-${safeFileName}`
   const completionId = generateId()
-  const uniqueKey = getGcsMultipartStagingKey(finalKey, completionId)
+  const uniqueKey = metadata?.uploadId
+    ? finalKey
+    : getGcsMultipartStagingKey(finalKey, completionId)
 
   const response = await gcsXmlApiRequest('POST', config.bucket, uniqueKey, 'uploads', {
     headers: {
@@ -510,6 +537,12 @@ export async function initiateGcsMultipartUpload(
       'x-goog-meta-originalname': encodeURIComponent(sanitizeFilenameForMetadata(fileName)),
       'x-goog-meta-uploadedat': new Date().toISOString(),
       'x-goog-meta-purpose': purpose || 'knowledge-base',
+      ...Object.fromEntries(
+        Object.entries(sanitizeStorageMetadata(metadata ?? {}, 8000)).map(([key, value]) => [
+          `x-goog-meta-${key.toLowerCase()}`,
+          value,
+        ])
+      ),
       [`x-goog-meta-${GCS_MULTIPART_UPLOAD_ID_METADATA_KEY}`]: completionId,
     },
   })
@@ -556,14 +589,19 @@ export async function uploadGcsPart(
 
 /**
  * Generate presigned URLs for uploading parts to GCS. The URLs sign the
- * `partNumber`/`uploadId` query parameters (V4), matching the S3 flow —
- * the browser PUTs each chunk and collects the returned ETags.
+ * `partNumber`/`uploadId` query parameters (V4), matching the S3 flow.
+ *
+ * `expires` is required rather than defaulted: the caller owns the part-URL lifetime and
+ * advertises the matching `expiresAt` to the client, so a local default would be a second
+ * source of truth that silently keeps signing 1h URLs after the caller's window changed.
  */
 export async function getGcsMultipartPartUrls(
   key: string,
   uploadId: string,
   partNumbers: number[],
-  customConfig?: GcsConfig
+  customConfig: GcsConfig | undefined,
+  /** Absolute instant the signature stops being valid. */
+  expires: Date
 ): Promise<GcsPartUploadUrl[]> {
   const config = customConfig || { bucket: GCS_CONFIG.bucket }
   const storage = await getGcsClient()
@@ -574,7 +612,7 @@ export async function getGcsMultipartPartUrls(
       const [url] = await file.getSignedUrl({
         version: 'v4',
         action: 'write',
-        expires: Date.now() + 3600 * 1000,
+        expires,
         queryParams: {
           partNumber: String(partNumber),
           uploadId,
@@ -583,6 +621,45 @@ export async function getGcsMultipartPartUrls(
       return { partNumber, url }
     })
   )
+}
+
+/** Lists the provider-authoritative state for an XML API multipart upload. */
+export async function listGcsMultipartParts(
+  key: string,
+  uploadId: string,
+  customConfig?: GcsConfig
+): Promise<Array<{ partNumber: number; etag: string; size: number }>> {
+  const config = customConfig || { bucket: GCS_CONFIG.bucket }
+  const parts: Array<{ partNumber: number; etag: string; size: number }> = []
+  let marker: number | undefined
+
+  for (;;) {
+    const query = `uploadId=${encodeURIComponent(uploadId)}${marker === undefined ? '' : `&part-number-marker=${marker}`}`
+    const response = await gcsXmlApiRequest('GET', config.bucket, key, query)
+    const xml = await response.text()
+    for (const match of xml.matchAll(/<Part>([\s\S]*?)<\/Part>/g)) {
+      const partXml = match[1]
+      const numberMatch = partXml.match(/<PartNumber>(\d+)<\/PartNumber>/)
+      const etagMatch = partXml.match(/<ETag>([\s\S]*?)<\/ETag>/)
+      const sizeMatch = partXml.match(/<Size>(\d+)<\/Size>/)
+      if (!numberMatch || !etagMatch || !sizeMatch) {
+        throw new Error(`GCS returned incomplete part metadata for ${key}`)
+      }
+      parts.push({
+        partNumber: Number(numberMatch[1]),
+        etag: decodeXml(etagMatch[1]),
+        size: Number(sizeMatch[1]),
+      })
+    }
+    if (!/<IsTruncated>true<\/IsTruncated>/.test(xml)) break
+    const nextMarker = xml.match(/<NextPartNumberMarker>(\d+)<\/NextPartNumberMarker>/)
+    if (!nextMarker) {
+      throw new Error(`GCS truncated the part listing for ${key} without a continuation marker`)
+    }
+    marker = Number(nextMarker[1])
+  }
+
+  return parts
 }
 
 /**
@@ -698,9 +775,10 @@ export async function abortGcsMultipartUpload(
   customConfig?: GcsConfig
 ): Promise<void> {
   const config = customConfig || { bucket: GCS_CONFIG.bucket }
-  try {
-    await gcsXmlApiRequest('DELETE', config.bucket, key, `uploadId=${encodeURIComponent(uploadId)}`)
-  } catch (error) {
-    logger.warn('Error cleaning up GCS multipart upload:', error)
-  }
+  await gcsXmlApiRequest('DELETE', config.bucket, key, `uploadId=${encodeURIComponent(uploadId)}`)
+}
+
+function readUploadId(metadata?: Record<string, string>): string | undefined {
+  if (!metadata) return undefined
+  return Object.entries(metadata).find(([key]) => key.toLowerCase() === 'uploadid')?.[1]
 }

@@ -9,6 +9,7 @@ import { resolveWorkspaceBillingPayer } from '@/lib/billing/core/billing-attribu
 import { maybeNotifyLimit } from '@/lib/billing/core/limit-notifications'
 import { getPlanTypeForLimits } from '@/lib/billing/plan-helpers'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   getBillingDisabledTableLimits,
   getTablePlanLimits,
@@ -183,12 +184,22 @@ function cacheLimits(workspaceId: string, limits: TablePlanLimits): void {
 
 /**
  * Thrown by {@link assertRowCapacity} when a write would exceed the workspace's
- * current plan row limit. The message includes the lowercase `row limit` token so
- * `rowWriteErrorResponse` maps it to a 400 toast carrying the real reason.
+ * current plan row limit. Typed as a `validation` failure so the routes answer
+ * 400 with the real reason — the message used to have to carry a lowercase
+ * `row limit` token for a substring match to find it, which made the wording
+ * load-bearing.
+ *
+ * The canonical record of the two table ceilings disagreeing on status: this one
+ * answers 400 and the workspace table ceiling answers 403
+ * (`WORKSPACE_RESOURCE_LIMIT_REACHED`), where 409 arguably fits both. Both are
+ * left as shipped — this error is also reachable from the internal surface,
+ * which is not behind the v2 flag, so unifying them is a deliberate
+ * cross-surface change rather than part of a v2-only pass.
  */
-export class TableRowLimitError extends Error {
+export class TableRowLimitError extends OrchestrationError {
   constructor(readonly limit: number) {
     super(
+      'validation',
       `This table has reached its row limit (${limit.toLocaleString('en-US')} rows) on your current plan.`
     )
     this.name = 'TableRowLimitError'
@@ -239,26 +250,6 @@ export async function assertRowCapacity(params: {
     throw new TableRowLimitError(limit)
   }
   return limit
-}
-
-/**
- * Checks if a workspace can create more tables based on its plan limits.
- *
- * @param workspaceId - The workspace ID to check
- * @param currentTableCount - The current number of tables in the workspace
- * @returns Object with canCreate boolean and limit info
- */
-async function canCreateTable(
-  workspaceId: string,
-  currentTableCount: number
-): Promise<{ canCreate: boolean; maxTables: number; currentCount: number }> {
-  const limits = await getWorkspaceTableLimits(workspaceId)
-
-  return {
-    canCreate: currentTableCount < limits.maxTables,
-    maxTables: limits.maxTables,
-    currentCount: currentTableCount,
-  }
 }
 
 /**

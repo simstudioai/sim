@@ -3,6 +3,7 @@ import {
   activeDeploymentSummarySchema,
   deploymentOperationSummarySchema,
   deploymentVersionMetadataFieldsSchema,
+  deploymentVersionNumberSchema,
 } from '@/lib/api/contracts/deployments'
 import { booleanQueryFlagSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
@@ -70,13 +71,6 @@ export const v1DeployWorkflowBodySchema = z.object({
 })
 
 export type V1DeployWorkflowBody = z.input<typeof v1DeployWorkflowBodySchema>
-
-/** Bounded to the Postgres `integer` range of `workflow_deployment_version.version`. */
-const deploymentVersionNumberSchema = z
-  .number()
-  .int('version must be an integer')
-  .min(1, 'version must be a positive integer')
-  .max(2147483647, 'version is out of range')
 
 /**
  * Optional rollback target accepted by the v1 rollback endpoint. When

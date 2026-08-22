@@ -76,6 +76,12 @@ export interface SimDesktopTerminalApi {
   /** Open an additional terminal and make it active. */
   openTerminal(cwd: string | undefined, scopeId: string): Promise<ScopedTerminalTabsState>
   switchTerminal(terminalId: string, scopeId: string): Promise<ScopedTerminalTabsState>
+  /** Move a terminal to its final position. Optional for older installed shells. */
+  reorderTerminal?(
+    terminalId: string,
+    targetIndex: number,
+    scopeId: string
+  ): Promise<ScopedTerminalTabsState>
   closeTerminal(terminalId: string, scopeId: string): Promise<ScopedTerminalTabsState>
   getTabs(scopeId: string): Promise<ScopedTerminalTabsState>
   /** Makes a chat's terminal group the renderer-visible group. */
@@ -99,11 +105,12 @@ export interface SimDesktopTerminalApi {
   /** Forget retained output for one terminal. */
   clearScrollback(terminalId: string, scopeId: string): Promise<boolean>
   /**
-   * Reports whether the terminal panel owns keyboard focus, so global menu
-   * accelerators can tell a Cmd-W meant for a terminal from one meant for the
-   * window.
+   * Reports whether the visible terminal panel owns resource shortcuts, so a
+   * transient DOM blur cannot turn Cmd-W into a window-level command.
    */
   setFocused(focused: boolean, scopeId: string): void
+  /** Reports whether this renderer is currently displaying the terminal resource. */
+  setVisible?(visible: boolean, scopeId: string): void
   /**
    * The user finishing a handoff — the hand-back chip on the waiting tool row.
    */
@@ -141,8 +148,17 @@ export interface SimDesktopBrowserAgentApi {
     params: Record<string, unknown>,
     scopeId: string
   ): Promise<BrowserToolResponse>
-  /** Browser-chrome commands from the panel (URL bar, back, reload, takeover Done). */
+  /** Cancel one exact in-flight tool. Optional for compatibility with older shells. */
+  cancelTool?(toolCallId: string, scopeId: string): Promise<boolean>
+  /** Cancel the currently active tool in a scope after renderer state was lost. */
+  cancelActiveTool?(scopeId: string): Promise<boolean>
+  /** Browser-chrome commands from the panel (URL bar, back, reload, takeover hand-back). */
   panelAction(action: BrowserPanelAction, scopeId: string): void
+  /**
+   * Create and activate a blank tab, returning the authoritative list.
+   * Optional for compatibility with installed shells that predate acknowledged tab creation.
+   */
+  openTab?(scopeId: string): Promise<BrowserTabsState>
   /** Makes a chat's browser tab set the renderer-visible set. */
   activateScope(scopeId: string): Promise<BrowserTabsState>
   /** Materializes a lazily activated chat's persisted tabs without showing its panel. */
@@ -216,6 +232,11 @@ export interface SimDesktopBrowserAgentApi {
   getTabsState(scopeId: string): Promise<BrowserTabsState>
   /** Read a privacy-preserving hint of websites that may have a usable session. */
   getKnownSessions(): Promise<BrowserKnownSessionsState>
+  /**
+   * Live search completions for the omnibox. Optional while installed shells
+   * that predate search suggestions remain supported.
+   */
+  getSearchSuggestions?(query: string): Promise<string[]>
   /**
    * Erase browsing data from the dedicated profile and resolve the resulting
    * session list. Pass the kinds to clear; omit for all of them. Saved
@@ -625,11 +646,12 @@ export interface DesktopOAuthConnectResult {
  * Optional scope for an OAuth connect handoff. Chip-initiated connects carry
  * the workspace (the browser flow creates the workspace connect draft
  * server-side) and, for reconnects, the credential to rebind. Modal-initiated
- * connects omit both — the app already created the draft.
+ * connects carry the exact draft the app already created.
  */
 export interface DesktopOAuthConnectScope {
   workspaceId?: string
   credentialId?: string
+  draftId?: string
   /** Mothership credential-chip attempt to echo on desktop completion. */
   chatAttemptId?: string
 }
@@ -731,7 +753,15 @@ export interface TerminalSelectedProfile {
   id: string
   name: string
   source: TerminalThemeSource
+  /**
+   * Palette used when the source does not provide appearance-specific colors.
+   * Ignored once both `lightPalette` and `darkPalette` are present.
+   */
   palette: TerminalThemePalette
+  /** Optional palette used while Sim is in light appearance. */
+  lightPalette?: TerminalThemePalette
+  /** Optional palette used while Sim is in dark appearance. */
+  darkPalette?: TerminalThemePalette
 }
 
 export type TerminalThemeProfile = TerminalSelectedProfile
@@ -744,39 +774,58 @@ const TERMINAL_THEME_PALETTE_KEYS: readonly (keyof TerminalThemePalette)[] = [
   ...TERMINAL_THEME_ANSI_KEYS,
 ]
 
+const TERMINAL_THEME_OPTIONAL_PALETTE_KEYS = ['cursorAccent', 'selectionForeground'] as const
+
 const TERMINAL_THEME_COLOR_PATTERN = /^#[0-9a-f]{6}$/i
+
+function isTerminalThemeColor(value: unknown): value is string {
+  return typeof value === 'string' && TERMINAL_THEME_COLOR_PATTERN.test(value)
+}
+
+function isTerminalThemePalette(value: unknown): value is TerminalThemePalette {
+  if (typeof value !== 'object' || value === null) return false
+  const palette = value as Partial<TerminalThemePalette>
+  return (
+    TERMINAL_THEME_PALETTE_KEYS.every((key) => isTerminalThemeColor(palette[key])) &&
+    TERMINAL_THEME_OPTIONAL_PALETTE_KEYS.every(
+      (key) => palette[key] === undefined || isTerminalThemeColor(palette[key])
+    )
+  )
+}
 
 export function isTerminalSelectedProfile(value: unknown): value is TerminalSelectedProfile {
   if (typeof value !== 'object' || value === null) return false
   const candidate = value as Partial<TerminalSelectedProfile>
-  if (
-    typeof candidate.id !== 'string' ||
-    candidate.id.length === 0 ||
-    candidate.id.length > 300 ||
-    typeof candidate.name !== 'string' ||
-    candidate.name.length === 0 ||
-    candidate.name.length > 200 ||
-    (candidate.source !== 'terminal' && candidate.source !== 'iterm2') ||
-    typeof candidate.palette !== 'object' ||
-    candidate.palette === null
-  ) {
-    return false
-  }
-  if (
-    !TERMINAL_THEME_PALETTE_KEYS.every(
-      (key) =>
-        typeof candidate.palette?.[key] === 'string' &&
-        TERMINAL_THEME_COLOR_PATTERN.test(candidate.palette[key])
-    )
-  ) {
-    return false
-  }
-  return (['cursorAccent', 'selectionForeground'] as const).every(
-    (key) =>
-      candidate.palette?.[key] === undefined ||
-      (typeof candidate.palette[key] === 'string' &&
-        TERMINAL_THEME_COLOR_PATTERN.test(candidate.palette[key]))
+  return (
+    typeof candidate.id === 'string' &&
+    candidate.id.length > 0 &&
+    candidate.id.length <= 300 &&
+    typeof candidate.name === 'string' &&
+    candidate.name.length > 0 &&
+    candidate.name.length <= 200 &&
+    (candidate.source === 'terminal' || candidate.source === 'iterm2') &&
+    isTerminalThemePalette(candidate.palette) &&
+    (candidate.lightPalette === undefined || isTerminalThemePalette(candidate.lightPalette)) &&
+    (candidate.darkPalette === undefined || isTerminalThemePalette(candidate.darkPalette))
   )
+}
+
+/**
+ * Copies only the known profile fields, so untrusted source output and stored
+ * config never carry extra keys. The single definition of a profile's shape —
+ * new palette slots are added here rather than at each call site.
+ */
+export function cloneTerminalSelectedProfile(
+  profile: TerminalSelectedProfile
+): TerminalSelectedProfile {
+  return {
+    id: profile.id,
+    name: profile.name,
+    source: profile.source,
+    palette: { ...profile.palette },
+    ...(profile.lightPalette ? { lightPalette: { ...profile.lightPalette } } : {}),
+    ...(profile.darkPalette ? { darkPalette: { ...profile.darkPalette } } : {}),
+  }
 }
 
 export interface DesktopPreferences {
@@ -789,6 +838,8 @@ export interface DesktopPreferences {
   trayEnabled: boolean
   /** Let Chat drive the built-in agent browser on this device. */
   browserEnabled: boolean
+  /** Whether typing in the omnibox may request live Google search completions. */
+  browserSearchSuggestionsEnabled?: boolean
   /** Let Chat run commands in local shells. */
   terminalEnabled: boolean
   /**
@@ -873,6 +924,11 @@ export interface SimDesktopSettingsApi {
     key: K,
     value: DesktopPreferences[K]
   ): Promise<DesktopPreferences>
+  /**
+   * Controls whether partial omnibox queries may be sent to Google. Optional
+   * for compatibility with installed shells that predate live suggestions.
+   */
+  setBrowserSearchSuggestionsEnabled?(enabled: boolean): Promise<DesktopPreferences>
   notify(payload: DesktopNotificationPayload): Promise<boolean>
   /** Overrides the appearance requested by browser pages. */
   setBrowserTheme(theme: DesktopAppearanceTheme): Promise<DesktopPreferences>
@@ -934,7 +990,7 @@ export interface SimDesktopUpdatesApi {
   onState(callback: (state: DesktopUpdateState) => void): () => void
 }
 
-export type DesktopCommand = 'toggle-sidebar'
+export type DesktopCommand = 'toggle-sidebar' | 'open-search'
 
 export interface DesktopWindowState {
   isFullScreen: boolean

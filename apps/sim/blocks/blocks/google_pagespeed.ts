@@ -14,6 +14,16 @@ export const GooglePagespeedBlock: BlockConfig<GooglePagespeedAnalyzeResponse> =
   bgColor: '#FFFFFF',
   icon: GooglePagespeedIcon,
   authMode: AuthMode.ApiKey,
+  canvasPresentation: {
+    defaultTitle: 'Google PageSpeed',
+    sentences: {
+      default: [
+        { text: 'Analyze', field: 'url', core: true },
+        { text: 'on', field: 'strategy' },
+        { text: ', scoring', field: 'category' },
+      ],
+    },
+  },
 
   subBlocks: [
     {

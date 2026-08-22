@@ -23,9 +23,11 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
   // Google scopes
   'https://www.googleapis.com/auth/gmail.send': 'Send emails',
   'https://www.googleapis.com/auth/gmail.labels': 'View and manage email labels',
+  'https://www.googleapis.com/auth/gmail.readonly': 'View email messages and settings',
   'https://www.googleapis.com/auth/gmail.modify': 'View and manage email messages',
   'https://www.googleapis.com/auth/drive.file': 'View and manage Google Drive files',
   'https://www.googleapis.com/auth/drive': 'Access all Google Drive files',
+  'https://www.googleapis.com/auth/calendar.readonly': 'View calendars and events',
   'https://www.googleapis.com/auth/calendar': 'View and manage calendar',
   'https://www.googleapis.com/auth/contacts': 'View and manage Google Contacts',
   'https://www.googleapis.com/auth/tasks': 'Create, read, update, and delete Google Tasks',
@@ -36,6 +38,8 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'https://www.googleapis.com/auth/adwords': 'Manage Google Ads campaigns and reporting',
   'https://www.googleapis.com/auth/bigquery': 'View and manage data in Google BigQuery',
   'https://www.googleapis.com/auth/ediscovery': 'Access Google Vault for eDiscovery',
+  'https://www.googleapis.com/auth/ediscovery.readonly':
+    'View Google Vault matters, holds, and saved queries',
   'https://www.googleapis.com/auth/devstorage.read_only': 'Read files from Google Cloud Storage',
   'https://www.googleapis.com/auth/admin.directory.group': 'Manage Google Workspace groups',
   'https://www.googleapis.com/auth/admin.directory.group.member':
@@ -43,6 +47,10 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'https://www.googleapis.com/auth/admin.directory.group.readonly': 'View Google Workspace groups',
   'https://www.googleapis.com/auth/admin.directory.group.member.readonly':
     'View Google Workspace group memberships',
+  'https://www.googleapis.com/auth/chat.spaces.readonly':
+    'View Google Chat spaces you are a member of',
+  'https://www.googleapis.com/auth/chat.messages.readonly':
+    'View messages in Google Chat spaces you are a member of',
   'https://www.googleapis.com/auth/meetings.space.created':
     'Create and manage Google Meet meeting spaces',
   'https://www.googleapis.com/auth/meetings.space.readonly':
@@ -254,10 +262,19 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'Sites.ReadWrite.All': 'Read and write Sharepoint sites',
   'Sites.Manage.All': 'Manage Sharepoint sites',
   'https://dynamics.microsoft.com/user_impersonation': 'Access Microsoft Dataverse on your behalf',
-  'User.Read.All': 'Read all user profiles',
   'User.ReadWrite.All': 'Read and write all user profiles',
   'GroupMember.ReadWrite.All': 'Read and write all group memberships',
   'Directory.Read.All': 'Read directory data',
+  'LicenseAssignment.Read.All': 'Read license assignments and subscribed SKUs',
+  'LicenseAssignment.ReadWrite.All': 'Assign and remove user licenses',
+  'UserAuthenticationMethod.ReadWrite.All':
+    'Read and reset authentication methods and passwords for all users',
+  'AuditLog.Read.All': 'Read sign-in and directory audit logs',
+  'Application.Read.All': 'Read all applications and service principals',
+  'AppRoleAssignment.ReadWrite.All': 'Grant and revoke application role assignments',
+  'RoleManagement.ReadWrite.Directory': 'Read and manage directory role assignments',
+  'Device.Read.All': 'Read all devices',
+  'Policy.Read.All': 'Read conditional access and other policies',
 
   // Reddit scopes
   identity: 'Access Reddit identity',
@@ -457,12 +474,28 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'me:read': 'Read your user profile',
 }
 
+/** Scope labels that cannot be keyed by scope alone because providers reuse names. */
+const PROVIDER_SCOPE_DESCRIPTIONS: Readonly<Record<string, Readonly<Record<string, string>>>> = {
+  bitbucket: {
+    account: 'View your Bitbucket account and workspace memberships',
+    repository: 'View repositories and source code',
+    'repository:write': 'Create and modify repositories, branches, and source code',
+    pullrequest: 'View pull requests, comments, approvals, and statuses',
+    'pullrequest:write': 'Create, update, approve, decline, and merge pull requests',
+    pipeline: 'View pipelines, steps, and logs',
+    'pipeline:write': 'Run and stop pipelines',
+    webhook: 'Manage repository webhooks',
+  },
+}
+
 /**
  * Get a human-readable description for a scope.
  * Falls back to the raw scope string if no description is found.
  */
-export function getScopeDescription(scope: string): string {
-  return SCOPE_DESCRIPTIONS[scope] || scope
+export function getScopeDescription(scope: string, providerId?: string): string {
+  return (
+    PROVIDER_SCOPE_DESCRIPTIONS[providerId ?? '']?.[scope] || SCOPE_DESCRIPTIONS[scope] || scope
+  )
 }
 
 /**
@@ -478,6 +511,7 @@ export function getAllOAuthServices(): OAuthServiceMetadata[] {
         serviceId,
         providerId: service.providerId,
         serviceAccountProviderId: service.serviceAccountProviderId,
+        additionalProviderIds: service.additionalProviderIds,
         name: service.name,
         description: service.description,
         baseProvider: baseProviderId,
@@ -540,7 +574,8 @@ export function getServiceConfigByProviderId(providerId: string): OAuthServiceCo
       if (
         service.providerId === providerId ||
         key === providerId ||
-        service.serviceAccountProviderId === providerId
+        service.serviceAccountProviderId === providerId ||
+        service.additionalProviderIds?.includes(providerId)
       ) {
         return service
       }
@@ -563,16 +598,20 @@ export function getServiceAccountProviderForProviderId(providerId: string): stri
 export interface ServiceProviderIdentity {
   providerId: string
   serviceAccountProviderId?: string
+  additionalProviderIds?: readonly string[]
 }
 
 /**
  * Whether a stored credential's `providerId` authenticates the given service.
  *
- * A service is reachable by two ids: its own OAuth `providerId` (`jira`) and
- * the service-account provider its family issues (`atlassian-service-account`).
- * One Atlassian API token authenticates Jira, Jira Service Management, and
- * Confluence alike, so matching on the OAuth `providerId` alone hides a
- * service-account credential from every product page it actually powers.
+ * A service is reachable by its own OAuth `providerId` (`jira`), the
+ * service-account provider its family issues (`atlassian-service-account`),
+ * and any `additionalProviderIds` naming a second authorization server for the
+ * same service (`salesforce-sandbox`). One Atlassian API token authenticates
+ * Jira, Jira Service Management, and Confluence alike, so matching on the
+ * OAuth `providerId` alone hides a service-account credential from every
+ * product page it actually powers — and a sandbox credential from the
+ * Salesforce block entirely.
  *
  * Prefer this over comparing `getServiceConfigByProviderId(id)?.providerId`
  * against a service: that resolver walks `OAUTH_PROVIDERS` in declaration
@@ -587,8 +626,49 @@ export function credentialProviderMatchesService(
 ): boolean {
   return (
     service.providerId === credentialProviderId ||
-    service.serviceAccountProviderId === credentialProviderId
+    service.serviceAccountProviderId === credentialProviderId ||
+    (service.additionalProviderIds?.includes(credentialProviderId) ?? false)
   )
+}
+
+/**
+ * Every OAuth provider id whose credentials authenticate the service that
+ * `providerId` names — the id itself plus any `additionalProviderIds`.
+ *
+ * The SQL counterpart to {@link credentialProviderMatchesService}: list
+ * endpoints filter `account.providerId` / `credential.providerId` with
+ * `inArray(...)` on this, so the query and the predicate can't disagree and
+ * hide a credential the rest of the app considers usable.
+ *
+ * Widens only when `providerId` IS the service's primary OAuth id. Passing a
+ * service-account id or an alternate server's id returns just that id, so a
+ * query scoped to one credential family never broadens into another.
+ */
+export function providerIdsForService(providerId: string): string[] {
+  const service = getServiceConfigByProviderId(providerId)
+  if (!service || service.providerId !== providerId || !service.additionalProviderIds?.length) {
+    return [providerId]
+  }
+  return [providerId, ...service.additionalProviderIds]
+}
+
+/**
+ * Folds an alternate authorization server's provider id back onto the service
+ * it belongs to (`salesforce-sandbox` → `salesforce`), leaving every other id
+ * untouched. The inverse of {@link providerIdsForService}.
+ *
+ * Deliberately narrower than {@link credentialProviderMatchesService}: a
+ * service-account id is shared by a whole family (one `google-service-account`
+ * matches Gmail, Drive, Sheets…), so folding it onto the first matching
+ * service would arbitrarily single out one product as connected.
+ */
+export function canonicalizeServiceProviderId(
+  credentialProviderId: string,
+  service: ServiceProviderIdentity | undefined
+): string {
+  return service?.additionalProviderIds?.includes(credentialProviderId)
+    ? service.providerId
+    : credentialProviderId
 }
 
 export function getCanonicalScopesForProvider(providerId: string): string[] {
@@ -639,10 +719,29 @@ export function getMissingRequiredScopes(
   for (const s of requiredScopes) {
     if (IGNORED_SCOPES.has(s)) continue
 
-    if (!granted.has(s)) missing.push(s)
+    if (!granted.has(s) && !isScopeSatisfiedBy(s, granted)) missing.push(s)
   }
 
   return missing
+}
+
+/**
+ * Whether a granted scope already covers `required` despite not matching it verbatim.
+ *
+ * A read-write scope subsumes its `.readonly` sibling — a credential holding
+ * `.../auth/ediscovery` is accepted by every method that documents
+ * `.../auth/ediscovery.readonly`. Without this, narrowing a consumer to the
+ * least-privileged scope would report every already-connected credential as
+ * missing it and prompt a re-consent that grants nothing new.
+ *
+ * This only derives a scope Sim actually requests. A consumer must never
+ * require a scope absent from its provider's `scopes` array — no credential can
+ * carry it, since that array is what the authorize request asks for.
+ */
+function isScopeSatisfiedBy(required: string, granted: ReadonlySet<string>): boolean {
+  const readonlySuffix = '.readonly'
+  if (!required.endsWith(readonlySuffix)) return false
+  return granted.has(required.slice(0, -readonlySuffix.length))
 }
 
 /**
@@ -668,6 +767,19 @@ for (const [baseProviderId, providerConfig] of Object.entries(OAUTH_PROVIDERS)) 
       PROVIDER_ID_TO_BASE_PROVIDER[saProviderId] = {
         baseProvider: baseProviderId,
         serviceKey,
+      }
+    }
+    // A second authorization server for the same service (`salesforce-sandbox`)
+    // maps to the same base and service key, so its credentials resolve the
+    // same icon and name. Without this the hyphen split would answer
+    // `{ base: 'salesforce', feature: 'sandbox' }` — a service that does not
+    // exist.
+    for (const extraProviderId of service.additionalProviderIds ?? []) {
+      if (!PROVIDER_ID_TO_BASE_PROVIDER[extraProviderId]) {
+        PROVIDER_ID_TO_BASE_PROVIDER[extraProviderId] = {
+          baseProvider: baseProviderId,
+          serviceKey,
+        }
       }
     }
   }

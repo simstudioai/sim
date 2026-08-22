@@ -4,6 +4,8 @@ export const BLOCK_OPERATIONS = {
   TOGGLE_ENABLED: 'toggle-enabled',
   UPDATE_PARENT: 'update-parent',
   UPDATE_ADVANCED_MODE: 'update-advanced-mode',
+  UPDATE_ERROR_ENABLED: 'update-error-enabled',
+  UPDATE_RETRY: 'update-retry',
   UPDATE_CANONICAL_MODE: 'update-canonical-mode',
   REPLACE_CANONICAL_MODES: 'replace-canonical-modes',
   TOGGLE_HANDLES: 'toggle-handles',

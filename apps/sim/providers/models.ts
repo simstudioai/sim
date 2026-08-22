@@ -2135,7 +2135,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
     fileAttachment: { maxBytes: 20 * 1024 * 1024, strategy: 'remote-url' },
     name: 'xAI',
     description: "xAI's Grok models",
-    defaultModel: 'grok-4.5',
+    defaultModel: 'grok-4.6',
     modelPatterns: [/^grok/],
     icon: xAIIcon,
     color: '#555555',
@@ -2144,18 +2144,39 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
     },
     models: [
       {
-        id: 'grok-4.5',
+        id: 'grok-4.6',
         pricing: {
           input: 2.0,
+          cachedInput: 0.5,
           output: 6.0,
-          updatedAt: '2026-07-08',
+          updatedAt: '2026-08-12',
         },
         capabilities: {
           temperature: { min: 0, max: 2 },
+          reasoningEffort: {
+            values: ['low', 'medium', 'high', 'xhigh'],
+          },
+        },
+        contextWindow: 500000,
+        releaseDate: '2026-08-12',
+        recommended: true,
+      },
+      {
+        id: 'grok-4.5',
+        pricing: {
+          input: 2.0,
+          cachedInput: 0.3,
+          output: 6.0,
+          updatedAt: '2026-08-12',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 2 },
+          reasoningEffort: {
+            values: ['low', 'medium', 'high', 'xhigh'],
+          },
         },
         contextWindow: 500000,
         releaseDate: '2026-07-08',
-        recommended: true,
       },
       {
         id: 'grok-4.3',
@@ -2167,6 +2188,9 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           temperature: { min: 0, max: 2 },
+          reasoningEffort: {
+            values: ['none', 'low', 'medium', 'high', 'xhigh'],
+          },
         },
         contextWindow: 1000000,
         releaseDate: '2026-04-30',
@@ -2314,6 +2338,9 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           temperature: { min: 0, max: 2 },
+          reasoningEffort: {
+            values: ['none', 'low', 'medium', 'high', 'xhigh'],
+          },
         },
         contextWindow: 1000000,
         releaseDate: '2026-03-10',

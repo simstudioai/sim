@@ -8,7 +8,7 @@
  * concurrent inserts on the same table.
  */
 import { userTableDefinitions } from '@sim/db/schema'
-import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { importAppendRows } from '@/lib/table/import-data'
 import type { TableDefinition } from '@/lib/table/types'
@@ -82,6 +82,7 @@ describe('table import lock ordering', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
+    queueTableRows(userTableDefinitions, [TABLE])
   })
 
   it('acquires the rows_pos advisory before the user_table_definitions write when adding columns', async () => {

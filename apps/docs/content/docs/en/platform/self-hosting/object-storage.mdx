@@ -78,7 +78,6 @@ cat > /tmp/cors.json <<'EOF'
       "AllowedOrigins": ["https://sim.yourdomain.com"],
       "AllowedMethods": ["GET", "PUT"],
       "AllowedHeaders": ["*"],
-      "ExposeHeaders": ["ETag"],
       "MaxAgeSeconds": 3600
     }
   ]
@@ -90,10 +89,6 @@ for name in workspace-files knowledge-base execution-files chat-files \
   aws s3api put-bucket-cors --bucket "myorg-sim-$name" --cors-configuration file:///tmp/cors.json
 done
 ```
-
-<Callout type="warn">
-  `ExposeHeaders` **must** include `ETag`. Files larger than 50 MB use multipart uploads, and the browser reads each part's `ETag` to complete the upload — CORS hides the header otherwise and large uploads fail at the final step.
-</Callout>
 
 Set `AllowedOrigins` to your exact Sim origin (scheme + host, no trailing slash). Add every origin users reach Sim from, including an apex/`www` pair if both are live.
 
@@ -237,20 +232,27 @@ AZURE_STORAGE_OG_IMAGES_CONTAINER_NAME=og-images
 AZURE_STORAGE_WORKSPACE_LOGOS_CONTAINER_NAME=workspace-logos
 ```
 
-Browser uploads also require an account-level Blob service CORS rule. This rule explicitly allows Sim's create-only `If-None-Match` precondition, Azure upload headers, and multipart `ETag` reads:
+Direct browser uploads require a Blob service CORS rule on the storage account. Allow your exact
+Sim origin, `GET` and `PUT`, the `Content-Type` header, and the `x-ms-*` prefix used by signed blob
+and metadata headers. Small-file uploads also send `If-None-Match`; the signature itself is
+create-only, so a signed URL cannot overwrite an existing final object. Multipart uploads also read
+`ETag` from the browser response:
 
 ```bash
 az storage cors add \
   --services b \
   --methods GET PUT OPTIONS \
-  --origins "https://your-sim-domain.com" \
-  --allowed-headers "Content-Type" "If-None-Match" "x-ms-*" \
-  --exposed-headers "ETag" \
+  --origins https://sim.yourdomain.com \
+  --allowed-headers content-type if-none-match 'x-ms-*' \
+  --exposed-headers ETag \
   --max-age 3600 \
-  --account-name mystorageaccount
+  --account-name mystorageaccount \
+  --account-key '<account-key>'
 ```
 
-The CORS rule applies to every blob container in the storage account, so it only needs to be added once per account.
+If you authenticate with a connection string, replace the last two options with
+`--connection-string "$AZURE_CONNECTION_STRING"`. CORS is configured once for the account's Blob
+service and applies to all of its containers.
 
 A full Helm example lives at `helm/sim/examples/values-azure.yaml`.
 
@@ -288,15 +290,17 @@ cat > /tmp/cors.json <<'EOF'
   {
     "origin": ["https://your-sim-domain.com"],
     "method": ["GET", "PUT"],
-    "responseHeader": [
-      "Content-Type",
-      "ETag",
-      "x-goog-if-generation-match",
+      "responseHeader": [
+        "Content-Type",
+        "ETag",
+        "x-goog-if-generation-match",
+        "x-goog-meta-uploadid",
       "x-goog-meta-originalname",
       "x-goog-meta-uploadedat",
       "x-goog-meta-purpose",
       "x-goog-meta-userid",
       "x-goog-meta-workspaceid",
+      "x-goog-meta-knowledgebaseid",
       "x-goog-meta-folderid",
       "x-goog-meta-workflowid",
       "x-goog-meta-executionid",
@@ -461,6 +465,27 @@ The same browser-reachability and CORS requirements apply.
 
   </Tab>
 </Tabs>
+
+## Configure incomplete multipart cleanup
+
+Sim uploads directly to a create-only final object key and keeps upload-session state in PostgreSQL.
+The cleanup cron claims expired sessions before deleting an uploaded object or aborting its provider
+multipart state. Configure provider lifecycle cleanup as a second line of defense for multipart
+state that outlives its database row:
+
+- On AWS S3 and Google Cloud Storage, abort incomplete multipart uploads after two days on every
+  purpose-specific bucket.
+- Azure automatically removes uncommitted blocks after seven days.
+- For an S3-compatible provider, configure incomplete-multipart cleanup when its lifecycle
+  implementation supports it. Check the provider's documentation because support varies.
+
+The provider window should exceed the 24-hour upload-session lifetime so an in-progress completion
+can still recover. Do not add an object-expiration rule for final upload keys.
+
+<Callout type="warning">
+  Object expiration and incomplete-multipart cleanup are different lifecycle operations. Configure
+  the incomplete-multipart operation; expiring objects does not remove abandoned multipart parts.
+</Callout>
 
 ## Verify it works
 

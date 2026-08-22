@@ -50,6 +50,37 @@ describe('ToolCallItem', () => {
     expect(markup).not.toContain('Comparing workflows')
   })
 
+  it('renders a completed browser takeover as an answered question recap', () => {
+    const markup = renderToStaticMarkup(
+      <ToolCallItem
+        toolName='browser_request_takeover'
+        displayTitle='Resumed browser control'
+        status='success'
+        params={{ reason: 'Pick a match from the draw.' }}
+        result={{ success: true, output: { userInstruction: 'Open the second match' } }}
+      />
+    )
+
+    expect(markup).toContain('Pick a match from the draw.')
+    expect(markup).toContain('Open the second match')
+    expect(markup).not.toContain('Resumed browser control')
+  })
+
+  it('recaps Continue when browser control resumed without a custom instruction', () => {
+    const markup = renderToStaticMarkup(
+      <ToolCallItem
+        toolName='browser_request_takeover'
+        displayTitle='Resumed browser control'
+        status='success'
+        params={{ reason: 'Sign in to Notion.' }}
+        result={{ success: true }}
+      />
+    )
+
+    expect(markup).toContain('Sign in to Notion.')
+    expect(markup).toContain('Continue')
+  })
+
   it('renders the owning integration icon for a resolved integration operation', () => {
     vi.mocked(getBlockByToolName).mockReturnValueOnce({
       name: 'Gmail',

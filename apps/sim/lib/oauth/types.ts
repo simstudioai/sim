@@ -46,11 +46,13 @@ export type OAuthProvider =
   | 'google-forms'
   | 'google-groups'
   | 'google-meet'
+  | 'google-chat'
   | 'vertex-ai'
   | 'x'
   | 'tiktok'
   | 'confluence'
   | 'airtable'
+  | 'bitbucket'
   | 'notion'
   | 'jira'
   | 'atlassian-service-account'
@@ -76,6 +78,7 @@ export type OAuthProvider =
   | 'attio'
   | 'pipedrive'
   | 'hubspot'
+  | 'harmonic'
   | 'salesforce'
   | 'linkedin'
   | 'instagram'
@@ -102,11 +105,13 @@ export type OAuthService =
   | 'google-forms'
   | 'google-groups'
   | 'google-meet'
+  | 'google-chat'
   | 'vertex-ai'
   | 'x'
   | 'tiktok'
   | 'confluence'
   | 'airtable'
+  | 'bitbucket'
   | 'notion'
   | 'jira'
   | 'atlassian-service-account'
@@ -131,6 +136,7 @@ export type OAuthService =
   | 'attio'
   | 'pipedrive'
   | 'hubspot'
+  | 'harmonic'
   | 'salesforce'
   | 'linkedin'
   | 'instagram'
@@ -162,6 +168,32 @@ export interface OAuthServiceConfig {
   scopes: string[]
   authType?: OAuthAuthType
   serviceAccountProviderId?: string
+  /**
+   * Further OAuth provider ids whose credentials authenticate this same
+   * service. Used when one integration is reachable through more than one
+   * authorization server and Better Auth therefore needs a separate static
+   * provider registration for each — Salesforce production
+   * (`login.salesforce.com`) versus sandbox (`test.salesforce.com`).
+   *
+   * Credentials stored under any of these ids resolve to this service, so they
+   * appear in the same block credential picker and group under the same
+   * integration. Distinct from {@link serviceAccountProviderId}, which is the
+   * one non-OAuth credential family the service accepts.
+   */
+  additionalProviderIds?: readonly string[]
+  /**
+   * Labels for the connect modal's authorization-server picker, keyed by
+   * provider id and including the primary {@link providerId}. Required
+   * whenever {@link additionalProviderIds} is set — without it the picker has
+   * nothing to render and the alternate server is unreachable from the UI.
+   */
+  providerIdLabels?: Readonly<Record<string, string>>
+  /**
+   * One-line guidance under the authorization-server picker. Earns its place
+   * because picking the wrong server fails as an ordinary bad-password error,
+   * which does not hint that the environment was the problem.
+   */
+  providerIdPickerHint?: string
 }
 
 /**
@@ -171,6 +203,7 @@ export interface OAuthServiceMetadata {
   serviceId: string
   providerId: string
   serviceAccountProviderId?: string
+  additionalProviderIds?: readonly string[]
   name: string
   description: string
   baseProvider: string

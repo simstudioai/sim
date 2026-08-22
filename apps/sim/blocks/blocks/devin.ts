@@ -28,6 +28,43 @@ export const DevinBlock: BlockConfig = {
   integrationType: IntegrationType.DevOps,
   bgColor: '#12141A',
   icon: DevinIcon,
+  canvasPresentation: {
+    defaultTitle: 'Devin',
+    sentences: {
+      byOperation: {
+        create_session: [
+          { text: 'Start a session for', field: 'prompt', core: true },
+          { text: ', using playbook', field: 'playbookId' },
+        ],
+        get_session: [
+          { text: 'Read status and output of session', field: 'sessionId', core: true },
+        ],
+        list_sessions: ['List sessions', { text: ', up to', field: 'limit', after: 'results' }],
+        send_message: [
+          { text: 'Send', field: 'message', core: true },
+          { text: 'to session', field: 'sessionId' },
+        ],
+        list_session_messages: [
+          { text: 'List messages in session', field: 'sessionId', core: true },
+          { text: ', up to', field: 'limit', after: 'results' },
+        ],
+        list_session_attachments: [
+          { text: 'List files attached to session', field: 'sessionId', core: true },
+        ],
+        get_session_tags: [{ text: 'Read tags on session', field: 'sessionId', core: true }],
+        append_session_tags: [
+          { text: 'Add', field: 'tags', core: true },
+          { text: 'to session', field: 'sessionId', core: true },
+        ],
+        replace_session_tags: [
+          { text: 'Replace all tags with', field: 'tags', core: true },
+          { text: 'on session', field: 'sessionId', core: true },
+        ],
+        archive_session: [{ text: 'Archive session', field: 'sessionId', core: true }],
+        terminate_session: [{ text: 'Terminate session', field: 'sessionId', core: true }],
+      },
+    },
+  },
   authMode: AuthMode.ApiKey,
   subBlocks: [
     {

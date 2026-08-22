@@ -10,6 +10,14 @@ export const dynamic = 'force-dynamic'
 const { GET: betterAuthGET, POST: betterAuthPOST } = toNextJsHandler(auth.handler)
 const SAFE_ORGANIZATION_POST_PATHS = new Set(['organization/check-slug', 'organization/set-active'])
 
+/**
+ * SAML protocol endpoints the IdP posts to (`saml2/callback/:id`,
+ * `saml2/sp/acs/:id`, `saml2/sp/slo/:id`, `saml2/logout/:id`). These are the
+ * only SSO paths the plugin must keep serving on POST — every other SSO POST
+ * endpoint it registers is a provider mutation.
+ */
+const SAML_PROTOCOL_POST_PREFIX = 'sso/saml2/'
+
 function getAuthPath(request: NextRequest): string {
   const pathname = request.nextUrl?.pathname ?? new URL(request.url).pathname
   return pathname.replace('/api/auth/', '')
@@ -17,6 +25,30 @@ function getAuthPath(request: NextRequest): string {
 
 function isBlockedOrganizationMutationPath(path: string): boolean {
   return path.startsWith('organization/') && !SAFE_ORGANIZATION_POST_PATHS.has(path)
+}
+
+/**
+ * SSO provider configuration is owned by `/api/auth/sso/register`, which proves
+ * domain ownership before granting trust and restricts the attribute mapping to
+ * `id`/`email`/`name`/`image`. The plugin's own `sso/update-provider` bypasses
+ * both: it is gated only on provider ownership and merges the caller's config,
+ * so a provider owner could add `mapping.emailVerified` — a change the plugin's
+ * identity-boundary guard does not consider, so it never trips the linked-account
+ * conflict — and then assert an arbitrary victim's email as verified to auto-link
+ * into their account. `sso/delete-provider` likewise lets an owner drop a login
+ * path outside the application's flow.
+ *
+ * `trustEmailVerified: false` independently defuses that claim, so these two
+ * guards are layered, not redundant: this one keeps provider configuration
+ * owned by the register route (which alone proves domain ownership) and is what
+ * stops the mapping rewrite from becoming live again if that option is ever
+ * reconsidered.
+ *
+ * Deny-by-default rather than a blocklist so a future plugin version cannot
+ * introduce another unshadowed provider mutation.
+ */
+function isBlockedSsoMutationPath(path: string): boolean {
+  return path.startsWith('sso/') && !path.startsWith(SAML_PROTOCOL_POST_PREFIX)
 }
 
 export const GET = withRouteHandler(async (request: NextRequest) => {
@@ -36,6 +68,13 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   if (isBlockedOrganizationMutationPath(path)) {
     return NextResponse.json(
       { error: 'Organization mutations are handled by application API routes.' },
+      { status: 404 }
+    )
+  }
+
+  if (isBlockedSsoMutationPath(path)) {
+    return NextResponse.json(
+      { error: 'SSO provider mutations are handled by application API routes.' },
       { status: 404 }
     )
   }

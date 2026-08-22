@@ -161,7 +161,7 @@ export function enrichTableToolParameters(
   if (enrichedProperties.limit && toolId === 'table_query_rows') {
     enrichedProperties.limit = {
       ...enrichedProperties.limit,
-      description: `Maximum rows to return (min: 1, max: 1000, default: 100). For ranking queries: use limit=1 for highest/lowest, limit=2 for second highest, etc.`,
+      description: `Maximum rows to return (min: 1). Omit to return every matching row; the query fails if the result exceeds 5MB. For ranking queries: use limit=1 for highest/lowest, limit=2 for second highest, etc.`,
     }
   }
 

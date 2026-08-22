@@ -104,12 +104,25 @@ const FEATURE_FLAGS = {
       'custom-block publish/list routes. Off-AppConfig falls back to DEPLOY_AS_BLOCK.',
     fallback: 'DEPLOY_AS_BLOCK',
   },
+  'v2-api': {
+    description:
+      'Gate the whole /api/v2 HTTP surface (workflows incl. execute/executions, tables, logs, ' +
+      'knowledge, files, audit-logs, billing, and the workspace-resources spec: workspaces, ' +
+      'mcp-servers, skills, custom-tools, credentials, secrets). ' +
+      'One check per request, immediately after auth: ' +
+      'when off, every v2 route returns 404 as if the surface does not exist. The gate is keyed ' +
+      'on userId only — it never reads workspace/org membership, so an ungated caller learns ' +
+      'nothing beyond "no such route". Off-AppConfig falls back to V2_API.',
+    fallback: 'V2_API',
+  },
   'tables-v2-api': {
     description:
-      'Gate the v2 tables HTTP API — the public read API (GET /api/v2/tables, POST ' +
-      '/api/v2/tables/[tableId]/query) and the internal predicate-grammar query route (POST ' +
-      '/api/table/[tableId]/query). When off, those routes return 404 as if the surface does not ' +
-      'exist. Gated by userId/orgId/admins via AppConfig; off-AppConfig falls back to TABLES_V2_API.',
+      'Gate the internal predicate-grammar table query route (POST /api/table/[tableId]/query), ' +
+      'its only caller. When off, that route returns 403 naming the gate (post-authz, so the ' +
+      'masquerade 404 served nobody and broke the table_v2 block confusingly). Despite the ' +
+      'name it does NOT gate any /api/v2/tables route — the public v2 tables surface is gated ' +
+      'by v2-api alone. Gated by userId/orgId/admins via AppConfig; off-AppConfig falls back to ' +
+      'TABLES_V2_API.',
     fallback: 'TABLES_V2_API',
   },
   'table-locks': {
@@ -124,13 +137,18 @@ const FEATURE_FLAGS = {
   'table-views': {
     description:
       'Saved table views (named filter/sort/column-visibility presets) plus the column show/hide ' +
-      'menu, in the table-detail options bar. UI-only gate: resolved in the table page (server) ' +
-      "and passed down, so the table falls back to today's Filter/Sort bar when off. The routes " +
-      'and the table_views table ship ungated — they are inert with no UI to call them, and a view ' +
-      'saved during a rollout must survive the flag being toggled back off. Embedded (mothership) ' +
-      'tables render without views regardless, since no server context resolves the flag there. ' +
+      'menu. UI-only gate: resolved server-side for table-detail and embedded tables, then passed ' +
+      "down so both surfaces fall back to today's Filter/Sort behavior when off. The routes and " +
+      'the table_views table ship ungated, and new or forked tables still seed their view data, so ' +
+      'a saved view survives the flag being toggled off and can be restored when it is re-enabled. ' +
       'Off-AppConfig falls back to TABLE_VIEWS.',
     fallback: 'TABLE_VIEWS',
+  },
+  'credential-groups': {
+    description:
+      'Workspace-owned collections that gather managed OAuth credentials from external users. ' +
+      'Global on/off only; hosted workspaces must also have an Enterprise subscription.',
+    fallback: 'CREDENTIAL_GROUPS',
   },
 } satisfies Record<string, FeatureFlagDefinition>
 

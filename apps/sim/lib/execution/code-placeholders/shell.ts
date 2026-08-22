@@ -6,6 +6,7 @@ import {
   type SourceEdit,
 } from '@/lib/execution/code-placeholders/shared'
 import type {
+  CodePlaceholderCompilationContext,
   CodePlaceholderOccurrence,
   CompiledCodePlaceholders,
   InternalCompileCodePlaceholdersInput,
@@ -593,10 +594,88 @@ function collectShellOccurrenceContexts(
   return contexts
 }
 
+/**
+ * Whether the character at `index` is escaped: an odd run of backslashes immediately before it.
+ *
+ * Parity, not presence — `\\$KEY` is an escaped backslash followed by a live expansion, so
+ * checking only the adjacent character reads a real read as escaped and drops it from usage
+ * and masking alike. The same rule already decides line continuations in
+ * {@link logicalLineEndAfterContinuations}.
+ */
+function isBackslashEscaped(code: string, index: number): boolean {
+  let backslashes = 0
+  let cursor = index - 1
+  while (cursor >= 0 && code[cursor] === '\\') {
+    backslashes += 1
+    cursor -= 1
+  }
+  return backslashes % 2 === 1
+}
+
+/** `$NAME` and `${NAME}` — including `${NAME:-default}`, whose name still ends at `:`. */
+const SHELL_PARAMETER_EXPANSION = /\$(?:\{\s*([A-Za-z_][A-Za-z0-9_]*)|([A-Za-z_][A-Za-z0-9_]*))/g
+
+function recordShellDirectEnvironmentReads(
+  code: string,
+  context: CodePlaceholderCompilationContext
+): void {
+  /**
+   * The regex runs before anything else so a script with no expansion at all — or none naming
+   * a configured secret — costs one scan and returns, rather than paying for the heredoc and
+   * quote passes below. This function runs ahead of the no-placeholder early return, so that
+   * cheap path has to stay cheap.
+   */
+  const matches: RegExpExecArray[] = []
+  SHELL_PARAMETER_EXPANSION.lastIndex = 0
+  let match: RegExpExecArray | null
+  while ((match = SHELL_PARAMETER_EXPANSION.exec(code)) !== null) {
+    if (isBackslashEscaped(code, match.index)) continue
+    const name = match[1] ?? match[2]
+    if (name && context.tracksDirectEnvironmentRead(name)) matches.push(match)
+  }
+  if (matches.length === 0) return
+
+  /**
+   * A heredoc with a quoted delimiter (`<<'EOF'`) is literal, so nothing in its body expands.
+   * The frame scanner below models quoting within a line, not heredoc bodies, so those are
+   * excluded up front — otherwise a `$NAME` printed verbatim would be reported as a read that
+   * never happened, and a usage trail must not claim uses that did not occur.
+   */
+  const literalHeredocBodies = collectHeredocs(code)
+    .filter((heredoc) => heredoc.quoted)
+    .map((heredoc): [number, number] => [heredoc.bodyStart, heredoc.bodyEnd])
+
+  const candidates: CodePlaceholderOccurrence[] = []
+  for (const candidate of matches) {
+    if (isOffsetInRanges(candidate.index, literalHeredocBodies)) continue
+    candidates.push({
+      start: candidate.index,
+      end: candidate.index + candidate[0].length,
+      raw: candidate[0],
+      name: (candidate[1] ?? candidate[2]) as string,
+    })
+  }
+  if (candidates.length === 0) return
+
+  const contexts = collectShellOccurrenceContexts(code, candidates, 0, code.length, false)
+  for (const candidate of candidates) {
+    const shellContext = contexts.get(candidate)
+    /**
+     * No context means the scanner never reached this offset — it skipped the region as a
+     * comment. Absence is therefore evidence the expansion does not run, not permission to
+     * record it, so this reads as an allowlist rather than a denylist. Single quotes suppress
+     * expansion outright.
+     */
+    if (!shellContext || shellContext.quote === 'single') continue
+    context.recordDirectEnvironmentRead(candidate.name, candidate.start)
+  }
+}
+
 export async function compileShellPlaceholders(
   input: InternalCompileCodePlaceholdersInput
 ): Promise<CompiledCodePlaceholders> {
   const context = createCodePlaceholderCompilationContext(input)
+  recordShellDirectEnvironmentReads(input.code, context)
   if (context.occurrences.length === 0) return context.finish(input.code)
 
   const validateShellValue = <T extends { value: string } | undefined>(

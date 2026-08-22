@@ -1,10 +1,5 @@
 import { CredentialIcon } from '@/components/icons'
-import { getServiceConfigByProviderId } from '@/lib/oauth/utils'
-import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import type { BlockConfig } from '@/blocks/types'
-import { workspaceCredentialKeys } from '@/hooks/queries/utils/credential-keys'
-import { fetchWorkspaceCredentialList } from '@/hooks/queries/utils/fetch-workspace-credentials'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 interface CredentialBlockOutput {
   success: boolean
@@ -37,6 +32,15 @@ export const CredentialBlock: BlockConfig<CredentialBlockOutput> = {
   docsLink: 'https://docs.sim.ai/workflows/blocks/credential',
   bgColor: '#6366F1',
   icon: CredentialIcon,
+  canvasPresentation: {
+    defaultTitle: 'Credential',
+    sentences: {
+      byOperation: {
+        select: ['Select an OAuth credential'],
+        list: ['List OAuth credentials', { text: 'for', field: 'providerFilter' }],
+      },
+    },
+  },
   category: 'blocks',
   subBlocks: [
     {
@@ -53,37 +57,9 @@ export const CredentialBlock: BlockConfig<CredentialBlockOutput> = {
       id: 'providerFilter',
       title: 'Provider',
       type: 'dropdown',
+      selectorKey: 'workspace.credentialProviders',
       multiSelect: true,
-      options: [],
       condition: { field: 'operation', value: 'list' },
-      fetchOptions: async () => {
-        const workspaceId = useWorkflowRegistry.getState().hydration.workspaceId
-        if (!workspaceId) return []
-
-        const credentials = await getQueryClient().fetchQuery({
-          queryKey: workspaceCredentialKeys.list(workspaceId),
-          queryFn: () => fetchWorkspaceCredentialList(workspaceId),
-          staleTime: 60 * 1000,
-        })
-
-        const seen = new Set<string>()
-        const options: Array<{ label: string; id: string }> = []
-
-        for (const cred of credentials) {
-          if (cred.type === 'oauth' && cred.providerId && !seen.has(cred.providerId)) {
-            seen.add(cred.providerId)
-            const serviceConfig = getServiceConfigByProviderId(cred.providerId)
-            options.push({ label: serviceConfig?.name ?? cred.providerId, id: cred.providerId })
-          }
-        }
-
-        return options.sort((a, b) => a.label.localeCompare(b.label))
-      },
-      fetchOptionById: async (_blockId: string, optionId: string) => {
-        const serviceConfig = getServiceConfigByProviderId(optionId)
-        const label = serviceConfig?.name ?? optionId
-        return { label, id: optionId }
-      },
     },
     {
       id: 'credential',

@@ -4,6 +4,7 @@ import { forwardRef, memo, useCallback, useMemo, useRef, useState } from 'react'
 import { cn } from '@sim/emcn'
 import type { FilePreviewSession } from '@/lib/copilot/request/session'
 import { getFileExtension } from '@/lib/uploads/utils/file-utils'
+import { SIM_PAGE_CONTENT_TYPE } from '@/lib/workspace-files/page-compile'
 import type { PreviewMode } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
 import {
   isCsvStreamOnly,
@@ -64,14 +65,16 @@ interface MothershipViewProps {
   desktopScopeId: string
   resources: MothershipResource[]
   activeResourceId: string | null
+  activityResourceIds?: ReadonlySet<string>
   isCollapsed: boolean
-  useFixedResourceToggle: boolean
   className?: string
   previewSession?: FilePreviewSession | null
   isAgentResponding?: boolean
   genericResourceData?: GenericResourceData
   /** Resolved server-side by the home page; forwarded to the embedded table. */
   tableViewsEnabled?: boolean
+  /** Claims the current resource selection after direct panel interaction. */
+  onUserInteraction?: () => void
 }
 
 export const MothershipView = memo(
@@ -82,17 +85,18 @@ export const MothershipView = memo(
       desktopScopeId,
       resources,
       activeResourceId,
+      activityResourceIds,
       isCollapsed,
-      useFixedResourceToggle,
       className,
       previewSession,
       isAgentResponding,
       genericResourceData,
       tableViewsEnabled,
+      onUserInteraction,
     }: MothershipViewProps,
     ref
   ) {
-    const active = resources.find((r) => r.id === activeResourceId) ?? resources[0] ?? null
+    const active = resources.find((r) => r.id === activeResourceId) ?? null
     const { canEdit } = useUserPermissionsContext()
     const { removeResource } = useMothershipResources()
     const browserOverlayControllerRef = useRef<BrowserPanelOverlayController | null>(null)
@@ -161,7 +165,10 @@ export const MothershipView = memo(
       // the record before deciding so the toggle doesn't flash on for a large CSV — but don't gate
       // other rich types (html, svg, …) on the file list loading.
       !(isActiveCsv && filesLoading) &&
-      !(activeFile && isCsvStreamOnly(activeFile))
+      !(activeFile && isCsvStreamOnly(activeFile)) &&
+      // A Sim page is locked to its rendered view (the pdf model — the raw
+      // source is not a mode this surface offers), so no toggle either.
+      activeFile?.type !== SIM_PAGE_CONTENT_TYPE
 
     return (
       <div
@@ -169,6 +176,8 @@ export const MothershipView = memo(
         // Read by the browser panel to declare its resize anchor: an inline px
         // width means a divider drag pinned it, otherwise `w-1/2` governs.
         data-mothership-panel=''
+        onPointerDownCapture={onUserInteraction}
+        onKeyDownCapture={onUserInteraction}
         className={cn(
           'relative z-10 flex h-full flex-col overflow-hidden border-[var(--border)] bg-[var(--bg)] transition-[width,min-width,border-width] duration-200 [transition-timing-function:cubic-bezier(0.25,0.1,0.25,1)]',
           isCollapsed ? 'w-0 min-w-0 border-l-0' : 'w-1/2 border-l',
@@ -186,7 +195,7 @@ export const MothershipView = memo(
             chatId={chatId}
             resources={resources}
             activeId={active?.id ?? null}
-            useFixedResourceToggle={useFixedResourceToggle}
+            activityIds={activityResourceIds}
             actions={
               active ? <ResourceActions workspaceId={workspaceId} resource={active} /> : null
             }

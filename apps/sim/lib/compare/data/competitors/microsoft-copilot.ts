@@ -766,6 +766,26 @@ export const microsoftCopilotProfile: CompetitorProfile = {
           },
         ],
       },
+      codeSandboxRuntime: {
+        value:
+          "No: code interpreter, Copilot Studio's Python execution engine for prompts, runs generated code in a Microsoft-hosted environment whose compute is ephemeral, created during a session and disposed of afterward. There is no documented way to declare third-party packages, OS-level system packages, or CLI binaries for that environment, and Microsoft documents restrictions on external network access.",
+        detail:
+          "Administrator control over code interpreter is a per-environment on/off switch (off by default, set in the Power Platform admin center or via the CopilotStudio_CodeInterpreter environment property), not runtime configuration. Microsoft's FAQ describes execution as sandboxed and isolated 'to prevent unsafe operations such as network access, system-level commands, or unauthorized file operations,' and neither the Copilot Studio nor the developer documentation publishes a preinstalled-library list or a package-installation mechanism. Because Copilot Studio has no self-hosted deployment, there is also no option to build a custom runtime image; bespoke dependencies have to move out into a custom connector fronting a customer-hosted Azure Function.",
+        shortValue: 'No: fixed Microsoft-hosted Python sandbox, no package configuration',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/faq-code-interpreter',
+            label: 'FAQ for code interpreter - Microsoft Copilot Studio | Microsoft Learn',
+            asOf: '2026-08-10',
+          },
+          {
+            url: 'https://learn.microsoft.com/en-us/power-apps/developer/data-platform/code-interpreter',
+            label: 'Code interpreter for developers - Power Apps | Microsoft Learn',
+            asOf: '2026-08-10',
+          },
+        ],
+      },
       apiPublishing: {
         value:
           'Yes: a published agent is reachable over the Azure Bot Service Direct Line API/channel, giving external code a callable HTTP interface into the conversation, alongside the standard chat channels',
@@ -1074,6 +1094,28 @@ export const microsoftCopilotProfile: CompetitorProfile = {
             label:
               'What is automated app user provisioning in Microsoft Entra ID | Microsoft Learn',
             asOf: '2026-07-02',
+          },
+        ],
+      },
+      sessionPolicy: {
+        value:
+          'Partial: at the Microsoft identity and Power Platform layers rather than in Copilot Studio itself. Microsoft Entra ID Conditional Access sign-in frequency policies let an admin set how long a user can access a resource before signing in again (or require reauthentication every time), and a Power Platform admin can separately turn on Session Expiration (60 to 1,440 minutes) plus an Inactivity timeout (minimum 5 minutes) per environment under Settings > Product > Privacy + Security',
+        detail:
+          "Copilot Studio exposes no admin-configurable user-session-lifetime setting of its own and inherits the tenant Entra ID session policy, whose default is a rolling 90-day sign-in frequency window with a 90-day refresh-token expiration. The per-environment Session Expiration and Inactivity timeout settings override that default Entra behavior for the environment, though Microsoft documents them against Dataverse-backed customer engagement apps rather than the Copilot Studio maker portal specifically, and lists apps (including Power Apps canvas apps) that don't enforce them. Conditional Access requires a Microsoft Entra ID P1 or P2 license.",
+        shortValue: 'Via Entra Conditional Access and per-environment timeouts',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://learn.microsoft.com/en-us/entra/identity/conditional-access/concept-session-lifetime',
+            label:
+              'Conditional Access adaptive session lifetime policies - Microsoft Entra ID | Microsoft Learn',
+            asOf: '2026-08-10',
+          },
+          {
+            url: 'https://learn.microsoft.com/en-us/power-platform/admin/user-session-management',
+            label:
+              'Security enhancements for user sessions and access management - Power Platform | Microsoft Learn',
+            asOf: '2026-08-10',
           },
         ],
       },

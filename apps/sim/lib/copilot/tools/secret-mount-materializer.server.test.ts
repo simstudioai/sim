@@ -107,9 +107,40 @@ describe('materializeCopilotCodeSecrets', () => {
     ).resolves.toEqual({
       envVars: { API_KEY: 'plain:personal-cipher' },
       catalogEntries: [
-        { name: 'API_KEY', plaintext: 'plain:personal-cipher', encryptedValue: 'personal-cipher' },
+        {
+          name: 'API_KEY',
+          plaintext: 'plain:personal-cipher',
+          encryptedValue: 'personal-cipher',
+          scope: 'personal',
+          ownerUserId: 'user-1',
+        },
       ],
     })
+  })
+
+  it('scopes a workspace-authorized secret to the workspace', async () => {
+    mockCheckWorkspaceAccess.mockResolvedValue({
+      exists: true,
+      hasAccess: true,
+      canWrite: true,
+      canAdmin: true,
+    })
+    queueSources({ workspace: { API_KEY: 'workspace-cipher' } })
+
+    const result = await materializeCopilotCodeSecrets({
+      actorUserId: 'user-1',
+      workspaceId: 'workspace-1',
+      requestedNames: ['API_KEY'],
+    })
+
+    expect(result.catalogEntries).toEqual([
+      {
+        name: 'API_KEY',
+        plaintext: 'plain:workspace-cipher',
+        encryptedValue: 'workspace-cipher',
+        scope: 'workspace',
+      },
+    ])
   })
 
   it('mounts an own __proto__ secret as data without mutating record prototypes', async () => {
@@ -339,6 +370,14 @@ describe('materializeCopilotCodeSecrets', () => {
     })
 
     expect(result.envVars).toEqual({ SHARED_KEY: 'plain:shared-cipher' })
+    /**
+     * The usage trail is read per owner, so a borrowed secret has to be filed under the
+     * sharer. Attributing it to the actor would surface it under the actor's own
+     * same-named secret and hide it from the person who can actually rotate it.
+     */
+    expect(result.catalogEntries).toEqual([
+      expect.objectContaining({ name: 'SHARED_KEY', scope: 'personal', ownerUserId: 'owner-2' }),
+    ])
   })
 
   it('uses the current encrypted value on every call so rotation is observed', async () => {

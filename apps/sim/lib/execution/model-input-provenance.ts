@@ -1,4 +1,5 @@
-import { isPlainRecord } from '@sim/utils/object'
+import { createLogger } from '@sim/logger'
+import { isPlainRecord, isRecordLike } from '@sim/utils/object'
 import {
   PRIVATE_SECRET_PROVENANCE_BUNDLE_V1,
   PRIVATE_SECRET_PROVENANCE_FIELD,
@@ -6,6 +7,7 @@ import {
   RESOLVED_SECRET_PROVENANCE_FIELD,
   RESOLVED_SECRET_PROVENANCE_METADATA_V1,
 } from '@/lib/execution/private-tool-metadata'
+import { PROVENANCE_MAX_SERIALIZED_BYTES } from '@/lib/execution/provenance-limits'
 import {
   isResolvedSecretTraceProvenanceV1,
   type ResolvedSecretInputPath,
@@ -21,8 +23,29 @@ export const OPAQUE_MODEL_INPUT_PROVENANCE_UNAVAILABLE_ERROR =
 export const OPAQUE_MODEL_INPUT_RESOLVED_SECRET_ERROR =
   'Model input contains a resolved secret that cannot be safely projected'
 
-const MAX_PRIVATE_SECRET_PROVENANCE_SELECTIONS = 10_000
-const MAX_PRIVATE_SECRET_PROVENANCE_BYTES = 8 * 1024 * 1024
+const logger = createLogger('ModelInputProvenance')
+
+/**
+ * Ceiling on the serialized envelope, not on how much a caller may vouch for.
+ *
+ * A selection count cap used to sit beside this one. It was reachable by an ordinary write — a
+ * 25-column table insert crossed it at 401 rows — and crossing it failed the entire bundle, so
+ * every row of the write landed `unknown` in its durable sidecar. It existed to bound a per-group
+ * rescan in the registry that is now a single indexed pass, so there is nothing left for a count
+ * to protect. This bound stays because a request body is a real transport limit.
+ */
+
+/**
+ * Why a bundle could not vouch for the cells one write touched.
+ *
+ * A closed union rather than a free-form string, for the reason the resolved-secret registry's
+ * reason set is one: an incomplete bundle stamps every row of the write `unknown` in its durable
+ * sidecar, and a cause a call site can spell freely cannot be aggregated or alerted on.
+ */
+export type PrivateSecretProvenanceBundleFailure =
+  | 'selection-key-invalid'
+  | 'registry-incomplete'
+  | 'bundle-oversized'
 
 interface HeaderReader {
   get(name: string): string | null
@@ -372,32 +395,50 @@ export function createPrivateSecretProvenanceRequestMetadata(
   if (!registry) return undefined
 
   const keys = new Set<string>()
-  let complete = selections.length <= MAX_PRIVATE_SECRET_PROVENANCE_SELECTIONS
+  let failure: PrivateSecretProvenanceBundleFailure | undefined
   const provenanceSelections: PrivateSecretProvenanceBundleV1['selections'] = []
-  if (complete) {
-    for (const selection of selections) {
-      if (!selection.key || keys.has(selection.key)) {
-        complete = false
-        break
-      }
-      keys.add(selection.key)
-      const provenance = registry.exportCommittedProvenanceForInputPaths(selection.inputPaths)
+  for (const selection of selections) {
+    if (!selection.key || keys.has(selection.key)) {
+      failure = 'selection-key-invalid'
+      break
+    }
+    keys.add(selection.key)
+  }
+  if (!failure) {
+    const exported = registry.exportCommittedProvenanceForInputPathGroups(
+      selections.map((selection) => selection.inputPaths)
+    )
+    for (const [index, provenance] of exported.entries()) {
       if (!provenance.complete) {
-        complete = false
+        failure = 'registry-incomplete'
         break
       }
-      provenanceSelections.push({ key: selection.key, provenance })
+      provenanceSelections.push({ key: selections[index].key, provenance })
     }
   }
 
   const bundle: PrivateSecretProvenanceBundleV1 = {
     version: 1,
-    complete,
-    selections: complete ? provenanceSelections : [],
+    complete: !failure,
+    selections: failure ? [] : provenanceSelections,
   }
-  if (Buffer.byteLength(JSON.stringify(bundle), 'utf8') > MAX_PRIVATE_SECRET_PROVENANCE_BYTES) {
+  if (Buffer.byteLength(JSON.stringify(bundle), 'utf8') > PROVENANCE_MAX_SERIALIZED_BYTES) {
+    failure ??= 'bundle-oversized'
     bundle.complete = false
     bundle.selections = []
+  }
+  if (failure) {
+    /**
+     * Error, not warn, for the reason the originating-fault reasons use it: every row of this
+     * write lands `unknown` in a durable sidecar, a durable surface stays open on the strength of
+     * this line trending to zero, and error is the only level surviving every default the logger
+     * falls back to.
+     */
+    logger.error('Private secret provenance bundle is incomplete', {
+      failure,
+      selectionCount: selections.length,
+      ...(registry.getIncompletenessDiagnostics() ?? {}),
+    })
   }
   return {
     provenance: bundle,
@@ -443,7 +484,6 @@ export function isPrivateSecretProvenanceBundleV1(
     bundle.version !== 1 ||
     typeof bundle.complete !== 'boolean' ||
     !Array.isArray(bundle.selections) ||
-    bundle.selections.length > MAX_PRIVATE_SECRET_PROVENANCE_SELECTIONS ||
     (!bundle.complete && bundle.selections.length > 0)
   ) {
     return false
@@ -462,7 +502,7 @@ export function isPrivateSecretProvenanceBundleV1(
     }
     keys.add(record.key)
   }
-  return Buffer.byteLength(JSON.stringify(value), 'utf8') <= MAX_PRIVATE_SECRET_PROVENANCE_BYTES
+  return Buffer.byteLength(JSON.stringify(value), 'utf8') <= PROVENANCE_MAX_SERIALIZED_BYTES
 }
 
 /**
@@ -473,10 +513,7 @@ export function inspectModelInputProvenanceRequest(
   headers: HeaderReader,
   payload: unknown
 ): ModelInputProvenanceInspection {
-  const record =
-    payload !== null && typeof payload === 'object' && !Array.isArray(payload)
-      ? (payload as Record<string, unknown>)
-      : undefined
+  const record = isRecordLike(payload) ? (payload as Record<string, unknown>) : undefined
   const hasProvenance = record ? Object.hasOwn(record, RESOLVED_SECRET_PROVENANCE_FIELD) : false
   const receivedType = headers.get(PRIVATE_MODEL_INPUT_PROVENANCE_HEADER)
 
@@ -493,10 +530,7 @@ export function inspectPrivateSecretProvenanceRequest(
   headers: HeaderReader,
   payload: unknown
 ): ModelInputProvenanceInspection {
-  const record =
-    payload !== null && typeof payload === 'object' && !Array.isArray(payload)
-      ? (payload as Record<string, unknown>)
-      : undefined
+  const record = isRecordLike(payload) ? (payload as Record<string, unknown>) : undefined
   const hasProvenance = record ? Object.hasOwn(record, PRIVATE_SECRET_PROVENANCE_FIELD) : false
   const receivedType = headers.get(PRIVATE_SECRET_PROVENANCE_HEADER)
 

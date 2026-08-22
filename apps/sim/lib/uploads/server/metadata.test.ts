@@ -18,6 +18,7 @@ import {
   insertFileMetadataMany,
   insertImmutableFileMetadata,
   recordKnowledgeBaseFileOwnership,
+  resolveStoredFileContext,
 } from '@/lib/uploads/server/metadata'
 
 describe('recordKnowledgeBaseFileOwnership', () => {
@@ -316,5 +317,40 @@ describe('insertFileMetadataMany active-key idempotence', () => {
     ).rejects.toBeInstanceOf(ActiveFileMetadataKeyConflictError)
 
     expect(dbChainMockFns.insert).not.toHaveBeenCalled()
+  })
+})
+
+describe('resolveStoredFileContext', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
+  const workspaceKey = 'workspace/workspace-1/1234567890-abcdef-photo.png'
+
+  it('reports a mothership attachment stored under a workspace key', async () => {
+    queueTableRows(workspaceFiles, [
+      { id: 'file-1', key: workspaceKey, context: 'mothership', deletedAt: null },
+    ])
+
+    await expect(resolveStoredFileContext(workspaceKey)).resolves.toBe('mothership')
+  })
+
+  it('keeps a workspace file on the workspace context', async () => {
+    queueTableRows(workspaceFiles, [
+      { id: 'file-1', key: workspaceKey, context: 'workspace', deletedAt: null },
+    ])
+
+    await expect(resolveStoredFileContext(workspaceKey)).resolves.toBe('workspace')
+  })
+
+  it('falls back to the inferred context for an unbound key', async () => {
+    await expect(resolveStoredFileContext(workspaceKey)).resolves.toBe('workspace')
+  })
+
+  it('trusts the prefix without a lookup when it cannot be a workspace key', async () => {
+    await expect(resolveStoredFileContext('copilot/file.png')).resolves.toBe('copilot')
+
+    expect(dbChainMockFns.select).not.toHaveBeenCalled()
   })
 })

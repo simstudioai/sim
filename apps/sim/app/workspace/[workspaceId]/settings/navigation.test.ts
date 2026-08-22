@@ -5,6 +5,7 @@ import {
 } from '@/components/settings/navigation'
 import {
   allNavigationItems,
+  resolveSettingsSection,
   sectionConfig,
 } from '@/app/workspace/[workspaceId]/settings/navigation'
 
@@ -31,6 +32,7 @@ describe('unified settings navigation', () => {
       { id: 'teammates', label: 'Teammates', section: 'workspace' },
       { id: 'organization', label: 'Members', section: 'organization' },
       { id: 'secrets', label: 'Secrets', section: 'workspace' },
+      { id: 'credential-groups', label: 'Credential groups', section: 'workspace' },
       { id: 'custom-tools', label: 'Custom tools', section: 'workspace' },
       { id: 'mcp', label: 'MCP tools', section: 'workspace' },
       { id: 'apikeys', label: 'Sim API keys', section: 'workspace' },
@@ -75,6 +77,7 @@ describe('unified settings navigation', () => {
       'workflow-mcp-servers',
       'apikeys',
       'sandboxes',
+      'credential-groups',
       'recently-deleted',
     ])
     expect(idsForSection('organization')).toEqual([
@@ -110,5 +113,42 @@ describe('unified settings navigation', () => {
     expect(workspaceForks?.label).toBe(unifiedForks?.label)
     expect(workspaceForks?.icon).toBe(unifiedForks?.icon)
     expect(workspaceForks?.docsLink).toBe(unifiedForks?.docsLink)
+  })
+})
+
+describe('resolveSettingsSection', () => {
+  const LEGACY_SEGMENTS = {
+    subscription: 'billing',
+    team: 'organization',
+    'api-keys': 'apikeys',
+    domains: 'sso',
+  } as const
+
+  it('keeps legacy section links working', () => {
+    for (const [segment, id] of Object.entries(LEGACY_SEGMENTS)) {
+      expect(resolveSettingsSection(segment)?.id).toBe(id)
+    }
+  })
+
+  it('never shadows a real section with an alias', () => {
+    // The day someone adds a section whose id collides with an alias key, that section becomes
+    // unreachable — the alias would rewrite the segment before the catalog is consulted.
+    for (const segment of Object.keys(LEGACY_SEGMENTS)) {
+      expect(allNavigationItems.some((item) => item.id === segment)).toBe(false)
+    }
+  })
+
+  it('resolves a canonical segment to itself and an unknown one to null', () => {
+    expect(resolveSettingsSection('secrets')?.id).toBe('secrets')
+    expect(resolveSettingsSection('unknown')).toBeNull()
+    expect(resolveSettingsSection('')).toBeNull()
+  })
+
+  it('carries the catalog label through as the header title', () => {
+    // `billing` is the case where id and label visibly differ, and the title feeds both the
+    // shell heading and the document title via generateMetadata.
+    const billing = allNavigationItems.find((item) => item.id === 'billing')
+    expect(resolveSettingsSection('subscription')?.meta.title).toBe(billing?.label)
+    expect(billing?.label).not.toBe('billing')
   })
 })

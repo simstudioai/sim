@@ -19,15 +19,18 @@ export {
 export { ChipChevronDown } from './chip/chip-chevron'
 export {
   cellIconNodeClass,
+  chipActiveSurfaceClass,
   chipBorderShadowRing,
   chipContentGap,
   chipContentIconClass,
   chipContentLabelClass,
+  chipDropTargetSurfaceClass,
   chipFieldSurfaceClass,
   chipFieldTextClass,
   chipFilledFillTokens,
   chipFilledSurfaceTokens,
   chipGeometryClass,
+  chipHoverSurfaceClass,
   chipIconSlotClass,
   chipPrimaryFillTokens,
   disclosureChevronClass,
@@ -118,6 +121,7 @@ export {
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
+  dropdownMenuRowClass,
 } from './dropdown-menu/dropdown-menu'
 export { Expandable, ExpandableContent } from './expandable/expandable'
 export { DashedDividerLine, FieldDivider } from './field-divider/field-divider'
@@ -180,9 +184,14 @@ export { Switch } from './switch/switch'
 export {
   isTabTitleTruncated,
   TabStrip,
+  type TabStripDragContext,
   type TabStripItem,
   type TabStripProps,
+  type TabStripSelectionSource,
+  type TabStripVariant,
   tabDropIndex,
+  tabStripItemSelector,
+  tabStripWheelPosition,
 } from './tab-strip/tab-strip'
 export {
   Table,
@@ -206,6 +215,7 @@ export {
   isFocusVisible,
   isTextClipped,
   Tooltip,
+  type UseFloatingTooltipOptions,
   useFloatingTooltip,
   useIsOverflowing,
 } from './tooltip/tooltip'

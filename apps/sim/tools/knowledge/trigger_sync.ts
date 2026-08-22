@@ -23,6 +23,7 @@ export const knowledgeTriggerSyncTool: ToolConfig<any, KnowledgeTriggerSyncRespo
   },
 
   request: {
+    internalAuth: 'executor_delegation',
     url: (params) =>
       `/api/knowledge/${params.knowledgeBaseId}/connectors/${params.connectorId}/sync`,
     method: 'POST',

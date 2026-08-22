@@ -7,11 +7,12 @@ import {
   type OrganizationSettingsSection,
   resolveOrganizationSectionAccess,
 } from '@/components/settings/navigation'
+import { type OrganizationRole, organizationRoleSchema } from '@/lib/api/contracts/primitives'
 
 interface OrganizationSettingsAccess {
   isAdmin: boolean
   isMember: boolean
-  role: string | null
+  role: OrganizationRole | null
 }
 
 /**
@@ -28,7 +29,7 @@ async function resolveOrganizationSettingsAccess(
     .where(and(eq(member.organizationId, organizationId), eq(member.userId, userId)))
     .limit(1)
 
-  const role = membership?.role ?? null
+  const role = membership ? organizationRoleSchema.parse(membership.role) : null
   return {
     role,
     isMember: role !== null,

@@ -115,7 +115,7 @@ vi.mock('@/lib/webhooks/attachment-processor', () => ({
   WebhookAttachmentProcessor: class {},
 }))
 
-vi.mock('@/app/api/auth/oauth/utils', () => ({
+vi.mock('@/lib/oauth/credential-service', () => ({
   resolveOAuthAccountId: vi.fn(),
 }))
 

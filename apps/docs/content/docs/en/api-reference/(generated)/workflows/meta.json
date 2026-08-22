@@ -1,15 +1,22 @@
 {
   "pages": [
-    "executeWorkflow",
-    "getWorkflowExecution",
-    "cancelExecution",
     "listWorkflows",
+    "createWorkflowV2",
     "getWorkflow",
+    "updateWorkflowV2",
+    "deleteWorkflowV2",
+    "listWorkflowVersionsV2",
+    "getWorkflowVersionV2",
     "exportWorkflow",
     "importWorkflow",
+    "getWorkflowDeployment",
     "deployWorkflow",
     "undeployWorkflow",
     "rollbackWorkflow",
-    "getJobStatus"
+    "executeWorkflowV2",
+    "listWorkflowsFolders",
+    "createWorkflowsFolder",
+    "relocateWorkflowsFolder",
+    "deleteWorkflowsFolder"
   ]
 }

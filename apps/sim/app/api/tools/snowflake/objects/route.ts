@@ -7,7 +7,7 @@ import { authorizeCredentialUse } from '@/lib/auth/credential-access'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { resolveCredentialAccessToken } from '@/app/api/auth/oauth/utils'
+import { resolveCredentialAccessToken } from '@/lib/oauth/credential-service'
 import { buildSelectorStatement } from '@/tools/snowflake/sql'
 import {
   buildSnowflakeAuthHeaders,

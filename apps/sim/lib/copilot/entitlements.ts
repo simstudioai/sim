@@ -3,6 +3,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { LRUCache } from 'lru-cache'
 import { hasWorkspaceSandboxAccess } from '@/lib/billing/core/subscription'
 import { isCustomBlocksEligible } from '@/lib/workflows/custom-blocks/operations'
+import { getWorkspaceWithOwner } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('CopilotEntitlements')
 
@@ -12,6 +13,7 @@ const logger = createLogger('CopilotEntitlements')
  */
 export const CUSTOM_BLOCKS_ENTITLEMENT = 'custom-blocks'
 export const SIM_SANDBOXES_ENTITLEMENT = 'sim-sandboxes'
+export const ORGANIZATION_CONTEXT_ENTITLEMENT = 'organization-context'
 
 /**
  * Workspace entitlements — plan/flag-gated org capabilities sent to the
@@ -36,6 +38,18 @@ const ENTITLEMENT_EVALUATORS: Record<
 > = {
   [CUSTOM_BLOCKS_ENTITLEMENT]: isCustomBlocksEligible,
   [SIM_SANDBOXES_ENTITLEMENT]: hasWorkspaceSandboxAccess,
+  [ORGANIZATION_CONTEXT_ENTITLEMENT]: isOrganizationContextAvailable,
+}
+
+/**
+ * True when this workspace belongs to an organization, which is exactly when
+ * the copilot's `organization/` VFS namespace has anything in it. Advertising
+ * it keeps a personal workspace's agents from ever hearing that org standing,
+ * access-control groups, or fork topology exist.
+ */
+async function isOrganizationContextAvailable(workspaceId: string): Promise<boolean> {
+  const workspace = await getWorkspaceWithOwner(workspaceId)
+  return Boolean(workspace?.organizationId)
 }
 
 const entitlementsCache = new LRUCache<string, Promise<string[]>>({

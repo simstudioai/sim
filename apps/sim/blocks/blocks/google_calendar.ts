@@ -6,6 +6,9 @@ import { createVersionedToolSelector, SERVICE_ACCOUNT_SUBBLOCKS } from '@/blocks
 import type { GoogleCalendarResponse } from '@/tools/google_calendar/types'
 import { getTrigger } from '@/triggers'
 
+const CALENDAR_FIELD = ['calendarId', 'manualCalendarId'] as const
+const DESTINATION_CALENDAR_FIELD = ['destinationCalendar', 'manualDestinationCalendarId'] as const
+
 export const GoogleCalendarBlock: BlockConfig<GoogleCalendarResponse> = {
   type: 'google_calendar',
   name: 'Google Calendar (Legacy)',
@@ -18,6 +21,105 @@ export const GoogleCalendarBlock: BlockConfig<GoogleCalendarResponse> = {
   integrationType: IntegrationType.Productivity,
   bgColor: '#FFFFFF',
   icon: GoogleCalendarIcon,
+  canvasPresentation: {
+    defaultTitle: 'Google Calendar',
+    /*
+     * The poller watches one calendar, so the calendar is the scope worth
+     * reading. `eventTypeFilter` sits in front of the calendar because its
+     * labels are past participles — "Runs on an event created in Work" — and it
+     * defaults to every type, where the clause simply drops.
+     */
+    triggerSentences: {
+      default: [
+        'Run on an event',
+        { field: 'eventTypeFilter' },
+        { text: 'in', field: CALENDAR_FIELD, core: true },
+        { text: ', matching', field: 'searchTerm' },
+      ],
+    },
+    sentences: {
+      byOperation: {
+        create: [
+          { text: 'Create event', field: 'summary', core: true },
+          { text: 'on', field: CALENDAR_FIELD },
+          { text: ', starting', field: 'startDateTime' },
+        ],
+        list: [
+          'List events',
+          { text: 'on', field: CALENDAR_FIELD },
+          { text: ', matching', field: 'q' },
+          { text: ', from', field: 'timeMin' },
+        ],
+        get: [
+          { text: 'Read event', field: 'eventId', core: true },
+          { text: 'from', field: CALENDAR_FIELD },
+        ],
+        update: [
+          { text: 'Update event', field: 'eventId', core: true },
+          { text: 'on', field: CALENDAR_FIELD },
+          { text: ', setting title to', field: 'summary' },
+        ],
+        delete: [
+          { text: 'Delete event', field: 'eventId', core: true },
+          { text: 'from', field: CALENDAR_FIELD },
+        ],
+        move: [
+          { text: 'Move event', field: 'eventId', core: true },
+          { text: 'from', field: CALENDAR_FIELD },
+          {
+            text: 'to',
+            field: DESTINATION_CALENDAR_FIELD,
+            core: true,
+          },
+        ],
+        instances: [
+          { text: 'List instances of recurring event', field: 'eventId', core: true },
+          { text: 'on', field: CALENDAR_FIELD },
+        ],
+        list_calendars: [
+          'List calendars',
+          { text: ', with at least', field: 'minAccessRole', after: 'access' },
+          { text: ', up to', field: 'maxResults' },
+        ],
+        quick_add: [
+          { text: 'Create an event from', field: 'text', core: true },
+          { text: 'on', field: CALENDAR_FIELD },
+        ],
+        invite: [
+          { text: 'Invite', field: 'attendees', core: true },
+          { text: 'to event', field: 'eventId', core: true },
+        ],
+        freebusy: [
+          { text: 'Check free/busy for', field: 'calendarIds', core: true },
+          { text: ', starting', field: 'timeMin' },
+          { text: ', through', field: 'timeMax' },
+        ],
+        create_calendar: [
+          { text: 'Create calendar', field: 'summary', core: true },
+          { text: 'in time zone', field: 'timeZone' },
+        ],
+        update_calendar: [
+          { text: 'Update calendar', field: CALENDAR_FIELD, core: true },
+          { text: ', setting name to', field: 'summary' },
+          { text: ', time zone to', field: 'timeZone' },
+        ],
+        delete_calendar: [{ text: 'Delete calendar', field: CALENDAR_FIELD, core: true }],
+        share_calendar: [
+          { text: 'Share', field: CALENDAR_FIELD, core: true },
+          { text: 'with', field: ['scopeValue', 'scopeType'] },
+        ],
+        update_acl: [
+          { text: 'Set sharing rule', field: 'ruleId', core: true },
+          { text: 'to', field: 'role' },
+        ],
+        list_acl: ['List sharing rules', { text: 'on', field: CALENDAR_FIELD }],
+        unshare_calendar: [
+          { text: 'Remove sharing rule', field: 'ruleId', core: true },
+          { text: 'from', field: CALENDAR_FIELD },
+        ],
+      },
+    },
+  },
   hideFromToolbar: true,
   sunset: { status: 'legacy', replacedBy: 'google_calendar_v2' },
   subBlocks: [

@@ -58,7 +58,7 @@ import {
   handleVectorOnlySearch,
   RRF_K,
   type SearchResult,
-} from '@/app/api/knowledge/search/utils'
+} from '@/lib/knowledge/search/queries'
 
 /** Minimal SearchResult builder — only the fields fusion and ordering read. */
 function makeResult(id: string, distance = 0.1): SearchResult {
@@ -666,23 +666,17 @@ describe('Knowledge Search Utils', () => {
     it('should throw error when no API configuration provided', async () => {
       const { env } = await import('@/lib/core/config/env')
       Object.keys(env).forEach((key) => delete (env as any)[key])
-      // The env object lazily reads process.env, so a developer's local .env
-      // keys survive the deletion above — stub the direct key empty and fail
-      // the hosted rotation fallback for hermeticity on any machine.
-      vi.stubEnv('OPENAI_API_KEY', '')
-      const apiKeysModule = await import('@/lib/core/config/api-keys')
-      const rotationSpy = vi.spyOn(apiKeysModule, 'getRotatingApiKey').mockImplementation(() => {
-        throw new Error('No rotation keys configured')
+      Object.assign(env, {
+        OPENAI_API_KEY: undefined,
+        OPENAI_API_KEY_1: undefined,
+        OPENAI_API_KEY_2: undefined,
+        OPENAI_API_KEY_3: undefined,
+        OPENROUTER_API_KEY: undefined,
       })
 
-      try {
-        await expect(generateSearchEmbedding('test query')).rejects.toThrow(
-          'OPENAI_API_KEY is not configured'
-        )
-      } finally {
-        rotationSpy.mockRestore()
-        vi.unstubAllEnvs()
-      }
+      await expect(generateSearchEmbedding('test query')).rejects.toThrow(
+        'OPENAI_API_KEY is not configured'
+      )
     })
 
     it('should handle Azure OpenAI API errors properly', async () => {
@@ -713,6 +707,7 @@ describe('Knowledge Search Utils', () => {
       Object.keys(env).forEach((key) => delete (env as any)[key])
       Object.assign(env, {
         OPENAI_API_KEY: 'test-openai-key',
+        OPENROUTER_API_KEY: undefined,
       })
 
       mockNextFetchResponse({
@@ -829,7 +824,7 @@ describe('Knowledge Search Utils', () => {
 
   describe('getDocumentMetadataByIds', () => {
     it('should handle empty input gracefully', async () => {
-      const { getDocumentMetadataByIds } = await import('./utils')
+      const { getDocumentMetadataByIds } = await import('@/lib/knowledge/search/queries')
 
       const result = await getDocumentMetadataByIds([])
 

@@ -27,20 +27,20 @@ vi.mock('drizzle-orm', () => {
     or: vi.fn(),
   }
 })
-vi.mock('@/app/api/auth/oauth/utils', () => ({
+vi.mock('@/lib/oauth/credential-service', () => ({
   getOAuthToken: vi.fn(),
   refreshAccessTokenIfNeeded: vi.fn(),
   resolveOAuthAccountId: vi.fn(),
 }))
 vi.mock('@/triggers/constants', () => ({ MAX_CONSECUTIVE_FAILURES: 5 }))
 
-import type { WebhookRecord } from '@/lib/webhooks/polling/types'
-import { resolveOAuthCredential, updateWebhookProviderConfig } from '@/lib/webhooks/polling/utils'
 import {
   getOAuthToken,
   refreshAccessTokenIfNeeded,
   resolveOAuthAccountId,
-} from '@/app/api/auth/oauth/utils'
+} from '@/lib/oauth/credential-service'
+import type { WebhookRecord } from '@/lib/webhooks/polling/types'
+import { resolveOAuthCredential, updateWebhookProviderConfig } from '@/lib/webhooks/polling/utils'
 
 afterAll(resetDbChainMock)
 

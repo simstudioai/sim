@@ -31,21 +31,30 @@ describe('PUT /api/folders/reorder', () => {
   const mockFrom = vi.fn()
   const mockWhere = vi.fn()
   const mockTxUpdate = vi.fn()
+  const mockTxExecute = vi.fn()
 
   beforeEach(() => {
     vi.clearAllMocks()
+    mockFrom.mockReset()
+    mockWhere.mockReset()
+    mockTxUpdate.mockReset()
+    mockTxExecute.mockReset()
+    mockDb.transaction.mockReset()
 
     authMockFns.mockGetSession.mockResolvedValue({ user: { id: 'user-123' } })
     mockGetUserEntityPermissions.mockResolvedValue('admin')
 
-    mockDb.select.mockReturnValue({ from: mockFrom })
     mockFrom.mockReturnValue({ where: mockWhere })
 
     mockTxUpdate.mockReturnValue({
       set: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue(undefined) }),
     })
     mockDb.transaction.mockImplementation(async (cb: (tx: unknown) => Promise<unknown>) =>
-      cb({ update: mockTxUpdate })
+      cb({
+        execute: mockTxExecute,
+        select: vi.fn().mockReturnValue({ from: mockFrom }),
+        update: mockTxUpdate,
+      })
     )
   })
 
@@ -76,8 +85,8 @@ describe('PUT /api/folders/reorder', () => {
       ])
 
     const uniqueViolation = Object.assign(new Error('duplicate key value'), { code: '23505' })
-    mockDb.transaction.mockImplementationOnce(async () => {
-      throw uniqueViolation
+    mockTxUpdate.mockReturnValueOnce({
+      set: vi.fn().mockReturnValue({ where: vi.fn().mockRejectedValue(uniqueViolation) }),
     })
 
     const req = createMockRequest('PUT', {
@@ -88,6 +97,7 @@ describe('PUT /api/folders/reorder', () => {
 
     const response = await PUT(req)
 
+    expect(mockTxUpdate).toHaveBeenCalled()
     expect(response.status).toBe(409)
     const data = await response.json()
     expect(data.error).toBe('A folder with this name already exists in this location')
@@ -108,7 +118,7 @@ describe('PUT /api/folders/reorder', () => {
     expect(response.status).toBe(400)
     const data = await response.json()
     expect(data.error).toBe('Parent folder not found')
-    expect(mockDb.transaction).not.toHaveBeenCalled()
+    expect(mockTxUpdate).not.toHaveBeenCalled()
   })
 
   it('rejects a batch that would form a cycle', async () => {
@@ -139,6 +149,6 @@ describe('PUT /api/folders/reorder', () => {
     expect(response.status).toBe(400)
     const data = await response.json()
     expect(data.error).toBe('Cannot create circular folder reference')
-    expect(mockDb.transaction).not.toHaveBeenCalled()
+    expect(mockTxUpdate).not.toHaveBeenCalled()
   })
 })

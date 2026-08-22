@@ -65,8 +65,17 @@ export const GET = withRouteHandler(
       logger.info(`[${requestId}] Discovering MCP tools`, { serverId, workspaceId, forceRefresh })
 
       const tools = serverId
-        ? await mcpService.discoverServerTools(userId, serverId, workspaceId, forceRefresh)
-        : await mcpService.discoverTools(userId, workspaceId, forceRefresh)
+        ? await mcpService.discoverServerTools(
+            userId,
+            serverId,
+            workspaceId,
+            forceRefresh ? 'force' : 'cache-aside'
+          )
+        : await mcpService.discoverTools(
+            userId,
+            workspaceId,
+            forceRefresh ? 'force' : 'cache-aside'
+          )
 
       const byServer: Record<string, number> = {}
       for (const tool of tools) {
@@ -115,7 +124,7 @@ export const POST = withRouteHandler(
         serverIds,
         MCP_REFRESH_DISCOVERY_CONCURRENCY,
         async (serverId: string) => {
-          const tools = await mcpService.discoverServerTools(userId, serverId, workspaceId, true)
+          const tools = await mcpService.discoverServerTools(userId, serverId, workspaceId, 'force')
           return { serverId, toolCount: tools.length }
         }
       )

@@ -86,6 +86,16 @@ export const FILE_DOC_SEED = {
    * be reflected instead of reverted by an open editor's autosave.
    */
   frontmatterKey: 'frontmatter',
+  /**
+   * The document's IDENTITY: minted when a file's collaborative document is first built and carried in
+   * the CRDT from then on, so every later load resumes the same document rather than minting a second.
+   *
+   * It matters because two documents built from the same markdown are not the same document to Yjs —
+   * their items carry different client ids, so merging them yields the content TWICE. A client that
+   * still holds one identity must therefore never sync against another: the server sends this in the
+   * join ack and the client refuses to merge a document it does not recognize.
+   */
+  docIdKey: 'docId',
 } as const
 
 /**
@@ -129,6 +139,13 @@ export interface JoinFileDocPayload {
 /** Server → client acceptance of a {@link FILE_DOC_EVENTS.JOIN}. */
 export interface JoinFileDocSuccess {
   fileId: string
+  /**
+   * The identity of the document this room holds ({@link FILE_DOC_SEED.docIdKey}), so a client can tell
+   * "the room I left" from "a document built in its place" BEFORE it syncs. Absent for a room whose doc
+   * carries no identity (an empty/missing file, or one seeded before identities existed), which is
+   * exactly the case where there is nothing to compare and the client proceeds.
+   */
+  docId?: string
 }
 
 /** Server → client rejection of a {@link FILE_DOC_EVENTS.JOIN}. */

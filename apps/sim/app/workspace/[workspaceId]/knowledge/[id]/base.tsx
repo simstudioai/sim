@@ -20,12 +20,20 @@ import {
   cn,
   FloatingTooltip,
   isTextClipped,
-  Loader,
   Tooltip,
-  Trash,
   useFloatingTooltip,
 } from '@sim/emcn'
-import { CircleAlert, Database, DatabaseX, Pencil, Plus, TagIcon, X } from '@sim/emcn/icons'
+import {
+  CircleAlert,
+  Database,
+  DatabaseX,
+  Loader,
+  Pencil,
+  Plus,
+  TagIcon,
+  Trash,
+  X,
+} from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
@@ -33,7 +41,12 @@ import { format } from 'date-fns'
 import { useParams, useRouter } from 'next/navigation'
 import { useQueryState, useQueryStates } from 'nuqs'
 import { usePostHog } from 'posthog-js/react'
-import { ALL_TAG_SLOTS, type AllTagSlot, getFieldTypeForSlot } from '@/lib/knowledge/constants'
+import {
+  ALL_TAG_SLOTS,
+  type AllTagSlot,
+  getFieldTypeForSlot,
+  KNOWLEDGE_DOCUMENT_PROCESSING_STALE_THRESHOLD_MS,
+} from '@/lib/knowledge/constants'
 import type { DocumentSortField, SortOrder } from '@/lib/knowledge/documents/types'
 import { type FilterFieldType, getOperatorsForFieldType } from '@/lib/knowledge/filters/types'
 import type { DocumentData } from '@/lib/knowledge/types'
@@ -45,12 +58,25 @@ import type {
   FilterTag,
   ResourceAction,
   ResourceCell,
-  ResourceColumn,
   ResourceRow,
   SelectableConfig,
   SortConfig,
 } from '@/app/workspace/[workspaceId]/components'
-import { FloatingOverflowText, Resource } from '@/app/workspace/[workspaceId]/components'
+import {
+  FILTER_SECTION_LABEL_CLASS,
+  FloatingOverflowText,
+  isResourceListEmpty,
+  Resource,
+  ResourceNotFound,
+  SearchHighlight,
+} from '@/app/workspace/[workspaceId]/components'
+import {
+  FOLDERED_RESOURCE_HEADERS,
+  folderBreadcrumbItems,
+  folderedResourceListHref,
+  useFolderAncestors,
+} from '@/app/workspace/[workspaceId]/components/folders'
+import { DocumentsEmptyState } from '@/app/workspace/[workspaceId]/components/resource/components/resource-empty-state'
 import { DocumentTagsModal } from '@/app/workspace/[workspaceId]/knowledge/[id]/[documentId]/components'
 import {
   ActionBar,
@@ -60,29 +86,29 @@ import {
   ConnectorsSection,
   DocumentContextMenu,
   RenameDocumentModal,
-  SearchHighlight,
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/components'
+import { DOCUMENT_COLUMNS } from '@/app/workspace/[workspaceId]/knowledge/[id]/document-columns'
 import {
   addConnectorParam,
   documentFiltersParsers,
   documentFiltersUrlKeys,
   kbDocumentSortParams,
-  pageParam,
-  pageUrlKeys,
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/search-params'
 import { getDocumentIcon } from '@/app/workspace/[workspaceId]/knowledge/components'
+import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
-import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
+import { BrandIcon } from '@/blocks/brand-icon'
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
 import {
+  hasProcessingDocuments,
   useKnowledgeBase,
   useKnowledgeBaseDocuments,
-  useKnowledgeBasesList,
 } from '@/hooks/kb/use-knowledge'
 import {
   type TagDefinition,
   useKnowledgeBaseTagDefinitions,
 } from '@/hooks/kb/use-knowledge-base-tag-definitions'
+import type { ConnectorData } from '@/hooks/queries/kb/connectors'
 import { isConnectorSyncingOrPending, useConnectorList } from '@/hooks/queries/kb/connectors'
 import type { DocumentTagFilter } from '@/hooks/queries/kb/knowledge'
 import {
@@ -92,6 +118,7 @@ import {
   useUpdateDocument,
   useUpdateKnowledgeBase,
 } from '@/hooks/queries/kb/knowledge'
+import { useContextMenu } from '@/hooks/use-context-menu'
 import { useDebounce } from '@/hooks/use-debounce'
 import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
 import { useInlineRename } from '@/hooks/use-inline-rename'
@@ -100,25 +127,33 @@ import { useUrlSort } from '@/hooks/use-url-sort'
 
 const logger = createLogger('KnowledgeBase')
 
+/**
+ * Identifies one processing *run*, not one document.
+ *
+ * Keying on the attempt's start time makes the reported-set self-invalidating:
+ * a document that is retried gets a new `processingStartedAt`, so a later stall
+ * is reportable again without the set needing to be pruned.
+ */
+function deadProcessKey(doc: Pick<DocumentData, 'id' | 'processingStartedAt'>) {
+  return `${doc.id}:${doc.processingStartedAt ?? ''}`
+}
+
 const DOCUMENTS_PER_PAGE = 50
 
-const DOCUMENT_COLUMNS: ResourceColumn[] = [
-  { id: 'name', header: 'Name', widthMultiplier: 0.8 },
-  { id: 'size', header: 'Size', widthMultiplier: 0.75 },
-  { id: 'tokens', header: 'Tokens', widthMultiplier: 0.75 },
-  { id: 'chunks', header: 'Chunks', widthMultiplier: 0.75 },
-  { id: 'uploaded', header: 'Uploaded' },
-  { id: 'status', header: 'Status', widthMultiplier: 0.75 },
-  { id: 'tags', header: 'Tags' },
-]
+/** Stable identity so an absent connector list does not re-fire list-dependent effects. */
+const EMPTY_CONNECTORS: ConnectorData[] = []
+
+/** Cadence while a document is still indexing — its own status is what moves. */
+const PROCESSING_POLL_INTERVAL_MS = 3000
+
+/** Slower cadence while only a connector sync is running: rows arrive in batches. */
+const CONNECTOR_SYNC_DOCUMENT_POLL_INTERVAL_MS = 5000
 
 const STATUS_FILTER_OPTIONS: ChipDropdownOption[] = [
   { value: 'all', label: 'All' },
   { value: 'enabled', label: 'Enabled' },
   { value: 'disabled', label: 'Disabled' },
 ]
-
-const FILTER_SECTION_LABEL_CLASS = 'text-[var(--text-muted)] text-small'
 
 interface KnowledgeBaseProps {
   id: string
@@ -271,14 +306,12 @@ export function KnowledgeBase({
   }, [id, passedKnowledgeBaseName, posthog])
 
   useOAuthReturnForKBConnectors(id)
-  const { removeKnowledgeBase } = useKnowledgeBasesList(workspaceId, { enabled: false })
   const userPermissions = useUserPermissionsContext()
 
   const { mutate: updateDocumentMutation, mutateAsync: updateDocumentAsync } = useUpdateDocument()
   const { mutate: deleteDocumentMutation } = useDeleteDocument()
-  const { mutate: deleteKnowledgeBaseMutation, isPending: isDeleting } =
-    useDeleteKnowledgeBase(workspaceId)
-  const { mutateAsync: updateKnowledgeBaseMutation } = useUpdateKnowledgeBase(workspaceId)
+  const { mutate: deleteKnowledgeBaseMutation, isPending: isDeleting } = useDeleteKnowledgeBase()
+  const { mutateAsync: updateKnowledgeBaseMutation } = useUpdateKnowledgeBase()
 
   const kbRename = useInlineRename({
     onSave: (kbId, name) =>
@@ -327,14 +360,13 @@ export function KnowledgeBase({
   const [documentToDelete, setDocumentToDelete] = useState<string | null>(null)
   const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false)
   const [showConnectorsModal, setShowConnectorsModal] = useState(false)
-  const [currentPage, setCurrentPage] = useQueryState(pageParam.key, {
-    ...pageParam.parser,
-    ...pageUrlKeys,
-  })
+  const [{ q: searchQuery, enabled: enabledFilter, page: currentPage }, setDocumentFilters] =
+    useQueryStates(documentFiltersParsers, documentFiltersUrlKeys)
 
-  const [{ q: searchQuery, enabled: enabledFilter }, setDocumentFilters] = useQueryStates(
-    documentFiltersParsers,
-    documentFiltersUrlKeys
+  /** Page 1 is the group's default, so it strips from the URL rather than lingering as `?page=1`. */
+  const setCurrentPage = useCallback(
+    (page: number) => void setDocumentFilters({ page }),
+    [setDocumentFilters]
   )
 
   /**
@@ -343,8 +375,7 @@ export function KnowledgeBase({
    * doesn't refetch on every keystroke. Changing the search resets pagination.
    */
   const handleSearchChange = useDebouncedSearchSetter((value, options) => {
-    setDocumentFilters({ q: value }, options)
-    setCurrentPage(1)
+    void setDocumentFilters({ q: value, page: 1 }, options)
   })
   const debouncedSearchQuery = useDebounce(searchQuery, SEARCH_DEBOUNCE_MS)
   /** Raw URL value drives the input; matching/highlighting always sees it trimmed. */
@@ -360,13 +391,12 @@ export function KnowledgeBase({
 
   const setEnabledFilter = useCallback(
     (value: 'all' | 'enabled' | 'disabled') => {
-      setDocumentFilters({ enabled: value })
-      setCurrentPage(1)
+      void setDocumentFilters({ enabled: value, page: 1 })
     },
-    [setDocumentFilters, setCurrentPage]
+    [setDocumentFilters]
   )
 
-  const [contextMenuDocument, setContextMenuDocument] = useState<DocumentData | null>(null)
+  const [contextMenuDocumentId, setContextMenuDocumentId] = useState<string | null>(null)
   const [showRenameModal, setShowRenameModal] = useState(false)
   const [documentToRename, setDocumentToRename] = useState<DocumentData | null>(null)
   const [showDocumentTagsModal, setShowDocumentTagsModal] = useState(false)
@@ -397,7 +427,8 @@ export function KnowledgeBase({
     refresh: refreshKnowledgeBase,
   } = useKnowledgeBase(id)
 
-  const { data: connectors = [], isLoading: isLoadingConnectors } = useConnectorList(id)
+  const { data: connectors = EMPTY_CONNECTORS, isLoading: isLoadingConnectors } =
+    useConnectorList(id)
   const hasSyncingConnectors = connectors.some(isConnectorSyncingOrPending)
   const hasSyncingConnectorsRef = useRef(hasSyncingConnectors)
   hasSyncingConnectorsRef.current = hasSyncingConnectors
@@ -405,9 +436,9 @@ export function KnowledgeBase({
   const {
     documents,
     pagination,
+    isLoading: isLoadingDocuments,
     isPlaceholderData: isPlaceholderDocuments,
     error: documentsError,
-    hasProcessingDocuments,
     updateDocument,
     refreshDocuments,
   } = useKnowledgeBaseDocuments(id, {
@@ -418,11 +449,8 @@ export function KnowledgeBase({
     sortOrder: sortDirection as SortOrder,
     refetchInterval: (data) => {
       if (isDeleting) return false
-      const hasPending = data?.documents?.some(
-        (doc) => doc.processingStatus === 'pending' || doc.processingStatus === 'processing'
-      )
-      if (hasPending) return 3000
-      if (hasSyncingConnectorsRef.current) return 5000
+      if (hasProcessingDocuments(data?.documents ?? [])) return PROCESSING_POLL_INTERVAL_MS
+      if (hasSyncingConnectorsRef.current) return CONNECTOR_SYNC_DOCUMENT_POLL_INTERVAL_MS
       return false
     },
     enabledFilter: enabledFilter,
@@ -430,6 +458,15 @@ export function KnowledgeBase({
   })
 
   const { tagDefinitions } = useKnowledgeBaseTagDefinitions(id)
+
+  /**
+   * The id, not the row: the document list polls every few seconds while anything is
+   * processing, so a menu holding the row it opened on would offer actions against a status
+   * that has since moved on.
+   */
+  const contextMenuDocument = contextMenuDocumentId
+    ? (documents.find((doc) => doc.id === contextMenuDocumentId) ?? null)
+    : null
 
   const prevHadSyncingRef = useRef(false)
   useEffect(() => {
@@ -444,28 +481,52 @@ export function KnowledgeBase({
   /**
    * Breadcrumb leaf label. Falls back to the canonical '…' placeholder while
    * the name loads (mirroring loading.tsx) instead of duplicating the root
-   * "Knowledge Base" crumb.
+   * "Knowledge bases" crumb.
    */
   const knowledgeBaseCrumbLabel = knowledgeBase?.name || passedKnowledgeBaseName || '…'
   const error = knowledgeBaseError || documentsError
 
+  /**
+   * The base's own folder trail, so the header reads `Knowledge Base / Research / Papers`
+   * exactly as the list does one level up.
+   */
+  const { ancestors: folderChain } = useFolderAncestors({
+    resourceType: 'knowledge_base',
+    workspaceId,
+    folderId: knowledgeBase?.folderId,
+  })
+
+  const handleNavigateToFolder = useCallback(
+    (folderId: string | null) => {
+      router.push(folderedResourceListHref('knowledge_base', workspaceId, folderId))
+    },
+    [router, workspaceId]
+  )
+
   const totalPages = Math.ceil(pagination.total / pagination.limit)
 
   /**
-   * Checks for documents with stale processing states and marks them as failed
+   * Processing runs already reported as timed out.
+   *
+   * The list below polls every few seconds while anything is processing, and
+   * each poll hands this effect a new array. Without this the same stale
+   * document is re-reported on every tick until the server's new status comes
+   * back — one redundant write per poll, per open tab.
    */
+  const reportedDeadProcessesRef = useRef<Set<string> | null>(null)
+
   const checkForDeadProcesses = useCallback(
     (docsToCheck: DocumentData[]) => {
-      const now = new Date()
-      const DEAD_PROCESS_THRESHOLD_MS = 600 * 1000 // 10 minutes
+      const reported = (reportedDeadProcessesRef.current ??= new Set())
+      const nowMs = Date.now()
 
       const staleDocuments = docsToCheck.filter((doc) => {
-        if (doc.processingStatus !== 'processing' || !doc.processingStartedAt) {
-          return false
-        }
-
-        const processingDuration = now.getTime() - new Date(doc.processingStartedAt).getTime()
-        return processingDuration > DEAD_PROCESS_THRESHOLD_MS
+        if (doc.processingStatus !== 'processing' || !doc.processingStartedAt) return false
+        if (reported.has(deadProcessKey(doc))) return false
+        return (
+          nowMs - new Date(doc.processingStartedAt).getTime() >
+          KNOWLEDGE_DOCUMENT_PROCESSING_STALE_THRESHOLD_MS
+        )
       })
 
       if (staleDocuments.length === 0) return
@@ -473,6 +534,7 @@ export function KnowledgeBase({
       logger.warn(`Found ${staleDocuments.length} documents with dead processes`)
 
       staleDocuments.forEach((doc) => {
+        reported.add(deadProcessKey(doc))
         updateDocumentMutation(
           {
             knowledgeBaseId: id,
@@ -485,6 +547,8 @@ export function KnowledgeBase({
                 `Successfully marked dead process as failed for document: ${doc.filename}`
               )
             },
+            /** Retried on the next poll rather than left silently unreported. */
+            onError: () => reported.delete(deadProcessKey(doc)),
           }
         )
       })
@@ -493,10 +557,8 @@ export function KnowledgeBase({
   )
 
   useEffect(() => {
-    if (hasProcessingDocuments) {
-      checkForDeadProcesses(documents)
-    }
-  }, [hasProcessingDocuments, documents, checkForDeadProcesses])
+    checkForDeadProcesses(documents)
+  }, [documents, checkForDeadProcesses])
 
   const handleToggleEnabled = (docId: string) => {
     const document = documents.find((doc) => doc.id === docId)
@@ -625,6 +687,7 @@ export function KnowledgeBase({
    * Handles selecting/deselecting a document
    */
   const handleSelectDocument = (docId: string, checked: boolean) => {
+    setIsSelectAllMode(false)
     setSelectedDocuments((prev) => {
       const newSet = new Set(prev)
       if (checked) {
@@ -673,7 +736,6 @@ export function KnowledgeBase({
       { knowledgeBaseId: id },
       {
         onSuccess: () => {
-          removeKnowledgeBase(id)
           router.push(`/workspace/${workspaceId}/knowledge`)
         },
       }
@@ -683,6 +745,14 @@ export function KnowledgeBase({
   const handleAddDocuments = () => {
     setShowAddDocumentsModal(true)
   }
+
+  useRegisterGlobalCommands(() => [
+    { id: 'knowledge-base-new-documents', handler: () => setShowAddDocumentsModal(true) },
+    { id: 'knowledge-base-new-connector', handler: () => setShowAddConnectorModal(true) },
+    { id: 'knowledge-base-rename', handler: () => kbRename.startRename(id, knowledgeBaseName) },
+    { id: 'knowledge-base-tags', handler: () => setShowTagsModal(true) },
+    { id: 'knowledge-base-delete', handler: () => setShowDeleteDialog(true) },
+  ])
 
   /**
    * Handles bulk enabling of selected documents
@@ -839,6 +909,7 @@ export function KnowledgeBase({
       ? 0
       : pagination.total
     : selectedDocumentsList.filter((doc) => !doc.enabled).length
+  const selectedDocumentCount = isSelectAllMode ? pagination.total : selectedDocuments.size
 
   const handleDocumentContextMenu = useCallback(
     (e: React.MouseEvent, docId: string) => {
@@ -848,86 +919,119 @@ export function KnowledgeBase({
       const isCurrentlySelected = selectedDocuments.has(doc.id)
 
       if (!isCurrentlySelected) {
+        setIsSelectAllMode(false)
         setSelectedDocuments(new Set([doc.id]))
       }
 
-      setContextMenuDocument(doc)
+      setContextMenuDocumentId(doc.id)
       baseHandleContextMenu(e)
     },
     [documents, selectedDocuments, baseHandleContextMenu]
   )
 
-  const handleEmptyContextMenu = useCallback(
-    (e: React.MouseEvent) => {
-      setContextMenuDocument(null)
-      baseHandleContextMenu(e)
-    },
-    [baseHandleContextMenu]
+  const handleEmptyContextMenu = (e: React.MouseEvent) => {
+    setContextMenuDocumentId(null)
+    baseHandleContextMenu(e)
+  }
+
+  const handleContextMenuClose = () => {
+    closeContextMenu()
+    setContextMenuDocumentId(null)
+  }
+
+  const breadcrumbs: BreadcrumbItem[] = useMemo(
+    () =>
+      folderBreadcrumbItems({
+        rootLabel: FOLDERED_RESOURCE_HEADERS.knowledge_base.rootLabel,
+        rootIcon: FOLDERED_RESOURCE_HEADERS.knowledge_base.rootIcon,
+        breadcrumbs: folderChain,
+        onNavigate: handleNavigateToFolder,
+        trailing: [
+          {
+            label: knowledgeBaseCrumbLabel,
+            icon: Database,
+            editing: kbRename.editingId
+              ? {
+                  isEditing: true,
+                  value: kbRename.editValue,
+                  onChange: kbRename.setEditValue,
+                  onSubmit: kbRename.submitRename,
+                  onCancel: kbRename.cancelRename,
+                  disabled: kbRename.isSaving,
+                }
+              : undefined,
+            dropdownItems: [
+              ...(userPermissions.canEdit || userPermissions.isLoading
+                ? [
+                    {
+                      label: 'Rename',
+                      icon: Pencil,
+                      disabled: !userPermissions.canEdit,
+                      onClick: () => kbRename.startRename(id, knowledgeBaseName),
+                    },
+                    {
+                      label: 'Tags',
+                      icon: TagIcon,
+                      disabled: !userPermissions.canEdit,
+                      onClick: () => setShowTagsModal(true),
+                    },
+                    {
+                      label: 'Delete',
+                      icon: Trash,
+                      disabled: !userPermissions.canEdit,
+                      onClick: () => setShowDeleteDialog(true),
+                    },
+                  ]
+                : []),
+            ],
+          },
+        ],
+      }),
+    [
+      folderChain,
+      handleNavigateToFolder,
+      knowledgeBaseCrumbLabel,
+      knowledgeBaseName,
+      id,
+      kbRename.editingId,
+      kbRename.editValue,
+      kbRename.isSaving,
+      kbRename.setEditValue,
+      kbRename.submitRename,
+      kbRename.cancelRename,
+      kbRename.startRename,
+      userPermissions.canEdit,
+      userPermissions.isLoading,
+    ]
   )
 
-  const handleContextMenuClose = useCallback(() => {
-    closeContextMenu()
-    setContextMenuDocument(null)
-  }, [closeContextMenu])
-
-  const breadcrumbs: BreadcrumbItem[] = [
-    {
-      label: 'Knowledge Base',
-      icon: Database,
-      onClick: () => router.push(`/workspace/${workspaceId}/knowledge`),
-    },
-    {
-      label: knowledgeBaseCrumbLabel,
-      icon: Database,
-      editing: kbRename.editingId
-        ? {
-            isEditing: true,
-            value: kbRename.editValue,
-            onChange: kbRename.setEditValue,
-            onSubmit: kbRename.submitRename,
-            onCancel: kbRename.cancelRename,
-            disabled: kbRename.isSaving,
-          }
-        : undefined,
-      dropdownItems: [
-        ...(userPermissions.canEdit || userPermissions.isLoading
-          ? [
-              {
-                label: 'Rename',
-                icon: Pencil,
-                disabled: !userPermissions.canEdit,
-                onClick: () => kbRename.startRename(id, knowledgeBaseName),
-              },
-              {
-                label: 'Tags',
-                icon: TagIcon,
-                disabled: !userPermissions.canEdit,
-                onClick: () => setShowTagsModal(true),
-              },
-              {
-                label: 'Delete',
-                icon: Trash,
-                disabled: !userPermissions.canEdit,
-                onClick: () => setShowDeleteDialog(true),
-              },
-            ]
-          : []),
-      ],
-    },
-  ]
-
-  const headerActions: ResourceAction[] = [
-    ...(userPermissions.canEdit || userPermissions.isLoading
-      ? [
-          {
-            text: 'New connector',
-            icon: Plus,
-            disabled: !userPermissions.canEdit,
-            onSelect: () => setShowAddConnectorModal(true),
-          },
-        ]
-      : []),
-  ]
+  const headerActions: ResourceAction[] = useMemo(
+    () => [
+      ...(userPermissions.canEdit || userPermissions.isLoading
+        ? [
+            {
+              text: 'New connector',
+              icon: Plus,
+              disabled: !userPermissions.canEdit,
+              onSelect: () => setShowAddConnectorModal(true),
+            },
+          ]
+        : []),
+      {
+        text: 'New documents',
+        icon: Plus,
+        onSelect: handleAddDocuments,
+        disabled: userPermissions.canEdit !== true,
+        variant: 'primary',
+      },
+    ],
+    [
+      userPermissions.canEdit,
+      userPermissions.isLoading,
+      setShowAddConnectorModal,
+      handleAddDocuments,
+    ]
+  )
 
   const sortConfig: SortConfig = useMemo(
     () => ({
@@ -1007,6 +1111,7 @@ export function KnowledgeBase({
         {connectors.map((connector) => {
           const def = CONNECTOR_META_REGISTRY[connector.connectorType]
           const ConnectorIcon = def?.icon
+          const syncInFlight = isConnectorSyncingOrPending(connector)
           return (
             <button
               key={connector.id}
@@ -1015,12 +1120,12 @@ export function KnowledgeBase({
               className={cn(chipVariants({ variant: 'filled' }), 'max-w-[180px]')}
             >
               <span className='relative flex size-[14px] flex-shrink-0 items-center justify-center'>
-                {connector.status === 'syncing' ? (
+                {syncInFlight ? (
                   <Loader className='size-[14px]' animate />
                 ) : (
-                  ConnectorIcon && <ConnectorIcon className='size-[14px]' />
+                  ConnectorIcon && <BrandIcon icon={ConnectorIcon} className='size-[14px]' />
                 )}
-                {connector.status !== 'active' && connector.status !== 'syncing' && (
+                {connector.status !== 'active' && !syncInFlight && (
                   <span
                     className={cn(
                       '-right-0.5 -top-0.5 absolute size-1.5 rounded-xs border border-[var(--surface-2)]',
@@ -1073,6 +1178,25 @@ export function KnowledgeBase({
     ],
     [enabledFilter, tagFilterEntries]
   )
+
+  /**
+   * The zero-data graphic is for a base that holds no documents — not a search or a
+   * filter that matched nothing, and not a page past the last one. Counts on the
+   * server's `total` rather than the visible rows, because this list is paginated:
+   * an empty page 2 is a paging position, not an empty base.
+   *
+   * The remaining gates mirror the workspace resource pages — the list must have
+   * arrived, must not be serving the previous query key's rows, and must not have
+   * failed. This list has no folders, so the folder arguments are omitted.
+   */
+  const showEmptyState = isResourceListEmpty({
+    rowCount: pagination.total,
+    isLoading: isLoadingDocuments,
+    isPlaceholderData: isPlaceholderDocuments,
+    error: documentsError,
+    search: debouncedSearchQuery,
+    filterCount: filterTags.length,
+  })
 
   const selectableConfig: SelectableConfig = {
     selectedIds: selectedDocuments,
@@ -1165,15 +1289,11 @@ export function KnowledgeBase({
 
   if (error && !knowledgeBase) {
     return (
-      <div className='flex h-full flex-col items-center justify-center gap-3'>
-        <DatabaseX className='size-[32px] text-[var(--text-muted)]' />
-        <div className='flex flex-col items-center gap-1'>
-          <h2 className='text-[20px] text-[var(--text-secondary)]'>Knowledge base not found</h2>
-          <p className='text-[var(--text-muted)] text-small'>
-            This knowledge base may have been deleted or moved
-          </p>
-        </div>
-      </div>
+      <ResourceNotFound
+        icon={DatabaseX}
+        title='Knowledge base not found'
+        description='This knowledge base may have been deleted or moved'
+      />
     )
   }
 
@@ -1181,19 +1301,10 @@ export function KnowledgeBase({
     <>
       <Resource onContextMenu={handleEmptyContextMenu}>
         <Resource.Header
-          icon={Database}
-          title='Knowledge Base'
+          icon={FOLDERED_RESOURCE_HEADERS.knowledge_base.rootIcon}
+          title={FOLDERED_RESOURCE_HEADERS.knowledge_base.rootLabel}
           breadcrumbs={breadcrumbs}
-          actions={[
-            ...headerActions,
-            {
-              text: 'New documents',
-              icon: Plus,
-              onSelect: handleAddDocuments,
-              disabled: userPermissions.canEdit !== true,
-              variant: 'primary',
-            },
-          ]}
+          actions={headerActions}
         />
         <Resource.Options
           search={{
@@ -1209,6 +1320,14 @@ export function KnowledgeBase({
         <Resource.Table
           columns={DOCUMENT_COLUMNS}
           rows={documentRows}
+          emptyState={
+            showEmptyState ? (
+              <DocumentsEmptyState
+                onAddDocuments={handleAddDocuments}
+                addDisabled={userPermissions.canEdit !== true}
+              />
+            ) : undefined
+          }
           selectable={selectableConfig}
           onRowClick={handleDocumentClick}
           onRowContextMenu={handleDocumentContextMenu}
@@ -1306,15 +1425,15 @@ export function KnowledgeBase({
         srTitle='Delete Documents'
         title='Delete Documents'
         text={[
-          `Are you sure you want to delete ${selectedDocuments.size} document${selectedDocuments.size === 1 ? '' : 's'}? `,
+          `Are you sure you want to delete ${selectedDocumentCount} document${selectedDocumentCount === 1 ? '' : 's'}? `,
           {
-            text: `This will permanently delete the selected document${selectedDocuments.size === 1 ? '' : 's'}.`,
+            text: `This will permanently delete the selected document${selectedDocumentCount === 1 ? '' : 's'}.`,
             error: true,
           },
           ' This action cannot be undone.',
         ]}
         confirm={{
-          label: `Delete ${selectedDocuments.size} Document${selectedDocuments.size === 1 ? '' : 's'}`,
+          label: `Delete ${selectedDocumentCount} Document${selectedDocumentCount === 1 ? '' : 's'}`,
           onClick: confirmBulkDelete,
           pending: isBulkOperating,
           pendingLabel: 'Deleting...',
@@ -1385,11 +1504,12 @@ export function KnowledgeBase({
         onClose={handleContextMenuClose}
         hasDocument={contextMenuDocument !== null}
         isDocumentEnabled={contextMenuDocument?.enabled ?? true}
-        selectedCount={selectedDocuments.size}
+        selectedCount={selectedDocumentCount}
         enabledCount={enabledCount}
         disabledCount={disabledCount}
+        hasExactToggleCount={!isSelectAllMode || enabledFilter !== 'all'}
         onOpenInNewTab={
-          contextMenuDocument && selectedDocuments.size === 1
+          contextMenuDocument && selectedDocumentCount === 1
             ? () => {
                 const urlParams = new URLSearchParams({
                   kbName: knowledgeBaseName,
@@ -1403,14 +1523,14 @@ export function KnowledgeBase({
             : undefined
         }
         onOpenSource={
-          contextMenuDocument?.sourceUrl && selectedDocuments.size === 1
+          contextMenuDocument?.sourceUrl && selectedDocumentCount === 1
             ? () => window.open(contextMenuDocument.sourceUrl!, '_blank', 'noopener,noreferrer')
             : undefined
         }
         onRename={contextMenuDocument ? () => handleRenameDocument(contextMenuDocument) : undefined}
         onToggleEnabled={
           contextMenuDocument
-            ? selectedDocuments.size > 1
+            ? selectedDocumentCount > 1
               ? () => {
                   if (disabledCount > 0) {
                     handleBulkEnable()
@@ -1422,13 +1542,13 @@ export function KnowledgeBase({
             : undefined
         }
         onViewTags={
-          contextMenuDocument && selectedDocuments.size === 1 && userPermissions.canEdit
+          contextMenuDocument && selectedDocumentCount === 1 && userPermissions.canEdit
             ? () => handleViewDocumentTags(contextMenuDocument)
             : undefined
         }
         onDelete={
           contextMenuDocument
-            ? selectedDocuments.size > 1
+            ? selectedDocumentCount > 1
               ? handleBulkDelete
               : () => handleDeleteDocument(contextMenuDocument.id)
             : undefined

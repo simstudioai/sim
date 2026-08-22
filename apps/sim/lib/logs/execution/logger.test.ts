@@ -5,6 +5,7 @@ import {
   queueTableRows,
   resetDbChainMock,
 } from '@sim/testing'
+import { isPlainRecord } from '@sim/utils/object'
 import { afterAll, beforeEach, describe, expect, test, vi } from 'vitest'
 import { recordUsage } from '@/lib/billing/core/usage-log'
 import { ExecutionLogger } from '@/lib/logs/execution/logger'
@@ -286,6 +287,109 @@ describe('ExecutionLogger', () => {
       expect(completionGuard).toBeDefined()
       expect(result.executionData).toEqual(cancelledLog.executionData)
       expect(emitExecutionCompletedEvent).not.toHaveBeenCalled()
+    })
+
+    const EMPTY_STATE = {
+      blockStates: {},
+      executedBlocks: [],
+      blockLogs: [],
+      decisions: { router: {}, condition: {} },
+      completedLoops: [],
+      activeExecutionPath: [],
+    }
+    const RUN_PROVENANCE = { version: 1, complete: true, entries: [] }
+
+    /**
+     * Drives a real completion and returns the `execution_data` actually written.
+     * `redactedState` stands in for the PII pass, which either hands back a
+     * redacted state or none at all.
+     */
+    async function completeAndReadWrite(params: {
+      executionState?: SerializableExecutionState
+      redactedState?: SerializableExecutionState
+    }) {
+      const startedAt = new Date('2026-08-11T00:00:00.000Z')
+      queueTableRows(workflowExecutionLogs, [
+        {
+          id: 'log-1',
+          workflowId: 'workflow-1',
+          workspaceId: 'workspace-1',
+          executionId: 'execution-1',
+          stateSnapshotId: 'snapshot-1',
+          level: 'info',
+          status: 'running',
+          trigger: 'api',
+          startedAt,
+          endedAt: null,
+          totalDurationMs: null,
+          executionData: {},
+          createdAt: startedAt,
+        },
+      ])
+      dbChainMockFns.returning.mockResolvedValueOnce([
+        { id: 'log-1', executionData: {}, startedAt, createdAt: startedAt },
+      ])
+      const internals = logger as unknown as {
+        applyPiiRedaction: (workspaceId: string, payload: Record<string, unknown>) => unknown
+        recordExecutionUsage: () => Promise<number>
+      }
+      vi.spyOn(internals, 'applyPiiRedaction').mockImplementation(
+        async (_workspaceId: string, payload: Record<string, unknown>) =>
+          Object.hasOwn(params, 'redactedState')
+            ? { ...payload, executionState: params.redactedState }
+            : payload
+      )
+      vi.spyOn(internals, 'recordExecutionUsage').mockResolvedValue(0)
+
+      await logger.completeWorkflowExecution({
+        executionId: 'execution-1',
+        endedAt: '2026-08-11T00:00:02.000Z',
+        totalDurationMs: 2000,
+        costSummary: {
+          totalCost: 0,
+          totalInputCost: 0,
+          totalOutputCost: 0,
+          totalTokens: 0,
+          totalPromptTokens: 0,
+          totalCompletionTokens: 0,
+          baseExecutionCharge: 0,
+          models: {},
+        },
+        finalOutput: { completed: true },
+        traceSpans: [],
+        ...(params.executionState ? { executionState: params.executionState } : {}),
+      })
+
+      return dbChainMockFns.set.mock.calls
+        .map(([values]: [{ executionData?: unknown }]) => values?.executionData)
+        .find((data): data is Record<string, unknown> => isPlainRecord(data))
+    }
+
+    /**
+     * The display projection rebuilds its redaction registry from this key.
+     * Compaction drops `executionState`, so the run provenance has to reach the
+     * row independently of it or truncated runs render as an empty trace.
+     */
+    test.each([
+      ['redaction preserves the state', EMPTY_STATE],
+      ['redaction drops the state entirely', undefined],
+    ])('lifts run provenance onto the top-level key when %s', async (_case, redactedState) => {
+      const written = await completeAndReadWrite({
+        executionState: {
+          ...EMPTY_STATE,
+          resolvedSecretTraceProvenance: RUN_PROVENANCE,
+        } as unknown as SerializableExecutionState,
+        redactedState: redactedState as SerializableExecutionState | undefined,
+      })
+
+      expect(written?.resolvedSecretTraceProvenance).toEqual(RUN_PROVENANCE)
+    })
+
+    test('omits the provenance key when the run carried none', async () => {
+      const written = await completeAndReadWrite({})
+
+      expect(written).toBeDefined()
+      expect(written).not.toHaveProperty('resolvedSecretTraceProvenance')
     })
 
     test('preserves correlation and diagnostics when execution completes', () => {
@@ -627,6 +731,84 @@ describe('ExecutionLogger', () => {
       expect(compacted.traceSpans?.[0]?.toolCalls?.[0]).not.toHaveProperty('input')
       expect(compacted.traceSpans?.[0]?.toolCalls?.[0]).not.toHaveProperty('output')
       expect(compacted.traceSpans?.[0]?.toolCalls?.[0]).not.toHaveProperty('error')
+    })
+
+    const PROVENANCE = { version: 1, complete: true, entries: [] } as const
+
+    function buildSpans(spanCount: number, ioBytes: number) {
+      const payload = 'x'.repeat(ioBytes)
+      return Array.from({ length: spanCount }, (_unused, index) => ({
+        id: `span-${index}`,
+        name: `Block ${index}`,
+        type: 'function',
+        duration: 1,
+        startTime: '2025-01-01T00:00:00.000Z',
+        endTime: '2025-01-01T00:00:01.000Z',
+        status: 'success' as const,
+        output: { data: payload },
+      }))
+    }
+
+    function compactWithProvenance(traceSpans: unknown[], finalOutput: unknown) {
+      const loggerInstance = new ExecutionLogger() as unknown as {
+        compactExecutionDataForStorage: (
+          data: Record<string, unknown>,
+          executionId: string
+        ) => Record<string, unknown>
+      }
+      return loggerInstance.compactExecutionDataForStorage(
+        {
+          secretProjectionVersion: SECRET_PROJECTION_VERSION,
+          resolvedSecretTraceProvenance: PROVENANCE,
+          hasTraceSpans: true,
+          traceSpanCount: traceSpans.length,
+          finalOutput,
+          executionState: {
+            blockStates: {},
+            executedBlocks: [],
+            blockLogs: [],
+            decisions: { router: {}, condition: {} },
+            completedLoops: [],
+            activeExecutionPath: [],
+            resolvedSecretTraceProvenance: PROVENANCE,
+          },
+          traceSpans,
+        },
+        'execution-provenance'
+      )
+    }
+
+    test('preserves run provenance through the summarized compaction tier', () => {
+      // One oversized value: summarization alone brings the row under the cap.
+      const compacted = compactWithProvenance(buildSpans(1, 4 * 1024 * 1024), {
+        data: 'x'.repeat(4 * 1024 * 1024),
+      })
+
+      expect(compacted.executionDataTruncated).toBe(true)
+      expect(compacted.executionDataTruncationReason).toContain('were summarized')
+      expect(compacted.executionState).toBeUndefined()
+      expect(compacted.resolvedSecretTraceProvenance).toEqual(PROVENANCE)
+    })
+
+    test('drops run provenance from the metadata-only tier, which stores no spans', () => {
+      // That tier keeps no traceSpans, so provenance there buys nothing and
+      // would put an unbounded value in the last-resort size floor.
+      const compacted = compactWithProvenance(buildSpans(20_000, 8), {})
+
+      expect(compacted.executionDataTruncationReason).toContain('only execution metadata')
+      expect(compacted.traceSpans).toBeUndefined()
+      expect(compacted.resolvedSecretTraceProvenance).toBeUndefined()
+    })
+
+    test('preserves run provenance through the minimal compaction tier', () => {
+      // Many spans whose IO each sits under MAX_TRACE_IO_BYTES survive
+      // summarization, so only the IO-stripping minimal tier fits the cap.
+      const compacted = compactWithProvenance(buildSpans(1200, 4 * 1024), {})
+
+      expect(compacted.executionDataTruncated).toBe(true)
+      expect(compacted.executionDataTruncationReason).toContain('details were omitted')
+      expect(compacted.executionState).toBeUndefined()
+      expect(compacted.resolvedSecretTraceProvenance).toEqual(PROVENANCE)
     })
   })
 

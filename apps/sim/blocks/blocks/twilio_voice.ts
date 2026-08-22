@@ -17,6 +17,31 @@ export const TwilioVoiceBlock: BlockConfig<ToolResponse> = {
   bgColor: '#F22F46', // Twilio brand color
   iconColor: '#F22F46',
   icon: TwilioIcon,
+  canvasPresentation: {
+    defaultTitle: 'Twilio Voice',
+    /* The account SID and auth token are plumbing. The TwiML is the only part
+       of the trigger worth reading, since it is what the caller hears while the
+       workflow runs behind it — and it is optional, so the clause drops until
+       one is written. */
+    triggerSentences: {
+      default: ['Run on an incoming call', { text: ', answering with', field: 'twimlResponse' }],
+    },
+    sentences: {
+      byOperation: {
+        make_call: [
+          { text: 'Call', field: 'to', core: true },
+          { text: 'from', field: 'from' },
+        ],
+        list_calls: [
+          'List calls',
+          { text: 'to', field: 'listTo' },
+          { text: 'from', field: 'listFrom' },
+          { text: 'with status', field: 'listStatus' },
+        ],
+        get_recording: [{ text: 'Fetch recording', field: 'recordingSid', core: true }],
+      },
+    },
+  },
   triggerAllowed: true,
   subBlocks: [
     ...getTrigger('twilio_voice_webhook').subBlocks,
@@ -49,6 +74,7 @@ export const TwilioVoiceBlock: BlockConfig<ToolResponse> = {
     {
       id: 'to',
       title: 'To Phone Number',
+      canvasNoun: 'a phone number',
       type: 'short-input',
       placeholder: '+14155551234',
       condition: {

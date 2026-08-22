@@ -4,7 +4,7 @@ import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { authorizeCredentialUse } from '@/lib/auth/credential-access'
-import { resolveCredentialAccessToken, resolveOAuthAccountId } from '@/app/api/auth/oauth/utils'
+import { resolveCredentialAccessToken, resolveOAuthAccountId } from '@/lib/oauth/credential-service'
 import { extractZohoDeskBaseFromScope } from '@/tools/zoho_desk/host-allowlist'
 import { getZohoDeskApiBase } from '@/tools/zoho_desk/utils'
 

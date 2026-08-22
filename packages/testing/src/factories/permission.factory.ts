@@ -260,6 +260,7 @@ const BLOCK_OPERATIONS = {
   TOGGLE_ENABLED: 'toggle-enabled',
   UPDATE_PARENT: 'update-parent',
   UPDATE_ADVANCED_MODE: 'update-advanced-mode',
+  UPDATE_ERROR_ENABLED: 'update-error-enabled',
   UPDATE_CANONICAL_MODE: 'update-canonical-mode',
   TOGGLE_HANDLES: 'toggle-handles',
 } as const

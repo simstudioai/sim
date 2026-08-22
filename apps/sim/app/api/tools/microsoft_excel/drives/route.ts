@@ -6,7 +6,7 @@ import { authorizeCredentialUse } from '@/lib/auth/credential-access'
 import { validatePathSegment, validateSharePointSiteId } from '@/lib/core/security/input-validation'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
+import { refreshAccessTokenIfNeeded } from '@/lib/oauth/credential-service'
 import { extractGraphError, GRAPH_ID_PATTERN } from '@/tools/microsoft_excel/utils'
 import { assertGraphNextPageUrl, getGraphNextPageUrl } from '@/tools/sharepoint/utils'
 

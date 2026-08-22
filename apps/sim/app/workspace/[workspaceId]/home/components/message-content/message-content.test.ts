@@ -135,7 +135,7 @@ describe('parseBlocks span-identity tree', () => {
       subagentStart('workflow', 'S1', 'main'),
       subagentToolCall('t1', 'create_workflow', 'S1', 'workflow'),
       subagentStart('deploy', 'S2', 'S1'),
-      subagentToolCall('t2', 'check_deployment_status', 'S2', 'deploy'),
+      subagentToolCall('t2', 'get_deployment_status', 'S2', 'deploy'),
     ]
 
     const segments = parseBlocks(blocks)
@@ -185,9 +185,9 @@ describe('parseBlocks span-identity tree', () => {
   it('creates distinct groups for repeated deploy invocations (no collision)', () => {
     const blocks: ContentBlock[] = [
       subagentStart('deploy', 'S2', 'main'),
-      subagentToolCall('t1', 'deploy_api', 'S2', 'deploy'),
+      subagentToolCall('t1', 'deploy_as_api', 'S2', 'deploy'),
       subagentStart('deploy', 'S4', 'main'),
-      subagentToolCall('t2', 'deploy_api', 'S4', 'deploy'),
+      subagentToolCall('t2', 'deploy_as_api', 'S4', 'deploy'),
     ]
 
     const segments = parseBlocks(blocks)
@@ -311,7 +311,7 @@ describe('parseBlocks span-identity tree', () => {
   it('absorbs the dispatch tool of a nested file subagent from its parent span group', () => {
     const blocks: ContentBlock[] = [
       subagentStart('workflow', 'S1', 'main'),
-      subagentToolCall('t1', 'workspace_file', 'S1', 'workflow'),
+      subagentToolCall('t1', 'prepare_file_edit', 'S1', 'workflow'),
       { type: 'subagent', content: 'file', spanId: 'S2', parentSpanId: 'S1', timestamp: 2 },
       { type: 'subagent_text', content: 'writing', spanId: 'S2', timestamp: 3 },
     ]
@@ -321,7 +321,7 @@ describe('parseBlocks span-identity tree', () => {
     const workflow = segments[0]
     if (workflow.type !== 'agent_group') throw new Error('expected workflow group')
 
-    // The workspace_file dispatch tool is absorbed (not shown as a sibling tool);
+    // The prepare_file_edit dispatch tool is absorbed (not shown as a sibling tool);
     // only the nested file subagent remains under workflow.
     expect(workflow.items.some((item) => item.type === 'tool')).toBe(false)
     const nested = workflow.items.find((item) => item.type === 'agent_group')
@@ -476,16 +476,18 @@ describe('completed tool titles', () => {
           type: 'tool_call',
           toolCall: {
             id: 'undeploy-api',
-            name: 'deploy_api',
+            name: 'deploy_as_api',
             status: 'success',
             params: { action: 'undeploy' },
           },
           timestamp: 1,
         },
       ])
-    ).toBe('Undeployed API')
+    ).toBe('Undeployed as API')
 
-    expect(firstToolTitle([mainToolCall('deploy-mcp', 'deploy_mcp')])).toBe('Deployed MCP tool')
+    expect(firstToolTitle([mainToolCall('deploy-mcp', 'deploy_as_mcp')])).toBe(
+      'Deployed as MCP tool'
+    )
   })
 
   it('renders Compared after the full diff_workflows wire lifecycle succeeds', () => {
@@ -581,7 +583,7 @@ describe('completed tool titles', () => {
       )
 
       const presentTitle = getToolDisplayTitle(toolName, args)
-      const expectedTitle = getToolStatusDisplayTitle(presentTitle, 'success')
+      const expectedTitle = getToolStatusDisplayTitle(presentTitle, 'success', toolName)
       const actualTitle = firstToolTitle(modelToContentBlocks(model))
       if (actualTitle !== expectedTitle) {
         failures.push(`${toolName}: expected ${expectedTitle}, received ${actualTitle}`)
@@ -591,9 +593,9 @@ describe('completed tool titles', () => {
     expect(failures).toEqual([])
   })
 
-  it('keeps present tense while executing and on error', () => {
+  it('keeps present tense while executing; failed rows say so', () => {
     expect(firstToolTitle([queryLogsCall('executing')])).toBe('Querying logs')
-    expect(firstToolTitle([queryLogsCall('error')])).toBe('Querying logs')
+    expect(firstToolTitle([queryLogsCall('error')])).toBe('Failed querying logs')
   })
 })
 
@@ -755,7 +757,7 @@ describe('assistantMessageHasVisibleExecutingTool', () => {
     const blocks: ContentBlock[] = [
       {
         type: 'tool_call',
-        toolCall: { id: 'dispatch-1', name: 'workspace_file', status: 'executing' },
+        toolCall: { id: 'dispatch-1', name: 'prepare_file_edit', status: 'executing' },
         timestamp: 1,
       },
       {
@@ -785,7 +787,7 @@ describe('deriveThinkingLabel', () => {
 
   it('shows Dispatching for the dispatch call, then yields to the opened lane', () => {
     expect(deriveThinkingLabel([mainToolCall('t1', 'workflow')])).toBe('Dispatching…')
-    expect(deriveThinkingLabel([mainToolCall('t1', 'workspace_file')])).toBe('Dispatching…')
+    expect(deriveThinkingLabel([mainToolCall('t1', 'prepare_file_edit')])).toBe('Dispatching…')
     expect(deriveThinkingLabel([mainToolCall('t1', 'grep')])).toBe('Thinking…')
     expect(deriveThinkingLabel([subagentStart('workflow', 'S1', 'main')])).toBeNull()
   })

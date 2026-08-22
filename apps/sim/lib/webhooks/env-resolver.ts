@@ -1,3 +1,4 @@
+import { isRecordLike } from '@sim/utils/object'
 import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
 import { resolveEnvVarReferences } from '@/executor/utils/reference-validation'
 
@@ -34,7 +35,7 @@ export async function resolveEnvVarsInObject<T extends Record<string, unknown>>(
  * Normalizes webhook provider config into a plain object for runtime resolution.
  */
 export function normalizeWebhookProviderConfig(providerConfig: unknown): Record<string, unknown> {
-  if (providerConfig && typeof providerConfig === 'object' && !Array.isArray(providerConfig)) {
+  if (isRecordLike(providerConfig)) {
     return providerConfig as Record<string, unknown>
   }
 

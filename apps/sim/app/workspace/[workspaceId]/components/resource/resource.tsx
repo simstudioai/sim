@@ -16,8 +16,11 @@ import {
   Button,
   Checkbox,
   cellIconNodeClass,
+  chipActiveSurfaceClass,
   chipContentGap,
   chipContentLabelClass,
+  chipDropTargetSurfaceClass,
+  chipHoverSurfaceClass,
   cn,
   Loader,
 } from '@sim/emcn'
@@ -25,8 +28,10 @@ import { ChevronLeft, ChevronRight, Pin } from '@sim/emcn/icons'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { InlineRenameInput } from '@/app/workspace/[workspaceId]/components/inline-rename-input'
 import { FloatingOverflowText } from '@/app/workspace/[workspaceId]/components/resource/components/floating-overflow-text'
+import type { BreadcrumbDropConfig } from '@/app/workspace/[workspaceId]/components/resource/components/resource-header'
 import { ResourceHeader } from '@/app/workspace/[workspaceId]/components/resource/components/resource-header'
 import { ResourceOptions } from '@/app/workspace/[workspaceId]/components/resource/components/resource-options'
+import { SearchHighlight } from '@/app/workspace/[workspaceId]/components/search-highlight/search-highlight'
 
 export interface ResourceColumn {
   id: string
@@ -68,6 +73,12 @@ export interface ResourceCell {
    * layout, and the rename field replaces the label entirely while it is open.
    */
   pinned?: boolean
+  /**
+   * Find term to tint inside the label (Cmd/Ctrl+F match). Honoured only on the
+   * plain label cell, like `pinned` — a `content` cell owns its own rendering
+   * and the rename field replaces the label while open.
+   */
+  highlight?: string
 }
 
 export interface ResourceRow {
@@ -83,6 +94,20 @@ export interface SelectableConfig {
   disabled?: boolean
 }
 
+/**
+ * Drop onto the list body, which files into the folder currently open.
+ *
+ * Rows alone are not enough: a drag that spring-opens into an empty folder has nothing to land
+ * on, so without this the gesture dead-ends and the item cannot be moved there at all.
+ */
+export interface BodyDropConfig {
+  /** The drag is over the body and releasing would move something. */
+  isActive: boolean
+  onDragOver: (e: DragEvent<HTMLDivElement>) => void
+  onDragLeave: (e: DragEvent<HTMLDivElement>) => void
+  onDrop: (e: DragEvent<HTMLDivElement>) => void
+}
+
 export interface RowDragDropConfig {
   activeDropTargetId?: string | null
   draggedRowIds?: Set<string>
@@ -94,6 +119,9 @@ export interface RowDragDropConfig {
   onDragLeave?: (e: DragEvent<HTMLDivElement>, rowId: string) => void
   onDrop?: (e: DragEvent<HTMLDivElement>, rowId: string) => void
   onDragEnd?: (e: DragEvent<HTMLDivElement>, rowId: string) => void
+  body?: BodyDropConfig
+  /** Passed to `Resource.Header` so the breadcrumb can receive the same drag. */
+  breadcrumb?: BreadcrumbDropConfig
 }
 
 export interface PaginationConfig {
@@ -204,6 +232,17 @@ interface ResourceTableProps {
    * chrome and positioning; it never alters the table's rendering.
    */
   overlay?: ReactNode
+  /**
+   * Sanctioned empty slot. Rendered below the column headers when `rows` is
+   * empty, filling the otherwise blank scroll area. It never replaces the table
+   * region or the headers — the chrome guarantee holds — so a consumer can show
+   * a zero-data graphic without the list losing its structure.
+   *
+   * The table gives the slot a flex column that fills the remaining scroll area, so
+   * the node decides how to sit in it rather than depending on the scroll container's
+   * own layout.
+   */
+  emptyState?: ReactNode
 }
 
 /**
@@ -242,9 +281,12 @@ const ResourceTable = memo(function ResourceTable({
   isLoadingMore,
   pagination,
   overlay,
+  emptyState,
 }: ResourceTableProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const loadMoreRef = useRef<HTMLDivElement>(null)
+
+  const showEmptyState = rows.length === 0 && Boolean(emptyState)
 
   const [contextMenuRowId, setContextMenuRowId] = useState<string | null>(null)
 
@@ -291,6 +333,7 @@ const ResourceTable = memo(function ResourceTable({
   }, [onLoadMore, hasMore])
 
   const hasCheckbox = selectable != null
+  const bodyDrop = rowDragDrop?.body
 
   const handleSelectAll = useCallback(
     (checked: boolean | 'indeterminate') => {
@@ -334,7 +377,16 @@ const ResourceTable = memo(function ResourceTable({
 
   return (
     <div className='relative flex min-h-0 flex-1 flex-col overflow-hidden'>
-      <div ref={scrollRef} className='min-h-0 flex-1 overflow-auto overscroll-none'>
+      <div
+        ref={scrollRef}
+        className={cn(
+          'min-h-0 flex-1 overflow-auto overscroll-none',
+          showEmptyState && 'flex flex-col'
+        )}
+        onDragOver={bodyDrop?.onDragOver}
+        onDragLeave={bodyDrop?.onDragLeave}
+        onDrop={bodyDrop?.onDrop}
+      >
         <div role='table' className='grid w-full text-small'>
           <div
             role='rowgroup'
@@ -412,6 +464,7 @@ const ResourceTable = memo(function ResourceTable({
                 ))}
           </div>
         </div>
+        {showEmptyState ? <div className='flex min-h-0 flex-1 flex-col'>{emptyState}</div> : null}
         {hasMore && (
           <div ref={loadMoreRef} className='flex items-center justify-center py-3'>
             {isLoadingMore && (
@@ -420,6 +473,20 @@ const ResourceTable = memo(function ResourceTable({
           </div>
         )}
       </div>
+      {bodyDrop?.isActive && (
+        /**
+         * A soft tint over the whole list region, not a line around it. This is the workflow
+         * sidebar's own drop-inside affordance (`bg-[var(--text-subtle)] opacity-10`), and it
+         * is the right weight here: a hairline stretched around the entire pane reads as a
+         * window border rather than a drop target, and being painted at the scrollport edge it
+         * also got its corners shaved by the parent's `overflow-hidden`. A fill has no corners
+         * to clip and no edge to fight the surrounding chrome.
+         */
+        <div
+          aria-hidden
+          className='pointer-events-none absolute inset-0 bg-[var(--text-subtle)] opacity-10'
+        />
+      )}
       {overlay}
       {pagination && pagination.totalPages > 1 && (
         <Pagination
@@ -499,6 +566,7 @@ interface CellContentProps {
   content?: ReactNode
   editing?: ResourceCellEditing
   pinned?: boolean
+  highlight?: string
 }
 
 const CellContent = memo(function CellContent({
@@ -507,6 +575,7 @@ const CellContent = memo(function CellContent({
   content,
   editing,
   pinned,
+  highlight,
 }: CellContentProps) {
   if (editing) {
     return (
@@ -526,7 +595,9 @@ const CellContent = memo(function CellContent({
   return (
     <span className={cn('flex min-w-0 items-center', chipContentGap)}>
       {icon && <span className={cellIconNodeClass}>{icon}</span>}
-      <FloatingOverflowText label={label} className={cn('block', chipContentLabelClass)} />
+      <FloatingOverflowText label={label} className={cn('block', chipContentLabelClass)}>
+        {highlight ? <SearchHighlight text={label} searchQuery={highlight} /> : undefined}
+      </FloatingOverflowText>
       {pinned && (
         <Pin
           className='size-[12px] shrink-0 text-[var(--text-icon)]'
@@ -586,6 +657,8 @@ const DataRow = memo(function DataRow({
   const isDragging = rowDragDrop?.draggedRowIds?.has(row.id) ?? false
   const isAnyDragActive = rowDragDrop?.isAnyDragActive ?? false
   const hasActiveSelection = (selectable?.selectedIds.size ?? 0) > 0
+  /** Hover and active are mutually exclusive, so a selected row holds its surface through hover. */
+  const isRowActive = selectedRowId === row.id || isSelected || isContextMenuTarget
 
   const handleClick = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
@@ -664,16 +737,15 @@ const DataRow = memo(function DataRow({
       className={cn(
         'grid w-full transition-colors',
         isWindowed && 'absolute top-0 left-0',
-        !isAnyDragActive && 'hover-hover:bg-[var(--surface-3)]',
+        !isAnyDragActive && !isRowActive && chipHoverSurfaceClass,
         onRowClick && 'cursor-pointer',
         isDraggable && 'cursor-grab active:cursor-grabbing',
-        isDropTarget && 'data-[drop-target=true]:outline-offset-[-1px]',
-        (selectedRowId === row.id || isSelected || isContextMenuTarget) && 'bg-[var(--surface-3)]',
-        isActiveDropTarget && 'bg-[var(--surface-4)] outline outline-1 outline-[var(--accent)]',
+        isRowActive && chipActiveSurfaceClass,
+        /** See {@link chipDropTargetSurfaceClass} for why this is neutral and drawn inset. */
+        isActiveDropTarget && chipDropTargetSurfaceClass,
         (isDragging || (isAnyDragActive && isSelected && !isActiveDropTarget)) && 'opacity-50'
       )}
       style={rowStyle}
-      data-drop-target={isDropTarget || undefined}
       draggable={isDraggable}
       onClick={onRowClick || selectable ? handleClick : undefined}
       onMouseEnter={handleMouseEnter}
@@ -706,6 +778,7 @@ const DataRow = memo(function DataRow({
               content={cell?.content}
               editing={cell?.editing}
               pinned={cell?.pinned}
+              highlight={cell?.highlight}
             />
           </div>
         )

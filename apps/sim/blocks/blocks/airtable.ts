@@ -5,6 +5,13 @@ import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { AirtableResponse } from '@/tools/airtable/types'
 import { getTrigger } from '@/triggers'
 
+/** Canonical account pair — an advanced-mode card only fills `manualCredential`. */
+const ACCOUNT_FIELD = ['credential', 'manualCredential'] as const
+/** Canonical base pair — the picker in basic mode, the raw base id in advanced. */
+const BASE_FIELD = ['baseSelector', 'baseId'] as const
+/** Canonical table pair — the picker in basic mode, the raw table id in advanced. */
+const TABLE_FIELD = ['tableSelector', 'tableId'] as const
+
 export const AirtableBlock: BlockConfig<AirtableResponse> = {
   type: 'airtable',
   name: 'Airtable',
@@ -17,6 +24,49 @@ export const AirtableBlock: BlockConfig<AirtableResponse> = {
   integrationType: IntegrationType.Databases,
   bgColor: '#FFFFFF',
   icon: AirtableIcon,
+  canvasPresentation: {
+    defaultTitle: 'Airtable',
+    /*
+     * The trigger's own `tableId` shares a canonical group with the action
+     * block's `tableSelector`, which owns the basic slot — so the card resolves
+     * `tableId` only once it holds a value, and the clause cannot be `core`.
+     * Literal copy carries the untouched card instead.
+     */
+    triggerSentences: {
+      default: ['Run on a record change', { text: 'in table', field: 'tableId' }],
+    },
+    sentences: {
+      byOperation: {
+        listBases: [{ text: 'List bases for', field: ACCOUNT_FIELD, core: true }],
+        listTables: [{ text: 'List tables in', field: BASE_FIELD, core: true }],
+        getSchema: [{ text: 'Read field and view schema of', field: BASE_FIELD, core: true }],
+        list: [
+          { text: 'List records from', field: TABLE_FIELD, core: true },
+          { text: ', where', field: 'filterFormula' },
+          { text: ', up to', field: 'maxRecords', after: 'records' },
+        ],
+        get: [
+          { text: 'Fetch record', field: 'recordId', core: true },
+          { text: 'from', field: TABLE_FIELD, core: true },
+        ],
+        create: [{ text: 'Create records in', field: TABLE_FIELD, core: true }],
+        update: [
+          { text: 'Update record', field: 'recordId', core: true },
+          { text: 'in', field: TABLE_FIELD, core: true },
+          { text: ', setting', field: 'fields' },
+        ],
+        updateMultiple: [{ text: 'Update multiple records in', field: TABLE_FIELD, core: true }],
+        upsert: [
+          { text: 'Upsert records into', field: TABLE_FIELD, core: true },
+          { text: ', keyed on', field: 'fieldsToMergeOn' },
+        ],
+        delete: [
+          { text: 'Delete records', field: 'recordIds', core: true },
+          { text: 'from', field: TABLE_FIELD, core: true },
+        ],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',

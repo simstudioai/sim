@@ -17,6 +17,8 @@ export interface GcsMultipartUploadInit {
    * for backwards compatibility.
    */
   purpose?: string
+  /** Additional object metadata fixed when the multipart upload is initiated. */
+  metadata?: Record<string, string>
 }
 
 export interface GcsPartUploadUrl {

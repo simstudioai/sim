@@ -13,6 +13,7 @@ const {
   mockMaybeNotifyStorageLimitForBillingContext,
   mockResolveStorageBillingContext,
   mockGetFileMetadataByKeys,
+  mockEnqueueKnowledgeDocumentProcessing,
 } = vi.hoisted(() => ({
   mockApplyStorageUsageDeltasInTx: vi.fn(),
   mockCheckStorageQuota: vi.fn(),
@@ -22,6 +23,7 @@ const {
   mockMaybeNotifyStorageLimitForBillingContext: vi.fn(),
   mockResolveStorageBillingContext: vi.fn(),
   mockGetFileMetadataByKeys: vi.fn(),
+  mockEnqueueKnowledgeDocumentProcessing: vi.fn(),
 }))
 
 vi.mock('@/lib/billing/storage', () => ({
@@ -37,6 +39,10 @@ vi.mock('@/lib/billing/storage', () => ({
 vi.mock('@/lib/uploads/server/metadata', () => ({
   deleteFileMetadata: vi.fn(),
   getFileMetadataByKeys: mockGetFileMetadataByKeys,
+}))
+
+vi.mock('@/lib/knowledge/documents/processing-outbox-event', () => ({
+  enqueueKnowledgeDocumentProcessing: mockEnqueueKnowledgeDocumentProcessing,
 }))
 
 import {
@@ -70,6 +76,7 @@ describe('knowledge document storage attribution', () => {
     mockApplyStorageUsageDeltasInTx.mockResolvedValue(undefined)
     mockMaybeNotifyStorageLimitForBillingContext.mockResolvedValue(undefined)
     mockGetFileMetadataByKeys.mockResolvedValue([])
+    mockEnqueueKnowledgeDocumentProcessing.mockResolvedValue('outbox-1')
   })
 
   it.each(['external-collaborator', 'personal-api-key-user'])(
@@ -137,6 +144,25 @@ describe('knowledge document storage attribution', () => {
     expect(mockMaybeNotifyStorageLimitForBillingContext).toHaveBeenCalledWith(STORAGE_CONTEXT, 5)
   })
 
+  it('returns the pending processing state persisted for a new document', async () => {
+    const created = await createSingleDocument(
+      {
+        filename: 'note.txt',
+        fileUrl: 'data:text/plain;base64,SGVsbG8=',
+        fileSize: 5,
+        mimeType: 'text/plain',
+      },
+      'knowledge-base-1',
+      'request-1',
+      'external-collaborator'
+    )
+
+    expect(created.processingStatus).toBe('pending')
+    expect(dbChainMockFns.values).toHaveBeenCalledWith(
+      expect.objectContaining({ processingStatus: 'pending' })
+    )
+  })
+
   it('resolves admission before opening the document transaction', async () => {
     let transactionOpen = false
     mockResolveStorageBillingContext.mockImplementationOnce(async () => {
@@ -165,6 +191,87 @@ describe('knowledge document storage attribution', () => {
       'request-1',
       'external-collaborator'
     )
+  })
+
+  it('enqueues processing inside the document storage transaction', async () => {
+    const billingAttribution = {
+      actorUserId: 'external-collaborator',
+      workspaceId: 'workspace-1',
+      organizationId: null,
+      billedAccountUserId: 'workspace-owner',
+      billingEntity: { type: 'user' as const, id: 'workspace-owner' },
+      billingPeriod: {
+        start: '2026-08-01T00:00:00.000Z',
+        end: '2026-09-01T00:00:00.000Z',
+      },
+      payerSubscription: null,
+    }
+
+    await createSingleDocument(
+      {
+        filename: 'note.txt',
+        fileUrl: 'data:text/plain;base64,SGVsbG8=',
+        fileSize: 5,
+        mimeType: 'text/plain',
+      },
+      'knowledge-base-1',
+      'request-1',
+      'external-collaborator',
+      'document-1',
+      undefined,
+      {
+        expectedWorkspaceId: 'workspace-1',
+        processing: { processingOptions: { lang: 'en' }, billingAttribution },
+      }
+    )
+
+    expect(mockEnqueueKnowledgeDocumentProcessing).toHaveBeenCalledWith(dbChainMock.db, {
+      knowledgeBaseId: 'knowledge-base-1',
+      documentId: 'document-1',
+      processingOptions: { lang: 'en' },
+      billingAttribution,
+    })
+  })
+
+  it('rolls back document creation when durable processing enqueue fails', async () => {
+    const failure = new Error('outbox unavailable')
+    mockEnqueueKnowledgeDocumentProcessing.mockRejectedValueOnce(failure)
+
+    await expect(
+      createSingleDocument(
+        {
+          filename: 'note.txt',
+          fileUrl: 'data:text/plain;base64,SGVsbG8=',
+          fileSize: 5,
+          mimeType: 'text/plain',
+        },
+        'knowledge-base-1',
+        'request-1',
+        'external-collaborator',
+        'document-1',
+        undefined,
+        {
+          expectedWorkspaceId: 'workspace-1',
+          processing: {
+            processingOptions: {},
+            billingAttribution: {
+              actorUserId: 'external-collaborator',
+              workspaceId: 'workspace-1',
+              organizationId: null,
+              billedAccountUserId: 'workspace-owner',
+              billingEntity: { type: 'user', id: 'workspace-owner' },
+              billingPeriod: {
+                start: '2026-08-01T00:00:00.000Z',
+                end: '2026-09-01T00:00:00.000Z',
+              },
+              payerSubscription: null,
+            },
+          },
+        }
+      )
+    ).rejects.toBe(failure)
+
+    expect(mockMaybeNotifyStorageLimitForBillingContext).not.toHaveBeenCalled()
   })
 
   it.each(['kb', 'knowledge-base'])(

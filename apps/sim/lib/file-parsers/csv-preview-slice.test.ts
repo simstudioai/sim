@@ -100,4 +100,32 @@ describe('getCsvPreviewSlice', () => {
     expect(slice.truncated).toBe(true)
     expect(destroySpy).toHaveBeenCalled()
   })
+
+  it('destroys a source acquired after the request was already aborted', async () => {
+    const source = streamOf('a,b\n1,2\n')
+    const destroySpy = vi.spyOn(source, 'destroy')
+    const controller = new AbortController()
+    controller.abort()
+    mockDownloadFileStream.mockResolvedValue(source)
+
+    await expect(getCsvPreviewSlice({ ...args, signal: controller.signal })).rejects.toMatchObject({
+      name: 'AbortError',
+    })
+    expect(destroySpy).toHaveBeenCalled()
+  })
+
+  it('destroys an active source when the request is aborted', async () => {
+    const read = vi.fn()
+    const source = new Readable({ read })
+    const destroySpy = vi.spyOn(source, 'destroy')
+    const controller = new AbortController()
+    mockDownloadFileStream.mockResolvedValue(source)
+
+    const preview = getCsvPreviewSlice({ ...args, signal: controller.signal })
+    await vi.waitFor(() => expect(read).toHaveBeenCalled())
+    controller.abort()
+
+    await expect(preview).rejects.toMatchObject({ name: 'AbortError' })
+    expect(destroySpy).toHaveBeenCalled()
+  })
 })

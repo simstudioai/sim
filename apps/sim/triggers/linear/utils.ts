@@ -147,6 +147,7 @@ export function buildLinearV2SubBlocks(options: {
     blocks.push({
       id: 'selectedTriggerId',
       title: 'Trigger Type',
+      canvasNoun: 'an event',
       type: 'dropdown',
       mode: 'trigger',
       options: linearV2TriggerOptions,

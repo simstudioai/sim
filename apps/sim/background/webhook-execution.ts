@@ -23,7 +23,11 @@ import {
   getTimeoutErrorMessage,
   RESERVATION_TTL_BUFFER_MS,
 } from '@/lib/core/execution-limits'
-import { IdempotencyService, webhookIdempotency } from '@/lib/core/idempotency'
+import {
+  IdempotencyService,
+  WEBHOOK_IN_PROGRESS_LEASE_SECONDS,
+  webhookIdempotency,
+} from '@/lib/core/idempotency'
 import {
   type EnvironmentResolutionSnapshot,
   getEffectiveEnvironmentSnapshot,
@@ -31,6 +35,7 @@ import {
 import { preprocessExecution } from '@/lib/execution/preprocessing'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
+import { resolveOAuthAccountId } from '@/lib/oauth/credential-service'
 import {
   type WebhookAttachment,
   WebhookAttachmentProcessor,
@@ -49,7 +54,6 @@ import {
   loadDeployedWorkflowState,
   loadWorkflowDeploymentVersionState,
 } from '@/lib/workflows/persistence/utils'
-import { resolveOAuthAccountId } from '@/app/api/auth/oauth/utils'
 import { WEBHOOK_EXECUTION_CONCURRENCY_LIMIT } from '@/background/concurrency-limits'
 import { getBlock } from '@/blocks'
 import { ExecutionSnapshot } from '@/executor/execution/snapshot'
@@ -269,6 +273,10 @@ export type WebhookExecutionPayload = {
   provider: string
   body: unknown
   headers: Record<string, string>
+  /** Request URL query parameters; absent when the request had none or on legacy queued jobs. */
+  query?: Record<string, string>
+  /** HTTP method the delivery arrived with; absent on legacy queued jobs. */
+  method?: string
   path: string
   blockId?: string
   /** Immutable deployment admitted by webhook ingress; absent on legacy queued jobs. */
@@ -360,9 +368,12 @@ export async function executeWebhookJob(
           idempotencyKey,
           runOperation,
           undefined,
-          executionDeadlineAt === undefined
-            ? undefined
-            : { inProgressExpiresAt: executionDeadlineAt + RESERVATION_TTL_BUFFER_MS }
+          {
+            inProgressExpiresAt:
+              executionDeadlineAt === undefined
+                ? Date.now() + WEBHOOK_IN_PROGRESS_LEASE_SECONDS * 1000
+                : executionDeadlineAt + RESERVATION_TTL_BUFFER_MS,
+          }
         )
         if (!operationStarted) {
           await releaseExecutionSlot(executionId)
@@ -598,6 +609,7 @@ async function executeWebhookJobInternal(
               personalDecrypted: secretEnvironment.personalDecrypted,
               workspaceDecrypted: secretEnvironment.workspaceDecrypted,
               decryptionFailures: secretEnvironment.decryptionFailures,
+              personalOwners: secretEnvironment.personalOwners,
               scope: secretScope,
             })
           } catch (error) {
@@ -621,6 +633,8 @@ async function executeWebhookJobInternal(
         workflow: { id: payload.workflowId, userId: payload.userId },
         body: payload.body,
         headers: payload.headers,
+        query: payload.query ?? {},
+        method: payload.method ?? '',
         requestId,
       })
       input = result.input as Record<string, unknown> | null

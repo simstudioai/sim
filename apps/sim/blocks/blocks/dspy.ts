@@ -13,6 +13,26 @@ export const DSPyBlock: BlockConfig = {
   integrationType: IntegrationType.AI,
   bgColor: '#FFFFFF',
   icon: DsPyIcon,
+  canvasPresentation: {
+    defaultTitle: 'DSPy',
+    sentences: {
+      byOperation: {
+        predict: [
+          { text: 'Predict from', field: 'input', core: true },
+          { text: ', at', field: 'endpoint' },
+        ],
+        chain_of_thought: [
+          { text: 'Reason step by step through', field: 'question', core: true },
+          { text: ', at', field: 'endpoint' },
+        ],
+        react: [
+          { text: 'Run a ReAct agent on', field: 'task', core: true },
+          { text: ', for up to', field: 'maxIterations', after: 'iterations' },
+          { text: ', at', field: 'endpoint' },
+        ],
+      },
+    },
+  },
 
   subBlocks: [
     {

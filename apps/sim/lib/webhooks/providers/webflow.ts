@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { validateAlphanumericId } from '@/lib/core/security/input-validation'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import { getOAuthToken, refreshAccessTokenIfNeeded } from '@/lib/oauth/credential-service'
 import { getCredentialOwner, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
 import type {
   DeleteSubscriptionContext,
@@ -11,7 +12,6 @@ import type {
   SubscriptionResult,
   WebhookProviderHandler,
 } from '@/lib/webhooks/providers/types'
-import { getOAuthToken, refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 
 const logger = createLogger('WebhookProvider:Webflow')
 

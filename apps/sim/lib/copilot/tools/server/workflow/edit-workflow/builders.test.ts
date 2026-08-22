@@ -3,11 +3,14 @@
  */
 import { describe, expect, it, vi } from 'vitest'
 import {
+  applyBlockRetry,
   applyTriggerConfigToBlockSubblocks,
   createBlockFromParams,
   filterDisallowedTools,
   normalizeSubblockValue,
+  resolveBlockRetryUpdate,
 } from '@/lib/copilot/tools/server/workflow/edit-workflow/builders'
+import type { SkippedItem } from '@/lib/copilot/tools/server/workflow/edit-workflow/types'
 
 const { mockIsIntegrationDeploymentAvailable } = vi.hoisted(() => ({
   mockIsIntegrationDeploymentAvailable: vi.fn(() => true),
@@ -50,7 +53,27 @@ const slackBlockConfig = {
   subBlocks: [{ id: 'channel', type: 'channel-selector' }],
 }
 
+const apiBlockConfig = {
+  type: 'api',
+  name: 'API',
+  outputs: {},
+  subBlocks: [
+    {
+      id: 'redirectPolicyVersion',
+      type: 'short-input',
+      hidden: true,
+      defaultValue: 'standard-v1',
+    },
+    {
+      id: 'sendCredentialsOnCrossOriginRedirect',
+      type: 'switch',
+      defaultValue: true,
+    },
+  ],
+}
+
 const blocksByType: Record<string, unknown> = {
+  api: apiBlockConfig,
   agent: agentBlockConfig,
   condition: conditionBlockConfig,
   knowledge: knowledgeBlockConfig,
@@ -59,6 +82,7 @@ const blocksByType: Record<string, unknown> = {
 
 vi.mock('@/blocks/registry', () => ({
   getAllBlocks: () => [
+    apiBlockConfig,
     agentBlockConfig,
     conditionBlockConfig,
     knowledgeBlockConfig,
@@ -139,6 +163,17 @@ describe('createBlockFromParams', () => {
     const filters = JSON.parse(block.subBlocks.tagFilters.value)
     expect(filters[0].tagName).toBe('Department')
     expect(filters[0].id).toEqual(expect.any(String))
+  })
+
+  it('seeds hidden compatibility defaults on programmatically created blocks', () => {
+    const block = createBlockFromParams('api-1', {
+      type: 'api',
+      name: 'API',
+      triggerMode: false,
+    })
+
+    expect(block.subBlocks.redirectPolicyVersion.value).toBe('standard-v1')
+    expect(block.subBlocks.sendCredentialsOnCrossOriginRedirect.value).toBeNull()
   })
 })
 
@@ -243,5 +278,81 @@ describe('applyTriggerConfigToBlockSubblocks', () => {
       type: 'channel-selector',
       value: 'C-new',
     })
+  })
+})
+
+describe('block retry policy', () => {
+  it('defaults the numbers when only enabling', () => {
+    expect(resolveBlockRetryUpdate({ enabled: true }, undefined)).toEqual({
+      enabled: true,
+      maxTries: 3,
+      waitBetweenTriesMs: 1000,
+    })
+  })
+
+  it('treats numbers alone as an intent to retry', () => {
+    expect(resolveBlockRetryUpdate({ maxTries: 4 }, undefined)).toMatchObject({
+      enabled: true,
+      maxTries: 4,
+    })
+  })
+
+  it('keeps configured numbers when retry is switched off', () => {
+    const existing = { enabled: true, maxTries: 5, waitBetweenTriesMs: 250 }
+    expect(resolveBlockRetryUpdate({ enabled: false }, existing)).toEqual({
+      enabled: false,
+      maxTries: 5,
+      waitBetweenTriesMs: 250,
+    })
+  })
+
+  it('clamps out-of-range values instead of rejecting them', () => {
+    expect(resolveBlockRetryUpdate({ enabled: true, maxTries: 99 }, undefined).maxTries).toBe(5)
+    expect(resolveBlockRetryUpdate({ enabled: true, maxTries: 1 }, undefined).maxTries).toBe(2)
+    expect(
+      resolveBlockRetryUpdate({ enabled: true, waitBetweenTriesMs: 999999 }, undefined)
+        .waitBetweenTriesMs
+    ).toBe(5000)
+  })
+
+  it('applies a policy to an eligible block', () => {
+    const block: Record<string, unknown> = { type: 'agent' }
+    applyBlockRetry(
+      block,
+      { enabled: true, maxTries: 4 },
+      {
+        operationType: 'edit',
+        blockId: 'b1',
+      }
+    )
+    expect(block.retry).toMatchObject({ enabled: true, maxTries: 4 })
+  })
+
+  it('reports why an ineligible block cannot retry instead of storing dead config', () => {
+    const skippedItems: SkippedItem[] = []
+    const block: Record<string, unknown> = { type: 'agent', triggerMode: true }
+
+    applyBlockRetry(
+      block,
+      { enabled: true },
+      {
+        operationType: 'edit',
+        blockId: 'b1',
+        skippedItems,
+      }
+    )
+
+    expect(block.retry).toBeUndefined()
+    expect(skippedItems).toHaveLength(1)
+    expect(skippedItems[0]).toMatchObject({ type: 'retry_not_supported', blockId: 'b1' })
+  })
+
+  it('clears the policy when null is sent', () => {
+    const block: Record<string, unknown> = {
+      type: 'agent',
+      retry: { enabled: true, maxTries: 3, waitBetweenTriesMs: 1000 },
+    }
+    applyBlockRetry(block, null, { operationType: 'edit', blockId: 'b1' })
+    expect(block.retry).toBeUndefined()
   })
 })

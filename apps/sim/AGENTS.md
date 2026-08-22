@@ -11,6 +11,16 @@ These rules apply to files under `apps/sim/` in addition to the repository root 
 3. **Type Safety First**: TypeScript interfaces for all props, state, return types
 4. **Predictable State**: Zustand for global state, useState for UI-only concerns
 
+### Application Operation Boundary
+
+- Every protected read, write, canonical resource lookup, or authorization-sensitive reference resolution enters through an authorized application use case.
+- Define one stable semantic operation with its role, workspace-key policy, principal kinds, and delegated services. Internal, v2, Copilot, and trusted-tool adapters call the same use case when domain behavior is the same.
+- Surface adapters authenticate and build a `Principal`, rate-limit, parse, map, and present. They do not query protected data, authorize resources, implement business transactions, or record semantic audit.
+- Application use cases canonicalize scope, authorize current access, execute managers/repositories, project semantic audit, and trigger shared domain effects. Application code stays surface-neutral and never imports `app/api/**`, `next/server`, route contracts/presenters, or Copilot handlers.
+- Copilot uses `createCopilotApplicationAdapter`; it does not own separate protected business logic. Compound protected mutations require a top-level semantic application operation.
+- Never substitute billing attribution, an uploader, creator, or API-key owner for the acting principal. Fail fast when the identity or policy cannot be represented.
+- Use the `migrate-application-operation` skill for new and migrated protected endpoints, tool commands, and resource methods.
+
 ### Root-Level Structure
 
 ```
@@ -130,44 +140,49 @@ output: z.unknown(),
 
 ## API Route Pattern
 
-Routes never `import { z } from 'zod'` and never define route-local boundary schemas. They consume the contract from `@/lib/api/contracts/**` and validate with canonical helpers from `@/lib/api/server`:
+Every route method must run inside `withRouteHandler`. Ordinary internal and v2 JSON/binary routes use `defineInternalJsonRoute`, `defineV2JsonRoute`, or the matching binary/stream builder. These builders already apply `withRouteHandler`; never wrap them again. Use raw `withRouteHandler` only for explicit protocol or lifecycle exceptions such as streaming, multipart control, large-body admission, OAuth, or public execution.
+
+Routes never `import { z } from 'zod'` and never define route-local boundary schemas. Declarative builders consume contracts and own authentication, admission, parsing, use-case execution, response validation, and error projection. A raw special route consumes the same contracts and validates with canonical helpers from `@/lib/api/server`, after authentication and cheap admission:
 
 - `parseRequest(contract, request, context, options?)` — fully contract-bound routes; parses params, query, body, and headers in one call. Pass `{}` for `context` on routes without route params, or the route's `context` argument when route params exist. Returns a discriminated union; check `parsed.success` and return `parsed.response` on failure.
 - `validationErrorResponse(error)` and `getValidationErrorMessage(error, fallback)` — produce 400 responses from a `ZodError`.
 - `validationErrorResponseFromError(error)` — when handling unknown caught errors that may or may not be a `ZodError`.
 - `isZodError(error)` — type guard. Routes never use `instanceof z.ZodError`.
 
-### Fully contract-bound route (`parseRequest`)
+### Ordinary authorized JSON route
 
 ```typescript
-import { createLogger } from '@sim/logger'
-import type { NextRequest } from 'next/server'
-import { NextResponse } from 'next/server'
-import { createFolderContract } from '@/lib/api/contracts/folders'
-import { parseRequest } from '@/lib/api/server'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-
-const logger = createLogger('FoldersAPI')
-
-export const POST = withRouteHandler(async (request: NextRequest) => {
-  const parsed = await parseRequest(createFolderContract, request, {})
-  if (!parsed.success) return parsed.response
-  const { body } = parsed.data
-  logger.info('Creating folder', { workspaceId: body.workspaceId })
-  return NextResponse.json({ ok: true })
+export const PATCH = defineInternalJsonRoute({
+  contract: renameWidgetContract,
+  auth: internalSessionAuth,
+  operation: widgetOperations.rename,
+  rateLimit: internalRateLimits.none({ reason: 'Preserve existing internal behavior' }),
+  errorPolicy: internalWidgetErrorPolicy,
+  mapInput: ({ params, body }) => ({
+    widgetId: params.widgetId,
+    assertedWorkspaceId: params.workspaceId,
+    name: body.name,
+  }),
+  useCase: renameWidget,
+  present: ({ widget }) => ({ success: true, widget }),
 })
 ```
 
+The contract, operation, and use case must agree at definition time. Authentication and request-rate admission happen before parsing; canonical loading and authorization happen in the application use case. The presenter returns only the surface success body.
+
 Routes under `apps/sim/app/api/v1/**` use the shared middleware in `apps/sim/app/api/v1/middleware.ts` for auth, rate-limit, and workspace access. Compose contract validation inside that middleware — never reimplement auth/rate-limit per-route.
+
+Never export a bare `async function GET/POST/...`. Export the result of a shared builder or, for a documented special route, `withRouteHandler(...)`.
 
 ### Adding a new boundary feature end-to-end
 
 When adding a new route + client surface, follow this order. Each step has one place it lives.
 
 1. **Author the contract first** in `apps/sim/lib/api/contracts/<domain>.ts` (or a subdirectory for large domains: `knowledge/`, `selectors/`, `tools/`). Define one schema per request slice (`params`, `query`, `body`, `headers`) and one for the response, then wrap with `defineRouteContract`. Export named type aliases (`z.input` for inputs, `z.output` for outputs).
-2. **Implement the route** in `apps/sim/app/api/<path>/route.ts`. Auth always runs **before** `parseRequest` — never validate untrusted input before authenticating the caller. The route returns exactly the shape declared in `contract.response.schema`.
-3. **Add the React Query hook** in `apps/sim/hooks/queries/<domain>.ts`. Use `requestJson(contract, input)` for the call. Build a hierarchical query-key factory (`all` → `lists()` → `list(workspaceId)` → `details()` → `detail(id)`) so invalidations can target prefixes.
-4. **Use the hook in the component**. The mutation's `data` and `error` are fully typed from the contract; surface `error.message` (already extracted from the response body's `error` or `message` field by `requestJson`).
+2. **Define the semantic operation and application use case** under `apps/sim/lib/<domain>/application/`. The use case owns canonical loading, asserted-scope checks, current authorization, business behavior, semantic audit, and shared domain effects.
+3. **Implement the route adapter** in `apps/sim/app/api/<path>/route.ts` with the appropriate shared builder. Declare auth, operation, rate policy, error policy, input mapping, use case, and presenter. Auth always runs **before** parsing. Use raw `withRouteHandler` only for an explicit special route, and keep protected work in application use cases.
+4. **Add the React Query hook** in `apps/sim/hooks/queries/<domain>.ts`. Use `requestJson(contract, input)` for the call. Build a hierarchical query-key factory (`all` → `lists()` → `list(workspaceId)` → `details()` → `detail(id)`) so invalidations can target prefixes.
+5. **Use the hook in the component**. The mutation's `data` and `error` are fully typed from the contract; surface `error.message` (already extracted from the response body's `error` or `message` field by `requestJson`).
 
 ### Schema review checklist (read the contract diff like a DB migration)
 
@@ -229,3 +244,12 @@ export function useEntityList(workspaceId?: string) {
 - **Check existing sources** before duplicating (`lib/` has many utilities)
 - **Location**: `lib/` (app-wide) → `feature/utils/` (feature-scoped) → inline (single-use)
 
+<!-- BEGIN:nextjs-agent-rules -->
+
+# This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->

@@ -1,0 +1,609 @@
+---
+title: CB Insights
+description: Research private markets — firmographics, funding, and predictive scores
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="cbinsights"
+  color="#FFFFFF"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[CB Insights](https://www.cbinsights.com/) is a private-market intelligence platform. Its API v2 exposes both the underlying firmographic and transaction record — companies, investors, funding rounds, cap tables, exits, business relationships, leadership — and the proprietary models CB Insights layers on top of it: the Mosaic Score, Commercial Maturity, and Exit Probability.
+
+**Why CB Insights?**
+- **Predictive, not just descriptive:** Mosaic Score, Commercial Maturity, and Exit Probability are scored models with published methodologies, and each returns the signals behind it rather than a bare number.
+- **Peer-relative by default:** Exit probabilities come with the mean for comparable companies and a ratio to it, so a score can be read against its cohort instead of in isolation.
+- **Depth on terms:** Cap table history carries issuance and conversion prices, liquidation preference, participation rights, and anti-dilution provisions — detail that rarely survives into aggregated datasets.
+- **Free identity resolution:** The organization lookup never charges credits, so your own records can be matched to CB Insights IDs before you spend anything.
+
+**Using CB Insights in Sim**
+
+This integration covers every non-streaming v2 endpoint. Authentication is a client-credential exchange — Sim trades your client ID and secret for a short-lived bearer token on your behalf and refreshes it automatically, so there is no token to manage in the workflow.
+
+**Key benefits of using CB Insights in Sim:**
+- **Credit-aware enrichment:** Resolve companies with the free **Look Up Organizations** operation first, confirm the match, then spend credits only on the records you actually want.
+- **Bulk over per-record:** The `List` operations cover up to 100 organizations in a single call — use them instead of looping the single-organization equivalents when refreshing a table.
+- **Score history, not just a snapshot:** Mosaic, Commercial Maturity, and Exit Probability each have a history operation, so a trend can be read rather than a point value.
+- **Relationship mapping:** **Get Strategy Map** returns the companies connected to an organization grouped by category, with the partnerships, investments, and acquisitions that link them.
+- **AI on tap:** **Get Scouting Report** writes a full company analysis, **Ask ChatCBI** answers questions with sources, and **Retrieve Context** returns the raw structured records for your own model to reason over.
+
+**Before you start**
+
+Client credentials come from your CB Insights Customer Success Manager rather than a self-serve settings page. **Most operations consume credits, and which datasets answer at all depends on your license** — Firmographics, Financial Transactions, Business Relationships, Management and Board, Outlook, and Scouting Reports are separately licensed. An operation outside your entitlement returns an error from CB Insights rather than partial data.
+
+Two behaviors are worth knowing before you build against them. A **pending or rumored funding round zeroes the exit probabilities** rather than omitting them, so a `0` alongside a set `incompleteRoundType` means "suppressed", not "unlikely". And on every multi-organization operation, **an organization with no data is omitted from the response** rather than returned empty — treat a missing ID as "no data", not as a failure.
+
+The two streaming endpoints (`chatcbichunked` and `scoutingreportstream`) are intentionally not exposed; they deliver incremental JSON chunks, and the non-streaming operations here return the same content in one piece. Note that a Scouting Report can take several minutes to generate.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrates the CB Insights API v2 into the workflow. Resolve companies to CB Insights IDs for free, search firmographics across markets and geographies, pull funding rounds, cap tables, investments, and exits, map business relationships, read leadership and board history, and retrieve the proprietary Mosaic Score, Commercial Maturity, and Exit Probability outlooks. Generate AI Scouting Reports, or ask ChatCBI directly. Which datasets answer depends on your CB Insights license.
+
+
+
+## Actions
+
+### CB Insights Look Up Organizations
+
+Resolve company names or websites to CB Insights organization IDs. This endpoint never charges credits, so use it to match your own records before spending credits on the data endpoints.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | CB Insights API client ID, exchanged for a bearer token before each call |
+| `clientSecret` | string | Yes | CB Insights API client secret, exchanged for a bearer token before each call |
+| `names` | json | No | Organization names to look up, e.g. \["CB Insights"\] |
+| `urls` | json | No | Organization websites to look up, e.g. \["cbinsights.com"\] |
+| `profileUrl` | string | No | A CB Insights profile URL to resolve. Mutually exclusive with names and urls — the API rejects a request that sets both. |
+| `limit` | number | No | Rows to return in a single response, 1-100 |
+| `nextPageToken` | string | No | Continuation token from a previous response; omit for the first page |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `orgs` | json | Matched organizations as \[\{orgId, name, description, aliases, urls\}\] |
+| `nextPageToken` | string | Token for the next page, or null when there are no more results |
+| `totalHits` | number | Total number of matching records |
+| `totalHitsRelation` | string | Whether totalHits is exact \('eq'\) or a floor \('gte', used above 10,000\) |
+
+### CB Insights Search Firmographics
+
+Search profiles of private companies, public companies, and investors by market, industry, geography, headcount, funding, and valuation. Each field is ANDed together; values within a field are ORed.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | CB Insights API client ID, exchanged for a bearer token before each call |
+| `clientSecret` | string | Yes | CB Insights API client secret, exchanged for a bearer token before each call |
+| `keyword` | string | No | Search term matched against organization names, descriptions, and aliases |
+| `orgIds` | json | No | CB Insights organization IDs to return, e.g. \[129410, 129411\] |
+| `orgNames` | json | No | Organization names to match exactly, e.g. \["CB Insights"\] |
+| `urls` | json | No | Organization websites to match, e.g. \["cbinsights.com"\] |
+| `tickers` | json | No | Stock tickers to match, each optionally suffixed with an exchange code after a colon |
+| `marketIds` | json | No | CB Insights market IDs to match, e.g. \[6, 95, 106\] |
+| `marketNames` | json | No | CB Insights market names to match. Partial matches count — "AI" returns every market whose name contains it. |
+| `industryIds` | json | No | CB Insights industry IDs to match \(mid level of the taxonomy\) |
+| `sectorIds` | json | No | CB Insights sector IDs to match \(top level of the taxonomy\) |
+| `subindustryIds` | json | No | CB Insights sub-industry IDs to match \(lowest level of the taxonomy\) |
+| `businessModelIds` | json | No | CB Insights business model IDs to match |
+| `technologyIds` | json | No | CB Insights technology landscape IDs to match |
+| `collectionIds` | json | No | Expert Collection IDs to search within |
+| `countryIds` | json | No | CB Insights country IDs to match |
+| `stateProvinceIds` | json | No | CB Insights state or province IDs to match |
+| `cityIds` | json | No | CB Insights city IDs to match |
+| `continentIds` | json | No | CB Insights continent IDs to match |
+| `regionIds` | json | No | CB Insights region IDs to match |
+| `orgStatusIds` | json | No | CB Insights organization status IDs to match \(active, acquired, dead, IPO, merged\) |
+| `investorOrgIds` | json | No | Return organizations these investor organization IDs have invested in |
+| `investorTypeIds` | json | No | Return investor organizations of these investor types |
+| `fundingInvestorTypeIds` | json | No | Return organizations funded by these investor types |
+| `lastFundingRoundIds` | json | No | CB Insights funding round IDs of the most recent round |
+| `lastFundingRoundCategoryIds` | json | No | CB Insights funding round category IDs of the most recent round |
+| `minCurrentHeadcount` | number | No | Minimum current headcount |
+| `maxCurrentHeadcount` | number | No | Maximum current headcount |
+| `minTotalFundingInMillions` | number | No | Minimum total funding raised, in millions of US dollars |
+| `maxTotalFundingInMillions` | number | No | Maximum total funding raised, in millions of US dollars |
+| `minValuationInMillions` | number | No | Minimum valuation, in millions of US dollars |
+| `maxValuationInMillions` | number | No | Maximum valuation, in millions of US dollars |
+| `minLastFundingDate` | string | No | Earliest date of the most recent funding round, as YYYY-MM-DD |
+| `maxLastFundingDate` | string | No | Latest date of the most recent funding round, as YYYY-MM-DD |
+| `vcBacked` | boolean | No | Restrict to organizations that have received venture funding |
+| `sortField` | string | No | Sort field: orgName, orgId, lastUpdateTime, lastFundingDate, latestValuation, mosaicOverall, mosaicManagement, mosaicMarket, mosaicMomentum, mosaicMoney, headcountCurrent, headcount6MonthGrowth, headcount12MonthGrowth, or headcount24MonthGrowth |
+| `sortDirection` | string | No | Sort direction, "asc" or "desc" |
+| `limit` | number | No | Rows to return in a single response, 1-100 |
+| `nextPageToken` | string | No | Continuation token from a previous response; omit for the first page |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `orgs` | json | Matching profiles as \[\{orgId, summary, taxonomy, financials, headcount, identifiers, businessModels, competitors, expertCollections, parentOrgs, childOrgs\}\] |
+| `nextPageToken` | string | Token for the next page, or null when there are no more results |
+| `totalHits` | number | Total number of matching records |
+| `totalHitsRelation` | string | Whether totalHits is exact \('eq'\) or a floor \('gte', used above 10,000\) |
+
+### CB Insights Get Organization Fundings
+
+Retrieve the funding rounds one organization has received, its cap table history, and AI-generated insights extracting the key themes of each deal.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | CB Insights API client ID, exchanged for a bearer token before each call |
+| `clientSecret` | string | Yes | CB Insights API client secret, exchanged for a bearer token before each call |
+| `orgId` | number | Yes | CB Insights organization ID. Resolve a name or website to one with Look Up Organizations, which never charges credits. |
+| `limit` | number | No | Rows to return in a single response, 1-100 |
+| `nextPageToken` | string | No | Continuation token from a previous response; omit for the first page |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `fundings` | json | Rounds as \[\{dealId, date, round, roundCategory, amountInMillions, valuationInMillions, investors, insights, sources\}\] |
+| `capTableHistory` | json | Ownership structure as \[\{dealId, roundType, issuancePrice, conversionPrice, percentageOwned, sharesAuthorized, terms\}\] |
+| `nextPageToken` | string | Token for the next page, or null when there are no more results |
+| `totalHits` | number | Total number of matching records |
+| `totalHitsRelation` | string | Whether totalHits is exact \('eq'\) or a floor \('gte', used above 10,000\) |
+
+### CB Insights Get Organization Investments
+
+Retrieve the rounds in which one organization invested in another, with AI-generated insights extracting the key themes of each deal.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | CB Insights API client ID, exchanged for a bearer token before each call |
+| `clientSecret` | string | Yes | CB Insights API client secret, exchanged for a bearer token before each call |
+| `orgId` | number | Yes | CB Insights organization ID. Resolve a name or website to one with Look Up Organizations, which never charges credits. |
+| `limit` | number | No | Rows to return in a single response, 1-100 |
+| `nextPageToken` | string | No | Continuation token from a previous response; omit for the first page |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `investments` | json | Rounds as \[\{dealId, date, round, roundCategory, amountInMillions, valuationInMillions, recipient, investors, insights, sources\}\] |
+| `nextPageToken` | string | Token for the next page, or null when there are no more results |
+| `totalHits` | number | Total number of matching records |
+| `totalHitsRelation` | string | Whether totalHits is exact \('eq'\) or a floor \('gte', used above 10,000\) |
+
+### CB Insights Get Organization Portfolio Exits
+
+Retrieve exit rounds for companies this organization invested in before the exit, with AI-generated insights on each deal.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | CB Insights API client ID, exchanged for a bearer token before each call |
+| `clientSecret` | string | Yes | CB Insights API client secret, exchanged for a bearer token before each call |
+| `orgId` | number | Yes | CB Insights organization ID. Resolve a name or website to one with Look Up Organizations, which never charges credits. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `portfolioExits` | json | Exits as \[\{dealId, date, round, roundCategory, amountInMillions, valuationInMillions, recipient, investors, insights, sources\}\] |
+
+### CB Insights Get Organization Business Relationships
+
+Retrieve one organization's partnerships, client/vendor relationships, and licensing activity, with AI-generated insights on each.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | CB Insights API client ID, exchanged for a bearer token before each call |
+| `clientSecret` | string | Yes | CB Insights API client secret, exchanged for a bearer token before each call |
+| `orgId` | number | Yes | CB Insights organization ID. Resolve a name or website to one with Look Up Organizations, which never charges credits. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `businessRelationships` | json | Relationships as \[\{relationshipId, startDate, partners, insights, newsSnippet, sources, lastUpdateTime\}\] |
+
+### CB Insights Get Organization Management and Board
+
+Retrieve an organization's leadership team and board members with their education, work history, and board seats, plus the Management factor of its Mosaic Score.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | CB Insights API client ID, exchanged for a bearer token before each call |
+| `clientSecret` | string | Yes | CB Insights API client secret, exchanged for a bearer token before each call |
+| `orgId` | number | Yes | CB Insights organization ID. Resolve a name or website to one with Look Up Organizations, which never charges credits. |
+| `titleIds` | json | No | CB Insights person title IDs to filter the people returned, e.g. \[50, 75\] |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `people` | json | People as \[\{personId, givenName, middleName, surname, email, linkedInUrl, education, workExperience, boardAssociations\}\] |
+| `mosaicManagement` | number | Management factor of the Mosaic Score, measuring the pedigree and track record of the leadership team |
+
+### CB Insights Get Organization Outlook
+
+Retrieve an organization's current Mosaic Score, Commercial Maturity level, and two-year IPO and M&A exit probabilities, with the signals driving each.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | CB Insights API client ID, exchanged for a bearer token before each call |
+| `clientSecret` | string | Yes | CB Insights API client secret, exchanged for a bearer token before each call |
+| `orgId` | number | Yes | CB Insights organization ID. Resolve a name or website to one with Look Up Organizations, which never charges credits. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `mosaicScore` | json | Mosaic Score on a 0-1000 scale: \{overall, management, market, momentum, money\}, each with scoreValue, asOfDate, and scoreInsights |
+| `commercialMaturity` | json | Commercial Maturity on a 1-5 scale: \{maturityLevel: \{level, stage, stageDescription, asOfDate\}, commercialMaturitySignals\}. Available only for a subset of companies. |
+| `exitProbability` | json | Two-year exit probability: \{ipo, mna, exitSignals, incompleteRoundType\}. A pending round zeroes the probabilities rather than omitting them. |
+
+### CB Insights Get Organization Funding Window
+
+Retrieve the estimated window in which an organization is likely to raise its next round, with the cohort it was compared against.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | CB Insights API client ID, exchanged for a bearer token before each call |
+| `clientSecret` | string | Yes | CB Insights API client secret, exchanged for a bearer token before each call |
+| `orgId` | number | Yes | CB Insights organization ID. Resolve a name or website to one with Look Up Organizations, which never charges credits. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `windowStart` | string | Estimated start of the next funding window, as YYYY-MM-DD |
+| `windowEnd` | string | Estimated end of the next funding window, as YYYY-MM-DD |
+| `cohortNextRoundRate` | number | Share of the cohort that historically raised another round, as a decimal between 0 and 1 |
+| `cohortCriteria` | json | How the comparison cohort was defined: \{cohortGeo, cohortRoundCategory, cohortLandscapes\} |
+| `latestFunding` | json | The latest equity-backed round: \{date, dealId\} |
+
+### CB Insights Get Organization Revenue
+
+Retrieve reported and estimated revenue by calendar year for one organization, with the sources behind each figure.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | CB Insights API client ID, exchanged for a bearer token before each call |
+| `clientSecret` | string | Yes | CB Insights API client secret, exchanged for a bearer token before each call |
+| `orgId` | number | Yes | CB Insights organization ID. Resolve a name or website to one with Look Up Organizations, which never charges credits. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `orgId` | number | CB Insights organization ID |
+| `orgName` | string | The organization's name |
+| `orgUrl` | string | The organization's website |
+| `revenue` | json | Revenue by year as \[\{calendarYear, lowestValue, averageValue, highestValue, isActual, reportedMetric, yoyGrowthPercent, sources\}\] |
+
+### CB Insights Get Mosaic History
+
+Retrieve an organization's historical Mosaic Scores — overall plus the management, market, momentum, and money factors — so a trend can be read rather than a single snapshot.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | CB Insights API client ID, exchanged for a bearer token before each call |
+| `clientSecret` | string | Yes | CB Insights API client secret, exchanged for a bearer token before each call |
+| `orgId` | number | Yes | CB Insights organization ID. Resolve a name or website to one with Look Up Organizations, which never charges credits. |
+| `startDate` | string | No | Earliest date to return, as YYYY-MM-DD. Must be on or after 2024-01-01 and within the last 24 months. Defaults to the later of one year ago and 2024-01-01. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `overall` | json | Overall Mosaic Score over time as \[\{asOfDate, scoreValue\}\] |
+| `management` | json | Management factor over time as \[\{asOfDate, scoreValue\}\] |
+| `market` | json | Market factor over time as \[\{asOfDate, scoreValue\}\] |
+| `momentum` | json | Momentum factor over time as \[\{asOfDate, scoreValue\}\] |
+| `money` | json | Money factor over time as \[\{asOfDate, scoreValue\}\] |
+
+### CB Insights Get Commercial Maturity History
+
+Retrieve an organization's historical Commercial Maturity levels, tracking how its ability to compete for customers or serve as a partner has moved over time.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | CB Insights API client ID, exchanged for a bearer token before each call |
+| `clientSecret` | string | Yes | CB Insights API client secret, exchanged for a bearer token before each call |
+| `orgId` | number | Yes | CB Insights organization ID. Resolve a name or website to one with Look Up Organizations, which never charges credits. |
+| `startDate` | string | No | Earliest date to return, as YYYY-MM-DD. Must be on or after 2024-07-25 and within 24 months of endDate. Defaults to the later of one year ago and 2024-07-25. |
+| `endDate` | string | No | Latest date to return, as YYYY-MM-DD. Must be on or after 2024-07-25 and within 24 months of startDate. Defaults to today. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `commercialMaturityHistory` | json | Maturity levels over time as \[\{asOfDate, level, stage, stageDescription\}\], where level runs 1-5 |
+
+### CB Insights Get Exit Probability History
+
+Retrieve an organization's historical two-year IPO and M&A exit probabilities, each alongside the mean for comparable companies.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | CB Insights API client ID, exchanged for a bearer token before each call |
+| `clientSecret` | string | Yes | CB Insights API client secret, exchanged for a bearer token before each call |
+| `orgId` | number | Yes | CB Insights organization ID. Resolve a name or website to one with Look Up Organizations, which never charges credits. |
+| `startDate` | string | No | Earliest date to return, as YYYY-MM-DD. Must be on or after 2025-02-25 and within 24 months of endDate. Defaults to the later of one year ago and 2025-02-25. |
+| `endDate` | string | No | Latest date to return, as YYYY-MM-DD. Must be on or after 2025-02-25 and within 24 months of startDate. Defaults to today. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ipo` | json | IPO probability over time as \[\{asOfDate, exitProbability, meanProbability, ratioToMean\}\] |
+| `mna` | json | M&A probability over time as \[\{asOfDate, exitProbability, meanProbability, ratioToMean\}\] |
+| `incompleteRoundType` | string | An in-progress round, if any. A pending round zeroes every probability; a rumored round zeroes only the matching exit type. |
+
+### CB Insights Get Strategy Map
+
+Retrieve the companies related to an organization, grouped into industry categories, with the relationships, investments, and acquisitions that connect them.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | CB Insights API client ID, exchanged for a bearer token before each call |
+| `clientSecret` | string | Yes | CB Insights API client secret, exchanged for a bearer token before each call |
+| `orgId` | number | Yes | CB Insights organization ID. Resolve a name or website to one with Look Up Organizations, which never charges credits. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `orgName` | string | The organization's name |
+| `logoUrl` | string | URL of the organization's logo |
+| `categories` | json | Industry categories as \[\{name, companies: \[\{orgId, name, logoUrl, connections: \{businessRelationships, investments, acquisitions\}\}\]\}\] |
+
+### CB Insights Get Scouting Report
+
+Generate an AI-written Scouting Report on a private company covering its business model, market position, strengths, and opportunities. Only active companies are eligible, and generation can take several minutes.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | CB Insights API client ID, exchanged for a bearer token before each call |
+| `clientSecret` | string | Yes | CB Insights API client secret, exchanged for a bearer token before each call |
+| `orgId` | number | Yes | CB Insights organization ID of an active company. Resolve a name or website to one with Look Up Organizations, which never charges credits. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `orgInfo` | json | Firmographics and proprietary scores for the company: \{id, name, url, description, foundedYear, headcount, address, stage, totalFunding, lastFundingDate, overallMosaicScore, commercialMaturity\} |
+| `reportMarkdown` | string | The Scouting Report as Markdown, including citations |
+| `reportJson` | string | The Scouting Report as a JSON string. Citation links are not included in this form — use reportMarkdown when they matter. |
+
+### CB Insights List Fundings
+
+Retrieve funding rounds and cap table history for up to 100 organizations at once, with AI-generated insights extracting the key themes of each deal.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | CB Insights API client ID, exchanged for a bearer token before each call |
+| `clientSecret` | string | Yes | CB Insights API client secret, exchanged for a bearer token before each call |
+| `orgIds` | json | Yes | CB Insights organization IDs, 1-100 per request, e.g. \[129410, 1034157\] |
+| `limit` | number | No | Rows to return in a single response, 1-100 |
+| `nextPageToken` | string | No | Continuation token from a previous response; omit for the first page |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `orgs` | json | Organizations as \[\{orgId, fundings, capTableHistory\}\]. An organization with no data is omitted from the response. |
+| `nextPageToken` | string | Token for the next page, or null when there are no more results |
+| `totalHits` | number | Total number of matching records |
+| `totalHitsRelation` | string | Whether totalHits is exact \('eq'\) or a floor \('gte', used above 10,000\) |
+
+### CB Insights List Investments
+
+Retrieve the rounds up to 100 organizations participated in as investors, with AI-generated insights extracting the key themes of each deal.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | CB Insights API client ID, exchanged for a bearer token before each call |
+| `clientSecret` | string | Yes | CB Insights API client secret, exchanged for a bearer token before each call |
+| `orgIds` | json | Yes | CB Insights organization IDs, 1-100 per request, e.g. \[129410, 1034157\] |
+| `limit` | number | No | Rows to return in a single response, 1-100 |
+| `nextPageToken` | string | No | Continuation token from a previous response; omit for the first page |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `orgs` | json | Organizations as \[\{orgId, investments\}\]. An organization with no data is omitted from the response. |
+| `nextPageToken` | string | Token for the next page, or null when there are no more results |
+| `totalHits` | number | Total number of matching records |
+| `totalHitsRelation` | string | Whether totalHits is exact \('eq'\) or a floor \('gte', used above 10,000\) |
+
+### CB Insights List Portfolio Exits
+
+Retrieve exit rounds for companies up to 100 organizations invested in before the exit, with AI-generated insights on each deal.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | CB Insights API client ID, exchanged for a bearer token before each call |
+| `clientSecret` | string | Yes | CB Insights API client secret, exchanged for a bearer token before each call |
+| `orgIds` | json | Yes | CB Insights organization IDs, 1-100 per request, e.g. \[129410, 1034157\] |
+| `limit` | number | No | Rows to return in a single response, 1-100 |
+| `nextPageToken` | string | No | Continuation token from a previous response; omit for the first page |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `orgs` | json | Organizations as \[\{orgId, portfolioExits\}\]. An organization with no data is omitted from the response. |
+| `nextPageToken` | string | Token for the next page, or null when there are no more results |
+| `totalHits` | number | Total number of matching records |
+| `totalHitsRelation` | string | Whether totalHits is exact \('eq'\) or a floor \('gte', used above 10,000\) |
+
+### CB Insights List Business Relationships
+
+Retrieve partnerships, client/vendor relationships, and licensing activity for up to 100 organizations at once, with AI-generated insights on each.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | CB Insights API client ID, exchanged for a bearer token before each call |
+| `clientSecret` | string | Yes | CB Insights API client secret, exchanged for a bearer token before each call |
+| `orgIds` | json | Yes | CB Insights organization IDs, 1-100 per request, e.g. \[129410, 1034157\] |
+| `nextPageToken` | string | No | Continuation token from a previous response; omit for the first page |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `orgs` | json | Organizations as \[\{orgId, businessRelationships\}\] |
+| `nextPageToken` | string | Token for the next page, or null when there are no more results |
+
+### CB Insights List Management and Board
+
+Retrieve leadership teams, board members, and the Management factor of the Mosaic Score for up to 100 organizations at once.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | CB Insights API client ID, exchanged for a bearer token before each call |
+| `clientSecret` | string | Yes | CB Insights API client secret, exchanged for a bearer token before each call |
+| `orgIds` | json | Yes | CB Insights organization IDs, 1-100 per request, e.g. \[129410, 1034157\] |
+| `titleIds` | json | No | CB Insights person title IDs to filter the people returned, e.g. \[50, 75\] |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `orgs` | json | Organizations as \[\{orgId, managementAndBoard: \{mosaicManagement, people\}\}\]. An organization with no data is omitted from the response. |
+
+### CB Insights List Outlook
+
+Retrieve Mosaic Score, Commercial Maturity, and Exit Probability for up to 100 organizations at once.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | CB Insights API client ID, exchanged for a bearer token before each call |
+| `clientSecret` | string | Yes | CB Insights API client secret, exchanged for a bearer token before each call |
+| `orgIds` | json | Yes | CB Insights organization IDs, 1-100 per request, e.g. \[129410, 1034157\] |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `orgs` | json | Organizations as \[\{orgId, mosaicScore, commercialMaturity, exitProbability\}\]. An organization with no data is omitted from the response. |
+
+### CB Insights List Funding Windows
+
+Retrieve the estimated next-round funding window for up to 100 organizations at once, with the cohort each was compared against.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | CB Insights API client ID, exchanged for a bearer token before each call |
+| `clientSecret` | string | Yes | CB Insights API client secret, exchanged for a bearer token before each call |
+| `orgIds` | json | Yes | CB Insights organization IDs, 1-100 per request, e.g. \[129410, 1034157\] |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `orgs` | json | Organizations as \[\{orgId, windowStart, windowEnd, cohortNextRoundRate, cohortCriteria, latestFunding\}\]. An organization with no data is omitted from the response. |
+
+### CB Insights List Revenue
+
+Retrieve reported and estimated revenue by calendar year for up to 100 organizations at once.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | CB Insights API client ID, exchanged for a bearer token before each call |
+| `clientSecret` | string | Yes | CB Insights API client secret, exchanged for a bearer token before each call |
+| `orgIds` | json | Yes | CB Insights organization IDs, 1-100 per request, e.g. \[129410, 1034157\] |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `orgs` | json | Organizations as \[\{orgId, orgName, orgUrl, revenue\}\]. An organization with no data is omitted from the response. |
+
+### CB Insights Chat
+
+Ask ChatCBI a question in natural language and get an answer grounded in CB Insights data, with its sources and suggested follow-ups. Uses generative AI and can be wrong — verify anything that matters.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | CB Insights API client ID, exchanged for a bearer token before each call |
+| `clientSecret` | string | Yes | CB Insights API client secret, exchanged for a bearer token before each call |
+| `message` | string | Yes | The question to ask, e.g. "Which emerging technology markets are seeing the highest equity funding growth right now?" |
+| `chatId` | string | No | Conversation ID returned by a previous call. Pass it to continue that conversation rather than starting a new one. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `chatId` | string | Conversation ID. Pass it back as chatId to continue this conversation. |
+| `title` | string | Title CB Insights gave the conversation |
+| `message` | string | ChatCBI's answer, as Markdown |
+| `sources` | json | Sources behind the answer as \[\{sourceIndex, result: \{title, url, date, thumbnailUrl\}\}\] |
+| `relatedContent` | json | Related references as \[\{title, url, date, thumbnailUrl\}\] |
+| `suggestions` | json | Suggested follow-up questions |
+
+### CB Insights Retrieve Context
+
+Retrieve the raw structured CB Insights data relevant to a question, for feeding your own model rather than reading a written answer. Uses generative AI and can be wrong — verify anything that matters.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | CB Insights API client ID, exchanged for a bearer token before each call |
+| `clientSecret` | string | Yes | CB Insights API client secret, exchanged for a bearer token before each call |
+| `message` | string | Yes | The question to retrieve context for. Must be under 10,000 characters. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `data` | string | Retrieved records as a JSON string, keyed by source \(companySearch, dealSearch, markets, scoutingReports, businessRelationships, revenue, investments, and others\) |
+| `guidance` | json | Notes describing what each returned data source contains |
+
+

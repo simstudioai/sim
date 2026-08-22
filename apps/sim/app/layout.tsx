@@ -12,13 +12,14 @@ import {
   isReactGrabEnabled,
   isReactScanEnabled,
 } from '@/lib/core/config/env-flags'
+import { ConsentProvider } from '@/app/_shell/consent/consent-provider'
 import { DesktopUpdateGate } from '@/app/_shell/desktop-update-gate'
 import { HydrationErrorHandler } from '@/app/_shell/hydration-error-handler'
 import { QueryProvider } from '@/app/_shell/providers/query-provider'
 import { SessionProvider } from '@/app/_shell/providers/session-provider'
 import { ThemeProvider } from '@/app/_shell/providers/theme-provider'
 import { TooltipProvider } from '@/app/_shell/providers/tooltip-provider'
-import { PublicEnvScript } from '@/app/_shell/public-env-script'
+import { PublicEnvScript, publicEnvHtmlAttributes } from '@/app/_shell/public-env-script'
 import { season } from '@/app/_styles/fonts/season/season'
 
 export const viewport: Viewport = {
@@ -39,7 +40,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   const themeCSS = generateThemeCSS()
 
   return (
-    <html lang='en' suppressHydrationWarning>
+    <html lang='en' suppressHydrationWarning {...publicEnvHtmlAttributes()}>
       <head>
         {isReactScanEnabled && (
           <Script
@@ -75,7 +76,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 // The macOS desktop shell overlays native traffic lights on the
                 // workspace. Mark it before first paint so the sidebar reserves
                 // its inset title-bar lane without a post-hydration layout shift.
-                var collapsedSidebarWidth = 51;
+                var collapsedSidebarWidth = 48;
                 try {
                   if (window.simDesktop && /Mac/i.test(navigator.userAgent)) {
                     document.documentElement.setAttribute('data-sim-desktop-title-bar', 'inset');
@@ -282,6 +283,8 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
                 <SessionProvider>
                   <TooltipProvider>
                     <BrandedLayout>{children}</BrandedLayout>
+                    {/* Cookie consent — hosted only */}
+                    {isHosted && <ConsentProvider />}
                   </TooltipProvider>
                 </SessionProvider>
               </QueryProvider>

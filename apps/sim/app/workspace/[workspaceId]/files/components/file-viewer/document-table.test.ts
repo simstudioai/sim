@@ -115,6 +115,28 @@ describe('document-table chrome is shared with markdown tables', () => {
     expect(getComputedStyle(preview.root).getPropertyValue('overflow-wrap')).toBe(wrap)
   })
 
+  it('the preview table sizes to its content while the prose table fits the frame', () => {
+    const prose = mountTable('rich-markdown-prose')
+    const preview = mountTable('document-table')
+
+    const proseTable = prose.root.querySelector('table')
+    const previewTable = preview.root.querySelector('table')
+    if (!proseTable || !previewTable) throw new Error('tables not found')
+
+    expect(getComputedStyle(proseTable).getPropertyValue('width')).toBe('100%')
+    expect(getComputedStyle(previewTable).getPropertyValue('width')).toBe('max-content')
+    expect(getComputedStyle(previewTable).getPropertyValue('min-width')).toBe('100%')
+  })
+
+  it('a preview column is bounded so no value collapses or monopolises the row', () => {
+    const { th, td } = mountTable('document-table')
+
+    for (const cell of [th, td]) {
+      expect(getComputedStyle(cell).getPropertyValue('min-width')).toBe('80px')
+      expect(getComputedStyle(cell).getPropertyValue('max-width')).toBe('320px')
+    }
+  })
+
   it('the resolved values are the markdown editor values, not jsdom defaults', () => {
     const { th, td } = mountTable('document-table')
 

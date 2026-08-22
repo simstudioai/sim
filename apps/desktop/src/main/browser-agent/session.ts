@@ -35,8 +35,10 @@ import {
   Menu,
   nativeTheme,
   shell,
+  systemPreferences,
   WebContentsView,
 } from 'electron'
+import { isDispatchingAgentInput } from '@/main/browser-agent/cdp'
 import {
   attachAgentContextMenu,
   BASE_ZOOM_FACTOR,
@@ -61,9 +63,15 @@ import {
   isBlockedSubresourceUrl,
   subresourceNeedsResolution,
 } from '@/main/browser-agent/url-guard'
+import { browserUserAgent } from '@/main/browser-agent/user-agent'
 import type { BrowserSessionSnapshot } from '@/main/desktop-chat-session-store'
 import { suggestedFilename, uniqueDownloadPath } from '@/main/downloads'
-import { type FocusedResourceShortcut, zoomActionForShortcut } from '@/main/resource-shortcuts'
+import {
+  type FocusedResourceShortcut,
+  isResourceTabSelectionShortcut,
+  resourceTabTargetIndex,
+  zoomActionForShortcut,
+} from '@/main/resource-shortcuts'
 
 const logger = createLogger('BrowserAgentSession')
 
@@ -170,6 +178,8 @@ interface BrowserScopeState {
   tabs: AgentTab[]
   recentlyClosedTabUrls: string[]
   activeTabId: string | null
+  automationTabId: string | null
+  visibleTabUserSelected: boolean
   nextTabId: number
   /** True until anything beyond scope activation inspects or materializes this state. */
   activationOnly: boolean
@@ -179,6 +189,7 @@ interface BrowserScopeState {
   focusedBrowserTabId: string | null
   focusedBrowserClearTimer: ReturnType<typeof setTimeout> | null
   automationActive: boolean
+  automationNeedsAttention: boolean
   /**
    * Tab a find is currently running on. Tracked because the find outlives the
    * call that started it — Chromium keeps the highlights until it is told to
@@ -195,6 +206,8 @@ function createBrowserScopeState(): BrowserScopeState {
     tabs: [],
     recentlyClosedTabUrls: [],
     activeTabId: null,
+    automationTabId: null,
+    visibleTabUserSelected: false,
     nextTabId: 1,
     activationOnly: true,
     restored: false,
@@ -203,6 +216,7 @@ function createBrowserScopeState(): BrowserScopeState {
     focusedBrowserTabId: null,
     focusedBrowserClearTimer: null,
     automationActive: false,
+    automationNeedsAttention: false,
     findingTabId: null,
     findingRequestId: null,
   }
@@ -542,6 +556,7 @@ function isActivationOnlyBrowserScope(scopeId: string): boolean {
     state.tabs.length === 0 &&
     state.recentlyClosedTabUrls.length === 0 &&
     state.activeTabId === null &&
+    state.automationTabId === null &&
     state.nextTabId === 1 &&
     !state.restored &&
     !state.restoring
@@ -797,15 +812,81 @@ export async function importAgentCookies(
 }
 
 /**
+ * The single site permission a browsing surface cannot withhold: the one every
+ * "Copy" button on the web goes through. Blanket-denying it made
+ * `navigator.clipboard.writeText` reject with `NotAllowedError`, so those
+ * buttons did nothing at all — no error, no copied text — while the legacy
+ * `document.execCommand('copy')` path kept working, which is why only some
+ * sites looked broken.
+ *
+ * Granting it hands the page no reach it lacked: Chromium still requires the
+ * document to be focused and to hold a transient user activation, and a
+ * sanitized write only places text the page already renders onto the clipboard.
+ * Reading stays denied — that is the direction that would leak whatever the
+ * user last copied from anywhere else.
+ */
+const ALLOWED_SITE_PERMISSIONS = new Set(['clipboard-sanitized-write'])
+
+/**
+ * Grants a getUserMedia request only when macOS has actually authorized the
+ * devices it names. Granting site permission without the OS grant makes the
+ * page fail with a misleading NotReadableError instead of a permission prompt,
+ * and macOS kills the process outright when the bundle lacks usage strings —
+ * so the OS is asked FIRST, which surfaces the system prompt on first use.
+ */
+async function ensureOsMediaAccess(mediaTypes: readonly string[] | undefined): Promise<boolean> {
+  if (process.platform !== 'darwin') return true
+  const wanted = mediaTypes && mediaTypes.length > 0 ? mediaTypes : ['audio', 'video']
+  for (const type of wanted) {
+    const device = type === 'video' ? 'camera' : 'microphone'
+    if (systemPreferences.getMediaAccessStatus(device) === 'granted') continue
+    const granted = await systemPreferences.askForMediaAccess(device).catch(() => false)
+    if (!granted) return false
+  }
+  return true
+}
+
+/**
  * Default-deny hardening for the agent partition. Site permissions remain
- * denied, while uploads use Chromium's native file chooser and downloads are
- * saved into the device-level browser download directory.
+ * denied apart from ALLOWED_SITE_PERMISSIONS and camera/microphone — the agent
+ * browser has to join a Google Meet or a Zoom web client like a real browser,
+ * and those are dead without getUserMedia. The OS grant still gates every
+ * media request, so the user's System Settings choice is the real authority.
+ * Uploads use Chromium's native file chooser and downloads are saved into the
+ * device-level browser download directory.
  */
 function configureAgentPartition(ses: Session): void {
   if (configuredPartitions.has(ses)) return
   configuredPartitions.add(ses)
-  ses.setPermissionRequestHandler((_wc, _permission, callback) => callback(false))
-  ses.setPermissionCheckHandler(() => false)
+  ses.setPermissionRequestHandler((_wc, permission, callback, details) => {
+    if (permission === 'media') {
+      const mediaTypes = (details as { mediaTypes?: readonly string[] })?.mediaTypes
+      void ensureOsMediaAccess(mediaTypes).then(callback)
+      return
+    }
+    callback(ALLOWED_SITE_PERMISSIONS.has(permission))
+  })
+  ses.setPermissionCheckHandler((_wc, permission, _origin, details) => {
+    if (permission === 'media') {
+      if (process.platform !== 'darwin') return true
+      const mediaType = (details as { mediaType?: string })?.mediaType
+      if (mediaType === 'video')
+        return systemPreferences.getMediaAccessStatus('camera') === 'granted'
+      if (mediaType === 'audio') {
+        return systemPreferences.getMediaAccessStatus('microphone') === 'granted'
+      }
+      return (
+        systemPreferences.getMediaAccessStatus('microphone') === 'granted' ||
+        systemPreferences.getMediaAccessStatus('camera') === 'granted'
+      )
+    }
+    return ALLOWED_SITE_PERMISSIONS.has(permission)
+  })
+  // Service workers do not inherit a tab's user agent. With only the tab's set,
+  // the document request carries the browser string while the worker's own
+  // script request still announces Electron — and on a site that routes its
+  // fetches through a worker, that is the one the server sees.
+  ses.setUserAgent(browserUserAgent())
   // SSRF choke point for the agent partition. Document navigations (top-level +
   // iframes) get the full DNS-resolving check — the one seam every navigation
   // passes through, including page-initiated ones the driver never sees (server
@@ -1048,10 +1129,10 @@ export function stopFindInActiveTab(focusPage: boolean): void {
  * inside the browser resource rather than spawn a native window, and both are
  * reached from an untrusted page, so the scheme is checked here once.
  */
-function openTabWithUrl(url: string): void {
+function openTabWithUrl(url: string, agentOwned: boolean): void {
   if (!/^https?:\/\//i.test(url)) return
   try {
-    const tab = addTab()
+    const tab = agentOwned ? addAutomationTab() : addTab()
     void tab.view.webContents.loadURL(url).catch(() => {})
   } catch (error) {
     logger.warn('Could not open a link in a new browser tab', {
@@ -1088,9 +1169,13 @@ function createTabView(): WebContentsView {
   const contents = view.webContents
   registerAgentWebContents(contents)
   configureAgentPartition(contents.session)
+  // The session default does not reach a WebContents that already exists, and
+  // the first tab is what brings the session into being, so each tab sets its
+  // own as well — otherwise tab one browses as Electron and the rest as Chrome.
+  contents.setUserAgent(browserUserAgent())
   attachAgentContextMenu(contents, {
     addToChat: (text) => withBrowserScope(scopeId, () => addPageSelectionToChat(contents, text)),
-    openTab: (url) => withBrowserScope(scopeId, () => openTabWithUrl(url)),
+    openTab: (url) => withBrowserScope(scopeId, () => openTabWithUrl(url, false)),
     defaultZoomFactor: getBrowserDefaultZoomFactor,
   })
 
@@ -1103,6 +1188,19 @@ function createTabView(): WebContentsView {
       }
       const tab = tabs.find((entry) => entry.view.webContents === contents)
       currentScope.focusedBrowserTabId = tab?.id ?? currentScope.activeTabId
+    })
+  )
+  contents.on(
+    'before-mouse-event',
+    bindToBrowserScope(scopeId, (_event, mouse) => {
+      if (
+        isDispatchingAgentInput(contents) ||
+        !['mouseDown', 'contextMenu', 'mouseWheel'].includes(mouse.type)
+      ) {
+        return
+      }
+      const tab = tabs.find((entry) => entry.view.webContents === contents)
+      if (tab?.id === currentScope.activeTabId) currentScope.visibleTabUserSelected = true
     })
   )
   contents.on(
@@ -1131,7 +1229,7 @@ function createTabView(): WebContentsView {
   // Keep popups inside the browser resource: http(s) window.open and
   // target=_blank requests become a new internal tab, never a native window.
   contents.setWindowOpenHandler((details) => {
-    withBrowserScope(scopeId, () => openTabWithUrl(details.url))
+    withBrowserScope(scopeId, () => openTabWithUrl(details.url, agentOwnsPopupFrom(contents)))
     return { action: 'deny' }
   })
 
@@ -1163,6 +1261,10 @@ function createTabView(): WebContentsView {
   contents.on(
     'before-input-event',
     bindToBrowserScope(scopeId, (event, input) => {
+      const tab = tabs.find((entry) => entry.view === view)
+      if (!isDispatchingAgentInput(contents) && tab?.id === currentScope.activeTabId) {
+        currentScope.visibleTabUserSelected = true
+      }
       const shortcut = browserShortcutForInput(input)
       if (!shortcut) return
 
@@ -1181,7 +1283,6 @@ function createTabView(): WebContentsView {
         return
       }
 
-      const tab = tabs.find((entry) => entry.view === view)
       if (tab) closeTabFromUser(tab.id)
     })
   )
@@ -1284,8 +1385,16 @@ export function hasSession(): boolean {
  * touches it, and network loading is not throttled anyway.
  */
 export function setAutomationActive(active: boolean): void {
+  if (currentScope.automationActive === active) return
   currentScope.automationActive = active
   applyActiveTabThrottling()
+  events?.onTabsChanged()
+}
+
+export function setAutomationNeedsAttention(needsAttention: boolean): void {
+  if (currentScope.automationNeedsAttention === needsAttention) return
+  currentScope.automationNeedsAttention = needsAttention
+  events?.onTabsChanged()
 }
 
 /**
@@ -1293,12 +1402,28 @@ export function setAutomationActive(active: boolean): void {
  * other tab. Call after anything that changes which tab is active, so the
  * exemption follows the active tab rather than being stranded on the old one.
  */
+/**
+ * Re-applies the tab throttling policy after a caller temporarily suspended it
+ * (the panel's reveal pulse). Exempts the automation-active tab exactly as the
+ * internal policy does.
+ */
+export function reassertTabThrottling(): void {
+  applyActiveTabThrottling()
+}
+
 function applyActiveTabThrottling(): void {
   for (const tab of tabs) {
     if (tab.view.webContents.isDestroyed()) continue
-    const exempt = currentScope.automationActive && tab.id === currentScope.activeTabId
+    const exempt = currentScope.automationActive && tab.id === currentScope.automationTabId
     tab.view.webContents.setBackgroundThrottling(!exempt)
   }
+}
+
+/** A closed target must not transfer its activity marker to a replacement tab. */
+function clearAutomationIndicatorsForTab(tabId: string): void {
+  if (currentScope.automationTabId !== tabId) return
+  currentScope.automationActive = false
+  currentScope.automationNeedsAttention = false
 }
 
 function browserBackgroundColor(): string {
@@ -1430,6 +1555,7 @@ function addTabInternal({
     pinned,
   }
   insertPinnedAware(tab)
+  if (currentScope.automationTabId === null) currentScope.automationTabId = tab.id
   if (activate || currentScope.activeTabId === null) {
     currentScope.activeTabId = tab.id
     applyActiveTabThrottling()
@@ -1442,6 +1568,21 @@ function addTabInternal({
     events?.onTabsChanged()
   }
   return tab
+}
+
+/** Marks the visible page as user-selected without blocking automation on it. */
+export function claimActiveTabForUser(): AgentTab | null {
+  const tab = activeTab()
+  if (!tab) return null
+  currentScope.visibleTabUserSelected = true
+  return tab
+}
+
+/** Explicit hand-back after takeover lets automation resume in the same page. */
+export function returnAutomationTabToAgent(): void {
+  if (currentScope.activeTabId === currentScope.automationTabId) {
+    currentScope.visibleTabUserSelected = false
+  }
 }
 
 export function restoreBrowserSession(): void {
@@ -1481,6 +1622,7 @@ export function restoreBrowserSession(): void {
       }
     }
     currentScope.activeTabId = restoredTabs[snapshot.activeIndex]?.id ?? restoredTabs[0]?.id ?? null
+    currentScope.automationTabId = currentScope.activeTabId
     currentScope.lastPersistedSnapshot = JSON.stringify(snapshot)
   }
 
@@ -1496,7 +1638,58 @@ export function restoreBrowserSession(): void {
 
 export function addTab(): AgentTab {
   restoreBrowserSession()
+  currentScope.visibleTabUserSelected = true
   return addTabInternal()
+}
+
+/**
+ * Opens a tab for agent work.
+ *
+ * `reveal` is for the agent deliberately opening a page to work in
+ * (`browser_open_tab`): the panel follows it, so the user watches the work
+ * instead of staring at a page where nothing is happening. It is NOT set when a
+ * page spawns a tab on its own (popups, `target="_blank"`) — that is the site
+ * grabbing the view, not the agent choosing a workspace.
+ *
+ * Even with `reveal`, a tab the user claimed themselves wins: pulling the view
+ * off the page they are reading is the same interruption as a window stealing
+ * focus mid-sentence. The work still starts, just in the background, and the
+ * tab strip shows it arriving.
+ */
+export function addAutomationTab({ reveal = false }: { reveal?: boolean } = {}): AgentTab {
+  restoreBrowserSession()
+  const followTheWork = reveal && !currentScope.visibleTabUserSelected
+  const tab = addTabInternal({ activate: followTheWork, notify: false })
+  currentScope.automationTabId = tab.id
+  applyActiveTabThrottling()
+  persistBrowserSession()
+  events?.onTabsChanged()
+  return tab
+}
+
+/** Agent target, creating or adopting a page without changing visible selection. */
+export function ensureAutomationTab(): AgentTab {
+  restoreBrowserSession()
+  let tab = automationTab()
+  if (tab) return tab
+  tab = activeTab()
+  if (tab) {
+    currentScope.automationTabId = tab.id
+    applyActiveTabThrottling()
+    events?.onTabsChanged()
+    return tab
+  }
+  return addAutomationTab()
+}
+
+/** Current agent target without creating one. */
+export function requireAutomationTab(): AgentTab {
+  restoreBrowserSession()
+  const tab = automationTab()
+  if (!tab) {
+    throw new SessionError('No page is open yet — call browser_navigate or browser_open_tab first.')
+  }
+  return tab
 }
 
 /** Restores the most recently closed regular tab for the current app session. */
@@ -1505,6 +1698,7 @@ export function reopenClosedTab(): AgentTab | null {
   const url = recentlyClosedTabUrls.shift()
   if (!url) return null
 
+  currentScope.visibleTabUserSelected = true
   const tab = addTabInternal()
   if (url !== 'about:blank') {
     // No checkAgentUrl here, unlike the tool-driven navigations: the stored
@@ -1528,6 +1722,7 @@ export function duplicateTab(tabId: string): AgentTab | null {
   if (!source) return null
 
   const url = sanitizeRestorableUrl(source.view.webContents.getURL())
+  currentScope.visibleTabUserSelected = true
   const tab = addTabInternal()
   if (url && url !== 'about:blank') {
     // Sanitized to http(s) without embedded credentials above, and the
@@ -1550,13 +1745,25 @@ export function switchTab(tabId: string): AgentTab {
     currentScope.focusedBrowserTabId !== null ||
     tabs.some((entry) => entry.view.webContents.isFocused())
   currentScope.activeTabId = tab.id
-  // The automation exemption follows the active tab, so a mid-tool switch
-  // unthrottles the new one and re-throttles the old.
+  currentScope.visibleTabUserSelected = true
+  // Visible selection does not move the automation exemption; the user may
+  // inspect another page while a tool continues in its background tab.
   applyActiveTabThrottling()
   layout()
   if (transferBrowserFocus) currentScope.focusedBrowserTabId = tab.id
   persistBrowserSession()
   events?.onActiveTabChanged(tab.view.webContents)
+  events?.onTabsChanged()
+  return tab
+}
+
+/** Moves the agent cursor without moving or focusing the user's visible tab. */
+export function switchAutomationTab(tabId: string): AgentTab {
+  restoreBrowserSession()
+  const tab = tabs.find((entry) => entry.id === tabId)
+  if (!tab) throw new SessionError(`No tab with id ${tabId} — call browser_list_tabs.`)
+  currentScope.automationTabId = tab.id
+  applyActiveTabThrottling()
   events?.onTabsChanged()
   return tab
 }
@@ -1601,6 +1808,7 @@ function forgetTab(tab: AgentTab): void {
   // on a tab that is going away keeps `findingTabId` naming a dead tab and
   // leaves the bar open counting matches on a page nobody can see.
   dismissFind(tab.id)
+  clearAutomationIndicatorsForTab(tab.id)
   tabs.splice(index, 1)
   const transferBrowserFocus = currentScope.focusedBrowserTabId === tab.id
   clearFocusedBrowserTab(tab.id)
@@ -1612,6 +1820,10 @@ function forgetTab(tab: AgentTab): void {
     if (active) {
       events?.onActiveTabChanged(active.view.webContents)
     }
+  }
+  if (currentScope.automationTabId === tab.id) {
+    currentScope.automationTabId = (tabs[index] ?? tabs[index - 1])?.id ?? null
+    applyActiveTabThrottling()
   }
   if (!hasSession() && getBrowserScopeId() === getActiveBrowserScopeId() && isPanelVisible()) {
     addTab()
@@ -1635,6 +1847,7 @@ export function closeTab(tabId: string): void {
   }
   // Before the splice, while the tab is still resolvable — see forgetTab.
   dismissFind(tabId)
+  clearAutomationIndicatorsForTab(tabId)
   const [tab] = tabs.splice(index, 1)
   recentlyClosedTabUrls.unshift(sanitizeRestorableUrl(tabUrl(tab)) ?? 'about:blank')
   if (recentlyClosedTabUrls.length > MAX_RECENTLY_CLOSED_TABS) {
@@ -1653,6 +1866,10 @@ export function closeTab(tabId: string): void {
       events?.onActiveTabChanged(active.view.webContents)
     }
   }
+  if (currentScope.automationTabId === tab.id) {
+    currentScope.automationTabId = (tabs[index] ?? tabs[index - 1])?.id ?? null
+    applyActiveTabThrottling()
+  }
   // Closing the last tab must not leave a visible browser resource with an
   // empty strip. Replace it with a fresh New tab, matching normal browser UI.
   if (!hasSession() && getBrowserScopeId() === getActiveBrowserScopeId() && isPanelVisible()) {
@@ -1666,6 +1883,16 @@ export function closeTab(tabId: string): void {
   if (!hasSession()) {
     events?.onSessionClosed()
   }
+}
+
+/** Closes agent-owned work while protecting a visible tab the user claimed. */
+export function closeAutomationTab(tabId: string): void {
+  if (tabId === currentScope.activeTabId && currentScope.visibleTabUserSelected) {
+    throw new SessionError(
+      'That tab is currently being used by the user. Switch to another agent tab instead of closing it.'
+    )
+  }
+  closeTab(tabId)
 }
 
 /**
@@ -1712,7 +1939,9 @@ export function showTabContextMenu(tabId: string): void {
 
 /** The live page whose browser surface owns a menu accelerator. */
 function focusedTabForShortcut(ownerWindow?: BrowserWindow | null): AgentTab | null {
-  if (!panelUpdateAllowed(ownerWindow ?? undefined, getBrowserScopeId())) return null
+  if (!isPanelVisible() || !panelUpdateAllowed(ownerWindow ?? undefined, getBrowserScopeId())) {
+    return null
+  }
   return (
     tabs.find(
       (tab) =>
@@ -1720,6 +1949,14 @@ function focusedTabForShortcut(ownerWindow?: BrowserWindow | null): AgentTab | n
         (tab.id === currentScope.focusedBrowserTabId || tab.view.webContents.isFocused())
     ) ?? null
   )
+}
+
+/** The active tab while this window owns an on-screen browser panel. */
+function visibleActiveTab(ownerWindow?: BrowserWindow | null): AgentTab | null {
+  if (!isPanelVisible() || !panelUpdateAllowed(ownerWindow ?? undefined, getBrowserScopeId())) {
+    return null
+  }
+  return activeTab()
 }
 
 /**
@@ -1733,8 +1970,32 @@ export function handleFocusedShortcut(
   shortcut: FocusedResourceShortcut,
   ownerWindow?: BrowserWindow | null
 ): boolean {
-  const focusedTab = focusedTabForShortcut(ownerWindow)
-  if (!focusedTab) return false
+  // Tab-management accelerators belong to the visible Browser even after
+  // focus moves into Sim chrome. Otherwise Cmd-T/L/Shift-T silently stop
+  // behaving like browser shortcuts, and Cmd-W becomes especially unsafe.
+  const visibleBrowserShortcut =
+    shortcut === 'close-tab' ||
+    shortcut === 'new-tab' ||
+    shortcut === 'reopen-closed-tab' ||
+    shortcut === 'focus-omnibox'
+  const shortcutTab =
+    focusedTabForShortcut(ownerWindow) ??
+    (visibleBrowserShortcut ? visibleActiveTab(ownerWindow) : null)
+  if (!shortcutTab) return false
+
+  if (isResourceTabSelectionShortcut(shortcut)) {
+    const targetIndex = resourceTabTargetIndex(
+      shortcut,
+      tabs.length,
+      tabs.findIndex((tab) => tab.id === shortcutTab.id)
+    )
+    const target = targetIndex === null ? null : tabs[targetIndex]
+    if (target) {
+      switchTab(target.id)
+      target.view.webContents.focus()
+    }
+    return true
+  }
 
   switch (shortcut) {
     case 'new-tab':
@@ -1747,15 +2008,21 @@ export function handleFocusedShortcut(
       return true
     }
     case 'close-tab':
-      closeTabFromUser(focusedTab.id)
+      closeTabFromUser(shortcutTab.id)
+      return true
+    case 'focus-omnibox':
+      focusRendererOmnibox('select')
       return true
     case 'reload-or-clear':
-      focusedTab.view.webContents.reload()
+      shortcutTab.view.webContents.reload()
+      return true
+    case 'hard-reload':
+      shortcutTab.view.webContents.reloadIgnoringCache()
       return true
   }
 
   const zoomAction = zoomActionForShortcut(shortcut)
-  const contents = focusedTab.view.webContents
+  const contents = shortcutTab.view.webContents
   const factor =
     zoomAction === 'reset'
       ? getBrowserDefaultZoomFactor()
@@ -1781,6 +2048,7 @@ export function setPanelFocused(
       currentScope.focusedBrowserClearTimer = null
     }
     currentScope.focusedBrowserTabId = activeTab()?.id ?? null
+    currentScope.visibleTabUserSelected = true
   })
 }
 
@@ -1794,7 +2062,10 @@ function clearFocusedBrowserTab(tabId?: string): void {
 }
 
 function closeTabFromUser(tabId: string): void {
-  if (tabs.find((tab) => tab.id === tabId)?.pinned) return
+  if (tabs.find((tab) => tab.id === tabId)?.pinned) {
+    shell.beep()
+    return
+  }
   const closingLastTab = listTabs().length === 1
   closeTab(tabId)
   const active = activeTab()
@@ -1816,6 +2087,10 @@ function closeLiveTabs(): void {
   }
   recentlyClosedTabUrls.length = 0
   currentScope.activeTabId = null
+  currentScope.automationTabId = null
+  currentScope.automationActive = false
+  currentScope.automationNeedsAttention = false
+  currentScope.visibleTabUserSelected = false
   clearFocusedBrowserTab()
 }
 
@@ -1952,6 +2227,22 @@ export function getTabsState(): BrowserTabsState {
     scopeId: getBrowserScopeId(),
     tabs: listTabs(),
     activeTabId: activeTab()?.id ?? null,
+    automationTabId: automationTab()?.id ?? null,
+    automationActive: currentScope.automationActive,
+    automationNeedsAttention: currentScope.automationNeedsAttention,
+  }
+}
+
+/** Tool-facing tab list whose active marker follows the agent cursor. */
+export function getAutomationTabsState(): BrowserTabsState {
+  const automationTabId = automationTab()?.id ?? null
+  return {
+    scopeId: getBrowserScopeId(),
+    tabs: listTabs().map((tab) => ({ ...tab, active: tab.tabId === automationTabId })),
+    activeTabId: automationTabId,
+    automationTabId,
+    automationActive: currentScope.automationActive,
+    automationNeedsAttention: currentScope.automationNeedsAttention,
   }
 }
 
@@ -1964,4 +2255,33 @@ export function activeTab(): AgentTab | null {
   const tab = tabs.find((entry) => entry.id === currentScope.activeTabId) ?? null
   if (!tab || tab.view.webContents.isDestroyed()) return null
   return tab
+}
+
+export function automationTab(): AgentTab | null {
+  const tab = tabs.find((entry) => entry.id === currentScope.automationTabId) ?? null
+  if (!tab || tab.view.webContents.isDestroyed()) return null
+  return tab
+}
+
+/**
+ * Whether the user has interacted with the visible tab while it is also the
+ * agent's automation tab. Governs panel-level ownership only — popup
+ * adoption and protection against the agent closing the tab out from under
+ * the user. It must never gate agent input: the user clicking or typing in
+ * the panel does not revoke the agent's ability to act there.
+ */
+export function automationTabClaimedByUser(): boolean {
+  return (
+    currentScope.visibleTabUserSelected &&
+    currentScope.activeTabId !== null &&
+    currentScope.activeTabId === currentScope.automationTabId
+  )
+}
+
+/** Keeps page-created tabs with the input owner that opened them. */
+function agentOwnsPopupFrom(contents: WebContents): boolean {
+  if (isDispatchingAgentInput(contents)) return true
+  if (automationTab()?.view.webContents !== contents) return false
+  if (automationTabClaimedByUser()) return false
+  return currentScope.automationActive
 }

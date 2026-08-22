@@ -1,8 +1,9 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { omit } from '@sim/utils/object'
+import { isRecordLike, omit } from '@sim/utils/object'
 import { isLargeValueRef } from '@/lib/execution/payloads/large-value-ref'
 import { materializeLargeValueRef, storeLargeValue } from '@/lib/execution/payloads/store'
+import { FunctionalOutputsUnavailableError } from '@/lib/logs/execution/functional-outputs'
 import { projectTraceSpansForSecrets } from '@/lib/logs/execution/trace-secret-projection'
 import type { TraceSpan } from '@/lib/logs/types'
 import {
@@ -28,12 +29,37 @@ export const TRACE_STORE_REF_KEY = 'traceStoreRef'
  * authenticate terminal Copilot workflow-tool executions. All other fields
  * (environment, trigger, tokens, models, truncation flags, and of course the
  * heavy payloads) are recovered from the stored object.
+ *
+ * {@link RESOLVED_SECRET_PROVENANCE_KEY} is deliberately absent: it rides in the
+ * externalized object, and inlining it would put encrypted secret material back
+ * on the row this slimming exists to keep it off.
  */
 const INLINE_MARKER_KEYS = [
   'secretProjectionVersion',
   'hasTraceSpans',
   'traceSpanCount',
   'correlation',
+] as const
+
+/**
+ * Top-level `execution_data` key carrying the run's resolved-secret provenance.
+ *
+ * Duplicated out of `executionState` because oversized-payload compaction drops
+ * that field wholesale, leaving a contract-marked row the display projection
+ * can no longer verify. Server-side only: it holds encrypted secret values and
+ * their names, so every display projection must omit it.
+ */
+export const RESOLVED_SECRET_PROVENANCE_KEY = 'resolvedSecretTraceProvenance'
+
+/**
+ * Server-only keys stripped from every display projection. Both the contract
+ * and legacy paths spread this, so a new server-only key is omitted from both
+ * by construction rather than by review.
+ */
+const DISPLAY_OMITTED_SERVER_KEYS = [
+  'executionState',
+  'secretProjectionVersion',
+  RESOLVED_SECRET_PROVENANCE_KEY,
 ] as const
 
 /**
@@ -45,6 +71,11 @@ export interface TraceStoreReadContext {
   workflowId: string | null
   executionId: string
   userId?: string
+}
+
+export interface DisplayExecutionDataWithBlockOutputs {
+  executionData: Record<string, unknown>
+  blockOutputs: Map<string, unknown>
 }
 
 /**
@@ -223,8 +254,7 @@ function projectLegacyExecutionDataForDisplay(
   executionData: Record<string, unknown>
 ): Record<string, unknown> {
   const omittedKeys = [
-    'executionState',
-    'secretProjectionVersion',
+    ...DISPLAY_OMITTED_SERVER_KEYS,
     ...(!Object.hasOwn(executionData, 'traceSpans') || Array.isArray(executionData.traceSpans)
       ? []
       : ['traceSpans']),
@@ -246,48 +276,155 @@ export async function materializeExecutionDataForDisplay(
 }
 
 /**
- * Projects execution-log content with the encrypted provenance saved by the
- * trusted executor. Current workflow input and final output values use their
- * exact sidecars; rows predating those fields retain the run-level fallback.
- * Contract-aware rows with missing or malformed provenance deliberately yield
- * structural-only content instead of returning data that cannot be proven safe.
+ * Materializes one trusted row into its display envelope plus secret-safe functional outputs.
+ * Only requested execution-state outputs are projected and returned; trace spans remain display
+ * data and the raw execution state never crosses the display boundary.
  */
-export async function projectExecutionDataForDisplay(
-  executionData: Record<string, unknown>,
-  context: TraceStoreReadContext
-): Promise<Record<string, unknown>> {
-  const executionState =
-    executionData.executionState &&
-    typeof executionData.executionState === 'object' &&
-    !Array.isArray(executionData.executionState)
-      ? (executionData.executionState as Record<string, unknown>)
-      : undefined
-  const provenance = executionState?.resolvedSecretTraceProvenance
-  const hasProjectionContract =
-    Object.hasOwn(executionData, 'secretProjectionVersion') ||
-    (executionState !== undefined && Object.hasOwn(executionState, 'resolvedSecretTraceProvenance'))
-
-  if (!hasProjectionContract) {
-    return projectLegacyExecutionDataForDisplay(executionData)
+export async function materializeExecutionDataForDisplayWithBlockOutputs(
+  executionData: Record<string, unknown> | null | undefined,
+  context: TraceStoreReadContext,
+  blockIds: readonly string[]
+): Promise<DisplayExecutionDataWithBlockOutputs> {
+  const materialized = await materializeExecutionData(executionData, context)
+  const displayData = await projectExecutionDataForDisplay(materialized, context)
+  if (blockIds.length === 0) {
+    return { executionData: displayData, blockOutputs: new Map() }
   }
 
-  let registry: ResolvedSecretTraceRegistry | undefined
-
-  if (isResolvedSecretTraceProvenanceV1(provenance)) {
-    registry = new ResolvedSecretTraceRegistry([], provenance.scope)
-    await registry.importProvenance(provenance, {
-      trusted: true,
-      origin: 'traceStore.spanProvenance',
-    })
+  const executionState = readRecord(materialized.executionState)
+  const blockStates = readRecord(executionState?.blockStates)
+  if (!blockStates) {
+    if (materialized.executionDataTruncated === true) {
+      throw new FunctionalOutputsUnavailableError()
+    }
+    return { executionData: displayData, blockOutputs: new Map() }
   }
 
-  const projectionStore = {
+  const runRegistry = await importResolvedSecretTraceRegistry(
+    materialized[RESOLVED_SECRET_PROVENANCE_KEY] ??
+      executionState?.[RESOLVED_SECRET_PROVENANCE_KEY],
+    'traceStore.blockOutputRunProvenance'
+  )
+  const blockOutputs = new Map<string, unknown>()
+  const projectionStore = createReadOnlyProjectionStore(context)
+
+  for (const blockId of new Set(blockIds)) {
+    const blockState = readRecord(blockStates[blockId])
+    if (!blockState || blockState.output === undefined) continue
+
+    const hasExactProvenance = Object.hasOwn(blockState, RESOLVED_SECRET_PROVENANCE_KEY)
+    const registry = hasExactProvenance
+      ? await importResolvedSecretTraceRegistry(
+          blockState[RESOLVED_SECRET_PROVENANCE_KEY],
+          'traceStore.blockOutputExactProvenance'
+        )
+      : runRegistry
+    const now = new Date().toISOString()
+    const [projected] = await projectTraceSpansForSecrets(
+      [
+        {
+          id: `${LOG_DISPLAY_PROJECTION_SPAN_ID}-block-output`,
+          name: 'Block Output Display Projection',
+          type: 'display',
+          duration: 0,
+          startTime: now,
+          endTime: now,
+          output: { value: blockState.output },
+        },
+      ],
+      { registry, allowLargeValueWrites: false, store: projectionStore }
+    )
+    if (projected?.output && Object.hasOwn(projected.output, 'value')) {
+      blockOutputs.set(blockId, projected.output.value)
+    }
+  }
+
+  return { executionData: displayData, blockOutputs }
+}
+
+function readRecord(value: unknown): Record<string, unknown> | undefined {
+  return isRecordLike(value) ? (value as Record<string, unknown>) : undefined
+}
+
+async function importResolvedSecretTraceRegistry(
+  provenance: unknown,
+  origin: string
+): Promise<ResolvedSecretTraceRegistry | undefined> {
+  if (!isResolvedSecretTraceProvenanceV1(provenance)) return undefined
+
+  const registry = new ResolvedSecretTraceRegistry([], provenance.scope)
+  await registry.importProvenance(provenance, { trusted: true, origin })
+  return registry
+}
+
+function createReadOnlyProjectionStore(context: TraceStoreReadContext) {
+  return {
     workspaceId: context.workspaceId ?? undefined,
     workflowId: context.workflowId ?? undefined,
     executionId: context.executionId,
     userId: context.userId,
     trackReference: false,
   }
+}
+
+/**
+ * Projects execution-log content with the encrypted provenance saved by the
+ * trusted executor. Current workflow input and final output values use their
+ * exact sidecars; rows predating those fields retain the run-level fallback.
+ * Contract-aware rows whose provenance is missing or malformed yield
+ * structural-only content rather than data that cannot be proven safe. The one
+ * carve-out is the trace spans of a truncated row that lost its provenance to
+ * compaction: those were already projected at write time. Truncation also takes
+ * the exact per-value sidecars with it, so those rows fall back to the
+ * run-level registry for `finalOutput` / `workflowInput`.
+ */
+export async function projectExecutionDataForDisplay(
+  executionData: Record<string, unknown>,
+  context: TraceStoreReadContext
+): Promise<Record<string, unknown>> {
+  const executionState = readRecord(executionData.executionState)
+  const hasTopLevelProvenance = Object.hasOwn(executionData, RESOLVED_SECRET_PROVENANCE_KEY)
+  const stateProvenance = executionState?.[RESOLVED_SECRET_PROVENANCE_KEY]
+  const provenance = executionData[RESOLVED_SECRET_PROVENANCE_KEY] ?? stateProvenance
+  const hasProjectionContract =
+    Object.hasOwn(executionData, 'secretProjectionVersion') ||
+    hasTopLevelProvenance ||
+    (executionState !== undefined && Object.hasOwn(executionState, RESOLVED_SECRET_PROVENANCE_KEY))
+
+  if (!hasProjectionContract) {
+    return projectLegacyExecutionDataForDisplay(executionData)
+  }
+
+  const registry = await importResolvedSecretTraceRegistry(provenance, 'traceStore.spanProvenance')
+
+  /**
+   * Compaction drops `executionState`, and with it the only copy of the
+   * provenance on rows written before it was stored top-level. Every write path
+   * projects spans before persisting them, and that projection yields
+   * structural-only spans when its registry is incomplete — so a stored tree
+   * that still carries content was already redacted at write time.
+   *
+   * Not a general fallback: scoped to truncated rows whose key is absent
+   * entirely. A present-but-unusable key (malformed, incomplete, explicit null)
+   * and the read-time envelope have no such guarantee and keep failing closed.
+   *
+   * Self-expiring. New rows carry the key, so this only serves rows truncated
+   * before that shipped; once the warning below stops firing across a full log
+   * retention window, delete this branch and its tests.
+   */
+  const retainStoredTraceSpans =
+    executionData.executionDataTruncated === true &&
+    !hasTopLevelProvenance &&
+    stateProvenance === undefined &&
+    Array.isArray(executionData.traceSpans) &&
+    executionData.traceSpans.length > 0
+  if (retainStoredTraceSpans) {
+    logger.warn('Retaining write-time-projected spans for a truncated row with no provenance', {
+      executionId: context.executionId,
+    })
+  }
+
+  const projectionStore = createReadOnlyProjectionStore(context)
 
   const exactValueProjections = new Map<string, unknown>()
   for (const [valueKey, provenanceKey] of Object.entries(EXACT_LOG_VALUE_PROVENANCE_KEYS)) {
@@ -356,7 +493,8 @@ export async function projectExecutionDataForDisplay(
   const sourceTraceSpans = Array.isArray(executionData.traceSpans)
     ? (executionData.traceSpans as TraceSpan[])
     : []
-  const projectedSpans = await projectTraceSpansForSecrets([syntheticSpan, ...sourceTraceSpans], {
+  const spansToProject = retainStoredTraceSpans ? [] : sourceTraceSpans
+  const projectedSpans = await projectTraceSpansForSecrets([syntheticSpan, ...spansToProject], {
     registry,
     allowLargeValueWrites: false,
     store: projectionStore,
@@ -364,8 +502,7 @@ export async function projectExecutionDataForDisplay(
 
   const displayData = omit(executionData, [
     ...LOG_DISPLAY_CONTENT_KEYS,
-    'executionState',
-    'secretProjectionVersion',
+    ...DISPLAY_OMITTED_SERVER_KEYS,
     'traceSpans',
   ]) as Record<string, unknown>
 
@@ -382,9 +519,9 @@ export async function projectExecutionDataForDisplay(
   }
 
   if (Array.isArray(executionData.traceSpans)) {
-    displayData.traceSpans = projectedSpans.filter(
-      (span) => span.id !== LOG_DISPLAY_PROJECTION_SPAN_ID
-    )
+    displayData.traceSpans = retainStoredTraceSpans
+      ? sourceTraceSpans
+      : projectedSpans.filter((span) => span.id !== LOG_DISPLAY_PROJECTION_SPAN_ID)
   }
 
   return displayData

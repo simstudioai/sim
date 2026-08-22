@@ -346,17 +346,6 @@ export function encodeSSEEvent(event: ExecutionEvent): Uint8Array {
 }
 
 /**
- * Options for creating SSE execution callbacks
- */
-interface SSECallbackOptions {
-  executionId: string
-  workflowId: string
-  controller: ReadableStreamDefaultController<Uint8Array>
-  isStreamClosed: () => boolean
-  setStreamClosed: () => void
-}
-
-/**
  * Creates execution callbacks using a provided event sink.
  */
 export function createExecutionCallbacks(options: {
@@ -553,26 +542,4 @@ export function createExecutionCallbacks(options: {
     onStream,
     onChildWorkflowInstanceReady,
   }
-}
-
-/**
- * Creates SSE callbacks for workflow execution streaming
- */
-export function createSSECallbacks(options: SSECallbackOptions) {
-  const { executionId, workflowId, controller, isStreamClosed, setStreamClosed } = options
-
-  const sendEvent = (event: ExecutionEvent) => {
-    if (isStreamClosed()) return
-    try {
-      controller.enqueue(encodeSSEEvent(event))
-    } catch {
-      setStreamClosed()
-    }
-  }
-
-  return createExecutionCallbacks({
-    executionId,
-    workflowId,
-    sendEvent,
-  })
 }

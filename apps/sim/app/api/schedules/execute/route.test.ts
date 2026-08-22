@@ -7,6 +7,7 @@ import {
   createMockSql,
   dbChainMock,
   dbChainMockFns,
+  queueTableRows,
   requestUtilsMockFns,
   resetDbChainMock,
   resetEnvFlagsMock,
@@ -16,6 +17,7 @@ import {
 } from '@sim/testing'
 import { type NextRequest, NextResponse } from 'next/server'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { AsyncJobEnqueueError } from '@/lib/core/async-jobs/types'
 
 const orderByLimitMock = vi.fn()
 
@@ -32,10 +34,15 @@ const {
   mockShouldExecuteInline,
   mockResolveSystemBillingAttribution,
   mockAssertBillingAttributionSnapshot,
+  mockApplyScheduleSuccessUpdate,
+  mockApplyScheduleCancellationUpdate,
   mockApplyScheduleFailureUpdate,
   mockNotifyScheduleAutoDisabled,
   mockRegisterManualExecutionAborter,
   mockUnregisterManualExecutionAborter,
+  mockAsyncJobs,
+  mockWorkflowSchedule,
+  mockWorkflowExecutionLogs,
 } = vi.hoisted(() => ({
   mockVerifyCronAuth: vi.fn().mockReturnValue(null),
   mockExecuteScheduleJob: vi.fn().mockResolvedValue(undefined),
@@ -49,10 +56,49 @@ const {
   mockShouldExecuteInline: vi.fn().mockReturnValue(false),
   mockResolveSystemBillingAttribution: vi.fn(),
   mockAssertBillingAttributionSnapshot: vi.fn(),
+  mockApplyScheduleSuccessUpdate: vi.fn().mockResolvedValue(true),
+  mockApplyScheduleCancellationUpdate: vi.fn().mockResolvedValue(true),
   mockApplyScheduleFailureUpdate: vi.fn().mockResolvedValue({ updated: true, disabled: false }),
   mockNotifyScheduleAutoDisabled: vi.fn().mockResolvedValue(undefined),
   mockRegisterManualExecutionAborter: vi.fn(),
   mockUnregisterManualExecutionAborter: vi.fn(),
+  mockAsyncJobs: {
+    id: 'id',
+    type: 'type',
+    payload: 'payload',
+    status: 'status',
+    createdAt: 'createdAt',
+    runAt: 'runAt',
+    startedAt: 'startedAt',
+    completedAt: 'completedAt',
+    attempts: 'attempts',
+    maxAttempts: 'maxAttempts',
+    error: 'error',
+    output: 'output',
+    metadata: 'metadata',
+    updatedAt: 'updatedAt',
+  },
+  mockWorkflowSchedule: {
+    id: 'id',
+    workflowId: 'workflowId',
+    blockId: 'blockId',
+    cronExpression: 'cronExpression',
+    lastRanAt: 'lastRanAt',
+    failedCount: 'failedCount',
+    infraRetryCount: 'infraRetryCount',
+    status: 'status',
+    timezone: 'timezone',
+    nextRunAt: 'nextRunAt',
+    lastQueuedAt: 'lastQueuedAt',
+    archivedAt: 'archivedAt',
+    deploymentVersionId: 'deploymentVersionId',
+    sourceType: 'sourceType',
+  },
+  mockWorkflowExecutionLogs: {
+    executionId: 'executionId',
+    workflowId: 'workflowId',
+    status: 'status',
+  },
 }))
 
 vi.mock('@/lib/auth/internal', () => ({
@@ -67,6 +113,8 @@ vi.mock('@/lib/billing/core/billing-attribution', () => ({
 vi.mock('@/background/schedule-execution', () => ({
   executeScheduleJob: mockExecuteScheduleJob,
   releaseScheduleLock: mockReleaseScheduleLock,
+  applyScheduleSuccessUpdate: mockApplyScheduleSuccessUpdate,
+  applyScheduleCancellationUpdate: mockApplyScheduleCancellationUpdate,
   applyScheduleFailureUpdate: mockApplyScheduleFailureUpdate,
 }))
 
@@ -95,6 +143,7 @@ vi.mock('@/lib/core/async-jobs', () => ({
 vi.mock('drizzle-orm', () => ({
   and: vi.fn((...conditions: unknown[]) => ({ type: 'and', conditions })),
   eq: vi.fn((field: unknown, value: unknown) => ({ field, value, type: 'eq' })),
+  gt: vi.fn((field: unknown, value: unknown) => ({ field, value, type: 'gt' })),
   ne: vi.fn((field: unknown, value: unknown) => ({ field, value, type: 'ne' })),
   lte: vi.fn((field: unknown, value: unknown) => ({ field, value, type: 'lte' })),
   lt: vi.fn((field: unknown, value: unknown) => ({ field, value, type: 'lt' })),
@@ -108,21 +157,7 @@ vi.mock('drizzle-orm', () => ({
 
 vi.mock('@sim/db', () => ({
   ...dbChainMock,
-  workflowSchedule: {
-    id: 'id',
-    workflowId: 'workflowId',
-    blockId: 'blockId',
-    cronExpression: 'cronExpression',
-    lastRanAt: 'lastRanAt',
-    failedCount: 'failedCount',
-    infraRetryCount: 'infraRetryCount',
-    status: 'status',
-    timezone: 'timezone',
-    nextRunAt: 'nextRunAt',
-    lastQueuedAt: 'lastQueuedAt',
-    deploymentVersionId: 'deploymentVersionId',
-    sourceType: 'sourceType',
-  },
+  workflowSchedule: mockWorkflowSchedule,
   workflowDeploymentVersion: {
     id: 'id',
     workflowId: 'workflowId',
@@ -133,20 +168,8 @@ vi.mock('@sim/db', () => ({
     userId: 'userId',
     workspaceId: 'workspaceId',
   },
-  asyncJobs: {
-    id: 'id',
-    type: 'type',
-    payload: 'payload',
-    status: 'status',
-    createdAt: 'createdAt',
-    runAt: 'runAt',
-    startedAt: 'startedAt',
-    completedAt: 'completedAt',
-    attempts: 'attempts',
-    maxAttempts: 'maxAttempts',
-    error: 'error',
-    updatedAt: 'updatedAt',
-  },
+  asyncJobs: mockAsyncJobs,
+  workflowExecutionLogs: mockWorkflowExecutionLogs,
 }))
 
 vi.mock('@sim/utils/id', () => ({
@@ -311,6 +334,12 @@ describe('Scheduled Workflow Execution API Route', () => {
     mockExecuteScheduleJob.mockResolvedValue(undefined)
     mockReleaseScheduleLock.mockReset()
     mockReleaseScheduleLock.mockResolvedValue(undefined)
+    mockApplyScheduleSuccessUpdate.mockReset()
+    mockApplyScheduleSuccessUpdate.mockResolvedValue(true)
+    mockApplyScheduleCancellationUpdate.mockReset()
+    mockApplyScheduleCancellationUpdate.mockResolvedValue(true)
+    mockApplyScheduleFailureUpdate.mockReset()
+    mockApplyScheduleFailureUpdate.mockResolvedValue({ updated: true, disabled: false })
     mockAssertBillingAttributionSnapshot.mockReset()
     mockAssertBillingAttributionSnapshot.mockImplementation((value: unknown) => {
       if (!value || typeof value !== 'object') {
@@ -353,6 +382,18 @@ describe('Scheduled Workflow Execution API Route', () => {
     const result = await runScheduleTick('test-request-id')
 
     expect(result.processedCount).toBe(0)
+  })
+
+  it('rotates deferred recovery carriers behind untouched work', async () => {
+    mockShouldExecuteInline.mockReturnValue(true)
+    dbChainMockFns.returning.mockReturnValueOnce([]).mockReturnValueOnce([])
+
+    await runScheduleTick('test-request-id')
+
+    expect(dbChainMockFns.orderBy).toHaveBeenCalledWith(
+      { type: 'asc', field: mockAsyncJobs.updatedAt },
+      { type: 'asc', field: mockAsyncJobs.id }
+    )
   })
 
   it('should execute multiple schedules in parallel', async () => {
@@ -441,6 +482,36 @@ describe('Scheduled Workflow Execution API Route', () => {
     )
     expect(mockUnregisterManualExecutionAborter).toHaveBeenCalledWith('schedule-execution-1')
     expect(mockCompleteJob).toHaveBeenCalledWith('job-id-1', null)
+
+    const authoritativeStartCondition = dbChainMockFns.where.mock.calls
+      .map(([condition]) => condition)
+      .find(
+        (condition) =>
+          conditionContains(
+            condition,
+            (entry) => entry.type === 'eq' && entry.field === mockAsyncJobs.id
+          ) &&
+          conditionContains(
+            condition,
+            (entry) =>
+              entry.type === 'eq' &&
+              entry.field === mockAsyncJobs.type &&
+              entry.value === 'schedule-execution'
+          ) &&
+          conditionContains(
+            condition,
+            (entry) =>
+              entry.type === 'eq' &&
+              entry.field === mockAsyncJobs.status &&
+              entry.value === 'pending'
+          ) &&
+          conditionContains(
+            condition,
+            (entry) =>
+              entry.type === 'eq' && entry.field === mockAsyncJobs.attempts && entry.value === 0
+          )
+      )
+    expect(authoritativeStartCondition).toBeDefined()
   })
 
   it('forwards database fallback cancellation into the schedule execution signal', async () => {
@@ -482,66 +553,375 @@ describe('Scheduled Workflow Execution API Route', () => {
     expect(mockReleaseScheduleLock).not.toHaveBeenCalled()
   })
 
-  it('recovers database fallback jobs after their admitted per-job deadline', async () => {
+  it.each([
+    { persistedStatus: 'completed', accounting: 'success', carrierStatus: 'completed' },
+    { persistedStatus: 'failed', accounting: 'failure', carrierStatus: 'completed' },
+    { persistedStatus: 'cancelled', accounting: 'cancelled', carrierStatus: 'completed' },
+    { persistedStatus: 'pending', accounting: 'success', carrierStatus: 'completed' },
+    { persistedStatus: 'paused', accounting: 'success', carrierStatus: 'completed' },
+  ])(
+    'reconciles a stale database job from a $persistedStatus execution log',
+    async ({ persistedStatus, accounting, carrierStatus }) => {
+      mockShouldExecuteInline.mockReturnValue(true)
+      const claimedAt = new Date('2025-01-01T00:00:00.000Z')
+      const payload = {
+        scheduleId: 'schedule-1',
+        workflowId: 'workflow-1',
+        executionId: 'execution-1',
+        now: claimedAt.toISOString(),
+      }
+      mockProcessingCounts(0, 0)
+      orderByLimitMock.mockResolvedValueOnce([
+        { id: 'claimed-job-id', payload, status: 'processing' },
+      ])
+      queueTableRows(mockWorkflowExecutionLogs, [
+        { executionId: 'execution-1', workflowId: 'workflow-1', status: persistedStatus },
+      ])
+      dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'claimed-job-id' }])
+
+      await runScheduleTick('test-request-id')
+
+      expect(mockExecuteScheduleJob).not.toHaveBeenCalled()
+      expect(dbChainMockFns.set).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: carrierStatus,
+          completedAt: expect.any(Date),
+          output: expect.objectContaining({ executionStatus: persistedStatus }),
+        })
+      )
+      if (accounting === 'failure') {
+        expect(mockApplyScheduleFailureUpdate).toHaveBeenCalledOnce()
+      } else if (accounting === 'cancelled') {
+        expect(mockApplyScheduleCancellationUpdate).toHaveBeenCalledOnce()
+      } else {
+        expect(mockApplyScheduleSuccessUpdate).toHaveBeenCalledOnce()
+      }
+    }
+  )
+
+  it('preserves an already-cancelled database carrier while reconciling it', async () => {
     mockShouldExecuteInline.mockReturnValue(true)
-    const staleStartedAt = new Date(Date.now() - 6 * 60 * 1000)
+    const claimedAt = new Date('2025-01-01T00:00:00.000Z')
     mockProcessingCounts(0, 0)
-    mockGetJob
-      .mockResolvedValueOnce({
-        id: 'job-id-1',
-        status: 'processing',
-        startedAt: staleStartedAt,
-        metadata: { maxDurationSeconds: 300 },
-      })
-      .mockResolvedValueOnce({
-        id: 'job-id-1',
-        status: 'pending',
+    orderByLimitMock.mockResolvedValueOnce([
+      {
+        id: 'cancelled-job-id',
+        status: 'cancelled',
         payload: {
           scheduleId: 'schedule-1',
           workflowId: 'workflow-1',
-          workspaceId: 'workspace-1',
-          billingAttribution: createBillingAttribution('workspace-1'),
-          now: '2025-01-01T00:00:00.000Z',
+          executionId: 'execution-1',
+          now: claimedAt.toISOString(),
+          scheduledFor: claimedAt.toISOString(),
         },
-      })
-    orderByLimitMock
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([
-        {
-          id: 'job-id-1',
-          payload: {
-            scheduleId: 'schedule-1',
-            workflowId: 'workflow-1',
-            now: '2025-01-01T00:00:00.000Z',
-          },
-          attempts: 0,
-          maxAttempts: 3,
-        },
-      ])
-    dbChainMockFns.limit
-      .mockResolvedValueOnce(SINGLE_CLAIMED_SCHEDULE_ROWS)
-      .mockResolvedValueOnce([])
-    dbChainMockFns.returning
-      .mockReturnValueOnce([{ ...SINGLE_SCHEDULE[0], lastQueuedAt: new Date('2025-01-01') }])
-      .mockResolvedValueOnce([{ id: 'job-id-1' }])
+      },
+    ])
+    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'cancelled-job-id' }])
 
     await runScheduleTick('test-request-id')
-    expect(mockExecuteScheduleJob).toHaveBeenCalledWith(
-      expect.objectContaining({ scheduleId: 'schedule-1' }),
-      expect.any(AbortSignal)
-    )
-    expect(mockCompleteJob).toHaveBeenCalledWith(
-      expect.stringMatching(/^schedule_[0-9a-f]{32}$/),
-      null
+
+    expect(dbChainMockFns.set).not.toHaveBeenCalledWith(
+      expect.objectContaining({ status: expect.anything() })
     )
     expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({ metadata: expect.anything() })
+    )
+    expect(mockApplyScheduleCancellationUpdate).toHaveBeenCalledOnce()
+    expect(mockExecuteScheduleJob).not.toHaveBeenCalled()
+  })
+
+  it('preserves a cancelled carrier when its workflow log completed', async () => {
+    mockShouldExecuteInline.mockReturnValue(true)
+    const claimedAt = new Date('2025-01-01T00:00:00.000Z')
+    mockProcessingCounts(0, 0)
+    orderByLimitMock.mockResolvedValueOnce([
+      {
+        id: 'cancelled-job-id',
+        status: 'cancelled',
+        payload: {
+          scheduleId: 'schedule-1',
+          workflowId: 'workflow-1',
+          executionId: 'execution-1',
+          now: claimedAt.toISOString(),
+          scheduledFor: claimedAt.toISOString(),
+        },
+      },
+    ])
+    queueTableRows(mockWorkflowExecutionLogs, [
+      { executionId: 'execution-1', workflowId: 'workflow-1', status: 'completed' },
+    ])
+    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'cancelled-job-id' }])
+
+    await runScheduleTick('test-request-id')
+
+    expect(dbChainMockFns.set).not.toHaveBeenCalledWith(
+      expect.objectContaining({ status: expect.anything() })
+    )
+    expect(mockApplyScheduleSuccessUpdate).toHaveBeenCalledOnce()
+    expect(mockApplyScheduleCancellationUpdate).not.toHaveBeenCalled()
+    expect(mockExecuteScheduleJob).not.toHaveBeenCalled()
+  })
+
+  it('marks a terminal carrier reconciled when its occurrence already advanced', async () => {
+    mockShouldExecuteInline.mockReturnValue(true)
+    const claimedAt = new Date('2025-01-01T00:00:00.000Z')
+    const nextOccurrence = new Date('2025-01-02T00:00:00.000Z')
+    mockProcessingCounts(0, 0)
+    orderByLimitMock.mockResolvedValueOnce([
+      {
+        id: 'completed-job-id',
+        status: 'completed',
+        payload: {
+          scheduleId: 'schedule-1',
+          workflowId: 'workflow-1',
+          executionId: 'execution-1',
+          now: claimedAt.toISOString(),
+          scheduledFor: claimedAt.toISOString(),
+        },
+      },
+    ])
+    queueTableRows(mockWorkflowExecutionLogs, [
+      { executionId: 'execution-1', workflowId: 'workflow-1', status: 'completed' },
+    ])
+    queueTableRows(mockWorkflowSchedule, [
+      {
+        archivedAt: null,
+        lastQueuedAt: null,
+        nextRunAt: nextOccurrence,
+        status: 'active',
+      },
+    ])
+    mockApplyScheduleSuccessUpdate.mockResolvedValueOnce(false)
+    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'completed-job-id' }])
+
+    await runScheduleTick('test-request-id')
+
+    expect(mockApplyScheduleSuccessUpdate).toHaveBeenCalledOnce()
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({ metadata: expect.anything(), updatedAt: expect.any(Date) })
+    )
+    expect(mockExecuteScheduleJob).not.toHaveBeenCalled()
+  })
+
+  it('restores a released claim before retrying terminal carrier accounting', async () => {
+    mockShouldExecuteInline.mockReturnValue(true)
+    const claimedAt = new Date('2025-01-01T00:00:00.000Z')
+    mockProcessingCounts(0, 0)
+    orderByLimitMock.mockResolvedValueOnce([
+      {
+        id: 'completed-job-id',
+        status: 'completed',
+        payload: {
+          scheduleId: 'schedule-1',
+          workflowId: 'workflow-1',
+          executionId: 'execution-1',
+          now: claimedAt.toISOString(),
+          scheduledFor: claimedAt.toISOString(),
+        },
+      },
+    ])
+    queueTableRows(mockWorkflowExecutionLogs, [
+      { executionId: 'execution-1', workflowId: 'workflow-1', status: 'completed' },
+    ])
+    queueTableRows(mockWorkflowSchedule, [
+      {
+        archivedAt: null,
+        lastQueuedAt: null,
+        nextRunAt: claimedAt,
+        status: 'active',
+      },
+    ])
+    mockApplyScheduleSuccessUpdate.mockResolvedValueOnce(false).mockResolvedValueOnce(true)
+    dbChainMockFns.returning
+      .mockResolvedValueOnce([{ id: 'completed-job-id' }])
+      .mockResolvedValueOnce([{ id: 'schedule-1' }])
+
+    await runScheduleTick('test-request-id')
+
+    expect(mockApplyScheduleSuccessUpdate).toHaveBeenCalledTimes(2)
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({ lastQueuedAt: claimedAt })
+    )
+    expect(mockExecuteScheduleJob).not.toHaveBeenCalled()
+  })
+
+  it('does not overwrite a newer non-null claim while reconciling an old carrier', async () => {
+    mockShouldExecuteInline.mockReturnValue(true)
+    const claimedAt = new Date('2025-01-01T00:00:00.000Z')
+    const newerClaim = new Date('2025-01-01T00:05:00.000Z')
+    mockProcessingCounts(0, 0)
+    orderByLimitMock.mockResolvedValueOnce([
+      {
+        id: 'completed-job-id',
+        status: 'completed',
+        payload: {
+          scheduleId: 'schedule-1',
+          workflowId: 'workflow-1',
+          executionId: 'execution-1',
+          now: claimedAt.toISOString(),
+          scheduledFor: claimedAt.toISOString(),
+        },
+      },
+    ])
+    queueTableRows(mockWorkflowExecutionLogs, [
+      { executionId: 'execution-1', workflowId: 'workflow-1', status: 'completed' },
+    ])
+    queueTableRows(mockWorkflowSchedule, [
+      {
+        archivedAt: null,
+        lastQueuedAt: newerClaim,
+        nextRunAt: claimedAt,
+        status: 'active',
+      },
+    ])
+    mockApplyScheduleSuccessUpdate.mockResolvedValueOnce(false)
+    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'completed-job-id' }])
+
+    await runScheduleTick('test-request-id')
+
+    expect(mockApplyScheduleSuccessUpdate).toHaveBeenCalledOnce()
+    expect(dbChainMockFns.set).not.toHaveBeenCalledWith(
+      expect.objectContaining({ lastQueuedAt: claimedAt })
+    )
+    expect(dbChainMockFns.set).not.toHaveBeenCalledWith(
+      expect.objectContaining({ metadata: expect.anything() })
+    )
+    expect(mockExecuteScheduleJob).not.toHaveBeenCalled()
+  })
+
+  it('rotates a deferred carrier to the back of the batch instead of starving it', async () => {
+    mockShouldExecuteInline.mockReturnValue(true)
+    const claimedAt = new Date('2025-01-01T00:00:00.000Z')
+    const newerClaim = new Date('2025-01-01T00:05:00.000Z')
+    mockProcessingCounts(0, 0)
+    orderByLimitMock.mockResolvedValueOnce([
+      {
+        id: 'completed-job-id',
+        status: 'completed',
+        payload: {
+          scheduleId: 'schedule-1',
+          workflowId: 'workflow-1',
+          executionId: 'execution-1',
+          now: claimedAt.toISOString(),
+          scheduledFor: claimedAt.toISOString(),
+        },
+      },
+    ])
+    queueTableRows(mockWorkflowExecutionLogs, [
+      { executionId: 'execution-1', workflowId: 'workflow-1', status: 'completed' },
+    ])
+    queueTableRows(mockWorkflowSchedule, [
+      {
+        archivedAt: null,
+        lastQueuedAt: newerClaim,
+        nextRunAt: claimedAt,
+        status: 'active',
+      },
+    ])
+    mockApplyScheduleSuccessUpdate.mockResolvedValueOnce(false)
+
+    await runScheduleTick('test-request-id')
+
+    const carrierWrites = dbChainMockFns.set.mock.calls
+      .map(([values]) => values as Record<string, unknown>)
+      .filter((values) => values.updatedAt instanceof Date)
+
+    expect(carrierWrites).toContainEqual({ updatedAt: expect.any(Date) })
+    expect(dbChainMockFns.set).not.toHaveBeenCalledWith(
+      expect.objectContaining({ metadata: expect.anything() })
+    )
+  })
+
+  it('marks malformed terminal carriers irrecoverable so they leave the recovery batch', async () => {
+    mockShouldExecuteInline.mockReturnValue(true)
+    mockProcessingCounts(0, 0)
+    orderByLimitMock.mockResolvedValueOnce([
+      {
+        id: 'malformed-job-id',
+        status: 'completed',
+        payload: { workflowId: 'workflow-1' },
+      },
+    ])
+    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'malformed-job-id' }])
+
+    await runScheduleTick('test-request-id')
+
+    expect(dbChainMockFns.set).not.toHaveBeenCalledWith(
+      expect.objectContaining({ status: expect.anything() })
+    )
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({ metadata: expect.anything(), updatedAt: expect.any(Date) })
+    )
+    expect(mockApplyScheduleFailureUpdate).not.toHaveBeenCalled()
+    expect(mockExecuteScheduleJob).not.toHaveBeenCalled()
+  })
+
+  it('settles a malformed in-flight carrier before marking it irrecoverable', async () => {
+    mockShouldExecuteInline.mockReturnValue(true)
+    mockProcessingCounts(0, 0)
+    orderByLimitMock.mockResolvedValueOnce([
+      {
+        id: 'malformed-job-id',
+        status: 'processing',
+        payload: { workflowId: 'workflow-1' },
+      },
+    ])
+    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'malformed-job-id' }])
+
+    await runScheduleTick('test-request-id')
+
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'failed', completedAt: expect.any(Date) })
+    )
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({ metadata: expect.anything(), updatedAt: expect.any(Date) })
+    )
+    expect(mockApplyScheduleFailureUpdate).not.toHaveBeenCalled()
+    expect(mockExecuteScheduleJob).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    { name: 'a missing execution log', executionId: 'execution-1', persistedStatus: null },
+    { name: 'a missing execution ID', executionId: undefined, persistedStatus: null },
+    { name: 'a stale running log', executionId: 'execution-1', persistedStatus: 'running' },
+    { name: 'a stale redacting log', executionId: 'execution-1', persistedStatus: 'redacting' },
+  ])('fails a claimed database job with $name without rerunning it', async (testCase) => {
+    mockShouldExecuteInline.mockReturnValue(true)
+    const claimedAt = new Date('2025-01-01T00:00:00.000Z')
+    mockProcessingCounts(0, 0)
+    orderByLimitMock.mockResolvedValueOnce([
+      {
+        id: 'claimed-job-id',
+        status: 'processing',
+        payload: {
+          scheduleId: 'schedule-1',
+          workflowId: 'workflow-1',
+          executionId: testCase.executionId,
+          now: claimedAt.toISOString(),
+        },
+      },
+    ])
+    if (testCase.persistedStatus) {
+      queueTableRows(mockWorkflowExecutionLogs, [
+        {
+          executionId: 'execution-1',
+          workflowId: 'workflow-1',
+          status: testCase.persistedStatus,
+        },
+      ])
+    }
+    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'claimed-job-id' }])
+
+    await runScheduleTick('test-request-id')
+
+    expect(mockExecuteScheduleJob).not.toHaveBeenCalled()
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
       expect.objectContaining({
-        status: 'pending',
-        startedAt: null,
-        error: expect.stringContaining('stale schedule execution processing lease'),
+        status: 'failed',
+        error: expect.stringContaining('Indeterminate schedule execution outcome'),
       })
     )
+    expect(mockApplyScheduleFailureUpdate).toHaveBeenCalledOnce()
   })
 
   it('resumes pending database fallback jobs without waiting for a stale schedule claim', async () => {
@@ -579,6 +959,14 @@ describe('Scheduled Workflow Execution API Route', () => {
       expect.any(AbortSignal)
     )
     expect(mockCompleteJob).toHaveBeenCalledWith('pending-job-id', null)
+    expect(
+      dbChainMockFns.where.mock.calls.some(([condition]) =>
+        conditionContains(
+          condition,
+          (entry) => entry.type === 'eq' && entry.field === 'attempts' && entry.value === 0
+        )
+      )
+    ).toBe(true)
   })
 
   it.each([
@@ -688,7 +1076,7 @@ describe('Scheduled Workflow Execution API Route', () => {
     )
   })
 
-  it('completes stale pending database fallback jobs whose schedule claim was already released', async () => {
+  it('cancels stale pending database fallback jobs whose schedule claim was already released', async () => {
     mockShouldExecuteInline.mockReturnValue(true)
     const claimedAt = new Date('2025-01-01T00:00:00.000Z')
     mockProcessingCounts(0, 0)
@@ -706,57 +1094,54 @@ describe('Scheduled Workflow Execution API Route', () => {
       .mockResolvedValueOnce([{ lastQueuedAt: null }])
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([])
-    dbChainMockFns.returning.mockReturnValueOnce([]).mockReturnValueOnce([])
-
-    await runScheduleTick('test-request-id')
-    expect(mockExecuteScheduleJob).not.toHaveBeenCalled()
-    expect(mockCompleteJob).toHaveBeenCalledWith(
-      'stale-pending-job-id',
-      expect.objectContaining({
-        skipped: true,
-      })
-    )
-  })
-
-  it('fails exhausted stale database fallback jobs instead of retrying forever', async () => {
-    mockShouldExecuteInline.mockReturnValue(true)
-    const claimedAt = new Date('2025-01-01T00:00:00.000Z')
-    mockProcessingCounts(0, 0)
-    orderByLimitMock.mockResolvedValueOnce([
-      {
-        id: 'exhausted-job-id',
-        payload: {
-          scheduleId: 'schedule-1',
-          workflowId: 'workflow-1',
-          now: claimedAt.toISOString(),
-        },
-        attempts: 3,
-        maxAttempts: 3,
-      },
-    ])
-    dbChainMockFns.limit
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([])
+    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'stale-pending-job-id' }])
 
     await runScheduleTick('test-request-id')
     expect(mockExecuteScheduleJob).not.toHaveBeenCalled()
     expect(dbChainMockFns.set).toHaveBeenCalledWith(
       expect.objectContaining({
-        status: 'failed',
-        error: expect.stringContaining('exhausted retry attempts'),
+        status: 'cancelled',
+        error: expect.stringContaining('claim was released'),
+        metadata: expect.anything(),
       })
     )
-    expect(mockApplyScheduleFailureUpdate).toHaveBeenCalledWith(
-      expect.objectContaining({
-        scheduleId: 'schedule-1',
-        expectedLastQueuedAt: claimedAt,
-        executor: expect.anything(),
-      })
-    )
+    expect(mockCancelJob).not.toHaveBeenCalled()
+    expect(mockCompleteJob).not.toHaveBeenCalled()
   })
 
-  it('defers schedule claims when retryable lookup infrastructure fails before enqueue', async () => {
+  it('reconciles pending database jobs with attempts instead of executing them', async () => {
+    mockShouldExecuteInline.mockReturnValue(true)
+    const claimedAt = new Date('2025-01-01T00:00:00.000Z')
+    mockProcessingCounts(0, 0)
+    orderByLimitMock.mockResolvedValueOnce([
+      {
+        id: 'claimed-pending-job-id',
+        status: 'pending',
+        payload: {
+          scheduleId: 'schedule-1',
+          workflowId: 'workflow-1',
+          executionId: 'execution-1',
+          now: claimedAt.toISOString(),
+        },
+      },
+    ])
+    queueTableRows(mockWorkflowExecutionLogs, [
+      { executionId: 'execution-1', workflowId: 'workflow-1', status: 'completed' },
+    ])
+    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'claimed-pending-job-id' }])
+
+    await runScheduleTick('test-request-id')
+
+    expect(mockExecuteScheduleJob).not.toHaveBeenCalled()
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: 'completed',
+      })
+    )
+    expect(mockApplyScheduleSuccessUpdate).toHaveBeenCalledOnce()
+  })
+
+  it('preserves the occurrence when carrier lookup is uncertain', async () => {
     const claimedAt = new Date('2025-01-01T00:00:00.000Z')
     const schedule = {
       ...SINGLE_SCHEDULE[0],
@@ -772,13 +1157,36 @@ describe('Scheduled Workflow Execution API Route', () => {
 
     await runScheduleTick('test-request-id')
     expect(mockEnqueue).not.toHaveBeenCalled()
+    expect(mockResolveSystemBillingAttribution).not.toHaveBeenCalled()
     expect(mockReleaseScheduleLock).not.toHaveBeenCalled()
-    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+    expect(dbChainMockFns.set).not.toHaveBeenCalledWith(
       expect.objectContaining({
-        lastQueuedAt: null,
-        nextRunAt: expect.any(Date),
         infraRetryCount: 1,
       })
+    )
+    expect(mockApplyScheduleFailureUpdate).not.toHaveBeenCalled()
+  })
+
+  it('preserves the occurrence when enqueue acceptance is unknown', async () => {
+    const claimedAt = new Date('2025-01-01T00:00:00.000Z')
+    const schedule = { ...SINGLE_SCHEDULE[0], lastQueuedAt: claimedAt }
+    mockEnqueue.mockRejectedValueOnce(
+      new AsyncJobEnqueueError('response lost after enqueue', {
+        acceptance: 'unknown',
+        retryable: true,
+      })
+    )
+    dbChainMockFns.limit
+      .mockResolvedValueOnce(SINGLE_CLAIMED_SCHEDULE_ROWS)
+      .mockResolvedValueOnce([])
+    dbChainMockFns.returning.mockReturnValueOnce([schedule]).mockReturnValueOnce([])
+
+    await runScheduleTick('test-request-id')
+
+    expect(mockEnqueue).toHaveBeenCalledOnce()
+    expect(mockApplyScheduleFailureUpdate).not.toHaveBeenCalled()
+    expect(dbChainMockFns.set).not.toHaveBeenCalledWith(
+      expect.objectContaining({ infraRetryCount: 1 })
     )
   })
 
@@ -788,7 +1196,7 @@ describe('Scheduled Workflow Execution API Route', () => {
       ...SINGLE_SCHEDULE[0],
       lastQueuedAt: claimedAt,
     }
-    mockGetJob.mockRejectedValueOnce(new Error('bad setup invariant'))
+    mockResolveSystemBillingAttribution.mockRejectedValueOnce(new Error('bad setup invariant'))
     dbChainMockFns.limit
       .mockResolvedValueOnce(SINGLE_CLAIMED_SCHEDULE_ROWS)
       .mockResolvedValueOnce([])
@@ -816,7 +1224,7 @@ describe('Scheduled Workflow Execution API Route', () => {
       ...SINGLE_SCHEDULE[0],
       lastQueuedAt: claimedAt,
     }
-    mockGetJob.mockRejectedValueOnce(new Error('bad setup invariant'))
+    mockResolveSystemBillingAttribution.mockRejectedValueOnce(new Error('bad setup invariant'))
     mockApplyScheduleFailureUpdate.mockResolvedValueOnce({ updated: true, disabled: true })
     dbChainMockFns.limit
       .mockResolvedValueOnce(SINGLE_CLAIMED_SCHEDULE_ROWS)
@@ -836,7 +1244,7 @@ describe('Scheduled Workflow Execution API Route', () => {
       ...SINGLE_SCHEDULE[0],
       lastQueuedAt: claimedAt,
     }
-    mockGetJob.mockRejectedValueOnce(new Error('bad setup invariant'))
+    mockResolveSystemBillingAttribution.mockRejectedValueOnce(new Error('bad setup invariant'))
     mockApplyScheduleFailureUpdate.mockResolvedValueOnce({ updated: true, disabled: false })
     dbChainMockFns.limit
       .mockResolvedValueOnce(SINGLE_CLAIMED_SCHEDULE_ROWS)
@@ -888,6 +1296,7 @@ describe('Scheduled Workflow Execution API Route', () => {
 
     await runScheduleTick('test-request-id')
     expect(mockEnqueue).not.toHaveBeenCalled()
+    expect(mockResolveSystemBillingAttribution).not.toHaveBeenCalled()
     expect(mockReleaseScheduleLock).not.toHaveBeenCalled()
     expect(dbChainMockFns.set).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -1008,9 +1417,9 @@ describe('Scheduled Workflow Execution API Route', () => {
   })
 
   it('cancels stale Trigger.dev runs instead of restoring an expired claim forever', async () => {
-    const originalClaim = new Date(Date.now() - 2 * 60 * 60 * 1000)
     const startedAt = new Date(Date.now() - 11 * 60 * 1000)
     const staleReclaim = new Date()
+    const originalClaim = staleReclaim
     const schedule = {
       ...SINGLE_SCHEDULE[0],
       lastQueuedAt: staleReclaim,
@@ -1023,25 +1432,26 @@ describe('Scheduled Workflow Execution API Route', () => {
       payload: {
         scheduleId: 'schedule-1',
         workflowId: 'workflow-1',
+        executionId: 'execution-1',
         now: originalClaim.toISOString(),
         executionTimeoutMs: 5 * 60 * 1000,
       },
     })
     dbChainMockFns.limit
       .mockResolvedValueOnce(SINGLE_CLAIMED_SCHEDULE_ROWS)
+      .mockResolvedValueOnce([{ workflowId: 'workflow-1', status: 'completed' }])
       .mockResolvedValueOnce([])
     dbChainMockFns.returning.mockReturnValueOnce([schedule]).mockReturnValueOnce([])
 
     await runScheduleTick('test-request-id')
     expect(mockCancelJob).toHaveBeenCalledWith('trigger-run-id')
-    expect(mockReleaseScheduleLock).toHaveBeenCalledWith(
-      'schedule-1',
-      'test-request-id',
-      expect.any(Date),
-      expect.stringContaining('cancelling stale queued schedule execution job'),
-      undefined,
-      { expectedLastQueuedAt: staleReclaim }
+    expect(mockApplyScheduleSuccessUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        scheduleId: 'schedule-1',
+        expectedLastQueuedAt: originalClaim,
+      })
     )
+    expect(mockExecuteScheduleJob).not.toHaveBeenCalled()
   })
 
   it('bounds workflow schedule claims to the configured enqueue budget', async () => {
@@ -1077,7 +1487,39 @@ describe('Scheduled Workflow Execution API Route', () => {
     expect(mockEnqueue).toHaveBeenCalledTimes(100)
   })
 
-  it('guards route-side stale release updates with the claimed occurrence', async () => {
+  it('reconciles a terminal provider job with the claimed occurrence', async () => {
+    const claimedAt = new Date('2025-01-01T00:00:00.000Z')
+    const schedule = {
+      ...SINGLE_SCHEDULE[0],
+      lastQueuedAt: claimedAt,
+    }
+    dbChainMockFns.limit
+      .mockResolvedValueOnce(SINGLE_CLAIMED_SCHEDULE_ROWS)
+      .mockResolvedValueOnce([{ workflowId: 'workflow-1', status: 'completed' }])
+      .mockResolvedValueOnce([])
+    dbChainMockFns.returning.mockReturnValueOnce([schedule]).mockReturnValueOnce([])
+    mockGetJob.mockResolvedValueOnce({
+      id: 'job-id-1',
+      status: 'completed',
+      payload: {
+        scheduleId: 'schedule-1',
+        workflowId: 'workflow-1',
+        executionId: 'execution-1',
+        now: claimedAt.toISOString(),
+      },
+    })
+
+    await runScheduleTick('test-request-id')
+    expect(mockApplyScheduleSuccessUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        scheduleId: 'schedule-1',
+        expectedLastQueuedAt: claimedAt,
+      })
+    )
+    expect(mockExecuteScheduleJob).not.toHaveBeenCalled()
+  })
+
+  it('uses a terminal cancelled carrier when no execution log exists', async () => {
     const claimedAt = new Date('2025-01-01T00:00:00.000Z')
     const schedule = {
       ...SINGLE_SCHEDULE[0],
@@ -1086,17 +1528,61 @@ describe('Scheduled Workflow Execution API Route', () => {
     dbChainMockFns.limit
       .mockResolvedValueOnce(SINGLE_CLAIMED_SCHEDULE_ROWS)
       .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
     dbChainMockFns.returning.mockReturnValueOnce([schedule]).mockReturnValueOnce([])
-    mockGetJob.mockResolvedValueOnce({ id: 'job-id-1', status: 'completed' })
+    mockGetJob.mockResolvedValueOnce({
+      id: 'job-id-1',
+      status: 'cancelled',
+      payload: {
+        scheduleId: 'schedule-1',
+        workflowId: 'workflow-1',
+        executionId: 'execution-1',
+        now: claimedAt.toISOString(),
+      },
+    })
 
     await runScheduleTick('test-request-id')
-    expect(mockReleaseScheduleLock).toHaveBeenCalledWith(
-      'schedule-1',
-      'test-request-id',
-      expect.any(Date),
-      expect.stringContaining('finished job'),
-      null,
-      { expectedLastQueuedAt: claimedAt }
+
+    expect(mockApplyScheduleCancellationUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        scheduleId: 'schedule-1',
+        expectedLastQueuedAt: claimedAt,
+      })
+    )
+    expect(mockApplyScheduleFailureUpdate).not.toHaveBeenCalled()
+    expect(mockResolveSystemBillingAttribution).not.toHaveBeenCalled()
+  })
+
+  it('does not change cadence when reconciliation fails after observing a carrier', async () => {
+    const claimedAt = new Date('2025-01-01T00:00:00.000Z')
+    const schedule = {
+      ...SINGLE_SCHEDULE[0],
+      lastQueuedAt: claimedAt,
+    }
+    dbChainMockFns.limit
+      .mockResolvedValueOnce(SINGLE_CLAIMED_SCHEDULE_ROWS)
+      .mockResolvedValueOnce([{ workflowId: 'workflow-1', status: 'completed' }])
+      .mockResolvedValueOnce([])
+    dbChainMockFns.returning.mockReturnValueOnce([schedule]).mockReturnValueOnce([])
+    mockGetJob.mockResolvedValueOnce({
+      id: 'job-id-1',
+      status: 'completed',
+      payload: {
+        scheduleId: 'schedule-1',
+        workflowId: 'workflow-1',
+        executionId: 'execution-1',
+        now: claimedAt.toISOString(),
+      },
+    })
+    mockApplyScheduleSuccessUpdate.mockRejectedValueOnce(new Error('database unavailable'))
+
+    await runScheduleTick('test-request-id')
+
+    expect(mockEnqueue).not.toHaveBeenCalled()
+    expect(mockResolveSystemBillingAttribution).not.toHaveBeenCalled()
+    expect(mockApplyScheduleFailureUpdate).not.toHaveBeenCalled()
+    expect(dbChainMockFns.set).not.toHaveBeenCalledWith(
+      expect.objectContaining({ infraRetryCount: 1 })
     )
   })
 

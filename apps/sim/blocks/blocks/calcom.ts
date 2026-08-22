@@ -4,6 +4,12 @@ import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { ToolResponse } from '@/tools/types'
 import { getTrigger } from '@/triggers'
 
+const EVENT_TYPE_FIELD = ['eventTypeSelector', 'eventTypeId'] as const
+const EVENT_TYPE_OR_SLUG_FIELD = ['eventTypeSelector', 'eventTypeId', 'eventTypeSlug'] as const
+const EVENT_TYPE_PARAM_FIELD = ['eventTypeParamSelector', 'eventTypeIdParam'] as const
+const EVENT_TYPE_SCHEDULE_FIELD = ['eventTypeScheduleSelector', 'eventTypeScheduleId'] as const
+const SCHEDULE_FIELD = ['scheduleSelector', 'scheduleId'] as const
+
 export const CalComBlock: BlockConfig<ToolResponse> = {
   type: 'calcom',
   name: 'Cal.com',
@@ -17,6 +23,73 @@ export const CalComBlock: BlockConfig<ToolResponse> = {
   integrationType: IntegrationType.Productivity,
   bgColor: '#292929',
   icon: CalComIcon,
+  canvasPresentation: {
+    defaultTitle: 'Cal.com',
+    sentences: {
+      byOperation: {
+        calcom_list_bookings: ['List bookings', { text: ', with status', field: 'bookingStatus' }],
+        calcom_create_booking: [
+          { text: 'Book', field: EVENT_TYPE_FIELD, core: true },
+          { text: 'for', field: 'attendeeName' },
+          { text: ', at', field: 'start' },
+        ],
+        calcom_get_booking: [{ text: 'Fetch booking', field: 'bookingUid', core: true }],
+        calcom_cancel_booking: [
+          { text: 'Cancel booking', field: 'bookingUid', core: true },
+          { text: ', citing', field: 'cancellationReason' },
+        ],
+        calcom_reschedule_booking: [
+          { text: 'Reschedule booking', field: 'bookingUid', core: true },
+          { text: 'to', field: 'start' },
+          { text: ', citing', field: 'reschedulingReason' },
+        ],
+        calcom_confirm_booking: [
+          { text: 'Confirm pending booking', field: 'bookingUid', core: true },
+        ],
+        calcom_decline_booking: [
+          { text: 'Decline pending booking', field: 'bookingUid', core: true },
+        ],
+        calcom_create_event_type: [
+          { text: 'Create event type', field: 'title', core: true },
+          { text: ', lasting', field: 'eventLength', after: 'minutes' },
+          { text: ', on schedule', field: EVENT_TYPE_SCHEDULE_FIELD },
+        ],
+        calcom_get_event_type: [
+          { text: 'Fetch event type', field: EVENT_TYPE_PARAM_FIELD, core: true },
+        ],
+        calcom_list_event_types: [
+          'List event types',
+          { text: ', sorted', field: 'sortCreatedAt', after: 'by creation date' },
+        ],
+        calcom_update_event_type: [
+          { text: 'Update event type', field: EVENT_TYPE_PARAM_FIELD, core: true },
+          { text: ', renaming it to', field: 'title' },
+          { text: ', lasting', field: 'eventLength', after: 'minutes' },
+        ],
+        calcom_delete_event_type: [
+          { text: 'Delete event type', field: EVENT_TYPE_PARAM_FIELD, core: true },
+        ],
+        calcom_create_schedule: [
+          { text: 'Create availability schedule', field: 'name', core: true },
+          { text: ', in', field: 'timeZone' },
+        ],
+        calcom_get_schedule: [{ text: 'Fetch schedule', field: SCHEDULE_FIELD, core: true }],
+        calcom_list_schedules: ['List availability schedules'],
+        calcom_update_schedule: [
+          { text: 'Update schedule', field: SCHEDULE_FIELD, core: true },
+          { text: ', renaming it to', field: 'name' },
+          { text: ', in', field: 'timeZone' },
+        ],
+        calcom_delete_schedule: [{ text: 'Delete schedule', field: SCHEDULE_FIELD, core: true }],
+        calcom_get_default_schedule: ['Fetch the default availability schedule'],
+        calcom_get_slots: [
+          { text: 'Find open slots for', field: EVENT_TYPE_OR_SLUG_FIELD, core: true },
+          { text: ', from', field: 'start' },
+          { text: ', until', field: 'end' },
+        ],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',

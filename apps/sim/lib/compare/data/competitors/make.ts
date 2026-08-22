@@ -695,6 +695,22 @@ export const makeProfile: CompetitorProfile = {
           { url: 'https://apps.make.com/code', label: 'Make Code app docs', asOf: '2026-07-08' },
         ],
       },
+      codeSandboxRuntime: {
+        value:
+          "Partial: Enterprise-only and at the package layer. The Make Code module has an 'Additional dependencies (Enterprise plans only)' field under Advanced settings where third-party JavaScript/Python packages are declared by name (Make's own example adds axios, then requires it in the code) and installed before the code runs. On Core, Pro, and Teams the runtime is a fixed image limited to Make's standard libraries: moment, moment-timezone, and lodash for JavaScript, and pendulum, toolz, and requests for Python. Make's documentation lists no field for OS-level system packages, custom container images, or preinstalled CLI binaries on any plan.",
+        detail:
+          'Per the Make Code app documentation, declared dependencies are installed before execution and are not shared between multiple Code modules. The sandbox itself is sized by plan rather than by the user: 1 CPU, 512 MB RAM, and a 30-second maximum execution time on Core/Pro/Teams, rising to 2 CPUs, 1024 MB RAM, and 300 seconds on Enterprise. Runtimes are pinned by Make (Python 3.12.11, Node 20.19.4) rather than chosen per module, and because Make is cloud-only with no self-hosted engine, there is no path to bake a custom runtime image. Make documents the Code app as being in open beta, noting that both functionality and pricing may change.',
+        shortValue: 'Packages only: declared npm/PyPI dependencies, Enterprise plans',
+        confidence: 'verified',
+        sources: [
+          { url: 'https://apps.make.com/code', label: 'Make Code app docs', asOf: '2026-08-10' },
+          {
+            url: 'https://www.make.com/en/blog/make-code-app',
+            label: 'Make blog: Make Code App',
+            asOf: '2026-08-10',
+          },
+        ],
+      },
       apiPublishing: {
         value:
           'Yes, via custom + response webhooks acting as API endpoints; plus a separate Make platform REST API',
@@ -1021,6 +1037,21 @@ export const makeProfile: CompetitorProfile = {
             url: 'https://developers.make.com/white-label-documentation/manage-login/configure-single-sign-on',
             label: 'Configure Single Sign-on - Make White Label Developer Hub',
             asOf: '2026-07-02',
+          },
+        ],
+      },
+      sessionPolicy: {
+        value:
+          "Yes: organization administrators and owners can set a session timeout from the organization dashboard (three dots next to Organization settings > Set session timeout), choosing how long users can be inactive before they are automatically logged out, anywhere from 15 minutes to 7 days. This is an inactivity/idle timeout applied org-wide; Make's help center documents no separate absolute session-lifetime cap measured from sign-in.",
+        detail:
+          "The setting is restricted to organization administrators and owners, and where a user belongs to multiple organizations the shortest configured timeout applies to that user. Make's help page does not restrict the control to a specific pricing tier. Separately, closing the browser ends the session regardless of the configured timeout value.",
+        shortValue: 'Yes: org-wide idle timeout, 15 minutes to 7 days',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://help.make.com/set-the-length-of-your-session-timeout',
+            label: 'Set the length of your session timeout - Make Help Center',
+            asOf: '2026-08-10',
           },
         ],
       },

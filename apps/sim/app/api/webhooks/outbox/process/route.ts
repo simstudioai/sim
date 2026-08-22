@@ -2,13 +2,19 @@ import { db } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
+import { adminInvitationOperationOutboxHandlers } from '@/lib/admin/invitation-operation'
+import { adminMemberOperationOutboxHandlers } from '@/lib/admin/member-operation'
 import { verifyCronAuth } from '@/lib/auth/internal'
+import { enterpriseOwnerClaimOutboxHandlers } from '@/lib/billing/enterprise-owner-claim'
 import { enterpriseIssuanceOutboxHandlers } from '@/lib/billing/enterprise-provisioning'
 import { membershipBillingOutboxHandlers } from '@/lib/billing/organizations/membership-reconciliation'
 import { billingOutboxHandlers } from '@/lib/billing/webhooks/outbox-handlers'
 import { processOutboxEvents } from '@/lib/core/outbox/service'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { directGrantOutboxHandlers } from '@/lib/invitations/direct-grant'
+import { knowledgeDocumentProcessingOutboxHandlers } from '@/lib/knowledge/documents/processing-outbox-handler'
+import { workspaceFileStorageCleanupOutboxHandlers } from '@/lib/uploads/contexts/workspace/workspace-file-storage-cleanup-outbox'
 import { workflowDeploymentOutboxHandlers } from '@/lib/workflows/deployment-outbox'
 import { invitationMigrationOutboxHandlers } from '@/lib/workspaces/admin-move'
 import { reapStaleBackgroundWork } from '@/ee/workspace-forking/lib/background-work/store'
@@ -19,10 +25,16 @@ export const dynamic = 'force-dynamic'
 export const maxDuration = 120
 
 const handlers = {
+  ...adminInvitationOperationOutboxHandlers,
+  ...adminMemberOperationOutboxHandlers,
   ...billingOutboxHandlers,
   ...membershipBillingOutboxHandlers,
   ...enterpriseIssuanceOutboxHandlers,
+  ...enterpriseOwnerClaimOutboxHandlers,
   ...invitationMigrationOutboxHandlers,
+  ...directGrantOutboxHandlers,
+  ...knowledgeDocumentProcessingOutboxHandlers,
+  ...workspaceFileStorageCleanupOutboxHandlers,
   ...workflowDeploymentOutboxHandlers,
 } as const
 

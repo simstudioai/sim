@@ -315,10 +315,17 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
 
     await executionPromise
 
+    /**
+     * The default snapshot is a server-side run, so its personal and workspace
+     * identities differ and the environment resolves once per identity. Both
+     * lookups still overlap the workflow load, which is what this pins.
+     */
     expect(callOrder).toEqual([
       'load-workflow:start',
       'load-env:start',
+      'load-env:start',
       'load-workflow:end',
+      'load-env:end',
       'load-env:end',
       'safeStart',
       'executor-construct',
@@ -1153,6 +1160,33 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
     expect(clearExecutionCancellationMock).toHaveBeenCalledWith('execution-1')
   })
 
+  /**
+   * The population `runCount` actually counts. Cancelled and paused runs are
+   * already pinned above; a plain failure is the case a caller is most likely to
+   * assume is included, and the workflow contract's `runCount` description is
+   * written against this.
+   */
+  it('leaves runCount untouched when the run fails', async () => {
+    executorExecuteMock.mockResolvedValue({
+      success: false,
+      status: 'failed',
+      output: {},
+      logs: [],
+      error: 'block threw',
+      metadata: { duration: 123, startTime: 'start', endTime: 'end' },
+    })
+
+    await executeWorkflowCore({
+      snapshot: createSnapshot() as any,
+      callbacks: {},
+      loggingSession: loggingSession as any,
+    })
+
+    await loggingSession.setPostExecutionPromise.mock.calls[0][0]
+
+    expect(updateWorkflowRunCountsMock).not.toHaveBeenCalled()
+  })
+
   it('routes paused executions through safeCompleteWithPause', async () => {
     const executionState = {
       blockStates: { 'function-1': { output: { result: 'raw-secret-value' } } },
@@ -1595,6 +1629,7 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
         ...createSnapshot().metadata,
         isClientSession: true,
         sessionUserId: 'session-user',
+        userId: 'session-user',
         workflowUserId: 'workflow-owner',
       },
     }
@@ -1619,9 +1654,10 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
     })
 
     expect(getPersonalAndWorkspaceEnvMock).toHaveBeenCalledWith('session-user', 'workspace-1')
+    expect(getPersonalAndWorkspaceEnvMock).not.toHaveBeenCalledWith('workflow-owner', 'workspace-1')
   })
 
-  it('uses workflowUserId for env resolution in server-side execution', async () => {
+  it('resolves personal vars as the workflow owner and workspace vars as the actor', async () => {
     const snapshot = {
       ...createSnapshot(),
       metadata: {
@@ -1633,12 +1669,15 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
       },
     }
 
-    getPersonalAndWorkspaceEnvMock.mockResolvedValue({
-      personalEncrypted: {},
-      workspaceEncrypted: {},
-      personalDecrypted: {},
-      workspaceDecrypted: {},
-    })
+    getPersonalAndWorkspaceEnvMock.mockImplementation(async (userId: string) => ({
+      personalEncrypted: { PERSONAL: `enc-personal-${userId}` },
+      workspaceEncrypted: { WORKSPACE: `enc-workspace-${userId}` },
+      personalDecrypted: { PERSONAL: `personal-${userId}` },
+      workspaceDecrypted: { WORKSPACE: `workspace-${userId}` },
+      personalOwners: {},
+      conflicts: [],
+      decryptionFailures: [],
+    }))
     safeStartMock.mockResolvedValue(true)
     executorExecuteMock.mockResolvedValue({
       output: { done: true },
@@ -1653,6 +1692,96 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
     })
 
     expect(getPersonalAndWorkspaceEnvMock).toHaveBeenCalledWith('workflow-owner', 'workspace-1')
+    expect(getPersonalAndWorkspaceEnvMock).toHaveBeenCalledWith('billing-actor', 'workspace-1')
+    expect(executorConstructorMock.mock.calls[0]?.[0]?.envVarValues).toEqual({
+      PERSONAL: 'personal-workflow-owner',
+      WORKSPACE: 'workspace-billing-actor',
+    })
+  })
+
+  it('resolves no personal vars and workspace vars as the billing account on a public-API run', async () => {
+    const snapshot = {
+      ...createSnapshot(),
+      metadata: {
+        ...createSnapshot().metadata,
+        isClientSession: false,
+        sessionUserId: undefined,
+        enforceCredentialAccess: false,
+        isPublicApiAccess: true,
+        workflowUserId: 'workflow-owner',
+        userId: 'billing-account',
+      },
+    }
+
+    getPersonalAndWorkspaceEnvMock.mockImplementation(async (userId: string) => ({
+      personalEncrypted: { PERSONAL: `enc-personal-${userId}` },
+      workspaceEncrypted: { WORKSPACE: `enc-workspace-${userId}` },
+      personalDecrypted: { PERSONAL: `personal-${userId}` },
+      workspaceDecrypted: { WORKSPACE: `workspace-${userId}` },
+      personalOwners: {},
+      conflicts: [],
+      decryptionFailures: [],
+    }))
+    safeStartMock.mockResolvedValue(true)
+    executorExecuteMock.mockResolvedValue({
+      output: { done: true },
+      logs: [],
+      metadata: { duration: 123, startTime: 'start', endTime: 'end' },
+    })
+
+    await executeWorkflowCore({
+      snapshot: snapshot as any,
+      callbacks: {},
+      loggingSession: loggingSession as any,
+    })
+
+    expect(getPersonalAndWorkspaceEnvMock).toHaveBeenCalledWith('billing-account', 'workspace-1')
+    expect(getPersonalAndWorkspaceEnvMock).not.toHaveBeenCalledWith('workflow-owner', 'workspace-1')
+    expect(executorConstructorMock.mock.calls[0]?.[0]?.envVarValues).toEqual({
+      WORKSPACE: 'workspace-billing-account',
+    })
+  })
+
+  it('resolves both slices as the caller when the run has an identifiable one', async () => {
+    const snapshot = {
+      ...createSnapshot(),
+      metadata: {
+        ...createSnapshot().metadata,
+        isClientSession: false,
+        sessionUserId: undefined,
+        enforceCredentialAccess: true,
+        workflowUserId: 'workflow-owner',
+        userId: 'api-key-caller',
+      },
+    }
+
+    getPersonalAndWorkspaceEnvMock.mockImplementation(async (userId: string) => ({
+      personalEncrypted: { PERSONAL: `enc-personal-${userId}` },
+      workspaceEncrypted: {},
+      personalDecrypted: { PERSONAL: `personal-${userId}` },
+      workspaceDecrypted: {},
+      personalOwners: {},
+      conflicts: [],
+      decryptionFailures: [],
+    }))
+    safeStartMock.mockResolvedValue(true)
+    executorExecuteMock.mockResolvedValue({
+      output: { done: true },
+      logs: [],
+      metadata: { duration: 123, startTime: 'start', endTime: 'end' },
+    })
+
+    await executeWorkflowCore({
+      snapshot: snapshot as any,
+      callbacks: {},
+      loggingSession: loggingSession as any,
+    })
+
+    expect(getPersonalAndWorkspaceEnvMock).toHaveBeenCalledWith('api-key-caller', 'workspace-1')
+    expect(getPersonalAndWorkspaceEnvMock).not.toHaveBeenCalledWith('workflow-owner', 'workspace-1')
+    expect(executorConstructorMock.mock.calls[0]?.[0]?.envVarValues).toEqual({
+      PERSONAL: 'personal-api-key-caller',
+    })
   })
 
   it('throws when workflowUserId is missing in server-side execution', async () => {

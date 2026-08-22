@@ -14,16 +14,15 @@ import {
   RESOLVED_SECRET_PROVENANCE_METADATA_V1,
 } from '@/lib/execution/private-tool-metadata'
 
-const { mockDecryptSecret, mockExecuteProviderRequest, mockGenerateInternalToken } = vi.hoisted(
-  () => ({
+const { mockDecryptSecret, mockExecuteProviderRequest, mockGenerateInternalDelegationToken } =
+  vi.hoisted(() => ({
     mockDecryptSecret: vi.fn(),
     mockExecuteProviderRequest: vi.fn(),
-    mockGenerateInternalToken: vi.fn(),
-  })
-)
+    mockGenerateInternalDelegationToken: vi.fn(),
+  }))
 
 vi.mock('@/lib/auth/internal', () => ({
-  generateInternalToken: mockGenerateInternalToken,
+  generateInternalDelegationToken: mockGenerateInternalDelegationToken,
 }))
 
 vi.mock('@/lib/core/security/encryption', () => ({
@@ -87,7 +86,7 @@ function createInput(registry: ResolvedSecretTraceRegistry) {
 describe('validateHallucination', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockGenerateInternalToken.mockResolvedValue('minted-internal-token')
+    mockGenerateInternalDelegationToken.mockResolvedValue('minted-internal-token')
     mockDecryptSecret.mockImplementation(async (encryptedValue: string) => ({
       decrypted:
         encryptedValue === 'encrypted-reference-secret' ? 'reference-secret' : encryptedValue,
@@ -133,7 +132,10 @@ describe('validateHallucination', () => {
     const result = await validateHallucination(createInput(registry))
 
     expect(result).toMatchObject({ passed: true, score: 8 })
-    expect(mockGenerateInternalToken).toHaveBeenCalledWith('user-1')
+    expect(mockGenerateInternalDelegationToken).toHaveBeenCalledWith({
+      subjectUserId: 'user-1',
+      workflowId: 'workflow-1',
+    })
 
     const [, searchOptions] = fetchMock.mock.calls[0]
     const searchBody = JSON.parse(String(searchOptions?.body)) as {
@@ -195,6 +197,23 @@ describe('validateHallucination', () => {
     }
     expect(providerRequest.messages[0].content).toContain('public context')
     expect(registry.isComplete()).toBe(true)
+  })
+
+  it('fails validation when the delegated Knowledge query is rejected', async () => {
+    const registry = new ResolvedSecretTraceRegistry()
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response(null, { status: 401 }))
+    )
+
+    const result = await validateHallucination(createInput(registry))
+
+    expect(result).toEqual({
+      passed: false,
+      error:
+        'Validation error: Failed to query knowledge base: Knowledge base query failed with status 401',
+    })
+    expect(mockExecuteProviderRequest).not.toHaveBeenCalled()
   })
 
   /**

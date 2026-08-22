@@ -7,6 +7,7 @@ import { toError } from '@sim/utils/errors'
 import type { WorkBook } from 'xlsx'
 import { assertOoxmlPreviewWithinLimits } from '@/lib/file-parsers/ooxml-preview-guard'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
+import { useHorizontalWheelScroll } from '@/app/workspace/[workspaceId]/files/components/file-viewer/use-horizontal-wheel-scroll'
 import { DataTable } from './data-table'
 import { PreviewError, PreviewLoadingFrame, resolvePreviewError } from './preview-shared'
 import { useDocPreviewBinary } from './use-doc-preview-binary'
@@ -29,6 +30,7 @@ export const XlsxPreview = memo(function XlsxPreview({
   file: WorkspaceFileRecord
   workspaceId: string
 }) {
+  const scrollRef = useHorizontalWheelScroll()
   const preview = useDocPreviewBinary(workspaceId, file)
   const fileData = preview.data
 
@@ -130,7 +132,7 @@ export const XlsxPreview = memo(function XlsxPreview({
           ))}
         </div>
       </div>
-      <div className='flex-1 overflow-auto p-6'>
+      <div ref={scrollRef} className='flex-1 overflow-auto p-6'>
         <DataTable headers={currentSheet.headers} rows={currentSheet.rows} />
         {currentSheet.truncated && (
           <p className='mt-3 text-center text-[12px] text-[var(--text-muted)]'>

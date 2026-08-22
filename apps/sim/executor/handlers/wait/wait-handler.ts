@@ -1,4 +1,3 @@
-import { isExecutionCancelled, isRedisCancellationEnabled } from '@/lib/execution/cancellation'
 import type { BlockOutput } from '@/blocks/types'
 import { BlockType } from '@/executor/constants'
 import {
@@ -8,72 +7,38 @@ import {
 import type { BlockHandler, ExecutionContext, PauseMetadata } from '@/executor/types'
 import type { SerializedBlock } from '@/serializer/types'
 
-const CANCELLATION_CHECK_INTERVAL_MS = 500
-
 /** Hard ceiling for in-process (synchronous) waits. */
 const MAX_INPROCESS_WAIT_MS = 5 * 60 * 1000
 
 /** Hard ceiling for async waits. */
 const MAX_ASYNC_WAIT_MS = 30 * 24 * 60 * 60 * 1000
 
-interface SleepOptions {
-  signal?: AbortSignal
-  executionId?: string
-}
-
-const sleep = async (ms: number, options: SleepOptions = {}): Promise<boolean> => {
-  const { signal, executionId } = options
-  const useRedis = isRedisCancellationEnabled() && !!executionId
-
-  if (signal?.aborted) {
-    return false
-  }
-
-  return new Promise((resolve) => {
-    // biome-ignore lint/style/useConst: needs to be declared before cleanup() but assigned later
-    let mainTimeoutId: NodeJS.Timeout | undefined
-    let checkIntervalId: NodeJS.Timeout | undefined
-    let resolved = false
-
-    const cleanup = () => {
-      if (mainTimeoutId) clearTimeout(mainTimeoutId)
-      if (checkIntervalId) clearInterval(checkIntervalId)
-      if (signal) signal.removeEventListener('abort', onAbort)
+/**
+ * Resolves `true` when the full delay elapsed and `false` when the execution was aborted.
+ *
+ * The abort signal is the only cancellation input. The engine owns cancellation detection —
+ * including the durable Redis flag — and aborts this signal, so a wait never has to read
+ * cancellation state itself.
+ */
+const sleepUntilAborted = (ms: number, signal?: AbortSignal): Promise<boolean> =>
+  new Promise((resolve) => {
+    if (signal?.aborted) {
+      resolve(false)
+      return
     }
 
     const onAbort = () => {
-      if (resolved) return
-      resolved = true
-      cleanup()
+      clearTimeout(timeoutId)
       resolve(false)
     }
 
-    if (signal) {
-      signal.addEventListener('abort', onAbort, { once: true })
-    }
-
-    if (useRedis) {
-      checkIntervalId = setInterval(async () => {
-        if (resolved) return
-        try {
-          const cancelled = await isExecutionCancelled(executionId!)
-          if (cancelled) {
-            resolved = true
-            cleanup()
-            resolve(false)
-          }
-        } catch {}
-      }, CANCELLATION_CHECK_INTERVAL_MS)
-    }
-
-    mainTimeoutId = setTimeout(() => {
-      if (resolved) return
-      resolved = true
-      cleanup()
+    const timeoutId = setTimeout(() => {
+      signal?.removeEventListener('abort', onAbort)
       resolve(true)
     }, ms)
+
+    signal?.addEventListener('abort', onAbort, { once: true })
   })
-}
 
 const UNIT_TO_MS = {
   seconds: 1000,
@@ -153,10 +118,7 @@ export class WaitBlockHandler implements BlockHandler {
     }
 
     if (!isAsync) {
-      const completed = await sleep(waitMs, {
-        signal: ctx.abortSignal,
-        executionId: ctx.executionId,
-      })
+      const completed = await sleepUntilAborted(waitMs, ctx.abortSignal)
 
       if (!completed) {
         return {

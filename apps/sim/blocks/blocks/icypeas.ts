@@ -8,12 +8,30 @@ export const IcypeasBlock: BlockConfig<IcypeasResponse> = {
   description: 'Find and verify professional email addresses',
   longDescription:
     'Integrate Icypeas to find a professional email address from a name and company domain, or verify whether an existing email is valid and deliverable. Results are returned asynchronously via polling.',
-  docsLink: 'https://docs.sim.ai/tools/icypeas',
+  docsLink: 'https://docs.sim.ai/integrations/icypeas',
   category: 'tools',
   integrationType: IntegrationType.Sales,
   bgColor: '#d4d4d4',
   icon: IcypeasIcon,
   authMode: AuthMode.ApiKey,
+  canvasPresentation: {
+    defaultTitle: 'Icypeas',
+    sentences: {
+      byOperation: {
+        icypeas_find_email: [
+          {
+            text: 'Find the email for',
+            field: ['fe_firstname', 'fe_lastname'],
+            core: true,
+          },
+          { text: 'at', field: 'fe_domainOrCompany', core: true },
+        ],
+        icypeas_verify_email: [
+          { text: 'Verify', field: 've_email', after: 'is deliverable', core: true },
+        ],
+      },
+    },
+  },
 
   subBlocks: [
     {
@@ -27,9 +45,7 @@ export const IcypeasBlock: BlockConfig<IcypeasResponse> = {
       value: () => 'icypeas_find_email',
     },
 
-    // -----------------------------------------------------------------------
     // Find Email
-    // -----------------------------------------------------------------------
     {
       id: 'fe_firstname',
       title: 'First Name',
@@ -53,9 +69,7 @@ export const IcypeasBlock: BlockConfig<IcypeasResponse> = {
       condition: { field: 'operation', value: 'icypeas_find_email' },
     },
 
-    // -----------------------------------------------------------------------
     // Verify Email
-    // -----------------------------------------------------------------------
     {
       id: 've_email',
       title: 'Email Address',
@@ -65,9 +79,7 @@ export const IcypeasBlock: BlockConfig<IcypeasResponse> = {
       condition: { field: 'operation', value: 'icypeas_verify_email' },
     },
 
-    // -----------------------------------------------------------------------
     // API Key — hidden on hosted Sim for all operations (hosted-key supported)
-    // -----------------------------------------------------------------------
     {
       id: 'apiKey',
       title: 'API Key',

@@ -23,6 +23,7 @@ export const tableGetRowTool: ToolConfig<TableRowGetParams, TableRowResponse> = 
   },
 
   request: {
+    internalAuth: 'executor_delegation',
     secretProvenance: { response: { incomplete: 'propagate' } },
     url: (params: TableRowGetParams) => {
       const workspaceId = params._context?.workspaceId

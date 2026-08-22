@@ -8,6 +8,7 @@ import { sniffCsvDelimiterFromStream } from '@/lib/table/csv-delimiter-stream'
 import {
   buildAutoMapping,
   CSV_DELIMITER_SNIFF_BYTES,
+  CSV_MAX_RECORD_SIZE_BYTES,
   CsvImportValidationError,
   coerceRowsForTable,
   coerceValue,
@@ -336,12 +337,24 @@ describe('import', () => {
       const rows = await parseViaStream('﻿name,age\nAlice,30\n')
       expect(Object.keys(rows[0])).toEqual(['name', 'age'])
     })
+
+    it('rejects a record larger than the parser byte budget', async () => {
+      const oversizedValue = 'x'.repeat(CSV_MAX_RECORD_SIZE_BYTES * 2)
+
+      await expect(parseViaStream(`value\n${oversizedValue}\n`)).rejects.toThrow(
+        new RegExp(`maximum number of tolerated bytes of ${CSV_MAX_RECORD_SIZE_BYTES}`)
+      )
+    })
   })
 
   describe('csvParseOptions', () => {
     it('sets bom and the delimiter, with a header-capturing columns callback', () => {
       const options = csvParseOptions('\t')
-      expect(options).toMatchObject({ bom: true, delimiter: '\t' })
+      expect(options).toMatchObject({
+        bom: true,
+        delimiter: '\t',
+        max_record_size: CSV_MAX_RECORD_SIZE_BYTES,
+      })
       expect(typeof options.columns).toBe('function')
     })
 

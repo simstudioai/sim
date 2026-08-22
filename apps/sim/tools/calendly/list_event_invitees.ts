@@ -2,6 +2,7 @@ import type {
   CalendlyListEventInviteesParams,
   CalendlyListEventInviteesResponse,
 } from '@/tools/calendly/types'
+import { toUuid } from '@/tools/calendly/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const listEventInviteesTool: ToolConfig<
@@ -63,9 +64,7 @@ export const listEventInviteesTool: ToolConfig<
 
   request: {
     url: (params: CalendlyListEventInviteesParams) => {
-      const uuid = params.eventUuid.includes('/')
-        ? params.eventUuid.split('/').pop()
-        : params.eventUuid
+      const uuid = toUuid(params.eventUuid)
       const url = `https://api.calendly.com/scheduled_events/${uuid}/invitees`
       const queryParams = []
 

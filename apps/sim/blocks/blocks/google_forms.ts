@@ -5,6 +5,13 @@ import { IntegrationType } from '@/blocks/types'
 import { SERVICE_ACCOUNT_SUBBLOCKS } from '@/blocks/utils'
 import { getTrigger } from '@/triggers'
 
+/*
+ * Canonical basic/advanced pair for the form a card points at. Listing both
+ * members keeps the sentence working for an advanced-mode user, who has only
+ * the raw id filled.
+ */
+const FORM_FIELD = ['formSelector', 'manualFormId'] as const
+
 export const GoogleFormsBlock: BlockConfig = {
   type: 'google_forms',
   name: 'Google Forms',
@@ -16,6 +23,48 @@ export const GoogleFormsBlock: BlockConfig = {
   integrationType: IntegrationType.Documents,
   bgColor: '#FFFFFF',
   icon: GoogleFormsIcon,
+  canvasPresentation: {
+    defaultTitle: 'Google Forms',
+    /*
+     * The webhook fires for whatever form posts to it, so `triggerFormId` is a
+     * label rather than a scope — it names the form once the user supplies it,
+     * and marking it `core` would promise a filter the trigger does not apply.
+     */
+    triggerSentences: {
+      default: ['Run on a form response', { text: 'from', field: 'triggerFormId' }],
+    },
+    sentences: {
+      byOperation: {
+        get_responses: [
+          { text: 'Read response', field: 'responseId', core: true },
+          { text: 'from form', field: FORM_FIELD, core: true },
+          { text: ', matching', field: 'filter' },
+        ],
+        get_form: [{ text: 'Read structure of form', field: FORM_FIELD, core: true }],
+        create_form: [{ text: 'Create a form titled', field: 'title', core: true }],
+        batch_update: [{ text: 'Apply batch updates to form', field: FORM_FIELD, core: true }],
+        set_publish_settings: [
+          { text: 'Update publish settings of form', field: FORM_FIELD, core: true },
+        ],
+        create_watch: [
+          { text: 'Watch form', field: FORM_FIELD, core: true },
+          { text: 'for', field: 'eventType' },
+          { text: ', notifying', field: 'topicName' },
+        ],
+        list_watches: [
+          { text: 'List notification watches on form', field: FORM_FIELD, core: true },
+        ],
+        delete_watch: [
+          { text: 'Delete watch', field: 'watchId', core: true },
+          { text: 'from form', field: FORM_FIELD, core: true },
+        ],
+        renew_watch: [
+          { text: 'Renew watch', field: 'watchId', core: true },
+          { text: 'on form', field: FORM_FIELD, core: true },
+        ],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',

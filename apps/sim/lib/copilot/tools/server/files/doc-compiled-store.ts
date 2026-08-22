@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
-import { downloadFile, uploadFile } from '@/lib/uploads/core/storage-service'
+import { downloadFile, headObject, uploadFile } from '@/lib/uploads/core/storage-service'
 
 const logger = createLogger('CopilotDocCompiledStore')
 
@@ -30,6 +30,41 @@ function compiledArtifactKey(
   return `copilot-doc-compiled/${workspaceId}/${hash}.${ext}`
 }
 
+function publishedArtifactPointerKey(workspaceId: string, source: string, ext: string): string {
+  const sourceHash = createHash('sha256').update(source, 'utf-8').digest('hex')
+  return `copilot-doc-compiled/${workspaceId}/${sourceHash}.${ext}.published.json`
+}
+
+interface PublishedArtifactPointer {
+  version: 1
+  referencedInputIdentity: string
+}
+
+async function loadPublishedArtifactPointer(key: string): Promise<PublishedArtifactPointer | null> {
+  const stored = await headObject(key, 'copilot')
+  if (!stored) return null
+  const encoded = await downloadFile({ key, context: 'copilot' })
+
+  let decoded: unknown
+  try {
+    decoded = JSON.parse(encoded.toString('utf-8'))
+  } catch {
+    throw new Error(`Published compiled document pointer is malformed: ${key}`)
+  }
+  if (
+    typeof decoded !== 'object' ||
+    decoded === null ||
+    !('version' in decoded) ||
+    decoded.version !== 1 ||
+    !('referencedInputIdentity' in decoded) ||
+    typeof decoded.referencedInputIdentity !== 'string' ||
+    !decoded.referencedInputIdentity
+  ) {
+    throw new Error(`Published compiled document pointer is invalid: ${key}`)
+  }
+  return { version: 1, referencedInputIdentity: decoded.referencedInputIdentity }
+}
+
 /** Loads the compiled binary for the current source, or null if not yet built. */
 export async function loadCompiledDoc(
   workspaceId: string,
@@ -43,6 +78,56 @@ export async function loadCompiledDoc(
   } catch {
     return null
   }
+}
+
+/**
+ * Publishes the exact dependency-bound artifact that was produced under an authorized Principal.
+ * Public shares consume this pointer without gaining authority to read the referenced workspace
+ * files or compile arbitrary source themselves.
+ */
+export async function publishCompiledDocArtifact(
+  workspaceId: string,
+  source: string,
+  ext: string,
+  referencedInputIdentity: string
+): Promise<void> {
+  if (!referencedInputIdentity) {
+    throw new Error('Published compiled document identity must not be empty')
+  }
+  const key = publishedArtifactPointerKey(workspaceId, source, ext)
+  const existing = await loadPublishedArtifactPointer(key)
+  if (existing?.referencedInputIdentity === referencedInputIdentity) return
+  const pointer: PublishedArtifactPointer = { version: 1, referencedInputIdentity }
+  try {
+    await uploadFile({
+      file: Buffer.from(JSON.stringify(pointer), 'utf-8'),
+      fileName: `doc.${ext}.published.json`,
+      contentType: 'application/json',
+      context: 'copilot',
+      customKey: key,
+      preserveKey: true,
+    })
+  } catch (error) {
+    logger.error('Failed to publish compiled doc artifact', {
+      key,
+      error: getErrorMessage(error),
+    })
+    throw toError(error)
+  }
+}
+
+/** Loads an artifact previously published by an authorized compile, or null before cutover. */
+export async function loadPublishedCompiledDoc(
+  workspaceId: string,
+  source: string,
+  ext: string
+): Promise<Buffer | null> {
+  const key = publishedArtifactPointerKey(workspaceId, source, ext)
+  const pointer = await loadPublishedArtifactPointer(key)
+  if (!pointer) return null
+  const artifact = await loadCompiledDoc(workspaceId, source, ext, pointer.referencedInputIdentity)
+  if (!artifact) throw new Error(`Published compiled document artifact is missing: ${key}`)
+  return artifact
 }
 
 /**
@@ -71,6 +156,9 @@ export async function storeCompiledDoc(
       customKey: key,
       preserveKey: true,
     })
+    if (referencedInputIdentity) {
+      await publishCompiledDocArtifact(workspaceId, source, ext, referencedInputIdentity)
+    }
   } catch (err) {
     logger.error('Failed to store compiled doc artifact', {
       key,

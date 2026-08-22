@@ -273,6 +273,13 @@ export function serializePauseSnapshot(
     useDraftState,
     startTime: metadataFromContext?.startTime ?? new Date().toISOString(),
     isClientSession: metadataFromContext?.isClientSession,
+    /**
+     * Both identity flags survive pause/resume. Dropping them would silently
+     * re-resolve a resumed run's personal variables as the workflow owner even
+     * though the original run authorized as its caller.
+     */
+    enforceCredentialAccess: metadataFromContext?.enforceCredentialAccess,
+    isPublicApiAccess: metadataFromContext?.isPublicApiAccess,
     executionMode: metadataFromContext?.executionMode,
     /** Preserve deployed-chat thinking gate across HITL pause/resume. */
     includeThinking: metadataFromContext?.includeThinking === true ? true : undefined,

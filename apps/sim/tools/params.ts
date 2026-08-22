@@ -31,9 +31,7 @@ import type {
 const logger = createLogger('ToolsParams')
 type ToolParamDefinition = ToolConfig['params'][string]
 
-// ============================================================================
 // Tag/Value Parsing Utilities
-// ============================================================================
 
 interface Option {
   label: string
@@ -617,6 +615,16 @@ export function createUserToolSchema(
         .filter(Boolean)
         .join(' ')
     }
+    // Copilot agents never see secret values, only names — so tell them the
+    // reference form works here, or they paste placeholders that fail upstream.
+    if (visibility === 'user-only' && surface === 'copilot') {
+      propertySchema.description = [
+        propertySchema.description,
+        'Accepts an environment-variable reference like {{VAR_NAME}} (see environment/variables.json), resolved server-side.',
+      ]
+        .filter(Boolean)
+        .join(' ')
+    }
     schema.properties[paramId] = propertySchema
 
     if (param.required && paramId !== hostedApiKeyParam) {
@@ -699,7 +707,7 @@ export async function createLLMToolSchema(
     if (isWorkflowInputMapping) {
       const workflowId = userProvidedParams.workflowId as string
       if (workflowId) {
-        await applyDynamicSchemaForWorkflow(propertySchema, workflowId)
+        await applyDynamicSchemaForWorkflow(propertySchema, workflowId, enrichmentContext)
       }
     }
 
@@ -742,10 +750,11 @@ export async function createLLMToolSchema(
  */
 async function applyDynamicSchemaForWorkflow(
   propertySchema: SchemaProperty,
-  workflowId: string
+  workflowId: string,
+  context: WorkflowToolExecutionContext
 ): Promise<void> {
   try {
-    const workflowInputFields = await fetchWorkflowInputFields(workflowId)
+    const workflowInputFields = await fetchWorkflowInputFields(workflowId, context)
 
     if (workflowInputFields && workflowInputFields.length > 0) {
       propertySchema.type = 'object'
@@ -771,19 +780,32 @@ async function applyDynamicSchemaForWorkflow(
 
 /**
  * Fetches workflow input fields from the API.
+ *
+ * The workflow read route accepts only scoped executor delegations, so the call is
+ * bound to the acting execution subject.
  */
 async function fetchWorkflowInputFields(
-  workflowId: string
+  workflowId: string,
+  context: WorkflowToolExecutionContext
 ): Promise<Array<{ name: string; type: string; description?: string }>> {
   try {
-    const { buildAuthHeaders, buildAPIUrl } = await import('@/executor/utils/http')
+    if (!context.userId) {
+      throw new Error('Workflow input enrichment requires a trusted execution subject')
+    }
+    const { buildAPIUrl, buildExecutorDelegationHeaders } = await import('@/executor/utils/http')
+    const { executionScopeForTarget } = await import('@/executor/utils/delegation')
 
-    const headers = await buildAuthHeaders()
+    const headers = await buildExecutorDelegationHeaders({
+      subjectUserId: context.userId,
+      workflowId,
+      ...executionScopeForTarget(context, workflowId),
+    })
     const url = buildAPIUrl(`/api/workflows/${workflowId}`)
 
     const response = await fetch(url.toString(), { headers })
     if (!response.ok) {
-      throw new Error('Failed to fetch workflow')
+      await response.text().catch(() => {})
+      throw new Error(`Failed to fetch workflow (${response.status})`)
     }
 
     const { data } = await response.json()

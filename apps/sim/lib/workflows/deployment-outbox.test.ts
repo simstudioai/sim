@@ -75,7 +75,7 @@ vi.mock('@/lib/mcp/server-locks', () => ({
 }))
 
 vi.mock('@/lib/posthog/server', () => ({
-  captureServerEvent: mockCaptureServerEvent,
+  deliverOutboxServerEvent: mockCaptureServerEvent,
 }))
 
 vi.mock('@/lib/mcp/workflow-mcp-sync', () => ({
@@ -212,6 +212,7 @@ describe('versioned deployment preparation outbox', () => {
     mockSyncMcpToolsForWorkflow.mockResolvedValue([{ serverId: 'mcp-server-1' }])
     mockSetWorkflowMcpTransactionLockTimeout.mockResolvedValue(undefined)
     mockEmitWorkflowDeployedEvent.mockResolvedValue(undefined)
+    mockCaptureServerEvent.mockResolvedValue('delivered')
     mockMarkDeploymentOperationFailed.mockResolvedValue({
       success: true,
       operation: operation({ status: 'failed' }),
@@ -303,6 +304,7 @@ describe('versioned deployment preparation outbox', () => {
       'workflow_deployed',
       { workflow_id: 'workflow-1', workspace_id: 'workspace-1' },
       expect.objectContaining({
+        insertId: 'event-1',
         groups: { workspace: 'workspace-1' },
         setOnce: expect.objectContaining({ first_workflow_deployed_at: expect.any(String) }),
       })
@@ -311,6 +313,28 @@ describe('versioned deployment preparation outbox', () => {
     expect(mockRecordAudit.mock.invocationCallOrder[0]).toBeGreaterThan(
       mockActivateDeploymentOperation.mock.invocationCallOrder[0]
     )
+    expect(mockCaptureServerEvent.mock.invocationCallOrder[0]).toBeGreaterThan(
+      mockActivateDeploymentOperation.mock.invocationCallOrder[0]
+    )
+
+    mockGetDeploymentOperation.mockResolvedValue(active)
+    queueTableRows(schemaMock.workflow, [
+      { id: 'workflow-1', name: 'Workflow', workspaceId: 'workspace-1' },
+    ])
+    await handler()(
+      {
+        ...payload(),
+        checkpoints: {
+          inactiveCleanupCompleted: true,
+          auditEmitted: true,
+          analyticsCaptured: true,
+          socketNotified: true,
+          workspaceEventEmitted: true,
+        },
+      },
+      context()
+    )
+    expect(mockCaptureServerEvent).toHaveBeenCalledTimes(1)
   })
 
   it('ignores a superseded generation without preparing side effects', async () => {
@@ -322,6 +346,33 @@ describe('versioned deployment preparation outbox', () => {
     expect(mockCreateSchedulesForDeploy).not.toHaveBeenCalled()
     expect(mockMarkDeploymentComponentReadiness).not.toHaveBeenCalled()
     expect(mockActivateDeploymentOperation).not.toHaveBeenCalled()
+  })
+
+  it('does not checkpoint analytics until durable PostHog delivery resolves', async () => {
+    const active = operation({ status: 'active', completedAt: NOW })
+    mockGetDeploymentOperation.mockResolvedValue(active)
+    queueTableRows(schemaMock.workflow, [
+      { id: 'workflow-1', name: 'Workflow', workspaceId: 'workspace-1' },
+    ])
+    const deliveryFailure = new Error('PostHog flush failed')
+    mockCaptureServerEvent.mockRejectedValueOnce(deliveryFailure)
+    const outboxContext = context()
+
+    await expect(
+      handler()(
+        {
+          ...payload(),
+          checkpoints: { inactiveCleanupCompleted: true, auditEmitted: true },
+        },
+        outboxContext
+      )
+    ).rejects.toBe(deliveryFailure)
+
+    expect(outboxContext.checkpointPayload).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        checkpoints: expect.objectContaining({ analyticsCaptured: true }),
+      })
+    )
   })
 
   it('honors an aborted signal before starting any side effect', async () => {

@@ -5,20 +5,41 @@ import {
   cn,
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuLabel,
   DropdownMenuSearchInput,
   DropdownMenuTrigger,
+  dropdownMenuRowClass,
 } from '@sim/emcn'
 import {
   ResourceMenuSections,
+  resourceFromItem,
   useAvailableResources,
   useResourceTreeSections,
 } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/add-resource-dropdown'
-import { getResourceConfig } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
+import {
+  getResourceConfig,
+  MENTION_PREVIEW_DEFAULT_LIMIT,
+} from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
 import type { PlusMenuHandle } from '@/app/workspace/[workspaceId]/home/components/user-input/components/constants'
+import {
+  buildMentionPreview,
+  resourceMentionMatches,
+  withDesktopTabMentions,
+} from '@/app/workspace/[workspaceId]/home/components/user-input/components/plus-menu-dropdown/resource-mention-items'
 import type {
   MothershipResource,
   MothershipResourceType,
 } from '@/app/workspace/[workspaceId]/home/types'
+import { useBrowserSessionStore } from '@/stores/browser-session/store'
+import { useCopilotTerminalStore } from '@/stores/copilot-terminal/store'
+
+/**
+ * The `@` list is shorter than the emcn menu default (420px, sized for right-click
+ * action menus). This one floats directly over the chat input, so a menu tall enough
+ * to swallow the conversation behind it reads as a takeover rather than an
+ * autocomplete. ~10 rows is enough to show several families at once.
+ */
+const MENTION_MAX_HEIGHT_CLASS = 'max-h-[min(280px,var(--radix-popper-available-height,280px))]'
 
 /**
  * Resource types that are only offered via `@`-mention autocomplete and hidden
@@ -32,6 +53,8 @@ import type {
  */
 const MENTION_ONLY_RESOURCE_TYPES = new Set<MothershipResourceType>(['integration'])
 const NON_ATTACHABLE_RESOURCE_TYPES = new Set<MothershipResourceType>(['browser'])
+const EMPTY_BROWSER_TABS = [] as const
+const EMPTY_TERMINAL_TABS = [] as const
 
 interface PlusMenuDropdownProps {
   workspaceId: string
@@ -63,6 +86,16 @@ export const PlusMenuDropdown = React.memo(
     const [activeIndex, setActiveIndex] = useState(0)
     const searchRef = useRef<HTMLInputElement>(null)
     const contentRef = useRef<HTMLDivElement>(null)
+    const browserTabs = useBrowserSessionStore((state) => {
+      const scopeId = state.activeScopeId
+      return scopeId ? (state.sessions[scopeId]?.tabs ?? EMPTY_BROWSER_TABS) : EMPTY_BROWSER_TABS
+    })
+    const terminalTabs = useCopilotTerminalStore((state) => {
+      const scopeId = state.activeScopeId
+      return scopeId
+        ? (state.sessions[scopeId]?.tabs.tabs ?? EMPTY_TERMINAL_TABS)
+        : EMPTY_TERMINAL_TABS
+    })
 
     // Gated so an idle chat surface never fetches the workspace lists.
     const {
@@ -88,16 +121,18 @@ export const PlusMenuDropdown = React.memo(
       setOpen(false)
     }, [])
 
-    // The `+` browse menu hides mention-only resource types; `@`-mention mode
-    // exposes the full catalog so integrations remain searchable inline.
+    // The `+` browse menu hides non-attachable and mention-only resource types.
+    // `@` mode exposes the full catalog and adds each live Browser/Terminal tab
+    // after its always-present whole-resource row.
     const visibleResources = useMemo(() => {
+      if (isMention) {
+        return withDesktopTabMentions(availableResources, browserTabs, terminalTabs)
+      }
       const attachable = availableResources.filter(
         ({ type }) => !NON_ATTACHABLE_RESOURCE_TYPES.has(type)
       )
-      return isMention
-        ? attachable
-        : attachable.filter(({ type }) => !MENTION_ONLY_RESOURCE_TYPES.has(type))
-    }, [isMention, availableResources])
+      return attachable.filter(({ type }) => !MENTION_ONLY_RESOURCE_TYPES.has(type))
+    }, [availableResources, browserTabs, isMention, terminalTabs])
 
     const treeSections = useResourceTreeSections({
       groups: visibleResources,
@@ -107,13 +142,15 @@ export const PlusMenuDropdown = React.memo(
     const filteredItems = useMemo(() => {
       const rawQuery = isMention ? (mentionQuery ?? '') : search
       const q = rawQuery.toLowerCase().trim()
-      // In mention mode always render a flat filtered list — empty query = show everything.
       if (!isMention && !q) return null
       if (isMention && !q) {
-        return visibleResources.flatMap(({ type, items }) => items.map((item) => ({ type, item })))
+        return buildMentionPreview(
+          visibleResources,
+          (type) => getResourceConfig(type).mentionPreviewLimit ?? MENTION_PREVIEW_DEFAULT_LIMIT
+        )
       }
       return visibleResources.flatMap(({ type, items }) =>
-        items.filter((item) => item.name.toLowerCase().includes(q)).map((item) => ({ type, item }))
+        items.filter((item) => resourceMentionMatches(item, q)).map((item) => ({ type, item }))
       )
     }, [isMention, mentionQuery, search, visibleResources])
 
@@ -161,11 +198,7 @@ export const PlusMenuDropdown = React.memo(
           const items = filteredItemsRef.current
           const target = items?.length ? (items[activeIndexRef.current] ?? items[0]) : undefined
           if (!target) return isHydratingRef.current ? 'hydrating' : 'empty'
-          handleSelectRef.current({
-            type: target.type,
-            id: target.item.id,
-            title: target.item.name,
-          })
+          handleSelectRef.current(resourceFromItem(target.type, target.item))
           return 'selected'
         },
       }),
@@ -204,7 +237,7 @@ export const PlusMenuDropdown = React.memo(
       } else if (e.key === 'Enter' || (e.key === 'Tab' && !e.shiftKey)) {
         e.preventDefault()
         const target = filteredItems[activeIndex] ?? filteredItems[0]
-        if (target) handleSelect({ type: target.type, id: target.item.id, title: target.item.name })
+        if (target) handleSelect(resourceFromItem(target.type, target.item))
       }
     }
 
@@ -278,7 +311,7 @@ export const PlusMenuDropdown = React.memo(
             // Plus-click shows short fixed labels (Workflows, Tables, …) — let it size
             // to its content via the emcn DropdownMenuContent default max-w.
             // Mention mode renders resource names directly, so widen for breathing room.
-            isMention && 'max-w-[min(300px,calc(100vw-32px))]'
+            isMention && `max-w-[min(300px,calc(100vw-32px))] ${MENTION_MAX_HEIGHT_CLASS}`
           )}
           onCloseAutoFocus={handleCloseAutoFocus}
           onOpenAutoFocus={handleOpenAutoFocus}
@@ -314,27 +347,36 @@ export const PlusMenuDropdown = React.memo(
                 filteredItems.map(({ type, item }, index) => {
                   const config = getResourceConfig(type)
                   const isActive = index === activeIndex
+                  /* Items arrive grouped by family (one group per type, ordered by
+                     RESOURCE_MENU_ORDER), so a type change marks a section boundary.
+                     Deriving the heading from the flat list keeps `activeIndex` — and
+                     therefore every keyboard path — indexing exactly what it did. */
+                  const startsSection = index === 0 || filteredItems[index - 1]?.type !== type
                   return (
-                    <button
-                      key={`${type}:${item.id}`}
-                      type='button'
-                      role='menuitem'
-                      data-filtered-idx={index}
-                      onMouseEnter={() => setActiveIndex(index)}
-                      onClick={() => {
-                        handleSelect({ type, id: item.id, title: item.name })
-                      }}
-                      className={cn(
-                        'relative flex w-full min-w-0 cursor-pointer select-none items-center gap-2 rounded-[5px] px-2 py-1.5 text-left text-[var(--text-body)] text-caption outline-none transition-colors [&>span]:min-w-0 [&>span]:truncate [&_svg]:pointer-events-none [&_svg]:size-[14px] [&_svg]:shrink-0 [&_svg]:text-[var(--text-icon)]',
-                        isActive && 'bg-[var(--surface-active)]'
-                      )}
-                    >
-                      {config.renderDropdownItem({ item })}
-                    </button>
+                    <React.Fragment key={`${type}:${item.id}`}>
+                      {startsSection && <DropdownMenuLabel>{config.label}</DropdownMenuLabel>}
+                      <button
+                        type='button'
+                        role='menuitem'
+                        data-filtered-idx={index}
+                        onMouseEnter={() => setActiveIndex(index)}
+                        onClick={() => {
+                          handleSelect(resourceFromItem(type, item))
+                        }}
+                        className={cn(
+                          dropdownMenuRowClass,
+                          'w-full text-left',
+                          /* `activeIndex` is the cursor, not a selection — hover surface. */
+                          isActive && 'bg-[var(--surface-hover)]'
+                        )}
+                      >
+                        {config.renderDropdownItem({ item })}
+                      </button>
+                    </React.Fragment>
                   )
                 })
               ) : (
-                <div className='px-2 py-1.5 text-center text-[var(--text-tertiary)] text-caption'>
+                <div className='flex h-[28px] items-center justify-center px-2 text-[var(--text-muted)] text-caption'>
                   No results
                 </div>
               ))}

@@ -263,6 +263,46 @@ describe('Logger', () => {
       expect(parsed.self.self).toBe('[Circular]')
     })
 
+    test('should render an Error held under a key as its message, not {}', () => {
+      const error = new Error('boom')
+
+      createEnabledLogger().error('failed', { error })
+
+      const parsed = JSON.parse(consoleErrorSpy.mock.calls[0][0] as string)
+      expect(parsed.error).toBe('boom')
+      expect(parsed.stack).toBe(error.stack)
+    })
+
+    test('should render an Error under a non-conventional key without hijacking stack', () => {
+      createEnabledLogger().error('failed', { cause: new Error('inner'), stack: 'caller-supplied' })
+
+      const parsed = JSON.parse(consoleErrorSpy.mock.calls[0][0] as string)
+      expect(parsed.cause).toBe('inner')
+      expect(parsed.stack).toBe('caller-supplied')
+    })
+
+    test('should keep sibling keys alongside an Error value', () => {
+      createEnabledLogger().error('failed', { error: new Error('boom'), toolId: 'slack_message' })
+
+      const parsed = JSON.parse(consoleErrorSpy.mock.calls[0][0] as string)
+      expect(parsed.error).toBe('boom')
+      expect(parsed.toolId).toBe('slack_message')
+    })
+
+    test('should unwrap an Error held under a key on the colorized path too', () => {
+      const colorized = new Logger('Test', {
+        enabled: true,
+        colorize: true,
+        logLevel: LogLevel.DEBUG,
+      })
+
+      colorized.error('failed', { error: new Error('boom') })
+
+      const printed = consoleErrorSpy.mock.calls[0].join(' ')
+      expect(printed).toContain('boom')
+      expect(printed).not.toContain('"error":{}')
+    })
+
     test('should emit a line instead of throwing on BigInt metadata', () => {
       expect(() => createEnabledLogger().error('boom', { size: 10n })).not.toThrow()
       expect(consoleErrorSpy).toHaveBeenCalledTimes(1)

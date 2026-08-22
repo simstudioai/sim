@@ -18,11 +18,11 @@ import {
   releaseJobClaim,
   sanitizeName,
   TABLE_LIMITS,
-  TableConflictError,
 } from '@/lib/table'
 import { runTableImport, type TableImportPayload } from '@/lib/table/import-runner'
 import { getUserSettings } from '@/lib/users/queries'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
+import { orchestrationErrorResponse } from '@/app/api/table/utils'
 
 const logger = createLogger('TableImportAsync')
 
@@ -101,12 +101,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       requestId
     )
   } catch (error) {
-    if (error instanceof TableConflictError) {
-      return NextResponse.json({ error: error.message }, { status: 409 })
-    }
-    if (error instanceof Error && error.message.includes('maximum table limit')) {
-      return NextResponse.json({ error: error.message }, { status: 400 })
-    }
+    const classified = orchestrationErrorResponse(error)
+    if (classified) return classified
     throw error
   }
 

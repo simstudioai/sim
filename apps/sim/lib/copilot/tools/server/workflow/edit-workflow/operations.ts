@@ -1,10 +1,15 @@
 import { createLogger } from '@sim/logger'
+import { isRecordLike } from '@sim/utils/object'
+import { isEqual } from 'es-toolkit'
 import { isValidKey } from '@/lib/workflows/sanitization/key-validation'
+import { getTransitiveSubBlockDependents } from '@/lib/workflows/subblocks/dependencies'
+import { isNonEmptyValue } from '@/lib/workflows/subblocks/visibility'
 import { TriggerUtils } from '@/lib/workflows/triggers/triggers'
 import { getBlock } from '@/blocks/registry'
 import { normalizeName, RESERVED_BLOCK_NAMES } from '@/executor/constants'
 import { TRIGGER_RUNTIME_SUBBLOCK_IDS } from '@/triggers/constants'
 import {
+  applyBlockRetry,
   applyTriggerConfigToBlockSubblocks,
   createBlockFromParams,
   filterDisallowedTools,
@@ -425,6 +430,14 @@ export function handleEditOperation(op: EditWorkflowOperation, ctx: OperationCon
   if (params?.inputs) {
     if (!block.subBlocks) block.subBlocks = {}
 
+    const previousSubBlockValues = new Map<string, unknown>(
+      Object.entries(block.subBlocks).map(([key, subBlock]: [string, any]) => [
+        key,
+        structuredClone(subBlock?.value),
+      ])
+    )
+    const explicitInputKeys = new Set<string>()
+
     // Validate inputs against block configuration
     const validationResult = validateInputsForBlock(block.type, params.inputs, block_id)
     validationErrors.push(...validationResult.errors)
@@ -439,6 +452,7 @@ export function handleEditOperation(op: EditWorkflowOperation, ctx: OperationCon
       if (TRIGGER_RUNTIME_SUBBLOCK_IDS.includes(key)) {
         return
       }
+      explicitInputKeys.add(key)
       let sanitizedValue = normalizeSubblockValue(key, value)
 
       sanitizedValue = normalizeConditionRouterIds(block_id, key, sanitizedValue)
@@ -467,12 +481,7 @@ export function handleEditOperation(op: EditWorkflowOperation, ctx: OperationCon
         }
       } else {
         const existingValue = block.subBlocks[key].value
-        const valuesEqual =
-          typeof existingValue === 'object' || typeof sanitizedValue === 'object'
-            ? JSON.stringify(existingValue) === JSON.stringify(sanitizedValue)
-            : existingValue === sanitizedValue
-
-        if (!valuesEqual) {
+        if (!isEqual(existingValue, sanitizedValue)) {
           block.subBlocks[key].value = sanitizedValue
         }
       }
@@ -481,9 +490,12 @@ export function handleEditOperation(op: EditWorkflowOperation, ctx: OperationCon
     if (
       Object.hasOwn(params.inputs, 'triggerConfig') &&
       block.subBlocks.triggerConfig &&
-      typeof block.subBlocks.triggerConfig.value === 'object'
+      isRecordLike(block.subBlocks.triggerConfig.value)
     ) {
       applyTriggerConfigToBlockSubblocks(block, block.subBlocks.triggerConfig.value)
+      for (const key of Object.keys(block.subBlocks.triggerConfig.value)) {
+        explicitInputKeys.add(key)
+      }
     }
 
     // Update loop/parallel configuration in block.data (strict validation)
@@ -538,11 +550,26 @@ export function handleEditOperation(op: EditWorkflowOperation, ctx: OperationCon
 
     const editBlockConfig = getBlock(block.type)
     if (editBlockConfig) {
-      updateCanonicalModesForInputs(
-        block,
-        Object.keys(validationResult.validInputs),
-        editBlockConfig
-      )
+      updateCanonicalModesForInputs(block, [...explicitInputKeys], editBlockConfig)
+
+      const changedInputKeys = editBlockConfig.subBlocks
+        .filter((subBlock) => {
+          const currentSubBlock = block.subBlocks[subBlock.id]
+          const existed = previousSubBlockValues.has(subBlock.id)
+          if (!existed || !currentSubBlock) return existed !== Boolean(currentSubBlock)
+          return !isEqual(previousSubBlockValues.get(subBlock.id), currentSubBlock.value)
+        })
+        .map((subBlock) => subBlock.id)
+
+      for (const { subBlockId } of getTransitiveSubBlockDependents(
+        editBlockConfig.subBlocks,
+        changedInputKeys
+      )) {
+        if (explicitInputKeys.has(subBlockId)) continue
+        const dependent = block.subBlocks[subBlockId]
+        if (!dependent || !isNonEmptyValue(dependent.value)) continue
+        dependent.value = ''
+      }
     }
   }
 
@@ -629,6 +656,17 @@ export function handleEditOperation(op: EditWorkflowOperation, ctx: OperationCon
   // Handle advanced mode toggle
   if (typeof params?.advancedMode === 'boolean') {
     block.advancedMode = params.advancedMode
+  }
+
+  // Handle retry policy. Runs after the trigger-mode branch above so eligibility
+  // sees the block's post-update mode: turning a block into a trigger in the
+  // same operation makes it ineligible, exactly as the editor treats it.
+  if (params?.retry !== undefined) {
+    applyBlockRetry(block, params.retry, {
+      operationType: 'edit',
+      blockId: block_id,
+      skippedItems,
+    })
   }
 
   // Handle nested nodes update (for loops/parallels) using merge strategy.

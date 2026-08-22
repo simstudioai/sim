@@ -18,14 +18,19 @@ import { env, envNumber } from '@/lib/core/config/env'
 import { OCR_CAPABILITY, requireCapability } from '@/lib/core/config/env-capabilities'
 import { parseBuffer } from '@/lib/file-parsers'
 import type { FileParseMetadata } from '@/lib/file-parsers/types'
-import { resolveParserExtension } from '@/lib/knowledge/documents/parser-extension'
+import {
+  resolveParserExtension,
+  resolveStoredArtifactExtension,
+} from '@/lib/knowledge/documents/parser-extension'
+import { assessPdfTextLayer } from '@/lib/knowledge/documents/pdf-text-layer'
 import { retryWithExponentialBackoff } from '@/lib/knowledge/documents/utils'
 import {
   assertKnowledgeOpaqueModelInputSafe,
   getKnowledgeOpaqueModelInputRegistry,
 } from '@/lib/knowledge/model-input-provenance'
 import { StorageService } from '@/lib/uploads'
-import { isInternalFileUrl } from '@/lib/uploads/utils/file-utils'
+import { buildStorageKeySegment } from '@/lib/uploads/core/storage-key'
+import { getFileExtension, isInternalFileUrl } from '@/lib/uploads/utils/file-utils'
 import { downloadFileFromUrl } from '@/lib/uploads/utils/file-utils.server'
 import { MAX_FILE_SIZE } from '@/lib/uploads/utils/validation'
 import { mistralParserTool } from '@/tools/mistral/parser'
@@ -50,6 +55,13 @@ type OCRResult = {
 
 type OCRPage = {
   markdown?: string
+}
+
+/** Legacy binary formats and the modern container that replaces them. */
+const LEGACY_FORMAT_REPLACEMENTS: Record<string, string> = {
+  doc: 'DOCX',
+  ppt: 'PPTX',
+  xls: 'XLSX',
 }
 
 const MISTRAL_MAX_PAGES = 1000
@@ -195,6 +207,16 @@ export async function processDocument(
     const { content, processingMethod } = parseResult
     const cloudUrl = 'cloudUrl' in parseResult ? parseResult.cloudUrl : undefined
 
+    /**
+     * Guards every parser, not just the file parsers: OCR reads a scanned page
+     * that has no recoverable text as empty, and chunking empty content yields a
+     * document that reports success while holding nothing. Failing here keeps it
+     * visible with a reason instead.
+     */
+    if (parseResult.metadata?.degraded || !content.trim()) {
+      throw new Error(unreadableDocumentMessage(filename))
+    }
+
     let chunks: Chunk[]
     const metadata: FileParseMetadata = parseResult.metadata ?? {}
 
@@ -267,11 +289,73 @@ async function getMistralApiKey(workspaceId?: string | null): Promise<string | n
   if (workspaceId) {
     const byokResult = await getBYOKKey(workspaceId, 'mistral')
     if (byokResult) {
-      logger.info('Using workspace BYOK key for Mistral OCR')
+      logger.info('Using BYOK key for Mistral OCR', { scope: byokResult.scope })
       return byokResult.apiKey
     }
   }
   return env.MISTRAL_API_KEY || null
+}
+
+/**
+ * Reads a PDF's embedded text layer, returning it only when it is good enough to
+ * index — otherwise `undefined`, leaving the caller to fall through to OCR.
+ *
+ * A failure to parse is not an error here: an encrypted or malformed PDF simply
+ * has no usable layer, which is precisely a case for OCR. The document is fetched
+ * again on that path, a second read from our own storage, which is a cheap price
+ * for keeping the two extraction routes independent.
+ */
+async function readEmbeddedPdfText(
+  fileUrl: string,
+  filename: string,
+  mimeType: string,
+  userId?: string
+): Promise<
+  | {
+      content: string
+      processingMethod: 'file-parser'
+      cloudUrl?: string
+      metadata?: FileParseMetadata
+    }
+  | undefined
+> {
+  try {
+    const buffer = await downloadFileWithTimeout(fileUrl, userId)
+    const parsed = await parseBuffer(buffer, 'pdf')
+
+    /**
+     * The page count comes from the same parse as the text, rather than a second
+     * independent read of the file. Counting separately lets the two disagree: a
+     * count that failed would report no pages, the density check would fall back to
+     * treating the document as a single page, and a long scan carrying only a header
+     * would look dense enough to skip OCR and be indexed as that header.
+     */
+    const pageCount = parsed.metadata?.pageCount ?? 0
+    const verdict = assessPdfTextLayer(parsed.content, pageCount, parsed.metadata?.truncated)
+    if (!verdict.usable) {
+      logger.info('PDF text layer not usable, routing to OCR', {
+        filename,
+        pageCount,
+        reason: verdict.reason,
+      })
+      return undefined
+    }
+
+    logger.info('Using embedded PDF text layer', { filename, pageCount })
+    return {
+      content: parsed.content,
+      processingMethod: 'file-parser',
+      cloudUrl: undefined,
+      metadata: parsed.metadata,
+    }
+  } catch (error) {
+    logger.info('Could not read PDF text layer, routing to OCR', {
+      filename,
+      mimeType,
+      error: toError(error).message,
+    })
+    return undefined
+  }
 }
 
 async function parseDocument(
@@ -298,14 +382,23 @@ async function parseDocument(
       MISTRAL_API_KEY: mistralApiKey,
     }).providerId
 
-    if (ocrProvider === 'azure-mistral') {
-      assertKnowledgeOpaqueModelInputSafe()
-      logger.info('Using Azure Mistral OCR')
-      return parseWithAzureMistralOCR(fileUrl, filename, mimeType, userId)
-    }
+    if (ocrProvider === 'azure-mistral' || ocrProvider === 'mistral') {
+      /**
+       * Most PDFs carry a usable text layer, and reading it costs nothing. OCR is
+       * a per-document call to an external service, so it is reserved for the
+       * documents that actually need it — which also means everything else stops
+       * depending on that service being reachable.
+       */
+      const embedded = await readEmbeddedPdfText(fileUrl, filename, mimeType, userId)
+      if (embedded) return embedded
 
-    if (ocrProvider === 'mistral') {
       assertKnowledgeOpaqueModelInputSafe()
+
+      if (ocrProvider === 'azure-mistral') {
+        logger.info('Using Azure Mistral OCR')
+        return parseWithAzureMistralOCR(fileUrl, filename, mimeType, userId)
+      }
+
       logger.info('Using Mistral OCR')
       return parseWithMistralOCR(fileUrl, filename, mimeType, userId, workspaceId, mistralApiKey)
     }
@@ -362,8 +455,7 @@ async function handleFileForOCR(
 
     const timestamp = Date.now()
     const uniqueId = randomBytes(8).toString('hex')
-    const safeFileName = filename.replace(/[^a-zA-Z0-9.-]/g, '_')
-    const customKey = `kb/${timestamp}-${uniqueId}-${safeFileName}`
+    const customKey = `kb/${buildStorageKeySegment(`${timestamp}-${uniqueId}-`, filename)}`
 
     const cloudResult = await StorageService.uploadFile({
       file: buffer,
@@ -502,42 +594,19 @@ async function parseWithAzureMistralOCR(
 
   const fileBuffer = await downloadFileForBase64(fileUrl, userId)
 
-  if (mimeType === 'application/pdf') {
-    const pageCount = await getPdfPageCount(fileBuffer)
-    if (pageCount > MISTRAL_MAX_PAGES) {
-      throw new Error(
-        `PDF has ${pageCount} pages, exceeding the Azure OCR limit of ${MISTRAL_MAX_PAGES}`
-      )
-    }
-    logger.info('Azure Mistral OCR: PDF page count resolved', { pageCount })
-  }
-
-  const base64Data = fileBuffer.toString('base64')
-  const dataUri = `data:${mimeType};base64,${base64Data}`
-
   try {
-    const response = await retryWithExponentialBackoff(
-      () =>
-        makeOCRRequest(
-          env.OCR_AZURE_ENDPOINT!,
-          {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${env.OCR_AZURE_API_KEY}`,
-          },
-          {
-            model: env.OCR_AZURE_MODEL_NAME!,
-            document: {
-              type: 'document_url',
-              document_url: dataUri,
-            },
-            include_image_base64: false,
-          }
-        ),
-      { maxRetries: 3, initialDelayMs: 1000, maxDelayMs: 10000 }
-    )
-
-    const ocrResult = (await response.json()) as AzureOCRResponse
-    const content = extractPageContent(ocrResult.pages || []) || JSON.stringify(ocrResult, null, 2)
+    /**
+     * A PDF is chunked to the provider's page cap rather than refused for
+     * exceeding it, matching the other OCR provider. Refusing meant a long
+     * document could not be ingested at all, and the cap applies to a single
+     * request, not to the document.
+     */
+    const content =
+      mimeType === 'application/pdf'
+        ? await ocrPdfInChunks(fileBuffer, 'azure-mistral', (chunk) =>
+            recognizeWithAzureOCR(chunk.buffer, mimeType)
+          )
+        : await recognizeWithAzureOCR(fileBuffer, mimeType)
 
     if (!content.trim()) {
       throw new Error('Azure Mistral OCR returned empty content')
@@ -551,6 +620,41 @@ async function parseWithAzureMistralOCR(
     })
     throw error
   }
+}
+
+/** Sends one document to Azure Mistral OCR inline, as a base64 data URI. */
+async function recognizeWithAzureOCR(buffer: Buffer, mimeType: string): Promise<string> {
+  const dataUri = `data:${mimeType};base64,${buffer.toString('base64')}`
+
+  const response = await retryWithExponentialBackoff(
+    () =>
+      makeOCRRequest(
+        env.OCR_AZURE_ENDPOINT!,
+        {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${env.OCR_AZURE_API_KEY}`,
+        },
+        {
+          model: env.OCR_AZURE_MODEL_NAME!,
+          document: {
+            type: 'document_url',
+            document_url: dataUri,
+          },
+          include_image_base64: false,
+        }
+      ),
+    { maxRetries: 3, initialDelayMs: 1000, maxDelayMs: 10000 }
+  )
+
+  const ocrResult = (await response.json()) as AzureOCRResponse
+
+  /**
+   * A response carrying no pages is no content. Returning the raw payload instead
+   * would be indexed as though it were the document: stitched into a chunked run
+   * as recovered text, and in a single-document run it would satisfy the
+   * empty-content check that exists to catch exactly this.
+   */
+  return extractPageContent(ocrResult.pages || [])
 }
 
 async function parseWithMistralOCR(
@@ -659,8 +763,10 @@ async function processChunk(
   try {
     const timestamp = Date.now()
     const uniqueId = randomBytes(8).toString('hex')
-    const safeFileName = filename.replace(/[^a-zA-Z0-9.-]/g, '_')
-    const chunkKey = `kb/${timestamp}-${uniqueId}-chunk${chunkIndex + 1}-${safeFileName}`
+    const chunkKey = `kb/${buildStorageKeySegment(
+      `${timestamp}-${uniqueId}-chunk${chunkIndex + 1}-`,
+      filename
+    )}`
 
     // No metadata: these chunks are ephemeral OCR artifacts (deleted in the
     // finally below) that are fetched via a direct presigned URL, never through
@@ -718,6 +824,102 @@ async function processChunk(
   }
 }
 
+/**
+ * Runs a PDF through OCR a chunk at a time and stitches the pages back together.
+ *
+ * A provider that caps how many pages one request may carry needs the document
+ * split, and both providers cap at the same limit — so the splitting, the
+ * concurrency, the ordering and the partial-failure rule live here once rather
+ * than being restated per provider, where they had already drifted into one
+ * provider chunking and the other refusing anything over the cap.
+ *
+ * A document is indexed whole or not at all: if any chunk fails, the document
+ * fails, because a partial result reports success while page ranges are missing
+ * and nothing downstream can tell.
+ */
+async function ocrPdfInChunks(
+  pdfBuffer: Buffer,
+  provider: string,
+  recognize: (
+    chunk: { buffer: Buffer; startPage: number; endPage: number },
+    chunkIndex: number,
+    totalChunks: number
+  ) => Promise<string | null>
+): Promise<string> {
+  const totalPages = await getPdfPageCount(pdfBuffer)
+
+  /**
+   * Splitting has to load the document, which an encrypted or malformed PDF will
+   * refuse. That must not decide whether the file reaches OCR at all: those are
+   * exactly the documents with no readable text layer, so OCR is their only route,
+   * and the provider may well accept bytes that a local parser would not. When the
+   * split fails the document is sent whole and the page cap is left to the
+   * provider — the behaviour before it was chunked.
+   */
+  let pdfChunks: { buffer: Buffer; startPage: number; endPage: number }[]
+  try {
+    pdfChunks = await splitPdfIntoChunks(pdfBuffer, MISTRAL_MAX_PAGES)
+  } catch (error) {
+    logger.info('PDF could not be split for OCR, sending it whole', {
+      provider,
+      error: toError(error).message,
+    })
+    pdfChunks = [{ buffer: pdfBuffer, startPage: 0, endPage: Math.max(0, totalPages - 1) }]
+  }
+
+  logger.info('Splitting PDF for OCR', {
+    provider,
+    totalPages,
+    chunks: pdfChunks.length,
+    maxPagesPerChunk: MISTRAL_MAX_PAGES,
+    concurrency: MAX_CONCURRENT_CHUNKS,
+  })
+
+  const results: { index: number; content: string | null }[] = []
+
+  for (let i = 0; i < pdfChunks.length; i += MAX_CONCURRENT_CHUNKS) {
+    const batch = pdfChunks.slice(i, i + MAX_CONCURRENT_CHUNKS)
+    const batchResults = await Promise.all(
+      batch.map((chunk, batchIndex) => {
+        const index = i + batchIndex
+        return recognize(chunk, index, pdfChunks.length).then(
+          (content) => ({ index, content }),
+          (error) => {
+            logger.warn('OCR chunk failed', {
+              provider,
+              chunk: index + 1,
+              error: toError(error).message,
+            })
+            return { index, content: null }
+          }
+        )
+      })
+    )
+    results.push(...batchResults)
+  }
+
+  const recovered = results
+    .sort((a, b) => a.index - b.index)
+    .map((r) => r.content)
+    .filter((content): content is string => content !== null && content.trim().length > 0)
+
+  /**
+   * Each chunk has already exhausted its own retries, so a missing one is a real
+   * failure rather than a blip. Failing the document leaves it visible with a
+   * reason and eligible for the stuck-document sweep, which can retry it and
+   * produce a complete result — whereas indexing what came back would be
+   * indistinguishable from a document that never had those pages.
+   */
+  if (recovered.length < pdfChunks.length) {
+    throw new Error(
+      `OCR recovered ${recovered.length} of ${pdfChunks.length} chunks; ` +
+        'indexing the document would omit the rest'
+    )
+  }
+
+  return recovered.join('\n\n')
+}
+
 async function processMistralOCRInBatches(
   filename: string,
   apiKey: string,
@@ -729,52 +931,28 @@ async function processMistralOCRInBatches(
   processingMethod: 'mistral-ocr'
   cloudUrl?: string
 }> {
-  const totalPages = await getPdfPageCount(pdfBuffer)
-  logger.info(`Splitting PDF into chunks`, { totalPages, maxPagesPerChunk: MISTRAL_MAX_PAGES })
-
-  const pdfChunks = await splitPdfIntoChunks(pdfBuffer, MISTRAL_MAX_PAGES)
-  logger.info(
-    `Split into ${pdfChunks.length} chunks, processing with concurrency ${MAX_CONCURRENT_CHUNKS}`
+  const content = await ocrPdfInChunks(pdfBuffer, 'mistral', (chunk, index, total) =>
+    processChunk(chunk, index, total, filename, apiKey, userId).then((r) => r.content)
   )
 
-  const results: { index: number; content: string | null }[] = []
+  return { content, processingMethod: 'mistral-ocr', cloudUrl }
+}
 
-  for (let i = 0; i < pdfChunks.length; i += MAX_CONCURRENT_CHUNKS) {
-    const batch = pdfChunks.slice(i, i + MAX_CONCURRENT_CHUNKS)
-    const batchPromises = batch.map((chunk, batchIndex) =>
-      processChunk(chunk, i + batchIndex, pdfChunks.length, filename, apiKey, userId)
-    )
-
-    const batchResults = await Promise.all(batchPromises)
-    for (const result of batchResults) {
-      results.push(result)
-    }
-
-    logger.info(
-      `Completed batch ${Math.floor(i / MAX_CONCURRENT_CHUNKS) + 1}/${Math.ceil(pdfChunks.length / MAX_CONCURRENT_CHUNKS)}`
-    )
-  }
-
-  const sortedResults = results
-    .sort((a, b) => a.index - b.index)
-    .filter((r) => r.content !== null)
-    .map((r) => r.content as string)
-
-  if (sortedResults.length === 0) {
-    throw new Error(
-      `OCR failed for all ${pdfChunks.length} chunks. ` +
-        `Large PDFs require OCR - file parser fallback would produce poor results.`
-    )
-  }
-
-  const combinedContent = sortedResults.join('\n\n')
-  logger.info(`Successfully processed ${sortedResults.length}/${pdfChunks.length} chunks`)
-
-  return {
-    content: combinedContent,
-    processingMethod: 'mistral-ocr',
-    cloudUrl,
-  }
+/**
+ * Why a document could not be read, phrased for whoever has to act on it.
+ *
+ * The `doc` and `ppt` parsers never throw: on a legacy OLE binary or a deck with
+ * no text they return a placeholder sentence or scraped archive bytes, which an
+ * interactive upload can show a user but an automated sync must never embed. They
+ * report that as `degraded`, and it is treated here exactly like empty output.
+ * Legacy formats get the concrete remedy, since re-saving genuinely fixes them —
+ * the modern container is one the bundled parsers read.
+ */
+function unreadableDocumentMessage(filename: string): string {
+  const modernFormat = LEGACY_FORMAT_REPLACEMENTS[getFileExtension(filename)]
+  return modernFormat
+    ? `No text could be extracted from this file. Re-save it as ${modernFormat} to index it.`
+    : 'No text could be extracted from this file — it may be scanned, image-only, or password-protected.'
 }
 
 async function parseWithFileParser(
@@ -800,10 +978,6 @@ async function parseWithFileParser(
       throw new Error(
         'Unsupported fileUrl scheme: only data: URIs, http(s):// URLs, and internal /api/files/serve/ paths are allowed'
       )
-    }
-
-    if (!content.trim()) {
-      throw new Error('File parser returned empty content')
     }
 
     return { content, processingMethod: 'file-parser' as const, cloudUrl: undefined, metadata }
@@ -839,7 +1013,9 @@ async function parseHttpFile(
 ): Promise<{ content: string; metadata?: FileParseMetadata }> {
   const buffer = await downloadFileWithTimeout(fileUrl, userId)
 
-  const extension = resolveParserExtension(filename, mimeType)
+  /** Prefer what we actually downloaded over what the document is *called*. */
+  const extension =
+    resolveStoredArtifactExtension(fileUrl) ?? resolveParserExtension(filename, mimeType)
   const result = await parseBuffer(buffer, extension)
   return result
 }

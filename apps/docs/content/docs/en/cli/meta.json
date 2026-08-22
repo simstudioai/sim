@@ -1,0 +1,30 @@
+{
+  "title": "CLI",
+  "root": true,
+  "pages": [
+    "---Sim CLI---",
+    "index",
+    "authentication",
+    "configuration",
+    "output",
+    "scripting",
+    "troubleshooting",
+    "---Commands---",
+    "commands",
+    "profiles",
+    "audit-logs",
+    "billing",
+    "credentials",
+    "custom-tools",
+    "files",
+    "knowledge",
+    "logs",
+    "mcp-servers",
+    "secrets",
+    "skills",
+    "tables",
+    "workflows",
+    "workspaces",
+    "reference"
+  ]
+}

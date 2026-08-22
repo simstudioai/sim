@@ -5,6 +5,8 @@ import {
   activeElementSecrecy,
   clickElement,
   collectSnapshot,
+  describeFocusedEditable,
+  describePointTarget,
   focusElementForTyping,
   getViewportInfo,
   hoverElement,
@@ -155,6 +157,8 @@ describe('serialization contract', () => {
     ['readPageText', readPageText, []],
     ['pageContainsText', pageContainsText, ['needle']],
     ['getViewportInfo', getViewportInfo, []],
+    ['describePointTarget', describePointTarget, [10, 10]],
+    ['describeFocusedEditable', describeFocusedEditable, []],
   ]
 
   it.each(cases)('%s is self-contained', (_name, fn, args) => {
@@ -257,8 +261,11 @@ describe('secret-field detection', () => {
     expect(typeIntoElement(0, 'change', false)).toEqual({ error: 'readonly' })
     expect(focusElementForTyping(1)).toEqual({ error: 'disabled' })
     expect(typeIntoElement(1, 'change', false)).toEqual({ error: 'disabled' })
-    expect(focusElementForTyping(2)).toEqual({ error: 'not-editable' })
-    expect(typeIntoElement(2, 'change', false)).toEqual({ error: 'not-editable' })
+    expect(focusElementForTyping(2)).toMatchObject({ error: 'not-editable', elementTag: 'input' })
+    expect(typeIntoElement(2, 'change', false)).toMatchObject({
+      error: 'not-editable',
+      elementTag: 'input',
+    })
   })
 
   it('detects a password field reached through a same-origin iframe', () => {
@@ -379,7 +386,12 @@ describe('combobox typing surfaces', () => {
     for (const input of Array.from(document.querySelectorAll('input'))) visible(input)
     register(ambiguous, secret)
 
-    expect(focusElementForTyping(0)).toEqual({ error: 'ambiguous-editable' })
+    // The candidate list is the whole point of this error — it is the only
+    // thing that lets the agent pick a narrower target.
+    expect(focusElementForTyping(0)).toMatchObject({
+      error: 'ambiguous-editable',
+      candidates: expect.arrayContaining([expect.stringContaining('input')]),
+    })
     expect(focusElementForTyping(1)).toEqual({ error: 'password' })
     expect(typeIntoElement(1, 'nope', false)).toEqual({ error: 'password' })
   })
@@ -589,8 +601,11 @@ describe('collectSnapshot', () => {
     })
 
     expect(card.contains(nestedButton)).toBe(true)
+    // Nothing is covering the card — its own button owns the point. Reporting
+    // this as an obstruction told the agent to close an overlay that does not
+    // exist; the recovery is to target the nested control instead.
     expect(clickElement(ref, false)).toEqual({
-      error: 'obstructed',
+      error: 'nested-control',
       blocker: 'Delete channel',
     })
   })
@@ -766,7 +781,39 @@ describe('collectSnapshot', () => {
       document.body.append(replacement)
     }
 
-    expect(focusElementForTyping(ref)).toEqual({ error: 'stale' })
+    expect(focusElementForTyping(ref)).toMatchObject({ error: 'stale' })
+  })
+
+  it('keeps a connected ref usable after a same-document URL change', () => {
+    document.body.innerHTML = '<button data-testid="composer-send">Send</button>'
+    const button = visible(document.querySelector('button') as HTMLButtonElement)
+    const ref = refFor(outlineOf(collectSnapshot()), 'Send')
+    let clicked = false
+    button.addEventListener('click', () => {
+      clicked = true
+    })
+
+    window.history.pushState({}, '', '/client/T123/C456')
+
+    expect(clickElement(ref)).toMatchObject({ dispatched: true, refRecovered: false })
+    expect(clicked).toBe(true)
+  })
+
+  it('recovers a replaced ref after a same-document URL change', () => {
+    document.body.innerHTML = '<button data-testid="messages-tab">Messages</button>'
+    const original = visible(document.querySelector('button') as HTMLButtonElement)
+    const ref = refFor(outlineOf(collectSnapshot()), 'Messages')
+    const replacement = visible(original.cloneNode(true) as HTMLButtonElement)
+    let clicked = false
+    replacement.addEventListener('click', () => {
+      clicked = true
+    })
+
+    window.history.pushState({}, '', '/client/T123/C456')
+    original.replaceWith(replacement)
+
+    expect(clickElement(ref)).toMatchObject({ dispatched: true, refRecovered: true })
+    expect(clicked).toBe(true)
   })
 
   it('refuses to recover a ref when replacement is ambiguous', () => {
@@ -777,7 +824,7 @@ describe('collectSnapshot', () => {
     const second = visible(original.cloneNode(true) as HTMLButtonElement)
     original.replaceWith(first, second)
 
-    expect(clickElement(ref)).toEqual({ error: 'stale' })
+    expect(clickElement(ref)).toMatchObject({ error: 'stale' })
   })
 
   it('invalidates a connected virtual row when its identity is recycled in place', () => {
@@ -788,7 +835,7 @@ describe('collectSnapshot', () => {
     row.textContent = 'random'
     row.dataset.key = 'channel-2'
 
-    expect(clickElement(ref)).toEqual({ error: 'stale' })
+    expect(clickElement(ref)).toMatchObject({ error: 'stale' })
   })
 
   it('invalidates a generic connected row action when its surrounding item is recycled', () => {
@@ -802,7 +849,7 @@ describe('collectSnapshot', () => {
     ;(document.querySelector('span') as HTMLSpanElement).textContent = 'random'
 
     expect(button.isConnected).toBe(true)
-    expect(clickElement(ref)).toEqual({ error: 'stale' })
+    expect(clickElement(ref)).toMatchObject({ error: 'stale' })
   })
 
   it('never recycles numeric refs across snapshots', () => {
@@ -812,8 +859,30 @@ describe('collectSnapshot', () => {
     const secondRef = refFor(outlineOf(collectSnapshot()), 'Pins')
 
     expect(secondRef).toBeGreaterThan(firstRef)
-    expect(clickElement(firstRef)).toEqual({ error: 'stale' })
+    expect(clickElement(firstRef)).toMatchObject({ error: 'stale' })
     expect(clickElement(secondRef)).toMatchObject({ dispatched: true })
+  })
+
+  // The exact shape of the reported failure: hovering a Slack message mounts an
+  // action bar, but it is a role="toolbar"/"group" — none of the three roles the
+  // popup scan used to match. The hover therefore observed no popup change, no
+  // target change, and so no effect at all, and the agent concluded hovering
+  // did not work and fell back to clicking pixels off screenshots.
+  it('sees a row action bar that mounts on hover', () => {
+    document.body.innerHTML = '<div data-testid="message">Hello</div>'
+    visible(document.querySelector('[data-testid="message"]') as HTMLElement)
+
+    const before = readPageActionState(true) as { popups: string[] }
+    expect(before.popups).toEqual([])
+
+    const toolbar = visible(document.createElement('div'))
+    toolbar.setAttribute('role', 'toolbar')
+    toolbar.setAttribute('aria-label', 'Message shortcuts')
+    document.body.append(toolbar)
+
+    const after = readPageActionState(false) as { popups: string[] }
+    expect(after.popups).toEqual(['Message shortcuts'])
+    expect(after.popups).not.toEqual(before.popups)
   })
 
   it('reports a targeted control semantic disappearance after its panel closes', () => {
@@ -1339,5 +1408,114 @@ describe('pressKeyOnPage', () => {
       pressed: 'a',
     })
     expect(seen).toEqual(['a'])
+  })
+})
+
+describe('describePointTarget', () => {
+  function pointAt(el: Element | null): void {
+    Object.defineProperty(document, 'elementFromPoint', {
+      configurable: true,
+      value: () => el,
+    })
+  }
+
+  it('describes the element at a viewport point', () => {
+    document.body.innerHTML = '<button aria-label="Send message">Send</button>'
+    pointAt(document.querySelector('button'))
+
+    expect(describePointTarget(10, 10)).toMatchObject({
+      found: true,
+      tag: 'button',
+      element: 'button "Send message"',
+      editable: false,
+      fileInput: false,
+      secret: false,
+    })
+  })
+
+  it('flags file inputs and password fields at the point', () => {
+    document.body.innerHTML = '<input type="file" />'
+    pointAt(document.querySelector('input'))
+    expect(describePointTarget(10, 10)).toMatchObject({ found: true, fileInput: true })
+
+    document.body.innerHTML = '<input type="password" />'
+    pointAt(document.querySelector('input'))
+    expect(describePointTarget(10, 10)).toMatchObject({
+      found: true,
+      secret: true,
+      editable: true,
+    })
+  })
+
+  it('rejects points outside the viewport', () => {
+    expect(describePointTarget(-5, 10)).toEqual({ error: 'outside-viewport' })
+    expect(describePointTarget(10, window.innerHeight + 5)).toEqual({
+      error: 'outside-viewport',
+    })
+  })
+})
+
+describe('describeFocusedEditable', () => {
+  it('reports no focus when the body holds focus', () => {
+    setActiveElement(document, document.body)
+    expect(describeFocusedEditable()).toEqual({ editable: false, reason: 'none' })
+  })
+
+  // The bug this pins: focus inside a same-origin frame surfaces on the outer
+  // document as the FRAME element, which is not an input, not contentEditable,
+  // not a canvas, and carries no textbox role — so a composer that press-key
+  // typed into fine was reported `not-editable` and insert_text refused. The
+  // descent here must match activeElementReadback's exactly.
+  it('descends a same-origin frame to the editable that really holds focus', () => {
+    document.body.innerHTML = ''
+    const frame = document.createElement('iframe')
+    document.body.append(frame)
+    const inner = frame.contentDocument as Document
+    inner.body.innerHTML = '<div contenteditable="true">composer</div>'
+    const composer = inner.querySelector('div') as HTMLElement
+    Object.defineProperty(composer, 'isContentEditable', { value: true, configurable: true })
+    setActiveElement(inner, composer)
+    setActiveElement(document, frame)
+
+    expect(describeFocusedEditable()).toEqual({ editable: true, kind: 'contenteditable' })
+  })
+
+  it('names the focused element when it refuses, so the agent can recover', () => {
+    document.body.innerHTML = '<div role="button">Send</div>'
+    setActiveElement(document, document.querySelector('div'))
+
+    expect(describeFocusedEditable()).toEqual({
+      editable: false,
+      reason: 'not-editable',
+      focusedTag: 'div',
+      focusedRole: 'button',
+      contentEditable: 'unset',
+    })
+  })
+
+  it('reports a writable input as insertable', () => {
+    document.body.innerHTML = '<input type="text" />'
+    setActiveElement(document, document.querySelector('input'))
+    expect(describeFocusedEditable()).toEqual({ editable: true, kind: 'input:text' })
+  })
+
+  it('reports a read-only input as not insertable', () => {
+    document.body.innerHTML = '<input type="text" readonly />'
+    setActiveElement(document, document.querySelector('input'))
+    expect(describeFocusedEditable()).toEqual({ editable: false, reason: 'readonly' })
+  })
+
+  it('reports a focused contenteditable editor as insertable', () => {
+    document.body.innerHTML = '<div></div>'
+    const editor = document.querySelector('div') as HTMLElement
+    Object.defineProperty(editor, 'isContentEditable', { get: () => true })
+    setActiveElement(document, editor)
+    expect(describeFocusedEditable()).toEqual({ editable: true, kind: 'contenteditable' })
+  })
+
+  it('treats a focused canvas editor surface as insertable', () => {
+    document.body.innerHTML = '<canvas></canvas>'
+    setActiveElement(document, document.querySelector('canvas'))
+    expect(describeFocusedEditable()).toEqual({ editable: true, kind: 'canvas' })
   })
 })

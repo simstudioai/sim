@@ -40,9 +40,9 @@ vi.mock('@/lib/table/import-data', () => ({
   setTableSchemaForImport: vi.fn(),
 }))
 vi.mock('@/lib/table/jobs/service', () => ({
-  markJobFailed: mockMarkJobFailed,
-  markJobReady: mockMarkJobReady,
-  updateJobProgress: mockUpdateJobProgress,
+  markJobFailedInWorkspace: mockMarkJobFailed,
+  markJobReadyInWorkspace: mockMarkJobReady,
+  updateJobProgressInWorkspace: mockUpdateJobProgress,
 }))
 vi.mock('@/lib/table/rows/ordering', () => ({
   nextImportStartOrderKey: mockNextImportStartOrderKey,
@@ -55,10 +55,11 @@ vi.mock('@/lib/uploads/core/storage-service', () => ({
   downloadFileStream: mockDownloadFileStream,
   headObject: mockHeadObject,
 }))
-vi.mock('@/app/api/table/utils', () => ({
+vi.mock('@/lib/table/wire', () => ({
   normalizeColumn: (col: unknown) => col,
 }))
 
+import { CSV_MAX_BATCH_SIZE_BYTES } from '@/lib/table/import'
 import { runTableImport, type TableImportPayload } from '@/lib/table/import-runner'
 
 const table = {
@@ -113,6 +114,7 @@ describe('runTableImport source-file cleanup', () => {
 
     expect(mockMarkJobFailed).toHaveBeenCalledWith(
       'tbl_1',
+      'ws_1',
       'job_1',
       expect.stringMatching(/insert-locked/i)
     )
@@ -135,5 +137,28 @@ describe('runTableImport source-file cleanup', () => {
 
     expect(mockMarkJobReady).toHaveBeenCalled()
     expect(mockDeleteFile).not.toHaveBeenCalled()
+  })
+
+  it('flushes retained records before the serialized batch byte budget is exceeded', async () => {
+    const cell = 'x'.repeat(390 * 1024)
+    const csv = `name\n${Array.from({ length: 14 }, () => cell).join('\n')}\n`
+    mockHeadObject.mockResolvedValue({ size: Buffer.byteLength(csv) })
+    mockDownloadFileStream.mockResolvedValue(Readable.from(csv))
+    mockBulkInsertImportBatch.mockImplementation(async ({ rows }) => ({
+      inserted: rows.length,
+      lastOrderKey: 'a1',
+    }))
+
+    await runTableImport(buildPayload())
+
+    expect(mockBulkInsertImportBatch).toHaveBeenCalledTimes(2)
+    for (const [input] of mockBulkInsertImportBatch.mock.calls) {
+      const retainedBytes = input.rows.reduce(
+        (total: number, row: Record<string, unknown>) =>
+          total + Buffer.byteLength(JSON.stringify(row), 'utf8'),
+        0
+      )
+      expect(retainedBytes).toBeLessThanOrEqual(CSV_MAX_BATCH_SIZE_BYTES)
+    }
   })
 })

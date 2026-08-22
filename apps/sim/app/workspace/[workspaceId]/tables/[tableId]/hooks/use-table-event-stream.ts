@@ -5,6 +5,7 @@ import { toast } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { backoffWithJitter } from '@sim/utils/retry'
 import { useQueryClient } from '@tanstack/react-query'
+import { getClientFingerprint } from '@/lib/api/client-id'
 import type { ActiveDispatch } from '@/lib/api/contracts/tables'
 import type {
   RowData,
@@ -245,6 +246,30 @@ export function useTableEventStream({
       }, ROWS_INVALIDATE_DEBOUNCE_MS)
     }
 
+    /**
+     * This tab's fingerprint as it appears on a broadcast it caused. Resolved once, asynchronously;
+     * until it lands `applyEdit` simply takes the refetch path, which is the pre-existing behavior.
+     */
+    let ownFingerprint: string | undefined
+    void getClientFingerprint().then((fingerprint) => {
+      ownFingerprint = fingerprint
+    })
+
+    /**
+     * A manual row edit landed. Refetch the rows so the winning last-write value shows live —
+     * unless this tab is the one that made it.
+     *
+     * The signal names its originator only for writes whose mutation hook already applies the
+     * server's answer to every cached rows query, active or not (single-row create, update,
+     * delete). For those the refetch is pure duplication: on a scrolled table it re-fetches every
+     * loaded page, and on delete it races the refetch the hook itself issued. Other tabs see
+     * someone else's fingerprint and refetch normally; an unattributed edit refetches everywhere.
+     */
+    const applyEdit = (event: Extract<TableEvent, { kind: 'edit' }>): void => {
+      if (event.originatorId && event.originatorId === ownFingerprint) return
+      scheduleRowsInvalidate()
+    }
+
     const applyCell = (event: Extract<TableEvent, { kind: 'cell' }>): void => {
       void snapshotAndMutateRows(queryClient, tableId, (row) => applyCellEventToRow(row, event), {
         cancelInFlight: false,
@@ -319,7 +344,7 @@ export function useTableEventStream({
         // Keep the tray's export list fresh between its polls.
         void queryClient.invalidateQueries({ queryKey: tableKeys.exportJobs(workspaceId) })
         if (status === 'ready' && jobId && consumeInitiatedExport(jobId)) {
-          void downloadExportResult(workspaceId, tableId, jobId)
+          void downloadExportResult(workspaceId, jobId)
             .then(() => toast.success('Export ready — downloading'))
             .catch((err) => {
               logger.error('Export download failed', { tableId, jobId, err })
@@ -445,9 +470,7 @@ export function useTableEventStream({
           else if (entry.event?.kind === 'dispatch') applyDispatch(entry.event)
           else if (entry.event?.kind === 'job') applyJob(entry.event)
           else if (entry.event?.kind === 'usageLimitReached') applyUsageLimit(entry.event)
-          // A collaborator's manual edit: refetch rows (debounced) so the winning
-          // last-write value shows live, in this client's own wire format.
-          else if (entry.event?.kind === 'edit') scheduleRowsInvalidate()
+          else if (entry.event?.kind === 'edit') applyEdit(entry.event)
           // A collaborator changed the table structure: mirror the local
           // invalidateTableSchema set — the definition (exact, so rows stay on the
           // debounce), the run-state + enrichment sibling queries under detail (a group

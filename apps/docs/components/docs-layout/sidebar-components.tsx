@@ -1,6 +1,7 @@
 'use client'
 
 import { type ReactNode, useState } from 'react'
+import { chipActiveSurfaceClass, chipHoverSurfaceClass } from '@sim/emcn'
 import { ChevronRight } from '@sim/emcn/icons'
 import type { Folder, Item, Separator } from 'fumadocs-core/page-tree'
 import { useSidebar } from 'fumadocs-ui/components/sidebar/base'
@@ -43,7 +44,7 @@ function isActive(url: string, pathname: string, nested = true): boolean {
 /**
  * Rows mirror the app sidebar's chip pill: 30px tall, `rounded-lg`, `px-2`, 14px
  * at normal weight, `--text-body` at rest AND when active — only the background
- * moves, to `--surface-active`, then `--surface-6` when an active row is hovered.
+ * moves, on the two-surface model — see emcn's `chipHoverSurfaceClass`.
  *
  * Height, horizontal padding, weight and color are additionally pinned in
  * `global.css` (`html #nd-sidebar a…`), which needs `!important` to beat
@@ -52,20 +53,25 @@ function isActive(url: string, pathname: string, nested = true): boolean {
  * the stylesheet is what actually lands on desktop.
  */
 const ITEM_BASE =
-  'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-[var(--text-body)] text-sm transition-colors hover:bg-[var(--surface-active)]'
-const ITEM_ACTIVE_MOBILE = 'bg-[var(--surface-active)]'
+  'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-[var(--text-body)] text-sm transition-colors'
+const ITEM_ACTIVE_MOBILE = chipActiveSurfaceClass
 
 const ITEM_DESKTOP =
   'lg:mb-[0.0625rem] lg:block lg:rounded-lg lg:px-2 lg:font-normal lg:text-sm lg:leading-tight'
 const ITEM_TEXT = 'lg:text-[var(--text-body)]'
-const ITEM_HOVER = 'lg:hover:bg-[var(--surface-active)]'
-const ITEM_ACTIVE =
-  'lg:bg-[var(--surface-active)] lg:font-normal lg:text-[var(--text-body)] lg:hover:bg-[var(--surface-6)]'
+/**
+ * Unprefixed, and applied only to inactive rows — an unconditional hover in
+ * `ITEM_BASE` would fade the current page under the pointer below `lg`.
+ */
+const ITEM_HOVER = chipHoverSurfaceClass
+const ITEM_ACTIVE = 'lg:bg-[var(--surface-active)] lg:font-normal lg:text-[var(--text-body)]'
 
 const FOLDER_TEXT = 'lg:text-[var(--text-body)] lg:font-normal'
-const FOLDER_HOVER = 'lg:hover:bg-[var(--surface-active)]'
-const FOLDER_ACTIVE =
-  'lg:bg-[var(--surface-active)] lg:text-[var(--text-body)] lg:hover:bg-[var(--surface-6)]'
+const FOLDER_HOVER = chipHoverSurfaceClass
+const FOLDER_ACTIVE = 'lg:bg-[var(--surface-active)] lg:text-[var(--text-body)]'
+
+const itemClass = (active: boolean) =>
+  cn(ITEM_BASE, ITEM_DESKTOP, ITEM_TEXT, active ? cn(ITEM_ACTIVE_MOBILE, ITEM_ACTIVE) : ITEM_HOVER)
 
 export function SidebarItem({ item }: { item: Item }) {
   const pathname = usePathname()
@@ -73,19 +79,7 @@ export function SidebarItem({ item }: { item: Item }) {
   const active = isActive(item.url, pathname, false)
 
   return (
-    <Link
-      href={item.url}
-      prefetch={prefetch}
-      data-active={active}
-      className={cn(
-        ITEM_BASE,
-        active && ITEM_ACTIVE_MOBILE,
-        ITEM_DESKTOP,
-        ITEM_TEXT,
-        !active && ITEM_HOVER,
-        active && ITEM_ACTIVE
-      )}
-    >
+    <Link href={item.url} prefetch={prefetch} data-active={active} className={itemClass(active)}>
       {item.name}
     </Link>
   )
@@ -119,14 +113,7 @@ export function SidebarFolder({ item, children }: { item: Folder; children: Reac
         href={item.index.url}
         prefetch={prefetch}
         data-active={active}
-        className={cn(
-          ITEM_BASE,
-          active && ITEM_ACTIVE_MOBILE,
-          ITEM_DESKTOP,
-          ITEM_TEXT,
-          !active && ITEM_HOVER,
-          active && ITEM_ACTIVE
-        )}
+        className={itemClass(active)}
       >
         {item.name}
       </Link>
@@ -144,12 +131,10 @@ export function SidebarFolder({ item, children }: { item: Folder; children: Reac
               data-active={active}
               className={cn(
                 'flex flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors',
-                'text-[var(--text-body)] hover:bg-[var(--surface-active)]',
-                active && ITEM_ACTIVE_MOBILE,
+                'text-[var(--text-body)]',
                 'lg:block lg:flex-1 lg:rounded-lg lg:px-2 lg:text-sm lg:leading-tight',
                 FOLDER_TEXT,
-                !active && FOLDER_HOVER,
-                active && FOLDER_ACTIVE
+                active ? cn(ITEM_ACTIVE_MOBILE, FOLDER_ACTIVE) : FOLDER_HOVER
               )}
             >
               {item.name}
@@ -158,8 +143,8 @@ export function SidebarFolder({ item, children }: { item: Folder; children: Reac
               <button
                 onClick={toggleOpen}
                 className={cn(
-                  'rounded-md p-1 hover:bg-[var(--surface-active)]',
-                  'lg:cursor-pointer lg:rounded-md lg:p-1 lg:transition-colors lg:hover:bg-[var(--surface-active)]'
+                  'rounded-md p-1 transition-colors lg:cursor-pointer',
+                  chipHoverSurfaceClass
                 )}
                 aria-label={open ? 'Collapse' : 'Expand'}
               >
@@ -172,7 +157,7 @@ export function SidebarFolder({ item, children }: { item: Folder; children: Reac
             onClick={toggleOpen}
             className={cn(
               'flex flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors',
-              'text-[var(--text-body)] hover:bg-[var(--surface-active)]',
+              'text-[var(--text-body)]',
               'lg:flex lg:w-full lg:cursor-pointer lg:items-center lg:justify-between lg:rounded-lg lg:px-2 lg:text-left lg:text-sm lg:leading-tight',
               FOLDER_TEXT,
               FOLDER_HOVER
@@ -208,7 +193,7 @@ export function SidebarFolder({ item, children }: { item: Folder; children: Reac
  */
 export function SidebarSeparator({ item }: { item: Separator }) {
   return (
-    <div data-separator className='mt-4 mb-1.5 px-2'>
+    <div data-separator className='mt-4 mb-1.5 px-2 first:mt-0'>
       <p className='text-[var(--text-muted)] text-caption'>{item.name}</p>
     </div>
   )

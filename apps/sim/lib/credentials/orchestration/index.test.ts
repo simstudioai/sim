@@ -1,7 +1,13 @@
 /**
  * @vitest-environment node
  */
-import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import {
+  auditMock,
+  dbChainMockFns,
+  queueTableRows,
+  resetDbChainMock,
+  schemaMock,
+} from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -10,18 +16,27 @@ const {
   mockDecryptSecret,
   mockVerifyAndBuildServiceAccountSecret,
   mockIsClientCredentialAccountProviderId,
+  mockGetClientCredentialAccountDescriptor,
+  mockDeleteConnectionCredential,
+  mockDeleteOrphanedOAuthAccount,
 } = vi.hoisted(() => ({
   mockRecordAudit: vi.fn(),
   mockGetCredentialActorContext: vi.fn(),
   mockDecryptSecret: vi.fn(),
   mockVerifyAndBuildServiceAccountSecret: vi.fn(),
   mockIsClientCredentialAccountProviderId: vi.fn(() => false),
+  // Only a descriptor carrying `defaultAuthMethod` is multi-grant; single-grant
+  // providers must not trigger the stored-blob read for authMethod/username.
+  mockGetClientCredentialAccountDescriptor: vi.fn(() => undefined),
+  mockDeleteConnectionCredential: vi.fn(),
+  mockDeleteOrphanedOAuthAccount: vi.fn(),
 }))
 
 vi.mock('@sim/audit', () => ({
   AuditAction: { CREDENTIAL_UPDATED: 'credential.updated' },
   AuditResourceType: { CREDENTIAL: 'credential' },
   recordAudit: mockRecordAudit,
+  auditUpdatedFields: auditMock.auditUpdatedFields,
 }))
 vi.mock('@/lib/credentials/access', () => ({
   getCredentialActorContext: mockGetCredentialActorContext,
@@ -32,9 +47,14 @@ vi.mock('@/lib/credentials/service-account-secret', () => ({
   ServiceAccountSecretError: class ServiceAccountSecretError extends Error {},
 }))
 vi.mock('@/lib/credentials/client-credential-accounts/descriptors', () => ({
+  CLIENT_CREDENTIAL_ACCOUNT_REQUIRED_FIELDS: {},
   isClientCredentialAccountProviderId: mockIsClientCredentialAccountProviderId,
+  getClientCredentialAccountDescriptor: mockGetClientCredentialAccountDescriptor,
 }))
-vi.mock('@/lib/credentials/deletion', () => ({ deleteCredential: vi.fn() }))
+vi.mock('@/lib/credentials/deletion', () => ({
+  deleteConnectionCredential: mockDeleteConnectionCredential,
+  deleteOrphanedOAuthAccount: mockDeleteOrphanedOAuthAccount,
+}))
 vi.mock('@/lib/credentials/environment', () => ({
   deleteWorkspaceEnvCredentials: vi.fn(),
   syncPersonalEnvCredentialsForUser: vi.fn(),
@@ -47,7 +67,11 @@ vi.mock('@/lib/credentials/token-service-accounts/errors', () => ({
 }))
 vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: vi.fn() }))
 
-import { performUpdateCredential } from '@/lib/credentials/orchestration'
+import {
+  createServiceAccountCredential,
+  deleteCredentialRecord,
+  performUpdateCredential,
+} from '@/lib/credentials/orchestration'
 
 const OLD_EMAIL = 'old-sa@old-project.iam.gserviceaccount.com'
 const NEW_EMAIL = 'new-sa@new-project.iam.gserviceaccount.com'
@@ -104,6 +128,7 @@ describe('performUpdateCredential — service-account secret rotation', () => {
     vi.clearAllMocks()
     resetDbChainMock()
     mockIsClientCredentialAccountProviderId.mockReturnValue(false)
+    mockGetClientCredentialAccountDescriptor.mockReturnValue(undefined)
     mockVerifyAndBuildServiceAccountSecret.mockResolvedValue({
       providerId: 'google-service-account',
       encryptedServiceAccountKey: 'new-cipher',
@@ -277,6 +302,112 @@ describe('performUpdateCredential — service-account secret rotation', () => {
     )
   })
 
+  it('fails the reconnect when the stored secret cannot be decrypted', async () => {
+    mockCredential()
+    queueTableRows(schemaMock.credential, [{ key: 'stored-cipher' }])
+    mockDecryptSecret.mockRejectedValue(new Error('decrypt failed'))
+
+    const result = await performUpdateCredential({
+      credentialId: 'cred-1',
+      userId: 'user-1',
+      serviceAccountJson: NEW_GOOGLE_KEY,
+    })
+
+    expect(result).toMatchObject({ success: false, errorCode: 'internal' })
+    expect(mockVerifyAndBuildServiceAccountSecret).not.toHaveBeenCalled()
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
+  })
+
+  it('carries the stored auth method and username forward on a key rotation', async () => {
+    // Rotating a Salesforce JWT key resubmits only the key. Losing the stored
+    // grant would silently mint the credential as client credentials instead.
+    mockCredential({ providerId: 'salesforce-service-account', displayName: 'SF integration' })
+    mockIsClientCredentialAccountProviderId.mockReturnValue(true)
+    mockGetClientCredentialAccountDescriptor.mockReturnValue({
+      defaultAuthMethod: 'client_credentials',
+    } as never)
+    mockStoredBlob({
+      type: 'client_credential_account',
+      authMethod: 'jwt_bearer',
+      username: 'integration.user@acme.com',
+    })
+    mockVerifyAndBuildServiceAccountSecret.mockResolvedValue({
+      providerId: 'salesforce-service-account',
+      encryptedServiceAccountKey: 'new-cipher',
+      displayName: 'SF integration',
+      auditMetadata: {},
+    })
+
+    await performUpdateCredential({
+      credentialId: 'cred-1',
+      userId: 'user-1',
+      clientId: 'cid',
+      orgId: 'acme.my.salesforce.com',
+      privateKey: '-----BEGIN PRIVATE KEY-----rotated',
+    })
+
+    expect(mockVerifyAndBuildServiceAccountSecret).toHaveBeenCalledWith(
+      'salesforce-service-account',
+      expect.objectContaining({
+        authMethod: 'jwt_bearer',
+        username: 'integration.user@acme.com',
+        privateKey: '-----BEGIN PRIVATE KEY-----rotated',
+      })
+    )
+  })
+
+  it('does not read the stored blob for a single-grant client-credential reconnect', async () => {
+    // Zoom/Box/Zoho have no auth method to carry forward, so a reconnect that
+    // supplies its own dataCenter must not pay for a decrypt.
+    mockCredential({ providerId: 'zoom-service-account', displayName: 'Zoom S2S' })
+    mockIsClientCredentialAccountProviderId.mockReturnValue(true)
+    mockVerifyAndBuildServiceAccountSecret.mockResolvedValue({
+      providerId: 'zoom-service-account',
+      encryptedServiceAccountKey: 'new-cipher',
+      displayName: 'Zoom S2S',
+      auditMetadata: {},
+    })
+
+    await performUpdateCredential({
+      credentialId: 'cred-1',
+      userId: 'user-1',
+      clientId: 'cid',
+      clientSecret: 'csec',
+      orgId: 'acct-1',
+      dataCenter: 'us',
+    })
+
+    expect(mockDecryptSecret).not.toHaveBeenCalled()
+  })
+
+  it('threads a NetSuite certificate ID through reconnect', async () => {
+    mockCredential({
+      providerId: 'netsuite-service-account',
+      displayName: 'Production NetSuite',
+    })
+    mockIsClientCredentialAccountProviderId.mockReturnValue(true)
+    mockVerifyAndBuildServiceAccountSecret.mockResolvedValue({
+      providerId: 'netsuite-service-account',
+      encryptedServiceAccountKey: 'new-cipher',
+      displayName: 'Production NetSuite',
+      auditMetadata: {},
+    })
+
+    await performUpdateCredential({
+      credentialId: 'cred-1',
+      userId: 'user-1',
+      orgId: 'https://1234567.suitetalk.api.netsuite.com',
+      clientId: 'client-id',
+      certificateId: 'certificate-id',
+      privateKey: '-----BEGIN PRIVATE KEY-----rotated',
+    })
+
+    expect(mockVerifyAndBuildServiceAccountSecret).toHaveBeenCalledWith(
+      'netsuite-service-account',
+      expect.objectContaining({ certificateId: 'certificate-id' })
+    )
+  })
+
   it('surfaces a rebuild failure as a validation error and writes nothing', async () => {
     mockCredential()
     mockStoredBlob({ type: 'service_account', client_email: OLD_EMAIL })
@@ -294,5 +425,220 @@ describe('performUpdateCredential — service-account secret rotation', () => {
     expect(result).toMatchObject({ success: false, errorCode: 'validation' })
     expect(dbChainMockFns.update).not.toHaveBeenCalled()
     expect(mockRecordAudit).not.toHaveBeenCalled()
+  })
+
+  it('conceals managed OAuth credentials from the ordinary update path', async () => {
+    mockCredential({ type: 'managed_oauth' })
+
+    const result = await performUpdateCredential({
+      credentialId: 'cred-1',
+      userId: 'user-1',
+      description: 'should not update',
+    })
+
+    expect(result).toMatchObject({ success: false, errorCode: 'not_found' })
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
+  })
+})
+
+describe('performUpdateCredential — description scope', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+    mockIsClientCredentialAccountProviderId.mockReturnValue(false)
+    mockGetClientCredentialAccountDescriptor.mockReturnValue(undefined)
+  })
+
+  it('applies a description to a workspace secret', async () => {
+    mockCredential({ type: 'env_workspace', envKey: 'STRIPE_API_KEY', providerId: null })
+
+    const result = await performUpdateCredential({
+      credentialId: 'cred-1',
+      userId: 'user-1',
+      description: 'Prod billing key',
+    })
+
+    expect(result.success).toBe(true)
+    expect(updatePayload().description).toBe('Prod billing key')
+  })
+
+  it('rejects a description on a personal secret instead of writing dead data', async () => {
+    mockCredential({ type: 'env_personal', envKey: 'MY_TEST_KEY', providerId: null })
+
+    const result = await performUpdateCredential({
+      credentialId: 'cred-1',
+      userId: 'user-1',
+      description: 'invisible dead data',
+    })
+
+    expect(result).toMatchObject({ success: false, errorCode: 'validation' })
+    expect(result.success ? '' : result.error).toMatch(/cannot have a description/)
+  })
+})
+
+describe('createServiceAccountCredential', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
+  it('rejects an existing service-account source instead of discarding the submitted secret', async () => {
+    mockVerifyAndBuildServiceAccountSecret.mockResolvedValue({
+      providerId: 'zoom-service-account',
+      encryptedServiceAccountKey: 'new-cipher',
+      displayName: 'Production Zoom',
+      auditMetadata: {},
+      principal: { kind: 'tenant', id: 'account-1' },
+    })
+    queueTableRows(schemaMock.credential, [
+      {
+        id: 'credential-1',
+        workspaceId: 'workspace-1',
+        type: 'service_account',
+        providerId: 'zoom-service-account',
+        displayName: 'Production Zoom',
+        encryptedServiceAccountKey: 'old-cipher',
+      },
+    ])
+    mockDecryptSecret
+      .mockResolvedValueOnce({ decrypted: 'stored-secret' })
+      .mockResolvedValueOnce({ decrypted: 'rotated-secret' })
+    mockGetCredentialActorContext.mockResolvedValue({ member: { role: 'admin' }, isAdmin: true })
+
+    const result = await createServiceAccountCredential({
+      workspaceId: 'workspace-1',
+      userId: 'user-1',
+      providerId: 'zoom-service-account',
+      displayName: 'Production Zoom',
+      clientId: 'client-id',
+      clientSecret: 'rotated-client-secret',
+      orgId: 'account-1',
+    })
+
+    expect(result).toMatchObject({
+      success: false,
+      errorCode: 'conflict',
+      providerErrorCode: 'duplicate_display_name',
+    })
+    expect(dbChainMockFns.insert).not.toHaveBeenCalled()
+    expect(mockGetCredentialActorContext).toHaveBeenCalledWith('credential-1', 'user-1', {})
+  })
+
+  it('returns an accessible credential for an exact non-token secret replay', async () => {
+    const existingCredential = {
+      id: 'credential-1',
+      workspaceId: 'workspace-1',
+      type: 'service_account',
+      providerId: 'zoom-service-account',
+      displayName: 'Production Zoom',
+      encryptedServiceAccountKey: 'stored-cipher',
+    }
+    mockVerifyAndBuildServiceAccountSecret.mockResolvedValue({
+      providerId: 'zoom-service-account',
+      encryptedServiceAccountKey: 'replay-cipher',
+      displayName: 'Production Zoom',
+      auditMetadata: {},
+      principal: { kind: 'tenant', id: 'account-1' },
+    })
+    queueTableRows(schemaMock.credential, [existingCredential])
+    mockDecryptSecret.mockResolvedValue({ decrypted: 'same-secret' })
+    mockGetCredentialActorContext.mockResolvedValue({ member: { role: 'admin' }, isAdmin: true })
+
+    const result = await createServiceAccountCredential({
+      workspaceId: 'workspace-1',
+      userId: 'user-1',
+      providerId: 'zoom-service-account',
+      displayName: 'Production Zoom',
+      clientId: 'client-id',
+      clientSecret: 'client-secret',
+      orgId: 'account-1',
+    })
+
+    expect(result).toMatchObject({
+      success: true,
+      credential: existingCredential,
+      created: false,
+    })
+    expect(dbChainMockFns.insert).not.toHaveBeenCalled()
+  })
+})
+
+describe('deleteCredentialRecord', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
+  it('rejects deleting a custom Slack bot used by an active Credential Group', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([{ id: 'group-1' }])
+
+    await expect(
+      deleteCredentialRecord({
+        credential: {
+          id: 'cred-1',
+          workspaceId: 'ws-1',
+          type: 'service_account',
+          providerId: 'slack-custom-bot',
+        } as never,
+        reason: 'user_delete',
+      })
+    ).rejects.toMatchObject({
+      code: 'conflict',
+      message: 'Remove this custom Slack bot from its Credential Groups before deleting it.',
+    })
+    expect(mockDeleteConnectionCredential).not.toHaveBeenCalled()
+  })
+
+  it('revokes the backing OAuth grant of a deleted oauth credential', async () => {
+    mockDeleteConnectionCredential.mockResolvedValueOnce(true)
+
+    const deleted = await deleteCredentialRecord({
+      credential: {
+        id: 'cred-1',
+        workspaceId: 'ws-1',
+        type: 'oauth',
+        providerId: 'google-email',
+        accountId: 'acct-1',
+      } as never,
+      reason: 'user_delete',
+    })
+
+    expect(deleted).toBe(true)
+    expect(mockDeleteOrphanedOAuthAccount).toHaveBeenCalledWith('acct-1')
+  })
+
+  it('leaves the OAuth grant alone when the credential row was already gone', async () => {
+    mockDeleteConnectionCredential.mockResolvedValueOnce(false)
+
+    const deleted = await deleteCredentialRecord({
+      credential: {
+        id: 'cred-1',
+        workspaceId: 'ws-1',
+        type: 'oauth',
+        providerId: 'google-email',
+        accountId: 'acct-1',
+      } as never,
+      reason: 'user_delete',
+    })
+
+    expect(deleted).toBe(false)
+    expect(mockDeleteOrphanedOAuthAccount).not.toHaveBeenCalled()
+  })
+
+  it('does not touch OAuth grants for a service-account credential', async () => {
+    mockDeleteConnectionCredential.mockResolvedValueOnce(true)
+
+    await deleteCredentialRecord({
+      credential: {
+        id: 'cred-1',
+        workspaceId: 'ws-1',
+        type: 'service_account',
+        providerId: 'google-service-account',
+        accountId: 'acct-1',
+      } as never,
+      reason: 'user_delete',
+    })
+
+    expect(mockDeleteOrphanedOAuthAccount).not.toHaveBeenCalled()
   })
 })

@@ -1,7 +1,7 @@
 /**
  * @vitest-environment node
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockSecureFetchWithValidation } = vi.hoisted(() => ({
   mockSecureFetchWithValidation: vi.fn(),
@@ -12,7 +12,18 @@ vi.mock('@/lib/core/security/input-validation.server', () => ({
 }))
 
 import { secureFetchWithRetry } from './secure-fetch.server'
-import { isRetryableError } from './utils'
+import {
+  fetchWithRetry,
+  type HTTPError,
+  hasRateLimitEvidence,
+  isRetryableError,
+  resolveRetryDelayMs,
+} from './utils'
+
+/** Case-insensitive header reader over a plain lowercase-keyed record. */
+function headers(entries: Record<string, string>) {
+  return { get: (name: string) => entries[name.toLowerCase()] ?? null }
+}
 
 /** Builds a minimal SecureFetchResponse-shaped object for tests. */
 function fakeResponse(
@@ -70,6 +81,20 @@ describe('isRetryableError', () => {
 
     it.concurrent('returns true for plain object with status 504', () => {
       expect(isRetryableError({ status: 504 })).toBe(true)
+    })
+
+    /** Notion's `service_overload`, which its docs say to "retry the same way as a 429". */
+    it.concurrent('returns true for 529 on Error with status', () => {
+      const error = Object.assign(new Error('service_overload'), { status: 529 })
+      expect(isRetryableError(error)).toBe(true)
+    })
+
+    it.concurrent('returns true for plain object with status 529', () => {
+      expect(isRetryableError({ status: 529 })).toBe(true)
+    })
+
+    it.concurrent('does not retry 500, which stays adjacent to 529 in the status list', () => {
+      expect(isRetryableError({ status: 500 })).toBe(false)
     })
   })
 
@@ -187,6 +212,268 @@ describe('isRetryableError', () => {
       expect(isRetryableError(new Error('url resolves to a blocked IP address'))).toBe(false)
     })
   })
+
+  /**
+   * GitHub answers both its primary and secondary rate limit with "a `403` or
+   * `429` response", so a 403 carrying rate-limit headers must retry while a
+   * bare authorization 403 must not.
+   */
+  describe('rate-limit 403', () => {
+    it.concurrent('retries a 403 whose x-ratelimit-remaining is 0 (GitHub primary)', () => {
+      expect(
+        isRetryableError({
+          status: 403,
+          headers: headers({ 'x-ratelimit-remaining': '0', 'x-ratelimit-reset': '99999999999' }),
+        })
+      ).toBe(true)
+    })
+
+    it.concurrent('retries a 403 carrying retry-after (GitHub secondary)', () => {
+      expect(isRetryableError({ status: 403, headers: headers({ 'retry-after': '60' }) })).toBe(
+        true
+      )
+    })
+
+    it.concurrent('retries a 403 whose x-rate-limit-remaining is 0 (X spelling)', () => {
+      expect(
+        isRetryableError({ status: 403, headers: headers({ 'x-rate-limit-remaining': '0' }) })
+      ).toBe(true)
+    })
+
+    it.concurrent('does NOT retry a 403 with no headers at all', () => {
+      expect(isRetryableError({ status: 403 })).toBe(false)
+    })
+
+    it.concurrent('does NOT retry a 403 whose quota is not exhausted', () => {
+      expect(
+        isRetryableError({
+          status: 403,
+          headers: headers({ 'x-ratelimit-remaining': '4821', 'x-ratelimit-limit': '5000' }),
+        })
+      ).toBe(false)
+    })
+
+    it.concurrent('does NOT retry an authorization 403 on an Error carrying headers', () => {
+      const error = Object.assign(new Error('Resource not accessible by integration'), {
+        status: 403,
+        headers: headers({ 'x-ratelimit-remaining': '4999' }),
+      })
+      expect(isRetryableError(error)).toBe(false)
+    })
+
+    it.concurrent('does NOT retry a 401 even with an exhausted quota header', () => {
+      expect(
+        isRetryableError({ status: 401, headers: headers({ 'x-ratelimit-remaining': '0' }) })
+      ).toBe(false)
+    })
+  })
+})
+
+describe('hasRateLimitEvidence', () => {
+  it.concurrent('returns false for undefined headers', () => {
+    expect(hasRateLimitEvidence(undefined)).toBe(false)
+  })
+
+  it.concurrent('returns false when no rate-limit headers are present', () => {
+    expect(hasRateLimitEvidence(headers({ 'content-type': 'application/json' }))).toBe(false)
+  })
+
+  it.concurrent('returns true on retry-after alone', () => {
+    expect(hasRateLimitEvidence(headers({ 'retry-after': '30' }))).toBe(true)
+  })
+})
+
+describe('resolveRetryDelayMs', () => {
+  const NOW = 1_700_000_000_000
+
+  it.concurrent('prefers Retry-After seconds over the reset header', () => {
+    const delay = resolveRetryDelayMs(
+      headers({ 'retry-after': '30', 'x-ratelimit-reset': String(NOW / 1000 + 3600) }),
+      NOW
+    )
+    expect(delay).toBe(30_000)
+  })
+
+  it.concurrent('parses a Retry-After HTTP-date', () => {
+    const delay = resolveRetryDelayMs(
+      headers({ 'retry-after': new Date(Date.now() + 60_000).toUTCString() })
+    )
+    expect(delay).toBeGreaterThan(50_000)
+    expect(delay).toBeLessThanOrEqual(60_000)
+  })
+
+  /** GitHub: "The time at which the current rate limit window resets, in UTC epoch seconds". */
+  it.concurrent('falls back to x-ratelimit-reset (GitHub) as epoch seconds', () => {
+    const delay = resolveRetryDelayMs(
+      headers({ 'x-ratelimit-remaining': '0', 'x-ratelimit-reset': String(NOW / 1000 + 900) }),
+      NOW
+    )
+    expect(delay).toBe(900_000)
+  })
+
+  /** X sends no Retry-After — x-rate-limit-reset is the only recovery signal. */
+  it.concurrent('falls back to x-rate-limit-reset (X spelling) as epoch seconds', () => {
+    const delay = resolveRetryDelayMs(
+      headers({ 'x-rate-limit-remaining': '0', 'x-rate-limit-reset': String(NOW / 1000 + 900) }),
+      NOW
+    )
+    expect(delay).toBe(900_000)
+  })
+
+  /**
+   * GitHub and X stamp their rate-limit headers on every response. Without the
+   * evidence gate a transient 502 would be handed the rest of the hourly window
+   * as its wait, which the retry loop clamps to a flat maxDelayMs on every
+   * attempt — replacing the exponential ladder with 5x the wall-clock stall.
+   */
+  it.concurrent('ignores a reset header when the quota is NOT exhausted', () => {
+    expect(
+      resolveRetryDelayMs(
+        headers({
+          'x-ratelimit-limit': '5000',
+          'x-ratelimit-remaining': '4821',
+          'x-ratelimit-reset': String(NOW / 1000 + 2400),
+        }),
+        NOW
+      )
+    ).toBeUndefined()
+  })
+
+  it.concurrent('returns undefined when no usable header is present', () => {
+    expect(resolveRetryDelayMs(headers({}), NOW)).toBeUndefined()
+    expect(resolveRetryDelayMs(undefined, NOW)).toBeUndefined()
+  })
+
+  it.concurrent('ignores a reset instant already in the past', () => {
+    expect(
+      resolveRetryDelayMs(
+        headers({ 'x-ratelimit-remaining': '0', 'x-ratelimit-reset': String(NOW / 1000 - 60) }),
+        NOW
+      )
+    ).toBeUndefined()
+  })
+
+  it.concurrent('ignores a non-numeric or absurd reset value', () => {
+    expect(
+      resolveRetryDelayMs(
+        headers({ 'x-ratelimit-remaining': '0', 'x-ratelimit-reset': 'soon' }),
+        NOW
+      )
+    ).toBeUndefined()
+    // A millisecond value mistaken for epoch seconds would be ~54,000 years out.
+    expect(
+      resolveRetryDelayMs(
+        headers({ 'x-ratelimit-remaining': '0', 'x-ratelimit-reset': String(NOW) }),
+        NOW
+      )
+    ).toBeUndefined()
+  })
+
+  it.concurrent('ignores a zero Retry-After and falls through to the reset header', () => {
+    const delay = resolveRetryDelayMs(
+      headers({ 'retry-after': '0', 'x-ratelimit-reset': String(NOW / 1000 + 120) }),
+      NOW
+    )
+    expect(delay).toBe(120_000)
+  })
+
+  /** The 30s default cap in `parseRetryAfter` must not truncate the value here. */
+  it.concurrent('does not truncate a long Retry-After — the retry loop owns the cap', () => {
+    expect(resolveRetryDelayMs(headers({ 'retry-after': '900' }), NOW)).toBe(900_000)
+  })
+})
+
+describe('fetchWithRetry rate-limit handling', () => {
+  const originalFetch = globalThis.fetch
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch
+  })
+
+  /** Builds a Response-shaped object with real case-insensitive Headers. */
+  function response(status: number, headerEntries: Record<string, string> = {}) {
+    return {
+      ok: status >= 200 && status < 300,
+      status,
+      statusText: `status-${status}`,
+      headers: new Headers(headerEntries),
+      text: async () => 'body',
+    } as unknown as Response
+  }
+
+  it('retries a rate-limit 403 (x-ratelimit-remaining: 0) and succeeds', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        response(403, {
+          'x-ratelimit-remaining': '0',
+          'x-ratelimit-reset': String(Math.floor(Date.now() / 1000) + 1),
+        })
+      )
+      .mockResolvedValueOnce(response(200))
+    globalThis.fetch = fetchMock
+
+    const result = await fetchWithRetry('https://api.github.com/repos', {}, FAST_RETRY)
+
+    expect(result.status).toBe(200)
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not retry an authorization 403 with quota remaining', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(response(403, { 'x-ratelimit-remaining': '4999' }))
+    globalThis.fetch = fetchMock
+
+    const result = await fetchWithRetry('https://api.github.com/repos', {}, FAST_RETRY)
+
+    expect(result.status).toBe(403)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('derives the wait from x-rate-limit-reset on a 429 with no Retry-After (X)', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        response(429, {
+          'x-rate-limit-remaining': '0',
+          'x-rate-limit-reset': String(Math.floor(Date.now() / 1000) + 900),
+        })
+      )
+      .mockResolvedValueOnce(response(200))
+    globalThis.fetch = fetchMock
+
+    const started = Date.now()
+    // maxDelayMs clamps the 15-minute window down to 2ms for this test.
+    const result = await fetchWithRetry('https://api.twitter.com/2/users', {}, FAST_RETRY)
+
+    expect(result.status).toBe(200)
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    // Clamped by maxDelayMs, so the reset window never stalls the loop.
+    expect(Date.now() - started).toBeLessThan(1000)
+  })
+
+  /**
+   * `@sim/logger` copies an error's own *enumerable* properties into its
+   * formatted output, and the retry loop logs `{ error }` on every failed
+   * attempt. `SecureFetchHeaders` keeps its `Set-Cookie` values in an ordinary
+   * array field, so an enumerable `headers` prints the upstream response's
+   * cookies. The retry path reads it via `in`, which sees it either way.
+   */
+  it('carries headers on the thrown error without exposing them to the logger', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(response(403, { 'retry-after': '0', 'x-ratelimit-remaining': '0' }))
+    globalThis.fetch = fetchMock
+
+    const error = await fetchWithRetry('https://api.github.com/repos', {}, FAST_RETRY).then(
+      () => undefined,
+      (e) => e as HTTPError
+    )
+
+    // Retried, so the headers really did reach the retry condition.
+    expect(fetchMock).toHaveBeenCalledTimes(FAST_RETRY.maxRetries + 1)
+    expect(error?.headers?.get('x-ratelimit-remaining')).toBe('0')
+    expect(Object.keys(error as object)).not.toContain('headers')
+  })
 })
 
 describe('secureFetchWithRetry', () => {
@@ -261,6 +548,48 @@ describe('secureFetchWithRetry', () => {
 
     const [, options] = mockSecureFetchWithValidation.mock.calls[0]
     expect(options).toMatchObject({ allowHttp: true, timeout: 5000, maxResponseBytes: 1024 })
+  })
+
+  /**
+   * Covers `error.headers = response.headers` on the secure path: the retry loop
+   * re-evaluates the condition against the thrown error, so without the headers
+   * travelling with it a rate-limit 403 throws on the second evaluation.
+   */
+  it('retries a rate-limit 403 through the secure path and succeeds', async () => {
+    mockSecureFetchWithValidation
+      .mockResolvedValueOnce(
+        fakeResponse(403, {
+          headers: {
+            'x-ratelimit-remaining': '0',
+            'x-ratelimit-reset': String(Math.floor(Date.now() / 1000) + 1),
+          },
+        })
+      )
+      .mockResolvedValueOnce(fakeResponse(200))
+
+    const response = await secureFetchWithRetry(
+      'https://api.github.com/repos',
+      { method: 'GET' },
+      FAST_RETRY
+    )
+
+    expect(response.status).toBe(200)
+    expect(mockSecureFetchWithValidation).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not retry an authorization 403 through the secure path', async () => {
+    mockSecureFetchWithValidation.mockResolvedValue(
+      fakeResponse(403, { headers: { 'x-ratelimit-remaining': '4999' } })
+    )
+
+    const response = await secureFetchWithRetry(
+      'https://api.github.com/repos',
+      { method: 'GET' },
+      FAST_RETRY
+    )
+
+    expect(response.status).toBe(403)
+    expect(mockSecureFetchWithValidation).toHaveBeenCalledTimes(1)
   })
 
   it('honors Retry-After (seconds) on a 429 before retrying', async () => {

@@ -19,6 +19,7 @@ export function StructuredData({
   breadcrumb,
 }: StructuredDataProps) {
   const baseUrl = DOCS_BASE_URL
+  const structuredDataId = encodeURIComponent(url)
 
   const articleStructuredData = {
     '@context': 'https://schema.org',
@@ -102,6 +103,7 @@ export function StructuredData({
   return (
     <>
       <script
+        id={`article-json-ld-${structuredDataId}`}
         type='application/ld+json'
         dangerouslySetInnerHTML={{
           __html: serializeJsonLd(articleStructuredData),
@@ -109,6 +111,7 @@ export function StructuredData({
       />
       {breadcrumbStructuredData && (
         <script
+          id={`breadcrumb-json-ld-${structuredDataId}`}
           type='application/ld+json'
           dangerouslySetInnerHTML={{
             __html: serializeJsonLd(breadcrumbStructuredData),
@@ -117,6 +120,7 @@ export function StructuredData({
       )}
       {(url === baseUrl || url === `${baseUrl}/`) && (
         <script
+          id={`software-json-ld-${structuredDataId}`}
           type='application/ld+json'
           dangerouslySetInnerHTML={{
             __html: serializeJsonLd(softwareStructuredData),

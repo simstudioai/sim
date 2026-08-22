@@ -18,8 +18,8 @@ import { useRouter } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
 import type { UsageLogEntry, UsageLogPeriod } from '@/lib/api/contracts/user'
 import { formatApportionedCreditCost, formatCreditsLabel } from '@/lib/billing/credits/conversion'
+import { BILLING_USAGE_LOG_SOURCE_LABELS } from '@/lib/billing/usage-sources'
 import { formatDateShort } from '@/lib/core/utils/date-display'
-import { USAGE_LOG_SOURCE_LABELS } from '@/app/api/users/me/usage-logs/source-labels'
 import {
   creditUsageParsers,
   creditUsageUrlKeys,
@@ -39,7 +39,7 @@ const PERIOD_OPTIONS: ComboboxOption[] = [
 /** Workflow-sourced rows name the specific workflow; everything else uses the plain source label. */
 function rowLabel(log: UsageLogEntry): string {
   if (log.source === 'workflow' && log.workflowName) return `Workflow: ${log.workflowName}`
-  return USAGE_LOG_SOURCE_LABELS[log.source]
+  return BILLING_USAGE_LOG_SOURCE_LABELS[log.source]
 }
 
 interface UsageLogRowProps {
@@ -56,7 +56,7 @@ function UsageLogRow({ log }: UsageLogRowProps) {
         {rowLabel(log)}
       </span>
       <span className='flex-shrink-0 text-[var(--text-muted)] text-caption tabular-nums'>
-        {formatApportionedCreditCost(log.creditCost, log.dollarCost)}
+        {formatApportionedCreditCost(log.creditCost, log.hasCost)}
       </span>
     </div>
   )

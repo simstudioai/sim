@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { buildSlackManifest } from '@/triggers/slack/capabilities'
+import { SLACK_MANAGED_USER_SCOPES } from '@/lib/credential-groups/slack-managed-user-scopes'
+import {
+  buildSlackManifest,
+  getSlackManagedUserAuthorizationManifestConfig,
+  SLACK_MANAGED_USER_AUTHORIZATION_CAPABILITY,
+} from '@/triggers/slack/capabilities'
 
 const opts = { appName: 'Test Bot', webhookUrl: 'https://sim.test/api/webhooks/slack' }
 
@@ -51,5 +56,42 @@ describe('buildSlackManifest - description', () => {
     expect(features.assistant_view.assistant_description).toBe(
       'Test Bot — an AI assistant powered by Sim.'
     )
+  })
+})
+
+describe('buildSlackManifest - managed users', () => {
+  it('defines managed user authorization as enabled by default', () => {
+    expect(SLACK_MANAGED_USER_AUTHORIZATION_CAPABILITY).toMatchObject({
+      id: 'managed_user_authorization',
+      defaultChecked: true,
+    })
+  })
+
+  it('adds user OAuth configuration and its bot prerequisite', () => {
+    const managedUserAuthorization =
+      getSlackManagedUserAuthorizationManifestConfig('https://sim.ai')
+    const manifest = buildSlackManifest(new Set(['action_send']), {
+      appName: 'Managed Slack',
+      webhookUrl: 'https://sim.ai/api/webhooks/slack/custom/credential-id',
+      managedUserAuthorization,
+    })
+
+    expect(manifest).toMatchObject({
+      oauth_config: {
+        redirect_urls: [
+          'https://sim.ai/api/credential-groups/slack-managed-users/callback',
+          'https://sim.ai/api/credential-groups/oauth/slack/callback',
+        ],
+        scopes: {
+          bot: ['chat:write', 'users:read'],
+          user: [...SLACK_MANAGED_USER_SCOPES].sort(),
+        },
+      },
+    })
+  })
+
+  it('omits managed user OAuth configuration when disabled', () => {
+    const manifest = buildSlackManifest(new Set(['action_send']), opts)
+    expect(manifest.oauth_config).toEqual({ scopes: { bot: ['chat:write'] } })
   })
 })

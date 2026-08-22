@@ -1,4 +1,5 @@
 import { getErrorMessage } from '@sim/utils/errors'
+import { isRecordLike } from '@sim/utils/object'
 import { truncate } from '@sim/utils/string'
 import type { BabysitRoundDecision } from '@/executor/handlers/pi/cloud/babysit/round'
 import {
@@ -10,7 +11,6 @@ import {
 import { scrubPiSecrets } from '@/executor/handlers/pi/core/redaction'
 import { executeTool } from '@/tools'
 import {
-  isRecord,
   nullableNumber,
   nullableString,
   requiredBoolean,
@@ -205,12 +205,12 @@ function toolFailure(label: string, error: unknown): Error {
 }
 
 function parseReviewThread(value: unknown, index: number): ReviewThread {
-  if (!isRecord(value)) throw new Error(`Review thread ${index} must be an object`)
+  if (!isRecordLike(value)) throw new Error(`Review thread ${index} must be an object`)
   const commentsValue = value.comments
   if (!Array.isArray(commentsValue))
     throw new Error(`Review thread ${index}.comments must be an array`)
   const comments = commentsValue.map((comment, commentIndex) => {
-    if (!isRecord(comment)) {
+    if (!isRecordLike(comment)) {
       throw new Error(`Review thread ${index}.comments[${commentIndex}] must be an object`)
     }
     return {
@@ -244,7 +244,7 @@ function parseReviewThread(value: unknown, index: number): ReviewThread {
 
 function parseLatestReview(value: unknown): SubmittedReviewSummary | null {
   if (value === null) return null
-  if (!isRecord(value)) throw new Error('latestReview must be an object or null')
+  if (!isRecordLike(value)) throw new Error('latestReview must be an object or null')
   return {
     state: requiredString(value, 'state', 'latestReview'),
     submittedAt: requiredString(value, 'submittedAt', 'latestReview'),
@@ -290,7 +290,7 @@ export async function fetchBabysitThreads(
     )
     if (!result.success) throw toolFailure('Failed to fetch review threads', result.error)
     const output = result.output
-    if (!isRecord(output) || !Array.isArray(output.threads)) {
+    if (!isRecordLike(output) || !Array.isArray(output.threads)) {
       throw new Error('Review thread response is incomplete')
     }
     const totalCount = requiredNumber(output, 'totalCount', 'Review thread response')
@@ -365,7 +365,7 @@ function normalizeCheck(context: StatusCheckRollupContext): BabysitCheck {
 }
 
 function parseCheckContext(value: unknown, index: number): StatusCheckRollupContext {
-  if (!isRecord(value)) throw new Error(`Check context ${index} must be an object`)
+  if (!isRecordLike(value)) throw new Error(`Check context ${index} must be an object`)
   const type = requiredString(value, '__typename', `Check context ${index}`)
   if (type === 'CheckRun') {
     return {
@@ -425,7 +425,7 @@ export async function fetchBabysitCheckState(
       )
       if (!result.success) throw toolFailure('Failed to fetch checks', result.error)
       const output = result.output
-      if (!isRecord(output) || !Array.isArray(output.contexts)) {
+      if (!isRecordLike(output) || !Array.isArray(output.contexts)) {
         throw new Error('Check response is incomplete')
       }
       const totalCount = requiredNumber(output, 'totalCount', 'Check response')
@@ -521,7 +521,7 @@ async function fetchCheckDiagnostic(
       },
       { signal }
     )
-    if (result.success && isRecord(result.output) && typeof result.output.logs === 'string') {
+    if (result.success && isRecordLike(result.output) && typeof result.output.logs === 'string') {
       text = result.output.logs
     } else {
       // GitHub Actions reports null `title` and `summary` on every check run it
@@ -698,7 +698,7 @@ export async function requestBabysitReview(
       )
       if (
         result.success &&
-        isRecord(result.output) &&
+        isRecordLike(result.output) &&
         typeof result.output.id === 'number' &&
         Number.isSafeInteger(result.output.id)
       ) {
@@ -750,11 +750,11 @@ export async function babysitReviewLandedSince(
       },
       { signal }
     )
-    if (!result.success || !isRecord(result.output) || !Array.isArray(result.output.items)) {
+    if (!result.success || !isRecordLike(result.output) || !Array.isArray(result.output.items)) {
       return false
     }
     for (const item of result.output.items) {
-      if (!isRecord(item) || !isRecord(item.user)) continue
+      if (!isRecordLike(item) || !isRecordLike(item.user)) continue
       const id = item.id
       const createdAt = item.created_at
       if (

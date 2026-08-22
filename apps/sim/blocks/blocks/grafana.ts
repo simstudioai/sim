@@ -15,6 +15,106 @@ export const GrafanaBlock: BlockConfig<GrafanaResponse> = {
   integrationType: IntegrationType.Observability,
   bgColor: '#FFFFFF',
   icon: GrafanaIcon,
+  canvasPresentation: {
+    defaultTitle: 'Grafana',
+    sentences: {
+      byOperation: {
+        grafana_list_dashboards: [
+          'List dashboards',
+          { text: ', matching', field: 'query' },
+          { text: ', tagged', field: 'tag' },
+          { text: ', in folders', field: 'folderUIDs' },
+        ],
+        grafana_get_dashboard: [{ text: 'Fetch dashboard', field: 'dashboardUid', core: true }],
+        grafana_create_dashboard: [
+          { text: 'Create dashboard', field: 'title', core: true },
+          { text: ', in folder', field: 'folderUid' },
+          { text: ', tagged', field: 'tags' },
+        ],
+        grafana_update_dashboard: [
+          { text: 'Update dashboard', field: 'dashboardUid', core: true },
+          { text: ', setting panels to', field: 'panels' },
+          { text: ', moving it to folder', field: 'folderUid' },
+        ],
+        grafana_delete_dashboard: [{ text: 'Delete dashboard', field: 'dashboardUid', core: true }],
+        grafana_list_alert_rules: ['List all alert rules'],
+        grafana_get_alert_rule: [{ text: 'Fetch alert rule', field: 'alertRuleUid', core: true }],
+        grafana_create_alert_rule: [
+          { text: 'Create alert rule', field: 'alertTitle', core: true },
+          { text: ', in group', field: 'ruleGroup' },
+          { text: ', firing after', field: 'forDuration' },
+        ],
+        grafana_update_alert_rule: [
+          { text: 'Update alert rule', field: 'alertRuleUid', core: true },
+          { text: ', renaming it to', field: 'alertTitle' },
+          { text: ', firing after', field: 'forDuration' },
+        ],
+        grafana_delete_alert_rule: [
+          { text: 'Delete alert rule', field: 'alertRuleUid', core: true },
+        ],
+        grafana_query_data_source: ['Query a data source', { text: ', over', field: 'queryFrom' }],
+        grafana_list_contact_points: [
+          'List contact points',
+          { text: ', named', field: 'contactPointName' },
+        ],
+        grafana_create_contact_point: [
+          { text: 'Create contact point', field: 'contactPointNameNew', core: true },
+          { text: ', of type', field: 'contactPointType' },
+        ],
+        grafana_update_contact_point: [
+          { text: 'Replace contact point', field: 'contactPointUid', core: true },
+          { text: ', as type', field: 'contactPointType' },
+        ],
+        grafana_delete_contact_point: [
+          { text: 'Delete contact point', field: 'contactPointUid', core: true },
+        ],
+        grafana_move_folder: [
+          { text: 'Move folder', field: 'manageFolderUid', core: true },
+          { text: ', under', field: 'newParentUid' },
+        ],
+        grafana_get_alert_rule_group: [
+          { text: 'Read alert rule group', field: 'ruleGroupName', core: true },
+          { text: ', in folder', field: 'manageFolderUid' },
+        ],
+        grafana_create_annotation: [
+          { text: 'Create annotation', field: 'text', core: true },
+          { text: ', on dashboard', field: 'annotationDashboardUid' },
+          { text: ', tagged', field: 'annotationTags' },
+        ],
+        grafana_list_annotations: [
+          'List annotations',
+          { text: ', on dashboard', field: 'annotationDashboardUid' },
+          { text: ', tagged', field: 'annotationTags' },
+          { text: ', since', field: 'from' },
+        ],
+        grafana_update_annotation: [
+          { text: 'Update annotation', field: 'annotationId', core: true },
+          { text: ', setting text to', field: 'text' },
+          { text: ', tagged', field: 'annotationTags' },
+        ],
+        grafana_delete_annotation: [
+          { text: 'Delete annotation', field: 'annotationId', core: true },
+        ],
+        grafana_list_data_sources: ['List all data sources'],
+        grafana_get_data_source: [{ text: 'Fetch data source', field: 'dataSourceId', core: true }],
+        grafana_check_data_source_health: [
+          { text: 'Test connectivity to data source', field: 'dataSourceUid', core: true },
+        ],
+        grafana_list_folders: ['List folders', { text: ', under parent', field: 'parentUidList' }],
+        grafana_create_folder: [
+          { text: 'Create folder', field: 'folderTitle', core: true },
+          { text: ', under parent', field: 'parentUidNew' },
+        ],
+        grafana_get_folder: [{ text: 'Fetch folder', field: 'manageFolderUid', core: true }],
+        grafana_update_folder: [
+          { text: 'Rename folder', field: 'manageFolderUid', core: true },
+          { text: 'to', field: 'updateFolderTitle' },
+        ],
+        grafana_delete_folder: [{ text: 'Delete folder', field: 'manageFolderUid', core: true }],
+        grafana_get_health: ['Report instance health and version'],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',
@@ -28,23 +128,28 @@ export const GrafanaBlock: BlockConfig<GrafanaResponse> = {
         { label: 'Delete Dashboard', id: 'grafana_delete_dashboard' },
         { label: 'List Alert Rules', id: 'grafana_list_alert_rules' },
         { label: 'Get Alert Rule', id: 'grafana_get_alert_rule' },
+        { label: 'Get Alert Rule Group', id: 'grafana_get_alert_rule_group' },
         { label: 'Create Alert Rule', id: 'grafana_create_alert_rule' },
         { label: 'Update Alert Rule', id: 'grafana_update_alert_rule' },
         { label: 'Delete Alert Rule', id: 'grafana_delete_alert_rule' },
         { label: 'List Contact Points', id: 'grafana_list_contact_points' },
         { label: 'Create Contact Point', id: 'grafana_create_contact_point' },
+        { label: 'Update Contact Point', id: 'grafana_update_contact_point' },
+        { label: 'Delete Contact Point', id: 'grafana_delete_contact_point' },
         { label: 'Create Annotation', id: 'grafana_create_annotation' },
         { label: 'List Annotations', id: 'grafana_list_annotations' },
         { label: 'Update Annotation', id: 'grafana_update_annotation' },
         { label: 'Delete Annotation', id: 'grafana_delete_annotation' },
         { label: 'List Data Sources', id: 'grafana_list_data_sources' },
         { label: 'Get Data Source', id: 'grafana_get_data_source' },
+        { label: 'Query Data Source', id: 'grafana_query_data_source' },
         { label: 'Check Data Source Health', id: 'grafana_check_data_source_health' },
         { label: 'List Folders', id: 'grafana_list_folders' },
         { label: 'Create Folder', id: 'grafana_create_folder' },
         { label: 'Get Folder', id: 'grafana_get_folder' },
         { label: 'Update Folder', id: 'grafana_update_folder' },
         { label: 'Delete Folder', id: 'grafana_delete_folder' },
+        { label: 'Move Folder', id: 'grafana_move_folder' },
         { label: 'Get Health', id: 'grafana_get_health' },
       ],
       value: () => 'grafana_list_dashboards',
@@ -184,8 +289,12 @@ Return ONLY the search query - no explanations, no quotes, no extra text.`,
       title: 'Dashboard Title',
       type: 'short-input',
       placeholder: 'Enter dashboard title',
-      required: true,
-      condition: { field: 'operation', value: 'grafana_create_dashboard' },
+      /** Update accepts a new title too, but only create demands one. */
+      required: { field: 'operation', value: 'grafana_create_dashboard' },
+      condition: {
+        field: 'operation',
+        value: ['grafana_create_dashboard', 'grafana_update_dashboard'],
+      },
       wandConfig: {
         enabled: true,
         prompt: `Generate a professional Grafana dashboard title based on the user's description.
@@ -540,6 +649,7 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
           'grafana_create_alert_rule',
           'grafana_update_alert_rule',
           'grafana_create_contact_point',
+          'grafana_update_contact_point',
         ],
       },
     },
@@ -787,7 +897,13 @@ Return ONLY the folder title - no explanations, no quotes, no extra text.`,
       required: true,
       condition: {
         field: 'operation',
-        value: ['grafana_get_folder', 'grafana_update_folder', 'grafana_delete_folder'],
+        value: [
+          'grafana_get_folder',
+          'grafana_update_folder',
+          'grafana_delete_folder',
+          'grafana_move_folder',
+          'grafana_get_alert_rule_group',
+        ],
       },
     },
     {
@@ -807,6 +923,76 @@ Return ONLY the folder title - no explanations, no quotes, no extra text.`,
     },
 
     {
+      id: 'dataSourceQueries',
+      title: 'Queries (JSON)',
+      type: 'long-input',
+      placeholder: '[{"refId":"A","datasource":{"uid":"P123"},"expr":"up","format":"time_series"}]',
+      required: { field: 'operation', value: 'grafana_query_data_source' },
+      condition: { field: 'operation', value: 'grafana_query_data_source' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a Grafana /api/ds/query queries array based on the user's request.
+
+Rules:
+- Always a JSON array with at least one query object
+- Every query needs a refId (e.g. "A") and datasource.uid
+- Add the fields that data source expects: expr for Prometheus/Loki, rawSql for SQL sources
+- format is "time_series" or "table"
+
+Examples:
+- [{"refId":"A","datasource":{"uid":"PROM_UID"},"expr":"rate(http_requests_total[5m])","format":"time_series"}]
+- [{"refId":"A","datasource":{"uid":"PG_UID"},"rawSql":"SELECT now() AS time, count(*) AS c FROM orders","format":"table"}]
+
+Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
+        placeholder: 'Describe the metric or query you want...',
+        generationType: 'json-array',
+      },
+    },
+    {
+      id: 'queryFrom',
+      title: 'From',
+      type: 'short-input',
+      placeholder: 'now-1h or epoch milliseconds',
+      condition: { field: 'operation', value: 'grafana_query_data_source' },
+    },
+    {
+      id: 'queryTo',
+      title: 'To',
+      type: 'short-input',
+      placeholder: 'now or epoch milliseconds',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'grafana_query_data_source' },
+    },
+    {
+      id: 'contactPointUid',
+      title: 'Contact Point UID',
+      type: 'short-input',
+      placeholder: 'Enter contact point UID',
+      required: {
+        field: 'operation',
+        value: ['grafana_update_contact_point', 'grafana_delete_contact_point'],
+      },
+      condition: {
+        field: 'operation',
+        value: ['grafana_update_contact_point', 'grafana_delete_contact_point'],
+      },
+    },
+    {
+      id: 'newParentUid',
+      title: 'New Parent Folder UID',
+      type: 'short-input',
+      placeholder: 'Leave empty to move to the root',
+      condition: { field: 'operation', value: 'grafana_move_folder' },
+    },
+    {
+      id: 'ruleGroupName',
+      title: 'Rule Group',
+      type: 'short-input',
+      placeholder: 'Enter rule group name',
+      required: { field: 'operation', value: 'grafana_get_alert_rule_group' },
+      condition: { field: 'operation', value: 'grafana_get_alert_rule_group' },
+    },
+    {
       id: 'contactPointName',
       title: 'Contact Point Name',
       type: 'short-input',
@@ -819,8 +1005,14 @@ Return ONLY the folder title - no explanations, no quotes, no extra text.`,
       title: 'Contact Point Name',
       type: 'short-input',
       placeholder: 'Enter contact point name',
-      required: true,
-      condition: { field: 'operation', value: 'grafana_create_contact_point' },
+      required: {
+        field: 'operation',
+        value: ['grafana_create_contact_point', 'grafana_update_contact_point'],
+      },
+      condition: {
+        field: 'operation',
+        value: ['grafana_create_contact_point', 'grafana_update_contact_point'],
+      },
     },
     {
       id: 'contactPointType',
@@ -836,8 +1028,14 @@ Return ONLY the folder title - no explanations, no quotes, no extra text.`,
         { label: 'Discord', id: 'discord' },
       ],
       value: () => 'slack',
-      required: true,
-      condition: { field: 'operation', value: 'grafana_create_contact_point' },
+      required: {
+        field: 'operation',
+        value: ['grafana_create_contact_point', 'grafana_update_contact_point'],
+      },
+      condition: {
+        field: 'operation',
+        value: ['grafana_create_contact_point', 'grafana_update_contact_point'],
+      },
     },
     {
       id: 'contactPointSettings',
@@ -845,7 +1043,10 @@ Return ONLY the folder title - no explanations, no quotes, no extra text.`,
       type: 'long-input',
       placeholder: 'JSON object of receiver settings (e.g., {"url":"https://hooks.slack.com/..."})',
       required: true,
-      condition: { field: 'operation', value: 'grafana_create_contact_point' },
+      condition: {
+        field: 'operation',
+        value: ['grafana_create_contact_point', 'grafana_update_contact_point'],
+      },
       wandConfig: {
         enabled: true,
         prompt: `Generate a Grafana contact point settings JSON object based on the user's description and receiver type.
@@ -866,7 +1067,10 @@ Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
       title: 'Disable Resolve Message',
       type: 'switch',
       mode: 'advanced',
-      condition: { field: 'operation', value: 'grafana_create_contact_point' },
+      condition: {
+        field: 'operation',
+        value: ['grafana_create_contact_point', 'grafana_update_contact_point'],
+      },
     },
   ],
   tools: {
@@ -896,6 +1100,11 @@ Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
       'grafana_update_folder',
       'grafana_delete_folder',
       'grafana_get_health',
+      'grafana_update_contact_point',
+      'grafana_delete_contact_point',
+      'grafana_move_folder',
+      'grafana_get_alert_rule_group',
+      'grafana_query_data_source',
     ],
     config: {
       tool: (params) => params.operation,
@@ -926,6 +1135,24 @@ Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
             if (params.contactPointNameNew) result.name = params.contactPointNameNew
             if (params.contactPointType) result.type = params.contactPointType
             if (params.contactPointSettings) result.settings = params.contactPointSettings
+            break
+          case 'grafana_update_contact_point':
+            if (params.contactPointNameNew) result.name = params.contactPointNameNew
+            if (params.contactPointType) result.type = params.contactPointType
+            if (params.contactPointSettings) result.settings = params.contactPointSettings
+            break
+          case 'grafana_query_data_source':
+            result.queries = params.dataSourceQueries
+            if (params.queryFrom) result.from = params.queryFrom
+            if (params.queryTo) result.to = params.queryTo
+            break
+          case 'grafana_move_folder':
+            result.folderUid = params.manageFolderUid
+            result.parentUid = params.newParentUid ?? ''
+            break
+          case 'grafana_get_alert_rule_group':
+            result.folderUid = params.manageFolderUid
+            result.ruleGroup = params.ruleGroupName
             break
           case 'grafana_create_annotation':
             if (params.annotationTags) result.tags = params.annotationTags
@@ -978,6 +1205,18 @@ Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
     },
   },
   inputs: {
+    dataSourceQueries: { type: 'string', description: 'JSON array of data source queries' },
+    queryFrom: { type: 'string', description: 'Query range start, relative or epoch ms' },
+    queryTo: { type: 'string', description: 'Query range end, relative or epoch ms' },
+    contactPointUid: {
+      type: 'string',
+      description: 'UID of the contact point to update or delete',
+    },
+    newParentUid: {
+      type: 'string',
+      description: 'UID of the new parent folder, empty for the root',
+    },
+    ruleGroupName: { type: 'string', description: 'Name of the alert rule group' },
     operation: { type: 'string', description: 'Operation to perform' },
     baseUrl: { type: 'string', description: 'Grafana instance URL' },
     apiKey: { type: 'string', description: 'Service Account Token' },
@@ -987,7 +1226,11 @@ Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
     folderUid: { type: 'string', description: 'Folder UID' },
     tags: { type: 'string', description: 'Comma-separated tags' },
     panels: { type: 'string', description: 'JSON array of panels' },
-    message: { type: 'string', description: 'Commit message' },
+    message: {
+      type: 'string',
+      description:
+        'Message returned by Grafana — a confirmation for writes, or the diagnostic detail on a health check',
+    },
     query: { type: 'string', description: 'Search query' },
     tag: { type: 'string', description: 'Filter by tag' },
     folderUIDs: {
@@ -1020,12 +1263,19 @@ Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
       type: 'string',
       description: 'JSON of per-rule notification settings',
     },
-    record: { type: 'string', description: 'JSON of recording rule configuration' },
+    record: {
+      type: 'string',
+      description: 'Recording rule configuration (metric, from, target_datasource_uid)',
+    },
     disableProvenance: {
       type: 'boolean',
       description: 'Disable provenance tracking so the rule remains UI-editable',
     },
-    annotations: { type: 'string', description: 'JSON of alert annotations' },
+    annotations: {
+      type: 'string',
+      description:
+        'For annotation operations, the matched annotations (id, dashboardUID, panelId, time, timeEnd, text, tags, newState, prevState, ...). For alert rules, the rule annotation map (summary, description, runbook_url)',
+    },
     labels: { type: 'string', description: 'JSON of alert labels' },
     overwrite: { type: 'boolean', description: 'Overwrite existing dashboard on version conflict' },
     text: { type: 'string', description: 'Annotation text' },
@@ -1071,20 +1321,134 @@ Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
     dataSourceUid: { type: 'string', description: 'Data source UID for health checks' },
   },
   outputs: {
-    version: { type: 'string', description: 'Grafana version' },
-    database: { type: 'string', description: 'Database health status' },
+    annotationId: {
+      type: 'number',
+      description:
+        'The annotation that was updated, echoed from the request — Grafana answers a patch with only a message',
+    },
+    details: {
+      type: 'json',
+      description:
+        'Extra structured detail from a data source health check, when the plugin supplies any',
+    },
+    results: {
+      type: 'json',
+      description: 'Raw data source query response, keyed by query refId',
+    },
+    series: {
+      type: 'array',
+      description:
+        'Query frames flattened into rows (refId, fields, rowCount, rows) so values can be read directly',
+    },
+    interval: {
+      type: 'number',
+      description: 'Evaluation interval of an alert rule group, in seconds',
+    },
+    folderUid: { type: 'string', description: 'UID of the folder holding the alert rule group' },
+    title: {
+      type: 'string',
+      description: 'Title of the affected dashboard, folder, or alert rule',
+    },
+    slug: { type: 'string', description: 'URL slug of the dashboard' },
+    data: {
+      type: 'json',
+      description: 'Alert rule query and expression stages (refId, model, ...)',
+    },
+    labels: { type: 'json', description: 'Alert rule labels used for routing and grouping' },
+    parentUid: { type: 'string', description: 'UID of the parent folder, when nested' },
+    parents: {
+      type: 'array',
+      description: 'Folder ancestry from the root down to the parent (uid, title, url)',
+    },
+    created: { type: 'string', description: 'Creation timestamp of the folder' },
+    createdBy: { type: 'string', description: 'Login that created the folder' },
+    updatedBy: { type: 'string', description: 'Login that last updated the folder' },
+    hasAcl: {
+      type: 'boolean',
+      description: 'Whether the folder carries an explicit permission list',
+    },
+    canSave: { type: 'boolean', description: 'Whether the caller may save the folder' },
+    canEdit: { type: 'boolean', description: 'Whether the caller may edit the folder' },
+    canAdmin: { type: 'boolean', description: 'Whether the caller may administer the folder' },
+    orgId: { type: 'number', description: 'Organization the data source belongs to' },
+    access: { type: 'string', description: 'Data source access mode (proxy or direct)' },
+    user: { type: 'string', description: 'Data source basic-auth-adjacent user field' },
+    typeLogoUrl: { type: 'string', description: 'Logo URL for the data source type' },
+    basicAuth: { type: 'boolean', description: 'Whether the data source uses basic auth' },
+    basicAuthUser: { type: 'string', description: 'Basic-auth user for the data source' },
+    withCredentials: {
+      type: 'boolean',
+      description: 'Whether the data source sends credentials cross-origin',
+    },
+    isDefault: { type: 'boolean', description: 'Whether this is the default data source' },
+    jsonData: { type: 'json', description: 'Non-secret data source configuration' },
+    secureJsonFields: {
+      type: 'json',
+      description: 'Which secret data source fields are set (names only, never values)',
+    },
+    readOnly: { type: 'boolean', description: 'Whether the data source is provisioned read-only' },
+    disableResolveMessage: {
+      type: 'boolean',
+      description: 'Whether the contact point suppresses resolve notifications',
+    },
+    version: {
+      type: 'number',
+      description:
+        'Revision number of the dashboard, folder, or data source. Get Health instead returns the Grafana version as a string',
+    },
+    database: {
+      type: 'string',
+      description:
+        'Database name of the data source; for Get Health, the Grafana database status (e.g. ok)',
+    },
     commit: { type: 'string', description: 'Git commit hash of the Grafana build' },
-    status: { type: 'string', description: 'Health status (e.g., data source health)' },
-    dashboard: { type: 'json', description: 'Dashboard JSON' },
-    meta: { type: 'json', description: 'Dashboard metadata' },
-    dashboards: { type: 'json', description: 'List of dashboards' },
-    uid: { type: 'string', description: 'Created/updated UID' },
-    url: { type: 'string', description: 'Dashboard URL' },
-    rules: { type: 'json', description: 'Alert rules list' },
-    contactPoints: { type: 'json', description: 'Contact points list' },
-    name: { type: 'string', description: 'Name of the created contact point' },
-    type: { type: 'string', description: 'Type of the created contact point' },
-    settings: { type: 'json', description: 'Contact point receiver settings' },
+    status: {
+      type: 'string',
+      description:
+        'Outcome reported by Grafana — a data source health verdict, or the save status of a dashboard write',
+    },
+    dashboard: {
+      type: 'json',
+      description: 'Full dashboard JSON as stored by Grafana (panels, templating, time, ...)',
+    },
+    meta: {
+      type: 'json',
+      description: 'Dashboard metadata (isStarred, url, folderId, folderUid, slug)',
+    },
+    dashboards: {
+      type: 'array',
+      description:
+        'Matched dashboards (id, uid, title, uri, url, type, tags, isStarred, folderId, folderUid, folderTitle, folderUrl)',
+    },
+    uid: {
+      type: 'string',
+      description:
+        'UID of the affected resource — dashboard, folder, alert rule, data source, or contact point, depending on the operation',
+    },
+    url: {
+      type: 'string',
+      description: 'URL of the affected dashboard or folder; the connection URL for a data source',
+    },
+    rules: {
+      type: 'array',
+      description:
+        'Provisioned alert rules (uid, title, folderUID, ruleGroup, condition, data, for, labels, annotations, isPaused, noDataState, execErrState, provenance, ...)',
+    },
+    contactPoints: {
+      type: 'array',
+      description: 'Contact points (uid, name, type, settings, disableResolveMessage, provenance)',
+    },
+    name: { type: 'string', description: 'Name of the affected contact point or data source' },
+    type: {
+      type: 'string',
+      description:
+        'Type of the affected contact point (e.g. slack) or data source (e.g. prometheus)',
+    },
+    settings: {
+      type: 'json',
+      description:
+        'Contact point receiver settings — the shape depends on the receiver type, e.g. url and recipient for a Slack receiver',
+    },
     condition: { type: 'string', description: 'Alert condition refId' },
     for: { type: 'string', description: 'Duration the condition must hold before firing' },
     keepFiringFor: {
@@ -1105,10 +1469,21 @@ Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
     notification_settings: { type: 'json', description: 'Per-rule notification settings' },
     record: { type: 'json', description: 'Recording rule configuration' },
     updated: { type: 'string', description: 'Last update timestamp' },
-    annotations: { type: 'json', description: 'Annotations list' },
-    id: { type: 'number', description: 'Annotation ID' },
-    dataSources: { type: 'json', description: 'Data sources list' },
-    folders: { type: 'json', description: 'Folders list' },
+    annotations: { type: 'array', description: 'Annotations list' },
+    id: {
+      type: 'number',
+      description:
+        'Numeric id of the affected resource — annotation, alert rule, dashboard, folder, or data source, depending on the operation',
+    },
+    dataSources: {
+      type: 'array',
+      description:
+        'Data sources (id, uid, orgId, name, type, typeLogoUrl, access, url, database, isDefault, jsonData, readOnly, ...)',
+    },
+    folders: {
+      type: 'array',
+      description: 'Folders (id, uid, title, and parentUid when nested folders are enabled)',
+    },
     message: { type: 'string', description: 'Status message' },
   },
 }
@@ -1121,7 +1496,7 @@ export const GrafanaBlockMeta = {
       icon: GrafanaIcon,
       title: 'Grafana alert auto-context',
       prompt:
-        'Build a scheduled workflow that polls Grafana for firing alert rules, pulls related logs and recent deploys, summarizes them with an agent, and posts the enriched alert to PagerDuty and Slack.',
+        'Build a scheduled workflow that reads Grafana alert-state annotations to find rules that just started firing, queries the underlying data source for the current metric value, summarizes the two together with an agent, and posts the enriched alert to PagerDuty and Slack.',
       modules: ['scheduled', 'agent', 'workflows'],
       category: 'engineering',
       tags: ['devops', 'monitoring'],
@@ -1131,7 +1506,7 @@ export const GrafanaBlockMeta = {
       icon: GrafanaIcon,
       title: 'Grafana SLO scorecard',
       prompt:
-        'Create a scheduled weekly workflow that queries Grafana for SLO compliance across services, calculates burn rates, and writes a scorecard to a tables-based SRE review board.',
+        'Create a scheduled weekly workflow that runs SLI queries against a Grafana data source for each service, calculates error budget burn rates from the returned series, and writes a scorecard to a tables-based SRE review board.',
       modules: ['scheduled', 'tables', 'agent', 'workflows'],
       category: 'engineering',
       tags: ['devops', 'reporting'],
@@ -1149,7 +1524,7 @@ export const GrafanaBlockMeta = {
       icon: GrafanaIcon,
       title: 'Grafana metric export',
       prompt:
-        'Create a workflow that exports Grafana metric queries on schedule into a Sim table, so the data can be combined with business metrics for unified reporting.',
+        'Create a workflow that runs a set of Grafana data source queries on schedule and writes the returned series into a Sim table, so the metrics can be combined with business data for unified reporting.',
       modules: ['scheduled', 'tables', 'agent', 'workflows'],
       category: 'engineering',
       tags: ['analysis', 'sync'],
@@ -1178,7 +1553,7 @@ export const GrafanaBlockMeta = {
       icon: GrafanaIcon,
       title: 'Grafana + Linear feature-impact',
       prompt:
-        'Build a scheduled workflow that polls Grafana for metric regressions correlated with recent Linear releases and posts a regression review to the team Slack with the suspected change.',
+        'Build a scheduled workflow that queries a Grafana data source for latency and error rates, compares each series against the prior period to spot regressions, correlates them with recent Linear releases, and posts a regression review to the team Slack with the suspected change.',
       modules: ['scheduled', 'agent', 'workflows'],
       category: 'engineering',
       tags: ['engineering', 'analysis'],
@@ -1198,7 +1573,7 @@ export const GrafanaBlockMeta = {
       description:
         'List Grafana alert rules and surface those currently firing with their contact points.',
       content:
-        '# Review Firing Alerts\n\nProduce a snapshot of alerting health for an on-call handoff or incident triage.\n\n## Steps\n1. List alert rules and capture each rule name, condition, and current state.\n2. Get details on rules that are firing or in a pending state.\n3. List contact points so each firing rule can be mapped to who gets notified.\n4. Group findings by severity or folder.\n\n## Output\nReturn a list of firing and pending alerts with rule name, state, and notification target, plus a count of healthy rules. Suitable for an on-call digest.',
+        "# Review Firing Alerts\n\nProduce a snapshot of alerting health for an on-call handoff or incident triage.\n\n## Steps\n1. Run List Annotations with `type: 'alert'` over the window you care about. Alert-state transitions are recorded as annotations and carry `newState` and `prevState`, which is how you find what actually fired — the alert rule operations return rule *definitions*, never live instance state.\n2. Run List Alert Rules to join each firing rule id back to its title, folder, condition, and labels.\n3. Optionally run Query Data Source on the rule's own query to see how far the metric is from its threshold right now.\n4. Run List Contact Points, and Get Alert Rule Group for the evaluation interval, so each firing rule maps to who gets notified and how often it is checked.\n5. Group findings by severity label or folder.\n\n## Output\nReturn the rules that transitioned into a firing state in the window, each with its title, the transition, its notification target, and its group evaluation interval. Say explicitly that this is derived from state-change annotations rather than a live instance snapshot, and give the window covered.",
     },
     {
       name: 'audit-dashboards',

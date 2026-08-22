@@ -28,15 +28,6 @@ export const POSTGRES_COLUMN_OUTPUT_PROPERTIES = {
 } as const satisfies Record<string, OutputProperty>
 
 /**
- * Complete column output definition
- */
-export const POSTGRES_COLUMN_OUTPUT: OutputProperty = {
-  type: 'object',
-  description: 'PostgreSQL table column',
-  properties: POSTGRES_COLUMN_OUTPUT_PROPERTIES,
-}
-
-/**
  * Output definition for foreign key constraint objects.
  */
 export const POSTGRES_FOREIGN_KEY_OUTPUT_PROPERTIES = {
@@ -95,15 +86,6 @@ export const POSTGRES_TABLE_OUTPUT_PROPERTIES = {
     },
   },
 } as const satisfies Record<string, OutputProperty>
-
-/**
- * Complete table schema output definition
- */
-export const POSTGRES_TABLE_OUTPUT: OutputProperty = {
-  type: 'object',
-  description: 'PostgreSQL table schema information',
-  properties: POSTGRES_TABLE_OUTPUT_PROPERTIES,
-}
 
 export interface PostgresConnectionConfig {
   host: string

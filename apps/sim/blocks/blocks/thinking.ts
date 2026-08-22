@@ -12,6 +12,10 @@ export const ThinkingBlock: BlockConfig<ThinkingToolResponse> = {
   category: 'blocks',
   bgColor: '#181C1E',
   icon: BrainIcon,
+  canvasPresentation: {
+    defaultTitle: 'Thinking',
+    sentences: { default: ['Outline a step-by-step thought process'] },
+  },
   hideFromToolbar: true,
 
   subBlocks: [

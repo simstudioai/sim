@@ -4,6 +4,9 @@ import { AuthMode, IntegrationType } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
 import type { FirecrawlResponse } from '@/tools/firecrawl/types'
 
+/** The document being parsed, whether it was uploaded or passed in by reference. */
+const DOCUMENT_FIELD = ['fileUpload', 'fileReference'] as const
+
 export const FirecrawlBlock: BlockConfig<FirecrawlResponse> = {
   type: 'firecrawl',
   name: 'Firecrawl',
@@ -16,6 +19,44 @@ export const FirecrawlBlock: BlockConfig<FirecrawlResponse> = {
   integrationType: IntegrationType.Search,
   bgColor: '#181C1E',
   icon: FirecrawlIcon,
+  canvasPresentation: {
+    defaultTitle: 'Firecrawl',
+    sentences: {
+      byOperation: {
+        scrape: [{ text: 'Scrape content from', field: 'url', core: true }],
+        batch_scrape: [
+          { text: 'Scrape every URL in', field: 'urls', core: true },
+          { text: ', up to', field: 'maxConcurrency', after: 'at a time' },
+        ],
+        batch_scrape_status: [{ text: 'Check batch scrape job', field: 'jobId', core: true }],
+        search: [
+          { text: 'Search the web for', field: 'query', core: true },
+          { text: ', up to', field: 'limit', after: 'results' },
+        ],
+        crawl: [
+          { text: 'Crawl every page under', field: 'url', core: true },
+          { text: ', up to', field: 'limit', after: 'pages' },
+        ],
+        crawl_status: [{ text: 'Check crawl job', field: 'jobId', core: true }],
+        cancel_crawl: [{ text: 'Cancel crawl job', field: 'jobId', core: true }],
+        map: [
+          { text: 'Map the URLs on', field: 'url', core: true },
+          { text: ', up to', field: 'limit', after: 'links' },
+        ],
+        extract: [
+          { text: 'Extract', field: 'prompt', core: true },
+          { text: 'from', field: 'urls', core: true },
+        ],
+        extract_status: [{ text: 'Check extract job', field: 'jobId', core: true }],
+        agent: [
+          { text: 'Research the web for', field: 'agentPrompt', core: true },
+          { text: ', focused on', field: 'agentUrls' },
+        ],
+        parse: [{ text: 'Parse', field: DOCUMENT_FIELD, core: true, after: 'into markdown' }],
+        credit_usage: ['Read remaining credit balance'],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',

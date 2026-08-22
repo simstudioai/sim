@@ -68,6 +68,10 @@ If it fails, do not add the entry to an allowlist — there isn't one. Find the 
 
 Run it with `--verbose` to print per-route module counts, which is also the quickest way to see whether a change moved the graph.
 
+The same command also ratchets those counts against `check-tool-registry-boundary.baseline.json`. `--check` (what CI runs) fails when an entry exceeds its baseline by more than `max(25 modules, 2%)`, naming the import chain responsible. This catches bloat the registry rule misses — a prefetch importing `listTables` cost the Tables page 444 modules without ever touching `@/tools/registry`.
+
+Re-record with `--update-baseline` and commit the JSON when growth is deliberate. A *shrink* passes but is reported — re-record then too, or the win is silently spendable again.
+
 ## How to verify an edge actually got cut
 
 Do not eyeball imports — the registry is reached through several redundant paths, so cutting one buys nothing while another survives. Walk the graph:

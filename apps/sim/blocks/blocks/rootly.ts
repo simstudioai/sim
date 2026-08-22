@@ -17,6 +17,187 @@ export const RootlyBlock: BlockConfig<RootlyResponse> = {
   bgColor: '#6C72C8',
   iconColor: '#6C72C8',
   icon: RootlyIcon,
+  canvasPresentation: {
+    defaultTitle: 'Rootly',
+    sentences: {
+      byOperation: {
+        rootly_create_incident: [
+          { text: 'Create incident', field: 'title', core: true },
+          { text: ', at severity', field: 'createSeverityId' },
+          { text: ', on services', field: 'createServiceIds' },
+        ],
+        rootly_get_incident: [{ text: 'Fetch incident', field: 'getIncidentId', core: true }],
+        rootly_update_incident: [
+          { text: 'Update incident', field: 'updateIncidentId', core: true },
+          { text: ', setting status to', field: 'updateStatus' },
+          { text: ', severity', field: 'updateSeverityId' },
+        ],
+        rootly_delete_incident: [
+          { text: 'Delete incident', field: 'deleteIncidentId', core: true },
+        ],
+        rootly_list_incidents: [
+          'List incidents',
+          { text: ', with status', field: 'listIncidentsStatus' },
+          { text: ', matching', field: 'listIncidentsSearch' },
+          { text: ', at severity', field: 'listIncidentsSeverity' },
+        ],
+        rootly_mitigate_incident: [
+          {
+            text: 'Mark incident',
+            field: 'mitigateIncidentId',
+            after: 'mitigated',
+            core: true,
+          },
+          { text: ', noting', field: 'mitigateMessage' },
+        ],
+        rootly_resolve_incident: [
+          { text: 'Mark incident', field: 'resolveIncidentId', after: 'resolved', core: true },
+          { text: ', noting', field: 'resolveIncidentMessage' },
+        ],
+        rootly_add_incident_event: [
+          { text: 'Add timeline event', field: 'eventText', core: true },
+          { text: 'to incident', field: 'eventIncidentId', core: true },
+          { text: ', marked', field: 'eventVisibility' },
+        ],
+        rootly_list_incident_events: [
+          {
+            text: 'List timeline events for incident',
+            field: 'listEventsIncidentId',
+            core: true,
+          },
+        ],
+        rootly_create_status_page_event: [
+          {
+            text: 'Post status page update',
+            field: 'statusEventText',
+            core: true,
+          },
+          { text: 'for incident', field: 'statusEventIncidentId', core: true },
+          { text: ', as', field: 'statusEventStatus' },
+        ],
+        rootly_assign_incident_role: [
+          { text: 'Assign role', field: 'assignRoleId', core: true },
+          { text: 'to user', field: 'assignRoleUserId' },
+          { text: 'on incident', field: 'assignRoleIncidentId', core: true },
+        ],
+        rootly_unassign_incident_role: [
+          { text: 'Remove role', field: 'unassignRoleId', core: true },
+          { text: 'from user', field: 'unassignRoleUserId' },
+          { text: 'on incident', field: 'unassignRoleIncidentId', core: true },
+        ],
+        rootly_add_subscribers: [
+          { text: 'Subscribe', field: 'addSubsUserIds', core: true },
+          { text: 'to incident', field: 'addSubsIncidentId', core: true },
+        ],
+        rootly_remove_subscribers: [
+          { text: 'Unsubscribe', field: 'removeSubsUserIds', core: true },
+          { text: 'from incident', field: 'removeSubsIncidentId', core: true },
+        ],
+        rootly_create_alert: [
+          { text: 'Create alert', field: 'alertSummary', core: true },
+          { text: ', from', field: 'alertSource' },
+          { text: ', on services', field: 'alertServiceIds' },
+        ],
+        rootly_get_alert: [{ text: 'Fetch alert', field: 'getAlertId', core: true }],
+        rootly_update_alert: [
+          { text: 'Update alert', field: 'updateAlertId', core: true },
+          { text: ', setting summary to', field: 'updateAlertSummary' },
+          { text: ', source', field: 'updateAlertSource' },
+        ],
+        rootly_list_alerts: [
+          'List alerts',
+          { text: ', with status', field: 'listAlertsStatus' },
+          { text: ', from', field: 'listAlertsSource' },
+          { text: ', on services', field: 'listAlertsServices' },
+        ],
+        rootly_acknowledge_alert: [{ text: 'Acknowledge alert', field: 'ackAlertId', core: true }],
+        rootly_resolve_alert: [
+          { text: 'Resolve alert', field: 'resolveAlertId', core: true },
+          { text: ', noting', field: 'resolveResolutionMessage' },
+        ],
+        rootly_snooze_alert: [
+          { text: 'Snooze alert', field: 'snoozeAlertId', core: true },
+          { text: 'for', field: 'snoozeDelayMinutes', after: 'minutes' },
+        ],
+        rootly_escalate_alert: [
+          { text: 'Escalate alert', field: 'escalateAlertId', core: true },
+          { text: 'to policy', field: 'escalatePolicyId' },
+          { text: ', level', field: 'escalatePolicyLevel' },
+        ],
+        rootly_create_action_item: [
+          { text: 'Add action item', field: 'actionItemSummary', core: true },
+          { text: 'to incident', field: 'actionItemIncidentId' },
+          { text: ', assigned to', field: 'actionItemAssignedToUserId' },
+        ],
+        rootly_update_action_item: [
+          { text: 'Update action item', field: 'updateActionItemId', core: true },
+          { text: ', setting status to', field: 'updateActionItemStatus' },
+          { text: ', priority', field: 'updateActionItemPriority' },
+        ],
+        rootly_delete_action_item: [
+          { text: 'Delete action item', field: 'deleteActionItemId', core: true },
+        ],
+        rootly_list_action_items: [
+          {
+            text: 'List action items for incident',
+            field: 'listActionItemsIncidentId',
+            core: true,
+          },
+        ],
+        rootly_list_retrospectives: [
+          'List retrospectives',
+          { text: ', with status', field: 'retrospectivesStatus' },
+          { text: ', matching', field: 'retrospectivesSearch' },
+        ],
+        rootly_run_workflow: [
+          { text: 'Run workflow', field: 'runWorkflowId', core: true },
+          { text: ', scoped to', field: ['runWorkflowIncidentId', 'runWorkflowAlertId'] },
+        ],
+        rootly_list_on_calls: [
+          'List who is on call',
+          { text: ', on schedules', field: 'onCallsScheduleIds' },
+          { text: ', for services', field: 'onCallsServiceIds' },
+        ],
+        rootly_list_schedules: [
+          'List on-call schedules',
+          { text: ', matching', field: 'schedulesSearch' },
+        ],
+        rootly_list_escalation_policies: [
+          'List escalation policies',
+          { text: ', matching', field: 'escalationPoliciesSearch' },
+        ],
+        rootly_list_users: [
+          'List users',
+          { text: ', matching', field: 'usersSearch' },
+          { text: ', with email', field: 'usersEmail' },
+        ],
+        rootly_list_services: ['List services', { text: ', matching', field: 'servicesSearch' }],
+        rootly_list_severities: [
+          'List severity levels',
+          { text: ', matching', field: 'severitiesSearch' },
+        ],
+        rootly_list_teams: ['List teams', { text: ', matching', field: 'teamsSearch' }],
+        rootly_list_environments: [
+          'List environments',
+          { text: ', matching', field: 'environmentsSearch' },
+        ],
+        rootly_list_incident_types: [
+          'List incident types',
+          { text: ', named', field: 'incidentTypesSearch' },
+        ],
+        rootly_list_incident_roles: [
+          'List incident roles',
+          { text: ', matching', field: 'incidentRolesSearch' },
+        ],
+        rootly_list_functionalities: [
+          'List functionalities',
+          { text: ', matching', field: 'functionalitiesSearch' },
+        ],
+        rootly_list_causes: ['List causes', { text: ', matching', field: 'causesSearch' }],
+        rootly_list_playbooks: ['List playbooks'],
+      },
+    },
+  },
   triggers: {
     enabled: true,
     available: [

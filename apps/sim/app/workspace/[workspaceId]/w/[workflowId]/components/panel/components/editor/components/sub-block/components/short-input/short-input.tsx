@@ -3,10 +3,11 @@ import { cn, Input } from '@sim/emcn'
 import { Wand } from '@sim/emcn/icons'
 import { useReactFlow } from 'reactflow'
 import { Button } from '@/components/ui/button'
+import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import {
-  formatDisplayText,
-  getValidWorkflowSearchRange,
-} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
+  maskSecretText,
+  shouldMaskSecretValue,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/password-mask'
 import { SubBlockInputController } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/sub-block-input-controller'
 import { getActiveWorkflowSearchHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
@@ -50,8 +51,6 @@ interface ShortInputProps {
   wandControlRef?: React.MutableRefObject<WandControlHandlers | null>
   /** Whether to hide the internal wand button (controlled by parent) */
   hideInternalWand?: boolean
-  /** Whether workflow search is actively highlighting this input */
-  isSearchHighlighted?: boolean
   workflowSearchValuePath?: Array<string | number>
 }
 
@@ -63,7 +62,7 @@ interface ShortInputProps {
  * - Auto-detects API key fields and provides environment variable suggestions
  * - Handles drag-and-drop for connections and variable references
  * - Provides environment variable and tag autocomplete
- * - Password masking with reveal on focus
+ * - Password masking, revealed only while focused
  * - Integrates with ReactFlow for zoom control
  */
 export const ShortInput = memo(function ShortInput({
@@ -81,7 +80,6 @@ export const ShortInput = memo(function ShortInput({
   useWebhookUrl = false,
   wandControlRef,
   hideInternalWand = false,
-  isSearchHighlighted = false,
   workflowSearchValuePath = [],
 }: ShortInputProps) {
   const activeSearchTarget = useActiveSearchTarget()
@@ -348,18 +346,11 @@ export const ShortInput = memo(function ShortInput({
               subBlockId,
               valuePath: workflowSearchValuePath,
             })
-            const hasExactSearchHighlight = Boolean(
-              getValidWorkflowSearchRange(actualValueString, workflowSearchHighlight)
-            )
-
-            const shouldMask =
-              password && !isFocused && !isSearchHighlighted && !hasExactSearchHighlight
-            const displayValue = shouldMask
-              ? '•'.repeat(actualValueString.length)
-              : actualValueString
+            const shouldMask = shouldMaskSecretValue({ password, isFocused })
+            const displayValue = shouldMask ? maskSecretText(actualValueString) : actualValueString
 
             const formattedText = shouldMask
-              ? '•'.repeat(actualValueString.length)
+              ? maskSecretText(actualValueString)
               : formatDisplayText(actualValueString, {
                   accessiblePrefixes,
                   highlightAll: !accessiblePrefixes,

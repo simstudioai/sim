@@ -11,7 +11,11 @@ import type { BrowserToolName } from '@sim/browser-protocol'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
-import { executeBrowserTool, restoreBrowserScope } from '@/lib/browser-agent/transport'
+import {
+  cancelBrowserTool,
+  executeBrowserTool,
+  restoreBrowserScope,
+} from '@/lib/browser-agent/transport'
 import { ASYNC_TOOL_CONFIRMATION_STATUS } from '@/lib/copilot/async-runs/lifecycle'
 import { COPILOT_CONFIRM_API_PATH } from '@/lib/copilot/constants'
 import { reportClientToolCompletion } from '@/lib/copilot/tools/client/completion'
@@ -166,23 +170,54 @@ export function executeBrowserToolOnClient(
   toolName: BrowserToolName,
   params: Record<string, unknown>,
   scopeId = useBrowserSessionStore.getState().activeScopeId,
-  eventTs?: string
+  eventTs?: string,
+  abortSignal?: AbortSignal
 ): void {
   if (!scopeId) {
     logger.error('Cannot execute browser tool without a chat scope', { toolCallId, toolName })
+    // Tell the waiter, or the turn hangs forever on a tool that never ran.
+    const message = 'This browser action could not run: no active browser session for this chat.'
+    void reportClientToolCompletion(toolCallId, ASYNC_TOOL_CONFIRMATION_STATUS.error, message, {
+      error: message,
+    }).catch((reportErr) => {
+      logger.error('Failed to report missing-scope browser tool error', {
+        toolCallId,
+        error: toError(reportErr).message,
+      })
+    })
     return
   }
   if (hasAlreadyExecuted(toolCallId)) {
+    // Same-page re-delivery: the original dispatch is in flight (or done) and
+    // owns the result. Reporting here would race it — the server claims each
+    // resume exactly once, so an error now would discard the genuine result.
     logger.info('Skipping already-executed browser tool (replay)', { toolCallId, toolName })
     return
   }
   const age = eventAgeMs(eventTs)
   if (age !== null && age > MAX_EVENT_AGE_MS) {
     logger.info('Skipping stale browser tool event', { toolCallId, toolName, age })
+    // Usually a replay of an action that already ran and resumed in a previous
+    // page lifetime — the server claims each resume exactly once, so this
+    // duplicate confirmation is simply discarded. When it is NOT a replay
+    // (the event was delivered late, e.g. a backgrounded tab with throttled
+    // timers), this error unblocks the turn instead of leaving it hanging
+    // forever on a tool that will never execute.
+    const message =
+      'This browser action was delivered too late to run safely. Ask again to retry it.'
+    void reportClientToolCompletion(toolCallId, ASYNC_TOOL_CONFIRMATION_STATUS.error, message, {
+      error: message,
+      staleEvent: true,
+    }).catch((reportErr) => {
+      logger.error('Failed to report stale browser tool error', {
+        toolCallId,
+        error: toError(reportErr).message,
+      })
+    })
     return
   }
   markExecuted(toolCallId)
-  void doExecuteBrowserTool(toolCallId, toolName, params, scopeId).catch((err) => {
+  void doExecuteBrowserTool(toolCallId, toolName, params, scopeId, abortSignal).catch((err) => {
     logger.error('Unhandled error in client-side browser tool execution', {
       toolCallId,
       toolName,
@@ -200,8 +235,31 @@ async function doExecuteBrowserTool(
   toolCallId: string,
   toolName: BrowserToolName,
   params: Record<string, unknown>,
-  scopeId: string
+  scopeId: string,
+  abortSignal?: AbortSignal
 ): Promise<void> {
+  let cancelled = abortSignal?.aborted === true
+  const cancelNativeTool = async () => {
+    cancelled = true
+    try {
+      await cancelBrowserTool(toolCallId, scopeId, toolName)
+    } catch (error) {
+      logger.warn('Could not cancel native browser tool', {
+        toolCallId,
+        toolName,
+        error: toError(error).message,
+      })
+    }
+  }
+  const onAbort = () => {
+    void cancelNativeTool()
+  }
+  if (cancelled) {
+    void cancelNativeTool()
+  } else {
+    abortSignal?.addEventListener('abort', onAbort, { once: true })
+  }
+
   const needsLivePage = !SESSION_REVIVAL_TOOLS.has(toolName)
   if (needsLivePage && isSessionClosed(scopeId)) {
     try {
@@ -219,6 +277,10 @@ async function doExecuteBrowserTool(
       toolCallId,
       toolName,
     })
+    if (cancelled) {
+      abortSignal?.removeEventListener('abort', onAbort)
+      return
+    }
     await reportClientToolCompletion(
       toolCallId,
       ASYNC_TOOL_CONFIRMATION_STATUS.error,
@@ -230,11 +292,20 @@ async function doExecuteBrowserTool(
         error: toError(reportErr).message,
       })
     })
+    abortSignal?.removeEventListener('abort', onAbort)
+    return
+  }
+  // A restore can outlive the stream that requested it. Do not dispatch the
+  // tool afterward—older shells have no cancellation tombstone to catch a
+  // takeover-done signal that arrived before the takeover itself existed.
+  if (cancelled) {
+    abortSignal?.removeEventListener('abort', onAbort)
     return
   }
   // If the user leaves the page mid-action the awaited result is lost; tell
   // the waiter so the turn fails fast instead of hanging until its timeout.
   const onPageHide = () => {
+    if (cancelled) return
     navigator.sendBeacon(
       COPILOT_CONFIRM_API_PATH,
       new Blob(
@@ -262,8 +333,12 @@ async function doExecuteBrowserTool(
       toolName,
       params,
       timeoutForTool(toolName, params),
-      scopeId
+      scopeId,
+      () => {
+        cancelled = true
+      }
     )
+    if (cancelled) return
     await reportClientToolCompletion(
       toolCallId,
       ASYNC_TOOL_CONFIRMATION_STATUS.success,
@@ -271,6 +346,7 @@ async function doExecuteBrowserTool(
       sanitizeResultForModel(toolName, result)
     )
   } catch (err) {
+    if (cancelled) return
     // The session dying mid-call (e.g. during a takeover) surfaces as a
     // generic timeout; tag it so the model learns the real, terminal cause
     // instead of retrying against a dead session.
@@ -289,6 +365,7 @@ async function doExecuteBrowserTool(
       })
     })
   } finally {
+    abortSignal?.removeEventListener('abort', onAbort)
     if (typeof window !== 'undefined') {
       window.removeEventListener('pagehide', onPageHide)
     }

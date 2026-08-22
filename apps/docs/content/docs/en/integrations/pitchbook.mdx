@@ -1,0 +1,3488 @@
+---
+title: PitchBook
+description: Look up private market data on companies, deals, investors, funds, and people
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="pitchbook"
+  color="#1D5080"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[PitchBook](https://pitchbook.com/) is a private capital market database covering companies, deals, investors, funds, limited partners, and the people behind them. The PitchBook API is a separate, contracted add-on to a platform subscription — every call spends credits from a purchased balance.
+
+With the PitchBook integration in Sim, you can:
+
+- **Search every entity type**: Resolve a name, website, or ticker to a PitchBook ID, or run a filtered search across companies, deals, investors, people, funds, limited partners, and service providers
+- **Profile companies**: Pull firmographics, industries and verticals, the full investor list, complete deal history, latest financing and debt financing, reported financials, similar companies, VC exit predictions, and web/social growth metrics
+- **Dig into deals**: Read deal summaries and full detail, valuations and multiples, participating investors and exiters, share terms, cap table history, funding tranches, and debt with its lenders
+- **Track investors and funds**: Fetch investor profiles, holdings, managed funds, board seats, and stated investment preferences, plus fund performance, peer benchmarks, cash flows, commitments, and team
+- **Map limited partners**: Retrieve commitment history and totals by fund type, commitment preferences, and actual versus target asset allocations
+- **Research people and patents**: Look up biographies, contact details, education and work history, and search a company's patent portfolio
+- **Follow credit markets**: Search PitchBook credit analysis news, or pull single and bulk articles in full
+- **Sync incrementally**: Ask any entity which of its datasets changed in a window, so a scheduled workflow only refetches what actually moved
+- **Watch your spend**: Report credit usage, contract balances, per-endpoint call costs, and the lookup-table codes the search filters expect
+
+### Authentication
+
+PitchBook uses an API key sent as `Authorization: PB-Token {key}`, not a bearer token. Keys are issued by your PitchBook account team alongside a credit balance; a sandbox key is available for testing, and the **List Sandbox Entities** operation returns the IDs that key is allowed to query.
+
+### Working with filters
+
+PitchBook range filters carry their operator inside the value rather than as a separate parameter:
+
+| Filter | Meaning |
+| --- | --- |
+| `>2024-01-01` | after a date |
+| `<2024-01-01` | before a date |
+| `2023-01-01^2024-01-01` | between two dates |
+| `>100` | greater than 100 |
+| `10^100` | between 10 and 100 |
+
+Amounts are in millions. Codes such as industries, verticals, and deal types are not free text — use **List Lookup Tables** to find the right table, then **Get Lookup Table Codes** to read its values. Any documented filter without a dedicated field can be passed through **Additional Filters** as a JSON object.
+
+In Sim, the PitchBook integration lets agents research private markets as part of an automated workflow — resolving a company to its PitchBook ID, assembling a diligence brief, screening investors against an ideal profile, or posting a scheduled deal-flow digest to the team.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrates the PitchBook Public API into the workflow. Search and pull profiles across companies, deals, investors, people, funds, limited partners, and service providers, including financing history, valuations, cap tables, debt and lenders, fund performance and commitments, patents, and credit analysis news. Also reports API credit usage and the lookup-table codes the search filters expect. Every call consumes PitchBook API credits.
+
+
+
+## Actions
+
+### PitchBook Search
+
+Search across every PitchBook entity type at once by name, PitchBook ID, website, or ticker. Use this to resolve a company, investor, or fund to its PitchBook ID before calling a profile operation.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | PitchBook API key |
+| `query` | string | Yes | What to look up: an entity name, a PitchBook ID, a website, a ticker, or an exchange-qualified ticker. Names and websites match partially once the term is long enough; IDs and tickers match exactly. |
+| `currency` | string | No | ISO currency code to convert monetary values into, sent as the X-Currency header \(e.g. USD, EUR, JPY\). Defaults to the currency on the account preferences. |
+| `page` | number | No | Page of results to return, starting at 1 |
+| `perPage` | number | No | How many results to return per page |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `stats` | object | Paging envelope for the result set |
+|   ↳ `total` | number | Total number of matching results |
+|   ↳ `perPage` | number | Results returned per page |
+|   ↳ `page` | number | Current page number |
+|   ↳ `lastPage` | number | Number of the last available page |
+| `items` | array | Matching entities. Entries carry pbId/name for companies, investors, and service providers, and fundId/fundName for funds, so check which is populated before using an ID. |
+|   ↳ `pbId` | string | PitchBook entity ID, null for fund results |
+|   ↳ `name` | string | Entity name, null for fund results |
+|   ↳ `fundId` | string | PitchBook fund ID, present only on fund results |
+|   ↳ `fundName` | string | Fund name, present only on fund results |
+|   ↳ `website` | string | Entity website, absent on fund results |
+|   ↳ `pitchBookProfileLink` | string | Link to the entity profile in the PitchBook platform |
+|   ↳ `primaryFirmType` | object | Primary type of the entity |
+|     ↳ `pbId` | string | PitchBook entity ID |
+|     ↳ `type` | string | Entity type \(e.g. COMPANY, INVESTOR\) |
+|   ↳ `otherFirmTypes` | array | Additional types the entity is also classified as |
+|     ↳ `pbId` | string | PitchBook entity ID |
+|     ↳ `type` | string | Entity type \(e.g. COMPANY, INVESTOR\) |
+|   ↳ `stockTicker` | string | Stock ticker when the entity is publicly traded |
+
+### PitchBook Shared Search
+
+Extract the names and PitchBook IDs behind an Advanced Search shared from the PitchBook platform, using the search ID and hash from the shared link
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | PitchBook API key |
+| `entityType` | string | Yes | Entity type the shared search returns: COMPANIES, DEALS, INVESTORS, SERVICE_PROVIDERS, LIMITED_PARTNERS, PEOPLE, ENTITY_MANAGEMENT, or FUNDS |
+| `searchId` | string | Yes | Search ID from the shared link, the path segment after /search/ \(e.g. 8e6bd17e-dea5-4eca-8143-dddb2ab623a0\) |
+| `hash` | string | Yes | Hash query parameter from the shared link |
+| `page` | number | No | Page of results to return, starting at 1 |
+| `perPage` | number | No | How many results to return per page |
+| `currency` | string | No | ISO currency code to convert monetary values into, sent as the X-Currency header \(e.g. USD, EUR, JPY\). Defaults to the currency on the account preferences. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `stats` | object | Summary statistics for the response |
+|   ↳ `total` | number | Total number of matching results |
+|   ↳ `perPage` | number | Results returned per page |
+|   ↳ `page` | number | Current page number |
+|   ↳ `lastPage` | number | Number of the last available page |
+| `searchCriteria` | string | Criteria of the shared search |
+| `items` | array | Records returned |
+|   ↳ `companyId` | string | PitchBook company ID |
+|   ↳ `companyName` | string | Company name |
+|   ↳ `website` | string | Website |
+
+### PitchBook Entity People
+
+Retrieve the people at an entity: primary contact, current and former team, and current and former board members
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | PitchBook API key |
+| `pbId` | string | Yes | PitchBook entity ID of a company, investor, or service provider, e.g. 51261-67. |
+| `currency` | string | No | ISO currency code to convert monetary values into, sent as the X-Currency header \(e.g. USD, EUR, JPY\). Defaults to the currency on the account preferences. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `entityId` | string | PitchBook entity ID |
+| `primaryContact` | object | Primary contact at the entity |
+|   ↳ `personId` | string | PitchBook person ID |
+|   ↳ `fullName` | string | Full name |
+|   ↳ `title` | string | Job title |
+|   ↳ `phone` | string | Phone number |
+|   ↳ `fax` | string | Fax number |
+|   ↳ `email` | string | Email address |
+| `currentTeam` | array | People currently working at the entity |
+|   ↳ `id` | string | PitchBook person ID |
+|   ↳ `name` | string | Full name |
+|   ↳ `title` | string | Job title |
+|   ↳ `positionStart` | string | Date the position started \(YYYY-MM-DD\) |
+|   ↳ `infoAvailable` | boolean | Whether a full person profile is available for them |
+| `formerTeam` | array | People who previously worked at the entity |
+|   ↳ `id` | string | PitchBook person ID |
+|   ↳ `name` | string | Full name |
+|   ↳ `title` | string | Job title |
+|   ↳ `positionStart` | string | Date the position started \(YYYY-MM-DD\) |
+|   ↳ `positionFinish` | string | Date the position ended \(YYYY-MM-DD\) |
+|   ↳ `infoAvailable` | boolean | Whether a full person profile is available for them |
+| `currentBoardMembersAndObservers` | array | Current board members and observers |
+| `formerBoardMembersAndObservers` | array | Former board members and observers |
+
+### PitchBook Entity Locations
+
+Retrieve the headquarters and every alternate office on record for an entity
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | PitchBook API key |
+| `pbId` | string | Yes | PitchBook entity ID of a company, investor, or service provider, e.g. 51261-67. |
+| `currency` | string | No | ISO currency code to convert monetary values into, sent as the X-Currency header \(e.g. USD, EUR, JPY\). Defaults to the currency on the account preferences. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `entityId` | string | PitchBook entity ID |
+| `hqOffice` | object | Headquarters office |
+|   ↳ `location` | string | Office label |
+|   ↳ `addressLine1` | string | Address line 1 |
+|   ↳ `addressLine2` | json | Address line 2 |
+|   ↳ `city` | string | City |
+|   ↳ `stateProvince` | string | State or province |
+|   ↳ `postCode` | string | Postal code |
+|   ↳ `country` | string | Country |
+|   ↳ `phone` | string | Phone number |
+|   ↳ `fax` | json | Fax number |
+|   ↳ `email` | string | Email address |
+|   ↳ `globalRegion` | string | Global region |
+|   ↳ `globalSubRegion` | string | Global sub-region |
+| `alternateOffices` | array | Other offices on record |
+|   ↳ `location` | string | Office label |
+|   ↳ `addressLine1` | string | Address line 1 |
+|   ↳ `addressLine2` | string | Address line 2 |
+|   ↳ `city` | string | City |
+|   ↳ `stateProvince` | string | State or province |
+|   ↳ `postCode` | string | Postal code |
+|   ↳ `country` | string | Country |
+|   ↳ `phone` | json | Phone number |
+|   ↳ `fax` | json | Fax number |
+|   ↳ `email` | string | Email address |
+|   ↳ `globalRegion` | string | Global region |
+|   ↳ `globalSubRegion` | string | Global sub-region |
+| `alternateOfficesCount` | number | How many other offices are on record |
+
+### PitchBook Entity Affiliates
+
+Retrieve the affiliated entities linked to an entity and how each is related
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | PitchBook API key |
+| `pbId` | string | Yes | PitchBook entity ID of a company, investor, or service provider, e.g. 51261-67. |
+| `currency` | string | No | ISO currency code to convert monetary values into, sent as the X-Currency header \(e.g. USD, EUR, JPY\). Defaults to the currency on the account preferences. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `affiliates` | array | Entities affiliated with the given entity |
+|   ↳ `entityId` | string | PitchBook entity ID |
+|   ↳ `affiliateId` | string | PitchBook ID of the affiliate |
+|   ↳ `affiliateName` | string | Name of the affiliate |
+|   ↳ `affiliateType` | string | Relationship to the affiliate |
+
+### PitchBook Entity News
+
+Retrieve recent news articles PitchBook has associated with an entity
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | PitchBook API key |
+| `pbId` | string | Yes | PitchBook entity ID of a company, investor, or service provider, e.g. 51261-67. |
+| `sinceDate` | string | No | Publication window, carrying its operator in the value: &gt;YYYY-MM-DD for after a date, &lt;YYYY-MM-DD for before one, or YYYY-MM-DD^YYYY-MM-DD for a range. Use this or trailingRange. |
+| `trailingRange` | number | No | How many days back to pull news for \(e.g. 20\) |
+| `currency` | string | No | ISO currency code to convert monetary values into, sent as the X-Currency header \(e.g. USD, EUR, JPY\). Defaults to the currency on the account preferences. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `news` | array | News articles associated with the entity, most recent first |
+|   ↳ `entityId` | string | PitchBook entity ID the article is about |
+|   ↳ `title` | string | Article headline |
+|   ↳ `byline` | string | Article summary or byline |
+|   ↳ `source` | string | Publication the article came from |
+|   ↳ `publishDate` | string | Publication timestamp \(ISO 8601\) |
+|   ↳ `url` | string | Link to the article |
+
+### PitchBook Entity Updates
+
+Check which entity datasets changed in a window, so a sync only refetches what moved
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | PitchBook API key |
+| `pbId` | string | Yes | PitchBook entity ID of a company, investor, or service provider, e.g. 51261-67. |
+| `sinceDate` | string | No | Window to report changes over, carrying its operator in the value: &gt;YYYY-MM-DD for after a date, &lt;YYYY-MM-DD for before one, or YYYY-MM-DD^YYYY-MM-DD for a range. Use this or trailingRange. |
+| `trailingRange` | number | No | Report changes over the last N days. Use this or sinceDate. |
+| `currency` | string | No | ISO currency code to convert monetary values into, sent as the X-Currency header \(e.g. USD, EUR, JPY\). Defaults to the currency on the account preferences. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `updates` | json | Map of dataset name to whether it changed in the window. Keys are PitchBook dataset names, so read it as a plain object. |
+
+### PitchBook Company Search
+
+Search PitchBook for companies by name, location, industry, funding, deal activity, and more
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | PitchBook API key |
+| `companyNames` | string | No | Comma-separated company names, PitchBook IDs, websites, or tickers |
+| `keywords` | string | No | Keywords associated with the company or appearing in its business description |
+| `city` | string | No | City the company is located in |
+| `stateProvince` | string | No | State or province the company is located in |
+| `country` | string | No | Country the company is located in \(e.g. USA\) |
+| `locationType` | string | No | Restrict location matching to HQ_ONLY, NON_HQ_ONLY, or ANY |
+| `ownershipStatus` | string | No | PitchBook ownership status code |
+| `businessStatus` | string | No | PitchBook business status code |
+| `dateFounded` | string | No | Founding date filter. Use &gt;YYYY-MM-DD, &lt;YYYY-MM-DD, or YYYY-MM-DD^YYYY-MM-DD for a range |
+| `industry` | string | No | PitchBook industry code |
+| `verticals` | string | No | PitchBook vertical code |
+| `dealType` | string | No | PitchBook deal type code \(e.g. evc for early-stage VC\) |
+| `dealSize` | string | No | Deal size in millions. Use &gt;100, &lt;100, or 10^100 for a range |
+| `dealDate` | string | No | Deal date filter. Use &gt;YYYY-MM-DD, &lt;YYYY-MM-DD, or YYYY-MM-DD^YYYY-MM-DD for a range |
+| `totalRaised` | string | No | Total raised to date in millions. Use &gt;100, &lt;100, or 10^100 for a range |
+| `investorNames` | string | No | Comma-separated investor names, PitchBook IDs, websites, or tickers |
+| `employeeCount` | string | No | Employee count. Use &gt;100, &lt;100, or 10^100 for a range |
+| `revenue` | string | No | Revenue in millions. Use &gt;100, &lt;100, or 10^100 for a range |
+| `filterCurrency` | string | No | ISO currency code the monetary filters on this search are expressed in, e.g. setting EUR means dealSize is read as millions of euros. Distinct from `currency`, which converts the values PitchBook returns. |
+| `currency` | string | No | ISO currency code to convert monetary values into, sent as the X-Currency header \(e.g. USD, EUR, JPY\). Defaults to the currency on the account preferences. |
+| `page` | number | No | Page of results to return, starting at 1 |
+| `perPage` | number | No | How many results to return per page |
+| `additionalFilters` | json | No | Any other documented search filter, as a JSON object of query parameter names to values \(e.g. \{"emergingSpaces": "AGTECH"\}\). A dedicated field always wins over the same key set here. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `stats` | object | Paging envelope for the result set |
+|   ↳ `total` | number | Total number of matching results |
+|   ↳ `perPage` | number | Results returned per page |
+|   ↳ `page` | number | Current page number |
+|   ↳ `lastPage` | number | Number of the last available page |
+| `items` | array | Companies matching the search criteria |
+|   ↳ `companyId` | string | PitchBook company ID |
+|   ↳ `companyName` | string | Company name |
+|   ↳ `website` | string | Company website |
+
+### PitchBook Company Bio
+
+Retrieve the core profile of a company: names, description, HQ, status, headcount, total raised, and social links
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | PitchBook API key |
+| `pbId` | string | Yes | PitchBook company ID, e.g. 10618-03. Use PitchBook Search to resolve a name to an ID. |
+| `currency` | string | No | ISO currency code to convert monetary values into, sent as the X-Currency header \(e.g. USD, EUR, JPY\). Defaults to the currency on the account preferences. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `companyId` | string | PitchBook company ID |
+| `companyName` | object | The names the company is known by |
+|   ↳ `formalName` | string | Formal name |
+|   ↳ `alsoKnownAs` | string | Also-known-as name |
+|   ↳ `legalName` | string | Registered legal name |
+|   ↳ `formerlyKnownAs` | string | Previous name |
+| `parentCompanyId` | string | PitchBook ID of the parent company |
+| `parentCompanyName` | string | Name of the parent company |
+| `hqLocation` | object | Headquarters location |
+|   ↳ `city` | string | City |
+|   ↳ `stateProvince` | string | State or province |
+|   ↳ `postCode` | string | Postal code |
+|   ↳ `country` | string | Country |
+| `description` | string | Business description |
+| `financingStatus` | object | How the company is financed |
+|   ↳ `code` | string | PitchBook code |
+|   ↳ `description` | string | Human-readable label for the code |
+| `businessStatus` | object | Operating status of the business |
+|   ↳ `code` | string | PitchBook code |
+|   ↳ `description` | string | Human-readable label for the code |
+| `ownershipStatus` | object | Ownership status of the company |
+|   ↳ `code` | string | PitchBook code |
+|   ↳ `description` | string | Human-readable label for the code |
+| `universe` | array | PitchBook universes the company belongs to |
+|   ↳ `code` | string | Universe code |
+|   ↳ `description` | string | Universe label |
+| `website` | string | Company website |
+| `employees` | number | Current employee count |
+| `employeeHistory` | array | Reported headcount over time |
+|   ↳ `asOfDate` | string | Date the count was reported \(YYYY-MM-DD\) |
+|   ↳ `employeeCount` | number | Headcount on that date |
+| `exchange` | string | Stock exchange the company trades on |
+| `ticker` | string | Stock ticker |
+| `yearFounded` | number | Year the company was founded |
+| `financingStatusNote` | object | Analyst note explaining the financing status |
+|   ↳ `note` | string | Note text |
+|   ↳ `asOfDate` | string | Date of the note \(YYYY-MM-DD\) |
+| `totalMoneyRaised` | object | Total capital raised to date |
+|   ↳ `amount` | number | Value in the requested currency |
+|   ↳ `currency` | string | Currency of amount |
+|   ↳ `nativeAmount` | number | Value in the currency it was originally reported in |
+|   ↳ `nativeCurrency` | string | Currency of nativeAmount |
+|   ↳ `estimated` | boolean | Whether the value is a PitchBook estimate |
+| `sicCodes` | array | SIC classification codes |
+|   ↳ `code` | string | SIC code |
+|   ↳ `description` | string | SIC code label |
+| `morningstarCode` | string | Morningstar identifier |
+| `cikCode` | string | SEC CIK identifier |
+| `companySocialURLs` | object | Social profile links |
+|   ↳ `facebookProfileUrl` | string | Facebook profile |
+|   ↳ `twitterProfileUrl` | string | X/Twitter profile |
+|   ↳ `linkedInProfileUrl` | string | LinkedIn profile |
+| `pitchBookProfileLink` | string | Link to the company profile in the PitchBook platform |
+
+### PitchBook Company Industries
+
+Retrieve the industry classification, verticals, keywords, and emerging spaces assigned to a company
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | PitchBook API key |
+| `pbId` | string | Yes | PitchBook company ID, e.g. 10618-03. Use PitchBook Search to resolve a name to an ID. |
+| `currency` | string | No | ISO currency code to convert monetary values into, sent as the X-Currency header \(e.g. USD, EUR, JPY\). Defaults to the currency on the account preferences. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `companyId` | string | PitchBook company ID |
+| `industries` | array | Industry classifications, most specific first. One entry is flagged primary. |
+|   ↳ `industrySector` | object | Top-level sector |
+|     ↳ `code` | string | Sector code |
+|     ↳ `description` | string | Sector label |
+|   ↳ `industryGroup` | object | Industry group within the sector |
+|     ↳ `code` | string | Group code |
+|     ↳ `description` | string | Group label |
+|   ↳ `industryCode` | object | Most specific industry classification |
+|     ↳ `code` | string | Industry code |
+|     ↳ `description` | string | Industry label |
+|   ↳ `primary` | boolean | Whether this is the primary industry |
+| `verticals` | array | Verticals the company operates in |
+|   ↳ `code` | string | Vertical code |
+|   ↳ `description` | string | Vertical label |
+| `keywords` | array | Keywords associated with the company |
+| `emergingSpaces` | array | Analyst-defined emerging spaces the company is placed in |
+
+### PitchBook Company Investors
+
+Retrieve every investor in a company, current and former, with the type of investor and when they invested
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | PitchBook API key |
+| `pbId` | string | Yes | PitchBook company ID, e.g. 10618-03. Use PitchBook Search to resolve a name to an ID. |
+| `currency` | string | No | ISO currency code to convert monetary values into, sent as the X-Currency header \(e.g. USD, EUR, JPY\). Defaults to the currency on the account preferences. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `countAllInvestors` | number | Total number of investors on record |
+| `investors` | array | Investors in the company, current and former |
+|   ↳ `companyId` | string | PitchBook company ID |
+|   ↳ `investorId` | string | PitchBook investor ID |
+|   ↳ `investorName` | string | Investor name |
+|   ↳ `investorTypes` | array | Types the investor is classified as, one flagged primary |
+|     ↳ `type` | object | Investor type |
+|       ↳ `code` | string | Investor type code |
+|       ↳ `description` | string | Investor type label |
+|     ↳ `primary` | boolean | Whether this is the primary type |
+|   ↳ `investorSince` | string | Date the investor first invested \(YYYY-MM-DD\) |
+|   ↳ `investorExit` | string | Date the investor exited \(YYYY-MM-DD\) |
+|   ↳ `investorStatus` | object | Whether the investor is current or former |
+|     ↳ `code` | string | Status code |
+|     ↳ `description` | string | Status label |
+
+### PitchBook Company Active Investors
+
+Retrieve only the investors currently holding a position in a company
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | PitchBook API key |
+| `pbId` | string | Yes | PitchBook company ID, e.g. 10618-03. Use PitchBook Search to resolve a name to an ID. |
+| `currency` | string | No | ISO currency code to convert monetary values into, sent as the X-Currency header \(e.g. USD, EUR, JPY\). Defaults to the currency on the account preferences. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `activeInvestors` | array | Investors currently holding a position in the company |
+|   ↳ `companyId` | string | PitchBook company ID |
+|   ↳ `investorId` | string | PitchBook investor ID |
+|   ↳ `investorName` | string | Investor name |
+|   ↳ `investorTypes` | array | Types the investor is classified as, one flagged primary |
+|     ↳ `primary` | boolean | Whether this is the primary entry |
+|     ↳ `type` | object | Type as a code and description pair |
+|       ↳ `description` | string | Human-readable label for the code |
+|       ↳ `code` | string | PitchBook code |
+|   ↳ `investorSince` | string | Date the investor first invested \(YYYY-MM-DD\) |
+|   ↳ `holding` | string | Current holding status |
+
+### PitchBook Company Deals
+
+Retrieve every deal a company has been involved in, in chronological order with its deal type
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | PitchBook API key |
+| `pbId` | string | Yes | PitchBook company ID, e.g. 10618-03. Use PitchBook Search to resolve a name to an ID. |
+| `currency` | string | No | ISO currency code to convert monetary values into, sent as the X-Currency header \(e.g. USD, EUR, JPY\). Defaults to the currency on the account preferences. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deals` | array | Deals involving the company, oldest first |
+|   ↳ `companyId` | string | PitchBook company ID |
+|   ↳ `dealId` | string | PitchBook deal ID |
+|   ↳ `dealDate` | string | Date of the deal \(YYYY-MM-DD\) |
+|   ↳ `dealType1` | object | Primary deal type |
+|     ↳ `code` | string | Deal type code |
+|     ↳ `description` | string | Deal type label |
+|   ↳ `dealType2` | object | Secondary deal type, such as the round letter |
+|     ↳ `code` | string | Deal type code |
+|     ↳ `description` | string | Deal type label |
+|   ↳ `dealType3` | object | Tertiary deal type |
+|     ↳ `code` | string | Deal type code |
+|     ↳ `description` | string | Deal type label |
+|   ↳ `dealNumber` | number | Sequence of this deal in the company financing history |
+
+### PitchBook Company Most Recent Financing
+
+Retrieve a company most recent financing round: date, size, type, and last known valuation
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | PitchBook API key |
+| `pbId` | string | Yes | PitchBook company ID, e.g. 10618-03. Use PitchBook Search to resolve a name to an ID. |
+| `currency` | string | No | ISO currency code to convert monetary values into, sent as the X-Currency header \(e.g. USD, EUR, JPY\). Defaults to the currency on the account preferences. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `companyId` | string | PitchBook company ID |
+| `lastFinancingDealId` | string | PitchBook deal ID of the most recent financing |
+| `lastFinancingDate` | string | Date of the most recent financing \(YYYY-MM-DD\) |
+| `lastFinancingSize` | object | Size of the most recent financing |
+|   ↳ `amount` | number | Value in the requested currency |
+|   ↳ `currency` | string | Currency of amount |
+|   ↳ `nativeAmount` | number | Value in the currency it was originally reported in |
+|   ↳ `nativeCurrency` | string | Currency of nativeAmount |
+|   ↳ `estimated` | boolean | Whether the value is a PitchBook estimate |
+| `lastFinancingSizeStatus` | string | Whether the financing size is actual or estimated |
+| `lastFinancingValuation` | object | Valuation at the most recent financing |
+|   ↳ `amount` | number | Value in the requested currency |
+|   ↳ `currency` | string | Currency of amount |
+|   ↳ `nativeAmount` | number | Value in the currency it was originally reported in |
+|   ↳ `nativeCurrency` | string | Currency of nativeAmount |
+|   ↳ `estimated` | boolean | Whether the value is a PitchBook estimate |
+| `lastFinancingValuationStatus` | string | Whether the valuation is actual or estimated |
+| `lastFinancingDealType` | object | Primary deal type of the most recent financing |
+|   ↳ `code` | string | PitchBook code |
+|   ↳ `description` | string | Human-readable label for the code |
+| `lastFinancingDealType2` | object | Secondary deal type of the most recent financing |
+|   ↳ `code` | string | PitchBook code |
+|   ↳ `description` | string | Human-readable label for the code |
+| `lastFinancingDealType3` | object | Tertiary deal type of the most recent financing |
+|   ↳ `code` | string | PitchBook code |
+|   ↳ `description` | string | Human-readable label for the code |
+| `lastFinancingDealClass` | object | Deal class of the most recent financing |
+|   ↳ `code` | string | PitchBook code |
+|   ↳ `description` | string | Human-readable label for the code |
+| `lastKnownValuation` | object | Most recent known valuation of the company |
+|   ↳ `amount` | number | Value in the requested currency |
+|   ↳ `currency` | string | Currency of amount |
+|   ↳ `nativeAmount` | number | Value in the currency it was originally reported in |
+|   ↳ `nativeCurrency` | string | Currency of nativeAmount |
+|   ↳ `estimated` | boolean | Whether the value is a PitchBook estimate |
+| `lastKnownValuationDate` | string | Date of the last known valuation \(YYYY-MM-DD\) |
+| `lastKnownValuationDealType` | object | Deal type the last known valuation came from |
+|   ↳ `code` | string | PitchBook code |
+|   ↳ `description` | string | Human-readable label for the code |
+
+### PitchBook Company Most Recent Debt Financing
+
+Retrieve a company most recent debt financing, including each debt instrument raised
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | PitchBook API key |
+| `pbId` | string | Yes | PitchBook company ID, e.g. 10618-03. Use PitchBook Search to resolve a name to an ID. |
+| `currency` | string | No | ISO currency code to convert monetary values into, sent as the X-Currency header \(e.g. USD, EUR, JPY\). Defaults to the currency on the account preferences. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `companyId` | string | PitchBook company ID |
+| `lastDebtFinancingDealId` | string | PitchBook deal ID of the most recent debt financing |
+| `lastDebtFinancingDate` | string | Date of the most recent debt financing \(YYYY-MM-DD\) |
+| `lastDebtFinancing` | array | Debt instruments in the most recent debt financing |
+|   ↳ `lastDebtFinancingType` | object | Type of the most recent debt financing |
+|     ↳ `code` | string | PitchBook code |
+|     ↳ `description` | string | Human-readable label for the code |
+|   ↳ `lastDebtFinancingAmount` | object | Amount of the most recent debt financing |
+|     ↳ `amount` | number | Value in the requested currency |
+|     ↳ `currency` | string | Currency of amount |
+|     ↳ `nativeAmount` | number | Value in the currency it was originally reported in |
+|     ↳ `nativeCurrency` | string | Currency of nativeAmount |
+|     ↳ `estimated` | boolean | Whether the value is a PitchBook estimate |
+|   ↳ `seniority` | json | Seniority of the debt |
+|   ↳ `security` | json | Security backing the debt |
+|   ↳ `subordination` | json | Subordination terms |
+|   ↳ `term` | json | Term of the debt |
+|   ↳ `additionalDebtCharacteristics` | object | Other characteristics of the debt |
+|     ↳ `unitranche` | boolean | Whether the debt is unitranche |
+|     ↳ `syndicated` | boolean | Whether the debt is syndicated |
+|     ↳ `mezzanine` | boolean | Whether the debt is mezzanine |
+|     ↳ `covLite` | boolean | Whether the debt is covenant-lite |
+|     ↳ `warrants` | boolean | Whether warrants are attached |
+|     ↳ `convertible` | boolean | Whether the instrument is convertible |
+|     ↳ `rate` | json | Interest rate |
+|   ↳ `lenders` | array | Lenders on the debt |
+
+### PitchBook Company Most Recent Financials
+
+Retrieve the most recent reported financials for a private company: revenue, net income, EBITDA, assets, and debt
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | PitchBook API key |
+| `pbId` | string | Yes | PitchBook company ID, e.g. 10618-03. Use PitchBook Search to resolve a name to an ID. |
+| `currency` | string | No | ISO currency code to convert monetary values into, sent as the X-Currency header \(e.g. USD, EUR, JPY\). Defaults to the currency on the account preferences. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `companyId` | string | PitchBook company ID |
+| `period` | number | Fiscal period the figures cover |
+| `endDate` | string | Period end date \(YYYY-MM-DD\) |
+| `enterpriseValue` | object | Enterprise value |
+|   ↳ `amount` | number | Value in the requested currency |
+|   ↳ `currency` | string | Currency of amount |
+|   ↳ `nativeAmount` | number | Value in the currency it was originally reported in |
+|   ↳ `nativeCurrency` | string | Currency of nativeAmount |
+|   ↳ `estimated` | boolean | Whether the value is a PitchBook estimate |
+| `revenue` | object | Revenue |
+|   ↳ `amount` | number | Value in the requested currency |
+|   ↳ `currency` | string | Currency of amount |
+|   ↳ `nativeAmount` | number | Value in the currency it was originally reported in |
+|   ↳ `nativeCurrency` | string | Currency of nativeAmount |
+|   ↳ `estimated` | boolean | Whether the value is a PitchBook estimate |
+| `netIncome` | object | Net income |
+|   ↳ `amount` | number | Value in the requested currency |
+|   ↳ `currency` | string | Currency of amount |
+|   ↳ `nativeAmount` | number | Value in the currency it was originally reported in |
+|   ↳ `nativeCurrency` | string | Currency of nativeAmount |
+|   ↳ `estimated` | boolean | Whether the value is a PitchBook estimate |
+| `ebitda` | object | EBITDA |
+|   ↳ `amount` | number | Value in the requested currency |
+|   ↳ `currency` | string | Currency of amount |
+|   ↳ `nativeAmount` | number | Value in the currency it was originally reported in |
+|   ↳ `nativeCurrency` | string | Currency of nativeAmount |
+|   ↳ `estimated` | boolean | Whether the value is a PitchBook estimate |
+| `totalAssets` | object | Total assets |
+|   ↳ `amount` | number | Value in the requested currency |
+|   ↳ `currency` | string | Currency of amount |
+|   ↳ `nativeAmount` | number | Value in the currency it was originally reported in |
+|   ↳ `nativeCurrency` | string | Currency of nativeAmount |
+|   ↳ `estimated` | boolean | Whether the value is a PitchBook estimate |
+| `totalDebt` | object | Total debt |
+|   ↳ `amount` | number | Value in the requested currency |
+|   ↳ `currency` | string | Currency of amount |
+|   ↳ `nativeAmount` | number | Value in the currency it was originally reported in |
+|   ↳ `nativeCurrency` | string | Currency of nativeAmount |
+|   ↳ `estimated` | boolean | Whether the value is a PitchBook estimate |
+
+### PitchBook Company Financials
+
+Retrieve reported financials for a private company across every available fiscal period. Annual data is returned by default.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | PitchBook API key |
+| `pbId` | string | Yes | PitchBook company ID, e.g. 10618-03. Use PitchBook Search to resolve a name to an ID. |
+| `currency` | string | No | ISO currency code to convert monetary values into, sent as the X-Currency header \(e.g. USD, EUR, JPY\). Defaults to the currency on the account preferences. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `companyId` | string | PitchBook company ID |
+| `items` | array | Records returned |
+|   ↳ `period` | string | Fiscal period the figures cover |
+|   ↳ `endDate` | string | End date \(YYYY-MM-DD\) |
+|   ↳ `enterpriseValue` | object | Enterprise value |
+|     ↳ `nativeCurrency` | string | Currency of nativeAmount |
+|     ↳ `currency` | string | Currency of amount |
+|     ↳ `amount` | number | Value in the requested currency |
+|     ↳ `estimated` | boolean | Whether the value is a PitchBook estimate |
+|     ↳ `nativeAmount` | number | Value in the currency it was originally reported in |
+|   ↳ `revenue` | object | Revenue |
+|     ↳ `nativeCurrency` | string | Currency of nativeAmount |
+|     ↳ `currency` | string | Currency of amount |
+|     ↳ `amount` | number | Value in the requested currency |
+|     ↳ `estimated` | boolean | Whether the value is a PitchBook estimate |
+|     ↳ `nativeAmount` | number | Value in the currency it was originally reported in |
+|   ↳ `netIncome` | object | Net income |
+|     ↳ `nativeCurrency` | string | Currency of nativeAmount |
+|     ↳ `currency` | string | Currency of amount |
+|     ↳ `amount` | number | Value in the requested currency |
+|     ↳ `estimated` | boolean | Whether the value is a PitchBook estimate |
+|     ↳ `nativeAmount` | number | Value in the currency it was originally reported in |
+|   ↳ `ebitda` | object | EBITDA |
+|     ↳ `nativeCurrency` | string | Currency of nativeAmount |
+|     ↳ `currency` | string | Currency of amount |
+|     ↳ `amount` | number | Value in the requested currency |
+|     ↳ `estimated` | boolean | Whether the value is a PitchBook estimate |
+|     ↳ `nativeAmount` | number | Value in the currency it was originally reported in |
+|   ↳ `totalAssets` | object | Total assets |
+|     ↳ `nativeCurrency` | string | Currency of nativeAmount |
+|     ↳ `currency` | string | Currency of amount |
+|     ↳ `amount` | number | Value in the requested currency |
+|     ↳ `estimated` | boolean | Whether the value is a PitchBook estimate |
+|     ↳ `nativeAmount` | number | Value in the currency it was originally reported in |
+|   ↳ `totalDebt` | object | Total debt |
+|     ↳ `nativeCurrency` | string | Currency of nativeAmount |
+|     ↳ `currency` | string | Currency of amount |
+|     ↳ `amount` | number | Value in the requested currency |
+|     ↳ `estimated` | boolean | Whether the value is a PitchBook estimate |
+|     ↳ `nativeAmount` | number | Value in the currency it was originally reported in |
+
+### PitchBook Similar Companies
+
+Retrieve companies PitchBook scores as similar to a given company, flagging which are direct competitors
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | PitchBook API key |
+| `pbId` | string | Yes | PitchBook company ID, e.g. 10618-03. Use PitchBook Search to resolve a name to an ID. |
+| `currency` | string | No | ISO currency code to convert monetary values into, sent as the X-Currency header \(e.g. USD, EUR, JPY\). Defaults to the currency on the account preferences. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `similarCompanies` | array | Similar companies, most similar first |
+|   ↳ `companyId` | string | PitchBook ID of the company compared against |
+|   ↳ `similarCompanyId` | string | PitchBook ID of the similar company |
+|   ↳ `similarCompanyName` | string | Name of the similar company |
+|   ↳ `similarityScore` | number | Similarity score between 0 and 1, higher is more similar |
+|   ↳ `competitor` | boolean | Whether PitchBook classifies the company as a direct competitor |
+
+### PitchBook VC Exit Predictions
+
+Retrieve PitchBook machine-learning exit predictions for a VC-backed company. Requires at least two funding rounds in the past six years.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | PitchBook API key |
+| `pbId` | string | Yes | PitchBook company ID, e.g. 10618-03. Use PitchBook Search to resolve a name to an ID. |
+| `currency` | string | No | ISO currency code to convert monetary values into, sent as the X-Currency header \(e.g. USD, EUR, JPY\). Defaults to the currency on the account preferences. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `companyId` | string | PitchBook company ID |
+| `predictionDate` | string | Date the prediction was generated \(YYYY-MM-DD\) |
+| `opportunityScore` | number | PitchBook opportunity score |
+| `successClass` | string | Predicted outcome class, such as Success |
+| `successProbability` | number | Probability of a successful outcome, as a percentage |
+| `noexitProbability` | number | Probability of no exit, as a percentage |
+| `exitClass` | string | Most likely exit type, such as IPO or M&A |
+| `ipoProbability` | number | Probability of an IPO exit, as a percentage |
+| `mergeracquisitionProbability` | number | Probability of an M&A exit, as a percentage |
+| `vcDealNumber` | number | Number of VC deals the prediction is based on |
+
+### PitchBook Company Social Analytics
+
+Retrieve web and social growth and size metrics for a company, with percentile ranks
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | PitchBook API key |
+| `pbId` | string | Yes | PitchBook company ID, e.g. 10618-03. Use PitchBook Search to resolve a name to an ID. |
+| `compare` | string | No | Benchmark the signals against a peer set: SIMILAR_COMPANIES, INDUSTRY, VERTICALS, or ALL_COMPANIES |
+| `currency` | string | No | ISO currency code to convert monetary values into, sent as the X-Currency header \(e.g. USD, EUR, JPY\). Defaults to the currency on the account preferences. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `companyId` | string | PitchBook company ID |
+| `growthRate` | number | Overall growth rate |
+| `growthRatePercentile` | number | Percentile of the overall growth rate |
+| `growthRateChange` | number | Change in the overall growth rate |
+| `growthRatePercentChange` | number | Percent change in the overall growth rate |
+| `webGrowthRate` | number | Web traffic growth rate |
+| `webGrowthRatePercentile` | number | Percentile of the web growth rate |
+| `socialGrowthRate` | number | Social following growth rate |
+| `socialGrowthRatePercentile` | number | Percentile of the social growth rate |
+| `sizeMultiple` | number | Overall size multiple |
+| `sizeMultiplePercentile` | number | Percentile of the size multiple |
+| `sizeMultipleChange` | number | Change in the size multiple |
+| `sizeMultiplePercentChange` | number | Percent change in the size multiple |
+| `webSizeMultiple` | number | Web size multiple |
+| `webSizeMultiplePercentile` | number | Percentile of the web size multiple |
+| `socialSizeMultiple` | number | Social size multiple |
+| `socialSizeMultiplePercentile` | number | Percentile of the social size multiple |
+| `twitterFollowers` | number | Twitter/X follower count |
+| `twitterFollowersChange` | number | Change in follower count |
+| `twitterFollowersPercentChange` | number | Percent change in follower count |
+
+### PitchBook Company General Service Providers
+
+Retrieve the current and former general service providers engaged by a company
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | PitchBook API key |
+| `pbId` | string | Yes | PitchBook company ID, e.g. 10618-03. Use PitchBook Search to resolve a name to an ID. |
+| `currency` | string | No | ISO currency code to convert monetary values into, sent as the X-Currency header \(e.g. USD, EUR, JPY\). Defaults to the currency on the account preferences. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `companyId` | string | PitchBook company ID |
+| `currentGeneralServices` | array | Current general service relationships |
+|   ↳ `serviceProviderId` | string | PitchBook service provider ID |
+|   ↳ `serviceProviderName` | string | Service provider name |
+|   ↳ `serviceProviderTypes` | array | Types the service provider is classified as |
+|     ↳ `primary` | boolean | Whether this is the primary entry |
+|     ↳ `type` | object | Type as a code and description pair |
+|       ↳ `description` | string | Human-readable label for the code |
+|       ↳ `code` | string | PitchBook code |
+|   ↳ `serviceProvided` | object | Service provided, as a code and description pair |
+|     ↳ `description` | string | Human-readable label for the code |
+|     ↳ `code` | string | PitchBook code |
+| `formerGeneralServices` | array | Former general service relationships |
+|   ↳ `serviceProviderId` | string | PitchBook service provider ID |
+|   ↳ `serviceProviderName` | string | Service provider name |
+|   ↳ `serviceProviderTypes` | array | Types the service provider is classified as |
+|     ↳ `primary` | boolean | Whether this is the primary entry |
+|     ↳ `type` | object | Type as a code and description pair |
+|       ↳ `description` | string | Human-readable label for the code |
+|       ↳ `code` | string | PitchBook code |
+|   ↳ `serviceProvided` | object | Service provided, as a code and description pair |
+|     ↳ `description` | string | Human-readable label for the code |
+|     ↳ `code` | string | PitchBook code |
+
+### PitchBook Company Deal Service Providers
+
+Retrieve the service providers that worked on a company deals, and what each was hired for
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | PitchBook API key |
+| `pbId` | string | Yes | PitchBook company ID, e.g. 10618-03. Use PitchBook Search to resolve a name to an ID. |
+| `currency` | string | No | ISO currency code to convert monetary values into, sent as the X-Currency header \(e.g. USD, EUR, JPY\). Defaults to the currency on the account preferences. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `dealServiceProviders` | array | Service providers engaged on the company deals |
+|   ↳ `serviceProviderId` | string | PitchBook service provider ID |
+|   ↳ `serviceProviderName` | string | Service provider name |
+|   ↳ `serviceProviderTypes` | array | Types the service provider is classified as |
+|     ↳ `primary` | boolean | Whether this is the primary entry |
+|     ↳ `type` | object | Type as a code and description pair |
+|       ↳ `description` | string | Human-readable label for the code |
+|       ↳ `code` | string | PitchBook code |
+|   ↳ `serviceProvided` | object | Service provided, as a code and description pair |
+|     ↳ `description` | string | Human-readable label for the code |
+|     ↳ `code` | string | PitchBook code |
+|   ↳ `dealIdServiceProvided` | string | PitchBook deal ID the service was provided on |
+
+### PitchBook Company Updates
+
+Check which company datasets changed in a window, so a sync only refetches what moved
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | PitchBook API key |
+| `pbId` | string | Yes | PitchBook company ID, e.g. 10618-03. Use PitchBook Search to resolve a name to an ID. |
+| `sinceDate` | string | No | Window to report changes over, carrying its operator in the value: &gt;YYYY-MM-DD for after a date, &lt;YYYY-MM-DD for before one, or YYYY-MM-DD^YYYY-MM-DD for a range. Use this or trailingRange. |
+| `trailingRange` | number | No | Report changes over the last N days. Use this or sinceDate. |
+| `currency` | string | No | ISO currency code to convert monetary values into, sent as the X-Currency header \(e.g. USD, EUR, JPY\). Defaults to the currency on the account preferences. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `updates` | json | Map of dataset name to whether it changed in the window. Keys are PitchBook dataset names, so read it as a plain object. |
+
+### PitchBook Patent Search
+
+Search the patents held by a company by status, filing and publication date, authority, and CPC classification
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | PitchBook API key |
+| `pbId` | string | Yes | PitchBook company ID, e.g. 10618-03. Use PitchBook Search to resolve a name to an ID. |
+| `status` | string | No | Patent status: Active, Pending, or Inactive. Separate multiple values with a comma. |
+| `publicationDate` | string | No | Publication date filter. Use &gt;YYYY-MM-DD, &lt;YYYY-MM-DD, or YYYY-MM-DD^YYYY-MM-DD for a range. |
+| `firstFilingDate` | string | No | First filing date filter. Use &gt;YYYY-MM-DD, &lt;YYYY-MM-DD, or YYYY-MM-DD^YYYY-MM-DD for a range. |
+| `filingAuthorityLocation` | string | No | Filing authority location, e.g. EP or US. Separate multiple values with a comma. |
+| `cpcSectionCode` | string | No | CPC section code. Separate multiple values with a comma. |
+| `cpcClassCode` | string | No | CPC class code. Separate multiple values with a comma. |
+| `page` | number | No | Page of results to return, starting at 1 |
+| `perPage` | number | No | How many results to return per page |
+| `currency` | string | No | ISO currency code to convert monetary values into, sent as the X-Currency header \(e.g. USD, EUR, JPY\). Defaults to the currency on the account preferences. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `companyId` | string | PitchBook company ID |
+| `stats` | object | Summary statistics for the response |
+|   ↳ `total` | number | Total number of matching results |
+|   ↳ `perPage` | number | Results returned per page |
+|   ↳ `page` | number | Current page number |
+|   ↳ `lastPage` | number | Number of the last available page |
+| `items` | array | Records returned |
+|   ↳ `patentId` | string | Patent ID |
+|   ↳ `patentTitle` | string | Patent title |
+|   ↳ `status` | string | Status |
+|   ↳ `publicationDate` | string | Publication date \(YYYY-MM-DD\) |
+|   ↳ `firstFilingDate` | string | First filing date \(YYYY-MM-DD\) |
+|   ↳ `expirationDate` | string | Expiration date \(YYYY-MM-DD\) |
+|   ↳ `filingAuthorityLocation` | string | Filing authority location |
+|   ↳ `cpcSection` | object | CPC section |
+|     ↳ `code` | string | PitchBook code |
+|     ↳ `description` | string | Human-readable label for the code |
+|   ↳ `cpcClass` | object | CPC class |
+|     ↳ `code` | string | PitchBook code |
+|     ↳ `description` | string | Human-readable label for the code |
+|   ↳ `cpcSubclass` | object | CPC subclass |
+|     ↳ `code` | string | PitchBook code |
+|     ↳ `description` | string | Human-readable label for the code |
+
+### PitchBook Patent Detail
+
+Retrieve the full record for a single patent: title, status, dates, assignees, inventors, citations, and claim counts
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | PitchBook API key |
+| `pbId` | string | Yes | Patent ID, e.g. EP-3167426-B1. Patent IDs come from a patent search. |
+| `currency` | string | No | ISO currency code to convert monetary values into, sent as the X-Currency header \(e.g. USD, EUR, JPY\). Defaults to the currency on the account preferences. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `patentId` | string | Patent ID |
+| `patentTitle` | string | Patent title |
+| `status` | string | Status |
+| `publicationDate` | string | Publication date \(YYYY-MM-DD\) |
+| `firstFilingDate` | string | First filing date \(YYYY-MM-DD\) |
+| `expirationDate` | json | Expiration date \(YYYY-MM-DD\) |
+| `filingAuthorityLocation` | string | Filing authority location |
+| `cpcSection` | object | CPC section |
+|   ↳ `code` | string | PitchBook code |
+|   ↳ `description` | string | Human-readable label for the code |
+| `cpcClass` | object | CPC class |
+|   ↳ `code` | string | PitchBook code |
+|   ↳ `description` | string | Human-readable label for the code |
+| `cpcSubclass` | object | CPC subclass |
+|   ↳ `code` | string | PitchBook code |
+|   ↳ `description` | string | Human-readable label for the code |
+| `currentAssigneeNames` | array | Current assignees |
+| `originalAssigneeNames` | array | Original assignees |
+| `mostRecentLegalStatus` | string | Most recent legal status |
+| `mostRecentLegalStatusDate` | string | Date of the most recent legal status \(YYYY-MM-DD\) |
+| `applicationDate` | string | Application date \(YYYY-MM-DD\) |
+| `grantDate` | string | Grant date \(YYYY-MM-DD\) |
+| `familyId` | string | Patent family ID |
+| `inventors` | array | Named inventors |
+| `documentForwardCitations` | number | Number of forward citations |
+| `documentBackwardCitations` | number | Number of backward citations |
+| `countOfClaims` | number | Number of claims |
+| `countOfIndependentClaims` | number | Number of independent claims |
+| `patentDownloadUrl` | string | Link to download the patent document |
+
+### PitchBook Deal Search
+
+Search PitchBook for deals by company, investor, deal type, size, date, and valuation
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | PitchBook API key |
+| `companyNames` | string | No | Comma-separated company names, PitchBook IDs, websites, or tickers |
+| `investorNames` | string | No | Comma-separated investor names, PitchBook IDs, websites, or tickers |
+| `keywords` | string | No | Keywords associated with the companies involved |
+| `country` | string | No | Country of the companies involved \(e.g. USA\) |
+| `locationType` | string | No | Restrict location matching to HQ_ONLY, NON_HQ_ONLY, or ANY |
+| `industry` | string | No | PitchBook industry code of the companies involved |
+| `verticals` | string | No | PitchBook vertical code of the companies involved |
+| `dealType` | string | No | PitchBook deal type code \(e.g. evc for early-stage VC\) |
+| `dealStatus` | string | No | Deal status code, distinguishing completed, failed, and upcoming deals |
+| `dealSize` | string | No | Deal size in millions. Use &gt;100, &lt;100, or 10^100 for a range |
+| `dealDate` | string | No | Deal date filter. Use &gt;YYYY-MM-DD, &lt;YYYY-MM-DD, or YYYY-MM-DD^YYYY-MM-DD for a range |
+| `postValuation` | string | No | Post-money valuation in millions. Use &gt;100, &lt;100, or 10^100 for a range |
+| `revenue` | string | No | Revenue of the companies involved in millions. Use &gt;100, &lt;100, or 10^100 for a range |
+| `filterCurrency` | string | No | ISO currency code the monetary filters on this search are expressed in, e.g. setting EUR means dealSize is read as millions of euros. Distinct from `currency`, which converts the values PitchBook returns. |
+| `currency` | string | No | ISO currency code to convert monetary values into, sent as the X-Currency header \(e.g. USD, EUR, JPY\). Defaults to the currency on the account preferences. |
+| `page` | number | No | Page of results to return, starting at 1 |
+| `perPage` | number | No | How many results to return per page |
+| `additionalFilters` | json | No | Any other documented search filter, as a JSON object of query parameter names to values \(e.g. \{"emergingSpaces": "AGTECH"\}\). A dedicated field always wins over the same key set here. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `stats` | object | Paging envelope for the result set |
+|   ↳ `total` | number | Total number of matching results |
+|   ↳ `perPage` | number | Results returned per page |
+|   ↳ `page` | number | Current page number |
+|   ↳ `lastPage` | number | Number of the last available page |
+| `items` | array | Deals matching the search criteria |
+|   ↳ `dealId` | string | PitchBook deal ID |
+|   ↳ `companyId` | string | PitchBook ID of the company in the deal |
+|   ↳ `companyName` | string | Name of the company in the deal |
+
+### PitchBook Deal Bio
+
+Retrieve the summary of a deal: company, date, size, status, type, and which detail datasets are available for it
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | PitchBook API key |
+| `pbId` | string | Yes | PitchBook deal ID, e.g. 52721-65T. Deal IDs end in T and come from a deal search or a company deals lookup. |
+| `currency` | string | No | ISO currency code to convert monetary values into, sent as the X-Currency header \(e.g. USD, EUR, JPY\). Defaults to the currency on the account preferences. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `dealId` | string | PitchBook deal ID |
+| `dealNumber` | number | Sequence of this deal in the company financing history |
+| `companyId` | string | PitchBook ID of the company in the deal |
+| `companyName` | string | Name of the company in the deal |
+| `dealAnnouncedDate` | string | Date the deal was announced \(YYYY-MM-DD\) |
+| `dealDate` | string | Date the deal closed \(YYYY-MM-DD\) |
+| `dealSize` | object | Size of the deal |
+|   ↳ `amount` | number | Value in the requested currency |
+|   ↳ `currency` | string | Currency of amount |
+|   ↳ `nativeAmount` | number | Value in the currency it was originally reported in |
+|   ↳ `nativeCurrency` | string | Currency of nativeAmount |
+|   ↳ `estimated` | boolean | Whether the value is a PitchBook estimate |
+| `dealSizeStatus` | string | Whether the deal size is actual or estimated |
+| `dealStatus` | object | Status of the deal, such as Completed |
+|   ↳ `code` | string | PitchBook code |
+|   ↳ `description` | string | Human-readable label for the code |
+| `dealType1` | object | Primary deal type |
+|   ↳ `code` | string | PitchBook code |
+|   ↳ `description` | string | Human-readable label for the code |
+| `dealType2` | object | Secondary deal type, such as the round letter |
+|   ↳ `code` | string | PitchBook code |
+|   ↳ `description` | string | Human-readable label for the code |
+| `dealType3` | object | Tertiary deal type |
+|   ↳ `code` | string | PitchBook code |
+|   ↳ `description` | string | Human-readable label for the code |
+| `dealClass` | object | Deal class, such as Venture Capital |
+|   ↳ `code` | string | PitchBook code |
+|   ↳ `description` | string | Human-readable label for the code |
+| `valuationAvailable` | boolean | Whether valuation data exists for this deal |
+| `capTableAvailable` | boolean | Whether cap table history exists for this deal |
+| `trancheInfoAvailable` | boolean | Whether tranche information exists for this deal |
+| `debtLenderInfoAvailable` | boolean | Whether debt and lender information exists for this deal |
+
+### PitchBook Deal Detailed
+
+Retrieve the full detail of a deal: synopsis, percent acquired, round, invested capital, ownership, debt, and stock split
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | PitchBook API key |
+| `pbId` | string | Yes | PitchBook deal ID, e.g. 52721-65T. Deal IDs end in T and come from a deal search or a company deals lookup. |
+| `currency` | string | No | ISO currency code to convert monetary values into, sent as the X-Currency header \(e.g. USD, EUR, JPY\). Defaults to the currency on the account preferences. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `dealId` | string | PitchBook deal ID |
+| `dealNumber` | number | Sequence of this deal in the company financing history |
+| `companyId` | string | PitchBook ID of the company in the deal |
+| `companyName` | string | Name of the company in the deal |
+| `dealDate` | string | Date the deal closed \(YYYY-MM-DD\) |
+| `dealSize` | object | Size of the deal |
+|   ↳ `amount` | number | Value in the requested currency |
+|   ↳ `currency` | string | Currency of amount |
+|   ↳ `nativeAmount` | number | Value in the currency it was originally reported in |
+|   ↳ `nativeCurrency` | string | Currency of nativeAmount |
+|   ↳ `estimated` | boolean | Whether the value is a PitchBook estimate |
+| `dealSizeStatus` | string | Whether the deal size is actual or estimated |
+| `dealStatus` | object | Status of the deal, such as Completed |
+|   ↳ `code` | string | PitchBook code |
+|   ↳ `description` | string | Human-readable label for the code |
+| `percentAcquired` | number | Percentage of the company acquired in the deal |
+| `raisedToDate` | object | Total the company had raised as of this deal |
+|   ↳ `amount` | number | Value in the requested currency |
+|   ↳ `currency` | string | Currency of amount |
+|   ↳ `nativeAmount` | number | Value in the currency it was originally reported in |
+|   ↳ `nativeCurrency` | string | Currency of nativeAmount |
+|   ↳ `estimated` | boolean | Whether the value is a PitchBook estimate |
+| `vcRound` | string | Venture round label, such as 1st Round |
+| `vcRoundUpDownFlat` | string | Whether the round was up, down, or flat versus the previous one |
+| `totalInvestedCapital` | object | Total capital invested in the deal |
+|   ↳ `amount` | number | Value in the requested currency |
+|   ↳ `currency` | string | Currency of amount |
+|   ↳ `nativeAmount` | number | Value in the currency it was originally reported in |
+|   ↳ `nativeCurrency` | string | Currency of nativeAmount |
+|   ↳ `estimated` | boolean | Whether the value is a PitchBook estimate |
+| `investorOwnership` | number | Percentage of the company owned by investors after the deal |
+| `stockSplit` | string | Stock split applied at the deal, such as 1:1 |
+| `dealType1` | object | Primary deal type |
+|   ↳ `code` | string | PitchBook code |
+|   ↳ `description` | string | Human-readable label for the code |
+| `dealType2` | object | Secondary deal type, such as the round letter |
+|   ↳ `code` | string | PitchBook code |
+|   ↳ `description` | string | Human-readable label for the code |
+| `dealType3` | object | Tertiary deal type |
+|   ↳ `code` | string | PitchBook code |
+|   ↳ `description` | string | Human-readable label for the code |
+| `dealClass` | object | Deal class, such as Venture Capital |
+|   ↳ `code` | string | PitchBook code |
+|   ↳ `description` | string | Human-readable label for the code |
+| `dealSynopsis` | string | Narrative summary of the deal |
+| `totalInvestedEquity` | object | Total equity invested in the deal |
+|   ↳ `amount` | number | Value in the requested currency |
+|   ↳ `currency` | string | Currency of amount |
+|   ↳ `nativeAmount` | number | Value in the currency it was originally reported in |
+|   ↳ `nativeCurrency` | string | Currency of nativeAmount |
+|   ↳ `estimated` | boolean | Whether the value is a PitchBook estimate |
+| `debtType1` | object | Primary debt type raised in the deal |
+|   ↳ `code` | string | PitchBook code |
+|   ↳ `description` | string | Human-readable label for the code |
+| `debtType2` | object | Secondary debt type raised in the deal |
+|   ↳ `code` | string | PitchBook code |
+|   ↳ `description` | string | Human-readable label for the code |
+| `debtType3` | object | Tertiary debt type raised in the deal |
+|   ↳ `code` | string | PitchBook code |
+|   ↳ `description` | string | Human-readable label for the code |
+| `debtAmount1` | object | Amount of the primary debt type |
+|   ↳ `amount` | number | Value in the requested currency |
+|   ↳ `currency` | string | Currency of amount |
+|   ↳ `nativeAmount` | number | Value in the currency it was originally reported in |
+|   ↳ `nativeCurrency` | string | Currency of nativeAmount |
+|   ↳ `estimated` | boolean | Whether the value is a PitchBook estimate |
+| `debtAmount2` | object | Amount of the secondary debt type |
+|   ↳ `amount` | number | Value in the requested currency |
+|   ↳ `currency` | string | Currency of amount |
+|   ↳ `nativeAmount` | number | Value in the currency it was originally reported in |
+|   ↳ `nativeCurrency` | string | Currency of nativeAmount |
+|   ↳ `estimated` | boolean | Whether the value is a PitchBook estimate |
+| `debtAmount3` | object | Amount of the tertiary debt type |
+|   ↳ `amount` | number | Value in the requested currency |
+|   ↳ `currency` | string | Currency of amount |
+|   ↳ `nativeAmount` | number | Value in the currency it was originally reported in |
+|   ↳ `nativeCurrency` | string | Currency of nativeAmount |
+|   ↳ `estimated` | boolean | Whether the value is a PitchBook estimate |
+| `debtRaisedInRound` | object | Total debt raised in the round |
+|   ↳ `amount` | number | Value in the requested currency |
+|   ↳ `currency` | string | Currency of amount |
+|   ↳ `nativeAmount` | number | Value in the currency it was originally reported in |
+|   ↳ `nativeCurrency` | string | Currency of nativeAmount |
+|   ↳ `estimated` | boolean | Whether the value is a PitchBook estimate |
+| `contingentPayout` | object | Contingent payout attached to the deal |
+|   ↳ `amount` | number | Value in the requested currency |
+|   ↳ `currency` | string | Currency of amount |
+|   ↳ `nativeAmount` | number | Value in the currency it was originally reported in |
+|   ↳ `nativeCurrency` | string | Currency of nativeAmount |
+|   ↳ `estimated` | boolean | Whether the value is a PitchBook estimate |
+| `valuationAvailable` | boolean | Whether valuation data exists for this deal |
+| `capTableAvailable` | boolean | Whether cap table history exists for this deal |
+| `trancheInfoAvailable` | boolean | Whether tranche information exists for this deal |
+| `debtLenderInfoAvailable` | boolean | Whether debt and lender information exists for this deal |
+
+### PitchBook Deal Valuation
+
+Retrieve the pre-money and post-money valuation recorded for a deal
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | PitchBook API key |
+| `pbId` | string | Yes | PitchBook deal ID, e.g. 52721-65T. Deal IDs end in T and come from a deal search or a company deals lookup. |
+| `currency` | string | No | ISO currency code to convert monetary values into, sent as the X-Currency header \(e.g. USD, EUR, JPY\). Defaults to the currency on the account preferences. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `dealId` | string | PitchBook deal ID |
+| `dealNumber` | number | Sequence of this deal in the company financing history |
+| `companyId` | string | PitchBook ID of the company in the deal |
+| `companyName` | string | Name of the company in the deal |
+| `preValuation` | object | Pre-money valuation |
+|   ↳ `amount` | number | Value in the requested currency |
+|   ↳ `currency` | string | Currency of amount |
+|   ↳ `nativeAmount` | number | Value in the currency it was originally reported in |
+|   ↳ `nativeCurrency` | string | Currency of nativeAmount |
+|   ↳ `estimated` | boolean | Whether the value is a PitchBook estimate |
+| `postValuation` | object | Post-money valuation |
+|   ↳ `amount` | number | Value in the requested currency |
+|   ↳ `currency` | string | Currency of amount |
+|   ↳ `nativeAmount` | number | Value in the currency it was originally reported in |
+|   ↳ `nativeCurrency` | string | Currency of nativeAmount |
+|   ↳ `estimated` | boolean | Whether the value is a PitchBook estimate |
+| `postValuationStatus` | string | Whether the post-money valuation is actual or estimated |
+
+### PitchBook Deal Multiples
+
+Retrieve the valuation multiples for a deal against revenue, EBITDA, EBIT, cash flow, and net income
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | PitchBook API key |
+| `pbId` | string | Yes | PitchBook deal ID, e.g. 52721-65T. Deal IDs end in T. |
+| `currency` | string | No | ISO currency code to convert monetary values into, sent as the X-Currency header \(e.g. USD, EUR, JPY\). Defaults to the currency on the account preferences. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `dealId` | string | PitchBook deal ID |
+| `dealNumber` | number | Sequence of the deal in the company financing history |
+| `companyId` | string | PitchBook company ID |
+| `companyName` | string | Company name |
+| `dealSizeToCashFlow` | number | Deal size to cash flow |
+| `dealSizeToEBIT` | number | Deal size to EBIT |
+| `dealSizeToEBITDA` | number | Deal size to EBITDA |
+| `dealSizeToNetIncome` | json | Deal size to net income |
+| `dealSizeToRevenue` | number | Deal size to revenue |
+| `debtRaisedInRoundToEBITDA` | json | Debt raised in round to EBITDA |
+| `debtRaisedInRoundToEquity` | json | Debt raised in round to equity |
+| `impliedEvToCashFlow` | number | Implied EV to cash flow |
+| `impliedEvToEBIT` | number | Implied EV to EBIT |
+| `impliedEvToEBITDA` | number | Implied EV to EBITDA |
+| `impliedEvToNetIncome` | json | Implied EV to net income |
+| `impliedEvToRevenue` | number | Implied EV to revenue |
+| `valuationToCashFlow` | number | Valuation to cash flow |
+| `valuationToEBIT` | number | Valuation to EBIT |
+| `valuationToEBITDA` | number | Valuation to EBITDA |
+| `valuationToNetIncome` | json | Valuation to net income |
+| `valuationToRevenue` | number | Valuation to revenue |
+
+### PitchBook Deal Investors
+
+Retrieve the investors, sellers, and exiting investors on a deal, including who led it
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | PitchBook API key |
+| `pbId` | string | Yes | PitchBook deal ID, e.g. 52721-65T. Deal IDs end in T and come from a deal search or a company deals lookup. |
+| `currency` | string | No | ISO currency code to convert monetary values into, sent as the X-Currency header \(e.g. USD, EUR, JPY\). Defaults to the currency on the account preferences. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `dealId` | string | PitchBook deal ID |
+| `companyId` | string | PitchBook ID of the company in the deal |
+| `companyName` | string | Name of the company in the deal |
+| `investors` | array | Investors participating in the deal |
+|   ↳ `investorId` | string | PitchBook investor ID |
+|   ↳ `investorName` | string | Investor name |
+|   ↳ `investmentStatus` | string | Whether the investor is new or following on |
+|   ↳ `leadSoleInvestor` | boolean | Whether the investor led or solely funded the round |
+|   ↳ `leadPartnerId` | string | PitchBook person ID of the lead partner |
+|   ↳ `leadPartnerName` | string | Name of the lead partner |
+|   ↳ `investorFunds` | array | Funds the investor deployed into the deal |
+|     ↳ `fundId` | string | PitchBook fund ID |
+|     ↳ `fundName` | string | Fund name |
+|   ↳ `investmentAmount` | object | Amount this investor put into the deal |
+|     ↳ `amount` | number | Value in the requested currency |
+|     ↳ `currency` | string | Currency of amount |
+|     ↳ `nativeAmount` | number | Value in the currency it was originally reported in |
+|     ↳ `nativeCurrency` | string | Currency of nativeAmount |
+|     ↳ `estimated` | boolean | Whether the value is a PitchBook estimate |
+|   ↳ `formOfPayment` | object | How the investment was paid |
+|     ↳ `code` | string | Payment form code |
+|     ↳ `description` | string | Payment form label |
+| `sellers` | array | Parties selling in the deal |
+| `exiters` | array | Investors exiting through the deal |
+
+### PitchBook Deal Stock Info
+
+Retrieve the share terms of a deal: price per share, shares acquired, and the preference, dividend, and voting rights attached
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | PitchBook API key |
+| `pbId` | string | Yes | PitchBook deal ID, e.g. 52721-65T. Deal IDs end in T. |
+| `currency` | string | No | ISO currency code to convert monetary values into, sent as the X-Currency header \(e.g. USD, EUR, JPY\). Defaults to the currency on the account preferences. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `dealId` | string | PitchBook deal ID |
+| `dealNumber` | number | Sequence of the deal in the company financing history |
+| `companyId` | string | PitchBook company ID |
+| `companyName` | string | Company name |
+| `series` | string | Stock series |
+| `pricePerShare` | object | Price per share |
+|   ↳ `amount` | number | Value in the requested currency |
+|   ↳ `currency` | string | Currency of amount |
+|   ↳ `nativeAmount` | number | Value in the currency it was originally reported in |
+|   ↳ `nativeCurrency` | string | Currency of nativeAmount |
+|   ↳ `estimated` | boolean | Whether the value is a PitchBook estimate |
+| `stockType` | json | Type of stock |
+| `numberOfSharesAcquired` | number | Shares acquired |
+| `sharesSought` | number | Shares sought |
+| `conversionRatio` | string | Conversion ratio |
+| `liquidationPreferences` | string | Liquidation preference terms |
+| `liquidationParticipating` | string | Whether the preference participates |
+| `dividendRights` | string | Dividend rights terms |
+| `cumulativeness` | string | Whether dividends are cumulative |
+| `antiDilutionProvisions` | string | Anti-dilution provisions |
+| `redemptionRights` | json | Redemption rights terms |
+| `boardVotingRights` | string | Board voting rights terms |
+| `generalVotingRights` | string | General voting rights terms |
+
+### PitchBook Deal Cap Table History
+
+Retrieve the cap table as of a deal, one row per stock series with its terms and ownership
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | PitchBook API key |
+| `pbId` | string | Yes | PitchBook deal ID, e.g. 52721-65T. Deal IDs end in T. |
+| `currency` | string | No | ISO currency code to convert monetary values into, sent as the X-Currency header \(e.g. USD, EUR, JPY\). Defaults to the currency on the account preferences. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `capTable` | array | Stock series on the cap table as of the deal |
+|   ↳ `dealId` | string | PitchBook deal ID |
+|   ↳ `dealNumber` | number | Sequence of the deal in the company financing history |
+|   ↳ `companyId` | string | PitchBook company ID |
+|   ↳ `companyName` | string | Company name |
+|   ↳ `stockSeries` | string | Stock series |
+|   ↳ `numberOfSharesAuthorized` | number | Shares authorized |
+|   ↳ `parValue` | object | Par value per share |
+|     ↳ `amount` | number | Value in the requested currency |
+|     ↳ `currency` | string | Currency of amount |
+|     ↳ `nativeAmount` | number | Value in the currency it was originally reported in |
+|     ↳ `nativeCurrency` | string | Currency of nativeAmount |
+|     ↳ `estimated` | boolean | Whether the value is a PitchBook estimate |
+|   ↳ `dividendRate` | number | Dividend rate |
+|   ↳ `dividendAmount` | json | Dividend amount |
+|   ↳ `originalIssuePrice` | object | Original issue price per share |
+|     ↳ `amount` | number | Value in the requested currency |
+|     ↳ `currency` | string | Currency of amount |
+|     ↳ `nativeAmount` | number | Value in the currency it was originally reported in |
+|     ↳ `nativeCurrency` | string | Currency of nativeAmount |
+|     ↳ `estimated` | boolean | Whether the value is a PitchBook estimate |
+|   ↳ `liquidationPrice` | object | Liquidation price per share |
+|     ↳ `amount` | number | Value in the requested currency |
+|     ↳ `currency` | string | Currency of amount |
+|     ↳ `nativeAmount` | number | Value in the currency it was originally reported in |
+|     ↳ `nativeCurrency` | string | Currency of nativeAmount |
+|     ↳ `estimated` | boolean | Whether the value is a PitchBook estimate |
+|   ↳ `liquidationPreferenceMultiple` | number | Liquidation preference multiple |
+|   ↳ `conversionPrice` | object | Conversion price per share |
+|     ↳ `amount` | number | Value in the requested currency |
+|     ↳ `currency` | string | Currency of amount |
+|     ↳ `nativeAmount` | number | Value in the currency it was originally reported in |
+|     ↳ `nativeCurrency` | string | Currency of nativeAmount |
+|     ↳ `estimated` | boolean | Whether the value is a PitchBook estimate |
+|   ↳ `percentOwned` | number | Percentage owned |
+
+### PitchBook Deal Tranche Info
+
+Retrieve the tranches a deal was funded in, with each tranche date, size, and investors
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | PitchBook API key |
+| `pbId` | string | Yes | PitchBook deal ID, e.g. 52721-65T. Deal IDs end in T. |
+| `currency` | string | No | ISO currency code to convert monetary values into, sent as the X-Currency header \(e.g. USD, EUR, JPY\). Defaults to the currency on the account preferences. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `dealId` | string | PitchBook deal ID |
+| `dealNumber` | number | Sequence of the deal in the company financing history |
+| `company` | object | Company the record belongs to |
+|   ↳ `id` | string | PitchBook person ID |
+|   ↳ `name` | string | Name |
+| `tranches` | array | Tranches making up the deal |
+|   ↳ `trancheSize` | object | Size of the tranche |
+|     ↳ `nativeCurrency` | string | Currency of nativeAmount |
+|     ↳ `currency` | string | Currency of amount |
+|     ↳ `amount` | number | Value in the requested currency |
+|     ↳ `estimated` | boolean | Whether the value is a PitchBook estimate |
+|     ↳ `nativeAmount` | number | Value in the currency it was originally reported in |
+|   ↳ `trancheSizeStatus` | string | Whether the tranche size is actual or estimated |
+|   ↳ `trancheDate` | string | Date of the tranche \(YYYY-MM-DD\) |
+|   ↳ `financingType` | object | Type of financing |
+|     ↳ `description` | string | Human-readable label for the code |
+|     ↳ `code` | string | PitchBook code |
+|   ↳ `stockType` | object | Type of stock |
+|     ↳ `description` | string | Human-readable label for the code |
+|     ↳ `code` | string | PitchBook code |
+|   ↳ `stockSeriesType` | string | Type of the stock series |
+|   ↳ `conversionStatus` | json | Conversion status |
+|   ↳ `conversionDate` | json | Conversion date \(YYYY-MM-DD\) |
+|   ↳ `investor` | object | Investor on the record |
+|     ↳ `name` | string | Name |
+|     ↳ `id` | string | PitchBook person ID |
+|   ↳ `investor2` | object | Second investor on the record |
+|     ↳ `id` | string | PitchBook person ID |
+|     ↳ `name` | string | Name |
+|   ↳ `investor3` | object | Third investor on the record |
+|     ↳ `id` | string | PitchBook person ID |
+|     ↳ `name` | string | Name |
+
+### PitchBook Deal Debt and Lenders
+
+Retrieve the debt raised in a deal and the lenders behind it, with rate, maturity, seniority, and covenant terms
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | PitchBook API key |
+| `pbId` | string | Yes | PitchBook deal ID, e.g. 52721-65T. Deal IDs end in T. |
+| `currency` | string | No | ISO currency code to convert monetary values into, sent as the X-Currency header \(e.g. USD, EUR, JPY\). Defaults to the currency on the account preferences. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `dealId` | string | PitchBook deal ID |
+| `dealNumber` | number | Sequence of the deal in the company financing history |
+| `company` | object | Company the record belongs to |
+|   ↳ `id` | string | PitchBook person ID |
+|   ↳ `name` | string | Name |
+| `debts` | array | Debt instruments in the deal |
+|   ↳ `debtSize` | json | Size of the debt instrument |
+|   ↳ `paymentInKind` | json | Whether interest is paid in kind |
+|   ↳ `debtType` | object | Type of debt |
+|     ↳ `code` | string | PitchBook code |
+|     ↳ `description` | string | Human-readable label for the code |
+|   ↳ `seniority` | json | Seniority of the debt |
+|   ↳ `security` | json | Security backing the debt |
+|   ↳ `subordination` | json | Subordination terms |
+|   ↳ `term` | json | Term of the debt |
+|   ↳ `additionalDebtCharacteristics` | object | Other characteristics of the debt |
+|     ↳ `unitranche` | boolean | Whether the debt is unitranche |
+|     ↳ `syndicated` | boolean | Whether the debt is syndicated |
+|     ↳ `mezzanine` | boolean | Whether the debt is mezzanine |
+|     ↳ `covLite` | boolean | Whether the debt is covenant-lite |
+|     ↳ `warrants` | boolean | Whether warrants are attached |
+|     ↳ `convertible` | boolean | Whether the instrument is convertible |
+|     ↳ `rate` | json | Interest rate |
+|   ↳ `maturityDate` | json | Maturity date \(YYYY-MM-DD\) |
+|   ↳ `spreadInterestRate` | json | Spread over the reference interest rate |
+|   ↳ `lenders` | array | Lenders on the debt |
+|     ↳ `lenderId` | string | PitchBook ID of the lender |
+|     ↳ `lenderName` | string | Name of the lender |
+|     ↳ `firmType` | string | Type of the associated firm |
+|     ↳ `serviceProviderType` | object | Service provider type |
+|       ↳ `code` | string | PitchBook code |
+|       ↳ `description` | string | Human-readable label for the code |
+|     ↳ `lenderSize` | json | Amount provided by the lender |
+
+### PitchBook Deal Service Providers
+
+Retrieve the service providers that worked on a deal and which party each represented
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | PitchBook API key |
+| `pbId` | string | Yes | PitchBook deal ID, e.g. 52721-65T. Deal IDs end in T. |
+| `currency` | string | No | ISO currency code to convert monetary values into, sent as the X-Currency header \(e.g. USD, EUR, JPY\). Defaults to the currency on the account preferences. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `serviceProviders` | array | Service providers that worked on the deal |
+|   ↳ `dealId` | string | PitchBook deal ID |
+|   ↳ `companyId` | string | PitchBook company ID |
+|   ↳ `companyName` | string | Company name |
+|   ↳ `serviceProviderId` | string | PitchBook service provider ID |
+|   ↳ `serviceProviderName` | string | Service provider name |
+|   ↳ `serviceProviderTypes` | array | Types the service provider is classified as |
+|     ↳ `type` | object | Type as a code and description pair |
+|       ↳ `description` | string | Human-readable label for the code |
+|       ↳ `code` | string | PitchBook code |
+|     ↳ `primary` | boolean | Whether this is the primary entry |
+|   ↳ `serviceProvided` | object | Service provided, as a code and description pair |
+|     ↳ `code` | string | PitchBook code |
+|     ↳ `description` | string | Human-readable label for the code |
+|   ↳ `serviceProvidedToId` | string | PitchBook ID of the party the service was provided to |
+|   ↳ `serviceProvidedToName` | string | Name of the party the service was provided to |
+|   ↳ `leadPartnerId` | json | PitchBook person ID of the lead partner |
+|   ↳ `leadPartnerName` | json | Name of the lead partner |
+
+### PitchBook Deal Updates
+
+Check which deal datasets changed in a window, so a sync only refetches what moved
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | PitchBook API key |
+| `pbId` | string | Yes | PitchBook deal ID, e.g. 52721-65T. Deal IDs end in T. |
+| `sinceDate` | string | No | Window to report changes over, carrying its operator in the value: &gt;YYYY-MM-DD for after a date, &lt;YYYY-MM-DD for before one, or YYYY-MM-DD^YYYY-MM-DD for a range. Use this or trailingRange. |
+| `trailingRange` | number | No | Report changes over the last N days. Use this or sinceDate. |
+| `currency` | string | No | ISO currency code to convert monetary values into, sent as the X-Currency header \(e.g. USD, EUR, JPY\). Defaults to the currency on the account preferences. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `updates` | json | Map of dataset name to whether it changed in the window. Keys are PitchBook dataset names, so read it as a plain object. |
+
+### PitchBook Investor Search
+
+Search PitchBook for investors by type, location, assets under management, fund profile, and deal activity
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | PitchBook API key |
+| `investorNames` | string | No | Comma-separated investor names, PitchBook IDs, websites, or tickers |
+| `investorType` | string | No | PitchBook investor type code \(e.g. LP_BI, LP_E\) |
+| `city` | string | No | City the investor is located in |
+| `stateProvince` | string | No | State or province the investor is located in |
+| `country` | string | No | Country the investor is located in \(e.g. USA\) |
+| `locationType` | string | No | Restrict location matching to HQ_ONLY, NON_HQ_ONLY, or ANY |
+| `aum` | string | No | Assets under management in millions. Use &gt;1000, &lt;1000, or 100^1000 for a range |
+| `dryPowder` | string | No | Dry powder in millions. Use &gt;500, &lt;500, or 1^500 for a range |
+| `fundType` | string | No | PitchBook fund type code of the investor funds |
+| `fundSize` | string | No | Fund size in millions. Use &gt;500, &lt;500, or 1^500 for a range |
+| `dealType` | string | No | PitchBook deal type code the investor has participated in |
+| `dealDate` | string | No | Deal date filter. Use &gt;YYYY-MM-DD, &lt;YYYY-MM-DD, or YYYY-MM-DD^YYYY-MM-DD for a range |
+| `dealSize` | string | No | Deal size in millions. Use &gt;100, &lt;100, or 10^100 for a range |
+| `preferredDealTypes` | string | No | Preferred deal type codes the investor targets |
+| `industryPreferences` | string | No | Preferred industry codes the investor targets |
+| `geographicalPreferences` | string | No | Preferred geography codes the investor targets |
+| `filterCurrency` | string | No | ISO currency code the monetary filters on this search are expressed in, e.g. setting EUR means dealSize is read as millions of euros. Distinct from `currency`, which converts the values PitchBook returns. |
+| `currency` | string | No | ISO currency code to convert monetary values into, sent as the X-Currency header \(e.g. USD, EUR, JPY\). Defaults to the currency on the account preferences. |
+| `page` | number | No | Page of results to return, starting at 1 |
+| `perPage` | number | No | How many results to return per page |
+| `additionalFilters` | json | No | Any other documented search filter, as a JSON object of query parameter names to values \(e.g. \{"emergingSpaces": "AGTECH"\}\). A dedicated field always wins over the same key set here. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `stats` | object | Paging envelope for the result set |
+|   ↳ `total` | number | Total number of matching results |
+|   ↳ `perPage` | number | Results returned per page |
+|   ↳ `page` | number | Current page number |
+|   ↳ `lastPage` | number | Number of the last available page |
+| `items` | array | Investors matching the search criteria |
+|   ↳ `investorId` | string | PitchBook investor ID |
+|   ↳ `investorName` | string | Investor name |
+|   ↳ `website` | string | Investor website |
+
+### PitchBook Investor Bio
+
+Retrieve the core profile of an investor: names, description, HQ, type, AUM, dry powder, and headcount
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | PitchBook API key |
+| `pbId` | string | Yes | PitchBook investor ID, e.g. 58781-35. Use PitchBook Search to resolve a name to an ID. |
+| `currency` | string | No | ISO currency code to convert monetary values into, sent as the X-Currency header \(e.g. USD, EUR, JPY\). Defaults to the currency on the account preferences. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `investorId` | string | PitchBook investor ID |
+| `investorName` | object | The names the investor is known by |
+|   ↳ `formalName` | string | Formal name |
+|   ↳ `alsoKnownAs` | string | Also-known-as name |
+|   ↳ `legalName` | string | Registered legal name |
+|   ↳ `formerlyKnownAs` | string | Previous name |
+| `hqLocation` | object | Headquarters location |
+|   ↳ `city` | string | City |
+|   ↳ `stateProvince` | string | State or province |
+|   ↳ `postCode` | string | Postal code |
+|   ↳ `country` | string | Country |
+| `description` | object | Investor description in brief and full form |
+|   ↳ `brief` | string | Short description |
+|   ↳ `full` | string | Full description |
+| `investorStatus` | object | Whether the investor is actively investing |
+|   ↳ `code` | string | PitchBook code |
+|   ↳ `description` | string | Human-readable label for the code |
+| `investorType` | array | Types the investor is classified as, one flagged primary |
+|   ↳ `type` | object | Investor type |
+|     ↳ `code` | string | Investor type code |
+|     ↳ `description` | string | Investor type label |
+|   ↳ `primary` | boolean | Whether this is the primary type |
+| `assetsUnderManagement` | object | Assets under management |
+|   ↳ `amount` | number | Value in the requested currency |
+|   ↳ `currency` | string | Currency of amount |
+|   ↳ `nativeAmount` | number | Value in the currency it was originally reported in |
+|   ↳ `nativeCurrency` | string | Currency of nativeAmount |
+|   ↳ `estimated` | boolean | Whether the value is a PitchBook estimate |
+| `dryPowder` | object | Uncalled capital available to deploy |
+|   ↳ `amount` | number | Value in the requested currency |
+|   ↳ `currency` | string | Currency of amount |
+|   ↳ `nativeAmount` | number | Value in the currency it was originally reported in |
+|   ↳ `nativeCurrency` | string | Currency of nativeAmount |
+|   ↳ `estimated` | boolean | Whether the value is a PitchBook estimate |
+| `yearFounded` | number | Year the investor was founded |
+| `website` | string | Investor website |
+| `countInvestmentProfessionals` | number | Number of investment professionals on staff |
+| `tradeAssociations` | array | Trade associations the investor belongs to |
+
+### PitchBook Investor Investments
+
+Retrieve every investment an investor has made, active and exited, with the deals that opened and closed each position
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | PitchBook API key |
+| `pbId` | string | Yes | PitchBook investor ID, e.g. 58781-35. Use PitchBook Search to resolve a name to an ID. |
+| `currency` | string | No | ISO currency code to convert monetary values into, sent as the X-Currency header \(e.g. USD, EUR, JPY\). Defaults to the currency on the account preferences. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `investments` | array | Investments the investor has made, active and exited |
+|   ↳ `investorId` | string | PitchBook investor ID |
+|   ↳ `companyId` | string | PitchBook ID of the portfolio company |
+|   ↳ `companyName` | string | Name of the portfolio company |
+|   ↳ `investorStatus` | string | Whether the investor is a current or former holder |
+|   ↳ `investmentDate` | string | Date the position was opened \(YYYY-MM-DD\) |
+|   ↳ `investmentDealId` | string | PitchBook deal ID of the investment |
+|   ↳ `exitDate` | string | Date the position was exited \(YYYY-MM-DD\) |
+|   ↳ `exitDealId` | string | PitchBook deal ID of the exit |
+
+### PitchBook Investor Active Investments
+
+Retrieve only the positions an investor still holds
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | PitchBook API key |
+| `pbId` | string | Yes | PitchBook investor ID, e.g. 58781-35. |
+| `currency` | string | No | ISO currency code to convert monetary values into, sent as the X-Currency header \(e.g. USD, EUR, JPY\). Defaults to the currency on the account preferences. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `activeInvestments` | array | Positions the investor still holds |
+|   ↳ `investorId` | string | PitchBook investor ID |
+|   ↳ `companyId` | string | PitchBook company ID |
+|   ↳ `companyName` | string | Company name |
+|   ↳ `investorSince` | string | Date the investor first invested \(YYYY-MM-DD\) |
+|   ↳ `investmentDealId` | string | PitchBook deal ID of the investment |
+|   ↳ `investmentDate` | string | Date the position was opened \(YYYY-MM-DD\) |
+
+### PitchBook Investor Funds
+
+Retrieve the funds an investor manages, with open and closed counts and the min, median, and max fund size
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | PitchBook API key |
+| `pbId` | string | Yes | PitchBook investor ID, e.g. 58781-35. Use PitchBook Search to resolve a name to an ID. |
+| `currency` | string | No | ISO currency code to convert monetary values into, sent as the X-Currency header \(e.g. USD, EUR, JPY\). Defaults to the currency on the account preferences. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `investorId` | string | PitchBook investor ID |
+| `stats` | object | Counts of open and closed funds |
+|   ↳ `totalFundsOpen` | number | Number of open funds |
+|   ↳ `totalFundsClosed` | number | Number of closed funds |
+| `minFundSize` | object | Smallest fund raised |
+|   ↳ `amount` | number | Value in the requested currency |
+|   ↳ `currency` | string | Currency of amount |
+|   ↳ `nativeAmount` | number | Value in the currency it was originally reported in |
+|   ↳ `nativeCurrency` | string | Currency of nativeAmount |
+|   ↳ `estimated` | boolean | Whether the value is a PitchBook estimate |
+| `medianFundSize` | object | Median fund size |
+|   ↳ `amount` | number | Value in the requested currency |
+|   ↳ `currency` | string | Currency of amount |
+|   ↳ `nativeAmount` | number | Value in the currency it was originally reported in |
+|   ↳ `nativeCurrency` | string | Currency of nativeAmount |
+|   ↳ `estimated` | boolean | Whether the value is a PitchBook estimate |
+| `maxFundSize` | object | Largest fund raised |
+|   ↳ `amount` | number | Value in the requested currency |
+|   ↳ `currency` | string | Currency of amount |
+|   ↳ `nativeAmount` | number | Value in the currency it was originally reported in |
+|   ↳ `nativeCurrency` | string | Currency of nativeAmount |
+|   ↳ `estimated` | boolean | Whether the value is a PitchBook estimate |
+| `fundInfo` | array | Funds the investor manages |
+|   ↳ `fundId` | string | PitchBook fund ID |
+|   ↳ `fundName` | string | Fund name |
+|   ↳ `fundType` | object | Type of the fund |
+|     ↳ `code` | string | Fund type code |
+|     ↳ `description` | string | Fund type label |
+
+### PitchBook Investor Last Closed Fund
+
+Retrieve the most recently closed fund raised by an investor, with its size, type, and vintage
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | PitchBook API key |
+| `pbId` | string | Yes | PitchBook investor ID, e.g. 58781-35. |
+| `currency` | string | No | ISO currency code to convert monetary values into, sent as the X-Currency header \(e.g. USD, EUR, JPY\). Defaults to the currency on the account preferences. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `investorId` | string | PitchBook investor ID |
+| `fundId` | string | PitchBook fund ID |
+| `fundName` | string | Fund name |
+| `fundVintage` | number | Vintage year of the fund |
+| `fundSize` | object | Capital raised by the fund |
+|   ↳ `amount` | number | Value in the requested currency |
+|   ↳ `currency` | string | Currency of amount |
+|   ↳ `nativeAmount` | number | Value in the currency it was originally reported in |
+|   ↳ `nativeCurrency` | string | Currency of nativeAmount |
+|   ↳ `estimated` | boolean | Whether the value is a PitchBook estimate |
+| `fundType` | object | Fund type |
+|   ↳ `code` | string | PitchBook code |
+|   ↳ `description` | string | Human-readable label for the code |
+| `fundCloseDate` | string | Date the fund closed \(YYYY-MM-DD\) |
+| `fundOpenDate` | json | Date the fund opened \(YYYY-MM-DD\) |
+
+### PitchBook Investor Preferences
+
+Retrieve what an investor targets: check size, deal size, valuation, revenue, geography, industry, and deal type preferences
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | PitchBook API key |
+| `pbId` | string | Yes | PitchBook investor ID, e.g. 58781-35. Use PitchBook Search to resolve a name to an ID. |
+| `currency` | string | No | ISO currency code to convert monetary values into, sent as the X-Currency header \(e.g. USD, EUR, JPY\). Defaults to the currency on the account preferences. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `investorId` | string | PitchBook investor ID |
+| `investorName` | string | Investor name |
+| `preferredInvestmentAmount` | object | Preferred check size, as a min and max monetary value |
+|   ↳ `min` | json | Minimum, as a PitchBook monetary value |
+|   ↳ `max` | json | Maximum, as a PitchBook monetary value |
+| `preferredDealSize` | object | Preferred total deal size, as a min and max monetary value |
+|   ↳ `min` | json | Minimum, as a PitchBook monetary value |
+|   ↳ `max` | json | Maximum, as a PitchBook monetary value |
+| `preferredCompanyValuation` | object | Preferred company valuation, as a min and max monetary value |
+|   ↳ `min` | json | Minimum, as a PitchBook monetary value |
+|   ↳ `max` | json | Maximum, as a PitchBook monetary value |
+| `preferredEbitda` | object | Preferred EBITDA, as a min and max monetary value |
+|   ↳ `min` | json | Minimum, as a PitchBook monetary value |
+|   ↳ `max` | json | Maximum, as a PitchBook monetary value |
+| `preferredEbit` | object | Preferred EBIT, as a min and max monetary value |
+|   ↳ `min` | json | Minimum, as a PitchBook monetary value |
+|   ↳ `max` | json | Maximum, as a PitchBook monetary value |
+| `preferredRevenue` | object | Preferred revenue, as a min and max monetary value |
+|   ↳ `min` | json | Minimum, as a PitchBook monetary value |
+|   ↳ `max` | json | Maximum, as a PitchBook monetary value |
+| `preferredInvestmentHorizon` | object | Preferred holding period in years |
+|   ↳ `min` | number | Minimum years |
+|   ↳ `max` | number | Maximum years |
+| `geographicalPreferences` | array | Regions the investor targets, from broad group down to state |
+|   ↳ `regionGroup` | json | Broad region as a code and description pair |
+|   ↳ `regionSegment` | json | Region segment as a code and description pair |
+|   ↳ `regionCode` | json | Country as a code and description pair |
+|   ↳ `regionState` | json | State or province as a code and description pair |
+| `otherInvestmentPreferences` | array | Other stated preferences, such as preferring a minority stake |
+|   ↳ `code` | string | Preference code |
+|   ↳ `description` | string | Preference label |
+| `preferredIndustry` | array | Industries the investor targets |
+|   ↳ `industryCode` | json | Most specific industry classification |
+|   ↳ `industrySector` | object | Top-level sector |
+|     ↳ `code` | string | Sector code |
+|     ↳ `description` | string | Sector label |
+|   ↳ `industryGroup` | object | Industry group within the sector |
+|     ↳ `code` | string | Group code |
+|     ↳ `description` | string | Group label |
+|   ↳ `primary` | boolean | Whether this is the primary industry |
+| `preferredDealTypes` | array | Deal types the investor targets |
+|   ↳ `code` | string | Deal type code |
+|   ↳ `description` | string | Deal type label |
+| `preferredVerticals` | array | Verticals the investor targets |
+|   ↳ `code` | string | Vertical code |
+|   ↳ `description` | string | Vertical label |
+| `assetPreferences` | array | Asset classes and subcategories the investor targets |
+|   ↳ `assetClass` | json | Asset class as a code and description pair |
+|   ↳ `subcategory` | json | Subcategory as a code and description pair |
+
+### PitchBook Investor Board Seats
+
+Retrieve the board seats an investor holds and previously held across its portfolio
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | PitchBook API key |
+| `pbId` | string | Yes | PitchBook investor ID, e.g. 58781-35. |
+| `currency` | string | No | ISO currency code to convert monetary values into, sent as the X-Currency header \(e.g. USD, EUR, JPY\). Defaults to the currency on the account preferences. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `investorId` | string | PitchBook investor ID |
+| `current` | array | Current entries |
+|   ↳ `personId` | string | PitchBook person ID |
+|   ↳ `personName` | string | Full name of the person |
+|   ↳ `boardCompanyId` | string | PitchBook ID of the company the seat is on |
+|   ↳ `boardCompanyName` | string | Name of the company the seat is on |
+|   ↳ `onBoard` | boolean | Whether the person holds a board seat |
+|   ↳ `boardStartDate` | string | Date the seat started \(YYYY-MM-DD\) |
+|   ↳ `boardEndDate` | json | Date the seat ended \(YYYY-MM-DD\) |
+|   ↳ `role` | string | Role played |
+| `former` | array | Former team members |
+
+### PitchBook Investor General Service Providers
+
+Retrieve the current and former general service providers engaged by an investor
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | PitchBook API key |
+| `pbId` | string | Yes | PitchBook investor ID, e.g. 58781-35. |
+| `currency` | string | No | ISO currency code to convert monetary values into, sent as the X-Currency header \(e.g. USD, EUR, JPY\). Defaults to the currency on the account preferences. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `investorId` | string | PitchBook investor ID |
+| `currentGeneralServices` | array | Current general service relationships |
+|   ↳ `serviceProviderId` | string | PitchBook service provider ID |
+|   ↳ `serviceProviderName` | string | Service provider name |
+|   ↳ `serviceProviderTypes` | array | Types the service provider is classified as |
+|     ↳ `primary` | boolean | Whether this is the primary entry |
+|     ↳ `type` | object | Type as a code and description pair |
+|       ↳ `description` | string | Human-readable label for the code |
+|       ↳ `code` | string | PitchBook code |
+|   ↳ `serviceProvided` | object | Service provided, as a code and description pair |
+|     ↳ `description` | string | Human-readable label for the code |
+|     ↳ `code` | string | PitchBook code |
+| `formerGeneralServices` | array | Former general service relationships |
+
+### PitchBook Investor Deal Service Providers
+
+Retrieve the service providers that worked on an investor deals, and what each was hired for
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | PitchBook API key |
+| `pbId` | string | Yes | PitchBook investor ID, e.g. 58781-35. |
+| `currency` | string | No | ISO currency code to convert monetary values into, sent as the X-Currency header \(e.g. USD, EUR, JPY\). Defaults to the currency on the account preferences. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `dealServiceProviders` | array | Service providers engaged on the investor deals |
+|   ↳ `investorId` | string | PitchBook investor ID |
+|   ↳ `serviceProviderId` | string | PitchBook service provider ID |
+|   ↳ `serviceProviderName` | string | Service provider name |
+|   ↳ `serviceProviderTypes` | array | Types the service provider is classified as |
+|     ↳ `primary` | boolean | Whether this is the primary entry |
+|     ↳ `type` | object | Type as a code and description pair |
+|       ↳ `description` | string | Human-readable label for the code |
+|       ↳ `code` | string | PitchBook code |
+|   ↳ `serviceProvided` | object | Service provided, as a code and description pair |
+|     ↳ `description` | string | Human-readable label for the code |
+|     ↳ `code` | string | PitchBook code |
+|   ↳ `dealIdServiceProvided` | string | PitchBook deal ID the service was provided on |
+
+### PitchBook Investor Updates
+
+Check which investor datasets changed in a window, so a sync only refetches what moved
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | PitchBook API key |
+| `pbId` | string | Yes | PitchBook investor ID, e.g. 58781-35. |
+| `sinceDate` | string | No | Window to report changes over, carrying its operator in the value: &gt;YYYY-MM-DD for after a date, &lt;YYYY-MM-DD for before one, or YYYY-MM-DD^YYYY-MM-DD for a range. Use this or trailingRange. |
+| `trailingRange` | number | No | Report changes over the last N days. Use this or sinceDate. |
+| `currency` | string | No | ISO currency code to convert monetary values into, sent as the X-Currency header \(e.g. USD, EUR, JPY\). Defaults to the currency on the account preferences. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `updates` | json | Map of dataset name to whether it changed in the window. Keys are PitchBook dataset names, so read it as a plain object. |
+
+### PitchBook People Search
+
+Search PitchBook for people by name, employer, position, education, and location
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | PitchBook API key |
+| `personNames` | string | No | Comma-separated person names or PitchBook person IDs |
+| `firstName` | string | No | First name of the person |
+| `lastName` | string | No | Last name of the person |
+| `email` | string | No | Email address of the person |
+| `firmNames` | string | No | Comma-separated firm names, PitchBook IDs, websites, or tickers the person is associated with |
+| `firmType` | string | No | PitchBook firm type code of the associated firm |
+| `positionLevel` | string | No | Comma-separated position level codes \(e.g. CEO, CFO, CIO\) |
+| `positionTitle` | string | No | Position title to match \(e.g. Chief Executive Officer\) |
+| `department` | string | No | Department code the person works in |
+| `university` | string | No | University the person attended |
+| `biography` | string | No | Keywords appearing in the person biography |
+| `city` | string | No | City the person is located in |
+| `country` | string | No | Country the person is located in \(e.g. USA\) |
+| `industry` | string | No | PitchBook industry code of the associated firm |
+| `verticals` | string | No | PitchBook vertical code of the associated firm |
+| `primaryPositionOnly` | boolean | No | Only match the person primary position rather than any position they hold |
+| `currency` | string | No | ISO currency code to convert monetary values into, sent as the X-Currency header \(e.g. USD, EUR, JPY\). Defaults to the currency on the account preferences. |
+| `page` | number | No | Page of results to return, starting at 1 |
+| `perPage` | number | No | How many results to return per page |
+| `additionalFilters` | json | No | Any other documented search filter, as a JSON object of query parameter names to values \(e.g. \{"emergingSpaces": "AGTECH"\}\). A dedicated field always wins over the same key set here. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `stats` | object | Paging envelope for the result set |
+|   ↳ `total` | number | Total number of matching results |
+|   ↳ `perPage` | number | Results returned per page |
+|   ↳ `page` | number | Current page number |
+|   ↳ `lastPage` | number | Number of the last available page |
+| `items` | array | People matching the search criteria |
+|   ↳ `personId` | string | PitchBook person ID |
+|   ↳ `personName` | string | Full name of the person |
+|   ↳ `firmId` | string | PitchBook ID of the firm the person is associated with |
+
+### PitchBook Person Bio
+
+Retrieve the profile of a person: name, biography, LinkedIn, primary employer, position, and office
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | PitchBook API key |
+| `pbId` | string | Yes | PitchBook person ID, e.g. 53503-66P. Person IDs end in P and come from a people search. |
+| `currency` | string | No | ISO currency code to convert monetary values into, sent as the X-Currency header \(e.g. USD, EUR, JPY\). Defaults to the currency on the account preferences. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `personId` | string | PitchBook person ID |
+| `personName` | object | Parsed name of the person |
+|   ↳ `full` | string | Full name |
+|   ↳ `first` | string | First name |
+|   ↳ `last` | string | Last name |
+|   ↳ `middle` | string | Middle name |
+|   ↳ `prefix` | string | Name prefix |
+|   ↳ `suffix` | string | Name suffix |
+| `biography` | string | Biography of the person |
+| `linkedInProfileUrl` | string | LinkedIn profile URL |
+| `gender` | string | Gender recorded for the person |
+| `primaryEntityId` | string | PitchBook ID of the primary employer |
+| `primaryEntityName` | string | Name of the primary employer |
+| `primaryEntityType` | string | Type of the primary employer, such as COMPANY or INVESTOR |
+| `primaryEntityWebsite` | string | Website of the primary employer |
+| `primaryPosition` | string | Position the person holds at the primary employer |
+| `primaryOffice` | object | Office the person works out of |
+|   ↳ `location` | string | Office label |
+|   ↳ `addressLine1` | string | Address line 1 |
+|   ↳ `addressLine2` | string | Address line 2 |
+|   ↳ `city` | string | City |
+|   ↳ `stateProvince` | string | State or province |
+|   ↳ `postCode` | string | Postal code |
+|   ↳ `country` | string | Country |
+|   ↳ `phone` | string | Phone number |
+|   ↳ `fax` | string | Fax number |
+|   ↳ `email` | string | Email address |
+|   ↳ `globalRegion` | string | Global region |
+|   ↳ `globalSubRegion` | string | Global sub-region |
+
+### PitchBook Person Contact
+
+Retrieve the direct contact details on file for a person
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | PitchBook API key |
+| `pbId` | string | Yes | PitchBook person ID, e.g. 53503-66P. Person IDs end in P and come from a people search. |
+| `currency` | string | No | ISO currency code to convert monetary values into, sent as the X-Currency header \(e.g. USD, EUR, JPY\). Defaults to the currency on the account preferences. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `personId` | string | PitchBook person ID |
+| `fullName` | string | Full name of the person |
+| `phone` | string | Phone number |
+| `fax` | string | Fax number |
+| `email` | string | Email address |
+
+### PitchBook Person Education and Work
+
+Retrieve a person full history: education, company roles, board seats, deal roles, and fund roles
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | PitchBook API key |
+| `pbId` | string | Yes | PitchBook person ID, e.g. 53503-66P. Person IDs end in P and come from a people search. |
+| `currency` | string | No | ISO currency code to convert monetary values into, sent as the X-Currency header \(e.g. USD, EUR, JPY\). Defaults to the currency on the account preferences. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `personId` | string | PitchBook person ID |
+| `fullName` | string | Full name of the person |
+| `education` | array | Institutions the person attended |
+|   ↳ `institution` | string | Institution name |
+|   ↳ `degree` | string | Degree earned |
+|   ↳ `yearOfGraduation` | number | Graduation year |
+| `companyRoles` | array | Positions the person has held at companies |
+|   ↳ `companyId` | string | PitchBook company ID |
+|   ↳ `companyName` | string | Company name |
+|   ↳ `position` | string | Position title |
+|   ↳ `positionType` | string | Whether the role is an employee or non-employee position |
+|   ↳ `positionStatus` | string | Whether the position is Current or Former |
+|   ↳ `positionStart` | string | Date the position started \(YYYY-MM-DD\) |
+|   ↳ `positionFinish` | string | Date the position ended \(YYYY-MM-DD\) |
+| `boardSeats` | array | Board seats the person has held |
+|   ↳ `boardCompanyId` | string | PitchBook ID of the company |
+|   ↳ `boardCompanyName` | string | Name of the company |
+|   ↳ `boardRepresentingId` | string | PitchBook ID of the firm the seat represents |
+|   ↳ `boardRepresentingName` | string | Name of the firm the seat represents |
+|   ↳ `positionStatus` | string | Whether the seat is Current or Former |
+|   ↳ `boardStart` | string | Date the seat started \(YYYY-MM-DD\) |
+|   ↳ `boardFinish` | string | Date the seat ended \(YYYY-MM-DD\) |
+| `currentAdvisoryRoles` | array | Advisory roles the person currently holds |
+| `dealRoles` | array | Deals the person worked on and who they represented |
+|   ↳ `dealId` | string | PitchBook deal ID |
+|   ↳ `dealDate` | string | Date of the deal \(YYYY-MM-DD\) |
+|   ↳ `companyId` | string | PitchBook ID of the company in the deal |
+|   ↳ `companyName` | string | Name of the company in the deal |
+|   ↳ `representingId` | string | PitchBook ID of the firm the person represented |
+|   ↳ `representingName` | string | Name of the firm the person represented |
+| `fundRoles` | array | Funds the person is associated with |
+|   ↳ `fundId` | string | PitchBook fund ID |
+|   ↳ `fundName` | string | Fund name |
+|   ↳ `investorId` | string | PitchBook ID of the fund manager |
+|   ↳ `investorName` | string | Name of the fund manager |
+|   ↳ `representingId` | string | PitchBook ID of the firm the person represented |
+|   ↳ `representingName` | string | Name of the firm the person represented |
+
+### PitchBook Fund Search
+
+Search PitchBook for funds by manager, type, size, vintage, and performance
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | PitchBook API key |
+| `fundNames` | string | No | Comma-separated fund names or PitchBook fund IDs |
+| `investorNames` | string | No | Comma-separated names or PitchBook IDs of the fund managers |
+| `fundType` | string | No | PitchBook fund type code |
+| `fundSize` | string | No | Fund size in millions. Use &gt;500, &lt;500, or 1^5000 for a range |
+| `dryPowder` | string | No | Dry powder in millions. Use &gt;500, &lt;500, or 1^500 for a range |
+| `vintage` | string | No | Vintage year. Use &gt;2015, &lt;2015, or 2015^2020 for a range |
+| `city` | string | No | City the fund is located in |
+| `country` | string | No | Country the fund is located in \(e.g. USA\) |
+| `irr` | string | No | Internal rate of return as a percentage. Use &gt;20, &lt;20, or 10^20 for a range |
+| `tvpi` | string | No | Total value to paid-in multiple. Use &gt;2, &lt;2, or 1^2 for a range |
+| `dpi` | string | No | Distributions to paid-in multiple. Use &gt;1, &lt;1, or 1^2 for a range |
+| `industryPreferences` | string | No | Preferred industry codes the fund targets |
+| `geographicalPreferences` | string | No | Preferred geography codes the fund targets |
+| `filterCurrency` | string | No | ISO currency code the monetary filters on this search are expressed in, e.g. setting EUR means dealSize is read as millions of euros. Distinct from `currency`, which converts the values PitchBook returns. |
+| `currency` | string | No | ISO currency code to convert monetary values into, sent as the X-Currency header \(e.g. USD, EUR, JPY\). Defaults to the currency on the account preferences. |
+| `page` | number | No | Page of results to return, starting at 1 |
+| `perPage` | number | No | How many results to return per page |
+| `additionalFilters` | json | No | Any other documented search filter, as a JSON object of query parameter names to values \(e.g. \{"emergingSpaces": "AGTECH"\}\). A dedicated field always wins over the same key set here. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `stats` | object | Paging envelope for the result set |
+|   ↳ `total` | number | Total number of matching results |
+|   ↳ `perPage` | number | Results returned per page |
+|   ↳ `page` | number | Current page number |
+|   ↳ `lastPage` | number | Number of the last available page |
+| `items` | array | Funds matching the search criteria |
+|   ↳ `fundId` | string | PitchBook fund ID |
+|   ↳ `fundName` | string | Fund name |
+|   ↳ `investors` | array | Managers of the fund |
+|     ↳ `investorId` | string | PitchBook investor ID |
+|     ↳ `investorName` | string | Investor name |
+
+### PitchBook Fund Bio
+
+Retrieve the profile of a fund: managers, vintage, status, type, size, target, location, and team
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | PitchBook API key |
+| `pbId` | string | Yes | PitchBook fund ID, e.g. 11373-13F. Fund IDs end in F and come from a fund search. |
+| `currency` | string | No | ISO currency code to convert monetary values into, sent as the X-Currency header \(e.g. USD, EUR, JPY\). Defaults to the currency on the account preferences. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `fundId` | string | PitchBook fund ID |
+| `name` | string | Fund name |
+| `fundInvestors` | array | Managers of the fund, with where it sits in their fund series |
+|   ↳ `investorId` | string | PitchBook investor ID |
+|   ↳ `investorName` | string | Investor name |
+|   ↳ `fundNo` | number | Position in the manager fund series |
+|   ↳ `firstFund` | boolean | Whether this is the manager first fund |
+| `vintage` | number | Vintage year of the fund |
+| `fundStatus` | string | Whether the fund is open or closed |
+| `fundType` | string | Type of the fund |
+| `fundSize` | object | Capital raised by the fund |
+|   ↳ `amount` | number | Value in the requested currency |
+|   ↳ `currency` | string | Currency of amount |
+|   ↳ `nativeAmount` | number | Value in the currency it was originally reported in |
+|   ↳ `nativeCurrency` | string | Currency of nativeAmount |
+|   ↳ `estimated` | boolean | Whether the value is a PitchBook estimate |
+| `location` | object | Office the fund is run from |
+|   ↳ `location` | string | Office label |
+|   ↳ `addressLine1` | string | Address line 1 |
+|   ↳ `addressLine2` | string | Address line 2 |
+|   ↳ `city` | string | City |
+|   ↳ `stateProvince` | string | State or province |
+|   ↳ `postCode` | string | Postal code |
+|   ↳ `country` | string | Country |
+|   ↳ `phone` | string | Phone number |
+|   ↳ `fax` | string | Fax number |
+|   ↳ `email` | string | Email address |
+|   ↳ `globalRegion` | string | Global region |
+|   ↳ `globalSubRegion` | string | Global sub-region |
+| `fundTeam` | array | People on the fund team |
+|   ↳ `personId` | string | PitchBook person ID |
+|   ↳ `personFullName` | string | Full name of the person |
+| `openDate` | string | Date the fund opened \(YYYY-MM-DD\) |
+| `closeDate` | string | Date the fund closed \(YYYY-MM-DD\) |
+| `fundTargetSize` | object | Target raise for the fund, as a min and max monetary value |
+|   ↳ `min` | json | Minimum, as a PitchBook monetary value |
+|   ↳ `max` | json | Maximum, as a PitchBook monetary value |
+| `sbic` | boolean | Whether the fund is a Small Business Investment Company |
+| `returnsInfoAvailable` | array | Which returns datasets are available for the fund |
+
+### PitchBook Fund Performance
+
+Retrieve the most recent reported returns for a fund: IRR, DPI, RVPI, TVPI, NAV, and benchmark quartile
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | PitchBook API key |
+| `pbId` | string | Yes | PitchBook fund ID, e.g. 11373-13F. Fund IDs end in F and come from a fund search. |
+| `currency` | string | No | ISO currency code to convert monetary values into, sent as the X-Currency header \(e.g. USD, EUR, JPY\). Defaults to the currency on the account preferences. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `fundId` | string | PitchBook fund ID |
+| `fundName` | string | Fund name |
+| `asOfQuarter` | number | Quarter the figures are reported as of |
+| `asOfYear` | number | Year the figures are reported as of |
+| `irr` | number | Internal rate of return, as a percentage |
+| `dpi` | number | Distributions to paid-in multiple |
+| `rvpi` | number | Residual value to paid-in multiple |
+| `tvpi` | number | Total value to paid-in multiple |
+| `nav` | number | Net asset value |
+| `quartile` | number | Benchmark quartile the fund falls in, 1 being the best |
+| `numberOfFundsInBenchmark` | number | How many funds the benchmark is drawn from |
+
+### PitchBook Fund Benchmark
+
+Retrieve the peer benchmark for a fund: benchmark IRR, DPI, TVPI, RVPI, and the funds it is drawn from
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | PitchBook API key |
+| `pbId` | string | Yes | PitchBook fund ID, e.g. 11373-13F. Fund IDs end in F. |
+| `currency` | string | No | ISO currency code to convert monetary values into, sent as the X-Currency header \(e.g. USD, EUR, JPY\). Defaults to the currency on the account preferences. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `fundId` | string | PitchBook fund ID |
+| `fundName` | string | Fund name |
+| `benchmarkFundType` | object | Fund type the benchmark is built from |
+|   ↳ `code` | string | PitchBook code |
+|   ↳ `description` | string | Human-readable label for the code |
+| `benchmarkFundSize` | object | Fund size bucket the benchmark is built from |
+|   ↳ `code` | string | PitchBook code |
+|   ↳ `description` | string | Human-readable label for the code |
+| `benchmarkFundLocation` | object | Location the benchmark is built from |
+|   ↳ `code` | string | PitchBook code |
+|   ↳ `description` | string | Human-readable label for the code |
+| `benchmarkFundVintageYear` | number | Vintage year the benchmark is built from |
+| `irrBenchmark` | number | Benchmark IRR |
+| `dpiBenchmark` | number | Benchmark DPI |
+| `tvpiBenchmark` | number | Benchmark TVPI |
+| `rvpiBenchmark` | number | Benchmark RVPI |
+| `numberOfFundsInBenchmark` | number | How many funds the benchmark is drawn from |
+| `benchmarkFunds` | array | Funds making up the benchmark |
+|   ↳ `fundId` | string | PitchBook fund ID |
+|   ↳ `fundName` | string | Fund name |
+
+### PitchBook Fund Cash Flows
+
+Retrieve contributed, distributed, and remaining value for a fund as of a specific quarter
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | PitchBook API key |
+| `pbId` | string | Yes | PitchBook fund ID, e.g. 11373-13F. Fund IDs end in F. |
+| `period` | string | Yes | Reporting quarter to fetch, formatted as quarter then year, e.g. 4Q2018 |
+| `currency` | string | No | ISO currency code to convert monetary values into, sent as the X-Currency header \(e.g. USD, EUR, JPY\). Defaults to the currency on the account preferences. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `fundId` | string | PitchBook fund ID |
+| `fundName` | string | Fund name |
+| `asOfQuarter` | number | Quarter the figures are reported as of |
+| `asOfYear` | number | Year the figures are reported as of |
+| `contributed` | object | Capital contributed by limited partners |
+|   ↳ `amount` | number | Value in the requested currency |
+|   ↳ `currency` | string | Currency of amount |
+|   ↳ `nativeAmount` | number | Value in the currency it was originally reported in |
+|   ↳ `nativeCurrency` | string | Currency of nativeAmount |
+|   ↳ `estimated` | boolean | Whether the value is a PitchBook estimate |
+| `percentCalledDown` | number | Percentage of committed capital called down |
+| `dryPowder` | object | Uncalled capital available to deploy |
+|   ↳ `amount` | number | Value in the requested currency |
+|   ↳ `currency` | string | Currency of amount |
+|   ↳ `nativeAmount` | number | Value in the currency it was originally reported in |
+|   ↳ `nativeCurrency` | string | Currency of nativeAmount |
+|   ↳ `estimated` | boolean | Whether the value is a PitchBook estimate |
+| `percentDryPowder` | number | Percentage of committed capital still uncalled |
+| `distributed` | object | Capital distributed back to limited partners |
+|   ↳ `amount` | number | Value in the requested currency |
+|   ↳ `currency` | string | Currency of amount |
+|   ↳ `nativeAmount` | number | Value in the currency it was originally reported in |
+|   ↳ `nativeCurrency` | string | Currency of nativeAmount |
+|   ↳ `estimated` | boolean | Whether the value is a PitchBook estimate |
+| `remainingValue` | object | Remaining value held in the fund |
+|   ↳ `amount` | number | Value in the requested currency |
+|   ↳ `currency` | string | Currency of amount |
+|   ↳ `nativeAmount` | number | Value in the currency it was originally reported in |
+|   ↳ `nativeCurrency` | string | Currency of nativeAmount |
+|   ↳ `estimated` | boolean | Whether the value is a PitchBook estimate |
+| `distributedRemaining` | object | Distributed plus remaining value |
+|   ↳ `amount` | number | Value in the requested currency |
+|   ↳ `currency` | string | Currency of amount |
+|   ↳ `nativeAmount` | number | Value in the currency it was originally reported in |
+|   ↳ `nativeCurrency` | string | Currency of nativeAmount |
+|   ↳ `estimated` | boolean | Whether the value is a PitchBook estimate |
+
+### PitchBook Fund Investments
+
+Retrieve every investment a fund has made, active and exited, with the deals that opened and closed each position
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | PitchBook API key |
+| `pbId` | string | Yes | PitchBook fund ID, e.g. 11373-13F. Fund IDs end in F. |
+| `currency` | string | No | ISO currency code to convert monetary values into, sent as the X-Currency header \(e.g. USD, EUR, JPY\). Defaults to the currency on the account preferences. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `fundId` | string | PitchBook fund ID |
+| `fundName` | string | Fund name |
+| `investments` | array | Investments held |
+|   ↳ `targetCompanyId` | string | PitchBook ID of the portfolio company |
+|   ↳ `targetCompanyName` | string | Name of the portfolio company |
+|   ↳ `investmentStatus` | string | Whether the position is active or exited |
+|   ↳ `targetCompanyInvestmentDate` | string | Date the position was opened \(YYYY-MM-DD\) |
+|   ↳ `investmentDealId` | string | PitchBook deal ID of the investment |
+|   ↳ `targetCompanyExitDate` | string | Date the position was exited \(YYYY-MM-DD\) |
+|   ↳ `exitDealId` | string | PitchBook deal ID of the exit |
+
+### PitchBook Fund Active Investments
+
+Retrieve only the portfolio positions a fund still holds
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | PitchBook API key |
+| `pbId` | string | Yes | PitchBook fund ID, e.g. 11373-13F. Fund IDs end in F. |
+| `currency` | string | No | ISO currency code to convert monetary values into, sent as the X-Currency header \(e.g. USD, EUR, JPY\). Defaults to the currency on the account preferences. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `activeInvestments` | array | Portfolio positions the fund still holds |
+|   ↳ `fundId` | string | PitchBook fund ID |
+|   ↳ `targetCompanyId` | string | PitchBook ID of the portfolio company |
+|   ↳ `targetCompanyName` | string | Name of the portfolio company |
+|   ↳ `targetCompanyInvestmentDate` | string | Date the position was opened \(YYYY-MM-DD\) |
+|   ↳ `investmentDealId` | string | PitchBook deal ID of the investment |
+
+### PitchBook Fund Commitments
+
+Retrieve the limited partners committed to a fund, with commitment date, size, status, and type
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | PitchBook API key |
+| `pbId` | string | Yes | PitchBook fund ID, e.g. 11373-13F. Fund IDs end in F and come from a fund search. |
+| `currency` | string | No | ISO currency code to convert monetary values into, sent as the X-Currency header \(e.g. USD, EUR, JPY\). Defaults to the currency on the account preferences. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `commitments` | array | Limited partner commitments to the fund |
+|   ↳ `fundId` | string | PitchBook fund ID |
+|   ↳ `limitedPartnerId` | string | PitchBook limited partner ID |
+|   ↳ `limitedPartnerName` | string | Limited partner name |
+|   ↳ `commitmentDate` | string | Date of the commitment \(YYYY-MM-DD\) |
+|   ↳ `commitmentSize` | json | Size of the commitment, as a PitchBook monetary value |
+|   ↳ `commitmentStatus` | json | Status of the commitment, as a code and description pair |
+|   ↳ `commitmentType` | json | Type of the commitment, as a code and description pair |
+
+### PitchBook Fund Investment Preferences
+
+Retrieve what a fund targets: check size, valuation, geography, industry, vertical, and deal type preferences
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | PitchBook API key |
+| `pbId` | string | Yes | PitchBook fund ID, e.g. 11373-13F. Fund IDs end in F. |
+| `currency` | string | No | ISO currency code to convert monetary values into, sent as the X-Currency header \(e.g. USD, EUR, JPY\). Defaults to the currency on the account preferences. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `fundId` | string | PitchBook fund ID |
+| `preferredInvestmentAmount` | json | Preferred check size |
+| `preferredDealSize` | json | Preferred deal size |
+| `preferredCompanyValuation` | json | Preferred company valuation |
+| `preferredEbitda` | json | Preferred EBITDA |
+| `preferredEbit` | json | Preferred EBIT |
+| `preferredRevenue` | json | Preferred revenue |
+| `preferredInvestmentHorizon` | json | Preferred holding period in years |
+| `geographicalPreferences` | array | Regions targeted |
+|   ↳ `regionGroup` | object | Broad region as a code and description pair |
+|     ↳ `code` | string | PitchBook code |
+|     ↳ `description` | string | Human-readable label for the code |
+|   ↳ `regionSegment` | object | Region segment as a code and description pair |
+|     ↳ `code` | string | PitchBook code |
+|     ↳ `description` | string | Human-readable label for the code |
+|   ↳ `regionCode` | object | Country as a code and description pair |
+|     ↳ `code` | string | PitchBook code |
+|     ↳ `description` | string | Human-readable label for the code |
+|   ↳ `regionState` | json | State or province as a code and description pair |
+| `otherInvestmentPreferences` | array | Other stated preferences |
+|   ↳ `code` | string | PitchBook code |
+|   ↳ `description` | string | Human-readable label for the code |
+| `preferredIndustry` | array | Industries targeted |
+|   ↳ `industryCode` | json | Most specific industry classification |
+|   ↳ `industrySector` | object | Top-level sector |
+|     ↳ `description` | string | Human-readable label for the code |
+|     ↳ `code` | string | PitchBook code |
+|   ↳ `industryGroup` | object | Industry group within the sector |
+|     ↳ `description` | string | Human-readable label for the code |
+|     ↳ `code` | string | PitchBook code |
+|   ↳ `primary` | boolean | Whether this is the primary entry |
+| `preferredDealTypes` | array | Deal types targeted |
+|   ↳ `code` | string | PitchBook code |
+|   ↳ `description` | string | Human-readable label for the code |
+| `preferredVerticals` | array | Verticals targeted |
+|   ↳ `code` | string | PitchBook code |
+|   ↳ `description` | string | Human-readable label for the code |
+| `assetPreferences` | array | Asset classes and subcategories targeted |
+
+### PitchBook Fund Team
+
+Retrieve the active and former people on a fund team
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | PitchBook API key |
+| `pbId` | string | Yes | PitchBook fund ID, e.g. 11373-13F. Fund IDs end in F. |
+| `currency` | string | No | ISO currency code to convert monetary values into, sent as the X-Currency header \(e.g. USD, EUR, JPY\). Defaults to the currency on the account preferences. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `fundId` | string | PitchBook fund ID |
+| `investorIds` | array | PitchBook IDs of the fund managers |
+| `countActiveTeam` | number | Number of active team members |
+| `active` | array | Active team members |
+|   ↳ `id` | string | PitchBook person ID |
+|   ↳ `name` | string | Name |
+|   ↳ `title` | string | Title |
+|   ↳ `infoAvailable` | boolean | Whether a full PitchBook profile is available |
+| `former` | array | Former team members |
+|   ↳ `id` | string | PitchBook person ID |
+|   ↳ `name` | string | Name |
+|   ↳ `title` | string | Title |
+|   ↳ `infoAvailable` | boolean | Whether a full PitchBook profile is available |
+
+### PitchBook Fund Updates
+
+Check which fund datasets changed in a window, so a sync only refetches what moved
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | PitchBook API key |
+| `pbId` | string | Yes | PitchBook fund ID, e.g. 11373-13F. Fund IDs end in F. |
+| `sinceDate` | string | No | Window to report changes over, carrying its operator in the value: &gt;YYYY-MM-DD for after a date, &lt;YYYY-MM-DD for before one, or YYYY-MM-DD^YYYY-MM-DD for a range. Use this or trailingRange. |
+| `trailingRange` | number | No | Report changes over the last N days. Use this or sinceDate. |
+| `currency` | string | No | ISO currency code to convert monetary values into, sent as the X-Currency header \(e.g. USD, EUR, JPY\). Defaults to the currency on the account preferences. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `updates` | json | Map of dataset name to whether it changed in the window. Keys are PitchBook dataset names, so read it as a plain object. |
+
+### PitchBook Limited Partner Search
+
+Search PitchBook for limited partners by type, location, assets under management, and commitment activity
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | PitchBook API key |
+| `limitedPartnerNames` | string | No | Comma-separated limited partner names or PitchBook IDs |
+| `limitedPartnerType` | string | No | PitchBook limited partner type code |
+| `city` | string | No | City the limited partner is located in |
+| `stateProvince` | string | No | State or province the limited partner is located in |
+| `country` | string | No | Country the limited partner is located in \(e.g. USA\) |
+| `locationType` | string | No | Restrict location matching to HQ_ONLY, NON_HQ_ONLY, or ANY |
+| `aum` | string | No | Assets under management in millions. Use &gt;1000, &lt;1000, or 100^1000 for a range |
+| `numberOfCommitments` | string | No | Number of fund commitments. Use &gt;1000, &lt;1000, or 10^100 for a range |
+| `commitmentSize` | string | No | Commitment size in millions. Use &gt;100, &lt;100, or 10^100 for a range |
+| `commitmentDate` | string | No | Commitment date filter. Use &gt;YYYY-MM-DD, &lt;YYYY-MM-DD, or YYYY-MM-DD^YYYY-MM-DD for a range |
+| `fundType` | string | No | PitchBook fund type code the limited partner commits to |
+| `filterCurrency` | string | No | ISO currency code the monetary filters on this search are expressed in, e.g. setting EUR means dealSize is read as millions of euros. Distinct from `currency`, which converts the values PitchBook returns. |
+| `currency` | string | No | ISO currency code to convert monetary values into, sent as the X-Currency header \(e.g. USD, EUR, JPY\). Defaults to the currency on the account preferences. |
+| `page` | number | No | Page of results to return, starting at 1 |
+| `perPage` | number | No | How many results to return per page |
+| `additionalFilters` | json | No | Any other documented search filter, as a JSON object of query parameter names to values \(e.g. \{"emergingSpaces": "AGTECH"\}\). A dedicated field always wins over the same key set here. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `stats` | object | Paging envelope for the result set |
+|   ↳ `total` | number | Total number of matching results |
+|   ↳ `perPage` | number | Results returned per page |
+|   ↳ `page` | number | Current page number |
+|   ↳ `lastPage` | number | Number of the last available page |
+| `items` | array | Limited partners matching the search criteria |
+|   ↳ `limitedPartnerId` | string | PitchBook limited partner ID |
+|   ↳ `limitedPartnerName` | string | Limited partner name |
+|   ↳ `website` | string | Limited partner website |
+
+### PitchBook Limited Partner Bio
+
+Retrieve the profile of a limited partner: names, description, type, assets under management, and staff
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | PitchBook API key |
+| `pbId` | string | Yes | PitchBook limited partner ID, e.g. 58901-50. Use a limited partner search to resolve a name to an ID. |
+| `currency` | string | No | ISO currency code to convert monetary values into, sent as the X-Currency header \(e.g. USD, EUR, JPY\). Defaults to the currency on the account preferences. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `limitedPartnerId` | string | PitchBook limited partner ID |
+| `limitedPartnerName` | object | The names the limited partner is known by |
+|   ↳ `formalName` | string | Formal name |
+|   ↳ `alsoKnownAs` | string | Also-known-as name |
+|   ↳ `legalName` | string | Registered legal name |
+|   ↳ `formerlyKnownAs` | string | Previous name |
+| `description` | string | Description of the limited partner |
+| `limitedPartnerTypes` | array | Types the limited partner is classified as, one flagged primary |
+|   ↳ `type` | object | Limited partner type |
+|     ↳ `code` | string | Type code |
+|     ↳ `description` | string | Type label |
+|   ↳ `primary` | boolean | Whether this is the primary type |
+| `assetsUnderManagement` | object | Assets under management |
+|   ↳ `amount` | number | Value in the requested currency |
+|   ↳ `currency` | string | Currency of amount |
+|   ↳ `nativeAmount` | number | Value in the currency it was originally reported in |
+|   ↳ `nativeCurrency` | string | Currency of nativeAmount |
+|   ↳ `estimated` | boolean | Whether the value is a PitchBook estimate |
+| `yearFounded` | number | Year the limited partner was founded |
+| `website` | string | Limited partner website |
+| `managementStaff` | number | Number of management staff |
+
+### PitchBook Limited Partner Commitments
+
+Retrieve every fund commitment a limited partner has made, with date, size, status, and the managers behind each fund
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | PitchBook API key |
+| `pbId` | string | Yes | PitchBook limited partner ID, e.g. 58901-50. |
+| `currency` | string | No | ISO currency code to convert monetary values into, sent as the X-Currency header \(e.g. USD, EUR, JPY\). Defaults to the currency on the account preferences. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `commitments` | array | Fund commitments the limited partner has made |
+|   ↳ `limitedPartnerId` | string | PitchBook limited partner ID |
+|   ↳ `committedFundId` | string | PitchBook ID of the fund committed to |
+|   ↳ `committedFundName` | string | Name of the fund committed to |
+|   ↳ `committedInvestors` | array | Managers of the fund committed to |
+|     ↳ `committedInvestorName` | string | Name of the fund manager |
+|     ↳ `committedInvestorId` | string | PitchBook ID of the fund manager |
+|   ↳ `commitmentDate` | string | Date of the commitment \(YYYY-MM-DD\) |
+|   ↳ `commitmentSize` | object | Size of the commitment |
+|     ↳ `nativeCurrency` | string | Currency of nativeAmount |
+|     ↳ `currency` | string | Currency of amount |
+|     ↳ `amount` | number | Value in the requested currency |
+|     ↳ `estimated` | boolean | Whether the value is a PitchBook estimate |
+|     ↳ `nativeAmount` | number | Value in the currency it was originally reported in |
+|   ↳ `commitmentStatus` | object | Status of the commitment |
+|     ↳ `description` | string | Human-readable label for the code |
+|     ↳ `code` | string | PitchBook code |
+|   ↳ `commitmentType` | object | Type of the commitment |
+|     ↳ `description` | string | Human-readable label for the code |
+|     ↳ `code` | string | PitchBook code |
+
+### PitchBook Limited Partner Commitment Aggregates
+
+Retrieve a limited partner commitments rolled up by fund type, both active and all-time
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | PitchBook API key |
+| `pbId` | string | Yes | PitchBook limited partner ID, e.g. 58901-50. |
+| `currency` | string | No | ISO currency code to convert monetary values into, sent as the X-Currency header \(e.g. USD, EUR, JPY\). Defaults to the currency on the account preferences. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `limitedPartnerId` | string | PitchBook limited partner ID |
+| `limitedPartnerName` | string | Limited partner name |
+| `activeCommitmentsInDebtFunds` | json | Number of active commitments to debt funds |
+| `activeCommitmentsInPeFunds` | number | Number of active commitments to PE funds |
+| `activeCommitmentsInReFunds` | number | Number of active commitments to real estate funds |
+| `activeCommitmentsInVcFunds` | number | Number of active commitments to VC funds |
+| `activeCommitmentsInFoFsAnd2nd` | json | Number of active commitments to funds of funds and secondaries |
+| `activeCommitmentsInInfrastructure` | json | Number of active commitments to infrastructure funds |
+| `activeCommitmentsInEnergyFunds` | json | Number of active commitments to energy funds |
+| `activeCommitmentsInOtherFunds` | number | Number of active commitments to other funds |
+| `totalActiveCommitments` | number | Number of active commitments |
+| `totalCommitmentsInDebtFunds` | json | Number of all commitments to debt funds |
+| `totalCommitmentsInPeFunds` | number | Number of all commitments to PE funds |
+| `totalCommitmentsInReFunds` | number | Number of all commitments to real estate funds |
+| `totalCommitmentsInVcFunds` | number | Number of all commitments to VC funds |
+| `totalCommitmentsInFoFsAnd2nd` | json | Number of all commitments to funds of funds and secondaries |
+| `totalCommitmentsInInfrastructure` | json | Number of all commitments to infrastructure funds |
+| `totalCommitmentsInEnergyFunds` | json | Number of all commitments to energy funds |
+| `totalCommitmentsInOtherFunds` | number | Number of all commitments to other funds |
+| `totalCommitments` | number | Number of commitments ever made |
+
+### PitchBook Limited Partner Commitment Preferences
+
+Retrieve what a limited partner commits to: preferred commitment size, fund types, and geographies
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | PitchBook API key |
+| `pbId` | string | Yes | PitchBook limited partner ID, e.g. 58901-50. |
+| `currency` | string | No | ISO currency code to convert monetary values into, sent as the X-Currency header \(e.g. USD, EUR, JPY\). Defaults to the currency on the account preferences. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `limitedPartnerId` | string | PitchBook limited partner ID |
+| `limitedPartnerName` | string | Limited partner name |
+| `preferredCommitmentSize` | json | Preferred commitment size |
+| `preferredGeography` | array | Regions the limited partner targets |
+|   ↳ `code` | string | PitchBook code |
+|   ↳ `description` | string | Human-readable label for the code |
+| `preferredFundTypes` | array | Fund types the limited partner targets |
+|   ↳ `code` | string | PitchBook code |
+|   ↳ `description` | string | Human-readable label for the code |
+| `preferredDirectInvestmentSize` | json | Preferred direct investment size |
+| `otherInvestmentPreferences` | array | Other stated preferences |
+
+### PitchBook Limited Partner Actual Allocations
+
+Retrieve a limited partner reported asset allocation across cash, equities, fixed income, private equity, real estate, and alternatives
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | PitchBook API key |
+| `pbId` | string | Yes | PitchBook limited partner ID, e.g. 58901-50. |
+| `currency` | string | No | ISO currency code to convert monetary values into, sent as the X-Currency header \(e.g. USD, EUR, JPY\). Defaults to the currency on the account preferences. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `limitedPartnerId` | string | PitchBook limited partner ID |
+| `limitedPartnerName` | string | Limited partner name |
+| `affiliatedFunds` | number | Number of affiliated funds |
+| `affiliatedInvestors` | number | Number of affiliated investors |
+| `allocations` | array | Reported asset allocations |
+|   ↳ `alternativeInvestments` | json | Amount allocated to alternative investments |
+|   ↳ `alternativeInvestmentsPercent` | json | Percentage of the portfolio allocated to alternative investments |
+|   ↳ `privateEquity` | object | Amount allocated to private equity |
+|     ↳ `amount` | number | Value in the requested currency |
+|     ↳ `currency` | string | Currency of amount |
+|     ↳ `nativeAmount` | number | Value in the currency it was originally reported in |
+|     ↳ `nativeCurrency` | string | Currency of nativeAmount |
+|     ↳ `estimated` | boolean | Whether the value is a PitchBook estimate |
+|   ↳ `privateEquityPercent` | number | Percentage of the portfolio allocated to private equity |
+|   ↳ `realEstate` | object | Amount allocated to real estate |
+|     ↳ `amount` | number | Value in the requested currency |
+|     ↳ `currency` | string | Currency of amount |
+|     ↳ `nativeAmount` | number | Value in the currency it was originally reported in |
+|     ↳ `nativeCurrency` | string | Currency of nativeAmount |
+|     ↳ `estimated` | boolean | Whether the value is a PitchBook estimate |
+|   ↳ `realEstatePercent` | number | Percentage of the portfolio allocated to real estate |
+|   ↳ `specialOpportunities` | json | Amount allocated to special opportunities |
+|   ↳ `specialOpportunitiePercent` | json | Percentage of the portfolio allocated to special opportunities |
+|   ↳ `hedgeFunds` | object | Amount allocated to hedge funds |
+|     ↳ `amount` | number | Value in the requested currency |
+|     ↳ `currency` | string | Currency of amount |
+|     ↳ `nativeAmount` | number | Value in the currency it was originally reported in |
+|     ↳ `nativeCurrency` | string | Currency of nativeAmount |
+|     ↳ `estimated` | boolean | Whether the value is a PitchBook estimate |
+|   ↳ `hedgeFundsPercent` | number | Percentage of the portfolio allocated to hedge funds |
+|   ↳ `equities` | object | Amount allocated to equities |
+|     ↳ `amount` | number | Value in the requested currency |
+|     ↳ `currency` | string | Currency of amount |
+|     ↳ `nativeAmount` | number | Value in the currency it was originally reported in |
+|     ↳ `nativeCurrency` | string | Currency of nativeAmount |
+|     ↳ `estimated` | boolean | Whether the value is a PitchBook estimate |
+|   ↳ `equitiesPercent` | number | Percentage of the portfolio allocated to equities |
+|   ↳ `fixedIncome` | object | Amount allocated to fixed income |
+|     ↳ `amount` | number | Value in the requested currency |
+|     ↳ `currency` | string | Currency of amount |
+|     ↳ `nativeAmount` | number | Value in the currency it was originally reported in |
+|     ↳ `nativeCurrency` | string | Currency of nativeAmount |
+|     ↳ `estimated` | boolean | Whether the value is a PitchBook estimate |
+|   ↳ `fixedIncomePercent` | number | Percentage of the portfolio allocated to fixed income |
+|   ↳ `cash` | object | Amount allocated to cash |
+|     ↳ `amount` | number | Value in the requested currency |
+|     ↳ `currency` | string | Currency of amount |
+|     ↳ `nativeAmount` | number | Value in the currency it was originally reported in |
+|     ↳ `nativeCurrency` | string | Currency of nativeAmount |
+|     ↳ `estimated` | boolean | Whether the value is a PitchBook estimate |
+|   ↳ `cashPercent` | number | Percentage of the portfolio allocated to cash |
+
+### PitchBook Limited Partner Target Allocations
+
+Retrieve a limited partner target allocation ranges per asset class, in both value and percentage terms
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | PitchBook API key |
+| `pbId` | string | Yes | PitchBook limited partner ID, e.g. 58901-50. |
+| `currency` | string | No | ISO currency code to convert monetary values into, sent as the X-Currency header \(e.g. USD, EUR, JPY\). Defaults to the currency on the account preferences. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `limitedPartnerId` | string | PitchBook limited partner ID |
+| `limitedPartnerName` | string | Limited partner name |
+| `targetAllocations` | array | Target asset allocations |
+|   ↳ `policyDescription` | string | Allocation policy description |
+|   ↳ `alternativesMin` | json | Alternatives min |
+|   ↳ `alternativesPercentMin` | json | Alternatives percent min |
+|   ↳ `alternativesMax` | json | Alternatives max |
+|   ↳ `alternativesPercentMax` | json | Alternatives percent max |
+|   ↳ `privateEquityMin` | object | Minimum target allocation to private equity |
+|     ↳ `amount` | number | Value in the requested currency |
+|     ↳ `currency` | string | Currency of amount |
+|     ↳ `nativeAmount` | number | Value in the currency it was originally reported in |
+|     ↳ `nativeCurrency` | string | Currency of nativeAmount |
+|     ↳ `estimated` | boolean | Whether the value is a PitchBook estimate |
+|   ↳ `privateEquityPercentMin` | number | Minimum target allocation to private equity, as a percentage |
+|   ↳ `privateEquityMax` | object | Maximum target allocation to private equity |
+|     ↳ `amount` | number | Value in the requested currency |
+|     ↳ `currency` | string | Currency of amount |
+|     ↳ `nativeAmount` | number | Value in the currency it was originally reported in |
+|     ↳ `nativeCurrency` | string | Currency of nativeAmount |
+|     ↳ `estimated` | boolean | Whether the value is a PitchBook estimate |
+|   ↳ `privateEquityPercentMax` | number | Maximum target allocation to private equity, as a percentage |
+|   ↳ `realEstateMin` | object | Minimum target allocation to real estate |
+|     ↳ `amount` | number | Value in the requested currency |
+|     ↳ `currency` | string | Currency of amount |
+|     ↳ `nativeAmount` | number | Value in the currency it was originally reported in |
+|     ↳ `nativeCurrency` | string | Currency of nativeAmount |
+|     ↳ `estimated` | boolean | Whether the value is a PitchBook estimate |
+|   ↳ `realEstatePercentMin` | number | Minimum target allocation to real estate, as a percentage |
+|   ↳ `realEstateMax` | object | Maximum target allocation to real estate |
+|     ↳ `amount` | number | Value in the requested currency |
+|     ↳ `currency` | string | Currency of amount |
+|     ↳ `nativeAmount` | number | Value in the currency it was originally reported in |
+|     ↳ `nativeCurrency` | string | Currency of nativeAmount |
+|     ↳ `estimated` | boolean | Whether the value is a PitchBook estimate |
+|   ↳ `realEstatePercentMax` | number | Maximum target allocation to real estate, as a percentage |
+|   ↳ `specialOpportunitiesMin` | json | Minimum target allocation to special opportunities |
+|   ↳ `specialOpportunitiesPercentMin` | json | Minimum target allocation to special opportunities, as a percentage |
+|   ↳ `specialOpportunitiesMax` | json | Maximum target allocation to special opportunities |
+|   ↳ `specialOpportunitiesPercentMax` | json | Maximum target allocation to special opportunities, as a percentage |
+|   ↳ `hedgeFundsMin` | json | Minimum target allocation to hedge funds |
+|   ↳ `hedgeFundsPercentMin` | json | Minimum target allocation to hedge funds, as a percentage |
+|   ↳ `hedgeFundsMax` | json | Maximum target allocation to hedge funds |
+|   ↳ `hedgeFundsPercentMax` | json | Maximum target allocation to hedge funds, as a percentage |
+|   ↳ `equitiesMin` | object | Minimum target allocation to equities |
+|     ↳ `amount` | number | Value in the requested currency |
+|     ↳ `currency` | string | Currency of amount |
+|     ↳ `nativeAmount` | number | Value in the currency it was originally reported in |
+|     ↳ `nativeCurrency` | string | Currency of nativeAmount |
+|     ↳ `estimated` | boolean | Whether the value is a PitchBook estimate |
+|   ↳ `equitiesPercentMin` | number | Minimum target allocation to equities, as a percentage |
+|   ↳ `equitiesMax` | object | Maximum target allocation to equities |
+|     ↳ `amount` | number | Value in the requested currency |
+|     ↳ `currency` | string | Currency of amount |
+|     ↳ `nativeAmount` | number | Value in the currency it was originally reported in |
+|     ↳ `nativeCurrency` | string | Currency of nativeAmount |
+|     ↳ `estimated` | boolean | Whether the value is a PitchBook estimate |
+|   ↳ `equitiesPercentMax` | number | Maximum target allocation to equities, as a percentage |
+|   ↳ `fixedIncomeMin` | object | Minimum target allocation to fixed income |
+|     ↳ `amount` | number | Value in the requested currency |
+|     ↳ `currency` | string | Currency of amount |
+|     ↳ `nativeAmount` | number | Value in the currency it was originally reported in |
+|     ↳ `nativeCurrency` | string | Currency of nativeAmount |
+|     ↳ `estimated` | boolean | Whether the value is a PitchBook estimate |
+|   ↳ `fixedIncomePercentMin` | number | Minimum target allocation to fixed income, as a percentage |
+|   ↳ `fixedIncomeMax` | object | Maximum target allocation to fixed income |
+|     ↳ `amount` | number | Value in the requested currency |
+|     ↳ `currency` | string | Currency of amount |
+|     ↳ `nativeAmount` | number | Value in the currency it was originally reported in |
+|     ↳ `nativeCurrency` | string | Currency of nativeAmount |
+|     ↳ `estimated` | boolean | Whether the value is a PitchBook estimate |
+|   ↳ `fixedIncomePercentMax` | number | Maximum target allocation to fixed income, as a percentage |
+|   ↳ `cashMin` | json | Minimum target allocation to cash |
+|   ↳ `cashPercentMin` | json | Minimum target allocation to cash, as a percentage |
+|   ↳ `cashMax` | json | Maximum target allocation to cash |
+|   ↳ `cashPercentMax` | json | Maximum target allocation to cash, as a percentage |
+
+### PitchBook Limited Partner Service Providers
+
+Retrieve the current and former service providers engaged by a limited partner
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | PitchBook API key |
+| `pbId` | string | Yes | PitchBook limited partner ID, e.g. 58901-50. |
+| `currency` | string | No | ISO currency code to convert monetary values into, sent as the X-Currency header \(e.g. USD, EUR, JPY\). Defaults to the currency on the account preferences. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `limitedPartnerId` | string | PitchBook limited partner ID |
+| `currentGeneralServices` | array | Current general service relationships |
+|   ↳ `serviceProviderId` | string | PitchBook service provider ID |
+|   ↳ `serviceProviderName` | string | Service provider name |
+|   ↳ `serviceProviderTypes` | array | Types the service provider is classified as |
+|     ↳ `primary` | boolean | Whether this is the primary entry |
+|     ↳ `type` | object | Type as a code and description pair |
+|       ↳ `description` | string | Human-readable label for the code |
+|       ↳ `code` | string | PitchBook code |
+|   ↳ `serviceProvided` | object | Service provided, as a code and description pair |
+|     ↳ `description` | string | Human-readable label for the code |
+|     ↳ `code` | string | PitchBook code |
+| `formerGeneralServices` | array | Former general service relationships |
+|   ↳ `serviceProviderId` | string | PitchBook service provider ID |
+|   ↳ `serviceProviderName` | string | Service provider name |
+|   ↳ `serviceProviderTypes` | array | Types the service provider is classified as |
+|     ↳ `primary` | boolean | Whether this is the primary entry |
+|     ↳ `type` | object | Type as a code and description pair |
+|       ↳ `description` | string | Human-readable label for the code |
+|       ↳ `code` | string | PitchBook code |
+|   ↳ `serviceProvided` | object | Service provided, as a code and description pair |
+|     ↳ `description` | string | Human-readable label for the code |
+|     ↳ `code` | string | PitchBook code |
+
+### PitchBook Limited Partner Updates
+
+Check which limited partner datasets changed in a window, so a sync only refetches what moved
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | PitchBook API key |
+| `pbId` | string | Yes | PitchBook limited partner ID, e.g. 58901-50. |
+| `sinceDate` | string | No | Window to report changes over, carrying its operator in the value: &gt;YYYY-MM-DD for after a date, &lt;YYYY-MM-DD for before one, or YYYY-MM-DD^YYYY-MM-DD for a range. Use this or trailingRange. |
+| `trailingRange` | number | No | Report changes over the last N days. Use this or sinceDate. |
+| `currency` | string | No | ISO currency code to convert monetary values into, sent as the X-Currency header \(e.g. USD, EUR, JPY\). Defaults to the currency on the account preferences. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `updates` | json | Map of dataset name to whether it changed in the window. Keys are PitchBook dataset names, so read it as a plain object. |
+
+### PitchBook Service Provider Search
+
+Search PitchBook for service providers by type, location, and the deals they have worked on
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | PitchBook API key |
+| `serviceProviderNames` | string | No | Comma-separated service provider names or PitchBook IDs |
+| `serviceProviderType` | string | No | PitchBook service provider type code |
+| `city` | string | No | City the service provider is located in |
+| `stateProvince` | string | No | State or province the service provider is located in |
+| `country` | string | No | Country the service provider is located in \(e.g. USA\) |
+| `locationType` | string | No | Restrict location matching to HQ_ONLY, NON_HQ_ONLY, or ANY |
+| `numberOfDeals` | string | No | Number of deals worked on. Use &gt;50, &lt;50, or 10^50 for a range |
+| `dealType` | string | No | PitchBook deal type code of the deals worked on |
+| `dealDate` | string | No | Deal date filter. Use &gt;YYYY-MM-DD, &lt;YYYY-MM-DD, or YYYY-MM-DD^YYYY-MM-DD for a range |
+| `dealSize` | string | No | Deal size in millions. Use &gt;450, &lt;450, or 10^450 for a range |
+| `serviceTypesOnDeal` | string | No | Service type codes provided on the deal |
+| `currency` | string | No | ISO currency code to convert monetary values into, sent as the X-Currency header \(e.g. USD, EUR, JPY\). Defaults to the currency on the account preferences. |
+| `page` | number | No | Page of results to return, starting at 1 |
+| `perPage` | number | No | How many results to return per page |
+| `additionalFilters` | json | No | Any other documented search filter, as a JSON object of query parameter names to values \(e.g. \{"emergingSpaces": "AGTECH"\}\). A dedicated field always wins over the same key set here. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `stats` | object | Paging envelope for the result set |
+|   ↳ `total` | number | Total number of matching results |
+|   ↳ `perPage` | number | Results returned per page |
+|   ↳ `page` | number | Current page number |
+|   ↳ `lastPage` | number | Number of the last available page |
+| `items` | array | Service providers matching the search criteria |
+|   ↳ `serviceProviderId` | string | PitchBook service provider ID |
+|   ↳ `serviceProviderName` | string | Service provider name |
+|   ↳ `website` | string | Service provider website |
+
+### PitchBook Service Provider Bio
+
+Retrieve the profile of a service provider: names, types, description, and how many companies, deals, investors, funds, and limited partners it has serviced
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | PitchBook API key |
+| `pbId` | string | Yes | PitchBook service provider ID, e.g. 11356-75. Use a service provider search to resolve a name to an ID. |
+| `currency` | string | No | ISO currency code to convert monetary values into, sent as the X-Currency header \(e.g. USD, EUR, JPY\). Defaults to the currency on the account preferences. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `serviceProviderId` | string | PitchBook service provider ID |
+| `serviceProviderName` | object | The names the service provider is known by |
+|   ↳ `formalName` | string | Formal name |
+|   ↳ `alsoKnownAs` | string | Also-known-as name |
+|   ↳ `legalName` | string | Registered legal name |
+|   ↳ `formerlyKnownAs` | string | Previous name |
+| `serviceProviderTypes` | array | Types the service provider is classified as, one flagged primary |
+|   ↳ `type` | object | Service provider type |
+|     ↳ `code` | string | Type code |
+|     ↳ `description` | string | Type label |
+|   ↳ `primary` | boolean | Whether this is the primary type |
+| `description` | string | Description of the service provider |
+| `website` | string | Service provider website |
+| `employees` | number | Employee count |
+| `servicedCompanies` | number | Number of companies serviced |
+| `servicedDeals` | number | Number of deals serviced |
+| `servicedInvestors` | number | Number of investors serviced |
+| `servicedFunds` | number | Number of funds serviced |
+| `servicedLimitedPartners` | number | Number of limited partners serviced |
+
+### PitchBook Serviced Companies
+
+Retrieve the companies a service provider currently and formerly serves
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | PitchBook API key |
+| `pbId` | string | Yes | PitchBook service provider ID, e.g. 11356-75. |
+| `currency` | string | No | ISO currency code to convert monetary values into, sent as the X-Currency header \(e.g. USD, EUR, JPY\). Defaults to the currency on the account preferences. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `serviceProviderId` | string | PitchBook service provider ID |
+| `serviceProviderName` | string | Service provider name |
+| `currentGeneralServices` | array | Current general service relationships |
+|   ↳ `entityId` | string | PitchBook entity ID |
+|   ↳ `entityName` | string | Entity name |
+|   ↳ `serviceProvided` | object | Service provided, as a code and description pair |
+|     ↳ `code` | string | PitchBook code |
+|     ↳ `description` | string | Human-readable label for the code |
+| `formerGeneralServices` | array | Former general service relationships |
+
+### PitchBook Serviced Deals
+
+Retrieve the deals a service provider worked on and what it was hired for on each
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | PitchBook API key |
+| `pbId` | string | Yes | PitchBook service provider ID, e.g. 11356-75. |
+| `currency` | string | No | ISO currency code to convert monetary values into, sent as the X-Currency header \(e.g. USD, EUR, JPY\). Defaults to the currency on the account preferences. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `serviceProviderName` | string | Service provider name |
+| `servicedDealInfo` | array | Deals the service provider worked on |
+|   ↳ `companyId` | string | PitchBook company ID |
+|   ↳ `companyName` | string | Company name |
+|   ↳ `serviceProvided` | object | Service provided, as a code and description pair |
+|     ↳ `code` | string | PitchBook code |
+|     ↳ `description` | string | Human-readable label for the code |
+|   ↳ `dealId` | string | PitchBook deal ID |
+|   ↳ `dealNumber` | number | Sequence of the deal in the company financing history |
+|   ↳ `dealDate` | string | Date the deal closed \(YYYY-MM-DD\) |
+
+### PitchBook Serviced Investors
+
+Retrieve the investors a service provider currently and formerly serves
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | PitchBook API key |
+| `pbId` | string | Yes | PitchBook service provider ID, e.g. 11356-75. |
+| `currency` | string | No | ISO currency code to convert monetary values into, sent as the X-Currency header \(e.g. USD, EUR, JPY\). Defaults to the currency on the account preferences. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `serviceProviderId` | string | PitchBook service provider ID |
+| `serviceProviderName` | string | Service provider name |
+| `currentGeneralServices` | array | Current general service relationships |
+|   ↳ `entityId` | string | PitchBook entity ID |
+|   ↳ `entityName` | string | Entity name |
+|   ↳ `serviceProvided` | object | Service provided, as a code and description pair |
+|     ↳ `code` | string | PitchBook code |
+|     ↳ `description` | string | Human-readable label for the code |
+| `formerGeneralServices` | array | Former general service relationships |
+
+### PitchBook Serviced Funds
+
+Retrieve the funds a service provider has worked with and the service provided to each
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | PitchBook API key |
+| `pbId` | string | Yes | PitchBook service provider ID, e.g. 11356-75. |
+| `currency` | string | No | ISO currency code to convert monetary values into, sent as the X-Currency header \(e.g. USD, EUR, JPY\). Defaults to the currency on the account preferences. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `serviceProviderId` | string | PitchBook service provider ID |
+| `serviceProviderName` | string | Service provider name |
+| `fundServices` | array | Funds the service provider worked with |
+|   ↳ `fundId` | string | PitchBook fund ID |
+|   ↳ `fundName` | string | Fund name |
+|   ↳ `serviceProvided` | object | Service provided, as a code and description pair |
+|     ↳ `description` | string | Human-readable label for the code |
+|     ↳ `code` | string | PitchBook code |
+|   ↳ `servicedEntityType` | object | Type of entity that was serviced |
+|     ↳ `description` | string | Human-readable label for the code |
+|     ↳ `code` | string | PitchBook code |
+
+### PitchBook Serviced Limited Partners
+
+Retrieve the limited partners a service provider currently and formerly serves
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | PitchBook API key |
+| `pbId` | string | Yes | PitchBook service provider ID, e.g. 11356-75. |
+| `currency` | string | No | ISO currency code to convert monetary values into, sent as the X-Currency header \(e.g. USD, EUR, JPY\). Defaults to the currency on the account preferences. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `serviceProviderId` | string | PitchBook service provider ID |
+| `serviceProviderName` | string | Service provider name |
+| `currentGeneralServices` | array | Current general service relationships |
+| `formerGeneralServices` | array | Former general service relationships |
+|   ↳ `entityId` | string | PitchBook entity ID |
+|   ↳ `entityName` | string | Entity name |
+|   ↳ `serviceProvided` | object | Service provided, as a code and description pair |
+|     ↳ `code` | string | PitchBook code |
+|     ↳ `description` | string | Human-readable label for the code |
+
+### PitchBook Service Provider Updates
+
+Check which service provider datasets changed in a window, so a sync only refetches what moved
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | PitchBook API key |
+| `pbId` | string | Yes | PitchBook service provider ID, e.g. 11356-75. |
+| `sinceDate` | string | No | Window to report changes over, carrying its operator in the value: &gt;YYYY-MM-DD for after a date, &lt;YYYY-MM-DD for before one, or YYYY-MM-DD^YYYY-MM-DD for a range. Use this or trailingRange. |
+| `trailingRange` | number | No | Report changes over the last N days. Use this or sinceDate. |
+| `currency` | string | No | ISO currency code to convert monetary values into, sent as the X-Currency header \(e.g. USD, EUR, JPY\). Defaults to the currency on the account preferences. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `updates` | json | Map of dataset name to whether it changed in the window. Keys are PitchBook dataset names, so read it as a plain object. |
+
+### PitchBook Credit News Search
+
+Search PitchBook credit analysis news by author, region, asset class, topic, issuer, lender, sponsor, and date
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | PitchBook API key |
+| `authors` | string | No | Article author name. Separate multiple values with a comma. |
+| `regions` | string | No | Region the article covers: United States or Europe. |
+| `assetClasses` | string | No | Asset class the article covers. Separate multiple values with a comma. |
+| `topics` | string | No | Topic the article covers. Separate multiple values with a comma. |
+| `issuer` | string | No | Issuer name. Separate multiple values with a comma. |
+| `lender` | string | No | Lender name. Separate multiple values with a comma. |
+| `sponsor` | string | No | Sponsor name. Separate multiple values with a comma. |
+| `sinceDate` | string | No | Publication date filter. Use &gt;YYYY-MM-DD, &lt;YYYY-MM-DD, or YYYY-MM-DD^YYYY-MM-DD for a range. |
+| `page` | number | No | Page of results to return, starting at 1 |
+| `perPage` | number | No | How many results to return per page, between 1 and 250. Defaults to 25. |
+| `currency` | string | No | ISO currency code to convert monetary values into, sent as the X-Currency header \(e.g. USD, EUR, JPY\). Defaults to the currency on the account preferences. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `stats` | object | Summary statistics for the response |
+|   ↳ `total` | number | Total number of matching results |
+|   ↳ `perPage` | number | Results returned per page |
+|   ↳ `page` | number | Current page number |
+|   ↳ `lastPage` | number | Number of the last available page |
+| `items` | array | Records returned |
+|   ↳ `articleId` | number | Credit news article ID |
+|   ↳ `title` | string | Title |
+|   ↳ `authors` | array | Authors of the article |
+|     ↳ `authorName` | string | Author name |
+|   ↳ `regions` | array | Geographic regions the article covers |
+|   ↳ `publishDate` | string | Publication timestamp \(ISO 8601\) |
+|   ↳ `assetClasses` | array | Asset classes the article covers |
+|   ↳ `topics` | array | Topics the article covers |
+|   ↳ `issuer` | object | Issuer the article is about |
+|     ↳ `pbId` | string | PitchBook entity ID |
+|     ↳ `name` | string | Name |
+|   ↳ `lender` | object | Lender the article is about |
+|     ↳ `pbId` | string | PitchBook entity ID |
+|     ↳ `name` | string | Name |
+|   ↳ `sponsor` | object | Sponsor the article is about |
+|     ↳ `pbId` | string | PitchBook entity ID |
+|     ↳ `name` | string | Name |
+
+### PitchBook Most Recent Credit News
+
+Retrieve the most recently published credit analysis articles and their descriptions, without article bodies
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | PitchBook API key |
+| `page` | number | No | Page of results to return, starting at 1. Increment it to reach older articles. |
+| `perPage` | number | No | How many results to return per page, between 1 and 250. Defaults to 25. |
+| `currency` | string | No | ISO currency code to convert monetary values into, sent as the X-Currency header \(e.g. USD, EUR, JPY\). Defaults to the currency on the account preferences. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `stats` | object | Summary statistics for the response |
+|   ↳ `total` | number | Total number of matching results |
+|   ↳ `perPage` | number | Results returned per page |
+|   ↳ `page` | number | Current page number |
+|   ↳ `lastPage` | number | Number of the last available page |
+| `items` | array | Records returned |
+|   ↳ `articleId` | number | Credit news article ID |
+|   ↳ `title` | string | Title |
+|   ↳ `authors` | array | Authors of the article |
+|     ↳ `authorName` | string | Author name |
+|   ↳ `regions` | array | Geographic regions the article covers |
+|   ↳ `publishDate` | string | Publication timestamp \(ISO 8601\) |
+|   ↳ `assetClasses` | array | Asset classes the article covers |
+|   ↳ `topics` | array | Topics the article covers |
+|   ↳ `issuer` | object | Issuer the article is about |
+|     ↳ `pbId` | string | PitchBook entity ID |
+|     ↳ `name` | string | Name |
+|   ↳ `lender` | object | Lender the article is about |
+|     ↳ `pbId` | string | PitchBook entity ID |
+|     ↳ `name` | string | Name |
+|   ↳ `sponsor` | object | Sponsor the article is about |
+|     ↳ `pbId` | string | PitchBook entity ID |
+|     ↳ `name` | string | Name |
+
+### PitchBook Credit News Article
+
+Retrieve one credit analysis article in full, including its body text, authors, topics, and the issuer, lender, and sponsor it covers
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | PitchBook API key |
+| `pbId` | string | Yes | Credit news article ID, e.g. 1312103. Article IDs come from a credit news search. |
+| `currency` | string | No | ISO currency code to convert monetary values into, sent as the X-Currency header \(e.g. USD, EUR, JPY\). Defaults to the currency on the account preferences. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `articleId` | number | Credit news article ID |
+| `title` | string | Title |
+| `authors` | array | Authors of the article |
+|   ↳ `authorName` | string | Author name |
+| `regions` | array | Geographic regions the article covers |
+| `publishDate` | string | Publication timestamp \(ISO 8601\) |
+| `assetClasses` | array | Asset classes the article covers |
+| `topics` | array | Topics the article covers |
+| `issuer` | object | Issuer the article is about |
+|   ↳ `pbId` | string | PitchBook entity ID |
+|   ↳ `name` | string | Name |
+| `lender` | json | Lender the article is about |
+| `sponsor` | json | Sponsor the article is about |
+| `articleBody` | string | Full text of the article |
+| `attachments` | array | Attachments on the article |
+
+### PitchBook Credit News Bulk
+
+Retrieve many credit analysis articles in full in a single call, reporting which IDs were found, missing, or duplicated
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | PitchBook API key |
+| `articleIds` | array | Yes | Credit news article IDs to fetch, e.g. \[11041384, 2142401\] |
+| `currency` | string | No | ISO currency code to convert monetary values into, sent as the X-Currency header \(e.g. USD, EUR, JPY\). Defaults to the currency on the account preferences. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `stats` | object | Summary statistics for the response |
+|   ↳ `total` | number | Total number of matching results |
+|   ↳ `found` | number | Articles that were found |
+|   ↳ `notFound` | number | Article IDs that were not found |
+|   ↳ `duplicates` | number | Article IDs that were requested more than once |
+| `found` | array | Articles that were found |
+|   ↳ `articleId` | number | Credit news article ID |
+|   ↳ `title` | string | Title |
+|   ↳ `authors` | array | Authors of the article |
+|     ↳ `authorName` | string | Author name |
+|   ↳ `regions` | array | Geographic regions the article covers |
+|   ↳ `publishDate` | string | Publication timestamp \(ISO 8601\) |
+|   ↳ `assetClasses` | array | Asset classes the article covers |
+|   ↳ `topics` | array | Topics the article covers |
+|   ↳ `issuer` | object | Issuer the article is about |
+|     ↳ `pbId` | string | PitchBook entity ID |
+|     ↳ `name` | string | Name |
+|   ↳ `lender` | json | Lender the article is about |
+|   ↳ `sponsor` | json | Sponsor the article is about |
+|   ↳ `articleBody` | string | Full text of the article |
+|   ↳ `attachments` | array | Attachments on the article |
+|   ↳ `deal` | object | Deal the record belongs to |
+|     ↳ `dealId` | string | PitchBook deal ID |
+| `notFound` | array | Article IDs that were not found |
+| `duplicates` | array | Article IDs that were requested more than once |
+
+### PitchBook Contracts History
+
+Retrieve the API contracts on the account with their pricing model, term, and credit balances
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | PitchBook API key |
+| `activeContract` | boolean | No | Set true for only active contracts, false for only past ones. Omit to return every contract. |
+| `currency` | string | No | ISO currency code to convert monetary values into, sent as the X-Currency header \(e.g. USD, EUR, JPY\). Defaults to the currency on the account preferences. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `contracts` | array | Contracts on the account |
+|   ↳ `contractNumber` | string | Contract identifier |
+|   ↳ `activeContract` | boolean | Whether the contract is currently active |
+|   ↳ `pricingModel` | string | Pricing model of the contract |
+|   ↳ `startDate` | string | Start date \(YYYY-MM-DD\) |
+|   ↳ `endDate` | string | End date \(YYYY-MM-DD\) |
+|   ↳ `creditsUsed` | number | Credits consumed |
+|   ↳ `creditsChanged` | number | Net credits added or removed |
+|   ↳ `creditsExpired` | number | Credits that expired |
+|   ↳ `creditsRemaining` | number | Credits still available |
+|   ↳ `overageUsed` | number | Overage credits consumed |
+
+### PitchBook Credit History
+
+Retrieve API credit usage and remaining balance per contract, for up to the last 90 days
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | PitchBook API key |
+| `sinceDate` | string | No | Window to report changes over, carrying its operator in the value: &gt;YYYY-MM-DD for after a date, &lt;YYYY-MM-DD for before one, or YYYY-MM-DD^YYYY-MM-DD for a range. Use this or trailingRange. |
+| `trailingRange` | number | No | Report changes over the last N days. Use this or sinceDate. |
+| `currency` | string | No | ISO currency code to convert monetary values into, sent as the X-Currency header \(e.g. USD, EUR, JPY\). Defaults to the currency on the account preferences. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `credits` | array | Credit usage per contract over the window |
+|   ↳ `contractNumber` | string | Contract identifier |
+|   ↳ `activeContract` | boolean | Whether the contract is currently active |
+|   ↳ `pricingModel` | string | Pricing model of the contract |
+|   ↳ `creditsUsed` | number | Credits consumed |
+|   ↳ `creditsChanged` | number | Net credits added or removed |
+|   ↳ `creditsExpired` | number | Credits that expired |
+|   ↳ `creditsRemaining` | number | Credits still available |
+|   ↳ `overageUsed` | number | Overage credits consumed |
+
+### PitchBook Usage Report
+
+Retrieve how many API calls were made and how many credits they charged, for up to the last 90 days
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | PitchBook API key |
+| `sinceDate` | string | No | Window to report changes over, carrying its operator in the value: &gt;YYYY-MM-DD for after a date, &lt;YYYY-MM-DD for before one, or YYYY-MM-DD^YYYY-MM-DD for a range. Use this or trailingRange. |
+| `trailingRange` | number | No | Report changes over the last N days. Use this or sinceDate. |
+| `currency` | string | No | ISO currency code to convert monetary values into, sent as the X-Currency header \(e.g. USD, EUR, JPY\). Defaults to the currency on the account preferences. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `stats` | object | Summary statistics for the response |
+|   ↳ `endpoints` | array | Per-endpoint call breakdown |
+|   ↳ `totalCountOfCalls` | number | Total number of calls made |
+|   ↳ `totalChargedCredits` | number | Total credits charged |
+| `rawData` | array | Individual call records |
+
+### PitchBook Cost of Calls
+
+Retrieve the credit cost of every API endpoint under a given pricing model, for first-time and refresh calls
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | PitchBook API key |
+| `pricingModel` | string | No | Pricing model to price against: SUBSCRIPTION or PAY_PER_CALL |
+| `currency` | string | No | ISO currency code to convert monetary values into, sent as the X-Currency header \(e.g. USD, EUR, JPY\). Defaults to the currency on the account preferences. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `costs` | array | Credit cost per endpoint |
+|   ↳ `group` | string | Endpoint group |
+|   ↳ `endpoint` | string | Endpoint name |
+|   ↳ `initialCost` | number | Credit cost of a first-time call |
+|   ↳ `refreshCost` | number | Credit cost of re-requesting data already pulled |
+
+### PitchBook Lookup Table Structure
+
+List the lookup tables backing the search endpoints. Use this to find which table holds the codes a search filter expects.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | PitchBook API key |
+| `currency` | string | No | ISO currency code to convert monetary values into, sent as the X-Currency header \(e.g. USD, EUR, JPY\). Defaults to the currency on the account preferences. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `tables` | array | Lookup tables available |
+|   ↳ `tableName` | string | Lookup table name |
+|   ↳ `tableDescription` | string | What the lookup table contains |
+
+### PitchBook Lookup Tables
+
+Retrieve the codes in one or more lookup tables. These are the codes the search filters expect, such as INDUSTRY or VERTICAL.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | PitchBook API key |
+| `tableNames` | string | Yes | Lookup tables to return, e.g. INDUSTRY or VERTICAL. Separate multiple names with a comma. Use the lookup table structure operation to see what is available. |
+| `currency` | string | No | ISO currency code to convert monetary values into, sent as the X-Currency header \(e.g. USD, EUR, JPY\). Defaults to the currency on the account preferences. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Records returned |
+|   ↳ `tableName` | string | Lookup table name |
+|   ↳ `tableDescription` | string | What the lookup table contains |
+|   ↳ `codes` | array | Codes in the lookup table |
+|     ↳ `code` | string | PitchBook code |
+|     ↳ `description` | string | Human-readable label for the code |
+
+### PitchBook Sandbox Entities
+
+List the entities a sandbox API key is allowed to query, so test workflows have real IDs to run against
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | PitchBook API key |
+| `entityType` | string | Yes | Entity type to list: COMPANIES, INVESTORS, LIMITED_PARTNERS, SERVICE_PROVIDERS, PEOPLE, DEALS, or FUNDS. The matching array on the response is named after it, so COMPANIES returns a companies array. |
+| `currency` | string | No | ISO currency code to convert monetary values into, sent as the X-Currency header \(e.g. USD, EUR, JPY\). Defaults to the currency on the account preferences. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `entities` | array | Entities the sandbox key may query. PitchBook names this array after the requested entity type, so it is surfaced under a stable `entities` key rather than the type-specific one. |
+|   ↳ `companyId` | string | PitchBook ID of the entity, keyed by its own entity type |
+|   ↳ `companyName` | string | Name of the entity, keyed by its own entity type |
+| `entityTypeCounts` | json | Count of available sandbox entities, keyed by entity type |
+
+

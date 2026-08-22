@@ -7,8 +7,12 @@ import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import type { AgiloftRecordResponse } from '@/tools/agiloft/types'
-import { buildCreateRecordUrl } from '@/tools/agiloft/utils'
-import { executeAgiloftRequest } from '@/tools/agiloft/utils.server'
+import { alrestRecordCollectionUrl } from '@/tools/agiloft/utils'
+import {
+  executeAlrestRequest,
+  isAgiloftRefusal,
+  readAlrestJson,
+} from '@/tools/agiloft/utils.server'
 
 export const dynamic = 'force-dynamic'
 
@@ -49,51 +53,68 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     if (!parsed.success) return parsed.response
     const params = parsed.data.body
 
-    let body: string
+    let fieldValues: Record<string, unknown>
     try {
-      body = JSON.stringify(JSON.parse(params.data))
+      const parsedData = JSON.parse(params.data)
+      if (typeof parsedData !== 'object' || parsedData === null || Array.isArray(parsedData)) {
+        throw new Error('not an object')
+      }
+      fieldValues = parsedData as Record<string, unknown>
     } catch {
       return NextResponse.json({
         success: false,
         output: { id: null, fields: {} },
-        error: 'Invalid JSON in data parameter',
+        error: 'The data parameter must be a JSON object of field names to values',
       })
     }
 
-    const result = await executeAgiloftRequest<AgiloftRecordResponse>(
+    const result = await executeAlrestRequest<AgiloftRecordResponse>(
       params,
       (base) => ({
-        url: buildCreateRecordUrl(base, params),
+        url: alrestRecordCollectionUrl(base, params.table),
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-        body,
+        body: JSON.stringify(fieldValues),
       }),
       async (response) => {
-        if (!response.ok) {
-          const errorText = await response.text()
+        const record = await readAlrestJson<Record<string, unknown>>(response)
+        const id = record?.id
+
+        /**
+         * A create that reports no ID did not create anything usable — callers
+         * chain on this ID, so surface it as a failure rather than handing back
+         * a successful-looking null.
+         */
+        if (id == null) {
           return {
             success: false,
-            output: { id: null, fields: {} },
-            error: `Agiloft error: ${response.status} - ${errorText}`,
+            output: { id: null, fields: record ?? {} },
+            error: 'Agiloft did not return an ID for the created record',
           }
         }
 
-        const data = (await response.json()) as Record<string, unknown>
-        const result = (data.result ?? data) as Record<string, unknown>
-        const id = result.id ?? result.ID ?? data.id ?? data.ID ?? null
-
         return {
-          success: data.success !== false,
-          output: {
-            id: id != null ? String(id) : null,
-            fields: result ?? {},
-          },
+          success: true,
+          output: { id: String(id), fields: record ?? {} },
         }
       }
     )
 
     return NextResponse.json(result)
   } catch (error) {
+    /**
+     * A refusal Agiloft already decided on is a final answer, not a transient
+     * fault — returning 500 would make the tool runner retry it.
+     */
+    if (isAgiloftRefusal(error)) {
+      logger.warn(`[${requestId}] Agiloft refused the request`, { error: error.message })
+      return NextResponse.json({
+        success: false,
+        output: { id: null, fields: {} },
+        error: error.message,
+      })
+    }
+
     logger.error(`[${requestId}] Error creating Agiloft record:`, error)
 
     return NextResponse.json({ success: false, error: toError(error).message }, { status: 500 })

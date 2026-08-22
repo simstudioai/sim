@@ -26,13 +26,13 @@ vi.mock('@/lib/billing/calculations/usage-reservation', () => ({
   },
 }))
 
+import { applyCreateWorkflowOutputToContext } from '@/lib/copilot/request/tools/workflow-context'
+import type { ExecutionContext } from '@/lib/copilot/request/types'
 import {
-  applyCreateWorkflowOutputToContext,
   prepareWorkflowExecutionAdmission,
   resolveWorkflowExecutionBillingAttribution,
   WorkflowExecutionAdmissionError,
-} from '@/lib/copilot/request/tools/workflow-context'
-import type { ExecutionContext } from '@/lib/copilot/request/types'
+} from '@/lib/workflows/execution-admission'
 
 const billingAttribution: BillingAttributionSnapshot = {
   actorUserId: 'user-1',

@@ -7,6 +7,7 @@ import {
   useCallback,
   useRef,
 } from 'react'
+import { isRecordLike } from '@sim/utils/object'
 import { useQueryClient } from '@tanstack/react-query'
 import type { SyntheticFilePreviewPayload } from '@/lib/copilot/request/session'
 import type { FilePreviewSession } from '@/lib/copilot/request/session/file-preview-session-contract'
@@ -28,12 +29,11 @@ interface FilePreviewControllerDeps {
   setResources: Dispatch<SetStateAction<MothershipResource[]>>
   setActiveResourceId: Dispatch<SetStateAction<string | null>>
   activeResourceIdRef: MutableRefObject<string | null>
+  onResourceEventRef: MutableRefObject<((resourceId: string) => void) | undefined>
 }
 
 function asPayloadRecord(value: unknown): Record<string, unknown> | undefined {
-  return value && typeof value === 'object' && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : undefined
+  return isRecordLike(value) ? (value as Record<string, unknown>) : undefined
 }
 
 /**
@@ -49,6 +49,7 @@ export function useFilePreviewController({
   setResources,
   setActiveResourceId,
   activeResourceIdRef,
+  onResourceEventRef,
 }: FilePreviewControllerDeps) {
   const queryClient = useQueryClient()
 
@@ -72,6 +73,7 @@ export function useFilePreviewController({
       if (!session.fileId) {
         return false
       }
+      if (onResourceEventRef.current) return true
       const currentActiveResourceId = activeResourceIdRef.current
       const activationOwnerId = previewActivationOwnerRef.current.get(session.id)
       return (
@@ -81,7 +83,16 @@ export function useFilePreviewController({
         currentActiveResourceId === activationOwnerId
       )
     },
-    [activeResourceIdRef]
+    [activeResourceIdRef, onResourceEventRef]
+  )
+
+  const requestResourceAttention = useCallback(
+    (resourceId: string) => {
+      const onResourceEvent = onResourceEventRef.current
+      if (onResourceEvent) onResourceEvent(resourceId)
+      else setActiveResourceId(resourceId)
+    },
+    [onResourceEventRef, setActiveResourceId]
   )
 
   const seedCompletedPreviewContentCache = useCallback(
@@ -239,18 +250,18 @@ export function useFilePreviewController({
             { type: 'file', id: 'streaming-file', title: session.fileName || 'Writing file...' },
           ]
         })
-        setActiveResourceId('streaming-file')
+        requestResourceAttention('streaming-file')
         return
       }
 
       if (session.fileId && hasRenderableFilePreviewContent(session)) {
         promoteFileResource(session.fileId, session.fileName || 'File')
         if (options?.activate !== false) {
-          setActiveResourceId(session.fileId)
+          requestResourceAttention(session.fileId)
         }
       }
     },
-    [promoteFileResource, setActiveResourceId, setResources]
+    [promoteFileResource, requestResourceAttention, setResources]
   )
 
   const seedPreviewSessions = useCallback(
@@ -354,7 +365,7 @@ export function useFilePreviewController({
             (!wasRenderableBeforeComplete && hasRenderableFilePreviewContent(nextSession))) &&
           shouldAutoActivatePreviewSession(nextSession)
         if (shouldActivateOnComplete) {
-          setActiveResourceId(fileId)
+          requestResourceAttention(fileId)
         }
         completedPreviewResourceHandoffRef.current.set(fileId, {
           sessionId: nextSession.id,
@@ -385,7 +396,7 @@ export function useFilePreviewController({
       queryClient,
       rememberPreviewActivationOwner,
       seedCompletedPreviewContentCache,
-      setActiveResourceId,
+      requestResourceAttention,
       shouldAutoActivatePreviewSession,
       syncPreviewResourceChrome,
       workspaceId,

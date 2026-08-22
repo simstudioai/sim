@@ -5,9 +5,12 @@ import { parseRequest } from '@/lib/api/server'
 import { authorizeCredentialUse } from '@/lib/auth/credential-access'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import {
+  refreshAccessTokenIfNeeded,
+  ServiceAccountTokenError,
+} from '@/lib/oauth/credential-service'
 import { drainGooglePagedList, GooglePageError } from '@/lib/oauth/google-pagination'
 import { getScopesForService } from '@/lib/oauth/utils'
-import { refreshAccessTokenIfNeeded, ServiceAccountTokenError } from '@/app/api/auth/oauth/utils'
 
 const logger = createLogger('GoogleTasksTaskListsAPI')
 

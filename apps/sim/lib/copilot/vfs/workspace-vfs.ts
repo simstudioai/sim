@@ -1,12 +1,10 @@
 import { trace } from '@opentelemetry/api'
+import type { Principal } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import {
   chat as chatTable,
   customTools as customToolsTable,
-  document,
   folder as folderTable,
-  knowledgeBaseTagDefinitions,
-  knowledgeConnector,
   mcpServers as mcpServersTable,
   skill as skillTable,
   workflowDeploymentVersion,
@@ -18,12 +16,14 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { and, desc, eq, inArray, isNotNull, isNull, or } from 'drizzle-orm'
 import { listApiKeys } from '@/lib/api-key/service'
+import { getAccountBillingSnapshot } from '@/lib/billing/core/account-billing-snapshot'
 import { hasWorkspaceSandboxAccess } from '@/lib/billing/core/subscription'
 import {
   buildWorkspaceContextMd,
   buildWorkspaceMd,
   type WorkspaceMdData,
 } from '@/lib/copilot/chat/workspace-context'
+import { computeWorkspaceEntitlements } from '@/lib/copilot/entitlements'
 import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
 import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
 import {
@@ -51,6 +51,8 @@ import { extractDocumentStyle } from '@/lib/copilot/vfs/document-style'
 import {
   type FileReadResult,
   isReadableFileType,
+  MAX_IMAGE_SOURCE_BYTES,
+  MAX_TEXT_READ_BYTES,
   readFileRecord,
 } from '@/lib/copilot/vfs/file-reader'
 import { normalizeVfsSegment } from '@/lib/copilot/vfs/normalize-segment'
@@ -60,16 +62,19 @@ import {
   buildVfsFolderPathMap,
   canonicalWorkflowVfsDir,
   canonicalWorkspaceFilePath,
+  decodeVfsSegmentSafe,
   encodeVfsPathSegments,
 } from '@/lib/copilot/vfs/path-utils'
 import { readPlaceholder } from '@/lib/copilot/vfs/read-placeholders'
-import type {
-  DeploymentData,
-  KbTagDefinitionSummary,
-  VfsServiceAccountAuth,
-} from '@/lib/copilot/vfs/serializers'
+import type { DeploymentData, VfsServiceAccountAuth } from '@/lib/copilot/vfs/serializers'
 import {
+  buildOrganizationReadme,
   describeServiceAccountForOAuthProvider,
+  serializeAccessControl,
+  serializeAccountBilling,
+  serializeAccountMembers,
+  serializeAccountWorkspace,
+  serializeAccountWorkspaces,
   serializeApiKeyIntegrations,
   serializeApiKeys,
   serializeBlockSchema,
@@ -77,6 +82,7 @@ import {
   serializeConnectorOverview,
   serializeConnectorSchema,
   serializeConnectors,
+  serializeCredentialGroups,
   serializeCredentials,
   serializeCustomTool,
   serializeDeployments,
@@ -86,15 +92,22 @@ import {
   serializeIntegrationSchema,
   serializeKBMeta,
   serializeMcpServer,
+  serializeOrganization,
+  serializeOrganizationCustomBlocks,
+  serializeOrganizationWorkspaces,
+  serializeOrgCustomBlockDetail,
+  serializePermissionGroupRoster,
   serializeRecentExecutions,
   serializeSandbox,
   serializeSandboxCatalog,
   serializeSkill,
   serializeTableMeta,
+  serializeTableViews,
   serializeTriggerOverview,
   serializeTriggerSchema,
   serializeVersions,
   serializeWorkflowMeta,
+  serializeWorkspaceForks,
 } from '@/lib/copilot/vfs/serializers'
 import type { BlockVisibilityState } from '@/lib/core/config/block-visibility'
 import {
@@ -102,6 +115,9 @@ import {
   isDocSandboxEnabled,
   isHosted,
 } from '@/lib/core/config/env-flags'
+import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
+import { listCredentialGroupEnrollments } from '@/lib/credential-groups/enrollments'
+import { listCredentialGroups } from '@/lib/credential-groups/service'
 import {
   getAccessibleEnvCredentials,
   getAccessibleOAuthCredentials,
@@ -113,47 +129,80 @@ import {
   listWorkspaceSandboxes,
 } from '@/lib/execution/remote-sandbox/workspace-sandboxes'
 import { runSandboxTask, SandboxUserCodeError } from '@/lib/execution/sandbox/run-task'
+import { listFoldersForWorkspace } from '@/lib/folders/queries'
 import {
   isIntegrationDeploymentAvailableForVisibility,
   isOAuthServiceDeploymentAvailable,
 } from '@/lib/integrations/availability.server'
 import { createIntegrationCredentialVisibility } from '@/lib/integrations/credential-visibility.server'
-import { getKnowledgeBases } from '@/lib/knowledge/service'
+import { listKnowledgeConnectors } from '@/lib/knowledge/application/connectors'
+import { listKnowledgeDocuments } from '@/lib/knowledge/application/documents'
+import {
+  listArchivedKnowledgeBases,
+  listKnowledgeBaseCatalog,
+} from '@/lib/knowledge/application/knowledge-bases'
 import { validateMermaidSource } from '@/lib/mermaid/validate'
 import { isBlockTypeAccessControlExempt } from '@/lib/permission-groups/block-access'
+import { getActivePermissionGroupRestrictions } from '@/lib/permission-groups/features'
 import { intersectIntegrationAllowlists } from '@/lib/permission-groups/integration-allowlist'
-import { getWorkspaceShares } from '@/lib/public-shares/share-manager'
-import { listTables } from '@/lib/table/service'
-import { listWorkspaceFileFolders } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
 import {
-  fetchWorkspaceFileBuffer,
-  findWorkspaceFileRecord,
-  listWorkspaceFiles,
-  type WorkspaceFileRecord,
-} from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+  listOrganizationWorkspaceRefs,
+  listPermissionGroupRoster,
+} from '@/lib/permission-groups/queries'
+import { listTables } from '@/lib/table/service'
+import {
+  listTableViewsByWorkspace,
+  normalizeStoredViewConfig,
+  pruneViewConfig,
+  viewConfigIdsToNames,
+} from '@/lib/table/views/service'
+import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import { findWorkspaceFileRecord } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import type {
   WorkspaceFileSecretProvenanceEnvelope,
   WorkspaceFileSecretProvenanceIdentity,
 } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import { isImageFileType, resolveEffectiveMimeType } from '@/lib/uploads/utils/file-utils'
 import { listCustomBlocksWithInputsForWorkspace } from '@/lib/workflows/custom-blocks/operations'
 import { getCustomToolById } from '@/lib/workflows/custom-tools/operations'
-import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
+import { checkNeedsRedeployment } from '@/lib/workflows/deployment-status'
+import {
+  loadDeployedWorkflowState,
+  loadWorkflowFromNormalizedTables,
+} from '@/lib/workflows/persistence/utils'
 import { sanitizeForCopilot } from '@/lib/workflows/sanitization/json-sanitizer'
 import { getSkillById } from '@/lib/workflows/skills/operations'
 import { listFolders, listWorkflows } from '@/lib/workflows/utils'
+import { listAllWorkspaceFiles } from '@/lib/workspace-files/application/list-workspace-files'
+import { readWorkspaceFileContent } from '@/lib/workspace-files/application/read-workspace-file-content'
+import { listWorkspaceFileFoldersOperation } from '@/lib/workspace-files/application/workspace-file-folders'
+import { parseWorkspaceFileFolderDisplayPath } from '@/lib/workspace-files/folder-display-path'
+import {
+  collectSimPageDiagnostics,
+  isSimPageSource,
+  SIM_PAGE_CONTENT_TYPE,
+} from '@/lib/workspace-files/page-compile'
+import { getWorkspaceHostContextForViewer } from '@/lib/workspaces/host-context'
 import {
   assertActiveWorkspaceAccess,
   getUsersWithPermissions,
   getWorkspaceWithOwner,
   hasWorkspaceAdminAccess,
 } from '@/lib/workspaces/permissions/utils'
-import { checkNeedsRedeployment } from '@/app/api/workflows/utils'
+import { listAccessibleWorkspaceRowsForUser } from '@/lib/workspaces/utils'
 import { buildCustomBlockConfig, isCustomBlockType } from '@/blocks/custom/build-config'
 import { BLOCK_REGISTRY } from '@/blocks/registry-maps'
 import type { BlockConfig, BlockIcon } from '@/blocks/types'
 import { isHiddenUnder, overlayVisibility } from '@/blocks/visibility/context'
 import { CONNECTOR_REGISTRY } from '@/connectors/registry.server'
-import { getUserPermissionConfig } from '@/ee/access-control/utils/permission-check'
+import {
+  getUserPermissionConfig,
+  resolveVerifiedUserAccessControlContext,
+} from '@/ee/access-control/utils/permission-check'
+import { isForkingAvailableForWorkspace } from '@/ee/workspace-forking/lib/lineage/authz'
+import { getForkChildren, getForkParent } from '@/ee/workspace-forking/lib/lineage/lineage'
+import { loadForkBlockMap } from '@/ee/workspace-forking/lib/mapping/block-map-store'
+import { getEdgeMappingRows } from '@/ee/workspace-forking/lib/mapping/mapping-store'
 import type { ToolConfig } from '@/tools/types'
 import { TRIGGER_REGISTRY } from '@/triggers/registry'
 
@@ -163,6 +212,8 @@ const logger = createLogger('WorkspaceVFS')
 // double-cast-allowed: a no-op stands in for the unused SVG-typed BlockIcon slot
 const PLACEHOLDER_BLOCK_ICON = (() => null) as unknown as BlockIcon
 const MAX_COMPILED_ATTACHMENT_BYTES = 5 * 1024 * 1024
+const KNOWLEDGE_DOCUMENT_PAGE_SIZE = 100
+const MAX_VFS_KNOWLEDGE_DOCUMENTS = 10_000
 
 function bindWorkspaceFileResult<T>(
   record: WorkspaceFileRecord,
@@ -179,6 +230,14 @@ function bindWorkspaceFileResult<T>(
       context: record.storageContext ?? 'workspace',
     },
     ...(contributingFiles.length > 0 ? { contributingFiles } : {}),
+  }
+}
+
+function renderErrorResult(error: string): FileReadResult {
+  return {
+    content: JSON.stringify({ ok: false, error }),
+    totalLines: 1,
+    error,
   }
 }
 
@@ -570,6 +629,14 @@ function getStaticComponentFiles(): Map<string, string> {
  *   custom-tools/{name}.json
  *   agent/sandboxes/README.md
  *   agent/sandboxes/{name}.json
+ *   account/workspace.json                           (this workspace + your role; always present)
+ *   account/workspaces.json                          (every workspace you can reach)
+ *   account/members.json                             (workspace members; emails admin-only)
+ *   account/billing.json                             (plan/usage/credits; lazy, read fresh)
+ *   organization/organization.json                   (org standing; only when org-hosted)
+ *   organization/access-control.json                 (your governing group + restrictions)
+ *   organization/custom-blocks.json                  (org-published block provenance)
+ *   organization/forks.json                          (fork topology; workspace admins only)
  *   environment/credentials.json
  *   environment/api-keys.json
  *   environment/variables.json
@@ -582,6 +649,8 @@ function getStaticComponentFiles(): Map<string, string> {
  *   components/triggers/{provider}/{id}.json           (external triggers: github, slack, etc.)
  */
 export class WorkspaceVFS {
+  private readonly filePrincipal?: Principal
+  private readonly knowledgePrincipal?: Principal
   // Eagerly-materialized, cheap content (structure + metadata): folder markers,
   // per-resource meta.json, WORKSPACE.md/WORKSPACE_CONTEXT.md, static components.
   private files: Map<string, string> = new Map()
@@ -613,6 +682,11 @@ export class WorkspaceVFS {
    * means the org genuinely has no custom blocks, so any placed one IS deleted.
    */
   private _customBlockTypes: Set<string> | null = null
+
+  constructor(filePrincipal?: Principal, knowledgePrincipal?: Principal) {
+    this.filePrincipal = filePrincipal
+    this.knowledgePrincipal = knowledgePrincipal
+  }
 
   get workspaceId(): string {
     return this._workspaceId
@@ -722,7 +796,13 @@ export class WorkspaceVFS {
       if (!scope || ops.pathWithinGrepScope(path, scope)) targets.push(path)
     }
     if (targets.length === 0) return
-    await Promise.all(targets.map((path) => this.resolveLazyPath(path)))
+    // One unmaterializable artifact (e.g. an over-limit knowledge base's
+    // documents.json) must not fail the whole sweep — that would make every
+    // unscoped grep on the workspace error on content the caller never asked
+    // about. Skip it: grep proceeds over everything that resolved, the loader
+    // stays re-armed, and reading the failing path directly still surfaces its
+    // own error (resolveLazyPath logs each failure).
+    await Promise.allSettled(targets.map((path) => this.resolveLazyPath(path)))
   }
 
   /**
@@ -794,6 +874,13 @@ export class WorkspaceVFS {
               'sandbox_entitlement',
               hasWorkspaceSandboxAccess(workspaceId)
             )
+            // Shared with the account/ and organization/ namespaces so the
+            // roster and host context are each read once per materialization.
+            const membersPromise = timed('members', getUsersWithPermissions(workspaceId))
+            const hostContextPromise = timed(
+              'host_context',
+              getWorkspaceHostContextForViewer(workspaceId, userId).catch(() => null)
+            )
             const [
               wfSummary,
               kbSummary,
@@ -811,7 +898,7 @@ export class WorkspaceVFS {
               sandboxEntitled,
             ] = await Promise.all([
               timed('workflows', this.materializeWorkflows(workspaceId)),
-              timed('knowledge_bases', this.materializeKnowledgeBases(workspaceId, userId)),
+              timed('knowledge_bases', this.materializeKnowledgeBases(workspaceId)),
               timed('tables', this.materializeTables(workspaceId)),
               timed('files', this.materializeFiles(workspaceId)),
               timed(
@@ -835,9 +922,18 @@ export class WorkspaceVFS {
                 )
               ),
               timed('workspace_row', getWorkspaceWithOwner(workspaceId)),
-              timed('members', getUsersWithPermissions(workspaceId)),
+              membersPromise,
               permissionConfigPromise,
               sandboxEntitlementPromise,
+            ])
+
+            // account/ and organization/ describe the viewer's standing rather
+            // than workspace resources, so they are materialized after the
+            // resource pass and contribute nothing to WORKSPACE.md.
+            const hostContext = await hostContextPromise
+            await Promise.all([
+              timed('account', this.materializeAccount(workspaceId, userId, hostContext, members)),
+              timed('organization', this.materializeOrganization(workspaceId, userId, hostContext)),
             ])
             const workspaceMdData: WorkspaceMdData = {
               workspace: wsRow,
@@ -858,7 +954,7 @@ export class WorkspaceVFS {
             this.files.set('WORKSPACE.md', buildWorkspaceMd(workspaceMdData))
             this.files.set('WORKSPACE_CONTEXT.md', buildWorkspaceContextMd(workspaceMdData))
 
-            await timed('recently_deleted', this.materializeRecentlyDeleted(workspaceId, userId))
+            await timed('recently_deleted', this.materializeRecentlyDeleted(workspaceId))
 
             // Per-viewer gating happens HERE, not in the shared builder: files
             // owned by blocks hidden for this viewer are skipped at stamp time.
@@ -1001,9 +1097,18 @@ export class WorkspaceVFS {
     const normalized = path.replace(/^\/+/, '')
     // Prefer the path verbatim when it is itself a file leaf (e.g. a file literally
     // named "content"); otherwise drop a trailing "/content" read suffix.
-    const leaf = this.files.has(normalized) ? normalized : normalized.replace(/\/content$/, '')
+    let leaf = this.files.has(normalized) ? normalized : normalized.replace(/\/content$/, '')
 
-    const isWorkspaceFilePath = /^(recently-deleted\/)?files(\/|$)/.test(leaf)
+    let isWorkspaceFilePath = /^(recently-deleted\/)?files(\/|$)/.test(leaf)
+    if (isWorkspaceFilePath && !this.files.has(leaf)) {
+      // Same encoding tolerance as vfs_read: a decoded display form that maps
+      // to exactly one canonical key resolves instead of erroring.
+      const decodedEquivalent = this.resolveDecodedEquivalent(leaf)
+      if (decodedEquivalent) {
+        leaf = decodedEquivalent
+        isWorkspaceFilePath = /^(recently-deleted\/)?files(\/|$)/.test(leaf)
+      }
+    }
     if (!isWorkspaceFilePath || !this.files.has(leaf)) {
       const suggestions = this.suggestSimilar(leaf)
       const hint =
@@ -1019,6 +1124,9 @@ export class WorkspaceVFS {
     const result = await this.readFileContentWithProvenance(contentPath)
     if (!result) {
       throw new ops.WorkspaceFileGrepError(`Workspace file content not found for "${path}".`)
+    }
+    if (result.value.placeholder === 'oversized') {
+      throw new ops.WorkspaceFileGrepError(`File is too large to search: ${result.value.content}`)
     }
 
     return {
@@ -1047,6 +1155,25 @@ export class WorkspaceVFS {
     return ops.suggestSimilar(this.keyView(true), missingPath, max)
   }
 
+  /**
+   * Resolves a missing path to an existing one when the two differ ONLY by
+   * percent-encoding (the model typed the decoded display form — spaces
+   * instead of %20). Returns the canonical existing path when exactly one key
+   * decodes to the same segments; ambiguity or a genuine miss returns null so
+   * the not-found error (with suggestions) still fires. Never fuzzy: same
+   * name, different bytes only.
+   */
+  resolveDecodedEquivalent(missingPath: string): string | null {
+    const target = decodeVfsPathSegmentsSafe(missingPath)
+    let match: string | null = null
+    for (const key of this.keyView(true).keys()) {
+      if (decodeVfsPathSegmentsSafe(key) !== target) continue
+      if (match !== null) return null
+      match = key
+    }
+    return match
+  }
+
   private async resolveWorkspaceFileForDynamicRead(
     path: string,
     suffix: 'style' | 'compiled-check' | 'compiled' | 'render' | 'extract'
@@ -1054,8 +1181,28 @@ export class WorkspaceVFS {
     const canonicalMatch = path.match(new RegExp(`^files/(.+)/${suffix}$`))
     if (!canonicalMatch?.[1]) return null
 
-    const files = await listWorkspaceFiles(this._workspaceId)
+    if (!this.filePrincipal) {
+      throw new Error('Workspace file reads require a trusted Copilot principal')
+    }
+    const { files } = await listAllWorkspaceFiles.execute({
+      principal: this.filePrincipal,
+      input: { workspaceId: this._workspaceId, scope: 'active' },
+    })
     return findWorkspaceFileRecord(files, `files/${canonicalMatch[1]}`)
+  }
+
+  private requireFilePrincipal(): Principal {
+    if (!this.filePrincipal) {
+      throw new Error('Workspace file reads require a trusted Copilot principal')
+    }
+    return this.filePrincipal
+  }
+
+  private requireKnowledgePrincipal(): Principal {
+    if (!this.knowledgePrincipal) {
+      throw new Error('Workspace Knowledge reads require a trusted Copilot principal')
+    }
+    return this.knowledgePrincipal
   }
 
   /**
@@ -1074,17 +1221,18 @@ export class WorkspaceVFS {
     contributingFiles: Map<string, WorkspaceFileSecretProvenanceIdentity>
   ): Promise<FileReadResult> {
     if (typeof record.size === 'number' && record.size > MAX_DOC_READ_INPUT_BYTES) {
-      return {
-        content: JSON.stringify({ ok: false, error: 'File is too large to render' }),
-        totalLines: 1,
-      }
+      return renderErrorResult('File is too large to render')
     }
-    const buffer = await fetchWorkspaceFileBuffer(record)
+    const { content: buffer } = await readWorkspaceFileContent.execute({
+      principal: this.requireFilePrincipal(),
+      input: {
+        fileId: record.id,
+        assertedWorkspaceId: this._workspaceId,
+        maxBytes: MAX_DOC_READ_INPUT_BYTES,
+      },
+    })
     if (buffer.length > MAX_DOC_READ_INPUT_BYTES) {
-      return {
-        content: JSON.stringify({ ok: false, error: 'File is too large to render' }),
-        totalLines: 1,
-      }
+      return renderErrorResult('File is too large to render')
     }
     // Already-binary uploads render directly; source files are compiled first
     // (E2B regime -> doc sandbox: Node pptx/docx, Python pdf; otherwise
@@ -1095,28 +1243,21 @@ export class WorkspaceVFS {
     } else {
       const code = buffer.toString('utf-8')
       if (Buffer.byteLength(code, 'utf-8') > MAX_DOCUMENT_PREVIEW_CODE_BYTES) {
-        return {
-          content: JSON.stringify({ ok: false, error: 'File source exceeds maximum size' }),
-          totalLines: 1,
-        }
+        return renderErrorResult('File source exceeds maximum size')
       }
-      if (await getE2BDocFormat(record.name)) {
-        const compiled = await compileDoc({
-          source: code,
-          fileName: record.name,
-          workspaceId: this._workspaceId,
-        })
-        for (const identity of compiled.contributingFiles ?? []) {
-          recordContributingFile(contributingFiles, identity)
-        }
-        bin = compiled.buffer
+      if (isDocSandboxEnabled && (await getE2BDocFormat(record.name))) {
+        bin = (
+          await compileDoc({
+            source: code,
+            fileName: record.name,
+            workspaceId: this._workspaceId,
+            filePrincipal: this.requireFilePrincipal(),
+          })
+        ).buffer
       } else {
         const taskId = BINARY_DOC_TASKS[ext]
         if (!taskId) {
-          return {
-            content: JSON.stringify({ ok: false, error: 'Cannot render this file' }),
-            totalLines: 1,
-          }
+          return renderErrorResult('Cannot render this file')
         }
         bin = await runSandboxTask(
           taskId,
@@ -1207,7 +1348,14 @@ export class WorkspaceVFS {
           })
         }
 
-        const buffer = await fetchWorkspaceFileBuffer(record)
+        const { content: buffer } = await readWorkspaceFileContent.execute({
+          principal: this.requireFilePrincipal(),
+          input: {
+            fileId: record.id,
+            assertedWorkspaceId: this._workspaceId,
+            maxBytes: MAX_DOC_READ_INPUT_BYTES,
+          },
+        })
         const code = buffer.toString('utf-8')
         if (Buffer.byteLength(code, 'utf-8') > MAX_DOCUMENT_PREVIEW_CODE_BYTES) {
           return bindWorkspaceFileResult(record, {
@@ -1216,11 +1364,12 @@ export class WorkspaceVFS {
           })
         }
         let compiled: Buffer
-        if (docFmt) {
+        if (isDocSandboxEnabled && docFmt) {
           const compiledResult = await compileDoc({
             source: code,
             fileName: record.name,
             workspaceId: this._workspaceId,
+            filePrincipal: this.requireFilePrincipal(),
           })
           for (const identity of compiledResult.contributingFiles ?? []) {
             recordContributingFile(contributingFiles, identity)
@@ -1294,13 +1443,10 @@ export class WorkspaceVFS {
         if (!record) return null
         const ext = record.name.split('.').pop()?.toLowerCase() ?? ''
         if (!isRenderableDocExt(ext)) {
-          return bindWorkspaceFileResult(record, {
-            content: JSON.stringify({
-              ok: false,
-              error: 'Render supports .pptx, .docx, and .pdf only',
-            }),
-            totalLines: 1,
-          })
+          return bindWorkspaceFileResult(
+            record,
+            renderErrorResult('Render supports .pptx, .docx, and .pdf only')
+          )
         }
         const renderName = record.name
         const rendered = await this.renderDocRecordResult(
@@ -1312,19 +1458,17 @@ export class WorkspaceVFS {
         )
         return bindWorkspaceFileResult(record, rendered, 'derived', [...contributingFiles.values()])
       } catch (err) {
+        const error = toError(err).message
         logger.warn('Render read failed via VFS', {
           workspaceId: this._workspaceId,
           path,
           fileId: record?.id,
-          error: toError(err).message,
+          error,
         })
         // Return an explicit error (not null) once the file resolved — a null read
         // looks like a missing path and sends the agent hunting for the "correct"
         // render path instead of surfacing the real compile/render failure.
-        const errorResult = {
-          content: JSON.stringify({ ok: false, error: toError(err).message }),
-          totalLines: 1,
-        }
+        const errorResult = renderErrorResult(error)
         return record ? bindWorkspaceFileResult(record, errorResult) : { value: errorResult }
       }
     }
@@ -1352,7 +1496,14 @@ export class WorkspaceVFS {
             totalLines: 1,
           })
         }
-        const buffer = await fetchWorkspaceFileBuffer(record)
+        const { content: buffer } = await readWorkspaceFileContent.execute({
+          principal: this.requireFilePrincipal(),
+          input: {
+            fileId: record.id,
+            assertedWorkspaceId: this._workspaceId,
+            maxBytes: MAX_DOC_READ_INPUT_BYTES,
+          },
+        })
         if (buffer.length > MAX_DOC_READ_INPUT_BYTES) {
           return bindWorkspaceFileResult(record, {
             content: JSON.stringify({ ok: false, error: 'File is too large to extract' }),
@@ -1403,14 +1554,57 @@ export class WorkspaceVFS {
         const e2bFmt = isDocSandboxEnabled ? await getE2BDocFormat(record.name) : null
         const taskId = BINARY_DOC_TASKS[ext]
         const isMermaidFile = ext === 'mmd' || ext === 'mermaid'
-        if (!e2bFmt && !taskId && !isMermaidFile) return null
-        const buffer = await fetchWorkspaceFileBuffer(record)
+        // Sim pages (and legacy .html-named page source) compile-check too:
+        // this is the only way an agent can retrieve the "block skipped"
+        // diagnostics for an ALREADY-written page — without it, "find the
+        // malformed table" degenerates into guessing.
+        const maybeSimPage = record.type === SIM_PAGE_CONTENT_TYPE || ext === 'html'
+        if (!e2bFmt && !taskId && !isMermaidFile && !maybeSimPage) return null
+        const { content: buffer } = await readWorkspaceFileContent.execute({
+          principal: this.requireFilePrincipal(),
+          input: {
+            fileId: record.id,
+            assertedWorkspaceId: this._workspaceId,
+            maxBytes: MAX_DOC_READ_INPUT_BYTES,
+          },
+        })
         const code = buffer.toString('utf-8')
         if (Buffer.byteLength(code, 'utf-8') > MAX_DOCUMENT_PREVIEW_CODE_BYTES) {
           return bindWorkspaceFileResult(record, {
             content: JSON.stringify({ ok: false, error: 'File source exceeds maximum size' }),
             totalLines: 1,
           })
+        }
+        if (maybeSimPage && isSimPageSource(code)) {
+          const diagnostics = collectSimPageDiagnostics(code)
+          const result =
+            diagnostics.length === 0
+              ? { ok: true }
+              : {
+                  ok: false,
+                  error: `${diagnostics.length} block(s) fail to compile and are omitted from the rendered page: ${diagnostics.join('; ')}`,
+                }
+          return bindWorkspaceFileResult(record, {
+            content: JSON.stringify(result),
+            totalLines: 1,
+          })
+        }
+        if (maybeSimPage && !e2bFmt && !taskId && !isMermaidFile) {
+          if (record.type === SIM_PAGE_CONTENT_TYPE) {
+            // A page-typed file whose bytes are not page source (e.g. a crash
+            // between upload registration and source restore) — report it
+            // rather than pretending the path does not exist.
+            return bindWorkspaceFileResult(record, {
+              content: JSON.stringify({
+                ok: false,
+                error:
+                  'Stored content is not page source (no YAML frontmatter with a title) — the file renders as raw HTML',
+              }),
+              totalLines: 1,
+            })
+          }
+          // Bespoke raw HTML has no compiler to check.
+          return null
         }
         if (isMermaidFile) {
           const result = await validateMermaidSource(code)
@@ -1427,6 +1621,7 @@ export class WorkspaceVFS {
             fileName: record.name,
             workspaceId: this._workspaceId,
             ext,
+            principal: this.requireFilePrincipal(),
           })
         } else {
           try {
@@ -1463,7 +1658,20 @@ export class WorkspaceVFS {
         const rawExt = record.name.split('.').pop()?.toLowerCase()
         if (rawExt !== 'docx' && rawExt !== 'pptx' && rawExt !== 'pdf') return null
         const ext: 'docx' | 'pptx' | 'pdf' = rawExt
-        const buffer = await fetchWorkspaceFileBuffer(record)
+        if (typeof record.size === 'number' && record.size > MAX_DOC_READ_INPUT_BYTES) {
+          return bindWorkspaceFileResult(record, {
+            content: JSON.stringify({ ok: false, error: 'File is too large to extract style' }),
+            totalLines: 1,
+          })
+        }
+        const { content: buffer } = await readWorkspaceFileContent.execute({
+          principal: this.requireFilePrincipal(),
+          input: {
+            fileId: record.id,
+            assertedWorkspaceId: this._workspaceId,
+            maxBytes: MAX_DOC_READ_INPUT_BYTES,
+          },
+        })
         const summary = await extractDocumentStyle(buffer, ext)
         if (!summary) return null
         const json = JSON.stringify(summary, null, 2)
@@ -1495,19 +1703,46 @@ export class WorkspaceVFS {
 
     const scope = deletedMatch ? 'archived' : 'active'
 
+    let sizeCappedRecord: WorkspaceFileRecord | undefined
+    let sizeCap = MAX_TEXT_READ_BYTES
     try {
-      const files = await listWorkspaceFiles(this._workspaceId, { scope })
+      const { files } = await listAllWorkspaceFiles.execute({
+        principal: this.requireFilePrincipal(),
+        input: { workspaceId: this._workspaceId, scope },
+      })
       const record = findWorkspaceFileRecord(files, fileReference)
       if (!record) return null
-      const result = await readFileRecord(record)
+      sizeCappedRecord = record
+      sizeCap = isImageFileType(resolveEffectiveMimeType(record.type, record.name))
+        ? MAX_IMAGE_SOURCE_BYTES
+        : MAX_TEXT_READ_BYTES
+      const { file, content } = await readWorkspaceFileContent.execute({
+        principal: this.requireFilePrincipal(),
+        input: {
+          fileId: record.id,
+          assertedWorkspaceId: this._workspaceId,
+          includeDeleted: scope === 'archived',
+          maxBytes: sizeCap,
+        },
+      })
+      const result = await readFileRecord(file, content)
       return result
         ? bindWorkspaceFileResult(
-            record,
+            file,
             result,
-            isReadableFileType(record.type) ? 'complete' : 'derived'
+            isReadableFileType(file.type) ? 'complete' : 'derived'
           )
         : null
     } catch (err) {
+      // A cap breach is an answer, not a lookup failure: returning null here
+      // reported multi-MB files as "content not found". The oversized
+      // placeholder tells the model the file exists and why it can't be read.
+      if (isPayloadSizeLimitError(err) && sizeCappedRecord) {
+        return bindWorkspaceFileResult(
+          sizeCappedRecord,
+          readPlaceholder.fileTooLarge(sizeCappedRecord.name, sizeCappedRecord.size ?? 0, sizeCap)
+        )
+      }
       logger.warn('Failed to list workspace files for readFileContent', {
         workspaceId: this._workspaceId,
         path,
@@ -1525,6 +1760,26 @@ export class WorkspaceVFS {
     folders: Array<{ folderId: string; folderName: string; parentId: string | null }>
   ): Map<string, string> {
     return buildVfsFolderPathMap(folders)
+  }
+
+  /**
+   * Folder paths for a non-workflow resource tree (tables, knowledge bases),
+   * plus `.folder` markers so empty folders are discoverable via glob — the
+   * same contract workflows/ has. Returns folderId → encoded folder path.
+   */
+  private async registerResourceFolders(
+    workspaceId: string,
+    resourceType: 'table' | 'knowledge_base',
+    rootSegment: 'tables' | 'knowledgebases'
+  ): Promise<Map<string, string>> {
+    const folders = await listFoldersForWorkspace(workspaceId, 'active', resourceType)
+    const paths = buildVfsFolderPathMap(
+      folders.map((f) => ({ folderId: f.id, folderName: f.name, parentId: f.parentId }))
+    )
+    for (const folderPath of paths.values()) {
+      this.files.set(`${rootSegment}/${folderPath}/.folder`, '')
+    }
+    return paths
   }
 
   /**
@@ -1696,11 +1951,24 @@ export class WorkspaceVFS {
           })
         }
 
+        // deployment.json exists for EVERY workflow: "is it deployed?" is a
+        // question with an answer either way, and a not-found error here was a
+        // recurring red herring — agents probing an undeployed workflow read a
+        // failure instead of the fact. Versions stay gated: they genuinely
+        // don't exist before the first deploy.
+        this.registerLazy(`${prefix}deployment.json`, async () => {
+          if (!versionedWorkflowIds.has(wf.id)) {
+            return JSON.stringify({
+              deployed: false,
+              note: 'This workflow has never been deployed.',
+            })
+          }
+          const deploymentData = await this.loadDeployments(wf.id)
+          return deploymentData
+            ? serializeDeployments(deploymentData)
+            : JSON.stringify({ deployed: false, note: 'This workflow has never been deployed.' })
+        })
         if (versionedWorkflowIds.has(wf.id)) {
-          this.registerLazy(`${prefix}deployment.json`, async () => {
-            const deploymentData = await this.loadDeployments(wf.id)
-            return deploymentData ? serializeDeployments(deploymentData) : null
-          })
           this.registerLazy(`${prefix}versions.json`, async () => {
             const deploymentData = await this.loadDeployments(wf.id)
             return deploymentData?.versions && deploymentData.versions.length > 0
@@ -1720,99 +1988,107 @@ export class WorkspaceVFS {
     }))
   }
 
-  /**
-   * Materialize knowledge bases using the shared getKnowledgeBases function.
-   * Returns a summary for WORKSPACE.md generation.
-   */
+  /** Materializes authorized knowledge summaries for WORKSPACE.md generation. */
   private async materializeKnowledgeBases(
-    workspaceId: string,
-    userId: string
+    workspaceId: string
   ): Promise<WorkspaceMdData['knowledgeBases']> {
-    const kbs = await getKnowledgeBases(userId, workspaceId)
-
-    const tagDefinitionsByKb = await this.loadKbTagDefinitions(kbs.map((kb) => kb.id))
-
-    await Promise.all(
-      kbs.map(async (kb) => {
-        const safeName = sanitizeName(kb.name)
-        const prefix = `knowledgebases/${safeName}/`
-
-        this.files.set(
-          `${prefix}meta.json`,
-          serializeKBMeta({
-            id: kb.id,
-            name: kb.name,
-            description: kb.description,
-            embeddingModel: kb.embeddingModel,
-            embeddingDimension: kb.embeddingDimension,
-            tokenCount: kb.tokenCount,
-            createdAt: kb.createdAt,
-            updatedAt: kb.updatedAt,
-            documentCount: kb.docCount,
-            connectorTypes: kb.connectorTypes,
-            tagDefinitions: tagDefinitionsByKb.get(kb.id),
-          })
-        )
-
-        // documents.json / connectors.json are lazy, advertised only when the KB
-        // summary says they exist (docCount / connectorTypes) — no per-KB query on
-        // a read/glob, only when the artifact is read or grepped.
-        if (kb.docCount > 0) {
-          this.registerLazy(`${prefix}documents.json`, async () => {
-            const docRows = await db
-              .select({
-                id: document.id,
-                filename: document.filename,
-                fileSize: document.fileSize,
-                mimeType: document.mimeType,
-                chunkCount: document.chunkCount,
-                tokenCount: document.tokenCount,
-                processingStatus: document.processingStatus,
-                enabled: document.enabled,
-                uploadedAt: document.uploadedAt,
-              })
-              .from(document)
-              .where(
-                and(
-                  eq(document.knowledgeBaseId, kb.id),
-                  eq(document.userExcluded, false),
-                  isNull(document.archivedAt),
-                  isNull(document.deletedAt)
-                )
-              )
-            return docRows.length > 0 ? serializeDocuments(docRows) : null
-          })
-        }
-
-        if (kb.connectorTypes.length > 0) {
-          this.registerLazy(`${prefix}connectors.json`, async () => {
-            const connectorRows = await db
-              .select({
-                id: knowledgeConnector.id,
-                connectorType: knowledgeConnector.connectorType,
-                status: knowledgeConnector.status,
-                syncMode: knowledgeConnector.syncMode,
-                syncIntervalMinutes: knowledgeConnector.syncIntervalMinutes,
-                lastSyncAt: knowledgeConnector.lastSyncAt,
-                lastSyncError: knowledgeConnector.lastSyncError,
-                lastSyncDocCount: knowledgeConnector.lastSyncDocCount,
-                nextSyncAt: knowledgeConnector.nextSyncAt,
-                consecutiveFailures: knowledgeConnector.consecutiveFailures,
-                createdAt: knowledgeConnector.createdAt,
-              })
-              .from(knowledgeConnector)
-              .where(
-                and(
-                  eq(knowledgeConnector.knowledgeBaseId, kb.id),
-                  isNull(knowledgeConnector.archivedAt),
-                  isNull(knowledgeConnector.deletedAt)
-                )
-              )
-            return connectorRows.length > 0 ? serializeConnectors(connectorRows) : null
-          })
-        }
-      })
+    const { knowledgeBases } = await listKnowledgeBaseCatalog.execute({
+      principal: this.requireKnowledgePrincipal(),
+      input: { workspaceId },
+    })
+    const kbs = knowledgeBases.map(({ knowledgeBase }) => knowledgeBase)
+    const folderPaths = await this.registerResourceFolders(
+      workspaceId,
+      'knowledge_base',
+      'knowledgebases'
     )
+
+    for (const { knowledgeBase: kb, tagDefinitions } of knowledgeBases) {
+      const safeName = sanitizeName(kb.name)
+      const folderPath = kb.folderId ? folderPaths.get(kb.folderId) : undefined
+      const prefix = folderPath
+        ? `knowledgebases/${folderPath}/${safeName}/`
+        : `knowledgebases/${safeName}/`
+
+      this.files.set(
+        `${prefix}meta.json`,
+        serializeKBMeta({
+          id: kb.id,
+          name: kb.name,
+          description: kb.description,
+          embeddingModel: kb.embeddingModel,
+          embeddingDimension: kb.embeddingDimension,
+          tokenCount: kb.tokenCount,
+          createdAt: kb.createdAt,
+          updatedAt: kb.updatedAt,
+          documentCount: kb.docCount,
+          connectorTypes: kb.connectorTypes,
+          tagDefinitions: tagDefinitions.map((definition) => ({
+            id: definition.id,
+            tagName: definition.displayName,
+            tagSlot: definition.tagSlot,
+            fieldType: definition.fieldType,
+          })),
+        })
+      )
+
+      // documents.json / connectors.json are lazy, advertised only when the KB
+      // summary says they exist (docCount / connectorTypes) — no per-KB query on
+      // a read/glob, only when the artifact is read or grepped.
+      if (kb.docCount > 0) {
+        this.registerLazy(`${prefix}documents.json`, async () => {
+          if (kb.docCount > MAX_VFS_KNOWLEDGE_DOCUMENTS) {
+            throw new Error(
+              `Knowledge base ${kb.id} has more than ${MAX_VFS_KNOWLEDGE_DOCUMENTS} documents; documents.json cannot be materialized`
+            )
+          }
+          const documents: Awaited<ReturnType<typeof listKnowledgeDocuments.execute>>['documents'] =
+            []
+          let offset = 0
+          while (true) {
+            const page = await listKnowledgeDocuments.execute({
+              principal: this.requireKnowledgePrincipal(),
+              input: {
+                knowledgeBaseId: kb.id,
+                assertedWorkspaceId: workspaceId,
+                limit: KNOWLEDGE_DOCUMENT_PAGE_SIZE,
+                offset,
+              },
+            })
+            documents.push(...page.documents)
+            if (documents.length > MAX_VFS_KNOWLEDGE_DOCUMENTS) {
+              throw new Error(
+                `Knowledge base ${kb.id} exceeded the ${MAX_VFS_KNOWLEDGE_DOCUMENTS} document limit while materializing documents.json`
+              )
+            }
+            if (!page.pagination.hasMore) break
+            offset += page.pagination.limit
+          }
+          const docRows = documents.map((document) => ({
+            id: document.id,
+            filename: document.filename,
+            fileSize: document.fileSize,
+            mimeType: document.mimeType,
+            chunkCount: document.chunkCount,
+            tokenCount: document.tokenCount,
+            processingStatus: document.processingStatus,
+            enabled: document.enabled,
+            uploadedAt: document.uploadedAt,
+          }))
+          return docRows.length > 0 ? serializeDocuments(docRows) : null
+        })
+      }
+
+      if (kb.connectorTypes.length > 0) {
+        this.registerLazy(`${prefix}connectors.json`, async () => {
+          const { connectors: connectorRows } = await listKnowledgeConnectors.execute({
+            principal: this.requireKnowledgePrincipal(),
+            input: { knowledgeBaseId: kb.id, assertedWorkspaceId: workspaceId },
+          })
+          return connectorRows.length > 0 ? serializeConnectors(connectorRows) : null
+        })
+      }
+    }
 
     return kbs.map((kb) => ({
       id: kb.id,
@@ -1823,72 +2099,50 @@ export class WorkspaceVFS {
   }
 
   /**
-   * Load tag definitions for the given knowledge bases in a single query, grouped by
-   * KB id and ordered by tag slot. Surfaced inline in each KB's meta.json so the agent
-   * knows which tags exist (and their slot binding) when editing a knowledge-tag filter.
-   *
-   * @remarks
-   * Tag definitions are an optional enrichment, so a query failure degrades to a meta.json
-   * without them rather than rejecting. This materializer runs inside the top-level
-   * `Promise.all`, whose rejection would fail the entire workspace VFS build and leave the
-   * agent unable to read any file.
-   */
-  private async loadKbTagDefinitions(
-    kbIds: string[]
-  ): Promise<Map<string, KbTagDefinitionSummary[]>> {
-    const byKb = new Map<string, KbTagDefinitionSummary[]>()
-    if (kbIds.length === 0) return byKb
-
-    let rows: Array<{
-      knowledgeBaseId: string
-      tagSlot: string
-      displayName: string
-      fieldType: string
-    }>
-    try {
-      rows = await db
-        .select({
-          knowledgeBaseId: knowledgeBaseTagDefinitions.knowledgeBaseId,
-          tagSlot: knowledgeBaseTagDefinitions.tagSlot,
-          displayName: knowledgeBaseTagDefinitions.displayName,
-          fieldType: knowledgeBaseTagDefinitions.fieldType,
-        })
-        .from(knowledgeBaseTagDefinitions)
-        .where(inArray(knowledgeBaseTagDefinitions.knowledgeBaseId, kbIds))
-        .orderBy(knowledgeBaseTagDefinitions.tagSlot)
-    } catch (err) {
-      logger.warn('Failed to load knowledge base tag definitions', {
-        error: toError(err).message,
-      })
-      return byKb
-    }
-
-    for (const row of rows) {
-      const entry = {
-        tagName: row.displayName,
-        tagSlot: row.tagSlot,
-        fieldType: row.fieldType,
-      }
-      const existing = byKb.get(row.knowledgeBaseId)
-      if (existing) existing.push(entry)
-      else byKb.set(row.knowledgeBaseId, [entry])
-    }
-
-    return byKb
-  }
-
-  /**
    * Materialize tables using the shared listTables function.
    * Returns a summary for WORKSPACE.md generation.
    */
   private async materializeTables(workspaceId: string): Promise<WorkspaceMdData['tables']> {
     try {
-      const tables = await listTables(workspaceId)
+      const [tables, folderPaths, viewsByTable] = await Promise.all([
+        listTables(workspaceId),
+        this.registerResourceFolders(workspaceId, 'table', 'tables'),
+        listTableViewsByWorkspace(workspaceId),
+      ])
 
       for (const table of tables) {
         const safeName = sanitizeName(table.name)
+        const folderPath = table.folderId ? folderPaths.get(table.folderId) : undefined
+        const prefix = folderPath ? `tables/${folderPath}/${safeName}` : `tables/${safeName}`
+        const viewRows = viewsByTable.get(table.id) ?? []
+        if (viewRows.length > 0) {
+          const columns = table.schema.columns
+          this.files.set(
+            `${prefix}/views.json`,
+            serializeTableViews(
+              viewRows.map((row) => {
+                const config = viewConfigIdsToNames(
+                  pruneViewConfig(
+                    normalizeStoredViewConfig(row.config as Record<string, unknown>),
+                    columns
+                  ),
+                  columns
+                )
+                return {
+                  id: row.id,
+                  name: row.name,
+                  isDefault: row.isDefault,
+                  filter: config.filter ?? null,
+                  sort: config.sort ?? null,
+                  hiddenColumns: config.hiddenColumns,
+                  updatedAt: row.updatedAt,
+                }
+              })
+            )
+          )
+        }
         this.files.set(
-          `tables/${safeName}/meta.json`,
+          `${prefix}/meta.json`,
           serializeTableMeta({
             id: table.id,
             name: table.name,
@@ -1923,24 +2177,19 @@ export class WorkspaceVFS {
    */
   private async materializeFiles(workspaceId: string): Promise<WorkspaceMdData['files']> {
     try {
-      const folders = await listWorkspaceFileFolders(workspaceId)
-      const files = await listWorkspaceFiles(workspaceId, { folders, throwOnError: true })
-      // Batch-load public share state so each file's metadata carries an ambient
-      // `shared` flag (mirrors how the files-list UI enriches rows) — no N+1.
-      // Fail soft: share state is only metadata enrichment, so a lookup failure
-      // must not drop the whole file tree (the outer catch returns []) — fall back
-      // to no shares, and files still materialize with `shared: false`.
-      let shareByFileId: Awaited<ReturnType<typeof getWorkspaceShares>> = new Map()
-      try {
-        shareByFileId = await getWorkspaceShares('file', workspaceId)
-      } catch (error) {
-        logger.warn('Failed to load file share state; file metadata will show shared: false', {
-          workspaceId,
-          error: toError(error).message,
-        })
-      }
+      const principal = this.requireFilePrincipal()
+      const [{ folders }, { files }] = await Promise.all([
+        listWorkspaceFileFoldersOperation.execute({
+          principal,
+          input: { workspaceId, scope: 'active' },
+        }),
+        listAllWorkspaceFiles.execute({ principal, input: { workspaceId, scope: 'active' } }),
+      ])
       for (const folder of folders) {
-        this.files.set(`files/${encodeVfsPathSegments(folder.path.split('/'))}/.folder`, '')
+        this.files.set(
+          `files/${encodeVfsPathSegments(parseWorkspaceFileFolderDisplayPath(folder.path))}/.folder`,
+          ''
+        )
       }
 
       for (const file of files) {
@@ -1948,7 +2197,7 @@ export class WorkspaceVFS {
           folderPath: file.folderPath,
           name: file.name,
         })
-        const share = shareByFileId.get(file.id)
+        const share = file.share
         const shared = share?.isActive ?? false
         this.files.set(
           filePath,
@@ -2003,6 +2252,10 @@ export class WorkspaceVFS {
           authType: chatTable.authType,
           customizations: chatTable.customizations,
           isActive: chatTable.isActive,
+          allowedEmails: chatTable.allowedEmails,
+          outputConfigs: chatTable.outputConfigs,
+          includeThinking: chatTable.includeThinking,
+          includeToolCalls: chatTable.includeToolCalls,
         })
         .from(chatTable)
         .where(and(eq(chatTable.workflowId, workflowId), isNull(chatTable.archivedAt))),
@@ -2013,6 +2266,7 @@ export class WorkspaceVFS {
           toolId: workflowMcpTool.id,
           toolName: workflowMcpTool.toolName,
           toolDescription: workflowMcpTool.toolDescription,
+          parameterDescriptionOverrides: workflowMcpTool.parameterDescriptionOverrides,
         })
         .from(workflowMcpTool)
         .innerJoin(workflowMcpServer, eq(workflowMcpTool.serverId, workflowMcpServer.id))
@@ -2178,6 +2432,368 @@ export class WorkspaceVFS {
   }
 
   /**
+   * Materialize `account/` — the acting user's vantage: this workspace and
+   * their role in it, the workspaces they can reach, who else is here, and
+   * their live plan.
+   *
+   * Read-only and always mounted. `billing.json` is registered lazily because
+   * usage ticks between requests: materializing it would freeze the numbers at
+   * snapshot time and pay for a billing read on every turn that never asks.
+   * Membership reuses the roster already loaded for WORKSPACE.md rather than
+   * issuing a second query.
+   */
+  private async materializeAccount(
+    workspaceId: string,
+    userId: string,
+    hostContext: Awaited<ReturnType<typeof getWorkspaceHostContextForViewer>>,
+    members: Awaited<ReturnType<typeof getUsersWithPermissions>>
+  ): Promise<void> {
+    try {
+      const [rows, entitlements] = await Promise.all([
+        listAccessibleWorkspaceRowsForUser(userId).catch(() => []),
+        computeWorkspaceEntitlements(workspaceId, userId).catch(() => [] as string[]),
+      ])
+
+      const current = rows.find((row) => row.workspace.id === workspaceId)
+      const parentId = current?.workspace.forkedFromWorkspaceId ?? null
+      // Name the parent only when the viewer can reach it; otherwise the id
+      // stands alone rather than leaking a workspace name they cannot open.
+      const parentRow = parentId ? rows.find((row) => row.workspace.id === parentId) : undefined
+      const isAdmin = hostContext?.viewer.permission === 'admin'
+
+      this.files.set(
+        'account/workspace.json',
+        serializeAccountWorkspace({
+          workspace: {
+            id: workspaceId,
+            name: hostContext?.workspace.name ?? current?.workspace.name ?? '',
+            workspaceMode: hostContext?.workspace.workspaceMode ?? null,
+          },
+          viewer: {
+            permission: hostContext?.viewer.permission ?? current?.permissionType ?? null,
+            organizationRole: hostContext?.viewer.organizationRole ?? null,
+          },
+          organization: hostContext?.hostOrganizationId
+            ? { id: hostContext.hostOrganizationId }
+            : null,
+          forkedFrom: parentId
+            ? { id: parentId, name: parentRow?.workspace.name ?? parentId }
+            : null,
+          entitlements,
+        })
+      )
+
+      this.files.set(
+        'account/workspaces.json',
+        serializeAccountWorkspaces(
+          rows.map((row) => ({
+            id: row.workspace.id,
+            name: row.workspace.name,
+            role: row.permissionType,
+            organizationId: row.workspace.organizationId,
+            forkedFromWorkspaceId: row.workspace.forkedFromWorkspaceId,
+            isCurrent: row.workspace.id === workspaceId,
+          }))
+        )
+      )
+
+      this.files.set(
+        'account/members.json',
+        serializeAccountMembers(members, { includeContactDetails: isAdmin })
+      )
+
+      this.registerLazy('account/billing.json', async () => {
+        try {
+          return serializeAccountBilling(await getAccountBillingSnapshot(userId))
+        } catch (err) {
+          logger.warn('Failed to load account billing', {
+            workspaceId,
+            error: toError(err).message,
+          })
+          return null
+        }
+      })
+    } catch (err) {
+      logger.warn('Failed to materialize account namespace', {
+        workspaceId,
+        error: toError(err).message,
+      })
+    }
+  }
+
+  /**
+   * Materialize `organization/` — org standing, the access-control rules that
+   * actually bind this viewer, org-published block provenance, and fork
+   * topology.
+   *
+   * The namespace exists only when the workspace belongs to an organization, so
+   * its absence is itself the answer for a personal workspace. Fork detail is
+   * mounted only for a workspace admin of a forking-enabled org, matching the
+   * gate the fork routes apply.
+   */
+  private async materializeOrganization(
+    workspaceId: string,
+    userId: string,
+    hostContext: Awaited<ReturnType<typeof getWorkspaceHostContextForViewer>>
+  ): Promise<void> {
+    const organizationId = hostContext?.hostOrganizationId
+    if (!hostContext || !organizationId) return
+
+    try {
+      this.files.set(
+        'organization/organization.json',
+        serializeOrganization({
+          organization: {
+            id: organizationId,
+            relationship: hostContext.viewer.isHostOrganizationMember ? 'internal' : 'external',
+            role: hostContext.viewer.organizationRole ?? null,
+          },
+          capabilities: {
+            canManageOrganization: hostContext.viewer.isHostOrganizationAdmin,
+            canManageBilling: hostContext.viewer.isHostOrganizationAdmin,
+          },
+          plan: hostContext.ownerBilling.plan,
+          isEnterprise: hostContext.ownerBilling.isEnterprise,
+        })
+      )
+
+      this.registerLazy('organization/access-control.json', async () => {
+        try {
+          const accessControl = await resolveVerifiedUserAccessControlContext(
+            userId,
+            workspaceId,
+            organizationId
+          )
+          return serializeAccessControl({
+            entitled: accessControl.entitled,
+            permissionGroup: accessControl.permissionGroup,
+            restrictions: getActivePermissionGroupRestrictions(accessControl.config),
+          })
+        } catch (err) {
+          logger.warn('Failed to load access control context', {
+            workspaceId,
+            error: toError(err).message,
+          })
+          return null
+        }
+      })
+
+      // The block list is fetched at materialize time (one indexed query, the
+      // same one the components pass already ran) because the README and the
+      // names-only index need it, and each block's detail path must exist in
+      // the key view for glob to list. Only the deployed graph stays lazy —
+      // it is the expensive part and most turns never read it.
+      const orgBlocks = await listCustomBlocksWithInputsForWorkspace(workspaceId).catch((err) => {
+        logger.warn('Failed to list org custom blocks', {
+          workspaceId,
+          error: toError(err).message,
+        })
+        return []
+      })
+      if (orgBlocks.length > 0) {
+        this.files.set(
+          'organization/custom-blocks.json',
+          serializeOrganizationCustomBlocks(orgBlocks)
+        )
+        // The names index matches editor visibility: anyone who can open the
+        // workspace sees the block in the toolbar. The deployed GRAPH is org
+        // implementation internals, so an external collaborator — workspace
+        // access without org membership — gets the interface (components/
+        // schema) but not the graph; for them the detail files simply do not
+        // exist.
+        if (hostContext.viewer.isHostOrganizationMember)
+          for (const orgBlock of orgBlocks) {
+            this.registerLazy(`organization/custom-blocks/${orgBlock.type}.json`, async () => {
+              try {
+                const deployed = await loadDeployedWorkflowState(
+                  orgBlock.workflowId,
+                  orgBlock.workspaceId ?? undefined
+                )
+                return serializeOrgCustomBlockDetail(orgBlock, deployed)
+              } catch (err) {
+                logger.warn('Failed to load deployed state for org custom block', {
+                  workspaceId,
+                  blockType: orgBlock.type,
+                  error: toError(err).message,
+                })
+                return null
+              }
+            })
+          }
+      }
+
+      // Everything below is registered LAZILY: the paths appear in the key
+      // view (so glob lists them) but no query runs until something reads
+      // one. Registration itself is the permission gate — an unpermitted
+      // viewer's file simply does not exist.
+      if (hostContext.viewer.isHostOrganizationMember) {
+        this.registerLazy('organization/workspaces.json', async () => {
+          try {
+            const [refs, accessible] = await Promise.all([
+              listOrganizationWorkspaceRefs(organizationId),
+              listAccessibleWorkspaceRowsForUser(userId).catch(() => []),
+            ])
+            const accessibleIds = new Set(accessible.map((row) => row.workspace.id))
+            const forkParents = new Map(
+              accessible.map((row) => [row.workspace.id, row.workspace.forkedFromWorkspaceId])
+            )
+            return serializeOrganizationWorkspaces(
+              refs.map((ref) => ({
+                id: ref.id,
+                name: ref.name,
+                hasAccess: accessibleIds.has(ref.id),
+                forkedFromWorkspaceId: forkParents.get(ref.id) ?? null,
+              }))
+            )
+          } catch (err) {
+            logger.warn('Failed to load org workspaces', {
+              workspaceId,
+              error: toError(err).message,
+            })
+            return null
+          }
+        })
+      }
+
+      if (hostContext.viewer.isHostOrganizationAdmin) {
+        this.registerLazy('organization/permission-groups.json', async () => {
+          try {
+            const roster = await listPermissionGroupRoster(organizationId)
+            if (roster.length === 0) return null
+            return serializePermissionGroupRoster(roster)
+          } catch (err) {
+            logger.warn('Failed to load permission-group roster', {
+              workspaceId,
+              error: toError(err).message,
+            })
+            return null
+          }
+        })
+      }
+
+      const credentialGroupsAvailable = hostContext.features?.credentialGroups === true
+      if (credentialGroupsAvailable) {
+        const includeEmails = hostContext.viewer.permission === 'admin'
+        this.registerLazy('organization/credential-groups.json', async () => {
+          try {
+            const records = await listCredentialGroups(workspaceId)
+            if (records.length === 0) return null
+            const groups = await Promise.all(
+              records.map(async (record) => {
+                const enrollmentCounts: Record<string, number> = {}
+                let people: Array<{ email: string; status: string }> | undefined
+                let truncated = false
+                try {
+                  const page = await listCredentialGroupEnrollments(workspaceId, record.id, 100)
+                  truncated = page.nextCursor !== null
+                  for (const enrollment of page.enrollments) {
+                    enrollmentCounts[enrollment.status] =
+                      (enrollmentCounts[enrollment.status] ?? 0) + 1
+                  }
+                  if (includeEmails) {
+                    people = page.enrollments.map((enrollment) => ({
+                      email: enrollment.email,
+                      status: enrollment.status,
+                    }))
+                  }
+                } catch {
+                  // Counts degrade to empty; the group itself still lists.
+                }
+                return {
+                  id: record.id,
+                  name: record.name,
+                  description: record.description,
+                  status: record.status,
+                  options: record.options.map((option) => ({
+                    provider: option.provider,
+                    label: 'label' in option ? option.label : undefined,
+                    required: 'required' in option ? option.required : undefined,
+                    configurationStatus: option.configurationStatus,
+                  })),
+                  enrollmentCounts,
+                  enrollmentsTruncated: truncated,
+                  ...(people ? { people } : {}),
+                }
+              })
+            )
+            return serializeCredentialGroups(groups, { includeEmails })
+          } catch (err) {
+            logger.warn('Failed to load credential groups', {
+              workspaceId,
+              error: toError(err).message,
+            })
+            return null
+          }
+        })
+      }
+
+      const forksAvailable =
+        hostContext.viewer.permission === 'admin' &&
+        (await isForkingAvailableForWorkspace(organizationId, userId).catch(() => false))
+
+      this.files.set(
+        'organization/README.md',
+        buildOrganizationReadme({
+          organizationId,
+          isEnterprise: hostContext.ownerBilling.isEnterprise,
+          customBlocks: orgBlocks,
+          forksMounted: forksAvailable,
+          permissionGroupsMounted: hostContext.viewer.isHostOrganizationAdmin,
+          credentialGroupsMounted: credentialGroupsAvailable,
+        })
+      )
+
+      if (!forksAvailable) return
+
+      this.registerLazy('organization/forks.json', async () => {
+        try {
+          const [parent, children] = await Promise.all([
+            getForkParent(workspaceId),
+            getForkChildren(workspaceId),
+          ])
+          if (!parent && children.length === 0) return null
+
+          const resourceMappingCounts: Record<string, number> = {}
+          let blockMappingCount = 0
+          if (parent) {
+            const [resourceRows, blockMap] = await Promise.all([
+              getEdgeMappingRows(db, workspaceId),
+              loadForkBlockMap(db, workspaceId),
+            ])
+            for (const row of resourceRows) {
+              resourceMappingCounts[row.resourceType] =
+                (resourceMappingCounts[row.resourceType] ?? 0) + 1
+            }
+            blockMappingCount = blockMap.parentToChild.size
+          }
+
+          return serializeWorkspaceForks({
+            parent: parent ? { id: parent.id, name: parent.name } : null,
+            children: children.map((child) => ({
+              id: child.id,
+              name: child.name,
+              createdAt: child.createdAt,
+            })),
+            resourceMappingCounts,
+            blockMappingCount,
+          })
+        } catch (err) {
+          logger.warn('Failed to load fork topology', {
+            workspaceId,
+            error: toError(err).message,
+          })
+          return null
+        }
+      })
+    } catch (err) {
+      logger.warn('Failed to materialize organization namespace', {
+        workspaceId,
+        error: toError(err).message,
+      })
+    }
+  }
+
+  /**
    * Materialize external MCP server connections using the mcpServers table.
    */
   private async materializeMcpServers(
@@ -2295,7 +2911,7 @@ export class WorkspaceVFS {
       return []
     }
   }
-  private async materializeRecentlyDeleted(workspaceId: string, userId: string): Promise<void> {
+  private async materializeRecentlyDeleted(workspaceId: string): Promise<void> {
     try {
       const [
         archivedWorkflows,
@@ -2321,9 +2937,24 @@ export class WorkspaceVFS {
             )
           ),
         listTables(workspaceId, { scope: 'archived' }),
-        listWorkspaceFiles(workspaceId, { scope: 'archived' }),
-        listWorkspaceFileFolders(workspaceId, { scope: 'archived' }),
-        getKnowledgeBases(userId, workspaceId, 'archived'),
+        listAllWorkspaceFiles
+          .execute({
+            principal: this.requireFilePrincipal(),
+            input: { workspaceId, scope: 'archived' },
+          })
+          .then(({ files }) => files),
+        listWorkspaceFileFoldersOperation
+          .execute({
+            principal: this.requireFilePrincipal(),
+            input: { workspaceId, scope: 'archived' },
+          })
+          .then(({ folders }) => folders),
+        listArchivedKnowledgeBases
+          .execute({
+            principal: this.requireKnowledgePrincipal(),
+            input: { workspaceId },
+          })
+          .then(({ knowledgeBases }) => knowledgeBases),
       ])
 
       for (const wf of archivedWorkflows) {
@@ -2364,8 +2995,7 @@ export class WorkspaceVFS {
       }
 
       for (const folder of archivedFileFolders) {
-        const safePath = folder.path
-          .split('/')
+        const safePath = parseWorkspaceFileFolderDisplayPath(folder.path)
           .map((segment) => sanitizeName(segment))
           .join('/')
         this.files.set(
@@ -2492,6 +3122,7 @@ export class WorkspaceVFS {
         serializeCredentials([
           ...visibleEnvCredentials.map((c) => ({
             providerId: c.envKey,
+            description: c.description,
             scope: c.type === 'env_workspace' ? 'workspace' : 'personal',
             createdAt: c.updatedAt,
           })),
@@ -2550,10 +3181,14 @@ export class WorkspaceVFS {
 export async function getOrMaterializeVFS(
   workspaceId: string,
   userId: string,
-  options?: { secretMountPolicy?: SecretMountPolicy }
+  options?: {
+    secretMountPolicy?: SecretMountPolicy
+    filePrincipal?: Principal
+    knowledgePrincipal?: Principal
+  }
 ): Promise<WorkspaceVFS> {
   await assertActiveWorkspaceAccess(workspaceId, userId)
-  const vfs = new WorkspaceVFS()
+  const vfs = new WorkspaceVFS(options?.filePrincipal, options?.knowledgePrincipal)
   await vfs.materialize(workspaceId, userId, options)
   return vfs
 }
@@ -2566,4 +3201,11 @@ export type { FileReadResult } from '@/lib/copilot/vfs/file-reader'
  */
 export function sanitizeName(name: string): string {
   return normalizeVfsSegment(name)
+}
+
+function decodeVfsPathSegmentsSafe(path: string): string {
+  return path
+    .split('/')
+    .map((segment) => decodeVfsSegmentSafe(segment))
+    .join('/')
 }

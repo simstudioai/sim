@@ -85,6 +85,7 @@ export const knowledgeSearchTool: ToolConfig<any, KnowledgeSearchResponse> = {
   },
 
   request: {
+    internalAuth: 'executor_delegation',
     url: () => '/api/knowledge/search',
     method: 'POST',
     modelInput: {

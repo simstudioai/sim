@@ -19,6 +19,7 @@ export type AbortBackendValue = (typeof AbortBackend)[AbortBackendKey]
 
 export const AbortRedisResult = {
   Error: 'error',
+  Miss: 'miss',
   Ok: 'ok',
   Slow: 'slow',
 } as const
@@ -57,6 +58,14 @@ export const BillingRouteOutcome = {
 
 export type BillingRouteOutcomeKey = keyof typeof BillingRouteOutcome
 export type BillingRouteOutcomeValue = (typeof BillingRouteOutcome)[BillingRouteOutcomeKey]
+
+export const ContextBudgetSource = {
+  Model: 'model',
+  PricingBoundary: 'pricing_boundary',
+} as const
+
+export type ContextBudgetSourceKey = keyof typeof ContextBudgetSource
+export type ContextBudgetSourceValue = (typeof ContextBudgetSource)[ContextBudgetSourceKey]
 
 export const CopilotAbortOutcome = {
   BadRequest: 'bad_request',
@@ -115,6 +124,16 @@ export const CopilotConfirmOutcome = {
 
 export type CopilotConfirmOutcomeKey = keyof typeof CopilotConfirmOutcome
 export type CopilotConfirmOutcomeValue = (typeof CopilotConfirmOutcome)[CopilotConfirmOutcomeKey]
+
+export const CopilotDegradedReason = {
+  BindingRejected: 'binding_rejected',
+  ClientPickupTimeout: 'client_pickup_timeout',
+  MissingToolResult: 'missing_tool_result',
+  StreamDeadBeforeDispatch: 'stream_dead_before_dispatch',
+} as const
+
+export type CopilotDegradedReasonKey = keyof typeof CopilotDegradedReason
+export type CopilotDegradedReasonValue = (typeof CopilotDegradedReason)[CopilotDegradedReasonKey]
 
 export const CopilotFinalizeOutcome = {
   Aborted: 'aborted',
@@ -192,6 +211,18 @@ export const CopilotSseCloseReason = {
 
 export type CopilotSseCloseReasonKey = keyof typeof CopilotSseCloseReason
 export type CopilotSseCloseReasonValue = (typeof CopilotSseCloseReason)[CopilotSseCloseReasonKey]
+
+export const CopilotSteerOutcome = {
+  BadRequest: 'bad_request',
+  MissingContent: 'missing_content',
+  MissingMessageId: 'missing_message_id',
+  NoActiveTurn: 'no_active_turn',
+  QueueFull: 'queue_full',
+  Queued: 'queued',
+} as const
+
+export type CopilotSteerOutcomeKey = keyof typeof CopilotSteerOutcome
+export type CopilotSteerOutcomeValue = (typeof CopilotSteerOutcome)[CopilotSteerOutcomeKey]
 
 export const CopilotStopOutcome = {
   ChatNotFound: 'chat_not_found',
@@ -308,6 +339,40 @@ export const LlmErrorStage = {
 
 export type LlmErrorStageKey = keyof typeof LlmErrorStage
 export type LlmErrorStageValue = (typeof LlmErrorStage)[LlmErrorStageKey]
+
+export const PromptComponent = {
+  ActiveSkills: 'active_skills',
+  AgentGuidance: 'agent_guidance',
+  Capabilities: 'capabilities',
+  Credentials: 'credentials',
+  DesktopContext: 'desktop_context',
+  ExternalTools: 'external_tools',
+  Files: 'files',
+  History: 'history',
+  Override: 'override',
+  PermissionsContext: 'permissions_context',
+  Persona: 'persona',
+  Policies: 'policies',
+  RuntimeTail: 'runtime_tail',
+  SessionContext: 'session_context',
+  SkillsIndex: 'skills_index',
+  SpawnContext: 'spawn_context',
+  Steering: 'steering',
+  SubagentDocs: 'subagent_docs',
+  SubagentRegistry: 'subagent_registry',
+  TaggedResources: 'tagged_resources',
+  TimeContext: 'time_context',
+  ToolDocs: 'tool_docs',
+  ToolResults: 'tool_results',
+  ToolsWire: 'tools_wire',
+  Vfs: 'vfs',
+  WorkflowContext: 'workflow_context',
+  WorkspaceGuide: 'workspace_guide',
+  WorkspaceInventory: 'workspace_inventory',
+} as const
+
+export type PromptComponentKey = keyof typeof PromptComponent
+export type PromptComponentValue = (typeof PromptComponent)[PromptComponentKey]
 
 export const RateLimitOutcome = {
   Allowed: 'allowed',

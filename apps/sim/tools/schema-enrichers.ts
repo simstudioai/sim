@@ -7,6 +7,19 @@ import type { WorkflowToolExecutionContext } from '@/tools/types'
 
 const logger = createLogger('SchemaEnrichers')
 
+/**
+ * Reads a table's schema as the acting user.
+ *
+ * Deliberately still on the deprecated `buildAuthHeaders`, unlike its siblings in this
+ * file: `GET /api/table/[tableId]` authenticates through `checkSessionOrInternalAuth`,
+ * which accepts a legacy `type: 'internal'` token and rejects an executor delegation.
+ * Swapping this to `buildExecutorDelegationHeaders` before that route migrates would
+ * break every table tool on an Agent block. The route's own test pins the pairing.
+ *
+ * Unlike the workflow and knowledge enrichers, a failure here is loud — this runs as a
+ * tool-level `toolEnrichment`, so `createLLMToolSchema` surfaces it as a
+ * `ToolSchemaEnrichmentError` naming the tool rather than degrading the schema silently.
+ */
 async function fetchTableSchema(
   tableId: string,
   context: WorkflowToolExecutionContext
@@ -116,6 +129,10 @@ function mapFieldTypeToSchemaType(fieldType: string): string {
 /**
  * Fetches tag definitions from a knowledge base as the acting user, whose id the
  * route requires to authorize the read.
+ *
+ * The tag-definition route accepts only scoped executor delegations. The delegation
+ * binds on the running workflow — that is what resolves the workspace the knowledge
+ * base must belong to — so both the subject and the workflow are required.
  */
 async function fetchTagDefinitions(
   knowledgeBaseId: string,
@@ -125,18 +142,30 @@ async function fetchTagDefinitions(
     logger.warn(`Skipping tag definition enrichment for KB ${knowledgeBaseId}: no acting user`)
     return []
   }
+  if (!context.workflowId) {
+    logger.warn(`Skipping tag definition enrichment for KB ${knowledgeBaseId}: no acting workflow`)
+    return []
+  }
 
   try {
-    const { buildAuthHeaders, buildAPIUrl } = await import('@/executor/utils/http')
+    const { buildAPIUrl, buildExecutorDelegationHeaders } = await import('@/executor/utils/http')
+    const { executionScopeForTarget } = await import('@/executor/utils/delegation')
 
-    const headers = await buildAuthHeaders(context.userId)
+    const headers = await buildExecutorDelegationHeaders({
+      subjectUserId: context.userId,
+      workflowId: context.workflowId,
+      ...executionScopeForTarget(context, context.workflowId),
+    })
     const url = buildAPIUrl(`/api/knowledge/${knowledgeBaseId}/tag-definitions`)
 
     logger.info(`Fetching tag definitions for KB ${knowledgeBaseId} from ${url.toString()}`)
 
     const response = await fetch(url.toString(), { headers })
     if (!response.ok) {
-      logger.warn(`Failed to fetch tag definitions for KB ${knowledgeBaseId}: ${response.status}`)
+      await response.text().catch(() => {})
+      // Error, not warn: enrichment degrades silently, so a credential break is only
+      // ever visible here. A 401 means the delegation stopped satisfying the route.
+      logger.error(`Failed to fetch tag definitions for KB ${knowledgeBaseId}: ${response.status}`)
       return []
     }
 

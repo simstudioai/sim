@@ -14,6 +14,17 @@ export const ZeroBounceBlock: BlockConfig<ZeroBounceResponse> = {
   integrationType: IntegrationType.Sales,
   bgColor: '#FFFFFF',
   icon: ZeroBounceIcon,
+  canvasPresentation: {
+    defaultTitle: 'ZeroBounce',
+    sentences: {
+      byOperation: {
+        zerobounce_verify_email: [
+          { text: 'Validate deliverability of', field: 've_email', core: true },
+        ],
+        zerobounce_get_credits: ['Read remaining validation credits'],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',

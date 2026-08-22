@@ -7,7 +7,7 @@ export const agiloftSavedSearchTool: ToolConfig<
 > = {
   id: 'agiloft_saved_search',
   name: 'Agiloft Saved Search',
-  description: 'List saved searches defined for an Agiloft table.',
+  description: 'List the saved searches defined for an Agiloft table.',
   version: '1.0.0',
 
   params: {
@@ -39,7 +39,7 @@ export const agiloftSavedSearchTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Table name to list saved searches for (e.g., "contracts")',
+      description: 'Logical table name to list saved searches for (e.g., "contract")',
     },
   },
 
@@ -68,20 +68,17 @@ export const agiloftSavedSearchTool: ToolConfig<
   outputs: {
     searches: {
       type: 'array',
-      description: 'List of saved searches for the table',
+      description: 'Saved searches defined on the table',
       items: {
         type: 'object',
         properties: {
-          name: { type: 'string', description: 'Saved search name' },
-          label: { type: 'string', description: 'Saved search display label' },
-          id: { type: 'number', description: 'Saved search database identifier' },
-          description: {
-            type: 'string',
-            description: 'Saved search description',
-            optional: true,
-          },
+          name: { type: 'string', description: 'Internal saved search name' },
+          label: { type: 'string', description: 'Display label, as used by Search Records' },
+          id: { type: 'number', description: 'Saved search identifier in the Agiloft database' },
+          description: { type: 'string', description: 'Saved search description' },
         },
       },
     },
+    totalCount: { type: 'number', description: 'Number of saved searches returned' },
   },
 }

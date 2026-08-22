@@ -1,45 +1,24 @@
-import { createLogger } from '@sim/logger'
-import type { NextRequest } from 'next/server'
 import { getWorkflowStatusContract } from '@/lib/api/contracts/workflows'
-import { parseRequest } from '@/lib/api/server'
-import { generateRequestId } from '@/lib/core/utils/request'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { validateWorkflowAccess } from '@/app/api/workflows/middleware'
-import {
-  checkNeedsRedeployment,
-  createErrorResponse,
-  createSuccessResponse,
-} from '@/app/api/workflows/utils'
+import { defineInternalJsonRoute, internalRateLimits } from '@/lib/api/server/routes'
+import { createInternalWorkflowErrorPolicy, internalWorkflowReadAuth } from '@/lib/workflows/api'
+import { readWorkflowDeploymentStatus } from '@/lib/workflows/application/deployments'
+import { workflowOperations } from '@/lib/workflows/application/operations'
 
-const logger = createLogger('WorkflowStatusAPI')
-
-export const GET = withRouteHandler(
-  async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
-    const requestId = generateRequestId()
-    const parsed = await parseRequest(getWorkflowStatusContract, request, context)
-    if (!parsed.success) return parsed.response
-    const { id } = parsed.data.params
-
-    try {
-      const validation = await validateWorkflowAccess(request, id, false)
-      if (validation.error) {
-        logger.warn(`[${requestId}] Workflow access validation failed: ${validation.error.message}`)
-        return createErrorResponse(validation.error.message, validation.error.status)
-      }
-
-      const needsRedeployment = validation.workflow.isDeployed
-        ? await checkNeedsRedeployment(id)
-        : false
-
-      return createSuccessResponse({
-        isDeployed: validation.workflow.isDeployed,
-        deployedAt: validation.workflow.deployedAt,
-        isPublished: validation.workflow.isPublished,
-        needsRedeployment,
-      })
-    } catch (error) {
-      logger.error(`[${requestId}] Error getting status for workflow: ${id}`, error)
-      return createErrorResponse('Failed to get status', 500)
-    }
-  }
-)
+export const GET = defineInternalJsonRoute({
+  contract: getWorkflowStatusContract,
+  auth: internalWorkflowReadAuth,
+  operation: workflowOperations.read,
+  rateLimit: internalRateLimits.none({
+    reason: 'Workflow status retains its existing authenticated admission policy.',
+  }),
+  errorPolicy: createInternalWorkflowErrorPolicy('Failed to get status'),
+  mapInput: ({ params }) => ({ workflowId: params.id }),
+  useCase: readWorkflowDeploymentStatus,
+  present: (result) => ({
+    isDeployed: result.isDeployed,
+    deployedAt: result.activeDeployment?.deployedAt
+      ? new Date(result.activeDeployment.deployedAt)
+      : result.workflow.deployedAt,
+    needsRedeployment: result.needsRedeployment,
+  }),
+})

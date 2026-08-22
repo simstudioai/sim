@@ -530,15 +530,15 @@ describe('BlockExecutor', () => {
     const resolver = new VariableResolver(workflow, {}, state)
     const onBlockComplete = vi.fn(async () => {})
     const registry = new ResolvedSecretTraceRegistry([
-      { name: 'SHORT_SECRET', plaintext: 'Test', encryptedValue: 'encrypted-test' },
+      { name: 'SHORT_SECRET', plaintext: 'TestValue', encryptedValue: 'encrypted-test' },
     ])
     const handler: BlockHandler = {
       canHandle: () => true,
       execute: async (blockContext, block) => {
         if (block.id === secretBlock.id) {
-          blockContext.resolvedSecretTraceRegistry?.recordResolved('SHORT_SECRET', 'Test')
+          blockContext.resolvedSecretTraceRegistry?.recordResolved('SHORT_SECRET', 'TestValue')
         }
-        return { result: 'Test' }
+        return { result: 'TestValue' }
       },
     }
     const executor = new BlockExecutor([handler], resolver, { onBlockComplete }, state)

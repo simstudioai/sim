@@ -29,12 +29,13 @@ apps/sim/blocks/registry-maps.ts    # Block + meta registry entry (BLOCK_REGISTR
 apps/sim/components/icons.tsx        # Icon definition
 apps/sim/lib/auth/auth.ts           # OAuth config — should use getCanonicalScopesForProvider()
 apps/sim/lib/oauth/oauth.ts         # OAuth provider config — single source of truth for scopes
-apps/sim/lib/oauth/utils.ts               # Scope utilities, SCOPE_DESCRIPTIONS for modal UI
-apps/sim/lib/core/config/env-capabilities.ts # OAuth client runtime capability source of truth
+apps/sim/lib/oauth/utils.ts         # Scope utilities, SCOPE_DESCRIPTIONS for modal UI
+packages/deployment-config/src/env-capabilities.ts # OAuth client runtime capability source of truth
 apps/sim/lib/core/config/env.ts     # Runtime env schema for capability fields
-scripts/setup/capability-config.ts  # Exhaustive CLI input-mode mapping for OAuth fields
-apps/sim/lib/integrations/integrations.json # Generated client-safe integration catalog
-apps/sim/lib/integrations/service-account-metadata.ts # Lightweight service-account projection
+packages/sim-setup/src/capability-config.ts # Exhaustive CLI input-mode mapping for OAuth fields
+packages/deployment-config/src/integrations.json # Generated client-safe integration catalog
+packages/deployment-config/src/service-account-providers.generated.ts # Generated provider-ID facts
+packages/deployment-config/src/service-account-metadata.ts # Handwritten deployment policy
 ```
 
 ## Step 2: Pull API Documentation
@@ -291,7 +292,7 @@ Scopes are centralized — the single source of truth is `OAUTH_PROVIDERS` in `l
 ## Step 6: Validate Deployment Availability (if OAuth service)
 
 The deployment UI and setup CLI do not infer OAuth client fields from scopes. They resolve the
-block's generated `oauthServiceId` through the application-owned capability catalog.
+block's generated `oauthServiceId` through the shared deployment capability catalog.
 
 - [ ] The visible integration block has exactly one distinct `oauth-input.serviceId`
 - [ ] `resolveOAuthClientCapabilityId(serviceId)` returns the intended provider capability
@@ -299,9 +300,9 @@ block's generated `oauthServiceId` through the application-owned capability cata
 - [ ] Every field listed by that capability exists in `apps/sim/lib/core/config/env.ts`
 - [ ] Every capability field has the correct `text` or `secret` entry in `OAUTH_CLIENT_SETUP_FIELDS`; no CLI naming heuristic is required
 - [ ] Shared Google/Microsoft service IDs resolve to their provider capability rather than duplicate entries
-- [ ] `bun run setup integration <capabilityId>` is the command emitted by availability; the CLI has only the exhaustive input-mode projection, not a second runtime provider definition
+- [ ] `npx sim-setup add integration <capabilityId>` is the command emitted by availability; the CLI has only the exhaustive input-mode projection, not a second runtime provider definition
 - [ ] If the canonical OAuth service declares `serviceAccountProviderId`,
-      `SERVICE_ACCOUNT_METADATA_BY_OAUTH_SERVICE_ID[serviceId]` has the same provider ID
+      the generated `SERVICE_ACCOUNT_PROVIDER_BY_OAUTH_SERVICE_ID[serviceId]` has the same provider ID
 - [ ] The service-account `deploymentRequirement` matches how that credential actually works:
       omitted for an independent path, `'oauth-client'` when it needs the OAuth client fields, or
       `'preview-gated'` when controlled by a preview block
@@ -386,17 +387,30 @@ Several files are generated from tool and block definitions. Editing a tool or b
 
 ```bash
 bun run tool-metadata:generate       # repo root — apps/sim/tools/generated/*
-bun run scripts/generate-docs.ts     # docs .mdx + lib/integrations/integrations.json + docs icons
+bun run scripts/generate-docs.ts     # docs .mdx + deployment-config/integrations.json + docs icons
+bun run deployment-config:generate  # canonical OAuth registry + catalog → provider-ID facts
 bun run integration-catalog:check    # registry ↔ committed deployment metadata drift
+bun run docs:check                   # committed docs ↔ what the generator renders today
+bun run deployment-config:check     # OAuth registry/catalog ↔ provider-ID fact drift
 ```
 
 - **`tool-metadata:generate`** — required whenever a tool's `outputs`, `params`, or descriptions change. CI enforces this with `bun run tool-metadata:check`, which fails with *"Generated tool metadata is stale"*. This is the easiest gate to miss, because nothing in the tool file hints that a generated artifact mirrors it.
-- **`generate-docs`** — required whenever block metadata changes (`bgColor`, `name`, `description`, operations, outputs). Regenerates the integration `.mdx`, `integrations.json`, and the docs copy of `components/icons.tsx`.
+- **`generate-docs`** — required whenever block metadata changes (`bgColor`, `name`, `description`, operations, outputs). Regenerates the integration `.mdx`, `packages/deployment-config/src/integrations.json`, and the docs copy of `components/icons.tsx`.
+- **`deployment-config:generate`** — required for OAuth or service-account changes. Regenerates provider-ID facts from the canonical OAuth registry and integration catalog; special deployment requirements remain handwritten policy.
 - **`integration-catalog:check`** — loads the executable block registry, derives visible integration
   deployment fields, and compares them with the committed catalog. It catches missing/unexpected
   entries and stale auth/service IDs without loading the executable registry in client code.
+- **`docs:check`** — check mode of `generate-docs.ts`: renders every generated docs artifact in
+  memory and fails listing any committed file that differs. Runs in CI via `check:audits`.
 
-**Always diff the regen output before committing.** These generators rewrite every file they own, so they will also sweep in unrelated drift that accumulated on the base branch — pages losing sections, unrelated icons appearing. Keep only the hunks belonging to the integration under validation and `git checkout --` the rest, otherwise an unrelated doc regression rides along in the PR. Verify no page was silently dropped by comparing the directory listing before and after.
+**Always diff the regen output before committing — but commit all of it.** These generators rewrite
+every file they own, so they also true up drift that accumulated on the base branch (pages whose
+source changed without a regen). That catch-up is correct output, not a regression: `docs:check`
+fails CI on any page left stale, so reverting swept-in hunks with `git checkout --` reintroduces the
+failure. Review the diff to confirm each hunk is explained by a real source change (yours or an
+upstream PR that skipped regeneration), and investigate anything that looks like content loss — a
+page losing a section usually means its source block moved or a generator input broke, not that the
+hunk should be reverted.
 
 If an icon changed, `apps/sim/components/icons.tsx` is the source of truth and `apps/docs/components/icons.tsx` is its generated mirror — they must end up byte-identical for that component.
 
@@ -408,9 +422,11 @@ After fixing, confirm:
 3. The integration's tests pass, and any test you added actually fails without its fix (revert it once and watch it go red)
 4. Derived artifacts regenerated and their diffs reviewed (see above)
 5. `bun run integration-catalog:check` passes
-6. For OAuth or service-account changes, `bun test apps/sim/lib/integrations/availability.server.test.ts` passes
-7. Re-read all modified files to verify fixes are correct
-8. Any remaining unknown response schemas were explicitly reported to the user instead of guessed
+6. `bun run docs:check` passes
+7. For OAuth or service-account changes, `bun run deployment-config:check` passes
+8. For OAuth or service-account changes, `bun run --cwd apps/sim test lib/integrations/availability.server.test.ts` passes
+9. Re-read all modified files to verify fixes are correct
+10. Any remaining unknown response schemas were explicitly reported to the user instead of guessed
 
 ## Checklist Summary
 
@@ -426,7 +442,7 @@ After fixing, confirm:
 - [ ] Validated scope descriptions exist in `SCOPE_DESCRIPTIONS` within `lib/oauth/utils.ts` for all scopes
 - [ ] Validated OAuth `serviceId` resolves to the intended `OAUTH_CLIENT_CAPABILITIES` entry and all capability fields exist in the env schema
 - [ ] Validated service-account projection and deployment requirement against the canonical OAuth service config
-- [ ] Regenerated `integrations.json` when block metadata changed and ran `bun run integration-catalog:check`
+- [ ] Regenerated deployment config when block/OAuth metadata changed and ran both catalog checks
 - [ ] Validated pagination consistency across tools and block
 - [ ] Validated memory load safety using `.agents/skills/memory-load-check/SKILL.md` when tools list/search/download/import/export/batch data
 - [ ] Validated error handling (error checks, meaningful messages)
@@ -439,7 +455,7 @@ After fixing, confirm:
 - [ ] Reported all issues grouped by severity
 - [ ] Fixed all critical and warning issues
 - [ ] Ran `bun run tool-metadata:generate` if any tool outputs/params changed, and confirmed `bun run tool-metadata:check` passes
-- [ ] Ran `bun run generate-docs` if any block metadata changed, and reverted unrelated drift the generator swept in
+- [ ] Ran `bun run generate-docs` if any block metadata changed, and committed the full generated diff — including stale-page catch-up for other integrations (`bun run docs:check` fails CI on reverted generator output)
 - [ ] Ran `bun run lint` after fixes
 - [ ] Verified TypeScript compiles clean
 - [ ] Verified added tests fail without their fix

@@ -6,6 +6,7 @@ import type { NodeMetadata } from '@/executor/dag/types'
 import type {
   BlockLog,
   BlockState,
+  ExecutorDelegationOrigin,
   NormalizedBlockOutput,
   StartBlockRunMetadata,
   StreamingExecution,
@@ -33,6 +34,16 @@ export interface ExecutionMetadata {
   startTime: string
   isClientSession?: boolean
   enforceCredentialAccess?: boolean
+  /**
+   * The run entered through the anonymous public-API path, so nobody in the
+   * workspace triggered it. Unlike a schedule, webhook, or workspace API key —
+   * all configured by someone here, which is why those still fall back to the
+   * workflow owner's personal variables — this endpoint is callable by anyone,
+   * and resolving one human's personal namespace for an anonymous caller is not
+   * something the owner opted into. Such runs use the workspace's own billing
+   * principal for both environment slices instead.
+   */
+  isPublicApiAccess?: boolean
   pendingBlocks?: string[]
   resumeFromSnapshot?: boolean
   resumeTerminalNoop?: boolean
@@ -231,6 +242,8 @@ export interface ContextExtensions {
   fileKeys?: string[]
   allowLargeValueWorkflowScope?: boolean
   userId?: string
+  /** Canonical signed execution identity inherited by regular nested workflows. */
+  executorDelegationOrigin?: ExecutorDelegationOrigin
   /**
    * Immutable actor/payer decision for this execution. Child workflow
    * executions receive it here (they carry no full metadata), so internal
@@ -322,6 +335,33 @@ export interface ContextExtensions {
    * Each hop appends the current workflow ID before making outgoing requests.
    */
   callChain?: string[]
+
+  /**
+   * The Sim user watching this run's live block stream, when there is exactly one
+   * and they are a known, authenticated workspace member — i.e. an editor/manual
+   * run. Deliberately UNSET on chat deployments, public API, webhook, and schedule
+   * runs, whose stream consumer may be an anonymous external visitor.
+   *
+   * Used to decide whether a custom block may stream the SOURCE workflow's block
+   * events across the invocation boundary: only if this viewer has access to the
+   * source workspace. Absent means the boundary holds, so every surface that does
+   * not opt in is fail-closed by default.
+   */
+  liveTraceViewerUserId?: string
+
+  /**
+   * Block callbacks that ONLY emit to the live stream — they never write the invoking
+   * run's progress markers. `onBlockStart`/`onBlockComplete` above are persist-then-emit
+   * composites: on the invoking run they write block names and I/O into that run's
+   * `LoggingSession` before reaching the stream.
+   *
+   * A custom block's child must reach the emit half and never the persist half. The
+   * stream is gated per viewer against the source workspace, but a persisted marker is
+   * keyed by the PARENT execution and is readable by anyone with parent-workspace access
+   * long after that check — so persisting the source workflow's block names there would
+   * leak them past the boundary the gate exists to hold.
+   */
+  liveStreamCallbacks?: Pick<ExecutionCallbacks, 'onBlockStart' | 'onBlockComplete'>
 }
 
 export interface WorkflowInput {

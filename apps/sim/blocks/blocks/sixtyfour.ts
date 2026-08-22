@@ -1,6 +1,10 @@
 import { SixtyfourIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
 
+const PHONE_LOOKUP_FIELD = ['name', 'linkedinUrl', 'emailInput'] as const
+const EMAIL_LOOKUP_FIELD = ['name', 'linkedinUrl', 'phoneInput'] as const
+const EMPLOYER_FIELD = ['company', 'domain'] as const
+
 export const SixtyfourBlock: BlockConfig = {
   type: 'sixtyfour',
   name: 'Sixtyfour AI',
@@ -13,6 +17,30 @@ export const SixtyfourBlock: BlockConfig = {
   bgColor: '#000000',
   icon: SixtyfourIcon,
   authMode: AuthMode.ApiKey,
+  canvasPresentation: {
+    defaultTitle: 'Sixtyfour AI',
+    sentences: {
+      byOperation: {
+        find_phone: [
+          { text: 'Find phone numbers for', field: PHONE_LOOKUP_FIELD, core: true },
+          { text: 'at', field: EMPLOYER_FIELD },
+        ],
+        find_email: [
+          { text: 'Find email addresses for', field: EMAIL_LOOKUP_FIELD, core: true },
+          { text: 'at', field: EMPLOYER_FIELD },
+          { text: ', titled', field: 'title' },
+        ],
+        enrich_lead: [
+          { text: 'Research lead', field: 'leadInfo', core: true },
+          { text: ', collecting', field: 'leadStruct' },
+        ],
+        enrich_company: [
+          { text: 'Research company', field: 'targetCompany', core: true },
+          { text: ', collecting', field: 'companyStruct' },
+        ],
+      },
+    },
+  },
 
   subBlocks: [
     {

@@ -2,6 +2,9 @@
  * All auditable actions in the platform, grouped by resource type.
  */
 export const AuditAction = {
+  // Accounts
+  ACCOUNT_DELETED: 'account.deleted',
+
   // API Keys
   API_KEY_CREATED: 'api_key.created',
   API_KEY_UPDATED: 'api_key.updated',
@@ -49,6 +52,7 @@ export const AuditAction = {
   // Subscriptions
   SUBSCRIPTION_CREATED: 'subscription.created',
   SUBSCRIPTION_CANCELLED: 'subscription.cancelled',
+  SUBSCRIPTION_REFUNDED: 'subscription.refunded',
   SUBSCRIPTION_TRANSFERRED: 'subscription.transferred',
   ENTERPRISE_SUBSCRIPTION_PROVISIONED: 'subscription.enterprise_provisioned',
 
@@ -64,6 +68,17 @@ export const AuditAction = {
   // Environment
   ENVIRONMENT_UPDATED: 'environment.updated',
   ENVIRONMENT_DELETED: 'environment.deleted',
+
+  /**
+   * Secret provenance
+   *
+   * Recorded when a run proceeded on data whose secret provenance nobody wrote down. The value
+   * crossing into a model could not be checked against the workspace's secrets, so a secret it
+   * carries would not have been redacted. Deliberately an audit entry rather than a refusal:
+   * blocking the run would strand the workspace on data it can no longer read, so the risk is
+   * surfaced to the people who own the secrets instead.
+   */
+  SECRET_PROVENANCE_UNRECORDED: 'secret_provenance.unrecorded',
 
   // Files
   FILE_UPLOADED: 'file.uploaded',
@@ -124,6 +139,7 @@ export const AuditAction = {
   CREDENTIAL_MEMBER_ADDED: 'credential_member.added',
   CREDENTIAL_MEMBER_REMOVED: 'credential_member.removed',
   CREDENTIAL_MEMBER_ROLE_CHANGED: 'credential_member.role_changed',
+  CREDENTIAL_GROUP_UPDATED: 'credential_group.updated',
 
   // Password
   PASSWORD_RESET_REQUESTED: 'password.reset_requested',
@@ -185,6 +201,7 @@ export const AuditAction = {
 
   // Workflows
   WORKFLOW_CREATED: 'workflow.created',
+  WORKFLOW_UPDATED: 'workflow.updated',
   WORKFLOW_DELETED: 'workflow.deleted',
   WORKFLOW_RESTORED: 'workflow.restored',
   WORKFLOW_DEPLOYED: 'workflow.deployed',
@@ -218,12 +235,14 @@ export type AuditActionType = (typeof AuditAction)[keyof typeof AuditAction]
  * All resource types that can appear in audit log entries.
  */
 export const AuditResourceType = {
+  ACCOUNT: 'account',
   API_KEY: 'api_key',
   BILLING: 'billing',
   BYOK_KEY: 'byok_key',
   CHAT: 'chat',
   CONNECTOR: 'connector',
   CREDENTIAL: 'credential',
+  CREDENTIAL_GROUP: 'credential_group',
   CUSTOM_BLOCK: 'custom_block',
   CUSTOM_TOOL: 'custom_tool',
   DATA_DRAIN: 'data_drain',
@@ -238,6 +257,8 @@ export const AuditResourceType = {
   PASSWORD: 'password',
   PERMISSION_GROUP: 'permission_group',
   SCHEDULE: 'schedule',
+  /** Not a stored resource: the workspace's secrets, as the thing put at risk. */
+  SECRET_PROVENANCE: 'secret_provenance',
   SKILL: 'skill',
   SUBSCRIPTION: 'subscription',
   TABLE: 'table',

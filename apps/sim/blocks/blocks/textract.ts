@@ -9,6 +9,10 @@ import {
 import { normalizeFileInput } from '@/blocks/utils'
 import type { TextractParserOutput } from '@/tools/textract/types'
 
+const LEGACY_DOCUMENT_FIELD = ['fileUpload', 'filePath', 's3Uri'] as const
+const DOCUMENT_FIELD = ['fileUpload', 'fileReference', 's3Uri'] as const
+const UPLOADED_DOCUMENT_FIELD = ['fileUpload', 'fileReference'] as const
+
 export const TextractBlock: BlockConfig<TextractParserOutput> = {
   type: 'textract',
   name: 'AWS Textract',
@@ -23,6 +27,18 @@ export const TextractBlock: BlockConfig<TextractParserOutput> = {
   bgColor: 'linear-gradient(135deg, #055F4E 0%, #56C0A7 100%)',
   iconColor: '#56C0A7',
   icon: TextractIcon,
+  canvasPresentation: {
+    defaultTitle: 'AWS Textract',
+    sentences: {
+      default: [
+        {
+          text: 'Extract text, tables, and forms from',
+          field: LEGACY_DOCUMENT_FIELD,
+          core: true,
+        },
+      ],
+    },
+  },
   subBlocks: [
     {
       id: 'processingMode',
@@ -243,6 +259,34 @@ export const TextractV2Block: BlockConfig<TextractParserOutput> = {
   type: 'textract_v2',
   name: 'AWS Textract',
   hideFromToolbar: false,
+  canvasPresentation: {
+    defaultTitle: 'AWS Textract',
+    sentences: {
+      byOperation: {
+        analyze_document: [
+          {
+            text: 'Extract text, tables, and forms from',
+            field: DOCUMENT_FIELD,
+            core: true,
+          },
+        ],
+        analyze_expense: [
+          {
+            text: 'Extract invoice and receipt fields from',
+            field: DOCUMENT_FIELD,
+            core: true,
+          },
+        ],
+        analyze_id: [
+          {
+            text: 'Extract identity document fields from',
+            field: UPLOADED_DOCUMENT_FIELD,
+            core: true,
+          },
+        ],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',

@@ -33,7 +33,7 @@ const mockMemoryLogger = vi.mocked(loggerMock.createLogger).mock.results[
   vi.mocked(loggerMock.createLogger).mock.calls.findIndex(([name]) => name === 'Memory')
 ].value
 
-vi.mock('@/lib/tokenization/estimators', () => ({
+vi.mock('@/lib/tokenization/accurate', () => ({
   getAccurateTokenCount: vi.fn((text: string) => {
     return Math.ceil(text.length / 4)
   }),
@@ -347,14 +347,14 @@ describe('Memory', () => {
       expect(result.content).toBe('foreign-secret')
     })
 
-    it.each(['123'])(
+    it.each(['12345678'])(
       'projects short secret %s only in model text and arguments',
       async (secret) => {
         const registry = new ResolvedSecretTraceRegistry([
           { name: 'TOKEN', plaintext: secret, encryptedValue: 'ciphertext' },
         ])
         registry.recordResolved('TOKEN', secret)
-        const converted = secret === '123' ? 123 : true
+        const converted = secret === '12345678' ? 12345678 : true
         const message: Message = {
           role: 'assistant',
           content: `Result: ${secret}`,
@@ -465,11 +465,11 @@ describe('Memory', () => {
 
     it('does not project unrelated active secrets into legacy memory', async () => {
       const registry = new ResolvedSecretTraceRegistry([
-        { name: 'TOKEN', plaintext: 'x', encryptedValue: 'ciphertext' },
+        { name: 'TOKEN', plaintext: 'unrelated-secret', encryptedValue: 'ciphertext' },
       ])
-      registry.recordResolved('TOKEN', 'x')
+      expect(registry.recordResolved('TOKEN', 'unrelated-secret')).toBe(true)
       vi.spyOn(memoryService as any, 'fetchMemory').mockResolvedValueOnce({
-        messages: [{ role: 'assistant', content: 'Box' }],
+        messages: [{ role: 'assistant', content: 'Box unrelated-secret' }],
         provenance: { status: 'exact', entries: [] },
       })
 
@@ -478,7 +478,7 @@ describe('Memory', () => {
         inputs
       )
 
-      expect(messages).toEqual([{ role: 'assistant', content: 'Box' }])
+      expect(messages).toEqual([{ role: 'assistant', content: 'Box unrelated-secret' }])
     })
 
     it('does not activate provenance from a message dropped by the selected window', async () => {

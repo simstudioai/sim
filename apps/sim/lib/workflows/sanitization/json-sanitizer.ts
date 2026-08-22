@@ -1,12 +1,19 @@
 import { isRecordLike, sortObjectKeysDeep } from '@sim/utils/object'
+import { normalizeWorkflowEdgeSourceHandle } from '@sim/workflow-types/workflow'
 import type { Edge } from 'reactflow'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { sanitizeWorkflowForSharing } from '@/lib/workflows/credentials/credential-extractor'
 import { getBlock } from '@/blocks/registry'
-import type { BlockState, Loop, Parallel, WorkflowState } from '@/stores/workflows/workflow/types'
+import type {
+  BlockRetryConfig,
+  BlockState,
+  Loop,
+  Parallel,
+  WorkflowState,
+} from '@/stores/workflows/workflow/types'
 import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
-import { TRIGGER_WEBHOOK_URL_FIELD } from '@/triggers/constants'
-import { blockAdvertisesWebhookUrl } from '@/triggers/webhook-url'
+import { TRIGGER_ROUTING_FIELD, TRIGGER_WEBHOOK_URL_FIELD } from '@/triggers/constants'
+import { blockAdvertisesWebhookUrl, resolveBlockTriggerId } from '@/triggers/webhook-url'
 
 /**
  * Sanitized workflow state for copilot (removes all UI-specific data)
@@ -30,6 +37,8 @@ interface CopilotBlockState {
   nestedNodes?: Record<string, CopilotBlockState>
   enabled: boolean
   advancedMode?: boolean
+  errorEnabled?: boolean
+  retry?: BlockRetryConfig
   triggerMode?: boolean
 }
 
@@ -355,6 +364,35 @@ function resolveTriggerWebhookUrl(blockId: string, block: BlockState): string | 
   }
 }
 
+/** Trigger ids that deliver by credential routing — no per-workflow URL exists. */
+const CREDENTIAL_ROUTED_TRIGGER_IDS = new Set(['slack_oauth'])
+
+/**
+ * Derived routing note for trigger blocks that have NO per-workflow webhook URL
+ * (credential-routed delivery, e.g. Slack v2's `slack_oauth`). Mirrors what the
+ * setup wizard shows: events arrive at the selected credential's endpoint — a
+ * custom bot's per-credential Request URL (surfaced as `requestUrl` on that
+ * credential in environment/credentials.json) or the shared Sim-app endpoint
+ * routed by Slack workspace. Surfaced as the read-only
+ * {@link TRIGGER_ROUTING_FIELD} input; rejected on write by `edit_workflow`.
+ */
+function resolveTriggerRouting(block: BlockState): Record<string, unknown> | null {
+  const triggerId = resolveBlockTriggerId(block)
+  if (!triggerId || !CREDENTIAL_ROUTED_TRIGGER_IDS.has(triggerId)) return null
+  const selected =
+    block.subBlocks?.customBotCredential?.value ?? block.subBlocks?.manualBotCredential?.value
+  const selectedCredentialId = typeof selected === 'string' && selected.length > 0 ? selected : null
+  return {
+    model: 'credential-routed',
+    note:
+      'This trigger has no per-workflow webhook URL. Events are delivered via the selected Slack credential: ' +
+      'a custom bot posts to its per-credential Request URL (the requestUrl field on that credential in ' +
+      'environment/credentials.json — the same URL the setup wizard shows for Slack Event Subscriptions); ' +
+      'a Sim-app connection routes by Slack workspace automatically. Derived at read time; not an editable field.',
+    ...(selectedCredentialId ? { selectedCredentialId } : {}),
+  }
+}
+
 /**
  * Convert internal condition handle (condition-{uuid}) to simple format (if, else-if-0, else)
  * Uses 0-indexed numbering for else-if conditions
@@ -477,7 +515,7 @@ function extractConnectionsForBlock(
 
   // Group by source handle (converting to simple format)
   for (const edge of outgoingEdges) {
-    let handle = edge.sourceHandle || 'source'
+    let handle = normalizeWorkflowEdgeSourceHandle(edge.sourceHandle) || 'source'
 
     // Convert internal UUID handles to simple format (if, else-if-0, route-0, etc.)
     handle = convertToSimpleHandle(handle, blockId, block)
@@ -578,6 +616,10 @@ export function sanitizeForCopilot(
       if (webhookUrl) {
         inputs[TRIGGER_WEBHOOK_URL_FIELD] = webhookUrl
       }
+      const triggerRouting = resolveTriggerRouting(block)
+      if (triggerRouting) {
+        inputs[TRIGGER_ROUTING_FIELD] = triggerRouting
+      }
     }
 
     // Check if this is a loop or parallel (has children)
@@ -606,6 +648,8 @@ export function sanitizeForCopilot(
     if (connections) result.connections = connections
     if (Object.keys(nestedNodes).length > 0) result.nestedNodes = nestedNodes
     if (block.advancedMode !== undefined) result.advancedMode = block.advancedMode
+    if (block.errorEnabled !== undefined) result.errorEnabled = block.errorEnabled
+    if (block.retry !== undefined) result.retry = block.retry
     if (block.triggerMode !== undefined) result.triggerMode = block.triggerMode
 
     // Note: outputs, position, height, layout, horizontalHandles are intentionally excluded
@@ -651,6 +695,7 @@ export function sanitizeForExport(state: WorkflowState): ExportWorkflowState {
   // Use unified sanitization with env var preservation for export
   const sanitizedState = sanitizeWorkflowForSharing(fullState, {
     preserveEnvVars: true, // Keep {{ENV_VAR}} references in exported workflows
+    redactOpaqueCredentialInputs: true,
   }) as ExportWorkflowState['state']
 
   return {

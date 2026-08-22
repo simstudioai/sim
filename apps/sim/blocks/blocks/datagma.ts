@@ -9,11 +9,34 @@ export const DatagmaBlock: BlockConfig<DatagmaResponse> = {
   authMode: AuthMode.ApiKey,
   longDescription:
     'Integrate Datagma to find verified work emails from a name and company, enrich person profiles via email or LinkedIn URL, enrich company data from a domain or name, look up mobile phone numbers from LinkedIn, and check your credit balance.',
-  docsLink: 'https://docs.sim.ai/tools/datagma',
+  docsLink: 'https://docs.sim.ai/integrations/datagma',
   category: 'tools',
   integrationType: IntegrationType.Sales,
   bgColor: '#FFFFFF',
   icon: DatagmaIcon,
+  canvasPresentation: {
+    defaultTitle: 'Datagma',
+    sentences: {
+      byOperation: {
+        datagma_find_email: [
+          { text: 'Find the work email for', field: 'fe_fullName', core: true },
+          { text: 'at', field: 'fe_company' },
+        ],
+        datagma_enrich_person: [
+          { text: 'Enrich the profile for', field: 'ep_data', core: true },
+          { text: 'at', field: 'ep_companyKeyword' },
+        ],
+        datagma_enrich_company: [
+          { text: 'Enrich the company profile for', field: 'ec_data', core: true },
+        ],
+        datagma_find_phone: [
+          { text: 'Find a mobile number from', field: 'fp_username', core: true },
+          { text: ', matched on', field: 'fp_email' },
+        ],
+        datagma_get_credits: ['Check the remaining credit balance'],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',
@@ -29,9 +52,7 @@ export const DatagmaBlock: BlockConfig<DatagmaResponse> = {
       value: () => 'datagma_find_email',
     },
 
-    // -------------------------------------------------------------------------
     // Find Email
-    // -------------------------------------------------------------------------
     {
       id: 'fe_fullName',
       title: 'Full Name',
@@ -57,9 +78,7 @@ export const DatagmaBlock: BlockConfig<DatagmaResponse> = {
       mode: 'advanced',
     },
 
-    // -------------------------------------------------------------------------
     // Enrich Person
-    // -------------------------------------------------------------------------
     {
       id: 'ep_data',
       title: 'Email, LinkedIn URL, or Full Name',
@@ -107,9 +126,7 @@ export const DatagmaBlock: BlockConfig<DatagmaResponse> = {
       mode: 'advanced',
     },
 
-    // -------------------------------------------------------------------------
     // Enrich Company
-    // -------------------------------------------------------------------------
     {
       id: 'ec_data',
       title: 'Company Domain, Name, or SIREN',
@@ -143,9 +160,7 @@ export const DatagmaBlock: BlockConfig<DatagmaResponse> = {
       mode: 'advanced',
     },
 
-    // -------------------------------------------------------------------------
     // Find Phone
-    // -------------------------------------------------------------------------
     {
       id: 'fp_username',
       title: 'LinkedIn URL',
@@ -162,9 +177,7 @@ export const DatagmaBlock: BlockConfig<DatagmaResponse> = {
       condition: { field: 'operation', value: 'datagma_find_phone' },
     },
 
-    // -------------------------------------------------------------------------
     // API Key — hidden on hosted Sim for operations with hosted-key support
-    // -------------------------------------------------------------------------
     {
       id: 'apiKey',
       title: 'API Key',

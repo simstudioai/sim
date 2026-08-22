@@ -11,6 +11,11 @@ import {
   secureFetchWithPinnedIP,
   validateUrlWithDNS,
 } from '@/lib/core/security/input-validation.server'
+import {
+  getSlackBotCredential,
+  refreshAccessTokenIfNeeded,
+  resolveOAuthAccountId,
+} from '@/lib/oauth/credential-service'
 import type {
   AuthContext,
   EventFilterContext,
@@ -18,11 +23,6 @@ import type {
   FormatInputResult,
   WebhookProviderHandler,
 } from '@/lib/webhooks/providers/types'
-import {
-  getSlackBotCredential,
-  refreshAccessTokenIfNeeded,
-  resolveOAuthAccountId,
-} from '@/app/api/auth/oauth/utils'
 import { type SlackEventFilter, slackEventSupportsFilter } from '@/triggers/slack/shared'
 
 const logger = createLogger('WebhookProvider:Slack')

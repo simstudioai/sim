@@ -12,25 +12,27 @@ Connectors continuously sync documents from external services into your knowledg
 
 ## Available Connectors
 
-<Image src="/static/connectors/connectors-sources.png" alt="Connect Source picker showing a searchable list of available connectors including Airtable, Asana, Confluence, Discord, Dropbox, Evernote, Fireflies, GitHub, and Gmail" width={800} height={500} />
+<Image src="/static/connectors/connectors-sources.png" alt="Connect Source picker showing a searchable list of available connectors including Airtable, Asana, Confluence, Discord, Dropbox, Fireflies, GitHub, and Gmail" width={800} height={500} />
 
-Sim ships with 49 built-in connectors:
+Sim ships with 64 built-in connectors:
 
 | Category | Connectors |
 |----------|-----------|
-| **Productivity** | Notion, Confluence, Asana, Linear, Jira, Jira Service Management, Monday, Google Calendar, Google Sheets, Google Forms, Typeform |
-| **Cloud Storage** | Google Drive, Dropbox, OneDrive, SharePoint, Amazon S3 |
-| **Documents** | Google Docs, WordPress, Webflow, DocuSign |
-| **Development** | GitHub, GitLab, Azure DevOps, Sentry |
-| **Communication** | Slack, Discord, Microsoft Teams, Reddit, YouTube |
+| **Productivity** | Notion, Confluence, Asana, Linear, Jira, Jira Service Management, Monday, Trello, ClickUp, Google Calendar, Google Sheets, Google Forms, Microsoft Excel, Typeform |
+| **Cloud Storage** | Google Drive, Dropbox, OneDrive, SharePoint, Box, Amazon S3, SFTP |
+| **Documents** | Google Docs, Google Slides, Mintlify, WordPress, Webflow, DocuSign |
+| **Development** | GitHub, GitLab, Bitbucket, Azure DevOps, Sentry |
+| **Communication** | Slack, Discord, Microsoft Teams, Google Chat, Reddit, X, YouTube |
 | **Email** | Gmail, Outlook |
 | **CRM** | HubSpot, Salesforce |
-| **Support** | Intercom, ServiceNow, Zendesk |
-| **Incident Management** | incident.io, Rootly |
-| **Data** | Airtable |
-| **Note-taking** | Evernote, Obsidian |
-| **Meetings** | Zoom, Gong, Grain, Granola, Fathom, Fireflies |
+| **Support** | Intercom, ServiceNow, Zendesk, Zoho Desk |
+| **Incident Management** | incident.io, Rootly, PagerDuty |
+| **Data** | Airtable, Databricks |
+| **Note-taking** | Obsidian |
+| **Meetings** | Zoom, Google Meet, Gong, Grain, Granola, Fathom, Fireflies |
 | **Recruiting** | Greenhouse, Ashby |
+| **HR** | Workday Help |
+| **Compliance** | Google Vault |
 
 ## Adding a Connector
 
@@ -47,7 +49,6 @@ Other connectors use **API keys** or **personal access tokens** instead. The set
 
 | Connector | Where to get the key |
 |-----------|---------------------|
-| **Evernote** | Developer Token (starts with `S=`) from your Evernote account settings |
 | **Obsidian** | Install the [Local REST API](https://github.com/coddingtonbear/obsidian-local-rest-api) plugin, then copy the key from its settings |
 | **Fireflies** | Generate from the Integrations page in your Fireflies account |
 | **Typeform** | Personal access token from your Typeform account settings |
@@ -55,6 +56,11 @@ Other connectors use **API keys** or **personal access tokens** instead. The set
 | **YouTube** | YouTube Data API key from the Google Cloud Console |
 | **Amazon S3** | Secret Access Key (the Access Key ID, region, and bucket are entered as config fields) |
 | **Sentry** | Auth token with `project:read` and `event:read` scopes |
+| **PagerDuty** | REST API key from Integrations → API Access Keys |
+| **SFTP** | Password or unencrypted private key, plus a required SHA-256 host key fingerprint (host, port, username, and root path are entered as config fields) |
+| **Mintlify** | API key — optional for public documentation sites, which sync from `llms.txt` |
+| **Databricks** | Personal access token from your workspace's user settings (the workspace host is entered as a config field) |
+| **Workday Help** | Register an API client for integrations in your tenant, then enter the client secret and refresh token together as `clientSecret:refreshToken` (the client ID, tenant host, and tenant name are entered as config fields) |
 
 <Callout type="info">
   If you rotate an API key in the external service, update it in Sim as well — OAuth tokens refresh automatically, but API keys do not.

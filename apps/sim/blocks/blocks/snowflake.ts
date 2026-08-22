@@ -239,6 +239,125 @@ export const SnowflakeBlock: BlockConfig<SnowflakeStatementResponse> = {
   integrationType: IntegrationType.Databases,
   bgColor: '#FFFFFF',
   icon: SnowflakeIcon,
+  canvasPresentation: {
+    defaultTitle: 'Snowflake',
+    sentences: {
+      byOperation: {
+        execute_sql: [{ text: 'Run', field: 'statement', core: true }],
+        get_statement: [
+          { text: 'Fetch the result of statement', field: 'statementHandle', core: true },
+        ],
+        cancel_statement: [{ text: 'Cancel statement', field: 'statementHandle', core: true }],
+        insert_rows: [
+          { text: 'Insert', field: 'rows', core: true },
+          { text: 'into', field: ['tableSelector', 'tableName'], core: true },
+        ],
+        update_rows: [
+          { text: 'Update', field: 'rows', core: true },
+          { text: 'in', field: ['tableSelector', 'tableName'], core: true },
+          { text: ', matching', field: 'matchColumns' },
+        ],
+        upsert_rows: [
+          { text: 'Upsert', field: 'rows', core: true },
+          { text: 'into', field: ['tableSelector', 'tableName'], core: true },
+          { text: ', matching', field: 'matchColumns' },
+        ],
+        delete_rows: [
+          { text: 'Delete rows from', field: ['tableSelector', 'tableName'], core: true },
+          { text: ', matching', field: 'filters' },
+        ],
+        load_data: [
+          { text: 'Load', field: 'stagePath', core: true },
+          { text: 'into', field: ['tableSelector', 'tableName'], core: true },
+        ],
+        unload_data: [
+          { text: 'Unload', field: ['tableSelector', 'tableName'], core: true },
+          { text: 'to', field: 'stagePath', core: true },
+        ],
+        list_databases: ['List databases', { text: ', named like', field: 'nameLike' }],
+        list_schemas: [
+          { text: 'List schemas in', field: ['databaseSelector', 'databaseName'], core: true },
+          { text: ', named like', field: 'nameLike' },
+        ],
+        list_tables: [
+          { text: 'List tables in', field: ['schemaSelector', 'schemaName'], core: true },
+          { text: ', named like', field: 'nameLike' },
+        ],
+        list_warehouses: ['List warehouses', { text: ', named like', field: 'nameLike' }],
+        get_warehouse: [
+          {
+            text: 'Read warehouse',
+            field: ['warehouseNameSelector', 'warehouseNameManual'],
+            core: true,
+          },
+        ],
+        resume_warehouse: [
+          {
+            text: 'Resume warehouse',
+            field: ['warehouseNameSelector', 'warehouseNameManual'],
+            core: true,
+          },
+        ],
+        suspend_warehouse: [
+          {
+            text: 'Suspend warehouse',
+            field: ['warehouseNameSelector', 'warehouseNameManual'],
+            core: true,
+          },
+        ],
+        alter_warehouse: [
+          {
+            text: 'Resize warehouse',
+            field: ['warehouseNameSelector', 'warehouseNameManual'],
+            core: true,
+          },
+          { text: 'to', field: 'warehouseSize' },
+        ],
+        list_tasks: [
+          { text: 'List tasks in', field: ['schemaSelector', 'schemaName'], core: true },
+          { text: ', named like', field: 'nameLike' },
+        ],
+        get_task: [{ text: 'Read task', field: 'taskName', core: true }],
+        run_task: [{ text: 'Run task', field: 'taskName', core: true }],
+        resume_task: [{ text: 'Resume task', field: 'taskName', core: true }],
+        suspend_task: [{ text: 'Suspend task', field: 'taskName', core: true }],
+        /* `taskName` filters these two rather than keying them, so it cannot
+           anchor the clause — blank means every task, not a missing value. */
+        list_task_runs: [
+          'List task runs',
+          { text: 'of task', field: 'taskName' },
+          { text: ', scheduled after', field: 'startTime' },
+        ],
+        get_task_run: [
+          { text: 'Read task run', field: 'queryId', core: true },
+          { text: 'of task', field: 'taskName' },
+        ],
+        cancel_task_run: [{ text: 'Cancel task run', field: 'queryId', core: true }],
+        get_task_run_output: [
+          { text: 'Read the output of task run', field: 'queryId', core: true },
+        ],
+        list_query_history: [
+          'List query history',
+          { text: 'on warehouse', field: ['warehouseNameSelector', 'warehouseNameManual'] },
+          { text: ', since', field: 'startTime' },
+        ],
+        list_copy_history: [
+          { text: 'List copy history for', field: ['tableSelector', 'tableName'], core: true },
+          { text: ', since', field: 'startTime' },
+        ],
+        /* The table is an optional filter here — with it blank the operation
+           describes the whole schema, so the schema is what the card anchors on. */
+        introspect_schema: [
+          { text: 'Describe the tables in', field: ['schemaSelector', 'schemaName'], core: true },
+          { text: ', named', field: ['tableSelector', 'tableName'] },
+        ],
+        call_procedure: [
+          { text: 'Call', field: ['procedureSelector', 'procedureNameManual'], core: true },
+          { text: ', with', field: 'procedureArguments' },
+        ],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'credential',

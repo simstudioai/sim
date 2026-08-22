@@ -36,6 +36,8 @@ function getClient(): PostHog | null {
 type PersonProperties = Record<string, string | number | boolean>
 
 interface CaptureOptions {
+  /** Stable event identity used by PostHog to collapse retried server captures. */
+  insertId?: string
   /**
    * Associate this event with workspace-level group analytics.
    * Pass `{ workspace: workspaceId }`.
@@ -51,6 +53,22 @@ interface CaptureOptions {
    * Use for immutable milestones like `first_execution_at`.
    */
   setOnce?: PersonProperties
+}
+
+function buildCaptureProperties<E extends PostHogEventName>(
+  properties: PostHogEventMap[E],
+  options?: CaptureOptions
+): Record<string, unknown> {
+  const contextRequestId = getRequestContext()?.requestId
+  const props = properties as Record<string, unknown>
+  return {
+    ...properties,
+    ...(contextRequestId && !('request_id' in props) ? { request_id: contextRequestId } : {}),
+    ...(options?.insertId ? { $insert_id: options.insertId } : {}),
+    ...(options?.groups ? { $groups: options.groups } : {}),
+    ...(options?.set ? { $set: options.set } : {}),
+    ...(options?.setOnce ? { $set_once: options.setOnce } : {}),
+  }
 }
 
 /**
@@ -71,20 +89,31 @@ export function captureServerEvent<E extends PostHogEventName>(
     const client = getClient()
     if (!client) return
 
-    const contextRequestId = getRequestContext()?.requestId
-    const props = properties as Record<string, unknown>
     client.capture({
       distinctId,
       event,
-      properties: {
-        ...properties,
-        ...(contextRequestId && !('request_id' in props) ? { request_id: contextRequestId } : {}),
-        ...(options?.groups ? { $groups: options.groups } : {}),
-        ...(options?.set ? { $set: options.set } : {}),
-        ...(options?.setOnce ? { $set_once: options.setOnce } : {}),
-      },
+      properties: buildCaptureProperties(properties, options),
     })
   } catch (error) {
     logger.warn('Failed to capture PostHog server event', { event, error })
   }
+}
+
+/** Captures and flushes one outbox event before its durable checkpoint advances. */
+export async function deliverOutboxServerEvent<E extends PostHogEventName>(
+  distinctId: string,
+  event: E,
+  properties: PostHogEventMap[E],
+  options?: CaptureOptions
+): Promise<'delivered' | 'skipped'> {
+  const client = getClient()
+  if (!client) return 'skipped'
+
+  client.capture({
+    distinctId,
+    event,
+    properties: buildCaptureProperties(properties, options),
+  })
+  await client.flush()
+  return 'delivered'
 }

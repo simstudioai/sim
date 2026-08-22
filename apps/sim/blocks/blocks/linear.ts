@@ -6,6 +6,14 @@ import { normalizeFileInput } from '@/blocks/utils'
 import type { LinearResponse } from '@/tools/linear/types'
 import { getTrigger } from '@/triggers'
 
+/**
+ * Canonical basic/advanced pairs shared by the card summaries below. Naming
+ * every member is what keeps a sentence working for an advanced-mode user, who
+ * has only the manual field filled.
+ */
+const TEAM_FIELD = ['teamId', 'manualTeamId'] as const
+const PROJECT_FIELD = ['projectId', 'manualProjectId'] as const
+
 export const LinearBlock: BlockConfig<LinearResponse> = {
   type: 'linear',
   name: 'Linear (Legacy)',
@@ -21,6 +29,305 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
   integrationType: IntegrationType.Productivity,
   icon: LinearIcon,
   bgColor: '#5E6AD2',
+  canvasPresentation: {
+    defaultTitle: 'Linear',
+    sentences: {
+      byOperation: {
+        linear_read_issues: [
+          'Read issues',
+          { text: 'from', field: TEAM_FIELD },
+          { text: ', in project', field: PROJECT_FIELD },
+          { text: ', up to', field: 'first', after: 'results' },
+        ],
+        linear_get_issue: [{ text: 'Fetch issue', field: 'issueId', core: true }],
+        linear_create_issue: [
+          { text: 'Create issue', field: 'title', core: true },
+          { text: 'in', field: TEAM_FIELD },
+          { text: ', under project', field: PROJECT_FIELD },
+        ],
+        linear_update_issue: [
+          { text: 'Update issue', field: 'issueId', core: true },
+          { text: ', setting title to', field: 'title' },
+        ],
+        linear_archive_issue: [{ text: 'Archive issue', field: 'issueId', core: true }],
+        linear_unarchive_issue: [{ text: 'Restore archived issue', field: 'issueId', core: true }],
+        linear_delete_issue: [{ text: 'Delete issue', field: 'issueId', core: true }],
+        linear_search_issues: [
+          { text: 'Search issues for', field: 'query', core: true },
+          { text: ', in', field: TEAM_FIELD },
+          { text: ', up to', field: 'first', after: 'results' },
+        ],
+        linear_add_label_to_issue: [
+          { text: 'Add label', field: 'labelId', core: true },
+          { text: 'to issue', field: 'issueId', core: true },
+        ],
+        linear_remove_label_from_issue: [
+          { text: 'Remove label', field: 'labelId', core: true },
+          { text: 'from issue', field: 'issueId', core: true },
+        ],
+        linear_create_comment: [
+          { text: 'Add comment', field: 'body', core: true },
+          { text: 'to issue', field: 'issueId' },
+        ],
+        linear_update_comment: [
+          { text: 'Edit comment', field: 'commentId', core: true },
+          { text: ', setting text to', field: 'body' },
+        ],
+        linear_delete_comment: [{ text: 'Delete comment', field: 'commentId', core: true }],
+        linear_list_comments: [
+          { text: 'List comments on issue', field: 'issueId', core: true },
+          { text: ', up to', field: 'first', after: 'results' },
+        ],
+        linear_list_projects: [
+          'List projects',
+          { text: 'in', field: TEAM_FIELD },
+          { text: ', up to', field: 'first', after: 'results' },
+        ],
+        linear_get_project: [{ text: 'Fetch project', field: PROJECT_FIELD, core: true }],
+        linear_create_project: [
+          { text: 'Create project', field: 'name', core: true },
+          { text: 'in', field: TEAM_FIELD },
+          { text: ', due', field: 'targetDate' },
+        ],
+        linear_update_project: [
+          { text: 'Update project', field: PROJECT_FIELD, core: true },
+          { text: ', renaming it to', field: 'name' },
+          { text: ', due', field: 'targetDate' },
+        ],
+        linear_archive_project: [{ text: 'Archive project', field: PROJECT_FIELD, core: true }],
+        linear_list_users: [
+          'List workspace users',
+          { text: ', up to', field: 'first', after: 'results' },
+        ],
+        linear_list_teams: [
+          'List workspace teams',
+          { text: ', up to', field: 'first', after: 'results' },
+        ],
+        linear_get_viewer: ['Fetch the authenticated user'],
+        linear_list_labels: [
+          'List labels',
+          { text: 'in', field: TEAM_FIELD },
+          { text: ', up to', field: 'first', after: 'results' },
+        ],
+        linear_create_label: [
+          { text: 'Create label', field: 'name', core: true },
+          { text: ', colored', field: 'color' },
+        ],
+        linear_update_label: [
+          { text: 'Update label', field: 'labelId', core: true },
+          { text: ', renaming it to', field: 'name' },
+          { text: ', colored', field: 'color' },
+        ],
+        linear_archive_label: [{ text: 'Archive label', field: 'labelId', core: true }],
+        linear_list_workflow_states: [
+          { text: 'List workflow states in', field: TEAM_FIELD, core: true },
+          { text: ', up to', field: 'first', after: 'results' },
+        ],
+        linear_create_workflow_state: [
+          { text: 'Create workflow state', field: 'name', core: true },
+          { text: 'in', field: TEAM_FIELD },
+          { text: ', of type', field: 'workflowType' },
+        ],
+        linear_update_workflow_state: [
+          { text: 'Update workflow state', field: 'stateId', core: true },
+          { text: ', renaming it to', field: 'name' },
+          { text: ', colored', field: 'color' },
+        ],
+        linear_list_cycles: [
+          'List cycles',
+          { text: 'in', field: TEAM_FIELD },
+          { text: ', up to', field: 'first', after: 'results' },
+        ],
+        linear_get_cycle: [{ text: 'Fetch cycle', field: 'cycleId', core: true }],
+        linear_create_cycle: [
+          'Create cycle',
+          { field: 'name' },
+          { text: 'in', field: TEAM_FIELD, core: true },
+          { text: ', starting', field: 'startDate' },
+          { text: ', ending', field: 'endDate' },
+        ],
+        linear_get_active_cycle: [
+          { text: 'Fetch the active cycle for', field: TEAM_FIELD, core: true },
+        ],
+        linear_create_attachment: [
+          { text: 'Attach', field: 'attachmentTitle', core: true },
+          { text: 'to issue', field: 'issueId' },
+        ],
+        linear_list_attachments: [
+          { text: 'List attachments on issue', field: 'issueId', core: true },
+          { text: ', up to', field: 'first', after: 'results' },
+        ],
+        linear_update_attachment: [
+          { text: 'Update attachment', field: 'attachmentId', core: true },
+          { text: ', setting title to', field: 'attachmentTitle' },
+        ],
+        linear_delete_attachment: [
+          { text: 'Delete attachment', field: 'attachmentId', core: true },
+        ],
+        linear_create_issue_relation: [
+          { text: 'Link issue', field: 'issueId', core: true },
+          { text: 'to', field: 'relatedIssueId', core: true },
+          { text: ', as', field: 'relationType' },
+        ],
+        linear_list_issue_relations: [
+          { text: 'List relations for issue', field: 'issueId', core: true },
+          { text: ', up to', field: 'first', after: 'results' },
+        ],
+        linear_delete_issue_relation: [
+          { text: 'Delete issue relation', field: 'relationId', core: true },
+        ],
+        linear_create_favorite: [
+          { text: 'Bookmark', field: 'favoriteType', core: true },
+          { text: 'with id', field: 'favoriteTargetId', core: true },
+        ],
+        linear_list_favorites: [
+          'List bookmarked items',
+          { text: ', up to', field: 'first', after: 'results' },
+        ],
+        linear_create_project_update: [
+          { text: 'Post an update on project', field: PROJECT_FIELD, core: true },
+          { text: ', marked', field: 'health' },
+          { text: ', saying', field: 'body' },
+        ],
+        linear_list_project_updates: [
+          { text: 'List updates for project', field: PROJECT_FIELD, core: true },
+          { text: ', up to', field: 'first', after: 'results' },
+        ],
+        linear_list_notifications: [
+          'List notifications',
+          { text: ', up to', field: 'first', after: 'results' },
+        ],
+        linear_update_notification: [
+          { text: 'Update notification', field: 'notificationId', core: true },
+          { text: ', setting read status to', field: 'markAsRead' },
+        ],
+        linear_create_customer: [
+          { text: 'Create customer', field: 'customerName', core: true },
+          { text: ', with domains', field: 'customerDomains' },
+        ],
+        linear_list_customers: [
+          'List customers',
+          { text: ', up to', field: 'first', after: 'results' },
+        ],
+        linear_create_customer_request: [
+          { text: 'Create request for customer', field: 'customerId', core: true },
+          { text: ', saying', field: 'requestBody' },
+          { text: ', linked to issue', field: 'linkedIssueId' },
+        ],
+        linear_update_customer_request: [
+          { text: 'Update customer request', field: 'customerNeedId', core: true },
+          { text: ', saying', field: 'requestBody' },
+          { text: ', linked to issue', field: 'linkedIssueId' },
+        ],
+        linear_list_customer_requests: [
+          'List customer requests',
+          { text: ', up to', field: 'first', after: 'results' },
+        ],
+        linear_get_customer: [{ text: 'Fetch customer', field: 'customerIdTarget', core: true }],
+        linear_update_customer: [
+          { text: 'Update customer', field: 'customerIdTarget', core: true },
+          { text: ', renaming it to', field: 'customerName' },
+          { text: ', with domains', field: 'customerDomains' },
+        ],
+        linear_delete_customer: [
+          { text: 'Delete customer', field: 'customerIdTarget', core: true },
+        ],
+        linear_merge_customers: [
+          { text: 'Merge customer', field: 'sourceCustomerId', core: true },
+          { text: 'into', field: 'targetCustomerId' },
+        ],
+        linear_create_customer_status: [
+          { text: 'Create customer status', field: 'statusName', core: true },
+          { text: ', colored', field: 'statusColor' },
+        ],
+        linear_update_customer_status: [
+          { text: 'Update customer status', field: 'statusId', core: true },
+        ],
+        linear_delete_customer_status: [
+          { text: 'Delete customer status', field: 'statusId', core: true },
+        ],
+        linear_list_customer_statuses: [
+          'List customer statuses',
+          { text: ', up to', field: 'first', after: 'results' },
+        ],
+        linear_create_customer_tier: [
+          { text: 'Create customer tier', field: 'tierName', core: true },
+          { text: ', colored', field: 'statusColor' },
+        ],
+        linear_update_customer_tier: [
+          { text: 'Update customer tier', field: 'tierId', core: true },
+        ],
+        linear_delete_customer_tier: [
+          { text: 'Delete customer tier', field: 'tierId', core: true },
+        ],
+        linear_list_customer_tiers: [
+          'List customer tiers',
+          { text: ', up to', field: 'first', after: 'results' },
+        ],
+        linear_delete_project: [{ text: 'Delete project', field: PROJECT_FIELD, core: true }],
+        linear_create_project_label: [
+          { text: 'Create project label', field: 'projectLabelName', core: true },
+          { text: ', colored', field: 'statusColor' },
+          { text: ', nested under', field: 'projectLabelParentId' },
+        ],
+        linear_update_project_label: [
+          { text: 'Update project label', field: 'projectLabelId', core: true },
+          { text: ', renaming it to', field: 'projectLabelName' },
+        ],
+        linear_delete_project_label: [
+          { text: 'Delete project label', field: 'projectLabelId', core: true },
+        ],
+        linear_list_project_labels: [
+          'List project labels',
+          { text: 'on project', field: PROJECT_FIELD },
+          { text: ', up to', field: 'first', after: 'results' },
+        ],
+        linear_add_label_to_project: [
+          { text: 'Add label', field: 'projectLabelId', core: true },
+          { text: 'to project', field: 'projectIdForMilestone', core: true },
+        ],
+        linear_remove_label_from_project: [
+          { text: 'Remove label', field: 'projectLabelId', core: true },
+          { text: 'from project', field: 'projectIdForMilestone', core: true },
+        ],
+        linear_create_project_milestone: [
+          { text: 'Create milestone', field: 'milestoneName', core: true },
+          { text: 'on project', field: 'projectIdForMilestone' },
+          { text: ', due', field: 'milestoneTargetDate' },
+        ],
+        linear_update_project_milestone: [
+          { text: 'Update milestone', field: 'milestoneId', core: true },
+          { text: ', due', field: 'milestoneTargetDate' },
+        ],
+        linear_delete_project_milestone: [
+          { text: 'Delete milestone', field: 'milestoneId', core: true },
+        ],
+        linear_list_project_milestones: [
+          {
+            text: 'List milestones for project',
+            field: 'projectIdForMilestone',
+            core: true,
+          },
+          { text: ', up to', field: 'first', after: 'results' },
+        ],
+        linear_create_project_status: [
+          { text: 'Create project status', field: 'projectStatusName', core: true },
+          { text: ', of type', field: 'projectStatusType' },
+          { text: ', at position', field: 'projectStatusPosition' },
+        ],
+        linear_update_project_status: [
+          { text: 'Update project status', field: 'projectStatusId', core: true },
+        ],
+        linear_delete_project_status: [
+          { text: 'Delete project status', field: 'projectStatusId', core: true },
+        ],
+        linear_list_project_statuses: [
+          'List project statuses',
+          { text: ', up to', field: 'first', after: 'results' },
+        ],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',
@@ -2566,6 +2873,17 @@ export const LinearV2Block: BlockConfig<LinearResponse> = {
   type: 'linear_v2',
   name: 'Linear',
   hideFromToolbar: false,
+  canvasPresentation: {
+    ...LinearBlock.canvasPresentation,
+    defaultTitle: 'Linear',
+    triggerSentences: {
+      default: [
+        'Run on',
+        { field: 'selectedTriggerId', core: true },
+        { text: 'in team', field: 'teamId' },
+      ],
+    },
+  },
   subBlocks: [
     ...LinearBlock.subBlocks.filter(
       (sb) =>

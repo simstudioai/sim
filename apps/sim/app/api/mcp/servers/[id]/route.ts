@@ -9,6 +9,7 @@ import {
   withMcpAuth,
 } from '@/lib/mcp/middleware'
 import { performUpdateMcpServer } from '@/lib/mcp/orchestration'
+import { projectInternalMcpServer } from '@/lib/mcp/projection'
 import {
   createMcpErrorResponse,
   createMcpSuccessResponse,
@@ -81,9 +82,13 @@ export const PATCH = withRouteHandler(
 
         logger.info(`[${requestId}] Successfully updated MCP server: ${serverId}`)
 
-        const { oauthClientSecret: _secret, ...rest } = updatedServer
+        /**
+         * The echoed row never carries header values: the caller just supplied
+         * whatever it wanted stored, and the client refetches the list rather
+         * than reading headers off this response.
+         */
         return createMcpSuccessResponse({
-          server: { ...rest, hasOauthClientSecret: !!_secret },
+          server: projectInternalMcpServer(updatedServer, { includeHeaderValues: false }),
         })
       } catch (error) {
         const bodyErrorResponse = mcpBodyReadErrorResponse(error, request)

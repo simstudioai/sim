@@ -105,21 +105,7 @@ export const getStarsContract = defineRouteContract({
   },
 })
 
-export const getStatusContract = defineRouteContract({
-  method: 'GET',
-  path: '/api/status',
-  response: {
-    mode: 'json',
-    schema: z.object({
-      status: z.enum(['operational', 'degraded', 'outage', 'maintenance', 'loading', 'error']),
-      message: z.string(),
-      url: z.string().url(),
-      lastUpdated: z.string(),
-    }),
-  },
-})
-
-const jobStatusSchema = z.enum(['pending', 'processing', 'completed', 'failed'])
+const jobStatusSchema = z.enum(['pending', 'processing', 'completed', 'failed', 'cancelled'])
 
 const jobStatusResponseSchema = z
   .object({

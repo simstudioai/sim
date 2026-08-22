@@ -11,6 +11,7 @@ import {
   completeAsyncToolCall,
   detachAsyncToolCall,
   getClaimedWorkflowExecutionId,
+  markAsyncToolRunning,
   recordToolPermissionDecision,
   releaseWorkflowToolExecutionClaim,
   replaceTerminalAsyncToolCallResult,
@@ -162,6 +163,29 @@ describe('async tool repository single-row semantics', () => {
     await expect(claimWorkflowToolExecution('workflow-tool', 'execution-2')).resolves.toBeNull()
   })
 
+  it('overwrites a workflow execution claim once the sim path starts running it', async () => {
+    // The server-side fallback claims `workflow:<id>` and then immediately runs
+    // the tool, whose executor re-marks the row as running under 'sim-stream'.
+    // The claim value is therefore NOT durable identity — only its
+    // `claimedBy IS NULL` precondition is load-bearing, since that is what keeps
+    // a late browser locked out. Pinning this so nobody builds on reading it back.
+    dbChainMockFns.returning.mockResolvedValueOnce([
+      {
+        toolCallId: 'workflow-tool',
+        status: 'running',
+        claimedBy: 'sim-stream',
+      },
+    ])
+
+    const result = await markAsyncToolRunning('workflow-tool', 'sim-stream')
+
+    expect(result).toMatchObject({ claimedBy: 'sim-stream' })
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({ claimedBy: 'sim-stream' })
+    )
+    expect(getClaimedWorkflowExecutionId('sim-stream')).toBeUndefined()
+  })
+
   it('releases a matching pre-start workflow claim without changing its lifecycle status', async () => {
     dbChainMockFns.returning.mockResolvedValueOnce([
       {
@@ -258,7 +282,7 @@ describe('async tool repository single-row semantics', () => {
       const existingRow = {
         runId: 'run-1',
         toolCallId: 'tool-1',
-        toolName: 'function_execute',
+        toolName: 'run_function',
         args: { language: 'javascript', code: 'return {{FIRST_SECRET}}' },
         status,
       }
@@ -267,7 +291,7 @@ describe('async tool repository single-row semantics', () => {
       const result = await upsertAsyncToolCall({
         runId: 'run-1',
         toolCallId: 'tool-1',
-        toolName: 'function_execute',
+        toolName: 'run_function',
         args: { language: 'javascript', code: 'return {{SECOND_SECRET}}' },
         status: 'pending',
       })

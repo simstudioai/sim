@@ -208,7 +208,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     try {
       // forceRefresh: skip any stale cache from before re-auth.
       await timedStep('discoverServerTools', 60_000, () =>
-        mcpService.discoverServerTools(session.user.id, server.id, server.workspaceId, true)
+        mcpService.discoverServerTools(session.user.id, server.id, server.workspaceId, 'force')
       )
     } catch (e) {
       logger.warn('Post-auth tools refresh failed', toError(e).message)

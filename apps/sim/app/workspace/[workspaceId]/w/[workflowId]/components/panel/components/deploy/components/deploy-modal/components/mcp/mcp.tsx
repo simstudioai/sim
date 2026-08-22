@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   Badge,
-  Button,
+  Chip,
   ChipCombobox,
   ChipInput,
   type ComboboxOption,
@@ -506,9 +506,9 @@ export function McpDeploy({
           <p className='text-[var(--text-muted)] text-small'>
             Create an MCP Server to expose your workflows as tools.
           </p>
-          <Button variant='tertiary' onClick={() => setShowCreateModal(true)}>
+          <Chip variant='primary' onClick={() => setShowCreateModal(true)}>
             Create MCP Server
-          </Button>
+          </Chip>
         </div>
         <CreateWorkflowMcpServerModal
           open={showCreateModal}

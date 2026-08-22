@@ -15,8 +15,9 @@ import {
   type TableSchema,
   type TableScope,
 } from '@/lib/table'
+import { normalizeColumn, toTableListItem, toWireTimestamp } from '@/lib/table/wire'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
-import { normalizeColumn } from '@/app/api/table/utils'
+import { orchestrationErrorResponse } from '@/app/api/table/utils'
 
 const logger = createLogger('TableAPI')
 
@@ -140,31 +141,15 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           maxRows: table.maxRows,
           folderId: table.folderId ?? null,
           locks: table.locks,
-          createdAt:
-            table.createdAt instanceof Date
-              ? table.createdAt.toISOString()
-              : String(table.createdAt),
-          updatedAt:
-            table.updatedAt instanceof Date
-              ? table.updatedAt.toISOString()
-              : String(table.updatedAt),
+          createdAt: toWireTimestamp(table.createdAt),
+          updatedAt: toWireTimestamp(table.updatedAt),
         },
         message: 'Table created successfully',
       },
     })
   } catch (error) {
-    if (error instanceof Error) {
-      if (error.message.includes('maximum table limit')) {
-        return NextResponse.json({ error: error.message }, { status: 403 })
-      }
-      if (
-        error.message.includes('Invalid table name') ||
-        error.message.includes('Invalid schema') ||
-        error.message.includes('already exists')
-      ) {
-        return NextResponse.json({ error: error.message }, { status: 400 })
-      }
-    }
+    const classified = orchestrationErrorResponse(error)
+    if (classified) return classified
 
     logger.error(`[${requestId}] Error creating table:`, error)
     return NextResponse.json({ error: 'Failed to create table' }, { status: 500 })
@@ -208,41 +193,10 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
     logger.info(`[${requestId}] Listed ${tables.length} tables in workspace ${params.workspaceId}`)
 
-    const responseTables = tables.map((t) => {
-      const schemaData = t.schema as TableSchema
-      return {
-        id: t.id,
-        name: t.name,
-        description: t.description,
-        schema: {
-          columns: schemaData.columns.map(normalizeColumn),
-        },
-        rowCount: t.rowCount,
-        maxRows: t.maxRows,
-        locks: t.locks,
-        workspaceId: t.workspaceId,
-        folderId: t.folderId ?? null,
-        createdBy: t.createdBy,
-        createdAt: t.createdAt instanceof Date ? t.createdAt.toISOString() : String(t.createdAt),
-        updatedAt: t.updatedAt instanceof Date ? t.updatedAt.toISOString() : String(t.updatedAt),
-        archivedAt:
-          t.archivedAt instanceof Date
-            ? t.archivedAt.toISOString()
-            : t.archivedAt
-              ? String(t.archivedAt)
-              : null,
-        jobStatus: t.jobStatus ?? null,
-        jobId: t.jobId ?? null,
-        jobType: t.jobType ?? null,
-        jobError: t.jobError ?? null,
-        jobRowsProcessed: t.jobRowsProcessed ?? 0,
-      }
-    })
-
     return NextResponse.json({
       success: true,
       data: {
-        tables: responseTables,
+        tables: tables.map(toTableListItem),
         totalCount: tables.length,
       },
     })

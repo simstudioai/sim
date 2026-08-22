@@ -25,6 +25,29 @@ export class TokenServiceAccountValidationError extends Error {
 const ERROR_SNIPPET_MAX_LENGTH = 500
 
 /**
+ * Narrows the optional `clientSecret` for the single-grant client-credential
+ * providers that always require one. `ClientCredentialAccountFields` makes it
+ * optional for the key-based grants (Salesforce JWT bearer), so providers with
+ * no such branch re-state the invariant here. The secret builder's
+ * required-field check already rejects a missing value at connect time; this
+ * fails loudly rather than posting `client_secret=undefined` if a future
+ * caller ever bypasses it.
+ */
+export function requireClientSecret(
+  clientSecret: string | undefined,
+  step: string,
+  serviceLabel: string
+): string {
+  if (!clientSecret) {
+    throw new TokenServiceAccountValidationError('invalid_credentials', 400, {
+      step,
+      reason: `${serviceLabel} requires a client secret`,
+    })
+  }
+  return clientSecret
+}
+
+/**
  * Short, stable description of a failed best-effort provider call, for callers
  * that degrade instead of throwing. `TokenServiceAccountValidationError`'s
  * message is only its code, so the status is appended to keep the reason

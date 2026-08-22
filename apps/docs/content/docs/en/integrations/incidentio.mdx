@@ -643,6 +643,22 @@ List all schedules in incident.io
 |   ↳ `timezone` | string | The schedule timezone |
 |   ↳ `created_at` | string | When the schedule was created |
 |   ↳ `updated_at` | string | When the schedule was last updated |
+|   ↳ `current_shifts` | array | Shifts that are ongoing right now, naming who is on call |
+|     ↳ `start_at` | string | When the shift starts |
+|     ↳ `end_at` | string | When the shift ends |
+|     ↳ `entry_id` | string | Schedule entry ID |
+|     ↳ `rotation_id` | string | Rotation ID |
+|     ↳ `layer_id` | string | Layer ID |
+|     ↳ `user` | object | The on-call user |
+|   ↳ `next_shifts` | array | Shifts that take over at the next changeover. Only returned when the page size is 25 or lower |
+|     ↳ `start_at` | string | When the shift starts |
+|     ↳ `end_at` | string | When the shift ends |
+|     ↳ `entry_id` | string | Schedule entry ID |
+|     ↳ `rotation_id` | string | Rotation ID |
+|     ↳ `layer_id` | string | Layer ID |
+|     ↳ `user` | object | The on-call user |
+|   ↳ `permalink` | string | Link to the schedule in the incident.io dashboard |
+|   ↳ `team_ids` | array | IDs of teams that own this schedule |
 | `pagination_meta` | object | Pagination metadata |
 |   ↳ `after` | string | Cursor for next page |
 |   ↳ `page_size` | number | Number of results per page |
@@ -692,6 +708,22 @@ Get details of a specific schedule in incident.io
 |   ↳ `timezone` | string | The schedule timezone |
 |   ↳ `created_at` | string | When the schedule was created |
 |   ↳ `updated_at` | string | When the schedule was last updated |
+|   ↳ `current_shifts` | array | Shifts that are ongoing right now, naming who is on call |
+|     ↳ `start_at` | string | When the shift starts |
+|     ↳ `end_at` | string | When the shift ends |
+|     ↳ `entry_id` | string | Schedule entry ID |
+|     ↳ `rotation_id` | string | Rotation ID |
+|     ↳ `layer_id` | string | Layer ID |
+|     ↳ `user` | object | The on-call user |
+|   ↳ `next_shifts` | array | Shifts that take over at the next changeover. Only returned when the page size is 25 or lower |
+|     ↳ `start_at` | string | When the shift starts |
+|     ↳ `end_at` | string | When the shift ends |
+|     ↳ `entry_id` | string | Schedule entry ID |
+|     ↳ `rotation_id` | string | Rotation ID |
+|     ↳ `layer_id` | string | Layer ID |
+|     ↳ `user` | object | The on-call user |
+|   ↳ `permalink` | string | Link to the schedule in the incident.io dashboard |
+|   ↳ `team_ids` | array | IDs of teams that own this schedule |
 
 ### Update Schedule
 
@@ -1380,6 +1412,614 @@ Delete an escalation path in incident.io
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | incident.io API Key |
 | `id` | string | Yes | The ID of the escalation path to delete \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Success message |
+
+### Get Who Is On Call
+
+Get who is currently on call in incident.io, as one row per ongoing shift across every schedule (or a single schedule). Also returns the shifts that take over at the next changeover.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | incident.io API Key |
+| `schedule_id` | string | No | Limit the result to a single schedule by ID \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\). Leave empty to return who is on call across every schedule. |
+| `page_size` | number | No | Number of schedules to scan per page when no schedule ID is given \(e.g., 10, 25\). Defaults to 25; upcoming shifts are only returned at 25 or lower. |
+| `after` | string | No | Pagination cursor to fetch the next page of schedules \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `on_call` | array | Shifts that are ongoing right now, one row per on-call person per schedule |
+| `next_on_call` | array | Shifts that take over at the next changeover. Only populated when the page size is 25 or lower |
+| `pagination_meta` | object | Pagination metadata, returned when scanning every schedule |
+|   ↳ `after` | string | Cursor for next page |
+|   ↳ `page_size` | number | Number of results per page |
+|   ↳ `total_record_count` | number | Total number of schedules |
+
+### List Schedule Overrides
+
+List the one-off overrides layered on top of a schedule in incident.io, such as someone covering a colleague’s shift
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | incident.io API Key |
+| `schedule_id` | string | Yes | The ID of the schedule to get overrides for \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
+| `rotation_id` | string | No | Only return overrides on this rotation |
+| `layer_id` | string | No | Only return overrides on this layer |
+| `page_size` | number | No | Number of results per page \(e.g., 10, 25, 50\) |
+| `after` | string | No | Pagination cursor to fetch the next page of results \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `overrides` | array | List of schedule overrides |
+|   ↳ `id` | string | Override ID |
+|   ↳ `schedule_id` | string | Schedule the override applies to |
+|   ↳ `rotation_id` | string | Rotation the override applies to |
+|   ↳ `layer_id` | string | Layer the override applies to |
+|   ↳ `start_at` | string | Start of the override |
+|   ↳ `end_at` | string | End of the override |
+|   ↳ `created_at` | string | When the override was created |
+|   ↳ `updated_at` | string | When the override was last updated |
+|   ↳ `user` | object | The user covering the override |
+|     ↳ `id` | string | User ID |
+|     ↳ `name` | string | User display name |
+|     ↳ `email` | string | User email address |
+|     ↳ `role` | string | User role |
+|     ↳ `slack_user_id` | string | Slack user ID |
+| `pagination_meta` | object | Pagination metadata |
+|   ↳ `after` | string | Cursor for next page |
+|   ↳ `page_size` | number | Number of results per page |
+
+### List Alerts
+
+List alerts in incident.io, optionally filtered by status, source, or created date
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | incident.io API Key |
+| `page_size` | number | No | Number of results per page \(e.g., 10, 25, 50\). Default: 25 |
+| `after` | string | No | Pagination cursor to fetch the next page of results \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
+| `status` | string | No | Filter by alert status: "firing" or "resolved" |
+| `status_operator` | string | No | How to apply the status filter: "one_of" to match it, "not_in" to exclude it. Default: one_of |
+| `alert_source_id` | string | No | Filter by alert source ID \(e.g., "01GBSQF3FHF7FWZQNWGHAVQ804"\) |
+| `alert_source_operator` | string | No | How to apply the alert source filter: "one_of" to match it, "not_in" to exclude it. Default: one_of |
+| `deduplication_key` | string | No | Filter to the single alert with this deduplication key |
+| `created_at_gte` | string | No | Only return alerts created on or after this date \(e.g., "2025-01-01"\) |
+| `created_at_lte` | string | No | Only return alerts created on or before this date \(e.g., "2025-02-01"\) |
+| `has_notes` | boolean | No | Filter to alerts that do \(true\) or do not \(false\) have notes attached |
+| `include_maintenance_window` | boolean | No | Whether to include alerts held by a maintenance window. Defaults to true on the API |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `alerts` | array | List of alerts |
+|   ↳ `id` | string | Alert ID |
+|   ↳ `title` | string | Alert title, parsed from the alert payload |
+|   ↳ `status` | string | Alert status \(firing, resolved\) |
+|   ↳ `alert_source_id` | string | ID of the alert source this alert fired on |
+|   ↳ `deduplication_key` | string | Key that uniquely references this alert from its source |
+|   ↳ `description` | string | Alert description |
+|   ↳ `source_url` | string | Link to the alert in the upstream system |
+|   ↳ `resolved_at` | string | When this alert was resolved |
+|   ↳ `created_at` | string | When this alert was created |
+|   ↳ `updated_at` | string | When this alert was last updated |
+|   ↳ `alert_group_ids` | array | IDs of every alert group this alert belongs to |
+|   ↳ `attributes` | array | Attribute values parsed from the alert payload |
+| `pagination_meta` | object | Pagination metadata |
+|   ↳ `after` | string | Cursor for next page |
+|   ↳ `page_size` | number | Number of results per page |
+
+### Show Alert
+
+Get a single alert by ID from incident.io
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | incident.io API Key |
+| `id` | string | Yes | The ID of the alert to fetch \(e.g., "01GW2G3V0S59R238FAHPDS1R66"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `alert` | object | The alert details |
+|   ↳ `id` | string | Alert ID |
+|   ↳ `title` | string | Alert title, parsed from the alert payload |
+|   ↳ `status` | string | Alert status \(firing, resolved\) |
+|   ↳ `alert_source_id` | string | ID of the alert source this alert fired on |
+|   ↳ `deduplication_key` | string | Key that uniquely references this alert from its source |
+|   ↳ `description` | string | Alert description |
+|   ↳ `source_url` | string | Link to the alert in the upstream system |
+|   ↳ `resolved_at` | string | When this alert was resolved |
+|   ↳ `created_at` | string | When this alert was created |
+|   ↳ `updated_at` | string | When this alert was last updated |
+|   ↳ `alert_group_ids` | array | IDs of every alert group this alert belongs to |
+|   ↳ `attributes` | array | Attribute values parsed from the alert payload |
+
+### Resolve Alert
+
+Resolve a currently firing alert in incident.io. Resolving an already-resolved alert is a no-op and returns it unchanged.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | incident.io API Key |
+| `id` | string | Yes | The ID of the alert to resolve \(e.g., "01GW2G3V0S59R238FAHPDS1R66"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `alert` | object | The resolved alert |
+|   ↳ `id` | string | Alert ID |
+|   ↳ `title` | string | Alert title, parsed from the alert payload |
+|   ↳ `status` | string | Alert status \(firing, resolved\) |
+|   ↳ `alert_source_id` | string | ID of the alert source this alert fired on |
+|   ↳ `deduplication_key` | string | Key that uniquely references this alert from its source |
+|   ↳ `description` | string | Alert description |
+|   ↳ `source_url` | string | Link to the alert in the upstream system |
+|   ↳ `resolved_at` | string | When this alert was resolved |
+|   ↳ `created_at` | string | When this alert was created |
+|   ↳ `updated_at` | string | When this alert was last updated |
+|   ↳ `alert_group_ids` | array | IDs of every alert group this alert belongs to |
+|   ↳ `attributes` | array | Attribute values parsed from the alert payload |
+
+### Create Alert Event
+
+Fire an alert into incident.io through an HTTP alert source. Send the same deduplication key with status "resolved" to close the alert you opened.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `alert_source_config_id` | string | Yes | The ID of the HTTP alert source config to fire into \(e.g., "01GW2G3V0S59R238FAHPDS1R66"\) |
+| `alert_source_token` | string | Yes | The token generated when configuring the HTTP alert source. This is not the incident.io API key. |
+| `title` | string | Yes | Title of the alert \(e.g., "Payments service error rate above 5%"\) |
+| `status` | string | Yes | Current status of the alert: "firing" or "resolved" |
+| `description` | string | No | Detail to add below the title. Supports Markdown. |
+| `deduplication_key` | string | No | Key that uniquely identifies this alert. Reuse it to update or resolve the same alert instead of creating a new one. |
+| `source_url` | string | No | Link back to the alert in the upstream system |
+| `metadata` | string | No | Additional metadata as a JSON object, parsed according to the alert source config \(e.g., \{"service": "payments"\}\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deduplication_key` | string | The deduplication key the event was processed with |
+| `message` | string | Human readable message giving detail about the event |
+| `status` | string | Status of the event |
+
+### List Incident Alerts
+
+List the connections between incidents and alerts in incident.io — which alerts triggered an incident, or which incident an alert was attached to
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | incident.io API Key |
+| `page_size` | number | No | Number of results per page \(e.g., 10, 25, 50\). Default: 25 |
+| `after` | string | No | Pagination cursor to fetch the next page of results \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
+| `incident_id` | string | No | Only return alerts attached to this incident \(e.g., "01FDAG4SAP5TYPT98WGR2N7W91"\) |
+| `alert_id` | string | No | Only return connections for this alert \(e.g., "01GW2G3V0S59R238FAHPDS1R66"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `incident_alerts` | array | List of incident-to-alert connections |
+|   ↳ `id` | string | ID of this incident alert connection |
+|   ↳ `alert_route_id` | string | ID of the alert route that created this connection |
+|   ↳ `alert` | object | The connected alert |
+|     ↳ `id` | string | Alert ID |
+|     ↳ `title` | string | Alert title |
+|     ↳ `status` | string | Alert status \(firing, resolved\) |
+|     ↳ `alert_source_id` | string | ID of the alert source this alert fired on |
+|     ↳ `deduplication_key` | string | Key that uniquely references this alert from its source |
+|     ↳ `description` | string | Alert description |
+|     ↳ `source_url` | string | Link to the alert in the upstream system |
+|     ↳ `resolved_at` | string | When this alert was resolved |
+|     ↳ `created_at` | string | When this alert was created |
+|     ↳ `updated_at` | string | When this alert was last updated |
+|   ↳ `incident` | object | The incident the alert is attached to |
+|     ↳ `id` | string | Incident ID |
+|     ↳ `name` | string | Incident name |
+|     ↳ `reference` | string | Incident reference \(e.g., INC-123\) |
+|     ↳ `external_id` | number | External incident identifier |
+|     ↳ `status_category` | string | Category of the incident status |
+|     ↳ `visibility` | string | Incident visibility \(public, private\) |
+|     ↳ `summary` | string | Incident summary |
+| `pagination_meta` | object | Pagination metadata |
+|   ↳ `after` | string | Cursor for next page |
+|   ↳ `page_size` | number | Number of results per page |
+
+### Cancel Escalation
+
+Cancel an escalation in incident.io. Notifications stop, and the escalation will not advance to further levels or repeat.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | incident.io API Key |
+| `id` | string | Yes | The ID of the escalation to cancel \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Success message |
+
+### List Catalog Types
+
+List all catalog types in incident.io, including those synced from external resources. Use this to find the catalog type ID needed to list entries.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | incident.io API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `catalog_types` | array | List of catalog types |
+|   ↳ `id` | string | Catalog type ID |
+|   ↳ `name` | string | Human readable name of this type |
+|   ↳ `description` | string | Human readable description of this type |
+|   ↳ `type_name` | string | Type name used when defining attributes \(e.g., Custom\["Service"\]\) |
+|   ↳ `engine_resource_type` | string | How this resource type is referenced in the incident.io engine |
+|   ↳ `categories` | array | Categories this type is considered part of |
+|   ↳ `color` | string | Display color of this type in the dashboard |
+|   ↳ `icon` | string | Display icon of this type in the dashboard |
+|   ↳ `ranked` | boolean | Whether entries of this type are ranked |
+|   ↳ `is_editable` | boolean | Whether this type can be edited \(types synced externally cannot\) |
+|   ↳ `use_name_as_identifier` | boolean | Whether entries can be referenced by name as well as external ID |
+|   ↳ `estimated_count` | number | Estimated number of entries for this type |
+|   ↳ `is_team_type` | boolean | Whether this is the designated team type in team settings |
+|   ↳ `registry_type` | string | The registry resource this type is synced from, if any |
+|   ↳ `last_synced_at` | string | When this type was last synced |
+|   ↳ `owning_team_ids` | array | IDs of the teams that own this catalog type |
+|   ↳ `schema` | object | Attribute schema for this catalog type |
+|     ↳ `version` | number | Version number of this schema |
+|     ↳ `attributes` | array | Attributes of this catalog type |
+|   ↳ `annotations` | json | Metadata annotations tracked about this type |
+|   ↳ `created_at` | string | When this type was created |
+|   ↳ `updated_at` | string | When this type was last updated |
+
+### List Catalog Entries
+
+List the entries of a catalog type in incident.io — for example every service, team, or customer recorded in the catalog
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | incident.io API Key |
+| `catalog_type_id` | string | Yes | The ID of the catalog type to list entries for \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
+| `page_size` | number | No | Number of results per page \(e.g., 10, 25, 50\). Default: 25 |
+| `after` | string | No | Pagination cursor to fetch the next page of results \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
+| `identifier` | string | No | Only return entries matching this identifier. Searches by ID, external ID, and alias. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `catalog_entries` | array | List of catalog entries |
+|   ↳ `id` | string | Catalog entry ID |
+|   ↳ `name` | string | Human readable name of this entry |
+|   ↳ `catalog_type_id` | string | ID of the catalog type |
+|   ↳ `external_id` | string | Alternative ID for this entry, unique within the type |
+|   ↳ `aliases` | array | Alternative names this entry can be referenced by |
+|   ↳ `rank` | number | Ordering rank, used when the type is ranked |
+|   ↳ `attribute_values` | json | Attribute values of this entry |
+|   ↳ `archived_at` | string | When this entry was archived |
+|   ↳ `created_at` | string | When this entry was created |
+|   ↳ `updated_at` | string | When this entry was last updated |
+| `catalog_type` | object | The catalog type these entries belong to |
+|   ↳ `id` | string | Catalog type ID |
+|   ↳ `name` | string | Human readable name of this type |
+|   ↳ `description` | string | Human readable description of this type |
+|   ↳ `type_name` | string | Type name used when defining attributes \(e.g., Custom\["Service"\]\) |
+|   ↳ `engine_resource_type` | string | How this resource type is referenced in the incident.io engine |
+|   ↳ `categories` | array | Categories this type is considered part of |
+|   ↳ `color` | string | Display color of this type in the dashboard |
+|   ↳ `icon` | string | Display icon of this type in the dashboard |
+|   ↳ `ranked` | boolean | Whether entries of this type are ranked |
+|   ↳ `is_editable` | boolean | Whether this type can be edited \(types synced externally cannot\) |
+|   ↳ `use_name_as_identifier` | boolean | Whether entries can be referenced by name as well as external ID |
+|   ↳ `estimated_count` | number | Estimated number of entries for this type |
+|   ↳ `is_team_type` | boolean | Whether this is the designated team type in team settings |
+|   ↳ `registry_type` | string | The registry resource this type is synced from, if any |
+|   ↳ `last_synced_at` | string | When this type was last synced |
+|   ↳ `owning_team_ids` | array | IDs of the teams that own this catalog type |
+|   ↳ `schema` | object | Attribute schema for this catalog type |
+|     ↳ `version` | number | Version number of this schema |
+|     ↳ `attributes` | array | Attributes of this catalog type |
+|   ↳ `annotations` | json | Metadata annotations tracked about this type |
+|   ↳ `created_at` | string | When this type was created |
+|   ↳ `updated_at` | string | When this type was last updated |
+| `pagination_meta` | object | Pagination metadata |
+|   ↳ `after` | string | Cursor for next page |
+|   ↳ `page_size` | number | Number of results per page |
+|   ↳ `total_record_count` | number | Total number of entries |
+
+### List Teams
+
+List all teams in the incident.io organisation, along with their members
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | incident.io API Key |
+| `page_size` | number | No | Number of results per page \(e.g., 10, 25, 50\) |
+| `after` | string | No | Pagination cursor to fetch the next page of results \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `teams` | array | List of teams |
+|   ↳ `id` | string | Team ID |
+|   ↳ `name` | string | Team name |
+|   ↳ `members` | array | Members of the team |
+|     ↳ `id` | string | User ID |
+|     ↳ `name` | string | User display name |
+|     ↳ `email` | string | User email address |
+|     ↳ `slack_user_id` | string | Slack user ID |
+|   ↳ `catalog_entry` | object | The catalog entry backing this team |
+|     ↳ `id` | string | Catalog entry ID |
+|     ↳ `name` | string | Catalog entry name |
+|     ↳ `external_id` | string | Alternative ID for this entry, unique within the type |
+| `pagination_meta` | object | Pagination metadata |
+|   ↳ `after` | string | Cursor for next page |
+|   ↳ `page_size` | number | Number of results per page |
+
+### Show Team
+
+Get a single team by ID from incident.io, along with its members
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | incident.io API Key |
+| `id` | string | Yes | The ID of the team to fetch \(e.g., "01JPQA75EPNEES4479P16P4XAB"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `team` | object | The team details |
+|   ↳ `id` | string | Team ID |
+|   ↳ `name` | string | Team name |
+|   ↳ `members` | array | Members of the team |
+|     ↳ `id` | string | User ID |
+|     ↳ `name` | string | User display name |
+|     ↳ `email` | string | User email address |
+|     ↳ `slack_user_id` | string | Slack user ID |
+|   ↳ `catalog_entry` | object | The catalog entry backing this team |
+|     ↳ `id` | string | Catalog entry ID |
+|     ↳ `name` | string | Catalog entry name |
+|     ↳ `external_id` | string | Alternative ID for this entry, unique within the type |
+
+### Create Follow-up
+
+Create a new follow-up on an incident in incident.io
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | incident.io API Key |
+| `incident_id` | string | Yes | The ID of the incident the follow-up belongs to \(e.g., "01FDAG4SAP5TYPT98WGR2N7W91"\) |
+| `title` | string | Yes | Title of the follow-up \(e.g., "Add alerting on connection pool saturation"\) |
+| `description` | string | No | Description of the follow-up. Supports Markdown. |
+| `assignee_id` | string | No | ID of the user to assign this follow-up to |
+| `assignee_team_id` | string | No | ID of the team to assign this follow-up to |
+| `follow_up_category_id` | string | No | ID of the category for this follow-up |
+| `follow_up_priority_option_id` | string | No | ID of the priority for this follow-up |
+| `external_issue_reference_id` | string | No | ID of the external issue this follow-up relates to |
+| `labels` | string | No | Comma-separated list of labels \(e.g., "bug,urgent"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `follow_up` | object | The created follow-up |
+|   ↳ `id` | string | Follow-up ID |
+|   ↳ `incident_id` | string | ID of the incident the follow-up belongs to |
+|   ↳ `title` | string | Follow-up title |
+|   ↳ `status` | string | Follow-up status \(outstanding, completed, deleted, not_doing\) |
+|   ↳ `description` | string | Follow-up description |
+|   ↳ `labels` | array | Labels associated with this follow-up |
+|   ↳ `assignee_team` | object | The team the follow-up is assigned to |
+|     ↳ `id` | string | Team ID |
+|     ↳ `name` | string | Team name |
+|   ↳ `priority` | object | Follow-up priority |
+|     ↳ `id` | string | Priority ID |
+|     ↳ `name` | string | Priority name |
+|     ↳ `rank` | number | Priority rank |
+|     ↳ `description` | string | Priority description |
+|   ↳ `creator` | object | Who created the follow-up |
+|   ↳ `completed_at` | string | When the follow-up was completed |
+|   ↳ `created_at` | string | When the follow-up was created |
+|   ↳ `updated_at` | string | When the follow-up was last updated |
+
+### Update Follow-up
+
+Update an existing follow-up in incident.io, for example to mark it completed or reassign it
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | incident.io API Key |
+| `id` | string | Yes | The ID of the follow-up to update \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
+| `title` | string | Yes | Title of the follow-up. This endpoint replaces the title, so always send it. |
+| `status` | string | Yes | Status of the follow-up: "outstanding", "completed", or "not_doing". Deleting is not supported here. |
+| `description` | string | No | Description of the follow-up. Supports Markdown. |
+| `assignee_id` | string | No | ID of the user to assign this follow-up to |
+| `assignee_team_id` | string | No | ID of the team to assign this follow-up to |
+| `follow_up_category_id` | string | No | ID of the category for this follow-up |
+| `follow_up_priority_option_id` | string | No | ID of the priority for this follow-up |
+| `labels` | string | No | Comma-separated list of labels \(e.g., "bug,urgent"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `follow_up` | object | The updated follow-up |
+|   ↳ `id` | string | Follow-up ID |
+|   ↳ `incident_id` | string | ID of the incident the follow-up belongs to |
+|   ↳ `title` | string | Follow-up title |
+|   ↳ `status` | string | Follow-up status \(outstanding, completed, deleted, not_doing\) |
+|   ↳ `description` | string | Follow-up description |
+|   ↳ `labels` | array | Labels associated with this follow-up |
+|   ↳ `assignee_team` | object | The team the follow-up is assigned to |
+|     ↳ `id` | string | Team ID |
+|     ↳ `name` | string | Team name |
+|   ↳ `priority` | object | Follow-up priority |
+|     ↳ `id` | string | Priority ID |
+|     ↳ `name` | string | Priority name |
+|     ↳ `rank` | number | Priority rank |
+|     ↳ `description` | string | Priority description |
+|   ↳ `creator` | object | Who created the follow-up |
+|   ↳ `completed_at` | string | When the follow-up was completed |
+|   ↳ `created_at` | string | When the follow-up was created |
+|   ↳ `updated_at` | string | When the follow-up was last updated |
+
+### Create Action
+
+Create a new action on an incident in incident.io
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | incident.io API Key |
+| `incident_id` | string | Yes | The ID of the incident the action belongs to \(e.g., "01FDAG4SAP5TYPT98WGR2N7W91"\) |
+| `description` | string | Yes | Description of the action. Supports Markdown. |
+| `assignee_id` | string | No | ID of the user to assign this action to |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `action` | object | The created action |
+|   ↳ `id` | string | Action ID |
+|   ↳ `incident_id` | string | ID of the incident the action belongs to |
+|   ↳ `description` | string | Action description |
+|   ↳ `status` | string | Action status \(outstanding, completed, deleted, not_doing\) |
+|   ↳ `creator` | object | Who created the action |
+|   ↳ `completed_at` | string | When the action was completed |
+|   ↳ `created_at` | string | When the action was created |
+|   ↳ `updated_at` | string | When the action was last updated |
+
+### Update Action
+
+Update an existing action in incident.io, for example to mark it completed or reassign it
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | incident.io API Key |
+| `id` | string | Yes | The ID of the action to update \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
+| `description` | string | Yes | Description of the action. This endpoint replaces the description, so always send it. |
+| `status` | string | Yes | Status of the action: "outstanding", "completed", or "not_doing". Deleting is not supported here. |
+| `assignee_id` | string | No | ID of the user to assign this action to |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `action` | object | The updated action |
+|   ↳ `id` | string | Action ID |
+|   ↳ `incident_id` | string | ID of the incident the action belongs to |
+|   ↳ `description` | string | Action description |
+|   ↳ `status` | string | Action status \(outstanding, completed, deleted, not_doing\) |
+|   ↳ `creator` | object | Who created the action |
+|   ↳ `completed_at` | string | When the action was completed |
+|   ↳ `created_at` | string | When the action was created |
+|   ↳ `updated_at` | string | When the action was last updated |
+
+### List Incident Participants
+
+List the participants of an incident in incident.io, split into those actively helping and those just observing
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | incident.io API Key |
+| `incident_id` | string | Yes | The ID of the incident to find participants of \(e.g., "01FDAG4SAP5TYPT98WGR2N7W91"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `active` | array | Participants who are actively helping with the incident |
+| `passive` | array | Participants who are just observing the incident |
+
+### Grant Incident Membership
+
+Make a user a member of a private incident in incident.io
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | incident.io API Key |
+| `incident_id` | string | Yes | The ID of the private incident \(e.g., "01FCNDV6P870EA6S7TK1DSYD5H"\) |
+| `user_id` | string | Yes | The ID of the user to grant access to \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `incident_membership` | object | The created incident membership |
+|   ↳ `id` | string | Incident membership ID |
+|   ↳ `incident_id` | string | ID of the incident |
+|   ↳ `created_at` | string | When the membership was created |
+|   ↳ `updated_at` | string | When the membership was last updated |
+|   ↳ `user` | object | The user who was granted access |
+|     ↳ `id` | string | User ID |
+|     ↳ `name` | string | User display name |
+|     ↳ `email` | string | User email address |
+|     ↳ `role` | string | User role |
+|     ↳ `slack_user_id` | string | Slack user ID |
+
+### Revoke Incident Membership
+
+Revoke a user's membership of a private incident in incident.io
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | incident.io API Key |
+| `incident_id` | string | Yes | The ID of the private incident \(e.g., "01FCNDV6P870EA6S7TK1DSYD5H"\) |
+| `user_id` | string | Yes | The ID of the user to revoke access from \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
 
 #### Output
 

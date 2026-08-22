@@ -7,11 +7,8 @@ import {
 } from '@sim/testing'
 import { describe, expect, it } from 'vitest'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
-import {
-  formatDiffSummaryForDescription,
-  generateWorkflowDiffSummary,
-  hasWorkflowChanged,
-} from './compare'
+import { generateWorkflowDiffSummary, hasWorkflowChanged } from './compare'
+import { formatDiffSummaryForDescription } from './describe'
 
 /**
  * Type helper for converting test workflow state to app workflow state.
@@ -193,6 +190,43 @@ describe('hasWorkflowChanged', () => {
       expect(hasWorkflowChanged(state1, state2)).toBe(true)
     })
 
+    /**
+     * The live side collapses a falsy handle to nothing (`loadWorkflowFromNormalizedTables`
+     * runs it through the canonicalizer), while the server diffs that against the deployment
+     * version's raw jsonb, which does not. An edge persisted with `sourceHandle: ''` would be
+     * present on one side and absent on the other — counted as removed and re-added, asking
+     * every such workflow to redeploy for nothing.
+     */
+    it.concurrent('treats an empty-string handle as no handle', () => {
+      const empty = createWorkflowState({
+        edges: [{ id: 'edge1', source: 'block1', sourceHandle: '', target: 'block2' }],
+      })
+      const absent = createWorkflowState({
+        edges: [{ id: 'edge1', source: 'block1', target: 'block2' }],
+      })
+      expect(hasWorkflowChanged(empty, absent)).toBe(false)
+    })
+
+    it.concurrent('treats a side-anchored source handle as its canonical id', () => {
+      const sideAnchored = createWorkflowState({
+        edges: [{ id: 'edge1', source: 'block1', sourceHandle: 'source-right', target: 'block2' }],
+      })
+      const canonical = createWorkflowState({
+        edges: [{ id: 'edge1', source: 'block1', sourceHandle: 'source', target: 'block2' }],
+      })
+      expect(hasWorkflowChanged(sideAnchored, canonical)).toBe(false)
+    })
+
+    it.concurrent('still tells two real ports apart', () => {
+      const source = createWorkflowState({
+        edges: [{ id: 'edge1', source: 'block1', sourceHandle: 'source', target: 'block2' }],
+      })
+      const error = createWorkflowState({
+        edges: [{ id: 'edge1', source: 'block1', sourceHandle: 'error', target: 'block2' }],
+      })
+      expect(hasWorkflowChanged(source, error)).toBe(true)
+    })
+
     it.concurrent('should ignore edge ID changes', () => {
       const state1 = createWorkflowState({
         edges: [{ id: 'edge-old', source: 'block1', target: 'block2' }],
@@ -327,6 +361,60 @@ describe('hasWorkflowChanged', () => {
       const summary = generateWorkflowDiffSummary(state2, state1)
       expect(summary.hasChanges).toBe(false)
       expect(summary.modifiedBlocks).toEqual([])
+    })
+  })
+
+  /**
+   * The flag drives the error port, and the deploy badge is what tells a user the
+   * port they just switched on is not live yet.
+   */
+  describe('Error Output Flag', () => {
+    const withErrorFlag = (errorEnabled: boolean) =>
+      createWorkflowState({
+        blocks: { block1: { ...createBlock('block1'), errorEnabled } },
+      })
+
+    it.concurrent('detects the flag being turned on', () => {
+      expect(hasWorkflowChanged(withErrorFlag(true), withErrorFlag(false))).toBe(true)
+    })
+
+    it.concurrent('treats an unset flag as off', () => {
+      const unset = createWorkflowState({ blocks: { block1: createBlock('block1') } })
+      expect(hasWorkflowChanged(unset, withErrorFlag(false))).toBe(false)
+      expect(hasWorkflowChanged(unset, withErrorFlag(true))).toBe(true)
+    })
+
+    /**
+     * `setBlockErrorEnabled` leaves existing error edges in place, so a block can
+     * hold `errorEnabled: false` with a connected error edge. Only the deployed
+     * side is backfilled (`materializeDeploymentState`), so reading the flag alone
+     * makes that block differ from itself, and redeploying cannot clear it — the
+     * snapshot stores the live `false` that the next read backfills to `true`.
+     */
+    const withErrorEdge = (errorEnabled: boolean) =>
+      createWorkflowState({
+        blocks: {
+          block1: { ...createBlock('block1'), errorEnabled },
+          block2: createBlock('block2'),
+        },
+        edges: [
+          { id: 'e1', source: 'block1', sourceHandle: 'error', target: 'block2' },
+        ] as WorkflowState['edges'],
+      })
+
+    it.concurrent('treats a live error edge as the flag being on', () => {
+      expect(hasWorkflowChanged(withErrorEdge(false), withErrorEdge(true))).toBe(false)
+      expect(hasWorkflowChanged(withErrorEdge(true), withErrorEdge(false))).toBe(false)
+    })
+
+    it.concurrent('reports no modified block when only the backfilled flag differs', () => {
+      const summary = generateWorkflowDiffSummary(withErrorEdge(false), withErrorEdge(true))
+      expect(summary.hasChanges).toBe(false)
+      expect(summary.modifiedBlocks).toEqual([])
+    })
+
+    it.concurrent('still detects the flag turning on when no error edge exists', () => {
+      expect(hasWorkflowChanged(withErrorFlag(true), withErrorFlag(false))).toBe(true)
     })
   })
 

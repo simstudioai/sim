@@ -5,9 +5,7 @@ export interface IcypeasBaseParams {
   apiKey: string
 }
 
-// ---------------------------------------------------------------------------
 // Email Finder (single email discovery)
-// ---------------------------------------------------------------------------
 
 export interface IcypeasFindEmailParams extends IcypeasBaseParams {
   firstname?: string
@@ -30,9 +28,7 @@ export interface IcypeasFindEmailResponse extends ToolResponse {
   output: IcypeasFindEmailOutput
 }
 
-// ---------------------------------------------------------------------------
 // Email Verification
-// ---------------------------------------------------------------------------
 
 export interface IcypeasVerifyEmailParams extends IcypeasBaseParams {
   email: string
@@ -53,15 +49,11 @@ export interface IcypeasVerifyEmailResponse extends ToolResponse {
   output: IcypeasVerifyEmailOutput
 }
 
-// ---------------------------------------------------------------------------
 // Union response type used by the block
-// ---------------------------------------------------------------------------
 
 export type IcypeasResponse = IcypeasFindEmailResponse | IcypeasVerifyEmailResponse
 
-// ---------------------------------------------------------------------------
 // Shared output property constants
-// ---------------------------------------------------------------------------
 
 export const ICYPEAS_SEARCH_ID_OUTPUT: OutputProperty = {
   type: 'string',

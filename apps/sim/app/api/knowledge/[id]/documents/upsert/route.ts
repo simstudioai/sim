@@ -1,308 +1,92 @@
-import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
-import { db } from '@sim/db'
-import { document } from '@sim/db/schema'
-import { createLogger } from '@sim/logger'
-import { authorizeWorkflowByWorkspacePermission } from '@sim/platform-authz/workflow'
-import { getErrorMessage, toError } from '@sim/utils/errors'
-import { generateId } from '@sim/utils/id'
-import { and, eq, isNull } from 'drizzle-orm'
-import { type NextRequest, NextResponse } from 'next/server'
 import { upsertKnowledgeDocumentContract } from '@/lib/api/contracts/knowledge'
-import { parseRequest } from '@/lib/api/server'
-import { AuthType, checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
-import { checkActorUsageLimits } from '@/lib/billing/calculations/usage-monitor'
+import { defineInternalJsonRoute, internalRateLimits } from '@/lib/api/server/routes'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
-  checkAttributedUsageLimits,
-  requireBillingAttributionHeader,
-  resolveBillingAttribution,
-} from '@/lib/billing/core/billing-attribution'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+  internalKnowledgeAnalytics,
+  internalKnowledgeAuthType,
+  resolveInternalKnowledgeBillingAttribution,
+} from '@/lib/knowledge/api/internal-route'
 import {
-  createDocumentRecords,
-  deleteDocument,
-  getProcessingConfig,
-  KnowledgeBaseFileOwnershipError,
-  processDocumentsWithQueue,
-} from '@/lib/knowledge/documents/service'
+  internalKnowledgeErrorPolicies,
+  internalKnowledgeSessionOrExecutorAuth,
+} from '@/lib/knowledge/api/route-policies'
+import { upsertKnowledgeDocument } from '@/lib/knowledge/application/documents'
+import { knowledgeOperations } from '@/lib/knowledge/application/operations'
 import {
-  createKnowledgeProvenanceResponse,
+  finalizeKnowledgeProvenanceResponse,
   resolveKnowledgeDocumentWriteSecretProvenance,
 } from '@/app/api/knowledge/secret-provenance'
-import { checkKnowledgeBaseWriteAccess } from '@/app/api/knowledge/utils'
 
-const logger = createLogger('DocumentUpsertAPI')
-
-export const POST = withRouteHandler(
-  async (req: NextRequest, context: { params: Promise<{ id: string }> }) => {
-    const requestId = generateId().slice(0, 8)
-    const { id: knowledgeBaseId } = await context.params
-
-    try {
-      const parsed = await parseRequest(upsertKnowledgeDocumentContract, req, context)
-      if (!parsed.success) return parsed.response
-      const validatedData = parsed.data.body
-
-      logger.info(`[${requestId}] Knowledge base document upsert request`, {
-        knowledgeBaseId,
-        hasDocumentId: !!validatedData.documentId,
-        mimeType: validatedData.mimeType,
-        fileSize: validatedData.fileSize,
-      })
-
-      const auth = await checkSessionOrInternalAuth(req, { requireWorkflowId: false })
-      if (!auth.success || !auth.userId) {
-        logger.warn(`[${requestId}] Authentication failed: ${auth.error || 'Unauthorized'}`)
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-      }
-      const userId = auth.userId
-
-      if (validatedData.workflowId) {
-        const authorization = await authorizeWorkflowByWorkspacePermission({
-          workflowId: validatedData.workflowId,
-          userId,
-          action: 'write',
-        })
-        if (!authorization.allowed) {
-          return NextResponse.json(
-            { error: authorization.message || 'Access denied' },
-            { status: authorization.status }
-          )
-        }
-      }
-
-      const accessCheck = await checkKnowledgeBaseWriteAccess(knowledgeBaseId, userId)
-
-      if (!accessCheck.hasAccess) {
-        if ('notFound' in accessCheck && accessCheck.notFound) {
-          logger.warn(`[${requestId}] Knowledge base not found: ${knowledgeBaseId}`)
-          return NextResponse.json({ error: 'Knowledge base not found' }, { status: 404 })
-        }
-        logger.warn(
-          `[${requestId}] User ${userId} attempted to upsert document in unauthorized knowledge base ${knowledgeBaseId}`
-        )
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-      }
-
-      /**
-       * Gate the workspace payer and uploader before mutation so an over-limit
-       * upsert cannot delete an indexed document. Workspace-less legacy KBs
-       * retain account-only enforcement.
-       */
-      const kbWorkspaceId = accessCheck.knowledgeBase?.workspaceId
-      const billingAttribution = kbWorkspaceId
-        ? auth.authType === AuthType.INTERNAL_JWT
-          ? requireBillingAttributionHeader(req.headers, {
-              actorUserId: userId,
-              workspaceId: kbWorkspaceId,
-            })
-          : await resolveBillingAttribution({
-              actorUserId: userId,
-              workspaceId: kbWorkspaceId,
-            })
-        : undefined
-      const usage = billingAttribution
-        ? await checkAttributedUsageLimits(billingAttribution)
-        : await checkActorUsageLimits(userId)
-      if (usage.isExceeded) {
-        return NextResponse.json(
-          {
-            error: usage.message || 'Usage limit exceeded. Please upgrade your plan to continue.',
-          },
-          { status: 402 }
-        )
-      }
-
-      const writeProvenance = resolveKnowledgeDocumentWriteSecretProvenance({
-        request: req,
-        payload: validatedData,
-        authType: auth.authType,
+export const POST = defineInternalJsonRoute({
+  contract: upsertKnowledgeDocumentContract,
+  auth: internalKnowledgeSessionOrExecutorAuth,
+  operation: knowledgeOperations.uploadDocument,
+  rateLimit: internalRateLimits.none({
+    reason: 'Preserve existing internal document-upsert behavior',
+  }),
+  errorPolicy: internalKnowledgeErrorPolicies.upsert,
+  parseOptions: { maxBodyBytes: 2 * 1024 * 1024 },
+  mapInput: ({ params, body }, { principal, request }) => ({
+    knowledgeBaseId: params.id,
+    documentId: body.documentId,
+    filename: body.filename,
+    fileUrl: body.fileUrl,
+    fileSize: body.fileSize,
+    mimeType: body.mimeType,
+    documentTagsData: body.documentTagsData,
+    processingOptions: body.processingOptions,
+    resolveBillingAttribution: (workspaceId: string) =>
+      resolveInternalKnowledgeBillingAttribution(request, principal, workspaceId),
+    resolveSecretProvenances: ({
+      userId,
+      workspaceId,
+    }: {
+      userId: string
+      workspaceId: string
+    }) => {
+      const resolved = resolveKnowledgeDocumentWriteSecretProvenance({
+        request,
+        payload: body,
+        authType: internalKnowledgeAuthType(principal),
         userId,
-        ...(kbWorkspaceId ? { workspaceId: kbWorkspaceId } : {}),
-        documents: [validatedData],
+        workspaceId,
+        documents: [body],
       })
-      if (!writeProvenance.success) return writeProvenance.response
-
-      let existingDocumentId: string | null = null
-      let isUpdate = false
-
-      if (validatedData.documentId) {
-        const existingDoc = await db
-          .select({ id: document.id })
-          .from(document)
-          .where(
-            and(
-              eq(document.id, validatedData.documentId),
-              eq(document.knowledgeBaseId, knowledgeBaseId),
-              isNull(document.deletedAt)
-            )
-          )
-          .limit(1)
-
-        if (existingDoc.length > 0) {
-          existingDocumentId = existingDoc[0].id
-        }
-      } else {
-        const docsByFilename = await db
-          .select({ id: document.id })
-          .from(document)
-          .where(
-            and(
-              eq(document.filename, validatedData.filename),
-              eq(document.knowledgeBaseId, knowledgeBaseId),
-              isNull(document.deletedAt)
-            )
-          )
-          .limit(1)
-
-        if (docsByFilename.length > 0) {
-          existingDocumentId = docsByFilename[0].id
-        }
+      if (!resolved.success) {
+        throw new OrchestrationError('validation', 'Invalid knowledge secret provenance')
       }
-
-      if (existingDocumentId) {
-        isUpdate = true
-        logger.info(
-          `[${requestId}] Found existing document ${existingDocumentId}, creating replacement before deleting old`
-        )
-      }
-
-      const createdDocuments = await createDocumentRecords(
-        [
-          {
-            filename: validatedData.filename,
-            fileUrl: validatedData.fileUrl,
-            fileSize: validatedData.fileSize,
-            mimeType: validatedData.mimeType,
-            ...(validatedData.documentTagsData && {
-              documentTagsData: validatedData.documentTagsData,
-            }),
-          },
-        ],
-        knowledgeBaseId,
-        requestId,
-        userId,
-        writeProvenance.provenances
-      )
-
-      const firstDocument = createdDocuments[0]
-      if (!firstDocument) {
-        logger.error(`[${requestId}] createDocumentRecords returned empty array unexpectedly`)
-        return NextResponse.json({ error: 'Failed to create document record' }, { status: 500 })
-      }
-
-      if (existingDocumentId) {
-        try {
-          await deleteDocument(existingDocumentId, requestId)
-        } catch (deleteError) {
-          logger.error(
-            `[${requestId}] Failed to delete old document ${existingDocumentId}, rolling back new record`,
-            { errorType: toError(deleteError).name }
-          )
-          await deleteDocument(firstDocument.documentId, requestId).catch(() => {})
-          return NextResponse.json(
-            { error: 'Failed to replace existing document' },
-            { status: 500 }
-          )
-        }
-      }
-
-      processDocumentsWithQueue(
-        createdDocuments,
-        knowledgeBaseId,
-        validatedData.processingOptions ?? {},
-        requestId,
-        billingAttribution
-      ).catch((error: unknown) => {
-        logger.error(`[${requestId}] Critical error in document processing pipeline`, {
-          errorType: toError(error).name,
-        })
-      })
-
-      try {
-        const { PlatformEvents } = await import('@/lib/core/telemetry')
-        PlatformEvents.knowledgeBaseDocumentsUploaded({
-          knowledgeBaseId,
-          documentsCount: 1,
-          uploadType: 'single',
-          recipe: validatedData.processingOptions?.recipe,
-        })
-      } catch (_e) {
-        // Silently fail
-      }
-
-      recordAudit({
-        workspaceId: accessCheck.knowledgeBase?.workspaceId ?? null,
-        actorId: userId,
-        actorName: auth.userName,
-        actorEmail: auth.userEmail,
-        action: isUpdate ? AuditAction.DOCUMENT_UPDATED : AuditAction.DOCUMENT_UPLOADED,
-        resourceType: AuditResourceType.DOCUMENT,
-        resourceId: knowledgeBaseId,
-        resourceName: validatedData.filename,
-        description: isUpdate
-          ? `Upserted (replaced) document "${validatedData.filename}" in knowledge base "${knowledgeBaseId}"`
-          : `Upserted (created) document "${validatedData.filename}" in knowledge base "${knowledgeBaseId}"`,
-        metadata: {
-          knowledgeBaseName: accessCheck.knowledgeBase?.name,
-          fileName: validatedData.filename,
-          fileType: validatedData.mimeType,
-          fileSize: validatedData.fileSize,
-          previousDocumentId: existingDocumentId,
-          isUpdate,
+      return resolved.provenances
+    },
+  }),
+  useCase: upsertKnowledgeDocument,
+  onSuccess: internalKnowledgeAnalytics.documentUpserted,
+  present: ({ document, isUpdate, previousDocumentId, processingConfig }) => ({
+    success: true as const,
+    data: {
+      documentsCreated: [
+        {
+          documentId: document.documentId,
+          filename: document.filename,
+          status: 'pending' as const,
         },
-        request: req,
-      })
-
-      return createKnowledgeProvenanceResponse({
-        request: req,
-        authType: auth.authType,
-        userId,
-        ...(kbWorkspaceId ? { workspaceId: kbWorkspaceId } : {}),
-        provenances:
-          writeProvenance.provenances?.flatMap((provenance) => [
-            provenance.filename,
-            ...provenance.tags.map((tag) => tag.provenance),
-          ]) ?? [],
-        body: {
-          success: true,
-          data: {
-            documentsCreated: [
-              {
-                documentId: firstDocument.documentId,
-                filename: firstDocument.filename,
-                status: 'pending',
-              },
-            ],
-            isUpdate,
-            previousDocumentId: existingDocumentId,
-            processingMethod: 'background',
-            processingConfig: {
-              maxConcurrentDocuments: getProcessingConfig().maxConcurrentDocuments,
-              batchSize: getProcessingConfig().batchSize,
-            },
-          },
-        },
-      })
-    } catch (error) {
-      logger.error(`[${requestId}] Error upserting document`, {
-        errorType: toError(error).name,
-      })
-
-      if (error instanceof KnowledgeBaseFileOwnershipError) {
-        return NextResponse.json(
-          { error: 'File URL does not reference a file owned by this knowledge base' },
-          { status: 403 }
-        )
-      }
-      const errorMessage = getErrorMessage(error, 'Failed to upsert document')
-      const isStorageLimitError =
-        errorMessage.includes('Storage limit exceeded') || errorMessage.includes('storage limit')
-      const isMissingKnowledgeBase = errorMessage === 'Knowledge base not found'
-
-      return NextResponse.json(
-        { error: errorMessage },
-        { status: isMissingKnowledgeBase ? 404 : isStorageLimitError ? 413 : 500 }
-      )
-    }
-  }
-)
+      ],
+      isUpdate,
+      previousDocumentId,
+      processingMethod: 'background' as const,
+      processingConfig,
+    },
+  }),
+  finalizeResponse: ({ request, principal, result, body }) =>
+    finalizeKnowledgeProvenanceResponse({
+      request,
+      authType: internalKnowledgeAuthType(principal),
+      userId: result.userId,
+      workspaceId: result.workspaceId,
+      body,
+      provenances:
+        result.secretProvenances?.flatMap((provenance) => [
+          provenance.filename,
+          ...provenance.tags.map((tag) => tag.provenance),
+        ]) ?? [],
+    }),
+})

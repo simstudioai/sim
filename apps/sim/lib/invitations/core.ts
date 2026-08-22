@@ -18,7 +18,6 @@ import { isOrgAdminRole, PERMISSION_RANK, type PermissionType } from '@sim/platf
 import { generateId } from '@sim/utils/id'
 import { normalizeEmail } from '@sim/utils/string'
 import { and, asc, count, eq, inArray, lte, sql } from 'drizzle-orm'
-import { setActiveOrganizationForCurrentSession } from '@/lib/auth/active-organization'
 import { applySessionPolicyToNewMember } from '@/lib/auth/session-policy'
 import { getOrganizationSubscription } from '@/lib/billing/core/billing'
 import { getHighestPriorityPersonalSubscription } from '@/lib/billing/core/plan'
@@ -50,11 +49,7 @@ import { getInvitePlanCategoryForUser } from '@/lib/workspaces/policy'
 
 const logger = createLogger('InvitationCore')
 
-export const INVITATION_EXPIRY_DAYS = 7
-
-export function computeInvitationExpiry(daysFromNow = INVITATION_EXPIRY_DAYS): Date {
-  return new Date(Date.now() + daysFromNow * 24 * 60 * 60 * 1000)
-}
+export { computeInvitationExpiry, INVITATION_EXPIRY_DAYS } from '@/lib/invitations/expiry'
 
 export interface InvitationWithGrants {
   id: string
@@ -1439,6 +1434,9 @@ async function runInvitationAcceptancePostCommitEffects(
 
   if (effects.organizationId) {
     try {
+      const { setActiveOrganizationForCurrentSession } = await import(
+        '@/lib/auth/active-organization'
+      )
       await setActiveOrganizationForCurrentSession(effects.organizationId)
     } catch (activeOrgError) {
       logger.error('Failed to activate organization after accepting invitation', {

@@ -85,6 +85,79 @@ export const ContextDevBlock: BlockConfig<ContextDevScrapeMarkdownResponse> = {
   integrationType: IntegrationType.Search,
   bgColor: '#ffffff',
   icon: ContextDevIcon,
+  canvasPresentation: {
+    defaultTitle: 'Context.dev',
+    sentences: {
+      byOperation: {
+        scrape_markdown: [{ text: 'Scrape', field: 'url', after: 'to clean markdown', core: true }],
+        scrape_html: [{ text: 'Scrape the raw HTML of', field: 'url', core: true }],
+        scrape_images: [{ text: 'List every image asset on', field: 'url', core: true }],
+        screenshot: [{ text: 'Capture a screenshot of', field: 'url', core: true }],
+        crawl: [
+          { text: 'Crawl every page under', field: 'url', core: true },
+          { text: ', up to', field: 'maxPages', after: 'pages' },
+          { text: ', matching', field: 'urlRegex' },
+        ],
+        map: [
+          { text: 'Map every page URL on', field: 'domain', core: true },
+          { text: ', up to', field: 'maxLinks', after: 'links' },
+        ],
+        search: [
+          { text: 'Search the web for', field: 'query', core: true },
+          { text: ', returning', field: 'numResults', after: 'results' },
+          { text: ', from', field: 'freshness' },
+        ],
+        extract: [
+          { text: 'Extract structured data from', field: 'url', core: true },
+          { text: ', across up to', field: 'extractMaxPages', after: 'pages' },
+        ],
+        extract_product: [{ text: 'Extract product details from', field: 'url', core: true }],
+        extract_products: [
+          { text: 'Extract the product catalog of', field: 'domain', core: true },
+          { text: ', up to', field: 'maxProducts', after: 'products' },
+        ],
+        scrape_fonts: [{ text: 'Extract the fonts used by', field: 'domain', core: true }],
+        scrape_styleguide: [
+          {
+            text: 'Extract the colors, typography, and components of',
+            field: 'domain',
+            core: true,
+          },
+        ],
+        classify_naics: [
+          {
+            text: 'Classify',
+            field: 'input',
+            after: 'into NAICS industry codes',
+            core: true,
+          },
+        ],
+        classify_sic: [
+          { text: 'Classify', field: 'input', after: 'into SIC industry codes', core: true },
+        ],
+        get_brand: [{ text: 'Fetch brand assets for domain', field: 'domain', core: true }],
+        get_brand_by_name: [
+          { text: 'Fetch brand assets for company', field: 'name', core: true },
+          { text: ', in', field: 'countryGl' },
+        ],
+        get_brand_by_email: [
+          { text: 'Fetch brand assets from work email', field: 'email', core: true },
+        ],
+        get_brand_by_ticker: [
+          { text: 'Fetch brand assets for ticker', field: 'ticker', core: true },
+          { text: ', on', field: 'tickerExchange' },
+        ],
+        identify_transaction: [
+          {
+            text: 'Identify the brand behind transaction',
+            field: 'transactionInfo',
+            core: true,
+          },
+          { text: ', in', field: 'city' },
+        ],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',

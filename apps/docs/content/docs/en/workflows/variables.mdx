@@ -85,6 +85,8 @@ Reference them with double curly braces in any block field, including Agent syst
   Environment variable names must start with a letter or underscore and contain only letters, numbers, and underscores, like `MY_API_KEY`.
 </Callout>
 
+Inside Function and Custom Tool code, `{{KEY}}` always evaluates to a **string** — the value is bound, never parsed as source. Use `Number()`, a `=== 'true'` comparison, or `JSON.parse()` when you need another type. See [secret placeholders in code](/workflows/blocks/function#placeholders-are-always-strings).
+
 ### Personal vs. workspace
 
 | Scope | Visible to | Use for |

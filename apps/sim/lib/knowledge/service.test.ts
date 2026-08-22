@@ -40,60 +40,188 @@ vi.mock('@/lib/billing/core/usage', () => ({
 }))
 
 import {
-  getKnowledgeBases,
+  findActiveKnowledgeBasesByExactName,
+  getLegacyPersonalKnowledgeBases,
+  getWorkspaceKnowledgeBases,
   KnowledgeBasePermissionError,
+  listWorkspaceAndLegacyKnowledgeBases,
   updateKnowledgeBase,
 } from '@/lib/knowledge/service'
 
 /**
- * The listing query authorizes on current workspace membership, never on stale creator
- * identity: a user removed from a workspace must stop seeing knowledge bases they created
- * there. The creator fallback exists only for legacy knowledge bases with no `workspaceId`.
+ * A row cap on this read could only ever fire for a caller that did NOT ask for a page — the
+ * one kind of caller with no cursor to act on it — so an oversized workspace has to be served,
+ * not refused.
  */
-describe('getKnowledgeBases — creator fallback is scoped to legacy non-workspace KBs', () => {
+describe('getWorkspaceKnowledgeBases — paging', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
   })
 
-  /** Every disjunct that grants on `knowledgeBase.userId`, from the last select chain's WHERE. */
-  const capturedCreatorBranches = (): unknown[] => {
+  it('reads unbounded when the caller asked for no page', async () => {
+    dbChainMockFns.orderBy.mockResolvedValueOnce(
+      Array.from({ length: 10_001 }, (_, index) => ({
+        id: `kb-${index}`,
+        chunkingConfig: {},
+        docCount: 0,
+      }))
+    )
+
+    const result = await getWorkspaceKnowledgeBases('ws-1')
+
+    expect(result.data).toHaveLength(10_001)
+    expect(dbChainMockFns.limit).not.toHaveBeenCalled()
+  })
+
+  it('reads one row past the page so it can report another page', async () => {
+    dbChainMockFns.limit
+      .mockResolvedValueOnce(
+        Array.from({ length: 3 }, (_, index) => ({
+          id: `kb-${index}`,
+          chunkingConfig: {},
+          docCount: 0,
+          createdAt: new Date('2026-01-01T00:00:00Z'),
+        }))
+      )
+      .mockResolvedValueOnce([])
+
+    const result = await getWorkspaceKnowledgeBases('ws-1', 'active', { limit: 2 })
+
+    expect(dbChainMockFns.limit).toHaveBeenCalledWith(3)
+    expect(result.data).toHaveLength(2)
+    expect(result.nextCursorKeys).not.toBeNull()
+  })
+})
+
+/**
+ * Legacy knowledge bases predate workspaces and carry no `workspaceId`, so their creator is
+ * the only possible authority. Workspace-owned rows are read by `getWorkspaceKnowledgeBases`
+ * after an application use case authorized the workspace — this query must never widen to
+ * them, and must never re-derive workspace access from a `permissions` row, which would
+ * contradict an authorization that already passed.
+ */
+describe('getLegacyPersonalKnowledgeBases', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
+  it('reads only the caller’s workspace-less rows', async () => {
+    await getLegacyPersonalKnowledgeBases('user-a', 'all')
+
     const [condition] = dbChainMockFns.where.mock.calls.at(-1) ?? []
-    const orNode = flattenMockConditions(condition).find((node) => node.type === 'or')
-    expect(orNode, 'WHERE clause has no or(...) branch').toBeDefined()
-    return (orNode?.conditions as unknown[]).filter((disjunct) =>
+    expect(
       hasMockCondition(
-        disjunct,
+        condition,
         (node) =>
           node.type === 'eq' &&
           node.left === schemaMock.knowledgeBase.userId &&
           node.right === 'user-a'
       )
-    )
-  }
-
-  /** The creator fallback must be the sole grant for legacy KBs and never reach workspace KBs. */
-  const expectCreatorBranchIsLegacyOnly = () => {
-    const branches = capturedCreatorBranches()
-    expect(branches).toHaveLength(1)
+    ).toBe(true)
     expect(
       hasMockCondition(
-        branches[0],
+        condition,
         (node) => node.type === 'isNull' && node.column === schemaMock.knowledgeBase.workspaceId
       )
     ).toBe(true)
-  }
-
-  it('requires workspaceId IS NULL on the creator branch when no workspace filter is given', async () => {
-    await getKnowledgeBases('user-a', undefined, 'all')
-
-    expectCreatorBranchIsLegacyOnly()
+    expect(flattenMockConditions(condition).some((node) => node.type === 'or')).toBe(false)
   })
 
-  it('keeps the same guard on the workspace-filtered branch', async () => {
-    await getKnowledgeBases('user-a', 'ws-1', 'active')
+  it('never joins the permissions table', async () => {
+    await getLegacyPersonalKnowledgeBases('user-a')
 
-    expectCreatorBranchIsLegacyOnly()
+    const joinedTables = dbChainMockFns.leftJoin.mock.calls.map(([table]) => table)
+    expect(joinedTables).toContain(schemaMock.document)
+    expect(joinedTables).not.toContain(schemaMock.permissions)
+  })
+})
+
+/**
+ * A VFS path names one knowledge base exactly. Resolving it by reading every base whose name
+ * merely CONTAINS the term, then filtering in JS, makes a single-row lookup scale with the
+ * workspace — the sibling `findActiveTablesByExactName` is the shape to match.
+ */
+describe('findActiveKnowledgeBasesByExactName', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
+  it('matches the name exactly and reads at most two rows', async () => {
+    await findActiveKnowledgeBasesByExactName('ws-1', 'Docs')
+
+    const [condition] = dbChainMockFns.where.mock.calls[0] ?? []
+    expect(
+      hasMockCondition(
+        condition,
+        (node) =>
+          node.type === 'eq' && node.left === schemaMock.knowledgeBase.name && node.right === 'Docs'
+      )
+    ).toBe(true)
+    expect(dbChainMockFns.limit).toHaveBeenCalledWith(2)
+  })
+})
+
+/**
+ * The workspace list and the legacy personal list are separate reads answering to separate
+ * authorities, but they render as ONE list — so the merge has to order them together and
+ * project connectors once over the result, not once per source.
+ */
+describe('listWorkspaceAndLegacyKnowledgeBases', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
+  /**
+   * Soft-delete cleanup only reclaims archived rows past a retention window — and none at all
+   * for a workspace with no retention configured — so a workspace that archives faster than
+   * that window crosses any fixed count. This surface has no cursor to page with, so a cap
+   * here could only mean a 500 on the knowledge page and Recently Deleted, which is exactly
+   * what it meant on staging.
+   */
+  it('serves a workspace whose archived set is larger than the old row cap', async () => {
+    const rows = Array.from({ length: 10_001 }, (_, index) => ({
+      id: `kb-${index}`,
+      chunkingConfig: {},
+      docCount: 0,
+      createdAt: new Date('2026-01-01T00:00:00Z'),
+    }))
+    dbChainMockFns.orderBy.mockResolvedValueOnce(rows).mockResolvedValueOnce([])
+
+    const result = await listWorkspaceAndLegacyKnowledgeBases('user-a', 'ws-1', 'archived')
+
+    expect(result).toHaveLength(10_001)
+    /** Neither the workspace read nor the legacy read may bound itself. */
+    expect(dbChainMockFns.limit).not.toHaveBeenCalled()
+  })
+
+  it('orders both sources as one list and projects connectors once', async () => {
+    const workspaceRow = {
+      id: 'kb-workspace',
+      chunkingConfig: {},
+      docCount: 0,
+      createdAt: new Date('2026-02-01T00:00:00Z'),
+    }
+    const legacyRow = {
+      id: 'kb-legacy',
+      chunkingConfig: {},
+      docCount: 0,
+      createdAt: new Date('2025-01-01T00:00:00Z'),
+    }
+    /** Both row reads are unbounded now, so each resolves at `orderBy` rather than `limit`. */
+    dbChainMockFns.orderBy.mockResolvedValueOnce([workspaceRow]).mockResolvedValueOnce([legacyRow])
+
+    const result = await listWorkspaceAndLegacyKnowledgeBases('user-a', 'ws-1')
+
+    expect(result.map((kb) => kb.id)).toEqual(['kb-legacy', 'kb-workspace'])
+    /** ONE connector projection over the merged set, not one per source. */
+    const connectorReads = dbChainMockFns.from.mock.calls.filter(
+      ([table]) => table === schemaMock.knowledgeConnector
+    )
+    expect(connectorReads).toHaveLength(1)
   })
 })
 
@@ -135,7 +263,7 @@ describe('updateKnowledgeBase — workspace transfer authorization', () => {
     await expect(
       updateKnowledgeBase('kb-1', { workspaceId: null }, 'req-1', { actorUserId: 'attacker' })
     ).rejects.toMatchObject({
-      code: 'KNOWLEDGE_BASE_FORBIDDEN',
+      code: 'forbidden',
       message: 'Only the knowledge base owner can remove it from a workspace',
     })
     expect(permissionsMockFns.mockGetUserEntityPermissions).not.toHaveBeenCalled()
@@ -159,7 +287,7 @@ describe('updateKnowledgeBase — workspace transfer authorization', () => {
         actorUserId: 'attacker',
       })
     ).rejects.toMatchObject({
-      code: 'KNOWLEDGE_BASE_FORBIDDEN',
+      code: 'forbidden',
       message: 'User does not have permission on the target workspace',
     })
     expect(permissionsMockFns.mockGetUserEntityPermissions).toHaveBeenCalledWith(

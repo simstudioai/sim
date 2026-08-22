@@ -1,6 +1,6 @@
 ---
 title: Okta
-description: Manage users and groups in Okta
+description: Manage users, groups, apps, and MFA in Okta
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -32,7 +32,7 @@ If you encounter issues with the Okta integration, contact us at [help@sim.ai](m
 
 ## Usage Instructions
 
-Integrate Okta identity management into your workflow. List, create, update, activate, suspend, and delete users. Reset passwords. Manage groups and group membership.
+Integrate Okta identity management into your workflow. Manage users, groups, and group rules. Run service desk actions like resetting MFA factors and clearing sessions. Review and change application assignments and admin roles. Query the System Log to audit sign-ins and admin changes.
 
 
 
@@ -40,7 +40,7 @@ Integrate Okta identity management into your workflow. List, create, update, act
 
 ### List Users from Okta
 
-List all users in your Okta organization with optional search and filtering
+List users in your Okta organization with optional search and filtering. Users with a DEPROVISIONED status are omitted unless a search or filter expression selects them.
 
 #### Input
 
@@ -50,7 +50,8 @@ List all users in your Okta organization with optional search and filtering
 | `domain` | string | Yes | Okta domain \(e.g., dev-123456.okta.com\) |
 | `search` | string | No | Okta search expression \(e.g., profile.firstName eq "John" or profile.email co "example.com"\) |
 | `filter` | string | No | Okta filter expression \(e.g., status eq "ACTIVE"\) |
-| `limit` | number | No | Maximum number of users to return \(default: 200, max: 200\) |
+| `after` | string | No | Opaque pagination cursor returned as nextCursor by a previous call |
+| `limit` | number | No | Maximum number of users to return per page \(default: 200\) |
 
 #### Output
 
@@ -72,6 +73,8 @@ List all users in your Okta organization with optional search and filtering
 |   ↳ `activated` | string | Activation timestamp |
 |   ↳ `statusChanged` | string | Status change timestamp |
 | `count` | number | Number of users returned |
+| `nextCursor` | string | Cursor for the next page, or null on the last page |
+| `hasMore` | boolean | Whether more users are available |
 | `success` | boolean | Operation success status |
 
 ### Get User from Okta
@@ -277,7 +280,7 @@ Generate a one-time token to reset a user password. Can email the reset link to 
 | `apiKey` | string | Yes | Okta API token for authentication |
 | `domain` | string | Yes | Okta domain \(e.g., dev-123456.okta.com\) |
 | `userId` | string | Yes | User ID or login to reset password for |
-| `sendEmail` | boolean | No | Send password reset email to the user \(default: true\) |
+| `sendEmail` | boolean | No | Send password reset email to the user. Okta requires this parameter and declares no default of its own; leaving it blank sends the email |
 
 #### Output
 
@@ -305,7 +308,7 @@ Permanently delete a user from your Okta organization. Can only be performed on 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `userId` | string | Deleted user ID |
-| `deleted` | boolean | Whether the user was deleted |
+| `deleted` | boolean | Whether the delete request was accepted. An ACTIVE user is deactivated by the first call and needs a second call to actually be deleted. |
 | `success` | boolean | Operation success status |
 
 ### List Groups from Okta
@@ -320,7 +323,8 @@ List all groups in your Okta organization with optional search and filtering
 | `domain` | string | Yes | Okta domain \(e.g., dev-123456.okta.com\) |
 | `search` | string | No | Okta search expression for groups \(e.g., profile.name sw "Engineering" or type eq "OKTA_GROUP"\) |
 | `filter` | string | No | Okta filter expression \(e.g., type eq "OKTA_GROUP"\) |
-| `limit` | number | No | Maximum number of groups to return \(default: 10000, max: 10000\) |
+| `after` | string | No | Opaque pagination cursor returned as nextCursor by a previous call |
+| `limit` | number | No | Maximum number of groups to return per page \(max: 10000\) |
 
 #### Output
 
@@ -335,6 +339,8 @@ List all groups in your Okta organization with optional search and filtering
 |   ↳ `lastUpdated` | string | Last update timestamp |
 |   ↳ `lastMembershipUpdated` | string | Last membership change timestamp |
 | `count` | number | Number of groups returned |
+| `nextCursor` | string | Cursor for the next page, or null on the last page |
+| `hasMore` | boolean | Whether more groups are available |
 | `success` | boolean | Operation success status |
 
 ### Get Group from Okta
@@ -390,7 +396,7 @@ Create a new group in your Okta organization
 
 ### Update Group in Okta
 
-Update a group profile in your Okta organization. Only groups of OKTA_GROUP type can be updated. All profile properties must be specified (full replacement).
+Update a group profile in your Okta organization. Only groups of OKTA_GROUP type can be updated. Fields left blank keep their stored value.
 
 #### Input
 
@@ -399,7 +405,7 @@ Update a group profile in your Okta organization. Only groups of OKTA_GROUP type
 | `apiKey` | string | Yes | Okta API token for authentication |
 | `domain` | string | Yes | Okta domain \(e.g., dev-123456.okta.com\) |
 | `groupId` | string | Yes | Group ID to update |
-| `name` | string | Yes | Updated group name |
+| `name` | string | No | Updated group name. Leave blank to keep the stored name |
 | `description` | string | No | Updated group description |
 
 #### Output
@@ -490,7 +496,8 @@ List all members of a specific group in your Okta organization
 | `apiKey` | string | Yes | Okta API token for authentication |
 | `domain` | string | Yes | Okta domain \(e.g., dev-123456.okta.com\) |
 | `groupId` | string | Yes | Group ID to list members for |
-| `limit` | number | No | Maximum number of members to return \(default: 1000, max: 1000\) |
+| `after` | string | No | Opaque pagination cursor returned as nextCursor by a previous call |
+| `limit` | number | No | Maximum number of members to return per page \(default: 1000, but Okta recommends 200\) |
 
 #### Output
 
@@ -512,6 +519,756 @@ List all members of a specific group in your Okta organization
 |   ↳ `activated` | string | Activation timestamp |
 |   ↳ `statusChanged` | string | Status change timestamp |
 | `count` | number | Number of members returned |
+| `nextCursor` | string | Cursor for the next page, or null on the last page |
+| `hasMore` | boolean | Whether more members are available |
+| `success` | boolean | Operation success status |
+
+### List Group Rules from Okta
+
+List the group rules in your Okta organization. Each rule assigns users to groups automatically based on an expression over their profile, so this shows how group membership is being driven.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Okta API token for authentication |
+| `domain` | string | Yes | Okta domain \(e.g., dev-123456.okta.com\) |
+| `search` | string | No | Keyword to search group rules for |
+| `after` | string | No | Opaque pagination cursor returned as nextCursor by a previous call |
+| `limit` | number | No | Maximum number of rules to return \(default: 50, max: 200\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `rules` | array | Array of group rules |
+|   ↳ `id` | string | Group rule ID |
+|   ↳ `name` | string | Group rule name |
+|   ↳ `type` | string | Rule type, always group_rule |
+|   ↳ `status` | string | Rule status \(ACTIVE, INACTIVE, INVALID\) |
+|   ↳ `created` | string | Creation timestamp |
+|   ↳ `lastUpdated` | string | Last update timestamp |
+|   ↳ `expression` | string | Okta expression that decides which users the rule matches |
+|   ↳ `expressionType` | string | Expression language, typically urn:okta:expression:1.0 |
+|   ↳ `assignUserToGroupIds` | array | Groups that matching users are assigned to |
+|   ↳ `excludedUserIds` | array | Users excluded from the rule |
+|   ↳ `excludedGroupIds` | array | Groups excluded from the rule. Always empty — Okta does not currently support group exclusions. |
+| `count` | number | Number of rules returned |
+| `nextCursor` | string | Cursor for the next page, or null on the last page |
+| `hasMore` | boolean | Whether more rules are available |
+| `success` | boolean | Operation success status |
+
+### Get Group Rule from Okta
+
+Retrieve a single Okta group rule by ID, including the expression that decides which users it matches and the groups those users are assigned to.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Okta API token for authentication |
+| `domain` | string | Yes | Okta domain \(e.g., dev-123456.okta.com\) |
+| `groupRuleId` | string | Yes | Group rule ID to look up |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Group rule ID |
+| `name` | string | Group rule name |
+| `type` | string | Rule type, always group_rule |
+| `status` | string | Rule status \(ACTIVE, INACTIVE, INVALID\) |
+| `created` | string | Creation timestamp |
+| `lastUpdated` | string | Last update timestamp |
+| `expression` | string | Okta expression that decides which users the rule matches |
+| `expressionType` | string | Expression language, typically urn:okta:expression:1.0 |
+| `assignUserToGroupIds` | array | Groups that matching users are assigned to |
+| `excludedUserIds` | array | Users excluded from the rule |
+| `excludedGroupIds` | array | Groups excluded from the rule. Always empty — Okta does not currently support group exclusions. |
+| `success` | boolean | Operation success status |
+
+### Create Group Rule in Okta
+
+Create a group rule that automatically assigns users matching an Okta expression to one or more groups. New rules are created INACTIVE, so run Activate Group Rule afterwards to start applying it.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Okta API token for authentication |
+| `domain` | string | Yes | Okta domain \(e.g., dev-123456.okta.com\) |
+| `ruleName` | string | Yes | Name for the group rule \(maximum 50 characters\) |
+| `expression` | string | Yes | Okta expression that must evaluate to a boolean \(e.g., user.department=="Engineering"\) |
+| `assignUserToGroupIds` | string | Yes | Comma-separated group IDs that matching users are assigned to |
+| `excludedUserIds` | string | No | Comma-separated user IDs to exclude from the rule |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Created group rule ID |
+| `name` | string | Group rule name |
+| `type` | string | Rule type, always group_rule |
+| `status` | string | Rule status, which is INACTIVE for a newly created rule |
+| `created` | string | Creation timestamp |
+| `lastUpdated` | string | Last update timestamp |
+| `expression` | string | Okta expression that decides which users the rule matches |
+| `expressionType` | string | Expression language, typically urn:okta:expression:1.0 |
+| `assignUserToGroupIds` | array | Groups that matching users are assigned to |
+| `excludedUserIds` | array | Users excluded from the rule |
+| `excludedGroupIds` | array | Groups excluded from the rule. Always empty — Okta does not currently support group exclusions. |
+| `success` | boolean | Operation success status |
+
+### Activate Group Rule in Okta
+
+Activate a group rule so Okta starts applying it, assigning every matching user to the target groups.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Okta API token for authentication |
+| `domain` | string | Yes | Okta domain \(e.g., dev-123456.okta.com\) |
+| `groupRuleId` | string | Yes | Group rule ID to activate |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `groupRuleId` | string | Activated group rule ID |
+| `activated` | boolean | Whether the rule was activated |
+| `success` | boolean | Operation success status |
+
+### Deactivate Group Rule in Okta
+
+Deactivate a group rule so Okta stops applying it. Existing memberships the rule created are left in place. A rule must be INACTIVE before it can be edited.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Okta API token for authentication |
+| `domain` | string | Yes | Okta domain \(e.g., dev-123456.okta.com\) |
+| `groupRuleId` | string | Yes | Group rule ID to deactivate |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `groupRuleId` | string | Deactivated group rule ID |
+| `deactivated` | boolean | Whether the rule was deactivated |
+| `success` | boolean | Operation success status |
+
+### Delete Group Rule in Okta
+
+Permanently delete a group rule. Destructive and irreversible. Optionally also removes the users that this rule had assigned from those groups, which revokes any access those groups grant.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Okta API token for authentication |
+| `domain` | string | Yes | Okta domain \(e.g., dev-123456.okta.com\) |
+| `groupRuleId` | string | Yes | Group rule ID to delete |
+| `removeUsers` | boolean | No | Also remove the users this rule assigned from the groups it targeted \(default: false\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `groupRuleId` | string | Deleted group rule ID |
+| `deleted` | boolean | Whether the deletion was accepted. Okta answers 202 and removes the rule asynchronously. |
+| `success` | boolean | Operation success status |
+
+### List Factors from Okta
+
+List the MFA factors a user has enrolled, with each factor type, provider, and enrollment status. Use this before resetting a factor to confirm which one to target.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Okta API token for authentication |
+| `domain` | string | Yes | Okta domain \(e.g., dev-123456.okta.com\) |
+| `userId` | string | Yes | User ID or login to list enrolled factors for |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `factors` | array | Array of enrolled MFA factors |
+|   ↳ `id` | string | Factor ID |
+|   ↳ `factorType` | string | Factor type \(sms, call, email, push, question, token:software:totp, webauthn, etc.\) |
+|   ↳ `provider` | string | Factor provider \(OKTA, GOOGLE, FIDO, DUO, RSA, SYMANTEC, YUBICO, CUSTOM\) |
+|   ↳ `vendorName` | string | Factor vendor name |
+|   ↳ `status` | string | Enrollment status \(ACTIVE, PENDING_ACTIVATION, NOT_SETUP, etc.\) |
+|   ↳ `created` | string | Enrollment timestamp |
+|   ↳ `lastUpdated` | string | Last update timestamp |
+|   ↳ `profile` | json | Factor-specific attributes, which vary by factor type \(phone number, email, question, credential ID\) |
+| `count` | number | Number of enrolled factors |
+| `success` | boolean | Operation success status |
+
+### Get Factor from Okta
+
+Retrieve a single enrolled MFA factor for a user, including its type, provider, enrollment status, and factor-specific profile.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Okta API token for authentication |
+| `domain` | string | Yes | Okta domain \(e.g., dev-123456.okta.com\) |
+| `userId` | string | Yes | User ID or login the factor belongs to |
+| `factorId` | string | Yes | Factor ID to look up |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Factor ID |
+| `factorType` | string | Factor type |
+| `provider` | string | Factor provider |
+| `vendorName` | string | Factor vendor name |
+| `status` | string | Enrollment status |
+| `created` | string | Enrollment timestamp |
+| `lastUpdated` | string | Last update timestamp |
+| `profile` | json | Factor-specific attributes, which vary by factor type \(phone number, email, question, credential ID\) |
+| `success` | boolean | Operation success status |
+
+### Enroll Factor in Okta
+
+Enroll an MFA factor for a user. The profile fields required depend on the factor type: a phone number for sms and call, an email address for email, and a question and answer for question. Factors that enroll from the user device, such as webauthn and push, need no profile fields.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Okta API token for authentication |
+| `domain` | string | Yes | Okta domain \(e.g., dev-123456.okta.com\) |
+| `userId` | string | Yes | User ID or login to enroll the factor for |
+| `factorType` | string | Yes | Factor type to enroll \(sms, call, email, question, push, token:software:totp, u2f, webauthn\) |
+| `provider` | string | Yes | Factor provider \(OKTA, GOOGLE, FIDO, DUO, RSA, SYMANTEC, YUBICO, CUSTOM\). Each provider supports a subset of factor types |
+| `phoneNumber` | string | No | Phone number in E.164 format. Required for the sms and call factor types |
+| `factorEmail` | string | No | Email address to enroll. Required for the email factor type |
+| `securityQuestion` | string | No | Security question key \(e.g., disliked_food\). Required for the question factor type |
+| `securityAnswer` | string | No | Answer to the security question, minimum 4 characters. Required for the question factor type |
+| `activate` | boolean | No | Activate the factor immediately as part of enrollment. Supported by the sms, call, email, and token:hotp factor types \(default: false\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Enrolled factor ID |
+| `factorType` | string | Factor type |
+| `provider` | string | Factor provider |
+| `vendorName` | string | Factor vendor name |
+| `status` | string | Enrollment status, typically PENDING_ACTIVATION until the user activates it |
+| `created` | string | Enrollment timestamp |
+| `lastUpdated` | string | Last update timestamp |
+| `profile` | json | Factor-specific attributes, which vary by factor type \(phone number, email, question, credential ID\) |
+| `enrolled` | boolean | Whether the factor was enrolled |
+| `success` | boolean | Operation success status |
+
+### Reset Factor in Okta
+
+Unenroll one specific MFA factor for a user so they can re-enroll it. Destructive and irreversible: the existing enrollment is removed. Unenrolling a push or signed_nonce factor also unenrolls the related Okta Verify factors. Factors cannot be unenrolled from a deactivated user.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Okta API token for authentication |
+| `domain` | string | Yes | Okta domain \(e.g., dev-123456.okta.com\) |
+| `userId` | string | Yes | User ID or login the factor belongs to |
+| `factorId` | string | Yes | Factor ID to unenroll |
+| `removeRecoveryEnrollment` | boolean | No | Also remove the phone number as a recovery method, not only as a factor. Applies to sms and call factors only \(default: false\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `userId` | string | User the factor belonged to |
+| `factorId` | string | Unenrolled factor ID |
+| `reset` | boolean | Whether the factor was unenrolled |
+| `success` | boolean | Operation success status |
+
+### Reset All Factors in Okta
+
+Reset every MFA factor for a user, returning all enrollments to the unenrolled state. Destructive and irreversible: the user must re-enroll each factor before they can complete MFA again. The user status stays ACTIVE.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Okta API token for authentication |
+| `domain` | string | Yes | Okta domain \(e.g., dev-123456.okta.com\) |
+| `userId` | string | Yes | User ID or login whose MFA factors will all be reset |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `userId` | string | User whose factors were reset |
+| `reset` | boolean | Whether all factors were reset |
+| `success` | boolean | Operation success status |
+
+### Clear User Sessions in Okta
+
+Revoke every active Okta session for a user, signing them out of all devices immediately. Destructive and irreversible: the user must sign in again. Optionally also revokes their OAuth and OpenID Connect tokens, and clears remembered factors.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Okta API token for authentication |
+| `domain` | string | Yes | Okta domain \(e.g., dev-123456.okta.com\) |
+| `userId` | string | Yes | User ID or login whose sessions will be revoked |
+| `oauthTokens` | boolean | No | Also revoke the user OpenID Connect and OAuth refresh and access tokens \(default: false\) |
+| `forgetDevices` | boolean | No | Clear the user remembered factors for all devices \(default: true\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `userId` | string | User whose sessions were revoked |
+| `cleared` | boolean | Whether the sessions were revoked |
+| `success` | boolean | Operation success status |
+
+### Get Session from Okta
+
+Retrieve an Okta session by ID, including who it belongs to, when it expires, and which authentication methods were used to establish it.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Okta API token for authentication |
+| `domain` | string | Yes | Okta domain \(e.g., dev-123456.okta.com\) |
+| `sessionId` | string | Yes | Session ID to look up |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Session ID |
+| `login` | string | Login of the session user |
+| `userId` | string | ID of the session user |
+| `status` | string | Session status \(ACTIVE, MFA_ENROLL, MFA_REQUIRED\) |
+| `createdAt` | string | Session creation timestamp |
+| `expiresAt` | string | Session expiry timestamp |
+| `lastPasswordVerification` | string | Timestamp of the last password verification |
+| `lastFactorVerification` | string | Timestamp of the last factor verification |
+| `amr` | array | Authentication methods used to establish the session |
+| `idpId` | string | Identity provider ID |
+| `idpType` | string | Identity provider type |
+| `success` | boolean | Operation success status |
+
+### Revoke Session in Okta
+
+Revoke a single Okta session by ID, ending that sign-in immediately. Destructive and irreversible: the affected user must sign in again on that device.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Okta API token for authentication |
+| `domain` | string | Yes | Okta domain \(e.g., dev-123456.okta.com\) |
+| `sessionId` | string | Yes | Session ID to revoke |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `sessionId` | string | Revoked session ID |
+| `revoked` | boolean | Whether the session was revoked |
+| `success` | boolean | Operation success status |
+
+### List Applications from Okta
+
+List the applications configured in your Okta organization, with optional name search, filtering, and cursor pagination.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Okta API token for authentication |
+| `domain` | string | Yes | Okta domain \(e.g., dev-123456.okta.com\) |
+| `q` | string | No | Search for applications whose name or label starts with this value |
+| `filter` | string | No | Okta filter expression \(e.g., status eq "ACTIVE"\) |
+| `includeNonDeleted` | boolean | No | Also return inactive applications. Deleted applications stay excluded either way \(default: false\) |
+| `after` | string | No | Opaque pagination cursor returned as nextCursor by a previous call |
+| `limit` | number | No | Maximum number of applications to return \(max: 200\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `apps` | array | Array of Okta applications |
+|   ↳ `id` | string | Application ID |
+|   ↳ `name` | string | Application name \(the app template key\) |
+|   ↳ `label` | string | Application display label |
+|   ↳ `status` | string | Application status \(ACTIVE, INACTIVE, DELETED\) |
+|   ↳ `signOnMode` | string | Sign-on mode \(SAML_2_0, OPENID_CONNECT, BOOKMARK, etc.\) |
+|   ↳ `features` | array | Enabled provisioning features |
+|   ↳ `created` | string | Creation timestamp |
+|   ↳ `lastUpdated` | string | Last update timestamp |
+| `count` | number | Number of applications returned |
+| `nextCursor` | string | Cursor for the next page, or null on the last page |
+| `hasMore` | boolean | Whether more applications are available |
+| `success` | boolean | Operation success status |
+
+### Get Application from Okta
+
+Retrieve a single Okta application by ID, including its sign-on mode, status, enabled provisioning features, and configuration objects.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Okta API token for authentication |
+| `domain` | string | Yes | Okta domain \(e.g., dev-123456.okta.com\) |
+| `appId` | string | Yes | Application ID to look up |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Application ID |
+| `name` | string | Application name \(the app template key\) |
+| `label` | string | Application display label |
+| `status` | string | Application status \(ACTIVE, INACTIVE, DELETED\) |
+| `signOnMode` | string | Sign-on mode |
+| `features` | array | Enabled provisioning features |
+| `created` | string | Creation timestamp |
+| `lastUpdated` | string | Last update timestamp |
+| `accessibility` | json | Access settings for the app |
+|   ↳ `errorRedirectUrl` | string | Custom error page URL |
+|   ↳ `loginRedirectUrl` | string | Custom login page URL |
+|   ↳ `selfService` | boolean | Whether users can self-assign the app |
+| `visibility` | json | Visibility settings for the app |
+|   ↳ `appLinks` | json | Map of app link name to whether it appears on the End-User Dashboard |
+|   ↳ `autoLaunch` | boolean | Signs in to the app automatically when the user signs in to Okta |
+|   ↳ `autoSubmitToolbar` | boolean | Signs in automatically when the user lands on the sign-in page |
+|   ↳ `hide` | json | Which end-user apps hide this app |
+|     ↳ `iOS` | boolean | Hidden in Okta Mobile |
+|     ↳ `web` | boolean | Hidden on the Okta End-User Dashboard |
+| `settings` | json | Application settings. Okta types these per app kind, so settings.app differs between a SAML, OIDC, bookmark, or SWA app |
+| `profile` | json | Application profile attributes. Okta accepts any valid JSON schema here, so the shape is whatever the org configured |
+| `success` | boolean | Operation success status |
+
+### List Application Users from Okta
+
+List the users assigned to an Okta application, including how each assignment was made and its provisioning sync state. Use this to audit who has access to an app.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Okta API token for authentication |
+| `domain` | string | Yes | Okta domain \(e.g., dev-123456.okta.com\) |
+| `appId` | string | Yes | Application ID to list assigned users for |
+| `q` | string | No | Search assigned users whose userName, firstName, lastName, or email starts with this value |
+| `after` | string | No | Opaque pagination cursor returned as nextCursor by a previous call |
+| `limit` | number | No | Maximum number of assigned users to return \(default: 50, max: 500\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `appUsers` | array | Array of application user assignments |
+|   ↳ `id` | string | Okta user ID |
+|   ↳ `externalId` | string | ID of the user in the downstream application |
+|   ↳ `created` | string | Assignment creation timestamp |
+|   ↳ `lastUpdated` | string | Last update timestamp |
+|   ↳ `scope` | string | How the assignment was made: USER \(direct\) or GROUP \(inherited\) |
+|   ↳ `status` | string | Assignment status |
+|   ↳ `statusChanged` | string | Status change timestamp |
+|   ↳ `passwordChanged` | string | App password change timestamp |
+|   ↳ `syncState` | string | Provisioning sync state |
+|   ↳ `lastSync` | string | Last provisioning sync |
+|   ↳ `userName` | string | Username the user signs in to the application with |
+|   ↳ `profile` | json | App-specific profile attributes, whose shape is set by the app schema |
+| `count` | number | Number of assignments returned |
+| `nextCursor` | string | Cursor for the next page, or null on the last page |
+| `hasMore` | boolean | Whether more assignments are available |
+| `success` | boolean | Operation success status |
+
+### Assign User to Application in Okta
+
+Assign a user to an Okta application, granting them access to it. Applications that require credentials also need the username the user signs in with.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Okta API token for authentication |
+| `domain` | string | Yes | Okta domain \(e.g., dev-123456.okta.com\) |
+| `appId` | string | Yes | Application ID to assign the user to |
+| `userId` | string | Yes | Okta user ID to assign |
+| `scope` | string | No | Assignment scope: USER for a direct assignment, or GROUP |
+| `appUserName` | string | No | Username the user signs in to the application with. Required by applications that store credentials |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Okta user ID that was assigned |
+| `externalId` | string | ID of the user in the downstream application |
+| `created` | string | Assignment creation timestamp |
+| `lastUpdated` | string | Last update timestamp |
+| `scope` | string | Assignment scope \(USER or GROUP\) |
+| `status` | string | Assignment status |
+| `statusChanged` | string | Status change timestamp |
+| `passwordChanged` | string | App password change timestamp |
+| `syncState` | string | Provisioning sync state |
+| `lastSync` | string | Last provisioning sync |
+| `userName` | string | Username the user signs in to the application with |
+| `profile` | json | App-specific profile attributes, whose shape is set by the app schema |
+| `assigned` | boolean | Whether the user was assigned |
+| `success` | boolean | Operation success status |
+
+### Remove User from Application in Okta
+
+Unassign a user from an Okta application, revoking their access. Destructive and irreversible: the app profile for that user is permanently removed, and if provisioning is enabled the downstream account is deactivated.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Okta API token for authentication |
+| `domain` | string | Yes | Okta domain \(e.g., dev-123456.okta.com\) |
+| `appId` | string | Yes | Application ID to remove the user from |
+| `userId` | string | Yes | Okta user ID to unassign |
+| `sendEmail` | boolean | No | Send a deactivation email to the administrator \(default: false\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `appId` | string | Application ID |
+| `userId` | string | User unassigned from the application |
+| `removed` | boolean | Whether the user was unassigned |
+| `success` | boolean | Operation success status |
+
+### List Application Groups from Okta
+
+List the groups assigned to an Okta application. Every member of an assigned group inherits access to the app, so this is the starting point for an app access review.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Okta API token for authentication |
+| `domain` | string | Yes | Okta domain \(e.g., dev-123456.okta.com\) |
+| `appId` | string | Yes | Application ID to list assigned groups for |
+| `q` | string | No | Search assigned groups whose name starts with this value |
+| `after` | string | No | Opaque pagination cursor returned as nextCursor by a previous call |
+| `limit` | number | No | Maximum number of assigned groups to return \(default: 20, range: 20 to 200\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `appGroups` | array | Array of application group assignments |
+|   ↳ `id` | string | Assigned group ID |
+|   ↳ `priority` | number | Assignment priority, which resolves conflicting profile mappings |
+|   ↳ `lastUpdated` | string | Last update timestamp |
+|   ↳ `profile` | json | App-specific profile attributes, whose shape is set by the app schema |
+| `count` | number | Number of assignments returned |
+| `nextCursor` | string | Cursor for the next page, or null on the last page |
+| `hasMore` | boolean | Whether more assignments are available |
+| `success` | boolean | Operation success status |
+
+### Assign Group to Application in Okta
+
+Assign a group to an Okta application so every member of the group inherits access to it.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Okta API token for authentication |
+| `domain` | string | Yes | Okta domain \(e.g., dev-123456.okta.com\) |
+| `appId` | string | Yes | Application ID to assign the group to |
+| `groupId` | string | Yes | Group ID to assign |
+| `priority` | number | No | Assignment priority, which resolves conflicting profile mappings when a user belongs to several assigned groups |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Assigned group ID |
+| `priority` | number | Assignment priority |
+| `lastUpdated` | string | Last update timestamp |
+| `profile` | json | App-specific profile attributes, whose shape is set by the app schema |
+| `assigned` | boolean | Whether the group was assigned |
+| `success` | boolean | Operation success status |
+
+### Remove Group from Application in Okta
+
+Unassign a group from an Okta application. Destructive: every member who had access only through this group loses access to the app.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Okta API token for authentication |
+| `domain` | string | Yes | Okta domain \(e.g., dev-123456.okta.com\) |
+| `appId` | string | Yes | Application ID to remove the group from |
+| `groupId` | string | Yes | Group ID to unassign |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `appId` | string | Application ID |
+| `groupId` | string | Group unassigned from the application |
+| `removed` | boolean | Whether the group was unassigned |
+| `success` | boolean | Operation success status |
+
+### List User Roles from Okta
+
+List the administrator roles assigned to a user. Returns both standard roles and custom role bindings, so you can review who holds privileged access.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Okta API token for authentication |
+| `domain` | string | Yes | Okta domain \(e.g., dev-123456.okta.com\) |
+| `userId` | string | Yes | User ID or login to list admin roles for |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `roles` | array | Array of admin role assignments |
+|   ↳ `id` | string | Role assignment ID, which is the resource set binding ID for a custom role. Pass this to Remove User Role |
+|   ↳ `label` | string | Role label |
+|   ↳ `type` | string | Role type \(SUPER_ADMIN, ORG_ADMIN, APP_ADMIN, USER_ADMIN, HELP_DESK_ADMIN, READ_ONLY_ADMIN, CUSTOM, etc.\) |
+|   ↳ `status` | string | Role status \(ACTIVE, INACTIVE\) |
+|   ↳ `created` | string | Assignment timestamp |
+|   ↳ `lastUpdated` | string | Last update timestamp |
+|   ↳ `assignmentType` | string | How the role was assigned \(USER, GROUP, CLIENT\) |
+|   ↳ `role` | string | Custom role ID, present only on custom role assignments |
+|   ↳ `resourceSet` | string | Resource set ID, present only on custom role assignments |
+| `count` | number | Number of role assignments returned |
+| `success` | boolean | Operation success status |
+
+### Assign User Role in Okta
+
+Grant a user an administrator role. Use a standard role type such as USER_ADMIN or HELP_DESK_ADMIN, or CUSTOM together with a custom role ID and a resource set ID. This grants privileged access, so confirm the role is the least privilege that fits.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Okta API token for authentication |
+| `domain` | string | Yes | Okta domain \(e.g., dev-123456.okta.com\) |
+| `userId` | string | Yes | User ID or login to assign the admin role to |
+| `roleType` | string | Yes | Role type to assign: SUPER_ADMIN, ORG_ADMIN, APP_ADMIN, USER_ADMIN, HELP_DESK_ADMIN, READ_ONLY_ADMIN, API_ACCESS_MANAGEMENT_ADMIN, GROUP_MEMBERSHIP_ADMIN, REPORT_ADMIN, WORKFLOWS_ADMIN, ACCESS_CERTIFICATIONS_ADMIN, ACCESS_REQUESTS_ADMIN, or CUSTOM |
+| `customRoleId` | string | No | Custom role ID. Required when the role type is CUSTOM |
+| `resourceSetId` | string | No | Resource set ID the custom role applies to. Required when the role type is CUSTOM |
+| `disableNotifications` | boolean | No | Grant the user third-party admin status, which suppresses Okta admin notifications \(default: false\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Role assignment ID, which is what Remove User Role takes |
+| `label` | string | Role label |
+| `type` | string | Assigned role type |
+| `status` | string | Role status |
+| `created` | string | Assignment timestamp |
+| `lastUpdated` | string | Last update timestamp |
+| `assignmentType` | string | How the role was assigned \(USER, GROUP, CLIENT\) |
+| `role` | string | Custom role ID, for custom roles |
+| `resourceSet` | string | Resource set ID, for custom roles |
+| `assigned` | boolean | Whether the role was assigned |
+| `success` | boolean | Operation success status |
+
+### Remove User Role in Okta
+
+Revoke an administrator role from a user. Destructive: the user immediately loses the admin permissions that role granted. Takes the role assignment ID, not the role type, which List User Roles returns as the role id field.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Okta API token for authentication |
+| `domain` | string | Yes | Okta domain \(e.g., dev-123456.okta.com\) |
+| `userId` | string | Yes | User ID or login to revoke the admin role from |
+| `roleAssignmentId` | string | Yes | Role assignment ID to revoke, as returned by List User Roles. For a custom role this is the resource set binding ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `userId` | string | User the role was revoked from |
+| `roleAssignmentId` | string | Revoked role assignment ID |
+| `removed` | boolean | Whether the role was revoked |
+| `success` | boolean | Operation success status |
+
+### Get System Log Events from Okta
+
+Query the Okta System Log for sign-ins, admin changes, and security events. Supports a time window, SCIM filter expressions, keyword search, and cursor pagination for audit and investigation workflows.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Okta API token for authentication |
+| `domain` | string | Yes | Okta domain \(e.g., dev-123456.okta.com\) |
+| `since` | string | No | Start of the query time window as an ISO 8601 timestamp \(default: 7 days before "until"\). Ignored when a cursor is supplied in "after", which already encodes the resume position |
+| `until` | string | No | End of the query time window as an ISO 8601 timestamp \(default: now\) |
+| `filter` | string | No | SCIM filter expression \(e.g., eventType eq "user.session.start" or outcome.result eq "FAILURE"\) |
+| `q` | string | No | Keyword search across the event payload \(max 40 characters per keyword, max 10 keywords\) |
+| `sortOrder` | string | No | Sort order: ASCENDING \(default\) or DESCENDING |
+| `after` | string | No | Opaque pagination cursor returned as nextCursor by a previous call |
+| `limit` | number | No | Maximum number of events to return \(default: 100, max: 1000\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `events` | array | Array of System Log events |
+|   ↳ `uuid` | string | Unique event ID |
+|   ↳ `published` | string | Event timestamp |
+|   ↳ `eventType` | string | Event type \(e.g., user.session.start, user.account.update_password\) |
+|   ↳ `severity` | string | Event severity \(DEBUG, ERROR, INFO, WARN\) |
+|   ↳ `legacyEventType` | string | Legacy event type |
+|   ↳ `displayMessage` | string | Human-readable event description |
+|   ↳ `outcomeResult` | string | Event outcome \(SUCCESS, FAILURE, CHALLENGE, DENY, etc.\) |
+|   ↳ `outcomeReason` | string | Reason for the outcome |
+|   ↳ `actorId` | string | ID of the actor |
+|   ↳ `actorType` | string | Actor type \(User, Client, etc.\) |
+|   ↳ `actorAlternateId` | string | Actor alternate ID, usually the login |
+|   ↳ `actorDisplayName` | string | Actor display name |
+|   ↳ `clientIpAddress` | string | Client IP address |
+|   ↳ `clientDevice` | string | Client device category \(e.g., Computer\) |
+|   ↳ `clientZone` | string | Network zone |
+|   ↳ `clientBrowser` | string | Client browser |
+|   ↳ `clientOs` | string | Client operating system |
+|   ↳ `clientCity` | string | Client city |
+|   ↳ `clientState` | string | Client state or region |
+|   ↳ `clientCountry` | string | Client country |
+|   ↳ `authenticationProvider` | string | Authentication provider used |
+|   ↳ `credentialType` | string | Credential type used |
+|   ↳ `externalSessionId` | string | External session ID for correlating events |
+|   ↳ `securityAsOrg` | string | Autonomous system organization |
+|   ↳ `securityIsp` | string | Internet service provider |
+|   ↳ `securityIsProxy` | boolean | Whether the request came through a proxy |
+|   ↳ `transactionId` | string | Transaction ID |
+|   ↳ `transactionType` | string | Transaction type \(e.g., WEB, JOB\) |
+|   ↳ `targets` | array | Entities the event acted upon |
+|     ↳ `id` | string | Target ID |
+|     ↳ `type` | string | Target type |
+|     ↳ `alternateId` | string | Target alternate ID |
+|     ↳ `displayName` | string | Target display name |
+|   ↳ `debugData` | json | Extra context whose keys depend on the event type. Okta states these keys and values can change between releases, so treat them as a debugging aid rather than a contract |
+| `count` | number | Number of events returned |
+| `nextCursor` | string | Cursor to resume from, or null when Okta advertised no next link. On a polling query it stays set on an empty page so the next scheduled run resumes from here rather than replaying from the start |
+| `hasMore` | boolean | Whether more events are available. A query with no "until" is a polling query, which Okta always answers with a next link even when there are no new events, so this reports false once a page comes back empty |
 | `success` | boolean | Operation success status |
 
 

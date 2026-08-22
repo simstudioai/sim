@@ -47,13 +47,7 @@ export const LogRowContextMenu = memo(function LogRowContextMenu({
   const isStatusFiltered = entry ? filters.statuses.has(entryStatus) : false
 
   return (
-    <Popover
-      open={isOpen}
-      onOpenChange={(open) => !open && onClose()}
-      variant='secondary'
-      size='sm'
-      colorScheme='inverted'
-    >
+    <Popover open={isOpen} onOpenChange={(open) => !open && onClose()} size='sm'>
       <PopoverAnchor
         style={{
           position: 'fixed',

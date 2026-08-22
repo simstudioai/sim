@@ -9,6 +9,7 @@ import {
   isTransientProviderStatus,
   parseProviderJson,
   readProviderErrorSnippet,
+  requireClientSecret,
   TokenServiceAccountValidationError,
 } from '@/lib/credentials/token-service-accounts/errors'
 
@@ -59,7 +60,8 @@ export async function mintZoomServiceAccountToken(
   fields: ClientCredentialAccountFields,
   options?: ClientCredentialAccountMintOptions
 ): Promise<ClientCredentialAccountMintResult> {
-  const basicAuth = Buffer.from(`${fields.clientId}:${fields.clientSecret}`).toString('base64')
+  const clientSecret = requireClientSecret(fields.clientSecret, 'zoom_token_mint', 'Zoom')
+  const basicAuth = Buffer.from(`${fields.clientId}:${clientSecret}`).toString('base64')
   const res = await fetchProvider(
     ZOOM_TOKEN_URL,
     {

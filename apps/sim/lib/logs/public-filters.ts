@@ -1,0 +1,128 @@
+import { workflow, workflowExecutionLogs } from '@sim/db/schema'
+import { and, asc, desc, eq, gte, inArray, lte, type SQL, sql } from 'drizzle-orm'
+
+/** Query filters shared by the v1 and v2 public log adapters. */
+export interface LogFilters {
+  workspaceId: string
+  workflowIds?: string[]
+  folderIds?: string[]
+  /**
+   * Trigger types to include. `all` is a sentinel — a list containing it
+   * disables this filter entirely rather than matching a trigger of that name.
+   *
+   * It is safe because `all` is modelled as a sentinel rather than a value:
+   * `TriggerType` in `stores/logs/filters/types.ts` adds it alongside
+   * `CoreTriggerType`, which never contains it, so no run is recorded under it.
+   * It does mean the filterable vocabulary is one name smaller than the
+   * column's, which is why the public `triggers` param documents the sentinel
+   * instead of leaving a caller to discover it.
+   */
+  triggers?: string[]
+  level?: 'info' | 'error'
+  startDate?: Date
+  endDate?: Date
+  executionId?: string
+  minDurationMs?: number
+  maxDurationMs?: number
+  minCost?: number
+  maxCost?: number
+  model?: string
+  cursor?: {
+    startedAt: string
+    id: string
+  }
+  order?: 'desc' | 'asc'
+}
+
+export function buildLogFilters(filters: LogFilters): SQL<unknown> {
+  const conditions: SQL<unknown>[] = []
+
+  conditions.push(eq(workflowExecutionLogs.workspaceId, filters.workspaceId))
+
+  // Cursor-based pagination
+  if (filters.cursor) {
+    const cursorDate = new Date(filters.cursor.startedAt)
+    if (filters.order === 'desc') {
+      conditions.push(
+        sql`(${workflowExecutionLogs.startedAt}, ${workflowExecutionLogs.id}) < (${sql.param(cursorDate, workflowExecutionLogs.startedAt)}, ${filters.cursor.id})`
+      )
+    } else {
+      conditions.push(
+        sql`(${workflowExecutionLogs.startedAt}, ${workflowExecutionLogs.id}) > (${sql.param(cursorDate, workflowExecutionLogs.startedAt)}, ${filters.cursor.id})`
+      )
+    }
+  }
+
+  // Workflow IDs filter
+  if (filters.workflowIds && filters.workflowIds.length > 0) {
+    conditions.push(inArray(workflow.id, filters.workflowIds))
+  }
+
+  // Folder IDs filter
+  if (filters.folderIds && filters.folderIds.length > 0) {
+    conditions.push(inArray(workflow.folderId, filters.folderIds))
+  }
+
+  // Triggers filter
+  if (filters.triggers && filters.triggers.length > 0 && !filters.triggers.includes('all')) {
+    conditions.push(inArray(workflowExecutionLogs.trigger, filters.triggers))
+  }
+
+  // Level filter
+  if (filters.level) {
+    conditions.push(eq(workflowExecutionLogs.level, filters.level))
+  }
+
+  // Date range filters
+  if (filters.startDate) {
+    conditions.push(gte(workflowExecutionLogs.startedAt, filters.startDate))
+  }
+
+  if (filters.endDate) {
+    conditions.push(lte(workflowExecutionLogs.startedAt, filters.endDate))
+  }
+
+  // Search filter (execution ID)
+  if (filters.executionId) {
+    conditions.push(eq(workflowExecutionLogs.executionId, filters.executionId))
+  }
+
+  // Duration filters
+  if (filters.minDurationMs !== undefined) {
+    conditions.push(gte(workflowExecutionLogs.totalDurationMs, filters.minDurationMs))
+  }
+
+  if (filters.maxDurationMs !== undefined) {
+    conditions.push(lte(workflowExecutionLogs.totalDurationMs, filters.maxDurationMs))
+  }
+
+  // Cost filters — indexed projection of the usage_log ledger (dollars).
+  if (filters.minCost !== undefined) {
+    conditions.push(sql`${workflowExecutionLogs.costTotal} >= ${filters.minCost}`)
+  }
+
+  if (filters.maxCost !== undefined) {
+    conditions.push(sql`${workflowExecutionLogs.costTotal} <= ${filters.maxCost}`)
+  }
+
+  // Model filter — uses the models_used projection (includes zero-cost/BYOK
+  // models, which the usage_log ledger drops), preserving prior behavior.
+  if (filters.model) {
+    conditions.push(sql`${workflowExecutionLogs.modelsUsed} @> ARRAY[${filters.model}]::text[]`)
+  }
+
+  // Combine all conditions with AND
+  return conditions.length > 0 ? and(...conditions)! : sql`true`
+}
+
+/**
+ * Order rows by `(startedAt, id)` so the sort matches the keyset cursor's tuple
+ * comparison in {@link buildLogFilters}. Without the `id` tie-break, rows that
+ * share a `startedAt` have an arbitrary order and can be skipped or duplicated
+ * across pages.
+ */
+export function getOrderBy(order: 'desc' | 'asc' = 'desc') {
+  return order === 'desc'
+    ? [desc(workflowExecutionLogs.startedAt), desc(workflowExecutionLogs.id)]
+    : [asc(workflowExecutionLogs.startedAt), asc(workflowExecutionLogs.id)]
+}

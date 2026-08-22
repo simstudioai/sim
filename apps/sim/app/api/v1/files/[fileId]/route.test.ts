@@ -8,24 +8,27 @@ const {
   mockCheckRateLimit,
   mockValidateWorkspaceAccess,
   mockGetWorkspaceFile,
-  mockFetchServableWorkspaceFileBuffer,
+  mockDownloadWorkspaceFileStream,
 } = vi.hoisted(() => ({
   mockCheckRateLimit: vi.fn(),
   mockValidateWorkspaceAccess: vi.fn(),
   mockGetWorkspaceFile: vi.fn(),
-  mockFetchServableWorkspaceFileBuffer: vi.fn(),
+  mockDownloadWorkspaceFileStream: vi.fn(),
 }))
 
 vi.mock('@/app/api/v1/middleware', () => ({
   checkRateLimit: mockCheckRateLimit,
   createRateLimitResponse: () => new Response('rate limited', { status: 429 }),
+  requireRateLimitPrincipal: (rateLimit: { principal: unknown }) => rateLimit.principal,
   validateWorkspaceAccess: mockValidateWorkspaceAccess,
   v1ValidationErrorResponse: (e: { issues: unknown[] }) =>
     NextResponse.json({ error: 'Validation error', details: e.issues }, { status: 400 }),
 }))
 vi.mock('@/lib/uploads/contexts/workspace', () => ({
   getWorkspaceFile: mockGetWorkspaceFile,
-  fetchServableWorkspaceFileBuffer: mockFetchServableWorkspaceFileBuffer,
+}))
+vi.mock('@/lib/workspace-files/application/download-workspace-file', () => ({
+  downloadWorkspaceFileStream: { execute: mockDownloadWorkspaceFileStream },
 }))
 vi.mock('@/lib/workspace-files/orchestration', () => ({
   performDeleteWorkspaceFileItems: vi.fn(),
@@ -37,7 +40,7 @@ vi.mock('@sim/audit', () => ({
 }))
 vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: vi.fn() }))
 
-import { DocCompileUserError } from '@/lib/copilot/tools/server/files/doc-compile'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { GET } from '@/app/api/v1/files/[fileId]/route'
 
 const WORKSPACE_ID = 'ws-1'
@@ -45,6 +48,11 @@ const FILE_ID = 'file-1'
 const context = { params: Promise.resolve({ fileId: FILE_ID }) }
 
 const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+const PRINCIPAL = {
+  kind: 'personal_api_key' as const,
+  userId: 'user-1',
+  keyId: 'key-1',
+}
 
 function request() {
   return createMockRequest(
@@ -71,16 +79,31 @@ function generatedDocument(name = 'report.docx') {
   }
 }
 
+function renderedDownload(buffer: Buffer) {
+  return {
+    file: generatedDocument(),
+    stream: new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(buffer)
+        controller.close()
+      },
+    }),
+    contentLength: buffer.length,
+    contentType: DOCX_MIME,
+  }
+}
+
 describe('v1 file download', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockCheckRateLimit.mockResolvedValue({ allowed: true, userId: 'user-1' })
+    mockCheckRateLimit.mockResolvedValue({
+      allowed: true,
+      userId: 'user-1',
+      principal: PRINCIPAL,
+    })
     mockValidateWorkspaceAccess.mockResolvedValue(null)
     mockGetWorkspaceFile.mockResolvedValue(generatedDocument())
-    mockFetchServableWorkspaceFileBuffer.mockResolvedValue({
-      buffer: Buffer.from('PKrendered'),
-      contentType: DOCX_MIME,
-    })
+    mockDownloadWorkspaceFileStream.mockResolvedValue(renderedDownload(Buffer.from('PKrendered')))
   })
 
   it('serves the rendered bytes and the rendered content type', async () => {
@@ -104,10 +127,7 @@ describe('v1 file download', () => {
 
   it('reports Content-Length from the rendered bytes, not the declared source size', async () => {
     const rendered = Buffer.alloc(50_000)
-    mockFetchServableWorkspaceFileBuffer.mockResolvedValue({
-      buffer: rendered,
-      contentType: DOCX_MIME,
-    })
+    mockDownloadWorkspaceFileStream.mockResolvedValue(renderedDownload(rendered))
 
     const response = await GET(request(), context)
 
@@ -115,8 +135,8 @@ describe('v1 file download', () => {
   })
 
   it('returns a retryable 409 while the artifact is still compiling', async () => {
-    mockFetchServableWorkspaceFileBuffer.mockRejectedValue(
-      new DocCompileUserError('Document is still being generated')
+    mockDownloadWorkspaceFileStream.mockRejectedValue(
+      new OrchestrationError('conflict', 'Document is still being generated')
     )
 
     const response = await GET(request(), context)
@@ -127,11 +147,17 @@ describe('v1 file download', () => {
   })
 
   it('404s a file that does not exist', async () => {
-    mockGetWorkspaceFile.mockResolvedValue(null)
+    mockDownloadWorkspaceFileStream.mockRejectedValue(
+      new OrchestrationError('not_found', 'File not found')
+    )
 
     const response = await GET(request(), context)
 
     expect(response.status).toBe(404)
-    expect(mockFetchServableWorkspaceFileBuffer).not.toHaveBeenCalled()
+    expect(mockDownloadWorkspaceFileStream).toHaveBeenCalledWith({
+      principal: PRINCIPAL,
+      input: { fileId: FILE_ID, assertedWorkspaceId: WORKSPACE_ID },
+      request: expect.anything(),
+    })
   })
 })

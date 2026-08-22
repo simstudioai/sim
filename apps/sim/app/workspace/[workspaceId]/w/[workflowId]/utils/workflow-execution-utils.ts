@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { isPlainRecord } from '@sim/utils/object'
+import { normalizeWorkflowEdgeSourceHandle } from '@sim/workflow-types/workflow'
 import { COPILOT_WORKFLOW_EXECUTION_CONFLICT_CODE } from '@/lib/copilot/constants'
 import type { SecretSafeBlockLog } from '@/lib/logs/execution/display-types'
 import type { TraceSpan } from '@/lib/logs/types'
@@ -65,9 +66,10 @@ export function updateActiveBlockRefCount(
  * Exclude sentinel handles here
  */
 function shouldActivateEdgeClient(
-  handle: string | null | undefined,
+  rawHandle: string | null | undefined,
   output: Record<string, any> | undefined
 ): boolean {
+  const handle = normalizeWorkflowEdgeSourceHandle(rawHandle)
   if (!handle) return true
 
   if (handle.startsWith('condition-')) {
@@ -1068,7 +1070,10 @@ export async function executeWorkflowWithFullLogging(
       error: errorMessage,
       httpStatus: response.status,
     })
-    throw new Error(errorMessage)
+    // Keep the status and code on the thrown error. Downgrading to a bare Error
+    // discarded both, so callers could not tell a Copilot binding rejection from
+    // any other 4xx — and the reason never reached the agent that could fix it.
+    throw new ExecutionStreamHttpError(errorMessage, response.status, errorCode)
   }
 
   if (!response.body) {

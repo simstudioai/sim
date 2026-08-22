@@ -5,13 +5,18 @@ import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secr
 export interface ServerToolContext {
   userId: string
   workspaceId?: string
+  executionId?: string
+  /** Stable, server-issued identity of the tool call currently executing. */
+  toolCallId?: string
+  /** True only for contexts built by the authenticated Copilot execution pipeline. */
+  copilotToolExecution?: boolean
   billingAttribution?: BillingAttributionSnapshot
   userPermission?: string
   chatId?: string
   messageId?: string
   /**
    * The invoking subagent's channel id (its outer tool_use id). Used to scope
-   * the workspace_file -> edit_content intent handoff to a single file subagent
+   * the prepare_file_edit -> apply_file_edit intent handoff to a single file subagent
    * so two file agents writing concurrently never consume each other's pending
    * intent. Undefined for main-agent tool calls (which never overlap).
    */

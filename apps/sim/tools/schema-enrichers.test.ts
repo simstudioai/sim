@@ -3,7 +3,12 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockBuildAPIUrl, mockBuildAuthHeaders, mockExtractAPIErrorMessage } = vi.hoisted(() => ({
+const {
+  mockBuildAPIUrl,
+  mockBuildAuthHeaders,
+  mockBuildExecutorDelegationHeaders,
+  mockExtractAPIErrorMessage,
+} = vi.hoisted(() => ({
   mockBuildAPIUrl: vi.fn((path: string, params?: Record<string, string>) => {
     const url = new URL(path, 'http://localhost:3000')
     for (const [key, value] of Object.entries(params ?? {})) {
@@ -12,12 +17,14 @@ const { mockBuildAPIUrl, mockBuildAuthHeaders, mockExtractAPIErrorMessage } = vi
     return url
   }),
   mockBuildAuthHeaders: vi.fn(),
+  mockBuildExecutorDelegationHeaders: vi.fn(),
   mockExtractAPIErrorMessage: vi.fn(),
 }))
 
 vi.mock('@/executor/utils/http', () => ({
   buildAPIUrl: mockBuildAPIUrl,
   buildAuthHeaders: mockBuildAuthHeaders,
+  buildExecutorDelegationHeaders: mockBuildExecutorDelegationHeaders,
   extractAPIErrorMessage: mockExtractAPIErrorMessage,
 }))
 
@@ -106,14 +113,16 @@ describe('enrichTableToolSchema', () => {
 describe('enrichKBTagsSchema', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockBuildAuthHeaders.mockResolvedValue({ Authorization: 'Bearer internal-token' })
+    mockBuildExecutorDelegationHeaders.mockResolvedValue({
+      Authorization: 'Bearer delegation-token',
+    })
   })
 
   afterEach(() => {
     vi.unstubAllGlobals()
   })
 
-  it('fetches tag definitions as the acting user so the route can authorize them', async () => {
+  it('binds the tag-definition read to the acting subject and workflow execution', async () => {
     const mockFetch = vi.fn().mockResolvedValue(
       new Response(
         JSON.stringify({
@@ -125,18 +134,46 @@ describe('enrichKBTagsSchema', () => {
     )
     vi.stubGlobal('fetch', mockFetch)
 
-    const result = await enrichKBTagsSchema('kb-1', { userId: 'user-1' })
+    const result = await enrichKBTagsSchema('kb-1', {
+      userId: 'user-1',
+      workflowId: 'workflow-1',
+      executionId: 'execution-1',
+    })
 
-    expect(mockBuildAuthHeaders).toHaveBeenCalledWith('user-1')
+    expect(mockBuildExecutorDelegationHeaders).toHaveBeenCalledWith({
+      subjectUserId: 'user-1',
+      workflowId: 'workflow-1',
+      executionId: 'execution-1',
+    })
     expect(result?.properties).toEqual({ Client: { type: 'string', description: 'text tag' } })
   })
 
-  it('skips enrichment without an acting user rather than issuing an unauthorized request', async () => {
+  it('omits the executionId outside an active run', async () => {
+    const mockFetch = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ success: true, data: [] }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    )
+    vi.stubGlobal('fetch', mockFetch)
+
+    await enrichKBTagsSchema('kb-1', { userId: 'user-1', workflowId: 'workflow-1' })
+
+    expect(mockBuildExecutorDelegationHeaders).toHaveBeenCalledWith({
+      subjectUserId: 'user-1',
+      workflowId: 'workflow-1',
+    })
+  })
+
+  it.each([
+    ['no acting user', { workflowId: 'workflow-1' }],
+    ['no acting workflow to bind the delegation on', { userId: 'user-1' }],
+  ])('skips enrichment with %s rather than issuing an unauthorized request', async (_, context) => {
     const mockFetch = vi.fn()
     vi.stubGlobal('fetch', mockFetch)
 
-    await expect(enrichKBTagsSchema('kb-1', {})).resolves.toBeNull()
+    await expect(enrichKBTagsSchema('kb-1', context)).resolves.toBeNull()
     expect(mockFetch).not.toHaveBeenCalled()
-    expect(mockBuildAuthHeaders).not.toHaveBeenCalled()
+    expect(mockBuildExecutorDelegationHeaders).not.toHaveBeenCalled()
   })
 })

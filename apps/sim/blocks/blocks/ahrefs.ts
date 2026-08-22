@@ -100,6 +100,135 @@ export const AhrefsBlock: BlockConfig<AhrefsResponse> = {
   integrationType: IntegrationType.Analytics,
   bgColor: '#FFFFFF',
   icon: AhrefsIcon,
+  canvasPresentation: {
+    defaultTitle: 'Ahrefs',
+    sentences: {
+      byOperation: {
+        ahrefs_domain_rating: [
+          { text: 'Read Domain Rating for', field: 'target', core: true },
+          { text: ', as of', field: 'date' },
+        ],
+        ahrefs_metrics: [
+          { text: 'Read organic and paid search metrics for', field: 'target', core: true },
+          { text: ', in', field: 'country' },
+        ],
+        ahrefs_backlinks: [
+          { text: 'List backlinks pointing to', field: 'target', core: true },
+          { text: ', up to', field: 'limit', after: 'links' },
+        ],
+        ahrefs_backlinks_stats: [
+          {
+            text: 'Read backlink and referring domain totals for',
+            field: 'target',
+            core: true,
+          },
+          { text: ', as of', field: 'date' },
+        ],
+        ahrefs_referring_domains: [
+          { text: 'List domains linking to', field: 'target', core: true },
+          { text: ', up to', field: 'limit', after: 'domains' },
+        ],
+        ahrefs_broken_backlinks: [
+          { text: 'List broken backlinks pointing to', field: 'target', core: true },
+          { text: ', up to', field: 'limit', after: 'links' },
+        ],
+        ahrefs_organic_keywords: [
+          { text: 'List organic keywords for', field: 'target', core: true },
+          { text: ', in', field: 'country' },
+        ],
+        ahrefs_organic_competitors: [
+          { text: 'List organic search competitors of', field: 'target', core: true },
+          { text: ', in', field: 'country' },
+        ],
+        ahrefs_top_pages: [
+          {
+            text: 'List top pages of',
+            field: 'target',
+            after: 'by organic traffic',
+            core: true,
+          },
+          { text: ', in', field: 'country' },
+        ],
+        ahrefs_paid_pages: [
+          {
+            text: 'List pages of',
+            field: 'target',
+            after: 'receiving paid traffic',
+            core: true,
+          },
+          { text: ', in', field: 'country' },
+        ],
+        ahrefs_anchors: [
+          { text: 'Break down anchor text in backlinks to', field: 'target', core: true },
+          { text: ', up to', field: 'limit', after: 'anchors' },
+        ],
+        ahrefs_keyword_overview: [
+          { text: 'Read volume, difficulty, and CPC for', field: 'keyword', core: true },
+          { text: ', in', field: 'country' },
+        ],
+        ahrefs_related_terms: [
+          { text: 'Find keyword ideas related to', field: 'keyword', core: true },
+          { text: ', in', field: 'country' },
+        ],
+        ahrefs_domain_rating_history: [
+          { text: 'Chart Domain Rating over time for', field: 'target', core: true },
+          { text: ', since', field: 'dateFrom' },
+        ],
+        ahrefs_metrics_history: [
+          { text: 'Chart organic and paid traffic for', field: 'target', core: true },
+          { text: ', since', field: 'dateFrom' },
+        ],
+        ahrefs_refdomains_history: [
+          { text: 'Chart referring domain counts for', field: 'target', core: true },
+          { text: ', since', field: 'dateFrom' },
+        ],
+        ahrefs_keywords_history: [
+          {
+            text: 'Chart keyword counts by ranking position for',
+            field: 'target',
+            core: true,
+          },
+          { text: ', since', field: 'dateFrom' },
+        ],
+        ahrefs_batch_analysis: [
+          { text: 'Compare SEO metrics across', field: 'targets', core: true },
+          { text: ', in', field: 'country' },
+        ],
+        ahrefs_site_audit_page_explorer: [
+          { text: 'List crawled pages in audit project', field: 'projectId', core: true },
+          { text: ', affected by issue', field: 'issueId' },
+        ],
+        ahrefs_rank_tracker_overview: [
+          {
+            text: 'Read tracked keyword rankings in project',
+            field: 'projectId',
+            core: true,
+          },
+          { text: ', on', field: 'date' },
+        ],
+        ahrefs_rank_tracker_serp_overview: [
+          { text: 'Read the full SERP for', field: 'keyword', core: true },
+          { text: ', in project', field: 'projectId' },
+        ],
+        ahrefs_rank_tracker_competitors_overview: [
+          {
+            text: 'Read per-keyword competitor rankings in project',
+            field: 'projectId',
+            core: true,
+          },
+          { text: ', on', field: 'date' },
+        ],
+        ahrefs_rank_tracker_competitors_stats: [
+          {
+            text: 'Read competitor traffic and share of voice in project',
+            field: 'projectId',
+            core: true,
+          },
+          { text: ', on', field: 'date' },
+        ],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',

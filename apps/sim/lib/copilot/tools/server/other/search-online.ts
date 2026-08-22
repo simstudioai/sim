@@ -1,9 +1,10 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { SearchOnline } from '@/lib/copilot/generated/tool-catalog-v1'
+import { WebSearch } from '@/lib/copilot/generated/tool-catalog-v1'
 import { projectToolErrorMessageForCopilot } from '@/lib/copilot/request/tools/resolved-secret-result'
 import type { BaseServerTool, ServerToolContext } from '@/lib/copilot/tools/server/base-tool'
 import { env } from '@/lib/core/config/env'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { executeTool } from '@/tools'
 
 interface OnlineSearchParams {
@@ -31,11 +32,12 @@ interface SearchResponse {
 }
 
 export const searchOnlineServerTool: BaseServerTool<OnlineSearchParams, SearchResponse> = {
-  name: SearchOnline.id,
+  name: WebSearch.id,
   async execute(params: OnlineSearchParams, context?: ServerToolContext): Promise<SearchResponse> {
     const logger = createLogger('SearchOnlineServerTool')
     const { query, num = 10, type = 'search', gl, hl } = params
-    if (!query || typeof query !== 'string') throw new Error('query is required')
+    if (!query || typeof query !== 'string')
+      throw new OrchestrationError('validation', 'query is required')
 
     const hasExaApiKey = Boolean(env.EXA_API_KEY && String(env.EXA_API_KEY).length > 0)
     const hasSerperApiKey = Boolean(env.SERPER_API_KEY && String(env.SERPER_API_KEY).length > 0)
@@ -104,7 +106,10 @@ export const searchOnlineServerTool: BaseServerTool<OnlineSearchParams, SearchRe
     }
 
     if (!hasSerperApiKey) {
-      throw new Error('No search API keys available (EXA_API_KEY or SERPER_API_KEY required)')
+      throw new OrchestrationError(
+        'forbidden',
+        'Web search is not configured on this Sim deployment and cannot be enabled from a tool. Answer from the workspace instead (grep/glob/read, search_sim_docs) or tell the user web search is unavailable.'
+      )
     }
 
     const toolParams = {
@@ -124,7 +129,9 @@ export const searchOnlineServerTool: BaseServerTool<OnlineSearchParams, SearchRe
 
     if (!result.success) {
       const errorMsg = (result as { error?: string }).error ?? 'Search failed'
-      throw new Error(errorMsg)
+      // Classified so the provider's actual failure (rate limit, bad query)
+      // reaches the model instead of the generic system-error mask.
+      throw new OrchestrationError('conflict', errorMsg)
     }
 
     return {

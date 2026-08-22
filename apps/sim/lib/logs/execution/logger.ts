@@ -449,6 +449,9 @@ export class ExecutionLogger implements IExecutionLoggerService {
 
     const minimal: ExecutionData = {
       secretProjectionVersion: SECRET_PROJECTION_VERSION,
+      ...(executionData.resolvedSecretTraceProvenance !== undefined
+        ? { resolvedSecretTraceProvenance: executionData.resolvedSecretTraceProvenance }
+        : {}),
       ...(executionData.environment ? { environment: executionData.environment } : {}),
       ...(executionData.trigger ? { trigger: executionData.trigger } : {}),
       ...(executionData.billingAttribution
@@ -1102,8 +1105,18 @@ export class ExecutionLogger implements IExecutionLoggerService {
       builtExecutionData.executionState
     )
 
+    /**
+     * Duplicated top-level so the display projection can still rebuild its
+     * registry after compaction drops `executionState`. Read from the
+     * pre-redaction state: `preservePrivateExecutionStateMetadata` copies the
+     * provenance across verbatim, and this one also survives redaction
+     * producing no state at all.
+     */
+    const runProvenance = builtExecutionData.executionState?.resolvedSecretTraceProvenance
+
     const cleanExecutionData: ExecutionData = {
       ...builtExecutionData,
+      ...(runProvenance !== undefined ? { resolvedSecretTraceProvenance: runProvenance } : {}),
       traceSpans: copyTraceSpansWithoutCosts(preparedTraceSpans),
       finalOutput: pii.finalOutput as BlockOutputData,
       ...(pii.workflowInput !== undefined ? { workflowInput: pii.workflowInput } : {}),
@@ -1288,12 +1301,16 @@ export class ExecutionLogger implements IExecutionLoggerService {
           payerSubscription.plan,
           payerSubscription.seats
         )
-        const [{ sum: orgBaselineSum }] = await db
-          .select({ sum: sql`COALESCE(SUM(${userStats.currentPeriodCost}), 0)` })
-          .from(member)
-          .leftJoin(userStats, eq(member.userId, userStats.userId))
-          .where(eq(member.organizationId, organizationId))
-          .limit(1)
+        let orgBaseline = 0
+        if (exactBillingContext.billingPeriod.source !== 'reporting') {
+          const [{ sum }] = await db
+            .select({ sum: sql`COALESCE(SUM(${userStats.currentPeriodCost}), 0)` })
+            .from(member)
+            .leftJoin(userStats, eq(member.userId, userStats.userId))
+            .where(eq(member.organizationId, organizationId))
+            .limit(1)
+          orgBaseline = Number.parseFloat(String(sum ?? '0'))
+        }
         const { getBillingPeriodUsageCost } = await import('@/lib/billing/core/usage-log')
         const orgLedger = await getBillingPeriodUsageCost(
           billingAttribution.billingEntity,
@@ -1304,7 +1321,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
           organizationId,
           planName: getDisplayPlanName(payerSubscription.plan),
           orgLimit,
-          orgUsageBefore: Number.parseFloat(String(orgBaselineSum ?? '0')) + orgLedger,
+          orgUsageBefore: orgBaseline + orgLedger,
         }
       } else if (billingAttribution?.billingEntity.type === 'user' && usr?.email) {
         const sub = await getHighestPriorityPersonalSubscription(usr.id)

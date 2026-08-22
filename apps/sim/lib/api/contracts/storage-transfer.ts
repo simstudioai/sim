@@ -1,8 +1,4 @@
 import { z } from 'zod'
-import {
-  batchPresignedUploadResponseSchema,
-  presignedUploadResponseSchema,
-} from '@/lib/api/contracts/file-uploads'
 import { workspaceFileIdSchema } from '@/lib/api/contracts/primitives'
 import {
   type ContractBodyInput,
@@ -18,64 +14,6 @@ import {
 } from '@/lib/uploads/utils/file-schemas'
 
 const jsonResponseSchema = z.unknown()
-
-function formatFileSize(bytes: number): string {
-  if (!Number.isFinite(bytes) || bytes <= 0) return '0 Bytes'
-  const k = 1024
-  const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB']
-  const i = Math.min(Math.floor(Math.log(bytes) / Math.log(k)), sizes.length - 1)
-  const value = bytes / k ** i
-  return `${value.toFixed(value >= 100 || i === 0 ? 0 : 1)} ${sizes[i]}`
-}
-
-const multipartPartUrlSchema = z.object({
-  partNumber: z.number(),
-  url: z.string(),
-  blockId: z.string().optional(),
-})
-
-const multipartCompletedUploadSchema = z.object({
-  success: z.literal(true),
-  location: z.string(),
-  path: z.string(),
-  key: z.string(),
-})
-
-export const initiateMultipartResponseSchema = z.object({
-  uploadId: z.string(),
-  key: z.string(),
-  uploadToken: z.string(),
-})
-
-export const getMultipartPartUrlsResponseSchema = z.object({
-  presignedUrls: z.array(multipartPartUrlSchema),
-})
-
-export const completeMultipartResponseSchema = z.union([
-  multipartCompletedUploadSchema,
-  z.object({
-    results: z.array(multipartCompletedUploadSchema),
-  }),
-])
-
-export const abortMultipartResponseSchema = z.object({
-  success: z.literal(true),
-})
-
-export const verifyPresignedUploadBodySchema = z.object({
-  uploadToken: z.string().min(1, 'Upload token is required'),
-})
-
-export const verifyPresignedUploadResponseSchema = z.object({
-  uploaded: z.boolean(),
-})
-
-export const multipartUploadResponseSchema = z.union([
-  initiateMultipartResponseSchema,
-  getMultipartPartUrlsResponseSchema,
-  completeMultipartResponseSchema,
-  abortMultipartResponseSchema,
-])
 
 const connectionFields = {
   host: z.string().min(1, 'Host is required'),
@@ -333,168 +271,6 @@ export const fileDeleteBodySchema = z
   })
   .passthrough()
 
-const MAX_FILE_SIZE = 100 * 1024 * 1024
-export const validUploadTypes = [
-  'knowledge-base',
-  'chat',
-  'copilot',
-  'profile-pictures',
-  'mothership',
-  'workspace-logos',
-  'execution',
-] as const
-
-export const uploadTypeSchema = z.enum(validUploadTypes)
-
-/**
- * Storage contexts a client may mint a single presigned upload URL for. Each one
- * has a per-context authorization predicate in `/api/files/presigned`; a context
- * that cannot be authorized must not be listed here. `chat` is deliberately
- * absent — it has no owning entity to authorize against and no client that mints
- * one (chat assets go through the server-proxied `/api/files/upload`).
- */
-export const presignedUploadTypes = [
-  'knowledge-base',
-  'copilot',
-  'profile-pictures',
-  'mothership',
-  'workspace-logos',
-  'execution',
-] as const
-
-export const presignedUploadTypeSchema = z.enum(presignedUploadTypes)
-
-/**
- * Storage contexts `/api/files/presigned/batch` serves. Batching exists only for
- * knowledge-base ingest; no other context has a batch client, and the batch
- * endpoint carries no authorization predicate for one.
- */
-export const batchPresignedUploadTypes = ['knowledge-base'] as const
-
-export const batchPresignedUploadTypeSchema = z.enum(batchPresignedUploadTypes)
-
-export const presignedUploadQuerySchema = z.object({
-  type: presignedUploadTypeSchema,
-})
-
-export const presignedUrlBodySchema = z
-  .object({
-    fileName: z
-      .string({ error: 'fileName is required and cannot be empty' })
-      .refine((value) => value.trim().length > 0, {
-        message: 'fileName is required and cannot be empty',
-      }),
-    contentType: z
-      .string({ error: 'contentType is required and cannot be empty' })
-      .refine((value) => value.trim().length > 0, {
-        message: 'contentType is required and cannot be empty',
-      }),
-    fileSize: z
-      .number({ error: 'fileSize must be a positive number' })
-      .positive('fileSize must be a positive number')
-      .superRefine((val, ctx) => {
-        if (val > MAX_FILE_SIZE) {
-          ctx.addIssue({
-            code: 'custom',
-            message: `File size ${formatFileSize(val)} exceeds maximum allowed size of ${formatFileSize(MAX_FILE_SIZE)}`,
-          })
-        }
-      }),
-    userId: z.string().optional(),
-    chatId: z.string().optional(),
-  })
-  .passthrough()
-
-export const batchPresignedUrlBodySchema = z
-  .object({
-    files: z
-      .array(
-        z
-          .object({
-            fileName: z.string().refine((value) => value.trim().length > 0, {
-              message: 'fileName is required for all files',
-            }),
-            contentType: z.string().refine((value) => value.trim().length > 0, {
-              message: 'contentType is required for all files',
-            }),
-            fileSize: z.number(),
-          })
-          .passthrough()
-          .superRefine((file, ctx) => {
-            const name = typeof file.fileName === 'string' ? file.fileName : 'file'
-            if (!Number.isFinite(file.fileSize) || file.fileSize <= 0) {
-              ctx.addIssue({
-                code: 'custom',
-                path: ['fileSize'],
-                message: `${name} is empty (fileSize must be greater than 0)`,
-              })
-            } else if (file.fileSize > MAX_FILE_SIZE) {
-              ctx.addIssue({
-                code: 'custom',
-                path: ['fileSize'],
-                message: `${name} (${formatFileSize(file.fileSize)}) exceeds maximum allowed size of ${formatFileSize(MAX_FILE_SIZE)}`,
-              })
-            }
-          })
-      )
-      .min(1, 'files array is required and cannot be empty')
-      .max(100, 'Cannot process more than 100 files at once'),
-  })
-  .passthrough()
-
-export const multipartActionSchema = z.enum(['initiate', 'get-part-urls', 'complete', 'abort'])
-
-export const initiateMultipartBodySchema = z
-  .object({
-    fileName: z.string(),
-    contentType: z.string(),
-    fileSize: z.number(),
-    workspaceId: z.string({ error: 'workspaceId is required' }).min(1, 'workspaceId is required'),
-    context: z.string().optional(),
-  })
-  .passthrough()
-
-export const tokenBoundMultipartBodySchema = z
-  .object({
-    uploadToken: z.string().optional(),
-  })
-  .passthrough()
-
-export const getMultipartPartUrlsBodySchema = tokenBoundMultipartBodySchema.extend({
-  partNumbers: z.array(z.number()),
-})
-
-export const completeMultipartBodySchema = z
-  .object({
-    uploadToken: z.string().optional(),
-    parts: z.unknown().optional(),
-    uploads: z
-      .array(
-        z
-          .object({
-            uploadToken: z.string().optional(),
-            parts: z.unknown().optional(),
-          })
-          .passthrough()
-      )
-      .optional(),
-  })
-  .passthrough()
-
-export type CompleteMultipartBody = z.output<typeof completeMultipartBodySchema>
-
-export const uploadFilesFormFilesSchema = z.preprocess(
-  (value) => (Array.isArray(value) ? value.filter((entry) => entry instanceof File) : value),
-  z.array(z.custom<File>((value) => value instanceof File)).min(1, 'No files provided')
-)
-
-export const uploadFilesFormFieldsSchema = z.object({
-  workflowId: z.string().nullable(),
-  executionId: z.string().nullable(),
-  workspaceId: z.string().nullable(),
-  context: z.string().nullable(),
-})
-
 export const fileServeParamsSchema = z.object({
   path: z.array(z.string()).min(1),
 })
@@ -540,13 +316,6 @@ export const wordpressUploadContract = defineRouteContract({
   method: 'POST',
   path: '/api/tools/wordpress/upload',
   body: wordpressUploadBodySchema,
-  response: { mode: 'json', schema: jsonResponseSchema },
-})
-
-export const sftpListContract = defineRouteContract({
-  method: 'POST',
-  path: '/api/tools/sftp/list',
-  body: sftpListBodySchema,
   response: { mode: 'json', schema: jsonResponseSchema },
 })
 
@@ -690,83 +459,6 @@ export const fileDeleteContract = defineRouteContract({
   response: { mode: 'json', schema: jsonResponseSchema },
 })
 
-export const fileUploadContract = defineRouteContract({
-  method: 'POST',
-  path: '/api/files/upload',
-  response: { mode: 'json', schema: jsonResponseSchema },
-})
-
-export const presignedUploadContract = defineRouteContract({
-  method: 'POST',
-  path: '/api/files/presigned',
-  query: presignedUploadQuerySchema,
-  body: presignedUrlBodySchema,
-  response: { mode: 'json', schema: presignedUploadResponseSchema },
-})
-
-export const presignedUploadBodyContract = defineRouteContract({
-  method: 'POST',
-  path: '/api/files/presigned',
-  body: presignedUrlBodySchema,
-  response: { mode: 'json', schema: presignedUploadResponseSchema },
-})
-
-export const batchPresignedUploadContract = defineRouteContract({
-  method: 'POST',
-  path: '/api/files/presigned/batch',
-  query: presignedUploadQuerySchema,
-  body: batchPresignedUrlBodySchema,
-  response: { mode: 'json', schema: batchPresignedUploadResponseSchema },
-})
-
-export const batchPresignedUploadBodyContract = defineRouteContract({
-  method: 'POST',
-  path: '/api/files/presigned/batch',
-  body: batchPresignedUrlBodySchema,
-  response: { mode: 'json', schema: batchPresignedUploadResponseSchema },
-})
-
-export const multipartUploadContract = defineRouteContract({
-  method: 'POST',
-  path: '/api/files/multipart',
-  response: { mode: 'json', schema: multipartUploadResponseSchema },
-})
-
-export const initiateMultipartUploadContract = defineRouteContract({
-  method: 'POST',
-  path: '/api/files/multipart',
-  body: initiateMultipartBodySchema,
-  response: { mode: 'json', schema: initiateMultipartResponseSchema },
-})
-
-export const getMultipartPartUrlsContract = defineRouteContract({
-  method: 'POST',
-  path: '/api/files/multipart',
-  body: getMultipartPartUrlsBodySchema,
-  response: { mode: 'json', schema: getMultipartPartUrlsResponseSchema },
-})
-
-export const completeMultipartUploadContract = defineRouteContract({
-  method: 'POST',
-  path: '/api/files/multipart',
-  body: completeMultipartBodySchema,
-  response: { mode: 'json', schema: completeMultipartResponseSchema },
-})
-
-export const abortMultipartUploadContract = defineRouteContract({
-  method: 'POST',
-  path: '/api/files/multipart',
-  body: tokenBoundMultipartBodySchema,
-  response: { mode: 'json', schema: abortMultipartResponseSchema },
-})
-
-export const verifyPresignedUploadContract = defineRouteContract({
-  method: 'POST',
-  path: '/api/files/presigned/verify',
-  body: verifyPresignedUploadBodySchema,
-  response: { mode: 'json', schema: verifyPresignedUploadResponseSchema },
-})
-
 export const fileServeContract = defineRouteContract({
   method: 'GET',
   path: '/api/files/serve/[...path]',
@@ -832,16 +524,6 @@ export type FileParseBody = ContractBodyInput<typeof fileParseContract>
 export type FileParseResponse = ContractJsonResponse<typeof fileParseContract>
 export type FileDeleteBody = ContractBodyInput<typeof fileDeleteContract>
 export type FileDeleteResponse = ContractJsonResponse<typeof fileDeleteContract>
-export type PresignedUploadQuery = ContractQueryInput<typeof presignedUploadContract>
-export type PresignedUploadBody = ContractBodyInput<typeof presignedUploadContract>
-export type PresignedUploadResponse = ContractJsonResponse<typeof presignedUploadContract>
-export type BatchPresignedUploadQuery = ContractQueryInput<typeof batchPresignedUploadContract>
-export type BatchPresignedUploadBody = ContractBodyInput<typeof batchPresignedUploadContract>
-export type BatchPresignedUploadResponse = ContractJsonResponse<typeof batchPresignedUploadContract>
-export type MultipartAction = z.output<typeof multipartActionSchema>
-export type InitiateMultipartBody = z.output<typeof initiateMultipartBodySchema>
-export type TokenBoundMultipartBody = z.output<typeof tokenBoundMultipartBodySchema>
-export type GetMultipartPartUrlsBody = z.output<typeof getMultipartPartUrlsBodySchema>
 export type FileServeParams = ContractParamsInput<typeof fileServeContract>
 export type FileServeQuery = ContractQueryInput<typeof fileServeContract>
 export type FileViewParams = ContractParamsInput<typeof fileViewContract>

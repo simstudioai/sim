@@ -16,22 +16,13 @@ import {
   normalizeOpenRouterEmbeddingModelId,
 } from '@/lib/embeddings/openrouter-models'
 import type { EmbeddingTaskType } from '@/lib/embeddings/types'
-import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import type { BlockConfig, BlockMeta, SubBlockConfig } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { providerModelsQueryOptions } from '@/hooks/queries/providers'
 import type { EmbeddingsResponse } from '@/tools/embeddings/types'
 
 export const EMBEDDING_BLOCK_PROVIDERS = [...EMBEDDING_CATALOG_PROVIDERS, 'openrouter'] as const
 
 type EmbeddingBlockProvider = (typeof EMBEDDING_BLOCK_PROVIDERS)[number]
-
-async function fetchOpenRouterEmbeddingModelOptions() {
-  const { models } = await getQueryClient().fetchQuery(
-    providerModelsQueryOptions('openrouter-embeddings')
-  )
-  return models.map((model) => ({ label: model, id: model }))
-}
 
 const TOOL_ID_BY_PROVIDER: Record<EmbeddingBlockProvider, string> = {
   openai: 'embeddings_openai',
@@ -81,8 +72,7 @@ MODEL_SUB_BLOCKS.push({
   id: 'model',
   title: 'Model',
   type: 'combobox',
-  options: [],
-  fetchOptions: fetchOpenRouterEmbeddingModelOptions,
+  selectorKey: 'providers.openrouterEmbeddingModels',
   value: () => DEFAULT_OPENROUTER_EMBEDDING_MODEL,
   condition: { field: 'provider', value: 'openrouter' },
   dependsOn: ['provider'],
@@ -146,6 +136,18 @@ export const EmbeddingsBlock: BlockConfig<EmbeddingsResponse> = {
   docsLink: 'https://docs.sim.ai/integrations/embeddings',
   bgColor: '#7B4DFF',
   icon: EmbeddingsIcon,
+  canvasPresentation: {
+    defaultTitle: 'Embeddings',
+    sentences: {
+      /* Anchored on `input`: it is the one required field every provider shows.
+         `model` is scoped by a per-provider `condition`, so it carries the
+         clause but cannot be what keeps the sentence on the card. */
+      default: [
+        { text: 'Embed', field: 'input', core: true },
+        { text: 'with', field: 'model' },
+      ],
+    },
+  },
   subBlocks: [
     {
       id: 'input',

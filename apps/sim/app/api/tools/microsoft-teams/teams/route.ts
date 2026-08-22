@@ -5,7 +5,7 @@ import { microsoftTeamsSelectorContract } from '@/lib/api/contracts/selectors/mi
 import { parseRequest } from '@/lib/api/server'
 import { authorizeCredentialUse } from '@/lib/auth/credential-access'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
+import { refreshAccessTokenIfNeeded } from '@/lib/oauth/credential-service'
 import { assertGraphNextPageUrl, getGraphNextPageUrl } from '@/tools/sharepoint/utils'
 
 export const dynamic = 'force-dynamic'

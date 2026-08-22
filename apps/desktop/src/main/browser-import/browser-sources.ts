@@ -77,23 +77,6 @@ export function userDataDirFor(source: BrowserSource, home: string = homedir()):
   return join(home, ...source.userDataSegments)
 }
 
-/**
- * Splits a bridge profile id back into its browser and profile directory.
- *
- * Ids are namespaced (`arc:Profile 1`) because profile directory names repeat
- * across browsers — every one of them has a `Default`. Returns null for
- * anything malformed; the caller then resolves against discovered profiles
- * anyway, so a bad id can never become a path.
- */
-export function parseProfileId(profileId: string): { sourceId: string; directory: string } | null {
-  const separator = profileId.indexOf(':')
-  if (separator <= 0 || separator === profileId.length - 1) return null
-  return {
-    sourceId: profileId.slice(0, separator),
-    directory: profileId.slice(separator + 1),
-  }
-}
-
 export function formatProfileId(sourceId: string, directory: string): string {
   return `${sourceId}:${directory}`
 }

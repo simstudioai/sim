@@ -121,7 +121,7 @@ vi.mock('@/lib/workflows/utils', () => workflowsUtilsMock)
 
 vi.mock('@/lib/execution/preprocessing', () => executionPreprocessingMock)
 
-vi.mock('@/app/api/workflows/utils', () => ({
+vi.mock('@/lib/workflows/deployment-status', () => ({
   checkNeedsRedeployment: mockCheckNeedsRedeployment,
 }))
 
@@ -852,8 +852,13 @@ describe('workflow execute async route', () => {
         status: 'pending',
       },
       { id: 'copilot-run-1', userId: 'session-user-1', workflowId: 'workflow-1' },
+      403,
+      'COPILOT_WORKFLOW_TOOL_BINDING_AWAITING_APPROVAL',
     ],
     [
+      // A finished call is a benign duplicate, not a defect: some other runner
+      // already owns this tool call, so it reports the same conflict the
+      // execution claim does and the client stays silent.
       'terminal tool row',
       {
         toolCallId: 'copilot-tool-1',
@@ -863,6 +868,8 @@ describe('workflow execute async route', () => {
         status: 'completed',
       },
       { id: 'copilot-run-1', userId: 'session-user-1', workflowId: 'workflow-1' },
+      409,
+      'COPILOT_WORKFLOW_EXECUTION_CONFLICT',
     ],
     [
       'different workflow target',
@@ -874,6 +881,8 @@ describe('workflow execute async route', () => {
         status: 'running',
       },
       { id: 'copilot-run-1', userId: 'session-user-1', workflowId: 'workflow-1' },
+      403,
+      'COPILOT_WORKFLOW_TOOL_BINDING_WORKFLOW_MISMATCH',
     ],
     [
       'different execution actor',
@@ -885,19 +894,28 @@ describe('workflow execute async route', () => {
         status: 'running',
       },
       { id: 'copilot-run-1', userId: 'other-user', workflowId: 'workflow-1' },
+      403,
+      'COPILOT_WORKFLOW_TOOL_BINDING_FOREIGN_OWNER',
     ],
-  ])('rejects a Copilot binding owned by a %s', async (_caseName, toolCall, run) => {
-    mockGetAsyncToolCall.mockResolvedValueOnce(toolCall)
-    mockGetRunSegment.mockResolvedValueOnce(run)
+    ['missing tool row', null, null, 404, 'COPILOT_WORKFLOW_TOOL_BINDING_UNKNOWN'],
+  ])(
+    'rejects a Copilot binding owned by a %s',
+    async (_caseName, toolCall, run, expectedStatus, expectedCode) => {
+      mockGetAsyncToolCall.mockResolvedValueOnce(toolCall)
+      mockGetRunSegment.mockResolvedValueOnce(run)
 
-    const response = await POST(createBoundCopilotExecutionRequest(), {
-      params: Promise.resolve({ id: 'workflow-1' }),
-    })
+      const response = await POST(createBoundCopilotExecutionRequest(), {
+        params: Promise.resolve({ id: 'workflow-1' }),
+      })
 
-    expect(response.status).toBe(403)
-    expect(mockExecuteWorkflowCore).not.toHaveBeenCalled()
-    expect(loggingSessionMockFns.mockSetTrustedExecutionCorrelation).not.toHaveBeenCalled()
-  })
+      expect(response.status).toBe(expectedStatus)
+      // The reason must be machine-readable — an opaque 403 is what stopped the
+      // client telling a benign duplicate from a real failure.
+      await expect(response.json()).resolves.toMatchObject({ code: expectedCode })
+      expect(mockExecuteWorkflowCore).not.toHaveBeenCalled()
+      expect(loggingSessionMockFns.mockSetTrustedExecutionCorrelation).not.toHaveBeenCalled()
+    }
+  )
 
   it('rejects Copilot workflow bindings outside the interactive SSE surface', async () => {
     const response = await POST(createBoundCopilotExecutionRequest({ stream: false }), {
@@ -1160,6 +1178,7 @@ describe('workflow execute async route', () => {
     expect(response.status).toBe(202)
     expect(body.executionId).toBe('execution-123')
     expect(body.jobId).toBe('job-123')
+    expect(body.statusUrl).toBe('http://localhost:3000/api/jobs/job-123')
     expect(mockClaimExecutionId).toHaveBeenCalledWith('execution-123')
     expect(mockEnqueue).toHaveBeenCalledWith(
       'workflow-execution',
@@ -2614,5 +2633,61 @@ describe('workflow execute async route', () => {
         ? JSON.parse(executionCall.snapshot)
         : executionCall.snapshot
     expect(snapshot.metadata.enforceCredentialAccess).toBe(true)
+  })
+  describe('triggerType override gate', () => {
+    it.each([
+      ['personal API key', EXECUTION_CALLERS[1]],
+      ['workspace API key', EXECUTION_CALLERS[2]],
+      ['public API', EXECUTION_CALLERS[3]],
+    ] as const)(
+      'rejects caller-supplied triggerType "manual" from %s callers',
+      async (_name, caller) => {
+        configureExecutionCaller(caller)
+        const req = createMockRequest(
+          'POST',
+          { hello: 'world', triggerType: 'manual' },
+          { 'Content-Type': 'application/json', ...caller.headers }
+        )
+
+        const response = await POST(req, { params: Promise.resolve({ id: 'workflow-1' }) })
+
+        expect(response.status).toBe(400)
+        await expect(response.json()).resolves.toMatchObject({
+          error: 'External callers cannot override triggerType',
+        })
+        expect(mockPreprocessExecution).not.toHaveBeenCalled()
+      }
+    )
+
+    it('accepts the redundant explicit "api" triggerType from API-key callers', async () => {
+      const caller = EXECUTION_CALLERS[1]
+      configureExecutionCaller(caller)
+      const req = createMockRequest(
+        'POST',
+        { hello: 'world', triggerType: 'api' },
+        { 'Content-Type': 'application/json', ...caller.headers, 'X-Execution-Mode': 'async' }
+      )
+
+      const response = await POST(req, { params: Promise.resolve({ id: 'workflow-1' }) })
+
+      expect(response.status).toBe(202)
+    })
+
+    it('still allows internal JWT callers to set triggerType', async () => {
+      const caller = EXECUTION_CALLERS[4]
+      configureExecutionCaller(caller)
+      const req = createMockRequest(
+        'POST',
+        { hello: 'world', triggerType: 'workflow' },
+        { 'Content-Type': 'application/json', ...caller.headers, 'X-Execution-Mode': 'async' }
+      )
+
+      const response = await POST(req, { params: Promise.resolve({ id: 'workflow-1' }) })
+
+      expect(response.status).toBe(202)
+      expect(mockPreprocessExecution).toHaveBeenCalledWith(
+        expect.objectContaining({ triggerType: 'workflow' })
+      )
+    })
   })
 })

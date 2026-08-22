@@ -46,7 +46,7 @@ export const agiloftSelectRecordsTool: ToolConfig<
       required: true,
       visibility: 'user-or-llm',
       description:
-        'SQL WHERE clause using database column names (e.g., "summary like \'%new%\'" or "assigned_person=\'John Doe\'")',
+        'SQL WHERE clause using database column names (e.g., "summary like \'%new%\'" or "assigned_person=\'John Doe\'"). EWSelect has no page size and returns every matching ID, so append a database limit such as "limit 0,200" to bound the result.',
     },
   },
 
@@ -74,6 +74,10 @@ export const agiloftSelectRecordsTool: ToolConfig<
   },
 
   outputs: {
+    truncated: {
+      type: 'boolean',
+      description: 'True when more IDs matched than this call reports',
+    },
     recordIds: {
       type: 'array',
       description: 'Array of record IDs matching the query',
@@ -83,7 +87,7 @@ export const agiloftSelectRecordsTool: ToolConfig<
     },
     totalCount: {
       type: 'number',
-      description: 'Total number of matching records',
+      description: 'Number of IDs in this response — compare with `truncated`',
     },
   },
 }

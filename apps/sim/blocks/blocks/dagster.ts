@@ -21,6 +21,91 @@ export const DagsterBlock: BlockConfig<DagsterResponse> = {
   integrationType: IntegrationType.Observability,
   bgColor: '#ffffff',
   icon: DagsterIcon,
+  canvasPresentation: {
+    defaultTitle: 'Dagster',
+    sentences: {
+      byOperation: {
+        launch_run: [
+          { text: 'Launch job', field: 'jobName', core: true },
+          { text: 'in repository', field: 'repositoryName' },
+          { text: ', with config', field: 'runConfigJson' },
+        ],
+        get_run: [{ text: 'Fetch the status of run', field: 'runId', core: true }],
+        get_run_logs: [
+          { text: 'Fetch event logs for run', field: 'runId', core: true },
+          { text: ', up to', field: 'logsLimit', after: 'events' },
+        ],
+        list_runs: [
+          'List runs',
+          { text: ', for job', field: 'listRunsJobName' },
+          { text: ', with status', field: 'statuses' },
+          { text: ', up to', field: 'limit', after: 'runs' },
+        ],
+        list_jobs: ['List every job across repositories'],
+        reexecute_run: [
+          { text: 'Reexecute run', field: 'runId', core: true },
+          { text: ', using', field: 'strategy', after: 'strategy' },
+        ],
+        terminate_run: [{ text: 'Terminate in-progress run', field: 'runId', core: true }],
+        delete_run: [{ text: 'Delete the record for run', field: 'runId', core: true }],
+        list_schedules: [
+          { text: 'List schedules in repository', field: 'repositoryName', core: true },
+          { text: ', with status', field: 'scheduleStatus' },
+        ],
+        start_schedule: [
+          { text: 'Enable schedule', field: 'scheduleName', core: true },
+          { text: 'in repository', field: 'repositoryName' },
+        ],
+        stop_schedule: [
+          { text: 'Disable the schedule with state', field: 'instigationStateId', core: true },
+        ],
+        list_sensors: [
+          { text: 'List sensors in repository', field: 'repositoryName', core: true },
+          { text: ', with status', field: 'sensorStatus' },
+        ],
+        start_sensor: [
+          { text: 'Enable sensor', field: 'sensorName', core: true },
+          { text: 'in repository', field: 'repositoryName' },
+        ],
+        stop_sensor: [
+          { text: 'Disable the sensor with state', field: 'instigationStateId', core: true },
+        ],
+        list_assets: [
+          'List tracked assets',
+          { text: ', under key prefix', field: 'assetPrefix' },
+          { text: ', up to', field: 'assetsLimit', after: 'assets' },
+        ],
+        get_asset: [
+          {
+            text: 'Fetch the latest materialization of asset',
+            field: 'assetKey',
+            core: true,
+          },
+        ],
+        materialize_assets: [
+          { text: 'Materialize assets', field: 'assetSelection', core: true },
+          { text: 'through job', field: 'assetJobName' },
+        ],
+        report_asset_materialization: [
+          {
+            text: 'Report an external',
+            field: 'reportEventType',
+            after: 'event for asset',
+            core: true,
+          },
+          { field: 'assetKey', core: true },
+          { text: ', on partitions', field: 'reportPartitionKeys' },
+        ],
+        wipe_asset: [
+          {
+            text: 'Erase all materialization history for asset',
+            field: 'assetKey',
+            core: true,
+          },
+        ],
+      },
+    },
+  },
 
   subBlocks: [
     // ── Operation selector ─────────────────────────────────────────────────────

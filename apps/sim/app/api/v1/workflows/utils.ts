@@ -1,5 +1,8 @@
-import { type ActiveWorkflowRecord, getActiveWorkflowRecord } from '@sim/platform-authz/workflow'
 import { NextResponse } from 'next/server'
+import {
+  type DeploymentWorkflowTarget,
+  getDeploymentWorkflowTarget,
+} from '@/lib/workflows/deployments/queries'
 import { type RateLimitResult, validateWorkspaceAccess } from '@/app/api/v1/middleware'
 
 function workflowNotFoundResponse(): NextResponse {
@@ -16,24 +19,16 @@ export async function resolveV1DeploymentWorkflow(
   rateLimit: RateLimitResult,
   userId: string,
   workflowId: string
-): Promise<
-  | { ok: true; workflow: ActiveWorkflowRecord; workspaceId: string }
-  | { ok: false; response: NextResponse }
-> {
-  const workflow = await getActiveWorkflowRecord(workflowId)
-  if (!workflow?.workspaceId) {
+): Promise<({ ok: true } & DeploymentWorkflowTarget) | { ok: false; response: NextResponse }> {
+  const target = await getDeploymentWorkflowTarget(workflowId)
+  if (!target) {
     return { ok: false, response: workflowNotFoundResponse() }
   }
 
-  const accessError = await validateWorkspaceAccess(
-    rateLimit,
-    userId,
-    workflow.workspaceId,
-    'admin'
-  )
+  const accessError = await validateWorkspaceAccess(rateLimit, userId, target.workspaceId, 'admin')
   if (accessError) {
     return { ok: false, response: workflowNotFoundResponse() }
   }
 
-  return { ok: true, workflow, workspaceId: workflow.workspaceId }
+  return { ok: true, ...target }
 }

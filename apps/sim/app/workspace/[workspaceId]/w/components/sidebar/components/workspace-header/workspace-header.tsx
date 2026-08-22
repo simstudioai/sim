@@ -18,9 +18,11 @@ import {
   Send,
   Skeleton,
   Tooltip,
+  toast,
 } from '@sim/emcn'
 import { MoreHorizontal, PanelLeft, Pin, Search } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { useQueryClient } from '@tanstack/react-query'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import { InviteModal } from '@/app/workspace/[workspaceId]/components/invite-modal'
@@ -30,6 +32,7 @@ import { DeleteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/
 import { CreateWorkspaceModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/create-workspace-modal/create-workspace-modal'
 import { ViewInvitationsMenuItem } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/pending-invitations/view-invitations-menu-item'
 import { ViewInvitationsModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/pending-invitations/view-invitations-modal'
+import { SIDEBAR_RAIL_CHIP_CLASS } from '@/app/workspace/[workspaceId]/w/components/sidebar/constants'
 import { invitationKeys } from '@/hooks/queries/invitations'
 import {
   type Workspace,
@@ -418,6 +421,15 @@ function WorkspaceHeaderImpl({
       setLeaveTarget(null)
     } catch (error) {
       logger.error('Error leaving workspace:', error)
+      /**
+       * The endpoint refuses several standings it can explain — the billing
+       * account, the last admin, a derived organization admin. Logging alone
+       * left the confirm modal sitting open with no indication of why, so the
+       * server's reason is surfaced the way the teammates list surfaces it.
+       */
+      toast.error("Couldn't leave workspace", {
+        description: getErrorMessage(error, 'Please try again in a moment.'),
+      })
     }
   }
 
@@ -442,34 +454,38 @@ function WorkspaceHeaderImpl({
           type='button'
           aria-label='Expand sidebar'
           onClick={onExpandSidebar}
-          className={chipVariants({ fullWidth: true })}
+          className={cn(chipVariants({ fullWidth: true }), SIDEBAR_RAIL_CHIP_CLASS)}
         >
           <div className='relative flex size-[16px] flex-shrink-0 items-center justify-center'>
-            {!activeWorkspaceFull ? (
-              <Skeleton className='size-[16px] rounded-sm' />
-            ) : (
+            {activeWorkspaceFull?.logoUrl ? (
               <>
-                {activeWorkspaceFull.logoUrl ? (
-                  <img
-                    src={activeWorkspaceFull.logoUrl}
-                    alt={activeWorkspaceFull.name || 'Workspace logo'}
-                    className='size-[16px] rounded-sm object-cover group-hover:invisible'
-                  />
-                ) : (
-                  <div
-                    className='flex size-[16px] items-center justify-center rounded-sm text-[9px] text-white leading-none group-hover:invisible'
-                    style={{
-                      backgroundColor: activeWorkspaceFull.color ?? 'var(--brand-accent)',
-                    }}
-                  >
-                    {workspaceInitial}
-                  </div>
-                )}
+                <img
+                  src={activeWorkspaceFull.logoUrl}
+                  alt={activeWorkspaceFull.name || 'Workspace logo'}
+                  className='size-[16px] rounded-sm object-cover group-hover:invisible'
+                />
                 <PanelLeft
                   aria-hidden
                   className='pointer-events-none invisible absolute inset-0 m-auto size-[16px] rotate-180 text-[var(--text-icon)] group-hover:visible'
                 />
               </>
+            ) : activeWorkspace ? (
+              <>
+                <div
+                  className='flex size-[16px] items-center justify-center rounded-sm text-[9px] text-white leading-none group-hover:invisible'
+                  style={{
+                    backgroundColor: activeWorkspaceFull?.color ?? 'var(--brand-accent)',
+                  }}
+                >
+                  {workspaceInitial}
+                </div>
+                <PanelLeft
+                  aria-hidden
+                  className='pointer-events-none invisible absolute inset-0 m-auto size-[16px] rotate-180 text-[var(--text-icon)] group-hover:visible'
+                />
+              </>
+            ) : (
+              <Skeleton className='size-[16px] rounded-sm' />
             )}
           </div>
         </button>
@@ -852,21 +868,19 @@ function WorkspaceHeaderImpl({
           title={activeWorkspace?.name}
           disabled
         >
-          {activeWorkspaceFull ? (
-            activeWorkspaceFull.logoUrl ? (
-              <img
-                src={activeWorkspaceFull.logoUrl}
-                alt={activeWorkspaceFull.name || 'Workspace logo'}
-                className='size-[16px] flex-shrink-0 rounded-sm object-cover'
-              />
-            ) : (
-              <div
-                className='flex size-[16px] flex-shrink-0 items-center justify-center rounded-sm text-[9px] text-white leading-none'
-                style={{ backgroundColor: activeWorkspaceFull.color ?? 'var(--brand-accent)' }}
-              >
-                {workspaceInitial}
-              </div>
-            )
+          {activeWorkspaceFull?.logoUrl ? (
+            <img
+              src={activeWorkspaceFull.logoUrl}
+              alt={activeWorkspaceFull.name || 'Workspace logo'}
+              className='size-[16px] flex-shrink-0 rounded-sm object-cover'
+            />
+          ) : activeWorkspace ? (
+            <div
+              className='flex size-[16px] flex-shrink-0 items-center justify-center rounded-sm text-[9px] text-white leading-none'
+              style={{ backgroundColor: activeWorkspaceFull?.color ?? 'var(--brand-accent)' }}
+            >
+              {workspaceInitial}
+            </div>
           ) : (
             <Skeleton className='size-[16px] flex-shrink-0 rounded-sm' />
           )}
@@ -884,6 +898,15 @@ function WorkspaceHeaderImpl({
         const contextCanAdmin = capturedPermissions === 'admin'
         const capturedWorkspace = workspaces.find((w) => w.id === capturedWorkspaceRef.current?.id)
         const isOwner = capturedWorkspace && sessionUserId === capturedWorkspace.ownerId
+        /**
+         * An organization admin holds this workspace through their org role, not
+         * a permission row, so there is nothing to give up and the removal
+         * endpoint refuses it. `permissions === 'admin'` cannot tell them apart
+         * from an explicit workspace admin, who may leave. This menu has no
+         * tooltip affordance to explain a greyed row, so the entry is withheld
+         * rather than shown dead.
+         */
+        const canLeave = !isOwner && !capturedWorkspace?.isOrgAdmin && !!onLeaveWorkspace
 
         return (
           <ContextMenu
@@ -901,7 +924,7 @@ function WorkspaceHeaderImpl({
             isPinned={Boolean(menuOpenWorkspaceId && pinnedWorkspaceIds.has(menuOpenWorkspaceId))}
             showRename={true}
             showUploadLogo={!!onUploadLogo}
-            showLeave={!isOwner && !!onLeaveWorkspace}
+            showLeave={canLeave}
             disableRename={!contextCanAdmin}
             disableDelete={!contextCanAdmin || workspaces.length <= 1}
             disableUploadLogo={!contextCanAdmin}

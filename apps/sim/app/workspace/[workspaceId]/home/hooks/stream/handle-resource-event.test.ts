@@ -85,7 +85,10 @@ describe('handleResourceEvent removal', () => {
   })
 
   it('normalizes a page-shaped browser event into the singleton Browser panel', () => {
-    const deps = makeStreamLoopDeps()
+    const onResourceEvent = vi.fn()
+    const deps = makeStreamLoopDeps({
+      onResourceEventRef: { current: onResourceEvent },
+    })
     const ctx = { deps } as StreamLoopContext
 
     handleResourceEvent(
@@ -98,5 +101,7 @@ describe('handleResourceEvent removal', () => {
       id: 'browser-session',
       title: 'Browser',
     })
+    expect(deps.setActiveResourceId).not.toHaveBeenCalled()
+    expect(onResourceEvent).toHaveBeenCalledWith('browser-session')
   })
 })

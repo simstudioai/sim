@@ -68,6 +68,9 @@ const ITEM_ID_OPS = [
   'duplicate_item',
 ]
 
+const BOARD_FIELD = ['boardSelector', 'manualBoardId'] as const
+const GROUP_FIELD = ['groupSelector', 'manualGroupId'] as const
+
 export const MondayBlock: BlockConfig<MondayResponse> = {
   type: 'monday',
   name: 'Monday',
@@ -80,6 +83,92 @@ export const MondayBlock: BlockConfig<MondayResponse> = {
   integrationType: IntegrationType.Productivity,
   bgColor: '#FFFFFF',
   icon: MondayIcon,
+  canvasPresentation: {
+    defaultTitle: 'Monday',
+    triggerSentences: {
+      default: [
+        'Run on',
+        { field: 'selectedTriggerId', core: true },
+        { text: 'in', field: 'boardId', core: true },
+      ],
+    },
+    sentences: {
+      byOperation: {
+        list_boards: [
+          'List boards',
+          { text: ', up to', field: 'limit' },
+          { text: ', from page', field: 'page' },
+        ],
+        get_board: [
+          {
+            text: 'Read board',
+            field: BOARD_FIELD,
+            after: 'with its groups and columns',
+            core: true,
+          },
+        ],
+        get_item: [{ text: 'Read item', field: 'itemId', core: true }],
+        get_items: [
+          { text: 'List items on', field: BOARD_FIELD, core: true },
+          { text: ', in group', field: GROUP_FIELD },
+          { text: ', up to', field: 'limit' },
+        ],
+        search_items: [
+          { text: 'Search items on', field: BOARD_FIELD, core: true },
+          { text: ', matching', field: 'searchColumns' },
+          { text: ', up to', field: 'limit' },
+        ],
+        create_item: [
+          { text: 'Create item', field: 'itemName', core: true },
+          { text: 'on', field: BOARD_FIELD, core: true },
+          { text: ', in group', field: GROUP_FIELD },
+        ],
+        update_item: [
+          { text: 'Update item', field: 'itemId', core: true },
+          { text: 'on', field: BOARD_FIELD },
+          { text: ', setting', field: 'columnValues' },
+        ],
+        change_column_value: [
+          { text: 'Set column', field: 'columnId', core: true },
+          { text: 'on item', field: 'itemId', core: true },
+          { text: 'to', field: 'columnValue' },
+        ],
+        duplicate_item: [
+          { text: 'Duplicate item', field: 'itemId', core: true },
+          { text: 'on', field: BOARD_FIELD },
+        ],
+        delete_item: [{ text: 'Delete item', field: 'itemId', core: true }],
+        archive_item: [{ text: 'Archive item', field: 'itemId', core: true }],
+        move_item_to_group: [
+          { text: 'Move item', field: 'itemId', core: true },
+          { text: 'to group', field: GROUP_FIELD },
+        ],
+        create_subitem: [
+          { text: 'Create subitem', field: 'itemName', core: true },
+          { text: 'under item', field: 'parentItemId', core: true },
+        ],
+        create_update: [
+          { text: 'Post', field: 'updateBody', core: true },
+          { text: 'on item', field: 'itemId', core: true },
+        ],
+        create_group: [
+          { text: 'Create group', field: 'groupName', core: true },
+          { text: 'on', field: BOARD_FIELD, core: true },
+        ],
+        get_groups: [{ text: 'List the groups on', field: BOARD_FIELD, core: true }],
+        create_board: [
+          { text: 'Create board', field: 'boardName', core: true },
+          { text: ', in workspace', field: 'workspaceId' },
+          { text: ', under folder', field: 'folderId' },
+        ],
+        create_column: [
+          { text: 'Create column', field: 'columnTitle', core: true },
+          { text: 'of type', field: 'columnType' },
+          { text: 'on', field: BOARD_FIELD },
+        ],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',

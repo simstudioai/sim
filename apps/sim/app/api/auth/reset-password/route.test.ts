@@ -6,6 +6,16 @@
 import { createMockRequest } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+const { mockCheckRateLimitDirect } = vi.hoisted(() => ({
+  mockCheckRateLimitDirect: vi.fn(),
+}))
+
+vi.mock('@/lib/core/rate-limiter/rate-limiter', () => ({
+  RateLimiter: class {
+    checkRateLimitDirect = mockCheckRateLimitDirect
+  },
+}))
+
 const { mockResetPassword, mockLogger } = vi.hoisted(() => {
   const logger = {
     info: vi.fn(),
@@ -41,10 +51,29 @@ describe('Reset Password API Route', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockResetPassword.mockResolvedValue(undefined)
+    mockCheckRateLimitDirect.mockResolvedValue({
+      allowed: true,
+      resetAt: new Date(Date.now() + 60_000),
+    })
   })
 
   afterEach(() => {
     vi.clearAllMocks()
+  })
+
+  it('rejects with 429 once the per-IP budget is spent, without consuming the token', async () => {
+    mockCheckRateLimitDirect.mockResolvedValue({
+      allowed: false,
+      resetAt: new Date(Date.now() + 900_000),
+    })
+
+    const response = await POST(
+      createMockRequest('POST', { token: 'guess', newPassword: 'newSecurePassword123!' })
+    )
+
+    expect(response.status).toBe(429)
+    expect(response.headers.get('Retry-After')).toBe('900')
+    expect(mockResetPassword).not.toHaveBeenCalled()
   })
 
   it('should reset password successfully', async () => {

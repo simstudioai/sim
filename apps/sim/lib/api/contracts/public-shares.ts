@@ -19,15 +19,17 @@ const allowedEmailSchema = z.string().min(1).max(320)
  * email/SSO shares (visible only to workspace members via the authed share route).
  */
 export const shareRecordSchema = z.object({
-  id: z.string(),
-  token: z.string(),
-  url: z.string(),
-  isActive: z.boolean(),
-  resourceType: shareResourceTypeSchema,
-  resourceId: z.string(),
-  authType: shareAuthTypeSchema,
-  hasPassword: z.boolean(),
-  allowedEmails: z.array(allowedEmailSchema),
+  id: z.string().describe('Unique share identifier.'),
+  token: z.string().describe('Server-generated token embedded in the public share URL.'),
+  url: z.string().describe('Public share URL.'),
+  isActive: z.boolean().describe('Whether the public share currently resolves.'),
+  resourceType: shareResourceTypeSchema.describe('Kind of resource being shared.'),
+  resourceId: z.string().describe('Identifier of the shared resource.'),
+  authType: shareAuthTypeSchema.describe('How access to the share is gated.'),
+  hasPassword: z.boolean().describe('Whether a password is stored for this share.'),
+  allowedEmails: z
+    .array(allowedEmailSchema)
+    .describe('Allowed addresses or @domain patterns for email and SSO shares.'),
 })
 
 export type ShareRecord = z.output<typeof shareRecordSchema>
@@ -46,8 +48,7 @@ export const upsertFileShareBodySchema = z.object({
     .max(1024, 'Password is too long')
     .optional(),
   allowedEmails: z.array(allowedEmailSchema).max(200, 'Too many allowed emails').optional(),
-  // Client-reserved token shown as the link before saving; persisted on first
-  // enable so a copied link resolves. Ignored once the share row already exists.
+  /** Client-reserved token persisted on first share. Ignored once the share row exists. */
   token: z
     .string()
     .regex(/^[A-Za-z0-9_-]+$/, 'Invalid token')

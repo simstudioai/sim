@@ -2,6 +2,7 @@ import type React from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Button, Combobox as EditableCombobox } from '@sim/emcn'
 import { X } from '@sim/emcn/icons'
+import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { SubBlockInputController } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/sub-block-input-controller'
 import { getWorkflowSearchLabelHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
@@ -14,6 +15,7 @@ import {
   useSelectorOptionMap,
   useSelectorOptions,
 } from '@/hooks/selectors/use-selector-query'
+import { useDebounce } from '@/hooks/use-debounce'
 
 interface SelectorComboboxProps {
   blockId: string
@@ -63,6 +65,18 @@ export function SelectorCombobox({
   const [searchTerm, setSearchTerm] = useState('')
   const [isEditing, setIsEditing] = useState(false)
   const [multiInput, setMultiInput] = useState('')
+  /**
+   * The search reaches the provider, so it is debounced before it enters the query key
+   * rather than on every keystroke — several of these selectors are rate-limited by the
+   * provider. Only the query sees the debounced value; the input stays on `searchTerm`.
+   *
+   * Clearing is not debounced: a multi-select pick resets the term so the next choice comes
+   * from the full list, and waiting out the delay would leave the previous filtered results
+   * on screen. This mirrors the shared debounced-search setter, which also flushes empty.
+   */
+  const trimmedSearch = searchTerm.trim()
+  const debouncedSearch = useDebounce(trimmedSearch, SEARCH_DEBOUNCE_MS)
+  const activeSearch = trimmedSearch === '' ? '' : debouncedSearch
   const {
     data: options = [],
     isLoading,
@@ -70,7 +84,7 @@ export function SelectorCombobox({
     error,
   } = useSelectorOptions(selectorKey, {
     context: selectorContext,
-    search: allowSearch ? searchTerm : undefined,
+    search: allowSearch ? activeSearch : undefined,
   })
   const { data: detailOption } = useSelectorOptionDetail(selectorKey, {
     context: selectorContext,

@@ -27,7 +27,10 @@ import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-tr
 import { executeProviderRequest } from '@/providers'
 import { installStreamingCostPolicy } from '@/providers/cost-policy'
 import { SIM_AUTO_MODEL_ID } from '@/providers/models'
-import { getProviderToolInputProvenance } from '@/providers/tool-input-provenance'
+import {
+  getProviderToolInputProvenance,
+  getProviderToolModelInputRegistry,
+} from '@/providers/tool-input-provenance'
 import { getProviderFromModel, transformBlockTool } from '@/providers/utils'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 import { executeTool } from '@/tools'
@@ -1153,6 +1156,61 @@ describe('AgentBlockHandler', () => {
         { role: 'user', content: 'Box {{TOKEN}}' },
       ])
       expect(runtimeContext.resolvedSecretTraceRegistry.getActiveMatches()).toEqual([])
+    })
+
+    it('binds prompt-exposed placeholders to each provider tool for runtime rebinding', async () => {
+      const registry = new ResolvedSecretTraceRegistry([
+        {
+          name: 'TEST_API_KEY_PERSONAL',
+          plaintext: 'personal-secret-value',
+          encryptedValue: 'encrypted-personal-secret',
+        },
+      ])
+      registry.recordResolvedAtInputPath('TEST_API_KEY_PERSONAL', 'personal-secret-value', [
+        'userPrompt',
+      ])
+      registry.recordResolvedInputProjection(
+        ['userPrompt'],
+        'Use personal-secret-value',
+        'Use {{TEST_API_KEY_PERSONAL}}'
+      )
+      mockContext.resolvedSecretTraceRegistry = registry
+
+      await handler.execute(mockContext, mockBlock, {
+        model: 'gpt-4o',
+        userPrompt: 'Use personal-secret-value',
+        tools: [
+          {
+            type: 'custom-tool',
+            title: 'canary',
+            schema: {
+              function: {
+                name: 'canary',
+                parameters: {
+                  type: 'object',
+                  properties: { secret: { type: 'string' } },
+                  required: ['secret'],
+                },
+              },
+            },
+          },
+        ],
+      })
+
+      const [, providerRequest] = mockExecuteProviderRequest.mock.calls[0]
+      const modelInputRegistry = getProviderToolModelInputRegistry(providerRequest.tools[0])
+      expect(providerRequest.messages).toEqual([
+        { role: 'user', content: 'Use {{TEST_API_KEY_PERSONAL}}' },
+      ])
+      expect(
+        modelInputRegistry?.resolveModelExposedEnvReferences({
+          secret: '{{TEST_API_KEY_PERSONAL}}',
+        })
+      ).toMatchObject({
+        complete: true,
+        matched: true,
+        value: { secret: 'personal-secret-value' },
+      })
     })
 
     it('does not carry a projected system prompt into Agent output provenance', async () => {

@@ -57,7 +57,7 @@ describe('GET /api/users/me/usage-logs/export', () => {
     expect(response.headers.get('Content-Disposition')).toContain('attachment; filename=')
     expect(response.headers.get('X-Export-Truncated')).toBe('0')
     expect(header).toBe('Date,Type,Credits')
-    expect(row).toBe('2026-07-01T00:00:00.000Z,Chat,100')
+    expect(row).toBe('2026-07-01T00:00:00.000Z,Sim Chat,100')
   })
 
   it('sets X-Export-Truncated when the safety cap is hit with more data remaining', async () => {
@@ -89,6 +89,28 @@ describe('GET /api/users/me/usage-logs/export', () => {
     expect(mockGetUserUsageLogs).toHaveBeenCalledWith(
       'user-1',
       expect.objectContaining({ includeSummary: false })
+    )
+  })
+
+  it('filters sim-chat across both internal ledgers', async () => {
+    mockGetUserUsageLogs.mockResolvedValueOnce({
+      logs: [],
+      summary: { totalCost: 0, bySource: {} },
+      pagination: { hasMore: false },
+    })
+
+    const response = await GET(
+      createMockRequest('GET', undefined, {}, 'http://localhost:3000/api/test?source=sim-chat')
+    )
+
+    expect(response.status).toBe(200)
+    expect(mockGetUserUsageLogs).toHaveBeenCalledWith(
+      'user-1',
+      expect.objectContaining({ source: ['copilot', 'workspace-chat'] })
+    )
+    expect(mockGetUsageCreditsByLogId).toHaveBeenCalledWith(
+      'user-1',
+      expect.objectContaining({ source: ['copilot', 'workspace-chat'] })
     )
   })
 

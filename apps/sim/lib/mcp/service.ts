@@ -7,8 +7,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { backoffWithJitter } from '@sim/utils/retry'
-import { and, eq, isNull, lte, or } from 'drizzle-orm'
-import { isTest } from '@/lib/core/config/env-flags'
+import { and, eq, isNull, lte, or, sql } from 'drizzle-orm'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { McpClient } from '@/lib/mcp/client'
 import { mcpConnectionManager } from '@/lib/mcp/connection-manager'
@@ -31,9 +30,9 @@ import {
   type McpCacheStorageAdapter,
 } from '@/lib/mcp/storage'
 import {
-  McpConnectionError,
   McpOauthAuthorizationRequiredError,
   type McpServerConfig,
+  McpServerCooldownError,
   type McpServerStatusConfig,
   type McpServerSummary,
   type McpTool,
@@ -112,6 +111,23 @@ function createInvocationProvenanceReporter(
   }
 }
 
+/**
+ * How far a discovery may bypass the caches.
+ *
+ * - `cache-aside` — serve the 5-minute positive cache, and honour the failure
+ *   cooldown. The default for every incidental read.
+ * - `skip-cache` — re-fetch even on a cache hit, but still honour the failure
+ *   cooldown. This is what a public `refresh=true` gets: a caller asking for
+ *   fresh tools should not also be able to drive a connection attempt per
+ *   request at an endpoint already known to be failing, from Sim's egress
+ *   addresses.
+ * - `force` — bypass both. Reserved for an explicit user action on their own
+ *   server (the refresh button, the OAuth callback), where the whole point is
+ *   that the credential or endpoint has just been fixed and the cooldown would
+ *   only delay the recovery the user is watching for.
+ */
+export type McpDiscoveryRefresh = 'cache-aside' | 'skip-cache' | 'force'
+
 type DiscoveryOutcome =
   | { kind: 'cached'; tools: McpTool[] }
   | { kind: 'fetched'; tools: McpTool[] }
@@ -121,9 +137,16 @@ type DiscoveryOutcome =
   // exemption survives the getErrorMessage call.
   | { kind: 'error'; message: string; originalError: unknown }
 
-type ServerStatusUpdate =
+/**
+ * `discoveryStartedAt` is what makes a status write conditional: a discovery
+ * that started before a newer attempt already landed must not overwrite it.
+ * Both outcomes carry it, because a slow success can clobber a recent failure
+ * exactly as a slow failure can clobber a recent success.
+ */
+type ServerStatusUpdate = { discoveryStartedAt?: Date } & (
   | { outcome: 'connected'; toolCount: number }
-  | { outcome: 'failed'; error: string; discoveryStartedAt?: Date }
+  | { outcome: 'failed'; error: string }
+)
 
 function isOauthAuthorizationError(error: unknown, authType: McpServerConfig['authType']): boolean {
   return (
@@ -619,6 +642,16 @@ class McpService {
     return false
   }
 
+  /**
+   * Records the outcome of a discovery attempt on the server row.
+   *
+   * Deliberately leaves `updatedAt` alone. `updatedAt` means "when the server's
+   * configuration last changed" and is one of the public list's keyset sorts, so
+   * stamping it from a background discovery would move rows to the head of
+   * `sortBy=updatedAt` mid-walk and duplicate or skip servers across a caller's
+   * pages. Discovery liveness is already published through `lastConnected`,
+   * `lastToolsRefresh`, `lastError` and `statusConfig`.
+   */
   private async updateServerStatus(
     serverId: string,
     workspaceId: string,
@@ -626,9 +659,27 @@ class McpService {
   ): Promise<boolean> {
     try {
       const now = new Date()
+      /**
+       * Both outcomes carry the same guard: a discovery that started before a
+       * newer attempt already landed must not overwrite it, and neither branch
+       * may write onto a foreign or soft-deleted row. Without it on the success
+       * branch a slow connect could revive a server a later failure had just
+       * marked down, with a stale `toolCount` and a cleared `lastError`.
+       */
+      const liveServerScope = and(
+        eq(mcpServers.id, serverId),
+        eq(mcpServers.workspaceId, workspaceId),
+        isNull(mcpServers.deletedAt),
+        update.discoveryStartedAt
+          ? or(
+              isNull(mcpServers.lastConnected),
+              lte(mcpServers.lastConnected, update.discoveryStartedAt)
+            )
+          : undefined
+      )
 
       if (update.outcome === 'connected') {
-        await db
+        const updatedServers = await db
           .update(mcpServers)
           .set({
             connectionStatus: 'connected',
@@ -640,64 +691,36 @@ class McpService {
               consecutiveFailures: 0,
               lastSuccessfulDiscovery: now.toISOString(),
             },
-            updatedAt: now,
           })
-          .where(eq(mcpServers.id, serverId))
-        return true
+          .where(liveServerScope)
+          .returning({ id: mcpServers.id })
+        return updatedServers.length > 0
       }
 
-      const [currentServer] = await db
-        .select({ statusConfig: mcpServers.statusConfig })
-        .from(mcpServers)
-        .where(
-          and(
-            eq(mcpServers.id, serverId),
-            eq(mcpServers.workspaceId, workspaceId),
-            isNull(mcpServers.deletedAt)
-          )
-        )
-        .limit(1)
-
-      const storedConfig = currentServer?.statusConfig as Partial<McpServerStatusConfig> | null
-      const currentConfig: McpServerStatusConfig = {
-        consecutiveFailures:
-          typeof storedConfig?.consecutiveFailures === 'number'
-            ? storedConfig.consecutiveFailures
-            : 0,
-        lastSuccessfulDiscovery: storedConfig?.lastSuccessfulDiscovery ?? null,
-      }
-
-      const newFailures = currentConfig.consecutiveFailures + 1
-      const isErrorState = newFailures >= MCP_CONSTANTS.MAX_CONSECUTIVE_FAILURES
+      /**
+       * The failure counter is incremented SQL-side rather than read, added to,
+       * and written back. Two concurrent failures both reading N and writing N+1
+       * lose a count, so a flapping server could sit below
+       * {@link MCP_CONSTANTS.MAX_CONSECUTIVE_FAILURES} indefinitely and never
+       * flip to `error`. `lastSuccessfulDiscovery` is carried through from the
+       * stored blob in the same statement.
+       */
+      const nextFailures = sql`COALESCE((${mcpServers.statusConfig} ->> 'consecutiveFailures')::int, 0) + 1`
 
       const updatedServers = await db
         .update(mcpServers)
         .set({
-          connectionStatus: isErrorState ? 'error' : 'disconnected',
+          connectionStatus: sql`CASE WHEN ${nextFailures} >= ${MCP_CONSTANTS.MAX_CONSECUTIVE_FAILURES} THEN 'error' ELSE 'disconnected' END`,
           lastError: update.error || 'Unknown error',
-          statusConfig: {
-            consecutiveFailures: newFailures,
-            lastSuccessfulDiscovery: currentConfig.lastSuccessfulDiscovery,
-          },
-          updatedAt: now,
+          statusConfig: sql`jsonb_build_object('consecutiveFailures', ${nextFailures}, 'lastSuccessfulDiscovery', ${mcpServers.statusConfig} -> 'lastSuccessfulDiscovery')`,
         })
-        .where(
-          and(
-            eq(mcpServers.id, serverId),
-            eq(mcpServers.workspaceId, workspaceId),
-            isNull(mcpServers.deletedAt),
-            update.discoveryStartedAt
-              ? or(
-                  isNull(mcpServers.lastConnected),
-                  lte(mcpServers.lastConnected, update.discoveryStartedAt)
-                )
-              : undefined
-          )
-        )
-        .returning({ id: mcpServers.id })
+        .where(liveServerScope)
+        .returning({ id: mcpServers.id, statusConfig: mcpServers.statusConfig })
 
-      if (isErrorState && updatedServers.length > 0) {
-        logger.warn(`Server ${serverId} marked as error after ${newFailures} consecutive failures`)
+      const failures = (updatedServers[0]?.statusConfig as Partial<McpServerStatusConfig> | null)
+        ?.consecutiveFailures
+      if (typeof failures === 'number' && failures >= MCP_CONSTANTS.MAX_CONSECUTIVE_FAILURES) {
+        logger.warn(`Server ${serverId} marked as error after ${failures} consecutive failures`)
       }
       return updatedServers.length > 0
     } catch (err) {
@@ -741,7 +764,6 @@ class McpService {
         .set({
           connectionStatus: 'disconnected',
           lastError: null,
-          updatedAt: new Date(),
         })
         .where(
           and(
@@ -781,10 +803,15 @@ class McpService {
     }
   }
 
+  /**
+   * Discover tools across every server in a workspace. See
+   * {@link McpDiscoveryRefresh} for what each mode is allowed to bypass — the
+   * fan-out makes the cooldown matter more here, not less.
+   */
   async discoverTools(
     userId: string,
     workspaceId: string,
-    forceRefresh = false
+    refresh: McpDiscoveryRefresh = 'cache-aside'
   ): Promise<McpTool[]> {
     const requestId = generateRequestId()
     const discoveryStartedAt = new Date()
@@ -803,7 +830,7 @@ class McpService {
         servers.map(async (config): Promise<DiscoveryOutcome> => {
           const cacheKey = serverCacheKey(workspaceId, config.id)
 
-          if (!forceRefresh) {
+          if (refresh === 'cache-aside') {
             try {
               const cached = await this.cacheAdapter.get(cacheKey)
               if (cached) return { kind: 'cached', tools: cached.tools }
@@ -813,12 +840,13 @@ class McpService {
                 error
               )
             }
-            if (await this.isServerUnhealthy(workspaceId, config.id)) {
-              logger.info(
-                `[${requestId}] Skipping recently-failed server ${config.name} (negative-cache hit)`
-              )
-              return { kind: 'unhealthy' }
-            }
+          }
+
+          if (refresh !== 'force' && (await this.isServerUnhealthy(workspaceId, config.id))) {
+            logger.info(
+              `[${requestId}] Skipping recently-failed server ${config.name} (negative-cache hit)`
+            )
+            return { kind: 'unhealthy' }
           }
 
           try {
@@ -862,6 +890,7 @@ class McpService {
             this.updateServerStatus(server.id, workspaceId, {
               outcome: 'connected',
               toolCount: outcome.tools.length,
+              discoveryStartedAt,
             })
           )
           cacheWrites.push(
@@ -966,17 +995,16 @@ class McpService {
   }
 
   /**
-   * Discover tools from one server. Cache-aside by default; pass
-   * `forceRefresh: true` from explicit-refresh paths (refresh button, OAuth
-   * callback) to bypass both positive and negative caches. Concurrent callers
-   * for the same `(workspaceId, serverId, userId, forceRefresh)` share one
-   * upstream request.
+   * Discover tools from one server. Cache-aside by default; see
+   * {@link McpDiscoveryRefresh} for what each mode is allowed to bypass.
+   * Concurrent callers for the same `(workspaceId, serverId, userId, refresh)`
+   * share one upstream request.
    */
   async discoverServerTools(
     userId: string,
     serverId: string,
     workspaceId: string,
-    forceRefresh = false,
+    refresh: McpDiscoveryRefresh = 'cache-aside',
     onResolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceCallback
   ): Promise<McpTool[]> {
     if (onResolvedSecretTraceProvenance) {
@@ -984,12 +1012,12 @@ class McpService {
         userId,
         serverId,
         workspaceId,
-        forceRefresh,
+        refresh,
         createInvocationProvenanceReporter(onResolvedSecretTraceProvenance)
       )
     }
 
-    const inflightKey = `${workspaceId}:${serverId}:${userId}:${forceRefresh ? 'force' : 'cache'}`
+    const inflightKey = `${workspaceId}:${serverId}:${userId}:${refresh}`
     const existing = this.inflightServerDiscovery.get(inflightKey)
     if (existing) return existing
 
@@ -997,7 +1025,7 @@ class McpService {
       userId,
       serverId,
       workspaceId,
-      forceRefresh,
+      refresh,
       undefined
     ).finally(() => {
       this.inflightServerDiscovery.delete(inflightKey)
@@ -1010,14 +1038,14 @@ class McpService {
     userId: string,
     serverId: string,
     workspaceId: string,
-    forceRefresh: boolean,
+    refresh: McpDiscoveryRefresh,
     onResolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceCallback
   ): Promise<McpTool[]> {
     const requestId = generateRequestId()
     const discoveryStartedAt = new Date()
     const maxRetries = 2
 
-    if (!forceRefresh) {
+    if (refresh === 'cache-aside') {
       try {
         const cached = await this.cacheAdapter.get(serverCacheKey(workspaceId, serverId))
         if (cached) {
@@ -1027,13 +1055,11 @@ class McpService {
       } catch (error) {
         logger.warn(`[${requestId}] Cache read failed for server ${serverId}:`, error)
       }
-      if (await this.isServerUnhealthy(workspaceId, serverId)) {
-        logger.info(`[${requestId}] Skipping recently-failed server ${serverId} (negative-cache)`)
-        throw new McpConnectionError(
-          'Server recently failed and is in cooldown — try again shortly.',
-          serverId
-        )
-      }
+    }
+
+    if (refresh !== 'force' && (await this.isServerUnhealthy(workspaceId, serverId))) {
+      logger.info(`[${requestId}] Skipping recently-failed server ${serverId} (negative-cache)`)
+      throw new McpServerCooldownError(serverId)
     }
 
     for (let attempt = 0; attempt < maxRetries; attempt++) {
@@ -1066,6 +1092,7 @@ class McpService {
           this.updateServerStatus(serverId, workspaceId, {
             outcome: 'connected',
             toolCount: tools.length,
+            discoveryStartedAt,
           }),
         ])
         return tools
@@ -1198,24 +1225,3 @@ class McpService {
 }
 
 export const mcpService = new McpService()
-
-/**
- * Setup process signal handlers for graceful shutdown
- */
-export function setupMcpServiceCleanup() {
-  if (isTest) {
-    return
-  }
-
-  const cleanup = () => {
-    mcpService.dispose()
-  }
-
-  process.on('SIGTERM', cleanup)
-  process.on('SIGINT', cleanup)
-
-  return () => {
-    process.removeListener('SIGTERM', cleanup)
-    process.removeListener('SIGINT', cleanup)
-  }
-}

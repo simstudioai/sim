@@ -1,4 +1,3 @@
-import { isLikelyReferenceSegment } from '@/lib/workflows/sanitization/references'
 import { REFERENCE } from '@/executor/constants'
 
 /**
@@ -144,22 +143,4 @@ export function createCombinedPattern(): RegExp {
       `\\${REFERENCE.ENV_VAR_START}[^}]+\\${REFERENCE.ENV_VAR_END}`,
     'g'
   )
-}
-
-/**
- * Replaces variable references with smart validation.
- * Distinguishes < operator from < bracket using isLikelyReferenceSegment.
- */
-export function replaceValidReferences(
-  template: string,
-  replacer: (match: string, index: number, template: string) => string
-): string {
-  const pattern = createReferencePattern()
-
-  return template.replace(pattern, (match, _content, index) => {
-    if (!isLikelyReferenceSegment(match)) {
-      return match
-    }
-    return replacer(match, index, template)
-  })
 }

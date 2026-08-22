@@ -298,6 +298,7 @@ const ReadOnlyTextPreview = memo(function ReadOnlyTextPreview({
           mimeType={file.type}
           filename={file.name}
           workspaceId={workspaceId}
+          fileId={file.id}
           fileKey={file.key}
           readOnly
         />

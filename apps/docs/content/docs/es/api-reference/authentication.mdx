@@ -41,23 +41,23 @@ Pass your API key in the `X-API-Key` header with every request:
 <Tabs items={['curl', 'TypeScript', 'Python']}>
   <Tab value="curl">
     ```bash
-    curl -X POST https://www.sim.ai/api/workflows/{workflowId}/execute \
+    curl -X POST https://www.sim.ai/api/v2/workflows/{workflowId}/execute \
       -H "Content-Type: application/json" \
       -H "X-API-Key: YOUR_API_KEY" \
-      -d '{"inputs": {}}'
+      -d '{"input": {}}'
     ```
   </Tab>
   <Tab value="TypeScript">
     ```typescript
     const response = await fetch(
-      'https://www.sim.ai/api/workflows/{workflowId}/execute',
+      'https://www.sim.ai/api/v2/workflows/{workflowId}/execute',
       {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'X-API-Key': process.env.SIM_API_KEY!,
         },
-        body: JSON.stringify({ inputs: {} }),
+        body: JSON.stringify({ input: {} }),
       }
     )
     ```
@@ -67,12 +67,12 @@ Pass your API key in the `X-API-Key` header with every request:
     import requests
 
     response = requests.post(
-        "https://www.sim.ai/api/workflows/{workflowId}/execute",
+        "https://www.sim.ai/api/v2/workflows/{workflowId}/execute",
         headers={
             "Content-Type": "application/json",
             "X-API-Key": os.environ["SIM_API_KEY"],
         },
-        json={"inputs": {}},
+        json={"input": {}},
     )
     ```
   </Tab>

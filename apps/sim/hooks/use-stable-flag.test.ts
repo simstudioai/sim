@@ -149,11 +149,10 @@ describe('createStableFlagController', () => {
     expect(probe.states).toEqual([true]) // hide never fired
   })
 
-  it('with zero options, mirrors the value on the next tick', () => {
+  it('with zero options, mirrors the value immediately', () => {
     const probe = setup({ delayMs: 0, minVisibleMs: 0 })
 
     probe.controller.setValue(true)
-    vi.advanceTimersByTime(0)
     expect(probe.active).toBe(true)
 
     probe.controller.setValue(false)

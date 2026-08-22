@@ -1,0 +1,366 @@
+import { defineWorkspaceOperation } from '@/lib/core/application'
+
+const ALL_PRINCIPAL_POLICY = {
+  principalKinds: ['session', 'personal_api_key', 'workspace_api_key', 'delegated'],
+  delegatedServices: ['copilot'],
+} as const
+const COPILOT_PRINCIPAL_POLICY = {
+  principalKinds: ['delegated'],
+  delegatedServices: ['copilot'],
+} as const
+
+const ALL_PRINCIPAL_WITH_EXECUTOR_POLICY = {
+  principalKinds: ['session', 'personal_api_key', 'workspace_api_key', 'delegated'],
+  delegatedServices: ['copilot', 'executor'],
+} as const
+
+const HTTP_PRINCIPAL_KINDS = ['session', 'personal_api_key', 'workspace_api_key'] as const
+
+const HUMAN_AND_DELEGATED_PRINCIPAL_KINDS = ['session', 'personal_api_key', 'delegated'] as const
+
+const HUMAN_AND_COPILOT_PRINCIPAL_POLICY = {
+  principalKinds: HUMAN_AND_DELEGATED_PRINCIPAL_KINDS,
+  delegatedServices: ['copilot'],
+} as const
+
+const HUMAN_COPILOT_AND_EXECUTOR_PRINCIPAL_POLICY = {
+  principalKinds: HUMAN_AND_DELEGATED_PRINCIPAL_KINDS,
+  delegatedServices: ['copilot', 'executor'],
+} as const
+
+export const knowledgeOperations = {
+  list: defineWorkspaceOperation({
+    id: 'knowledge.list',
+    minimumRole: 'read',
+    workspaceApiKey: 'allow',
+    ...ALL_PRINCIPAL_POLICY,
+  }),
+  listArchived: defineWorkspaceOperation({
+    id: 'knowledge.list_archived',
+    minimumRole: 'read',
+    workspaceApiKey: 'deny',
+    ...HUMAN_AND_COPILOT_PRINCIPAL_POLICY,
+  }),
+  read: defineWorkspaceOperation({
+    id: 'knowledge.read',
+    minimumRole: 'read',
+    workspaceApiKey: 'allow',
+    ...ALL_PRINCIPAL_POLICY,
+  }),
+  create: defineWorkspaceOperation({
+    id: 'knowledge.create',
+    minimumRole: 'write',
+    workspaceApiKey: 'allow',
+    ...ALL_PRINCIPAL_POLICY,
+  }),
+  update: defineWorkspaceOperation({
+    id: 'knowledge.update',
+    minimumRole: 'write',
+    workspaceApiKey: 'allow',
+    ...ALL_PRINCIPAL_POLICY,
+  }),
+  delete: defineWorkspaceOperation({
+    id: 'knowledge.delete',
+    minimumRole: 'write',
+    workspaceApiKey: 'allow',
+    ...ALL_PRINCIPAL_POLICY,
+  }),
+  bulkMoveItems: defineWorkspaceOperation({
+    id: 'knowledge.bulk_move_items',
+    minimumRole: 'write',
+    workspaceApiKey: 'allow',
+    ...ALL_PRINCIPAL_POLICY,
+  }),
+  bulkDeleteItems: defineWorkspaceOperation({
+    id: 'knowledge.bulk_delete_items',
+    minimumRole: 'write',
+    workspaceApiKey: 'allow',
+    ...ALL_PRINCIPAL_POLICY,
+  }),
+  bulkDelete: defineWorkspaceOperation({
+    id: 'knowledge.bulk_delete',
+    minimumRole: 'write',
+    workspaceApiKey: 'allow',
+    ...ALL_PRINCIPAL_POLICY,
+  }),
+  renameByVfsPath: defineWorkspaceOperation({
+    id: 'knowledge.vfs.rename',
+    minimumRole: 'write',
+    workspaceApiKey: 'deny',
+    ...COPILOT_PRINCIPAL_POLICY,
+  }),
+  moveByVfsPath: defineWorkspaceOperation({
+    id: 'knowledge.vfs.move',
+    minimumRole: 'write',
+    workspaceApiKey: 'deny',
+    ...COPILOT_PRINCIPAL_POLICY,
+  }),
+  manageVfsFolders: defineWorkspaceOperation({
+    id: 'knowledge.vfs.folders.manage',
+    minimumRole: 'write',
+    workspaceApiKey: 'deny',
+    ...COPILOT_PRINCIPAL_POLICY,
+  }),
+  deleteByVfsPath: defineWorkspaceOperation({
+    id: 'knowledge.vfs.delete',
+    minimumRole: 'write',
+    workspaceApiKey: 'deny',
+    ...COPILOT_PRINCIPAL_POLICY,
+  }),
+  search: defineWorkspaceOperation({
+    id: 'knowledge.search',
+    minimumRole: 'read',
+    workspaceApiKey: 'allow',
+    ...ALL_PRINCIPAL_WITH_EXECUTOR_POLICY,
+  }),
+  listFolders: defineWorkspaceOperation({
+    id: 'knowledge.folders.list',
+    minimumRole: 'read',
+    workspaceApiKey: 'allow',
+    principalKinds: HTTP_PRINCIPAL_KINDS,
+  }),
+  createFolder: defineWorkspaceOperation({
+    id: 'knowledge.folders.create',
+    minimumRole: 'write',
+    workspaceApiKey: 'allow',
+    principalKinds: HTTP_PRINCIPAL_KINDS,
+  }),
+  relocateFolder: defineWorkspaceOperation({
+    id: 'knowledge.folders.relocate',
+    minimumRole: 'write',
+    workspaceApiKey: 'allow',
+    principalKinds: HTTP_PRINCIPAL_KINDS,
+  }),
+  deleteFolder: defineWorkspaceOperation({
+    id: 'knowledge.folders.delete',
+    minimumRole: 'write',
+    workspaceApiKey: 'allow',
+    principalKinds: HTTP_PRINCIPAL_KINDS,
+  }),
+  listDocuments: defineWorkspaceOperation({
+    id: 'knowledge.documents.list',
+    minimumRole: 'read',
+    workspaceApiKey: 'allow',
+    ...ALL_PRINCIPAL_WITH_EXECUTOR_POLICY,
+  }),
+  readDocument: defineWorkspaceOperation({
+    id: 'knowledge.documents.read',
+    minimumRole: 'read',
+    workspaceApiKey: 'allow',
+    ...ALL_PRINCIPAL_WITH_EXECUTOR_POLICY,
+  }),
+  uploadDocument: defineWorkspaceOperation({
+    id: 'knowledge.documents.upload',
+    minimumRole: 'write',
+    workspaceApiKey: 'allow',
+    ...ALL_PRINCIPAL_WITH_EXECUTOR_POLICY,
+  }),
+  addWorkspaceFiles: defineWorkspaceOperation({
+    id: 'knowledge.documents.add_workspace_files',
+    minimumRole: 'write',
+    workspaceApiKey: 'deny',
+    ...HUMAN_AND_COPILOT_PRINCIPAL_POLICY,
+  }),
+  deleteDocument: defineWorkspaceOperation({
+    id: 'knowledge.documents.delete',
+    minimumRole: 'write',
+    workspaceApiKey: 'allow',
+    ...ALL_PRINCIPAL_WITH_EXECUTOR_POLICY,
+  }),
+  bulkDeleteDocuments: defineWorkspaceOperation({
+    id: 'knowledge.documents.bulk_delete',
+    minimumRole: 'write',
+    workspaceApiKey: 'deny',
+    ...HUMAN_AND_COPILOT_PRINCIPAL_POLICY,
+  }),
+  updateDocument: defineWorkspaceOperation({
+    id: 'knowledge.documents.update',
+    minimumRole: 'write',
+    workspaceApiKey: 'deny',
+    ...HUMAN_COPILOT_AND_EXECUTOR_PRINCIPAL_POLICY,
+  }),
+  bulkDocuments: defineWorkspaceOperation({
+    id: 'knowledge.documents.bulk',
+    minimumRole: 'write',
+    workspaceApiKey: 'deny',
+    ...HUMAN_AND_COPILOT_PRINCIPAL_POLICY,
+  }),
+  listChunks: defineWorkspaceOperation({
+    id: 'knowledge.chunks.list',
+    minimumRole: 'read',
+    workspaceApiKey: 'deny',
+    ...HUMAN_COPILOT_AND_EXECUTOR_PRINCIPAL_POLICY,
+  }),
+  readChunk: defineWorkspaceOperation({
+    id: 'knowledge.chunks.read',
+    minimumRole: 'read',
+    workspaceApiKey: 'deny',
+    ...HUMAN_AND_COPILOT_PRINCIPAL_POLICY,
+  }),
+  createChunk: defineWorkspaceOperation({
+    id: 'knowledge.chunks.create',
+    minimumRole: 'write',
+    workspaceApiKey: 'deny',
+    ...HUMAN_COPILOT_AND_EXECUTOR_PRINCIPAL_POLICY,
+  }),
+  updateChunk: defineWorkspaceOperation({
+    id: 'knowledge.chunks.update',
+    minimumRole: 'write',
+    workspaceApiKey: 'deny',
+    ...HUMAN_COPILOT_AND_EXECUTOR_PRINCIPAL_POLICY,
+  }),
+  deleteChunk: defineWorkspaceOperation({
+    id: 'knowledge.chunks.delete',
+    minimumRole: 'write',
+    workspaceApiKey: 'deny',
+    ...HUMAN_COPILOT_AND_EXECUTOR_PRINCIPAL_POLICY,
+  }),
+  bulkChunks: defineWorkspaceOperation({
+    id: 'knowledge.chunks.bulk',
+    minimumRole: 'write',
+    workspaceApiKey: 'deny',
+    ...HUMAN_AND_COPILOT_PRINCIPAL_POLICY,
+  }),
+  /**
+   * The tag vocabulary is required input for two operations a workspace API key
+   * may already perform — filtering documents and search by tag display name —
+   * so it carries the same policy as those sibling reads (`documents.list`,
+   * `read`, `search`) rather than the stricter one the tag *writes* keep.
+   */
+  listTags: defineWorkspaceOperation({
+    id: 'knowledge.tags.list',
+    minimumRole: 'read',
+    workspaceApiKey: 'allow',
+    ...ALL_PRINCIPAL_WITH_EXECUTOR_POLICY,
+  }),
+  createTag: defineWorkspaceOperation({
+    id: 'knowledge.tags.create',
+    minimumRole: 'write',
+    workspaceApiKey: 'deny',
+    ...HUMAN_AND_COPILOT_PRINCIPAL_POLICY,
+  }),
+  updateTag: defineWorkspaceOperation({
+    id: 'knowledge.tags.update',
+    minimumRole: 'write',
+    workspaceApiKey: 'deny',
+    ...HUMAN_AND_COPILOT_PRINCIPAL_POLICY,
+  }),
+  deleteTag: defineWorkspaceOperation({
+    id: 'knowledge.tags.delete',
+    minimumRole: 'write',
+    workspaceApiKey: 'deny',
+    ...HUMAN_AND_COPILOT_PRINCIPAL_POLICY,
+  }),
+  readTagUsage: defineWorkspaceOperation({
+    id: 'knowledge.tags.read_usage',
+    minimumRole: 'read',
+    workspaceApiKey: 'deny',
+    ...HUMAN_AND_COPILOT_PRINCIPAL_POLICY,
+  }),
+  readDetailedTagUsage: defineWorkspaceOperation({
+    id: 'knowledge.tags.read_detailed_usage',
+    minimumRole: 'read',
+    workspaceApiKey: 'deny',
+    ...HUMAN_AND_COPILOT_PRINCIPAL_POLICY,
+  }),
+  readNextTagSlot: defineWorkspaceOperation({
+    id: 'knowledge.tags.read_next_slot',
+    minimumRole: 'read',
+    workspaceApiKey: 'deny',
+    ...HUMAN_AND_COPILOT_PRINCIPAL_POLICY,
+  }),
+  saveDocumentTagDefinitions: defineWorkspaceOperation({
+    id: 'knowledge.tags.save_document_definitions',
+    minimumRole: 'write',
+    workspaceApiKey: 'deny',
+    ...HUMAN_AND_COPILOT_PRINCIPAL_POLICY,
+  }),
+  deleteDocumentTagDefinitions: defineWorkspaceOperation({
+    id: 'knowledge.tags.delete_document_definitions',
+    minimumRole: 'write',
+    workspaceApiKey: 'deny',
+    ...HUMAN_AND_COPILOT_PRINCIPAL_POLICY,
+  }),
+  listConnectors: defineWorkspaceOperation({
+    id: 'knowledge.connectors.list',
+    minimumRole: 'read',
+    workspaceApiKey: 'deny',
+    ...HUMAN_COPILOT_AND_EXECUTOR_PRINCIPAL_POLICY,
+  }),
+  readConnector: defineWorkspaceOperation({
+    id: 'knowledge.connectors.read',
+    minimumRole: 'read',
+    workspaceApiKey: 'deny',
+    ...HUMAN_COPILOT_AND_EXECUTOR_PRINCIPAL_POLICY,
+  }),
+  createConnector: defineWorkspaceOperation({
+    id: 'knowledge.connectors.create',
+    minimumRole: 'write',
+    workspaceApiKey: 'deny',
+    ...HUMAN_AND_COPILOT_PRINCIPAL_POLICY,
+  }),
+  updateConnector: defineWorkspaceOperation({
+    id: 'knowledge.connectors.update',
+    minimumRole: 'write',
+    workspaceApiKey: 'deny',
+    ...HUMAN_AND_COPILOT_PRINCIPAL_POLICY,
+  }),
+  deleteConnector: defineWorkspaceOperation({
+    id: 'knowledge.connectors.delete',
+    minimumRole: 'write',
+    workspaceApiKey: 'deny',
+    ...HUMAN_AND_COPILOT_PRINCIPAL_POLICY,
+  }),
+  syncConnector: defineWorkspaceOperation({
+    id: 'knowledge.connectors.sync',
+    minimumRole: 'write',
+    workspaceApiKey: 'deny',
+    ...HUMAN_COPILOT_AND_EXECUTOR_PRINCIPAL_POLICY,
+  }),
+  listConnectorDocuments: defineWorkspaceOperation({
+    id: 'knowledge.connectors.documents.list',
+    minimumRole: 'read',
+    workspaceApiKey: 'deny',
+    ...HUMAN_AND_COPILOT_PRINCIPAL_POLICY,
+  }),
+  updateConnectorDocuments: defineWorkspaceOperation({
+    id: 'knowledge.connectors.documents.update',
+    minimumRole: 'write',
+    workspaceApiKey: 'deny',
+    ...HUMAN_AND_COPILOT_PRINCIPAL_POLICY,
+  }),
+  uploadCreate: defineWorkspaceOperation({
+    id: 'knowledge.documents.upload.create',
+    minimumRole: 'write',
+    workspaceApiKey: 'allow',
+    principalKinds: HTTP_PRINCIPAL_KINDS,
+  }),
+  uploadParts: defineWorkspaceOperation({
+    id: 'knowledge.documents.upload.parts',
+    minimumRole: 'write',
+    workspaceApiKey: 'allow',
+    principalKinds: HTTP_PRINCIPAL_KINDS,
+  }),
+  uploadComplete: defineWorkspaceOperation({
+    id: 'knowledge.documents.upload.complete',
+    minimumRole: 'write',
+    workspaceApiKey: 'allow',
+    principalKinds: HTTP_PRINCIPAL_KINDS,
+  }),
+  uploadCancel: defineWorkspaceOperation({
+    id: 'knowledge.documents.upload.cancel',
+    minimumRole: 'write',
+    workspaceApiKey: 'allow',
+    principalKinds: HTTP_PRINCIPAL_KINDS,
+  }),
+} as const
+
+export const knowledgeSessionOperations = {
+  list: Object.freeze({ id: 'knowledge.session.list' as const }),
+  read: Object.freeze({ id: 'knowledge.session.read' as const }),
+  update: Object.freeze({ id: 'knowledge.session.update' as const }),
+  delete: Object.freeze({ id: 'knowledge.session.delete' as const }),
+  restore: Object.freeze({ id: 'knowledge.session.restore' as const }),
+} as const
+
+export type KnowledgeOperation = (typeof knowledgeOperations)[keyof typeof knowledgeOperations]

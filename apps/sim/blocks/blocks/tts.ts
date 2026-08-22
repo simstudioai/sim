@@ -2,6 +2,9 @@ import { TTSIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, IntegrationType } from '@/blocks/types'
 import type { TtsBlockResponse } from '@/tools/tts/types'
 
+/** Voice picker id, which differs by provider — first available wins. */
+const VOICE_FIELD = ['voice', 'voiceId'] as const
+
 export const TtsBlock: BlockConfig<TtsBlockResponse> = {
   type: 'tts',
   name: 'Text-to-Speech',
@@ -14,6 +17,15 @@ export const TtsBlock: BlockConfig<TtsBlockResponse> = {
   integrationType: IntegrationType.AI,
   bgColor: '#181C1E',
   icon: TTSIcon,
+  canvasPresentation: {
+    defaultTitle: 'Text-to-Speech',
+    sentences: {
+      default: [
+        { text: 'Speak', field: 'text', core: true },
+        { text: 'in the', field: VOICE_FIELD, after: 'voice' },
+      ],
+    },
+  },
 
   subBlocks: [
     // Provider selection

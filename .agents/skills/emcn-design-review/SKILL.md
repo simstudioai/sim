@@ -39,7 +39,7 @@ Use CSS variable pattern (`text-[var(--text-primary)]`), never Tailwind semantic
 **Surfaces**: `--bg`, `--surface-1` through `--surface-7`, `--surface-hover`, `--surface-active`
 **Borders**: `--border`, `--border-1`, `--border-muted`
 **Brand/accent**: `--brand-secondary`, `--brand-accent`
-**Z-Index**: `--z-dropdown` (100), `--z-modal` (200), `--z-popover` (300), `--z-tooltip` (400), `--z-toast` (500)
+**Z-Index**: `--z-dropdown` (100), `--z-toast` (150), `--z-modal` (200), `--z-popover` (300), `--z-tooltip` (400), `--z-takeover` (500), `--z-shell-gate` (600)
 **Shadows**: `shadow-subtle`, `shadow-medium`, `shadow-overlay`, `shadow-card`
 **Badges**: `--badge-*` semantic families (success/error/gray/blue/purple/orange/amber/teal/cyan/pink, each with `-bg`/`-text`)
 

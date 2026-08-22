@@ -5,6 +5,7 @@ import {
   Credit,
   Database,
   Globe,
+  GridOffset,
   HexSimple,
   Key,
   KeySquare,
@@ -26,6 +27,7 @@ import {
 } from '@sim/emcn/icons'
 import { type PermissionType, permissionSatisfies } from '@sim/platform-authz/workspace'
 import { CodeIcon, McpIcon } from '@/components/icons'
+import type { SettingsHeaderMeta } from '@/components/settings/settings-header'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
 import {
   isAccessControlEnabled,
@@ -64,6 +66,7 @@ export type OrganizationSettingsSection =
 export type WorkspaceSettingsSection =
   | 'teammates'
   | 'secrets'
+  | 'credential-groups'
   | 'byok'
   | 'sandboxes'
   | 'custom-tools'
@@ -99,6 +102,7 @@ export type UnifiedSettingsSection =
   | 'browser'
   | 'terminal'
   | 'secrets'
+  | 'credential-groups'
   | 'access-control'
   | 'custom-blocks'
   | 'audit-logs'
@@ -353,13 +357,6 @@ export const ORGANIZATION_SETTINGS_GROUPS = [
   { key: 'enterprise', title: 'Enterprise' },
 ] as const
 
-export const WORKSPACE_SETTINGS_GROUPS = [
-  { key: 'workspace', title: 'Workspace' },
-  { key: 'tools', title: 'Tools' },
-  { key: 'system', title: 'System' },
-  { key: 'enterprise', title: 'Enterprise' },
-] as const
-
 export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] = [
   {
     label: 'General',
@@ -535,6 +532,22 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
     },
   },
   {
+    label: 'Credential groups',
+    icon: GridOffset,
+    unified: {
+      id: 'credential-groups',
+      description: 'Collect and manage OAuth credentials for people outside this workspace.',
+      group: 'workspace',
+      order: 9,
+      requiresEnterprise: true,
+      allowNonOrgAdmin: true,
+      selfHostedOverride: true,
+    },
+    planes: {
+      workspace: { id: 'credential-groups', group: 'workspace', order: 4 },
+    },
+  },
+  {
     label: 'Custom tools',
     icon: Wrench,
     unified: {
@@ -664,7 +677,7 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
       id: 'recently-deleted',
       description: 'Restore items deleted in the last 30 days.',
       group: 'workspace',
-      order: 9,
+      order: 10,
     },
     planes: {
       workspace: { id: 'recently-deleted', group: 'system', order: 9 },
@@ -953,8 +966,23 @@ export interface WorkspacePermissionConfig {
   disableCustomTools?: boolean
 }
 
+const WORKSPACE_PERMISSION_CONFIG_KEYS: Partial<
+  Record<WorkspaceSettingsSection, keyof WorkspacePermissionConfig>
+> = {
+  secrets: 'hideSecretsTab',
+  'api-keys': 'hideApiKeysTab',
+  inbox: 'hideInboxTab',
+  mcp: 'disableMcpTools',
+  'custom-tools': 'disableCustomTools',
+}
+
+export function workspaceSectionUsesPermissionConfig(section: WorkspaceSettingsSection): boolean {
+  return WORKSPACE_PERMISSION_CONFIG_KEYS[section] !== undefined
+}
+
 export interface WorkspaceSettingsEntitlements {
   byok: boolean
+  credentialGroups: boolean
   customBlocks: boolean
   forks: boolean
   inbox: boolean
@@ -989,6 +1017,7 @@ export interface ResolvedWorkspaceNavigationItem
 const WORKSPACE_MUTATION_PERMISSION: Record<WorkspaceSettingsSection, PermissionType> = {
   teammates: 'admin',
   secrets: 'write',
+  'credential-groups': 'admin',
   byok: 'admin',
   sandboxes: 'admin',
   'custom-tools': 'write',
@@ -1022,12 +1051,15 @@ export function resolveWorkspaceNavigation({
   entitlements,
 }: ResolveWorkspaceNavigationOptions): ResolvedWorkspaceNavigationItem[] {
   return WORKSPACE_SETTINGS_ITEMS.flatMap((item) => {
-    if (item.id === 'secrets' && permissionConfig.hideSecretsTab) return []
-    if (item.id === 'api-keys' && permissionConfig.hideApiKeysTab) return []
-    if (item.id === 'inbox' && permissionConfig.hideInboxTab) return []
-    if (item.id === 'mcp' && permissionConfig.disableMcpTools) return []
-    if (item.id === 'custom-tools' && permissionConfig.disableCustomTools) return []
+    const permissionConfigKey = WORKSPACE_PERMISSION_CONFIG_KEYS[item.id]
+    if (permissionConfigKey && permissionConfig[permissionConfigKey]) return []
     if (item.id === 'forks' && (permission !== 'admin' || !entitlements.forks)) return []
+    if (
+      item.id === 'credential-groups' &&
+      (permission !== 'admin' || !entitlements.credentialGroups)
+    ) {
+      return []
+    }
     if (item.id === 'byok' && !entitlements.byok) return []
     if (item.id === 'custom-blocks' && !entitlements.customBlocks) return []
     // Absent on Sim Cloud, where the managed service owns these settings.
@@ -1044,6 +1076,19 @@ export function resolveWorkspaceNavigation({
 
     return [{ ...item, canMutate, locked }]
   })
+}
+
+/**
+ * Adapts a navigation entry to the header shell's static identity.
+ *
+ * The catalog calls it `label` because it names a sidebar row; the shell calls it `title`
+ * because it renders a heading. One adapter keeps every plane's shell fed from the catalog
+ * instead of each one restating the mapping.
+ */
+export function toSettingsHeaderMeta(
+  item: Pick<SettingsNavigationItem, 'label' | 'description' | 'docsLink'>
+): SettingsHeaderMeta {
+  return { title: item.label, description: item.description, docsLink: item.docsLink }
 }
 
 export function getSettingsSectionMeta(

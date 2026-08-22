@@ -73,9 +73,24 @@ export const POST = withRouteHandler((request: NextRequest) =>
       const workspaceId = run?.workspaceId ?? undefined
       if (chatId) rootSpan.setAttribute(TraceAttr.ChatId, chatId)
 
-      const aborted = await abortActiveStream(streamId)
-      rootSpan.setAttribute(TraceAttr.CopilotAbortLocalAborted, aborted)
-
+      // ORDER IS LOAD-BEARING: Go's abort marker must be durable BEFORE
+      // anything tears down the SSE.
+      //
+      // `abortActiveStream` is what triggers that teardown — directly when
+      // this box holds the stream, otherwise via the Redis marker its 250ms
+      // poller picks up on the box that does. The moment Go sees the socket
+      // close it decides "user stop vs. client disconnect" by consuming its
+      // own marker, once, with no retry. Writing that marker second lost the
+      // race on ~84% of stops: Go read an absent marker, filed a deliberate
+      // Stop as an unexpected termination, and persisted the turn's orphaned
+      // tool calls with a synthetic `provider_error` result that the
+      // assistant then read back and reported to the user as a vendor outage.
+      //
+      // The reorder costs the Go round-trip (~400ms median) before generation
+      // actually stops. Perceived stop latency is unchanged — the client marks
+      // the turn stopped optimistically before this request is even sent — and
+      // the added wait is bounded by the timeout below, leaving the settle
+      // wait that follows well inside the client's own 15s budget.
       let goAbortOk = false
       try {
         await requestExplicitStreamAbort({
@@ -87,12 +102,19 @@ export const POST = withRouteHandler((request: NextRequest) =>
         })
         goAbortOk = true
       } catch (err) {
-        logger.warn('Explicit abort marker request failed after local abort', {
+        // Never let a failed or slow marker write block the user's Stop — fall
+        // through and abort locally regardless. Go re-checks the marker when
+        // its stream goroutine exits, so a write that lands late still
+        // classifies correctly.
+        logger.warn('Explicit abort marker request failed; aborting locally anyway', {
           streamId,
           error: getErrorMessage(err),
         })
       }
       rootSpan.setAttribute(TraceAttr.CopilotAbortGoMarkerOk, goAbortOk)
+
+      const aborted = await abortActiveStream(streamId)
+      rootSpan.setAttribute(TraceAttr.CopilotAbortLocalAborted, aborted)
 
       if (chatId) {
         const settled = await withCopilotSpan(

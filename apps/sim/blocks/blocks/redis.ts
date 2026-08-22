@@ -86,6 +86,69 @@ export const RedisBlock: BlockConfig<RedisResponse> = {
   iconColor: '#FF4438',
   authMode: AuthMode.ApiKey,
   icon: RedisIcon,
+  canvasPresentation: {
+    defaultTitle: 'Redis',
+    sentences: {
+      byOperation: {
+        get: [{ text: 'Read the value at key', field: 'key', core: true }],
+        set: [
+          { text: 'Set key', field: 'key', core: true },
+          { text: 'to', field: 'value' },
+          { text: ', expiring in', field: 'ex', after: 'seconds' },
+        ],
+        delete: [{ text: 'Delete key', field: 'key', core: true }],
+        keys: ['List all keys', { text: 'matching', field: 'pattern' }],
+        hset: [
+          { text: 'Set field', field: 'field', core: true },
+          { text: 'in hash', field: 'key', core: true },
+          { text: 'to', field: 'value' },
+        ],
+        hget: [
+          { text: 'Read field', field: 'field', core: true },
+          { text: 'from hash', field: 'key', core: true },
+        ],
+        hgetall: [{ text: 'Read every field of hash', field: 'key', core: true }],
+        hdel: [
+          { text: 'Delete field', field: 'field', core: true },
+          { text: 'from hash', field: 'key', core: true },
+        ],
+        incr: [{ text: 'Increment key', field: 'key', core: true, after: 'by one' }],
+        incrby: [
+          { text: 'Increment key', field: 'key', core: true },
+          { text: 'by', field: 'increment' },
+        ],
+        exists: [{ text: 'Check whether key', field: 'key', core: true, after: 'exists' }],
+        setnx: [
+          { text: 'Set key', field: 'key', core: true },
+          { text: 'to', field: 'value' },
+          'only if it does not exist',
+        ],
+        lpush: [
+          { text: 'Prepend', field: 'value', core: true },
+          { text: 'to list', field: 'key', core: true },
+        ],
+        rpush: [
+          { text: 'Append', field: 'value', core: true },
+          { text: 'to list', field: 'key', core: true },
+        ],
+        lpop: [{ text: 'Pop the first element of list', field: 'key', core: true }],
+        rpop: [{ text: 'Pop the last element of list', field: 'key', core: true }],
+        llen: [{ text: 'Count the elements in list', field: 'key', core: true }],
+        lrange: [
+          { text: 'Read list', field: 'key', core: true },
+          { text: 'from index', field: 'start' },
+          { text: 'through', field: 'stop' },
+        ],
+        expire: [
+          { text: 'Expire key', field: 'key', core: true },
+          { text: 'in', field: 'seconds', after: 'seconds' },
+        ],
+        persist: [{ text: 'Remove the expiration from key', field: 'key', core: true }],
+        ttl: [{ text: 'Read the time to live of key', field: 'key', core: true }],
+        command: [{ text: 'Run raw command', field: 'command', core: true }],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',

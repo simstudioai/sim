@@ -686,6 +686,26 @@ export const openClawProfile: CompetitorProfile = {
           },
         ],
       },
+      codeSandboxRuntime: {
+        value:
+          'Yes: the Docker sandbox the agent executes in is operator-defined. The image is selected via `agents.defaults.sandbox.docker.image` (defaulting to `openclaw-sandbox:bookworm-slim`, which preinstalls bash, ca-certificates, curl, git, jq, python3, and ripgrep but no Node, with the `openclaw-sandbox-common:bookworm-slim` variant layered on top of it adding Node 24 and pnpm), a custom image can be baked from the shipped sandbox build scripts (`scripts/sandbox-setup.sh`, or `scripts/docker/sandbox/Dockerfile.common` for the common variant), and `agents.defaults.sandbox.docker.setupCommand` runs once after container creation to install additional runtimes or CLIs. This is available only because OpenClaw is self-hosted; there is no OpenClaw-operated managed runtime to configure.',
+        detail:
+          'Runtime installation via `setupCommand` requires relaxing three hardening defaults for the setup phase: `docker.network` defaults to `"none"` (no egress, so package managers fail), `readOnlyRoot` defaults to true, and the default image runs as a non-root `sandbox` user. Sandbox exec does not inherit the host `process.env`, so keys and paths for anything installed that way have to come from `agents.defaults.sandbox.docker.env` or from a custom image; the docs note that `docker.env` values are readable via `docker inspect`. Separately, the gateway container image itself (not the sandbox image) accepts build-time `OPENCLAW_IMAGE_APT_PACKAGES` / `OPENCLAW_IMAGE_PIP_PACKAGES` and an `OPENCLAW_HOME_VOLUME` for persisting `/home/node`.',
+        shortValue: 'Yes: custom sandbox image plus a post-create setupCommand',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://docs.openclaw.ai/gateway/sandboxing',
+            label: 'OpenClaw Docs: Sandboxing',
+            asOf: '2026-08-10',
+          },
+          {
+            url: 'https://docs.openclaw.ai/install/docker',
+            label: 'OpenClaw Docs: Docker install',
+            asOf: '2026-08-10',
+          },
+        ],
+      },
       apiPublishing: {
         value:
           'Yes, via the official Webhooks plugin: it adds authenticated inbound HTTP routes on the Gateway so external systems (Zapier, n8n, a CI job, or an internal service) can POST JSON to a configured path to create, drive, and manage OpenClaw TaskFlows, the closest OpenClaw feature to publishing a callable REST/webhook endpoint.',
@@ -956,6 +976,26 @@ export const openClawProfile: CompetitorProfile = {
             url: 'https://docs.openclaw.ai/gateway/security',
             label: 'OpenClaw Docs: Security',
             asOf: '2026-07-02',
+          },
+        ],
+      },
+      sessionPolicy: {
+        value:
+          'Not applicable: there is no signed-in session to bound. The Gateway authenticates callers with a static shared secret (`gateway.auth` token or password, or a trusted-proxy header mode), and the security docs document no session expiry, idle timeout, or time-bound signed session; every authenticated caller holds operator-level access until the secret is rotated.',
+        detail:
+          'The `session.reset` settings that do exist govern conversation context, not authentication: `session.reset.mode` of `"daily"` (`atHour`, default 4) or `"idle"` (`idleMinutes`) starts a fresh chat session, and cron jobs get a fresh conversation session per run. The docs state `sessionKey` is "a routing selector, not an authorization token," and recommend separate Gateway instances per trust boundary rather than session controls inside one shared instance.',
+        shortValue: 'No signed-in session: static shared-secret operator auth',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://docs.openclaw.ai/gateway/security',
+            label: 'OpenClaw Docs: Security',
+            asOf: '2026-08-10',
+          },
+          {
+            url: 'https://docs.openclaw.ai/concepts/session',
+            label: 'OpenClaw Docs: Session management',
+            asOf: '2026-08-10',
           },
         ],
       },

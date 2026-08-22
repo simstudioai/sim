@@ -1045,6 +1045,24 @@ describe('workflow store', () => {
     })
   })
 
+  describe('setBlockErrorEnabled', () => {
+    it('updates the persisted Error output flag', () => {
+      addBlock('function-1', 'function', 'Function 1', { x: 0, y: 0 })
+
+      useWorkflowStore.getState().setBlockErrorEnabled('function-1', true)
+
+      expect(useWorkflowStore.getState().blocks['function-1'].errorEnabled).toBe(true)
+    })
+
+    it('ignores an unknown block id', () => {
+      const before = useWorkflowStore.getState().blocks
+
+      useWorkflowStore.getState().setBlockErrorEnabled('missing', true)
+
+      expect(useWorkflowStore.getState().blocks).toEqual(before)
+    })
+  })
+
   describe('syncDynamicHandleSubblockValue', () => {
     it('should sync condition topology values into the workflow store', () => {
       addBlock('condition-1', 'condition', 'Condition 1', { x: 0, y: 0 })
@@ -1645,6 +1663,44 @@ describe('workflow store', () => {
         // Duplicate should still be inside the loop since it's not locked
         expect(blocks[duplicatedId].data?.parentId).toBe('loop-1')
       }
+    })
+  })
+
+  describe('updateBlockLayoutMetrics', () => {
+    it('updates only the measured block and skips identical measurements', () => {
+      addBlock('block-1', 'agent', 'Agent', { x: 0, y: 0 })
+      useWorkflowStore.setState({
+        edges: [{ id: 'edge-1', source: 'block-1', target: 'block-2' }],
+        loops: {},
+        parallels: {},
+        lastSaved: 123,
+      })
+
+      const before = useWorkflowStore.getState()
+      let notifications = 0
+      const unsubscribe = useWorkflowStore.subscribe(() => {
+        notifications += 1
+      })
+
+      before.updateBlockLayoutMetrics('block-1', { width: 320, height: 180 })
+
+      const afterFirstMeasurement = useWorkflowStore.getState()
+      expect(afterFirstMeasurement.blocks['block-1'].height).toBe(180)
+      expect(afterFirstMeasurement.blocks['block-1'].layout).toEqual({
+        measuredWidth: 320,
+        measuredHeight: 180,
+      })
+      expect(afterFirstMeasurement.edges).toBe(before.edges)
+      expect(afterFirstMeasurement.loops).toBe(before.loops)
+      expect(afterFirstMeasurement.parallels).toBe(before.parallels)
+      expect(afterFirstMeasurement.lastSaved).toBe(before.lastSaved)
+      expect(notifications).toBe(1)
+
+      afterFirstMeasurement.updateBlockLayoutMetrics('block-1', { width: 320, height: 180 })
+
+      expect(useWorkflowStore.getState()).toBe(afterFirstMeasurement)
+      expect(notifications).toBe(1)
+      unsubscribe()
     })
   })
 

@@ -14,6 +14,12 @@ export const DuckDuckGoBlock: BlockConfig<DuckDuckGoResponse> = {
   integrationType: IntegrationType.Search,
   bgColor: '#FFFFFF',
   icon: DuckDuckGoIcon,
+  canvasPresentation: {
+    defaultTitle: 'DuckDuckGo',
+    sentences: {
+      default: [{ text: 'Search the web for', field: 'query', core: true }],
+    },
+  },
   subBlocks: [
     {
       id: 'query',

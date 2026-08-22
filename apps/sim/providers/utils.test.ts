@@ -1,10 +1,22 @@
 import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+const workflowMetadataMocks = vi.hoisted(() => ({
+  buildAPIUrl: vi.fn((path: string) => new URL(path, 'https://sim.local')),
+  buildExecutorDelegationHeaders: vi.fn(),
+}))
+
+vi.mock('@/executor/utils/http', () => ({
+  buildAPIUrl: workflowMetadataMocks.buildAPIUrl,
+  buildExecutorDelegationHeaders: workflowMetadataMocks.buildExecutorDelegationHeaders,
+}))
+
 import {
   calculateCost,
   describeModelLevel,
   extractAndParseJSON,
   filterBlacklistedModels,
+  findProviderFromModel,
   formatCost,
   generateStructuredOutputInstructions,
   getAllModelProviders,
@@ -937,6 +949,15 @@ describe('Provider Management', () => {
       expect(getProviderFromModel('unknown-model')).toBe('ollama')
     })
 
+    it('should resolve gateway models that getBaseModelProviders deliberately omits', () => {
+      // getBaseModelProviders() filters these providers out entirely, so a model
+      // block that looked models up there rejected valid ids like these.
+      expect(getProviderFromModel('openrouter/meta-llama/llama-4-maverick')).toBe('openrouter')
+      expect(getProviderFromModel('together/some-model')).toBe('together')
+      expect(getProviderFromModel('fireworks/some-model')).toBe('fireworks')
+      expect(getBaseModelProviders()['openrouter/meta-llama/llama-4-maverick']).toBeUndefined()
+    })
+
     it('should be case insensitive', () => {
       expect(getProviderFromModel('GPT-4O')).toBe('openai')
       expect(getProviderFromModel('CLAUDE-SONNET-4-0')).toBe('anthropic')
@@ -1867,6 +1888,136 @@ describe('prepareToolExecution invoker identity hand-off', () => {
   })
 })
 
+describe('workflow executor metadata delegation', () => {
+  const workflowBlock = {
+    type: 'workflow',
+    name: 'Workflow',
+    description: 'Execute a workflow',
+    inputs: {},
+    subBlocks: [],
+    tools: { access: ['workflow_executor'] },
+  }
+  const workflowTool = {
+    id: 'workflow_executor',
+    name: 'Workflow Executor',
+    description: 'Execute another workflow',
+    params: {
+      workflowId: {
+        type: 'string' as const,
+        required: true,
+        visibility: 'user-only' as const,
+      },
+    },
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    workflowMetadataMocks.buildExecutorDelegationHeaders.mockResolvedValue({
+      'Content-Type': 'application/json',
+      Authorization: 'Bearer delegated-token',
+    })
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('binds cross-workflow metadata reads to the target without attaching the parent run', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(
+        new Response(
+          JSON.stringify({ data: { name: 'Child Workflow', description: 'Child description' } }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        )
+      )
+    vi.stubGlobal('fetch', fetchMock)
+
+    const result = await transformBlockTool(
+      { type: 'workflow', params: { workflowId: 'child-workflow' } },
+      {
+        getAllBlocks: () => [workflowBlock],
+        getTool: () => workflowTool,
+        enrichmentContext: {
+          workflowId: 'parent-workflow',
+          workspaceId: 'workspace-1',
+          executionId: 'execution-1',
+          userId: 'user-1',
+        },
+      }
+    )
+
+    expect(workflowMetadataMocks.buildExecutorDelegationHeaders).toHaveBeenCalledWith({
+      subjectUserId: 'user-1',
+      workflowId: 'child-workflow',
+    })
+    expect(fetchMock).toHaveBeenCalledWith('https://sim.local/api/workflows/child-workflow', {
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer delegated-token',
+      },
+    })
+    expect(result).toMatchObject({
+      id: 'workflow_executor_child-workflow',
+      name: 'Child Workflow',
+      description: 'Child description',
+    })
+  })
+
+  it('includes the run binding when the metadata target is the executing workflow', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ data: { name: 'Current Workflow', description: null } }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      )
+    )
+
+    await transformBlockTool(
+      { type: 'workflow', params: { workflowId: 'current-workflow' } },
+      {
+        getAllBlocks: () => [workflowBlock],
+        getTool: () => workflowTool,
+        enrichmentContext: {
+          workflowId: 'current-workflow',
+          workspaceId: 'workspace-1',
+          executionId: 'execution-1',
+          userId: 'user-1',
+        },
+      }
+    )
+
+    expect(workflowMetadataMocks.buildExecutorDelegationHeaders).toHaveBeenCalledWith({
+      subjectUserId: 'user-1',
+      workflowId: 'current-workflow',
+      executionId: 'execution-1',
+    })
+  })
+
+  it('does not issue an actorless fallback token without a trusted execution subject', async () => {
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+
+    const result = await transformBlockTool(
+      { type: 'workflow', params: { workflowId: 'child-workflow' } },
+      {
+        getAllBlocks: () => [workflowBlock],
+        getTool: () => workflowTool,
+      }
+    )
+
+    expect(workflowMetadataMocks.buildExecutorDelegationHeaders).not.toHaveBeenCalled()
+    expect(fetchMock).not.toHaveBeenCalled()
+    expect(result).toMatchObject({
+      id: 'workflow_executor_child-workflow',
+      name: 'Workflow Executor',
+      description: 'Execute another workflow',
+    })
+  })
+})
+
 /**
  * The agent block's tuning-level fields accept variable and environment references, so any
  * message that echoes a caller-supplied level can otherwise carry whatever that reference
@@ -1893,5 +2044,29 @@ describe('describeModelLevel', () => {
   it('reports an absent level without throwing', () => {
     expect(describeModelLevel(undefined)).toBe('(unset)')
     expect(describeModelLevel('')).toBe('(unset)')
+  })
+})
+
+describe('findProviderFromModel', () => {
+  it('resolves a chat model to its declaring provider', () => {
+    expect(findProviderFromModel('claude-sonnet-5')).toBe('anthropic')
+    expect(findProviderFromModel('gpt-5.2')).toBe('openai')
+  })
+
+  it('is case-insensitive, like getProviderFromModel', () => {
+    expect(findProviderFromModel('Claude-Sonnet-5')).toBe('anthropic')
+  })
+
+  it('returns null for ids the registry does not declare, instead of guessing ollama', () => {
+    /* The registry holds chat models only. Speech, image, video and embedding
+       ids reach `model` subblocks too, and a permission gate must not read them
+       as Ollama models — see isModelUsable. */
+    for (const id of ['whisper-1', 'dall-e-3', 'veo-3.1', 'embed-v4.0', 'tts-1']) {
+      expect(findProviderFromModel(id)).toBeNull()
+    }
+  })
+
+  it('still lets getProviderFromModel fall back to ollama for those ids', () => {
+    expect(getProviderFromModel('whisper-1')).toBe('ollama')
   })
 })

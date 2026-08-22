@@ -14,6 +14,33 @@ export const MailgunBlock: BlockConfig<SendMessageResult> = {
   integrationType: IntegrationType.Email,
   bgColor: '#C12126',
   icon: MailgunIcon,
+  canvasPresentation: {
+    defaultTitle: 'Mailgun',
+    sentences: {
+      byOperation: {
+        send_message: [
+          { text: 'Send', field: 'subject', core: true },
+          { text: 'to', field: 'to', core: true },
+        ],
+        get_message: [{ text: 'Fetch stored message', field: 'messageKey', core: true }],
+        list_messages: [
+          { text: 'List message events for', field: 'domain', core: true },
+          { text: ', of type', field: 'event' },
+        ],
+        create_mailing_list: [
+          { text: 'Create mailing list', field: 'address', core: true },
+          { text: ', named', field: 'name' },
+        ],
+        get_mailing_list: [{ text: 'Fetch mailing list', field: 'address', core: true }],
+        add_list_member: [
+          { text: 'Add', field: 'memberAddress', core: true },
+          { text: 'to mailing list', field: 'address' },
+        ],
+        list_domains: ['List all domains'],
+        get_domain: [{ text: 'Fetch domain', field: 'domain', core: true }],
+      },
+    },
+  },
 
   subBlocks: [
     {
@@ -66,6 +93,7 @@ export const MailgunBlock: BlockConfig<SendMessageResult> = {
     {
       id: 'to',
       title: 'To Email',
+      canvasNoun: 'a recipient',
       type: 'short-input',
       placeholder: 'recipient@example.com',
       condition: { field: 'operation', value: 'send_message' },

@@ -7,8 +7,13 @@ import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import type { AgiloftRecordResponse } from '@/tools/agiloft/types'
-import { buildReadRecordUrl } from '@/tools/agiloft/utils'
-import { executeAgiloftRequest } from '@/tools/agiloft/utils.server'
+import { alrestRecordUrl, alrestSearchUrl, parseFieldList } from '@/tools/agiloft/utils'
+import {
+  type AgiloftRequestConfig,
+  executeAlrestRequest,
+  isAgiloftRefusal,
+  readAlrestJson,
+} from '@/tools/agiloft/utils.server'
 
 export const dynamic = 'force-dynamic'
 
@@ -49,39 +54,104 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     if (!parsed.success) return parsed.response
     const params = parsed.data.body
 
-    const result = await executeAgiloftRequest<AgiloftRecordResponse>(
+    /**
+     * A full record is large — a contract runs to roughly 184 KB — so when the
+     * caller names the fields they want, the read goes through the search
+     * endpoint, which is the only route that accepts a `field` projection.
+     * Without a field list there is nothing to project and the plain record
+     * fetch is cheaper.
+     */
+    const requestedFields = parseFieldList(params.fields)
+    const recordId = params.recordId.trim()
+
+    /**
+     * The projected read puts the ID inside a search predicate, so anything
+     * other than a plain number could change which records the query selects.
+     * Agiloft record IDs are integers, so reject everything else rather than
+     * trying to escape it.
+     */
+    if (requestedFields && !/^\d+$/.test(recordId)) {
+      return NextResponse.json({
+        success: false,
+        output: { id: null, fields: {} },
+        error: `Record ID must be numeric to read specific fields, got "${recordId}"`,
+      })
+    }
+
+    const result = await executeAlrestRequest<AgiloftRecordResponse>(
       params,
-      (base) => ({
-        url: buildReadRecordUrl(base, params),
-        method: 'GET',
-        headers: { Accept: 'application/json' },
-      }),
-      async (response) => {
-        if (!response.ok) {
-          const errorText = await response.text()
+      (base): AgiloftRequestConfig => {
+        if (!requestedFields) {
           return {
-            success: false,
-            output: { id: null, fields: {} },
-            error: `Agiloft error: ${response.status} - ${errorText}`,
+            url: alrestRecordUrl(base, params.table, params.recordId),
+            method: 'GET',
+            headers: { Accept: 'application/json' },
           }
         }
 
-        const data = (await response.json()) as Record<string, unknown>
-        const result = (data.result ?? data) as Record<string, unknown>
-        const id = result.id ?? result.ID ?? data.id ?? data.ID ?? null
-
         return {
-          success: data.success !== false,
-          output: {
-            id: id != null ? String(id) : null,
-            fields: result ?? {},
-          },
+          url: alrestSearchUrl(base, params.table),
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+          body: JSON.stringify({
+            field: requestedFields.includes('id') ? requestedFields : ['id', ...requestedFields],
+            query: `id=${recordId}`,
+          }),
+        }
+      },
+      async (response) => {
+        const payload = await readAlrestJson<Record<string, unknown> | Record<string, unknown>[]>(
+          response
+        )
+
+        /**
+         * Match on ID rather than taking the first row: a search answers with a
+         * result set, and returning an unrelated record as a successful read
+         * would be worse than failing.
+         */
+        /**
+         * Compare numerically: Agiloft echoes the canonical ID, so a request
+         * for `00123` comes back as `123` and a string compare would discard
+         * the very record that was asked for.
+         */
+        const record = Array.isArray(payload)
+          ? payload.find((row) => {
+              const rowId = String(row?.id ?? '')
+              return /^\d+$/.test(rowId) && BigInt(rowId) === BigInt(recordId)
+            })
+          : payload
+
+        if (!record) {
+          return {
+            success: false,
+            output: { id: null, fields: {} },
+            error: `Agiloft returned no record for ID ${recordId}`,
+          }
+        }
+
+        const id = record.id
+        return {
+          success: true,
+          output: { id: id == null ? null : String(id), fields: record },
         }
       }
     )
 
     return NextResponse.json(result)
   } catch (error) {
+    /**
+     * A refusal Agiloft already decided on is a final answer, not a transient
+     * fault — returning 500 would make the tool runner retry it.
+     */
+    if (isAgiloftRefusal(error)) {
+      logger.warn(`[${requestId}] Agiloft refused the request`, { error: error.message })
+      return NextResponse.json({
+        success: false,
+        output: { id: null, fields: {} },
+        error: error.message,
+      })
+    }
+
     logger.error(`[${requestId}] Error reading Agiloft record:`, error)
 
     return NextResponse.json({ success: false, error: toError(error).message }, { status: 500 })

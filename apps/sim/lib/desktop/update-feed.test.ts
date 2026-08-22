@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import {
-  channelForHostname,
+  channelForDeploymentEnvironment,
   channelOfVersion,
+  DESKTOP_PRERELEASE_REPOSITORY,
+  DESKTOP_STABLE_RELEASE_REPOSITORY,
   MANIFEST_ASSET_NAME,
+  releaseRepositoryForChannel,
   rewriteManifestUrls,
   selectReleaseForChannel,
 } from '@/lib/desktop/update-feed'
@@ -22,62 +25,85 @@ function release(
   }
 }
 
-describe('channelForHostname', () => {
-  it('maps hosted environments to their channels', () => {
-    expect(channelForHostname('dev.sim.ai')).toBe('alpha')
-    expect(channelForHostname('www.dev.sim.ai')).toBe('alpha')
-    expect(channelForHostname('staging.sim.ai')).toBe('beta')
-    expect(channelForHostname('www.staging.sim.ai')).toBe('beta')
-    expect(channelForHostname('sim.ai')).toBe('latest')
-    expect(channelForHostname('www.sim.ai')).toBe('latest')
+describe('channelForDeploymentEnvironment', () => {
+  it('maps hosted deployment environments to their channels', () => {
+    expect(channelForDeploymentEnvironment('dev')).toBe('dev')
+    expect(channelForDeploymentEnvironment('staging')).toBe('staging')
+    expect(channelForDeploymentEnvironment('production')).toBe('latest')
   })
 
-  it('defaults self-hosted and local deployments to stable', () => {
-    expect(channelForHostname('sim.example.com')).toBe('latest')
-    expect(channelForHostname('localhost')).toBe('latest')
+  it('defaults self-hosted, local, and unknown deployments to stable', () => {
+    expect(channelForDeploymentEnvironment(undefined)).toBe('latest')
+    expect(channelForDeploymentEnvironment('')).toBe('latest')
+    expect(channelForDeploymentEnvironment('unknown')).toBe('latest')
   })
 })
 
 describe('channelOfVersion', () => {
   it('classifies versions by prerelease tag', () => {
     expect(channelOfVersion('0.5.24')).toBe('latest')
-    expect(channelOfVersion('0.5.25-beta.3')).toBe('beta')
-    expect(channelOfVersion('0.5.25-alpha.412')).toBe('alpha')
+    expect(channelOfVersion('0.5.25-staging.3')).toBe('staging')
+    expect(channelOfVersion('0.5.25-dev.412')).toBe('dev')
+  })
+
+  it('classifies legacy alpha and beta tags with their environment', () => {
+    expect(channelOfVersion('0.5.25-alpha.412')).toBe('dev')
+    expect(channelOfVersion('0.5.25-beta.3')).toBe('staging')
+  })
+})
+
+describe('releaseRepositoryForChannel', () => {
+  it('keeps stable releases in sim and prereleases in the release-only repository', () => {
+    expect(releaseRepositoryForChannel('latest')).toBe(DESKTOP_STABLE_RELEASE_REPOSITORY)
+    expect(releaseRepositoryForChannel('dev')).toBe(DESKTOP_PRERELEASE_REPOSITORY)
+    expect(releaseRepositoryForChannel('staging')).toBe(DESKTOP_PRERELEASE_REPOSITORY)
   })
 })
 
 describe('selectReleaseForChannel', () => {
   const releases = [
-    release('v0.5.25-alpha.412'),
+    release('v0.5.25-dev.412'),
     release('v0.5.24'),
-    release('v0.5.25-beta.2'),
+    release('v0.5.25-staging.2'),
     release('v0.5.23'),
-    release('v0.5.26-alpha.1', { draft: true }),
+    release('v0.5.26-dev.1', { draft: true }),
   ]
 
   it('offers stable-only to the latest channel', () => {
     expect(selectReleaseForChannel(releases, 'latest')?.tag_name).toBe('v0.5.24')
   })
 
-  it('offers only beta builds to the beta channel', () => {
-    expect(selectReleaseForChannel(releases, 'beta')?.tag_name).toBe('v0.5.25-beta.2')
+  it('offers only staging builds to the staging stream', () => {
+    expect(selectReleaseForChannel(releases, 'staging')?.tag_name).toBe('v0.5.25-staging.2')
   })
 
-  it('offers only alpha builds to the alpha channel, never beta builds', () => {
-    // Dev and staging both cut prereleases of the same next core version;
-    // semver ranks beta above alpha there, so cross-channel leakage would
-    // put staging builds on dev clients.
-    expect(selectReleaseForChannel(releases, 'alpha')?.tag_name).toBe('v0.5.25-alpha.412')
+  it('offers only dev builds to the dev stream, never staging builds', () => {
+    expect(selectReleaseForChannel(releases, 'dev')?.tag_name).toBe('v0.5.25-dev.412')
+  })
+
+  it('keeps already-published alpha and beta releases eligible during migration', () => {
+    expect(selectReleaseForChannel([release('v0.5.25-alpha.412')], 'dev')?.tag_name).toBe(
+      'v0.5.25-alpha.412'
+    )
+    expect(selectReleaseForChannel([release('v0.5.25-beta.2')], 'staging')?.tag_name).toBe(
+      'v0.5.25-beta.2'
+    )
   })
 
   it('never serves stable prod-identity builds to prerelease channels', () => {
-    // Alpha/beta are internal channels with their own app identity (Sim Dev /
+    // Dev/staging are internal streams with their own app identity (Sim Dev /
     // Sim Staging); a stable Sim.app artifact can't be applied by those
     // shells, so a newer stable must not shadow the channel's own builds.
     const withNewStable = [...releases, release('v0.5.25')]
-    expect(selectReleaseForChannel(withNewStable, 'alpha')?.tag_name).toBe('v0.5.25-alpha.412')
-    expect(selectReleaseForChannel(withNewStable, 'beta')?.tag_name).toBe('v0.5.25-beta.2')
+    expect(selectReleaseForChannel(withNewStable, 'dev')?.tag_name).toBe('v0.5.25-dev.412')
+    expect(selectReleaseForChannel(withNewStable, 'staging')?.tag_name).toBe('v0.5.25-staging.2')
     expect(selectReleaseForChannel(withNewStable, 'latest')?.tag_name).toBe('v0.5.25')
+  })
+
+  it('reports no production release when only prereleases exist', () => {
+    expect(
+      selectReleaseForChannel([release('v0.5.25-dev.412'), release('v0.5.25-staging.2')], 'latest')
+    ).toBeNull()
   })
 
   it('skips stable-tagged releases flagged prerelease on the latest channel', () => {
@@ -89,10 +115,10 @@ describe('selectReleaseForChannel', () => {
     // A release whose build failed (or is mid-upload) must not take the
     // channel down; the previous good release keeps serving.
     const withBrokenNewest = [
-      release('v0.5.25-alpha.413', { assets: [{ name: 'Sim-0.5.25-alpha.413-universal.dmg' }] }),
-      release('v0.5.25-alpha.412'),
+      release('v0.5.25-dev.413', { assets: [{ name: 'Sim-0.5.25-dev.413-universal.dmg' }] }),
+      release('v0.5.25-dev.412'),
     ]
-    expect(selectReleaseForChannel(withBrokenNewest, 'alpha')?.tag_name).toBe('v0.5.25-alpha.412')
+    expect(selectReleaseForChannel(withBrokenNewest, 'dev')?.tag_name).toBe('v0.5.25-dev.412')
   })
 
   it('tolerates release listings without asset data', () => {
@@ -101,15 +127,16 @@ describe('selectReleaseForChannel', () => {
   })
 
   it('skips drafts and unparseable tags', () => {
-    expect(selectReleaseForChannel([release('v0.5.26-alpha.1', { draft: true })], 'alpha')).toBe(
-      null
-    )
-    expect(selectReleaseForChannel([release('nightly')], 'alpha')).toBe(null)
+    expect(selectReleaseForChannel([release('v0.5.26-dev.1', { draft: true })], 'dev')).toBe(null)
+    expect(selectReleaseForChannel([release('nightly')], 'dev')).toBe(null)
   })
 })
 
 describe('rewriteManifestUrls', () => {
-  it('rewrites relative url and path entries to absolute asset URLs', () => {
+  it.each([
+    ['stable', DESKTOP_STABLE_RELEASE_REPOSITORY],
+    ['prerelease', DESKTOP_PRERELEASE_REPOSITORY],
+  ])('rewrites relative url and path entries to absolute %s asset URLs', (_kind, repository) => {
     const manifest = [
       'version: 0.5.24',
       'files:',
@@ -120,18 +147,20 @@ describe('rewriteManifestUrls', () => {
       'sha512: abc',
       "releaseDate: '2026-07-23T00:00:00.000Z'",
     ].join('\n')
-    const rewritten = rewriteManifestUrls(manifest, 'v0.5.24')
+    const rewritten = rewriteManifestUrls(manifest, 'v0.5.24', repository)
     expect(rewritten).toContain(
-      '  - url: https://github.com/simstudioai/sim/releases/download/v0.5.24/Sim-0.5.24-universal-mac.zip'
+      `  - url: https://github.com/${repository}/releases/download/v0.5.24/Sim-0.5.24-universal-mac.zip`
     )
     expect(rewritten).toContain(
-      'path: https://github.com/simstudioai/sim/releases/download/v0.5.24/Sim-0.5.24-universal-mac.zip'
+      `path: https://github.com/${repository}/releases/download/v0.5.24/Sim-0.5.24-universal-mac.zip`
     )
     expect(rewritten).toContain('sha512: abc')
   })
 
   it('leaves already-absolute URLs alone', () => {
     const manifest = '  - url: https://cdn.example.com/Sim.zip'
-    expect(rewriteManifestUrls(manifest, 'v0.5.24')).toBe(manifest)
+    expect(rewriteManifestUrls(manifest, 'v0.5.24', DESKTOP_STABLE_RELEASE_REPOSITORY)).toBe(
+      manifest
+    )
   })
 })

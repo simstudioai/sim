@@ -7,10 +7,10 @@ import type { EnrichmentProviderOutcome, EnrichmentRunDetail } from '@/lib/table
 import {
   adjustBgForContrast,
   getBlockIconAndColor,
-  iconColorClass,
 } from '@/app/workspace/[workspaceId]/logs/components/log-details/utils'
 import { useLogDetailsResize } from '@/app/workspace/[workspaceId]/logs/hooks'
 import { formatDate } from '@/app/workspace/[workspaceId]/logs/utils'
+import { getTileIconColorClass } from '@/blocks/icon-color'
 import { useEnrichmentDetail } from '@/hooks/queries/tables'
 import { formatCost } from '@/providers/utils'
 import { useLogDetailsUIStore } from '@/stores/logs/store'
@@ -255,7 +255,9 @@ function EnrichmentDetailsContent({
                       style={{ background: bgColor }}
                     >
                       {ProviderIcon && (
-                        <ProviderIcon className={cn('size-[11px]', iconColorClass(bgColor))} />
+                        <ProviderIcon
+                          className={cn('size-[11px]', getTileIconColorClass(bgColor))}
+                        />
                       )}
                     </div>
                     <span className='min-w-0 flex-1 truncate text-[var(--text-secondary)] text-caption'>

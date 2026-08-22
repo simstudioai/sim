@@ -10,6 +10,8 @@ const {
   mockDownload,
   mockDelete,
   mockDeleteIfExists,
+  mockGetBlockList,
+  mockGetProperties,
   mockGetBlockBlobClient,
   mockGetContainerClient,
   mockFromConnectionString,
@@ -17,13 +19,14 @@ const {
   mockGenerateBlobSASQueryParameters,
   mockBlobSASPermissionsParse,
   mockCommitBlockList,
-  mockGetProperties,
   mockSetMetadata,
 } = vi.hoisted(() => ({
   mockUpload: vi.fn(),
   mockDownload: vi.fn(),
   mockDelete: vi.fn(),
   mockDeleteIfExists: vi.fn(),
+  mockGetBlockList: vi.fn(),
+  mockGetProperties: vi.fn(),
   mockGetBlockBlobClient: vi.fn(),
   mockGetContainerClient: vi.fn(),
   mockFromConnectionString: vi.fn(),
@@ -31,7 +34,6 @@ const {
   mockGenerateBlobSASQueryParameters: vi.fn(),
   mockBlobSASPermissionsParse: vi.fn(),
   mockCommitBlockList: vi.fn(),
-  mockGetProperties: vi.fn(),
   mockSetMetadata: vi.fn(),
 }))
 
@@ -60,11 +62,15 @@ import {
   abortMultipartUpload,
   commitBlobBlockList,
   completeMultipartUpload,
+  deleteBlobObjectVersion,
   deleteFromBlob,
   downloadFromBlob,
+  getBlobPresignedUploadUrl,
+  getMultipartPartUrls,
   getPresignedUrl,
   headBlobObject,
   initiateMultipartUpload,
+  listMultipartParts,
   parseConnectionString,
   uploadToBlob,
 } from '@/lib/uploads/providers/blob/client'
@@ -82,6 +88,7 @@ describe('Azure Blob Storage Client', () => {
       download: mockDownload,
       delete: mockDelete,
       deleteIfExists: mockDeleteIfExists,
+      getBlockList: mockGetBlockList,
       getProperties: mockGetProperties,
       setMetadata: mockSetMetadata,
       url: 'https://test.blob.core.windows.net/container/test-file',
@@ -146,6 +153,108 @@ describe('Azure Blob Storage Client', () => {
       expect(mockGetContainerClient).toHaveBeenCalledWith('customcontainer')
       expect(result.name).toBe(fileName)
       expect(result.type).toBe(contentType)
+    })
+  })
+
+  describe('direct upload primitives', () => {
+    const customConfig = {
+      containerName: 'testcontainer',
+      accountName: 'testaccount',
+      accountKey: 'testkey',
+      connectionString:
+        'DefaultEndpointsProtocol=https;AccountName=testaccount;AccountKey=testkey;EndpointSuffix=core.windows.net',
+    }
+
+    it('signs a create-only PUT with the required blob and metadata headers', async () => {
+      mockBlobSASPermissionsParse.mockReturnValueOnce('c')
+
+      const result = await getBlobPresignedUploadUrl({
+        key: 'workspace/workspace-1/file.bin',
+        contentType: 'application/octet-stream',
+        metadata: { uploadId: 'upload-1', purpose: 'workspace_file' },
+        customConfig,
+        expiresIn: 600,
+      })
+
+      expect(mockBlobSASPermissionsParse).toHaveBeenCalledWith('c')
+      expect(result).toEqual({
+        url: expect.stringContaining('?sv=2021-06-08'),
+        headers: {
+          'Content-Type': 'application/octet-stream',
+          'If-None-Match': '*',
+          'x-ms-blob-type': 'BlockBlob',
+          'x-ms-blob-content-type': 'application/octet-stream',
+          'x-ms-meta-uploadId': 'upload-1',
+          'x-ms-meta-purpose': 'workspace_file',
+        },
+      })
+    })
+
+    it('signs multipart part URLs to the lifetime the caller passed', async () => {
+      const expiresOn = new Date('2026-01-01T00:02:00.000Z')
+
+      await getMultipartPartUrls('workspace/workspace-1/file.bin', [1], customConfig, expiresOn)
+
+      // The caller owns the lifetime and advertises the matching `expiresAt`; a window this
+      // function picks for itself is how the advertised expiry and the real SAS token drift.
+      expect(mockGenerateBlobSASQueryParameters).toHaveBeenCalledWith(
+        expect.objectContaining({ expiresOn }),
+        expect.anything()
+      )
+    })
+
+    it('returns only completed objects as usable upload identities', async () => {
+      mockGetProperties.mockResolvedValueOnce({
+        contentLength: 3,
+        contentType: 'application/octet-stream',
+        metadata: { uploadid: 'upload-1' },
+        etag: '"etag-1"',
+        copyStatus: 'success',
+      })
+
+      await expect(headBlobObject('workspace/workspace-1/file.bin', customConfig)).resolves.toEqual(
+        {
+          size: 3,
+          contentType: 'application/octet-stream',
+          uploadId: 'upload-1',
+          version: '"etag-1"',
+          metadata: { uploadid: 'upload-1' },
+        }
+      )
+
+      mockGetProperties.mockResolvedValueOnce({ copyStatus: 'pending' })
+      await expect(headBlobObject('workspace/workspace-1/file.bin', customConfig)).rejects.toThrow(
+        'Blob copy for workspace/workspace-1/file.bin is pending'
+      )
+    })
+
+    it('lists provider-authoritative uncommitted blocks', async () => {
+      mockGetBlockList.mockResolvedValueOnce({
+        uncommittedBlocks: [
+          { name: Buffer.from('block-000001').toString('base64'), size: 8 },
+          { name: Buffer.from('block-000002').toString('base64'), size: 3 },
+        ],
+      })
+
+      await expect(
+        listMultipartParts('workspace/workspace-1/file.bin', customConfig)
+      ).resolves.toEqual([
+        { partNumber: 1, size: 8 },
+        { partNumber: 2, size: 3 },
+      ])
+      expect(mockGetBlockList).toHaveBeenCalledWith('uncommitted')
+    })
+
+    it('deletes the upload object only when its ETag still matches', async () => {
+      mockDeleteIfExists.mockResolvedValueOnce({})
+
+      await deleteBlobObjectVersion({
+        key: 'workspace/workspace-1/file.bin',
+        etag: '"etag-1"',
+        customConfig,
+      })
+
+      expect(mockDeleteIfExists).toHaveBeenCalledWith({ conditions: { ifMatch: '"etag-1"' } })
     })
   })
 
@@ -259,6 +368,15 @@ describe('Azure Blob Storage Client', () => {
 
       expect(mockGetBlockBlobClient).toHaveBeenCalledWith(testKey)
       expect(mockDeleteIfExists).toHaveBeenCalled()
+    })
+  })
+
+  describe('abortMultipartUpload', () => {
+    it('leaves the blob key untouched while Azure garbage-collects uncommitted blocks', async () => {
+      await abortMultipartUpload('test-file-key', 'upload-1')
+
+      expect(mockGetBlockBlobClient).toHaveBeenCalledWith('test-file-key')
+      expect(mockDeleteIfExists).not.toHaveBeenCalled()
     })
   })
 

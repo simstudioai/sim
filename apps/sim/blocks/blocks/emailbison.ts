@@ -45,6 +45,49 @@ export const EmailBisonBlock: BlockConfig<EmailBisonResponse> = {
   bgColor: '#FB7A22',
   iconColor: '#FB7A22',
   icon: EmailBisonIcon,
+  canvasPresentation: {
+    defaultTitle: 'Email Bison',
+    sentences: {
+      byOperation: {
+        list_leads: [
+          'List leads',
+          { text: ', matching', field: 'search' },
+          { text: ', with campaign status', field: 'campaignStatus' },
+        ],
+        get_lead: [{ text: 'Fetch lead', field: 'leadId', core: true }],
+        create_lead: [
+          { text: 'Create a lead for', field: 'email', core: true },
+          { text: ', at', field: 'company' },
+        ],
+        update_lead: [{ text: 'Update lead', field: 'leadId', core: true }],
+        list_campaigns: ['List all campaigns'],
+        create_campaign: [{ text: 'Create campaign', field: 'campaignName', core: true }],
+        update_campaign: [
+          { text: 'Update settings for campaign', field: 'campaignId', core: true },
+          { text: ', capping sends at', field: 'maxEmailsPerDay', after: 'per day' },
+        ],
+        update_campaign_status: [
+          { text: 'Set campaign', field: 'campaignId', core: true },
+          { text: 'to', field: 'action' },
+        ],
+        attach_leads_to_campaign: [
+          { text: 'Add leads', field: 'leadIds', core: true },
+          { text: 'to campaign', field: 'campaignId', core: true },
+        ],
+        list_replies: [
+          'List replies',
+          { text: ', on campaign', field: 'campaignId' },
+          { text: ', marked', field: 'replyStatus' },
+        ],
+        list_tags: ['List all tags'],
+        create_tag: [{ text: 'Create tag', field: 'tagName', core: true }],
+        attach_tags_to_leads: [
+          { text: 'Attach tags', field: 'tagIds', core: true },
+          { text: 'to leads', field: 'leadIds', core: true },
+        ],
+      },
+    },
+  },
   authMode: AuthMode.ApiKey,
   triggers: {
     enabled: true,

@@ -3,6 +3,9 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+/** Obvious non-secret so credential scanners do not flag these fixtures. */
+const PLACEHOLDER_PASSWORD = 'not-a-real-password'
+
 const { mockValidateUrlWithDNS, mockSecureFetch } = vi.hoisted(() => ({
   mockValidateUrlWithDNS: vi.fn(),
   mockSecureFetch: vi.fn(),
@@ -19,7 +22,7 @@ const baseParams = {
   instanceUrl: 'https://example.agiloft.com',
   knowledgeBase: 'demo',
   login: 'admin',
-  password: 'secret',
+  password: PLACEHOLDER_PASSWORD,
   table: 'contracts',
 }
 
@@ -30,7 +33,7 @@ function mockResponse(body: { ok?: boolean; status?: number; json?: unknown; tex
     statusText: '',
     headers: { get: () => null, getSetCookie: () => [], toRecord: () => ({}) },
     body: null,
-    text: async () => body.text ?? '',
+    text: async () => body.text ?? JSON.stringify(body.json ?? {}),
     json: async () => body.json ?? {},
     arrayBuffer: async () => new ArrayBuffer(0),
   }
@@ -74,11 +77,18 @@ describe('executeAgiloftRequest', () => {
 
     const calls = mockSecureFetch.mock.calls
     expect(calls).toHaveLength(3)
-    expect(calls[0][0]).toBe(
-      'https://example.agiloft.com/ewws/EWLogin?$KB=demo&$login=admin&$password=secret'
-    )
+    // Credentials go in a form body, never the URL.
+    expect(calls[0][0]).toBe('https://example.agiloft.com/ewws/EWLogin')
+    expect(calls[0][2]).toMatchObject({
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    })
+    const sent = new URLSearchParams(calls[0][2].body as string)
+    expect(sent.get('$KB')).toBe('demo')
+    expect(sent.get('$table')).toBe('contracts')
+    expect(sent.get('$lang')).toBe('en')
     expect(calls[1][0]).toBe('https://example.agiloft.com/ewws/REST/demo/contracts/42')
-    expect(calls[2][0]).toBe('https://example.agiloft.com/ewws/EWLogout?$KB=demo')
+    expect(calls[2][0]).toBe('https://example.agiloft.com/ewws/EWLogout?$KB=demo&$lang=en')
 
     for (const call of calls) {
       expect(call[1]).toBe('203.0.113.10')

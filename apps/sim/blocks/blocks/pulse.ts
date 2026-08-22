@@ -9,6 +9,10 @@ import {
 import { createVersionedToolSelector, normalizeFileInput } from '@/blocks/utils'
 import type { PulseParserOutput } from '@/tools/pulse/types'
 
+const DOCUMENT_FIELD = ['fileUpload', 'filePath'] as const
+/* v2 swaps the advanced URL input for a file reference, so the pair differs. */
+const DOCUMENT_V2_FIELD = ['fileUpload', 'fileReference'] as const
+
 export const PulseBlock: BlockConfig<PulseParserOutput> = {
   type: 'pulse',
   name: 'Pulse',
@@ -23,6 +27,16 @@ export const PulseBlock: BlockConfig<PulseParserOutput> = {
   integrationType: IntegrationType.AI,
   bgColor: '#FFFFFF',
   icon: PulseIcon,
+  canvasPresentation: {
+    defaultTitle: 'Pulse',
+    sentences: {
+      default: [
+        { text: 'Extract text from', field: DOCUMENT_FIELD, core: true },
+        { text: ', pages', field: 'pages' },
+        { text: ', chunked by', field: 'chunking' },
+      ],
+    },
+  },
   subBlocks: [
     {
       id: 'fileUpload',
@@ -169,6 +183,16 @@ export const PulseV2Block: BlockConfig<PulseParserOutput> = {
   hideFromToolbar: false,
   longDescription:
     'Integrate Pulse into the workflow. Extract text from PDF documents, images, and Office files via upload or file references.',
+  canvasPresentation: {
+    defaultTitle: 'Pulse',
+    sentences: {
+      default: [
+        { text: 'Extract text from', field: DOCUMENT_V2_FIELD, core: true },
+        { text: ', pages', field: 'pages' },
+        { text: ', chunked by', field: 'chunking' },
+      ],
+    },
+  },
   subBlocks: pulseV2SubBlocks,
   tools: {
     access: ['pulse_parser_v2'],

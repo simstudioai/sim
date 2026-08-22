@@ -19,7 +19,6 @@ import type {
   JsonValue,
   Predicate,
   Sort,
-  SortDirection,
   SortRule,
   SortSpec,
   TablePredicate,
@@ -159,12 +158,6 @@ export function isTablePredicate(value: Filter | TablePredicate): value is Table
   return ('all' in v && Array.isArray(v.all)) || ('any' in v && Array.isArray(v.any))
 }
 
-/** Converts a single UI sort rule to a Sort object for API queries. */
-export function sortRuleToSort(rule: SortRule | null): Sort | null {
-  if (!rule || !rule.column) return null
-  return { [rule.column]: rule.direction }
-}
-
 /** Converts multiple UI sort rules to a Sort object. */
 export function sortRulesToSort(rules: SortRule[]): Sort | null {
   if (rules.length === 0) return null
@@ -177,17 +170,6 @@ export function sortRulesToSort(rules: SortRule[]): Sort | null {
   }
 
   return Object.keys(sort).length > 0 ? sort : null
-}
-
-/** Converts a Sort object back to UI sort rules. */
-export function sortToRules(sort: Sort | null): SortRule[] {
-  if (!sort) return []
-
-  return Object.entries(sort).map(([column, direction]) => ({
-    id: generateShortId(),
-    column,
-    direction: normalizeSortDirection(direction),
-  }))
 }
 
 function toRuleValue(operator: string, value: string, keepAsText = false): JsonValue {
@@ -210,7 +192,7 @@ function mergeConditions(existing: unknown, incoming: unknown): Record<string, J
 }
 
 function toOperatorObject(value: unknown): Record<string, JsonValue> {
-  if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
+  if (isRecordLike(value)) {
     return { ...(value as Record<string, JsonValue>) }
   }
   return { $eq: value as JsonValue }
@@ -324,13 +306,18 @@ function formatValueForBuilder(value: JsonValue): string {
   return String(value)
 }
 
-function normalizeSortDirection(direction: string): SortDirection {
-  return direction === 'desc' ? 'desc' : 'asc'
-}
-
 /* ----------------------------- v2 grammar ----------------------------- */
 
-const VALUELESS_OPS = new Set<FilterOp>(['isEmpty', 'isNotEmpty', 'isNull', 'isNotNull'])
+/** Operators that carry no value — the full v2 set, a superset of the legacy
+ *  `VALUELESS_OPERATORS` in constants.ts (which the `$`-grammar serializer
+ *  still reads and must not grow). Widened to `ReadonlySet<string>` so UI rule
+ *  operators can be tested without a cast. */
+export const VALUELESS_OPS: ReadonlySet<string> = new Set<FilterOp>([
+  'isEmpty',
+  'isNotEmpty',
+  'isNull',
+  'isNotNull',
+])
 
 function ruleToPredicate(rule: FilterRule, keepAsText = false): Predicate {
   const op = rule.operator as FilterOp

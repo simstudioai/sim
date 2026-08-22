@@ -7,12 +7,14 @@ import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { secureFetchWithPinnedIP } from '@/lib/core/security/input-validation.server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { buildRetrieveAttachmentUrl } from '@/tools/agiloft/utils'
+import { resolveEffectiveMimeType } from '@/lib/uploads/utils/file-utils'
+import { isEwRestBody } from '@/tools/agiloft/ewrest'
 import {
-  agiloftLoginPinned,
-  agiloftLogoutPinned,
-  resolveAgiloftInstance,
-} from '@/tools/agiloft/utils.server'
+  AGILOFT_MAX_ATTACHMENT_BYTES,
+  buildRetrieveAttachmentUrl,
+  describeAgiloftError,
+} from '@/tools/agiloft/utils'
+import { resolveAgiloftInstance } from '@/tools/agiloft/utils.server'
 
 export const dynamic = 'force-dynamic'
 
@@ -63,10 +65,15 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ success: false, error: toError(error).message }, { status: 400 })
     }
 
-    const token = await agiloftLoginPinned(data, resolvedIP)
     const base = data.instanceUrl.replace(/\/$/, '')
 
-    try {
+    {
+      /**
+       * EWRetrieve is the documented endpoint for this: GET on the legacy
+       * surface, authenticating from inline credentials, answering with the
+       * raw file bytes. It needs no login/logout pair, which also avoids two
+       * extra round trips against Agiloft's one-second per-call delay.
+       */
       const url = buildRetrieveAttachmentUrl(base, data)
 
       logger.info(`[${requestId}] Downloading attachment from Agiloft`, {
@@ -77,9 +84,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
       const agiloftResponse = await secureFetchWithPinnedIP(url, resolvedIP, {
         method: 'GET',
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+        maxResponseBytes: AGILOFT_MAX_ATTACHMENT_BYTES,
       })
 
       if (!agiloftResponse.ok) {
@@ -88,7 +93,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           `[${requestId}] Agiloft retrieve error: ${agiloftResponse.status} - ${errorText}`
         )
         return NextResponse.json(
-          { success: false, error: `Agiloft error: ${agiloftResponse.status} - ${errorText}` },
+          {
+            success: false,
+            error: `Agiloft error ${agiloftResponse.status}: ${describeAgiloftError(errorText)}`,
+          },
           { status: agiloftResponse.status }
         )
       }
@@ -107,10 +115,31 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       const arrayBuffer = await agiloftResponse.arrayBuffer()
       const fileBuffer = Buffer.from(arrayBuffer)
 
+      /**
+       * A refusal comes back as an EWREST assignment or a plain-text error
+       * rather than file bytes, so a body that parses as one is an error
+       * document, not an attachment.
+       */
+      if (isEwRestBody(fileBuffer.subarray(0, 512).toString('utf8'))) {
+        const envelope = fileBuffer.toString('utf8').slice(0, 300)
+        logger.error(`[${requestId}] Agiloft refused the attachment retrieve`, { envelope })
+        return NextResponse.json(
+          { success: false, error: `Agiloft error: ${envelope}` },
+          { status: 502 }
+        )
+      }
+
+      /**
+       * Agiloft labels most attachments application/octet-stream whatever they
+       * are, so downstream consumers keyed on the header mis-handle them. The
+       * filename Agiloft sends in Content-Disposition carries the real type.
+       */
+      const mimeType = resolveEffectiveMimeType(contentType, fileName)
+
       logger.info(`[${requestId}] Attachment downloaded successfully`, {
         name: fileName,
         size: fileBuffer.length,
-        mimeType: contentType,
+        mimeType,
       })
 
       const base64Data = fileBuffer.toString('base64')
@@ -120,14 +149,12 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         output: {
           file: {
             name: fileName,
-            mimeType: contentType,
+            mimeType,
             data: base64Data,
             size: fileBuffer.length,
           },
         },
       })
-    } finally {
-      await agiloftLogoutPinned(data.instanceUrl, data.knowledgeBase, token, resolvedIP)
     }
   } catch (error) {
     logger.error(`[${requestId}] Error retrieving Agiloft attachment:`, error)

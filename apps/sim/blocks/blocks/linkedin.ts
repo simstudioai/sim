@@ -17,6 +17,18 @@ export const LinkedInBlock: BlockConfig<LinkedInResponse> = {
   bgColor: '#0072B1',
   iconColor: '#0072B1',
   icon: LinkedInIcon,
+  canvasPresentation: {
+    defaultTitle: 'LinkedIn',
+    sentences: {
+      byOperation: {
+        share_post: [
+          { text: 'Post', field: 'text', after: 'to your feed', core: true },
+          { text: ', visible to', field: 'visibility' },
+        ],
+        get_profile: ['Read your profile'],
+      },
+    },
+  },
   subBlocks: [
     // Operation selection
     {

@@ -5,6 +5,9 @@ import { AuthMode, IntegrationType } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
 import type { DataverseResponse } from '@/tools/microsoft_dataverse/types'
 
+/** Canonical upload pair for the file column payload, basic then advanced. */
+const FILE_FIELD = ['uploadFile', 'fileReference'] as const
+
 export const MicrosoftDataverseBlock: BlockConfig<DataverseResponse> = {
   type: 'microsoft_dataverse',
   name: 'Microsoft Dataverse',
@@ -17,6 +20,89 @@ export const MicrosoftDataverseBlock: BlockConfig<DataverseResponse> = {
   integrationType: IntegrationType.Databases,
   bgColor: '#FFFFFF',
   icon: MicrosoftDataverseIcon,
+  canvasPresentation: {
+    defaultTitle: 'Microsoft Dataverse',
+    sentences: {
+      byOperation: {
+        list_records: [
+          { text: 'List records from', field: 'entitySetName', core: true },
+          { text: ', where', field: 'filter' },
+          { text: ', up to', field: 'top', after: 'records' },
+        ],
+        get_record: [
+          { text: 'Fetch record', field: 'recordId', core: true },
+          { text: 'from', field: 'entitySetName' },
+        ],
+        create_record: [
+          { text: 'Create a record in', field: 'entitySetName', core: true },
+          { text: ', with', field: 'data' },
+        ],
+        update_record: [
+          { text: 'Update record', field: 'recordId', core: true },
+          { text: 'in', field: 'entitySetName' },
+          { text: ', setting', field: 'data' },
+        ],
+        upsert_record: [
+          { text: 'Create or update record', field: 'recordId', core: true },
+          { text: 'in', field: 'entitySetName' },
+          { text: ', with', field: 'data' },
+        ],
+        delete_record: [
+          { text: 'Delete record', field: 'recordId', core: true },
+          { text: 'from', field: 'entitySetName' },
+        ],
+        create_multiple: [
+          { text: 'Create', field: 'records', core: true },
+          { text: 'in', field: 'entitySetName', core: true },
+        ],
+        update_multiple: [
+          { text: 'Update', field: 'records', core: true },
+          { text: 'in', field: 'entitySetName', core: true },
+        ],
+        fetchxml_query: [
+          { text: 'Run a FetchXML query against', field: 'entitySetName', core: true },
+        ],
+        search: [
+          { text: 'Search for', field: 'searchTerm', core: true },
+          { text: 'across', field: 'searchEntities' },
+          { text: ', up to', field: 'top', after: 'results' },
+        ],
+        execute_action: [
+          { text: 'Execute action', field: 'actionName', core: true },
+          { text: 'on record', field: 'recordId' },
+          { text: 'in', field: 'entitySetName' },
+        ],
+        execute_function: [
+          { text: 'Call function', field: 'functionName', core: true },
+          { text: 'on record', field: 'recordId' },
+          { text: 'in', field: 'entitySetName' },
+        ],
+        upload_file: [
+          { text: 'Upload', field: FILE_FIELD, core: true },
+          { text: 'to column', field: 'fileColumn', core: true },
+          { text: 'on record', field: 'recordId' },
+        ],
+        download_file: [
+          { text: 'Download the file in column', field: 'fileColumn', core: true },
+          { text: 'from record', field: 'recordId' },
+        ],
+        associate: [
+          { text: 'Link record', field: 'recordId', core: true },
+          { text: 'to', field: 'targetRecordId' },
+          { text: 'through', field: 'navigationProperty' },
+        ],
+        disassociate: [
+          { text: 'Unlink record', field: 'recordId', core: true },
+          { text: 'from', field: 'targetRecordId' },
+          { text: 'through', field: 'navigationProperty' },
+        ],
+        get_entity_metadata: [
+          { text: 'Read the definition of table', field: 'entityLogicalName', core: true },
+        ],
+        whoami: ['Read the signed-in user, business unit, and organization'],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',

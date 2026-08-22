@@ -4,20 +4,20 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  mockFetchWorkspaceFileBuffer,
   mockGenerateContent,
   mockGenerateFalAudio,
   mockGenerateFalVideo,
   mockIsOpaqueWorkspaceFileEgressSafe,
   mockResolveWorkspaceFileReference,
+  mockReadWorkspaceFileContent,
   mockWriteWorkspaceFileByPath,
 } = vi.hoisted(() => ({
-  mockFetchWorkspaceFileBuffer: vi.fn(),
   mockGenerateContent: vi.fn(),
   mockGenerateFalAudio: vi.fn(),
   mockGenerateFalVideo: vi.fn(),
   mockIsOpaqueWorkspaceFileEgressSafe: vi.fn(),
   mockResolveWorkspaceFileReference: vi.fn(),
+  mockReadWorkspaceFileContent: vi.fn(),
   mockWriteWorkspaceFileByPath: vi.fn(),
 }))
 
@@ -28,13 +28,15 @@ vi.mock('@google/genai', () => ({
 }))
 vi.mock('@/lib/core/config/api-keys', () => ({ getRotatingApiKey: vi.fn(() => 'api-key') }))
 vi.mock('@/lib/copilot/vfs/resource-writer', () => ({
-  writeWorkspaceFileByPath: mockWriteWorkspaceFileByPath,
+  writeCopilotWorkspaceFileByPath: mockWriteWorkspaceFileByPath,
 }))
 vi.mock('@/lib/media/falai-audio', () => ({ generateFalAudio: mockGenerateFalAudio }))
 vi.mock('@/lib/media/falai-video', () => ({ generateFalVideo: mockGenerateFalVideo }))
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
-  fetchWorkspaceFileBuffer: mockFetchWorkspaceFileBuffer,
+vi.mock('@/lib/workspace-files/application/resolve-workspace-file-reference', () => ({
   resolveWorkspaceFileReference: mockResolveWorkspaceFileReference,
+}))
+vi.mock('@/lib/workspace-files/application/read-workspace-file-content', () => ({
+  readWorkspaceFileContent: { execute: mockReadWorkspaceFileContent },
 }))
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-secret-provenance', () => ({
   isOpaqueWorkspaceFileEgressSafe: mockIsOpaqueWorkspaceFileEgressSafe,
@@ -72,6 +74,8 @@ function contextWithSecrets(
   return {
     userId: 'user-1',
     workspaceId: 'workspace-1',
+    toolCallId: 'tool-1',
+    copilotToolExecution: true,
     resolvedSecretTraceRegistry: registry,
   }
 }
@@ -81,7 +85,7 @@ describe('Mothership media model boundaries', () => {
     vi.clearAllMocks()
     mockIsOpaqueWorkspaceFileEgressSafe.mockResolvedValue(true)
     mockResolveWorkspaceFileReference.mockResolvedValue(file)
-    mockFetchWorkspaceFileBuffer.mockResolvedValue(Buffer.from('opaque-media'))
+    mockReadWorkspaceFileContent.mockResolvedValue({ file, content: Buffer.from('opaque-media') })
     mockWriteWorkspaceFileByPath.mockResolvedValue({
       id: 'output-1',
       name: 'output.bin',
@@ -200,7 +204,7 @@ describe('Mothership media model boundaries', () => {
         })
       )
 
-      expect(mockFetchWorkspaceFileBuffer).not.toHaveBeenCalled()
+      expect(mockReadWorkspaceFileContent).not.toHaveBeenCalled()
       expect(mockGenerateContent).not.toHaveBeenCalled()
       expect(mockGenerateFalVideo).not.toHaveBeenCalled()
       expect(mockGenerateFalAudio).not.toHaveBeenCalled()

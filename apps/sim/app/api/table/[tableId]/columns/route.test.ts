@@ -10,7 +10,7 @@
  */
 import { hybridAuthMockFns } from '@sim/testing'
 import { getErrorMessage } from '@sim/utils/errors'
-import { NextRequest } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -42,14 +42,37 @@ vi.mock('@/lib/table', () => ({
   updateColumnOptions: mockUpdateColumnOptions,
   updateColumnType: mockUpdateColumnType,
 }))
+vi.mock('@/lib/table/columns/service', () => ({
+  renameColumn: mockRenameColumn,
+  updateColumnConstraints: mockUpdateColumnConstraints,
+  updateColumnCurrency: mockUpdateColumnCurrency,
+  updateColumnOptions: mockUpdateColumnOptions,
+  updateColumnType: mockUpdateColumnType,
+}))
+vi.mock('@/lib/table/wire', () => ({
+  normalizeColumn: (c: unknown) => c,
+}))
 vi.mock('@/app/api/table/utils', () => ({
   accessError: () => new Response('denied', { status: 403 }),
   checkAccess: mockCheckAccess,
-  normalizeColumn: (c: unknown) => c,
+  orchestrationOutcomeErrorResponse: (
+    outcome: { error?: string; errorCode?: OrchestrationErrorCode },
+    fallback: string
+  ) =>
+    NextResponse.json(
+      { error: messageForOrchestrationError(outcome, fallback) },
+      { status: statusForOrchestrationError(outcome.errorCode) }
+    ),
   rootErrorMessage: (e: unknown) => getErrorMessage(e),
   tableLockErrorResponse: () => null,
 }))
 
+import {
+  messageForOrchestrationError,
+  OrchestrationError,
+  type OrchestrationErrorCode,
+  statusForOrchestrationError,
+} from '@/lib/core/orchestration/types'
 import { PATCH } from '@/app/api/table/[tableId]/columns/route'
 
 const WORKSPACE_ID = '11111111-1111-4111-8111-111111111111'
@@ -159,7 +182,10 @@ describe('PATCH /api/table/[tableId]/columns — pre-flight guards', () => {
     // Stands in for the race the guards cannot close: the column stopped being
     // a currency between the snapshot the guards read and this write.
     mockUpdateColumnCurrency.mockRejectedValue(
-      new Error('Cannot set currency on column "amount" of type "string"')
+      new OrchestrationError(
+        'validation',
+        'Cannot set currency on column "amount" of type "string"'
+      )
     )
 
     const response = await patch({ name: 'renamed', currencyCode: 'USD' })

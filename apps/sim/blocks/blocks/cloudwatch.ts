@@ -17,6 +17,16 @@ import type {
   CloudWatchUnmuteAlarmResponse,
 } from '@/tools/cloudwatch/types'
 
+/*
+ * Canonical basic/advanced pairs, shared by the card sentences below. Listing
+ * both members is what keeps the sentence working for an advanced-mode user,
+ * who has only the typed-in name filled. Log Insights takes a set of groups
+ * under its own canonical id, so it cannot reuse the single-group pair.
+ */
+const LOG_GROUPS_FIELD = ['logGroupSelector', 'logGroupNamesInput'] as const
+const LOG_GROUP_FIELD = ['logGroupNameSelector', 'logGroupNameInput'] as const
+const LOG_STREAM_FIELD = ['logStreamNameSelector', 'logStreamNameInput'] as const
+
 export const CloudWatchBlock: BlockConfig<
   | CloudWatchQueryLogsResponse
   | CloudWatchDescribeLogGroupsResponse
@@ -43,6 +53,70 @@ export const CloudWatchBlock: BlockConfig<
   bgColor: 'linear-gradient(45deg, #B0084D 0%, #FF4F8B 100%)',
   iconColor: '#FF4F8B',
   icon: CloudWatchIcon,
+  canvasPresentation: {
+    defaultTitle: 'CloudWatch',
+    sentences: {
+      byOperation: {
+        query_logs: [
+          { text: 'Run an Insights query against', field: LOG_GROUPS_FIELD, core: true },
+          { text: ', up to', field: 'limit', after: 'results' },
+        ],
+        filter_log_events: [
+          { text: 'Search log group', field: LOG_GROUP_FIELD, core: true },
+          { text: 'for pattern', field: 'filterPattern' },
+          { text: ', in streams under', field: 'filterLogStreamPrefix' },
+        ],
+        describe_log_groups: [
+          'List log groups',
+          { text: 'starting with', field: 'prefix' },
+          { text: ', up to', field: 'limit', after: 'groups' },
+        ],
+        get_log_events: [
+          { text: 'Read events from log stream', field: LOG_STREAM_FIELD, core: true },
+          { text: 'in', field: LOG_GROUP_FIELD },
+          { text: ', up to', field: 'limit', after: 'events' },
+        ],
+        describe_log_streams: [
+          { text: 'List log streams in', field: LOG_GROUP_FIELD, core: true },
+          { text: ', starting with', field: 'streamPrefix' },
+        ],
+        put_log_group_retention: [
+          { text: 'Keep logs in', field: LOG_GROUP_FIELD, core: true },
+          { text: 'for', field: 'retentionInDays' },
+        ],
+        list_metrics: [
+          'List metrics',
+          { text: 'in namespace', field: 'metricNamespace' },
+          { text: ', named', field: 'metricName' },
+        ],
+        get_metric_statistics: [
+          { text: 'Read statistics for metric', field: 'metricName', core: true },
+          { text: 'in', field: 'metricNamespace' },
+          { text: ', computing', field: 'metricStatistics' },
+        ],
+        put_metric_data: [
+          { text: 'Publish', field: 'metricValue', core: true },
+          { text: 'to metric', field: 'metricName', core: true },
+          { text: 'in', field: 'metricNamespace' },
+        ],
+        describe_alarms: [
+          'List alarms',
+          { text: 'starting with', field: 'alarmNamePrefix' },
+          { text: ', in state', field: 'stateValue' },
+        ],
+        describe_alarm_history: [
+          'Read alarm history',
+          { text: 'for', field: 'historyAlarmName' },
+          { text: ', of type', field: 'historyItemType' },
+        ],
+        mute_alarm: [
+          { text: 'Mute', field: 'alarmNames', core: true },
+          { text: 'under rule', field: 'muteRuleName' },
+        ],
+        unmute_alarm: [{ text: 'Unmute the alarms under rule', field: 'muteRuleName', core: true }],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',

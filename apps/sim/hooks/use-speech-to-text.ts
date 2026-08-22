@@ -16,6 +16,29 @@ import { useVoiceSettings } from '@/hooks/queries/voice'
 
 const logger = createLogger('useSpeechToText')
 
+/**
+ * Why a session could not start. `microphone-blocked` is the recoverable one —
+ * the user has to grant access outside the app (OS privacy settings on the
+ * desktop shell, the site permission prompt in a browser) before retrying.
+ */
+export type SpeechToTextError = 'microphone-blocked' | 'microphone-unavailable' | 'start-failed'
+
+/**
+ * Maps a `getUserMedia` rejection onto {@link SpeechToTextError}. Anything that
+ * is not a recognized capture failure — a token fetch, the WebSocket handshake —
+ * falls through to the generic case.
+ */
+function classifyStartError(error: unknown): SpeechToTextError {
+  const name = (error as { name?: string } | null)?.name
+  if (name === 'NotAllowedError' || name === 'SecurityError' || name === 'PermissionDeniedError') {
+    return 'microphone-blocked'
+  }
+  if (name === 'NotFoundError' || name === 'DevicesNotFoundError') {
+    return 'microphone-unavailable'
+  }
+  return 'start-failed'
+}
+
 interface UseSpeechToTextProps {
   onTranscript: (text: string) => void
   /**
@@ -23,6 +46,8 @@ interface UseSpeechToTextProps {
    * whether it was a per-member cap (which only an org admin can raise).
    */
   onUsageLimitExceeded?: (message?: string, isMemberLimit?: boolean) => void
+  /** Called when a session fails to start, so the click is never a silent no-op. */
+  onError?: (error: SpeechToTextError) => void
   /** Attributes the voice-input cost to this workspace for per-member usage. */
   workspaceId?: string
 }
@@ -37,6 +62,7 @@ interface UseSpeechToTextReturn {
 export function useSpeechToText({
   onTranscript,
   onUsageLimitExceeded,
+  onError,
   workspaceId,
 }: UseSpeechToTextProps): UseSpeechToTextReturn {
   const [isListening, setIsListening] = useState(false)
@@ -55,6 +81,7 @@ export function useSpeechToText({
 
   const onTranscriptRef = useRef(onTranscript)
   const onUsageLimitExceededRef = useRef(onUsageLimitExceeded)
+  const onErrorRef = useRef(onError)
   const workspaceIdRef = useRef(workspaceId)
   const mountedRef = useRef(true)
   const startingRef = useRef(false)
@@ -73,6 +100,7 @@ export function useSpeechToText({
 
   onTranscriptRef.current = onTranscript
   onUsageLimitExceededRef.current = onUsageLimitExceeded
+  onErrorRef.current = onError
   workspaceIdRef.current = workspaceId
 
   const flushAudioBuffer = useCallback(() => {
@@ -283,6 +311,9 @@ export function useSpeechToText({
     } catch (error) {
       logger.error('Failed to start speech streaming', error)
       cleanup()
+      if (mountedRef.current) {
+        onErrorRef.current?.(classifyStartError(error))
+      }
       return false
     } finally {
       startingRef.current = false

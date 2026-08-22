@@ -1,20 +1,29 @@
 import { readFile } from 'fs/promises'
+import { type Principal, requirePrincipalSubjectUserId } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import { fileServeParamsSchema, fileServeQuerySchema } from '@/lib/api/contracts/storage-transfer'
-import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import {
-  DocCompileUserError,
-  resolveServableDocBytes,
-} from '@/lib/copilot/tools/server/files/doc-compile'
+  concealCrossTenantResourceError,
+  InternalUnauthenticatedError,
+} from '@/lib/api/server/routes'
+import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
+import { resolveServableDocBytes } from '@/lib/copilot/tools/server/files/doc-compile'
+import { DocCompileUserError } from '@/lib/copilot/tools/server/files/doc-compile-error'
+import { asOrchestrationError } from '@/lib/core/orchestration/types'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { CopilotFiles, isUsingCloudStorage } from '@/lib/uploads'
 import type { StorageContext } from '@/lib/uploads/config'
 import { parseWorkspaceFileKey } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { downloadFile } from '@/lib/uploads/core/storage-service'
 import { resolveServableImageBytes } from '@/lib/uploads/server/image-derivative'
+import { resolveStoredFileContext } from '@/lib/uploads/server/metadata'
 import { inferContextFromKey } from '@/lib/uploads/utils/file-utils'
+import { internalWorkspaceFileServeAuth } from '@/lib/workspace-files/api'
+import { readWorkspaceFileContentByKey } from '@/lib/workspace-files/application/read-workspace-file-content-by-key'
+import { isSimPageSource, SIM_PAGE_CONTENT_TYPE } from '@/lib/workspace-files/page-compile'
+import { renderSimPageDocumentWithAssets } from '@/lib/workspace-files/page-document.server'
 import { verifyFileAccess } from '@/app/api/files/authorization'
 import {
   createErrorResponse,
@@ -68,10 +77,39 @@ async function resolveServableBytes(params: {
   workspaceId: string | undefined
   options: ServeOptions
   ownerKey: string | undefined
+  filePrincipal?: Principal
+  /** The stored record's content type, where the caller has the record. */
+  fileType?: string
   signal: AbortSignal | undefined
 }): Promise<{ buffer: Buffer; contentType: string }> {
-  const { buffer, filename, storageKey, workspaceId, options, ownerKey, signal } = params
+  const {
+    buffer,
+    filename,
+    storageKey,
+    workspaceId,
+    options,
+    ownerKey,
+    filePrincipal,
+    fileType,
+    signal,
+  } = params
   if (options.raw) return { buffer, contentType: getContentType(filename) }
+
+  // The pdf model for pages: a page file stores its SOURCE (frontmatter +
+  // markdown + sim: fences) and serving compiles it to the rendered document,
+  // the same way a .pdf key stores its script and serves the binary. Raw
+  // requests above still return the source; bespoke/legacy HTML falls through
+  // untouched. Sim pages store an EXTENSIONLESS name — the record type marks
+  // them; legacy pages still carry .html.
+  if (fileType === SIM_PAGE_CONTENT_TYPE || filename.toLowerCase().endsWith('.html')) {
+    const text = buffer.toString('utf8')
+    if (isSimPageSource(text)) {
+      return {
+        buffer: Buffer.from(await renderSimPageDocumentWithAssets(text, { workspaceId }), 'utf8'),
+        contentType: 'text/html',
+      }
+    }
+  }
 
   if (options.preview) {
     // Images resolve independently of the document path: a HEIF has no compiled-source
@@ -84,6 +122,7 @@ async function resolveServableBytes(params: {
     rawBuffer: buffer,
     fileName: filename,
     workspaceId,
+    filePrincipal,
     ownerKey,
     signal,
   })
@@ -156,6 +195,28 @@ export const GET = withRouteHandler(
         return await handleLocalFilePublic(fullPath)
       }
 
+      // Which module owns the object decides which branch below may serve it, and that
+      // is the row's answer, not the prefix's — a `workspace/` key carries both Files
+      // module files and mothership chat attachments. Reading the prefix alone here is
+      // what sent every attachment into the workspace-file use case, which matches on
+      // `context = 'workspace'` and answered 404 for a file that was present.
+      const storageContext = await resolveStoredFileContext(cloudKey)
+      const workspacePrincipal =
+        storageContext === 'workspace'
+          ? await internalWorkspaceFileServeAuth.authenticate(request, { path })
+          : undefined
+      const legacyAuthResult = workspacePrincipal
+        ? undefined
+        : await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
+
+      if (legacyAuthResult && (!legacyAuthResult.success || !legacyAuthResult.userId)) {
+        logger.warn('Unauthorized file access attempt', {
+          path,
+          error: legacyAuthResult.error || 'Missing userId',
+        })
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      }
+
       const query = fileServeQuerySchema.parse({
         raw: request.nextUrl.searchParams.get('raw'),
         preview: request.nextUrl.searchParams.get('preview'),
@@ -167,24 +228,24 @@ export const GET = withRouteHandler(
         versioned: query.v != null,
       }
 
-      const authResult = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
+      if (workspacePrincipal) {
+        return await handleWorkspaceFile(cloudKey, workspacePrincipal, options, request)
+      }
 
-      if (!authResult.success || !authResult.userId) {
-        logger.warn('Unauthorized file access attempt', {
-          path,
-          error: authResult.error || 'Missing userId',
-        })
+      const userId = legacyAuthResult?.userId
+      if (!userId) throw new Error('Authenticated file serve request is missing a user ID')
+
+      if (isUsingCloudStorage()) {
+        return await handleCloudProxy(cloudKey, userId, options, request.signal, storageContext)
+      }
+
+      return await handleLocalFile(cloudKey, userId, options, request.signal, storageContext)
+    } catch (error) {
+      if (error instanceof InternalUnauthenticatedError) {
+        logger.warn('Unauthorized file access attempt', { error: error.message })
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       }
 
-      const userId = authResult.userId
-
-      if (isUsingCloudStorage()) {
-        return await handleCloudProxy(cloudKey, userId, options, request.signal)
-      }
-
-      return await handleLocalFile(cloudKey, userId, options, request.signal)
-    } catch (error) {
       // An in-progress/incomplete doc source fails to compile — this is expected
       // mid-generation, not a server fault. Return 409 (not 500) so it isn't an
       // alarming error; the client re-fetches once the doc finishes (the serve
@@ -194,6 +255,15 @@ export const GET = withRouteHandler(
           message: error.message,
         })
         return NextResponse.json({ error: 'Document is still being generated' }, { status: 409 })
+      }
+
+      const orchestrationError = asOrchestrationError(
+        concealCrossTenantResourceError(error, 'File not found')
+      )
+      if (orchestrationError?.code === 'not_found') {
+        const notFound = new FileNotFoundError('File not found')
+        logServeFailure('Error serving file:', notFound)
+        return createErrorResponse(notFound)
       }
 
       logServeFailure('Error serving file:', error)
@@ -207,23 +277,60 @@ export const GET = withRouteHandler(
   }
 )
 
+async function handleWorkspaceFile(
+  key: string,
+  principal: Principal,
+  options: ServeOptions,
+  request: NextRequest
+): Promise<NextResponse> {
+  const workspaceId = getWorkspaceIdForCompile(key)
+  if (!workspaceId) throw new FileNotFoundError(`File not found: ${key}`)
+
+  const { file, content } = await readWorkspaceFileContentByKey.execute({
+    principal,
+    input: { key, assertedWorkspaceId: workspaceId },
+    request,
+  })
+  const ownerKey = `user:${requirePrincipalSubjectUserId(principal)}`
+  const resolved = await resolveServableBytes({
+    buffer: content,
+    filename: file.name,
+    storageKey: key,
+    workspaceId,
+    options,
+    ownerKey,
+    filePrincipal: principal,
+    fileType: file.type,
+    signal: request.signal,
+  })
+
+  logger.info('Workspace file served', {
+    fileId: file.id,
+    workspaceId,
+    size: resolved.buffer.length,
+  })
+  return createFileResponse({
+    buffer: resolved.buffer,
+    contentType: resolved.contentType,
+    filename: file.name,
+    cacheControl: resolveServeCacheControl(options.versioned, 'workspace'),
+  })
+}
+
 async function handleLocalFile(
   filename: string,
   userId: string,
   options: ServeOptions,
-  signal: AbortSignal | undefined
+  signal: AbortSignal | undefined,
+  context: StorageContext
 ): Promise<NextResponse> {
   const ownerKey = `user:${userId}`
   try {
-    const contextParam: StorageContext | undefined = inferContextFromKey(filename) as
-      | StorageContext
-      | undefined
-
     const hasAccess = await verifyFileAccess(
       filename,
       userId,
       undefined, // customConfig
-      contextParam, // context
+      context,
       true // isLocal
     )
 
@@ -258,7 +365,7 @@ async function handleLocalFile(
       buffer: fileBuffer,
       contentType,
       filename: displayName,
-      cacheControl: resolveServeCacheControl(options.versioned, contextParam),
+      cacheControl: resolveServeCacheControl(options.versioned, context),
     })
   } catch (error) {
     logServeFailure('Error reading local file:', error)
@@ -270,12 +377,12 @@ async function handleCloudProxy(
   cloudKey: string,
   userId: string,
   options: ServeOptions,
-  signal: AbortSignal | undefined
+  signal: AbortSignal | undefined,
+  context: StorageContext
 ): Promise<NextResponse> {
   const ownerKey = `user:${userId}`
   try {
-    const context = inferContextFromKey(cloudKey)
-    logger.info(`Inferred context: ${context} from key pattern: ${cloudKey}`)
+    logger.info(`Resolved context: ${context} for key: ${cloudKey}`)
 
     const hasAccess = await verifyFileAccess(
       cloudKey,

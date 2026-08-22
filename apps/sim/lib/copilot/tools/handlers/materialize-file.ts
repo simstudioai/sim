@@ -1,4 +1,5 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
+import type { Principal } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { folder as folderTable, workflow, workspaceFiles } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
@@ -16,6 +17,7 @@ import {
   maybeNotifyStorageLimitForBillingContext,
   resolveStorageBillingContext,
 } from '@/lib/billing/storage'
+import { resolveCopilotFilePrincipal } from '@/lib/copilot/auth/file-delegation'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
 import { ensureWorkspaceAccess } from '@/lib/copilot/tools/handlers/access'
 import { findMothershipUploadRowByChatAndName } from '@/lib/copilot/tools/handlers/upload-file-reader'
@@ -31,17 +33,20 @@ import { findWorkspaceFileFolderIdByPath } from '@/lib/uploads/contexts/workspac
 import {
   allocateUniqueWorkspaceFileName,
   fetchWorkspaceFileBuffer,
-  getWorkspaceFile,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { getBoundWorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import { hasCloudStorage, headObject } from '@/lib/uploads/core/storage-service'
+import { toLegacyWorkspaceFileSize } from '@/lib/uploads/shared/types'
 import { isArchiveFileName } from '@/lib/uploads/utils/file-utils'
 import { parseWorkflowJson } from '@/lib/workflows/operations/import-export'
+import { MAX_IMPORT_BODY_BYTES } from '@/lib/workflows/operations/import-workflow'
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { deduplicateWorkflowName } from '@/lib/workflows/utils'
+import { admitCreateWorkspaceFile } from '@/lib/workspace-files/application/create-workspace-file'
+import { readWorkspaceFileMetadata } from '@/lib/workspace-files/application/read-workspace-file-metadata'
 import { extractWorkflowMetadata } from '@/app/api/v1/admin/types'
 
-const logger = createLogger('MaterializeFile')
+const logger = createLogger('SaveUpload')
 const MAX_MATERIALIZE_NAME_RETRIES = 8
 const WORKSPACE_FILE_NAME_UNIQUE_INDEX = 'workspace_files_workspace_folder_name_active_unique'
 
@@ -80,7 +85,8 @@ function uploadBelongsToWorkspace(
 async function executeSave(
   fileName: string,
   chatId: string,
-  workspaceId: string
+  workspaceId: string,
+  principal: Principal
 ): Promise<ToolCallResult> {
   const row = await findMothershipUploadRowByChatAndName(chatId, fileName)
   if (!row) {
@@ -97,7 +103,7 @@ async function executeSave(
   if (isArchiveFileName(displayName)) {
     return {
       success: false,
-      error: `"${fileName}" is a .zip archive — save it by extracting instead: materialize_file(fileNames: ["${fileName}"], operation: "extract") unpacks it into files/ where the contents stay readable. The raw .zip remains in uploads/ for this chat.`,
+      error: `"${fileName}" is a .zip archive — save it by extracting instead: save_upload(fileNames: ["${fileName}"], operation: "extract") unpacks it into files/ where the contents stay readable. The raw .zip remains in uploads/ for this chat.`,
     }
   }
 
@@ -105,7 +111,12 @@ async function executeSave(
   if (!head && hasCloudStorage()) {
     return { success: false, error: `Upload object not found: "${fileName}".` }
   }
-  const verifiedSize = head?.size ?? row.size
+  /**
+   * The true byte count can exceed the legacy int4 `size` column, so read the exact
+   * `sizeBytes` first and clamp back down for the legacy projection.
+   */
+  const verifiedSize = head?.size ?? row.sizeBytes ?? row.size
+  const legacySize = toLegacyWorkspaceFileSize(verifiedSize)
   const billingContext = await resolveStorageBillingContext(workspaceId)
   const quotaCheck = await checkStorageQuotaForBillingContext(billingContext, verifiedSize)
   if (!quotaCheck.allowed) {
@@ -141,7 +152,8 @@ async function executeSave(
             messageId: null,
             originalName: materializedName,
             displayName: materializedName,
-            size: verifiedSize,
+            size: legacySize,
+            sizeBytes: verifiedSize,
           })
           .where(
             and(
@@ -183,7 +195,12 @@ async function executeSave(
 
   const replayedFile = transition
     ? null
-    : await getWorkspaceFile(workspaceId, row.id, { throwOnError: true })
+    : (
+        await readWorkspaceFileMetadata.execute({
+          principal,
+          input: { fileId: row.id, assertedWorkspaceId: workspaceId },
+        })
+      ).file
   const updated =
     transition?.updated ??
     (replayedFile ? { id: replayedFile.id, originalName: replayedFile.name } : null)
@@ -240,11 +257,15 @@ async function executeImport(
   if (isArchiveFileName(row.displayName ?? row.originalName)) {
     return {
       success: false,
-      error: `"${fileName}" is a .zip archive, not a workflow JSON. Extract it first: materialize_file(fileNames: ["${fileName}"], operation: "extract").`,
+      error: `"${fileName}" is a .zip archive, not a workflow JSON. Extract it first: save_upload(fileNames: ["${fileName}"], operation: "extract").`,
     }
   }
 
-  const buffer = await fetchWorkspaceFileBuffer(toFileRecord(row))
+  // The bytes are headed straight for `parseWorkflowJson`, so the import body ceiling is
+  // the real limit here — a larger file could not be imported even if it were read.
+  const buffer = await fetchWorkspaceFileBuffer(toFileRecord(row), {
+    maxBytes: MAX_IMPORT_BODY_BYTES,
+  })
   const content = buffer.toString('utf-8')
 
   let parsed: unknown
@@ -371,7 +392,8 @@ async function executeExtract(
   fileName: string,
   chatId: string,
   workspaceId: string,
-  userId: string
+  userId: string,
+  principal: Principal
 ): Promise<ToolCallResult> {
   const row = await findMothershipUploadRowByChatAndName(chatId, fileName)
   if (!row) {
@@ -461,7 +483,7 @@ async function executeExtract(
     })
     result = await decompressArchiveBufferToWorkspaceFiles(buffer, {
       workspaceId,
-      userId,
+      principal,
       rootFolderSegments: [baseName],
       // The agent-facing extract drops macOS/Windows filesystem cruft so the
       // unpacked files/ tree only contains meaningful entries.
@@ -536,12 +558,14 @@ export async function executeMaterializeFile(
   }
 
   if (!context.chatId) {
-    return { success: false, error: 'No chat context available for materialize_file' }
+    return { success: false, error: 'No chat context available for save_upload' }
   }
 
   if (!context.workspaceId) {
-    return { success: false, error: 'No workspace context available for materialize_file' }
+    return { success: false, error: 'No workspace context available for save_upload' }
   }
+
+  const principal = resolveCopilotFilePrincipal(context)
 
   const operation = (params.operation as string | undefined) || 'save'
   // save (promote upload → workspace file), import (JSON → workflow), and extract
@@ -550,14 +574,16 @@ export async function executeMaterializeFile(
   if (operation !== 'save' && operation !== 'import' && operation !== 'extract') {
     return {
       success: false,
-      error: `Unsupported materialize_file operation "${operation}". Use "save", "import", or "extract". For CSV/TSV/JSON → use the table subagent; for documents → use the knowledge subagent.`,
+      error: `Unsupported save_upload operation "${operation}". Use "save", "import", or "extract". For CSV/TSV/JSON → use the table subagent; for documents → use the knowledge subagent.`,
     }
   }
 
-  // Every operation writes: save/extract create files, import creates a workflow.
-  // The handler-map path has no central permission gate.
   try {
-    await ensureWorkspaceAccess(context.workspaceId, context.userId, 'write')
+    if (operation === 'import') {
+      await ensureWorkspaceAccess(context.workspaceId, context.userId, 'write')
+    } else {
+      await admitCreateWorkspaceFile(principal, context.workspaceId)
+    }
   } catch (error) {
     return { success: false, error: getErrorMessage(error, 'Workspace write access required') }
   }
@@ -572,9 +598,15 @@ export async function executeMaterializeFile(
       if (operation === 'import') {
         result = await executeImport(fileName, context.chatId, context.workspaceId, context.userId)
       } else if (operation === 'extract') {
-        result = await executeExtract(fileName, context.chatId, context.workspaceId, context.userId)
+        result = await executeExtract(
+          fileName,
+          context.chatId,
+          context.workspaceId,
+          context.userId,
+          principal
+        )
       } else {
-        result = await executeSave(fileName, context.chatId, context.workspaceId)
+        result = await executeSave(fileName, context.chatId, context.workspaceId, principal)
       }
 
       if (result.success) {
@@ -588,7 +620,7 @@ export async function executeMaterializeFile(
         failed.push({ fileName, error: result.error ?? 'Failed to materialize file' })
       }
     } catch (err) {
-      logger.error('materialize_file failed', {
+      logger.error('save_upload failed', {
         fileName,
         operation,
         chatId: context.chatId,

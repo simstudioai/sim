@@ -16,6 +16,7 @@ export type JsonResponseMode<S extends ApiSchema = ApiSchema> = {
   mode: 'json'
   schema: S
   status?: number | readonly number[]
+  statusSchemas?: Readonly<Record<number, ApiSchema>>
 }
 
 export type EmptyResponseMode = {
@@ -78,6 +79,23 @@ export type AnyApiRouteContract = ApiRouteContract<
   ApiSchema | undefined
 >
 
+/**
+ * A `/api/v2/` contract must always declare `query`, because `parseRequest`
+ * validates the query slice only when one is present — an omitted `query` means
+ * "never look at the query string", not "this endpoint takes no query params",
+ * and `?bogus=1` then answers 200 for a request the server did not honour. An
+ * endpoint that genuinely takes none says so with `query: noInputSchema`
+ * (`z.object({}).strict()`) from `./primitives`.
+ *
+ * That rule is enforced by the `query-declaration` sweep under
+ * `contracts/v2/__tests__`, not by this signature. Making `query` conditionally
+ * required on a `/api/v2/` path needs the parameter type to become an
+ * intersection, and the intersection collapses inference of the sibling
+ * generics: `TParams`, `TBody`, and `THeaders` start resolving to `undefined`,
+ * which breaks the OpenAPI documents that read them back off the contract. The
+ * sweep is also the broader guarantee — it walks every contract in the tree,
+ * including ones a caller never passes through this function directly.
+ */
 export function defineRouteContract<
   TParams extends ApiSchema | undefined = undefined,
   TQuery extends ApiSchema | undefined = undefined,

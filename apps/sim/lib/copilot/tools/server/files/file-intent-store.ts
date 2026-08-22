@@ -12,7 +12,7 @@ export type PendingFileIntent = {
   chatId?: string
   messageId?: string
   // The invoking file subagent's channel id (its outer tool_use id). Lets
-  // edit_content consume the intent for ITS OWN file subagent instead of the
+  // apply_file_edit consume the intent for ITS OWN file subagent instead of the
   // latest in the message, so two file agents writing concurrently never cross
   // their content into each other's file.
   channelId?: string
@@ -40,7 +40,7 @@ export type FileIntentScope = {
   messageId?: string
   // When set, consumeLatestFileIntent only considers intents from this subagent
   // channel — the key to isolating concurrent file subagents. Omitted by callers
-  // that intentionally span the whole message (e.g. clearIntentsForWorkspace).
+  // that intentionally span the whole message.
   channelId?: string
 }
 
@@ -66,8 +66,8 @@ function scopeMatches(intent: PendingFileIntent, scope?: FileIntentScope): boole
 
 // Channel filter for consume: when a scope carries a channelId, only the
 // matching file subagent's intent qualifies. No channelId => message-wide
-// (legacy / main-agent) behavior. Deliberately separate from scopeMatches so
-// clearIntentsForWorkspace keeps clearing every channel in a message.
+// (legacy / main-agent) behavior. Deliberately separate from scopeMatches, which
+// spans every channel in a message.
 function channelMatches(intent: PendingFileIntent, scope?: FileIntentScope): boolean {
   return !scope?.channelId || intent.channelId === scope.channelId
 }
@@ -156,33 +156,6 @@ export async function storeFileIntent(
   })
 }
 
-async function consumeFileIntent(
-  workspaceId: string,
-  fileId: string,
-  scope?: FileIntentScope
-): Promise<PendingFileIntent | undefined> {
-  const redis = getRedisClient()
-  if (!redis) {
-    const key = buildKey(workspaceId, buildScopedField(fileId, scope))
-    const intent = memoryStore.get(key)
-    if (intent) {
-      memoryStore.delete(key)
-    }
-    return intent
-  }
-
-  const raw = await withRedisRetry('consume_file_intent', workspaceId, async (client) => {
-    const key = getWorkspaceRedisKey(workspaceId)
-    const field = buildScopedField(fileId, scope)
-    const value = await client.hget(key, field)
-    if (value !== null) {
-      await client.hdel(key, field)
-    }
-    return value
-  })
-  return parseIntent(raw)
-}
-
 export async function peekFileIntent(
   workspaceId: string,
   fileId: string,
@@ -205,6 +178,36 @@ export async function peekFileIntent(
     })
   }
   return intent
+}
+
+const INTENT_WAIT_TIMEOUT_MS = 10_000
+const INTENT_WAIT_INTERVAL_MS = 300
+
+/**
+ * Bounded wait for the paired prepare_file_edit to stage its intent. The model
+ * may batch prepare_file_edit and apply_file_edit into one round, and the Go
+ * loop executes same-round tools concurrently — so apply_file_edit can reach
+ * this executor before its prepare has run. Failing instantly turns that
+ * ordinary race into a model-visible error, a wasted retry round, and a
+ * transient "Failed …" state on the chat's shared file row. Polling briefly
+ * lets the prepare land and the pair succeed first try; a truly missing
+ * prepare still returns undefined once the deadline passes.
+ */
+export async function waitForLatestFileIntent(
+  workspaceId: string,
+  scope?: FileIntentScope,
+  options?: { timeoutMs?: number; intervalMs?: number }
+): Promise<PendingFileIntent | undefined> {
+  const timeoutMs = options?.timeoutMs ?? INTENT_WAIT_TIMEOUT_MS
+  const intervalMs = options?.intervalMs ?? INTENT_WAIT_INTERVAL_MS
+  const deadline = Date.now() + timeoutMs
+  for (;;) {
+    const intent = await consumeLatestFileIntent(workspaceId, scope)
+    if (intent) return intent
+    const remainingMs = deadline - Date.now()
+    if (remainingMs <= 0) return undefined
+    await sleep(Math.min(intervalMs, remainingMs))
+  }
 }
 
 export async function consumeLatestFileIntent(
@@ -262,51 +265,4 @@ export async function consumeLatestFileIntent(
     })
   }
   return latest
-}
-
-export async function clearIntentsForWorkspace(
-  workspaceId: string,
-  scope?: FileIntentScope
-): Promise<number> {
-  const redis = getRedisClient()
-  if (!redis) {
-    let cleared = 0
-    for (const [key, intent] of memoryStore) {
-      if (intent.workspaceId === workspaceId && (!scope || scopeMatches(intent, scope))) {
-        memoryStore.delete(key)
-        cleared++
-      }
-    }
-    return cleared
-  }
-
-  const key = getWorkspaceRedisKey(workspaceId)
-  if (!scope) {
-    const count = await withRedisRetry(
-      'count_workspace_file_intents',
-      workspaceId,
-      async (client) => client.hlen(key)
-    )
-    await withRedisRetry('clear_workspace_file_intents', workspaceId, async (client) => {
-      await client.del(key)
-    })
-    return count
-  }
-
-  const entries = await withRedisRetry('read_workspace_file_intents', workspaceId, async (client) =>
-    client.hgetall(key)
-  )
-  const fieldsToDelete: string[] = []
-  for (const [field, raw] of Object.entries(entries)) {
-    const parsed = parseIntent(raw)
-    if (parsed && scopeMatches(parsed, scope)) {
-      fieldsToDelete.push(field)
-    }
-  }
-  if (fieldsToDelete.length > 0) {
-    await withRedisRetry('clear_scoped_file_intents', workspaceId, async (client) => {
-      await client.hdel(key, ...fieldsToDelete)
-    })
-  }
-  return fieldsToDelete.length
 }

@@ -41,6 +41,7 @@ vi.mock('@/lib/core/rate-limiter', () => ({
 }))
 
 import {
+  authenticateRequest,
   checkRateLimit,
   createRateLimitResponse,
   v1ValidationErrorResponse,
@@ -60,6 +61,7 @@ describe('checkRateLimit', () => {
       authenticated: true,
       userId: 'user-1',
       keyType: 'personal',
+      principal: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' },
     })
     mockGetSubscription.mockResolvedValue({ plan: 'team' })
     mockGetRateLimit.mockReturnValue(TEAM_BUCKET)
@@ -75,6 +77,16 @@ describe('checkRateLimit', () => {
 
     expect(result.limit).toBe(TEAM_BUCKET.maxTokens)
     expect(result.limit).not.toBe(TEAM_BUCKET.refillRate)
+  })
+
+  it('preserves the authenticated API-key Principal for application operations', async () => {
+    const result = await checkRateLimit(request(), 'workflows')
+
+    expect(result.principal).toEqual({
+      kind: 'personal_api_key',
+      userId: 'user-1',
+      keyId: 'key-1',
+    })
   })
 
   it('never reports more remaining than the limit', async () => {
@@ -104,6 +116,29 @@ describe('checkRateLimit', () => {
 
     expect(result.allowed).toBe(false)
     expect(result.limit).toBe(0)
+  })
+})
+
+describe('authenticateRequest', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockAuthenticateV1Request.mockResolvedValue({
+      authenticated: true,
+      keyType: 'personal',
+    })
+    mockGetSubscription.mockResolvedValue({ plan: 'team' })
+    mockGetRateLimit.mockReturnValue(TEAM_BUCKET)
+    mockCheckRateLimit.mockResolvedValue({
+      allowed: true,
+      remaining: 399,
+      resetAt: new Date('2026-07-28T18:28:48.354Z'),
+    })
+  })
+
+  it('fails fast when an allowed result has no user ID', async () => {
+    await expect(authenticateRequest(request(), 'workflows')).rejects.toThrow(
+      'Allowed public API request is missing a user ID'
+    )
   })
 })
 
@@ -172,6 +207,7 @@ describe('rate-limit snapshot context', () => {
       authenticated: true,
       userId: 'user-1',
       keyType: 'personal',
+      principal: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' },
     })
     mockGetSubscription.mockResolvedValue({ plan: 'team' })
     mockGetRateLimit.mockReturnValue(TEAM_BUCKET)

@@ -40,8 +40,14 @@ function recordSpanError(span: Span, err: unknown) {
 
 const logger = createLogger('FileReader')
 
-/** Inline text-read cap — exported so callers can align their own byte-sniff budgets with what read() can actually display. */
-export const MAX_TEXT_READ_BYTES = 5 * 1024 * 1024 // 5 MB
+/**
+ * Text-read materialization cap — exported so callers can align their own byte-sniff budgets
+ * with what read() can actually load. This bounds what the server LOADS, not what the model
+ * receives inline: the read handler windows (offset/limit) and inline-size-gates the result,
+ * so a large file is paged rather than sent whole. 20MB keeps multi-MB logs/exports greppable
+ * and pageable while still refusing genuinely unbounded blobs.
+ */
+export const MAX_TEXT_READ_BYTES = 20 * 1024 * 1024 // 20 MB
 /** Vision-attachment cap: what the prepared image must fit into after resizing. */
 export const MAX_IMAGE_READ_BYTES = 5 * 1024 * 1024 // 5 MB
 // Parseable-document byte cap. Large office/PDF files can still
@@ -122,8 +128,14 @@ type CappedFetch = { buffer: Buffer } | { tooLarge: true; observedBytes?: number
 
 async function fetchWithinLimit(
   record: WorkspaceFileRecord,
-  maxBytes: number
+  maxBytes: number,
+  authorizedContent?: Buffer
 ): Promise<CappedFetch> {
+  if (authorizedContent !== undefined) {
+    return authorizedContent.length <= maxBytes
+      ? { buffer: authorizedContent }
+      : { tooLarge: true, observedBytes: authorizedContent.length }
+  }
   try {
     return { buffer: await fetchWorkspaceFileBuffer(record, { maxBytes }) }
   } catch (err) {
@@ -441,6 +453,8 @@ export interface FileReadResult {
   totalLines: number
   /** Set when `content` stands in for the file rather than being it — see `readPlaceholder`. */
   placeholder?: PlaceholderKind
+  /** Set when a dynamic read resolved the file but failed to produce its requested view. */
+  error?: string
   attachment?: {
     type: string
     name?: string
@@ -462,7 +476,11 @@ export interface FileReadResult {
  * binary), and any size rejection. The `prepareImageForVision` span
  * nests underneath for the image-resize path.
  */
-export async function readFileRecord(record: WorkspaceFileRecord): Promise<FileReadResult | null> {
+export async function readFileRecord(
+  record: WorkspaceFileRecord,
+  /** Pre-authorized workspace bytes; omitted only for chat-upload records in the mothership store. */
+  authorizedContent?: Buffer
+): Promise<FileReadResult | null> {
   const startedAt = Date.now()
   const result = await getVfsTracer().startActiveSpan(
     TraceSpan.CopilotVfsReadFile,
@@ -488,7 +506,7 @@ export async function readFileRecord(record: WorkspaceFileRecord): Promise<FileR
           // The recorded size only skips a doomed download; the cap on the download
           // itself is what bounds the bytes actually read.
           if (record.size > MAX_IMAGE_SOURCE_BYTES) return imageTooLarge(record.size)
-          const fetched = await fetchWithinLimit(record, MAX_IMAGE_SOURCE_BYTES)
+          const fetched = await fetchWithinLimit(record, MAX_IMAGE_SOURCE_BYTES, authorizedContent)
           if ('tooLarge' in fetched) return imageTooLarge(fetched.observedBytes ?? record.size)
 
           const prepared = await prepareImageForVision(fetched.buffer, record.type)
@@ -534,7 +552,7 @@ export async function readFileRecord(record: WorkspaceFileRecord): Promise<FileR
           }
           if (record.size > MAX_TEXT_READ_BYTES) return textTooLarge(record.size)
 
-          const fetched = await fetchWithinLimit(record, MAX_TEXT_READ_BYTES)
+          const fetched = await fetchWithinLimit(record, MAX_TEXT_READ_BYTES, authorizedContent)
           if ('tooLarge' in fetched) return textTooLarge(fetched.observedBytes ?? record.size)
           const buffer = fetched.buffer
           const content = buffer.toString('utf-8')
@@ -558,7 +576,11 @@ export async function readFileRecord(record: WorkspaceFileRecord): Promise<FileR
             return readPlaceholder.documentTooLarge(record.name, bytes, MAX_PARSEABLE_READ_BYTES)
           }
           if (record.size > MAX_PARSEABLE_READ_BYTES) return documentTooLarge(record.size)
-          const fetched = await fetchWithinLimit(record, MAX_PARSEABLE_READ_BYTES)
+          const fetched = await fetchWithinLimit(
+            record,
+            MAX_PARSEABLE_READ_BYTES,
+            authorizedContent
+          )
           if ('tooLarge' in fetched) {
             return documentTooLarge(fetched.observedBytes ?? record.size)
           }

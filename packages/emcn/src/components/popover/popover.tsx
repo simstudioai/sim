@@ -55,10 +55,10 @@ import * as PopoverPrimitive from '@radix-ui/react-popover'
 import { createPortal } from 'react-dom'
 import { Check, ChevronLeft, ChevronRight, Search } from '../../icons'
 import { cn } from '../../lib/cn'
+import { chipActiveSurfaceClass, chipHoverSurfaceClass } from '../chip/chip-chrome'
 
 type PopoverSize = 'sm' | 'md'
 type PopoverColorScheme = 'default' | 'inverted'
-type PopoverVariant = 'default' | 'secondary'
 
 /**
  * Style constants for popover components.
@@ -113,16 +113,16 @@ const STYLES = {
     }
   >,
 
-  /** Interactive state styles: default, secondary (brand), inverted (dark bg in light mode) */
+  /** Interactive state styles: default, and inverted (dark bg in light mode) */
   states: {
     default: {
-      active: 'bg-[var(--surface-active)]',
-      hover: 'hover-hover:bg-[var(--surface-active)]',
-    },
-    secondary: {
-      active: 'bg-[var(--brand-secondary)] text-white [&_svg]:text-white',
-      hover:
-        'hover-hover:bg-[var(--brand-secondary)] hover-hover:text-white hover-hover:[&_svg]:text-white',
+      /**
+       * The shared row-state pair — see {@link chipHoverSurfaceClass}.
+       * `getItemStateClasses` returns active OR hover and never both, which is
+       * what holds a checked item's surface through hover.
+       */
+      active: chipActiveSurfaceClass,
+      hover: chipHoverSurfaceClass,
     },
     inverted: {
       active:
@@ -133,21 +133,9 @@ const STYLES = {
   },
 } as const
 
-/**
- * Gets the active/hover classes for a popover item.
- * Uses variant for secondary, otherwise colorScheme determines default vs inverted.
- */
-function getItemStateClasses(
-  variant: PopoverVariant,
-  colorScheme: PopoverColorScheme,
-  isActive: boolean
-): string {
+/** Gets the active/hover classes for a popover item, keyed by colour scheme. */
+function getItemStateClasses(colorScheme: PopoverColorScheme, isActive: boolean): string {
   const state = isActive ? 'active' : 'hover'
-
-  if (variant === 'secondary') {
-    return STYLES.states.secondary[state]
-  }
-
   return colorScheme === 'inverted' ? STYLES.states.inverted[state] : STYLES.states.default[state]
 }
 
@@ -163,7 +151,6 @@ interface PopoverContextValue {
   isInFolder: boolean
   folderTitle: string | null
   onFolderSelect: (() => void) | null
-  variant: PopoverVariant
   size: PopoverSize
   colorScheme: PopoverColorScheme
   searchQuery: string
@@ -197,11 +184,6 @@ const usePopoverContext = () => {
 
 export interface PopoverProps extends PopoverPrimitive.PopoverProps {
   /**
-   * Visual variant of the popover
-   * @default 'default'
-   */
-  variant?: PopoverVariant
-  /**
    * Size variant of the popover
    * - sm: 11px text, compact spacing (for logs, notifications, context menus)
    * - md: 13px text, default spacing
@@ -222,7 +204,6 @@ export interface PopoverProps extends PopoverPrimitive.PopoverProps {
  */
 const Popover: React.FC<PopoverProps> = ({
   children,
-  variant = 'default',
   size = 'md',
   colorScheme = 'default',
   open,
@@ -312,7 +293,6 @@ const Popover: React.FC<PopoverProps> = ({
       isInFolder: currentFolder !== null,
       folderTitle,
       onFolderSelect,
-      variant,
       size,
       colorScheme,
       searchQuery,
@@ -333,7 +313,6 @@ const Popover: React.FC<PopoverProps> = ({
       currentFolder,
       folderTitle,
       onFolderSelect,
-      variant,
       size,
       colorScheme,
       searchQuery,
@@ -732,7 +711,6 @@ const PopoverItem = React.forwardRef<HTMLDivElement, PopoverItemProps>(
     ref
   ) => {
     const context = React.useContext(PopoverContext)
-    const variant = context?.variant || 'default'
     const size = context?.size || 'md'
     const colorScheme = context?.colorScheme || 'default'
     const itemRef = React.useRef<HTMLDivElement>(null)
@@ -794,7 +772,7 @@ const PopoverItem = React.forwardRef<HTMLDivElement, PopoverItemProps>(
           STYLES.itemBase,
           STYLES.colorScheme[colorScheme].text,
           STYLES.size[size].item,
-          getItemStateClasses(variant, colorScheme, !!isActive),
+          getItemStateClasses(colorScheme, !!isActive),
           suppressHover && 'hover-hover:!bg-transparent',
           disabled && 'pointer-events-none cursor-not-allowed opacity-50',
           className
@@ -901,7 +879,6 @@ const PopoverFolder = React.forwardRef<HTMLDivElement, PopoverFolderProps>(
       openFolder,
       currentFolder,
       isInFolder,
-      variant,
       size,
       colorScheme,
       lastHoveredItem,
@@ -991,7 +968,7 @@ const PopoverFolder = React.forwardRef<HTMLDivElement, PopoverFolderProps>(
             STYLES.itemBase,
             STYLES.colorScheme[colorScheme].text,
             STYLES.size[size].item,
-            getItemStateClasses(variant, colorScheme, isActive || isHoverOpen),
+            getItemStateClasses(colorScheme, isActive || isHoverOpen),
             suppressHover && 'hover-hover:!bg-transparent',
             className
           )}
@@ -1054,7 +1031,7 @@ interface PopoverBackButtonProps extends React.HTMLAttributes<HTMLDivElement> {
  */
 const PopoverBackButton = React.forwardRef<HTMLDivElement, PopoverBackButtonProps>(
   ({ className, folderTitleRef, folderTitleActive, onFolderTitleMouseEnter, ...props }, ref) => {
-    const { isInFolder, closeFolder, folderTitle, onFolderSelect, variant, size, colorScheme } =
+    const { isInFolder, closeFolder, folderTitle, onFolderSelect, size, colorScheme } =
       usePopoverContext()
 
     if (!isInFolder) return null
@@ -1068,7 +1045,7 @@ const PopoverBackButton = React.forwardRef<HTMLDivElement, PopoverBackButtonProp
             STYLES.itemBase,
             STYLES.colorScheme[colorScheme].text,
             STYLES.size[size].item,
-            getItemStateClasses(variant, colorScheme, false),
+            getItemStateClasses(colorScheme, false),
             className
           )}
           role='button'
@@ -1094,7 +1071,7 @@ const PopoverBackButton = React.forwardRef<HTMLDivElement, PopoverBackButtonProp
               STYLES.itemBase,
               STYLES.colorScheme[colorScheme].text,
               STYLES.size[size].item,
-              getItemStateClasses(variant, colorScheme, !!folderTitleActive),
+              getItemStateClasses(colorScheme, !!folderTitleActive),
               'peer-hover:!bg-transparent'
             )}
             role='button'

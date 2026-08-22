@@ -9,30 +9,52 @@ import {
   parseWorkflowExecutionTimeoutSeconds,
 } from '@/lib/billing/execution-timeout-defaults'
 
-export const enterpriseSubscriptionMetadataSchema = z.object({
-  plan: z
-    .string()
-    .transform((v) => v.toLowerCase())
-    .pipe(z.literal('enterprise')),
-  // The referenceId must be provided in Stripe metadata to link to the organization
-  // This gets stored in the subscription.referenceId column
-  referenceId: z.string().min(1),
-  // The fixed monthly price for this enterprise customer (as string from Stripe metadata)
-  // This will be used to set the organization's usage limit
-  monthlyPrice: z.coerce.number().positive(),
-  // Number of seats for invitation limits (not for billing)
-  seats: z.coerce.number().int().positive(),
-  concurrencyLimit: z.coerce
-    .number()
-    .int()
-    .positive()
-    .max(MAX_BILLING_CONCURRENCY_LIMIT)
-    .optional(),
-  workflowExecutionTimeoutSeconds: z.preprocess(
-    (value) => parseWorkflowExecutionTimeoutSeconds(value) ?? undefined,
-    z.number().int().positive().max(MAX_WORKFLOW_EXECUTION_TIMEOUT_SECONDS).optional()
-  ),
-})
+export const enterpriseSubscriptionMetadataSchema = z
+  .object({
+    plan: z
+      .string()
+      .transform((v) => v.toLowerCase())
+      .pipe(z.literal('enterprise')),
+    referenceId: z.string().min(1),
+    invoiceAmountCents: z.coerce.number().int().positive().optional(),
+    /** Legacy monthly Enterprise metadata retained for existing subscriptions. */
+    monthlyPrice: z.coerce.number().positive().optional(),
+    seats: z.coerce.number().int().positive(),
+    reportingPeriodAnchorDate: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/)
+      .refine((value) => {
+        const parsed = new Date(`${value}T00:00:00.000Z`)
+        return (
+          Number.isFinite(parsed.getTime()) &&
+          parsed.toISOString().slice(0, 10) === value &&
+          parsed.getTime() <= Date.now()
+        )
+      }, 'Reporting-period anchor must be a valid UTC date that is not in the future')
+      .optional(),
+    reportingPeriodInterval: z.enum(['month', 'year']).optional(),
+    concurrencyLimit: z.coerce
+      .number()
+      .int()
+      .positive()
+      .max(MAX_BILLING_CONCURRENCY_LIMIT)
+      .optional(),
+    workflowExecutionTimeoutSeconds: z.preprocess(
+      (value) => parseWorkflowExecutionTimeoutSeconds(value) ?? undefined,
+      z.number().int().positive().max(MAX_WORKFLOW_EXECUTION_TIMEOUT_SECONDS).optional()
+    ),
+  })
+  .refine(
+    (metadata) => metadata.invoiceAmountCents !== undefined || metadata.monthlyPrice !== undefined,
+    { error: 'Enterprise invoice amount metadata is required' }
+  )
+  .transform((metadata) => ({
+    ...metadata,
+    invoiceAmountUsd:
+      metadata.invoiceAmountCents !== undefined
+        ? metadata.invoiceAmountCents / 100
+        : (metadata.monthlyPrice as number),
+  }))
 
 export type EnterpriseSubscriptionMetadata = z.infer<typeof enterpriseSubscriptionMetadataSchema>
 

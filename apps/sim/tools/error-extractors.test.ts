@@ -286,4 +286,31 @@ describe('Error Extractors', () => {
       )
     })
   })
+
+  describe('prospeo-errors', () => {
+    it('extracts the machine-readable no-match code from a 400 response', () => {
+      const errorInfo: ErrorInfo = {
+        status: 400,
+        statusText: 'Bad Request',
+        data: { error: true, error_code: 'NO_MATCH' },
+      }
+
+      expect(extractErrorMessage(errorInfo, ErrorExtractorId.PROSPEO_ERRORS)).toBe('NO_MATCH')
+    })
+
+    it('preserves genuine Prospeo failure details', () => {
+      const errorInfo: ErrorInfo = {
+        status: 400,
+        data: {
+          error: true,
+          error_code: 'INVALID_DATAPOINTS',
+          filter_error: 'full_name and company_website are required',
+        },
+      }
+
+      expect(extractErrorMessage(errorInfo, ErrorExtractorId.PROSPEO_ERRORS)).toBe(
+        'INVALID_DATAPOINTS: full_name and company_website are required'
+      )
+    })
+  })
 })

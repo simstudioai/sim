@@ -149,6 +149,19 @@ export const GoogleTranslateBlock: BlockConfig = {
   bgColor: '#FFFFFF',
   icon: GoogleTranslateIcon,
   authMode: AuthMode.ApiKey,
+  canvasPresentation: {
+    defaultTitle: 'Google Translate',
+    sentences: {
+      byOperation: {
+        text: [
+          { text: 'Translate', field: 'text', core: true },
+          { text: 'from', field: 'source' },
+          { text: 'into', field: 'target' },
+        ],
+        detect: [{ text: 'Detect the language of', field: 'text', core: true }],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',

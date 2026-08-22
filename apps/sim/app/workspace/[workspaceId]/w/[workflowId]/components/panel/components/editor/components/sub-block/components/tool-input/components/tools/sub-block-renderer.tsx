@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef } from 'react'
+import { isUserSuppliedToolParam } from '@/lib/workflows/tool-input/param-visibility'
 import {
   buildToolSubBlockId,
   resolveToolParamSync,
@@ -122,8 +123,10 @@ export function ToolSubBlockRenderer({
     pushParamValueToStore(toolParamValue)
   }, [toolParamValue, pushParamValueToStore])
 
-  const visibility = subBlock.paramVisibility ?? 'user-or-llm'
-  const isOptionalForUser = visibility !== 'user-only'
+  // Shared with the fork-sync gate so "is this the user's to fill?" is answered the same way
+  // in the editor and when a sync decides whether a blank value blocks. `required` itself
+  // stays for the field below to resolve in its own value context.
+  const isOptionalForUser = !isUserSuppliedToolParam(subBlock)
 
   const config = {
     ...subBlock,

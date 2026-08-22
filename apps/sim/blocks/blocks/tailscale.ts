@@ -14,6 +14,77 @@ export const TailscaleBlock: BlockConfig = {
   bgColor: '#2E2D2D',
   icon: TailscaleIcon,
   authMode: AuthMode.ApiKey,
+  canvasPresentation: {
+    defaultTitle: 'Tailscale',
+    sentences: {
+      byOperation: {
+        list_devices: ['List every device in the tailnet'],
+        get_device: [{ text: 'Fetch details for device', field: 'deviceId', core: true }],
+        delete_device: [
+          { text: 'Remove device', field: 'deviceId', core: true, after: 'from the tailnet' },
+        ],
+        /* `authorized`'s options are labelled "Authorize"/"Deauthorize", so the
+           chip cannot carry the verb — the sentence states the change instead. */
+        authorize_device: [
+          { text: 'Set device', field: 'deviceId', core: true },
+          { text: 'to', field: 'authorized' },
+        ],
+        set_device_tags: [
+          { text: 'Tag device', field: 'deviceId', core: true },
+          { text: 'with', field: 'tags' },
+        ],
+        get_device_routes: [
+          { text: 'Read the subnet routes of device', field: 'deviceId', core: true },
+        ],
+        set_device_routes: [
+          { text: 'Set the subnet routes of device', field: 'deviceId', core: true },
+          { text: 'to', field: 'routes' },
+        ],
+        update_device_key: [
+          { text: 'Set key expiry on device', field: 'deviceId', core: true },
+          { text: 'to', field: 'keyExpiryDisabled' },
+        ],
+        expire_device_key: [
+          { text: 'Expire the node key of device', field: 'deviceId', core: true },
+        ],
+        list_dns_nameservers: ['List the DNS nameservers of the tailnet'],
+        set_dns_nameservers: [
+          { text: 'Set the tailnet DNS nameservers to', field: 'dnsServers', core: true },
+        ],
+        get_dns_preferences: ['Read DNS preferences, including MagicDNS status'],
+        set_dns_preferences: [
+          {
+            text: 'Set MagicDNS to',
+            field: 'magicDNS',
+            core: true,
+          },
+        ],
+        get_dns_searchpaths: ['Read the DNS search paths of the tailnet'],
+        set_dns_searchpaths: [
+          { text: 'Set the tailnet DNS search paths to', field: 'searchPaths', core: true },
+        ],
+        list_users: ['List every user in the tailnet'],
+        suspend_user: [{ text: 'Suspend tailnet access for user', field: 'userId', core: true }],
+        delete_user: [
+          { text: 'Delete user', field: 'userId', core: true, after: 'from the tailnet' },
+        ],
+        create_auth_key: [
+          'Create an auth key',
+          { text: 'for', field: 'authKeyDescription' },
+          { text: 'tagged', field: 'tags' },
+          { text: ', expiring in', field: 'expirySeconds', after: 'seconds' },
+        ],
+        list_auth_keys: ['List the tailnet auth keys'],
+        get_auth_key: [{ text: 'Fetch auth key', field: 'keyId', core: true }],
+        delete_auth_key: [{ text: 'Revoke auth key', field: 'keyId', core: true }],
+        get_acl: ['Read the tailnet ACL policy'],
+        set_acl: [
+          'Replace the tailnet ACL policy',
+          { text: ', if the ETag matches', field: 'ifMatch' },
+        ],
+      },
+    },
+  },
 
   subBlocks: [
     {

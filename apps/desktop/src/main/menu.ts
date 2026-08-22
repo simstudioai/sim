@@ -1,11 +1,13 @@
 import type { MenuItemConstructorOptions } from 'electron'
 import { app, BrowserWindow, Menu } from 'electron'
 import type { ConfigStore } from '@/main/config'
+import { DOCS_URL, STATUS_URL } from '@/main/external-links'
 import { openExternalSafe } from '@/main/navigation'
-import type { FocusedResourceShortcut } from '@/main/resource-shortcuts'
+import type {
+  FocusedResourceShortcut,
+  ResourceTabSelectionShortcut,
+} from '@/main/resource-shortcuts'
 
-const DOCS_URL = 'https://docs.sim.ai'
-const STATUS_URL = 'https://status.sim.ai'
 const ZOOM_STEP = 0.5
 
 export interface MenuDeps {
@@ -25,6 +27,7 @@ export interface MenuDeps {
     shortcut: FocusedResourceShortcut
   ) => boolean
   toggleSidebar: () => void
+  openSearch: () => void
   signOut: () => void
   checkForUpdates: () => void
 }
@@ -46,6 +49,25 @@ export function buildMenuTemplate(deps: MenuDeps): MenuItemConstructorOptions[] 
   const focusedOrMain = (focusedWindow: unknown): BrowserWindow | null =>
     focusedWindow instanceof BrowserWindow ? focusedWindow : deps.getMainWindow()
 
+  const resourceShortcut = (
+    shortcut: FocusedResourceShortcut
+  ): NonNullable<MenuItemConstructorOptions['click']> => {
+    return (_item, focusedWindow) => {
+      deps.handleFocusedResourceShortcut(focusedOrMain(focusedWindow), shortcut)
+    }
+  }
+
+  const numberedTabItems: MenuItemConstructorOptions[] = Array.from({ length: 9 }, (_, index) => {
+    const number = index + 1
+    const shortcut = `select-tab-${number}` as ResourceTabSelectionShortcut
+    return {
+      label: number === 9 ? 'Last Tab' : `Tab ${number}`,
+      accelerator: `CmdOrCtrl+${number}`,
+      visible: false,
+      click: resourceShortcut(shortcut),
+    }
+  })
+
   const setZoom = (
     action: 'in' | 'out' | 'reset'
   ): NonNullable<MenuItemConstructorOptions['click']> => {
@@ -62,6 +84,16 @@ export function buildMenuTemplate(deps: MenuDeps): MenuItemConstructorOptions[] 
   }
 
   const viewSubmenu: MenuItemConstructorOptions[] = [
+    /**
+     * The command palette is the web app's own `Mod+K` command; claiming the
+     * accelerator here means the menu, not the renderer, resolves it — so the
+     * click must drive the same palette the page would have opened.
+     */
+    {
+      label: 'Search',
+      accelerator: 'CmdOrCtrl+K',
+      click: deps.openSearch,
+    },
     {
       label: 'Toggle Sidebar',
       accelerator: 'CmdOrCtrl+B',
@@ -91,6 +123,22 @@ export function buildMenuTemplate(deps: MenuDeps): MenuItemConstructorOptions[] 
         if (!win || win.isDestroyed()) return
         if (deps.handleFocusedResourceShortcut(win, 'reload-or-clear')) return
         win.webContents.reload()
+      },
+    },
+    /**
+     * Hard refresh, cache ignored. A focused Browser tab claims it first
+     * (same boundary as Reload/Close Tab); otherwise it reloads the Sim
+     * shell — the recovery lever for picking up freshly deployed client
+     * code.
+     */
+    {
+      label: 'Force Reload',
+      accelerator: 'CmdOrCtrl+Shift+R',
+      click: (_item, focusedWindow) => {
+        const win = focusedOrMain(focusedWindow)
+        if (!win || win.isDestroyed()) return
+        if (deps.handleFocusedResourceShortcut(win, 'hard-reload')) return
+        win.webContents.reloadIgnoringCache()
       },
     },
     { type: 'separator' },
@@ -123,13 +171,6 @@ export function buildMenuTemplate(deps: MenuDeps): MenuItemConstructorOptions[] 
       label: 'File',
       submenu: [
         {
-          label: 'New Tab',
-          accelerator: 'CmdOrCtrl+T',
-          click: (_item, focusedWindow) => {
-            deps.handleFocusedResourceShortcut(focusedOrMain(focusedWindow), 'new-tab')
-          },
-        },
-        {
           label: 'New Window',
           accelerator: 'CmdOrCtrl+Shift+N',
           click: deps.newWindow,
@@ -137,19 +178,64 @@ export function buildMenuTemplate(deps: MenuDeps): MenuItemConstructorOptions[] 
         { label: 'New Chat', accelerator: 'CmdOrCtrl+N', click: deps.newChat },
         { type: 'separator' },
         {
+          label: 'Close Window',
+          accelerator: 'CmdOrCtrl+Shift+W',
+          click: (_item, focusedWindow) => {
+            const win = focusedOrMain(focusedWindow)
+            if (win && !win.isDestroyed()) win.close()
+          },
+        },
+        /**
+         * Resource-scoped shortcuts: these act on whichever Browser/Terminal
+         * panel is focused, not on the app, so they stay out of the visible
+         * File menu. The accelerators still fire — macOS registers a hidden
+         * item's accelerator (`acceleratorWorksWhenHidden` defaults to true).
+         * The numbered tab items sit flat here rather than under a "Select
+         * Tab" submenu because children of a hidden submenu do not reliably
+         * register their accelerators.
+         */
+        {
+          label: 'New Tab',
+          accelerator: 'CmdOrCtrl+T',
+          visible: false,
+          click: (_item, focusedWindow) => {
+            deps.handleFocusedResourceShortcut(focusedOrMain(focusedWindow), 'new-tab')
+          },
+        },
+        {
           label: 'Reopen Closed Tab',
           accelerator: 'CmdOrCtrl+Shift+T',
+          visible: false,
           click: (_item, focusedWindow) => {
             deps.handleFocusedResourceShortcut(focusedOrMain(focusedWindow), 'reopen-closed-tab')
           },
         },
         {
-          label: 'Close Window',
+          label: 'Focus Address Bar',
+          accelerator: 'CmdOrCtrl+L',
+          visible: false,
+          click: resourceShortcut('focus-omnibox'),
+        },
+        {
+          label: 'Next Tab',
+          accelerator: 'Ctrl+Tab',
+          visible: false,
+          click: resourceShortcut('next-tab'),
+        },
+        {
+          label: 'Previous Tab',
+          accelerator: 'Ctrl+Shift+Tab',
+          visible: false,
+          click: resourceShortcut('previous-tab'),
+        },
+        ...numberedTabItems,
+        {
+          label: 'Close Tab',
           accelerator: 'CmdOrCtrl+W',
+          visible: false,
           click: (_item, focusedWindow) => {
             const win = focusedOrMain(focusedWindow)
-            if (deps.handleFocusedResourceShortcut(win, 'close-tab')) return
-            if (win && !win.isDestroyed()) win.close()
+            deps.handleFocusedResourceShortcut(win, 'close-tab')
           },
         },
       ],
@@ -165,7 +251,7 @@ export function buildMenuTemplate(deps: MenuDeps): MenuItemConstructorOptions[] 
           click: () => void openExternalSafe(DOCS_URL, deps.allowHttpLocalhost()),
         },
         {
-          label: 'System Status',
+          label: 'Sim Status',
           click: () => void openExternalSafe(STATUS_URL, deps.allowHttpLocalhost()),
         },
       ],

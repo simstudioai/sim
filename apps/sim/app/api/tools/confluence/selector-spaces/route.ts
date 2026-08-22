@@ -6,12 +6,12 @@ import { authorizeCredentialUse } from '@/lib/auth/credential-access'
 import { validateJiraCloudId } from '@/lib/core/security/input-validation'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID } from '@/lib/oauth/types'
 import {
   getAtlassianServiceAccountSecret,
   refreshAccessTokenIfNeeded,
   resolveOAuthAccountId,
-} from '@/app/api/auth/oauth/utils'
+} from '@/lib/oauth/credential-service'
+import { ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID } from '@/lib/oauth/types'
 import { getConfluenceCloudId } from '@/tools/confluence/utils'
 import { parseAtlassianErrorMessage } from '@/tools/jira/utils'
 

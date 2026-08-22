@@ -5,6 +5,15 @@
 import { randomInt, randomItem } from '@sim/utils/random'
 import { env, envNumber } from '@/lib/core/config/env'
 
+/**
+ * Maximum tables addressable by identifier in one bulk request. Matches the
+ * knowledge domain's `MAX_KNOWLEDGE_BATCH_ITEMS` so a multi-select on either
+ * list page is capped the same way.
+ */
+export const MAX_TABLE_BATCH_ITEMS = 100
+
+export const DEFAULT_TABLE_VIEW_NAME = 'Default'
+
 export const TABLE_LIMITS = {
   MAX_TABLES_PER_WORKSPACE: 100,
   MAX_ROWS_PER_TABLE: 10000,
@@ -45,6 +54,29 @@ export const TABLE_LIMITS = {
   EXPORT_ASYNC_THRESHOLD_ROWS: 10000,
   /** Cap on the exclusion set ("select all, minus these") sent to an async delete job. */
   MAX_EXCLUDE_ROW_IDS: 10000,
+  /**
+   * Matching cells one Find returns. The scan fetches one extra to decide
+   * `truncated`; matches carry no cursor, so a caller past the cap narrows its
+   * predicate instead of paging. Published in the response contract — a cap a
+   * caller cannot see is a cap it cannot plan around.
+   */
+  MAX_FIND_MATCHES: 1000,
+  /**
+   * Saved views per table. The views list is a single unpaginated full-set read
+   * (`GET /tables/{id}/views` always answers `nextCursor: null`), so the write
+   * side is what keeps that set small — the same shape as the folder cap, which
+   * bounds every reader that materializes a workspace's folder tree.
+   */
+  MAX_VIEWS_PER_TABLE: 100,
+  /**
+   * Workflow/enrichment groups per table. Same reason as
+   * {@link TABLE_LIMITS.MAX_VIEWS_PER_TABLE}: `GET /tables/{id}/groups` is a
+   * full-set read that always answers `nextCursor: null`, so its published
+   * "bounded set" claim is only true if the write side keeps it true. The
+   * indirect bound (every group must add at least one output column, and
+   * columns are capped) does not survive an update path that adds no columns.
+   */
+  MAX_WORKFLOW_GROUPS_PER_TABLE: 100,
 } as const
 
 /**
@@ -73,18 +105,28 @@ export const DEFAULT_TABLE_PLAN_LIMITS = {
 } as const
 
 /**
- * Byte budget at which a **bounded** page (one with an explicit `limit`) is cut
- * short, or `null` when disabled — the default. Opt in with `TABLE_MAX_PAGE_BYTES`.
- *
- * Off by default because a short page is only safe for a client that terminates
- * on `nextCursor === null`; a pre-existing v1 pager terminating on
- * `rows.length < limit` would read the cut as end-of-data and silently truncate.
- * Unbounded queries (no `limit`) are unaffected — they always fail fast at
- * `TABLE_LIMITS.MAX_QUERY_RESULT_BYTES` rather than return a partial result.
+ * Explicit row ids one column run may target. The largest table any plan allows
+ * is the ceiling: a longer list necessarily names rows that do not exist, and
+ * the run command rejects it. Declared on the request contract so the refusal
+ * is a documented bound rather than a surprise from the domain.
  */
-export function getMaxPageBytes(): number | null {
-  const value = envNumber(env.TABLE_MAX_PAGE_BYTES, 0, { min: 0, integer: true })
-  return value > 0 ? value : null
+export const MAX_RUN_TARGET_ROW_IDS = DEFAULT_TABLE_PLAN_LIMITS.enterprise.maxRowsPerTable
+
+/**
+ * Byte budget at which a **bounded** page (one with an explicit `limit`) is cut
+ * short. Defaults to the 5MB query-result budget and can be overridden with
+ * `TABLE_MAX_PAGE_BYTES`. Callers must terminate on `nextCursor === null`, not
+ * page fullness, because a byte-limited page may contain fewer rows than requested.
+ *
+ * Unbounded queries (no `limit`) are unaffected by the override — they always
+ * fail fast at `TABLE_LIMITS.MAX_QUERY_RESULT_BYTES` rather than return a partial
+ * result.
+ */
+export function getMaxPageBytes(): number {
+  return envNumber(env.TABLE_MAX_PAGE_BYTES, TABLE_LIMITS.MAX_QUERY_RESULT_BYTES, {
+    min: 1,
+    integer: true,
+  })
 }
 
 /**
@@ -207,7 +249,19 @@ export const FILTER_OPS = [
 
 export const SORT_DIRECTIONS = ['asc', 'desc'] as const
 
-export const NAME_PATTERN = /^[a-z_][a-z0-9_]*$/i
+/**
+ * Identifier rule for table names, column names, and JSONB filter fields:
+ * an ASCII letter or underscore, then letters, digits, or underscores.
+ *
+ * Spelled with an explicit `A-Za-z` class and NO `i` flag on purpose. This
+ * source is published verbatim as a JSON Schema `pattern` in the v2 OpenAPI
+ * documents, and JSON Schema patterns carry no flags — a `/^[a-z_][a-z0-9_]*$/i`
+ * spelling round-trips as the case-SENSITIVE `^[a-z_][a-z0-9_]*$`, so every
+ * generated client would reject names the server accepts (`Sales`,
+ * `subscriptionPlan`). The two spellings match exactly the same strings at
+ * runtime; only the published form differs.
+ */
+export const NAME_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/
 
 export const USER_TABLE_ROWS_SQL_NAME = 'user_table_rows'
 

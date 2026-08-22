@@ -31,7 +31,7 @@ export interface AshbyCustomField {
   id: string | null
   title: string
   isPrivate: boolean
-  valueLabel: string | null
+  valueLabel: string | string[] | null
   value: unknown
 }
 
@@ -122,6 +122,7 @@ export interface AshbySearchCandidatesParams extends AshbyBaseParams {
 export interface AshbyListJobsParams extends AshbyBaseParams {
   cursor?: string
   perPage?: number
+  syncToken?: string
   status?: string
   createdAfter?: string
   openedAfter?: string
@@ -266,6 +267,7 @@ export interface AshbyListJobsResponse extends ToolResponse {
     jobs: AshbyJob[]
     moreDataAvailable: boolean
     nextCursor: string | null
+    nextSyncCursor: string | null
   }
 }
 

@@ -10,6 +10,7 @@ import {
   createOAuthChatAttempt,
   getOAuthCredentialBaseline,
   hasOAuthCredentialChanged,
+  hasOAuthCredentialForTarget,
   OAUTH_CHAT_ATTEMPT_EVENT,
   OAUTH_CHAT_ATTEMPT_PARAM,
   OAUTH_CHAT_COMPLETE_PATH,
@@ -250,6 +251,91 @@ describe('OAuth chat attempts', () => {
     expect(
       hasOAuthCredentialChanged({ ...target, ...baseline }, [
         { ...before[0], updatedAt: '2026-08-07T10:05:00Z' },
+      ])
+    ).toBe(true)
+  })
+})
+
+describe('credential matching for a chat chip', () => {
+  const credential = (providerId: string) => ({
+    id: `cred-${providerId}`,
+    providerId,
+    updatedAt: '2026-08-11T00:00:00.000Z',
+  })
+
+  it('matches a credential from an alternate authorization server', () => {
+    // A sandbox-only user is connected; without this the chip reads as
+    // disconnected and re-prompts them to connect Salesforce again.
+    expect(
+      hasOAuthCredentialForTarget(
+        {
+          providerId: 'salesforce',
+          baseProviderId: 'salesforce',
+          additionalProviderIds: ['salesforce-sandbox'],
+        },
+        [credential('salesforce-sandbox')]
+      )
+    ).toBe(true)
+  })
+
+  it('still matches the primary id and the base provider', () => {
+    const target = { providerId: 'google-email', baseProviderId: 'google' }
+    expect(hasOAuthCredentialForTarget(target, [credential('google-email')])).toBe(true)
+    expect(hasOAuthCredentialForTarget(target, [credential('google')])).toBe(true)
+  })
+
+  it('does not match an unrelated provider', () => {
+    expect(
+      hasOAuthCredentialForTarget(
+        {
+          providerId: 'salesforce',
+          baseProviderId: 'salesforce',
+          additionalProviderIds: ['salesforce-sandbox'],
+        },
+        [credential('hubspot')]
+      )
+    ).toBe(false)
+  })
+
+  it('honours an explicit credentialId over any provider match', () => {
+    expect(
+      hasOAuthCredentialForTarget(
+        {
+          providerId: 'salesforce',
+          baseProviderId: 'salesforce',
+          credentialId: 'cred-other',
+          additionalProviderIds: ['salesforce-sandbox'],
+        },
+        [credential('salesforce-sandbox')]
+      )
+    ).toBe(false)
+  })
+})
+
+describe('attempt carries the alternate provider ids through verification', () => {
+  it('lets hasOAuthCredentialChanged see a credential from an alternate server', () => {
+    // The post-connect leg re-reads the STORED attempt, not the live target, so
+    // the ids must survive the round trip or a sandbox connect reads as failed.
+    const attempt = createOAuthChatAttempt({
+      workspaceId: 'workspace-1',
+      providerId: 'salesforce',
+      baseProviderId: 'salesforce',
+      additionalProviderIds: ['salesforce-sandbox'],
+      displayName: 'Salesforce',
+      controlId: 'control-1',
+      baselineCredentialIds: [],
+    })
+
+    const stored = readOAuthChatAttempt(attempt.id)
+    expect(stored?.additionalProviderIds).toEqual(['salesforce-sandbox'])
+
+    expect(
+      hasOAuthCredentialChanged(stored as NonNullable<typeof stored>, [
+        {
+          id: 'cred-sandbox',
+          providerId: 'salesforce-sandbox',
+          updatedAt: '2026-08-11T00:00:00.000Z',
+        },
       ])
     ).toBe(true)
   })

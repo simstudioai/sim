@@ -72,6 +72,64 @@ export const ClickHouseBlock: BlockConfig<ClickHouseResponse> = {
   integrationType: IntegrationType.Databases,
   bgColor: '#f9ff69',
   icon: ClickHouseIcon,
+  canvasPresentation: {
+    defaultTitle: 'ClickHouse',
+    sentences: {
+      byOperation: {
+        query: [{ text: 'Query rows with', field: 'query', core: true }],
+        execute: [{ text: 'Execute raw SQL', field: 'query', core: true }],
+        insert: [
+          { text: 'Insert a row into', field: 'table', core: true },
+          { text: ', with', field: 'data' },
+        ],
+        insert_rows: [{ text: 'Bulk insert rows into', field: 'table', core: true }],
+        update: [
+          { text: 'Update rows in', field: 'table', core: true },
+          { text: ', where', field: 'where' },
+          { text: ', setting', field: 'data' },
+        ],
+        delete: [
+          { text: 'Delete rows from', field: 'table', core: true },
+          { text: ', where', field: 'where' },
+        ],
+        list_databases: ['List all databases on the server'],
+        list_tables: [{ text: 'List tables in', field: 'database', core: true }],
+        describe_table: [{ text: 'Describe the columns of', field: 'table', core: true }],
+        show_create_table: [
+          { text: 'Read the CREATE TABLE statement for', field: 'table', core: true },
+        ],
+        count_rows: [
+          { text: 'Count rows in', field: 'table', core: true },
+          { text: ', where', field: 'where' },
+        ],
+        introspect: [{ text: 'Introspect the schema of', field: 'database', core: true }],
+        create_database: [{ text: 'Create database', field: 'name', core: true }],
+        drop_database: [{ text: 'Drop database', field: 'name', core: true }],
+        create_table: [
+          { text: 'Create table', field: 'table', core: true },
+          { text: ', ordered by', field: 'orderBy' },
+          { text: ', partitioned by', field: 'partitionBy' },
+        ],
+        drop_table: [{ text: 'Drop table', field: 'table', core: true }],
+        truncate_table: [{ text: 'Remove all rows from', field: 'table', core: true }],
+        rename_table: [
+          { text: 'Rename table', field: 'table', core: true },
+          { text: 'to', field: 'newTable' },
+        ],
+        optimize_table: [{ text: 'Merge the parts of', field: 'table', core: true }],
+        list_partitions: [{ text: 'List active partitions of', field: 'table', core: true }],
+        drop_partition: [
+          { text: 'Drop partition', field: 'partition', core: true },
+          { text: 'from', field: 'table' },
+        ],
+        list_mutations: ['List mutations', { text: 'on', field: 'table' }],
+        list_running_queries: ['List currently running queries'],
+        kill_query: [{ text: 'Kill query', field: 'queryId', core: true }],
+        table_stats: ['Read row counts and disk size', { text: 'for', field: 'table' }],
+        list_clusters: ['List clusters, shards, and replicas'],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',

@@ -14,8 +14,10 @@ import {
   DropdownMenuTrigger,
 } from '@sim/emcn'
 import {
+  ArrowDown,
   ArrowLeft,
   ArrowRight,
+  ArrowUp,
   Eye,
   EyeOff,
   Pencil,
@@ -24,9 +26,10 @@ import {
   PlayOutline,
   Trash,
   Workflow,
+  X,
 } from '@sim/emcn/icons'
 import type { RunLimit, RunMode } from '@/lib/api/contracts/tables'
-import type { WorkflowGroupType } from '@/lib/table'
+import type { SortDirection, WorkflowGroupType } from '@/lib/table'
 import { HeaderLabel } from '@/app/workspace/[workspaceId]/tables/[tableId]/components/table-grid/headers/header-label'
 import { getEnrichment } from '@/enrichments/registry'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
@@ -41,6 +44,12 @@ const LIMITED_RUN_PRESETS = [10, 1000] as const
 /** Labels for the table-scoped run items. With an active filter the run is
  *  scoped to matching rows, so the labels say "filtered rows" to make the
  *  narrowed target visible. Shared by both menu surfaces. */
+/**
+ * Incomplete before all, matching the action bar and the row context menu, which both
+ * present Play (empty or failed) ahead of Refresh (every row). These two menus read the
+ * same four run actions the user already met on the action bar, so they must not invert
+ * the pair — see `.claude/rules/sim-list-ordering.md`.
+ */
 function runMenuLabels(hasActiveFilter: boolean) {
   const rows = hasActiveFilter ? 'filtered rows' : 'rows'
   return {
@@ -84,6 +93,15 @@ interface ColumnOptionsMenuProps {
   /** When set, the menu surfaces a "View workflow" item that opens a popup
    *  preview of the configured workflow. */
   onViewWorkflow?: () => void
+  /** Sorts the table by this column. Omit to hide the sort items — the
+   *  workflow-group meta header spans several columns, so there is no single
+   *  column for it to sort by. */
+  onSortColumn?: (columnId: string, direction: SortDirection) => void
+  /** Clears the sort. Only rendered while {@link ColumnOptionsMenuProps.sortDirection}
+   *  says this column owns it. */
+  onClearSort?: () => void
+  /** This column's active sort direction. Absent when it is not the sorted one. */
+  sortDirection?: SortDirection
   /** Whether this column is currently pinned to the left. */
   isPinned?: boolean
   /** Toggle the pinned state of this column. */
@@ -115,6 +133,9 @@ export function ColumnOptionsMenu({
   selectedRowCount = 0,
   hasActiveFilter = false,
   onViewWorkflow,
+  onSortColumn,
+  onClearSort,
+  sortDirection,
   isPinned,
   onPinToggle,
 }: ColumnOptionsMenuProps) {
@@ -145,33 +166,60 @@ export function ColumnOptionsMenu({
         onCloseAutoFocus={(e) => e.preventDefault()}
       >
         {showRunActions && (
-          <>
-            <DropdownMenuSub>
-              <DropdownMenuSubTrigger>
-                <PlayOutline />
-                Run
-              </DropdownMenuSubTrigger>
-              <DropdownMenuSubContent>
-                {showRunSelected && (
-                  <DropdownMenuItem onSelect={() => onRunColumnSelected?.()}>
-                    {`Run ${selectedRowCount} selected ${selectedRowCount === 1 ? 'row' : 'rows'}`}
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger>
+              <PlayOutline />
+              Run
+            </DropdownMenuSubTrigger>
+            <DropdownMenuSubContent>
+              {showRunSelected && (
+                <DropdownMenuItem onSelect={() => onRunColumnSelected?.()}>
+                  {`Run ${selectedRowCount} selected ${selectedRowCount === 1 ? 'row' : 'rows'}`}
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuItem onSelect={() => onRunColumnIncomplete?.()}>
+                {runLabels.incomplete}
+              </DropdownMenuItem>
+              {onRunColumnLimited &&
+                LIMITED_RUN_PRESETS.map((max) => (
+                  <DropdownMenuItem key={max} onSelect={() => onRunColumnLimited(max)}>
+                    {runLabels.limited(max)}
                   </DropdownMenuItem>
-                )}
-                <DropdownMenuItem onSelect={() => onRunColumnAll?.()}>
-                  {runLabels.all}
-                </DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => onRunColumnIncomplete?.()}>
-                  {runLabels.incomplete}
-                </DropdownMenuItem>
-                {onRunColumnLimited &&
-                  LIMITED_RUN_PRESETS.map((max) => (
-                    <DropdownMenuItem key={max} onSelect={() => onRunColumnLimited(max)}>
-                      {runLabels.limited(max)}
-                    </DropdownMenuItem>
-                  ))}
-              </DropdownMenuSubContent>
-            </DropdownMenuSub>
-            <DropdownMenuSeparator />
+                ))}
+              <DropdownMenuItem onSelect={() => onRunColumnAll?.()}>
+                {runLabels.all}
+              </DropdownMenuItem>
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
+        )}
+        {/* Sort leads the column-scoped block: the options bar reads Filter ·
+            Sort · Columns, and this menu carries no Filter item, so Sort is the
+            first of that set to appear — a column-scoped Filter item added later
+            belongs ABOVE it. Direction words, not "A to Z": the same items sort
+            dates and numbers, and the options-bar Sort menu already speaks
+            ascending/descending. */}
+        {onSortColumn && (
+          <>
+            {sortDirection && onClearSort && (
+              <DropdownMenuItem onSelect={onClearSort}>
+                <X />
+                Clear sort
+              </DropdownMenuItem>
+            )}
+            <DropdownMenuItem
+              active={sortDirection === 'asc'}
+              onSelect={() => onSortColumn(column.key, 'asc')}
+            >
+              <ArrowUp />
+              Sort ascending
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              active={sortDirection === 'desc'}
+              onSelect={() => onSortColumn(column.key, 'desc')}
+            >
+              <ArrowDown />
+              Sort descending
+            </DropdownMenuItem>
           </>
         )}
         {onViewWorkflow && (
@@ -190,6 +238,8 @@ export function ColumnOptionsMenu({
             {isPinned ? 'Unpin column' : 'Pin column'}
           </DropdownMenuItem>
         )}
+        {/* Stops acting on this column and starts creating siblings — `Edit column`
+            above is unconditional, so the rule is always backed. */}
         <DropdownMenuSeparator />
         <DropdownMenuItem onSelect={() => onInsertLeft(column.key)}>
           <ArrowLeft />
@@ -224,6 +274,7 @@ interface WorkflowGroupMetaCellProps {
   size: number
   startColIndex: number
   columnName: string
+  columnKey: string
   /** Underlying logical column — needed for the right-click options menu. */
   column?: DisplayColumn
   workflows?: WorkflowMetadata[]
@@ -277,6 +328,7 @@ export function WorkflowGroupMetaCell({
   size,
   startColIndex,
   columnName,
+  columnKey,
   column,
   workflows,
   isGroupSelected,
@@ -359,13 +411,13 @@ export function WorkflowGroupMetaCell({
   }
 
   function handleDragStart(e: React.DragEvent) {
-    if (readOnly || !onDragStart || !columnName) {
+    if (readOnly || !onDragStart) {
       e.preventDefault()
       return
     }
     didDragRef.current = true
     e.dataTransfer.effectAllowed = 'move'
-    e.dataTransfer.setData('text/plain', columnName)
+    e.dataTransfer.setData('text/plain', columnKey)
 
     const ghost = document.createElement('div')
     ghost.textContent = name
@@ -376,17 +428,17 @@ export function WorkflowGroupMetaCell({
     e.dataTransfer.setDragImage(ghost, ghost.offsetWidth / 2, ghost.offsetHeight / 2)
     requestAnimationFrame(() => ghost.parentNode?.removeChild(ghost))
 
-    onDragStart(columnName)
+    onDragStart(columnKey)
   }
 
   function handleDragOver(e: React.DragEvent) {
-    if (!onDragOver || !columnName) return
+    if (!onDragOver) return
     e.preventDefault()
     e.dataTransfer.dropEffect = 'move'
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
     const midX = rect.left + rect.width / 2
     const side = e.clientX < midX ? 'left' : 'right'
-    onDragOver(columnName, side)
+    onDragOver(columnKey, side)
   }
 
   function handleDragEnd() {
@@ -411,6 +463,8 @@ export function WorkflowGroupMetaCell({
   return (
     <th
       colSpan={size}
+      data-column-drag-target={columnKey}
+      data-column-drag-group={groupId}
       onClick={selectGroupAndOpenConfig}
       onContextMenu={handleContextMenu}
       draggable={isDraggable}
@@ -465,7 +519,6 @@ export function WorkflowGroupMetaCell({
                   {`Run ${selectedCount} selected ${selectedCount === 1 ? 'row' : 'rows'}`}
                 </DropdownMenuItem>
               )}
-              <DropdownMenuItem onSelect={handleRunAll}>{runLabels.all}</DropdownMenuItem>
               <DropdownMenuItem onSelect={handleRunIncomplete}>
                 {runLabels.incomplete}
               </DropdownMenuItem>
@@ -474,6 +527,7 @@ export function WorkflowGroupMetaCell({
                   {runLabels.limited(max)}
                 </DropdownMenuItem>
               ))}
+              <DropdownMenuItem onSelect={handleRunAll}>{runLabels.all}</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         )}

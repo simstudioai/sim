@@ -3,8 +3,11 @@ import type { TablePredicate, TablePredicateInput } from '@/lib/table/types'
 /** Max members in one `all`/`any` group. */
 export const MAX_PREDICATE_GROUP_SIZE = 100
 
-const MAX_PREDICATE_DEPTH = 10
-const MAX_PREDICATE_NODES = 500
+/** Max nesting levels; the root group counts as level 1. */
+export const MAX_PREDICATE_DEPTH = 10
+
+/** Max total nodes — groups plus leaves — in one predicate tree. */
+export const MAX_PREDICATE_NODES = 500
 
 /**
  * Returns the predicate size-limit violation for an untrusted tree, if any.

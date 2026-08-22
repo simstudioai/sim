@@ -10,6 +10,10 @@ import { z } from 'zod'
 import { isZodError, validationErrorResponse } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { resolveBillingAttribution } from '@/lib/billing/core/billing-attribution'
+import {
+  DESKTOP_TERMINAL_HINT_ID_MAX_LENGTH,
+  DESKTOP_TERMINAL_HINT_TEXT_MAX_LENGTH,
+} from '@/lib/copilot/chat/desktop-capabilities'
 import { type ChatLoadResult, resolveOrCreateChat } from '@/lib/copilot/chat/lifecycle'
 import { appendCopilotChatMessages } from '@/lib/copilot/chat/messages-store'
 import { buildCopilotRequestPayload } from '@/lib/copilot/chat/payload'
@@ -58,6 +62,8 @@ import {
   sanitizeChatResources,
 } from '@/lib/copilot/resources/types'
 import { prepareExecutionContext } from '@/lib/copilot/tools/handlers/context'
+import type { AtomicClaimResult } from '@/lib/core/idempotency'
+import { chatSendIdempotency } from '@/lib/core/idempotency'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { resolveWorkflowIdForUser } from '@/lib/workflows/utils'
 import {
@@ -258,7 +264,10 @@ const ChatContextSchema = z
 
 const ChatMessageSchema = z.object({
   message: z.string().min(1, 'Message is required'),
-  userMessageId: z.string().optional(),
+  /* Bounded because it becomes part of a Postgres key in `chatSendIdempotency`;
+     a client-supplied id longer than the btree entry limit would throw there.
+     A generated id is 36 chars. */
+  userMessageId: z.string().max(128).optional(),
   chatId: z.string().optional(),
   workflowId: z.string().optional(),
   workspaceId: z.string().optional(),
@@ -284,9 +293,9 @@ const ChatMessageSchema = z.object({
       terminals: z
         .array(
           z.object({
-            id: z.string().max(64),
-            cwd: z.string().max(1024).optional(),
-            running: z.string().max(1024).optional(),
+            id: z.string().max(DESKTOP_TERMINAL_HINT_ID_MAX_LENGTH),
+            cwd: z.string().max(DESKTOP_TERMINAL_HINT_TEXT_MAX_LENGTH).optional(),
+            running: z.string().max(DESKTOP_TERMINAL_HINT_TEXT_MAX_LENGTH).optional(),
             interactive: z.boolean().optional(),
             active: z.boolean().optional(),
           })
@@ -456,9 +465,19 @@ async function resolveAgentContexts(params: {
   message: string
   workspaceId?: string
   chatId?: string
+  resolvedSecretTraceRegistry?: ExecutionContext['resolvedSecretTraceRegistry']
   requestId: string
 }): Promise<Array<{ type: string; content: string; tag?: string; path?: string }>> {
-  const { contexts, resourceAttachments, userId, message, workspaceId, chatId, requestId } = params
+  const {
+    contexts,
+    resourceAttachments,
+    userId,
+    message,
+    workspaceId,
+    chatId,
+    resolvedSecretTraceRegistry,
+    requestId,
+  } = params
 
   let agentContexts: Array<{ type: string; content: string; tag?: string; path?: string }> = []
 
@@ -469,7 +488,8 @@ async function resolveAgentContexts(params: {
         userId,
         message,
         workspaceId,
-        chatId
+        chatId,
+        resolvedSecretTraceRegistry
       )
     } catch (error) {
       logger.error(`[${requestId}] Failed to process contexts`, error)
@@ -943,10 +963,68 @@ async function resolveBranch(params: {
   }
 }
 
+/** Names what the key identifies: `chat-send:user-message:<id>:userId=<id>`. */
+const CHAT_SEND_IDEMPOTENCY_PROVIDER = 'user-message'
+
+/**
+ * Claims this send so a retry of it can be recognised.
+ *
+ * Fails open: a missed deduplication costs a duplicate chat and turn, but
+ * refusing the send loses the user's message. Returns `undefined` when the
+ * store is unreachable, which sends normally with no claim to finalize.
+ *
+ * The key is scoped to the caller — `userMessageId` is client-supplied, so an
+ * unscoped one would let a user probe another's sends for their chat id.
+ */
+async function claimChatSend(
+  userMessageId: string,
+  userId: string
+): Promise<AtomicClaimResult | undefined> {
+  try {
+    return await chatSendIdempotency.atomicallyClaim(
+      CHAT_SEND_IDEMPOTENCY_PROVIDER,
+      userMessageId,
+      { userId }
+    )
+  } catch (error) {
+    logger.warn('Could not claim chat send; proceeding without deduplication', {
+      userMessageId,
+      error: getErrorMessage(error, 'Unknown error'),
+    })
+    return undefined
+  }
+}
+
+/**
+ * Answers a send whose `userMessageId` was already claimed.
+ *
+ * Deliberately the same 409 shape the pending-stream lock returns, because the
+ * client's conflict handler already knows how to reattach to `activeStreamId`
+ * instead of starting a turn — a duplicate send and a send that collided with
+ * an in-flight one want exactly the same thing. `chatId` rides along when the
+ * first attempt got far enough to resolve one, letting a chatless client adopt
+ * it without a stream-to-chat lookup.
+ */
+function duplicateChatSendResponse(claim: AtomicClaimResult, userMessageId: string): NextResponse {
+  const claimed = claim.existingResult?.result?.chatId
+  const chatId = typeof claimed === 'string' && claimed ? claimed : undefined
+  logger.info('Deduplicated a repeated chat send', { userMessageId, chatId })
+  return NextResponse.json(
+    {
+      error: 'This message was already sent.',
+      activeStreamId: userMessageId,
+      ...(chatId ? { chatId } : {}),
+    },
+    { status: 409 }
+  )
+}
+
 export async function handleUnifiedChatPost(req: NextRequest) {
   let actualChatId: string | undefined
   let userMessageId = ''
   let chatStreamLockAcquired = false
+  /** Cleared once the chat is recorded against it, which makes it permanent. */
+  let sendClaim: AtomicClaimResult | undefined
   // Started once we've parsed the body (need userMessageId to stamp as
   // streamId). Every subsequent span (persistUserMessage,
   // createRunSegment, the whole SSE stream, etc.) nests under this
@@ -980,6 +1058,11 @@ export async function handleUnifiedChatPost(req: NextRequest) {
     }
     const normalizedContexts = normalizeContexts(body.contexts) ?? []
     userMessageId = body.userMessageId || generateId()
+
+    sendClaim = await claimChatSend(userMessageId, authenticatedUserId)
+    if (sendClaim?.claimed === false) {
+      return duplicateChatSendResponse(sendClaim, userMessageId)
+    }
 
     otelRoot = startCopilotOtelRoot({
       streamId: userMessageId,
@@ -1071,6 +1154,27 @@ export async function handleUnifiedChatPost(req: NextRequest) {
           activeOtelRoot.finish('error')
           return NextResponse.json({ error: 'Chat not found' }, { status: 404 })
         }
+      }
+
+      /* Record the chat as soon as it is known — the earliest a retry can be
+         answered with somewhere to go. This does not make the claim permanent:
+         several exits below still return without starting a turn, and a retry
+         of those must be free to start one. Failing to record only costs a
+         retry the chat-id shortcut, so it must not fail the send. */
+      if (sendClaim?.claimToken && actualChatId) {
+        await chatSendIdempotency
+          .storeResult(
+            sendClaim.normalizedKey,
+            { success: true, status: 'completed', result: { chatId: actualChatId } },
+            sendClaim.storageMethod,
+            sendClaim.claimToken
+          )
+          .catch((error) => {
+            logger.warn(`[${requestId}] Could not record the chat for this send`, {
+              userMessageId,
+              error: getErrorMessage(error, 'Unknown error'),
+            })
+          })
       }
 
       if (chatIsNew && actualChatId && body.resourceAttachments?.length) {
@@ -1178,7 +1282,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
           }),
         activeOtelRoot.context
       )
-      const agentContextsPromise = executionContextPromise.then(() => {
+      const agentContextsPromise = executionContextPromise.then((executionContext) => {
         return withCopilotSpan(
           TraceSpan.CopilotChatResolveAgentContexts,
           {
@@ -1193,6 +1297,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
               message: body.message,
               workspaceId,
               chatId: actualChatId,
+              resolvedSecretTraceRegistry: executionContext.resolvedSecretTraceRegistry,
               requestId,
             }),
           activeOtelRoot.context
@@ -1366,6 +1471,11 @@ export async function handleUnifiedChatPost(req: NextRequest) {
       const rootTraceparent = `00-${rootCtx.traceId}-${rootCtx.spanId}-${
         (rootCtx.traceFlags & 0x1) === 0x1 ? '01' : '00'
       }`
+      /* A turn is running. Only now is the claim permanent, so the `finally`
+         below leaves it in place and a retry of this send resolves to this
+         chat instead of opening another. Every earlier exit returns without a
+         turn, and releases. */
+      sendClaim = undefined
       return new Response(stream, {
         headers: {
           ...SSE_RESPONSE_HEADERS,
@@ -1406,5 +1516,21 @@ export async function handleUnifiedChatPost(req: NextRequest) {
       },
       { status: 500 }
     )
+  } finally {
+    /* A claim still held here never started a turn — the send threw, or
+       returned early on a rejected branch, a missing chat, or a chat that
+       already has a stream running. Release it so a retry may start one rather
+       than deduplicating against a turn that never happened. Must be
+       `finally`: those early returns skip `catch`. */
+    if (sendClaim?.claimToken) {
+      await chatSendIdempotency
+        .release(sendClaim.normalizedKey, sendClaim.storageMethod, sendClaim.claimToken)
+        .catch((releaseError) => {
+          logger.warn('Could not release the claim for an unfinished send', {
+            userMessageId,
+            error: getErrorMessage(releaseError, 'Unknown error'),
+          })
+        })
+    }
   }
 }

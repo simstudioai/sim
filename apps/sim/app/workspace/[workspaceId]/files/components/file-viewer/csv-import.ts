@@ -2,14 +2,13 @@
 
 import { useCallback, useEffect, useRef } from 'react'
 import { toast } from '@sim/emcn'
-import { generateId } from '@sim/utils/id'
 import { useRouter } from 'next/navigation'
 import { CSV_PREVIEW_MAX_ROWS } from '@/lib/api/contracts/workspace-file-table'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { useImportFileAsTable } from '@/hooks/queries/tables'
 import { useImportTrayStore } from '@/stores/table/import-tray/store'
 
-export type CsvImportFileDescriptor = Pick<WorkspaceFileRecord, 'key' | 'name'>
+export type CsvImportFileDescriptor = Pick<WorkspaceFileRecord, 'id' | 'key' | 'name'>
 
 /**
  * Wires the "Import as a table" affordance for a capped CSV preview. When the preview is
@@ -32,10 +31,7 @@ export function useCsvTruncationImport(
   const importAsTable = useCallback(() => {
     if (importingRef.current) return
     importingRef.current = true
-    const pendingId = `pending_${generateId()}`
-    useImportTrayStore
-      .getState()
-      .startUpload({ uploadId: pendingId, workspaceId, title: file.name })
+    let importId: string | null = null
     toast.success(`Importing "${file.name}" as a table`, {
       description: 'This runs in the background.',
       action: {
@@ -44,17 +40,29 @@ export function useCsvTruncationImport(
       },
     })
     importFile.mutate(
-      { workspaceId, fileKey: file.key, fileName: file.name },
+      {
+        workspaceId,
+        fileId: file.id,
+        fileName: file.name,
+        onCreated: (createdImportId) => {
+          importId = createdImportId
+          useImportTrayStore.getState().startUpload({
+            uploadId: createdImportId,
+            workspaceId,
+            title: file.name,
+          })
+        },
+      },
       {
         onSettled: () => {
           importingRef.current = false
-          useImportTrayStore.getState().endUpload(pendingId)
+          if (importId) useImportTrayStore.getState().endUpload(importId)
         },
       }
     )
     // importFile.mutate and router are stable references
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [workspaceId, file.key, file.name])
+  }, [workspaceId, file.id, file.key, file.name])
 
   // Surface the cap as a warning toast with an import action, once per file.
   const notifiedKeyRef = useRef<string | null>(null)

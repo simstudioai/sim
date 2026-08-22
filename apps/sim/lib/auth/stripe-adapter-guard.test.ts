@@ -22,7 +22,12 @@ function createBaseAdapter() {
 const asAdapter = (base: ReturnType<typeof createBaseAdapter>) =>
   guardSubscriptionPlanWrites(base as unknown as Parameters<typeof guardSubscriptionPlanWrites>[0])
 
-const ORG_ROW = { id: 'sub-1', referenceId: 'org-1', plan: 'team_6000' }
+const ORG_ROW = {
+  id: 'sub-1',
+  referenceId: 'org-1',
+  plan: 'team_6000',
+  stripeSubscriptionId: 'stripe-sub-1',
+}
 const WHERE = [{ field: 'id', value: 'sub-1' }]
 
 describe('guardSubscriptionPlanWrites', () => {
@@ -142,6 +147,87 @@ describe('guardSubscriptionPlanWrites', () => {
 
     expect(base.findOne).not.toHaveBeenCalled()
     expect(base.update).toHaveBeenCalled()
+  })
+
+  it('blocks rebinding a personal subscription to a different Stripe subscription', async () => {
+    const base = createBaseAdapter()
+    const personalPro = {
+      id: 'personal-pro',
+      referenceId: 'user-1',
+      plan: 'pro',
+      stripeSubscriptionId: 'sub_personal_pro',
+    }
+    base.findOne.mockResolvedValueOnce(personalPro)
+
+    const guarded = asAdapter(base)
+    await expect(
+      guarded.update({
+        model: 'subscription',
+        where: [{ field: 'id', value: personalPro.id }] as never,
+        update: {
+          stripeSubscriptionId: 'sub_enterprise',
+          status: 'active',
+          periodEnd: new Date('2026-09-11T18:36:09Z'),
+          billingInterval: 'month',
+        },
+      })
+    ).rejects.toThrow(/already bound to Stripe subscription sub_personal_pro/)
+
+    expect(base.update).not.toHaveBeenCalled()
+  })
+
+  it('allows Stripe state updates when the subscription ID is unchanged', async () => {
+    const base = createBaseAdapter()
+    base.findOne.mockResolvedValueOnce({
+      id: 'personal-pro',
+      referenceId: 'user-1',
+      plan: 'pro',
+      stripeSubscriptionId: 'sub_personal_pro',
+    })
+
+    const guarded = asAdapter(base)
+    await guarded.update({
+      model: 'subscription',
+      where: WHERE as never,
+      update: {
+        stripeSubscriptionId: 'sub_personal_pro',
+        status: 'active',
+        cancelAtPeriodEnd: true,
+      },
+    })
+
+    expect(base.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        update: {
+          stripeSubscriptionId: 'sub_personal_pro',
+          status: 'active',
+          cancelAtPeriodEnd: true,
+        },
+      })
+    )
+  })
+
+  it('allows binding an unbound local subscription to Stripe', async () => {
+    const base = createBaseAdapter()
+    base.findOne.mockResolvedValueOnce({
+      id: 'new-subscription',
+      referenceId: 'user-1',
+      plan: 'pro',
+      stripeSubscriptionId: null,
+    })
+
+    const guarded = asAdapter(base)
+    await guarded.update({
+      model: 'subscription',
+      where: WHERE as never,
+      update: { stripeSubscriptionId: 'sub_new', status: 'incomplete' },
+    })
+
+    expect(base.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        update: { stripeSubscriptionId: 'sub_new', status: 'incomplete' },
+      })
+    )
   })
 
   it('rejects creating an org-referenced subscription with a non-org plan', async () => {

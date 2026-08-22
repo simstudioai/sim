@@ -15,6 +15,16 @@ export const HuggingFaceBlock: BlockConfig<HuggingFaceChatResponse> = {
   integrationType: IntegrationType.AI,
   bgColor: '#0B0F19',
   icon: HuggingFaceIcon,
+  canvasPresentation: {
+    defaultTitle: 'Hugging Face',
+    sentences: {
+      default: [
+        { text: 'Prompt', field: 'model', core: true },
+        { text: 'with', field: 'content' },
+        { text: ', via', field: 'provider' },
+      ],
+    },
+  },
   subBlocks: [
     {
       id: 'systemPrompt',

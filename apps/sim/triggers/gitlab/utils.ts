@@ -99,6 +99,7 @@ export function buildGitLabExtraFields(triggerId: string): SubBlockConfig[] {
     {
       id: 'projectId',
       title: 'Project ID',
+      canvasNoun: 'a project',
       type: 'short-input',
       placeholder: 'Numeric ID or group/project path',
       description: 'The GitLab project to register the webhook on.',

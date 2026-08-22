@@ -3,18 +3,12 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockRunUploadStrategy, mockUploadViaApiFallbackWithMetadata } = vi.hoisted(() => ({
-  mockRunUploadStrategy: vi.fn(),
-  mockUploadViaApiFallbackWithMetadata: vi.fn(),
+const { mockUploadInternalFileSession } = vi.hoisted(() => ({
+  mockUploadInternalFileSession: vi.fn(),
 }))
 
-vi.mock('@/lib/uploads/client/direct-upload', () => ({
-  DirectUploadError: class extends Error {},
-  runUploadStrategy: mockRunUploadStrategy,
-}))
-
-vi.mock('@/lib/uploads/client/api-fallback', () => ({
-  uploadViaApiFallbackWithMetadata: mockUploadViaApiFallbackWithMetadata,
+vi.mock('@/lib/uploads/client/session-upload', () => ({
+  uploadInternalFileSession: mockUploadInternalFileSession,
 }))
 
 import { uploadWorkflowAttachments } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/workflow-attachment-upload'
@@ -27,14 +21,24 @@ describe('uploadWorkflowAttachments', () => {
   it('retains distinct server-returned keys for duplicate names with different bytes', async () => {
     const first = new File(['old'], 'result.txt', { type: 'text/plain' })
     const second = new File(['new contents'], 'result.txt', { type: 'text/plain' })
-    mockRunUploadStrategy
+    mockUploadInternalFileSession
       .mockResolvedValueOnce({
+        id: 'attachment-1',
+        name: 'result.txt',
+        size: 3,
+        type: 'text/plain',
+        url: '/api/files/serve/one',
         key: 'execution/ws-1/wf-1/ex-1/receipt-one-result.txt',
-        path: '/api/files/serve/one',
+        context: 'execution',
       })
       .mockResolvedValueOnce({
+        id: 'attachment-2',
+        name: 'result.txt',
+        size: 12,
+        type: 'text/plain',
+        url: '/api/files/serve/two',
         key: 'execution/ws-1/wf-1/ex-1/receipt-two-result.txt',
-        path: '/api/files/serve/two',
+        context: 'execution',
       })
 
     const uploaded = await uploadWorkflowAttachments({

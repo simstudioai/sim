@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { isRecordLike } from '@sim/utils/object'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import type { BlockOutput } from '@/blocks/types'
 import {
@@ -126,7 +127,7 @@ export class HumanInTheLoopBlockHandler implements BlockHandler {
 
       if (operation === PAUSE_RESUME.OPERATION.API) {
         const parsed = this.parseResponseData(inputs)
-        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        if (isRecordLike(parsed)) {
           responseData = {
             ...parsed,
             operation,
@@ -169,10 +170,7 @@ export class HumanInTheLoopBlockHandler implements BlockHandler {
       }
 
       const responseDataWithResume =
-        resumeLinks &&
-        responseData &&
-        typeof responseData === 'object' &&
-        !Array.isArray(responseData)
+        resumeLinks && isRecordLike(responseData)
           ? { ...responseData, _resume: resumeLinks }
           : responseData
 

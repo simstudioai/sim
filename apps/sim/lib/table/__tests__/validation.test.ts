@@ -358,7 +358,13 @@ describe('Validation', () => {
       expect(data.founded).toBe(1999)
     })
 
-    it('nulls an un-coercible value for an optional number column', () => {
+    it('rejects an un-coercible value for an optional number column under `reject`', () => {
+      const data = { name: 'Acme', founded: 2000, age: 'unknown' }
+      const result = coerceRowToSchema(data, schema, 'reject')
+      expect(result.valid).toBe(false)
+    })
+
+    it('nulls an un-coercible optional value by default', () => {
       const data = { name: 'Acme', founded: 2000, age: 'unknown' }
       const result = coerceRowToSchema(data, schema)
       expect(result.valid).toBe(true)
@@ -387,7 +393,13 @@ describe('Validation', () => {
       expect(data.active).toBe(false)
     })
 
-    it('coerces an epoch number to an ISO date string', () => {
+    it('refuses a bare epoch number under `reject`, whose unit the value cannot state', () => {
+      const data = { name: 'Acme', founded: 2000, created: Date.parse('2024-01-15T00:00:00Z') }
+      const result = coerceRowToSchema(data, schema, 'reject')
+      expect(result.valid).toBe(false)
+    })
+
+    it('coerces an epoch number to an ISO date string by default', () => {
       const epoch = Date.parse('2024-01-15T00:00:00Z')
       const data = { name: 'Acme', founded: 2000, created: epoch }
       const result = coerceRowToSchema(data, schema)
@@ -403,14 +415,14 @@ describe('Validation', () => {
       expect(data.created).toBe(date.toISOString())
     })
 
-    it('nulls an out-of-range epoch number for an optional date column without throwing', () => {
+    it('nulls an out-of-range epoch number without throwing', () => {
       const data = { name: 'Acme', founded: 2000, created: 1e20 }
       const result = coerceRowToSchema(data, schema)
       expect(result.valid).toBe(true)
       expect(data.created).toBeNull()
     })
 
-    it('nulls an invalid Date instance for an optional date column without throwing', () => {
+    it('nulls an invalid Date instance without throwing', () => {
       const data = { name: 'Acme', founded: 2000, created: new Date('not-a-date') }
       const result = coerceRowToSchema(data, schema)
       expect(result.valid).toBe(true)
@@ -447,7 +459,13 @@ describe('Validation', () => {
       expect(patch.age).toBe(42)
     })
 
-    it('nulls an un-coercible optional value in a patch', () => {
+    it('leaves an un-coercible optional patch value in place under `reject`', () => {
+      const patch: { age: unknown } = { age: 'nope' }
+      coerceRowValues(patch as never, schema, 'reject')
+      expect(patch.age).toBe('nope')
+    })
+
+    it('nulls an un-coercible optional patch value by default', () => {
       const patch: { age: unknown } = { age: 'nope' }
       coerceRowValues(patch as never, schema)
       expect(patch.age).toBeNull()
@@ -523,7 +541,13 @@ describe('Validation', () => {
         expect(patch.price).toBe(42)
       })
 
-      it('nulls an unreadable amount on an optional column', () => {
+      it('leaves an unreadable amount in place on an optional column under `reject`', () => {
+        const patch: Record<string, unknown> = { price: 'ask sales' }
+        coerceRowValues(patch as never, currencySchema, 'reject')
+        expect(patch.price).toBe('ask sales')
+      })
+
+      it('nulls an unreadable amount on an optional column by default', () => {
         const patch: Record<string, unknown> = { price: 'ask sales' }
         coerceRowValues(patch as never, currencySchema)
         expect(patch.price).toBeNull()

@@ -1,204 +1,154 @@
 /**
- * Tests for knowledge base tag definitions API route
- *
  * @vitest-environment node
  */
-import {
-  createMockRequest,
-  hybridAuthMockFns,
-  knowledgeApiUtilsMock,
-  knowledgeApiUtilsMockFns,
-} from '@sim/testing'
+import { authMockFns, createMockRequest } from '@sim/testing'
+import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetTagDefinitions, mockCreateTagDefinition } = vi.hoisted(() => ({
-  mockGetTagDefinitions: vi.fn(),
-  mockCreateTagDefinition: vi.fn(),
+const mocks = vi.hoisted(() => ({
+  list: vi.fn(),
+  create: vi.fn(),
 }))
 
-vi.mock('@/lib/knowledge/tags/service', () => ({
-  getTagDefinitions: mockGetTagDefinitions,
-  createTagDefinition: mockCreateTagDefinition,
+vi.mock('@/lib/knowledge/application/tags', () => ({
+  listKnowledgeTags: {
+    operation: { id: 'knowledge.tags.list' },
+    execute: mocks.list,
+  },
+  createKnowledgeTag: {
+    operation: { id: 'knowledge.tags.create' },
+    execute: mocks.create,
+  },
 }))
 
-vi.mock('@/app/api/knowledge/utils', () => knowledgeApiUtilsMock)
-
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { KNOWLEDGE_TAG_DISPLAY_NAME_MAX_LENGTH } from '@/lib/knowledge/constants'
 import { GET, POST } from '@/app/api/knowledge/[id]/tag-definitions/route'
 
-const KB_ID = 'kb-victim'
-const TAG_DEFINITIONS = [
-  { id: 'tag-def-1', tagSlot: 'tag1', displayName: 'Client Name', fieldType: 'text' },
-] as const
-const CREATE_BODY = { tagSlot: 'tag1', displayName: 'Injected', fieldType: 'text' } as const
-
-const params = () => ({ params: Promise.resolve({ id: KB_ID }) })
-
-const { mockCheckKnowledgeBaseAccess, mockCheckKnowledgeBaseWriteAccess } = knowledgeApiUtilsMockFns
-
-/** Stubs the auth result the route sees. Omit `userId` for a JWT with no acting user. */
-function authenticateAs(userId?: string, authType = 'internal_jwt') {
-  hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValue({
-    success: true,
-    authType,
-    ...(userId ? { userId } : {}),
-  })
+const session = {
+  user: { id: 'user-123', email: 'test@example.com', name: 'Test User' },
+  session: { id: 'session-123' },
 }
 
-const granted = { hasAccess: true, knowledgeBase: { id: KB_ID, userId: 'user-1' } } as const
+const tagDefinition = {
+  id: 'tag-def-1',
+  knowledgeBaseId: 'knowledge-1',
+  tagSlot: 'tag1',
+  displayName: 'Client Name',
+  fieldType: 'text',
+  createdAt: new Date('2026-01-01T00:00:00Z'),
+  updatedAt: new Date('2026-01-02T00:00:00Z'),
+}
 
-describe('Knowledge Base Tag Definitions API Route', () => {
+const expectedTagDefinition = {
+  id: 'tag-def-1',
+  tagSlot: 'tag1',
+  displayName: 'Client Name',
+  fieldType: 'text',
+  createdAt: '2026-01-01T00:00:00.000Z',
+  updatedAt: '2026-01-02T00:00:00.000Z',
+}
+
+const params = () => ({ params: Promise.resolve({ id: 'knowledge-1' }) })
+
+describe('/api/knowledge/[id]/tag-definitions internal route composition', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockGetTagDefinitions.mockResolvedValue(TAG_DEFINITIONS)
-    mockCreateTagDefinition.mockResolvedValue({ id: 'tag-def-new' })
+    authMockFns.mockGetSession.mockResolvedValue(session)
+    mocks.list.mockResolvedValue({ tagDefinitions: [tagDefinition] })
+    mocks.create.mockResolvedValue({ tagDefinition, knowledgeBaseId: 'knowledge-1' })
   })
 
-  describe('GET /api/knowledge/[id]/tag-definitions', () => {
-    it('returns tag definitions to a caller with read access', async () => {
-      authenticateAs('user-1', 'session')
-      mockCheckKnowledgeBaseAccess.mockResolvedValue(granted)
-
-      const response = await GET(createMockRequest('GET'), params())
-
-      expect(response.status).toBe(200)
-      await expect(response.json()).resolves.toEqual({ success: true, data: TAG_DEFINITIONS })
+  it('authenticates before parsing malformed create input', async () => {
+    authMockFns.mockGetSession.mockResolvedValueOnce(null)
+    const request = new NextRequest('http://localhost/api/knowledge/knowledge-1/tag-definitions', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: '{',
     })
 
-    it('gates reads on read access, not write access', async () => {
-      authenticateAs('user-1', 'session')
-      mockCheckKnowledgeBaseAccess.mockResolvedValue(granted)
+    const response = await POST(request, params())
 
-      await GET(createMockRequest('GET'), params())
+    expect(response.status).toBe(401)
+    await expect(response.json()).resolves.toEqual({ error: 'Unauthorized' })
+    expect(mocks.create).not.toHaveBeenCalled()
+  })
 
-      expect(mockCheckKnowledgeBaseAccess).toHaveBeenCalledWith(KB_ID, 'user-1')
-      expect(mockCheckKnowledgeBaseWriteAccess).not.toHaveBeenCalled()
+  it('maps a tag list request to the authorized application use case', async () => {
+    const request = createMockRequest('GET')
+
+    const response = await GET(request, params())
+
+    expect(mocks.list).toHaveBeenCalledWith({
+      principal: { kind: 'session', userId: 'user-123', sessionId: 'session-123' },
+      input: { knowledgeBaseId: 'knowledge-1' },
+      request,
     })
-
-    it('authorizes internal JWT callers instead of trusting them', async () => {
-      authenticateAs('attacker-1')
-      mockCheckKnowledgeBaseAccess.mockResolvedValue({ hasAccess: false })
-
-      const response = await GET(createMockRequest('GET'), params())
-
-      expect(response.status).toBe(403)
-      expect(mockCheckKnowledgeBaseAccess).toHaveBeenCalledWith(KB_ID, 'attacker-1')
-      expect(mockGetTagDefinitions).not.toHaveBeenCalled()
-    })
-
-    it('returns 404 for an unknown knowledge base', async () => {
-      authenticateAs('attacker-1')
-      mockCheckKnowledgeBaseAccess.mockResolvedValue({ hasAccess: false, notFound: true })
-
-      const response = await GET(createMockRequest('GET'), params())
-
-      expect(response.status).toBe(404)
-      expect(mockGetTagDefinitions).not.toHaveBeenCalled()
-    })
-
-    it('rejects a JWT that carries no acting user', async () => {
-      authenticateAs()
-
-      const response = await GET(createMockRequest('GET'), params())
-
-      expect(response.status).toBe(401)
-      expect(mockCheckKnowledgeBaseAccess).not.toHaveBeenCalled()
-      expect(mockGetTagDefinitions).not.toHaveBeenCalled()
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toEqual({
+      success: true,
+      data: [expectedTagDefinition],
     })
   })
 
-  describe('POST /api/knowledge/[id]/tag-definitions', () => {
-    it('creates a tag definition for a caller with write access', async () => {
-      authenticateAs('user-1', 'session')
-      mockCheckKnowledgeBaseWriteAccess.mockResolvedValue(granted)
-
-      const response = await POST(createMockRequest('POST', CREATE_BODY), params())
-
-      expect(response.status).toBe(200)
-      expect(mockCreateTagDefinition).toHaveBeenCalledWith(
-        expect.objectContaining({ knowledgeBaseId: KB_ID, tagSlot: 'tag1' }),
-        expect.any(String)
-      )
+  it('maps tag creation to the authorized application use case with its source', async () => {
+    const request = createMockRequest('POST', {
+      tagSlot: 'tag1',
+      displayName: 'Client Name',
+      fieldType: 'text',
     })
 
-    it('authorizes internal JWT callers instead of trusting them', async () => {
-      authenticateAs('attacker-1')
-      mockCheckKnowledgeBaseWriteAccess.mockResolvedValue({ hasAccess: false })
+    const response = await POST(request, params())
 
-      const response = await POST(createMockRequest('POST', CREATE_BODY), params())
-
-      expect(response.status).toBe(403)
-      expect(mockCheckKnowledgeBaseWriteAccess).toHaveBeenCalledWith(KB_ID, 'attacker-1')
-      expect(mockCreateTagDefinition).not.toHaveBeenCalled()
+    expect(mocks.create).toHaveBeenCalledWith({
+      principal: { kind: 'session', userId: 'user-123', sessionId: 'session-123' },
+      input: {
+        knowledgeBaseId: 'knowledge-1',
+        tagSlot: 'tag1',
+        displayName: 'Client Name',
+        fieldType: 'text',
+        source: 'ui',
+      },
+      request,
     })
-
-    it('rejects a JWT that carries no acting user', async () => {
-      authenticateAs()
-
-      const response = await POST(createMockRequest('POST', CREATE_BODY), params())
-
-      expect(response.status).toBe(401)
-      expect(mockCheckKnowledgeBaseWriteAccess).not.toHaveBeenCalled()
-      expect(mockCreateTagDefinition).not.toHaveBeenCalled()
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toEqual({
+      success: true,
+      data: expectedTagDefinition,
     })
+  })
 
-    it('rejects a tag slot this schema has no column for', async () => {
-      authenticateAs('user-1', 'session')
-      mockCheckKnowledgeBaseWriteAccess.mockResolvedValue(granted)
+  it('preserves boundary validation without invoking the application use case', async () => {
+    const response = await POST(
+      createMockRequest('POST', {
+        tagSlot: 'tag1',
+        displayName: 'a'.repeat(KNOWLEDGE_TAG_DISPLAY_NAME_MAX_LENGTH + 1),
+        fieldType: 'text',
+      }),
+      params()
+    )
 
-      const response = await POST(
-        createMockRequest('POST', { ...CREATE_BODY, tagSlot: 'tag99' }),
-        params()
-      )
+    expect(response.status).toBe(400)
+    expect(mocks.create).not.toHaveBeenCalled()
+  })
 
-      expect(response.status).toBe(400)
-      expect(mockCreateTagDefinition).not.toHaveBeenCalled()
-    })
+  it('projects typed application validation failures', async () => {
+    mocks.create.mockRejectedValueOnce(
+      new OrchestrationError('validation', 'Tag slot "tag99" is not valid for field type "text"')
+    )
 
-    it('rejects a slot that belongs to a different field type', async () => {
-      authenticateAs('user-1', 'session')
-      mockCheckKnowledgeBaseWriteAccess.mockResolvedValue(granted)
+    const response = await POST(
+      createMockRequest('POST', {
+        tagSlot: 'tag99',
+        displayName: 'Client Name',
+        fieldType: 'text',
+      }),
+      params()
+    )
 
-      const response = await POST(
-        createMockRequest('POST', {
-          tagSlot: 'number1',
-          displayName: 'Mismatch',
-          fieldType: 'text',
-        }),
-        params()
-      )
-
-      expect(response.status).toBe(400)
-      expect(mockCreateTagDefinition).not.toHaveBeenCalled()
-    })
-
-    it('rejects an unsupported field type', async () => {
-      authenticateAs('user-1', 'session')
-      mockCheckKnowledgeBaseWriteAccess.mockResolvedValue(granted)
-
-      const response = await POST(
-        createMockRequest('POST', { ...CREATE_BODY, fieldType: 'nonsense' }),
-        params()
-      )
-
-      expect(response.status).toBe(400)
-      expect(mockCreateTagDefinition).not.toHaveBeenCalled()
-    })
-
-    it('rejects a display name longer than the shared limit', async () => {
-      authenticateAs('user-1', 'session')
-      mockCheckKnowledgeBaseWriteAccess.mockResolvedValue(granted)
-
-      const response = await POST(
-        createMockRequest('POST', {
-          ...CREATE_BODY,
-          displayName: 'a'.repeat(KNOWLEDGE_TAG_DISPLAY_NAME_MAX_LENGTH + 1),
-        }),
-        params()
-      )
-
-      expect(response.status).toBe(400)
-      expect(mockCreateTagDefinition).not.toHaveBeenCalled()
+    expect(response.status).toBe(400)
+    await expect(response.json()).resolves.toEqual({
+      error: 'Tag slot "tag99" is not valid for field type "text"',
     })
   })
 })

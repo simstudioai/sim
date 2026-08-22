@@ -1,7 +1,7 @@
 /**
  * @vitest-environment node
  */
-import { dbChainMock, dbChainMockFns, resetDbChainMock, schemaMock } from '@sim/testing'
+import { auditMock, dbChainMock, dbChainMockFns, resetDbChainMock, schemaMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@sim/audit', () => ({
@@ -14,6 +14,7 @@ vi.mock('@sim/audit', () => ({
     MCP_TOOL: 'mcp_tool',
   },
   recordAudit: vi.fn(),
+  auditUpdatedFields: auditMock.auditUpdatedFields,
 }))
 vi.mock('@sim/db', () => ({
   ...dbChainMock,

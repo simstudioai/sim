@@ -12,8 +12,20 @@ const PAGE_SIZE = 100
 
 interface WebflowCollection {
   id: string
-  displayName: string
-  slug: string
+  displayName?: string
+  slug?: string
+}
+
+/**
+ * Headers for every Webflow Data API v2 call. The API version is carried by the
+ * `/v2` path segment — v2 has no `accept-version` header (that was the v1
+ * convention), so only bearer auth and a JSON `accept` are sent.
+ */
+function webflowHeaders(accessToken: string): Record<string, string> {
+  return {
+    Authorization: `Bearer ${accessToken}`,
+    accept: 'application/json',
+  }
 }
 
 interface WebflowItem {
@@ -42,12 +54,6 @@ interface WebflowItem {
  */
 export function isCurrentItem(item: { isArchived?: boolean }): boolean {
   return item.isArchived !== true
-}
-
-interface WebflowPagination {
-  total: number
-  offset: number
-  limit: number
 }
 
 interface CursorState {
@@ -117,16 +123,12 @@ export const webflowConnector: ConnectorConfig = {
     if (cursor) {
       cursorState = JSON.parse(cursor) as CursorState
     } else {
-      const collections = await fetchCollectionIds(accessToken, siteId, collectionIds)
+      const collections = await fetchCollections(accessToken, siteId, collectionIds, syncContext)
       cursorState = { collectionIndex: 0, offset: 0, collections }
     }
 
     if (cursorState.collections.length === 0) {
       return { documents: [], hasMore: false }
-    }
-
-    if (syncContext && !syncContext.collectionNames) {
-      syncContext.collectionNames = {}
     }
 
     const totalDocsFetched = (syncContext?.totalDocsFetched as number) ?? 0
@@ -137,11 +139,19 @@ export const webflowConnector: ConnectorConfig = {
     const currentCollectionId = cursorState.collections[cursorState.collectionIndex]
     const collectionName = await fetchCollectionName(accessToken, currentCollectionId, syncContext)
 
+    /**
+     * Never request more rows than the remaining `maxItems` budget — the API caps
+     * `limit` at 100, and rows fetched past the cap would only be discarded, at
+     * the cost of quota against Webflow's 60 requests/minute floor on Starter and
+     * Basic plans. The early return above guarantees the remainder is at least 1.
+     */
+    const pageSize = maxItems > 0 ? Math.min(PAGE_SIZE, maxItems - totalDocsFetched) : PAGE_SIZE
+
     const params = new URLSearchParams()
-    params.append('limit', String(PAGE_SIZE))
+    params.append('limit', String(pageSize))
     params.append('offset', String(cursorState.offset))
 
-    const url = `${WEBFLOW_API}/collections/${currentCollectionId}/items?${params.toString()}`
+    const url = `${WEBFLOW_API}/collections/${encodeURIComponent(currentCollectionId)}/items?${params.toString()}`
 
     logger.info('Listing Webflow CMS items', {
       siteId,
@@ -151,10 +161,7 @@ export const webflowConnector: ConnectorConfig = {
 
     const response = await fetchWithRetry(url, {
       method: 'GET',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'accept-version': '2.0.0',
-      },
+      headers: webflowHeaders(accessToken),
     })
 
     if (!response.ok) {
@@ -167,50 +174,80 @@ export const webflowConnector: ConnectorConfig = {
     }
 
     const data = (await response.json()) as {
-      items: WebflowItem[]
-      pagination: WebflowPagination
+      items?: WebflowItem[]
+      pagination?: { total?: unknown }
     }
+
+    const rawItems = data.items || []
 
     /**
      * Archived items are filtered out before mapping so they leave the listing
-     * and get purged by deletion reconciliation. Pagination stays driven by the
-     * raw `pagination.limit`/`pagination.total` from the API, never by the
-     * filtered count, so cursor math is unaffected.
+     * and get purged by deletion reconciliation. Pagination advances by the raw
+     * row count, never the filtered count, so cursor math is unaffected.
      */
-    const items = (data.items || []).filter(isCurrentItem)
-    const pageDocuments: ExternalDocument[] = items.map((item) =>
-      itemToDocument(item, currentCollectionId, collectionName)
-    )
-
-    let documents = pageDocuments
-    if (maxItems > 0) {
-      const remaining = Math.max(0, maxItems - totalDocsFetched)
-      if (documents.length > remaining) {
-        documents = documents.slice(0, remaining)
-      }
-    }
+    const documents: ExternalDocument[] = rawItems
+      .filter(isCurrentItem)
+      .map((item) => itemToDocument(item, currentCollectionId, collectionName))
 
     if (syncContext) {
       syncContext.totalDocsFetched = totalDocsFetched + documents.length
     }
 
-    const { pagination } = data
-    const hasMoreInCollection = cursorState.offset + pagination.limit < pagination.total
+    /**
+     * `pagination.total` is the collection size per the Data API v2 list-items
+     * reference, read defensively so a malformed envelope cannot turn the offset
+     * math into `NaN` (which would silently end the collection mid-listing). The
+     * offset advances by the rows actually returned rather than the echoed
+     * `pagination.limit`, so a short page can never skip rows.
+     *
+     * The value is type-checked rather than coerced: `Number(null)`,
+     * `Number('')`, `Number([])`, and `Number(false)` all yield a finite `0`, so
+     * coercion would read a `null` total as "this collection holds zero rows"
+     * and hand every unread row to deletion reconciliation. A negative or
+     * fractional total is malformed for the same purpose, so only a
+     * non-negative integer counts as known.
+     */
+    const reportedTotal = data.pagination?.total
+    const totalKnown = Number.isInteger(reportedTotal) && (reportedTotal as number) >= 0
+    const total = totalKnown ? (reportedTotal as number) : rawItems.length
+    const advance = rawItems.length
+
+    const hasMoreInCollection = advance > 0 && cursorState.offset + advance < total
     const hasMoreCollections = cursorState.collectionIndex < cursorState.collections.length - 1
     const hitMaxItems = maxItems > 0 && totalDocsFetched + documents.length >= maxItems
+
     /**
-     * When the cap stops the sync, flag the listing as capped so the sync engine
-     * skips deletion reconciliation — otherwise still-existing documents that
-     * were never listed get hard-deleted. "More" means any of: items dropped
-     * from this page (`pageDocuments.length > documents.length`), more pages in
-     * this collection, or more collections still to visit. The within-page drop
-     * is the only signal when a collection fits in a single API response.
+     * The page came back empty while the collection still reports unread rows —
+     * the listing is truncated by a transport or shape fault rather than
+     * exhausted, so reconciliation must not hard-delete the unlisted rows.
      */
-    const droppedWithinPage = documents.length < pageDocuments.length
+    const stalledMidCollection = advance === 0 && cursorState.offset < total
+
+    /**
+     * No usable `pagination.total` to page against, on a page of any size. The
+     * fallback total collapses to the rows in hand, which ends the collection
+     * right here and makes `stalledMidCollection` (`offset < 0`) unreachable, so
+     * a short or empty page looks exactly like exhaustion. The Data API v2
+     * schema marks `pagination` required but `total` optional, so its absence is
+     * not proof of anything either way — and between "the collection is drained"
+     * and "we stopped for a reason we cannot rule out", only the latter is
+     * fail-safe: guessing "exhausted" would hand every unread row to deletion
+     * reconciliation.
+     */
+    const unknownTotal = !totalKnown
+
+    /**
+     * A truncated listing must skip deletion reconciliation, or still-existing
+     * documents that were never listed get hard-deleted. The cap truncates only
+     * when rows remain beyond it: more pages in this collection, or more
+     * collections still to visit. The request already clamps `limit` to the
+     * remaining budget, so the cap never drops rows from within a page.
+     */
     if (
       syncContext &&
-      hitMaxItems &&
-      (droppedWithinPage || hasMoreInCollection || hasMoreCollections)
+      (stalledMidCollection ||
+        unknownTotal ||
+        (hitMaxItems && (hasMoreInCollection || hasMoreCollections)))
     ) {
       syncContext.listingCapped = true
     }
@@ -221,7 +258,7 @@ export const webflowConnector: ConnectorConfig = {
     } else if (hasMoreInCollection) {
       nextCursor = JSON.stringify({
         collectionIndex: cursorState.collectionIndex,
-        offset: cursorState.offset + pagination.limit,
+        offset: cursorState.offset + advance,
         collections: cursorState.collections,
       })
     } else if (hasMoreCollections) {
@@ -242,7 +279,8 @@ export const webflowConnector: ConnectorConfig = {
   getDocument: async (
     accessToken: string,
     _sourceConfig: Record<string, unknown>,
-    externalId: string
+    externalId: string,
+    syncContext?: Record<string, unknown>
   ): Promise<ExternalDocument | null> => {
     const separatorIndex = externalId.indexOf(':')
     if (separatorIndex === -1) {
@@ -253,14 +291,11 @@ export const webflowConnector: ConnectorConfig = {
     const docCollectionId = externalId.slice(0, separatorIndex)
     const itemId = externalId.slice(separatorIndex + 1)
 
-    const url = `${WEBFLOW_API}/collections/${docCollectionId}/items/${itemId}`
+    const url = `${WEBFLOW_API}/collections/${encodeURIComponent(docCollectionId)}/items/${encodeURIComponent(itemId)}`
 
     const response = await fetchWithRetry(url, {
       method: 'GET',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'accept-version': '2.0.0',
-      },
+      headers: webflowHeaders(accessToken),
     })
 
     if (!response.ok) {
@@ -276,7 +311,7 @@ export const webflowConnector: ConnectorConfig = {
      */
     if (!isCurrentItem(item)) return null
 
-    const collectionName = await fetchCollectionNameDirect(accessToken, docCollectionId)
+    const collectionName = await fetchCollectionName(accessToken, docCollectionId, syncContext)
     return itemToDocument(item, docCollectionId, collectionName)
   },
 
@@ -297,16 +332,10 @@ export const webflowConnector: ConnectorConfig = {
     }
 
     try {
-      const siteUrl = `${WEBFLOW_API}/sites/${siteId}`
+      const siteUrl = `${WEBFLOW_API}/sites/${encodeURIComponent(siteId)}`
       const siteResponse = await fetchWithRetry(
         siteUrl,
-        {
-          method: 'GET',
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-            'accept-version': '2.0.0',
-          },
-        },
+        { method: 'GET', headers: webflowHeaders(accessToken) },
         VALIDATE_RETRY_OPTIONS
       )
 
@@ -322,16 +351,10 @@ export const webflowConnector: ConnectorConfig = {
       }
 
       for (const collectionId of collectionIds) {
-        const collectionUrl = `${WEBFLOW_API}/collections/${collectionId}`
+        const collectionUrl = `${WEBFLOW_API}/collections/${encodeURIComponent(collectionId)}`
         const collectionResponse = await fetchWithRetry(
           collectionUrl,
-          {
-            method: 'GET',
-            headers: {
-              Authorization: `Bearer ${accessToken}`,
-              'accept-version': '2.0.0',
-            },
-          },
+          { method: 'GET', headers: webflowHeaders(accessToken) },
           VALIDATE_RETRY_OPTIONS
         )
 
@@ -363,7 +386,7 @@ export const webflowConnector: ConnectorConfig = {
     const lastModified = parseTagDate(metadata.lastModified)
     if (lastModified) result.lastModified = lastModified
 
-    if (typeof metadata.slug === 'string') {
+    if (typeof metadata.slug === 'string' && metadata.slug.length > 0) {
       result.slug = metadata.slug
     }
 
@@ -400,89 +423,88 @@ function itemToDocument(
 }
 
 /**
- * Fetches collection IDs for a site. If a specific collectionId is provided,
- * returns only that ID. Otherwise fetches all collections from the site.
+ * Resolves the collection IDs to sync for a site. Explicitly configured IDs are
+ * an intentional scope filter and are used as-is; otherwise every collection on
+ * the site is listed via `GET /sites/{site_id}/collections`.
+ *
+ * That listing already carries each collection's `displayName`, so it seeds the
+ * `syncContext` name cache — otherwise every collection would cost an extra
+ * `GET /collections/{id}` against Webflow's 60 requests/minute floor.
  */
-async function fetchCollectionIds(
+async function fetchCollections(
   accessToken: string,
   siteId: string,
-  collectionIds: string[]
+  collectionIds: string[],
+  syncContext?: Record<string, unknown>
 ): Promise<string[]> {
   if (collectionIds.length > 0) {
     return collectionIds
   }
 
-  const url = `${WEBFLOW_API}/sites/${siteId}/collections`
+  const url = `${WEBFLOW_API}/sites/${encodeURIComponent(siteId)}/collections`
   const response = await fetchWithRetry(url, {
     method: 'GET',
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      'accept-version': '2.0.0',
-    },
+    headers: webflowHeaders(accessToken),
   })
 
   if (!response.ok) {
     throw new Error(`Failed to list Webflow collections: ${response.status}`)
   }
 
-  const data = (await response.json()) as { collections: WebflowCollection[] }
-  return (data.collections || []).map((c) => c.id)
+  const data = (await response.json()) as { collections?: WebflowCollection[] }
+  const collections = data.collections || []
+
+  if (syncContext) {
+    const cached = (syncContext.collectionNames ?? {}) as Record<string, string>
+    for (const collection of collections) {
+      cached[collection.id] = collection.displayName || collection.slug || collection.id
+    }
+    syncContext.collectionNames = cached
+  }
+
+  return collections.map((c) => c.id)
 }
 
 /**
- * Fetches a collection's display name, caching in syncContext.
+ * Resolves a collection's display name, memoized in syncContext for the run.
+ *
+ * The name is presentational (it prefixes each item's plain text and populates
+ * the `collectionName` tag), so a lookup failure degrades to the collection id
+ * rather than aborting the page — an item is never dropped over a missing label.
  */
 async function fetchCollectionName(
   accessToken: string,
   collectionId: string,
   syncContext?: Record<string, unknown>
 ): Promise<string> {
-  const names = (syncContext?.collectionNames ?? {}) as Record<string, string>
-  if (names[collectionId]) return names[collectionId]
+  const cached = (syncContext?.collectionNames ?? {}) as Record<string, string>
+  if (cached[collectionId]) return cached[collectionId]
 
-  const name = await fetchCollectionNameDirect(accessToken, collectionId)
-
-  if (syncContext) {
-    const cached = (syncContext.collectionNames ?? {}) as Record<string, string>
-    cached[collectionId] = name
-    syncContext.collectionNames = cached
-  }
-
-  return name
-}
-
-/**
- * Fetches a collection's display name directly from the API.
- */
-async function fetchCollectionNameDirect(
-  accessToken: string,
-  collectionId: string
-): Promise<string> {
+  let name = collectionId
   try {
-    const url = `${WEBFLOW_API}/collections/${collectionId}`
+    const url = `${WEBFLOW_API}/collections/${encodeURIComponent(collectionId)}`
     const response = await fetchWithRetry(url, {
       method: 'GET',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'accept-version': '2.0.0',
-      },
+      headers: webflowHeaders(accessToken),
     })
 
-    if (!response.ok) {
-      logger.warn('Failed to fetch collection name', {
-        collectionId,
-        status: response.status,
-      })
-      return collectionId
+    if (response.ok) {
+      const data = (await response.json()) as WebflowCollection
+      name = data.displayName || data.slug || collectionId
+    } else {
+      logger.warn('Failed to fetch collection name', { collectionId, status: response.status })
     }
-
-    const data = (await response.json()) as WebflowCollection
-    return data.displayName || data.slug || collectionId
   } catch (error) {
     logger.warn('Error fetching collection name', {
       collectionId,
       error: toError(error).message,
     })
-    return collectionId
   }
+
+  if (syncContext) {
+    cached[collectionId] = name
+    syncContext.collectionNames = cached
+  }
+
+  return name
 }

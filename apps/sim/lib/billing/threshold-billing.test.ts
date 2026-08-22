@@ -392,6 +392,46 @@ describe('checkAndBillOverageThreshold', () => {
     expect(mockCalculateSubscriptionOverage).not.toHaveBeenCalled()
   })
 
+  it('does not compare an Enterprise reporting window to Stripe before the ineligible no-op', async () => {
+    mockIsEnterprise.mockReturnValue(true)
+
+    await expect(
+      checkAndBillOverageThreshold('user-1', undefined, {
+        onError: 'throw',
+        expectedBillingPeriod: {
+          start: new Date('2025-08-13T00:00:00.000Z'),
+          end: new Date('2026-08-13T00:00:00.000Z'),
+        },
+      })
+    ).resolves.toEqual({ status: 'no-op', reason: 'plan-ineligible' })
+
+    expect(mockCalculateSubscriptionOverage).not.toHaveBeenCalled()
+  })
+
+  it('does not compare an organization Enterprise reporting window to Stripe', async () => {
+    mockGetOrganizationSubscriptionUsable.mockResolvedValue({
+      ...usableOrgSubscription,
+      plan: 'enterprise',
+    })
+    mockIsEnterprise.mockReturnValue(true)
+
+    await expect(
+      checkAndBillPayerOverageThreshold(
+        { type: 'organization', id: 'org-1' },
+        {
+          onError: 'throw',
+          expectedBillingPeriod: {
+            start: new Date('2025-08-13T00:00:00.000Z'),
+            end: new Date('2026-08-13T00:00:00.000Z'),
+          },
+        }
+      )
+    ).resolves.toEqual({ status: 'no-op', reason: 'plan-ineligible' })
+
+    expect(mockIsOrganizationBillingBlocked).not.toHaveBeenCalled()
+    expect(mockComputeOrgOverageAmount).not.toHaveBeenCalled()
+  })
+
   it('wraps organization provider failures through the strict payer helper', async () => {
     mockGetOrganizationSubscriptionUsable.mockResolvedValue(usableOrgSubscription)
     mockIsOrganizationBillingBlocked.mockRejectedValue(new Error('Organization lookup unavailable'))

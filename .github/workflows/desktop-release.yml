@@ -1,10 +1,10 @@
 name: Desktop Release (macOS)
 
 # Builds, signs, notarizes, and uploads the desktop app to an existing GitHub
-# release. Ordering is load-bearing: scripts/create-single-release.ts skips
-# creation when the tag already exists, so this workflow must never create the
-# release itself — it only uploads assets after create-release ran (wired via
-# workflow_call from ci.yml with needs: [create-release]).
+# release. Stable releases live in this source repository; dev and staging
+# releases live in simstudioai/sim-desktop-releases. Ordering is load-bearing:
+# scripts/create-single-release.ts skips creation when the stable tag already
+# exists, so this workflow must never create a release itself.
 
 on:
   workflow_call:
@@ -49,10 +49,50 @@ permissions:
 jobs:
   build-sign-notarize:
     name: Build, Sign, Notarize
-    runs-on: macos-14
+    runs-on: macos-26
     steps:
       - name: Checkout code
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+
+      # Prerelease versions carry their environment in the tag: -dev.N is a
+      # dev build, -staging.N a staging build. Legacy -alpha/-beta tags remain
+      # accepted while already-published builds age out. The channel decides the app's
+      # identity (name/bundle id — a separate app per environment, installable
+      # side by side) and the default origin baked into the bundle, which in
+      # turn selects the update feed the installed app polls.
+      - name: Resolve channel identity
+        id: channel
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          case "$VERSION" in
+            *-dev.*|*-alpha.*)
+              NAME='Sim Dev'; APP_ID=ai.sim.desktop.dev; ORIGIN=https://www.dev.sim.ai; RELEASE_REPOSITORY=simstudioai/sim-desktop-releases; TOKEN_KIND=prerelease ;;
+            *-staging.*|*-beta.*)
+              NAME='Sim Staging'; APP_ID=ai.sim.desktop.staging; ORIGIN=https://www.staging.sim.ai; RELEASE_REPOSITORY=simstudioai/sim-desktop-releases; TOKEN_KIND=prerelease ;;
+            *)
+              NAME='Sim'; APP_ID=ai.sim.desktop; ORIGIN=''; RELEASE_REPOSITORY="$GITHUB_REPOSITORY"; TOKEN_KIND=stable ;;
+          esac
+          {
+            echo "name=$NAME"
+            echo "app_id=$APP_ID"
+            echo "origin=$ORIGIN"
+            echo "release_repository=$RELEASE_REPOSITORY"
+            echo "token_kind=$TOKEN_KIND"
+          } >> "$GITHUB_OUTPUT"
+          echo "Building $NAME ($APP_ID) for $RELEASE_REPOSITORY; default origin: ${ORIGIN:-production}"
+
+      - name: Validate release authentication
+        if: ${{ inputs.publish }}
+        env:
+          DESKTOP_RELEASE_TOKEN: ${{ secrets.DESKTOP_RELEASE_TOKEN }}
+          RELEASE_REPOSITORY: ${{ steps.channel.outputs.release_repository }}
+          TOKEN_KIND: ${{ steps.channel.outputs.token_kind }}
+        run: |
+          if [ "$TOKEN_KIND" = prerelease ] && [ -z "$DESKTOP_RELEASE_TOKEN" ]; then
+            echo "::error::DESKTOP_RELEASE_TOKEN is required to publish prereleases to $RELEASE_REPOSITORY."
+            exit 1
+          fi
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
@@ -90,31 +130,6 @@ jobs:
             echo "Version injection mismatch: wanted $SEMVER got $INJECTED" >&2
             exit 1
           fi
-
-      # Prerelease versions carry their environment in the tag: -alpha.N is a
-      # dev build, -beta.N a staging build. The channel decides the app's
-      # identity (name/bundle id — a separate app per environment, installable
-      # side by side) and the default origin baked into the bundle, which in
-      # turn selects the update feed the installed app polls.
-      - name: Resolve channel identity
-        id: channel
-        env:
-          VERSION: ${{ inputs.version }}
-        run: |
-          case "$VERSION" in
-            *-alpha.*)
-              NAME='Sim Dev'; APP_ID=ai.sim.desktop.dev; ORIGIN=https://www.dev.sim.ai ;;
-            *-beta.*)
-              NAME='Sim Staging'; APP_ID=ai.sim.desktop.staging; ORIGIN=https://www.staging.sim.ai ;;
-            *)
-              NAME='Sim'; APP_ID=ai.sim.desktop; ORIGIN='' ;;
-          esac
-          {
-            echo "name=$NAME"
-            echo "app_id=$APP_ID"
-            echo "origin=$ORIGIN"
-          } >> "$GITHUB_OUTPUT"
-          echo "Building $NAME ($APP_ID) default origin: ${ORIGIN:-production}"
 
       - name: Bundle main and preload
         working-directory: apps/desktop
@@ -167,8 +182,8 @@ jobs:
         if: ${{ inputs.sign }}
         run: |
           DMG="$(ls apps/desktop/release/*.dmg | head -1)"
-          xcrun stapler validate "$DMG"
           hdiutil attach "$DMG" -mountpoint /tmp/sim-dmg -nobrowse -quiet
+          xcrun stapler validate /tmp/sim-dmg/*.app
           spctl --assess --type execute --verbose /tmp/sim-dmg/*.app
           codesign --verify --deep --strict /tmp/sim-dmg/*.app
           hdiutil detach /tmp/sim-dmg -quiet
@@ -176,9 +191,24 @@ jobs:
       - name: Upload artifacts to the release
         if: ${{ inputs.publish }}
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DESKTOP_RELEASE_TOKEN: ${{ secrets.DESKTOP_RELEASE_TOKEN }}
+          RELEASE_REPOSITORY: ${{ steps.channel.outputs.release_repository }}
+          SOURCE_RELEASE_TOKEN: ${{ github.token }}
+          TOKEN_KIND: ${{ steps.channel.outputs.token_kind }}
           VERSION: ${{ inputs.version }}
         run: |
+          case "$TOKEN_KIND" in
+            prerelease) GH_TOKEN="$DESKTOP_RELEASE_TOKEN" ;;
+            stable) GH_TOKEN="$SOURCE_RELEASE_TOKEN" ;;
+            *)
+              echo "::error::Unknown desktop release token kind: $TOKEN_KIND"
+              exit 1 ;;
+          esac
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::error::No GitHub token is available to publish to $RELEASE_REPOSITORY."
+            exit 1
+          fi
+          export GH_TOKEN
           # electron-builder's GitHub provider always names the manifest
           # latest-mac.yml (channels are a generic-provider concept), and the
           # update feed expects exactly that asset name on every release —
@@ -197,6 +227,7 @@ jobs:
             apps/desktop/release/*.zip \
             apps/desktop/release/*.blockmap \
             apps/desktop/release/latest-mac.yml \
+            --repo "$RELEASE_REPOSITORY" \
             --clobber
 
       - name: Upload artifacts to the workflow run

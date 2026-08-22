@@ -560,6 +560,31 @@ export const langflowProfile: CompetitorProfile = {
           },
         ],
       },
+      codeSandboxRuntime: {
+        value:
+          'Partial: on self-hosted deployments only, the Python environment custom components run in is user-configurable. Langflow Desktop reads a `requirements.txt` in its data directory (`~/.langflow/data/requirements.txt` on macOS) where dependencies are pinned as `DEPENDENCY==VERSION`; Langflow OSS accepts `uv add DEPENDENCY` in a cloned repo and optional dependency groups via pip extras such as `langflow[postgresql]`; and a custom Docker image built on `langflowai/langflow:latest` can layer a `pyproject.toml` plus `uv.lock` for extra packages and mount custom component folders via `LANGFLOW_COMPONENTS_PATH`. Extension packages are pip-installable and register their bundles into the component palette when the server starts. No equivalent dependency configuration is documented for the managed Langflow Cloud.',
+        detail:
+          "This is environment configuration at the deployment level, not a per-step sandbox: packages are declared for the whole Langflow server and applied on restart, and there is no documented per-flow or per-component isolation boundary. Langflow's own Security page states it does not enforce isolation between users in a single process or restrict local disk and network access, so component code runs at the same trust level as the server.",
+        shortValue: 'Self-hosted only: requirements.txt, uv, or a custom Docker image',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://docs.langflow.org/install-custom-dependencies',
+            label: 'Langflow Docs: Install custom dependencies',
+            asOf: '2026-08-10',
+          },
+          {
+            url: 'https://docs.langflow.org/develop-application',
+            label: 'Langflow Docs: Containerize a Langflow application',
+            asOf: '2026-08-10',
+          },
+          {
+            url: 'https://docs.langflow.org/extensions-overview',
+            label: 'Langflow Docs: Extensions overview',
+            asOf: '2026-08-10',
+          },
+        ],
+      },
       apiPublishing: {
         value:
           "Yes: any flow can be called as a REST API via documented run endpoints, with an auto-generated API reference (OpenAPI spec) available at the deployment's docs endpoint.",
@@ -783,6 +808,26 @@ export const langflowProfile: CompetitorProfile = {
         shortValue: 'Unknown, not confirmed as a documented shipped feature',
         confidence: 'unknown',
         sources: [],
+      },
+      sessionPolicy: {
+        value:
+          'Partial: on self-hosted deployments only, via environment variables. Langflow issues short-lived JWTs and exposes `LANGFLOW_ACCESS_TOKEN_EXPIRE_SECONDS` (default 3600, one hour) and `LANGFLOW_REFRESH_TOKEN_EXPIRE_SECONDS` (default 604800, seven days), so an operator sets the absolute ceiling on how long a signed-in session survives before re-authentication. No inactivity or idle timeout setting is documented, and no admin-console UI for setting session policy across an organization is documented for Langflow Cloud.',
+        detail:
+          'Expiry is measured from token issuance rather than last activity, and clients silently exchange a refresh token at `/api/v1/refresh`, so the effective session cap is the refresh token lifetime. Because these are process environment variables, the policy is set by whoever operates the deployment rather than by an administrator inside the product.',
+        shortValue: 'Self-hosted only, via token-expiry env variables',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://docs.langflow.org/api-keys-and-authentication',
+            label: 'Langflow Docs: API keys and authentication',
+            asOf: '2026-08-10',
+          },
+          {
+            url: 'https://docs.langflow.org/authentication-overview',
+            label: 'Langflow Docs: Authentication and authorization overview',
+            asOf: '2026-08-10',
+          },
+        ],
       },
       thirdPartyVetting: {
         value:

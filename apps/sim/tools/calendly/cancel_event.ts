@@ -1,4 +1,5 @@
 import type { CalendlyCancelEventParams, CalendlyCancelEventResponse } from '@/tools/calendly/types'
+import { toUuid } from '@/tools/calendly/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const cancelEventTool: ToolConfig<CalendlyCancelEventParams, CalendlyCancelEventResponse> = {
@@ -31,9 +32,7 @@ export const cancelEventTool: ToolConfig<CalendlyCancelEventParams, CalendlyCanc
 
   request: {
     url: (params: CalendlyCancelEventParams) => {
-      const uuid = params.eventUuid.includes('/')
-        ? params.eventUuid.split('/').pop()
-        : params.eventUuid
+      const uuid = toUuid(params.eventUuid)
       return `https://api.calendly.com/scheduled_events/${uuid}/cancellation`
     },
     method: 'POST',

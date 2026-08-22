@@ -9,6 +9,7 @@ import {
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, eq, isNotNull, isNull, or, sql } from 'drizzle-orm'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 import { getSlotsForFieldType, SUPPORTED_FIELD_TYPES } from '@/lib/knowledge/constants'
 import type { BulkTagDefinitionsData, DocumentTagDefinition } from '@/lib/knowledge/tags/types'
@@ -43,9 +44,12 @@ const TAG_MUTATION_STATEMENT_TIMEOUT_MS = 120_000
 const TAG_MUTATION_LOCK_TIMEOUT_MS = 5_000
 const TAG_MUTATION_IDLE_TIMEOUT_MS = 30_000
 
-export class KnowledgeTagProvenanceConflictError extends Error {
+export class KnowledgeTagProvenanceConflictError extends OrchestrationError {
   constructor() {
-    super('Tag definitions cannot be deleted while resolved-secret document provenance is present')
+    super(
+      'conflict',
+      'Tag definitions cannot be deleted while resolved-secret document provenance is present'
+    )
     this.name = 'KnowledgeTagProvenanceConflictError'
   }
 }
@@ -257,34 +261,28 @@ export async function createOrUpdateTagDefinitionsBulk(
   const updated: DocumentTagDefinition[] = []
   const errors: string[] = []
 
-  // Get existing definitions to check for conflicts and determine operations
   const existingDefinitions = await getDocumentTagDefinitions(knowledgeBaseId)
   const existingBySlot = new Map(existingDefinitions.map((def) => [def.tagSlot, def]))
   const existingByDisplayName = new Map(existingDefinitions.map((def) => [def.displayName, def]))
 
-  // Process each definition
   for (const defData of definitions) {
     try {
       const { tagSlot, displayName, fieldType, originalDisplayName } = defData
 
-      // Validate field type
       if (!SUPPORTED_FIELD_TYPES.includes(fieldType as (typeof SUPPORTED_FIELD_TYPES)[number])) {
         errors.push(`Invalid field type: ${fieldType}`)
         continue
       }
 
-      // Check if this is an update (has originalDisplayName) or create
       const isUpdate = !!originalDisplayName
 
       if (isUpdate) {
-        // Update existing definition
         const existingDef = existingByDisplayName.get(originalDisplayName!)
         if (!existingDef) {
           errors.push(`Tag definition with display name "${originalDisplayName}" not found`)
           continue
         }
 
-        // Check if new display name conflicts with another definition
         if (displayName !== originalDisplayName && existingByDisplayName.has(displayName)) {
           errors.push(`Display name "${displayName}" already exists`)
           continue
@@ -310,10 +308,8 @@ export async function createOrUpdateTagDefinitionsBulk(
           updatedAt: now,
         })
       } else {
-        // Create new definition
         let finalTagSlot = tagSlot
 
-        // If no slot provided or slot is taken, find next available
         if (!finalTagSlot || existingBySlot.has(finalTagSlot)) {
           const nextSlot = await getNextAvailableSlot(knowledgeBaseId, fieldType, existingBySlot)
           if (!nextSlot) {
@@ -323,13 +319,11 @@ export async function createOrUpdateTagDefinitionsBulk(
           finalTagSlot = nextSlot
         }
 
-        // Check slot conflicts
         if (existingBySlot.has(finalTagSlot)) {
           errors.push(`Tag slot "${finalTagSlot}" is already in use`)
           continue
         }
 
-        // Check display name conflicts
         if (existingByDisplayName.has(displayName)) {
           errors.push(`Display name "${displayName}" already exists`)
           continue
@@ -397,60 +391,6 @@ export async function getTagDefinitionById(
     ...def,
     tagSlot: def.tagSlot as string,
   }
-}
-
-/**
- * Update tags on all documents and chunks when a tag value is changed
- */
-async function updateTagValuesInDocumentsAndChunks(
-  knowledgeBaseId: string,
-  tagSlot: string,
-  oldValue: string | null,
-  newValue: string | null,
-  requestId: string
-): Promise<{ documentsUpdated: number; chunksUpdated: number }> {
-  validateTagSlot(tagSlot)
-
-  let documentsUpdated = 0
-  let chunksUpdated = 0
-
-  await db.transaction(async (tx) => {
-    if (oldValue) {
-      await tx
-        .update(document)
-        .set({
-          [tagSlot]: newValue,
-        })
-        .where(
-          and(
-            eq(document.knowledgeBaseId, knowledgeBaseId),
-            eq(sql.raw(`${document}.${tagSlot}`), oldValue)
-          )
-        )
-      documentsUpdated = 1
-    }
-
-    if (oldValue) {
-      await tx
-        .update(embedding)
-        .set({
-          [tagSlot]: newValue,
-        })
-        .where(
-          and(
-            eq(embedding.knowledgeBaseId, knowledgeBaseId),
-            eq(sql.raw(`${embedding}.${tagSlot}`), oldValue)
-          )
-        )
-      chunksUpdated = 1
-    }
-  })
-
-  logger.info(
-    `[${requestId}] Updated tag values: ${documentsUpdated} documents, ${chunksUpdated} chunks`
-  )
-
-  return { documentsUpdated, chunksUpdated }
 }
 
 /**
@@ -710,7 +650,6 @@ export async function getTagUsage(
     const tagSlot = def.tagSlot
     validateTagSlot(tagSlot)
 
-    // Build WHERE conditions based on field type
     // Text columns need both IS NOT NULL and != '' checks
     // Numeric/date/boolean columns only need IS NOT NULL
     const fieldType = getFieldTypeForSlot(tagSlot)
@@ -724,7 +663,6 @@ export async function getTagUsage(
       isNotNull(sql`${sql.raw(tagSlot)}`),
     ]
 
-    // Only add empty string check for text columns
     if (isTextColumn) {
       whereConditions.push(sql`${sql.raw(tagSlot)} != ''`)
     }

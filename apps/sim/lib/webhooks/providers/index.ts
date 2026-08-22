@@ -1,6 +1,8 @@
 export { getProviderHandler } from '@/lib/webhooks/providers/registry'
 
+import { toRecord } from '@sim/utils/object'
 import { getProviderHandler } from '@/lib/webhooks/providers/registry'
+import { isProviderConfigFlagEnabled } from '@/lib/webhooks/providers/utils'
 import { isInternalTriggerProvider, isPollingWebhookProvider } from '@/triggers/constants'
 
 /**
@@ -27,4 +29,26 @@ export function acceptsPathWebhookDelivery(provider: string | null): boolean {
   if (!provider) return true
   if (isInternalTriggerProvider(provider) || isPollingWebhookProvider(provider)) return false
   return getProviderHandler(provider).ingressMode !== 'provider'
+}
+
+/**
+ * Whether this webhook accepts a delivery arriving with this HTTP method.
+ *
+ * Every webhook accepts `POST`. Anything else needs both a provider that declares the method in
+ * `extraDeliveryMethods` and the webhook itself opting in through the flag that declaration
+ * names. Requiring both is what keeps the capability from changing the behavior of a webhook
+ * deployed before it existed: such a row has no flag, so it keeps answering `405`.
+ */
+export function acceptsWebhookDeliveryMethod(
+  provider: string | null,
+  method: string,
+  providerConfig: unknown
+): boolean {
+  if (method === 'POST') return true
+  if (!provider) return false
+
+  const extra = getProviderHandler(provider).extraDeliveryMethods
+  if (!extra?.methods.includes(method)) return false
+
+  return isProviderConfigFlagEnabled(toRecord(providerConfig)[extra.enabledBy])
 }

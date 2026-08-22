@@ -72,15 +72,6 @@ export const STATUS_OUTPUT_PROPERTIES = {
 } as const satisfies Record<string, OutputProperty>
 
 /**
- * Status object output definition.
- */
-export const STATUS_OUTPUT: OutputProperty = {
-  type: 'object',
-  description: 'Issue status',
-  properties: STATUS_OUTPUT_PROPERTIES,
-}
-
-/**
  * Issue type object properties from Jira API v3.
  * Based on IssueBean.fields.issuetype structure.
  */
@@ -91,15 +82,6 @@ export const ISSUE_TYPE_OUTPUT_PROPERTIES = {
   subtask: { type: 'boolean', description: 'Whether this is a subtask type' },
   iconUrl: { type: 'string', description: 'URL to the issue type icon', optional: true },
 } as const satisfies Record<string, OutputProperty>
-
-/**
- * Issue type object output definition.
- */
-export const ISSUE_TYPE_OUTPUT: OutputProperty = {
-  type: 'object',
-  description: 'Issue type',
-  properties: ISSUE_TYPE_OUTPUT_PROPERTIES,
-}
 
 /**
  * Project object properties from Jira API v3.
@@ -136,15 +118,6 @@ export const PRIORITY_OUTPUT_PROPERTIES = {
 } as const satisfies Record<string, OutputProperty>
 
 /**
- * Priority object output definition.
- */
-export const PRIORITY_OUTPUT: OutputProperty = {
-  type: 'object',
-  description: 'Issue priority',
-  properties: PRIORITY_OUTPUT_PROPERTIES,
-}
-
-/**
  * Resolution object properties from Jira API v3.
  * Based on IssueBean.fields.resolution structure.
  */
@@ -153,16 +126,6 @@ export const RESOLUTION_OUTPUT_PROPERTIES = {
   name: { type: 'string', description: "Resolution name (e.g., Fixed, Duplicate, Won't Fix)" },
   description: { type: 'string', description: 'Resolution description', optional: true },
 } as const satisfies Record<string, OutputProperty>
-
-/**
- * Resolution object output definition.
- */
-export const RESOLUTION_OUTPUT: OutputProperty = {
-  type: 'object',
-  description: 'Issue resolution',
-  properties: RESOLUTION_OUTPUT_PROPERTIES,
-  optional: true,
-}
 
 /**
  * Component object properties from Jira API v3.
@@ -409,27 +372,6 @@ export const WORKLOG_ITEM_PROPERTIES = {
 } as const satisfies Record<string, OutputProperty>
 
 /**
- * Worklog object output definition.
- */
-export const WORKLOG_OUTPUT: OutputProperty = {
-  type: 'object',
-  description: 'Jira worklog object',
-  properties: WORKLOG_ITEM_PROPERTIES,
-}
-
-/**
- * Worklogs array output definition.
- */
-export const WORKLOGS_OUTPUT: OutputProperty = {
-  type: 'array',
-  description: 'Array of Jira worklogs',
-  items: {
-    type: 'object',
-    properties: WORKLOG_ITEM_PROPERTIES,
-  },
-}
-
-/**
  * Transition object properties from Jira API v3.
  * Based on GET /rest/api/3/issue/{issueIdOrKey}/transitions response.
  */
@@ -631,27 +573,6 @@ export const ISSUE_ITEM_PROPERTIES = {
 } as const satisfies Record<string, OutputProperty>
 
 /**
- * Issue object output definition.
- */
-export const ISSUE_OUTPUT: OutputProperty = {
-  type: 'object',
-  description: 'Jira issue object',
-  properties: ISSUE_ITEM_PROPERTIES,
-}
-
-/**
- * Issues array output definition for search endpoints.
- */
-export const ISSUES_OUTPUT: OutputProperty = {
-  type: 'array',
-  description: 'Array of Jira issues',
-  items: {
-    type: 'object',
-    properties: ISSUE_ITEM_PROPERTIES,
-  },
-}
-
-/**
  * Search issue item properties (lighter than full issue for search results).
  * Based on POST /rest/api/3/search/jql response.
  */
@@ -738,14 +659,6 @@ export const SEARCH_ISSUE_ITEM_PROPERTIES = {
 export const TIMESTAMP_OUTPUT: OutputProperty = {
   type: 'string',
   description: 'ISO 8601 timestamp of the operation',
-}
-
-/**
- * Common issue key output property.
- */
-export const ISSUE_KEY_OUTPUT: OutputProperty = {
-  type: 'string',
-  description: 'Jira issue key (e.g., PROJ-123)',
 }
 
 /**

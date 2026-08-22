@@ -4,6 +4,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { forkWorkspaceContract } from '@/lib/api/contracts/workspace-fork'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
+import { asOrchestrationError, statusForOrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { createFork } from '@/ee/workspace-forking/lib/create-fork'
@@ -27,23 +28,42 @@ export const POST = withRouteHandler(
     if (!parsed.success) return parsed.response
 
     const copy = parsed.data.body.copy
-    const result = await createFork({
-      source,
-      policy,
-      userId: session.user.id,
-      actorName: session.user.name ?? undefined,
-      name: parsed.data.body.name,
-      selection: {
-        files: copy?.files ?? [],
-        tables: copy?.tables ?? [],
-        knowledgeBases: copy?.knowledgeBases ?? [],
-        customTools: copy?.customTools ?? [],
-        skills: copy?.skills ?? [],
-        mcpServers: copy?.mcpServers ?? [],
-        workflowMcpServers: copy?.workflowMcpServers ?? [],
-      },
-      requestId,
-    })
+    let result: Awaited<ReturnType<typeof createFork>>
+    try {
+      result = await createFork({
+        source,
+        policy,
+        userId: session.user.id,
+        actorName: session.user.name ?? undefined,
+        name: parsed.data.body.name,
+        selection: {
+          files: copy?.files ?? [],
+          tables: copy?.tables ?? [],
+          knowledgeBases: copy?.knowledgeBases ?? [],
+          customTools: copy?.customTools ?? [],
+          skills: copy?.skills ?? [],
+          mcpServers: copy?.mcpServers ?? [],
+          workflowMcpServers: copy?.workflowMcpServers ?? [],
+        },
+        requestId,
+      })
+    } catch (error) {
+      /**
+       * The fork copy raises classified, caller-fixable refusals — the child workspace's
+       * folder ceiling being full, for one. Without this branch they reach
+       * `withRouteHandler`, which only understands `HttpError` and renders everything else
+       * as an opaque `Internal server error` 500, dropping the message that tells the user
+       * what to do. Unwrapped from the cause chain because drizzle re-wraps anything thrown
+       * inside a transaction callback in a `DrizzleQueryError`.
+       */
+      const classified = asOrchestrationError(error)
+      if (!classified) throw error
+      logger.warn(`[${requestId}] Fork of ${sourceWorkspaceId} refused: ${classified.message}`)
+      return NextResponse.json(
+        { error: classified.message },
+        { status: statusForOrchestrationError(classified.code) }
+      )
+    }
 
     recordAudit({
       workspaceId: result.workspace.id,

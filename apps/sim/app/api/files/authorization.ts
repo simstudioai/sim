@@ -8,6 +8,7 @@ import { getFileMetadata } from '@/lib/uploads'
 import type { StorageContext } from '@/lib/uploads/config'
 import type { StorageConfig } from '@/lib/uploads/core/storage-client'
 import { getFileMetadataByKey } from '@/lib/uploads/server/metadata'
+import { isWorkspaceScopedContext } from '@/lib/uploads/shared/types'
 import { inferContextFromKey } from '@/lib/uploads/utils/file-utils'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 import { isUuid } from '@/executor/constants'
@@ -43,7 +44,14 @@ function workspacePermissionSatisfies(
 }
 
 /**
- * Lookup workspace file by storage key from database
+ * Lookup the workspace-scoped binding for a storage key.
+ *
+ * Matches either context stored under the `workspace/` prefix rather than
+ * `workspace` alone: the prefix does not say which module owns the object, and
+ * both are authorized identically here — by membership of the owning workspace.
+ * Filtering to one of them would silently miss the other and fall through to the
+ * weaker object-metadata path, which cannot see a soft delete.
+ *
  * @param key Storage key to lookup
  * @returns Workspace file info or null if not found
  */
@@ -54,7 +62,8 @@ async function lookupWorkspaceFileByKey(
   try {
     const { includeDeleted = false } = options ?? {}
     // Priority 1: Check new workspaceFiles table
-    const fileRecord = await getFileMetadataByKey(key, 'workspace', { includeDeleted })
+    const record = await getFileMetadataByKey(key, undefined, { includeDeleted })
+    const fileRecord = isWorkspaceScopedContext(record?.context) ? record : undefined
 
     if (fileRecord) {
       return {
@@ -157,7 +166,7 @@ export async function verifyFileAccess(
     }
 
     // 1. Workspace / mothership files: Check database first (most reliable for both local and cloud)
-    if (inferredContext === 'workspace' || inferredContext === 'mothership') {
+    if (isWorkspaceScopedContext(inferredContext)) {
       return await verifyWorkspaceFileAccess(cloudKey, userId, customConfig, isLocal, requireWrite)
     }
 
@@ -203,9 +212,12 @@ async function verifyWorkspaceFileAccess(
   requireWrite = false
 ): Promise<boolean> {
   try {
-    const anyWorkspaceFileRecord = await getFileMetadataByKey(cloudKey, 'workspace', {
+    const anyRecord = await getFileMetadataByKey(cloudKey, undefined, {
       includeDeleted: true,
     })
+    const anyWorkspaceFileRecord = isWorkspaceScopedContext(anyRecord?.context)
+      ? anyRecord
+      : undefined
     if (anyWorkspaceFileRecord?.deletedAt) {
       logger.warn('Workspace file access denied for archived file', {
         userId,
@@ -708,45 +720,6 @@ async function verifyRegularFileAccess(
   } catch (error) {
     logger.error('Error verifying regular file access', { cloudKey, userId, error })
     return false
-  }
-}
-
-/**
- * Unified authorization function that returns structured result
- */
-async function authorizeFileAccess(
-  key: string,
-  userId: string,
-  context?: StorageContext,
-  storageConfig?: StorageConfig,
-  isLocal?: boolean
-): Promise<AuthorizationResult> {
-  const granted = await verifyFileAccess(key, userId, storageConfig, context, isLocal)
-
-  if (granted) {
-    let workspaceId: string | undefined
-    const inferredContext = context || inferContextFromKey(key)
-
-    if (inferredContext === 'workspace') {
-      const record = await lookupWorkspaceFileByKey(key)
-      workspaceId = record?.workspaceId
-    } else {
-      const extracted = extractWorkspaceIdFromKey(key)
-      if (extracted) {
-        workspaceId = extracted
-      }
-    }
-
-    return {
-      granted: true,
-      reason: 'Access granted',
-      workspaceId,
-    }
-  }
-
-  return {
-    granted: false,
-    reason: 'Access denied - insufficient permissions or file not found',
   }
 }
 

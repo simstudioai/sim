@@ -94,6 +94,7 @@ function buildStartBlockState(
     enabled: true,
     horizontalHandles: true,
     advancedMode: false,
+    errorEnabled: false,
     triggerMode: false,
     height: 0,
     data: {},

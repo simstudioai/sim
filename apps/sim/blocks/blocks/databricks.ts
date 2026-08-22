@@ -3,6 +3,9 @@ import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { DatabricksResponse } from '@/tools/databricks/types'
 
+/** A run is parameterized either at the job level or per notebook, never both. */
+const DATABRICKS_RUN_PARAMS_FIELD = ['jobParameters', 'notebookParams'] as const
+
 export const DatabricksBlock: BlockConfig<DatabricksResponse> = {
   type: 'databricks',
   name: 'Databricks',
@@ -15,6 +18,48 @@ export const DatabricksBlock: BlockConfig<DatabricksResponse> = {
   integrationType: IntegrationType.Databases,
   bgColor: '#F9F7F4',
   icon: DatabricksIcon,
+  canvasPresentation: {
+    defaultTitle: 'Databricks',
+    sentences: {
+      byOperation: {
+        execute_sql: [
+          { text: 'Run', field: 'statement', core: true },
+          { text: 'on warehouse', field: 'warehouseId' },
+        ],
+        get_statement: [
+          {
+            text: 'Poll SQL statement',
+            field: 'statementId',
+            after: 'for results',
+            core: true,
+          },
+        ],
+        list_warehouses: ['List all SQL warehouses'],
+        list_jobs: [
+          'List jobs',
+          { text: ', named', field: 'name' },
+          { text: ', up to', field: 'limit' },
+        ],
+        get_job: [{ text: 'Read the definition of job', field: 'jobId', core: true }],
+        run_job: [
+          { text: 'Trigger job', field: 'jobId', core: true },
+          { text: ', with', field: DATABRICKS_RUN_PARAMS_FIELD },
+        ],
+        get_run: [{ text: 'Read the status of run', field: 'runId', core: true }],
+        list_runs: [
+          'List job runs',
+          { text: ', for job', field: 'jobId' },
+          { text: ', started after', field: 'startTimeFrom' },
+        ],
+        cancel_run: [{ text: 'Cancel run', field: 'runId', core: true }],
+        get_run_output: [{ text: 'Read the output of run', field: 'runId', core: true }],
+        list_clusters: ['List all clusters'],
+        get_cluster: [
+          { text: 'Read the configuration of cluster', field: 'clusterId', core: true },
+        ],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',

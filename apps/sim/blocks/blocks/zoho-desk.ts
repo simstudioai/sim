@@ -5,6 +5,9 @@ import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { ZohoDeskResponse } from '@/tools/zoho_desk/types'
 import { getTrigger } from '@/triggers'
 
+/** Both members of the `orgId` canonical pair, so the clause survives advanced mode. */
+const ORG_FIELD = ['orgId', 'manualOrgId']
+
 /** Operations that require an organization to be selected. */
 const OPERATIONS_NEEDING_ORG = [
   'list_tickets',
@@ -73,6 +76,46 @@ export const ZohoDeskBlock: BlockConfig<ZohoDeskResponse> = {
   integrationType: IntegrationType.Support,
   bgColor: '#FFFFFF',
   icon: ZohoDeskIcon,
+  canvasPresentation: {
+    defaultTitle: 'Zoho Desk',
+    sentences: {
+      byOperation: {
+        /* `orgId` is a canonical pair — naming only the basic-mode selector
+           would drop the clause for every advanced-mode user. */
+        list_tickets: [
+          { text: 'List tickets in', field: ORG_FIELD, core: true },
+          { text: ', with status', field: 'statusFilter' },
+          { text: ', at priority', field: 'priorityFilter' },
+          { text: ', assigned to', field: 'assigneeFilter' },
+        ],
+        get_ticket: [{ text: 'Get ticket', field: 'ticketId', core: true }],
+        update_ticket: [
+          { text: 'Update ticket', field: 'ticketId', core: true },
+          { text: ', setting subject to', field: 'subject' },
+          { text: ', with status', field: 'status' },
+          { text: ', at priority', field: 'priority' },
+        ],
+        list_comments: [{ text: 'List comments on ticket', field: 'ticketId', core: true }],
+        add_comment: [
+          { text: 'Comment', field: 'content', core: true },
+          { text: 'on ticket', field: 'ticketId', core: true },
+        ],
+        list_threads: [{ text: 'List threads on ticket', field: 'ticketId', core: true }],
+        get_thread: [
+          { text: 'Get thread', field: 'threadId', core: true },
+          { text: 'on ticket', field: 'ticketId', core: true },
+        ],
+        get_contact: [{ text: 'Get contact', field: 'contactId', core: true }],
+        /* Anchored on `href`, not `fileName`: the latter is advanced-only and
+           optional, so a basic-mode card would paint an empty sentence. */
+        get_attachment: [
+          { text: 'Download attachment', field: 'href', core: true },
+          { text: 'as', field: 'fileName' },
+        ],
+        list_organizations: ['List organizations'],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',

@@ -6,9 +6,10 @@ import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { parseEwRest } from '@/tools/agiloft/ewrest'
 import type { AgiloftRemoveAttachmentResponse } from '@/tools/agiloft/types'
-import { buildRemoveAttachmentUrl } from '@/tools/agiloft/utils'
-import { executeAgiloftRequest } from '@/tools/agiloft/utils.server'
+import { buildRemoveAttachmentUrl, describeAgiloftError } from '@/tools/agiloft/utils'
+import { executeEwRequest } from '@/tools/agiloft/utils.server'
 
 export const dynamic = 'force-dynamic'
 
@@ -51,11 +52,12 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     if (!parsed.success) return parsed.response
     const params = parsed.data.body
 
-    const result = await executeAgiloftRequest<AgiloftRemoveAttachmentResponse>(
+    const result = await executeEwRequest<AgiloftRemoveAttachmentResponse>(
       params,
       (base) => ({
         url: buildRemoveAttachmentUrl(base, params),
-        method: 'DELETE',
+        /** EWRemoveAttachment is a GET/POST operation; it does not accept DELETE. */
+        method: 'GET',
       }),
       async (response) => {
         const text = await response.text()
@@ -68,25 +70,34 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
               fieldName: params.fieldName?.trim() ?? '',
               remainingAttachments: 0,
             },
-            error: `Agiloft error: ${response.status} - ${text}`,
+            error: `Agiloft error ${response.status}: ${describeAgiloftError(text)}`,
           }
         }
 
-        let remainingAttachments = 0
-        try {
-          const data = JSON.parse(text)
-          const result = data.result ?? data
-          remainingAttachments =
-            typeof result === 'number' ? result : (result.count ?? result.remaining ?? 0)
-        } catch {
-          remainingAttachments = Number(text) || 0
+        /**
+         * The URL carries no `.json` decorator, so the body is the EWREST
+         * assignment form — `EWREST_<fieldName>.length='0';` — exactly as
+         * EWAttach returns. Parsing it as JSON silently produced 0 on every
+         * call regardless of what Agiloft reported.
+         */
+        const fieldName = params.fieldName.trim()
+        const assignments = parseEwRest(text)
+        const countRaw = assignments.get(`${fieldName}.length`) ?? [...assignments.values()][0]
+        const remainingAttachments = Number(countRaw)
+
+        if (!Number.isFinite(remainingAttachments)) {
+          return {
+            success: false,
+            output: { recordId: params.recordId.trim(), fieldName, remainingAttachments: 0 },
+            error: `Agiloft did not report the remaining attachment count: ${text.trim() || '(empty response)'}`,
+          }
         }
 
         return {
           success: true,
           output: {
-            recordId: params.recordId?.trim() ?? '',
-            fieldName: params.fieldName?.trim() ?? '',
+            recordId: params.recordId.trim(),
+            fieldName,
             remainingAttachments,
           },
         }

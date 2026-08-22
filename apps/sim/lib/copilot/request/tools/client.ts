@@ -37,7 +37,7 @@ const logger = createLogger('CopilotClientToolWaiter')
  */
 export async function waitForToolCompletion(
   toolCallId: string,
-  timeoutMs: number,
+  timeoutMs: number | null,
   abortSignal?: AbortSignal
 ): Promise<AsyncTerminalCompletionSnapshot | null> {
   const decision = await waitForToolConfirmation(toolCallId, timeoutMs, abortSignal, {
@@ -57,7 +57,8 @@ interface WaitForClientToolCompletionOptions {
   toolCallId: string
   runId?: string
   userId: string
-  timeoutMs: number
+  /** Null for a durable human-interaction wait that ends only on answer or abort. */
+  timeoutMs: number | null
   abortSignal?: AbortSignal
   registry?: ResolvedSecretTraceRegistry
 }
@@ -308,7 +309,9 @@ export async function waitForWorkflowToolCompletion({
       !trustedExecution.provenance.complete
     ) {
       if (!trustedExecution.provenance.complete)
-        toolRegistry?.markIncomplete('source-provenance-incomplete')
+        toolRegistry?.markIncomplete('source-provenance-incomplete', {
+          origin: 'copilotToolClient.workflowExecution',
+        })
       return structuralWorkflowCompletion(
         getWorkflowToolConfirmationStatus(trustedExecution.status),
         workflowId,
@@ -328,9 +331,14 @@ export async function waitForWorkflowToolCompletion({
         },
         { trusted: true }
       )
-      if (!imported) toolRegistry.markIncomplete('value-provenance-import-failed')
+      if (!imported)
+        toolRegistry.markIncomplete('value-provenance-import-failed', {
+          origin: 'copilotToolClient.workflowExecution',
+        })
     } catch (error) {
-      toolRegistry.markIncomplete('value-provenance-import-failed')
+      toolRegistry.markIncomplete('value-provenance-import-failed', {
+        origin: 'copilotToolClient.workflowExecution',
+      })
       logger.warn('Failed to import bound workflow provenance', {
         toolCallId,
         workflowId,

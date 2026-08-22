@@ -21,9 +21,7 @@ import {
   ChevronUp,
   Clipboard,
   Expand,
-  Repeat,
   Search,
-  Split,
   SquareArrowUpRight,
   X,
 } from '@sim/emcn/icons'
@@ -32,25 +30,25 @@ import { useParams } from 'next/navigation'
 import { ReactFlowProvider } from 'reactflow'
 import { extractReferencePrefixes } from '@/lib/workflows/sanitization/references'
 import {
-  buildCanonicalIndex,
+  buildCanonicalIndexForSurface,
   evaluateSubBlockCondition,
   hasAdvancedValues,
   isSubBlockFeatureEnabled,
   isSubBlockVisibleForMode,
   isToolInputOnlySubBlock,
 } from '@/lib/workflows/subblocks/visibility'
-import { DELETED_WORKFLOW_LABEL } from '@/app/workspace/[workspaceId]/logs/utils'
+import { DELETED_WORKFLOW_LABEL } from '@/lib/workflows/workflow-labels'
 import { SubBlock } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components'
 import { PreviewContextMenu } from '@/app/workspace/[workspaceId]/w/components/preview/components/preview-context-menu'
 import { PreviewWorkflow } from '@/app/workspace/[workspaceId]/w/components/preview/components/preview-workflow'
-import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import { getBlock } from '@/blocks'
-import { getTileIconColorClass } from '@/blocks/icon-color'
-import type { BlockConfig, BlockIcon, SubBlockConfig, SubBlockType } from '@/blocks/types'
+import { BlockTile } from '@/blocks/block-tile'
+import type { BlockConfig, SubBlockConfig, SubBlockType } from '@/blocks/types'
 import { normalizeName } from '@/executor/constants'
 import { navigatePath } from '@/executor/variables/resolvers/reference'
 import { useWorkflowState } from '@/hooks/queries/workflows'
 import { useCodeViewerFeatures } from '@/hooks/use-code-viewer'
+import { useContextMenu } from '@/hooks/use-context-menu'
 import type { BlockState, Loop, Parallel, WorkflowState } from '@/stores/workflows/workflow/types'
 
 /**
@@ -356,9 +354,6 @@ function ConnectionsSection({
       {/* Content - styled like ConnectionBlocks */}
       <div className='flex-1 space-y-0.5 overflow-y-auto overflow-x-hidden px-1.5 pb-2'>
         {connections.map((connection) => {
-          const blockConfig = getBlock(connection.blockType)
-          const Icon = blockConfig?.icon
-          const bgColor = blockConfig?.bgColor || '#6B7280'
           const isExpanded = expandedBlocks.has(connection.blockId)
           const hasFields = connection.fields.length > 0
 
@@ -379,21 +374,7 @@ function ConnectionsSection({
                   handleKeyboardActivation(event, () => toggleBlock(connection.blockId))
                 }}
               >
-                <div
-                  className='relative flex size-[14px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm'
-                  style={{ background: bgColor }}
-                >
-                  {Icon && (
-                    <Icon
-                      className={cn(
-                        'transition-transform duration-200',
-                        getTileIconColorClass(bgColor),
-                        hasFields && 'group-hover:scale-110',
-                        '!h-[9px] !w-[9px]'
-                      )}
-                    />
-                  )}
-                </div>
+                <BlockTile blockType={connection.blockType} size='sm' />
                 <span
                   className={cn(
                     'truncate',
@@ -547,20 +528,6 @@ function ConnectionsSection({
       </div>
     </div>
   )
-}
-
-/**
- * Icon component for rendering block icons
- */
-function IconComponent({
-  icon: Icon,
-  className,
-}: {
-  icon: BlockIcon | undefined
-  className?: string
-}) {
-  if (!Icon) return null
-  return <Icon className={className} />
 }
 
 /**
@@ -1088,9 +1055,10 @@ function PreviewEditorContent({
     }, {})
   }, [subBlockValues])
 
+  const effectiveTrigger = block.triggerMode === true
   const canonicalIndex = useMemo(
-    () => buildCanonicalIndex(blockConfig?.subBlocks || []),
-    [blockConfig?.subBlocks]
+    () => buildCanonicalIndexForSurface(blockConfig?.subBlocks || [], effectiveTrigger),
+    [blockConfig?.subBlocks, effectiveTrigger]
   )
 
   const isSubflow = block.type === 'loop' || block.type === 'parallel'
@@ -1099,20 +1067,13 @@ function PreviewEditorContent({
 
   if (isSubflow) {
     const isLoop = block.type === 'loop'
-    const SubflowIcon = isLoop ? Repeat : Split
-    const subflowBgColor = isLoop ? '#2FB3FF' : '#FEE12B'
     const subflowName = block.name || (isLoop ? 'Loop' : 'Parallel')
 
     return (
       <div className='relative flex h-full w-full flex-col overflow-hidden border-[var(--border)] border-l bg-[var(--surface-1)]'>
         {/* Header - styled like subflow header */}
         <div className='mx-[-1px] flex flex-shrink-0 items-center gap-2 rounded-b-[4px] border-[var(--border)] border-x border-b bg-[var(--surface-4)] px-3 py-1.5'>
-          <div
-            className='flex size-[18px] flex-shrink-0 items-center justify-center rounded-sm'
-            style={{ backgroundColor: subflowBgColor }}
-          >
-            <SubflowIcon className={cn('size-[12px]', getTileIconColorClass(subflowBgColor))} />
-          </div>
+          <BlockTile blockType={block.type} size='lg' />
           <span className='min-w-0 flex-1 truncate text-[var(--text-primary)] text-sm'>
             {subflowName}
           </span>
@@ -1158,7 +1119,6 @@ function PreviewEditorContent({
     hasAdvancedValues(blockConfig.subBlocks, rawValues, canonicalIndex)
 
   const isPureTriggerBlock = blockConfig.triggers?.enabled && blockConfig.category === 'triggers'
-  const effectiveTrigger = block.triggerMode === true
 
   const visibleSubBlocks = blockConfig.subBlocks.filter((subBlock) => {
     if (subBlock.hidden || subBlock.hideFromPreview) return false
@@ -1199,17 +1159,7 @@ function PreviewEditorContent({
     <div className='relative flex h-full w-full flex-col overflow-hidden border-[var(--border)] border-l bg-[var(--surface-1)]'>
       {/* Header - styled like editor */}
       <div className='mx-[-1px] flex flex-shrink-0 items-center gap-2 rounded-b-[4px] border-[var(--border)] border-x border-b bg-[var(--surface-4)] px-3 py-1.5'>
-        {block.type !== 'note' && (
-          <div
-            className='flex size-[18px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm [&_img]:size-full'
-            style={{ backgroundColor: blockConfig.bgColor }}
-          >
-            <IconComponent
-              icon={blockConfig.icon}
-              className={cn('size-[12px]', getTileIconColorClass(blockConfig.bgColor))}
-            />
-          </div>
-        )}
+        {block.type !== 'note' && <BlockTile blockType={block.type} size='lg' />}
         <span className='min-w-0 flex-1 truncate text-[var(--text-primary)] text-sm'>
           {block.name || blockConfig.name}
         </span>

@@ -84,9 +84,9 @@ Redis is a cache and message bus. Losing it drops in-flight live updates; it doe
 
 **Collaboration** — browser → ingress → realtime:3002 (`/socket.io`, WebSocket upgrade) → Redis pub/sub → other realtime pods. The proxy must pass upgrade headers and allow long-lived idle connections; see [Networking](/platform/self-hosting/networking).
 
-**File upload (object storage configured)** — browser asks app for a presigned URL → browser `PUT`s **directly to object storage** → app records metadata. This is why buckets need a CORS policy naming your Sim origin. Downloads are proxied back through the app.
+**File upload (object storage configured)** — browser asks the app to open an upload session → app returns signed transfer instructions → browser sends the bytes **directly to object storage** (one `PUT` up to 50 MB, multipart parts above that) → browser tells the app the session is complete and the app records metadata. This is why buckets need a CORS policy naming your Sim origin. Downloads are proxied back through the app.
 
-**File upload (local disk)** — the presigned endpoint reports `directUploadSupported: false` and the browser uploads through the app instead. No CORS configuration is involved, and no bucket is used.
+**File upload (local disk)** — the same upload session opens, but the transfer instructions point back at the app's own `/api/v2/uploads/...` endpoints instead of a bucket, so the bytes stream through the app. No CORS configuration is involved, and no bucket is used.
 
 **Workflow execution** — trigger (manual, API, webhook, or schedule) → app enqueues or runs inline → isolated-vm sandbox → results and logs to Postgres, progress markers to Redis.
 

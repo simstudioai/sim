@@ -531,6 +531,29 @@ describe('EdgeManager', () => {
       expect(readyNodes).toContain(successTargetId)
       expect(readyNodes).not.toContain(errorTargetId)
     })
+
+    it('heals a side-anchored source handle from an older snapshot into a success edge', () => {
+      const sourceId = 'source-1'
+      const successTargetId = 'success-target'
+      const errorTargetId = 'error-target'
+      const sourceNode = createMockNode(sourceId, [
+        { target: successTargetId, sourceHandle: 'source-top' },
+        { target: errorTargetId, sourceHandle: 'error' },
+      ])
+      const nodes = new Map<string, DAGNode>([
+        [sourceId, sourceNode],
+        [successTargetId, createMockNode(successTargetId, [], [sourceId])],
+        [errorTargetId, createMockNode(errorTargetId, [], [sourceId])],
+      ])
+      const edgeManager = new EdgeManager(createMockDAG(nodes))
+
+      const readyNodes = edgeManager.processOutgoingEdges(sourceNode, {
+        error: 'Something went wrong',
+      })
+
+      expect(readyNodes).toContain(errorTargetId)
+      expect(readyNodes).not.toContain(successTargetId)
+    })
   })
 
   describe('Router edge handling', () => {

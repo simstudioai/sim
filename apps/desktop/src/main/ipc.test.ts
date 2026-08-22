@@ -18,6 +18,10 @@ vi.mock('@/main/browser-import', () => ({
   })),
 }))
 
+vi.mock('@/main/browser-search/suggestions', () => ({
+  getSearchSuggestions: vi.fn(async () => ['sim ai workflow']),
+}))
+
 const { terminalThemeProfile } = vi.hoisted(() => ({
   terminalThemeProfile: {
     id: 'iterm2:ocean',
@@ -124,6 +128,7 @@ import {
   importChromePasswords,
   listChromeImportProfiles,
 } from '@/main/browser-import'
+import { getSearchSuggestions } from '@/main/browser-search/suggestions'
 import { trackInputActivity } from '@/main/input-activity'
 import { type IpcDeps, registerIpcHandlers } from '@/main/ipc'
 import { LocalFilesystemService } from '@/main/local-filesystem'
@@ -252,6 +257,7 @@ describe('registerIpcHandlers', () => {
     vi.mocked(listChromeImportProfiles).mockClear()
     vi.mocked(importChromeCookies).mockClear()
     vi.mocked(importChromePasswords).mockClear()
+    vi.mocked(getSearchSuggestions).mockClear()
     vi.mocked(findCachedTerminalThemeProfile).mockClear()
     vi.mocked(listTerminalThemeProfiles).mockClear()
     vi.mocked(credentialsAvailable).mockClear()
@@ -282,6 +288,7 @@ describe('registerIpcHandlers', () => {
       settings: {
         getPreferences: vi.fn(() => DEFAULT_DESKTOP_PREFERENCES),
         setPreference: vi.fn(),
+        setBrowserSearchSuggestionsEnabled: vi.fn(),
         setAppearancePreference: vi.fn(),
         setBrowserDefaultZoom: vi.fn(),
         setTerminalDefaultZoom: vi.fn(),
@@ -325,6 +332,22 @@ describe('registerIpcHandlers', () => {
     expect(shell.openExternal).toHaveBeenCalledTimes(1)
   })
 
+  it('keeps live search suggestions behind the app origin and privacy preference', async () => {
+    const { invoke } = collectHandlers()
+    const handler = invoke.get('browser-agent:search-suggestions')
+
+    expect(await handler?.(evilEvent, 'sim ai')).toEqual([])
+
+    expect(await handler?.(appEvent, 'sim ai')).toEqual(['sim ai workflow'])
+    expect(getSearchSuggestions).toHaveBeenCalledWith('sim ai')
+
+    vi.mocked(deps.settings.getPreferences).mockReturnValue({
+      ...DEFAULT_DESKTOP_PREFERENCES,
+      browserSearchSuggestionsEnabled: false,
+    })
+    expect(await handler?.(appEvent, 'sim ai')).toEqual([])
+  })
+
   it('restricts the OAuth connect handoff to the app origin', async () => {
     const { invoke } = collectHandlers()
     const handler = invoke.get('desktop:oauth-connect')
@@ -335,21 +358,24 @@ describe('registerIpcHandlers', () => {
     expect(await handler?.(appEvent, 'slack')).toBe(true)
     expect(deps.beginOAuthConnect).toHaveBeenCalledWith('slack', {})
 
-    // Chip-initiated connects carry workspace/credential scope; malformed
+    // Connects carry workspace/credential or exact-draft scope; malformed
     // scopes (wrong types, unsafe ids) are rejected before the handoff.
     expect(
       await handler?.(appEvent, 'slack', {
         workspaceId: 'ws1',
         credentialId: 'cred_1',
+        draftId: 'draft_1',
         chatAttemptId: 'attempt_1',
       })
     ).toBe(true)
     expect(deps.beginOAuthConnect).toHaveBeenCalledWith('slack', {
       workspaceId: 'ws1',
       credentialId: 'cred_1',
+      draftId: 'draft_1',
       chatAttemptId: 'attempt_1',
     })
     expect(await handler?.(appEvent, 'slack', { workspaceId: 'ws/../evil' })).toBe(false)
+    expect(await handler?.(appEvent, 'slack', { draftId: '../wrong' })).toBe(false)
     expect(await handler?.(appEvent, 'slack', { chatAttemptId: '../wrong' })).toBe(false)
     expect(await handler?.(appEvent, 'slack', 'not-an-object')).toBe(false)
   })
@@ -669,6 +695,64 @@ describe('registerIpcHandlers', () => {
     )
   })
 
+  it('routes exact browser-tool cancellation without waiting for authorization', async () => {
+    const { invoke } = collectHandlers()
+    const cancel = vi.spyOn(browserDriver, 'cancelTool').mockReturnValue(true)
+    const cancelActive = vi.spyOn(browserDriver, 'cancelActiveTool').mockReturnValue(true)
+    const handler = invoke.get('browser-agent:cancel-tool')
+    const activeHandler = invoke.get('browser-agent:cancel-active-tool')
+
+    await expect(handler?.(appEvent, 'tool-1', 'chat-1')).resolves.toBe(true)
+    expect(cancel).toHaveBeenCalledWith('chat-1', 'tool-1')
+    await expect(activeHandler?.(appEvent, 'chat-reloaded')).resolves.toBe(true)
+    expect(cancelActive).toHaveBeenCalledWith('chat-reloaded')
+    await expect(handler?.(evilEvent, 'tool-2', 'chat-1')).resolves.toBe(false)
+    await expect(activeHandler?.(evilEvent, 'chat-reloaded')).resolves.toBe(false)
+    expect(cancel).toHaveBeenCalledTimes(1)
+    expect(cancelActive).toHaveBeenCalledTimes(1)
+    cancel.mockRestore()
+    cancelActive.mockRestore()
+  })
+
+  it('rejects a browser tool authorized after its scope cancellation boundary', async () => {
+    const { invoke } = collectHandlers()
+    const executeHandler = invoke.get('browser-agent:execute-tool')
+    const cancelActiveHandler = invoke.get('browser-agent:cancel-active-tool')
+    let resolveAuthorization: (response: Response) => void = () => {}
+    const fetchAuthorization = vi.fn(
+      () =>
+        new Promise<Response>((resolve) => {
+          resolveAuthorization = resolve
+        })
+    )
+    const delayedEvent = {
+      senderFrame: { url: `${APP}/workspace/ws1` },
+      sender: { session: { fetch: fetchAuthorization } },
+    }
+
+    const execution = executeHandler?.(
+      delayedEvent,
+      'tool-delayed-authorization',
+      'browser_open_tab',
+      {},
+      'chat-delayed-authorization'
+    )
+    await Promise.resolve()
+    await cancelActiveHandler?.(delayedEvent, 'chat-delayed-authorization')
+    resolveAuthorization(
+      Response.json({
+        chatId: 'chat-delayed-authorization',
+        toolName: 'browser_open_tab',
+        args: {},
+      })
+    )
+
+    await expect(execution).resolves.toMatchObject({
+      ok: false,
+      error: expect.stringContaining('cancelled before it started'),
+    })
+  })
+
   it('routes terminal tools by the server-authorized chat, not renderer scope', async () => {
     const { invoke } = collectHandlers()
     const executeTool = vi.spyOn(deps.terminal, 'executeTool').mockResolvedValue({ ok: true })
@@ -917,6 +1001,42 @@ describe('registerIpcHandlers', () => {
     expect(restore).toHaveBeenCalledWith('chat-b')
 
     restore.mockRestore()
+  })
+
+  it('creates browser tabs through an acknowledged active-scope operation', async () => {
+    const tabsState = {
+      scopeId: 'chat-b',
+      tabs: [
+        {
+          tabId: '2',
+          url: '',
+          title: '',
+          loading: false,
+          active: true,
+          pinned: false,
+        },
+      ],
+      activeTabId: '2',
+    }
+    const add = vi.spyOn(browserSession, 'addTab').mockReturnValue({} as never)
+    const peek = vi.spyOn(browserSession, 'peekTabsState').mockReturnValue(tabsState)
+    const { invoke } = collectHandlers()
+
+    await invoke.get('browser-agent:activate-scope')?.(appEvent, 'chat-b')
+    peek.mockClear()
+    await expect(invoke.get('browser-agent:open-tab')?.(appEvent, 'chat-b')).resolves.toEqual(
+      tabsState
+    )
+    await expect(invoke.get('browser-agent:open-tab')?.(evilEvent, 'chat-b')).resolves.toEqual({
+      scopeId: '',
+      tabs: [],
+      activeTabId: null,
+    })
+
+    expect(add).toHaveBeenCalledOnce()
+    expect(peek).toHaveBeenCalledOnce()
+    add.mockRestore()
+    peek.mockRestore()
   })
 
   it('routes browser scope events after activation and a valid provisional migration', async () => {

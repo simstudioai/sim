@@ -12,6 +12,10 @@ import {
   bigQueryTablesSelectorContract,
 } from '@/lib/api/contracts/selectors/bigquery'
 import {
+  bitbucketRepositoriesSelectorContract,
+  bitbucketWorkspacesSelectorContract,
+} from '@/lib/api/contracts/selectors/bitbucket'
+import {
   calcomEventTypesSelectorContract,
   calcomSchedulesSelectorContract,
 } from '@/lib/api/contracts/selectors/calcom'
@@ -39,6 +43,7 @@ import {
   googleSheetsSelectorContract,
   googleTasksTaskListsSelectorContract,
 } from '@/lib/api/contracts/selectors/google'
+import { harmonicSavedSearchesSelectorContract } from '@/lib/api/contracts/selectors/harmonic'
 import {
   hubspotListsSelectorContract,
   hubspotOwnersSelectorContract,
@@ -80,6 +85,7 @@ import {
   mondayBoardsSelectorContract,
   mondayGroupsSelectorContract,
 } from '@/lib/api/contracts/selectors/monday'
+import { netsuiteObjectsSelectorContract } from '@/lib/api/contracts/selectors/netsuite'
 import {
   notionDatabasesSelectorContract,
   notionPagesSelectorContract,
@@ -119,11 +125,13 @@ export * from '@/lib/api/contracts/selectors/airtable'
 export * from '@/lib/api/contracts/selectors/asana'
 export * from '@/lib/api/contracts/selectors/attio'
 export * from '@/lib/api/contracts/selectors/bigquery'
+export * from '@/lib/api/contracts/selectors/bitbucket'
 export * from '@/lib/api/contracts/selectors/calcom'
 export * from '@/lib/api/contracts/selectors/clickup'
 export * from '@/lib/api/contracts/selectors/cloudwatch'
 export * from '@/lib/api/contracts/selectors/confluence'
 export * from '@/lib/api/contracts/selectors/google'
+export * from '@/lib/api/contracts/selectors/harmonic'
 export * from '@/lib/api/contracts/selectors/hubspot'
 export * from '@/lib/api/contracts/selectors/jira'
 export * from '@/lib/api/contracts/selectors/jsm'
@@ -131,6 +139,7 @@ export * from '@/lib/api/contracts/selectors/knowledge'
 export * from '@/lib/api/contracts/selectors/linear'
 export * from '@/lib/api/contracts/selectors/microsoft'
 export * from '@/lib/api/contracts/selectors/monday'
+export * from '@/lib/api/contracts/selectors/netsuite'
 export * from '@/lib/api/contracts/selectors/notion'
 export * from '@/lib/api/contracts/selectors/oauth'
 export * from '@/lib/api/contracts/selectors/pipedrive'
@@ -151,6 +160,8 @@ export const selectorContractsByPath = {
   '/api/tools/attio/lists': attioListsSelectorContract,
   '/api/tools/google_bigquery/datasets': bigQueryDatasetsSelectorContract,
   '/api/tools/google_bigquery/tables': bigQueryTablesSelectorContract,
+  '/api/tools/bitbucket/workspaces': bitbucketWorkspacesSelectorContract,
+  '/api/tools/bitbucket/repositories': bitbucketRepositoriesSelectorContract,
   '/api/tools/calcom/event-types': calcomEventTypesSelectorContract,
   '/api/tools/calcom/schedules': calcomSchedulesSelectorContract,
   '/api/tools/clickup/workspaces': clickupWorkspacesSelectorContract,
@@ -161,6 +172,7 @@ export const selectorContractsByPath = {
   '/api/tools/jsm/selector-servicedesks': jsmServiceDesksSelectorContract,
   '/api/tools/jsm/selector-requesttypes': jsmRequestTypesSelectorContract,
   '/api/tools/google_tasks/task-lists': googleTasksTaskListsSelectorContract,
+  '/api/tools/harmonic/saved-searches': harmonicSavedSearchesSelectorContract,
   '/api/tools/microsoft_planner/plans': microsoftPlannerPlansSelectorContract,
   '/api/tools/microsoft_planner/tasks': microsoftPlannerTasksSelectorContract,
   '/api/tools/notion/databases': notionDatabasesSelectorContract,
@@ -200,6 +212,7 @@ export const selectorContractsByPath = {
   '/api/tools/jira/issues:POST': jiraIssueSelectorContract,
   '/api/tools/monday/boards': mondayBoardsSelectorContract,
   '/api/tools/monday/groups': mondayGroupsSelectorContract,
+  '/api/tools/netsuite/objects': netsuiteObjectsSelectorContract,
   '/api/tools/linear/teams': linearTeamsSelectorContract,
   '/api/tools/linear/projects': linearProjectsSelectorContract,
   '/api/tools/confluence/pages': confluencePagesSelectorContract,

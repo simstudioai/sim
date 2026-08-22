@@ -7,16 +7,18 @@ import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 const {
   executeInSandboxMock,
   executeShellInSandboxMock,
-  fetchWorkspaceFileBufferMock,
-  getWorkspaceFileMock,
   loadCompiledDocMock,
+  publishCompiledDocArtifactMock,
+  readWorkspaceFileContentMock,
+  readWorkspaceFileMetadataMock,
   storeCompiledDocMock,
 } = vi.hoisted(() => ({
   executeInSandboxMock: vi.fn(),
   executeShellInSandboxMock: vi.fn(),
-  fetchWorkspaceFileBufferMock: vi.fn(),
-  getWorkspaceFileMock: vi.fn(),
   loadCompiledDocMock: vi.fn(),
+  publishCompiledDocArtifactMock: vi.fn(),
+  readWorkspaceFileContentMock: vi.fn(),
+  readWorkspaceFileMetadataMock: vi.fn(),
   storeCompiledDocMock: vi.fn(),
 }))
 
@@ -27,18 +29,23 @@ vi.mock('@/lib/execution/remote-sandbox', () => ({
 vi.mock('@/lib/execution/languages', () => ({
   CodeLanguage: { javascript: 'javascript', python: 'python' },
 }))
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
-  getWorkspaceFile: getWorkspaceFileMock,
-  fetchWorkspaceFileBuffer: fetchWorkspaceFileBufferMock,
+vi.mock('@/lib/workspace-files/application/read-workspace-file-content', () => ({
+  readWorkspaceFileContent: { execute: readWorkspaceFileContentMock },
+}))
+vi.mock('@/lib/workspace-files/application/read-workspace-file-metadata', () => ({
+  readWorkspaceFileMetadata: { execute: readWorkspaceFileMetadataMock },
 }))
 vi.mock('./doc-compiled-store', () => ({
   loadCompiledDoc: loadCompiledDocMock,
+  loadPublishedCompiledDoc: vi.fn(),
+  publishCompiledDocArtifact: publishCompiledDocArtifactMock,
   storeCompiledDoc: storeCompiledDocMock,
 }))
 
 import { collectReferencedFileIds, compileDoc } from './doc-compile'
 
 const ID = '550e8400-e29b-41d4-a716-446655440000'
+const FILE_PRINCIPAL = { kind: 'session', userId: 'user-1' } as const
 
 function referencedFileSource(count: number): string {
   return Array.from({ length: count }, (_, index) => `getFileBase64('file-${index}')`).join('\n')
@@ -101,30 +108,30 @@ describe('collectReferencedFileIds', () => {
     expect(collectReferencedFileIds(`slide.addText('hello', { x: 1, y: 1 })`)).toEqual(new Set())
   })
 
-  it('retains all references at the remote staging limit', () => {
-    const ids = collectReferencedFileIds(referencedFileSource(20))
+  it('retains a full deck rebuild — every extracted image plus headroom fits the cap', () => {
+    const ids = collectReferencedFileIds(referencedFileSource(500))
 
-    expect(ids.size).toBe(20)
-    expect(ids.has('file-19')).toBe(true)
+    expect(ids.size).toBe(500)
+    expect(ids.has('file-0')).toBe(true)
+    expect(ids.has('file-499')).toBe(true)
   })
 
-  it('stops collecting at the one-over-limit sentinel', () => {
-    const ids = collectReferencedFileIds(referencedFileSource(100))
+  it('stops collecting at the one-over-cap sentinel', () => {
+    const ids = collectReferencedFileIds(referencedFileSource(2000))
 
-    expect(ids.size).toBe(21)
-    expect(ids.has('file-20')).toBe(true)
-    expect(ids.has('file-21')).toBe(false)
+    expect(ids.size).toBe(501)
   })
 
-  it('rejects remote compilation at 21 references before resolving file metadata', async () => {
+  it('rejects an over-cap reference set before resolving any file metadata', async () => {
     await expect(
       compileDoc({
-        source: referencedFileSource(21),
+        source: referencedFileSource(501),
         fileName: 'report.pdf',
         workspaceId: 'workspace-1',
+        filePrincipal: FILE_PRINCIPAL,
       })
-    ).rejects.toThrow('More than 20 referenced input files; maximum is 20')
-    expect(getWorkspaceFileMock).not.toHaveBeenCalled()
+    ).rejects.toThrow('More than 500 referenced input files; maximum is 500')
+    expect(readWorkspaceFileMetadataMock).not.toHaveBeenCalled()
     expect(executeInSandboxMock).not.toHaveBeenCalled()
   })
 
@@ -144,9 +151,9 @@ describe('collectReferencedFileIds', () => {
       contentUpdatedAt,
       storageContext: 'workspace' as const,
     }
-    getWorkspaceFileMock.mockResolvedValue(record)
+    readWorkspaceFileMetadataMock.mockResolvedValue({ file: record, share: null })
     loadCompiledDocMock.mockResolvedValue(null)
-    fetchWorkspaceFileBufferMock.mockResolvedValue(Buffer.from('image'))
+    readWorkspaceFileContentMock.mockResolvedValue({ file: record, content: Buffer.from('image') })
     executeInSandboxMock.mockResolvedValue({
       error: null,
       exportedFileContent: Buffer.from('%PDF-built').toString('base64'),
@@ -157,6 +164,7 @@ describe('collectReferencedFileIds', () => {
         source: `image = await getFileBase64('${ID}')`,
         fileName: 'report.pdf',
         workspaceId: 'workspace-1',
+        filePrincipal: FILE_PRINCIPAL,
       })
     ).resolves.toEqual({
       buffer: Buffer.from('%PDF-built'),
@@ -170,14 +178,21 @@ describe('collectReferencedFileIds', () => {
         },
       ],
     })
-    expect(fetchWorkspaceFileBufferMock).toHaveBeenCalledWith(record, expect.any(Object))
+    expect(readWorkspaceFileContentMock).toHaveBeenCalledWith({
+      principal: FILE_PRINCIPAL,
+      input: {
+        fileId: ID,
+        assertedWorkspaceId: 'workspace-1',
+        maxBytes: 25 * 1024 * 1024,
+      },
+    })
     expect(executeInSandboxMock).toHaveBeenCalledOnce()
     expect(storeCompiledDocMock).toHaveBeenCalledOnce()
   })
 
   it('binds cached artifacts to the current referenced-file content version', async () => {
     const contentUpdatedAt = new Date('2026-08-05T01:00:00.000Z')
-    getWorkspaceFileMock.mockResolvedValue({
+    const record = {
       id: ID,
       workspaceId: 'workspace-1',
       name: 'reference.png',
@@ -190,7 +205,8 @@ describe('collectReferencedFileIds', () => {
       updatedAt: contentUpdatedAt,
       contentUpdatedAt,
       storageContext: 'workspace',
-    })
+    }
+    readWorkspaceFileMetadataMock.mockResolvedValue({ file: record, share: null })
     loadCompiledDocMock.mockResolvedValue(Buffer.from('%PDF-cached'))
 
     await expect(
@@ -198,6 +214,7 @@ describe('collectReferencedFileIds', () => {
         source: `image = await getFileBase64('${ID}')`,
         fileName: 'report.pdf',
         workspaceId: 'workspace-1',
+        filePrincipal: FILE_PRINCIPAL,
       })
     ).resolves.toEqual({
       buffer: Buffer.from('%PDF-cached'),
@@ -229,7 +246,13 @@ describe('collectReferencedFileIds', () => {
         ],
       })
     )
-    expect(fetchWorkspaceFileBufferMock).not.toHaveBeenCalled()
+    expect(readWorkspaceFileContentMock).not.toHaveBeenCalled()
     expect(executeInSandboxMock).not.toHaveBeenCalled()
+    expect(publishCompiledDocArtifactMock).toHaveBeenCalledWith(
+      'workspace-1',
+      `image = await getFileBase64('${ID}')`,
+      'pdf',
+      expect.stringContaining(ID)
+    )
   })
 })

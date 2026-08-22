@@ -133,6 +133,16 @@ export function checkTeamPlan(subscription: any): boolean {
 }
 
 /**
+ * True when the subscription is a paying organization plan — Pro for Teams,
+ * Max for Teams, or Enterprise. The single predicate for features every
+ * organization gets, as opposed to {@link checkEnterprisePlan}, which gates the
+ * Enterprise-only tier.
+ */
+export function checkOrgPlan(subscription: any): boolean {
+  return isOrgPlan(subscription?.plan) && hasPaidSubscriptionStatus(subscription?.status)
+}
+
+/**
  * True when the subscription's `referenceId` is an org (i.e. not the
  * caller's own `userId`). Prefer this over plan-name checks for scope
  * decisions — a `pro_*` sub attached to an org is org-scoped even though
@@ -188,7 +198,7 @@ export function canEditUsageLimit(subscription: any): boolean {
   }
 
   // Only Pro and Team plans can edit limits
-  // Enterprise has fixed limits that match their monthly cost
+  // Enterprise has a fixed, administrator-controlled contract-period limit.
   return isPro(subscription.plan) || isTeam(subscription.plan)
 }
 

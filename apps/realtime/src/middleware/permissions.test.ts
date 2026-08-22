@@ -7,7 +7,7 @@
  * - Edge cases and invalid inputs
  */
 
-import { ALL_SOCKET_OPERATIONS } from '@sim/realtime-protocol/constants'
+import { ALL_SOCKET_OPERATIONS, BLOCK_OPERATIONS } from '@sim/realtime-protocol/constants'
 import {
   expectPermissionAllowed,
   expectPermissionDenied,
@@ -230,6 +230,17 @@ describe('checkRolePermission', () => {
           !checkRolePermission('write', operation).allowed
       )
       expect(adminOnly.length).toBeGreaterThan(0)
+    })
+
+    it('grants write every per-block operation the protocol declares', () => {
+      // A block operation that reaches this gate is an ordinary editor edit, so the
+      // write role must hold all of them. Without this, adding a block setting to
+      // the protocol and forgetting the ACL entry fails silently at runtime: the
+      // editor applies the change optimistically and the server drops the write.
+      const denied = Object.values(BLOCK_OPERATIONS).filter(
+        (operation) => !checkRolePermission('write', operation).allowed
+      )
+      expect(denied).toEqual([])
     })
 
     it('grants read nothing, so it is trivially a subset of write', () => {

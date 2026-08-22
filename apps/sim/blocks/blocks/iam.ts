@@ -15,6 +15,89 @@ export const IAMBlock: BlockConfig<IAMBaseResponse> = {
   bgColor: 'linear-gradient(45deg, #BD0816 0%, #FF5252 100%)',
   icon: IAMIcon,
   authMode: AuthMode.ApiKey,
+  canvasPresentation: {
+    defaultTitle: 'AWS IAM',
+    sentences: {
+      byOperation: {
+        list_users: [
+          'List users',
+          { text: ', under path', field: 'pathPrefix' },
+          { text: ', up to', field: 'maxItems' },
+        ],
+        get_user: [{ text: 'Fetch user', field: 'userName', core: true }],
+        create_user: [
+          { text: 'Create user', field: 'userName', core: true },
+          { text: ', under path', field: 'path' },
+        ],
+        delete_user: [{ text: 'Delete user', field: 'userName', core: true }],
+        list_roles: [
+          'List roles',
+          { text: ', under path', field: 'pathPrefix' },
+          { text: ', up to', field: 'maxItems' },
+        ],
+        get_role: [{ text: 'Fetch role', field: 'roleName', core: true }],
+        create_role: [
+          { text: 'Create role', field: 'roleName', core: true },
+          { text: ', with trust policy', field: 'assumeRolePolicyDocument' },
+        ],
+        delete_role: [{ text: 'Delete role', field: 'roleName', core: true }],
+        attach_user_policy: [
+          { text: 'Attach policy', field: 'policyArn', core: true },
+          { text: 'to user', field: 'userName', core: true },
+        ],
+        detach_user_policy: [
+          { text: 'Detach policy', field: 'policyArn', core: true },
+          { text: 'from user', field: 'userName', core: true },
+        ],
+        attach_role_policy: [
+          { text: 'Attach policy', field: 'policyArn', core: true },
+          { text: 'to role', field: 'roleName', core: true },
+        ],
+        detach_role_policy: [
+          { text: 'Detach policy', field: 'policyArn', core: true },
+          { text: 'from role', field: 'roleName', core: true },
+        ],
+        list_policies: [
+          'List managed policies',
+          { text: ', under path', field: 'pathPrefix' },
+          { text: ', up to', field: 'maxItems' },
+        ],
+        create_access_key: [
+          { text: 'Create an access key for user', field: 'userName', core: true },
+        ],
+        delete_access_key: [
+          { text: 'Delete access key', field: 'accessKeyIdToDelete', core: true },
+          { text: 'from user', field: 'userName' },
+        ],
+        list_groups: [
+          'List groups',
+          { text: ', under path', field: 'pathPrefix' },
+          { text: ', up to', field: 'maxItems' },
+        ],
+        add_user_to_group: [
+          { text: 'Add user', field: 'userName', core: true },
+          { text: 'to group', field: 'groupName', core: true },
+        ],
+        remove_user_from_group: [
+          { text: 'Remove user', field: 'userName', core: true },
+          { text: 'from group', field: 'groupName', core: true },
+        ],
+        list_attached_role_policies: [
+          { text: 'List policies attached to role', field: 'roleName', core: true },
+          { text: ', under path', field: 'pathPrefix' },
+        ],
+        list_attached_user_policies: [
+          { text: 'List policies attached to user', field: 'userName', core: true },
+          { text: ', under path', field: 'pathPrefix' },
+        ],
+        simulate_principal_policy: [
+          { text: 'Simulate', field: 'actionNames', core: true },
+          { text: 'for', field: 'policySourceArn', core: true },
+          { text: 'on', field: 'resourceArns' },
+        ],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',
@@ -186,6 +269,7 @@ export const IAMBlock: BlockConfig<IAMBaseResponse> = {
     {
       id: 'accessKeyIdToDelete',
       title: 'Access Key ID to Delete',
+      canvasNoun: 'an access key ID',
       type: 'short-input',
       placeholder: 'AKIA...',
       condition: { field: 'operation', value: 'delete_access_key' },

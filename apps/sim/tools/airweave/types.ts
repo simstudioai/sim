@@ -28,15 +28,6 @@ export const AIRWEAVE_SEARCH_RESULT_OUTPUT_PROPERTIES = {
 } as const satisfies Record<string, OutputProperty>
 
 /**
- * Complete search result output definition.
- */
-export const AIRWEAVE_SEARCH_RESULT_OUTPUT: OutputProperty = {
-  type: 'object',
-  description: 'Search result item with content and metadata',
-  properties: AIRWEAVE_SEARCH_RESULT_OUTPUT_PROPERTIES,
-}
-
-/**
  * Parameters for Airweave search requests.
  */
 export interface AirweaveSearchParams {

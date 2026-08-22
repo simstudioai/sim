@@ -8,11 +8,13 @@ const {
   mockIncrementStorageUsageForBillingContextInTx,
   mockMaybeNotifyStorageLimitForBillingContext,
   mockResolveStorageBillingContext,
+  mockResolveWorkspaceFileFolderTarget,
   mockUploadFile,
 } = vi.hoisted(() => ({
   mockIncrementStorageUsageForBillingContextInTx: vi.fn(),
   mockMaybeNotifyStorageLimitForBillingContext: vi.fn(),
   mockResolveStorageBillingContext: vi.fn(),
+  mockResolveWorkspaceFileFolderTarget: vi.fn(),
   mockUploadFile: vi.fn(),
 }))
 
@@ -43,6 +45,7 @@ vi.mock('@/lib/uploads/contexts/workspace/workspace-file-folder-manager', () => 
   getWorkspaceFileFolderPath: vi.fn(),
   listWorkspaceFileFolders: vi.fn(async () => []),
   normalizeWorkspaceFileItemName: vi.fn((name: string) => name),
+  resolveWorkspaceFileFolderTarget: mockResolveWorkspaceFileFolderTarget,
 }))
 
 import { uploadWorkspaceFile } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
@@ -60,6 +63,7 @@ describe('workspace file storage attribution', () => {
     vi.clearAllMocks()
     resetDbChainMock()
     mockResolveStorageBillingContext.mockResolvedValue(STORAGE_CONTEXT)
+    mockResolveWorkspaceFileFolderTarget.mockResolvedValue(null)
     mockIncrementStorageUsageForBillingContextInTx.mockResolvedValue(5)
     mockMaybeNotifyStorageLimitForBillingContext.mockResolvedValue(undefined)
     mockUploadFile.mockResolvedValue({

@@ -1,4 +1,4 @@
-import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
+import { AuditAction, AuditResourceType, auditUpdatedFields, recordAudit } from '@sim/audit'
 import { db, workflow, workflowMcpServer, workflowMcpTool } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
@@ -58,6 +58,8 @@ class WorkflowMcpExpectedError extends Error {
 interface ActorMetadata {
   actorName?: string | null
   actorEmail?: string | null
+  projectLegacyAudit?: boolean
+  publishEffects?: boolean
 }
 
 export interface PerformCreateWorkflowMcpServerParams extends ActorMetadata {
@@ -497,28 +499,29 @@ export async function performCreateWorkflowMcpServer(
       return { server: createdServer, addedTools: insertedTools, serverId: newServerId }
     })
 
-    if (addedTools.length > 0) {
+    if (addedTools.length > 0 && params.publishEffects !== false) {
       mcpPubSub?.publishWorkflowToolsChanged({ serverId, workspaceId: params.workspaceId })
     }
 
-    recordAudit({
-      workspaceId: params.workspaceId,
-      actorId: params.userId,
-      actorName: params.actorName ?? undefined,
-      actorEmail: params.actorEmail ?? undefined,
-      action: AuditAction.MCP_SERVER_ADDED,
-      resourceType: AuditResourceType.MCP_SERVER,
-      resourceId: serverId,
-      resourceName: name,
-      description: `Published workflow MCP server "${name}" with ${addedTools.length} tool(s)`,
-      metadata: {
-        serverName: name,
-        isPublic: params.isPublic ?? false,
-        toolCount: addedTools.length,
-        toolNames: addedTools.map((tool) => tool.toolName),
-        workflowIds: addedTools.map((tool) => tool.workflowId),
-      },
-    })
+    if (params.projectLegacyAudit !== false)
+      recordAudit({
+        workspaceId: params.workspaceId,
+        actorId: params.userId,
+        actorName: params.actorName ?? undefined,
+        actorEmail: params.actorEmail ?? undefined,
+        action: AuditAction.MCP_SERVER_ADDED,
+        resourceType: AuditResourceType.MCP_SERVER,
+        resourceId: serverId,
+        resourceName: name,
+        description: `Published workflow MCP server "${name}" with ${addedTools.length} tool(s)`,
+        metadata: {
+          serverName: name,
+          isPublic: params.isPublic ?? false,
+          toolCount: addedTools.length,
+          toolNames: addedTools.map((tool) => tool.toolName),
+          workflowIds: addedTools.map((tool) => tool.workflowId),
+        },
+      })
 
     return { success: true, server, addedTools }
   } catch (error) {
@@ -546,7 +549,7 @@ export async function performUpdateWorkflowMcpServer(
   if (params.description !== undefined) updateData.description = params.description?.trim() || null
   if (params.isPublic !== undefined) updateData.isPublic = params.isPublic
 
-  const updatedFields = Object.keys(updateData).filter((key) => key !== 'updatedAt')
+  const updatedFields = auditUpdatedFields(updateData)
 
   try {
     const [server] = await db
@@ -565,22 +568,23 @@ export async function performUpdateWorkflowMcpServer(
       return { success: false, error: 'Server not found', errorCode: 'not_found' }
     }
 
-    recordAudit({
-      workspaceId: params.workspaceId,
-      actorId: params.userId,
-      actorName: params.actorName ?? undefined,
-      actorEmail: params.actorEmail ?? undefined,
-      action: AuditAction.MCP_SERVER_UPDATED,
-      resourceType: AuditResourceType.MCP_SERVER,
-      resourceId: params.serverId,
-      resourceName: server.name,
-      description: `Updated workflow MCP server "${server.name}"`,
-      metadata: {
-        serverName: server.name,
-        isPublic: server.isPublic,
-        updatedFields,
-      },
-    })
+    if (params.projectLegacyAudit !== false)
+      recordAudit({
+        workspaceId: params.workspaceId,
+        actorId: params.userId,
+        actorName: params.actorName ?? undefined,
+        actorEmail: params.actorEmail ?? undefined,
+        action: AuditAction.MCP_SERVER_UPDATED,
+        resourceType: AuditResourceType.MCP_SERVER,
+        resourceId: params.serverId,
+        resourceName: server.name,
+        description: `Updated workflow MCP server "${server.name}"`,
+        metadata: {
+          serverName: server.name,
+          isPublic: server.isPublic,
+          updatedFields,
+        },
+      })
 
     return { success: true, server, updatedFields }
   } catch (error) {
@@ -613,23 +617,25 @@ export async function performDeleteWorkflowMcpServer(
       return { success: false, error: 'Server not found', errorCode: 'not_found' }
     }
 
-    mcpPubSub?.publishWorkflowToolsChanged({
-      serverId: params.serverId,
-      workspaceId: params.workspaceId,
-    })
+    if (params.publishEffects !== false)
+      mcpPubSub?.publishWorkflowToolsChanged({
+        serverId: params.serverId,
+        workspaceId: params.workspaceId,
+      })
 
-    recordAudit({
-      workspaceId: params.workspaceId,
-      actorId: params.userId,
-      actorName: params.actorName ?? undefined,
-      actorEmail: params.actorEmail ?? undefined,
-      action: AuditAction.MCP_SERVER_REMOVED,
-      resourceType: AuditResourceType.MCP_SERVER,
-      resourceId: params.serverId,
-      resourceName: server.name,
-      description: `Unpublished workflow MCP server "${server.name}"`,
-      metadata: { serverName: server.name },
-    })
+    if (params.projectLegacyAudit !== false)
+      recordAudit({
+        workspaceId: params.workspaceId,
+        actorId: params.userId,
+        actorName: params.actorName ?? undefined,
+        actorEmail: params.actorEmail ?? undefined,
+        action: AuditAction.MCP_SERVER_REMOVED,
+        resourceType: AuditResourceType.MCP_SERVER,
+        resourceId: params.serverId,
+        resourceName: server.name,
+        description: `Unpublished workflow MCP server "${server.name}"`,
+        metadata: { serverName: server.name },
+      })
 
     return { success: true, server }
   } catch (error) {
@@ -836,28 +842,30 @@ export async function performCreateWorkflowMcpTool(
       return { success: false, error: 'Failed to add tool', errorCode: 'internal' }
     }
 
-    mcpPubSub?.publishWorkflowToolsChanged({
-      serverId: params.serverId,
-      workspaceId: params.workspaceId,
-    })
+    if (params.publishEffects !== false)
+      mcpPubSub?.publishWorkflowToolsChanged({
+        serverId: params.serverId,
+        workspaceId: params.workspaceId,
+      })
 
-    recordAudit({
-      workspaceId: params.workspaceId,
-      actorId: params.userId,
-      actorName: params.actorName ?? undefined,
-      actorEmail: params.actorEmail ?? undefined,
-      action: AuditAction.MCP_SERVER_UPDATED,
-      resourceType: AuditResourceType.MCP_SERVER,
-      resourceId: params.serverId,
-      description: `Added tool "${toolName}" to MCP server`,
-      metadata: {
-        toolId,
-        toolName,
-        toolDescription,
-        workflowId: params.workflowId,
-        workflowName: workflowRecord.name,
-      },
-    })
+    if (params.projectLegacyAudit !== false)
+      recordAudit({
+        workspaceId: params.workspaceId,
+        actorId: params.userId,
+        actorName: params.actorName ?? undefined,
+        actorEmail: params.actorEmail ?? undefined,
+        action: AuditAction.MCP_SERVER_UPDATED,
+        resourceType: AuditResourceType.MCP_SERVER,
+        resourceId: params.serverId,
+        description: `Added tool "${toolName}" to MCP server`,
+        metadata: {
+          toolId,
+          toolName,
+          toolDescription,
+          workflowId: params.workflowId,
+          workflowName: workflowRecord.name,
+        },
+      })
 
     return { success: true, tool }
   } catch (error) {
@@ -928,7 +936,7 @@ export async function performUpdateWorkflowMcpTool(
       updateData.parameterSchema = applyDescriptionOverrides(baseSchema, overrides)
     }
 
-    const updatedFields = Object.keys(updateData).filter((key) => key !== 'updatedAt')
+    const updatedFields = auditUpdatedFields(updateData)
 
     const tool = await db.transaction(async (tx) => {
       await acquireWorkflowMcpServerLock(tx, params.serverId)
@@ -1045,27 +1053,29 @@ export async function performUpdateWorkflowMcpTool(
 
     if (!tool) return { success: false, error: 'Tool not found', errorCode: 'not_found' }
 
-    mcpPubSub?.publishWorkflowToolsChanged({
-      serverId: params.serverId,
-      workspaceId: params.workspaceId,
-    })
+    if (params.publishEffects !== false)
+      mcpPubSub?.publishWorkflowToolsChanged({
+        serverId: params.serverId,
+        workspaceId: params.workspaceId,
+      })
 
-    recordAudit({
-      workspaceId: params.workspaceId,
-      actorId: params.userId,
-      actorName: params.actorName ?? undefined,
-      actorEmail: params.actorEmail ?? undefined,
-      action: AuditAction.MCP_SERVER_UPDATED,
-      resourceType: AuditResourceType.MCP_SERVER,
-      resourceId: params.serverId,
-      description: `Updated tool "${tool.toolName}" in MCP server`,
-      metadata: {
-        toolId: params.toolId,
-        toolName: tool.toolName,
-        workflowId: tool.workflowId,
-        updatedFields,
-      },
-    })
+    if (params.projectLegacyAudit !== false)
+      recordAudit({
+        workspaceId: params.workspaceId,
+        actorId: params.userId,
+        actorName: params.actorName ?? undefined,
+        actorEmail: params.actorEmail ?? undefined,
+        action: AuditAction.MCP_SERVER_UPDATED,
+        resourceType: AuditResourceType.MCP_SERVER,
+        resourceId: params.serverId,
+        description: `Updated tool "${tool.toolName}" in MCP server`,
+        metadata: {
+          toolId: params.toolId,
+          toolName: tool.toolName,
+          workflowId: tool.workflowId,
+          updatedFields,
+        },
+      })
 
     return { success: true, tool }
   } catch (error) {
@@ -1117,22 +1127,24 @@ export async function performDeleteWorkflowMcpTool(
 
     if (!tool) return { success: false, error: 'Tool not found', errorCode: 'not_found' }
 
-    mcpPubSub?.publishWorkflowToolsChanged({
-      serverId: params.serverId,
-      workspaceId: params.workspaceId,
-    })
+    if (params.publishEffects !== false)
+      mcpPubSub?.publishWorkflowToolsChanged({
+        serverId: params.serverId,
+        workspaceId: params.workspaceId,
+      })
 
-    recordAudit({
-      workspaceId: params.workspaceId,
-      actorId: params.userId,
-      actorName: params.actorName ?? undefined,
-      actorEmail: params.actorEmail ?? undefined,
-      action: AuditAction.MCP_SERVER_UPDATED,
-      resourceType: AuditResourceType.MCP_SERVER,
-      resourceId: params.serverId,
-      description: `Removed tool "${tool.toolName}" from MCP server`,
-      metadata: { toolId: params.toolId, toolName: tool.toolName, workflowId: tool.workflowId },
-    })
+    if (params.projectLegacyAudit !== false)
+      recordAudit({
+        workspaceId: params.workspaceId,
+        actorId: params.userId,
+        actorName: params.actorName ?? undefined,
+        actorEmail: params.actorEmail ?? undefined,
+        action: AuditAction.MCP_SERVER_UPDATED,
+        resourceType: AuditResourceType.MCP_SERVER,
+        resourceId: params.serverId,
+        description: `Removed tool "${tool.toolName}" from MCP server`,
+        metadata: { toolId: params.toolId, toolName: tool.toolName, workflowId: tool.workflowId },
+      })
 
     return { success: true, tool }
   } catch (error) {

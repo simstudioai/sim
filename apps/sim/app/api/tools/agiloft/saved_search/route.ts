@@ -8,11 +8,22 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import type { AgiloftSavedSearchResponse } from '@/tools/agiloft/types'
 import { buildSavedSearchUrl } from '@/tools/agiloft/utils'
-import { executeAgiloftRequest } from '@/tools/agiloft/utils.server'
+import {
+  executeAgiloftRequest,
+  isAgiloftRefusal,
+  readAlrestJson,
+} from '@/tools/agiloft/utils.server'
 
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('AgiloftSavedSearchAPI')
+
+interface SavedSearchRow {
+  name?: string
+  label?: string
+  id?: number
+  description?: string
+}
 
 export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
@@ -49,54 +60,47 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     if (!parsed.success) return parsed.response
     const params = parsed.data.body
 
+    /**
+     * EWSavedSearch must run under EWLogin or OAuth authorization, so this goes
+     * through the token-bearing executor rather than the inline-credential one
+     * the other legacy operations use.
+     */
     const result = await executeAgiloftRequest<AgiloftSavedSearchResponse>(
       params,
       (base) => ({
         url: buildSavedSearchUrl(base, params),
         method: 'GET',
+        headers: { Accept: 'application/json' },
       }),
       async (response) => {
-        if (!response.ok) {
-          const errorText = await response.text()
-          return {
-            success: false,
-            output: { searches: [] },
-            error: `Agiloft error: ${response.status} - ${errorText}`,
-          }
-        }
+        const rows = (await readAlrestJson<SavedSearchRow[]>(response)) ?? []
 
-        const data = (await response.json()) as Record<string, unknown>
-        const result = (data.result ?? data) as Record<string, unknown>
+        const searches = rows.map((row) => ({
+          name: row.name ?? '',
+          label: row.label ?? row.name ?? '',
+          id: row.id ?? null,
+          description: row.description ?? null,
+        }))
 
-        const searches: Array<{
-          name: string
-          label: string
-          id: string | number
-          description: string | null
-        }> = []
-
-        if (Array.isArray(result)) {
-          for (const item of result as Record<string, unknown>[]) {
-            searches.push({
-              name: (item.name as string) ?? '',
-              label: (item.label as string) ?? (item.name as string) ?? '',
-              id: (item.id as string | number) ?? (item.ID as string | number) ?? '',
-              description: (item.description as string | null) ?? null,
-            })
-          }
-        }
-
-        return {
-          success: data.success !== false,
-          output: {
-            searches,
-          },
-        }
+        return { success: true, output: { searches, totalCount: searches.length } }
       }
     )
 
     return NextResponse.json(result)
   } catch (error) {
+    /**
+     * A refusal Agiloft already decided on is a final answer, not a transient
+     * fault — returning 500 would make the tool runner retry it.
+     */
+    if (isAgiloftRefusal(error)) {
+      logger.warn(`[${requestId}] Agiloft refused the request`, { error: error.message })
+      return NextResponse.json({
+        success: false,
+        output: { searches: [], totalCount: 0 },
+        error: error.message,
+      })
+    }
+
     logger.error(`[${requestId}] Error listing Agiloft saved searches:`, error)
 
     return NextResponse.json({ success: false, error: toError(error).message }, { status: 500 })

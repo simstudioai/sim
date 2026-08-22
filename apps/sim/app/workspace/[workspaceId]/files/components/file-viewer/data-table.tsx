@@ -25,6 +25,10 @@ type EditingCell = { row: number; col: number } | null
  * Tabular renderer for CSV and XLSX previews. Chrome (borders, padding, typography, header fill)
  * comes entirely from `document-table.css`, the definition shared with markdown tables in the rich
  * markdown editor — the only classes here are the optional edit affordances.
+ *
+ * Scrolling belongs to the caller's bounded container, which already scrolls vertically. A preview
+ * table is wider than its frame, so an `overflow-x` of its own would put the horizontal scrollbar
+ * at the foot of all {@link CSV_PREVIEW_MAX_ROWS} rows instead of at the bottom of the viewport.
  */
 const DataTableBase = forwardRef<DataTableHandle, DataTableProps>(function DataTable(
   { headers, rows, editConfig },
@@ -100,7 +104,7 @@ const DataTableBase = forwardRef<DataTableHandle, DataTableProps>(function DataT
     editingCell?.row === row && editingCell?.col === col
 
   return (
-    <div className='document-table overflow-x-auto'>
+    <div className='document-table'>
       <table>
         <thead>
           <tr>

@@ -38,6 +38,10 @@ import { DesktopChatSessionStore } from '@/main/desktop-chat-session-store'
 import { createDesktopSettingsService } from '@/main/desktop-settings'
 import { attachDownloadHandling } from '@/main/downloads'
 import { createAuthFlow, createConnectFlow, createHandoffManager } from '@/main/handoff'
+import {
+  installDocumentationHelpSearch,
+  uninstallDocumentationHelpSearch,
+} from '@/main/help-search'
 import { registerIpcHandlers } from '@/main/ipc'
 import { attachLoadHealth, type LoadHealthHandle } from '@/main/load-health'
 import { LocalFilesystemService } from '@/main/local-filesystem'
@@ -500,6 +504,7 @@ function main(): void {
     // set. This prevents a navigation event racing the synchronous quit flush.
     quiesceBrowserSessions()
     terminal.dispose()
+    uninstallDocumentationHelpSearch()
     flushDesktopChatSessions('before-quit')
     // Settings writes coalesce, so a change made in the last moments before
     // quit is still pending here.
@@ -664,13 +669,15 @@ function main(): void {
       newWindow: () => void createAndLoadAppWindow(),
       newChat: () => void openMainWindowAt(newChatRoute(config.get('lastRoute'))),
       handleFocusedResourceShortcut: (win, shortcut) =>
-        terminal.handleFocusedShortcut(win, shortcut) ||
-        handleFocusedBrowserShortcut(shortcut, win),
+        handleFocusedBrowserShortcut(shortcut, win) ||
+        terminal.handleFocusedShortcut(win, shortcut),
       toggleSidebar: () => getMainWindow()?.webContents.send('desktop:command', 'toggle-sidebar'),
+      openSearch: () => getMainWindow()?.webContents.send('desktop:command', 'open-search'),
       signOut: signOutFromMenu,
       checkForUpdates: () =>
         checkForUpdatesInteractive({ getWindow: getMainWindow, events, handle: updater }),
     })
+    installDocumentationHelpSearch()
     setTrayEnabled(config.get('trayEnabled') ?? true)
     updater = initUpdater({
       getWindow: getMainWindow,

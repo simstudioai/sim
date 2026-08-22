@@ -1,6 +1,47 @@
 import { transformTable } from '@/tools/shared/table'
 import type { TableRow } from '@/tools/types'
 
+const FIRST_PARTY_API_HOST_REWRITES: Readonly<Record<string, string>> = {
+  'https://sim.ai': 'www.sim.ai',
+  'https://staging.sim.ai': 'www.staging.sim.ai',
+  'https://dev.sim.ai': 'www.dev.sim.ai',
+}
+const CREDENTIAL_HEADER_NAMES = new Set([
+  'authorization',
+  'proxy-authorization',
+  'cookie',
+  'x-api-key',
+  'api-key',
+  'apikey',
+  'x-auth-token',
+  'x-access-token',
+])
+const CREDENTIAL_HEADER_SEGMENT =
+  /(^|[-_])(?:api[-_]?key|auth(?:orization)?|access[-_]?token|token|cookie|secret)(?:$|[-_])/i
+
+/** Returns custom header names that conventionally carry credentials. */
+export function getCredentialHeaderNames(
+  headers: TableRow[] | Record<string, unknown> | string | null | undefined
+): string[] {
+  return Object.keys(transformTable(headers ?? null)).filter((name) => {
+    const normalized = name.toLowerCase()
+    return CREDENTIAL_HEADER_NAMES.has(normalized) || CREDENTIAL_HEADER_SEGMENT.test(normalized)
+  })
+}
+
+/** Avoids Sim's environment-specific apex-to-www redirects for first-party API requests. */
+export function canonicalizeFirstPartyApiUrl(url: string): string {
+  try {
+    const parsed = new URL(url)
+    const canonicalHost = FIRST_PARTY_API_HOST_REWRITES[parsed.origin]
+    if (canonicalHost && (parsed.pathname === '/api' || parsed.pathname.startsWith('/api/'))) {
+      parsed.hostname = canonicalHost
+      return parsed.toString()
+    }
+  } catch {}
+  return url
+}
+
 /**
  * Creates a set of default headers used in HTTP requests.
  *
@@ -80,5 +121,5 @@ export const processUrl = (
     }
   }
 
-  return url
+  return canonicalizeFirstPartyApiUrl(url)
 }

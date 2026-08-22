@@ -1,5 +1,4 @@
 import { Blimp } from '@sim/emcn'
-import { fetchWorkspaceRawSecretNameOptions } from '@/lib/workflows/subblocks/options'
 import type { BlockConfig } from '@/blocks/types'
 import type { ToolResponse } from '@/tools/types'
 
@@ -29,6 +28,16 @@ export const MothershipBlock: BlockConfig<MothershipResponse> = {
   category: 'blocks',
   bgColor: '#802FDE',
   icon: Blimp,
+  canvasPresentation: {
+    defaultTitle: 'Sim Chat',
+    sentences: {
+      default: [
+        { text: 'Ask', field: 'prompt', core: true },
+        { text: ', with', field: ['attachmentFiles', 'fileReferences'], after: 'attached' },
+        { text: ', using', field: 'tools' },
+      ],
+    },
+  },
   subBlocks: [
     {
       id: 'prompt',
@@ -89,14 +98,13 @@ export const MothershipBlock: BlockConfig<MothershipResponse> = {
       id: 'mountedSecrets',
       title: 'Secrets',
       type: 'dropdown',
+      selectorKey: 'workspace.rawSecretNames',
       mode: 'advanced',
       hideFromCopilot: true,
       multiSelect: true,
       searchable: true,
       preserveLabelCase: true,
-      options: [],
       condition: { field: 'secretScope', value: 'selected' },
-      fetchOptions: () => fetchWorkspaceRawSecretNameOptions(),
     },
   ],
   tools: {

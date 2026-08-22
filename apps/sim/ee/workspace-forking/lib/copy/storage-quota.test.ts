@@ -71,7 +71,7 @@ describe('sumForkCopyBytes', () => {
     const compiled = outerQuery.toSQL()
     expect(compiled.sql).toBe('SELECT (? + ?)::bigint AS total')
     const [fileBytes, kbBytes] = compiled.params
-    expect(fileBytes.toSQL().params[2]).toEqual({
+    expect(fileBytes.toSQL().params).toContainEqual({
       type: 'and',
       conditions: [
         { type: 'inArray', column: workspaceFiles.id, values: ['wf-1'] },
@@ -80,7 +80,7 @@ describe('sumForkCopyBytes', () => {
         { type: 'isNull', column: workspaceFiles.deletedAt },
       ],
     })
-    expect(kbBytes.toSQL().params[4]).toEqual({
+    expect(kbBytes.toSQL().params).toContainEqual({
       type: 'and',
       conditions: [
         { type: 'inArray', column: knowledgeBase.id, values: ['kb-1'] },

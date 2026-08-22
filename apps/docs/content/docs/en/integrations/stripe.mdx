@@ -961,6 +961,20 @@ Create a new subscription for a customer
 |   ↳ `description` | string | Subscription description \(max 500 characters\) |
 |   ↳ `discount` | json | Discount that applies to the subscription |
 |   ↳ `ended_at` | number | Unix timestamp when the subscription ended |
+|   ↳ `items` | object | List of subscription items |
+|     ↳ `object` | string | String representing the object type \(list\) |
+|     ↳ `data` | array | Array of subscription items |
+|       ↳ `id` | string | Unique identifier for the subscription item |
+|       ↳ `object` | string | String representing the object type \(subscription_item\) |
+|       ↳ `billing_thresholds` | json | Billing thresholds for the subscription item |
+|       ↳ `created` | number | Unix timestamp when the item was added |
+|       ↳ `metadata` | json | Set of key-value pairs for storing additional information |
+|       ↳ `price` | json | Price object for this subscription item |
+|       ↳ `quantity` | number | Quantity of the plan to subscribe to |
+|       ↳ `subscription` | string | ID of the subscription this item belongs to |
+|       ↳ `tax_rates` | array | Tax rates applied to this subscription item |
+|     ↳ `has_more` | boolean | Whether there are more items |
+|     ↳ `url` | string | URL to fetch more items |
 |   ↳ `latest_invoice` | string | ID of the most recent invoice |
 |   ↳ `livemode` | boolean | Whether object exists in live mode or test mode |
 |   ↳ `metadata` | json | Set of key-value pairs for storing additional information |
@@ -1024,6 +1038,20 @@ Retrieve an existing subscription by ID
 |   ↳ `description` | string | Subscription description \(max 500 characters\) |
 |   ↳ `discount` | json | Discount that applies to the subscription |
 |   ↳ `ended_at` | number | Unix timestamp when the subscription ended |
+|   ↳ `items` | object | List of subscription items |
+|     ↳ `object` | string | String representing the object type \(list\) |
+|     ↳ `data` | array | Array of subscription items |
+|       ↳ `id` | string | Unique identifier for the subscription item |
+|       ↳ `object` | string | String representing the object type \(subscription_item\) |
+|       ↳ `billing_thresholds` | json | Billing thresholds for the subscription item |
+|       ↳ `created` | number | Unix timestamp when the item was added |
+|       ↳ `metadata` | json | Set of key-value pairs for storing additional information |
+|       ↳ `price` | json | Price object for this subscription item |
+|       ↳ `quantity` | number | Quantity of the plan to subscribe to |
+|       ↳ `subscription` | string | ID of the subscription this item belongs to |
+|       ↳ `tax_rates` | array | Tax rates applied to this subscription item |
+|     ↳ `has_more` | boolean | Whether there are more items |
+|     ↳ `url` | string | URL to fetch more items |
 |   ↳ `latest_invoice` | string | ID of the most recent invoice |
 |   ↳ `livemode` | boolean | Whether object exists in live mode or test mode |
 |   ↳ `metadata` | json | Set of key-value pairs for storing additional information |
@@ -1090,6 +1118,20 @@ Update an existing subscription
 |   ↳ `description` | string | Subscription description \(max 500 characters\) |
 |   ↳ `discount` | json | Discount that applies to the subscription |
 |   ↳ `ended_at` | number | Unix timestamp when the subscription ended |
+|   ↳ `items` | object | List of subscription items |
+|     ↳ `object` | string | String representing the object type \(list\) |
+|     ↳ `data` | array | Array of subscription items |
+|       ↳ `id` | string | Unique identifier for the subscription item |
+|       ↳ `object` | string | String representing the object type \(subscription_item\) |
+|       ↳ `billing_thresholds` | json | Billing thresholds for the subscription item |
+|       ↳ `created` | number | Unix timestamp when the item was added |
+|       ↳ `metadata` | json | Set of key-value pairs for storing additional information |
+|       ↳ `price` | json | Price object for this subscription item |
+|       ↳ `quantity` | number | Quantity of the plan to subscribe to |
+|       ↳ `subscription` | string | ID of the subscription this item belongs to |
+|       ↳ `tax_rates` | array | Tax rates applied to this subscription item |
+|     ↳ `has_more` | boolean | Whether there are more items |
+|     ↳ `url` | string | URL to fetch more items |
 |   ↳ `latest_invoice` | string | ID of the most recent invoice |
 |   ↳ `livemode` | boolean | Whether object exists in live mode or test mode |
 |   ↳ `metadata` | json | Set of key-value pairs for storing additional information |
@@ -1155,6 +1197,20 @@ Cancel a subscription
 |   ↳ `description` | string | Subscription description \(max 500 characters\) |
 |   ↳ `discount` | json | Discount that applies to the subscription |
 |   ↳ `ended_at` | number | Unix timestamp when the subscription ended |
+|   ↳ `items` | object | List of subscription items |
+|     ↳ `object` | string | String representing the object type \(list\) |
+|     ↳ `data` | array | Array of subscription items |
+|       ↳ `id` | string | Unique identifier for the subscription item |
+|       ↳ `object` | string | String representing the object type \(subscription_item\) |
+|       ↳ `billing_thresholds` | json | Billing thresholds for the subscription item |
+|       ↳ `created` | number | Unix timestamp when the item was added |
+|       ↳ `metadata` | json | Set of key-value pairs for storing additional information |
+|       ↳ `price` | json | Price object for this subscription item |
+|       ↳ `quantity` | number | Quantity of the plan to subscribe to |
+|       ↳ `subscription` | string | ID of the subscription this item belongs to |
+|       ↳ `tax_rates` | array | Tax rates applied to this subscription item |
+|     ↳ `has_more` | boolean | Whether there are more items |
+|     ↳ `url` | string | URL to fetch more items |
 |   ↳ `latest_invoice` | string | ID of the most recent invoice |
 |   ↳ `livemode` | boolean | Whether object exists in live mode or test mode |
 |   ↳ `metadata` | json | Set of key-value pairs for storing additional information |
@@ -1218,6 +1274,20 @@ Resume a subscription that was scheduled for cancellation
 |   ↳ `description` | string | Subscription description \(max 500 characters\) |
 |   ↳ `discount` | json | Discount that applies to the subscription |
 |   ↳ `ended_at` | number | Unix timestamp when the subscription ended |
+|   ↳ `items` | object | List of subscription items |
+|     ↳ `object` | string | String representing the object type \(list\) |
+|     ↳ `data` | array | Array of subscription items |
+|       ↳ `id` | string | Unique identifier for the subscription item |
+|       ↳ `object` | string | String representing the object type \(subscription_item\) |
+|       ↳ `billing_thresholds` | json | Billing thresholds for the subscription item |
+|       ↳ `created` | number | Unix timestamp when the item was added |
+|       ↳ `metadata` | json | Set of key-value pairs for storing additional information |
+|       ↳ `price` | json | Price object for this subscription item |
+|       ↳ `quantity` | number | Quantity of the plan to subscribe to |
+|       ↳ `subscription` | string | ID of the subscription this item belongs to |
+|       ↳ `tax_rates` | array | Tax rates applied to this subscription item |
+|     ↳ `has_more` | boolean | Whether there are more items |
+|     ↳ `url` | string | URL to fetch more items |
 |   ↳ `latest_invoice` | string | ID of the most recent invoice |
 |   ↳ `livemode` | boolean | Whether object exists in live mode or test mode |
 |   ↳ `metadata` | json | Set of key-value pairs for storing additional information |
@@ -1284,6 +1354,20 @@ List all subscriptions
 |   ↳ `description` | string | Subscription description \(max 500 characters\) |
 |   ↳ `discount` | json | Discount that applies to the subscription |
 |   ↳ `ended_at` | number | Unix timestamp when the subscription ended |
+|   ↳ `items` | object | List of subscription items |
+|     ↳ `object` | string | String representing the object type \(list\) |
+|     ↳ `data` | array | Array of subscription items |
+|       ↳ `id` | string | Unique identifier for the subscription item |
+|       ↳ `object` | string | String representing the object type \(subscription_item\) |
+|       ↳ `billing_thresholds` | json | Billing thresholds for the subscription item |
+|       ↳ `created` | number | Unix timestamp when the item was added |
+|       ↳ `metadata` | json | Set of key-value pairs for storing additional information |
+|       ↳ `price` | json | Price object for this subscription item |
+|       ↳ `quantity` | number | Quantity of the plan to subscribe to |
+|       ↳ `subscription` | string | ID of the subscription this item belongs to |
+|       ↳ `tax_rates` | array | Tax rates applied to this subscription item |
+|     ↳ `has_more` | boolean | Whether there are more items |
+|     ↳ `url` | string | URL to fetch more items |
 |   ↳ `latest_invoice` | string | ID of the most recent invoice |
 |   ↳ `livemode` | boolean | Whether object exists in live mode or test mode |
 |   ↳ `metadata` | json | Set of key-value pairs for storing additional information |
@@ -1347,6 +1431,20 @@ Search for subscriptions using query syntax
 |   ↳ `description` | string | Subscription description \(max 500 characters\) |
 |   ↳ `discount` | json | Discount that applies to the subscription |
 |   ↳ `ended_at` | number | Unix timestamp when the subscription ended |
+|   ↳ `items` | object | List of subscription items |
+|     ↳ `object` | string | String representing the object type \(list\) |
+|     ↳ `data` | array | Array of subscription items |
+|       ↳ `id` | string | Unique identifier for the subscription item |
+|       ↳ `object` | string | String representing the object type \(subscription_item\) |
+|       ↳ `billing_thresholds` | json | Billing thresholds for the subscription item |
+|       ↳ `created` | number | Unix timestamp when the item was added |
+|       ↳ `metadata` | json | Set of key-value pairs for storing additional information |
+|       ↳ `price` | json | Price object for this subscription item |
+|       ↳ `quantity` | number | Quantity of the plan to subscribe to |
+|       ↳ `subscription` | string | ID of the subscription this item belongs to |
+|       ↳ `tax_rates` | array | Tax rates applied to this subscription item |
+|     ↳ `has_more` | boolean | Whether there are more items |
+|     ↳ `url` | string | URL to fetch more items |
 |   ↳ `latest_invoice` | string | ID of the most recent invoice |
 |   ↳ `livemode` | boolean | Whether object exists in live mode or test mode |
 |   ↳ `metadata` | json | Set of key-value pairs for storing additional information |

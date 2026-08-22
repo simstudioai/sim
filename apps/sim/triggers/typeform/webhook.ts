@@ -23,6 +23,7 @@ export const typeformWebhookTrigger: TriggerConfig = {
     {
       id: 'formId',
       title: 'Form ID',
+      canvasNoun: 'a form',
       type: 'short-input',
       placeholder: 'Enter your Typeform form ID',
       description:

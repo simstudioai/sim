@@ -9,6 +9,7 @@ import { and, asc, desc, eq, inArray, lte, sql } from 'drizzle-orm'
 const logger = createLogger('OutboxService')
 
 const DEFAULT_MAX_ATTEMPTS = 10
+const MAX_BULK_ENQUEUE_EVENTS = 1_000
 const MAX_PERSISTED_ERROR_LENGTH = 500
 
 /**
@@ -74,7 +75,35 @@ export interface OutboxEventContext {
  * Throwing bumps `attempts` and schedules a retry via exponential
  * backoff; a successful return transitions the event to `completed`.
  */
-export type OutboxHandler<T = unknown> = (payload: T, context: OutboxEventContext) => Promise<void>
+export interface DeferredOutboxHandlerResult {
+  outcome: 'deferred'
+  reason: string
+  minimumBackoffMs?: number
+  /**
+   * Defaults to true for an external acknowledgement with a finite retry
+   * budget. Set false only for an internal dependency whose own outbox row
+   * independently reaches completed or dead-letter.
+   */
+  consumeAttempt?: boolean
+}
+
+export function deferOutboxHandler(
+  reason: string,
+  minimumBackoffMs?: number,
+  consumeAttempt = true
+): DeferredOutboxHandlerResult {
+  return {
+    outcome: 'deferred',
+    reason,
+    ...(minimumBackoffMs !== undefined ? { minimumBackoffMs } : {}),
+    ...(consumeAttempt ? {} : { consumeAttempt: false }),
+  }
+}
+
+export type OutboxHandler<T = unknown> = (
+  payload: T,
+  context: OutboxEventContext
+) => Promise<undefined | DeferredOutboxHandlerResult> | Promise<void>
 
 /**
  * Map of `eventType` → handler. Register all handlers in one place
@@ -83,6 +112,8 @@ export type OutboxHandler<T = unknown> = (payload: T, context: OutboxEventContex
 export type OutboxHandlerRegistry = Record<string, OutboxHandler>
 
 export interface EnqueueOptions {
+  /** Caller-owned idempotency key. Defaults to a generated UUID. */
+  id?: string
   /** Total attempts before the event moves to `dead_letter`. Default 10. */
   maxAttempts?: number
   /** Earliest time a worker may pick up this event. Default now. */
@@ -131,7 +162,7 @@ export async function enqueueOutboxEvent<T>(
   payload: T,
   options: EnqueueOptions = {}
 ): Promise<string> {
-  const id = generateId()
+  const id = options.id ?? generateId()
   await executor.insert(outboxEvent).values({
     id,
     eventType,
@@ -141,6 +172,30 @@ export async function enqueueOutboxEvent<T>(
   })
   logger.info('Enqueued outbox event', { id, eventType })
   return id
+}
+
+export async function enqueueOutboxEvents<T>(
+  executor: Pick<typeof db, 'insert'>,
+  eventType: string,
+  payloads: readonly T[],
+  options: EnqueueOptions = {}
+): Promise<string[]> {
+  if (payloads.length === 0) return []
+  if (payloads.length > MAX_BULK_ENQUEUE_EVENTS) {
+    throw new Error(`Cannot enqueue more than ${MAX_BULK_ENQUEUE_EVENTS} outbox events at once`)
+  }
+
+  const availableAt = options.availableAt ?? new Date()
+  const rows = payloads.map((payload) => ({
+    id: generateId(),
+    eventType,
+    payload: payload as never,
+    maxAttempts: options.maxAttempts ?? DEFAULT_MAX_ATTEMPTS,
+    availableAt,
+  }))
+  await executor.insert(outboxEvent).values(rows)
+  logger.info('Enqueued outbox event batch', { eventType, count: rows.length })
+  return rows.map((row) => row.id)
 }
 
 export interface CoalescedOutboxEnqueueOptions extends EnqueueOptions {
@@ -238,6 +293,55 @@ export async function patchOutboxEventPayload(
     .where(eq(outboxEvent.id, eventId))
     .returning({ id: outboxEvent.id })
   return result.length > 0
+}
+
+/**
+ * Adds a durable parent-operation correlation to an outbox event without
+ * replacing correlations already attached by another coalesced mutation.
+ */
+export async function addOutboxEventSourceOperationId(
+  executor: Pick<typeof db, 'update'>,
+  eventId: string,
+  operationId: string
+): Promise<boolean> {
+  const result = await executor
+    .update(outboxEvent)
+    .set({
+      payload: sql`jsonb_set(
+        coalesce(${outboxEvent.payload}::jsonb, '{}'::jsonb),
+        '{sourceOperationIds}',
+        case
+          when coalesce(${outboxEvent.payload}::jsonb -> 'sourceOperationIds', '[]'::jsonb)
+            @> jsonb_build_array(${operationId}::text)
+          then coalesce(${outboxEvent.payload}::jsonb -> 'sourceOperationIds', '[]'::jsonb)
+          else coalesce(${outboxEvent.payload}::jsonb -> 'sourceOperationIds', '[]'::jsonb)
+            || jsonb_build_array(${operationId}::text)
+        end,
+        true
+      )::json`,
+    })
+    .where(eq(outboxEvent.id, eventId))
+    .returning({ id: outboxEvent.id })
+  return result.length > 0
+}
+
+/** Matches both ordinary single-parent events and coalesced multi-parent events. */
+export function outboxEventHasSourceOperationId(operationId: string) {
+  return sql<boolean>`(
+    ${outboxEvent.payload} ->> 'sourceOperationId' = ${operationId}
+    or coalesce(${outboxEvent.payload}::jsonb -> 'sourceOperationIds', '[]'::jsonb)
+      @> jsonb_build_array(${operationId}::text)
+  )`
+}
+
+/** Runtime equivalent of `outboxEventHasSourceOperationId` for locked-row checks. */
+export function outboxPayloadHasSourceOperationId(payload: unknown, operationId: string): boolean {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return false
+  const record = payload as Record<string, unknown>
+  return (
+    record.sourceOperationId === operationId ||
+    (Array.isArray(record.sourceOperationIds) && record.sourceOperationIds.includes(operationId))
+  )
 }
 
 /** Cap on how many dead-lettered rows a single reconciler scan materializes. */
@@ -464,7 +568,10 @@ async function runHandler(
   }
 
   try {
-    await runHandlerWithTimeout(handler, event)
+    const handlerResult = await runHandlerWithTimeout(handler, event)
+    if (handlerResult?.outcome === 'deferred') {
+      return scheduleDeferred(event, handlerResult)
+    }
     const updated = await updateIfLeaseHeld(event, {
       status: 'completed',
       lastError: null,
@@ -625,6 +732,52 @@ async function scheduleRetry(
   return 'pending'
 }
 
+async function scheduleDeferred(
+  event: typeof outboxEvent.$inferSelect,
+  result: DeferredOutboxHandlerResult
+): Promise<'pending' | 'dead_letter' | 'lease_lost'> {
+  const nextAttempts = event.attempts + (result.consumeAttempt === false ? 0 : 1)
+  if (result.consumeAttempt !== false && nextAttempts >= event.maxAttempts) {
+    const updated = await updateIfLeaseHeld(event, {
+      attempts: nextAttempts,
+      status: 'dead_letter',
+      lastError: result.reason,
+      processedAt: new Date(),
+      lockedAt: null,
+    })
+    if (!updated) return 'lease_lost'
+    logger.error('Outbox event dead-lettered while awaiting external acknowledgement', {
+      eventId: event.id,
+      eventType: event.eventType,
+      attempts: nextAttempts,
+      reason: result.reason,
+    })
+    return 'dead_letter'
+  }
+
+  const backoffMs = Math.max(
+    result.minimumBackoffMs ?? 0,
+    Math.min(MAX_BACKOFF_MS, BASE_BACKOFF_MS * 2 ** nextAttempts)
+  )
+  const nextAvailableAt = new Date(Date.now() + backoffMs)
+  const updated = await updateIfLeaseHeld(event, {
+    attempts: nextAttempts,
+    status: 'pending',
+    lastError: null,
+    availableAt: nextAvailableAt,
+    lockedAt: null,
+  })
+  if (!updated) return 'lease_lost'
+  logger.info('Outbox event is awaiting external acknowledgement', {
+    eventId: event.id,
+    eventType: event.eventType,
+    attempts: nextAttempts,
+    backoffMs,
+    nextAvailableAt: nextAvailableAt.toISOString(),
+  })
+  return 'pending'
+}
+
 async function updateProcessingIfLeaseHeld(
   event: typeof outboxEvent.$inferSelect,
   patch: {
@@ -651,7 +804,7 @@ function runHandlerWithTimeout(
   handler: OutboxHandler,
   event: typeof outboxEvent.$inferSelect,
   timeoutMs: number = DEFAULT_HANDLER_TIMEOUT_MS
-): Promise<void> {
+): Promise<undefined | DeferredOutboxHandlerResult> {
   const controller = new AbortController()
   const context: OutboxEventContext = {
     eventId: event.id,
@@ -682,7 +835,7 @@ function runHandlerWithTimeout(
     handler(event.payload, context)
       .then((value) => {
         clearTimeout(timeout)
-        resolve(value)
+        resolve(value ?? undefined)
       })
       .catch((err) => {
         clearTimeout(timeout)

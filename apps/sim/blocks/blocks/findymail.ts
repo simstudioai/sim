@@ -2,6 +2,8 @@ import { FindymailIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
 import type { FindymailResponse } from '@/tools/findymail/types'
 
+const COMPANY_LOOKUP_FIELD = ['gc_domain', 'gc_name', 'gc_linkedin_url'] as const
+
 export const FindymailBlock: BlockConfig<FindymailResponse> = {
   type: 'findymail',
   name: 'Findymail',
@@ -14,6 +16,60 @@ export const FindymailBlock: BlockConfig<FindymailResponse> = {
   integrationType: IntegrationType.Sales,
   bgColor: '#FFFFFF',
   icon: FindymailIcon,
+  canvasPresentation: {
+    defaultTitle: 'Findymail',
+    sentences: {
+      byOperation: {
+        findymail_find_email_from_name: [
+          { text: 'Find the email for', field: 'fn_name', core: true },
+          { text: 'at', field: 'fn_domain' },
+        ],
+        findymail_find_email_from_linkedin: [
+          {
+            text: 'Find the email for LinkedIn profile',
+            field: 'fefl_linkedin_url',
+            core: true,
+          },
+        ],
+        findymail_find_emails_by_domain: [
+          { text: 'Find verified contacts at', field: 'fed_domain', core: true },
+          { text: ', matching roles', field: 'roles' },
+        ],
+        findymail_verify_email: [
+          { text: 'Verify deliverability of', field: 've_email', core: true },
+        ],
+        findymail_reverse_email_lookup: [
+          { text: 'Look up the business profile behind', field: 'rel_email', core: true },
+        ],
+        findymail_get_company: [
+          {
+            text: 'Read company details for',
+            field: COMPANY_LOOKUP_FIELD,
+            core: true,
+          },
+        ],
+        findymail_find_employees: [
+          { text: 'Find employees at', field: 'website', core: true },
+          { text: ', with titles', field: 'job_titles' },
+        ],
+        findymail_find_phone: [
+          {
+            text: 'Find the phone number for LinkedIn profile',
+            field: 'fp_linkedin_url',
+            core: true,
+          },
+        ],
+        findymail_search_technologies: [
+          { text: 'Search the technology catalog for', field: 'q', core: true },
+        ],
+        findymail_lookup_technologies: [
+          { text: 'Read the technology stack of', field: 'lt_domain', core: true },
+          { text: ', filtered to', field: 'technologies' },
+        ],
+        findymail_get_credits: ['Read remaining finder and verifier credits'],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',

@@ -15,6 +15,14 @@ import { describe, expect, it } from 'vitest'
 import { parseWorkflowJson } from '@/lib/workflows/operations/import-export'
 import { sanitizeForExport } from '@/lib/workflows/sanitization/json-sanitizer'
 
+/**
+ * A whole-`{{ENV_VAR}}` reference that appears in exactly one place: a table cell. The leak sweep
+ * below greps the serialized envelope for it, so it has to be a value no other fixture uses and
+ * the same symbol has to feed both the fixture and the assertion — spelling the string twice is
+ * how that sweep silently starts passing vacuously.
+ */
+const TABLE_ONLY_ENV_REF = '{{TABLE_ONLY_TOKEN}}'
+
 function makeSourceState() {
   return {
     blocks: {
@@ -67,6 +75,51 @@ function makeSourceState() {
         enabled: true,
         data: { parentId: 'par1', extent: 'parent' },
       },
+      apiCall: {
+        id: 'apiCall',
+        type: 'api',
+        name: 'Call',
+        position: { x: 400, y: 200 },
+        subBlocks: {
+          url: { id: 'url', type: 'short-input', value: 'https://example.com/v1/items' },
+          headers: {
+            id: 'headers',
+            type: 'table',
+            value: [
+              { id: 'r1', cells: { Key: 'Content-Type', Value: 'application/json' } },
+              { id: 'r2', cells: { Key: 'Authorization', Value: TABLE_ONLY_ENV_REF } },
+            ],
+          },
+          params: {
+            id: 'params',
+            type: 'table',
+            value: [{ id: 'r3', cells: { Key: 'limit', Value: '10' } }],
+          },
+        },
+        outputs: {},
+        enabled: true,
+      },
+      agent: {
+        id: 'agent',
+        type: 'agent',
+        name: 'Agent',
+        position: { x: 600, y: 200 },
+        subBlocks: {
+          tools: {
+            id: 'tools',
+            type: 'tool-input',
+            value: [
+              {
+                type: 'custom-tool',
+                title: 'My Tool',
+                params: { endpoint: 'https://example.com/hook', greeting: 'hi' },
+              },
+            ],
+          },
+        },
+        outputs: {},
+        enabled: true,
+      },
     } as Record<string, any>,
     edges: [
       { id: 'e1', source: 'starter', target: 'loop1', sourceHandle: 'source', targetHandle: null },
@@ -87,7 +140,8 @@ function makeSourceState() {
 
 describe('workflow export -> import round trip', () => {
   const exported = sanitizeForExport(makeSourceState() as any)
-  const { data: reimported, errors } = parseWorkflowJson(JSON.stringify(exported))
+  const exportedJson = JSON.stringify(exported)
+  const { data: reimported, errors } = parseWorkflowJson(exportedJson)
 
   it('re-imports without validation errors', () => {
     expect(errors).toEqual([])
@@ -96,13 +150,15 @@ describe('workflow export -> import round trip', () => {
 
   it('preserves every block, including children inside loop and parallel containers', () => {
     expect(Object.keys(exported.state.blocks).sort()).toEqual([
+      'agent',
+      'apiCall',
       'childInLoop',
       'childInPar',
       'loop1',
       'par1',
       'starter',
     ])
-    expect(Object.keys(reimported!.blocks)).toHaveLength(5)
+    expect(Object.keys(reimported!.blocks)).toHaveLength(7)
   })
 
   it('preserves every edge', () => {
@@ -135,6 +191,43 @@ describe('workflow export -> import round trip', () => {
     expect(reimported!.variables).toMatchObject({
       v1: { id: 'v1', name: 'apiHost', type: 'string', value: 'https://example.com' },
     })
+  })
+
+  /**
+   * The round trip is deliberately NOT lossless, and these assertions exist so that stops being a
+   * surprise. `sanitizeForExport` passes `redactOpaqueCredentialInputs`, which withholds whole
+   * `table` values and every parameter of a tool with no authoritative codec metadata — see the
+   * trade recorded on `OPAQUE_CREDENTIAL_BEARING_TYPES` in `credential-extractor`.
+   *
+   * Both classes carry secrets no per-field rule can find (a bearer token pasted into a header
+   * cell, a key in a custom tool's params) and both also carry ordinary configuration, which goes
+   * with them. Whoever revisits that trade has to edit these expectations, which is the point: the
+   * absence of a `table` fixture here is why the change reached a release unnoticed.
+   */
+  it('withholds table values, including whole {{ENV_VAR}} cells, on the way out', () => {
+    const subBlocks = exported.state.blocks.apiCall.subBlocks as Record<string, { value: unknown }>
+
+    expect(subBlocks.headers.value).toBeNull()
+    expect(subBlocks.params.value).toBeNull()
+    expect(subBlocks.url.value).toBe('https://example.com/v1/items')
+    expect(exportedJson).not.toContain(TABLE_ONLY_ENV_REF)
+  })
+
+  it('withholds every parameter of a tool with no authoritative codec metadata', () => {
+    const tools = exported.state.blocks.agent.subBlocks.tools.value as {
+      params: Record<string, unknown>
+    }[]
+
+    expect(tools[0].params).toEqual({ endpoint: null, greeting: null })
+    expect(tools[0].title).toBe('My Tool')
+  })
+
+  it('re-imports the withheld sub-blocks as empty rather than dropping or corrupting them', () => {
+    const reimportedApi = Object.values(reimported!.blocks).find((b) => b.type === 'api')
+
+    expect(reimportedApi).toBeDefined()
+    expect(reimportedApi?.subBlocks.headers.value).toBeNull()
+    expect(reimportedApi?.subBlocks.url.value).toBe('https://example.com/v1/items')
   })
 
   it('does not hang on a block name containing regex metacharacters', () => {

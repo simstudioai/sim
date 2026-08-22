@@ -174,19 +174,11 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
    */
   private handleReadinessDeadline = () => {
     this.readinessTimer = null
-    if ((this.synced && this.isSeeded()) || this.fatal || this.disposed) return
-    const error: JoinFileDocError = {
-      fileId: this.fileId,
-      error: 'Realtime document was not ready in time',
-      code: 'READINESS_TIMEOUT',
-      retryable: false,
-    }
-    this.fatal = true
-    this.joinError = error
-    // Drop `synced` so the editor's `synced && seeded` gate stays closed → the fallback renders the
-    // stored content read-only rather than becoming editable on a doc the server never seeded.
-    this.setSynced(false)
-    this.emit('join-error', [error])
+    if (this.synced && this.isSeeded()) return
+    // Dropping `synced` (see {@link failFatally}) is what keeps the editor's `synced && seeded` gate
+    // closed, so the fallback renders the stored content read-only rather than becoming editable on a
+    // document the server never seeded.
+    this.failFatally('Realtime document was not ready in time', 'READINESS_TIMEOUT')
   }
 
   private clearReadinessTimer() {
@@ -215,11 +207,53 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
   /**
    * Handle the join ack. The server registers the room before acking, so an earlier
    * send could be dropped — the initial sync + local awareness exchange begins here.
+   *
+   * Unless the room holds a DIFFERENT document than ours. Two documents built from the same markdown
+   * are not the same document to Yjs — their items carry different client ids — so syncing one into the
+   * other appends the file to itself, on both sides, and the server persists the result. A document is
+   * rebuilt only when the room AND the shared stream are both gone (a tab that slept through it), which
+   * is precisely when a stale tab reconnects. There is no way to un-merge afterwards, so the sync never
+   * happens: take the fatal path, which leaves the editor read-only on the content it already shows.
+   * A reload binds a fresh document and recovers.
    */
   private handleJoinSuccess = (data: JoinFileDocSuccess) => {
     if (data.fileId !== this.fileId) return
+    const local = this.docId()
+    if (local !== undefined && data.docId !== undefined && data.docId !== local) {
+      this.failFatally(
+        'This document was reloaded on the server; refresh to continue editing',
+        'DOCUMENT_REPLACED'
+      )
+      return
+    }
     this.sendSyncStep1()
     this.sendLocalAwareness()
+  }
+
+  /** The identity of the document we hold, once the server seed has named one. */
+  private docId(): string | undefined {
+    const docId = this.doc.getMap(FILE_DOC_SEED.configMap).get(FILE_DOC_SEED.docIdKey)
+    return typeof docId === 'string' ? docId : undefined
+  }
+
+  /**
+   * Give up on this document, non-retryably: latch fatal so nothing more is applied or relayed, drop
+   * `synced` so the editor's gate closes, and surface the rejection to the owner (which falls back to a
+   * read-only view of the stored content).
+   */
+  private failFatally(message: string, code: string) {
+    if (this.fatal || this.disposed) return
+    const error: JoinFileDocError = {
+      fileId: this.fileId,
+      error: message,
+      code,
+      retryable: false,
+    }
+    this.fatal = true
+    this.joinError = error
+    this.clearReadinessTimer()
+    this.setSynced(false)
+    this.emit('join-error', [error])
   }
 
   /**
@@ -247,18 +281,7 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
    */
   private handleAccessRevoked = (data: RoomAccessRevokedBroadcast) => {
     if (data.room?.type !== ROOM_TYPES.WORKSPACE_FILE_DOC || data.room.id !== this.fileId) return
-    if (this.fatal || this.disposed) return
-    const error: JoinFileDocError = {
-      fileId: this.fileId,
-      error: data.message,
-      code: 'ACCESS_REVOKED',
-      retryable: false,
-    }
-    this.fatal = true
-    this.joinError = error
-    this.clearReadinessTimer()
-    this.setSynced(false)
-    this.emit('join-error', [error])
+    this.failFatally(data.message, 'ACCESS_REVOKED')
   }
 
   private handleMessage = (data: unknown) => {

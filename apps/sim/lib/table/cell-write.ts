@@ -10,9 +10,12 @@
  */
 
 import { db } from '@sim/db'
+import { userTableRows } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { and, eq } from 'drizzle-orm'
 import { appendTableEvent } from '@/lib/table/events'
 import { pluckByPath } from '@/lib/table/pluck'
+import { TableRowNotFoundError } from '@/lib/table/rows/errors'
 import { writeExecutionsPatch } from '@/lib/table/rows/executions'
 import {
   createTableRowSecretProvenanceFromEncryptedExecution,
@@ -21,7 +24,6 @@ import {
 import type {
   RowData,
   RowExecutionMetadata,
-  RowExecutions,
   TableDefinition,
   TableRowSecretProvenanceWrite,
   WorkflowGroup,
@@ -81,30 +83,48 @@ export async function writeWorkflowGroupState(
   let result: unknown
   if (hasDataPatch) {
     const { updateRow } = await import('@/lib/table/rows/service')
-    result = await updateRow(
-      {
-        tableId,
-        rowId,
-        data: dataPatch ?? {},
-        workspaceId,
-        executionsPatch,
-        cancellationGuard,
-        secretProvenance: payload.secretProvenance,
-      },
-      table,
-      requestId,
-      // `computedWrite` is what lets a workflow column keep populating on an
-      // update-locked table; the lock still covers user-authored columns.
-      { computedWrite: true }
-    )
+    try {
+      result = await updateRow(
+        {
+          tableId,
+          rowId,
+          data: dataPatch ?? {},
+          workspaceId,
+          executionsPatch,
+          cancellationGuard,
+          secretProvenance: payload.secretProvenance,
+        },
+        table,
+        requestId,
+        // `computedWrite` is what lets a workflow column keep populating on an
+        // update-locked table; the lock still covers user-authored columns.
+        { computedWrite: true }
+      )
+    } catch (error) {
+      if (!(error instanceof TableRowNotFoundError)) throw error
+      result = null
+    }
   } else {
-    result = await db.transaction((trx) =>
-      writeExecutionsPatch(trx, tableId, rowId, executionsPatch, cancellationGuard)
-    )
+    result = await db.transaction(async (trx) => {
+      const [row] = await trx
+        .select({ id: userTableRows.id })
+        .from(userTableRows)
+        .where(
+          and(
+            eq(userTableRows.id, rowId),
+            eq(userTableRows.tableId, tableId),
+            eq(userTableRows.workspaceId, workspaceId)
+          )
+        )
+        .limit(1)
+        .for('key share')
+      if (!row) return null
+      return writeExecutionsPatch(trx, tableId, rowId, executionsPatch, cancellationGuard)
+    })
   }
   if (result === null || result === 'guard-rejected') {
     logger.info(
-      `Skipping group write — SQL guard rejected stale or cancelled attempt (table=${tableId} row=${rowId} group=${groupId} executionId=${executionId})`
+      `Skipping group write — row missing or SQL guard rejected stale/cancelled attempt (table=${tableId} row=${rowId} group=${groupId} executionId=${executionId})`
     )
     return 'skipped'
   }
@@ -115,11 +135,13 @@ export async function writeWorkflowGroupState(
   // ("Open"), which the grid resolves as an option id, finds nothing, and
   // renders as an empty cell until the next refetch. Coerce a copy: the patch
   // object itself is identity-compared for the progress writer's retry
-  // bookkeeping, so it must not be mutated.
+  // bookkeeping, so it must not be mutated. The `null` policy mirrors what
+  // `updateRow` persists for a computed write, so the snapshot the client sees
+  // and the row on disk agree about a block output its column cannot hold.
   const rawEventOutputs = payload.eventOutputs ?? dataPatch
   const hasOutputs = rawEventOutputs && Object.keys(rawEventOutputs).length > 0
   const eventOutputs = hasOutputs ? { ...rawEventOutputs } : rawEventOutputs
-  if (hasOutputs && eventOutputs) coerceRowValues(eventOutputs, table.schema)
+  if (hasOutputs && eventOutputs) coerceRowValues(eventOutputs, table.schema, 'null')
   const runningBlockIds = payload.executionState.runningBlockIds
   const blockErrors = payload.executionState.blockErrors
   void appendTableEvent({
@@ -387,11 +409,4 @@ export function buildOutputsByBlockId(
     map.set(out.blockId, list)
   }
   return map
-}
-
-/** Type-narrowing helper used by readers that can't assume `executions` is set. */
-export function readExecutions(
-  row: { executions?: RowExecutions } | null | undefined
-): RowExecutions {
-  return row?.executions ?? {}
 }

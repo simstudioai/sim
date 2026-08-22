@@ -125,7 +125,10 @@ export async function createChildCancellationSignal(params: {
     // caught by the subscription, and one published earlier — while the child's
     // session and admission were still being set up — by the read itself. The
     // child's own engine backstop cannot cover this, since it checks the CHILD's
-    // execution id, which is never the one marked cancelled.
+    // execution id, which is never the one marked cancelled. For the same reason
+    // the child's steady-state coverage is transitive: a cancel published after
+    // setup reaches the child only via this subscription, or via the PARENT
+    // engine's durable poll aborting `parentSignal`.
     unsubscribe = getCancellationChannel().subscribe((event) => {
       if (event.executionId === parentExecutionId) abort()
     })

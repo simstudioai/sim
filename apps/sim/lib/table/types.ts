@@ -355,14 +355,29 @@ export interface TableUpdateJobPayload {
   maxRows?: number
 }
 
+export type TableExportFormat = 'csv' | 'json'
+
 /**
  * Persisted scope of an export job (`table_jobs.payload`). `resultKey` is merged in by the worker
  * on completion — the storage key of the generated file, served to the client via a presigned URL
  * and deleted by the janitor when the terminal job is pruned.
  */
 export interface TableExportJobPayload {
-  format: 'csv' | 'json'
+  format: TableExportFormat
   resultKey?: string
+}
+
+/** Durable import descriptor stored on the existing `table_jobs` row. */
+export interface TableImportJobPayload {
+  kind: 'table_import'
+  userId: string
+  source: unknown
+  target: unknown
+  options: {
+    mapping?: unknown
+    createColumns?: string[]
+    timezone?: string
+  }
 }
 
 /**
@@ -610,6 +625,12 @@ export interface QueryOptions {
    * (the public v1 route does not expose executions).
    */
   withExecutions?: boolean
+  /**
+   * Stable column ids to keep in each returned row's `data`; omitted = every
+   * column. Applied inside the drain before byte accounting, so the response
+   * budget and page cut measure the projected payload the caller receives.
+   */
+  columnIds?: ReadonlySet<string>
 }
 
 export interface QueryResult {
@@ -653,6 +674,8 @@ export interface CreateTableData {
   jobType?: TableJobType
   /** Async job id stamped on the table when `jobStatus` is set. */
   jobId?: string
+  /** Type-specific payload stored on the initial async job. */
+  jobPayload?: unknown
 }
 
 export interface InsertRowData {
@@ -666,8 +689,13 @@ export interface InsertRowData {
   afterRowId?: string
   /** Insert directly before this row (fractional ordering). Takes precedence over `position`. */
   beforeRowId?: string
-  /** Encrypted provenance for the values in `data`; omitted by legacy callers. */
-  secretProvenance?: TableRowSecretProvenanceWrite
+  /**
+   * Encrypted provenance for the values in `data`. Required, and explicitly
+   * `undefined` when the write carries none, so that adding a new call site
+   * without deciding on provenance is a compile error rather than a silent
+   * unstamped write.
+   */
+  secretProvenance: TableRowSecretProvenanceWrite | undefined
 }
 
 export interface BatchInsertData {
@@ -680,8 +708,8 @@ export interface BatchInsertData {
    * Length must equal `rows.length`.
    */
   orderKeys?: string[]
-  /** Encrypted provenance for the values in `rows`; omitted by legacy callers. */
-  secretProvenance?: Array<TableRowSecretProvenanceWrite | undefined>
+  /** Encrypted provenance for the values in `rows`, positionally aligned. Required; see {@link InsertRowData.secretProvenance}. */
+  secretProvenance: Array<TableRowSecretProvenanceWrite | undefined> | undefined
 }
 
 export interface UpsertRowData {
@@ -691,12 +719,16 @@ export interface UpsertRowData {
   userId?: string
   /** Which unique column to match on. Required when multiple unique columns exist. */
   conflictTarget?: string
-  /** Encrypted provenance for the values in `data`; omitted by legacy callers. */
-  secretProvenance?: TableRowSecretProvenanceWrite
+  /** Encrypted provenance for the values in `data`. Required; see {@link InsertRowData.secretProvenance}. */
+  secretProvenance: TableRowSecretProvenanceWrite | undefined
 }
 
 export interface UpsertResult {
-  row: TableRow
+  /**
+   * Without the executions sidecar: no upsert surface puts one on the wire, and
+   * loading it would hold the write transaction open for a discarded result.
+   */
+  row: Omit<TableRow, 'executions'>
   operation: 'insert' | 'update'
   previousData?: RowData
 }
@@ -735,8 +767,8 @@ export interface UpdateRowData {
    * account. Omitted only for internal `executionsPatch`-only writes.
    */
   actorUserId?: string | null
-  /** Encrypted provenance for the values in this partial patch; omitted by legacy callers. */
-  secretProvenance?: TableRowSecretProvenanceWrite
+  /** Encrypted provenance for the values in this partial patch. Required; see {@link InsertRowData.secretProvenance}. */
+  secretProvenance: TableRowSecretProvenanceWrite | undefined
 }
 
 export interface BulkUpdateData {
@@ -745,8 +777,8 @@ export interface BulkUpdateData {
   limit?: number
   /** The member who performed this write — billed/gated for triggered enrichment. */
   actorUserId?: string | null
-  /** Encrypted provenance for the values in this partial patch; omitted by legacy callers. */
-  secretProvenance?: TableRowSecretProvenanceWrite
+  /** Encrypted provenance for the values in this partial patch. Required; see {@link InsertRowData.secretProvenance}. */
+  secretProvenance: TableRowSecretProvenanceWrite | undefined
 }
 
 export interface BatchUpdateByIdData {
@@ -786,8 +818,8 @@ export interface ReplaceRowsData {
   rows: RowData[]
   workspaceId: string
   userId?: string
-  /** Encrypted provenance for the values in `rows`; omitted by legacy callers. */
-  secretProvenance?: Array<TableRowSecretProvenanceWrite | undefined>
+  /** Encrypted provenance for the values in `rows`, positionally aligned. Required; see {@link InsertRowData.secretProvenance}. */
+  secretProvenance: Array<TableRowSecretProvenanceWrite | undefined> | undefined
 }
 
 export interface ReplaceRowsResult {
@@ -888,12 +920,16 @@ export interface DeleteColumnData {
 /** Payload for `addWorkflowGroup` — atomic insert of a group + its outputs. */
 export interface AddWorkflowGroupData {
   tableId: string
+  /** Canonical workspace derived from the table by an authorized caller. */
+  workspaceId?: string
   group: WorkflowGroup
   outputColumns: ColumnDefinition[]
   /** When `false`, the post-add row-scheduling pass is skipped. Defaults to
    *  `true` (UI behavior). Mothership passes `false` so groups can be staged
    *  without firing every dep-satisfied row. */
   autoRun?: boolean
+  /** Persist auto-run state without dispatching through the primitive. */
+  suppressAutoRunDispatch?: boolean
   /** The member adding the group — billed/gated for the auto-run enrichment pass. */
   actorUserId?: string | null
 }
@@ -901,6 +937,8 @@ export interface AddWorkflowGroupData {
 /** Payload for `updateWorkflowGroup` — diffs outputs and writes columns. */
 export interface UpdateWorkflowGroupData {
   tableId: string
+  /** Canonical workspace derived from the table by an authorized caller. */
+  workspaceId?: string
   groupId: string
   workflowId?: string
   name?: string
@@ -916,6 +954,11 @@ export interface UpdateWorkflowGroupData {
    * source.
    */
   mappingUpdates?: Array<{ columnName: string; blockId: string; path: string }>
+  /** Workflow-authorized column types for mapping updates. */
+  resolvedMappingTypes?: {
+    workflowId: string
+    columns: Array<{ columnName: string; type: ColumnDefinition['type'] }>
+  }
   /** Replace the group's input mappings. Omit to leave them unchanged. */
   inputMappings?: WorkflowGroupInputMapping[]
   /** Change which workflow state the group runs against. Omit to leave unchanged. */
@@ -924,11 +967,15 @@ export interface UpdateWorkflowGroupData {
   type?: WorkflowGroupType
   /** Toggle the group's auto-run flag. Omit to leave it unchanged. */
   autoRun?: boolean
+  /** Skip primitive dispatch when an authorized caller will start the run itself. */
+  suppressAutoRunDispatch?: boolean
   /** The member updating the group — billed/gated for any triggered re-run. */
   actorUserId?: string | null
 }
 
 export interface DeleteWorkflowGroupData {
   tableId: string
+  /** Canonical workspace derived from the table by an authorized caller. */
+  workspaceId?: string
   groupId: string
 }

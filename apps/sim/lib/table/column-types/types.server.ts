@@ -14,6 +14,7 @@ import type { ColumnDefinition, JsonValue } from '@/lib/table/types'
 export interface ColumnCellMigrationContext {
   trx: DbTransaction
   tableId: string
+  workspaceId: string
   /** JSONB storage key for the column (its stable id). */
   columnKey: string
   /** The column definition as it was before the conversion. */

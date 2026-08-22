@@ -140,6 +140,28 @@ export const copilotChatAbortBodySchema = z.object({
 })
 export type CopilotChatAbortBody = z.input<typeof copilotChatAbortBodySchema>
 
+export const copilotChatSteerBodySchema = z.object({
+  streamId: z.string().min(1, 'streamId is required'),
+  chatId: z.string().min(1, 'chatId is required'),
+  steeringId: z.string().min(1, 'steeringId is required'),
+  content: z.string().min(1, 'content is required').max(32_768, 'content is too long'),
+})
+export type CopilotChatSteerBody = z.input<typeof copilotChatSteerBodySchema>
+
+export const copilotToolExecuteInternalBodySchema = z.object({
+  toolCallId: z.string().min(1, 'toolCallId is required'),
+  toolName: z.string().min(1, 'toolName is required'),
+  params: z.record(z.string(), z.unknown()).default({}),
+  userId: z.string().min(1, 'userId is required'),
+  workflowId: z.string().optional(),
+  workspaceId: z.string().optional(),
+  chatId: z.string().optional(),
+  messageId: z.string().optional(),
+  parentToolCallId: z.string().optional(),
+  userPermission: z.string().optional(),
+})
+export type CopilotToolExecuteInternalBody = z.input<typeof copilotToolExecuteInternalBodySchema>
+
 export const copilotChatGetQuerySchema = z
   .object({
     workflowId: z.string().optional(),
@@ -721,22 +743,6 @@ export const revertCopilotCheckpointContract = defineRouteContract({
         id: z.string(),
         workflowState: cleanedWorkflowStateSchema,
       }),
-    }),
-  },
-})
-
-export const copilotChatAbortContract = defineRouteContract({
-  method: 'POST',
-  path: '/api/copilot/chat/abort',
-  body: copilotChatAbortBodySchema,
-  response: {
-    mode: 'json',
-    schema: z.object({
-      aborted: z.boolean(),
-      settled: z.boolean().optional(),
-      // True when the stream did not settle within the grace window and the
-      // chat stream lock was force-broken so the chat is immediately usable.
-      forceReleased: z.boolean().optional(),
     }),
   },
 })

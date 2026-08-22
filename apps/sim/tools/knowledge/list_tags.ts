@@ -17,6 +17,7 @@ export const knowledgeListTagsTool: ToolConfig<any, KnowledgeListTagsResponse> =
   },
 
   request: {
+    internalAuth: 'executor_delegation',
     url: (params) => `/api/knowledge/${params.knowledgeBaseId}/tag-definitions`,
     method: 'GET',
     headers: () => ({

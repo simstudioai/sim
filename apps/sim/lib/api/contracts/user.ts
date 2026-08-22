@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { booleanQueryFlagSchema } from '@/lib/api/contracts/primitives'
 import { type ContractJsonResponse, defineRouteContract } from '@/lib/api/contracts/types'
+import { BILLING_USAGE_LOG_SOURCES } from '@/lib/billing/usage-sources'
 import { isSameOrigin } from '@/lib/core/utils/validation'
 
 export const userProfileSchema = z.object({
@@ -89,6 +90,8 @@ export const userSettingsSchema = z.object({
   errorNotificationsEnabled: z.boolean().default(true),
   snapToGridSize: z.number().min(0).max(50).default(0),
   showActionBar: z.boolean().default(true),
+  /** Whether clicking a block on the canvas animates the camera to center it. */
+  autoFocusOnClick: z.boolean().default(true),
   /** Copilot tool ids the user chose "always allow" for, so they are never prompted for them again. */
   copilotAutoAllowedTools: z.array(z.string()).default([]),
   /** IANA timezone for scheduling; `null` means the client falls back to the browser-detected zone. */
@@ -109,6 +112,7 @@ export const updateUserSettingsBodySchema = z.object({
   errorNotificationsEnabled: z.boolean().optional(),
   snapToGridSize: z.number().min(0).max(50).optional(),
   showActionBar: z.boolean().optional(),
+  autoFocusOnClick: z.boolean().optional(),
   copilotAutoAllowedTools: z.array(z.string()).optional(),
   /** IANA timezone; explicit `null` resets to the browser-detected zone. */
   timezone: ianaTimezoneSchema.nullable().optional(),
@@ -266,18 +270,8 @@ export type UnsubscribeActionResponse = ContractJsonResponse<typeof unsubscribeP
 export type UnsubscribeBody = z.input<typeof unsubscribeBodySchema>
 export type UnsubscribeType = NonNullable<UnsubscribeBody['type']>
 
-export const usageLogSourceSchema = z.enum([
-  'workflow',
-  'wand',
-  'copilot',
-  'workspace-chat',
-  'mcp_copilot',
-  'mothership_block',
-  'knowledge-base',
-  'voice-input',
-  'enrichment',
-  'voice-output',
-])
+/** Billing-facing sources collapse both internal chat ledgers into `sim-chat`. */
+export const usageLogSourceSchema = z.enum(BILLING_USAGE_LOG_SOURCES)
 
 export const usageLogPeriodSchema = z.enum(['1d', '7d', '30d', 'all', 'custom'])
 
@@ -340,12 +334,16 @@ export const usageLogEntrySchema = z.object({
    * Credit-denominated cost of this event (Sim's usage unit; 1,000 credits =
    * $5), apportioned across the page so row credits always sum exactly to
    * the page's rounded total — this can legitimately be 0 for a row with a
-   * real but sub-credit `dollarCost` once a sibling row absorbs the shared
-   * rounding remainder.
+   * real but sub-credit charge once a sibling row absorbs the shared
+   * rounding remainder (see `hasCost`).
    */
   creditCost: z.number(),
-  /** Raw dollar cost, so a 0 `creditCost` can be distinguished from a genuinely free event. */
-  dollarCost: z.number(),
+  /**
+   * Whether the event carried any real charge — distinguishes a row whose
+   * `creditCost` apportioned to 0 from a genuinely free event, without putting
+   * raw dollar costs on the wire.
+   */
+  hasCost: z.boolean(),
 })
 
 export const usageLogsApiResponseSchema = z.object({
@@ -412,6 +410,78 @@ export const subscriptionTransferContract = defineRouteContract({
     schema: z.object({
       success: z.literal(true),
       message: z.string(),
+    }),
+  },
+})
+
+/** Every reason an account cannot be erased on its own, as rendered to its owner. */
+export const accountDeletionBlockerSchema = z.object({
+  code: z.enum([
+    'paid_organization_owner',
+    'organization_member',
+    'active_subscription',
+    'shared_workspace',
+    'organization_workspace',
+    'data_drain_owner',
+  ]),
+  /** A sentence naming both the obstacle and the way out. */
+  message: z.string(),
+})
+
+const accountDeletionResourceSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+})
+
+export type AccountDeletionResource = z.output<typeof accountDeletionResourceSchema>
+
+export const accountDeletionPlanSchema = z.object({
+  blockers: z.array(accountDeletionBlockerSchema),
+  /** Workspaces nobody else can reach — erased along with the account. */
+  workspacesToDelete: z.array(accountDeletionResourceSchema),
+  /**
+   * Workspaces the account only anchors — it pays for them or is recorded as
+   * their owner while holding no access to them. The anchor moves to an admin
+   * who does; nothing inside changes hands.
+   */
+  workspacesToTransfer: z.array(accountDeletionResourceSchema),
+})
+
+export type AccountDeletionBlocker = z.output<typeof accountDeletionBlockerSchema>
+export type AccountDeletionPlan = z.output<typeof accountDeletionPlanSchema>
+
+export const getAccountDeletionPlanContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/users/me/deletion',
+  response: {
+    mode: 'json',
+    schema: z.object({
+      plan: accountDeletionPlanSchema,
+    }),
+  },
+})
+
+export const deleteAccountBodySchema = z.object({
+  /**
+   * The account's own email address, retyped. Checked server-side against the
+   * session's account so a mis-wired client cannot delete anything else.
+   */
+  confirmEmail: z
+    .string({ error: 'Confirm your email address to delete your account' })
+    .min(1, 'Confirm your email address to delete your account')
+    .max(320, 'Email address is too long'),
+})
+
+export type DeleteAccountBody = z.input<typeof deleteAccountBodySchema>
+
+export const deleteAccountContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/users/me/deletion',
+  body: deleteAccountBodySchema,
+  response: {
+    mode: 'json',
+    schema: z.object({
+      success: z.literal(true),
     }),
   },
 })

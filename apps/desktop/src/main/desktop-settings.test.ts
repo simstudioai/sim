@@ -1,7 +1,7 @@
 import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { TERMINAL_DARK_THEME } from '@sim/desktop-bridge'
+import { TERMINAL_DARK_THEME, TERMINAL_LIGHT_THEME } from '@sim/desktop-bridge'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('electron', () => import('@/test/electron-mock'))
@@ -14,6 +14,14 @@ import { Notification } from '@/test/electron-mock'
 const IMPORTED_PALETTE = {
   ...TERMINAL_DARK_THEME,
   background: '#101010',
+}
+const IMPORTED_LIGHT_PALETTE = {
+  ...TERMINAL_LIGHT_THEME,
+  background: '#fafafa',
+}
+const IMPORTED_DARK_PALETTE = {
+  ...TERMINAL_DARK_THEME,
+  background: '#202020',
 }
 
 function makeService() {
@@ -109,6 +117,17 @@ describe('desktop settings service', () => {
     expect(setTerminalEnabled).toHaveBeenCalledWith(false)
   })
 
+  it('defaults live browser search suggestions on and persists the privacy switch', () => {
+    const { config, service } = makeService()
+
+    expect(service.getPreferences().browserSearchSuggestionsEnabled).toBe(true)
+
+    const preferences = service.setBrowserSearchSuggestionsEnabled(false)
+
+    expect(config.get('browserSearchSuggestionsEnabled')).toBe(false)
+    expect(preferences.browserSearchSuggestionsEnabled).toBe(false)
+  })
+
   it('persists browser and terminal appearance with match-Sim defaults', () => {
     const { config, service, setBrowserTheme, onBrowserThemeChanged } = makeService()
     expect(service.getPreferences()).toMatchObject({
@@ -191,7 +210,7 @@ describe('desktop settings service', () => {
     expect(preferences?.browserDownloadDirectory).toBe('/tmp/custom-downloads')
   })
 
-  it('caches and selects a Terminal or iTerm2 profile', () => {
+  it('persists a Terminal or iTerm2 profile with appearance-specific palettes', () => {
     const { config, service } = makeService()
 
     const preferences = service.selectTerminalProfile({
@@ -199,6 +218,8 @@ describe('desktop settings service', () => {
       name: 'Ocean',
       source: 'iterm2',
       palette: IMPORTED_PALETTE,
+      lightPalette: IMPORTED_LIGHT_PALETTE,
+      darkPalette: IMPORTED_DARK_PALETTE,
     })
 
     expect(config.get('terminalTheme')).toEqual({
@@ -206,6 +227,8 @@ describe('desktop settings service', () => {
       name: 'Ocean',
       source: 'iterm2',
       palette: IMPORTED_PALETTE,
+      lightPalette: IMPORTED_LIGHT_PALETTE,
+      darkPalette: IMPORTED_DARK_PALETTE,
     })
     expect(preferences).toMatchObject({
       terminalTheme: { id: 'iterm2:ocean', name: 'Ocean' },

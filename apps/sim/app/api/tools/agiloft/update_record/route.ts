@@ -7,8 +7,12 @@ import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import type { AgiloftRecordResponse } from '@/tools/agiloft/types'
-import { buildUpdateRecordUrl } from '@/tools/agiloft/utils'
-import { executeAgiloftRequest } from '@/tools/agiloft/utils.server'
+import { alrestRecordUrl } from '@/tools/agiloft/utils'
+import {
+  executeAlrestRequest,
+  isAgiloftRefusal,
+  readAlrestJson,
+} from '@/tools/agiloft/utils.server'
 
 export const dynamic = 'force-dynamic'
 
@@ -49,51 +53,55 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     if (!parsed.success) return parsed.response
     const params = parsed.data.body
 
-    let body: string
+    let fieldValues: Record<string, unknown>
     try {
-      body = JSON.stringify(JSON.parse(params.data))
+      const parsedData = JSON.parse(params.data)
+      if (typeof parsedData !== 'object' || parsedData === null || Array.isArray(parsedData)) {
+        throw new Error('not an object')
+      }
+      fieldValues = parsedData as Record<string, unknown>
     } catch {
       return NextResponse.json({
         success: false,
         output: { id: null, fields: {} },
-        error: 'Invalid JSON in data parameter',
+        error: 'The data parameter must be a JSON object of field names to values',
       })
     }
 
-    const result = await executeAgiloftRequest<AgiloftRecordResponse>(
+    const result = await executeAlrestRequest<AgiloftRecordResponse>(
       params,
       (base) => ({
-        url: buildUpdateRecordUrl(base, params),
+        url: alrestRecordUrl(base, params.table, params.recordId),
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-        body,
+        body: JSON.stringify(fieldValues),
       }),
       async (response) => {
-        if (!response.ok) {
-          const errorText = await response.text()
-          return {
-            success: false,
-            output: { id: null, fields: {} },
-            error: `Agiloft error: ${response.status} - ${errorText}`,
-          }
-        }
-
-        const data = (await response.json()) as Record<string, unknown>
-        const result = (data.result ?? data) as Record<string, unknown>
-        const id = result.id ?? result.ID ?? data.id ?? data.ID ?? null
+        const record = await readAlrestJson<Record<string, unknown>>(response)
+        const id = record?.id ?? params.recordId.trim()
 
         return {
-          success: data.success !== false,
-          output: {
-            id: id != null ? String(id) : null,
-            fields: result ?? {},
-          },
+          success: true,
+          output: { id: String(id), fields: record ?? {} },
         }
       }
     )
 
     return NextResponse.json(result)
   } catch (error) {
+    /**
+     * A refusal Agiloft already decided on is a final answer, not a transient
+     * fault — returning 500 would make the tool runner retry it.
+     */
+    if (isAgiloftRefusal(error)) {
+      logger.warn(`[${requestId}] Agiloft refused the request`, { error: error.message })
+      return NextResponse.json({
+        success: false,
+        output: { id: null, fields: {} },
+        error: error.message,
+      })
+    }
+
     logger.error(`[${requestId}] Error updating Agiloft record:`, error)
 
     return NextResponse.json({ success: false, error: toError(error).message }, { status: 500 })

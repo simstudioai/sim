@@ -5,6 +5,7 @@ import {
   boolean,
   check,
   customType,
+  date,
   decimal,
   doublePrecision,
   index,
@@ -239,6 +240,27 @@ export const workflow = pgTable(
   'workflow',
   {
     id: text('id').primaryKey(),
+    /**
+     * Creator and owner. Legitimate as ownership: it anchors personal
+     * (workspace-less) workflows, cascades the workflow away with the account,
+     * and names the owner for webhook config and deploy-as-block resolution.
+     *
+     * @deprecated As an execution identity. Do not use it to decide who a run
+     * acts as, what it may read, or what it may authorize. The acting principal
+     * is `ExecutionMetadata.userId`, which the principal layer
+     * (`resolvePrincipalAttribution`) resolves to the caller for a session,
+     * personal API key, or delegated run, and to the workspace billing account
+     * for a workspace API key, schedule, or webhook.
+     *
+     * Exactly one execution use survives, carried as
+     * `ExecutionMetadata.workflowUserId`: the personal-environment fallback in
+     * `executeWorkflowCore`, for runs with no identifiable caller — workspace
+     * API keys, schedules, webhooks, and unauthenticated public-API calls. Those
+     * have nobody to resolve personal variables as, and a deployed workflow is
+     * routinely authored against its owner's personal keys, so dropping the
+     * fallback would break them. Workspace variables never fall back here; they
+     * always authorize against the actor.
+     */
     userId: text('user_id')
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
@@ -294,6 +316,9 @@ export const workflowBlocks = pgTable(
     isWide: boolean('is_wide').notNull().default(false),
     advancedMode: boolean('advanced_mode').notNull().default(false),
     triggerMode: boolean('trigger_mode').notNull().default(false),
+    errorEnabled: boolean('error_enabled').notNull().default(false),
+    /** Opt-in {@link BlockRetryConfig}; NULL means the block never retries. */
+    retry: jsonb('retry'),
     locked: boolean('locked').notNull().default(false),
     height: decimal('height').notNull().default('0'),
 
@@ -408,13 +433,21 @@ export const workflowExecutionLogs = pgTable(
     ),
 
     level: text('level').notNull(), // 'info' | 'error'
-    status: text('status').notNull().default('running'), // 'running' | 'pending' | 'completed' | 'failed' | 'cancelled'
+    /** See `PERSISTED_WORKFLOW_EXECUTION_STATUSES` in `apps/sim/lib/logs/types.ts`. */
+    status: text('status').notNull().default('running'),
     trigger: text('trigger').notNull(), // 'api' | 'webhook' | 'schedule' | 'manual' | 'chat'
 
     startedAt: timestamp('started_at').notNull(),
     /** Absolute deadline for the current active attempt; cleared while paused or terminal. */
     executionDeadlineAt: timestamp('execution_deadline_at'),
     endedAt: timestamp('ended_at'),
+    /**
+     * Wall clock from `started_at` for a terminal row; for a `pending` (paused)
+     * row, the active duration recorded at the checkpoint, which excludes the
+     * time the run sits waiting. Resuming leaves that checkpoint value in place
+     * while the row accrues time again, so a `running` row's value is stale
+     * until the next terminal write recomputes it.
+     */
     totalDurationMs: integer('total_duration_ms'),
 
     /**
@@ -480,6 +513,12 @@ export const workflowExecutionLogs = pgTable(
     runningExecutionDeadlineIdx: index('workflow_execution_logs_running_deadline_idx')
       .on(table.executionDeadlineAt)
       .where(sql`${table.status} = 'running' AND ${table.executionDeadlineAt} IS NOT NULL`),
+    redactingStartedAtIdx: index('workflow_execution_logs_redacting_started_at_idx')
+      .on(table.startedAt)
+      .where(sql`status = 'redacting'`),
+    redactingExecutionDeadlineIdx: index('workflow_execution_logs_redacting_deadline_idx')
+      .on(table.executionDeadlineAt)
+      .where(sql`${table.status} = 'redacting' AND ${table.executionDeadlineAt} IS NOT NULL`),
     completedEndedAtIdx: index('workflow_execution_logs_completed_ended_at_idx')
       .on(table.endedAt, table.workspaceId, table.executionId)
       .where(
@@ -654,6 +693,106 @@ export const workspaceEnvironment = pgTable(
   })
 )
 
+/** Which principal a run resolved a secret under, and which surface asked for it. */
+export const secretUsageScopeEnum = pgEnum('secret_usage_scope', ['workspace', 'personal'])
+export const secretUsageSourceEnum = pgEnum('secret_usage_source', ['workflow', 'copilot', 'mcp'])
+
+/**
+ * Per-day rollup of which secrets a run actually resolved.
+ *
+ * Execution logs cannot answer this. They persist the whole *available* encrypted
+ * environment rather than what a run referenced, they only evidence a secret where
+ * value-matching redaction happened to fire, and they expire under
+ * `DataRetentionSettings.logRetentionHours`. A secret's usage trail has to outlive its
+ * runs' logs, so it is written here instead of derived from them.
+ *
+ * Rows are a rollup rather than one per run: a workflow on a one-minute schedule
+ * touching three secrets would otherwise write thousands of rows a day, which is also
+ * why this is not `audit_log` — that table is a human-scale compliance surface and
+ * machine-scale rows would drown it.
+ *
+ * `secretScope` and `secretOwnerUserId` are part of the key because a workspace secret and a
+ * personal secret can share a name — as can two people's personal secrets — and none of them
+ * may merge. `lastTriggeredByUserId` is deliberately *not* in the key: a public endpoint
+ * called by many people would otherwise fragment one bucket per caller.
+ */
+export const secretUsage = pgTable(
+  'secret_usage',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
+    /** Matches `credential.envKey`; the trail is keyed by name, not by credential row. */
+    secretName: text('secret_name').notNull(),
+    secretScope: secretUsageScopeEnum('secret_scope').notNull(),
+    /**
+     * Whose personal secret this was; empty for a workspace one, which the workspace owns.
+     *
+     * Two people can hold personal secrets under the same name, and a personal secret shared
+     * with the workspace resolves for callers who do not own it, so name and scope alone do
+     * not identify a secret. Without this column one person's trail would show another's runs.
+     * Not the same as `actorUserId`: a scheduled run resolves the workflow owner's personal
+     * slice under the workspace's execution actor.
+     */
+    secretOwnerUserId: text('secret_owner_user_id').notNull().default(''),
+    source: secretUsageSourceEnum('source').notNull(),
+    /**
+     * Empty for a Copilot or MCP resolution, which has no workflow.
+     *
+     * Empty string rather than null because both this and `actorUserId` sit inside the unique
+     * key below, and Postgres treats nulls as distinct — two Copilot rows would never collide,
+     * so the upsert would insert forever instead of incrementing. `NULLS NOT DISTINCT` fixes
+     * that but requires Postgres 15, and this is self-hosted software that must not raise its
+     * database floor for one table. A sentinel keeps the key null-free on every version.
+     *
+     * Deliberately not a foreign key, and neither is `actorUserId`. An `onDelete: 'set null'`
+     * would rewrite a key column, so two rows differing only by the deleted id would collide
+     * and an ordinary workflow or account deletion would fail on this constraint. They are
+     * historical facts in a usage ledger rather than live references, so they are stored as
+     * plain ids and joined leniently; a row outliving its workflow is the point of a trail.
+     */
+    workflowId: text('workflow_id').notNull().default(''),
+    /** Whose access authorized the resolution — the run's actor; empty when there is none. */
+    actorUserId: text('actor_user_id').notNull().default(''),
+    /** UTC day bucket. */
+    usageDate: date('usage_date').notNull(),
+    useCount: integer('use_count').notNull().default(0),
+    lastUsedAt: timestamp('last_used_at').notNull(),
+    /** Deep-links the most recent run in Logs, where the block and its code are visible. */
+    lastExecutionId: text('last_execution_id'),
+    /**
+     * The surface the most recent run came in through (`api`, `webhook`, `schedule`,
+     * `manual`, `chat`, `copilot`). There is deliberately no separate "triggered by" column:
+     * for every trigger kind the executor can name a caller, that caller *is* `actorUserId`,
+     * and for the rest (schedule, webhook, workspace key) no human triggered the run at all.
+     */
+    lastTrigger: text('last_trigger'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    /** Every column is non-null, so ordinary unique semantics make the upsert increment. */
+    bucketUnique: uniqueIndex('secret_usage_bucket_unique').on(
+      table.workspaceId,
+      table.secretName,
+      table.secretScope,
+      table.secretOwnerUserId,
+      table.source,
+      table.workflowId,
+      table.actorUserId,
+      table.usageDate
+    ),
+    secretRecentIdx: index('secret_usage_secret_recent_idx').on(
+      table.workspaceId,
+      table.secretName,
+      table.secretScope,
+      table.secretOwnerUserId,
+      table.lastUsedAt.desc()
+    ),
+  })
+)
+
 export const workspaceBYOKKeys = pgTable(
   'workspace_byok_keys',
   {
@@ -671,6 +810,28 @@ export const workspaceBYOKKeys = pgTable(
   (table) => ({
     workspaceProviderIdx: index('workspace_byok_workspace_provider_idx').on(
       table.workspaceId,
+      table.providerId
+    ),
+  })
+)
+
+export const organizationBYOKKeys = pgTable(
+  'organization_byok_keys',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id, { onDelete: 'cascade' }),
+    providerId: text('provider_id').notNull(),
+    encryptedApiKey: text('encrypted_api_key').notNull(),
+    name: text('name'),
+    createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    organizationProviderIdx: index('organization_byok_organization_provider_idx').on(
+      table.organizationId,
       table.providerId
     ),
   })
@@ -709,6 +870,7 @@ export const settings = pgTable('settings', {
   // Canvas preferences
   snapToGridSize: integer('snap_to_grid_size').notNull().default(0), // 0 = off, 10-50 = grid size
   showActionBar: boolean('show_action_bar').notNull().default(true),
+  autoFocusOnClick: boolean('auto_focus_on_click').notNull().default(true),
 
   timezone: text('timezone'),
 
@@ -1638,6 +1800,12 @@ export const workspaceForkResourceTypeEnum = pgEnum('workspace_fork_resource_typ
   'mcp_server',
   /** Workflow-publishing MCP server identity (fork shell copy), for attachment sync. */
   'workflow_mcp_server',
+  /**
+   * Published custom block (deploy-as-block). Mapped, never copied: a custom block is
+   * org-scoped and binds a workflow in the PUBLISHER's workspace, so an environment fork
+   * repoints its placed blocks at the environment's own block rather than duplicating one.
+   */
+  'custom_block',
   'custom_tool',
   'skill',
 ])
@@ -1918,7 +2086,10 @@ export const workspaceFiles = pgTable(
      */
     displayName: text('display_name'),
     contentType: text('content_type').notNull(),
+    // contract-pending(after #6188 is fully deployed and sizeBytes is backfilled): drop size — new code dual-writes and reads sizeBytes first
     size: integer('size').notNull(),
+    /** Exact byte size for files above PostgreSQL's int4 ceiling; legacy rows fall back to `size`. */
+    sizeBytes: bigint('size_bytes', { mode: 'number' }),
     /**
      * Intrinsic pixel dimensions of an image file, captured lazily on first view (and stored so later
      * views reserve layout space before the image loads, via aspect-ratio). NULL for non-images and for
@@ -1983,6 +2154,80 @@ export const workspaceFiles = pgTable(
   })
 )
 
+export const uploadSessionStatusEnum = pgEnum('upload_session_status', [
+  'uploading',
+  'completing',
+  'finalizing',
+  'completed',
+  'aborting',
+  'aborted',
+  'failed',
+  'expired',
+])
+
+export const uploadSessionMethodEnum = pgEnum('upload_session_method', ['put', 'multipart'])
+
+export const uploadSessionProviderEnum = pgEnum('upload_session_provider', [
+  'local',
+  's3',
+  'blob',
+  'gcs',
+])
+
+export const uploadSessionPurposeEnum = pgEnum('upload_session_purpose', [
+  'workspace_file',
+  'table_import',
+  'knowledge_document',
+  'profile_picture',
+  'workspace_logo',
+  'mothership_attachment',
+  'execution_attachment',
+])
+
+/** Durable control-plane state for direct-to-provider PUT and multipart uploads. */
+export const uploadSession = pgTable(
+  'upload_session',
+  {
+    id: text('id').primaryKey(),
+    tokenHash: text('token_hash').notNull(),
+    userId: text('user_id').notNull(),
+    workspaceId: text('workspace_id'),
+    knowledgeBaseId: text('knowledge_base_id'),
+    workflowId: text('workflow_id'),
+    executionId: text('execution_id'),
+    purpose: uploadSessionPurposeEnum('purpose').notNull(),
+    method: uploadSessionMethodEnum('method').notNull(),
+    storageContext: text('storage_context').notNull(),
+    finalKey: text('final_key').notNull(),
+    storageProvider: uploadSessionProviderEnum('storage_provider').notNull(),
+    providerUploadId: text('provider_upload_id'),
+    providerObjectVersion: text('provider_object_version'),
+    fileName: text('file_name').notNull(),
+    contentType: text('content_type').notNull(),
+    fileSize: bigint('file_size', { mode: 'number' }).notNull(),
+    partSize: integer('part_size'),
+    partCount: integer('part_count'),
+    status: uploadSessionStatusEnum('status').notNull().default('uploading'),
+    metadata: jsonb('metadata').$type<Record<string, unknown>>().notNull().default({}),
+    processingLeaseId: text('processing_lease_id'),
+    processingLeaseExpiresAt: timestamp('processing_lease_expires_at'),
+    completedFileId: text('completed_file_id'),
+    error: text('error'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    expiresAt: timestamp('expires_at').notNull(),
+    completedAt: timestamp('completed_at'),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    tokenHashUnique: uniqueIndex('upload_session_token_hash_unique').on(table.tokenHash),
+    finalKeyUnique: uniqueIndex('upload_session_final_key_unique').on(table.finalKey),
+    statusExpiresAtIdx: index('upload_session_status_expires_at_idx').on(
+      table.status,
+      table.expiresAt
+    ),
+  })
+)
+
 export interface WorkspaceFileSecretProvenanceEntry extends DurableSecretProvenanceEntry {
   sourceUserId: string
 }
@@ -2018,7 +2263,7 @@ export const workspaceFileSecretProvenance = pgTable(
   (table) => ({
     statusCheck: check(
       'workspace_file_secret_provenance_status_check',
-      sql`${table.status} IN ('exact', 'unknown')`
+      sql`${table.status} IN ('exact', 'unknown', 'unrecorded')`
     ),
   })
 )
@@ -2302,6 +2547,25 @@ export const document = pgTable(
 
     // Processing status
     processingStatus: text('processing_status').notNull().default('pending'), // 'pending', 'processing', 'completed', 'failed'
+    /**
+     * Dispatches spent on this document since its last successful pass.
+     *
+     * A bounded retry budget, not a dispatch generation. The stuck-document
+     * sweep re-dispatches a failing document every sync for the whole retry
+     * window, and each dispatch re-parses and re-embeds it — so a document that
+     * fails deterministically was billed once per sync indefinitely. Past the
+     * budget it becomes a dead letter: still visible and still user-retryable,
+     * but no longer swept. Reset to 0 whenever a pass completes.
+     */
+    processingAttempts: integer('processing_attempts').notNull().default(0),
+    /**
+     * When indexing was last dispatched to a worker, which is not when a worker
+     * picked it up — a document sits at `pending` in between. Recovery sweeps
+     * measure queue wait from here; `processingStartedAt` is written only once a
+     * worker actually starts. NULL means never dispatched, or dispatched before
+     * this column existed.
+     */
+    processingQueuedAt: timestamp('processing_queued_at'),
     processingStartedAt: timestamp('processing_started_at'),
     processingCompletedAt: timestamp('processing_completed_at'),
     processingError: text('processing_error'),
@@ -3463,6 +3727,18 @@ export const customBlock = pgTable(
      */
     outputs: json('outputs').$type<Array<{ blockId: string; path: string; name: string }>>(),
     enabled: boolean('enabled').notNull().default(true),
+    /**
+     * The publisher's org-wide decision on whether this block's runs are joined into
+     * a consumer's trace. It is the ONLY policy — no viewer check runs downstream —
+     * so turning it on publishes the source workflow's block names, inputs, outputs,
+     * and prompts to anyone who can read a consuming workflow's logs, including
+     * consumers with no access to the source workspace.
+     *
+     * Defaults false because of that: this is the same boundary curated outputs and
+     * redacted errors exist to hold, and it may only open by an affirmative act of
+     * the publisher, never by a column default applied to rows nobody revisited.
+     */
+    traceChildRuns: boolean('trace_child_runs').notNull().default(false),
     createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
@@ -3598,6 +3874,16 @@ export const usageLog = pgTable(
         table.cost
       )
       .where(sql`${table.billingEntityType} IS NOT NULL`),
+    billingEntityCreatedAtCostIdx: index('usage_log_billing_entity_created_at_cost_idx')
+      .on(
+        table.billingEntityType,
+        table.billingEntityId,
+        table.createdAt,
+        table.userId,
+        table.source,
+        table.cost
+      )
+      .where(sql`${table.billingEntityType} IS NOT NULL`),
     billingScopeAllOrNone: check(
       'usage_log_billing_scope_all_or_none',
       sql`(
@@ -3616,10 +3902,25 @@ export const usageLog = pgTable(
 
 export const credentialTypeEnum = pgEnum('credential_type', [
   'oauth',
+  'managed_oauth',
   'env_workspace',
   'env_personal',
   'service_account',
 ])
+
+export const managedOauthCredentialStatusEnum = pgEnum('managed_oauth_credential_status', [
+  'active',
+  'needs_reauth',
+  'revoked',
+])
+
+export interface ManagedOAuthProviderMetadata {
+  email: string
+  displayName?: string
+  avatarUrl?: string
+  username?: string
+  tenantDisplayName?: string
+}
 
 export const credential = pgTable(
   'credential',
@@ -3636,6 +3937,24 @@ export const credential = pgTable(
     envKey: text('env_key'),
     envOwnerUserId: text('env_owner_user_id').references(() => user.id, { onDelete: 'cascade' }),
     encryptedServiceAccountKey: text('encrypted_service_account_key'),
+    authorizationAppId: text('authorization_app_id'),
+    credentialGroupEnrollmentId: text('credential_group_enrollment_id').references(
+      (): AnyPgColumn => credentialGroupEnrollment.id,
+      { onDelete: 'cascade' }
+    ),
+    credentialGroupOptionId: text('credential_group_option_id'),
+    managedOauthScopeVersion: integer('managed_oauth_scope_version'),
+    providerSubjectId: text('provider_subject_id'),
+    providerTenantId: text('provider_tenant_id'),
+    managedOauthStatus: managedOauthCredentialStatusEnum('managed_oauth_status'),
+    grantedScopes: text('granted_scopes').array(),
+    providerMetadata: jsonb('provider_metadata').$type<ManagedOAuthProviderMetadata>(),
+    encryptedOauthTokenSet: text('encrypted_oauth_token_set'),
+    grantedAt: timestamp('granted_at'),
+    revokedAt: timestamp('revoked_at'),
+    accessTokenExpiresAt: timestamp('access_token_expires_at'),
+    refreshTokenExpiresAt: timestamp('refresh_token_expires_at'),
+    lastRefreshedAt: timestamp('last_refreshed_at'),
     createdBy: text('created_by')
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
@@ -3648,6 +3967,12 @@ export const credential = pgTable(
     providerIdIdx: index('credential_provider_id_idx').on(table.providerId),
     accountIdIdx: index('credential_account_id_idx').on(table.accountId),
     envOwnerUserIdIdx: index('credential_env_owner_user_id_idx').on(table.envOwnerUserId),
+    credentialGroupEnrollmentIdx: index('credential_group_enrollment_idx').on(
+      table.credentialGroupEnrollmentId
+    ),
+    credentialGroupOptionUnique: uniqueIndex('credential_group_option_unique')
+      .on(table.credentialGroupEnrollmentId, table.credentialGroupOptionId)
+      .where(sql`${table.type} = 'managed_oauth'`),
     workspaceAccountUnique: uniqueIndex('credential_workspace_account_unique')
       .on(table.workspaceId, table.accountId)
       .where(sql`account_id IS NOT NULL`),
@@ -3661,6 +3986,29 @@ export const credential = pgTable(
       'credential_oauth_source_check',
       sql`(type <> 'oauth') OR (account_id IS NOT NULL AND provider_id IS NOT NULL)`
     ),
+    managedOauthSourceConstraint: check(
+      'credential_managed_oauth_source_check',
+      sql`(type::text <> 'managed_oauth') OR (
+        account_id IS NULL
+        AND provider_id IS NOT NULL
+        AND authorization_app_id IS NOT NULL
+        AND provider_subject_id IS NOT NULL
+        AND managed_oauth_status IS NOT NULL
+        AND granted_scopes IS NOT NULL
+        AND cardinality(granted_scopes) > 0
+        AND encrypted_oauth_token_set IS NOT NULL
+        AND granted_at IS NOT NULL
+      )`
+    ),
+    managedOauthGroupBindingConstraint: check(
+      'credential_managed_oauth_group_binding_check',
+      sql`(type::text <> 'managed_oauth') OR (
+        credential_group_enrollment_id IS NOT NULL
+        AND credential_group_option_id IS NOT NULL
+        AND managed_oauth_scope_version IS NOT NULL
+        AND managed_oauth_scope_version > 0
+      )`
+    ),
     workspaceEnvSourceConstraint: check(
       'credential_workspace_env_source_check',
       sql`(type <> 'env_workspace') OR (env_key IS NOT NULL AND env_owner_user_id IS NULL)`
@@ -3668,6 +4016,108 @@ export const credential = pgTable(
     personalEnvSourceConstraint: check(
       'credential_personal_env_source_check',
       sql`(type <> 'env_personal') OR (env_key IS NOT NULL AND env_owner_user_id IS NOT NULL)`
+    ),
+  })
+)
+
+export const credentialGroupStatusEnum = pgEnum('credential_group_status', ['active', 'disabled'])
+
+export interface CredentialGroupOptionConfig {
+  id: string
+  provider: string
+  label: string
+  slackBotCredentialId?: string
+  authorizationAppId: string
+  requiredScopes: string[]
+  scopeVersion: number
+  required: boolean
+  status: 'active' | 'disabled'
+}
+
+/** Workspace-owned configuration for collecting several managed OAuth credentials. */
+export const credentialGroup = pgTable(
+  'credential_group',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
+    publicId: text('public_id').notNull(),
+    name: text('name').notNull(),
+    description: text('description'),
+    options: jsonb('options').$type<CredentialGroupOptionConfig[]>().notNull(),
+    encryptedProviderConfiguration: text('encrypted_provider_configuration'),
+    status: credentialGroupStatusEnum('status').notNull().default('active'),
+    createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    publicIdUnique: uniqueIndex('credential_group_public_id_unique').on(table.publicId),
+    workspaceStatusIdx: index('credential_group_workspace_status_idx').on(
+      table.workspaceId,
+      table.status
+    ),
+    workspaceNameUnique: uniqueIndex('credential_group_workspace_name_unique').on(
+      table.workspaceId,
+      sql`lower(${table.name})`
+    ),
+  })
+)
+
+export const credentialGroupEnrollmentStatusEnum = pgEnum('credential_group_enrollment_status', [
+  'invited',
+  'delivery_failed',
+  'in_progress',
+  'completed',
+  'revoked',
+])
+
+/** Email-bound invitation and resumable progress for one credential-group recipient. */
+export const credentialGroupEnrollment = pgTable(
+  'credential_group_enrollment',
+  {
+    id: text('id').primaryKey(),
+    credentialGroupId: text('credential_group_id')
+      .notNull()
+      .references(() => credentialGroup.id, { onDelete: 'cascade' }),
+    email: text('email').notNull(),
+    status: credentialGroupEnrollmentStatusEnum('status').notNull().default('invited'),
+    invitationTokenHash: text('invitation_token_hash').notNull(),
+    invitationExpiresAt: timestamp('invitation_expires_at').notNull(),
+    invitedAt: timestamp('invited_at').notNull(),
+    sentAt: timestamp('sent_at'),
+    completedAt: timestamp('completed_at'),
+    revokedAt: timestamp('revoked_at'),
+    lastDeliveryError: text('last_delivery_error'),
+    createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    groupEmailUnique: uniqueIndex('credential_group_enrollment_group_email_unique').on(
+      table.credentialGroupId,
+      table.email
+    ),
+    invitationTokenHashUnique: uniqueIndex(
+      'credential_group_enrollment_invitation_token_hash_unique'
+    ).on(table.invitationTokenHash),
+    groupStatusIdx: index('credential_group_enrollment_group_status_idx').on(
+      table.credentialGroupId,
+      table.status
+    ),
+    groupInvitedAtIdIdx: index('credential_group_enrollment_group_invited_at_id_idx').on(
+      table.credentialGroupId,
+      table.invitedAt,
+      table.id
+    ),
+    normalizedEmail: check(
+      'credential_group_enrollment_normalized_email_check',
+      sql`${table.email} = lower(btrim(${table.email})) AND length(${table.email}) BETWEEN 3 AND 320`
+    ),
+    invitationTokenHashLength: check(
+      'credential_group_enrollment_invitation_token_hash_length_check',
+      sql`length(${table.invitationTokenHash}) = 64`
     ),
   })
 )
@@ -3871,6 +4321,11 @@ export const asyncJobs = pgTable(
     scheduleProcessingStartedAtIdx: index('async_jobs_schedule_processing_started_at_idx')
       .on(table.startedAt, table.id)
       .where(sql`${table.type} = 'schedule-execution' AND ${table.status} = 'processing'`),
+    scheduleUnreconciledTerminalIdx: index('async_jobs_schedule_unreconciled_terminal_idx')
+      .on(table.updatedAt, table.id)
+      .where(
+        sql`${table.type} = 'schedule-execution' AND ${table.status} IN ('completed', 'failed', 'cancelled') AND COALESCE(${table.metadata} ->> 'scheduleReconciled', 'false') <> 'true'`
+      ),
   })
 )
 
@@ -3891,12 +4346,48 @@ export const knowledgeConnector = pgTable(
     sourceConfig: json('source_config').notNull(),
     syncMode: text('sync_mode').notNull().default('full'),
     syncIntervalMinutes: integer('sync_interval_minutes').notNull().default(1440),
+    /**
+     * One of `active`, `pending`, `syncing`, `error`, `paused`, `disabled`.
+     *
+     * `pending` and `syncing` are the two halves of a sync in flight: `pending`
+     * is written as the sync is handed to the queue, `syncing` when a worker
+     * takes the lock. The split exists because the queue depth between them is
+     * unbounded — without `pending` the row is indistinguishable from idle for
+     * as long as the hand-off takes, which is what forced readers to guess from
+     * `created_at`. A row left `pending` past the lock TTL is reclaimed by the
+     * scheduler, which is the only thing that ever observes a lost hand-off.
+     */
     status: text('status').notNull().default('active'),
     lastSyncAt: timestamp('last_sync_at'),
     lastSyncError: text('last_sync_error'),
     lastSyncDocCount: integer('last_sync_doc_count'),
     nextSyncAt: timestamp('next_sync_at'),
     consecutiveFailures: integer('consecutive_failures').notNull().default(0),
+    /**
+     * Identifies the sync run that currently holds this connector's lock.
+     *
+     * `status = 'syncing'` only says *a* run holds it. After the scheduler
+     * reclaims a stale lock and dispatches a replacement, the original run would
+     * still see `syncing` and overwrite the replacement's state. Terminal writes
+     * match this token so a run can prove the lock is still *its own*.
+     */
+    syncLockToken: text('sync_lock_token'),
+    /**
+     * When the run holding this connector's lock last proved it was alive.
+     *
+     * Split off `updated_at`, which the stale-lock reaper used to read as a
+     * lease. `updated_at` is the row's modification time, so every unrelated
+     * write — a config edit, a status change — renewed the lease of a wedged
+     * run and pushed its recovery out by another full TTL. Only lock
+     * acquisition and the heartbeat write this column; both terminal helpers
+     * clear it alongside `sync_lock_token`.
+     *
+     * NULL on a row locked before this column existed, and on any future writer
+     * that forgets it, so every reader compares `COALESCE(lease, updated_at)`
+     * rather than the lease alone — a `lease <= cutoff` test is NULL-false and
+     * would make such a row permanently unreclaimable.
+     */
+    syncLockLeaseAt: timestamp('sync_lock_lease_at'),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
     archivedAt: timestamp('archived_at'),
@@ -3936,6 +4427,20 @@ export const knowledgeConnectorSyncLog = pgTable(
   },
   (table) => ({
     connectorIdIdx: index('kcsl_connector_id_idx').on(table.connectorId),
+    /**
+     * Serves the scheduler's five-minute sweep for orphaned `started` rows.
+     *
+     * This table is append-only and never pruned, and `connector_id` does not
+     * help a scan that filters on status and age, so the sweep was a sequential
+     * scan of all sync history on every tick. The predicate is partial rather
+     * than a composite `(status, started_at)`: `started` rows are a vanishing
+     * fraction of the table and the only ones the sweep ever reads, so indexing
+     * closed history buys nothing and costs write amplification on every
+     * completion.
+     */
+    startedPartialIdx: index('kcsl_started_at_partial_idx')
+      .on(table.startedAt)
+      .where(sql`${table.status} = 'started'`),
   })
 )
 
@@ -4099,10 +4604,10 @@ export const userTableRowSecretProvenance = pgTable(
 )
 
 /**
- * Saved presets for a user-defined table — a named filter + sort + column layout.
+ * Saved views for a user-defined table — a named filter + sort + column layout.
  * Workspace-shared: anyone who can read the table sees every view, and `write` is
- * required to create, update, or delete one. The absence of a view is the built-in
- * "All" state, so a table is always reachable unfiltered without a seeded row.
+ * required to create, update, or delete one. New tables are seeded with one default
+ * view; legacy tables without one temporarily retain the built-in "All" fallback.
  *
  * A dedicated table rather than a key on `user_table_definitions.metadata`: that
  * column is written read-modify-write with a shallow merge, so a stale snapshot
@@ -4288,6 +4793,14 @@ export const tableRunDispatches = pgTable(
       onDelete: 'set null',
     }),
     requestedAt: timestamp('requested_at').notNull().defaultNow(),
+    /** Last time the dispatcher loop made progress on this dispatch. Stamped by
+     *  the same per-window writes that advance `cursor` and `processed_count`,
+     *  so it means "a holder is alive" rather than "this started a while ago" —
+     *  the distinction the cleanup sweep needs, since `requested_at` never moves
+     *  and a legitimately long dispatch would otherwise be reclaimed under a
+     *  live holder. Null on rows written before this column existed; the sweep
+     *  reads `COALESCE(heartbeat_at, requested_at)` so those stay reclaimable. */
+    heartbeatAt: timestamp('heartbeat_at'),
     completedAt: timestamp('completed_at'),
     cancelledAt: timestamp('cancelled_at'),
   },

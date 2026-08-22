@@ -9,9 +9,7 @@ import { vi } from 'vitest'
  * import { storageServiceMockFns } from '@sim/testing'
  *
  * storageServiceMockFns.mockHasCloudStorage.mockReturnValue(true)
- * storageServiceMockFns.mockGeneratePresignedUploadUrl.mockResolvedValue({
- *   uploadUrl: 'https://s3/test', key: 'workspace/x/y', ...
- * })
+ * storageServiceMockFns.mockGeneratePresignedDownloadUrl.mockResolvedValue('https://s3/test')
  * ```
  */
 export const storageServiceMockFns = {
@@ -19,9 +17,6 @@ export const storageServiceMockFns = {
   mockDownloadFile: vi.fn(),
   mockDeleteFile: vi.fn(),
   mockHeadObject: vi.fn(),
-  mockVerifyPresignedUploadReceipt: vi.fn(),
-  mockGeneratePresignedUploadUrl: vi.fn(),
-  mockGenerateBatchPresignedUploadUrls: vi.fn(),
   mockGeneratePresignedDownloadUrl: vi.fn(),
   mockHasCloudStorage: vi.fn(() => false),
   mockGetS3InfoForKey: vi.fn(),
@@ -40,9 +35,6 @@ export const storageServiceMock = {
   downloadFile: storageServiceMockFns.mockDownloadFile,
   deleteFile: storageServiceMockFns.mockDeleteFile,
   headObject: storageServiceMockFns.mockHeadObject,
-  verifyPresignedUploadReceipt: storageServiceMockFns.mockVerifyPresignedUploadReceipt,
-  generatePresignedUploadUrl: storageServiceMockFns.mockGeneratePresignedUploadUrl,
-  generateBatchPresignedUploadUrls: storageServiceMockFns.mockGenerateBatchPresignedUploadUrls,
   generatePresignedDownloadUrl: storageServiceMockFns.mockGeneratePresignedDownloadUrl,
   hasCloudStorage: storageServiceMockFns.mockHasCloudStorage,
   getS3InfoForKey: storageServiceMockFns.mockGetS3InfoForKey,

@@ -101,6 +101,8 @@ export interface ComparisonFacts {
     integrationCount: Fact
     triggerTypes: Fact
     customCodeSteps: Fact
+    /** Whether a code step's execution environment is user-configurable — declaring third-party packages, OS-level system packages, and preinstalled CLI binaries — versus running only on a fixed image whose dependency set the vendor controls. */
+    codeSandboxRuntime: Fact
     apiPublishing: Fact
     /** Official client SDKs, plugin/custom-node development kits, and a marketplace for community-built integrations. */
     extensibilitySdk: Fact
@@ -132,6 +134,8 @@ export interface ComparisonFacts {
     piiRedaction: Fact
     /** SAML/OIDC single sign-on with organization auto-provisioning on first login. */
     sso: Fact
+    /** Admin-configurable bounds on how long a signed-in session may live: an absolute lifetime cap from sign-in and/or an inactivity timeout, enforced org-wide. Distinct from SSO itself and from a fixed platform-wide session length the customer cannot change. */
+    sessionPolicy: Fact
     /** Whether integrations/tools/skills come from a vetted first-party catalog authored and reviewed by the vendor, versus an open marketplace where any third party can publish and users install executable code from unvetted authors. */
     thirdPartyVetting: Fact
   }
@@ -231,16 +235,6 @@ export interface CompetitorProfile {
     source: FactSource
   }>
   facts: ComparisonFacts
-}
-
-/** A fact awaiting verification. Used as an intermediate research artifact, never shipped. */
-export function unknownFact(reason?: string): Fact {
-  return {
-    value: 'Unknown',
-    detail: reason,
-    confidence: 'unknown',
-    sources: [],
-  }
 }
 
 /**

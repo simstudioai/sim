@@ -11,9 +11,10 @@ const {
   mockS3ClientConstructor,
   mockPutObjectCommand,
   mockGetObjectCommand,
-  mockDeleteObjectCommand,
-  mockCompleteMultipartUploadCommand,
   mockHeadObjectCommand,
+  mockDeleteObjectCommand,
+  mockListPartsCommand,
+  mockCompleteMultipartUploadCommand,
   mockGetSignedUrl,
   mockEnv,
   mockS3Config,
@@ -52,9 +53,10 @@ const {
     ),
     mockPutObjectCommand: vi.fn().mockImplementation(class {}),
     mockGetObjectCommand: vi.fn().mockImplementation(class {}),
-    mockDeleteObjectCommand: vi.fn().mockImplementation(class {}),
-    mockCompleteMultipartUploadCommand: vi.fn().mockImplementation(class {}),
     mockHeadObjectCommand: vi.fn().mockImplementation(class {}),
+    mockDeleteObjectCommand: vi.fn().mockImplementation(class {}),
+    mockListPartsCommand: vi.fn().mockImplementation(class {}),
+    mockCompleteMultipartUploadCommand: vi.fn().mockImplementation(class {}),
     mockGetSignedUrl: vi.fn(),
     mockEnv,
   }
@@ -64,9 +66,10 @@ vi.mock('@aws-sdk/client-s3', () => ({
   S3Client: mockS3ClientConstructor,
   PutObjectCommand: mockPutObjectCommand,
   GetObjectCommand: mockGetObjectCommand,
-  DeleteObjectCommand: mockDeleteObjectCommand,
-  CompleteMultipartUploadCommand: mockCompleteMultipartUploadCommand,
   HeadObjectCommand: mockHeadObjectCommand,
+  DeleteObjectCommand: mockDeleteObjectCommand,
+  ListPartsCommand: mockListPartsCommand,
+  CompleteMultipartUploadCommand: mockCompleteMultipartUploadCommand,
 }))
 
 vi.mock('@aws-sdk/s3-request-presigner', () => ({
@@ -100,10 +103,13 @@ vi.mock('@/lib/uploads/config', () => ({
 import {
   completeS3MultipartUpload,
   deleteFromS3,
+  deleteS3ObjectVersion,
   downloadFromS3,
   getPresignedUrl,
   getS3Client,
+  getS3PresignedUploadUrl,
   headS3Object,
+  listS3MultipartParts,
   resetS3ClientForTesting,
   uploadToS3,
 } from '@/lib/uploads/providers/s3/client'
@@ -292,6 +298,96 @@ describe('S3 Client', () => {
       const key = 'test-file.txt'
 
       await expect(getPresignedUrl(key)).rejects.toThrow('Presigned URL generation failed')
+    })
+  })
+
+  describe('direct upload primitives', () => {
+    it('signs metadata and a create-only condition without duplicate x-amz-meta headers', async () => {
+      mockGetSignedUrl.mockResolvedValueOnce('https://example.com/signed-put')
+
+      const result = await getS3PresignedUploadUrl({
+        key: 'workspace/workspace-1/file.bin',
+        contentType: 'application/octet-stream',
+        fileSize: 3,
+        metadata: { uploadId: 'upload-1', purpose: 'workspace_file' },
+        customConfig: mockS3Config,
+        expiresIn: 600,
+      })
+
+      expect(mockPutObjectCommand).toHaveBeenCalledWith({
+        Bucket: 'test-bucket',
+        Key: 'workspace/workspace-1/file.bin',
+        ContentType: 'application/octet-stream',
+        ContentLength: 3,
+        IfNoneMatch: '*',
+        Metadata: { uploadId: 'upload-1', purpose: 'workspace_file' },
+      })
+      expect(result).toEqual({
+        url: 'https://example.com/signed-put',
+        headers: {
+          'Content-Type': 'application/octet-stream',
+          'If-None-Match': '*',
+        },
+      })
+    })
+
+    it('reads the upload identity and immutable ETag', async () => {
+      mockSend.mockResolvedValueOnce({
+        ContentLength: 3,
+        ContentType: 'application/octet-stream',
+        Metadata: { uploadid: 'upload-1' },
+        ETag: '"etag-1"',
+      })
+
+      await expect(headS3Object('workspace/workspace-1/file.bin', mockS3Config)).resolves.toEqual({
+        size: 3,
+        contentType: 'application/octet-stream',
+        uploadId: 'upload-1',
+        version: '"etag-1"',
+        metadata: { uploadid: 'upload-1' },
+      })
+    })
+
+    it('lists every provider part across pagination', async () => {
+      mockSend
+        .mockResolvedValueOnce({
+          Parts: [{ PartNumber: 1, ETag: 'etag-1', Size: 8 }],
+          IsTruncated: true,
+          NextPartNumberMarker: 1,
+        })
+        .mockResolvedValueOnce({
+          Parts: [{ PartNumber: 2, ETag: 'etag-2', Size: 3 }],
+          IsTruncated: false,
+        })
+
+      await expect(
+        listS3MultipartParts('workspace/workspace-1/file.bin', 'provider-upload-1', mockS3Config)
+      ).resolves.toEqual([
+        { partNumber: 1, etag: 'etag-1', size: 8 },
+        { partNumber: 2, etag: 'etag-2', size: 3 },
+      ])
+      expect(mockListPartsCommand).toHaveBeenLastCalledWith({
+        Bucket: 'test-bucket',
+        Key: 'workspace/workspace-1/file.bin',
+        UploadId: 'provider-upload-1',
+        PartNumberMarker: '1',
+      })
+    })
+
+    it('deletes the upload object only when its ETag still matches', async () => {
+      mockSend.mockResolvedValueOnce({})
+
+      await deleteS3ObjectVersion({
+        key: 'workspace/workspace-1/file.bin',
+        etag: '"etag-1"',
+        customConfig: mockS3Config,
+      })
+
+      expect(mockDeleteObjectCommand).toHaveBeenCalledWith({
+        Bucket: 'test-bucket',
+        Key: 'workspace/workspace-1/file.bin',
+        IfMatch: '"etag-1"',
+      })
     })
   })
 

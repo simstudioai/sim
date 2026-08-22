@@ -18,7 +18,7 @@ import {
   getTimeoutErrorMessage,
   isTimeoutAbortReason,
 } from '@/lib/core/execution-limits'
-import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
+import { getExecutionEnvironment } from '@/lib/environment/utils'
 import { clearExecutionCancellation } from '@/lib/execution/cancellation'
 import { warmLargeValueRefs } from '@/lib/execution/payloads/hydration'
 import { parseLargeExecutionValue } from '@/lib/execution/payloads/large-execution-value'
@@ -433,13 +433,45 @@ async function executeWorkflowCoreImpl(
   }
 
   try {
-    const personalEnvUserId =
-      metadata.isClientSession && metadata.sessionUserId
-        ? metadata.sessionUserId
-        : metadata.workflowUserId
+    /**
+     * Personal variables belong to whoever is running, whenever that is knowable.
+     * `enforceCredentialAccess` is the principal layer's own answer to "is there
+     * an identifiable caller": it is set from `principal.kind !== 'workspace_api_key'`,
+     * so a session, personal API key, or delegated run reads its own personal
+     * variables rather than borrowing the workflow owner's.
+     *
+     * The workflow owner remains the fallback for a workspace API key, schedule,
+     * or webhook. Someone in the workspace configured each of those, and a
+     * deployed workflow is routinely authored against its owner's personal keys.
+     *
+     * An anonymous public-API run resolves no personal variables at all. Anyone
+     * can call that endpoint, so there is no caller to read as and no person whose
+     * private namespace it would be reasonable to lend — such a workflow runs on
+     * workspace secrets alone.
+     */
+    const identifiedCallerUserId =
+      (metadata.isClientSession && metadata.sessionUserId) ||
+      (metadata.enforceCredentialAccess ? metadata.userId : undefined)
 
-    if (!personalEnvUserId) {
+    const personalEnvUserId = metadata.isPublicApiAccess
+      ? undefined
+      : identifiedCallerUserId || metadata.workflowUserId
+
+    if (!metadata.isPublicApiAccess && !personalEnvUserId) {
       throw new Error('Missing workflowUserId in execution metadata')
+    }
+
+    /**
+     * The actor already carries the identity each trigger kind should authorize
+     * workspace secrets against: the caller for a session, personal API key, or
+     * delegated principal, and the workspace billing account for a workspace API
+     * key, schedule, webhook, or anonymous public-API call, where no caller is
+     * identifiable. Deriving it again here would only risk disagreeing with the
+     * principal layer.
+     */
+    const workspaceEnvUserId = metadata.userId || personalEnvUserId
+    if (!workspaceEnvUserId) {
+      throw new Error('Missing execution actor in execution metadata')
     }
 
     /**
@@ -495,7 +527,7 @@ async function executeWorkflowCoreImpl(
 
     const [workflowState, env] = await Promise.all([
       loadWorkflowState(),
-      getPersonalAndWorkspaceEnv(personalEnvUserId, providedWorkspaceId),
+      getExecutionEnvironment(personalEnvUserId, workspaceEnvUserId, providedWorkspaceId),
     ])
 
     const { blocks, loops, parallels } = workflowState
@@ -510,6 +542,7 @@ async function executeWorkflowCoreImpl(
       personalDecrypted,
       workspaceDecrypted,
       decryptionFailures,
+      personalOwners,
     } = env
 
     // Use encrypted values for logging (don't log decrypted secrets)
@@ -532,11 +565,12 @@ async function executeWorkflowCoreImpl(
       personalDecrypted,
       workspaceDecrypted,
       decryptionFailures,
+      personalOwners,
       restoredProvenance: restoreTrusted ? restoredState?.resolvedSecretTraceProvenance : undefined,
       restoredCheckpointVersion: restoredState?.resolvedSecretTraceCheckpointVersion,
       restoreTrusted,
       requireRestoredProvenance,
-      scope: { userId: personalEnvUserId, workspaceId: providedWorkspaceId },
+      scope: { userId: personalEnvUserId ?? workspaceEnvUserId, workspaceId: providedWorkspaceId },
     })
     if (restoredState && !restoreTrusted) {
       resolvedSecretTraceRegistry.markIncomplete('restored-provenance-untrusted')
@@ -931,6 +965,16 @@ async function executeWorkflowCoreImpl(
       stopAfterBlockId: resolvedStopAfterBlockId,
       onChildWorkflowInstanceReady,
       callChain: metadata.callChain,
+      // The live block stream has a single known, authenticated Sim viewer only on
+      // a client session — the execute route rejects `isClientSession` for API-key
+      // and public-API callers, so it implies an authenticated session. Every other
+      // surface (chat deployments, webhooks, schedules, background jobs) leaves this
+      // unset, which is what keeps a custom block from streaming its SOURCE
+      // workspace's block events to a consumer who may be an anonymous visitor.
+      ...(metadata.isClientSession ? { liveTraceViewerUserId: userId } : {}),
+      // The RAW callbacks, not the `wrapped*` composites above: these emit to the stream
+      // without writing this run's progress markers. Only a custom block's child uses them.
+      liveStreamCallbacks: { onBlockStart, onBlockComplete },
     }
 
     if (snapshot.state) {

@@ -16,6 +16,21 @@ export const StagehandBlock: BlockConfig<StagehandResponse> = {
   integrationType: IntegrationType.AI,
   bgColor: '#FFC83C',
   icon: StagehandIcon,
+  canvasPresentation: {
+    defaultTitle: 'Stagehand',
+    sentences: {
+      byOperation: {
+        extract: [
+          { text: 'Extract data from', field: 'url', core: true },
+          { text: ', following', field: 'instruction' },
+        ],
+        agent: [
+          { text: 'Run an agent on', field: 'startUrl', core: true },
+          { text: 'to', field: 'task' },
+        ],
+      },
+    },
+  },
   subBlocks: [
     // Operation selection
     {

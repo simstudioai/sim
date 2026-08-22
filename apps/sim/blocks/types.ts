@@ -258,9 +258,30 @@ interface ParamConfig {
 export interface SubBlockConfig {
   id: string
   title?: string
+  /**
+   * How this field reads inside a card sentence when it holds no value yet —
+   * `'a channel'`, `'an issue'`. Only needed when the derived form (the `title`
+   * lowered into prose, with an article) does not survive being read
+   * mid-sentence: `'Message ID to Reply To'` has to become `'a message'`.
+   * See `resolveFieldNoun`.
+   */
+  canvasNoun?: string
   type: SubBlockType
   mode?: 'basic' | 'advanced' | 'both' | 'trigger' | 'trigger-advanced' // Default is 'both' if not specified. 'trigger' means only shown in trigger mode. 'trigger-advanced' is the advanced side of a trigger field — either a canonical pair member or a standalone field shown under the block-level advanced toggle
   canonicalParamId?: string
+  /**
+   * Declares that the stored value is markdown, so workflow search matches it
+   * against the text it RENDERS as rather than its source.
+   *
+   * The rich-text editor backslash-escapes every markdown-significant character
+   * in prose, so a Note body the reader sees as `SB_ACTION` is stored as
+   * `SB\_ACTION` and would otherwise be unfindable by what is on screen. Ranges
+   * stay in source coordinates, so replace still rewrites the escaped span.
+   *
+   * Omit for every ordinary field: a code or plain-text value is searched as
+   * stored, where a backslash is the author's own character.
+   */
+  searchTextFormat?: 'markdown'
   /** Controls parameter visibility in agent/tool-input context */
   paramVisibility?: 'user-or-llm' | 'user-only' | 'llm-only' | 'hidden'
   /**
@@ -321,7 +342,15 @@ export interface SubBlockConfig {
         defaultChecked?: boolean
         description?: string
       }[]
-    | (() => {
+    /**
+     * Options DERIVED from the block's own values — no I/O. Receives the block's current
+     * sub-block values so a list can narrow to a sibling's selection (the reasoning efforts a
+     * chosen model actually supports). A remote list is never expressed here: it belongs to a
+     * registered selector via `selectorKey`, which works off-canvas too.
+     *
+     * Existing zero-argument option functions keep working unchanged.
+     */
+    | ((params?: { values: Record<string, unknown> }) => {
         label: string
         id: string
         icon?: React.ComponentType<{ className?: string }>
@@ -334,6 +363,14 @@ export interface SubBlockConfig {
   max?: number
   columns?: string[]
   placeholder?: string
+  /**
+   * Conceals the stored value in the editor until the field is focused.
+   *
+   * Honoured only by the `short-input`, `long-input`, `code`, and `table`
+   * renderers (`PASSWORD_MASKED_SUBBLOCK_TYPES`). On any other type it is a
+   * silent no-op that leaves the secret in plaintext, so a new usage must teach
+   * that renderer to mask. `blocks/password-masking.test.ts` enforces this.
+   */
   password?: boolean
   readOnly?: boolean
   showCopyButton?: boolean
@@ -423,6 +460,14 @@ export interface SubBlockConfig {
   allowServiceAccounts?: boolean
   // Selector properties — declarative mapping to a SelectorKey
   selectorKey?: SelectorKey
+  /**
+   * Drop the workflow this block lives in from a `sim.workflows` list.
+   *
+   * A declared flag rather than a blanket rule, because "can this reference itself" differs by
+   * field: the Sim trigger never receives events about its own workflow, while the Logs block
+   * legitimately reads the logs of the workflow it runs in.
+   */
+  selectorExcludeSelf?: boolean
   selectorAllowSearch?: boolean
   // File selector specific properties
   mimeType?: string
@@ -474,15 +519,6 @@ export interface SubBlockConfig {
   dependsOn?: string[] | { all?: string[]; any?: string[] }
   // Copyable-text specific: Use webhook URL from webhook management hook
   useWebhookUrl?: boolean
-  // Dropdown/Combobox: Function to fetch options dynamically
-  // Works with both 'dropdown' (select-only) and 'combobox' (editable with expression support)
-  fetchOptions?: (blockId: string) => Promise<Array<{ label: string; id: string }>>
-  // Dropdown/Combobox: Function to fetch a single option's label by ID (for hydration)
-  // Called when component mounts with a stored value to display the correct label before options load
-  fetchOptionById?: (
-    blockId: string,
-    optionId: string
-  ) => Promise<{ label: string; id: string } | null>
   /**
    * tool-input only: tool categories the consuming block cannot execute. They
    * stay visible in the picker but are greyed out with a tooltip rather than
@@ -491,6 +527,46 @@ export interface SubBlockConfig {
    */
   unsupportedToolTypes?: ('mcp' | 'custom-tool')[]
 }
+
+/**
+ * One clause of a block card's summary sentence.
+ *
+ * A bare string is literal copy that always renders. A clause object renders
+ * `text`, then the value of the first subblock in `field` that is visible and
+ * configured, then `after`.
+ *
+ * A clause whose `field` resolves to nothing is dropped whole — its `text` and
+ * `after` go with it, which is why each optional clause must carry its own
+ * connective (`', where'`, not a bare `'where'` after a shared comma).
+ */
+export type CanvasSentenceClause =
+  | string
+  | {
+      /** Copy rendered before the value chip. */
+      text?: string
+      /**
+       * Subblock ids, first visible-and-configured wins. Always list a
+       * canonical basic/advanced pair in full (`['tableSelector',
+       * 'manualTableId']`) — an advanced-mode user has only the second filled.
+       */
+      field: string | readonly string[]
+      /** Copy rendered after the value chip. */
+      after?: string
+      /**
+       * Renders whether or not the field holds a value — its chip shows the
+       * value when set, and the field's noun when not (`resolveFieldNoun`), so
+       * `Sends a message to ⟨a channel⟩` is what an untouched card reads.
+       *
+       * Every sentence needs at least one, and the core clauses alone must read
+       * as a complete sentence: they are the whole of what a fresh card says.
+       * Clauses without it render only once their field is filled, which is
+       * what keeps a configured card from becoming a wall of placeholders.
+       */
+      core?: boolean
+    }
+
+/** An ordered set of clauses forming one card summary sentence. */
+export type CanvasSentence = readonly CanvasSentenceClause[]
 
 export interface BlockConfig<T extends ToolResponse = ToolResponse> {
   type: string
@@ -512,6 +588,50 @@ export interface BlockConfig<T extends ToolResponse = ToolResponse> {
    */
   iconColor?: string
   icon: BlockIcon
+  /** Canvas-only naming rules. Stored block names remain unchanged for references and serialization. */
+  canvasPresentation?: {
+    /** Stable provider or block-kind label shown in the header tag. */
+    typeLabel?: string
+    /** Semantic title used when the stored block name is still auto-generated. */
+    defaultTitle: string
+    /** Subblock whose selected option replaces the default title. */
+    operationSubBlockId?: string
+    /** Label used for the operation row after a user gives the block a custom name. */
+    operationRowTitle?: string
+    /**
+     * Natural-language summary shown on the card in place of its field rows.
+     *
+     * Third-person present with the block as the implicit subject — the header
+     * already names it, so write `Posts a message to ⟨#eng⟩`, never `Sends a
+     * Slack message`. A block with no summary keeps the field-row layout, which
+     * is what makes adoption incremental.
+     */
+    sentences?: {
+      /** Used when the block has no operation dropdown. */
+      default?: CanvasSentence
+      /** Keyed by the operation dropdown's option ids. */
+      byOperation?: Record<string, CanvasSentence>
+    }
+    /**
+     * Summary shown while the card is in trigger mode.
+     *
+     * A separate set, not a `byOperation` key: trigger mode swaps the subblock
+     * set wholesale, and the card means something else entirely — it no longer
+     * describes an action the block takes but the event that starts the run. So
+     * the voice changes with it: `Runs when an email arrives in ⟨INBOX⟩`, never
+     * `Reads an email`.
+     *
+     * Optional. A trigger with nothing configurable worth naming falls back to
+     * the selected trigger's own registry name (`Runs on Pull Request Opened`),
+     * which is already curated — see `resolveTriggerSentence`.
+     */
+    triggerSentences?: {
+      /** Used when the block exposes a single trigger. */
+      default?: CanvasSentence
+      /** Keyed by trigger id, as listed in `triggers.available`. */
+      byTrigger?: Record<string, CanvasSentence>
+    }
+  }
   subBlocks: SubBlockConfig[]
   triggerAllowed?: boolean
   authMode?: AuthMode
@@ -537,6 +657,13 @@ export interface BlockConfig<T extends ToolResponse = ToolResponse> {
    * (placing it would recurse).
    */
   sourceWorkflowId?: string
+  /**
+   * For published custom blocks only: the name of the workspace the bound source
+   * workflow lives in. Display-only, and the sole way to tell two blocks apart when
+   * an org runs the same block per environment — prod/uat/sandbox copies share a
+   * name and differ only by an opaque `custom_block_<slug>` type.
+   */
+  sourceWorkspaceName?: string
   /**
    * Marks an unreleased block. Preview blocks are hidden from every discovery
    * surface (toolbar, search, mentions, copilot/VFS, docs) in every environment —

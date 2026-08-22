@@ -9,6 +9,8 @@ import {
   MAX_TABLE_SELECTION_CONTENT_LENGTH,
   MAX_TABLE_SELECTION_ROWS,
 } from '@/lib/copilot/chat/selection-context'
+import { DelegatedWorkspaceAuthorizationError } from '@/lib/core/application'
+import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import type { ChatContext } from '@/stores/panel'
 
 const {
@@ -18,10 +20,13 @@ const {
   getSkillById,
   getUserPermissionConfig,
   getWorkspaceFile,
+  readWorkspaceFileMetadata,
   getTableById,
   getRowsByIds,
+  readKnowledgeBase,
   getBlockVisibilityForCopilot,
   isIntegrationDeploymentAvailable,
+  searchDocsExecute,
 } = vi.hoisted(() => ({
   discoverServerTools: vi.fn(),
   getBlock: vi.fn(),
@@ -29,10 +34,13 @@ const {
   getSkillById: vi.fn(),
   getUserPermissionConfig: vi.fn(),
   getWorkspaceFile: vi.fn(),
+  readWorkspaceFileMetadata: vi.fn(),
   getTableById: vi.fn(),
   getRowsByIds: vi.fn(),
+  readKnowledgeBase: vi.fn(),
   getBlockVisibilityForCopilot: vi.fn(async () => null),
   isIntegrationDeploymentAvailable: vi.fn(() => true),
+  searchDocsExecute: vi.fn(),
 }))
 
 vi.mock('@/blocks/registry', () => ({ getBlock, getBlockRegistry }))
@@ -44,8 +52,17 @@ vi.mock('@/lib/integrations/availability.server', () => ({
 vi.mock('@/lib/workflows/skills/operations', () => ({ getSkillById }))
 vi.mock('@/lib/mcp/service', () => ({ mcpService: { discoverServerTools } }))
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({ getWorkspaceFile }))
+vi.mock('@/lib/workspace-files/application/read-workspace-file-metadata', () => ({
+  readWorkspaceFileMetadata: { execute: readWorkspaceFileMetadata },
+}))
 vi.mock('@/lib/table/service', () => ({ getTableById }))
 vi.mock('@/lib/table/rows/service', () => ({ getRowsByIds }))
+vi.mock('@/lib/knowledge/application/knowledge-bases', () => ({
+  readKnowledgeBase: { execute: readKnowledgeBase },
+}))
+vi.mock('@/lib/copilot/tools/server/docs/search-docs', () => ({
+  searchDocsServerTool: { execute: searchDocsExecute },
+}))
 
 /**
  * Overrides the global `@sim/db` mock: the logs-context tests below need
@@ -53,6 +70,75 @@ vi.mock('@/lib/table/rows/service', () => ({ getRowsByIds }))
  */
 
 import { processContextsServer } from './process-contents'
+
+describe('processContextsServer - knowledge contexts', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    readKnowledgeBase.mockResolvedValue({
+      knowledgeBase: { id: 'knowledge-1', name: 'Product docs' },
+    })
+  })
+
+  it('reads through the fixed application query with a trusted chat principal', async () => {
+    const result = await processContextsServer(
+      [{ kind: 'knowledge', knowledgeId: 'knowledge-1', label: 'Docs' } as ChatContext],
+      'dual-workspace-user',
+      'hello',
+      'workspace-a',
+      'chat-1'
+    )
+
+    expect(readKnowledgeBase).toHaveBeenCalledWith({
+      principal: expect.objectContaining({
+        kind: 'delegated',
+        serviceId: 'copilot',
+        subjectUserId: 'dual-workspace-user',
+        workspaceId: 'workspace-a',
+        audience: 'sim:knowledge',
+      }),
+      input: {
+        knowledgeBaseId: 'knowledge-1',
+        assertedWorkspaceId: 'workspace-a',
+      },
+    })
+    expect(result).toEqual([
+      {
+        type: 'knowledge',
+        tag: '@Docs',
+        content: '',
+        path: 'knowledgebases/Product%20docs/meta.json',
+      },
+    ])
+  })
+
+  it('conceals a cross-workspace Knowledge target from Copilot context', async () => {
+    readKnowledgeBase.mockRejectedValueOnce(new DelegatedWorkspaceAuthorizationError())
+
+    await expect(
+      processContextsServer(
+        [{ kind: 'knowledge', knowledgeId: 'knowledge-b', label: 'Hidden' } as ChatContext],
+        'dual-workspace-user',
+        'hello',
+        'workspace-a',
+        'chat-1'
+      )
+    ).resolves.toEqual([])
+  })
+
+  it('conceals infrastructure details from Copilot context', async () => {
+    readKnowledgeBase.mockRejectedValueOnce(new Error('database host and password'))
+
+    await expect(
+      processContextsServer(
+        [{ kind: 'knowledge', knowledgeId: 'knowledge-b', label: 'Hidden' } as ChatContext],
+        'dual-workspace-user',
+        'hello',
+        'workspace-a',
+        'chat-1'
+      )
+    ).resolves.toEqual([])
+  })
+})
 
 const mockProcessContentsLogger = vi.mocked(loggerMock.createLogger).mock.results[
   vi.mocked(createLogger).mock.calls.findIndex(([name]) => name === 'ProcessContents')
@@ -202,6 +288,121 @@ describe('processContextsServer - skill contexts', () => {
   })
 })
 
+describe('processContextsServer - docs contexts', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('routes @Docs to an unscoped search_docs query', async () => {
+    const resolvedSecretTraceRegistry = new ResolvedSecretTraceRegistry()
+    const results = [
+      {
+        path: 'docs/workflows/loops.mdx',
+        url: 'https://docs.sim.ai/workflows/loops',
+        title: 'Loops',
+        content: 'Use a loop block to iterate.',
+        similarity: 0.9,
+      },
+    ]
+    searchDocsExecute.mockResolvedValue({ results, query: 'how do loops work?', totalResults: 1 })
+
+    const result = await processContextsServer(
+      [{ kind: 'docs', label: 'Docs' }],
+      'user-1',
+      '@Docs how do loops work?',
+      'ws-1',
+      undefined,
+      resolvedSecretTraceRegistry
+    )
+
+    expect(searchDocsExecute).toHaveBeenCalledWith(
+      { query: 'how do loops work?' },
+      {
+        userId: 'user-1',
+        workspaceId: 'ws-1',
+        chatId: undefined,
+        resolvedSecretTraceRegistry,
+      }
+    )
+    expect(result).toEqual([
+      {
+        type: 'docs',
+        tag: '@Docs',
+        content: JSON.stringify({ results }),
+      },
+    ])
+  })
+
+  it('preserves the search note when @Docs has no relevant matches', async () => {
+    const note =
+      'No relevant matches. This does NOT mean the docs lack this topic. Rephrase the query.'
+    searchDocsExecute.mockResolvedValue({ results: [], query: 'new topic', totalResults: 0, note })
+
+    const result = await processContextsServer(
+      [{ kind: 'docs', label: 'Docs' }],
+      'user-1',
+      '@Docs new topic',
+      'ws-1',
+      undefined,
+      new ResolvedSecretTraceRegistry()
+    )
+
+    expect(result).toEqual([
+      {
+        type: 'docs',
+        tag: '@Docs',
+        content: JSON.stringify({ results: [], note }),
+      },
+    ])
+  })
+
+  it('uses the Docs label when the message only contains the mention', async () => {
+    searchDocsExecute.mockResolvedValue({ results: [], query: 'Docs', totalResults: 0 })
+
+    await processContextsServer(
+      [{ kind: 'docs', label: 'Docs' }],
+      'user-1',
+      '@Docs',
+      'ws-1',
+      'chat-1',
+      new ResolvedSecretTraceRegistry()
+    )
+
+    expect(searchDocsExecute).toHaveBeenCalledWith(
+      { query: 'Docs' },
+      expect.objectContaining({ workspaceId: 'ws-1', chatId: 'chat-1' })
+    )
+  })
+
+  it('preserves an explicit unavailable note when docs search fails', async () => {
+    searchDocsExecute.mockRejectedValue(new Error('embedding service unavailable'))
+
+    const result = await processContextsServer(
+      [{ kind: 'docs', label: 'Docs' }],
+      'user-1',
+      '@Docs explain schedules',
+      'ws-1',
+      'chat-1',
+      new ResolvedSecretTraceRegistry()
+    )
+
+    expect(result).toEqual([
+      {
+        type: 'docs',
+        tag: '@Docs',
+        content: JSON.stringify({
+          results: [],
+          note: 'Documentation search is temporarily unavailable. Do not infer that the docs lack this topic; retry search_docs or browse docs/** later.',
+        }),
+      },
+    ])
+    expect(mockProcessContentsLogger.error).toHaveBeenCalledWith(
+      'Failed to process docs context',
+      expect.any(Error)
+    )
+  })
+})
+
 describe('processContextsServer - MCP contexts', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -237,6 +438,31 @@ describe('processContextsServer - MCP contexts', () => {
 })
 
 describe('processContextsServer - browser and terminal selections', () => {
+  it('describes whole Browser and Terminal mentions without inventing tab ids', async () => {
+    const result = await processContextsServer(
+      [
+        { kind: 'browser_tab', tabId: 'browser-session', label: 'Browser' },
+        { kind: 'terminal_tab', terminalId: 'terminal-session', label: 'Terminal' },
+      ],
+      'user-1'
+    )
+
+    expect(result).toMatchObject([
+      {
+        type: 'browser_tab',
+        tag: '@Browser',
+        content: expect.stringContaining('resource as a whole'),
+      },
+      {
+        type: 'terminal_tab',
+        tag: '@Terminal',
+        content: expect.stringContaining('resource as a whole'),
+      },
+    ])
+    expect(result[0].content).toContain('browser_list_tabs')
+    expect(result[1].content).toContain('terminal list operation')
+  })
+
   it('keeps the live browser pointer and appends quoted untrusted page text', async () => {
     const result = await processContextsServer(
       [
@@ -500,6 +726,13 @@ describe('processContextsServer - logs contexts', () => {
 describe('processContextsServer - file_selection contexts', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    readWorkspaceFileMetadata.mockImplementation(
+      async ({ input }: { input: { fileId: string } }) => {
+        const file = await getWorkspaceFile('ws-1', input.fileId)
+        if (!file) throw new Error('File not found')
+        return { file }
+      }
+    )
   })
 
   it('inlines the selected passage with its line range and a path pointer', async () => {

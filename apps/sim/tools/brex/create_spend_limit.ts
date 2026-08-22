@@ -1,11 +1,20 @@
-import { generateId } from '@sim/utils/id'
+import {
+  type BrexDeliveryContextParams,
+  brexIdempotencyHeader,
+  defineBrexKeyedSite,
+} from '@/tools/brex/idempotency'
 import type { BrexCreateSpendLimitParams, BrexCreateSpendLimitResponse } from '@/tools/brex/types'
 import { BREX_SPEND_LIMIT_PERIOD_BALANCE_PROPERTIES } from '@/tools/brex/types'
 import { BREX_API_BASE, buildBrexHeaders, parseBrexJson, splitBrexIdList } from '@/tools/brex/utils'
 import type { ToolConfig } from '@/tools/types'
 
+const DELIVERY = defineBrexKeyedSite(
+  'brex_create_spend_limit',
+  'a second card program of the same size would be created, doubling the spend the company has authorized'
+)
+
 export const brexCreateSpendLimitTool: ToolConfig<
-  BrexCreateSpendLimitParams,
+  BrexCreateSpendLimitParams & BrexDeliveryContextParams,
   BrexCreateSpendLimitResponse
 > = {
   id: 'brex_create_spend_limit',
@@ -161,7 +170,7 @@ export const brexCreateSpendLimitTool: ToolConfig<
     method: 'POST',
     headers: (params) => ({
       ...buildBrexHeaders(params.apiKey),
-      'Idempotency-Key': generateId(),
+      ...brexIdempotencyHeader(DELIVERY, params),
     }),
     body: (params) => {
       const currency = params.currency || 'USD'

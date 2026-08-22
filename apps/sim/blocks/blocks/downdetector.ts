@@ -58,6 +58,83 @@ export const DowndetectorBlock: BlockConfig<DowndetectorResponse> = {
   integrationType: IntegrationType.Observability,
   bgColor: '#FFFFFF',
   icon: DowndetectorIcon,
+  canvasPresentation: {
+    defaultTitle: 'Downdetector',
+    sentences: {
+      byOperation: {
+        downdetector_search_companies: [
+          'Search monitored companies',
+          { text: ', named', field: 'name' },
+          { text: ', in category', field: 'categoryId' },
+          { text: ', in country', field: 'country' },
+        ],
+        downdetector_get_company: [
+          { text: 'Read details for company', field: 'companyId', core: true },
+        ],
+        downdetector_get_company_status: [
+          { text: 'Check outage status of company', field: 'companyId', core: true },
+          { text: ', at threshold', field: 'threshold' },
+        ],
+        downdetector_get_company_baseline: [
+          {
+            text: 'Read expected report baseline for company',
+            field: 'companyId',
+            core: true,
+          },
+        ],
+        downdetector_get_company_last_15: [
+          {
+            text: 'Count reports over the last 15 minutes for company',
+            field: 'companyId',
+            core: true,
+          },
+        ],
+        downdetector_get_company_indicators: [
+          {
+            text: 'List reported problem indicators for company',
+            field: 'companyId',
+            core: true,
+          },
+          'in a date range',
+          { text: ', starting', field: 'startdate' },
+          { text: ', ending', field: 'enddate' },
+        ],
+        downdetector_get_reports: [
+          { text: 'Count reports over time for', field: 'slugs', core: true },
+          { text: ', bucketed by', field: 'interval' },
+          { text: ', since', field: 'startdate' },
+        ],
+        downdetector_get_company_incidents: [
+          { text: 'List incidents for company', field: 'companyId', core: true },
+          'in a date range',
+          { text: ', starting', field: 'startdate' },
+          { text: ', ending', field: 'enddate' },
+        ],
+        downdetector_get_company_attribution: [
+          { text: 'Read outage attribution for company', field: 'companyId', core: true },
+        ],
+        downdetector_get_company_events: [
+          { text: 'List published outage events for company', field: 'companyId', core: true },
+          'in a date range',
+          { text: ', starting', field: 'startdate' },
+          { text: ', ending', field: 'enddate' },
+        ],
+        downdetector_get_site_companies: [
+          { text: 'List companies monitored on site', field: 'siteId', core: true },
+        ],
+        downdetector_get_provider: [
+          { text: 'Read network provider', field: 'providerId', core: true },
+        ],
+        downdetector_list_incidents: [
+          'List incidents across every company in a date range',
+          { text: ', starting', field: 'startdate' },
+          { text: ', ending', field: 'enddate' },
+        ],
+        downdetector_list_categories: ['List all service categories'],
+        downdetector_list_sites: ['List all regional status sites'],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',

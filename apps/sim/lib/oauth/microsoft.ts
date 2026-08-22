@@ -55,6 +55,35 @@ export function deriveMicrosoftEmailVerified(
 }
 
 /**
+ * True when Entra's `xms_edov` optional claim asserts the email's domain is
+ * owned by the user's own tenant and admin-verified — the one email signal a
+ * hostile tenant cannot forge, and Microsoft's documented nOAuth mitigation.
+ * Requires `xms_edov` and `email` as optional claims on the app registration.
+ *
+ * @see https://learn.microsoft.com/en-us/entra/identity-platform/optional-claims-reference
+ */
+function isMicrosoftEmailDomainVerified(claims: Record<string, unknown>): boolean {
+  const edov = claims.xms_edov
+  return edov === true || edov === 'true' || edov === 1 || edov === '1'
+}
+
+/**
+ * Raises `emailVerified` for Microsoft sign-in only when Entra asserts domain
+ * ownership. Better Auth spreads this over its own derived profile, so the
+ * empty object leaves that computation untouched — this can promote unverified
+ * to verified, never the reverse.
+ *
+ * Without it, `microsoft` being absent from `accountLinking.trustedProviders`
+ * (and Entra never emitting `email_verified` for work accounts) permanently
+ * locks anyone with an existing Sim account out of the Microsoft button.
+ */
+export function mapMicrosoftProfileToUser(
+  profile: Record<string, unknown>
+): { emailVerified: true } | Record<string, never> {
+  return isMicrosoftEmailDomainVerified(profile) ? { emailVerified: true } : {}
+}
+
+/**
  * Extracts user info from a Microsoft ID token JWT instead of calling Graph API /me.
  * This avoids 403 errors for external tenant users whose admin hasn't consented to Graph API scopes.
  * The ID token is always returned when the openid scope is requested.

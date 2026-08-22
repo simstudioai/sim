@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { safeCompare } from '@sim/security/compare'
 import { hmacSha256Base64 } from '@sim/security/hmac'
+import { toRecordOrNull } from '@sim/utils/object'
 import { NextResponse } from 'next/server'
 import type {
   AuthContext,
@@ -56,13 +57,6 @@ function verifyIncidentioSignature(
   }
 }
 
-function asObject(value: unknown): Record<string, unknown> | null {
-  if (value && typeof value === 'object' && !Array.isArray(value)) {
-    return value as Record<string, unknown>
-  }
-  return null
-}
-
 function asString(value: unknown): string | null {
   return typeof value === 'string' ? value : null
 }
@@ -84,9 +78,9 @@ function extractEntity(
   eventType: string,
   key: 'incident' | 'alert'
 ): Record<string, unknown> | null {
-  const wrapper = eventType ? asObject(body[eventType]) : null
+  const wrapper = eventType ? toRecordOrNull(body[eventType]) : null
   if (!wrapper) return null
-  return asObject(wrapper[key]) ?? wrapper
+  return toRecordOrNull(wrapper[key]) ?? wrapper
 }
 
 export const incidentioHandler: WebhookProviderHandler = {
@@ -152,9 +146,9 @@ export const incidentioHandler: WebhookProviderHandler = {
   },
 
   async formatInput({ body }: FormatInputContext): Promise<FormatInputResult> {
-    const b = (asObject(body) ?? {}) as Record<string, unknown>
+    const b = (toRecordOrNull(body) ?? {}) as Record<string, unknown>
     const eventType = typeof b.event_type === 'string' ? b.event_type : ''
-    const wrapper = eventType ? asObject(b[eventType]) : null
+    const wrapper = eventType ? toRecordOrNull(b[eventType]) : null
     const isAlert = eventType.startsWith('public_alert.')
 
     if (isAlert) {
@@ -187,15 +181,15 @@ export const incidentioHandler: WebhookProviderHandler = {
         name: asString(incident?.name),
         reference: asString(incident?.reference),
         summary: asString(incident?.summary),
-        incident_status: asObject(incident?.incident_status),
-        severity: asObject(incident?.severity),
+        incident_status: toRecordOrNull(incident?.incident_status),
+        severity: toRecordOrNull(incident?.severity),
         mode: asString(incident?.mode),
         visibility: asString(incident?.visibility),
         permalink: asString(incident?.permalink),
         created_at: asString(incident?.created_at),
         updated_at: asString(incident?.updated_at),
-        new_status: asObject(wrapper?.new_status),
-        previous_status: asObject(wrapper?.previous_status),
+        new_status: toRecordOrNull(wrapper?.new_status),
+        previous_status: toRecordOrNull(wrapper?.previous_status),
         update_message: asString(wrapper?.message),
         payload: b,
       },
@@ -203,7 +197,7 @@ export const incidentioHandler: WebhookProviderHandler = {
   },
 
   extractIdempotencyId(body: unknown) {
-    const b = asObject(body)
+    const b = toRecordOrNull(body)
     if (!b) return null
     const eventType = typeof b.event_type === 'string' ? b.event_type : ''
     const key = eventType.startsWith('public_alert.') ? 'alert' : 'incident'

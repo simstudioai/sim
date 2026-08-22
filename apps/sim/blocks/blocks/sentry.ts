@@ -17,6 +17,57 @@ export const SentryBlock: BlockConfig<SentryResponse> = {
   integrationType: IntegrationType.Observability,
   bgColor: '#362D59',
   icon: SentryIcon,
+  canvasPresentation: {
+    defaultTitle: 'Sentry',
+    sentences: {
+      byOperation: {
+        sentry_issues_list: [
+          'List issues',
+          { text: ', in project', field: 'projectSlug' },
+          { text: ', matching', field: 'query' },
+        ],
+        sentry_issues_get: [{ text: 'Read issue', field: 'issueId', core: true }],
+        sentry_issues_update: [
+          { text: 'Update issue', field: 'issueId', core: true },
+          { text: ', setting status to', field: 'status' },
+          { text: ', assigning it to', field: 'assignedTo' },
+        ],
+        sentry_projects_list: ['List all projects in the organization'],
+        sentry_projects_get: [{ text: 'Read project', field: 'projectSlug', core: true }],
+        sentry_projects_create: [
+          { text: 'Create project', field: 'name', core: true },
+          { text: ', owned by team', field: 'teamSlug' },
+        ],
+        sentry_projects_update: [
+          { text: 'Update project', field: 'projectSlug', core: true },
+          { text: ', renaming it to', field: 'name' },
+        ],
+        sentry_teams_list: ['List teams', { text: ', matching', field: 'query' }],
+        sentry_events_list: [
+          { text: 'List events in project', field: 'projectSlug', core: true },
+          { text: ', for issue', field: 'issueId' },
+          { text: ', matching', field: 'query' },
+        ],
+        sentry_events_get: [
+          { text: 'Read event', field: 'eventId', core: true },
+          { text: 'from project', field: 'projectSlug' },
+        ],
+        sentry_releases_list: [
+          'List releases',
+          { text: ', in project', field: 'projectSlug' },
+          { text: ', matching', field: 'query' },
+        ],
+        sentry_releases_create: [
+          { text: 'Create release', field: 'version', core: true },
+          { text: 'for projects', field: 'projects' },
+        ],
+        sentry_releases_deploy: [
+          { text: 'Record a deploy of release', field: 'version', core: true },
+          { text: 'to', field: 'environment' },
+        ],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',

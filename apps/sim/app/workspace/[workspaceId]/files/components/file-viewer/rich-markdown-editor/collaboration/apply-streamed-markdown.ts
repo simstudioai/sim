@@ -2,10 +2,8 @@ import type { Editor } from '@tiptap/core'
 import { Node as PMNode } from '@tiptap/pm/model'
 import { initProseMirrorDoc, updateYFragment, ySyncPluginKey } from '@tiptap/y-tiptap'
 import * as Y from 'yjs'
-import { parseMarkdownToDoc } from '../markdown-parse'
-
-/** The Yjs fragment name TipTap's Collaboration extension binds to (its default `field`). */
-const COLLAB_DOC_FIELD = 'default'
+import { COLLAB_DOC_FIELD } from '@/lib/collab-doc/field'
+import { editorNormalForm } from '../markdown-parse'
 
 /**
  * Transaction origin for agent-streamed writes into a live collaborative doc. It is deliberately NOT
@@ -63,7 +61,11 @@ export function applyAgentStreamFrame(
 ): boolean {
   const binding = ySyncPluginKey.getState(editor.state)?.binding
   if (!binding) return false
-  const target = PMNode.fromJSON(editor.schema, parseMarkdownToDoc(body))
+  // Through the editor's normal form, like every other writer to the shared document. A frame whose
+  // body ends on a list, heading, table, or rule parses WITHOUT the editor's trailing paragraph, so
+  // reconciling toward the bare parse deletes the one the seed put there — and the next client to bind
+  // writes it back, which is the divergence this normalization exists to prevent.
+  const target = PMNode.fromJSON(editor.schema, editorNormalForm(body))
   let delta: Uint8Array | null = null
   const capture = (update: Uint8Array, origin: unknown) => {
     if (origin === AGENT_STREAM_ORIGIN) delta = update

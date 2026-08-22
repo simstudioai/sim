@@ -1,3 +1,4 @@
+import { isRecordLike } from '@sim/utils/object'
 import { SmartleadIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
@@ -84,6 +85,125 @@ export const SmartleadBlock: BlockConfig<SmartleadResponse> = {
   bgColor: '#000000',
   icon: SmartleadIcon,
   authMode: AuthMode.ApiKey,
+  canvasPresentation: {
+    defaultTitle: 'Smartlead',
+    sentences: {
+      /* Every clause anchors on the field its operation marks required, so no
+         sentence depends on an optional filter to stay on the card. */
+      byOperation: {
+        list_campaigns: ['List campaigns'],
+        get_campaign: [{ text: 'Get campaign', field: 'campaignId', core: true }],
+        create_campaign: [{ text: 'Create campaign', field: 'campaignName', core: true }],
+        update_campaign_status: [
+          { text: 'Set campaign', field: 'campaignId', core: true },
+          { text: 'to', field: 'status', core: true },
+        ],
+        update_campaign_schedule: [
+          { text: 'Reschedule campaign', field: 'campaignId', core: true },
+          { text: 'to', field: 'timezone' },
+        ],
+        update_campaign_settings: [
+          { text: 'Update settings on campaign', field: 'campaignId', core: true },
+        ],
+        get_campaign_analytics: [
+          { text: 'Get analytics for campaign', field: 'campaignId', core: true },
+        ],
+        get_campaign_analytics_by_date: [
+          { text: 'Get analytics for campaign', field: 'campaignId', core: true },
+          { text: 'from', field: 'startDate', core: true },
+          { text: 'to', field: 'endDate', core: true },
+        ],
+        get_campaign_top_level_analytics_by_date: [
+          { text: 'Get top-level analytics for campaign', field: 'campaignId', core: true },
+          { text: 'from', field: 'startDate', core: true },
+          { text: 'to', field: 'endDate', core: true },
+        ],
+        get_campaign_sequences: [
+          { text: 'Get sequences for campaign', field: 'campaignId', core: true },
+        ],
+        save_campaign_sequences: [
+          { text: 'Save sequences on campaign', field: 'campaignId', core: true },
+        ],
+        get_campaign_statistics: [
+          { text: 'Get statistics for campaign', field: 'campaignId', core: true },
+        ],
+        add_leads_to_campaign: [{ text: 'Add leads to campaign', field: 'campaignId', core: true }],
+        list_campaign_leads: [{ text: 'List leads in campaign', field: 'campaignId', core: true }],
+        get_lead_by_email: [{ text: 'Get lead', field: 'leadEmail', core: true }],
+        update_lead: [{ text: 'Update lead', field: 'leadId', core: true }],
+        update_lead_category: [
+          { text: 'Move lead', field: 'leadId', core: true },
+          { text: 'to category', field: 'categoryId', core: true },
+        ],
+        pause_lead: [{ text: 'Pause lead', field: 'leadId', core: true }],
+        resume_lead: [{ text: 'Resume lead', field: 'leadId', core: true }],
+        list_lead_categories: ['List lead categories'],
+        get_lead_message_history: [
+          { text: 'Get message history for lead', field: 'leadId', core: true },
+        ],
+        list_campaign_webhooks: [
+          { text: 'List webhooks on campaign', field: 'campaignId', core: true },
+        ],
+        upsert_campaign_webhook: [
+          { text: 'Save webhook', field: 'webhookName', core: true },
+          { text: 'on campaign', field: 'campaignId', core: true },
+        ],
+        delete_campaign_webhook: [{ text: 'Delete webhook', field: 'deleteWebhookId', core: true }],
+        get_campaign_webhook_summary: [
+          { text: 'Summarize webhooks on campaign', field: 'campaignId', core: true },
+        ],
+        duplicate_campaign: [{ text: 'Duplicate campaign', field: 'campaignId', core: true }],
+        delete_campaign: [{ text: 'Delete campaign', field: 'campaignId', core: true }],
+        export_campaign_leads: [
+          { text: 'Export leads from campaign', field: 'campaignId', core: true },
+        ],
+        list_campaign_email_accounts: [
+          { text: 'List email accounts on campaign', field: 'campaignId', core: true },
+        ],
+        add_email_accounts_to_campaign: [
+          { text: 'Add email accounts', field: 'emailAccountIds', core: true },
+          { text: 'to campaign', field: 'campaignId', core: true },
+        ],
+        remove_email_accounts_from_campaign: [
+          { text: 'Remove email accounts', field: 'emailAccountIds', core: true },
+          { text: 'from campaign', field: 'campaignId', core: true },
+        ],
+        list_email_accounts: ['List email accounts'],
+        get_campaign_lead_statistics: [
+          { text: 'Get lead statistics for campaign', field: 'campaignId', core: true },
+        ],
+        get_campaign_mailbox_statistics: [
+          { text: 'Get mailbox statistics for campaign', field: 'campaignId', core: true },
+        ],
+        list_lead_activities: ['List lead activities'],
+        get_lead_by_id: [{ text: 'Get lead', field: 'leadId', core: true }],
+        unsubscribe_lead_from_campaign: [
+          { text: 'Unsubscribe lead', field: 'leadId', core: true },
+          { text: 'from campaign', field: 'campaignId', core: true },
+        ],
+        unsubscribe_lead_globally: [
+          { text: 'Globally unsubscribe lead', field: 'leadId', core: true },
+        ],
+        mark_lead_complete: [
+          { text: 'Mark lead complete', field: 'campaignLeadMapId', core: true },
+        ],
+        delete_lead_from_campaign: [
+          { text: 'Delete lead', field: 'leadId', core: true },
+          { text: 'from campaign', field: 'campaignId', core: true },
+        ],
+        list_inbox_replies: ['List inbox replies'],
+        list_lead_lists: ['List lead lists'],
+        get_lead_list: [{ text: 'Get lead list', field: 'leadListId', core: true }],
+        create_lead_list: [{ text: 'Create lead list', field: 'listName', core: true }],
+        update_lead_list: [
+          { text: 'Rename lead list', field: 'leadListId', core: true },
+          { text: 'to', field: 'listName' },
+        ],
+        delete_lead_list: [{ text: 'Delete lead list', field: 'leadListId', core: true }],
+        list_clients: ['List clients'],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',
@@ -1087,7 +1207,7 @@ function parseJsonArray(value: unknown, label: string): unknown[] | undefined {
 }
 
 function parseJsonObject(value: unknown, label: string): Record<string, unknown> | undefined {
-  if (value && typeof value === 'object' && !Array.isArray(value)) {
+  if (isRecordLike(value)) {
     return value as Record<string, unknown>
   }
   if (typeof value !== 'string' || value.trim() === '') return undefined

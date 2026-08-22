@@ -12,8 +12,8 @@ import { authorizeCredentialUse } from '@/lib/auth/credential-access'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { CLAUDE_PLATFORM_SERVICE_ACCOUNT_PROVIDER_ID } from '@/lib/credentials/token-service-accounts/descriptors'
 import { AGENT_MEMORY_BETA, managedAgentsList } from '@/lib/managed-agents/session-client'
+import { resolveOAuthAccountId, resolveServiceAccountToken } from '@/lib/oauth/credential-service'
 import { captureServerEvent } from '@/lib/posthog/server'
-import { resolveOAuthAccountId, resolveServiceAccountToken } from '@/app/api/auth/oauth/utils'
 
 export const dynamic = 'force-dynamic'
 

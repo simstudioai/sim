@@ -147,6 +147,8 @@ const api: SimDesktopApi = {
     getPreferences: (): Promise<DesktopPreferences> => ipcRenderer.invoke('desktop:settings:get'),
     setPreference: (key: DesktopPreferenceKey, value: boolean): Promise<DesktopPreferences> =>
       ipcRenderer.invoke('desktop:settings:set', key, value),
+    setBrowserSearchSuggestionsEnabled: (enabled: boolean): Promise<DesktopPreferences> =>
+      ipcRenderer.invoke('desktop:settings:set-browser-search-suggestions', enabled),
     notify: (payload: DesktopNotificationPayload): Promise<boolean> =>
       ipcRenderer.invoke('desktop:settings:notify', payload),
     setBrowserTheme: (theme: DesktopAppearanceTheme): Promise<DesktopPreferences> =>
@@ -185,9 +187,15 @@ const api: SimDesktopApi = {
       scopeId: string
     ): Promise<BrowserToolResponse> =>
       ipcRenderer.invoke('browser-agent:execute-tool', toolCallId, tool, params, scopeId),
+    cancelTool: (toolCallId: string, scopeId: string): Promise<boolean> =>
+      ipcRenderer.invoke('browser-agent:cancel-tool', toolCallId, scopeId),
+    cancelActiveTool: (scopeId: string): Promise<boolean> =>
+      ipcRenderer.invoke('browser-agent:cancel-active-tool', scopeId),
     panelAction: (action: BrowserPanelAction, scopeId: string): void => {
       ipcRenderer.send('browser-agent:panel-action', action, scopeId)
     },
+    openTab: (scopeId: string): Promise<BrowserTabsState> =>
+      ipcRenderer.invoke('browser-agent:open-tab', scopeId),
     activateScope: (scopeId: string): Promise<BrowserTabsState> =>
       ipcRenderer.invoke('browser-agent:activate-scope', scopeId),
     restoreScope: (scopeId: string): Promise<BrowserTabsState> =>
@@ -275,6 +283,8 @@ const api: SimDesktopApi = {
       ipcRenderer.invoke('browser-agent:get-tabs-state', scopeId),
     getKnownSessions: (): Promise<BrowserKnownSessionsState> =>
       ipcRenderer.invoke('browser-agent:get-known-sessions'),
+    getSearchSuggestions: (query: string): Promise<string[]> =>
+      ipcRenderer.invoke('browser-agent:search-suggestions', query),
     clearBrowsingData: (kinds?: readonly BrowserDataKind[]): Promise<BrowserKnownSessionsState> =>
       ipcRenderer.invoke('browser-agent:clear-browsing-data', kinds),
     getDownloadsState: (scopeId: string): Promise<BrowserDownloadsState> =>
@@ -438,6 +448,12 @@ const api: SimDesktopApi = {
       ipcRenderer.invoke('terminal:open', cwd, scopeId),
     switchTerminal: (terminalId: string, scopeId: string): Promise<ScopedTerminalTabsState> =>
       ipcRenderer.invoke('terminal:switch', terminalId, scopeId),
+    reorderTerminal: (
+      terminalId: string,
+      targetIndex: number,
+      scopeId: string
+    ): Promise<ScopedTerminalTabsState> =>
+      ipcRenderer.invoke('terminal:reorder', terminalId, targetIndex, scopeId),
     closeTerminal: (terminalId: string, scopeId: string): Promise<ScopedTerminalTabsState> =>
       ipcRenderer.invoke('terminal:close', terminalId, scopeId),
     getTabs: (scopeId: string): Promise<ScopedTerminalTabsState> =>
@@ -469,6 +485,9 @@ const api: SimDesktopApi = {
       ipcRenderer.invoke('terminal:clear-scrollback', terminalId, scopeId),
     setFocused: (focused: boolean, scopeId: string): void => {
       ipcRenderer.send('terminal:focused', focused, scopeId)
+    },
+    setVisible: (visible: boolean, scopeId: string): void => {
+      ipcRenderer.send('terminal:visible', visible, scopeId)
     },
     finishHandoff: (terminalId: string, scopeId: string): void => {
       ipcRenderer.send('terminal:handoff-done', terminalId, scopeId)

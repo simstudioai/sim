@@ -55,29 +55,36 @@ interface CapturedFolderValues {
 function createMockTransaction(mockData: {
   selectResults?: Array<Array<{ [key: string]: unknown }>>
   insertResult?: Array<{ id: string; [key: string]: unknown }>
+  insertError?: Error
   onInsertValues?: (values: CapturedFolderValues) => void
 }) {
-  const { selectResults = [[], []], insertResult = [], onInsertValues } = mockData
+  const { selectResults = [[], []], insertResult = [], insertError, onInsertValues } = mockData
   return async (callback: (tx: unknown) => Promise<unknown>) => {
     const where = vi.fn()
     for (const result of selectResults) {
-      where.mockReturnValueOnce(result)
+      const withLimit = result as typeof result & { limit: ReturnType<typeof vi.fn> }
+      withLimit.limit = vi.fn().mockReturnValue(result)
+      where.mockReturnValueOnce(withLimit)
     }
     where.mockReturnValue([])
 
     const tx = {
+      execute: vi.fn(),
       select: vi.fn().mockReturnValue({
         from: vi.fn().mockReturnValue({
           where,
         }),
       }),
-      insert: vi.fn().mockReturnValue({
-        values: vi.fn().mockImplementation((values: CapturedFolderValues) => {
-          onInsertValues?.(values)
-          return {
-            returning: vi.fn().mockReturnValue(insertResult),
-          }
-        }),
+      insert: vi.fn().mockImplementation(() => {
+        if (insertError) throw insertError
+        return {
+          values: vi.fn().mockImplementation((values: CapturedFolderValues) => {
+            onInsertValues?.(values)
+            return {
+              returning: vi.fn().mockReturnValue(insertResult),
+            }
+          }),
+        }
       }),
     }
     return await callback(tx)
@@ -160,6 +167,7 @@ describe('Folders API Route', () => {
     mockInsert.mockReturnValue({ values: mockValues })
     mockValues.mockReturnValue({ returning: mockReturning })
     mockReturning.mockReturnValue([mockFolders[0]])
+    mockTransaction.mockImplementation(createMockTransaction({}))
 
     mockGetUserEntityPermissions.mockResolvedValue('admin')
   })
@@ -319,6 +327,33 @@ describe('Folders API Route', () => {
       })
     })
 
+    /**
+     * The bounded readers refuse a workspace above `MAX_FOLDERS_PER_WORKSPACE`,
+     * so this endpoint must refuse to push one there — and must say so as an
+     * actionable 409, not an unexplained 500.
+     */
+    it('refuses with 409 and an actionable message at the folder ceiling', async () => {
+      mockAuthenticatedUser()
+
+      mockTransaction.mockImplementationOnce(
+        createMockTransaction({
+          selectResults: [[{ total: 10_000 }]],
+          // A row the insert would return, so a missing guard shows up as a 200, not a fault.
+          insertResult: [mockFolders[0]],
+        })
+      )
+
+      const response = await POST(
+        createMockRequest('POST', { name: 'One More', workspaceId: 'workspace-123' })
+      )
+
+      expect(response.status).toBe(409)
+      await expect(response.json()).resolves.toEqual({
+        error:
+          'This workspace has reached its limit of 10,000 workflow folders. Delete folders you no longer need before creating another one.',
+      })
+    })
+
     it('should create folder with correct sort order', async () => {
       mockAuthenticatedUser()
       let capturedValues: CapturedFolderValues | null = null
@@ -363,7 +398,13 @@ describe('Folders API Route', () => {
 
       mockTransaction.mockImplementationOnce(
         createMockTransaction({
-          selectResults: [[], []],
+          // The first read is the collection-ceiling count, then the parent lookup.
+          selectResults: [
+            [{ total: 1 }],
+            [{ workspaceId: 'workspace-123', archivedAt: null }],
+            [],
+            [],
+          ],
           insertResult: [{ ...mockFolders[1] }],
         })
       )
@@ -530,9 +571,9 @@ describe('Folders API Route', () => {
     it('should handle database errors gracefully', async () => {
       mockAuthenticatedUser()
 
-      mockInsert.mockImplementationOnce(() => {
-        throw new Error('Database insert failed')
-      })
+      mockTransaction.mockImplementationOnce(
+        createMockTransaction({ insertError: new Error('Database insert failed') })
+      )
 
       const req = createMockRequest('POST', {
         name: 'Test Folder',

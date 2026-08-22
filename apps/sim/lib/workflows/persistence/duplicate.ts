@@ -12,6 +12,11 @@ import {
   FolderLockedError,
 } from '@sim/platform-authz/workflow'
 import { generateId } from '@sim/utils/id'
+import { isRecordLike } from '@sim/utils/object'
+import {
+  normalizeWorkflowEdgeSourceHandle,
+  normalizeWorkflowEdgeTargetHandle,
+} from '@sim/workflow-types/workflow'
 import { and, eq, isNull, min } from 'drizzle-orm'
 import type { DbOrTx } from '@/lib/db/types'
 import { remapConditionEdgeHandle } from '@/lib/workflows/condition-ids'
@@ -272,10 +277,7 @@ export async function duplicateWorkflow(
         const newBlockId = blockIdMapping.get(block.id)!
 
         // Update parent ID to point to the new parent block ID if it exists
-        const blockData =
-          block.data && typeof block.data === 'object' && !Array.isArray(block.data)
-            ? (block.data as any)
-            : {}
+        const blockData = isRecordLike(block.data) ? (block.data as any) : {}
         let newParentId = blockData.parentId
         if (blockData.parentId && blockIdMapping.has(blockData.parentId)) {
           newParentId = blockIdMapping.get(blockData.parentId)!
@@ -284,7 +286,7 @@ export async function duplicateWorkflow(
         // Update data.parentId and extent if they exist in the data object
         let updatedData = block.data
         let newExtent = blockData.extent
-        if (block.data && typeof block.data === 'object' && !Array.isArray(block.data)) {
+        if (isRecordLike(block.data)) {
           const dataObj = block.data as any
           if (dataObj.parentId && typeof dataObj.parentId === 'string') {
             updatedData = { ...dataObj }
@@ -299,29 +301,16 @@ export async function duplicateWorkflow(
 
         // Update variable references in subBlocks (e.g. variables-input assignments)
         let updatedSubBlocks = block.subBlocks
-        if (
-          updatedSubBlocks &&
-          typeof updatedSubBlocks === 'object' &&
-          !Array.isArray(updatedSubBlocks)
-        ) {
+        if (isRecordLike(updatedSubBlocks)) {
           updatedSubBlocks = sanitizeSubBlocksForDuplicate(updatedSubBlocks as SubBlockRecord)
         }
-        if (
-          varIdMapping.size > 0 &&
-          updatedSubBlocks &&
-          typeof updatedSubBlocks === 'object' &&
-          !Array.isArray(updatedSubBlocks)
-        ) {
+        if (varIdMapping.size > 0 && isRecordLike(updatedSubBlocks)) {
           updatedSubBlocks = remapVariableIdsInSubBlocks(
             updatedSubBlocks as SubBlockRecord,
             varIdMapping
           )
         }
-        if (
-          updatedSubBlocks &&
-          typeof updatedSubBlocks === 'object' &&
-          !Array.isArray(updatedSubBlocks)
-        ) {
+        if (isRecordLike(updatedSubBlocks)) {
           updatedSubBlocks = remapWorkflowReferencesInSubBlocks(
             updatedSubBlocks as SubBlockRecord,
             workflowIdMap
@@ -398,7 +387,10 @@ export async function duplicateWorkflow(
             workflowId: newWorkflowId,
             sourceBlockId: newSourceBlockId,
             targetBlockId: newTargetBlockId,
-            sourceHandle: newSourceHandle,
+            /* Rows are copied straight across, bypassing save.ts — canonicalize
+               here so a copy never re-seeds a stale handle into a new workflow. */
+            sourceHandle: normalizeWorkflowEdgeSourceHandle(newSourceHandle),
+            targetHandle: normalizeWorkflowEdgeTargetHandle(edge.targetHandle),
             createdAt: now,
             updatedAt: now,
           },

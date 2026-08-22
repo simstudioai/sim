@@ -12,7 +12,6 @@ export const zoomConnectorMeta: ConnectorMeta = {
     mode: 'oauth',
     provider: 'zoom',
     requiredScopes: [
-      'user:read:user',
       'cloud_recording:read:list_user_recordings',
       'cloud_recording:read:list_recording_files',
     ],
@@ -31,8 +30,7 @@ export const zoomConnectorMeta: ConnectorMeta = {
         { label: 'Last 90 days', id: '90' },
         { label: 'Last 6 months (recommended)', id: '180' },
       ],
-      description:
-        'On initial sync only. Zoom only allows access to cloud recordings within the last 6 months.',
+      description: 'How far back to sync on the first run. Later syncs only fetch new recordings.',
     },
     {
       id: 'maxRecordings',

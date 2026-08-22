@@ -6,12 +6,12 @@ import { authorizeCredentialUse } from '@/lib/auth/credential-access'
 import { validateAlphanumericId } from '@/lib/core/security/input-validation'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { getScopesForService } from '@/lib/oauth/utils'
 import {
   getServiceAccountToken,
   refreshAccessTokenIfNeeded,
   ServiceAccountTokenError,
-} from '@/app/api/auth/oauth/utils'
+} from '@/lib/oauth/credential-service'
+import { getScopesForService } from '@/lib/oauth/utils'
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('GmailLabelsAPI')

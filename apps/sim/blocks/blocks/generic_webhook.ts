@@ -17,6 +17,19 @@ export const GenericWebhookBlock: BlockConfig = {
   - To deduplicate incoming events, set the Deduplication Field to a dot-notation path of a unique field in the payload (e.g. "event.id"). Duplicate values within 7 days will be skipped.
   - Only use when there's no existing integration for the service with triggerAllowed flag set to true.
   `,
+  canvasPresentation: {
+    defaultTitle: 'Webhook Trigger',
+    /*
+     * Every field here is plumbing — the URL, the auth token, the header name,
+     * the acknowledgement. The one exception is the declared input schema,
+     * which names what the caller is expected to send, so it rides along once
+     * the user defines it.
+     */
+    triggerSentences: {
+      default: ['Run on an incoming HTTP request', { text: ', carrying', field: 'inputFormat' }],
+    },
+  },
+
   subBlocks: [...getTrigger('generic_webhook').subBlocks],
 
   tools: {

@@ -16,6 +16,44 @@ export const TypeformBlock: BlockConfig<TypeformResponse> = {
   integrationType: IntegrationType.Documents,
   bgColor: '#262627', // Typeform brand color
   icon: TypeformIcon,
+  canvasPresentation: {
+    defaultTitle: 'Typeform',
+    /* The access token and signing secret are plumbing; the form is the scope. */
+    triggerSentences: {
+      default: ['Run on a new response', { text: 'to', field: 'formId', core: true }],
+    },
+    sentences: {
+      byOperation: {
+        typeform_responses: [
+          { text: 'Read responses from form', field: 'formId', core: true },
+          { text: ', since', field: 'since' },
+          { text: ', up to', field: 'pageSize', after: 'responses' },
+        ],
+        typeform_files: [
+          { text: 'Download file', field: 'filename', core: true },
+          { text: 'from response', field: 'responseId', core: true },
+        ],
+        typeform_insights: [{ text: 'Read insights for form', field: 'formId', core: true }],
+        typeform_list_forms: [
+          'List forms',
+          { text: ', matching', field: 'search' },
+          { text: ', in workspace', field: 'workspaceId' },
+        ],
+        typeform_get_form: [{ text: 'Read the structure of form', field: 'formId', core: true }],
+        typeform_create_form: [
+          { text: 'Create form', field: 'title', core: true },
+          { text: ', in workspace', field: 'workspaceIdCreate' },
+        ],
+        typeform_update_form: [
+          { text: 'Patch form', field: 'formId', core: true },
+          { text: ', with', field: 'operations' },
+        ],
+        typeform_delete_form: [
+          { text: 'Delete form', field: 'formId', core: true, after: 'and its responses' },
+        ],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',

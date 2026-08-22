@@ -2,6 +2,7 @@ import type {
   CalendlyDeleteWebhookParams,
   CalendlyDeleteWebhookResponse,
 } from '@/tools/calendly/types'
+import { toUuid } from '@/tools/calendly/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const deleteWebhookTool: ToolConfig<
@@ -31,9 +32,7 @@ export const deleteWebhookTool: ToolConfig<
 
   request: {
     url: (params: CalendlyDeleteWebhookParams) => {
-      const uuid = params.webhookUuid.includes('/')
-        ? params.webhookUuid.split('/').pop()
-        : params.webhookUuid
+      const uuid = toUuid(params.webhookUuid)
       return `https://api.calendly.com/webhook_subscriptions/${uuid}`
     },
     method: 'DELETE',

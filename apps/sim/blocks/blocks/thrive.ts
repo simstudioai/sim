@@ -66,18 +66,176 @@ const USER_ID_REQUIRED_OPS = [
 ]
 const USER_ID_OPS = [...USER_ID_REQUIRED_OPS, 'list_completions']
 
+/** Single-status dropdown or the advanced comma-separated list, whichever is set. */
+const STATUS_FILTER_FIELD = ['userStatus', 'statuses'] as const
+
 export const ThriveBlock: BlockConfig = {
   type: 'thrive',
   name: 'Thrive',
   description: 'Manage users, audiences, learning and CPD on Thrive',
   longDescription:
     'Integrate Thrive Learning into the workflow. Manage user lifecycle, audiences and their members and managers, content assignments and enrolments, learning completions, content and activity records, CPD, tags, and skills.',
-  docsLink: 'https://docs.sim.ai/tools/thrive',
+  docsLink: 'https://docs.sim.ai/integrations/thrive',
   category: 'tools',
   integrationType: IntegrationType.HR,
   bgColor: '#FFFFFF',
   icon: ThriveIcon,
   authMode: AuthMode.ApiKey,
+  canvasPresentation: {
+    defaultTitle: 'Thrive',
+    sentences: {
+      byOperation: {
+        create_user: [
+          { text: 'Create user', field: 'ref', core: true },
+          { text: 'with email', field: 'email' },
+        ],
+        update_user: [
+          { text: 'Update user', field: 'ref', core: true },
+          { text: ', setting email to', field: 'email' },
+        ],
+        delete_user: [{ text: 'Delete user', field: 'ref', core: true }],
+        suspend_user: [
+          { text: 'Suspend user', field: 'ref', core: true },
+          { text: ', effective', field: 'endDate' },
+        ],
+        search_users: [
+          'Search users',
+          { text: ', with status', field: STATUS_FILTER_FIELD },
+          { text: ', updated since', field: 'updatedSince' },
+        ],
+        get_user_by_id: [{ text: 'Fetch user with ID', field: 'id', core: true }],
+        get_user_by_ref: [{ text: 'Fetch user with ref', field: 'ref', core: true }],
+        list_audiences: ['List audiences', { text: ', updated since', field: 'updatedSince' }],
+        create_audience: [
+          'Create an audience',
+          { text: 'named', field: 'name' },
+          { text: 'under parent', field: 'parentId' },
+        ],
+        get_audience: [{ text: 'Fetch audience', field: 'audienceId', core: true }],
+        update_audience: [
+          { text: 'Update audience', field: 'audienceId', core: true },
+          { text: ', renaming to', field: 'name' },
+          { text: ', moving under', field: 'parentId' },
+        ],
+        delete_audience: [{ text: 'Delete audience', field: 'audienceId', core: true }],
+        list_audience_members: [
+          { text: 'List members of audience', field: 'audienceId', core: true },
+        ],
+        add_audience_members: [
+          { text: 'Add', field: 'users', core: true },
+          { text: 'as members of audience', field: 'audienceId', core: true },
+        ],
+        replace_audience_members: [
+          { text: 'Replace members of audience', field: 'audienceId', core: true },
+          { text: 'with', field: 'users' },
+        ],
+        remove_audience_member: [
+          { text: 'Remove member', field: 'userRef', core: true },
+          { text: 'from audience', field: 'audienceId', core: true },
+        ],
+        list_audience_managers: [
+          { text: 'List managers of audience', field: 'audienceId', core: true },
+        ],
+        add_audience_managers: [
+          { text: 'Add', field: 'managers', core: true },
+          { text: 'as managers of audience', field: 'audienceId', core: true },
+        ],
+        replace_audience_managers: [
+          { text: 'Replace managers of audience', field: 'audienceId', core: true },
+          { text: 'with', field: 'managers' },
+        ],
+        remove_audience_manager: [
+          { text: 'Remove manager', field: 'userId', core: true },
+          { text: 'from audience', field: 'audienceId', core: true },
+        ],
+        list_assignments: [
+          'List compliance assignments',
+          { text: 'for audience', field: 'audienceId' },
+          { text: ', updated since', field: 'updatedSince' },
+        ],
+        create_assignment: [
+          { text: 'Assign content', field: 'contentId', core: true },
+          { text: 'to audience', field: 'audienceId' },
+          { text: ', due within', field: 'completionPeriod', after: 'days' },
+        ],
+        get_assignment: [{ text: 'Fetch assignment', field: 'assignmentId', core: true }],
+        update_assignment: [
+          { text: 'Update assignment', field: 'assignmentId', core: true },
+          { text: ', setting content to', field: 'contentId' },
+          { text: ', due within', field: 'completionPeriod', after: 'days' },
+        ],
+        delete_assignment: [{ text: 'Delete assignment', field: 'assignmentId', core: true }],
+        list_enrolments: [
+          { text: 'List enrolments on assignment', field: 'assignmentId', core: true },
+          { text: ', with status', field: 'enrolmentStatus' },
+        ],
+        get_enrolment: [
+          { text: 'Fetch enrolment', field: 'enrolmentId', core: true },
+          { text: 'on assignment', field: 'assignmentId' },
+        ],
+        list_completions: [
+          'List learning completions',
+          { text: 'of content', field: 'contentId' },
+          { text: ', by user', field: 'userId' },
+        ],
+        get_completion: [{ text: 'Fetch completion', field: 'id', core: true }],
+        create_completion: [
+          { text: 'Record completion of', field: 'contentId', core: true },
+          { text: 'by user', field: 'userId' },
+        ],
+        query_content: [
+          'Query content',
+          { text: 'of type', field: 'types' },
+          { text: ', updated since', field: 'updatedSince' },
+        ],
+        get_content: [{ text: 'Fetch content', field: 'id', core: true }],
+        query_activities: [
+          'Query activity records',
+          { text: ', with action', field: 'actions' },
+          { text: ', since', field: 'timestampFrom' },
+        ],
+        get_activity: [{ text: 'Fetch activity', field: 'id', core: true }],
+        query_cpd_categories: [
+          'Query CPD categories',
+          { text: ', updated since', field: 'updatedSince' },
+        ],
+        get_cpd_category: [{ text: 'Fetch CPD category', field: 'categoryId', core: true }],
+        query_cpd_entries: [
+          'Query CPD log entries',
+          { text: ', from', field: 'entryDateFrom' },
+          { text: ', through', field: 'entryDateTo' },
+        ],
+        get_cpd_entry: [{ text: 'Fetch CPD log entry', field: 'logEntryId', core: true }],
+        query_cpd_requirements: [
+          'Query CPD requirements',
+          { text: ', updated since', field: 'updatedSince' },
+        ],
+        get_cpd_requirement: [
+          { text: 'Fetch CPD requirement', field: 'audienceRequirementId', core: true },
+        ],
+        query_cpd_user_summaries: [
+          { text: 'Summarize CPD logs from', field: 'entryDateFrom', core: true },
+          { text: 'to', field: 'entryDateTo', core: true },
+          { text: ', for users', field: 'userIds' },
+        ],
+        list_tags: ['List tags', { text: ', updated since', field: 'updatedSince' }],
+        get_tag: [{ text: 'Fetch tag', field: 'tagId', core: true }],
+        add_user_tags: [
+          { text: 'Add tags', field: 'tags', core: true },
+          { text: 'to user', field: 'userId', core: true },
+        ],
+        remove_user_tags: [
+          { text: 'Remove tags', field: 'tags', core: true },
+          { text: 'from user', field: 'userId', core: true },
+        ],
+        update_user_skills: [
+          { text: 'Set skills', field: 'skills', core: true },
+          { text: 'for user', field: 'userId', core: true },
+        ],
+        get_skill_levels: ['List available skill levels'],
+      },
+    },
+  },
 
   subBlocks: [
     {
@@ -653,6 +811,7 @@ export const ThriveBlock: BlockConfig = {
     {
       id: 'entryDateFrom',
       title: 'Entry Date From',
+      canvasNoun: 'a start date',
       type: 'short-input',
       placeholder: 'Entries: YYYY-MM-DD hh:mm:ss · Summaries: YYYY-MM-DDThh:mm:ss',
       condition: { field: 'operation', value: ['query_cpd_entries', 'query_cpd_user_summaries'] },
@@ -661,6 +820,7 @@ export const ThriveBlock: BlockConfig = {
     {
       id: 'entryDateTo',
       title: 'Entry Date To',
+      canvasNoun: 'an end date',
       type: 'short-input',
       placeholder: 'Entries: YYYY-MM-DD hh:mm:ss · Summaries: YYYY-MM-DDThh:mm:ss',
       condition: { field: 'operation', value: ['query_cpd_entries', 'query_cpd_user_summaries'] },

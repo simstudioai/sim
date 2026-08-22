@@ -5,6 +5,13 @@ import { AuthMode, IntegrationType } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
 import type { DropboxResponse } from '@/tools/dropbox/types'
 
+/*
+ * Canonical basic/advanced pair for the upload source, shared by the card
+ * sentence below. Listing both members is what keeps the sentence working for
+ * an advanced-mode user, who has only the file reference filled.
+ */
+const UPLOAD_FILE_FIELD = ['uploadFile', 'fileRef'] as const
+
 export const DropboxBlock: BlockConfig<DropboxResponse> = {
   type: 'dropbox',
   name: 'Dropbox',
@@ -18,6 +25,52 @@ export const DropboxBlock: BlockConfig<DropboxResponse> = {
   icon: DropboxIcon,
   bgColor: '#0061FF',
   iconColor: '#0061FF',
+  canvasPresentation: {
+    defaultTitle: 'Dropbox',
+    sentences: {
+      byOperation: {
+        dropbox_upload: [
+          { text: 'Upload', field: UPLOAD_FILE_FIELD, core: true },
+          { text: 'to', field: 'path', core: true },
+        ],
+        dropbox_download: [{ text: 'Download', field: 'path', core: true }],
+        dropbox_list_folder: [
+          { text: 'List the contents of folder', field: 'path', core: true },
+          { text: ', up to', field: 'limit', after: 'entries' },
+        ],
+        dropbox_create_folder: [{ text: 'Create folder', field: 'path', core: true }],
+        dropbox_delete: [{ text: 'Move', field: 'path', core: true, after: 'to the trash' }],
+        dropbox_copy: [
+          { text: 'Copy', field: 'fromPath', core: true },
+          { text: 'to', field: 'toPath' },
+        ],
+        dropbox_move: [
+          { text: 'Move', field: 'fromPath', core: true },
+          { text: 'to', field: 'toPath' },
+        ],
+        dropbox_get_metadata: [{ text: 'Read metadata of', field: 'path', core: true }],
+        dropbox_create_shared_link: [
+          { text: 'Create a shared link to', field: 'path', core: true },
+          { text: ', visible to', field: 'requestedVisibility' },
+          { text: ', expiring', field: 'expires' },
+        ],
+        dropbox_list_shared_links: ['List shared links', { text: 'under', field: 'path' }],
+        dropbox_search: [
+          { text: 'Search for', field: 'query', core: true },
+          { text: 'under', field: 'path' },
+          { text: ', limited to', field: 'fileExtensions' },
+        ],
+        dropbox_list_revisions: [
+          { text: 'List revisions of', field: 'path', core: true },
+          { text: ', up to', field: 'limit', after: 'revisions' },
+        ],
+        dropbox_restore: [
+          { text: 'Restore', field: 'path', core: true },
+          { text: 'to revision', field: 'rev' },
+        ],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',

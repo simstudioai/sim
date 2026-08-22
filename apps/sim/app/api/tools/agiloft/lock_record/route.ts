@@ -7,12 +7,23 @@ import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import type { AgiloftLockResponse } from '@/tools/agiloft/types'
-import { buildLockRecordUrl, getLockHttpMethod } from '@/tools/agiloft/utils'
-import { executeAgiloftRequest } from '@/tools/agiloft/utils.server'
+import { buildLockRecordUrl, describeAgiloftError, getLockHttpMethod } from '@/tools/agiloft/utils'
+import { executeEwRequest } from '@/tools/agiloft/utils.server'
 
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('AgiloftLockRecordAPI')
+
+/** Lock output for a call that never returned a lock state. */
+function emptyLock(recordId: string) {
+  return {
+    id: recordId.trim(),
+    tableId: null,
+    lockStatus: '',
+    lockedBy: null,
+    lockExpiresInMinutes: null,
+  }
+}
 
 export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
@@ -49,7 +60,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     if (!parsed.success) return parsed.response
     const params = parsed.data.body
 
-    const result = await executeAgiloftRequest<AgiloftLockResponse>(
+    const result = await executeEwRequest<AgiloftLockResponse>(
       params,
       (base) => ({
         url: buildLockRecordUrl(base, params),
@@ -60,31 +71,42 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           const errorText = await response.text()
           return {
             success: false,
-            output: {
-              id: params.recordId?.trim() ?? '',
-              lockStatus: 'UNKNOWN',
-              lockedBy: null,
-              lockExpiresInMinutes: null,
-            },
-            error: `Agiloft error: ${response.status} - ${errorText}`,
+            output: emptyLock(params.recordId),
+            error: `Agiloft error ${response.status}: ${describeAgiloftError(errorText)}`,
           }
         }
 
         const data = (await response.json()) as Record<string, unknown>
-        const result = (data.result ?? data) as Record<string, unknown>
+
+        /**
+         * EWLock answers failures with `{error, error_description}` rather than
+         * a lock body, and can do so on a 200 — so the absence of a
+         * `lock_status` is the reliable signal, not the status code.
+         */
+        if (typeof data.lock_status !== 'string') {
+          const code = typeof data.error === 'string' ? data.error : 'UNKNOWN'
+          const detail =
+            typeof data.error_description === 'string'
+              ? data.error_description
+              : JSON.stringify(data)
+          return {
+            success: false,
+            output: emptyLock(params.recordId),
+            error: `Agiloft lock error (${code}): ${detail}`,
+          }
+        }
 
         return {
-          success: data.success !== false,
+          success: true,
           output: {
-            id: String(result.id ?? params.recordId?.trim() ?? ''),
-            lockStatus:
-              (result.lock_status as string) ?? (result.lockStatus as string) ?? 'UNKNOWN',
-            lockedBy:
-              (result.locked_by as string | null) ?? (result.lockedBy as string | null) ?? null,
+            id: String(data.id ?? params.recordId.trim()),
+            tableId: typeof data.table_id === 'number' ? data.table_id : null,
+            lockStatus: data.lock_status,
+            lockedBy: typeof data.locked_by === 'string' ? data.locked_by : null,
             lockExpiresInMinutes:
-              (result.lock_expires_in_minutes as number | null) ??
-              (result.lockExpiresInMinutes as number | null) ??
-              null,
+              typeof data.lock_expires_in_minutes === 'number'
+                ? data.lock_expires_in_minutes
+                : null,
           },
         }
       }

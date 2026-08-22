@@ -18,6 +18,7 @@ import {
   isTransientProviderStatus,
   parseProviderJson,
   readProviderErrorSnippet,
+  requireClientSecret,
   TokenServiceAccountValidationError,
 } from '@/lib/credentials/token-service-accounts/errors'
 import { getCanonicalScopesForProvider } from '@/lib/oauth/utils'
@@ -175,6 +176,8 @@ export async function mintZohoDeskServiceAccountToken(
     .filter((s) => s.startsWith('Desk.'))
     .join(',')
 
+  const clientSecret = requireClientSecret(fields.clientSecret, STEP, 'Zoho Desk')
+
   const res = await fetchProvider(
     `${dataCenter.accountsBase}/oauth/v2/token`,
     {
@@ -183,7 +186,7 @@ export async function mintZohoDeskServiceAccountToken(
       body: new URLSearchParams({
         grant_type: 'client_credentials',
         client_id: fields.clientId,
-        client_secret: fields.clientSecret,
+        client_secret: clientSecret,
         scope,
         soid,
       }).toString(),

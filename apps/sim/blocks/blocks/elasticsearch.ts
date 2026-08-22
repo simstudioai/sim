@@ -15,6 +15,63 @@ export const ElasticsearchBlock: BlockConfig<ElasticsearchResponse> = {
   integrationType: IntegrationType.Databases,
   bgColor: '#FFFFFF',
   icon: ElasticsearchIcon,
+  canvasPresentation: {
+    defaultTitle: 'Elasticsearch',
+    sentences: {
+      byOperation: {
+        elasticsearch_search: [
+          { text: 'Search', field: 'index', core: true },
+          { text: ', matching', field: 'query' },
+        ],
+        elasticsearch_index_document: [
+          { text: 'Index document', field: 'documentId', core: true },
+          { text: 'into', field: 'index', core: true },
+        ],
+        elasticsearch_get_document: [
+          { text: 'Fetch document', field: 'documentId', core: true },
+          { text: 'from', field: 'index', core: true },
+        ],
+        elasticsearch_update_document: [
+          {
+            text: 'Merge changes into document',
+            field: 'documentId',
+            core: true,
+          },
+          { text: 'in', field: 'index', core: true },
+        ],
+        elasticsearch_delete_document: [
+          { text: 'Delete document', field: 'documentId', core: true },
+          { text: 'from', field: 'index', core: true },
+        ],
+        elasticsearch_bulk: [{ text: 'Run bulk operations on', field: 'index', core: true }],
+        elasticsearch_count: [
+          { text: 'Count documents in', field: 'index', core: true },
+          { text: ', matching', field: 'query' },
+        ],
+        elasticsearch_create_index: [
+          { text: 'Create index', field: 'index', core: true },
+          { text: ', with mappings', field: 'mappings' },
+        ],
+        elasticsearch_delete_index: [
+          {
+            text: 'Delete index',
+            field: 'index',
+            core: true,
+            after: 'and every document in it',
+          },
+        ],
+        elasticsearch_get_index: [
+          { text: 'Read settings and mappings of', field: 'index', core: true },
+        ],
+        elasticsearch_list_indices: ['List every index in the cluster'],
+        elasticsearch_cluster_health: [
+          'Read cluster health',
+          { text: ', waiting for status', field: 'waitForStatus' },
+        ],
+        elasticsearch_cluster_stats: ['Read cluster statistics'],
+      },
+    },
+  },
   subBlocks: [
     // Operation selector
     {

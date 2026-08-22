@@ -10,7 +10,7 @@ import {
 } from '@sim/emcn'
 import { CircleAlert, CircleCheck, Loader } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
-import { cancelTableJob, downloadExportResult } from '@/hooks/queries/tables'
+import { cancelTableImport, downloadExportResult } from '@/hooks/queries/tables'
 import { useImportTrayStore } from '@/stores/table/import-tray/store'
 import { getImportStage } from './import-stage'
 import { type ImportRow, useWorkspaceImports } from './use-workspace-imports'
@@ -49,13 +49,13 @@ export function ImportProgressMenu({ workspaceId, tableId }: ImportProgressMenuP
     // Worker already running — cancel it server-side now. (An upload still mid-flight is canceled by
     // the kickoff handler once its jobId is known; see the `consumeCanceled` branches.)
     if (row.jobId) {
-      void cancelTableJob(row.workspaceId, row.tableId, row.jobId).catch(() => {})
+      void cancelTableImport(row.workspaceId, row.jobId).catch(() => {})
     }
   }
 
   const download = (row: ImportRow) => {
     if (!row.jobId) return
-    void downloadExportResult(row.workspaceId, row.tableId, row.jobId).catch((err) => {
+    void downloadExportResult(row.workspaceId, row.jobId).catch((err) => {
       logger.error('Export download failed', { jobId: row.jobId, err })
       toast.error('Download failed — the export may have expired')
     })
@@ -79,7 +79,7 @@ export function ImportProgressMenu({ workspaceId, tableId }: ImportProgressMenuP
           </span>
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align='end' className='min-w-[320px] max-w-[420px] gap-0 p-1'>
+      <DropdownMenuContent align='end' className='min-w-[320px] max-w-[420px]'>
         {imports.map((row) => {
           const stage = getImportStage(row)
           const isReadyExport = row.jobType === 'export' && row.phase === 'ready' && row.hasResult

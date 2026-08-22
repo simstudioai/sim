@@ -677,6 +677,31 @@ export const openaiAgentkitProfile: CompetitorProfile = {
           },
         ],
       },
+      codeSandboxRuntime: {
+        value:
+          "Partial: configurable only on the code-first path. The Agents SDK's sandbox agents let you name the container image the agent's shell and code run in (the documented Docker example passes image: 'node:22-bookworm-slim' to DockerSandboxClient), so third-party packages, OS packages, and CLI binaries come from an image you build and control. The hosted Code Interpreter tool is the opposite: a fixed OpenAI-managed container whose only user-adjustable setting is the memory tier (1g default, 4g, 16g, 64g), with no documented way to declare pip/npm or system packages.",
+        detail:
+          "Sandbox execution runs on infrastructure you supply, not OpenAI's: the documented clients are UnixLocalSandboxClient (macOS/Linux) and DockerSandboxClient for local execution, plus hosted providers via BlaxelSandboxClient, CloudflareSandboxClient, DaytonaSandboxClient, E2BSandboxClient, ModalSandboxClient, RunloopSandboxClient, and VercelSandboxClient. The visual Agent Builder canvas is unaffected either way: its node palette (Start, Agent, Note, File search, Guardrails, MCP, If/else, While, Human approval, Transform, Set state) has no code node, so a no-code builder's only code-execution surface is the fixed Code Interpreter container, which also discards all its data 20 minutes after last use.",
+        shortValue: 'Agents SDK sandbox image only; Code Interpreter is fixed',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://developers.openai.com/api/docs/guides/agents/sandboxes',
+            label: 'Sandbox agents | OpenAI API',
+            asOf: '2026-08-10',
+          },
+          {
+            url: 'https://developers.openai.com/api/docs/guides/tools-code-interpreter',
+            label: 'Code Interpreter | OpenAI API',
+            asOf: '2026-08-10',
+          },
+          {
+            url: 'https://developers.openai.com/api/docs/guides/node-reference',
+            label: 'Node reference | OpenAI API',
+            asOf: '2026-08-10',
+          },
+        ],
+      },
       apiPublishing: {
         value:
           'Yes: agents/workflows are consumed via the OpenAI API and can be embedded via ChatKit; Agent Builder itself is not a customer-facing REST API generator',
@@ -1008,6 +1033,31 @@ export const openaiAgentkitProfile: CompetitorProfile = {
             url: 'https://help.openai.com/en/articles/9672121-getting-started-with-identity-and-provisioning-in-chatgpt-enterprise-edu-and-chatgpt-for-teachers',
             label: 'Getting started with identity and provisioning | OpenAI Help Center',
             asOf: '2026-07-02',
+          },
+        ],
+      },
+      sessionPolicy: {
+        value:
+          "Not publicly documented: OpenAI does not document an admin-configurable session lifetime or inactivity timeout for ChatGPT workspaces or the API Platform. The workspace identity controls it does document are SSO/SAML, domain verification, SCIM provisioning, MFA enforcement through the identity provider, and RBAC, so how often members must re-authenticate is set at the upstream IdP rather than by a policy in OpenAI's admin console.",
+        detail:
+          "OpenAI's admin rollout guide and Work admin FAQ enumerate identity, access-governance, and compliance controls without a session-duration or idle-timeout setting, and the Codex authentication documentation describes tokens being refreshed automatically during active use ('Codex refreshes tokens automatically during use before they expire, so active sessions usually continue without requiring another browser login') rather than an absolute cap an admin can shorten. No session policy specific to AgentKit or Agent Builder is published.",
+        shortValue: 'No documented admin session lifetime or idle timeout',
+        confidence: 'estimated',
+        sources: [
+          {
+            url: 'https://learn.chatgpt.com/docs/enterprise/admin-setup',
+            label: 'Admin rollout guide | ChatGPT Learn',
+            asOf: '2026-08-10',
+          },
+          {
+            url: 'https://learn.chatgpt.com/docs/enterprise/work-admin-faq',
+            label: 'ChatGPT Work admin FAQ | ChatGPT Learn',
+            asOf: '2026-08-10',
+          },
+          {
+            url: 'https://learn.chatgpt.com/docs/auth',
+            label: 'Authentication | ChatGPT Learn',
+            asOf: '2026-08-10',
           },
         ],
       },

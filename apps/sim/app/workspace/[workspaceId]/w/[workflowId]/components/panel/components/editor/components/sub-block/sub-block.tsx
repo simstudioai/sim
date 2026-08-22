@@ -106,7 +106,6 @@ interface SubBlockProps {
   labelSuffix?: React.ReactNode
   /** Provides sibling values for dependency resolution in non-preview contexts (e.g. tool-input) */
   dependencyContext?: Record<string, unknown>
-  isSearchHighlighted?: boolean
 }
 
 /**
@@ -233,7 +232,6 @@ const renderLabel = (
     onCopy: () => void
   },
   labelSuffix?: React.ReactNode,
-  _isSearchHighlighted?: boolean,
   externalLink?: {
     show: boolean
     onClick: () => void
@@ -441,7 +439,6 @@ const arePropsEqual = (prevProps: SubBlockProps, nextProps: SubBlockProps): bool
     prevProps.allowExpandInPreview === nextProps.allowExpandInPreview &&
     canonicalToggleEqual &&
     prevProps.labelSuffix === nextProps.labelSuffix &&
-    prevProps.isSearchHighlighted === nextProps.isSearchHighlighted &&
     prevProps.dependencyContext === nextProps.dependencyContext
   )
 }
@@ -458,7 +455,6 @@ const arePropsEqual = (prevProps: SubBlockProps, nextProps: SubBlockProps): bool
  * @param canonicalToggle - Metadata and handlers for the basic/advanced mode toggle
  * @param labelSuffix - Additional content rendered after the label text
  * @param dependencyContext - Sibling values for dependency resolution in non-preview contexts (e.g. tool-input)
- * @param isSearchHighlighted - Whether workflow search should highlight this field
  */
 function SubBlockComponent({
   blockId,
@@ -470,7 +466,6 @@ function SubBlockComponent({
   canonicalToggle,
   labelSuffix,
   dependencyContext,
-  isSearchHighlighted,
 }: SubBlockProps): JSX.Element {
   const params = useParams()
   const workspaceId = params.workspaceId as string
@@ -652,7 +647,6 @@ function SubBlockComponent({
             disabled={isDisabled}
             wandControlRef={wandControlRef}
             hideInternalWand={true}
-            isSearchHighlighted={isSearchHighlighted}
           />
         )
 
@@ -662,6 +656,7 @@ function SubBlockComponent({
             blockId={blockId}
             subBlockId={config.id}
             placeholder={config.placeholder}
+            password={config.password}
             rows={config.rows}
             config={config}
             isPreview={isPreview}
@@ -685,8 +680,8 @@ function SubBlockComponent({
               previewValue={previewValue}
               disabled={isDisabled}
               multiSelect={config.multiSelect}
-              fetchOptions={config.fetchOptions}
-              fetchOptionById={config.fetchOptionById}
+              selectorKey={config.selectorKey}
+              selectorExcludeSelf={config.selectorExcludeSelf}
               dependsOn={config.dependsOn}
               searchable={config.searchable}
               preserveLabelCase={config.preserveLabelCase}
@@ -720,8 +715,8 @@ function SubBlockComponent({
               previewValue={previewValue as any}
               disabled={isDisabled}
               config={config}
-              fetchOptions={config.fetchOptions}
-              fetchOptionById={config.fetchOptionById}
+              selectorKey={config.selectorKey}
+              selectorExcludeSelf={config.selectorExcludeSelf}
               dependsOn={config.dependsOn}
             />
           </div>
@@ -749,6 +744,7 @@ function SubBlockComponent({
             blockId={blockId}
             subBlockId={config.id}
             columns={config.columns ?? []}
+            password={config.password}
             isPreview={isPreview}
             previewValue={previewValue as any}
             disabled={isDisabled}
@@ -761,6 +757,7 @@ function SubBlockComponent({
             blockId={blockId}
             subBlockId={config.id}
             placeholder={config.placeholder}
+            password={config.password}
             language={config.language}
             generationType={config.generationType}
             value={
@@ -793,6 +790,7 @@ function SubBlockComponent({
             blockId={blockId}
             subBlockId={config.id}
             title={config.title ?? ''}
+            value={typeof config.defaultValue === 'boolean' ? config.defaultValue : undefined}
             isPreview={isPreview}
             previewValue={previewValue as any}
             disabled={isDisabled}
@@ -1211,7 +1209,6 @@ function SubBlockComponent({
           onCopy: handleCopy,
         },
         labelSuffix,
-        false,
         externalLink
       )}
       {renderInput()}

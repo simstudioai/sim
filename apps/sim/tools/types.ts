@@ -1,5 +1,6 @@
 import type { MothershipResource } from '@/lib/copilot/resources/types'
 import type { HostedKeyRateLimitConfig } from '@/lib/core/rate-limiter'
+import type { HttpRedirectPolicy } from '@/lib/core/security/http-redirect-policy'
 import type { PrivateSecretProvenanceSelection } from '@/lib/execution/model-input-provenance'
 import type { OAuthService } from '@/lib/oauth'
 import type { ResolvedSecretInputPath } from '@/executor/utils/resolved-secret-trace-registry'
@@ -178,6 +179,8 @@ export interface ToolConfig<P = any, R = any> {
     method: HttpMethod | ((params: P) => HttpMethod)
     headers: (params: P) => Record<string, string>
     body?: (params: P) => Record<string, any> | string | FormData | undefined
+    /** Selects the signed, workflow-scoped identity required by protected internal routes. */
+    internalAuth?: 'executor_delegation'
     /** Defines the exact request fields that may become model-visible. */
     modelInput?:
       | {
@@ -227,6 +230,8 @@ export interface ToolConfig<P = any, R = any> {
       }
     }
     retry?: ToolRetryConfig
+    /** Selects redirect compatibility and cross-origin credential behavior for this request. */
+    redirectPolicy?: (params: P) => HttpRedirectPolicy
     /**
      * Drop the `Authorization` header when following a redirect. Set this on any
      * tool whose endpoint redirects to a different origin carrying its own
@@ -285,6 +290,7 @@ export interface OAuthTokenPayload {
   credentialId?: string
   credentialAccountUserId?: string
   providerId?: string
+  toolId?: string
   workflowId?: string
   impersonateEmail?: string
   scopes?: string[]

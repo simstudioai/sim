@@ -8,7 +8,6 @@ import { createLogger } from '@sim/logger'
 import { preferIpv4, resolveHostAddresses } from '@sim/security/dns'
 import { isLoopbackIp, isPrivateIp, isPrivateIpHost, unwrapIpv6Brackets } from '@sim/security/ssrf'
 import { toError } from '@sim/utils/errors'
-import { omit } from '@sim/utils/object'
 import { HttpProxyAgent } from 'http-proxy-agent'
 import { HttpsProxyAgent } from 'https-proxy-agent'
 import * as ipaddr from 'ipaddr.js'
@@ -19,6 +18,7 @@ import {
   request as undiciRequest,
 } from 'undici'
 import { isHosted, isPrivateDatabaseHostsAllowed } from '@/lib/core/config/env-flags'
+import type { HttpRedirectPolicy } from '@/lib/core/security/http-redirect-policy'
 import { type ValidationResult, validateExternalUrl } from '@/lib/core/security/input-validation'
 import { nodeReadableToWebStream } from '@/lib/core/utils/node-stream'
 import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
@@ -284,7 +284,7 @@ const SQL_WHERE_RAW_PATTERNS: readonly RegExp[] = [
  * scans do not treat data inside quotes as SQL. Comments are intentionally left
  * intact so comment-injection sequences are still detected.
  */
-function maskSqlStringLiterals(sql: string): string {
+export function maskSqlStringLiterals(sql: string): string {
   let out = ''
   let i = 0
   while (i < sql.length) {
@@ -365,8 +365,13 @@ export interface SecureFetchOptions {
    */
   maxResponseBytes?: number
   signal?: AbortSignal
-  /** Drop the Authorization header when following a redirect, so it is not sent to the redirect target's origin. */
+  /**
+   * Drop the Authorization header when following any redirect, including a same-origin hop.
+   * Use this for endpoints that redirect to a target carrying its own signed URL.
+   */
   stripAuthOnRedirect?: boolean
+  /** Omit for the historical behavior used by existing workflows. */
+  redirectPolicy?: HttpRedirectPolicy
   /**
    * Pre-validated, IP-pinned `http://` proxy URL (see {@link validateAndPinProxyUrl}).
    * When set, the connection routes through this proxy and target-IP pinning is
@@ -526,6 +531,56 @@ function assertGuardedRedirectTarget(url: URL, allowedPinnedIp?: string): void {
   }
 }
 
+/** Headers that describe a request body and must not outlive it. */
+const ENTITY_HEADERS = [
+  'content-length',
+  'content-type',
+  'content-encoding',
+  'content-language',
+  'content-location',
+  'transfer-encoding',
+] as const
+
+/** Case-insensitive header removal — callers supply arbitrary casing. */
+function stripHeaders(
+  headers: Record<string, string>,
+  remove: readonly string[]
+): Record<string, string> {
+  const drop = new Set(remove.map((name) => name.toLowerCase()))
+  const kept: Record<string, string> = {}
+  for (const [name, value] of Object.entries(headers)) {
+    if (!drop.has(name.toLowerCase())) kept[name] = value
+  }
+  return kept
+}
+
+interface RedirectHopPolicy {
+  /** Method for the next hop. */
+  method: string
+  /** Whether the body — and the entity headers describing it — must be dropped. */
+  dropBody: boolean
+}
+
+/**
+ * Decides how a request may be replayed on a redirect target, per RFC 9110 section 15.4.
+ *
+ * `HEAD` is deliberately preserved on 303. Fetch only changes a 303 to GET when the
+ * current method is neither GET nor HEAD.
+ */
+function resolveRedirectHop(args: { status: number; method: string }): RedirectHopPolicy {
+  const method = args.method.toUpperCase()
+  const isGetOrHead = method === 'GET' || method === 'HEAD'
+  const dropBody =
+    (args.status === 303 && !isGetOrHead) ||
+    ((args.status === 301 || args.status === 302) && method === 'POST')
+  return {
+    method: dropBody ? 'GET' : method,
+    dropBody,
+  }
+}
+
+const CROSS_ORIGIN_CREDENTIAL_HEADERS = ['authorization', 'proxy-authorization', 'cookie'] as const
+
 /**
  * Manual, revalidating redirect follower used by the guarded fetch. Auto-follow
  * is unsafe here on two counts the connect-time lookup cannot cover: IP-literal
@@ -574,32 +629,24 @@ export async function followRedirectsGuarded(
     }
     const nextUrl = new URL(location, currentUrl)
     assertGuardedRedirectTarget(nextUrl, options?.allowRedirectToIp)
-    // Per the fetch spec: 303 (and 301/302 on POST) switch to a bodyless GET, dropping
-    // the entity headers that described the removed body (a retained Content-Length /
-    // Content-Type on a bodyless GET is malformed and undici rejects it).
-    if (status === 303 || ((status === 301 || status === 302) && method === 'POST')) {
-      method = 'GET'
-      body = undefined
-      if (headers !== undefined) {
-        const sanitized = new Headers(headers as HeadersInit)
-        sanitized.delete('content-length')
-        sanitized.delete('content-type')
-        sanitized.delete('content-encoding')
-        sanitized.delete('transfer-encoding')
-        // double-cast-allowed: Headers is a valid undici HeadersInit at runtime but the DOM/undici types differ
-        headers = sanitized as unknown as UndiciRequestInit['headers']
-      }
-    }
+    const hopPolicy = resolveRedirectHop({
+      status,
+      method,
+    })
+    method = hopPolicy.method
+    if (hopPolicy.dropBody) body = undefined
     if (nextUrl.origin !== currentUrl.origin) {
       headers = undefined
-      // 307/308 preserve method+body; forwarding a body cross-origin can hand OAuth
-      // client secrets / tokens to an open-redirect target now that redirects really
-      // dial the new origin. No legitimate MCP/OAuth flow does this — refuse it.
       if (body !== undefined && body !== null) {
         throw new Error(
           'Blocked by SSRF policy: cross-origin redirect would forward a request body'
         )
       }
+    } else if (hopPolicy.dropBody && headers !== undefined) {
+      const sanitized = new Headers(headers as HeadersInit)
+      for (const name of ENTITY_HEADERS) sanitized.delete(name)
+      // double-cast-allowed: Headers is a valid undici HeadersInit at runtime but the DOM/undici types differ
+      headers = sanitized as unknown as UndiciRequestInit['headers']
     }
     currentUrl = nextUrl
   }
@@ -1018,12 +1065,41 @@ export async function secureFetchWithPinnedIP(
               settledReject(new Error(`Redirect blocked: ${validation.error}`))
               return
             }
-            const redirectOptions = options.stripAuthOnRedirect
-              ? {
-                  ...options,
-                  headers: omit(options.headers ?? {}, ['Authorization', 'authorization']),
-                }
-              : options
+            const redirectPolicy = options.redirectPolicy
+            const hop =
+              redirectPolicy?.mode === 'standard'
+                ? resolveRedirectHop({ status: statusCode, method: options.method ?? 'GET' })
+                : { method: options.method ?? 'GET', dropBody: false }
+            const isCrossOrigin = new URL(redirectUrl).origin !== parsed.origin
+            let redirectHeaders = options.headers
+            if (redirectHeaders && hop.dropBody) {
+              redirectHeaders = stripHeaders(redirectHeaders, ENTITY_HEADERS)
+            }
+            if (
+              redirectHeaders &&
+              redirectPolicy &&
+              isCrossOrigin &&
+              (redirectPolicy.mode === 'standard' ||
+                !redirectPolicy.sendCredentialsOnCrossOriginRedirect)
+            ) {
+              const sensitiveHeaders = redirectPolicy.sendCredentialsOnCrossOriginRedirect
+                ? ['host']
+                : [
+                    'host',
+                    ...CROSS_ORIGIN_CREDENTIAL_HEADERS,
+                    ...(redirectPolicy.sensitiveHeaders ?? []),
+                  ]
+              redirectHeaders = stripHeaders(redirectHeaders, sensitiveHeaders)
+            }
+            if (redirectHeaders && options.stripAuthOnRedirect) {
+              redirectHeaders = stripHeaders(redirectHeaders, ['authorization'])
+            }
+            const redirectOptions: SecureFetchOptions & { allowHttp?: boolean } = {
+              ...options,
+              method: hop.method,
+              body: hop.dropBody ? undefined : options.body,
+              headers: redirectHeaders,
+            }
             return secureFetchWithPinnedIP(
               redirectUrl,
               validation.resolvedIP!,

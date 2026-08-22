@@ -1,4 +1,5 @@
 import type React from 'react'
+import { highlight } from 'fumadocs-core/highlight'
 import type { Root } from 'fumadocs-core/page-tree'
 import { findNeighbour } from 'fumadocs-core/page-tree'
 import type { ApiPageProps } from 'fumadocs-openapi/ui'
@@ -11,11 +12,13 @@ import { PageFooter } from '@/components/docs-layout/page-footer'
 import { PageNavigationArrows } from '@/components/docs-layout/page-navigation-arrows'
 import { LLMCopyButton } from '@/components/page-actions'
 import { StructuredData } from '@/components/structured-data'
+import { APIExampleSelector } from '@/components/ui/api-example-selector'
 import { CodeBlock } from '@/components/ui/code-block'
 import { Heading } from '@/components/ui/heading'
 import { ResponseSection } from '@/components/ui/response-section'
 import { i18n } from '@/lib/i18n'
-import { getApiSpecContent, openapi } from '@/lib/openapi'
+import { getApiSpecContent, getAuthenticatedCodeSamples, openapi } from '@/lib/openapi'
+import { simShikiOptions } from '@/lib/shiki-theme'
 import { type PageData, source } from '@/lib/source'
 import { DOCS_BASE_URL } from '@/lib/urls'
 
@@ -68,14 +71,41 @@ function stripLocalePrefix(url: string, lang: string): string {
   return url
 }
 
+/**
+ * Renders the API reference's request and response samples through the docs' own `CodeBlock`
+ * rather than fumadocs-openapi's built-in one, so those blocks get the emcn copy control
+ * instead of fumadocs' lucide clipboard. Mirrors the default renderer — same `highlight` call,
+ * same `Pre` component, same `my-0` — differing only in which shell wraps the result.
+ */
+async function ApiCodeBlock({ lang, code }: { lang: string; code: string }) {
+  return (
+    <CodeBlock className='my-0'>
+      {await highlight(code, { lang, ...simShikiOptions, components: { pre: Pre } })}
+    </CodeBlock>
+  )
+}
+
 const APIPage = createAPIPage(openapi, {
+  renderCodeBlock: (props) => <ApiCodeBlock {...props} />,
   playground: { enabled: false },
+  generateCodeSamples: getAuthenticatedCodeSamples,
+  /**
+   * fumadocs-openapi highlights its request and response samples through its own Shiki
+   * instance, not the MDX pipeline, so it does not inherit `source.config.ts`. Left alone,
+   * every API reference page renders `github-light` / `github-dark` while the rest of the docs
+   * render the platform palette.
+   */
+  shikiOptions: simShikiOptions,
+  client: {
+    operation: { APIExampleSelector },
+  },
   content: {
-    renderOperationLayout: async (slots) => {
+    renderOperationLayout: (slots) => {
       return (
         <div className='flex @4xl:flex-row flex-col @4xl:items-start gap-x-6 gap-y-4'>
           <div className='min-w-0 flex-1'>
             {slots.header}
+            {slots.description}
             {slots.apiPlayground}
             {slots.authSchemes && <div className='api-section-divider'>{slots.authSchemes}</div>}
             {slots.parameters}
@@ -107,14 +137,21 @@ export default async function Page(props: { params: Promise<{ slug?: string[]; l
   // Academy lessons are video-first: drop the "On this page" TOC and go full
   // width so the lesson hero/video gets the room (chapters live in-page instead).
   const isAcademy = slug?.[0] === 'academy'
+  const isCli = slug?.[0] === 'cli'
 
   const pageTreeRecord = source.pageTree as Record<string, Root>
   const pageTree = pageTreeRecord[lang] ?? pageTreeRecord.en ?? Object.values(pageTreeRecord)[0]
   const rawNeighbours = pageTree ? findNeighbour(pageTree, page.url) : null
-  // Academy and API Reference are self-contained sections; keep prev/next inside
-  // the section instead of spilling into the main documentation tree. Match both
-  // the section's pages (`/<slug>/...`) and its index (`/<slug>`).
-  const sectionSlug = isApiReference ? 'api-reference' : isAcademy ? 'academy' : null
+  // Academy, API Reference, and CLI are self-contained sections; keep prev/next
+  // inside the section instead of spilling into the main documentation tree.
+  // Match both the section's pages (`/<slug>/...`) and its index (`/<slug>`).
+  const sectionSlug = isApiReference
+    ? 'api-reference'
+    : isAcademy
+      ? 'academy'
+      : isCli
+        ? 'cli'
+        : null
   const inSection = (url?: string) =>
     url != null && (url.includes(`/${sectionSlug}/`) || url.endsWith(`/${sectionSlug}`))
   const neighbours = sectionSlug

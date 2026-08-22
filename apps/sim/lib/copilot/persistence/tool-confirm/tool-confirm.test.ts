@@ -184,4 +184,109 @@ describe('copilot orchestrator persistence', () => {
       timestamp: '2026-01-01T00:00:01.000Z',
     })
   })
+
+  it('keeps a no-deadline human wait alive until confirmation arrives', async () => {
+    vi.useFakeTimers()
+    try {
+      row = {
+        status: 'pending',
+        error: null,
+        result: null,
+        updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+      }
+      let settled = false
+      const waitPromise = waitForToolConfirmation('tool-1', null, undefined, {
+        acceptStatus: (status) =>
+          status === 'success' || status === 'error' || status === 'cancelled',
+      }).then((result) => {
+        settled = true
+        return result
+      })
+
+      await vi.advanceTimersByTimeAsync(24 * 60 * 60 * 1000)
+      expect(settled).toBe(false)
+
+      row = {
+        status: 'completed',
+        error: null,
+        result: { ok: true },
+        updatedAt: new Date('2026-01-02T00:00:00.000Z'),
+      }
+      publishToolConfirmation({
+        toolCallId: 'tool-1',
+        status: 'success',
+        timestamp: '2026-01-02T00:00:00.000Z',
+      })
+
+      await expect(waitPromise).resolves.toEqual({
+        status: 'success',
+        message: undefined,
+        data: { ok: true },
+        timestamp: '2026-01-02T00:00:00.000Z',
+      })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('catches up from durable state when a no-deadline waiter misses pubsub', async () => {
+    vi.useFakeTimers()
+    try {
+      row = {
+        status: 'pending',
+        error: null,
+        result: null,
+        updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+      }
+      const waitPromise = waitForToolConfirmation('tool-1', null, undefined, {
+        acceptStatus: (status) =>
+          status === 'success' || status === 'error' || status === 'cancelled',
+      })
+      await vi.advanceTimersByTimeAsync(0)
+
+      row = {
+        status: 'completed',
+        error: null,
+        result: { recovered: true },
+        updatedAt: new Date('2026-01-01T00:00:01.000Z'),
+      }
+      await vi.advanceTimersByTimeAsync(5_000)
+
+      await expect(waitPromise).resolves.toMatchObject({
+        status: 'success',
+        data: { recovered: true },
+      })
+      const callsAfterSettle = getAsyncToolCalls.mock.calls.length
+      await vi.advanceTimersByTimeAsync(5_000)
+      expect(getAsyncToolCalls).toHaveBeenCalledTimes(callsAfterSettle)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('stops durable catch-up polling when aborted', async () => {
+    vi.useFakeTimers()
+    try {
+      row = {
+        status: 'pending',
+        error: null,
+        result: null,
+        updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+      }
+      const controller = new AbortController()
+      const waitPromise = waitForToolConfirmation('tool-1', null, controller.signal, {
+        acceptStatus: (status) =>
+          status === 'success' || status === 'error' || status === 'cancelled',
+      })
+      await vi.advanceTimersByTimeAsync(0)
+      controller.abort()
+      await expect(waitPromise).resolves.toBeNull()
+
+      const callsAfterAbort = getAsyncToolCalls.mock.calls.length
+      await vi.advanceTimersByTimeAsync(5_000)
+      expect(getAsyncToolCalls).toHaveBeenCalledTimes(callsAfterAbort)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
 })

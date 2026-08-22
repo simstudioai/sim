@@ -157,7 +157,7 @@ export const POST = withRouteHandler(
               userId,
               serverId,
               workspaceId,
-              false,
+              'cache-aside',
               recordProvenance
             )
             tool = tools.find((t) => t.name === toolName) ?? null
@@ -327,7 +327,7 @@ export const POST = withRouteHandler(
           return successResponse(transformedResult)
         } catch (error) {
           if (getErrorMessage(error) === 'Tool execution timeout') {
-            resolvedSecretTraceProvenance?.markIncomplete()
+            resolvedSecretTraceProvenance?.markIncomplete('mcp-tool-execution-timeout')
           }
           const bodyErrorResponse = mcpBodyReadErrorResponse(error, request)
           if (bodyErrorResponse) return bodyErrorResponse

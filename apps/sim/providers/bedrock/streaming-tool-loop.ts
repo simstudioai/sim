@@ -373,15 +373,13 @@ export function createBedrockStreamingToolLoopStream(
             assembledToolUses.map(async (toolUse) => {
               const toolCallStartTime = Date.now()
               const toolName = toolUse.name || ''
-              const toolArgs = isRecordLike(toolUse.input) ? toolUse.input : undefined
+              /** Already a non-null, non-array object: `parseToolInput` throws otherwise. */
+              const toolArgs: Record<string, unknown> = toolUse.input
               const toolUseId = toolUse.toolUseId || generateToolUseId(toolName)
 
               try {
                 if (loopAbortController.signal.aborted) {
                   throw new DOMException('Stream aborted', 'AbortError')
-                }
-                if (!toolArgs) {
-                  throw new Error(`Arguments for tool "${toolName}" must be an object`)
                 }
 
                 const tool = request.tools?.find((t) => t.id === toolName)
@@ -415,7 +413,8 @@ export function createBedrockStreamingToolLoopStream(
                 const { toolParams, executionParams } = prepareToolExecution(
                   tool,
                   toolArgs,
-                  request
+                  request,
+                  toolUse.toolUseId
                 )
                 const { rawResponse, modelResponse } = await executeProviderTool(
                   toolName,
@@ -482,7 +481,7 @@ export function createBedrockStreamingToolLoopStream(
                   toolUse,
                   toolUseId,
                   toolName,
-                  toolArgs: toolArgs ?? {},
+                  toolArgs,
                   toolParams: {} as Record<string, unknown>,
                   result: {
                     success: false as const,

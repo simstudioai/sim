@@ -25,9 +25,10 @@ export async function resolveEffectiveWorkspacePermission(
   userId: string,
   workspaceId: string,
   workspaceOrganizationId: string | null,
-  executor: Pick<typeof db, 'select'> = db
+  executor: Pick<typeof db, 'select'> = db,
+  options?: { forUpdate?: boolean }
 ): Promise<PermissionType | null> {
-  const [permissionRow] = await executor
+  const permissionQuery = executor
     .select({ permissionType: permissions.permissionType })
     .from(permissions)
     .where(
@@ -37,16 +38,20 @@ export async function resolveEffectiveWorkspacePermission(
         eq(permissions.entityId, workspaceId)
       )
     )
-    .limit(1)
+  const [permissionRow] = options?.forUpdate
+    ? await permissionQuery.for('update').limit(1)
+    : await permissionQuery.limit(1)
 
   const explicit = (permissionRow?.permissionType as PermissionType | undefined) ?? null
 
   if (workspaceOrganizationId && explicit !== 'admin') {
-    const [memberRow] = await executor
+    const memberQuery = executor
       .select({ role: member.role })
       .from(member)
       .where(and(eq(member.userId, userId), eq(member.organizationId, workspaceOrganizationId)))
-      .limit(1)
+    const [memberRow] = options?.forUpdate
+      ? await memberQuery.for('update').limit(1)
+      : await memberQuery.limit(1)
     if (isOrgAdminRole(memberRow?.role)) {
       return 'admin'
     }

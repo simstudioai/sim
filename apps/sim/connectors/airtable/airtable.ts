@@ -8,37 +8,91 @@ import { computeContentHash, parseTagDate } from '@/connectors/utils'
 const logger = createLogger('AirtableConnector')
 
 const AIRTABLE_API = 'https://api.airtable.com/v0'
+/** Airtable caps `pageSize` at 100 (list records). */
 const PAGE_SIZE = 100
+
+/**
+ * Renders a single cell object as stable plain text.
+ *
+ * Attachment cell values carry `url` / `thumbnails` links that Airtable expires
+ * roughly two hours after they are returned, so they differ on every sync.
+ * Serializing them would change the record's content hash on every run and force
+ * a full re-index of every record that holds an attachment. Only the stable,
+ * identifying properties of the documented cell shapes are rendered: attachment
+ * `filename`, collaborator `name` / `email` / `id`, barcode `text`, button `label`,
+ * and AI Text `value`.
+ */
+function formatCellObject(value: Record<string, unknown>): string {
+  const stable = value.filename ?? value.name ?? value.text ?? value.label
+  if (typeof stable === 'string' || typeof stable === 'number' || typeof stable === 'boolean') {
+    return String(stable)
+  }
+  if (typeof value.id === 'string') return value.id
+  if (typeof value.email === 'string') return value.email
+  /**
+   * AI Text cells carry the generated text in `value` (`{ state, isStale, value }`)
+   * and match none of the probes above. Read last so a shape carrying both `name`
+   * and `value` keeps its name. Unlike the attachment links this renderer exists to
+   * avoid, the generated text is stable rather than an expiring signed URL, so
+   * including it does not reintroduce per-sync hash churn.
+   */
+  if (typeof value.value === 'string') return value.value
+  return ''
+}
+
+/**
+ * Renders an object- or array-valued cell, dropping items that render to nothing.
+ * Array items recurse, so a nested lookup array — documented as
+ * `array<number | string | boolean | unknown>` — renders its elements instead of
+ * collapsing to an empty string.
+ */
+function formatCellValue(value: object): string {
+  if (!Array.isArray(value)) return formatCellObject(value as Record<string, unknown>)
+  return value
+    .map((item) => {
+      if (Array.isArray(item)) return formatCellValue(item)
+      return typeof item === 'object' && item !== null
+        ? formatCellObject(item as Record<string, unknown>)
+        : String(item)
+    })
+    .filter((item) => item.length > 0)
+    .join(', ')
+}
 
 /**
  * Flattens a record's fields into a plain-text representation.
  * Each field is rendered as "Field Name: value" on its own line.
  */
-function recordToPlainText(
-  fields: Record<string, unknown>,
-  fieldNames?: Map<string, string>
-): string {
+function recordToPlainText(fields: Record<string, unknown>): string {
   const lines: string[] = []
   for (const [key, value] of Object.entries(fields)) {
     if (value == null) continue
-    const displayName = fieldNames?.get(key) ?? key
-    if (Array.isArray(value)) {
-      // Attachments or linked records
-      const items = value.map((v) => {
-        if (typeof v === 'object' && v !== null) {
-          const obj = v as Record<string, unknown>
-          return (obj.url as string) || (obj.name as string) || JSON.stringify(v)
-        }
-        return String(v)
-      })
-      lines.push(`${displayName}: ${items.join(', ')}`)
-    } else if (typeof value === 'object') {
-      lines.push(`${displayName}: ${JSON.stringify(value)}`)
+    if (typeof value === 'object') {
+      const rendered = formatCellValue(value)
+      if (!rendered) continue
+      lines.push(`${key}: ${rendered}`)
     } else {
-      lines.push(`${displayName}: ${String(value)}`)
+      lines.push(`${key}: ${String(value)}`)
     }
   }
   return lines.join('\n')
+}
+
+/**
+ * Airtable long-text cells are unbounded, so a title derived from one is capped
+ * to keep document titles readable in the knowledge base UI.
+ */
+const MAX_TITLE_LENGTH = 200
+
+/** Field names tried, in order, when no `titleField` is configured or it is empty. */
+const TITLE_FALLBACK_FIELDS = ['Name', 'Title', 'name', 'title', 'Summary', 'summary'] as const
+
+/** Renders a candidate cell as a title, or null when it holds nothing usable. */
+function renderTitle(value: unknown): string | null {
+  if (value == null) return null
+  const rendered = typeof value === 'object' ? formatCellValue(value).trim() : String(value).trim()
+  if (!rendered) return null
+  return rendered.length > MAX_TITLE_LENGTH ? `${rendered.slice(0, MAX_TITLE_LENGTH)}…` : rendered
 }
 
 /**
@@ -46,19 +100,18 @@ function recordToPlainText(
  * Prefers the configured title field, then falls back to common field names.
  */
 function extractTitle(fields: Record<string, unknown>, titleField?: string): string {
-  if (titleField && fields[titleField] != null) {
-    return String(fields[titleField])
+  if (titleField) {
+    const fromConfigured = renderTitle(fields[titleField])
+    if (fromConfigured) return fromConfigured
   }
-  const candidates = ['Name', 'Title', 'name', 'title', 'Summary', 'summary']
-  for (const candidate of candidates) {
-    if (fields[candidate] != null) {
-      return String(fields[candidate])
-    }
+  for (const candidate of TITLE_FALLBACK_FIELDS) {
+    const fromCandidate = renderTitle(fields[candidate])
+    if (fromCandidate) return fromCandidate
   }
   for (const value of Object.values(fields)) {
-    if (typeof value === 'string' && value.trim()) {
-      return value.length > 80 ? `${value.slice(0, 80)}…` : value
-    }
+    if (typeof value !== 'string') continue
+    const rendered = renderTitle(value)
+    if (rendered) return rendered
   }
   return 'Untitled'
 }
@@ -72,23 +125,62 @@ function parseCursor(cursor?: string): string | undefined {
   return cursor
 }
 
+function readConfigString(sourceConfig: Record<string, unknown>, key: string): string | undefined {
+  const raw = sourceConfig[key]
+  if (typeof raw !== 'string') return undefined
+  const trimmed = raw.trim()
+  return trimmed.length > 0 ? trimmed : undefined
+}
+
+/** Parses the optional `maxRecords` cap; Airtable requires a positive integer. */
+function readMaxRecords(sourceConfig: Record<string, unknown>): number {
+  const raw = sourceConfig.maxRecords
+  if (raw == null || raw === '') return 0
+  const parsed = Math.floor(Number(raw))
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 0
+}
+
 export const airtableConnector: ConnectorConfig = {
   ...airtableConnectorMeta,
 
+  /**
+   * Lists records from `GET /v0/{baseId}/{tableIdOrName}`.
+   *
+   * Scope semantics that matter for deletion reconciliation:
+   * - A configured `view` is an intentional scope filter: the source set *is*
+   *   the view. A record leaving the view is indistinguishable from a deleted
+   *   record over this API, and both should drop out of the knowledge base, so
+   *   `listingCapped` is deliberately NOT set for view scoping.
+   * - `maxRecords` truncates a listing that still has records behind it, so it
+   *   sets `listingCapped` to suppress hard deletion of the records beyond the
+   *   cap.
+   */
   listDocuments: async (
     accessToken: string,
     sourceConfig: Record<string, unknown>,
     cursor?: string,
     syncContext?: Record<string, unknown>
   ): Promise<ExternalDocumentList> => {
-    const baseId = sourceConfig.baseId as string
-    const tableIdOrName = sourceConfig.tableIdOrName as string
-    const viewId = sourceConfig.viewId as string | undefined
-    const titleField = sourceConfig.titleField as string | undefined
-    const maxRecords = sourceConfig.maxRecords ? Number(sourceConfig.maxRecords) : 0
+    const baseId = readConfigString(sourceConfig, 'baseId')
+    const tableIdOrName = readConfigString(sourceConfig, 'tableIdOrName')
+    if (!baseId || !tableIdOrName) {
+      throw new Error('Airtable connector is missing baseId or tableIdOrName')
+    }
+    const viewId = readConfigString(sourceConfig, 'viewId')
+    const titleField = readConfigString(sourceConfig, 'titleField')
+    const maxRecords = readMaxRecords(sourceConfig)
 
-    const fieldNames = await fetchFieldNames(accessToken, baseId, tableIdOrName, syncContext)
+    const prevFetched = (syncContext?.totalDocsFetched as number) ?? 0
 
+    const tableId = await resolveTableId(accessToken, baseId, tableIdOrName, syncContext)
+
+    /**
+     * `pageSize` is held at the documented maximum for every request of a sync.
+     * Airtable already stops pagination itself once `maxRecords` is reached, and
+     * its `offset` is an opaque iterator token whose validity across a changed
+     * `pageSize` is undocumented — so shrinking the last page would buy nothing
+     * and risk breaking iteration mid-sync.
+     */
     const params = new URLSearchParams()
     params.append('pageSize', String(PAGE_SIZE))
     if (viewId) params.append('view', viewId)
@@ -97,8 +189,9 @@ export const airtableConnector: ConnectorConfig = {
     const offset = parseCursor(cursor)
     if (offset) params.append('offset', offset)
 
+    const encodedBase = encodeURIComponent(baseId)
     const encodedTable = encodeURIComponent(tableIdOrName)
-    const url = `${AIRTABLE_API}/${baseId}/${encodedTable}?${params.toString()}`
+    const url = `${AIRTABLE_API}/${encodedBase}/${encodedTable}?${params.toString()}`
 
     logger.info(`Listing records from ${baseId}/${tableIdOrName}`, {
       offset: offset ?? 'none',
@@ -118,41 +211,65 @@ export const airtableConnector: ConnectorConfig = {
         status: response.status,
         error: errorText,
       })
+      /**
+       * Airtable expires the list iterator after a period of inactivity and
+       * answers a stale `offset` with 422 LIST_RECORDS_ITERATOR_NOT_AVAILABLE.
+       * Throwing aborts the sync before reconciliation, which is the safe
+       * outcome — the next run restarts iteration from the beginning.
+       */
       throw new Error(`Failed to list Airtable records: ${response.status}`)
     }
 
     const data = (await response.json()) as {
-      records: AirtableRecord[]
+      records?: AirtableRecord[]
       offset?: string
     }
 
-    const records = data.records || []
+    const records = data.records ?? []
     const documents: ExternalDocument[] = await Promise.all(
-      records.map((record) =>
-        recordToDocument(record, baseId, tableIdOrName, titleField, fieldNames)
-      )
+      records.map((record) => recordToDocument(record, baseId, tableId, titleField))
     )
 
+    const totalFetched = prevFetched + documents.length
+    if (syncContext) syncContext.totalDocsFetched = totalFetched
+
     const nextOffset = data.offset
+    const hitLimit = maxRecords > 0 && totalFetched >= maxRecords
+    /**
+     * Airtable enforces `maxRecords` itself — "pagination will stop once you've
+     * reached this maximum" — but does not document whether it still returns an
+     * `offset` at that point, so an exhausted source and a capped one cannot be
+     * told apart here. Flagged conservatively: a capped listing must never let
+     * the engine hard-delete the records the cap hid. The cost is that deletion
+     * reconciliation only runs for a capped source on an explicit full resync.
+     */
+    if (hitLimit && syncContext) syncContext.listingCapped = true
+
     return {
       documents,
-      nextCursor: nextOffset ? `offset:${nextOffset}` : undefined,
-      hasMore: Boolean(nextOffset),
+      nextCursor: !hitLimit && nextOffset ? `offset:${nextOffset}` : undefined,
+      hasMore: !hitLimit && Boolean(nextOffset),
     }
   },
 
   getDocument: async (
     accessToken: string,
     sourceConfig: Record<string, unknown>,
-    externalId: string
+    externalId: string,
+    syncContext?: Record<string, unknown>
   ): Promise<ExternalDocument | null> => {
-    const baseId = sourceConfig.baseId as string
-    const tableIdOrName = sourceConfig.tableIdOrName as string
-    const titleField = sourceConfig.titleField as string | undefined
+    const baseId = readConfigString(sourceConfig, 'baseId')
+    const tableIdOrName = readConfigString(sourceConfig, 'tableIdOrName')
+    /** A broken config is not evidence the record is gone, so it must not read as absence. */
+    if (!baseId || !tableIdOrName) {
+      throw new Error('Airtable connector is missing baseId or tableIdOrName')
+    }
+    const titleField = readConfigString(sourceConfig, 'titleField')
 
-    const fieldNames = await fetchFieldNames(accessToken, baseId, tableIdOrName)
+    const tableId = await resolveTableId(accessToken, baseId, tableIdOrName, syncContext)
+    const encodedBase = encodeURIComponent(baseId)
     const encodedTable = encodeURIComponent(tableIdOrName)
-    const url = `${AIRTABLE_API}/${baseId}/${encodedTable}/${externalId}`
+    const url = `${AIRTABLE_API}/${encodedBase}/${encodedTable}/${encodeURIComponent(externalId)}`
 
     const response = await fetchWithRetry(url, {
       method: 'GET',
@@ -167,32 +284,36 @@ export const airtableConnector: ConnectorConfig = {
     }
 
     const record = (await response.json()) as AirtableRecord
-    return recordToDocument(record, baseId, tableIdOrName, titleField, fieldNames)
+    return recordToDocument(record, baseId, tableId, titleField)
   },
 
   validateConfig: async (
     accessToken: string,
     sourceConfig: Record<string, unknown>
   ): Promise<{ valid: boolean; error?: string }> => {
-    const baseId = sourceConfig.baseId as string
-    const tableIdOrName = sourceConfig.tableIdOrName as string
+    const baseId = readConfigString(sourceConfig, 'baseId')
+    const tableIdOrName = readConfigString(sourceConfig, 'tableIdOrName')
 
     if (!baseId || !tableIdOrName) {
       return { valid: false, error: 'Base ID and table name are required' }
     }
 
-    if (baseId && !baseId.startsWith('app')) {
+    if (!baseId.startsWith('app')) {
       return { valid: false, error: 'Base ID should start with "app"' }
     }
 
-    const maxRecords = sourceConfig.maxRecords as string | undefined
-    if (maxRecords && (Number.isNaN(Number(maxRecords)) || Number(maxRecords) <= 0)) {
-      return { valid: false, error: 'Max records must be a positive number' }
+    const rawMaxRecords = sourceConfig.maxRecords
+    if (rawMaxRecords != null && rawMaxRecords !== '') {
+      const parsed = Number(rawMaxRecords)
+      if (!Number.isInteger(parsed) || parsed <= 0) {
+        return { valid: false, error: 'Max records must be a positive whole number' }
+      }
     }
 
     try {
+      const encodedBase = encodeURIComponent(baseId)
       const encodedTable = encodeURIComponent(tableIdOrName)
-      const url = `${AIRTABLE_API}/${baseId}/${encodedTable}?pageSize=1`
+      const url = `${AIRTABLE_API}/${encodedBase}/${encodedTable}?pageSize=1`
       const response = await fetchWithRetry(
         url,
         {
@@ -215,9 +336,9 @@ export const airtableConnector: ConnectorConfig = {
         return { valid: false, error: `Airtable API error: ${response.status} - ${errorText}` }
       }
 
-      const viewId = sourceConfig.viewId as string | undefined
+      const viewId = readConfigString(sourceConfig, 'viewId')
       if (viewId) {
-        const viewUrl = `${AIRTABLE_API}/${baseId}/${encodedTable}?pageSize=1&view=${encodeURIComponent(viewId)}`
+        const viewUrl = `${AIRTABLE_API}/${encodedBase}/${encodedTable}?pageSize=1&view=${encodeURIComponent(viewId)}`
         const viewResponse = await fetchWithRetry(
           viewUrl,
           {
@@ -258,20 +379,24 @@ interface AirtableRecord {
 
 /**
  * Converts an Airtable record to an ExternalDocument.
+ *
+ * `tableId` is the `tbl…` identifier when it could be resolved — Airtable
+ * record deep links are only valid with the table ID, never the table name.
  */
 async function recordToDocument(
   record: AirtableRecord,
   baseId: string,
-  tableIdOrName: string,
-  titleField: string | undefined,
-  fieldNames: Map<string, string>
+  tableId: string | undefined,
+  titleField: string | undefined
 ): Promise<ExternalDocument> {
-  const plainText = recordToPlainText(record.fields, fieldNames)
+  const fields = record.fields ?? {}
+  const plainText = recordToPlainText(fields)
   const contentHash = await computeContentHash(plainText)
-  const title = extractTitle(record.fields, titleField)
+  const title = extractTitle(fields, titleField)
 
-  const encodedTable = encodeURIComponent(tableIdOrName)
-  const sourceUrl = `https://airtable.com/${baseId}/${encodedTable}/${record.id}`
+  const sourceUrl = tableId
+    ? `https://airtable.com/${baseId}/${tableId}/${record.id}`
+    : `https://airtable.com/${baseId}`
 
   return {
     externalId: record.id,
@@ -287,21 +412,29 @@ async function recordToDocument(
 }
 
 /**
- * Fetches the table schema to build a field ID → field name mapping.
+ * Resolves the configured table reference to its `tbl…` ID via the Meta API
+ * (`GET /v0/meta/bases/{baseId}/tables`, `schema.bases:read`), cached in
+ * `syncContext` so a sync spends at most one extra request against the 5 req/s
+ * per-base rate limit. Returns undefined when the schema is unreadable — the
+ * record link degrades to the base link rather than emitting a broken URL.
  */
-async function fetchFieldNames(
+async function resolveTableId(
   accessToken: string,
   baseId: string,
   tableIdOrName: string,
   syncContext?: Record<string, unknown>
-): Promise<Map<string, string>> {
-  const cacheKey = `fieldNames:${baseId}/${tableIdOrName}`
-  if (syncContext?.[cacheKey]) return syncContext[cacheKey] as Map<string, string>
+): Promise<string | undefined> {
+  if (tableIdOrName.startsWith('tbl')) return tableIdOrName
 
-  const fieldNames = new Map<string, string>()
+  const cacheKey = `tableId:${baseId}/${tableIdOrName}`
+  if (syncContext && cacheKey in syncContext) {
+    return syncContext[cacheKey] as string | undefined
+  }
+
+  let resolved: string | undefined
 
   try {
-    const url = `${AIRTABLE_API}/meta/bases/${baseId}/tables`
+    const url = `${AIRTABLE_API}/meta/bases/${encodeURIComponent(baseId)}/tables`
     const response = await fetchWithRetry(url, {
       method: 'GET',
       headers: {
@@ -309,31 +442,20 @@ async function fetchFieldNames(
       },
     })
 
-    if (!response.ok) {
-      logger.warn('Failed to fetch Airtable schema, using raw field keys', {
+    if (response.ok) {
+      const data = (await response.json()) as { tables?: { id: string; name: string }[] }
+      resolved = (data.tables ?? []).find((t) => t.name === tableIdOrName)?.id
+    } else {
+      logger.warn('Failed to fetch Airtable base schema; record links will point at the base', {
         status: response.status,
       })
-      return fieldNames
-    }
-
-    const data = (await response.json()) as {
-      tables: { id: string; name: string; fields: { id: string; name: string; type: string }[] }[]
-    }
-
-    const table = data.tables.find((t) => t.id === tableIdOrName || t.name === tableIdOrName)
-
-    if (table) {
-      for (const field of table.fields) {
-        fieldNames.set(field.id, field.name)
-        fieldNames.set(field.name, field.name)
-      }
     }
   } catch (error) {
-    logger.warn('Error fetching Airtable schema', {
+    logger.warn('Error fetching Airtable base schema', {
       error: toError(error).message,
     })
   }
 
-  if (syncContext) syncContext[cacheKey] = fieldNames
-  return fieldNames
+  if (syncContext) syncContext[cacheKey] = resolved
+  return resolved
 }

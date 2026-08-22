@@ -220,6 +220,37 @@ describe('resolveDropdownLabel', () => {
     expect(resolveDropdownLabel(dropdown, 'literal')).toBe('literal')
     expect(resolveDropdownLabel(dropdown, 'missing')).toBeNull()
   })
+
+  it('summarizes a multi-select selection as labels, not stored ids', () => {
+    /* A `multiSelect` dropdown stores an array; rejecting it outright made the
+       card show raw ids ("chat, updates") where a single-select showed a label. */
+    const dropdown = {
+      id: 'labelIds',
+      type: 'dropdown',
+      multiSelect: true,
+      options: [
+        { id: 'chat', label: 'Chat' },
+        { id: 'updates', label: 'Updates' },
+        { id: 'social', label: 'Social' },
+      ],
+    } as unknown as SubBlockConfig
+
+    expect(resolveDropdownLabel(dropdown, ['chat'])).toBe('Chat')
+    expect(resolveDropdownLabel(dropdown, ['chat', 'updates'])).toBe('Chat, Updates')
+    expect(resolveDropdownLabel(dropdown, ['chat', 'updates', 'social'])).toBe('Chat, Updates +1')
+  })
+
+  it('falls through when any selection is unknown, rather than dropping it', () => {
+    /* Showing only the ids it recognised would hide the rest of the selection. */
+    const dropdown = {
+      id: 'labelIds',
+      type: 'dropdown',
+      options: [{ id: 'chat', label: 'Chat' }],
+    } as unknown as SubBlockConfig
+
+    expect(resolveDropdownLabel(dropdown, ['chat', 'gone'])).toBeNull()
+    expect(resolveDropdownLabel(dropdown, [])).toBeNull()
+  })
 })
 
 describe('resolveFilterFieldLabel', () => {

@@ -17,6 +17,7 @@ import {
 import { cva, type VariantProps } from 'class-variance-authority'
 import { Check, ChevronDown, Loader, Search } from '../../icons'
 import { cn } from '../../lib/cn'
+import { chipActiveSurfaceClass, chipHoverSurfaceClass } from '../chip/chip-chrome'
 import { Input } from '../input/input'
 import { Popover, PopoverAnchor, PopoverContent, PopoverScrollArea } from '../popover/popover'
 
@@ -220,6 +221,37 @@ const Combobox = memo(
         setSearchQueryState(next)
         onSearchChangeRef.current?.(next)
       }, [])
+      /**
+       * Read through a ref so `changeOpen` keeps a stable identity — every path
+       * that opens or closes the dropdown captures it without listing it as a
+       * dependency.
+       */
+      const onOpenChangeRef = useRef(onOpenChange)
+      useEffect(() => {
+        onOpenChangeRef.current = onOpenChange
+      }, [onOpenChange])
+      /**
+       * Single write path for the open state so `onOpenChange` cannot be missed.
+       * The popover is controlled, so Radix reports only the dismissals it initiates
+       * itself; the trigger, chevron, focus, keyboard, and selection paths are all
+       * state writes here, and a consumer that refreshes its options on open — or,
+       * like the agent block's tool picker, builds them only while open — hears about
+       * none of them unless each one reports. Deduped, because several paths both
+       * close and let the popover dismiss, which the raw setState absorbed silently
+       * but a consumer callback would not. The ref also lets the toggles read the
+       * current value without re-creating their handlers on every open.
+       */
+      const openRef = useRef(false)
+      const changeOpen = useCallback(
+        (next: boolean) => {
+          if (openRef.current === next) return
+          openRef.current = next
+          setOpen(next)
+          if (!next) updateSearchQuery('')
+          onOpenChangeRef.current?.(next)
+        },
+        [updateSearchQuery]
+      )
       const searchInputRef = useRef<HTMLInputElement>(null)
       const containerRef = useRef<HTMLDivElement>(null)
       const dropdownRef = useRef<HTMLDivElement>(null)
@@ -374,7 +406,7 @@ const Combobox = memo(
             updateSearchQuery('')
             setHighlightedIndex(-1)
             if (!keepOpen) {
-              setOpen(false)
+              changeOpen(false)
             }
             return
           }
@@ -388,7 +420,7 @@ const Combobox = memo(
           } else {
             onChange?.(selectedValue)
             if (!keepOpen) {
-              setOpen(false)
+              changeOpen(false)
               setHighlightedIndex(-1)
               updateSearchQuery('')
               if (editable && inputRef.current) {
@@ -398,7 +430,16 @@ const Combobox = memo(
             }
           }
         },
-        [onChange, multiSelect, onMultiSelectChange, multiSelectValues, editable, inputRef]
+        [
+          onChange,
+          multiSelect,
+          onMultiSelectChange,
+          multiSelectValues,
+          editable,
+          inputRef,
+          changeOpen,
+          updateSearchQuery,
+        ]
       )
 
       /**
@@ -417,10 +458,10 @@ const Combobox = memo(
        */
       const handleFocus = useCallback(() => {
         if (!disabled) {
-          setOpen(true)
+          changeOpen(true)
           setHighlightedIndex(-1)
         }
-      }, [disabled])
+      }, [disabled, changeOpen])
 
       /**
        * Handles blur for editable mode
@@ -437,12 +478,12 @@ const Combobox = memo(
           const isInDropdown = dropdownRef.current?.contains(activeElement)
           const isSearchInput = activeElement === searchInputRef.current
           if (!activeElement || (!isInContainer && !isInDropdown && !isSearchInput)) {
-            setOpen(false)
+            changeOpen(false)
             setHighlightedIndex(-1)
             updateSearchQuery('')
           }
         }, 150)
-      }, [])
+      }, [changeOpen, updateSearchQuery])
 
       /**
        * Handles keyboard navigation
@@ -452,7 +493,7 @@ const Combobox = memo(
           if (disabled) return
 
           if (e.key === 'Escape') {
-            setOpen(false)
+            changeOpen(false)
             setHighlightedIndex(-1)
             updateSearchQuery('')
             if (editable && inputRef.current) {
@@ -470,7 +511,7 @@ const Combobox = memo(
               }
             } else if (!editable) {
               e.preventDefault()
-              setOpen(true)
+              changeOpen(true)
               setHighlightedIndex(0)
             }
             return
@@ -479,7 +520,7 @@ const Combobox = memo(
           if (e.key === ' ' && !editable) {
             e.preventDefault()
             if (!open) {
-              setOpen(true)
+              changeOpen(true)
               setHighlightedIndex(0)
             }
             return
@@ -488,7 +529,7 @@ const Combobox = memo(
           if (e.key === 'ArrowDown') {
             e.preventDefault()
             if (!open) {
-              setOpen(true)
+              changeOpen(true)
               setHighlightedIndex(0)
             } else {
               setHighlightedIndex((prev) => (prev < filteredOptions.length - 1 ? prev + 1 : 0))
@@ -530,6 +571,8 @@ const Combobox = memo(
           editable,
           inputRef,
           onArrowLeft,
+          changeOpen,
+          updateSearchQuery,
         ]
       )
 
@@ -538,10 +581,10 @@ const Combobox = memo(
        */
       const handleToggle = useCallback(() => {
         if (!disabled && !editable) {
-          setOpen((prev) => !prev)
+          changeOpen(!openRef.current)
           setHighlightedIndex(-1)
         }
-      }, [disabled, editable])
+      }, [disabled, editable, changeOpen])
 
       /**
        * Handles chevron click for editable mode
@@ -551,16 +594,14 @@ const Combobox = memo(
           e.preventDefault()
           e.stopPropagation()
           if (!disabled) {
-            setOpen((prev) => {
-              const newOpen = !prev
-              if (newOpen && editable && inputRef.current) {
-                inputRef.current.focus()
-              }
-              return newOpen
-            })
+            const nextOpen = !openRef.current
+            changeOpen(nextOpen)
+            if (nextOpen && editable && inputRef.current) {
+              inputRef.current.focus()
+            }
           }
         },
-        [disabled, editable, inputRef]
+        [disabled, editable, inputRef, changeOpen]
       )
 
       const effectiveHighlightedIndex =
@@ -595,14 +636,7 @@ const Combobox = memo(
       const SelectedIcon = selectedOption?.icon
 
       return (
-        <Popover
-          open={open}
-          onOpenChange={(next) => {
-            setOpen(next)
-            if (!next) updateSearchQuery('')
-            onOpenChange?.(next)
-          }}
-        >
+        <Popover open={open} onOpenChange={changeOpen}>
           <div ref={containerRef} className='relative w-full' {...props}>
             <PopoverAnchor asChild>
               <div className='w-full'>
@@ -841,8 +875,17 @@ const Combobox = memo(
                                 className={cn(
                                   'relative flex cursor-pointer select-none items-center gap-2 rounded-sm px-1.5 font-sans',
                                   size === 'sm' ? 'py-[5px] text-caption' : 'py-1.5 text-sm',
-                                  'hover-hover:bg-[var(--surface-active)]',
-                                  (isHighlighted || isSelected) && 'bg-[var(--surface-active)]',
+                                  /*
+                                     No CSS `:hover` here — `isHighlighted` is the
+                                     single source of truth for the cursor, because
+                                     it is also what Enter commits. A `:hover` class
+                                     tracks the pointer continuously while
+                                     `highlightedIndex` only moves on `mouseenter`,
+                                     so after the list scrolls under a stationary
+                                     pointer the two disagree and the row that looks
+                                     selected is not the one Enter would choose.
+                                  */
+                                  (isHighlighted || isSelected) && chipActiveSurfaceClass,
                                   option.disabled && 'cursor-not-allowed opacity-50'
                                 )}
                               >
@@ -881,8 +924,10 @@ const Combobox = memo(
                           className={cn(
                             'relative flex cursor-pointer select-none items-center rounded-sm px-1.5 font-sans',
                             size === 'sm' ? 'py-[5px] text-caption' : 'py-1.5 text-sm',
-                            'hover-hover:bg-[var(--surface-active)]',
-                            !multiSelectValues?.length && 'bg-[var(--surface-active)]'
+                            // Clears the highlight rather than taking it, so unlike option rows it hovers.
+                            !multiSelectValues?.length
+                              ? chipActiveSurfaceClass
+                              : chipHoverSurfaceClass
                           )}
                         >
                           <span className='flex-1 truncate text-[var(--text-primary)]'>
@@ -915,8 +960,8 @@ const Combobox = memo(
                             className={cn(
                               'relative flex cursor-pointer select-none items-center gap-2 rounded-sm px-1.5 font-sans',
                               size === 'sm' ? 'py-[5px] text-caption' : 'py-1.5 text-sm',
-                              'hover-hover:bg-[var(--surface-active)]',
-                              (isHighlighted || isSelected) && 'bg-[var(--surface-active)]',
+                              // See above: `isHighlighted` alone, so paint matches what Enter commits.
+                              (isHighlighted || isSelected) && chipActiveSurfaceClass,
                               option.disabled && 'cursor-not-allowed opacity-50'
                             )}
                           >

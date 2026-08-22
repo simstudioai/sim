@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { defineRouteContract } from '@/lib/api/contracts/types'
+import { MAX_WORKSPACE_FILE_BULK_REQUEST_IDS } from '@/lib/workspace-files/limits'
 
 export const workspaceFileFolderScopeSchema = z.enum(['active', 'archived', 'all'])
 
@@ -56,8 +57,14 @@ export const updateWorkspaceFileFolderBodySchema = z.object({
 
 export const moveWorkspaceFileItemsBodySchema = z
   .object({
-    fileIds: z.array(z.string()).default([]),
-    folderIds: z.array(z.string()).default([]),
+    fileIds: z
+      .array(z.string())
+      .max(MAX_WORKSPACE_FILE_BULK_REQUEST_IDS, 'Too many file IDs')
+      .default([]),
+    folderIds: z
+      .array(z.string())
+      .max(MAX_WORKSPACE_FILE_BULK_REQUEST_IDS, 'Too many folder IDs')
+      .default([]),
     targetFolderId: z.string().nullable().optional(),
   })
   .refine((body) => body.fileIds.length > 0 || body.folderIds.length > 0, {
@@ -66,8 +73,14 @@ export const moveWorkspaceFileItemsBodySchema = z
 
 export const bulkArchiveWorkspaceFileItemsBodySchema = z
   .object({
-    fileIds: z.array(z.string()).default([]),
-    folderIds: z.array(z.string()).default([]),
+    fileIds: z
+      .array(z.string())
+      .max(MAX_WORKSPACE_FILE_BULK_REQUEST_IDS, 'Too many file IDs')
+      .default([]),
+    folderIds: z
+      .array(z.string())
+      .max(MAX_WORKSPACE_FILE_BULK_REQUEST_IDS, 'Too many folder IDs')
+      .default([]),
   })
   .refine((body) => body.fileIds.length > 0 || body.folderIds.length > 0, {
     message: 'At least one file or folder must be selected',

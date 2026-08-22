@@ -1,6 +1,15 @@
 import { AmplitudeIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
 
+/*
+ * Amplitude identifies a person by user id or device id — either one alone is
+ * a valid identity, so the card sentences take whichever is filled. These are
+ * mutually exclusive alternates rather than a canonical basic/advanced pair,
+ * and the ingestion and profile operations declare their own field ids.
+ */
+const IDENTITY_FIELD = ['userId', 'deviceId'] as const
+const PROFILE_IDENTITY_FIELD = ['profileUserId', 'profileDeviceId'] as const
+
 export const AmplitudeBlock: BlockConfig = {
   type: 'amplitude',
   name: 'Amplitude',
@@ -13,6 +22,58 @@ export const AmplitudeBlock: BlockConfig = {
   bgColor: '#13294B',
   iconColor: '#1E61F0',
   icon: AmplitudeIcon,
+  canvasPresentation: {
+    defaultTitle: 'Amplitude',
+    sentences: {
+      byOperation: {
+        send_event: [
+          { text: 'Track event', field: 'eventType', core: true },
+          { text: 'for', field: IDENTITY_FIELD },
+          { text: 'on', field: 'platform' },
+        ],
+        identify_user: [{ text: 'Set user properties on', field: IDENTITY_FIELD, core: true }],
+        group_identify: [
+          { text: 'Set group properties on', field: 'groupValue', core: true },
+          { text: 'of group type', field: 'groupType' },
+        ],
+        user_search: [{ text: 'Look up user', field: 'searchUser', core: true }],
+        user_activity: [
+          { text: 'List activity for Amplitude ID', field: 'amplitudeId', core: true },
+          { text: ', up to', field: 'activityLimit', after: 'events' },
+        ],
+        user_profile: [{ text: 'Read the profile of', field: PROFILE_IDENTITY_FIELD, core: true }],
+        event_segmentation: [
+          { text: 'Segment event', field: 'segmentationEventType', core: true },
+          { text: 'by', field: 'segmentationGroupBy' },
+          { text: ', measuring', field: 'segmentationMetric' },
+        ],
+        get_active_users: [
+          'Count active or new users',
+          { text: 'from', field: 'activeUsersStart', core: true },
+          { text: 'to', field: 'activeUsersEnd', core: true },
+          { text: ', measuring', field: 'activeUsersMetric' },
+        ],
+        realtime_active_users: ['Count active users in real time'],
+        list_events: ['List every event type in the project'],
+        get_revenue: [
+          'Report revenue',
+          { text: 'from', field: 'revenueStart', core: true },
+          { text: 'to', field: 'revenueEnd', core: true },
+          { text: ', measuring', field: 'revenueMetric' },
+        ],
+        funnels: [
+          'Measure funnel conversion',
+          { text: 'from', field: 'funnelStart', core: true },
+          { text: 'to', field: 'funnelEnd', core: true },
+          { text: ', grouped by', field: 'funnelGroupBy' },
+        ],
+        retention: [
+          { text: 'Measure retention from', field: 'retentionStartEvent', core: true },
+          { text: 'to', field: 'retentionReturnEvent', core: true },
+        ],
+      },
+    },
+  },
   authMode: AuthMode.ApiKey,
 
   subBlocks: [

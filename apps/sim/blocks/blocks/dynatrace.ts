@@ -123,6 +123,166 @@ export const DynatraceBlock: BlockConfig<DynatraceResponse> = {
   icon: DynatraceIcon,
   authMode: AuthMode.ApiKey,
 
+  canvasPresentation: {
+    defaultTitle: 'Dynatrace',
+    sentences: {
+      byOperation: {
+        dynatrace_list_problems: [
+          { text: 'List problems in', field: 'environmentUrl', core: true },
+          { text: 'matching', field: 'problemSelector' },
+        ],
+        dynatrace_get_problem: [{ text: 'Get problem', field: 'problemId', core: true }],
+        dynatrace_close_problem: [
+          { text: 'Close problem', field: 'problemId', core: true },
+          { text: 'with', field: 'message' },
+        ],
+        dynatrace_list_problem_comments: [
+          { text: 'List comments on problem', field: 'problemId', core: true },
+        ],
+        dynatrace_add_problem_comment: [
+          { text: 'Comment', field: 'message', core: true },
+          { text: 'on problem', field: 'problemId', core: true },
+        ],
+        dynatrace_get_problem_comment: [
+          { text: 'Get comment', field: 'commentId', core: true },
+          { text: 'on problem', field: 'problemId', core: true },
+        ],
+        dynatrace_update_problem_comment: [
+          { text: 'Update comment', field: 'commentId', core: true },
+          { text: 'to', field: 'message', core: true },
+        ],
+        dynatrace_delete_problem_comment: [
+          { text: 'Delete comment', field: 'commentId', core: true },
+          { text: 'on problem', field: 'problemId', core: true },
+        ],
+        dynatrace_query_metrics: [
+          { text: 'Query metrics', field: 'metricSelector', core: true },
+          { text: 'for', field: 'entitySelector' },
+        ],
+        dynatrace_list_metrics: [
+          { text: 'List metrics in', field: 'environmentUrl', core: true },
+          { text: 'matching', field: 'text' },
+        ],
+        dynatrace_get_metric: [
+          { text: 'Get the descriptor for metric', field: 'metricKey', core: true },
+        ],
+        dynatrace_ingest_metrics: [{ text: 'Ingest metrics', field: 'metricPayload', core: true }],
+        dynatrace_list_entities: [
+          { text: 'List entities matching', field: 'entitySelector', core: true },
+        ],
+        dynatrace_get_entity: [{ text: 'Get entity', field: 'entityId', core: true }],
+        dynatrace_list_entity_types: [
+          { text: 'List entity types in', field: 'environmentUrl', core: true },
+        ],
+        dynatrace_list_events: [
+          { text: 'List events in', field: 'environmentUrl', core: true },
+          { text: 'matching', field: 'eventSelector' },
+        ],
+        dynatrace_get_event: [{ text: 'Get event', field: 'eventId', core: true }],
+        dynatrace_ingest_event: [
+          { text: 'Ingest', field: 'eventType', core: true },
+          { text: 'event', field: 'title', core: true },
+        ],
+        dynatrace_search_logs: [
+          { text: 'Search logs in', field: 'environmentUrl', core: true },
+          { text: 'for', field: 'logQuery' },
+        ],
+        dynatrace_ingest_logs: [{ text: 'Ingest logs', field: 'logs', core: true }],
+        dynatrace_list_slos: [
+          { text: 'List SLOs in', field: 'environmentUrl', core: true },
+          { text: 'matching', field: 'sloSelector' },
+        ],
+        dynatrace_get_slo: [{ text: 'Get SLO', field: 'sloId', core: true }],
+        dynatrace_create_slo: [
+          { text: 'Create SLO', field: 'sloName', core: true },
+          { text: 'targeting', field: 'sloTarget', core: true },
+        ],
+        dynatrace_update_slo: [
+          { text: 'Update SLO', field: 'sloId', core: true },
+          { text: 'to target', field: 'sloTarget' },
+        ],
+        dynatrace_delete_slo: [{ text: 'Delete SLO', field: 'sloId', core: true }],
+        dynatrace_list_security_problems: [
+          { text: 'List security problems in', field: 'environmentUrl', core: true },
+          { text: 'matching', field: 'securityProblemSelector' },
+        ],
+        dynatrace_get_security_problem: [
+          { text: 'Get security problem', field: 'securityProblemId', core: true },
+        ],
+        dynatrace_mute_security_problem: [
+          { text: 'Mute security problem', field: 'securityProblemId', core: true },
+          { text: 'as', field: 'muteReason', core: true },
+        ],
+        /* Unmuting takes no reason — Dynatrace accepts exactly one, so the field
+           is scoped to the mute operations and naming it here paints nothing. */
+        dynatrace_unmute_security_problem: [
+          { text: 'Unmute security problem', field: 'securityProblemId', core: true },
+        ],
+        dynatrace_mute_security_problems: [
+          { text: 'Mute security problems', field: 'securityProblemIds', core: true },
+          { text: 'as', field: 'muteReason', core: true },
+        ],
+        /* Unmuting takes no reason — Dynatrace accepts exactly one, so the field
+           is scoped to the mute operations and naming it here paints nothing. */
+        dynatrace_unmute_security_problems: [
+          { text: 'Unmute security problems', field: 'securityProblemIds', core: true },
+        ],
+        dynatrace_list_remediation_items: [
+          { text: 'List remediation items for security problem', field: 'securityProblemId' },
+          { text: 'matching', field: 'remediationItemSelector', core: true },
+        ],
+        dynatrace_list_attacks: [
+          { text: 'List attacks in', field: 'environmentUrl', core: true },
+          { text: 'matching', field: 'attackSelector' },
+        ],
+        dynatrace_get_attack: [{ text: 'Get attack', field: 'attackId', core: true }],
+        dynatrace_list_tags: [{ text: 'List tags on', field: 'entitySelector', core: true }],
+        dynatrace_add_tags: [
+          { text: 'Add tags', field: 'tags', core: true },
+          { text: 'to', field: 'entitySelector', core: true },
+        ],
+        dynatrace_delete_tag: [
+          { text: 'Delete tag', field: 'tagKey', core: true },
+          { text: 'from', field: 'entitySelector', core: true },
+        ],
+        dynatrace_list_settings_schemas: [
+          { text: 'List settings schemas in', field: 'environmentUrl', core: true },
+        ],
+        dynatrace_list_settings_objects: [
+          { text: 'List settings objects for schemas', field: 'schemaIds', core: true },
+          { text: 'in scopes', field: 'scopes' },
+        ],
+        dynatrace_get_settings_object: [
+          { text: 'Get settings object', field: 'objectId', core: true },
+        ],
+        dynatrace_create_settings_object: [
+          { text: 'Create', field: 'schemaId', core: true },
+          { text: 'settings object in', field: 'scope', core: true },
+        ],
+        dynatrace_update_settings_object: [
+          { text: 'Update settings object', field: 'objectId', core: true },
+          { text: 'to', field: 'settingsValue' },
+        ],
+        dynatrace_delete_settings_object: [
+          { text: 'Delete settings object', field: 'objectId', core: true },
+        ],
+        dynatrace_list_synthetic_monitors: [
+          { text: 'List synthetic monitors in', field: 'environmentUrl', core: true },
+        ],
+        dynatrace_execute_synthetic_monitors: [
+          { text: 'Execute synthetic monitors', field: 'monitors', core: true },
+        ],
+        dynatrace_get_synthetic_batch: [
+          { text: 'Get synthetic batch', field: 'batchId', core: true },
+        ],
+        dynatrace_get_audit_logs: [
+          { text: 'Get audit logs from', field: 'environmentUrl', core: true },
+          { text: 'matching', field: 'auditFilter' },
+        ],
+      },
+    },
+  },
+
   subBlocks: [
     {
       id: 'operation',

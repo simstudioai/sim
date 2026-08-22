@@ -868,10 +868,10 @@ export default function PlaygroundPage() {
                   </PopoverContent>
                 </Popover>
               </VariantRow>
-              <VariantRow label='secondary variant'>
-                <Popover variant='secondary'>
+              <VariantRow label='inverted color scheme'>
+                <Popover colorScheme='inverted'>
                   <PopoverTrigger asChild>
-                    <Button variant='secondary'>Secondary Popover</Button>
+                    <Button variant='secondary'>Inverted Popover</Button>
                   </PopoverTrigger>
                   <PopoverContent>
                     <PopoverItem>Item 1</PopoverItem>

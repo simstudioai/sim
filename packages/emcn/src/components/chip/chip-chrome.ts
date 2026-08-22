@@ -46,6 +46,7 @@ export const chipFieldTextClass =
  * Like every token in this module, never re-derive the literal; import it.
  */
 export const chipContentGap = 'gap-1.5'
+
 /**
  * Chip pill geometry — height, centering, gap, radius, padding, text size — with
  * NO interactivity (no `cursor-pointer`, no hover). `chipVariants` composes this
@@ -58,6 +59,34 @@ export const chipGeometryClass = `h-[30px] items-center ${chipContentGap} rounde
 export const chipContentIconClass = 'size-[16px] flex-shrink-0 text-[var(--text-icon)]'
 /** Chip-content label (non-inverse): truncating `--text-body` at `text-sm`. Inverse chip variants override the color to `currentColor`. */
 export const chipContentLabelClass = 'min-w-0 truncate text-[var(--text-body)] text-sm'
+
+/**
+ * The two row surfaces. Mutually exclusive — a row paints one OR the other,
+ * never both, so a selected row holds its surface through hover.
+ *
+ * Hover used to be `--surface-active` (a hovered row looked selected, so lists
+ * appeared to have two selections) and active used to brighten to `--surface-6`
+ * on hover (read as the selection changing under the cursor). Do not reintroduce
+ * either. `chipVariants` wires this for pills; hand-rolled rows import these
+ * rather than restating the literals.
+ */
+export const chipHoverSurfaceClass = 'hover-hover:bg-[var(--surface-hover)]'
+/** @see {@link chipHoverSurfaceClass} — the selected half of the same pair. */
+export const chipActiveSurfaceClass = 'bg-[var(--surface-active)]'
+/**
+ * The third row surface: a drag is over this row and releasing would file into it.
+ *
+ * Neutral by design — hue is not how this app signals "release here"; the workflow sidebar's
+ * own drop affordance is a `--text-subtle` tint. Drawn inside the element's own box so the ring
+ * never overlaps its neighbours. Hand-rolled rows and breadcrumb crumbs import this rather than
+ * restating the literal, so every drop destination reads identically.
+ *
+ * Fills to `--surface-active`, the same weight as a selected row, and leans on the ring to tell
+ * the two apart. Not `--surface-4`: that is the button-base token, and in light mode it is
+ * *lighter* than `--surface-hover`, so the row under the cursor read weaker the moment it became
+ * a drop target — the strongest state painting the faintest fill.
+ */
+export const chipDropTargetSurfaceClass = `${chipActiveSurfaceClass} outline outline-1 outline-[var(--text-subtle)] outline-offset-[-1px]`
 /**
  * The disclosure chevron that rotates to expand or collapse a sidebar section or a
  * tree row: 14px at `--text-icon`, animating on the same 150ms curve the section

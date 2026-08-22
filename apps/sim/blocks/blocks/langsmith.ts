@@ -15,6 +15,33 @@ export const LangsmithBlock: BlockConfig<LangsmithResponse> = {
   bgColor: '#181C1E',
   icon: LangsmithIcon,
   authMode: AuthMode.ApiKey,
+  canvasPresentation: {
+    defaultTitle: 'LangSmith',
+    sentences: {
+      byOperation: {
+        langsmith_create_run: [
+          { text: 'Create run', field: 'name', core: true },
+          { text: 'of type', field: 'run_type' },
+          { text: 'in session', field: 'session_name' },
+        ],
+        langsmith_create_runs_batch: [
+          { text: 'Ingest', field: 'post', after: 'as new runs', core: true },
+          { text: ', and', field: 'patch', after: 'as run updates' },
+        ],
+        langsmith_update_run: [
+          { text: 'Update run', field: 'runId', core: true },
+          { text: ', setting status to', field: 'status' },
+          { text: ', with outputs', field: 'outputs' },
+        ],
+        langsmith_get_run: [{ text: 'Fetch run', field: 'runId', core: true }],
+        langsmith_create_feedback: [
+          { text: 'Add', field: 'key', after: 'feedback', core: true },
+          { text: 'to run', field: 'runId', core: true },
+          { text: ', scored', field: 'score' },
+        ],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',

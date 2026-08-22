@@ -15,6 +15,15 @@ export const BrandfetchBlock: BlockConfig<BrandfetchGetBrandResponse | Brandfetc
   bgColor: '#000000',
   icon: BrandfetchIcon,
   authMode: AuthMode.ApiKey,
+  canvasPresentation: {
+    defaultTitle: 'Brandfetch',
+    sentences: {
+      byOperation: {
+        get_brand: [{ text: 'Fetch brand assets for', field: 'identifier', core: true }],
+        search: [{ text: 'Search brands named', field: 'name', core: true }],
+      },
+    },
+  },
 
   subBlocks: [
     {

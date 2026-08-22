@@ -47,6 +47,7 @@ import { MothershipHandoffStorage } from '@/lib/core/utils/browser-storage'
 import { filterHiddenOutputKeys } from '@/lib/logs/execution/trace-spans/trace-spans'
 import type { TraceSpan } from '@/lib/logs/types'
 import { sendMothershipMessage } from '@/lib/mothership/events'
+import { DELETED_WORKFLOW_LABEL } from '@/lib/workflows/workflow-labels'
 import {
   ExecutionSnapshot,
   FileCards,
@@ -58,7 +59,6 @@ import {
   logDetailsTabUrlKeys,
 } from '@/app/workspace/[workspaceId]/logs/search-params'
 import {
-  DELETED_WORKFLOW_LABEL,
   formatDate,
   getDisplayStatus,
   resolveLogWorkflowId,

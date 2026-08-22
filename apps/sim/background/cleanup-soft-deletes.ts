@@ -113,7 +113,9 @@ async function selectExpiredWorkspaceFiles(
           key: workspaceFiles.key,
           workspaceId: workspaceFiles.workspaceId,
           context: workspaceFiles.context,
-          size: workspaceFiles.size,
+          size: sql<number>`coalesce(${workspaceFiles.sizeBytes}, ${workspaceFiles.size})`.mapWith(
+            Number
+          ),
         })
         .from(workspaceFiles)
         .where(
@@ -325,7 +327,12 @@ async function deleteExpiredBillableWorkspaceFileRows(
                 lt(workspaceFiles.deletedAt, retentionDate)
               )
             )
-            .returning({ id: workspaceFiles.id, size: workspaceFiles.size })
+            .returning({
+              id: workspaceFiles.id,
+              size: sql<number>`coalesce(${workspaceFiles.sizeBytes}, ${workspaceFiles.size})`.mapWith(
+                Number
+              ),
+            })
           if (deletedRows.some(({ size }) => size < 0)) {
             throw new Error('Cannot delete workspace files with negative stored-byte metadata')
           }
@@ -695,14 +702,13 @@ const CLEANUP_TARGETS = [
 ] as const
 
 /**
- * Sweep abandoned knowledge-base ownership bindings. The presigned upload flow
- * writes a `workspace_files` binding when it hands out an upload URL, before the
- * object is stored and before any document is created. If the upload is never
- * completed, that binding is orphaned — no `document.storageKey` ever references
- * its key. Such bindings are inert (read access requires a live document, and
- * the move re-point only follows referenced keys), but they accumulate, so we
- * drop the best-effort object and soft-delete the binding once they are older
- * than the grace window.
+ * Sweep abandoned knowledge-base ownership bindings. Knowledge upload sessions write a
+ * `workspace_files` binding before the object is stored and before any document is created.
+ * If the upload is never completed, that binding is orphaned — no
+ * `document.storageKey` ever references its key. Such bindings are inert (read access requires
+ * a live document, and the move re-point only follows referenced keys), but they accumulate,
+ * so we drop the best-effort object and soft-delete the binding once they are older than the
+ * grace window.
  */
 async function cleanupOrphanedKnowledgeBaseBindings(
   workspaceIds: string[],

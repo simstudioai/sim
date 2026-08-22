@@ -1,8 +1,81 @@
-import { BLOCK_DIMENSIONS, CONTAINER_DIMENSIONS } from '@sim/workflow-renderer'
+import { BLOCK_DIMENSIONS, CONTAINER_DIMENSIONS, getNoteBlockHeight } from '@sim/workflow-renderer'
+import { isEqual } from 'es-toolkit'
 import type { Edge, Node } from 'reactflow'
 import { TriggerUtils } from '@/lib/workflows/triggers/triggers'
 import { clampPositionToContainer } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/node-position-utils'
 import type { BlockState } from '@/stores/workflows/workflow/types'
+
+export const SUBFLOW_DROP_TARGET_CLASS = 'subflow-node-drop-target'
+
+type ArrowNavigationEvent = Pick<
+  KeyboardEvent,
+  'key' | 'repeat' | 'metaKey' | 'ctrlKey' | 'altKey' | 'shiftKey'
+>
+
+export function getArrowNavigationDirection(event: ArrowNavigationEvent): -1 | 1 | null {
+  if (event.repeat || event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return null
+  if (event.key === 'ArrowRight' || event.key === 'ArrowDown') return 1
+  if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') return -1
+  return null
+}
+
+/**
+ * A derivation that changed nothing must produce no new reference at any level,
+ * so React Flow can skip the subtree. Reuse is decided by identity after
+ * projection, which also catches a pure reorder: a reused item landing at a
+ * different index breaks the positional sweep.
+ */
+function reconcileById<T extends { id: string }>(
+  current: T[],
+  derived: T[],
+  project: (derivedItem: T, currentItem: T | undefined) => T,
+  isReusable: (currentItem: T, nextItem: T) => boolean
+): T[] {
+  const currentById = new Map<string, T>()
+  for (const item of current) currentById.set(item.id, item)
+
+  const next = derived.map((derivedItem) => {
+    const currentItem = currentById.get(derivedItem.id)
+    const nextItem = project(derivedItem, currentItem)
+    return currentItem && isReusable(currentItem, nextItem) ? currentItem : nextItem
+  })
+
+  const unchanged =
+    next.length === current.length && next.every((item, index) => item === current[index])
+  return unchanged ? current : next
+}
+
+/**
+ * Subset comparison, deliberately asymmetric: React Flow writes `width`,
+ * `height`, `positionAbsolute` and `dragging` onto the node objects it owns, so
+ * a symmetric `isEqual` against a freshly derived node would never match and no
+ * node would ever be reused. Only the keys the derivation itself produces are
+ * compared.
+ */
+function containsDerivedValues<T extends object>(current: T, derived: T): boolean {
+  for (const key of Object.keys(derived) as (keyof T)[]) {
+    if (!isEqual(current[key], derived[key])) return false
+  }
+  return true
+}
+
+/** Reuses unchanged React Flow node objects while carrying local selection forward. */
+export function reconcileCanvasNodes(currentNodes: Node[], derivedNodes: Node[]): Node[] {
+  return reconcileById(
+    currentNodes,
+    derivedNodes,
+    (derivedNode, currentNode) => ({ ...derivedNode, selected: currentNode?.selected ?? false }),
+    containsDerivedValues
+  )
+}
+
+/**
+ * Reuses unchanged React Flow edge objects after graph-level derivation reruns.
+ * Edges carry no React Flow-written fields, so a plain `isEqual` is symmetric-safe.
+ */
+export function reconcileCanvasEdges(currentEdges: Edge[], derivedEdges: Edge[]): Edge[] {
+  return reconcileById(currentEdges, derivedEdges, (derivedEdge) => derivedEdge, isEqual)
+}
 
 /**
  * Collects all descendant block IDs for container blocks (loop/parallel) in the given set.
@@ -108,17 +181,30 @@ export function isPositionalTriggerBlock(
 }
 
 /**
+ * Returns whether a container should be emphasized as a new drop target.
+ * Moving within the block's existing container is a position change, not a
+ * re-parent operation, so it must not activate the container highlight.
+ */
+export function shouldHighlightContainerDropTarget(
+  currentParentId: string | null | undefined,
+  targetContainerId: string
+): boolean {
+  return currentParentId !== targetContainerId
+}
+
+/**
  * Clears drag highlight classes and resets cursor state.
  * Used when drag operations end or are cancelled.
  */
 export function clearDragHighlights(): void {
-  document.querySelectorAll('.loop-node-drag-over, .parallel-node-drag-over').forEach((el) => {
-    el.classList.remove('loop-node-drag-over', 'parallel-node-drag-over')
+  document.querySelectorAll(`.${SUBFLOW_DROP_TARGET_CLASS}`).forEach((el) => {
+    el.classList.remove(SUBFLOW_DROP_TARGET_CLASS)
   })
   document.body.style.cursor = ''
 }
 
 interface BlockData {
+  type?: string
   height?: number
   data?: {
     parentId?: string
@@ -154,11 +240,15 @@ export function getClampedPositionForNode(
     height: parentNode.data?.height || CONTAINER_DIMENSIONS.DEFAULT_HEIGHT,
   }
   const blockDimensions = {
-    width: BLOCK_DIMENSIONS.FIXED_WIDTH,
-    height: Math.max(
-      currentBlock?.height || BLOCK_DIMENSIONS.MIN_HEIGHT,
-      BLOCK_DIMENSIONS.MIN_HEIGHT
-    ),
+    width:
+      currentBlock?.type === 'note' ? BLOCK_DIMENSIONS.NOTE_WIDTH : BLOCK_DIMENSIONS.FIXED_WIDTH,
+    height:
+      currentBlock?.type === 'note'
+        ? currentBlock.height || getNoteBlockHeight(true)
+        : Math.max(
+            currentBlock?.height || BLOCK_DIMENSIONS.MIN_HEIGHT,
+            BLOCK_DIMENSIONS.MIN_HEIGHT
+          ),
   }
 
   return clampPositionToContainer(nodePosition, containerDimensions, blockDimensions)
@@ -177,46 +267,6 @@ export function computeClampedPositionUpdates(
     id: node.id,
     position: getClampedPositionForNode(node.id, node.position, blocks, allNodes),
   }))
-}
-
-interface ParentUpdateEntry {
-  blockId: string
-  newParentId: string
-  affectedEdges: Edge[]
-}
-
-/**
- * Computes parent update entries for nodes being moved into a subflow.
- * Only includes "boundary edges" - edges that cross the selection boundary
- * (one end inside selection, one end outside). Edges between nodes in the
- * selection are preserved.
- */
-export function computeParentUpdateEntries(
-  validNodes: Node[],
-  allEdges: Edge[],
-  targetParentId: string
-): ParentUpdateEntry[] {
-  const movingNodeIds = new Set(validNodes.map((n) => n.id))
-
-  // Find edges that cross the boundary (one end inside selection, one end outside)
-  // Edges between nodes in the selection should stay intact
-  const boundaryEdges = allEdges.filter((e) => {
-    const sourceInSelection = movingNodeIds.has(e.source)
-    const targetInSelection = movingNodeIds.has(e.target)
-    // Only remove if exactly one end is in the selection (crosses boundary)
-    return sourceInSelection !== targetInSelection
-  })
-
-  // Build updates for all valid nodes
-  return validNodes.map((n) => {
-    // Only include boundary edges connected to this specific node
-    const edgesForThisNode = boundaryEdges.filter((e) => e.source === n.id || e.target === n.id)
-    return {
-      blockId: n.id,
-      newParentId: targetParentId,
-      affectedEdges: edgesForThisNode,
-    }
-  })
 }
 
 /**

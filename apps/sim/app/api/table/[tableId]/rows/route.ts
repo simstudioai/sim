@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
+import { readClientId } from '@/lib/api/client-id'
 import {
   type BatchInsertTableRowsBodyInput,
   batchUpdateTableRowsBodySchema,
@@ -25,8 +26,9 @@ import {
   validateRowData,
   validateRowSize,
 } from '@/lib/table'
+import { TABLE_LIMITS } from '@/lib/table/constants'
 import { TableQueryValidationError } from '@/lib/table/errors'
-import { signalTableRowsChanged } from '@/lib/table/events'
+import { signalTableRowsChanged, signalTableRowsChangedByActor } from '@/lib/table/events'
 import { isTablePredicate, predicateToFilter } from '@/lib/table/query-builder/converters'
 import {
   validatePredicateShape,
@@ -40,7 +42,7 @@ import {
   resolveTableWriteSecretProvenance,
 } from '@/app/api/table/row-secret-provenance'
 import { type RowWireTranslators, rowWireTranslators } from '@/app/api/table/row-wire'
-import { accessError, checkAccess, rowWriteErrorResponse } from '@/app/api/table/utils'
+import { accessError, checkAccess, orchestrationErrorResponse } from '@/app/api/table/utils'
 
 const logger = createLogger('TableRowsAPI')
 
@@ -168,7 +170,7 @@ async function handleBatchInsert(
       rows: insertedRows,
     })
   } catch (error) {
-    const response = rowWriteErrorResponse(error)
+    const response = orchestrationErrorResponse(error)
     if (response) return response
 
     logger.error(`[${requestId}] Error batch inserting rows:`, error)
@@ -254,7 +256,9 @@ export const POST = withRouteHandler(
         table,
         requestId
       )
-      signalTableRowsChanged(tableId)
+      // Attributed unlike the batch path above: the acting tab's insert deliberately avoids
+      // invalidating the rows root to prevent flicker, which an unattributed echo would undo.
+      signalTableRowsChangedByActor(tableId, readClientId(request))
 
       const responseBody = {
         success: true,
@@ -284,7 +288,7 @@ export const POST = withRouteHandler(
         return validationErrorResponse(error)
       }
 
-      const response = rowWriteErrorResponse(error)
+      const response = orchestrationErrorResponse(error)
       if (response) return response
 
       logger.error(`[${requestId}] Error inserting row:`, error)
@@ -355,6 +359,13 @@ export const GET = withRouteHandler(
       }
 
       const wire = rowWireTranslators(authResult.authType, table.schema as TableSchema)
+      /**
+       * The newly expanded path can return up to the byte budget, so skip the
+       * per-row execution-sidecar load. Keep the count behavior unchanged so
+       * Query Rows continues to return totalCount for workflow callers.
+       */
+      const isExpandedQuery =
+        validated.limit === undefined || validated.limit > TABLE_LIMITS.MAX_QUERY_LIMIT
       const result = await queryRows(
         table,
         {
@@ -378,6 +389,7 @@ export const GET = withRouteHandler(
           offset: validated.offset,
           after: validated.after,
           includeTotal: validated.includeTotal,
+          withExecutions: !isExpandedQuery,
         },
         requestId
       )
@@ -527,7 +539,7 @@ export const PUT = withRouteHandler(
         return NextResponse.json({ error: error.message }, { status: 400 })
       }
 
-      const response = rowWriteErrorResponse(error)
+      const response = orchestrationErrorResponse(error)
       if (response) return response
 
       logger.error(`[${requestId}] Error updating rows by filter:`, error)
@@ -627,7 +639,7 @@ export const DELETE = withRouteHandler(
         return NextResponse.json({ error: error.message }, { status: 400 })
       }
 
-      const response = rowWriteErrorResponse(error)
+      const response = orchestrationErrorResponse(error)
       if (response) return response
 
       logger.error(`[${requestId}] Error deleting rows:`, error)
@@ -716,7 +728,7 @@ export const PATCH = withRouteHandler(
         return validationErrorResponse(error)
       }
 
-      const response = rowWriteErrorResponse(error)
+      const response = orchestrationErrorResponse(error)
       if (response) return response
 
       logger.error(`[${requestId}] Error batch updating rows:`, error)

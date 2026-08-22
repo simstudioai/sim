@@ -3,6 +3,7 @@ import { drizzle } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
 import { resolveDbUrl } from './connection-url'
 import * as schema from './schema'
+import { withUtcTimestamps } from './timestamps'
 import { instrumentPoolClient } from './tx-tripwire'
 
 const logger = createLogger('Db')
@@ -71,14 +72,14 @@ if (!connectionString) {
  * Pinned by apps/sim/lib/execution/payloads/prune-metadata-sql.test.ts, which renders
  * the real statements and asserts no bind parameter is an array.
  */
-const poolOptions = {
+const poolOptions = withUtcTimestamps({
   prepare: false,
   fetch_types: false,
   idle_timeout: 20,
   connect_timeout: 30,
   onnotice: () => {},
   connection: { application_name: process.env.DB_APP_NAME ?? profile.appName },
-}
+})
 
 const postgresClient = instrumentPoolClient(
   postgres(connectionString, { ...poolOptions, max: profile.primaryMax }),
@@ -154,11 +155,14 @@ export function dbFor(role: SubProcessDbRole): typeof db {
   const subProfile = DB_POOL_PROFILES[role]
   const client = drizzle(
     instrumentPoolClient(
-      postgres(url, {
-        ...poolOptions,
-        max: subProfile.primaryMax,
-        connection: { application_name: subProfile.appName },
-      }),
+      postgres(
+        url,
+        withUtcTimestamps({
+          ...poolOptions,
+          max: subProfile.primaryMax,
+          connection: { application_name: subProfile.appName },
+        })
+      ),
       role
     ),
     { schema }

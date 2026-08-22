@@ -19,6 +19,15 @@ function getPanelContainer(): HTMLElement | null {
 }
 
 /**
+ * The toast stack also insets its right edge by `--panel-width`, but is
+ * portalled to `<body>` and so shares no ancestor with the panel. See
+ * `use-terminal-resize.ts` for why this is written alongside the primary.
+ */
+function getToastViewport(): (HTMLElement | null)[] {
+  return [document.querySelector<HTMLElement>('[data-toast-viewport]')]
+}
+
+/**
  * Handles panel drag-resize with zero React renders during the drag. The
  * `--panel-width` variable is written to `.panel-container` (a scoped style
  * recalc) rather than `:root` (a whole-document recalc), and the final width
@@ -34,6 +43,7 @@ export function usePanelResize() {
     cursor: 'ew-resize',
     cssVar: '--panel-width',
     getTarget: getPanelContainer,
+    getExtraTargets: getToastViewport,
     compute: computePanelWidth,
     commit: setPanelWidth,
   })

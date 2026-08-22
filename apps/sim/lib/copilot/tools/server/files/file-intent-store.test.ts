@@ -1,9 +1,11 @@
+import { sleep } from '@sim/utils/helpers'
 import { generateShortId } from '@sim/utils/id'
 import { describe, expect, it } from 'vitest'
 import {
   consumeLatestFileIntent,
   type PendingFileIntent,
   storeFileIntent,
+  waitForLatestFileIntent,
 } from './file-intent-store'
 
 function makeIntent(overrides: Partial<PendingFileIntent>): PendingFileIntent {
@@ -47,11 +49,11 @@ describe('file-intent-store channel scoping', () => {
       })
     )
 
-    // edit_content from channel F1 must get fileA — NOT the latest (fileB).
+    // apply_file_edit from channel F1 must get fileA — NOT the latest (fileB).
     const a = await consumeLatestFileIntent(ws, { ...scope, channelId: 'F1' })
     expect(a?.fileId).toBe('fileA')
 
-    // edit_content from channel F2 gets fileB.
+    // apply_file_edit from channel F2 gets fileB.
     const b = await consumeLatestFileIntent(ws, { ...scope, channelId: 'F2' })
     expect(b?.fileId).toBe('fileB')
   })
@@ -115,6 +117,35 @@ describe('file-intent-store channel scoping', () => {
       messageId: 'msg-1',
       channelId: 'F-absent',
     })
+    expect(none).toBeUndefined()
+  })
+})
+
+describe('waitForLatestFileIntent', () => {
+  // The model can batch prepare_file_edit + apply_file_edit into one round, and
+  // same-round tools execute concurrently — apply must tolerate its prepare
+  // landing a beat later instead of failing the pair.
+  it('picks up an intent staged after the wait began', async () => {
+    const ws = uniqueWorkspace()
+    const scope = { chatId: 'chat-1', messageId: 'msg-1', channelId: 'F1' }
+    const pending = waitForLatestFileIntent(ws, scope, { timeoutMs: 500, intervalMs: 10 })
+    await sleep(30)
+    await storeFileIntent(
+      ws,
+      'fileA',
+      makeIntent({ workspaceId: ws, fileId: 'fileA', channelId: 'F1', createdAt: Date.now() })
+    )
+    const intent = await pending
+    expect(intent?.fileId).toBe('fileA')
+  })
+
+  it('returns undefined once the deadline passes with no intent staged', async () => {
+    const ws = uniqueWorkspace()
+    const none = await waitForLatestFileIntent(
+      ws,
+      { chatId: 'chat-1', messageId: 'msg-1', channelId: 'F1' },
+      { timeoutMs: 40, intervalMs: 10 }
+    )
     expect(none).toBeUndefined()
   })
 })

@@ -1,0 +1,90 @@
+---
+title: Logs
+description: Manage logs — every subcommand, argument, and flag
+---
+
+import { CommandTable } from '@/components/ui/command-table'
+
+`sim logs` is also spelled `sim log`.
+
+Every command below also accepts the [global options](/cli/commands#global-options).
+
+## Show run diagnostics
+
+```bash
+sim logs get <runId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `runId` | Yes | Unique workflow run identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--trace` | No | Show expanded trace spans with inputs, outputs, errors, timing, and cost. |
+
+</CommandTable>
+
+## List logs
+
+```bash
+sim logs list [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--workflow <value...>` | No | Comma-separated workflow identifiers to include. An empty entry is rejected. (space-separated, or @path / @- with one value per line). |
+| `--trigger <value...>` | No | Comma-separated trigger types to include. An empty entry is rejected. Values are matched exactly and are case-sensitive — every recorded trigger is lowercase, so `API` matches nothing while `api` matches. The vocabulary is open: it covers the core trigger types (`manual`, `api`, `schedule`, `chat`, `webhook`, `mcp`, `copilot`, `workflow`, `custom_block`) and the provider id of any webhook trigger (`slack`, `gmail`, `github`, …), so an unrecognized member is not rejected — it selects no runs. The literal value `all` is a sentinel that disables this filter entirely, so a list containing it returns runs of every trigger type; no real trigger type is named `all`. (space-separated, or @path / @- with one value per line). |
+| `--level <value>` | No | Severity level to include. Accepted values: `info`, `error`. |
+| `--start-date <value>` | No | Only include runs started at or after this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected, as is year `0000`, which names no storable instant. |
+| `--end-date <value>` | No | Only include runs started at or before this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected, as is year `0000`, which names no storable instant. |
+| `--min-duration-ms <value>` | No | Minimum total execution duration in milliseconds. Whole milliseconds from 0 to 2147483647; the stored duration is a 32-bit integer, so a fractional or out-of-range bound is rejected. |
+| `--max-duration-ms <value>` | No | Maximum total execution duration in milliseconds. Whole milliseconds from 0 to 2147483647; the stored duration is a 32-bit integer, so a fractional or out-of-range bound is rejected. |
+| `--min-cost <value>` | No | Minimum execution cost in USD, from 0 to 1000000. A run is never charged a negative amount, so a negative bound is rejected rather than treated as a filter that matches every run. |
+| `--max-cost <value>` | No | Maximum execution cost in USD, from 0 to 1000000. A run is never charged a negative amount, so a negative bound is rejected rather than treated as a filter that matches every run. |
+| `--model <value>` | No | AI model used during execution. |
+| `--details <value>` | No | Response detail level; full is requested by default to name each run’s workflow. Accepted values: `basic`, `full`. |
+| `--include-trace-spans` | No | Include trace spans in JSON or YAML output (implies full detail). |
+| `--include-final-output` | No | Include final output in JSON or YAML output (implies full detail). |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+| `--order <value>` | No | Sort direction by execution start time. This list is sortable only by execution start time, so it takes `order` in place of `sortBy`/`sortOrder`, which it rejects. Accepted values: `asc`, `desc`. |
+| `--run-id <value>` | No | Exact run identifier to match. |
+| `--folder <value...>` | No | Folder path as shown in the app; the leading / is optional (space-separated, or @path / @- with one value per line). |
+
+</CommandTable>
+
+## Watch runs as they arrive, printing each new run once
+
+```bash
+sim logs follow [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--workflow <id>` | No | Only follow runs of this workflow (repeatable). Defaults to ``. |
+| `--folder <path>` | No | Only follow runs of workflows in this folder (repeatable). Defaults to ``. |
+| `--trigger <type>` | No | Only follow runs with this trigger type (repeatable). Defaults to ``. |
+| `--level <level>` | No | Only follow runs at this severity. Accepted values: `info`, `error`. |
+| `--details <level>` | No | Response detail level; full names each run’s workflow. Accepted values: `basic`, `full`. Defaults to `full`. |
+| `-n, --lines <count>` | No | Recent runs to print before watching. Defaults to `10`. |
+| `--interval <seconds>` | No | Seconds between polls. Defaults to `3`. |
+
+</CommandTable>

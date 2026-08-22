@@ -3,6 +3,9 @@ import { MailchimpIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 
+/** Upsert and unarchive identify the member by either address field; first filled wins. */
+const MEMBER_EMAIL_FIELD = ['subscriberEmail', 'emailAddress'] as const
+
 export const MailchimpBlock: BlockConfig = {
   type: 'mailchimp',
   name: 'Mailchimp',
@@ -15,6 +18,288 @@ export const MailchimpBlock: BlockConfig = {
   integrationType: IntegrationType.Email,
   bgColor: '#FFE01B',
   icon: MailchimpIcon,
+  canvasPresentation: {
+    defaultTitle: 'Mailchimp',
+    sentences: {
+      byOperation: {
+        get_audiences: [
+          { text: 'List', field: 'count', after: 'audiences', core: true },
+          { text: ', starting at', field: 'offset' },
+        ],
+        get_audience: [{ text: 'Read audience', field: 'listId', core: true }],
+        create_audience: [{ text: 'Create audience', field: 'audienceName', core: true }],
+        update_audience: [
+          { text: 'Update audience', field: 'listId', core: true },
+          { text: ', renaming it', field: 'audienceName' },
+        ],
+        delete_audience: [{ text: 'Delete audience', field: 'listId', core: true }],
+        get_members: [
+          { text: 'List members of audience', field: 'listId', core: true },
+          { text: ', with status', field: 'status' },
+        ],
+        get_member: [
+          { text: 'Read member', field: 'subscriberEmail', core: true },
+          { text: 'in audience', field: 'listId' },
+        ],
+        add_member: [
+          { text: 'Add', field: 'emailAddress', core: true },
+          { text: 'to audience', field: 'listId', core: true },
+          { text: ', as', field: 'status' },
+        ],
+        add_or_update_member: [
+          { text: 'Add or update', field: MEMBER_EMAIL_FIELD, core: true },
+          { text: 'in audience', field: 'listId' },
+          { text: ', defaulting new members to', field: 'statusIfNew' },
+        ],
+        update_member: [
+          { text: 'Update member', field: 'subscriberEmail', core: true },
+          { text: 'in audience', field: 'listId' },
+          { text: ', setting status', field: 'status' },
+        ],
+        delete_member: [
+          { text: 'Delete member', field: 'subscriberEmail', core: true },
+          { text: 'from audience', field: 'listId' },
+        ],
+        archive_member: [
+          { text: 'Archive member', field: 'subscriberEmail', core: true },
+          { text: 'in audience', field: 'listId' },
+        ],
+        unarchive_member: [
+          { text: 'Restore archived member', field: MEMBER_EMAIL_FIELD, core: true },
+          { text: 'to audience', field: 'listId' },
+        ],
+        get_campaigns: [
+          { text: 'List', field: 'count', after: 'campaigns', core: true },
+          { text: ', of type', field: 'campaignType' },
+        ],
+        get_campaign: [{ text: 'Read campaign', field: 'campaignId', core: true }],
+        create_campaign: [
+          {
+            text: 'Create',
+            field: 'campaignType',
+            after: 'campaign',
+            core: true,
+          },
+          { text: ', with', field: 'campaignSettings' },
+        ],
+        update_campaign: [
+          { text: 'Update campaign', field: 'campaignId', core: true },
+          { text: ', setting', field: 'campaignSettings' },
+        ],
+        delete_campaign: [{ text: 'Delete campaign', field: 'campaignId', core: true }],
+        send_campaign: [{ text: 'Send campaign', field: 'campaignId', core: true }],
+        schedule_campaign: [
+          { text: 'Schedule campaign', field: 'campaignId', core: true },
+          { text: 'for', field: 'scheduleTime' },
+        ],
+        unschedule_campaign: [{ text: 'Unschedule campaign', field: 'campaignId', core: true }],
+        replicate_campaign: [{ text: 'Copy campaign', field: 'campaignId', core: true }],
+        get_campaign_content: [
+          { text: 'Read the content of campaign', field: 'campaignId', core: true },
+        ],
+        set_campaign_content: [
+          { text: 'Set the content of campaign', field: 'campaignId', core: true },
+          { text: ', from template', field: 'templateId' },
+        ],
+        get_automations: [
+          {
+            text: 'List',
+            field: 'count',
+            after: 'automations',
+            core: true,
+          },
+          { text: ', starting at', field: 'offset' },
+        ],
+        get_automation: [{ text: 'Read automation', field: 'workflowId', core: true }],
+        start_automation: [
+          { text: 'Start every email in automation', field: 'workflowId', core: true },
+        ],
+        pause_automation: [
+          { text: 'Pause every email in automation', field: 'workflowId', core: true },
+        ],
+        add_subscriber_to_automation: [
+          { text: 'Queue', field: 'emailAddress', core: true },
+          { text: 'for automation', field: 'workflowId' },
+          { text: ', on email', field: 'workflowEmailId' },
+        ],
+        get_templates: [
+          { text: 'List', field: 'count', after: 'templates', core: true },
+          { text: ', starting at', field: 'offset' },
+        ],
+        get_template: [{ text: 'Read template', field: 'templateId', core: true }],
+        create_template: [{ text: 'Create template', field: 'templateName', core: true }],
+        update_template: [
+          { text: 'Update template', field: 'templateId', core: true },
+          { text: ', renaming it', field: 'templateName' },
+        ],
+        delete_template: [{ text: 'Delete template', field: 'templateId', core: true }],
+        get_campaign_reports: [
+          {
+            text: 'List',
+            field: 'count',
+            after: 'campaign reports',
+            core: true,
+          },
+          { text: ', starting at', field: 'offset' },
+        ],
+        get_campaign_report: [
+          { text: 'Read the report for campaign', field: 'campaignId', core: true },
+        ],
+        get_segments: [
+          { text: 'List', field: 'count', after: 'segments', core: true },
+          { text: 'in audience', field: 'listId', core: true },
+        ],
+        get_segment: [
+          { text: 'Read segment', field: 'segmentId', core: true },
+          { text: 'in audience', field: 'listId' },
+        ],
+        create_segment: [
+          { text: 'Create segment', field: 'segmentName', core: true },
+          { text: 'in audience', field: 'listId' },
+          { text: ', matching', field: 'segmentOptions' },
+        ],
+        update_segment: [
+          { text: 'Update segment', field: 'segmentId', core: true },
+          { text: 'in audience', field: 'listId' },
+          { text: ', renaming it', field: 'segmentName' },
+        ],
+        delete_segment: [
+          { text: 'Delete segment', field: 'segmentId', core: true },
+          { text: 'from audience', field: 'listId' },
+        ],
+        get_segment_members: [
+          { text: 'List members of segment', field: 'segmentId', core: true },
+          { text: 'in audience', field: 'listId' },
+        ],
+        add_segment_member: [
+          { text: 'Add', field: 'emailAddress', core: true },
+          { text: 'to segment', field: 'segmentId', core: true },
+          { text: 'in audience', field: 'listId' },
+        ],
+        remove_segment_member: [
+          { text: 'Remove', field: 'subscriberEmail', core: true },
+          { text: 'from segment', field: 'segmentId' },
+          { text: 'in audience', field: 'listId' },
+        ],
+        get_member_tags: [
+          { text: 'List tags on member', field: 'subscriberEmail', core: true },
+          { text: 'in audience', field: 'listId' },
+        ],
+        add_member_tags: [
+          { text: 'Add', field: 'tags', core: true },
+          { text: 'to member', field: 'subscriberEmail', core: true },
+          { text: 'in audience', field: 'listId' },
+        ],
+        remove_member_tags: [
+          { text: 'Remove', field: 'tags', core: true },
+          { text: 'from member', field: 'subscriberEmail', core: true },
+          { text: 'in audience', field: 'listId' },
+        ],
+        get_merge_fields: [{ text: 'List merge fields in audience', field: 'listId', core: true }],
+        get_merge_field: [
+          { text: 'Read merge field', field: 'mergeId', core: true },
+          { text: 'in audience', field: 'listId' },
+        ],
+        create_merge_field: [
+          {
+            text: 'Create',
+            field: 'mergeType',
+            after: 'merge field',
+            core: true,
+          },
+          { text: 'named', field: 'mergeName', core: true },
+          { text: 'in audience', field: 'listId' },
+        ],
+        update_merge_field: [
+          { text: 'Update merge field', field: 'mergeId', core: true },
+          { text: 'in audience', field: 'listId' },
+          { text: ', renaming it', field: 'mergeName' },
+        ],
+        delete_merge_field: [
+          { text: 'Delete merge field', field: 'mergeId', core: true },
+          { text: 'from audience', field: 'listId' },
+        ],
+        get_interest_categories: [
+          { text: 'List interest categories in audience', field: 'listId', core: true },
+        ],
+        get_interest_category: [
+          { text: 'Read interest category', field: 'interestCategoryId', core: true },
+          { text: 'in audience', field: 'listId' },
+        ],
+        create_interest_category: [
+          { text: 'Create interest category', field: 'interestCategoryTitle', core: true },
+          { text: 'in audience', field: 'listId' },
+          { text: ', shown as', field: 'interestCategoryType' },
+        ],
+        update_interest_category: [
+          { text: 'Update interest category', field: 'interestCategoryId', core: true },
+          { text: 'in audience', field: 'listId' },
+          { text: ', renaming it', field: 'interestCategoryTitle' },
+        ],
+        delete_interest_category: [
+          { text: 'Delete interest category', field: 'interestCategoryId', core: true },
+          { text: 'from audience', field: 'listId' },
+        ],
+        get_interests: [
+          { text: 'List interests in category', field: 'interestCategoryId', core: true },
+          { text: 'of audience', field: 'listId' },
+        ],
+        get_interest: [
+          { text: 'Read interest', field: 'interestId', core: true },
+          { text: 'in category', field: 'interestCategoryId' },
+          { text: 'of audience', field: 'listId' },
+        ],
+        create_interest: [
+          { text: 'Create interest', field: 'interestName', core: true },
+          { text: 'in category', field: 'interestCategoryId' },
+          { text: 'of audience', field: 'listId' },
+        ],
+        update_interest: [
+          { text: 'Update interest', field: 'interestId', core: true },
+          { text: 'in category', field: 'interestCategoryId' },
+          { text: ', renaming it', field: 'interestName' },
+        ],
+        delete_interest: [
+          { text: 'Delete interest', field: 'interestId', core: true },
+          { text: 'from category', field: 'interestCategoryId' },
+          { text: 'in audience', field: 'listId' },
+        ],
+        get_landing_pages: [
+          {
+            text: 'List',
+            field: 'count',
+            after: 'landing pages',
+            core: true,
+          },
+          { text: ', starting at', field: 'offset' },
+        ],
+        get_landing_page: [{ text: 'Read landing page', field: 'pageId', core: true }],
+        create_landing_page: [
+          { text: 'Create landing page', field: 'landingPageTitle', core: true },
+          { text: ', of type', field: 'landingPageType' },
+        ],
+        update_landing_page: [
+          { text: 'Update landing page', field: 'pageId', core: true },
+          { text: ', renaming it', field: 'landingPageTitle' },
+        ],
+        delete_landing_page: [{ text: 'Delete landing page', field: 'pageId', core: true }],
+        publish_landing_page: [{ text: 'Publish landing page', field: 'pageId', core: true }],
+        unpublish_landing_page: [{ text: 'Unpublish landing page', field: 'pageId', core: true }],
+        get_batch_operations: [
+          {
+            text: 'List',
+            field: 'count',
+            after: 'batch operations',
+            core: true,
+          },
+          { text: ', starting at', field: 'offset' },
+        ],
+        get_batch_operation: [{ text: 'Read batch operation', field: 'batchId', core: true }],
+        create_batch_operation: [{ text: 'Submit a batch of', field: 'operations', core: true }],
+        delete_batch_operation: [{ text: 'Delete batch operation', field: 'batchId', core: true }],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',
@@ -1312,6 +1597,7 @@ Return ONLY the JSON array - no explanations or markdown.`,
     {
       id: 'count',
       title: 'Count',
+      canvasNoun: 'how many',
       type: 'short-input',
       placeholder: 'Number of results (default: 10, max: 1000)',
       condition: {

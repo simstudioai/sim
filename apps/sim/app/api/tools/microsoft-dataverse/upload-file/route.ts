@@ -6,6 +6,7 @@ import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { secureFetchWithValidation } from '@/lib/core/security/input-validation.server'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { processSingleFileToUserFile } from '@/lib/uploads/utils/file-utils'
 import { downloadServableFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
@@ -19,6 +20,17 @@ const logger = createLogger('DataverseUploadFileAPI')
 
 /** Dataverse Web API's absolute ceiling for a single-request (non-chunked) file column upload. */
 const DATAVERSE_SINGLE_REQUEST_UPLOAD_MAX_BYTES = 128 * 1024 * 1024
+
+function uploadTooLargeError(observedBytes: number): NextResponse {
+  const sizeMB = (observedBytes / (1024 * 1024)).toFixed(2)
+  return NextResponse.json(
+    {
+      success: false,
+      error: `File size (${sizeMB}MB) exceeds Dataverse's 128MB limit for single-request file column uploads. Split the file and use chunked upload instead.`,
+    },
+    { status: 400 }
+  )
+}
 
 export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
@@ -77,11 +89,15 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       if (denied) return denied
 
       try {
-        const servable = await downloadServableFileFromStorage(userFile, requestId, logger)
+        const servable = await downloadServableFileFromStorage(userFile, requestId, logger, {
+          maxBytes: DATAVERSE_SINGLE_REQUEST_UPLOAD_MAX_BYTES,
+        })
         fileBuffer = servable.buffer
       } catch (error) {
         const notReady = docNotReadyResponse(error)
         if (notReady) return notReady
+        if (isPayloadSizeLimitError(error))
+          return uploadTooLargeError(error.observedBytes ?? userFile.size)
         logger.error(`[${requestId}] Failed to download file from storage:`, error)
         return NextResponse.json(
           { success: false, error: getErrorMessage(error, 'Failed to download file') },
@@ -100,13 +116,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     if (fileBuffer.length > DATAVERSE_SINGLE_REQUEST_UPLOAD_MAX_BYTES) {
       const sizeMB = (fileBuffer.length / (1024 * 1024)).toFixed(2)
       logger.warn(`[${requestId}] File too large for single-request upload: ${sizeMB}MB`)
-      return NextResponse.json(
-        {
-          success: false,
-          error: `File size (${sizeMB}MB) exceeds Dataverse's 128MB limit for single-request file column uploads. Split the file and use chunked upload instead.`,
-        },
-        { status: 400 }
-      )
+      return uploadTooLargeError(fileBuffer.length)
     }
 
     const baseUrl = getDataverseBaseUrl(validatedData.environmentUrl)
@@ -124,6 +134,13 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           'x-ms-file-name': validatedData.fileName,
         },
         body: fileBuffer,
+        /**
+         * The tool's own `stripAuthOnRedirect` only covers the hop to this
+         * route. Dataverse redirects file operations to signed storage hosts,
+         * so this outbound call has to drop the bearer token itself or the
+         * redirect target receives a reusable OAuth credential.
+         */
+        stripAuthOnRedirect: true,
       },
       'environmentUrl'
     )

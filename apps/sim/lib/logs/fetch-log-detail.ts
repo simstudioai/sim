@@ -9,6 +9,7 @@ import {
 } from '@sim/db/schema'
 import { and, eq, type SQL } from 'drizzle-orm'
 import type { CostLedger } from '@/lib/api/contracts/logs'
+import { hydrateChildTraces } from '@/lib/logs/execution/hydrate-child-traces'
 import {
   type ExecutionProgressMarkers,
   getProgressMarkers,
@@ -17,6 +18,7 @@ import {
 } from '@/lib/logs/execution/progress-markers'
 import { materializeExecutionDataForDisplay } from '@/lib/logs/execution/trace-store'
 import { workflowExecutionOriginSql } from '@/lib/logs/execution-origin'
+import type { TraceSpan } from '@/lib/logs/types'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 
 type LookupColumn = 'id' | 'executionId'
@@ -181,6 +183,12 @@ export async function fetchLogDetail({
         userId,
       }
     )
+
+    // A custom block's child ran in another workspace and kept its spans on its
+    // own log row. Join in the ones whose publisher opened them to consumers.
+    if (Array.isArray(executionData?.traceSpans)) {
+      await hydrateChildTraces(executionData.traceSpans as TraceSpan[], { viewerUserId: userId })
+    }
 
     const liveMarkers =
       log.status === 'running' || log.status === 'pending' || log.status === 'redacting'

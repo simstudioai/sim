@@ -2,7 +2,8 @@ import type { ReactNode } from 'react'
 import { defineI18nUI } from 'fumadocs-ui/i18n'
 import { DocsLayout } from 'fumadocs-ui/layouts/docs'
 import { RootProvider } from 'fumadocs-ui/provider/next'
-import { Geist_Mono, Inter } from 'next/font/google'
+import { Inter } from 'next/font/google'
+import { ThemeProvider } from 'next-themes'
 import {
   SidebarFolder,
   SidebarItem,
@@ -21,12 +22,6 @@ import '../global.css'
 const inter = Inter({
   subsets: ['latin'],
   variable: '--font-geist-sans',
-  display: 'swap',
-})
-
-const geistMono = Geist_Mono({
-  subsets: ['latin'],
-  variable: '--font-geist-mono',
   display: 'swap',
 })
 
@@ -84,46 +79,50 @@ export default async function Layout({ children, params }: LayoutProps) {
   }
 
   return (
-    <html
-      lang={lang}
-      className={`${inter.variable} ${geistMono.variable} ${season.variable}`}
-      suppressHydrationWarning
-    >
+    <html lang={lang} className={`${inter.variable} ${season.variable}`} suppressHydrationWarning>
       <head>
         <script
+          id='website-json-ld'
           type='application/ld+json'
           dangerouslySetInnerHTML={{ __html: serializeJsonLd(structuredData) }}
         />
       </head>
       <body className='flex min-h-screen flex-col font-sans'>
-        <RootProvider i18n={provider(lang)}>
-          <Navbar />
-          <DocsLayout
-            tree={source.pageTree[lang]}
-            nav={{
-              title: <SimWordmark className='h-[18px]' />,
-            }}
-            sidebar={{
-              tabs: false,
-              defaultOpenLevel: 0,
-              collapsible: false,
-              footer: null,
-              banner: null,
-              prefetch: false,
-              components: {
-                Item: SidebarItem,
-                Folder: SidebarFolder,
-                Separator: SidebarSeparator,
-              },
-            }}
-            containerProps={{
-              className: '!pt-0',
-            }}
-          >
-            {children}
-          </DocsLayout>
-          <Footer />
-        </RootProvider>
+        <ThemeProvider
+          attribute='class'
+          defaultTheme='system'
+          enableSystem
+          disableTransitionOnChange
+        >
+          <RootProvider i18n={provider(lang)} theme={{ enabled: false }}>
+            <Navbar />
+            <DocsLayout
+              tree={source.pageTree[lang]}
+              nav={{
+                title: <SimWordmark className='h-[18px]' />,
+              }}
+              sidebar={{
+                tabs: false,
+                defaultOpenLevel: 0,
+                collapsible: false,
+                footer: null,
+                banner: null,
+                prefetch: false,
+                components: {
+                  Item: SidebarItem,
+                  Folder: SidebarFolder,
+                  Separator: SidebarSeparator,
+                },
+              }}
+              containerProps={{
+                className: '!pt-0',
+              }}
+            >
+              {children}
+            </DocsLayout>
+            <Footer />
+          </RootProvider>
+        </ThemeProvider>
       </body>
     </html>
   )

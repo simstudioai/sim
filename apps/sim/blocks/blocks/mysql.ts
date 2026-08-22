@@ -16,6 +16,35 @@ export const MySQLBlock: BlockConfig<MySQLResponse> = {
   integrationType: IntegrationType.Databases,
   bgColor: '#FFFFFF',
   icon: MySQLIcon,
+  canvasPresentation: {
+    defaultTitle: 'MySQL',
+    sentences: {
+      byOperation: {
+        query: [
+          { text: 'Run SELECT query', field: 'query', core: true },
+          { text: 'on', field: 'database' },
+        ],
+        insert: [
+          { text: 'Insert', field: 'data', core: true },
+          { text: 'into', field: 'table', core: true },
+        ],
+        update: [
+          { text: 'Update rows in', field: 'table', core: true },
+          { text: ', where', field: 'where' },
+          { text: ', setting', field: 'data' },
+        ],
+        delete: [
+          { text: 'Delete rows from', field: 'table', core: true },
+          { text: ', where', field: 'where' },
+        ],
+        execute: [
+          { text: 'Execute raw SQL', field: 'query', core: true },
+          { text: 'on', field: 'database' },
+        ],
+        introspect: [{ text: 'Read the schema of', field: 'database', core: true }],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',
@@ -257,6 +286,7 @@ Return ONLY the SQL query - no explanations, no markdown, no extra text.`,
     {
       id: 'data',
       title: 'Data (JSON)',
+      canvasNoun: 'a row',
       type: 'code',
       placeholder: '{\n  "name": "John Doe",\n  "email": "john@example.com",\n  "active": true\n}',
       condition: { field: 'operation', value: 'insert' },

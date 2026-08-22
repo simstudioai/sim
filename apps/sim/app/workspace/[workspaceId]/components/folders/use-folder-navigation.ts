@@ -1,47 +1,51 @@
 'use client'
 
-import { useCallback, useEffect, useMemo } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import { useQueryStates } from 'nuqs'
 import type { ServedFolderResourceType } from '@/lib/api/contracts/folders'
 import {
   folderNavParsers,
   folderNavUrlKeys,
 } from '@/app/workspace/[workspaceId]/components/folders/search-params'
-import { useFolders } from '@/hooks/queries/folders'
-import type { WorkflowFolder } from '@/stores/folders/types'
+import {
+  type FolderAncestors,
+  useFolderAncestors,
+} from '@/app/workspace/[workspaceId]/components/folders/use-folder-ancestors'
 
 export interface UseFolderNavigationOptions {
   resourceType: ServedFolderResourceType
   workspaceId?: string
+  /**
+   * Runs before {@link FolderNavigation.openFolder} moves, for state the destination
+   * invalidates — in practice, clearing the list's search. Not run by
+   * {@link FolderNavigation.setCurrentFolderId}.
+   */
+  onBeforeOpenFolder?: () => void
 }
 
-export interface FolderNavigation {
+export interface FolderNavigation extends FolderAncestors {
   /** The open folder, or `null` at the workspace root. */
   currentFolderId: string | null
-  setCurrentFolderId: (folderId: string | null) => void
   /**
-   * Root-first ancestor chain of the open folder, the open folder last. Empty at the root,
-   * and empty while the folder list is still loading or when the id no longer resolves (a
-   * deleted folder or a stale bookmark) — callers fall back to the root listing rather than
-   * rendering a broken trail.
+   * Moves to a folder without side effects. For writes that are not a chosen navigation —
+   * a spring-open mid-drag, which is undone when the drag ends without a drop, or the heal
+   * below. Pass `{ history: 'replace' }` to keep such a write out of the back stack.
    */
-  breadcrumbs: WorkflowFolder[]
-  /** Every active folder in this resource's tree, as returned by the folders API. */
-  folders: WorkflowFolder[]
-  folderById: Map<string, WorkflowFolder>
+  setCurrentFolderId: (folderId: string | null, options?: { history?: 'push' | 'replace' }) => void
   /**
-   * Whether `folders`/`folderById` can be trusted to be the COMPLETE set for this workspace.
+   * Opens a folder because the user chose to, running {@link
+   * UseFolderNavigationOptions.onBeforeOpenFolder} first.
    *
-   * Deliberately exposed instead of `isLoading`, which is a footgun here: it is false for a
-   * disabled query (no `workspaceId`), false for an errored one, and — because `useFolders`
-   * sets `keepPreviousData` — false while the previous workspace's folders are still on screen
-   * during a switch. A caller deciding "this resource's `folderId` does not resolve, so treat it
-   * as an orphan" off `isLoading` would dump every foldered row at the root in all three.
+   * Separate from {@link FolderNavigation.setCurrentFolderId} because opening a folder ends a
+   * search — the results span every folder, so the one the user picked out of them is a
+   * destination, not a narrower place to keep searching — while a spring-open must not, or an
+   * abandoned drag would discard the search that produced the row being dragged.
+   *
+   * Defaults to the param group's `history: 'push'`: a chosen folder is a destination, and
+   * Back returns to the results that led there.
    */
-  foldersResolved: boolean
+  openFolder: (folderId: string | null, options?: { history?: 'push' | 'replace' }) => void
 }
-
-const EMPTY_FOLDERS: WorkflowFolder[] = []
 
 /**
  * URL-backed folder navigation for a foldered resource list. Deliberately
@@ -55,40 +59,42 @@ const EMPTY_FOLDERS: WorkflowFolder[] = []
 export function useFolderNavigation({
   resourceType,
   workspaceId,
+  onBeforeOpenFolder,
 }: UseFolderNavigationOptions): FolderNavigation {
   const [{ folderId: currentFolderId }, setFolderParams] = useQueryStates(
     folderNavParsers,
     folderNavUrlKeys
   )
 
-  const {
-    data: folders = EMPTY_FOLDERS,
-    isSuccess,
-    isPlaceholderData,
-  } = useFolders(workspaceId, { resourceType })
-
-  /**
-   * The folder list is only trustworthy enough to evict a `folderId` when the query has
-   * actually succeeded for THIS workspace. `isLoading` alone is not that signal: it is false
-   * for a disabled query (no `workspaceId`), false for an errored one, and — because
-   * `useFolders` sets `keepPreviousData` — false while showing the previous workspace's
-   * folders during a workspace switch. In all three the list is empty or stale, and healing
-   * off it would throw away a perfectly good folder.
-   */
-  const foldersResolved = isSuccess && !isPlaceholderData
+  const ancestry = useFolderAncestors({
+    resourceType,
+    workspaceId,
+    folderId: currentFolderId,
+  })
+  const { folderById, foldersResolved } = ancestry
 
   const setCurrentFolderId = useCallback(
-    (folderId: string | null) => {
-      void setFolderParams({ folderId })
+    (folderId: string | null, options?: { history?: 'push' | 'replace' }) => {
+      void setFolderParams({ folderId }, options)
     },
     [setFolderParams]
   )
 
-  const folderById = useMemo(() => {
-    const byId = new Map<string, WorkflowFolder>()
-    for (const folder of folders) byId.set(folder.id, folder)
-    return byId
-  }, [folders])
+  const onBeforeOpenFolderRef = useRef(onBeforeOpenFolder)
+  onBeforeOpenFolderRef.current = onBeforeOpenFolder
+
+  /**
+   * Both writes land in one URL update: nuqs batches same-tick writes across param groups and
+   * escalates the batch to `push` when any of them pushes, so clearing a `history: 'replace'`
+   * search alongside the folder change stays a single history entry.
+   */
+  const openFolder = useCallback(
+    (folderId: string | null, options?: { history?: 'push' | 'replace' }) => {
+      onBeforeOpenFolderRef.current?.()
+      void setFolderParams({ folderId }, options)
+    },
+    [setFolderParams]
+  )
 
   /**
    * Heals a `?folderId=` that no longer resolves — a bookmark to a folder since deleted, or a
@@ -114,36 +120,5 @@ export function useFolderNavigation({
     void setFolderParams({ folderId: null }, { history: 'replace' })
   }, [foldersResolved, currentFolderId, folderById, setFolderParams])
 
-  const breadcrumbs = useMemo(() => {
-    if (!currentFolderId) return EMPTY_FOLDERS
-
-    /**
-     * Walks up via `parentId` rather than splitting a materialized path — the generic
-     * folder table stores no path — and guards against a cycle, which the DB permits
-     * between constraint checks. An unresolvable link collapses the whole trail so the
-     * header falls back to the root title instead of rendering a partial path.
-     */
-    const chain: WorkflowFolder[] = []
-    const seen = new Set<string>()
-    let cursor: string | null = currentFolderId
-
-    while (cursor && !seen.has(cursor)) {
-      seen.add(cursor)
-      const folder: WorkflowFolder | undefined = folderById.get(cursor)
-      if (!folder) return EMPTY_FOLDERS
-      chain.unshift(folder)
-      cursor = folder.parentId
-    }
-
-    return chain
-  }, [currentFolderId, folderById])
-
-  return {
-    currentFolderId,
-    setCurrentFolderId,
-    breadcrumbs,
-    folders,
-    folderById,
-    foldersResolved,
-  }
+  return { ...ancestry, currentFolderId, setCurrentFolderId, openFolder }
 }

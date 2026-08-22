@@ -33,6 +33,7 @@ interface OrganizationSeatInfo {
 
 interface ValidateSeatOptions {
   excludePendingInvitationId?: string
+  executor?: DbOrTx
 }
 
 /**
@@ -152,10 +153,14 @@ export async function validateSeatAvailability(
   options: ValidateSeatOptions = {}
 ): Promise<SeatValidationResult> {
   try {
+    const executor = options.executor ?? db
     if (!isBillingEnabled) {
       const [memberCount, pendingSeats] = await Promise.all([
-        db.select({ count: count() }).from(member).where(eq(member.organizationId, organizationId)),
-        countPendingSeatInvitations(organizationId),
+        executor
+          .select({ count: count() })
+          .from(member)
+          .where(eq(member.organizationId, organizationId)),
+        countPendingSeatInvitations(organizationId, executor),
       ])
       return {
         canInvite: true,
@@ -165,7 +170,7 @@ export async function validateSeatAvailability(
       }
     }
 
-    const subscription = await getOrganizationSubscription(organizationId)
+    const subscription = await getOrganizationSubscription(organizationId, { executor })
 
     if (!subscription) {
       return {
@@ -188,9 +193,12 @@ export async function validateSeatAvailability(
     }
 
     const [memberCount, pendingSeats, maxSeats] = await Promise.all([
-      db.select({ count: count() }).from(member).where(eq(member.organizationId, organizationId)),
-      countPendingSeatInvitations(organizationId, db, options.excludePendingInvitationId),
-      resolveSeatCapacity(subscription),
+      executor
+        .select({ count: count() })
+        .from(member)
+        .where(eq(member.organizationId, organizationId)),
+      countPendingSeatInvitations(organizationId, executor, options.excludePendingInvitationId),
+      resolveSeatCapacity(subscription, executor),
     ])
 
     const {

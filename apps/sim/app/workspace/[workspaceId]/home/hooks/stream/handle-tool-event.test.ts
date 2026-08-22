@@ -195,7 +195,7 @@ describe('tool events (dispatch → model + side effects)', () => {
     // user, and pop the collapsed panel open. Create/edit and the explicit
     // open_resource tool are the only things that should open the panel.
     const addResource = vi.fn(() => true)
-    const onResourceEventRef = ref<(() => void) | undefined>(vi.fn())
+    const onResourceEventRef = ref<((resourceId: string) => void) | undefined>(vi.fn())
     const ctx = createStreamLoopContext(makeStreamLoopDeps({ addResource, onResourceEventRef }))
 
     dispatchStreamEvent(

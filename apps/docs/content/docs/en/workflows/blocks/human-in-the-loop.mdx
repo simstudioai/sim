@@ -87,14 +87,15 @@ Access resume data in downstream blocks using `<blockId.fieldName>`.
   <Tab>
     ### REST API
     
-    Programmatically resume workflows using the resume endpoint. The `contextId` is available from the block's `resumeEndpoint` output or from the `_resume` object in the paused execution response.
+    Programmatically resume workflows through the v2 run resource. The `contextId` is available from the block's `resumeEndpoint` output or from the `_resume` object in the paused run response.
     
     ```bash
-    POST /api/resume/{workflowId}/{executionId}/{contextId}
+    POST /api/v2/workflows/{workflowId}/runs/{runId}/resume
     Content-Type: application/json
     X-API-Key: your-api-key
     
     {
+      "contextId": "<contextId>",
       "input": {
         "approved": true,
         "comments": "Looks good to proceed"
@@ -108,11 +109,16 @@ Access resume data in downstream blocks using `<blockId.fieldName>`.
     
     ```json
     {
-      "success": true,
-      "status": "completed",
-      "executionId": "<resumeExecutionId>",
-      "output": { ... },
-      "metadata": { "duration": 1234, "startTime": "...", "endTime": "..." }
+      "data": {
+        "runId": "<resumeRunId>",
+        "workflowId": "<workflowId>",
+        "status": "completed",
+        "output": { ... },
+        "error": null,
+        "startedAt": "...",
+        "endedAt": "...",
+        "durationMs": 1234
+      }
     }
     ```
     
@@ -120,29 +126,35 @@ Access resume data in downstream blocks using `<blockId.fieldName>`.
     
     - **Stream mode** (`stream: true` on the original execute call) — The resume response streams SSE events with `selectedOutputs` chunks, just like the initial execution.
     
-    - **Async mode** (`X-Execution-Mode: async` on the original execute call) — The resume dispatches execution to a background worker and returns immediately with `202`, including a `jobId` and `statusUrl` for polling:
+    - **Async mode** (`async: true` on the original v2 execute call) — The resume dispatches the run to a background worker and returns immediately with `202`, including the resume attempt's `runId` and v2 `statusUrl` for polling:
     
     ```json
     {
-      "success": true,
-      "async": true,
-      "jobId": "<jobId>",
-      "executionId": "<resumeExecutionId>",
-      "message": "Resume execution queued",
-      "statusUrl": "/api/jobs/<jobId>"
+      "data": {
+        "runId": "<resumeRunId>",
+        "statusUrl": "/api/v2/workflows/<workflowId>/runs/<resumeRunId>"
+      }
     }
     ```
     
-    #### Polling execution status
+    #### Polling run status
     
     Poll the `statusUrl` from the async response to check when the resume completes:
     
     ```bash
-    GET /api/jobs/{jobId}
+    GET /api/v2/workflows/{workflowId}/runs/{resumeRunId}?includeOutput=true
     X-API-Key: your-api-key
     ```
     
-    Returns job status and, when completed, the full workflow output.
+    Returns the run status and, when completed, the full workflow output.
+
+    The legacy endpoint remains available without behavior changes for existing integrations:
+
+    ```bash
+    POST /api/resume/{workflowId}/{executionId}/{contextId}
+    ```
+
+    Its async response continues to expose `jobId` and the legacy `/api/jobs/{jobId}` polling URL.
     
     To check on a paused execution's pause points and resume links:
     
@@ -162,7 +174,7 @@ Access resume data in downstream blocks using `<blockId.fieldName>`.
 
 ## API Execute Behavior
 
-When triggering a workflow via the execute API (`POST /api/workflows/{id}/execute`), HITL blocks cause the execution to pause and return the `_resume` data in the response:
+When triggering a workflow through `POST /api/v2/workflows/{id}/execute`, HITL blocks cause the execution to pause and return the `_resume` data in the v2 response envelope. The legacy `POST /api/workflows/{id}/execute` endpoint remains available for existing integrations.
 
 <Tabs items={['Sync (JSON)', 'Stream (SSE)', 'Async']}>
   <Tab>
@@ -170,19 +182,23 @@ When triggering a workflow via the execute API (`POST /api/workflows/{id}/execut
     
     ```json
     {
-      "success": true,
-      "executionId": "<executionId>",
-      "output": {
-        "data": {
-          "operation": "human",
-          "_resume": {
-            "apiUrl": "/api/resume/{workflowId}/{executionId}/{contextId}",
-            "uiUrl": "/resume/{workflowId}/{executionId}",
-            "contextId": "<contextId>",
-            "executionId": "<executionId>",
-            "workflowId": "<workflowId>"
+      "data": {
+        "runId": "<runId>",
+        "workflowId": "<workflowId>",
+        "status": "paused",
+        "output": {
+          "data": {
+            "operation": "human",
+            "_resume": {
+              "apiUrl": "/api/resume/{workflowId}/{executionId}/{contextId}",
+              "uiUrl": "/resume/{workflowId}/{executionId}",
+              "contextId": "<contextId>",
+              "executionId": "<executionId>",
+              "workflowId": "<workflowId>"
+            }
           }
-        }
+        },
+        "error": null
       }
     }
     ```

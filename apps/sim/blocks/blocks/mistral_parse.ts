@@ -10,6 +10,9 @@ import {
 import { createVersionedToolSelector, normalizeFileInput } from '@/blocks/utils'
 import type { MistralParserOutput } from '@/tools/mistral/types'
 
+const DOCUMENT_FIELD = ['fileUpload', 'filePath'] as const
+const DOCUMENT_REFERENCE_FIELD = ['fileUpload', 'fileReference'] as const
+
 export const MistralParseBlock: BlockConfig<MistralParserOutput> = {
   type: 'mistral_parse',
   name: 'Mistral Parser (Legacy)',
@@ -23,6 +26,19 @@ export const MistralParseBlock: BlockConfig<MistralParserOutput> = {
   integrationType: IntegrationType.AI,
   bgColor: '#000000',
   icon: MistralIcon,
+  canvasPresentation: {
+    defaultTitle: 'Mistral Parser',
+    sentences: {
+      default: [
+        /* The upload/URL switch has no default, so neither member is on a fresh
+           card; the literal carries the sentence until one is chosen. */
+        'Extract text',
+        { text: 'from', field: ['fileUpload', 'filePath'] },
+        { text: ', as', field: 'resultType' },
+        { text: ', pages', field: 'pages' },
+      ],
+    },
+  },
   subBlocks: [
     {
       id: 'inputMethod',
@@ -294,6 +310,21 @@ export const MistralParseV3Block: BlockConfig<MistralParserOutput> = {
   name: 'Mistral Parser',
   description: 'Extract text from PDF documents',
   hideFromToolbar: false,
+  /* v3 renamed the canonical pair's advanced member `filePath` -> `fileReference`,
+     so the inherited sentence would reference a subblock this block lacks. */
+  canvasPresentation: {
+    defaultTitle: 'Mistral Parser',
+    sentences: {
+      default: [
+        /* The upload/URL switch has no default, so neither member is on a fresh
+           card; the literal carries the sentence until one is chosen. */
+        'Extract text',
+        { text: 'from', field: ['fileUpload', 'fileReference'] },
+        { text: ', as', field: 'resultType' },
+        { text: ', pages', field: 'pages' },
+      ],
+    },
+  },
   subBlocks: [
     {
       id: 'fileUpload',

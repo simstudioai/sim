@@ -3,10 +3,9 @@ import { AuthMode, type BlockConfig } from '@/blocks/types'
 import {
   getModelOptions,
   getProviderCredentialSubBlocks,
+  getSerializedModelProviderId,
   PROVIDER_CREDENTIAL_INPUTS,
 } from '@/blocks/utils'
-import { getBaseModelProviders } from '@/providers/models'
-import type { ProviderId } from '@/providers/types'
 import type { ToolResponse } from '@/tools/types'
 
 interface RouterResponse extends ToolResponse {
@@ -158,6 +157,17 @@ export const RouterBlock: BlockConfig<RouterResponse> = {
   icon: ConnectIcon,
   hideFromToolbar: true, // Hide legacy version from toolbar
   sunset: { status: 'legacy', replacedBy: 'router_v2' },
+  /* The legacy router paints an ordinary card — only `router_v2` renders the
+     branch rows that replace a sentence. */
+  canvasPresentation: {
+    defaultTitle: 'Router',
+    sentences: {
+      default: [
+        { text: 'Route based on', field: 'prompt', core: true },
+        { text: ', using', field: 'model' },
+      ],
+    },
+  },
   subBlocks: [
     {
       id: 'prompt',
@@ -204,17 +214,7 @@ export const RouterBlock: BlockConfig<RouterResponse> = {
       'deepseek_reasoner',
     ],
     config: {
-      tool: (params: Record<string, any>) => {
-        const model = params.model || 'gpt-4o'
-        if (!model) {
-          throw new Error('No model selected')
-        }
-        const tool = getBaseModelProviders()[model as ProviderId]
-        if (!tool) {
-          throw new Error(`Invalid model selected: ${model}`)
-        }
-        return tool
-      },
+      tool: (params: Record<string, any>) => getSerializedModelProviderId(params.model),
     },
   },
   inputs: {
@@ -314,17 +314,7 @@ export const RouterV2Block: BlockConfig<RouterV2Response> = {
       'deepseek_reasoner',
     ],
     config: {
-      tool: (params: Record<string, any>) => {
-        const model = params.model || 'gpt-4o'
-        if (!model) {
-          throw new Error('No model selected')
-        }
-        const tool = getBaseModelProviders()[model as ProviderId]
-        if (!tool) {
-          throw new Error(`Invalid model selected: ${model}`)
-        }
-        return tool
-      },
+      tool: (params: Record<string, any>) => getSerializedModelProviderId(params.model),
     },
   },
   inputs: {
