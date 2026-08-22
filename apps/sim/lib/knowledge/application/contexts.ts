@@ -13,6 +13,10 @@ import {
 } from '@/lib/knowledge/connectors/service'
 import type { ActiveKnowledgeDocument } from '@/lib/knowledge/documents/service'
 import { getKnowledgeDocument, getKnowledgeDocumentById } from '@/lib/knowledge/documents/service'
+import {
+  getRestorableKnowledgeBase,
+  type RestorableKnowledgeBase,
+} from '@/lib/knowledge/orchestration/restore'
 import { getKnowledgeBaseById } from '@/lib/knowledge/service'
 import { getTagDefinitionById } from '@/lib/knowledge/tags/service'
 import type { DocumentTagDefinition } from '@/lib/knowledge/tags/types'
@@ -59,6 +63,17 @@ export type ActiveKnowledgeConnectorContext = ActiveKnowledgeResourceBaseContext
 export type ActiveKnowledgeChunkContext = ActiveKnowledgeDocumentContext & {
   chunkId: string
   chunk: ChunkData
+}
+
+/**
+ * A knowledge base loaded regardless of `deletedAt`, for the one operation that
+ * targets an archived row. It carries the restorable identity rather than the
+ * full {@link KnowledgeBaseWithCounts}, which is all the restore needs and all
+ * the archived read projects.
+ */
+export type ArchivedKnowledgeBaseContext = KnowledgeWorkspaceContext & {
+  knowledgeBaseId: string
+  restorableKnowledgeBase: RestorableKnowledgeBase
 }
 
 export async function loadKnowledgeWorkspaceContext(
@@ -128,6 +143,42 @@ export async function resolveActiveKnowledgeBaseInWorkspace(
 ): Promise<ActiveKnowledgeBaseContext> {
   const knowledgeBase = await requireKnowledgeBase(knowledgeBaseId, workspaceContext.workspaceId)
   return { ...workspaceContext, knowledgeBaseId: knowledgeBase.id, knowledgeBase }
+}
+
+/**
+ * Loads a soft-deleted knowledge base and the workspace context that authorizes
+ * restoring it.
+ *
+ * The workspace is loaded with `includeArchived`, because archiving a workspace
+ * archives everything under it and a restore has to be able to reach both.
+ *
+ * A knowledge base with no workspace is a legacy personal one, which answers
+ * only to its creator and has no workspace operation that could authorize it.
+ * Reporting it as missing is the same concealment {@link requireKnowledgeBase}
+ * applies — a caller who cannot own it must not learn it exists.
+ */
+export async function resolveArchivedKnowledgeBaseContext(input: {
+  knowledgeBaseId: string
+  assertedWorkspaceId?: string
+}): Promise<ArchivedKnowledgeBaseContext> {
+  const knowledgeBase = await getRestorableKnowledgeBase(input.knowledgeBaseId)
+  if (
+    !knowledgeBase?.workspaceId ||
+    (input.assertedWorkspaceId !== undefined &&
+      knowledgeBase.workspaceId !== input.assertedWorkspaceId)
+  ) {
+    throw new OrchestrationError('not_found', 'Knowledge base not found')
+  }
+  const workspaceContext = await loadKnowledgeWorkspaceAuthorizationContext(
+    knowledgeBase.workspaceId,
+    { includeArchived: true }
+  )
+  if (!workspaceContext) throw new OrchestrationError('not_found', 'Knowledge base not found')
+  return {
+    ...workspaceContext,
+    knowledgeBaseId: knowledgeBase.id,
+    restorableKnowledgeBase: knowledgeBase,
+  }
 }
 
 export async function resolveActiveKnowledgeResourceContext(input: {

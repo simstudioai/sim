@@ -1113,6 +1113,7 @@ export async function queryRows(
     after,
     includeTotal = true,
     withExecutions = true,
+    runStateBudgetBytes,
     columnIds,
   } = options
 
@@ -1192,10 +1193,21 @@ export async function queryRows(
   const [fetched, totalCount] = await Promise.all([drainPromise, countPromise])
   const rows = fetched.rows
 
+  /**
+   * The budget is opt-in, not a property of reading run state.
+   *
+   * It exists for the public row reads, which publish a `413` and a documented
+   * ceiling. The first-party grid reads run state too, at five times the row
+   * limit, and has no such contract: applying the budget there turns a large
+   * page into a hard failure — with an error naming a parameter the internal
+   * route does not expose — where it previously rendered. Callers that publish
+   * the ceiling pass it; callers that do not keep the unbounded read they had.
+   */
   const executionsByRow = withExecutions
     ? await loadExecutionsByRow(
         db,
-        rows.map((r) => r.id)
+        rows.map((r) => r.id),
+        runStateBudgetBytes === undefined ? undefined : { budgetBytes: runStateBudgetBytes }
       )
     : null
 

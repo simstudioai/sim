@@ -3,6 +3,7 @@ import { document, knowledgeBase, knowledgeConnector, workspaceFiles } from '@si
 import { createLogger } from '@sim/logger'
 import { getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
+import { filterUndefined } from '@sim/utils/object'
 import type { SQL } from 'drizzle-orm'
 import { and, count, eq, exists, inArray, isNotNull, isNull, ne, sql } from 'drizzle-orm'
 import type { V2KnowledgeBaseSortBy } from '@/lib/api/contracts/v2/knowledge'
@@ -497,11 +498,7 @@ export async function updateKnowledgeBase(
     description?: string
     workspaceId?: string | null
     folderId?: string | null
-    chunkingConfig?: {
-      maxSize: number
-      minSize: number
-      overlap: number
-    }
+    chunkingConfig?: ChunkingConfig
   },
   requestId: string,
   options?: { actorUserId?: string; assertedWorkspaceId?: string }
@@ -516,7 +513,21 @@ export async function updateKnowledgeBase(
   if (updates.workspaceId !== undefined) updateData.workspaceId = updates.workspaceId
   if (updates.folderId !== undefined) updateData.folderId = updates.folderId
   if (updates.chunkingConfig !== undefined) {
-    updateData.chunkingConfig = updates.chunkingConfig
+    /**
+     * Projected field by field rather than assigned whole, so every member of
+     * {@link ChunkingConfig} is named here: `strategy` and `strategyOptions`
+     * used to survive only because structural typing let them ride on an
+     * object typed as the three size fields, and the first destructure of
+     * those three would have dropped them silently.
+     */
+    const { maxSize, minSize, overlap, strategy, strategyOptions } = updates.chunkingConfig
+    updateData.chunkingConfig = filterUndefined({
+      maxSize,
+      minSize,
+      overlap,
+      strategy,
+      strategyOptions,
+    })
   }
 
   if (updates.workspaceId !== undefined && !options?.actorUserId) {

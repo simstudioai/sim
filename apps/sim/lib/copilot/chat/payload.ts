@@ -29,6 +29,7 @@ import {
 import { intersectIntegrationAllowlists } from '@/lib/permission-groups/integration-allowlist'
 import { trackChatUpload } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { buildArchiveExtractGuidance, isArchiveFileName } from '@/lib/uploads/utils/file-utils'
+import { deriveHostedApiKeySupport } from '@/tools/hosted-api-key'
 
 const logger = createLogger('CopilotChatPayload')
 const INTEGRATION_TOOL_SCHEMA_CACHE_TTL_MS = 5_000
@@ -247,6 +248,7 @@ async function buildIntegrationToolSchemasUncached(
           operation,
           description: getCopilotToolDescription(toolConfig, {
             isHosted,
+            hostedApiKey: deriveHostedApiKeySupport(toolConfig.hosting),
             fallbackName: toolId,
             appendEmailTagline: shouldAppendEmailTagline,
           }),

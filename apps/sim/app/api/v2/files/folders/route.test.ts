@@ -126,6 +126,7 @@ describe('/api/v2/files/folders', () => {
       principal: PRINCIPAL,
       input: {
         workspaceId: WORKSPACE_ID,
+        scope: 'active',
         parentPath: undefined,
         search: undefined,
         sortBy: 'name',
@@ -133,6 +134,38 @@ describe('/api/v2/files/folders', () => {
       },
       request: expect.anything(),
     })
+  })
+
+  /**
+   * The archived set is how a caller finds a path to hand to the folder
+   * restore route; without it a recursive delete is unrecoverable over the API.
+   */
+  it('lists the archived set when scope=archived', async () => {
+    mocks.listFolders.mockResolvedValueOnce({ folders: [] })
+
+    const response = await GET(
+      new NextRequest(
+        `http://localhost:3000/api/v2/files/folders?workspaceId=${WORKSPACE_ID}&scope=archived`
+      ),
+      { params: Promise.resolve({}) }
+    )
+
+    expect(response.status).toBe(200)
+    expect(mocks.listFolders).toHaveBeenCalledWith(
+      expect.objectContaining({ input: expect.objectContaining({ scope: 'archived' }) })
+    )
+  })
+
+  it('rejects an unknown scope', async () => {
+    const response = await GET(
+      new NextRequest(
+        `http://localhost:3000/api/v2/files/folders?workspaceId=${WORKSPACE_ID}&scope=everything`
+      ),
+      { params: Promise.resolve({}) }
+    )
+
+    expect(response.status).toBe(400)
+    expect(mocks.listFolders).not.toHaveBeenCalled()
   })
 
   it('preserves an escaped slash within a folder name', async () => {

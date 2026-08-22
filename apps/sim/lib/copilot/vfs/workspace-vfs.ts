@@ -42,11 +42,6 @@ import { compileDoc, getE2BDocFormat } from '@/lib/copilot/tools/server/files/do
 import { extractDocText, isExtractableDocExt } from '@/lib/copilot/tools/server/files/doc-extract'
 import { runE2BCompiledCheck } from '@/lib/copilot/tools/server/files/doc-recalc'
 import { isRenderableDocExt, renderDocToGrid } from '@/lib/copilot/tools/server/files/doc-render'
-import {
-  collectWorkflowFieldIssues,
-  lintEditedWorkflowState,
-} from '@/lib/copilot/tools/server/workflow/edit-workflow/lint'
-import { UNRESOLVABLE_AT_LINT_NOTE } from '@/lib/copilot/tools/server/workflow/edit-workflow/validation'
 import { extractDocumentStyle } from '@/lib/copilot/vfs/document-style'
 import {
   type FileReadResult,
@@ -138,8 +133,8 @@ import { createIntegrationCredentialVisibility } from '@/lib/integrations/creden
 import { listKnowledgeConnectors } from '@/lib/knowledge/application/connectors'
 import { listKnowledgeDocuments } from '@/lib/knowledge/application/documents'
 import {
-  listArchivedKnowledgeBases,
   listKnowledgeBaseCatalog,
+  listKnowledgeBases,
 } from '@/lib/knowledge/application/knowledge-bases'
 import { validateMermaidSource } from '@/lib/mermaid/validate'
 import { isBlockTypeAccessControlExempt } from '@/lib/permission-groups/block-access'
@@ -166,6 +161,8 @@ import { isImageFileType, resolveEffectiveMimeType } from '@/lib/uploads/utils/f
 import { listCustomBlocksWithInputsForWorkspace } from '@/lib/workflows/custom-blocks/operations'
 import { getCustomToolById } from '@/lib/workflows/custom-tools/operations'
 import { checkNeedsRedeployment } from '@/lib/workflows/deployment-status'
+import { collectWorkflowFieldIssues, lintEditedWorkflowState } from '@/lib/workflows/editing/lint'
+import { UNRESOLVABLE_AT_LINT_NOTE } from '@/lib/workflows/editing/validation'
 import {
   loadDeployedWorkflowState,
   loadWorkflowFromNormalizedTables,
@@ -2949,12 +2946,12 @@ export class WorkspaceVFS {
             input: { workspaceId, scope: 'archived' },
           })
           .then(({ folders }) => folders),
-        listArchivedKnowledgeBases
+        listKnowledgeBases
           .execute({
             principal: this.requireKnowledgePrincipal(),
-            input: { workspaceId },
+            input: { workspaceId, scope: 'archived' },
           })
-          .then(({ knowledgeBases }) => knowledgeBases),
+          .then(({ knowledgeBases }) => knowledgeBases.map((entry) => entry.knowledgeBase)),
       ])
 
       for (const wf of archivedWorkflows) {

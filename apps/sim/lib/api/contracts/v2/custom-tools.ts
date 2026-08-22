@@ -106,7 +106,7 @@ export const v2CustomToolDeleteDataSchema = z
 export type V2CustomToolDeleteData = z.output<typeof v2CustomToolDeleteDataSchema>
 
 export const v2CustomToolParamsSchema = z.object({
-  id: nonEmptyIdSchema.describe('Unique custom tool identifier.'),
+  customToolId: nonEmptyIdSchema.describe('Unique custom tool identifier.'),
 })
 export type V2CustomToolParams = z.output<typeof v2CustomToolParamsSchema>
 
@@ -193,7 +193,7 @@ export const v2CreateCustomToolContract = defineRouteContract({
 
 export const v2GetCustomToolContract = defineRouteContract({
   method: 'GET',
-  path: '/api/v2/custom-tools/[id]',
+  path: '/api/v2/custom-tools/[customToolId]',
   params: v2CustomToolParamsSchema,
   query: v2CustomToolWorkspaceQuerySchema,
   response: {
@@ -204,7 +204,7 @@ export const v2GetCustomToolContract = defineRouteContract({
 
 export const v2UpdateCustomToolContract = defineRouteContract({
   method: 'PATCH',
-  path: '/api/v2/custom-tools/[id]',
+  path: '/api/v2/custom-tools/[customToolId]',
   query: noInputSchema,
   params: v2CustomToolParamsSchema,
   body: v2UpdateCustomToolBodySchema,
@@ -216,7 +216,7 @@ export const v2UpdateCustomToolContract = defineRouteContract({
 
 export const v2DeleteCustomToolContract = defineRouteContract({
   method: 'DELETE',
-  path: '/api/v2/custom-tools/[id]',
+  path: '/api/v2/custom-tools/[customToolId]',
   params: v2CustomToolParamsSchema,
   query: v2CustomToolWorkspaceQuerySchema,
   response: {

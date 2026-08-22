@@ -47,24 +47,29 @@ import {
 const PAGED_LISTS = [
   'GET /api/v2/audit-logs',
   'GET /api/v2/billing/logs',
+  'GET /api/v2/blocks',
+  'GET /api/v2/chat-deployments',
   'GET /api/v2/credentials',
   'GET /api/v2/custom-tools',
   'GET /api/v2/files',
   'GET /api/v2/knowledge',
-  'GET /api/v2/knowledge/[id]/connectors',
-  'GET /api/v2/knowledge/[id]/connectors/[connectorId]/documents',
-  'GET /api/v2/knowledge/[id]/documents',
+  'GET /api/v2/knowledge/[knowledgeBaseId]/connectors',
+  'GET /api/v2/knowledge/[knowledgeBaseId]/connectors/[connectorId]/documents',
+  'GET /api/v2/knowledge/[knowledgeBaseId]/documents',
+  'GET /api/v2/knowledge/[knowledgeBaseId]/documents/[documentId]/chunks',
   'GET /api/v2/logs',
   'GET /api/v2/mcp-servers',
   'GET /api/v2/secrets',
   'GET /api/v2/skills',
-  'GET /api/v2/skills/[id]/editors',
+  'GET /api/v2/skills/[skillId]/editors',
   'GET /api/v2/tables',
   'GET /api/v2/tables/[tableId]/rows',
   'POST /api/v2/tables/[tableId]/query',
+  'GET /api/v2/tools',
   'GET /api/v2/workflows',
-  'GET /api/v2/workflows/[id]/runs',
-  'GET /api/v2/workflows/[id]/versions',
+  'GET /api/v2/workflows/[workflowId]/runs',
+  'GET /api/v2/workflows/[workflowId]/versions',
+  'GET /api/v2/workflow-mcp-servers',
   'GET /api/v2/workspaces/[workspaceId]/members',
   'GET /api/v2/workspaces',
 ] as const
@@ -84,16 +89,29 @@ const PAGED_LISTS = [
  *   not appear here.
  * - The credential-provider catalog is bounded by the code-defined OAuth and
  *   service-account registries.
- * - A knowledge base has a fixed number of tag slots, so its tag vocabulary
- *   cannot grow past them.
+ * - The connector-type catalog is bounded the same way, by the code-defined
+ *   connector-meta registry. The block and tool
+ *   catalogs are NOT — a workspace adds blocks by deploying workflows as blocks,
+ *   and there are ~5,000 tool ids — which is why those two are paged and do not
+ *   appear here.
+ * - A knowledge base has a fixed number of tag slots, so neither its tag
+ *   vocabulary nor the usage counts derived from it can grow past them.
  * - A table's saved views and its dispatchable groups are capped per table.
+ * - A table's ACTIVE run dispatches are capped by the dispatcher itself: it
+ *   keeps at most a handful in flight per table and cancels the rest, so the
+ *   set cannot grow with a workspace's size. Settled dispatches are read by id,
+ *   never listed.
  */
 const FULL_SET_LISTS = [
+  'GET /api/v2/connector-types',
   'GET /api/v2/credentials/providers',
   'GET /api/v2/files/folders',
-  'GET /api/v2/knowledge/[id]/tags',
+  'GET /api/v2/knowledge/[knowledgeBaseId]/tags',
+  'GET /api/v2/knowledge/[knowledgeBaseId]/tags/usage',
   'GET /api/v2/knowledge/folders',
-  'GET /api/v2/mcp-servers/[id]/tools',
+  'GET /api/v2/mcp-servers/[mcpServerId]/tools',
+  'GET /api/v2/workflow-mcp-servers/[serverId]/tools',
+  'GET /api/v2/tables/[tableId]/dispatches',
   'GET /api/v2/tables/[tableId]/groups',
   'GET /api/v2/tables/[tableId]/views',
   'GET /api/v2/tables/folders',
@@ -134,6 +152,15 @@ const CURSOR_BINDINGS: Record<string, readonly string[]> = {
     'endDate',
   ],
   'GET /api/v2/billing/logs': ['source', 'workspaceId', 'period', 'startDate', 'endDate'],
+  'GET /api/v2/blocks': [
+    'workspaceId',
+    'search',
+    'category',
+    'capability',
+    'source',
+    'sortBy',
+    'sortOrder',
+  ],
   'GET /api/v2/credentials': ['workspaceId', 'type', 'providerId', 'search', 'sortBy', 'sortOrder'],
   'GET /api/v2/custom-tools': ['workspaceId', 'search', 'sortBy', 'sortOrder'],
   'GET /api/v2/files': [
@@ -146,17 +173,27 @@ const CURSOR_BINDINGS: Record<string, readonly string[]> = {
     /** Decides whether `folderPath` covers one folder or its whole subtree. */
     'recursive',
   ],
-  'GET /api/v2/knowledge': ['workspaceId', 'folderPath', 'search', 'sortBy', 'sortOrder'],
-  'GET /api/v2/knowledge/[id]/connectors': ['workspaceId', 'sortBy', 'sortOrder'],
-  'GET /api/v2/knowledge/[id]/connectors/[connectorId]/documents': [
+  'GET /api/v2/knowledge': ['workspaceId', 'scope', 'folderPath', 'search', 'sortBy', 'sortOrder'],
+  'GET /api/v2/knowledge/[knowledgeBaseId]/connectors': ['workspaceId', 'sortBy', 'sortOrder'],
+  'GET /api/v2/knowledge/[knowledgeBaseId]/connectors/[connectorId]/documents': [
     'workspaceId',
     'includeExcluded',
   ],
-  'GET /api/v2/knowledge/[id]/documents': [
+  'GET /api/v2/knowledge/[knowledgeBaseId]/documents': [
+    // Asserted scope rather than a filter, but this list shipped before the
+    // distinction was drawn. The value is constant for any one sequence, so
+    // keeping it costs nothing; removing it would refuse every cursor already
+    // in flight. The chunks list below is new, so it starts out unbound.
     'workspaceId',
     'enabledFilter',
     'search',
     'tagFilters',
+    'sortBy',
+    'sortOrder',
+  ],
+  'GET /api/v2/knowledge/[knowledgeBaseId]/documents/[documentId]/chunks': [
+    'enabled',
+    'search',
     'sortBy',
     'sortOrder',
   ],
@@ -174,25 +211,41 @@ const CURSOR_BINDINGS: Record<string, readonly string[]> = {
     'maxCost',
     'model',
     'folderPaths',
-    'order',
+    'sortBy',
+    'sortOrder',
+    'status',
+    'workflowName',
+    /** Decides whether the job-run branch is part of the sequence at all. */
+    'includeJobRuns',
   ],
   'GET /api/v2/mcp-servers': ['workspaceId', 'search', 'sortBy', 'sortOrder'],
   'GET /api/v2/secrets': ['workspaceId', 'scope', 'search', 'sortBy', 'sortOrder'],
   'GET /api/v2/skills': ['workspaceId', 'search', 'sortBy', 'sortOrder'],
-  'GET /api/v2/skills/[id]/editors': ['workspaceId', 'sortBy', 'sortOrder'],
-  'GET /api/v2/tables': ['workspaceId', 'folderPath', 'search', 'sortBy', 'sortOrder'],
+  'GET /api/v2/tables': ['workspaceId', 'scope', 'folderPath', 'search', 'sortBy', 'sortOrder'],
+  'GET /api/v2/skills/[skillId]/editors': ['workspaceId', 'sortBy', 'sortOrder'],
   'GET /api/v2/tables/[tableId]/rows': [],
   'POST /api/v2/tables/[tableId]/query': ['predicate', 'sort'],
+  'GET /api/v2/tools': [
+    'workspaceId',
+    'search',
+    'hostedApiKey',
+    'oauthProvider',
+    'sortBy',
+    'sortOrder',
+  ],
   'GET /api/v2/workflows': [
     'workspaceId',
     'folderPath',
+    'scope',
     'deployedOnly',
     'search',
     'sortBy',
     'sortOrder',
   ],
-  'GET /api/v2/workflows/[id]/runs': ['status', 'trigger', 'startDate', 'endDate', 'order'],
-  'GET /api/v2/workflows/[id]/versions': [],
+  'GET /api/v2/workflows/[workflowId]/runs': ['status', 'trigger', 'startDate', 'endDate', 'order'],
+  'GET /api/v2/workflows/[workflowId]/versions': [],
+  'GET /api/v2/workflow-mcp-servers': ['workspaceId', 'sortBy', 'sortOrder'],
+  'GET /api/v2/chat-deployments': ['workspaceId', 'workflowId', 'isActive', 'sortBy', 'sortOrder'],
   'GET /api/v2/workspaces/[workspaceId]/members': [],
   'GET /api/v2/workspaces': ['sortBy', 'sortOrder'],
 }
@@ -204,7 +257,7 @@ const CURSOR_BINDINGS: Record<string, readonly string[]> = {
  * {@link CURSOR_BINDINGS} covers only what a contract accepts as query or body,
  * so a nested list's parent id is invisible to it: an empty binding there reads
  * the same whether the list genuinely has no filters or whether its parent was
- * forgotten. Both readings were true at once — `GET /workflows/[id]/versions`
+ * forgotten. Both readings were true at once — `GET /workflows/[workflowId]/versions`
  * and `GET /workspaces/[workspaceId]/members` declared `[]`, accepted a sibling
  * parent's token, and answered 200 from a position in a sequence the caller
  * never walked.
@@ -218,14 +271,21 @@ const CURSOR_BINDINGS: Record<string, readonly string[]> = {
  * resolves the path before fingerprinting it.
  */
 const CURSOR_BOUND_PATH_PARAMS: Record<string, readonly string[]> = {
-  'GET /api/v2/knowledge/[id]/connectors': ['id'],
-  'GET /api/v2/knowledge/[id]/connectors/[connectorId]/documents': ['id', 'connectorId'],
-  'GET /api/v2/knowledge/[id]/documents': ['id'],
-  'GET /api/v2/skills/[id]/editors': ['id'],
+  'GET /api/v2/knowledge/[knowledgeBaseId]/connectors': ['knowledgeBaseId'],
+  'GET /api/v2/knowledge/[knowledgeBaseId]/connectors/[connectorId]/documents': [
+    'knowledgeBaseId',
+    'connectorId',
+  ],
+  'GET /api/v2/knowledge/[knowledgeBaseId]/documents': ['knowledgeBaseId'],
+  'GET /api/v2/knowledge/[knowledgeBaseId]/documents/[documentId]/chunks': [
+    'knowledgeBaseId',
+    'documentId',
+  ],
+  'GET /api/v2/skills/[skillId]/editors': ['skillId'],
   'GET /api/v2/tables/[tableId]/rows': ['tableId'],
   'POST /api/v2/tables/[tableId]/query': ['tableId'],
-  'GET /api/v2/workflows/[id]/runs': ['id'],
-  'GET /api/v2/workflows/[id]/versions': ['id'],
+  'GET /api/v2/workflows/[workflowId]/runs': ['workflowId'],
+  'GET /api/v2/workflows/[workflowId]/versions': ['workflowId'],
   'GET /api/v2/workspaces/[workspaceId]/members': ['workspaceId'],
 }
 
@@ -240,6 +300,10 @@ const CURSOR_BOUND_PATH_PARAMS: Record<string, readonly string[]> = {
  * correctness gain.
  */
 const UNBOUND_PARAMS: Record<string, Record<string, string>> = {
+  'GET /api/v2/knowledge/[knowledgeBaseId]/documents/[documentId]/chunks': {
+    workspaceId:
+      'Asserted scope, not a filter: the sequence is one document, named by the path. A mismatched workspace is refused by authorization before paging.',
+  },
   'GET /api/v2/logs': {
     details: 'Selects how much of each row is rendered, not which rows are in the sequence.',
     includeTraceSpans: 'Response shaping only; the row set and its order are unchanged.',
@@ -248,10 +312,12 @@ const UNBOUND_PARAMS: Record<string, Record<string, string>> = {
   'GET /api/v2/tables/[tableId]/rows': {
     workspaceId:
       'Asserted scope, not a filter: the sequence is one table, named by the path. A mismatched workspace is refused by authorization before paging.',
+    includeRunState: 'Response shaping only; the row set and its order are unchanged.',
   },
   'POST /api/v2/tables/[tableId]/query': {
     workspaceId:
       'Asserted scope, not a filter: the sequence is one table, named by the path. A mismatched workspace is refused by authorization before paging.',
+    includeRunState: 'Response shaping only; the row set and its order are unchanged.',
   },
 }
 

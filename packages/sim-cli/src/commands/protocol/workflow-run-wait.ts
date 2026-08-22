@@ -233,7 +233,7 @@ export function attachWorkflowRunWait(runs: Command): void {
 
         const { client, profile } = clientFrom(command)
         const operation = V2_OPERATIONS.getWorkflowRun
-        const path = resolvePath(operation.path, { id: options.workflow, runId })
+        const path = resolvePath(operation.path, { workflowId: options.workflow, runId })
 
         const startedAt = Date.now()
         const deadline =

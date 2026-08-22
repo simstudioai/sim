@@ -22,12 +22,20 @@ export async function resolveKnowledgeFolderPath(
   })
 }
 
+/**
+ * Renders a knowledge base's containing-folder path from the active folder index.
+ *
+ * A folder id the index does not hold reports the workspace root rather than
+ * throwing. The index covers *active* folders only, so an archived knowledge base
+ * whose containing folder was archived with it — or one whose folder was deleted
+ * underneath it — resolves to nothing, and a well-formed read of that row must not
+ * become a 500. Matches the v2 files projection, which falls back to `/` for the
+ * same reason.
+ */
 export function knowledgeFolderPathForId(
   index: FolderPathIndex<FolderRow>,
   folderId: string | null | undefined
 ): string {
   if (!folderId) return ROOT_FOLDER_PATH
-  const path = index.pathById.get(folderId)
-  if (!path) throw new Error('Knowledge base references an inactive or missing folder')
-  return path
+  return index.pathById.get(folderId) ?? ROOT_FOLDER_PATH
 }

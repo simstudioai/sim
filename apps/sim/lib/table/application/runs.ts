@@ -5,16 +5,28 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   DEFAULT_TABLE_PLAN_LIMITS,
   getRowById,
+  getTableById,
   requireTableRowIds,
   TABLE_LIMITS,
   type TableDefinition,
   type TablePredicate,
 } from '@/lib/table'
+import type { TableAuthorizationContext } from '@/lib/table/application/authorization'
 import { defineAuthorizedTableUseCase } from '@/lib/table/application/authorized-table-use-case'
-import { resolveActiveTableContext } from '@/lib/table/application/context'
+import {
+  resolveActiveTableContext,
+  resolveTableWorkspaceContext,
+} from '@/lib/table/application/context'
 import { tableOperations } from '@/lib/table/application/operations'
 import { tablePredicateNamesToFilter } from '@/lib/table/application/rows'
-import type { DispatchLimit, DispatchMode } from '@/lib/table/dispatcher'
+import {
+  cancelDispatchById,
+  type DispatchLimit,
+  type DispatchMode,
+  type DispatchRow,
+  listActiveDispatches,
+  readDispatch,
+} from '@/lib/table/dispatcher'
 import { signalTableRowsChanged } from '@/lib/table/events'
 import { cancelWorkflowGroupRuns, runWorkflowColumn } from '@/lib/table/workflow-columns'
 
@@ -206,5 +218,104 @@ export const cancelTableRuns = defineAuthorizedTableUseCase({
   },
   afterSuccess: ({ context, result }) => {
     if (result.cancelled > 0) signalTableRowsChanged(context.tableId)
+  },
+})
+
+export interface TableDispatchResourceInput {
+  dispatchId: string
+  workspaceId: string
+  /** The table the caller addressed the dispatch under; asserted against the stored row. */
+  tableId: string
+}
+
+export interface TableDispatchResult {
+  dispatch: DispatchRow
+}
+
+interface TableDispatchContext extends TableAuthorizationContext {
+  dispatch: DispatchRow
+}
+
+/**
+ * Loads one dispatch and derives its canonical table and workspace from the
+ * stored row, then asserts the caller's asserted scope against them.
+ *
+ * The canonical scope always comes from the dispatch itself — the asserted
+ * workspace and table are compared to it, never substituted for it. A workspace
+ * mismatch, a `tableId` naming a different table, a dispatch whose table was
+ * deleted, and a dispatch that never existed all report the same not-found, so
+ * the id space leaks nothing across tenants or across tables.
+ */
+async function resolveTableDispatchContext(
+  input: TableDispatchResourceInput
+): Promise<TableDispatchContext> {
+  const dispatch = await readDispatch(input.dispatchId)
+  if (
+    !dispatch ||
+    dispatch.workspaceId !== input.workspaceId ||
+    dispatch.tableId !== input.tableId
+  ) {
+    throw new OrchestrationError('not_found', 'Table run dispatch not found')
+  }
+  const table = await getTableById(dispatch.tableId)
+  if (!table || table.workspaceId !== dispatch.workspaceId) {
+    throw new OrchestrationError('not_found', 'Table run dispatch not found')
+  }
+  return { ...(await resolveTableWorkspaceContext(dispatch.workspaceId)), dispatch }
+}
+
+/** Polls one run dispatch in any of its four states, including the terminal two. */
+export const readTableDispatch = defineAuthorizedTableUseCase({
+  operation: tableOperations.readRun,
+  resolveContext: ({ input }: { input: TableDispatchResourceInput }) =>
+    resolveTableDispatchContext(input),
+  async execute({ context }): Promise<TableDispatchResult> {
+    return { dispatch: context.dispatch }
+  },
+})
+
+/**
+ * Cancels one dispatch by id — the counterpart to `POST /cancel-runs`, which cancels by
+ * predicate scope and cannot name a single dispatch.
+ *
+ * Stops the scheduler: the dispatcher observes the `cancelled` status at its next iteration
+ * and enqueues nothing further. Cells already handed to the queue are NOT cancelled here,
+ * because nothing links a cell execution back to the dispatch that enqueued it — cancelling
+ * those means `POST /cancel-runs`, whose predicate scope is the only way to name them.
+ *
+ * Idempotent: a dispatch already in a terminal state is returned unchanged.
+ */
+export const cancelTableDispatch = defineAuthorizedTableUseCase({
+  operation: tableOperations.cancelRuns,
+  resolveContext: ({ input }: { input: TableDispatchResourceInput }) =>
+    resolveTableDispatchContext(input),
+  async execute({ context }): Promise<TableDispatchResult> {
+    if (context.dispatch.status === 'complete' || context.dispatch.status === 'cancelled') {
+      return { dispatch: context.dispatch }
+    }
+    await cancelDispatchById(context.dispatch.id)
+    const dispatch = await readDispatch(context.dispatch.id)
+    return { dispatch: dispatch ?? context.dispatch }
+  },
+})
+
+export interface ListTableDispatchesInput extends TableRunInput {
+  assertedWorkspaceId: string
+}
+
+export interface ListTableDispatchesResult extends TableRunResult {
+  dispatches: DispatchRow[]
+}
+
+/**
+ * The dispatches still in flight on one table. Bounded by the dispatcher rather
+ * than by a page size, which is why the surface publishes it unpaged.
+ */
+export const listTableDispatches = defineAuthorizedTableUseCase({
+  operation: tableOperations.readRun,
+  resolveContext: ({ input }: { input: ListTableDispatchesInput }) =>
+    resolveActiveTableContext(input),
+  async execute({ context }): Promise<ListTableDispatchesResult> {
+    return { table: context.table, dispatches: await listActiveDispatches(context.tableId) }
   },
 })
