@@ -9,8 +9,10 @@ import {
   resolveCopilotWorkspaceFileReference,
 } from '@/lib/copilot/application/execute-file-use-case'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
+import { requireCopilotWorkspace } from '@/lib/copilot/tools/server/workspace-scope'
 import { canonicalizeVfsPath } from '@/lib/copilot/vfs/path-utils'
 import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { buildStorageKeySegment } from '@/lib/uploads/core/storage-key'
 import { uploadFile } from '@/lib/uploads/core/storage-service'
 import { isImageFileType } from '@/lib/uploads/utils/file-utils'
@@ -147,10 +149,11 @@ export async function executeDeployCustomBlock(
         error: "Managing a custom block requires admin permission on the workflow's workspace",
       }
     }
-    const workspaceId = workflowRecord.workspaceId
-    if (!workspaceId) {
+    const rawWorkspaceId = workflowRecord.workspaceId
+    if (!rawWorkspaceId) {
       return { success: false, error: 'Workflow must belong to a workspace' }
     }
+    const workspaceId = requireCopilotWorkspace(context, rawWorkspaceId)
 
     const ws = await getWorkspaceWithOwner(workspaceId)
     const organizationId = ws?.organizationId
@@ -303,7 +306,7 @@ export async function executeDeployCustomBlock(
     })
     return { success: true, output: { ...customBlockOutput(block, 'deploy'), updated: false } }
   } catch (error) {
-    if (error instanceof CustomBlockValidationError) {
+    if (error instanceof CustomBlockValidationError || error instanceof OrchestrationError) {
       return { success: false, error: error.message }
     }
     logger.error('Custom block deployment failed', { error })

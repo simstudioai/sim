@@ -157,6 +157,21 @@ describe('executeDeployCustomBlock', () => {
     })
   })
 
+  it('rejects a workflowId whose workspace differs from the execution workspace', async () => {
+    ensureWorkflowAccessMock.mockResolvedValue({
+      workflow: { id: 'wf-other', workspaceId: 'ws-other', name: 'Other', isDeployed: true },
+    })
+
+    const result = await executeDeployCustomBlock(
+      { workflowId: 'wf-other', name: 'Enrich Lead' },
+      context
+    )
+
+    expect(result.success).toBe(false)
+    expect(result.error).toContain('does not match the Copilot execution workspace')
+    expect(publishCustomBlockMock).not.toHaveBeenCalled()
+  })
+
   it('returns a clean admin-permission error when workflow access is denied', async () => {
     ensureWorkflowAccessMock.mockRejectedValue(new Error('Unauthorized workflow access'))
 

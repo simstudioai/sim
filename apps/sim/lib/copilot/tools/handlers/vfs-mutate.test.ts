@@ -11,7 +11,6 @@ import { fileOperations } from '@/lib/workspace-files/application/operations'
 const mocks = vi.hoisted(() => ({
   ensureWorkspaceAccess: vi.fn(),
   ensureWorkflowAccess: vi.fn(),
-  getDefaultWorkspaceId: vi.fn(),
   getWorkspaceFileByName: vi.fn(),
   resolveWorkspaceFileReference: vi.fn(),
   findWorkspaceFileFolderIdByPath: vi.fn(),
@@ -57,7 +56,6 @@ vi.mock('@sim/db', () => ({ ...dbChainMock, ...schemaMock }))
 vi.mock('@/lib/copilot/tools/handlers/access', () => ({
   ensureWorkspaceAccess: mocks.ensureWorkspaceAccess,
   ensureWorkflowAccess: mocks.ensureWorkflowAccess,
-  getDefaultWorkspaceId: mocks.getDefaultWorkspaceId,
 }))
 
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({

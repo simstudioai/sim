@@ -6,6 +6,7 @@ import { eq } from 'drizzle-orm'
 import { decodeJwt } from 'jose'
 import { createPermissionError, verifyWorkflowAccess } from '@/lib/copilot/auth/permissions'
 import type { BaseServerTool } from '@/lib/copilot/tools/server/base-tool'
+import { requireCopilotWorkspace } from '@/lib/copilot/tools/server/workspace-scope'
 import { getAllowedIntegrationsFromEnv } from '@/lib/core/config/env-flags'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { getAccessibleOAuthCredentials } from '@/lib/credentials/environment'
@@ -54,7 +55,10 @@ export const getCredentialsServerTool: BaseServerTool<GetCredentialsParams, any>
         throw new OrchestrationError('forbidden', errorMessage)
       }
 
-      workspaceId = wId
+      // A model-supplied workflowId may only re-assert the chat's workspace —
+      // it can never steer the credential listing to another workspace. A
+      // legacy workflow with no workspace contributes no workspace scope.
+      workspaceId = wId ? requireCopilotWorkspace(context, wId) : undefined
     }
 
     const userId = authenticatedUserId

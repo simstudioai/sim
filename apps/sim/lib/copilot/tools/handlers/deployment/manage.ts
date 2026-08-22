@@ -5,6 +5,7 @@ import {
   messageForCopilotWorkflowError,
 } from '@/lib/copilot/application/execute-workflow-use-case'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
+import { requireCopilotWorkspace } from '@/lib/copilot/tools/server/workspace-scope'
 import { generateRequestId } from '@/lib/core/utils/request'
 import {
   createWorkflowMcpDeploymentServer,
@@ -138,10 +139,7 @@ export async function executeListWorkspaceMcpServers(
   context: ExecutionContext
 ): Promise<ToolCallResult> {
   try {
-    const workspaceId = params.workspaceId || context.workspaceId
-    if (!workspaceId) {
-      return { success: false, error: 'workspaceId is required' }
-    }
+    const workspaceId = requireCopilotWorkspace(context, params.workspaceId || undefined)
     const result = await executeCopilotMcpServerUseCase(context, listWorkflowMcpDeployments, {
       workspaceId,
     })
@@ -163,10 +161,7 @@ export async function executeCreateWorkspaceMcpServer(
   context: ExecutionContext
 ): Promise<ToolCallResult> {
   try {
-    const workspaceId = params.workspaceId || context.workspaceId
-    if (!workspaceId) {
-      return { success: false, error: 'workspaceId is required' }
-    }
+    const workspaceId = requireCopilotWorkspace(context, params.workspaceId || undefined)
 
     const name = params.name?.trim()
     if (!name) {
