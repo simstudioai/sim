@@ -18,6 +18,7 @@ import { ollamaProvider } from '@/providers/ollama'
 import { ollamaCloudProvider } from '@/providers/ollama-cloud'
 import { openaiProvider } from '@/providers/openai'
 import { openRouterProvider } from '@/providers/openrouter'
+import { orcarouterProvider } from '@/providers/orcarouter'
 import { sakanaProvider } from '@/providers/sakana'
 import { togetherProvider } from '@/providers/together'
 import type { ProviderConfig, ProviderId } from '@/providers/types'
@@ -48,6 +49,7 @@ const providerRegistry: Record<ProviderId, ProviderConfig> = {
   mistral: mistralProvider,
   'azure-openai': azureOpenAIProvider,
   openrouter: openRouterProvider,
+  orcarouter: orcarouterProvider,
   fireworks: fireworksProvider,
   together: togetherProvider,
   baseten: basetenProvider,

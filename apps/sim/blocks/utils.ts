@@ -62,6 +62,7 @@ export function getModelOptions() {
   const vllmModels = providersState.providers.vllm.models
   const litellmModels = providersState.providers.litellm.models
   const openrouterModels = providersState.providers.openrouter.models
+  const orcarouterModels = providersState.providers.orcarouter.models
   const fireworksModels = providersState.providers.fireworks.models
   const togetherModels = providersState.providers.together.models
   const basetenModels = providersState.providers.baseten.models
@@ -73,6 +74,7 @@ export function getModelOptions() {
       ...vllmModels,
       ...litellmModels,
       ...openrouterModels,
+      ...orcarouterModels,
       ...fireworksModels,
       ...togetherModels,
       ...basetenModels,

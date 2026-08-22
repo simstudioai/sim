@@ -322,6 +322,27 @@ export async function getApiKeyWithBYOK(
     return { apiKey: PROVIDER_PLACEHOLDER_KEY, isBYOK: false }
   }
 
+  const isOrcaRouterModel =
+    provider === 'orcarouter' ||
+    useProvidersStore.getState().providers.orcarouter.models.includes(model)
+  if (isOrcaRouterModel) {
+    if (workspaceId) {
+      const byokResult = await getBYOKKey(workspaceId, 'orcarouter')
+      if (byokResult) {
+        logger.info('Using BYOK key for OrcaRouter', {
+          model,
+          workspaceId,
+          scope: byokResult.scope,
+        })
+        return byokResult
+      }
+    }
+    if (userProvidedKey) {
+      return { apiKey: userProvidedKey, isBYOK: false }
+    }
+    throw new Error(`API key is required for OrcaRouter ${model}`)
+  }
+
   if (provider === 'azure-openai') {
     return { apiKey: userProvidedKey || env.AZURE_OPENAI_API_KEY || '', isBYOK: false }
   }

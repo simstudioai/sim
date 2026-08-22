@@ -73,6 +73,7 @@ const DYNAMIC_PROVIDERS = new Set([
   'vllm',
   'litellm',
   'openrouter',
+  'orcarouter',
   'fireworks',
   'together',
   'baseten',

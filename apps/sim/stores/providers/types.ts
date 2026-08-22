@@ -4,6 +4,7 @@ export type ProviderName =
   | 'vllm'
   | 'litellm'
   | 'openrouter'
+  | 'orcarouter'
   | 'fireworks'
   | 'together'
   | 'baseten'

@@ -181,6 +181,7 @@ export const providers: Record<ProviderId, ProviderMetadata> = {
   mistral: buildProviderMetadata('mistral'),
   bedrock: buildProviderMetadata('bedrock'),
   openrouter: buildProviderMetadata('openrouter'),
+  orcarouter: buildProviderMetadata('orcarouter'),
   fireworks: buildProviderMetadata('fireworks'),
   together: buildProviderMetadata('together'),
   baseten: buildProviderMetadata('baseten'),
@@ -207,6 +208,12 @@ export async function updateOpenRouterProviderModels(models: string[]): Promise<
   const { updateOpenRouterModels } = await import('@/providers/models')
   updateOpenRouterModels(models)
   providers.openrouter.models = getProviderModelsFromDefinitions('openrouter')
+}
+
+export async function updateOrcaRouterProviderModels(models: string[]): Promise<void> {
+  const { updateOrcaRouterModels } = await import('@/providers/models')
+  updateOrcaRouterModels(models)
+  providers.orcarouter.models = getProviderModelsFromDefinitions('orcarouter')
 }
 
 export async function updateFireworksProviderModels(models: string[]): Promise<void> {
@@ -242,6 +249,7 @@ export function getBaseModelProviders(): Record<string, ProviderId> {
         providerId !== 'vllm' &&
         providerId !== 'litellm' &&
         providerId !== 'openrouter' &&
+        providerId !== 'orcarouter' &&
         providerId !== 'fireworks' &&
         providerId !== 'together' &&
         providerId !== 'baseten'

@@ -5135,6 +5135,22 @@ export function TogetherIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
+export function OrcaRouterIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      {...props}
+      fill='currentColor'
+      fillRule='evenodd'
+      height='1em'
+      viewBox='0 0 24 24'
+      width='1em'
+      xmlns='http://www.w3.org/2000/svg'
+    >
+      <path d='M4 4h6.5v6.5H4V4zm9.5 0H20v6.5h-6.5V4zM4 13.5h6.5V20H4v-6.5zm9.5 0H20V20h-6.5v-6.5zM5.5 5.5v3.5h3.5V5.5H5.5zM15 5.5V9h3.5V5.5H15zM5.5 15v3.5H9V15H5.5zM15 15v3.5h3.5V15H15z' />
+    </svg>
+  )
+}
+
 export function BasetenIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg

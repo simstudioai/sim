@@ -26,6 +26,7 @@ import {
   OllamaIcon,
   OpenAIIcon,
   OpenRouterIcon,
+  OrcaRouterIcon,
   SakanaIcon,
   TogetherIcon,
   VertexIcon,
@@ -261,6 +262,22 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
     defaultModel: '',
     modelPatterns: [/^openrouter\//],
     icon: OpenRouterIcon,
+    isReseller: true,
+    capabilities: {
+      temperature: { min: 0, max: 2 },
+      toolUsageControl: true,
+    },
+    contextInformationAvailable: false,
+    models: [],
+  },
+  orcarouter: {
+    id: 'orcarouter',
+    fileAttachment: { maxBytes: 50 * 1024 * 1024, strategy: 'remote-url' },
+    name: 'OrcaRouter',
+    description: 'Unified access to many models via OrcaRouter',
+    defaultModel: '',
+    modelPatterns: [/^orcarouter\//],
+    icon: OrcaRouterIcon,
     isReseller: true,
     capabilities: {
       temperature: { min: 0, max: 2 },
@@ -4038,6 +4055,7 @@ export const DYNAMIC_MODEL_PROVIDERS = [
   'vllm',
   'litellm',
   'openrouter',
+  'orcarouter',
   'fireworks',
   'together',
   'baseten',
@@ -4395,6 +4413,18 @@ export function updateOllamaCloudModels(models: string[]): void {
 
 export function updateOpenRouterModels(models: string[]): void {
   PROVIDER_DEFINITIONS.openrouter.models = models.map((modelId) => ({
+    id: modelId,
+    pricing: {
+      input: 0,
+      output: 0,
+      updatedAt: new Date().toISOString().split('T')[0],
+    },
+    capabilities: {},
+  }))
+}
+
+export function updateOrcaRouterModels(models: string[]): void {
+  PROVIDER_DEFINITIONS.orcarouter.models = models.map((modelId) => ({
     id: modelId,
     pricing: {
       input: 0,
