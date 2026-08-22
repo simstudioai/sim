@@ -14,7 +14,6 @@ import { isOrganizationOnEnterprisePlan } from '@/lib/billing'
 import { hasWorkspaceInboxAccess, hasWorkspaceSandboxAccess } from '@/lib/billing/core/subscription'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
 import { isBillingEnabled, isHosted } from '@/lib/core/config/env-flags'
-import { isCredentialGroupsAvailable } from '@/lib/credential-groups/availability'
 import { canOpenOrganizationSettingsSection } from '@/lib/organizations/settings-access'
 import { isPlatformAdmin } from '@/lib/permissions/super-user'
 import { getWorkspaceHostContextForViewer } from '@/lib/workspaces/host-context'
@@ -117,16 +116,20 @@ export default async function WorkspaceSettingsSectionPage({
 
   const workspaceSection = WORKSPACE_SECTION_MAP[parsed]
   if (workspaceSection) {
-    const [permissionGroup, forksAvailable, inboxAvailable, sandboxes, credentialGroupsAvailable] =
-      await Promise.all([
-        hostContext.hostOrganizationId && hostContext.ownerBilling.isEnterprise
-          ? resolveWorkspaceGroup(session.user.id, hostContext.hostOrganizationId, workspaceId)
-          : null,
-        isForkingAvailableForWorkspace(hostContext.hostOrganizationId, session.user.id),
-        hasWorkspaceInboxAccess(workspaceId),
-        hasWorkspaceSandboxAccess(workspaceId),
-        isCredentialGroupsAvailable(hostContext.ownerBilling),
-      ])
+    /**
+     * Credential-group availability is not re-resolved here: the host context already derived
+     * it from the same owner billing, so asking again is a second feature-flag lookup for an
+     * answer already in hand.
+     */
+    const [permissionGroup, forksAvailable, inboxAvailable, sandboxes] = await Promise.all([
+      hostContext.hostOrganizationId && hostContext.ownerBilling.isEnterprise
+        ? resolveWorkspaceGroup(session.user.id, hostContext.hostOrganizationId, workspaceId)
+        : null,
+      isForkingAvailableForWorkspace(hostContext.hostOrganizationId, session.user.id),
+      hasWorkspaceInboxAccess(workspaceId),
+      hasWorkspaceSandboxAccess(workspaceId),
+    ])
+    const credentialGroupsAvailable = hostContext.features?.credentialGroups ?? false
     const customBlocksAvailable = isHosted
       ? hostContext.ownerBilling.isEnterprise
       : isTruthy(getEnv('NEXT_PUBLIC_CUSTOM_BLOCKS_ENABLED'))
