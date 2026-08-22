@@ -26,38 +26,48 @@ Left-to-right becomes top-to-bottom. A toolbar reading `Filter · Sort · Export
 
 Platform-only entries (desktop **Browser** and **Terminal**) trail the shared set rather than interleaving, so the common prefix is identical on every platform.
 
-## Grouping: one rule, against the consequential group
+## Grouping: a rule marks a change in what the action acts on
 
-Order is governed above. **Separators are governed here** — and the answer is: use at most one.
+Order is governed above. **Separators are governed here.**
 
-Put a single `DropdownMenuSeparator` against the **consequential group** — the actions that
-delete, detach, or change a run — and nowhere else. Everything on the other side of it runs
-uninterrupted in toolbar-mirroring order.
+A `DropdownMenuSeparator` earns its place when the next group stops acting on the thing the user
+clicked. That is the whole test — one question, asked the same way in every menu:
 
-That group trails in almost every menu, so in practice the rule reads "one rule immediately
-before Delete / Leave / Close / Hide". It leads in exactly one place: the **logs row menu**,
-where `Retry` and `Cancel Run` are the primary actions on a failed run and sit at the top, with
-the rule beneath them. Ordering follows the surface (see "The rule" above); the separator simply
-fences whichever end the consequential group occupies. A menu whose consequential actions are
-merely *disabled* still gets no extra rule — `disabled` is not a group.
+| The group | Gets a rule before it |
+| --- | --- |
+| Acts on the clicked item (open, rename, duplicate, export, copy, edit, pin, run) | no — this is the body of the menu |
+| Acts on **something else** — the page's filters or view, or a newly created sibling | yes |
+| **Destroys or detaches** it (delete, leave, close, hide, remove) | yes |
+
+Most row menus only ever have the one transition, so they carry one rule, immediately before
+`Delete`. A menu that also filters the page or inserts siblings carries two. Nothing carries
+more, because there is no third thing a menu acts on.
+
+Do **not** band by verb. "Navigation", "status", "edit", "copy" are categories of *what the verb
+is*, not of *what it touches*, and the user meets no such taxonomy anywhere else — every toolbar
+in the app is a flat `gap-1` chip row with no dividers. Menus banded that way put the same action
+in different groups depending on which siblings happened to be visible.
+
+The consequential group trails in almost every menu. It leads in exactly one: the **logs row
+menu**, where `Retry` and `Cancel Run` act on the run itself and are the primary actions on a
+failure, so they sit on top with the rule beneath them. Ordering follows the surface (see "The
+rule" above); the separator fences whichever end that group occupies.
+
+A group whose items are merely *disabled* still gets no extra rule — `disabled` is not a group.
 
 ```tsx
 // ✗ Bad — four semantic bands the user meets nowhere else
 Open in new tab │─── Rename, Lock │─── Duplicate, Export │─── Delete
 
-// ✓ Good — one rule, isolating the irreversible action
+// ✓ Good — one rule, where the menu stops acting on the workflow
 Open in new tab, Rename, Lock, Duplicate, Export │─── Delete
 ```
 
-**Why one.** No toolbar in this app renders a divider — every header is a flat
-`HEADER_ACTION_CLUSTER` (`gap-1`) chip row and every bulk action bar a flat `gap-[5px]` run. A
-menu banded into navigation / status / edit / copy / destructive therefore teaches a taxonomy
-that appears on no other surface, and because each band is conditional, the same action lands in
-a different group depending on which sibling items happen to be visible. The one thing a rule
-genuinely buys is a stop before the action you cannot undo.
-
-A second rule is justified only when a menu mixes genuinely different *scopes* — cell-level and
-table-level actions in one menu, say — not different verbs.
+**Worked examples.** The logs row menu carries two: `Retry, Cancel Run │ Copy Run ID, Copy Link,
+Open Workflow, Open Snapshot │ Filter by Workflow, Clear Filters` — the run, then this log, then
+the page. The table row and column menus carry two: the rule before `Insert row above` /
+`Insert column left` is where the menu stops acting on the clicked cell and starts creating
+siblings. Every other row menu in the app has only the destructive transition, so it carries one.
 
 **The one standing exception: menus that emulate a native menu.** The text-editor menu
 (`editor-context-menu.tsx`), the terminal menu (`terminal-context-menu.tsx`), and the browser
