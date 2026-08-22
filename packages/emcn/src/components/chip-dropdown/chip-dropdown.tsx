@@ -35,7 +35,7 @@ interface ChipDropdownOption {
   /**
    * Optional leading icon rendered inside the menu item. Auto-sized to
    * `size-[14px]` and tinted with `--text-icon` via the item's base classes
-   * (see `DROPDOWN_MENU_ITEM_BASE_CLASSES`).
+   * (see {@link dropdownMenuRowClass}).
    */
   icon?: ChipIcon
   /** Pre-rendered leading element (e.g. an avatar) — takes precedence over `icon`. */

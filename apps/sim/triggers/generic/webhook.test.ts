@@ -13,11 +13,13 @@ function setupInstructions(): string {
 }
 
 describe('genericWebhookTrigger', () => {
-  it('declares the request metadata so it can be referenced from later blocks', () => {
-    expect(Object.keys(genericWebhookTrigger.outputs)).toEqual(['method', 'query', 'headers'])
-    expect(genericWebhookTrigger.outputs.method.type).toBe('string')
-    expect(genericWebhookTrigger.outputs.query.type).toBe('object')
-    expect(genericWebhookTrigger.outputs.headers.type).toBe('object')
+  /**
+   * Declaring outputs here does not add editor completions — the executor reads the same list as
+   * an exhaustive schema and rejects every field outside it. See
+   * `executor/utils/block-data.test.ts` for the behavior this protects.
+   */
+  it('declares no outputs, because the caller decides the payload shape', () => {
+    expect(genericWebhookTrigger.outputs).toEqual({})
   })
 
   /**
@@ -40,38 +42,19 @@ describe('genericWebhookTrigger', () => {
     expect(instructions).toContain('GET, PUT, PATCH and DELETE')
   })
 
-  it('names every reserved key the input can carry', () => {
-    const instructions = setupInstructions()
-
-    for (const key of Object.keys(genericWebhookTrigger.outputs)) {
-      expect(instructions).toContain(`"${key}"`)
+  /**
+   * Named explicitly rather than derived from `outputs`, which is intentionally empty — deriving
+   * it would make this assertion vacuous.
+   */
+  it.each(['method', 'query', 'headers'])(
+    'names the reserved "%s" key the input can carry',
+    (key) => {
+      expect(setupInstructions()).toContain(`"${key}"`)
     }
-  })
+  )
 
   it('names the switch that exposes headers rather than promising them', () => {
     expect(setupInstructions()).toContain('"Expose Request Headers"')
-  })
-
-  /**
-   * Two of the three outputs only exist once a switch is on, so they are conditioned on it: the
-   * reference dropdown must not offer a field the running webhook will not send.
-   */
-  it.each([
-    ['method', 'acceptOtherMethods'],
-    ['headers', 'exposeRequestHeaders'],
-  ])('gates the %s output on the switch that produces it', (key, field) => {
-    expect(genericWebhookTrigger.outputs[key].condition).toEqual({
-      field,
-      value: [true, 'true'],
-    })
-  })
-
-  /**
-   * Query parameters are the one key that is not opt-in, so offering them unconditionally is
-   * correct — gating them on a switch that does not exist would hide them entirely.
-   */
-  it('offers query unconditionally', () => {
-    expect(genericWebhookTrigger.outputs.query.condition).toBeUndefined()
   })
 
   /**

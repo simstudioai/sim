@@ -1,4 +1,5 @@
 import { Command } from 'commander'
+import { attachChat } from './chat'
 import { attachFileGet } from './files-get'
 import { attachFileUpload } from './files-upload'
 import { attachKnowledgeDocumentUpload } from './knowledge-document-upload'
@@ -60,4 +61,6 @@ export function attachProtocolCommands(program: Command): void {
   attachWorkflowRunWait(group(workflows, 'runs'))
 
   attachLogsFollow(group(program, 'logs'))
+
+  attachChat(program)
 }

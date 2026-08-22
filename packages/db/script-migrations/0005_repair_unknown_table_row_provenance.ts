@@ -107,26 +107,28 @@ async function repairUnknownProvenancePage(
  * past the page instead makes each pass finite and the whole walk terminate on the only condition
  * that means finished: a page with no candidates left in it.
  */
+export async function runUnknownTableRowProvenanceRepair(sql: Sql): Promise<void> {
+  let repaired = 0
+  let skipped = 0
+  let afterRowId = ''
+  for (;;) {
+    const page = await repairUnknownProvenancePage(
+      sql,
+      UNKNOWN_PROVENANCE_REPAIR_BATCH_SIZE,
+      afterRowId
+    )
+    if (page.candidates === 0 || page.lastRowId === null) break
+    repaired += page.repaired
+    skipped += page.candidates - page.repaired
+    afterRowId = page.lastRowId
+    console.log(`  repaired ${repaired} unknown table row(s)`)
+  }
+  console.log(
+    `Unknown table row provenance repair complete: ${repaired} row(s) repaired, ${skipped} left to a concurrent writer.`
+  )
+}
+
 export const repairUnknownTableRowProvenance: ScriptMigration = {
   name: '0005_repair_unknown_table_row_provenance',
-  async up(sql: Sql): Promise<void> {
-    let repaired = 0
-    let skipped = 0
-    let afterRowId = ''
-    for (;;) {
-      const page = await repairUnknownProvenancePage(
-        sql,
-        UNKNOWN_PROVENANCE_REPAIR_BATCH_SIZE,
-        afterRowId
-      )
-      if (page.candidates === 0 || page.lastRowId === null) break
-      repaired += page.repaired
-      skipped += page.candidates - page.repaired
-      afterRowId = page.lastRowId
-      console.log(`  repaired ${repaired} unknown table row(s)`)
-    }
-    console.log(
-      `Unknown table row provenance repair complete: ${repaired} row(s) repaired, ${skipped} left to a concurrent writer.`
-    )
-  },
+  up: runUnknownTableRowProvenanceRepair,
 }

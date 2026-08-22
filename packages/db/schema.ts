@@ -3727,6 +3727,18 @@ export const customBlock = pgTable(
      */
     outputs: json('outputs').$type<Array<{ blockId: string; path: string; name: string }>>(),
     enabled: boolean('enabled').notNull().default(true),
+    /**
+     * The publisher's org-wide decision on whether this block's runs are joined into
+     * a consumer's trace. It is the ONLY policy — no viewer check runs downstream —
+     * so turning it on publishes the source workflow's block names, inputs, outputs,
+     * and prompts to anyone who can read a consuming workflow's logs, including
+     * consumers with no access to the source workspace.
+     *
+     * Defaults false because of that: this is the same boundary curated outputs and
+     * redacted errors exist to hold, and it may only open by an affirmative act of
+     * the publisher, never by a column default applied to rows nobody revisited.
+     */
+    traceChildRuns: boolean('trace_child_runs').notNull().default(false),
     createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
@@ -4334,6 +4346,17 @@ export const knowledgeConnector = pgTable(
     sourceConfig: json('source_config').notNull(),
     syncMode: text('sync_mode').notNull().default('full'),
     syncIntervalMinutes: integer('sync_interval_minutes').notNull().default(1440),
+    /**
+     * One of `active`, `pending`, `syncing`, `error`, `paused`, `disabled`.
+     *
+     * `pending` and `syncing` are the two halves of a sync in flight: `pending`
+     * is written as the sync is handed to the queue, `syncing` when a worker
+     * takes the lock. The split exists because the queue depth between them is
+     * unbounded — without `pending` the row is indistinguishable from idle for
+     * as long as the hand-off takes, which is what forced readers to guess from
+     * `created_at`. A row left `pending` past the lock TTL is reclaimed by the
+     * scheduler, which is the only thing that ever observes a lost hand-off.
+     */
     status: text('status').notNull().default('active'),
     lastSyncAt: timestamp('last_sync_at'),
     lastSyncError: text('last_sync_error'),
@@ -4770,6 +4793,14 @@ export const tableRunDispatches = pgTable(
       onDelete: 'set null',
     }),
     requestedAt: timestamp('requested_at').notNull().defaultNow(),
+    /** Last time the dispatcher loop made progress on this dispatch. Stamped by
+     *  the same per-window writes that advance `cursor` and `processed_count`,
+     *  so it means "a holder is alive" rather than "this started a while ago" —
+     *  the distinction the cleanup sweep needs, since `requested_at` never moves
+     *  and a legitimately long dispatch would otherwise be reclaimed under a
+     *  live holder. Null on rows written before this column existed; the sweep
+     *  reads `COALESCE(heartbeat_at, requested_at)` so those stay reclaimable. */
+    heartbeatAt: timestamp('heartbeat_at'),
     completedAt: timestamp('completed_at'),
     cancelledAt: timestamp('cancelled_at'),
   },

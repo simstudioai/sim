@@ -1,9 +1,21 @@
-import { generateId } from '@sim/utils/id'
+import {
+  type BrexDeliveryContextParams,
+  brexIdempotencyHeader,
+  defineBrexKeyedSite,
+} from '@/tools/brex/idempotency'
 import type { BrexCreateVendorParams, BrexCreateVendorResponse } from '@/tools/brex/types'
 import { BREX_API_BASE, buildBrexHeaders, parseBrexJson } from '@/tools/brex/utils'
 import type { ToolConfig } from '@/tools/types'
 
-export const brexCreateVendorTool: ToolConfig<BrexCreateVendorParams, BrexCreateVendorResponse> = {
+const DELIVERY = defineBrexKeyedSite(
+  'brex_create_vendor',
+  'a second vendor with the same details would appear, and Brex rejects a duplicate company name'
+)
+
+export const brexCreateVendorTool: ToolConfig<
+  BrexCreateVendorParams & BrexDeliveryContextParams,
+  BrexCreateVendorResponse
+> = {
   id: 'brex_create_vendor',
   name: 'Brex Create Vendor',
   description: 'Create a new vendor in the Brex account',
@@ -41,7 +53,7 @@ export const brexCreateVendorTool: ToolConfig<BrexCreateVendorParams, BrexCreate
     method: 'POST',
     headers: (params) => ({
       ...buildBrexHeaders(params.apiKey),
-      'Idempotency-Key': generateId(),
+      ...brexIdempotencyHeader(DELIVERY, params),
     }),
     body: (params) => {
       const body: Record<string, unknown> = { company_name: params.companyName }

@@ -79,7 +79,7 @@ export function ImportProgressMenu({ workspaceId, tableId }: ImportProgressMenuP
           </span>
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align='end' className='min-w-[320px] max-w-[420px] gap-0 p-1'>
+      <DropdownMenuContent align='end' className='min-w-[320px] max-w-[420px]'>
         {imports.map((row) => {
           const stage = getImportStage(row)
           const isReadyExport = row.jobType === 'export' && row.phase === 'ready' && row.hasResult

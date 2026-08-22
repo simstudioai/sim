@@ -38,7 +38,10 @@ function getBaseUrlImpl(): string {
 
 function getInternalApiBaseUrlImpl(): string {
   const internalBaseUrl = readEnv('INTERNAL_API_BASE_URL')?.trim()
-  if (!internalBaseUrl) return getBaseUrlImpl()
+  // Mirrors the real module: the internal URL names a route that resolves only
+  // from inside the app container, so a Trigger.dev worker must ignore it.
+  // `DB_APP_NAME='sim-trigger'` is the worker-only marker trigger.config.ts syncs.
+  if (!internalBaseUrl || readEnv('DB_APP_NAME') === 'sim-trigger') return getBaseUrlImpl()
   if (!hasHttpProtocol(internalBaseUrl)) {
     throw new Error(
       'INTERNAL_API_BASE_URL must include protocol (http:// or https://), e.g. http://sim-app.default.svc.cluster.local:3000'

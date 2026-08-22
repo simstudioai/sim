@@ -109,6 +109,22 @@ function whereForUpdate(index: number): unknown {
   return dbChainMockFns.where.mock.calls[index][0]
 }
 
+/**
+ * Position of the update targeting a given table, resolved by table rather than
+ * hardcoded: the tick runs several updates and a new one inserted between them
+ * would otherwise silently re-point every later assertion at the wrong chain.
+ */
+function updateIndexFor(table: unknown): number {
+  const index = dbChainMockFns.update.mock.calls.findIndex((call) => call[0] === table)
+  expect(index).toBeGreaterThanOrEqual(0)
+  return index
+}
+
+/** The sync-log sweep's `.where()` condition, whichever chain it ran as. */
+function syncLogSweepWhere(): unknown {
+  return whereForUpdate(updateIndexFor(schemaMock.knowledgeConnectorSyncLog))
+}
+
 beforeEach(() => {
   vi.clearAllMocks()
   resetDbChainMock()
@@ -256,14 +272,14 @@ describe('connector sync scheduler stale-lock reaper', () => {
   it('closes orphaned sync-log rows still marked started', async () => {
     await runTickRecovering(['connector-1', 'connector-2'])
 
-    expect(dbChainMockFns.update.mock.calls[1][0]).toBe(schemaMock.knowledgeConnectorSyncLog)
+    const logUpdateIndex = updateIndexFor(schemaMock.knowledgeConnectorSyncLog)
 
-    const payload = setPayloadForUpdate(1)
+    const payload = setPayloadForUpdate(logUpdateIndex)
     expect(payload.status).toBe('failed')
     expect(renderedSql(payload.completedAt)).toContain('now()')
     expect(payload.errorMessage).toBe('Sync timed out (stale lock recovered)')
 
-    const where = dbChainMockFns.where.mock.calls[1][0]
+    const where = syncLogSweepWhere()
     expect(
       hasMockCondition(
         where,
@@ -284,7 +300,7 @@ describe('connector sync scheduler stale-lock reaper', () => {
 
   /** The `NOT EXISTS` liveness fragment the sweep's WHERE carries. */
   function sweepLivenessFragment(): MockSqlFragment {
-    const where = dbChainMockFns.where.mock.calls[1][0]
+    const where = syncLogSweepWhere()
     const fragment = flattenMockConditions(where).find(
       (node: MockCondition) => typeof node.toSQL === 'function'
     )
@@ -370,17 +386,56 @@ describe('connector sync scheduler stale-lock reaper', () => {
 
     expect(response.status).toBe(200)
 
-    const logUpdateIndex = dbChainMockFns.update.mock.calls.findIndex(
-      (call) => call[0] === schemaMock.knowledgeConnectorSyncLog
+    expect(setPayloadForUpdate(updateIndexFor(schemaMock.knowledgeConnectorSyncLog)).status).toBe(
+      'failed'
     )
-    expect(logUpdateIndex).toBeGreaterThanOrEqual(0)
-    expect(setPayloadForUpdate(logUpdateIndex).status).toBe('failed')
+  })
+
+  it('recovers connectors whose queued sync was never started', async () => {
+    await runTickRecovering(['connector-1'])
+
+    /** Located by its `status = 'pending'` predicate, not by position in the tick. */
+    const pendingIndex = dbChainMockFns.update.mock.calls.findIndex((call, index) => {
+      if (call[0] !== schemaMock.knowledgeConnector) return false
+      return hasMockCondition(
+        whereForUpdate(index),
+        (node: MockCondition) =>
+          node.type === 'eq' &&
+          node.left === schemaMock.knowledgeConnector.status &&
+          node.right === 'pending'
+      )
+    })
+    expect(pendingIndex).toBeGreaterThanOrEqual(0)
+
+    /**
+     * Ages against the lease, not `updatedAt`: a pending connector is still
+     * editable, and `updatedAt` moves on every unrelated write, so using it
+     * would let a config edit defer the recovery indefinitely — the bug the
+     * lease column was introduced to close for `syncing`.
+     */
+    const pendingCutoff = flattenMockConditions(whereForUpdate(pendingIndex)).find(
+      (node: MockCondition) => typeof node.toSQL === 'function'
+    ) as unknown as MockSqlFragment | undefined
+    expect(pendingCutoff?.toSQL().sql).toBe('? <= ?')
+    expectLeaseExpression(pendingCutoff?.values[0])
+    expect((pendingCutoff?.values[1] as { value: Date }).value).toEqual(EXPECTED_STALE_CUTOFF)
+
+    /** Re-enters the shared failure ladder rather than re-queueing every tick. */
+    const payload = setPayloadForUpdate(pendingIndex)
+    expect(renderedSql(payload.status)).toContain('disabled')
+    expect(renderedSql(payload.consecutiveFailures)).toBe('COALESCE(?, 0) + 1')
+
+    /**
+     * Reports a lost hand-off, not a timeout: nothing ran, so the stale-lock
+     * wording would describe a run that never existed.
+     */
+    expect(asFragment(payload.lastSyncError).values).toContain('Sync was queued but never started')
   })
 
   it('never scopes the sync-log sweep to a connector id', async () => {
     await runTickRecovering(['connector-1'])
 
-    const where = dbChainMockFns.where.mock.calls[1][0]
+    const where = syncLogSweepWhere()
 
     /**
      * Checks every position, not just `column`. `eq()` builds `{left, right}`

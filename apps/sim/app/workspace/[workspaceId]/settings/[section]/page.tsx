@@ -11,17 +11,14 @@ import {
 } from '@/components/settings/navigation'
 import { getSession } from '@/lib/auth'
 import { isOrganizationOnEnterprisePlan } from '@/lib/billing'
-import { hasWorkspaceInboxAccess, hasWorkspaceSandboxAccess } from '@/lib/billing/core/subscription'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
 import { isBillingEnabled, isHosted } from '@/lib/core/config/env-flags'
-import { isCredentialGroupsAvailable } from '@/lib/credential-groups/availability'
 import { canOpenOrganizationSettingsSection } from '@/lib/organizations/settings-access'
 import { isPlatformAdmin } from '@/lib/permissions/super-user'
 import { getWorkspaceHostContextForViewer } from '@/lib/workspaces/host-context'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import {
-  allNavigationItems,
-  getSettingsSectionMeta,
+  resolveSettingsSection,
   type SettingsSection,
 } from '@/app/workspace/[workspaceId]/settings/navigation'
 import { resolveWorkspaceGroup } from '@/ee/access-control/utils/permission-check'
@@ -31,21 +28,6 @@ import { SettingsPage } from './settings'
 
 interface WorkspaceSettingsSectionPageProps {
   params: Promise<{ workspaceId: string; section: string }>
-}
-
-const SECTION_ALIASES: Readonly<Record<string, SettingsSection>> = {
-  subscription: 'billing',
-  team: 'organization',
-  'api-keys': 'apikeys',
-  // Verified domains moved into the SSO page; keep old links working.
-  domains: 'sso',
-}
-
-const TOP_LEVEL_REDIRECTS: Readonly<Record<string, (workspaceId: string) => string>> = {
-  integrations: (workspaceId) => `/workspace/${workspaceId}/integrations`,
-  skills: (workspaceId) => `/workspace/${workspaceId}/skills`,
-  // Cookie preferences moved into General; keep old links working.
-  privacy: (workspaceId) => `/workspace/${workspaceId}/settings/general?view=privacy`,
 }
 
 const WORKSPACE_SECTION_MAP: Partial<Record<SettingsSection, WorkspaceSettingsSection>> = {
@@ -77,12 +59,19 @@ const ORGANIZATION_SECTION_MAP: Partial<Record<SettingsSection, OrganizationSett
   whitelabeling: 'whitelabeling',
 }
 
-function parseSection(section: string): SettingsSection | null {
-  const normalized = SECTION_ALIASES[section] ?? section
-  return allNavigationItems.some((item) => item.id === normalized)
-    ? (normalized as SettingsSection)
-    : null
-}
+/**
+ * Sections whose first paint reads the general-settings query.
+ *
+ * Their bodies default a missing value (`?? true` / `?? false`) and drive a switch off it, so
+ * without a hydrated entry they paint the fallback and visibly flip when the client fetch
+ * lands. The workspace layout's `SettingsLoader` warms this key only after hydration, which
+ * covers client navigation but not a direct load of one of these sections.
+ */
+const GENERAL_SETTINGS_SECTIONS: ReadonlySet<SettingsSection> = new Set([
+  'general',
+  'billing',
+  'admin',
+])
 
 /**
  * Settings availability varies across workspaces, so a preserved section may
@@ -96,9 +85,7 @@ export async function generateMetadata({
   params,
 }: WorkspaceSettingsSectionPageProps): Promise<Metadata> {
   const { section } = await params
-  const parsed = parseSection(section)
-  const meta = parsed ? getSettingsSectionMeta(parsed) : null
-  return { title: meta?.label ?? 'Settings' }
+  return { title: resolveSettingsSection(section)?.meta.title ?? 'Settings' }
 }
 
 export default async function WorkspaceSettingsSectionPage({
@@ -108,30 +95,53 @@ export default async function WorkspaceSettingsSectionPage({
   if (!session?.user) redirect('/login')
 
   const { workspaceId, section } = await params
-  const topLevelHref = TOP_LEVEL_REDIRECTS[section]?.(workspaceId)
-  if (topLevelHref) redirect(topLevelHref)
-  const parsed = parseSection(section)
-  if (!parsed) notFound()
+  /** The layout already rejected an unknown segment; this narrows the type and fails safe. */
+  const resolved = resolveSettingsSection(section)
+  if (!resolved) notFound()
+  const parsed = resolved.id
 
-  const hostContext = await getWorkspaceHostContextForViewer(workspaceId, session.user.id)
+  /**
+   * Independent given the session, and both gate the same render, so they overlap rather than
+   * queue. Every await here sits in front of the section's body, so it is the length of this
+   * chain that the user waits out.
+   */
+  const requiresPlatformAdmin = parsed === 'admin' || parsed === 'mothership'
+  const [hostContext, isViewerPlatformAdmin] = await Promise.all([
+    getWorkspaceHostContextForViewer(workspaceId, session.user.id),
+    requiresPlatformAdmin ? isPlatformAdmin(session.user.id) : Promise.resolve(false),
+  ])
   if (!hostContext) notFound()
-
-  if (parsed === 'admin' || parsed === 'mothership') {
-    if (!(await isPlatformAdmin(session.user.id))) notFound()
-  }
+  if (requiresPlatformAdmin && !isViewerPlatformAdmin) notFound()
 
   const workspaceSection = WORKSPACE_SECTION_MAP[parsed]
   if (workspaceSection) {
-    const [permissionGroup, forksAvailable, inboxAvailable, sandboxes, credentialGroupsAvailable] =
-      await Promise.all([
-        hostContext.hostOrganizationId && hostContext.ownerBilling.isEnterprise
-          ? resolveWorkspaceGroup(session.user.id, hostContext.hostOrganizationId, workspaceId)
-          : null,
-        isForkingAvailableForWorkspace(hostContext.hostOrganizationId, session.user.id),
-        hasWorkspaceInboxAccess(workspaceId),
-        hasWorkspaceSandboxAccess(workspaceId),
-        isCredentialGroupsAvailable(hostContext.ownerBilling),
-      ])
+    /**
+     * The gate asks one question — is this section in the viewer's navigation — so it resolves
+     * only the entitlements that can answer it, and only for the section being opened.
+     *
+     * `credentialGroups` is already on the host context, derived from the same owner billing one
+     * await earlier, so asking again is a second feature-flag lookup for an answer in hand.
+     *
+     * `inbox` and `sandboxes` feed only `locked`, which marks a section as needing an upgrade
+     * rather than hiding it. This gate reads membership alone, so their two billing round-trips
+     * could not change the outcome for any section.
+     *
+     * `forks` is read only by the `forks` entry, so every other section resolved a lineage
+     * check it could not act on. Passing `false` elsewhere is safe in the one direction that
+     * matters: it can only remove `forks` from a list this gate is not asking about.
+     *
+     * `permissionConfig` is deliberately NOT narrowed the same way. Its keys hide sections, so
+     * skipping the lookup for a section that turns out to be config-gated would reveal it —
+     * fail-open, where the others fail closed.
+     */
+    const [permissionGroup, forksAvailable] = await Promise.all([
+      hostContext.hostOrganizationId && hostContext.ownerBilling.isEnterprise
+        ? resolveWorkspaceGroup(session.user.id, hostContext.hostOrganizationId, workspaceId)
+        : null,
+      workspaceSection === 'forks'
+        ? isForkingAvailableForWorkspace(hostContext.hostOrganizationId, session.user.id)
+        : Promise.resolve(false),
+    ])
     const customBlocksAvailable = isHosted
       ? hostContext.ownerBilling.isEnterprise
       : isTruthy(getEnv('NEXT_PUBLIC_CUSTOM_BLOCKS_ENABLED'))
@@ -140,11 +150,11 @@ export default async function WorkspaceSettingsSectionPage({
       permissionConfig: permissionGroup?.config ?? {},
       entitlements: {
         byok: isHosted,
-        credentialGroups: credentialGroupsAvailable,
-        inbox: inboxAvailable,
+        credentialGroups: hostContext.features?.credentialGroups ?? false,
+        inbox: true,
         customBlocks: customBlocksAvailable,
         forks: forksAvailable,
-        sandboxes,
+        sandboxes: true,
       },
     })
     if (!navigation.some((item) => item.id === workspaceSection)) {
@@ -165,23 +175,30 @@ export default async function WorkspaceSettingsSectionPage({
       if (!hostContext.viewer.isHostOrganizationAdmin) {
         redirectToGeneralSettings(workspaceId)
       }
-      if (
-        !(await canOpenOrganizationSettingsSection(
+      /**
+       * Overlapped for the same reason: neither reads the other's result. The plan lookup is
+       * skipped for the two sections that do not gate on it, so the only case that pays for a
+       * lookup it does not use is one that was about to redirect anyway.
+       */
+      const needsEnterprisePlan =
+        organizationSection !== 'members' && organizationSection !== 'billing'
+      const [canOpenSection, isEnterpriseOrganization] = await Promise.all([
+        canOpenOrganizationSettingsSection(
           hostContext.hostOrganizationId,
           session.user.id,
           organizationSection
-        ))
-      ) {
+        ),
+        needsEnterprisePlan
+          ? isOrganizationOnEnterprisePlan(hostContext.hostOrganizationId)
+          : Promise.resolve(false),
+      ])
+      if (!canOpenSection) {
         redirectToGeneralSettings(workspaceId)
       }
-      const hasEnterprisePlan =
-        organizationSection !== 'members' &&
-        organizationSection !== 'billing' &&
-        (await isOrganizationOnEnterprisePlan(hostContext.hostOrganizationId))
       if (
         !isOrganizationSettingsSectionAvailable(
           organizationSection,
-          getOrganizationSettingsFeatures(hasEnterprisePlan)
+          getOrganizationSettingsFeatures(needsEnterprisePlan && isEnterpriseOrganization)
         )
       ) {
         redirectToGeneralSettings(workspaceId)
@@ -191,12 +208,15 @@ export default async function WorkspaceSettingsSectionPage({
 
   const queryClient = getQueryClient()
   /**
-   * Awaited, not fired and forgotten: only a settled query is dehydrated, so an unawaited
-   * prefetch is dropped from the payload and the panel waterfalls anyway. The viewer's
-   * profile is already seeded by the workspace layout under the same key, so it is not
-   * repeated here.
+   * Scoped to the sections that actually read the key. The prefetch has to be awaited — an
+   * unsettled query is dropped from the dehydrated payload, so firing and forgetting would
+   * waterfall anyway — which means running it unconditionally charged the other ~25 sections
+   * a blocking round-trip for a cache entry they never touch. The viewer's profile is seeded
+   * by the workspace layout under a different key and is not repeated here.
    */
-  await prefetchGeneralSettings(queryClient)
+  if (GENERAL_SETTINGS_SECTIONS.has(parsed)) {
+    await prefetchGeneralSettings(queryClient)
+  }
 
   return (
     <HydrationBoundary state={dehydrate(queryClient)}>

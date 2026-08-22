@@ -40,6 +40,21 @@ function tabButton(id: string): HTMLButtonElement {
   return button
 }
 
+function stripItem(id: string): HTMLElement {
+  const item = container?.querySelector<HTMLElement>(`[data-tab-strip-item="${id}"]`)
+  if (!item) throw new Error(`Missing tab item ${id}`)
+  return item
+}
+
+/** jsdom fires no real DragEvent, and the strip writes to `dataTransfer`. */
+function dragStartEvent(): MouseEvent {
+  const event = new MouseEvent('dragstart', { bubbles: true, cancelable: true })
+  Object.defineProperty(event, 'dataTransfer', {
+    value: { effectAllowed: '', dropEffect: '', setData: vi.fn(), setDragImage: vi.fn() },
+  })
+  return event
+}
+
 function scrollRow(): HTMLDivElement {
   const row = container?.querySelector<HTMLDivElement>('.overflow-x-auto')
   if (!row) throw new Error('Missing scrolling tab row')
@@ -93,7 +108,162 @@ describe('TabStrip interactions', () => {
 
     act(() => tabButton('two').click())
 
-    expect(onSelect).toHaveBeenCalledWith('two', 'pointer')
+    expect(onSelect.mock.calls[0]?.slice(0, 2)).toEqual(['two', 'pointer'])
+  })
+
+  it('forwards the originating click so callers can read its modifiers', () => {
+    const onSelect = vi.fn()
+    mount(renderStrip(tabs, onSelect))
+
+    act(() => {
+      tabButton('two').dispatchEvent(
+        new MouseEvent('click', { bubbles: true, cancelable: true, shiftKey: true })
+      )
+    })
+
+    expect(onSelect.mock.calls[0]?.[2]?.shiftKey).toBe(true)
+  })
+
+  it('marks a tab in a multi-selection without making it the active tab', () => {
+    mount(renderStrip(tabs.map((tab) => ({ ...tab, selected: tab.id === 'two' }))))
+
+    expect(tabButton('two').className).toContain('bg-[var(--surface-active)]')
+    expect(tabButton('two').getAttribute('aria-selected')).toBe('false')
+    // The active tab owns the surface below it, so it never takes the
+    // secondary highlight even when it is part of the selection.
+    expect(tabButton('one').className).not.toContain('bg-[var(--surface-active)]')
+  })
+
+  // Supplying both `newTabControl` and `onNew` is a type error, so the built-in
+  // button can never be silently shadowed by a caller's own control.
+  it('fills the new-tab slot with a supplied control, and the end slot with actions', () => {
+    mount(
+      <TabStrip
+        tabs={tabs}
+        onSelect={vi.fn()}
+        newTabControl={<button type='button'>Add resource</button>}
+        endActions={<button type='button'>Download</button>}
+      />
+    )
+
+    expect(container?.querySelector('[aria-label="New tab"]')).toBeNull()
+    expect(container?.textContent).toContain('Add resource')
+    expect(container?.textContent).toContain('Download')
+  })
+
+  it('tracks a plain tab drag as a reorder', () => {
+    mount(<TabStrip tabs={tabs} onSelect={vi.fn()} onReorder={vi.fn()} />)
+
+    const item = stripItem('two')
+    act(() => item.dispatchEvent(dragStartEvent()))
+
+    expect(item.className).toContain('opacity-30')
+  })
+
+  it('lets the drag owner declare a gesture is not a reorder', () => {
+    mount(
+      <TabStrip
+        tabs={tabs}
+        onSelect={vi.fn()}
+        onReorder={vi.fn()}
+        onTabDragStart={(_event, _id, drag) => drag.preventReorder()}
+      />
+    )
+
+    const item = stripItem('two')
+    act(() => item.dispatchEvent(dragStartEvent()))
+
+    // Nothing is being tracked, so the tab never dims and no drop indicator
+    // offers a move the strip has been told will not happen.
+    expect(item.className).not.toContain('opacity-30')
+  })
+
+  describe('floating variant', () => {
+    const plain = tabs.filter((tab) => !tab.pinned)
+
+    function mountFloating(items = plain) {
+      mount(<TabStrip tabs={items} onSelect={vi.fn()} onClose={vi.fn()} variant='floating' />)
+    }
+
+    it('gives a shape to the active tab only', () => {
+      mountFloating()
+
+      expect(tabButton('one').className).toContain('bg-[var(--surface-active)]')
+      // A bare tab paints no surface of its own, which is what keeps the row
+      // from reading as a strip of buttons.
+      expect(tabButton('two').className).not.toContain('bg-[var(--surface-active)]')
+      expect(tabButton('two').className).not.toContain('border-[var(--border)]')
+    })
+
+    it('divides two adjacent bare tabs, but not a bare tab from a shaped one', () => {
+      // three/four are both bare and adjacent; two sits right after active one.
+      mountFloating([
+        { id: 'one', title: 'One', active: true },
+        { id: 'two', title: 'Two' },
+        { id: 'three', title: 'Three' },
+      ])
+
+      const divider = (id: string) => stripItem(id).querySelector('.w-px')
+      // 'two' follows the active tab, whose pill already separates them.
+      expect(divider('two')).toBeNull()
+      expect(divider('three')).not.toBeNull()
+      // Nothing precedes the first tab.
+      expect(divider('one')).toBeNull()
+    })
+
+    it('offers a close affordance on every tab, at rest only on the active one', () => {
+      mountFloating()
+
+      // `opacity-0` is not a substring of `opacity-100`, so these two assertions
+      // genuinely separate the states. (`toContain('pointer-events-none')` would
+      // not: the Button base carries `disabled:pointer-events-none`.)
+      const bare = container?.querySelector<HTMLElement>('[aria-label="Close Two"]')
+      expect(bare).not.toBeNull()
+      expect(bare?.className).toContain('opacity-0')
+      expect(bare?.className).toContain('group-hover:opacity-100')
+
+      const active = container?.querySelector<HTMLElement>('[aria-label="Close One"]')
+      expect(active?.className).not.toContain('opacity-0')
+    })
+
+    it('reserves the close slot on every tab, so activating one shifts nothing', () => {
+      mountFloating()
+
+      // Floating tabs are content-sized, so reserving only on the active tab
+      // would grow it on activation and shove the rest of the row sideways.
+      expect(tabButton('one').className).toContain('pr-8')
+      expect(tabButton('two').className).toContain('pr-8')
+    })
+
+    it('keeps a selected tab distinguishable from the active one', () => {
+      mountFloating([
+        { id: 'one', title: 'One', active: true, selected: true },
+        { id: 'two', title: 'Two', selected: true },
+      ])
+
+      // The active tab owns `--surface-active`; a selected tab takes the step
+      // below it, or the two would be one undifferentiated run of pills.
+      expect(tabButton('one').className).toContain('bg-[var(--surface-active)]')
+      expect(tabButton('two').className).toContain('bg-[var(--surface-4)]')
+      expect(tabButton('two').className).not.toContain('bg-[var(--surface-active)]')
+    })
+
+    it('lets tabs overflow rather than compress, so the strip can scroll', () => {
+      mountFloating()
+
+      // A flex child that both shrinks and has no floor collapses to fit its
+      // container, so scrollWidth never exceeds clientWidth and the edge fades,
+      // reveal-on-select and drag auto-scroll all go dead.
+      expect(stripItem('two').className).toContain('shrink-0')
+      expect(stripItem('two').className).not.toContain('min-w-0')
+    })
+
+    it('leaves the attached variant unchanged', () => {
+      mount(<TabStrip tabs={plain} onSelect={vi.fn()} onClose={vi.fn()} />)
+
+      expect(tabButton('one').className).toContain('bg-[var(--bg)]')
+      expect(stripItem('two').querySelector('.w-px')).toBeNull()
+    })
   })
 
   it('closes an unpinned tab with the middle mouse button', () => {
@@ -171,7 +341,9 @@ describe('TabStrip interactions', () => {
     const row = scrollRow()
     Object.defineProperties(row, {
       clientWidth: { configurable: true, value: 100 },
-      scrollWidth: { configurable: true, value: 300 },
+      // Roomy enough that the clamp does not fire, so this exercises the inset
+      // on its own; the test below covers the clamp.
+      scrollWidth: { configurable: true, value: 400 },
       scrollLeft: { configurable: true, value: 0, writable: true },
     })
     row.getBoundingClientRect = () => ({ left: 0, right: 100, width: 100 }) as DOMRect
@@ -181,6 +353,29 @@ describe('TabStrip interactions', () => {
 
     act(() => root?.render(renderStrip(tabs.map((tab) => ({ ...tab, active: tab.id === 'two' })))))
 
-    expect(row.scrollTo).toHaveBeenCalledWith({ left: 180, behavior: 'smooth' })
+    // 280 - 100 would park the tab's right edge flush with the container's,
+    // which is exactly where the fade sits — the tab would arrive half-faded.
+    // The extra EDGE_FADE_PX (24) carries it clear of the fade.
+    expect(row.scrollTo).toHaveBeenCalledWith({ left: 204, behavior: 'smooth' })
+  })
+
+  it('lets the last tab rest flush, since no gradient is drawn at a scroll extreme', () => {
+    mount(renderStrip(tabs))
+    const row = scrollRow()
+    Object.defineProperties(row, {
+      clientWidth: { configurable: true, value: 100 },
+      scrollWidth: { configurable: true, value: 300 },
+      scrollLeft: { configurable: true, value: 0, writable: true },
+    })
+    row.getBoundingClientRect = () => ({ left: 0, right: 100, width: 100 }) as DOMRect
+    const last = tabButton('two').parentElement as HTMLDivElement
+    // Flush against the end of the scrollable area.
+    last.getBoundingClientRect = () => ({ left: 200, right: 300, width: 100 }) as DOMRect
+    row.scrollTo = vi.fn()
+
+    act(() => root?.render(renderStrip(tabs.map((tab) => ({ ...tab, active: tab.id === 'two' })))))
+
+    // Wants 224; clamped to the 200 maximum rather than over-scrolling.
+    expect(row.scrollTo).toHaveBeenCalledWith({ left: 200, behavior: 'smooth' })
   })
 })

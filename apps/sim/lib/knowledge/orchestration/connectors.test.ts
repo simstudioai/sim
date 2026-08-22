@@ -2,7 +2,14 @@
  * @vitest-environment node
  */
 import { document } from '@sim/db/schema'
-import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
+import {
+  dbChainMockFns,
+  hasMockCondition,
+  type MockCondition,
+  queueTableRows,
+  resetDbChainMock,
+  schemaMock,
+} from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -606,6 +613,43 @@ describe('performUpdateKnowledgeConnector', () => {
     expect(outcome).toMatchObject({ success: false, errorCode: 'conflict' })
     expect(mockDispatchSync).not.toHaveBeenCalled()
   })
+
+  it('refuses an update whose status moved after the guards ran', async () => {
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([{ id: 'conn-1', connectorType: 'notion', status: 'pending' }])
+      .mockResolvedValueOnce([{ id: 'conn-1', connectorType: 'notion', status: 'syncing' }])
+    /** The CAS matches nothing because a worker took the lock in between. */
+    dbChainMockFns.returning.mockResolvedValueOnce([])
+
+    const outcome = await performUpdateKnowledgeConnector({
+      ...ACTOR,
+      knowledgeBase: KB,
+      connectorId: 'conn-1',
+      updates: { status: 'paused' },
+    })
+
+    /**
+     * Leaving `pending` clears the lock columns. Landing that on a row that has
+     * since gone `syncing` would wipe the token the run's heartbeat and terminal
+     * write match on, stranding a sync that had already started.
+     */
+    expect(outcome).toMatchObject({ success: false, errorCode: 'conflict' })
+    expect(mockRecordAudit).not.toHaveBeenCalled()
+
+    /**
+     * The mock does not evaluate predicates, so assert the clause itself is
+     * present — an empty `returning()` alone would pass without it.
+     */
+    expect(
+      hasMockCondition(
+        dbChainMockFns.where.mock.calls.at(-2)?.[0],
+        (node: MockCondition) =>
+          node.type === 'eq' &&
+          node.left === schemaMock.knowledgeConnector.status &&
+          node.right === 'pending'
+      )
+    ).toBe(true)
+  })
 })
 
 describe('performSyncKnowledgeConnector', () => {
@@ -652,6 +696,33 @@ describe('performSyncKnowledgeConnector', () => {
     expect(resolveBillingAttribution).not.toHaveBeenCalled()
     expect(mockDispatchSync).not.toHaveBeenCalled()
   })
+
+  it.each(['pending', 'paused', 'disabled'] as const)(
+    'refuses an on-demand sync on a %s connector',
+    async (status) => {
+      dbChainMockFns.limit.mockResolvedValueOnce([
+        { id: 'conn-1', connectorType: 'notion', status },
+      ])
+
+      const outcome = await performSyncKnowledgeConnector({
+        ...ACTOR,
+        knowledgeBase: KB,
+        connectorId: 'conn-1',
+        resolveBillingAttribution,
+      })
+
+      /**
+       * `pending` already has a run queued. `paused`/`disabled` have no way
+       * back: queueing overwrites `status`, and every exit from the run writes
+       * its own verdict — success writes `active`, a lost queue entry writes
+       * `error`, which the due-sweep then keeps syncing. One "Sync now" would
+       * silently resume the connector for good.
+       */
+      expect(outcome).toMatchObject({ success: false, errorCode: 'conflict' })
+      expect(resolveBillingAttribution).not.toHaveBeenCalled()
+      expect(mockDispatchSync).not.toHaveBeenCalled()
+    }
+  )
 
   it('dispatches and records who asked for it', async () => {
     dbChainMockFns.limit.mockResolvedValueOnce([

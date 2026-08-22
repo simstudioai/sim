@@ -18,7 +18,6 @@ import { isOrgAdminRole, PERMISSION_RANK, type PermissionType } from '@sim/platf
 import { generateId } from '@sim/utils/id'
 import { normalizeEmail } from '@sim/utils/string'
 import { and, asc, count, eq, inArray, lte, sql } from 'drizzle-orm'
-import { setActiveOrganizationForCurrentSession } from '@/lib/auth/active-organization'
 import { applySessionPolicyToNewMember } from '@/lib/auth/session-policy'
 import { getOrganizationSubscription } from '@/lib/billing/core/billing'
 import { getHighestPriorityPersonalSubscription } from '@/lib/billing/core/plan'
@@ -1435,6 +1434,9 @@ async function runInvitationAcceptancePostCommitEffects(
 
   if (effects.organizationId) {
     try {
+      const { setActiveOrganizationForCurrentSession } = await import(
+        '@/lib/auth/active-organization'
+      )
       await setActiveOrganizationForCurrentSession(effects.organizationId)
     } catch (activeOrgError) {
       logger.error('Failed to activate organization after accepting invitation', {

@@ -396,8 +396,9 @@ describe('stale execution cleanup deadline grace', () => {
     const response = await GET(createRequest())
 
     expect(response.status).toBe(200)
-    expect(dbChainMockFns.transaction).toHaveBeenCalledTimes(8)
-    expect(dbChainMockFns.for).toHaveBeenCalledTimes(8)
+    // Nine batched arms: the connector sync-log retention pass is the newest.
+    expect(dbChainMockFns.transaction).toHaveBeenCalledTimes(9)
+    expect(dbChainMockFns.for).toHaveBeenCalledTimes(9)
     for (const [strength, options] of dbChainMockFns.for.mock.calls) {
       expect(strength).toBe('update')
       expect(options).toEqual({ skipLocked: true })
@@ -469,7 +470,7 @@ describe('stale execution cleanup deadline grace', () => {
     const limits = dbChainMockFns.limit.mock.calls.map(([limit]) => limit)
     expect(limits.filter((limit) => limit === 100)).toHaveLength(20)
     expect(limits.filter((limit) => limit === 1000)).toHaveLength(30)
-    expect(limits.filter((limit) => limit === 2000)).toHaveLength(11)
+    expect(limits.filter((limit) => limit === 2000)).toHaveLength(12)
 
     const workflowUpdates = dbChainMockFns.update.mock.calls.filter(
       ([table]) => table === workflowExecutionLogs

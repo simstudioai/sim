@@ -1,6 +1,5 @@
 {
   "lockfileVersion": 1,
-  "configVersion": 0,
   "workspaces": {
     "": {
       "name": "simstudio",
@@ -627,7 +626,7 @@
     },
     "packages/sim-setup": {
       "name": "sim-setup",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "bin": {
         "sim-setup": "dist/index.js",
       },

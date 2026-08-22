@@ -86,15 +86,36 @@ export class XlsxParser implements FileParser {
 
       logger.info(`Processing sheet: ${sheetName} with ${rowCount} rows`)
 
-      // Convert to JSON with header row
+      /**
+       * Converted over a bounded window rather than the whole sheet.
+       *
+       * `sheet_to_json` allocates from the worksheet's DECLARED `!ref` range,
+       * not from its populated cells, and Excel routinely writes an inflated
+       * range from stray formatting — a sheet claiming hundreds of thousands of
+       * rows materializes that many arrays whatever it actually contains. The
+       * row cap below used to be applied after the conversion, so it bounded the
+       * emitted string while the allocation it was meant to bound had already
+       * happened: an 880 KB workbook exhausted an 8 GB worker, and the same
+       * content exhausted 16 GB when this ran inside the connector sync. No
+       * machine size fixes that, because the allocation scales with a number the
+       * file declares about itself.
+       *
+       * `defval` is gone with it. Defaulting every cell in the range made each
+       * row dense — allocation proportional to columns x rows rather than to
+       * populated cells — and, because no row was left empty, it also silently
+       * defeated the `blankrows: false` beside it.
+       */
+      const lastPreviewRow = Math.min(range.e.r, range.s.r + CONFIG.MAX_PREVIEW_ROWS - 1)
       const sheetData = XLSX.utils.sheet_to_json(worksheet, {
         header: 1,
-        defval: '', // Default value for empty cells
         blankrows: false, // Skip blank rows
+        range: { s: { r: range.s.r, c: range.s.c }, e: { r: lastPreviewRow, c: range.e.c } },
       })
 
+      // Reported from the declared range, as before, so bounding the conversion
+      // does not change what the metadata says the workbook holds.
       const actualRowCount = sheetData.length
-      totalRows += actualRowCount
+      totalRows += rowCount
 
       // Store limited sample for metadata
       if (sampledData.length < CONFIG.MAX_SAMPLE_ROWS) {
@@ -102,8 +123,8 @@ export class XlsxParser implements FileParser {
         sampledData.push(...sheetData.slice(0, sampleSize))
       }
 
-      // Only process limited rows for preview
-      const rowsToProcess = Math.min(actualRowCount, CONFIG.MAX_PREVIEW_ROWS)
+      // Already bounded by the conversion window above.
+      const rowsToProcess = actualRowCount
       const cleanSheetName = sanitizeTextForUTF8(sheetName)
 
       // Add sheet header
@@ -155,9 +176,19 @@ export class XlsxParser implements FileParser {
           contentSize += chunkContent.length
         }
 
-        if (actualRowCount > rowsToProcess) {
+        /**
+         * Truncated means the WINDOW cut the sheet short, which is a question
+         * about the declared range against the cap — not about how many rows
+         * survived conversion. Comparing the converted length to the cap made
+         * this unreachable once the conversion was bounded (the two are equal by
+         * construction); comparing the declared count to the converted length
+         * instead reported truncation for any sheet merely containing blank
+         * rows, since those are now skipped. The CSV parser asks the same
+         * question the same way.
+         */
+        if (rowCount > CONFIG.MAX_PREVIEW_ROWS) {
           content += truncationNotice(
-            `${actualRowCount.toLocaleString()} total rows, showing first ${rowsToProcess.toLocaleString()}`
+            `${rowCount.toLocaleString()} total rows, showing first ${rowsToProcess.toLocaleString()}`
           )
           truncated = true
         }

@@ -33,7 +33,7 @@ const mockMemoryLogger = vi.mocked(loggerMock.createLogger).mock.results[
   vi.mocked(loggerMock.createLogger).mock.calls.findIndex(([name]) => name === 'Memory')
 ].value
 
-vi.mock('@/lib/tokenization/estimators', () => ({
+vi.mock('@/lib/tokenization/accurate', () => ({
   getAccurateTokenCount: vi.fn((text: string) => {
     return Math.ceil(text.length / 4)
   }),

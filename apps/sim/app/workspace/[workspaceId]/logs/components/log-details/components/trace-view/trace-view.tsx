@@ -54,9 +54,9 @@ import { useCodeViewerFeatures } from '@/hooks/use-code-viewer'
  * the joined children are their own evidence, so labelling them would be noise.
  */
 const CHILD_TRACE_ACCESS_LABEL: Record<string, string> = {
-  denied: 'No access to the source workspace',
   missing: 'Not available',
   truncated: 'Not expanded (nesting limit)',
+  disabled: 'Not traced',
 }
 
 const DEFAULT_TREE_PANE_WIDTH = 240
@@ -682,12 +682,13 @@ const TraceDetailPane = memo(function TraceDetailPane({ span }: { span: TraceSpa
     label: 'Type',
     value: isCustomBlockType(span.type) ? 'custom block' : span.type,
   })
-  // A custom block runs in another workspace, so its steps are joined in only for a viewer
-  // authorized there. Say why they are absent — otherwise a boundary span with no children
-  // is indistinguishable from a block that simply did nothing.
-  const childRunLabel = span.childTraceAccess
-    ? CHILD_TRACE_ACCESS_LABEL[span.childTraceAccess]
-    : undefined
+  // A custom block runs in another workspace, and its steps are joined in only when its
+  // publisher opted that block into consumer traces. Say why they are absent — otherwise a
+  // boundary span with no children is indistinguishable from a block that simply did
+  // nothing. The read-time verdict wins: a span that carries one was opted in, so
+  // `disabled` can only describe a span hydration never considered.
+  const childRunState = span.childTraceAccess ?? (span.childTraceDisabled ? 'disabled' : undefined)
+  const childRunLabel = childRunState ? CHILD_TRACE_ACCESS_LABEL[childRunState] : undefined
   if (childRunLabel) metaEntries.push({ label: 'Child run', value: childRunLabel })
   metaEntries.push({ label: 'Duration', value: formatDuration(duration, { precision: 2 }) || '—' })
   if (span.tries !== undefined) metaEntries.push({ label: 'Tries', value: String(span.tries) })

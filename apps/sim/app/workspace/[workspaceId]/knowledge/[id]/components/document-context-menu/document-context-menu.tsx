@@ -71,6 +71,7 @@ export function DocumentContextMenu({
   const hasEditSection = !isMultiSelect && (!!onRename || !!onViewTags)
   const hasStateSection = !!onToggleEnabled
   const hasDestructiveSection = !!onDelete
+  const hasActionsAboveDestructive = hasNavigationSection || hasEditSection || hasStateSection
 
   return (
     <DropdownMenu open={isOpen} onOpenChange={(open) => !open && onClose()} modal={false}>
@@ -108,11 +109,6 @@ export function DocumentContextMenu({
                 Open source
               </DropdownMenuItem>
             )}
-            {hasNavigationSection &&
-              (hasEditSection || hasStateSection || hasDestructiveSection) && (
-                <DropdownMenuSeparator />
-              )}
-
             {!isMultiSelect && onRename && (
               <DropdownMenuItem disabled={disableRename} onSelect={onRename}>
                 <Pencil />
@@ -125,10 +121,6 @@ export function DocumentContextMenu({
                 Tags
               </DropdownMenuItem>
             )}
-            {hasEditSection && (hasStateSection || hasDestructiveSection) && (
-              <DropdownMenuSeparator />
-            )}
-
             {onToggleEnabled && (
               <DropdownMenuItem disabled={disableToggleEnabled} onSelect={onToggleEnabled}>
                 <Eye />
@@ -136,7 +128,7 @@ export function DocumentContextMenu({
               </DropdownMenuItem>
             )}
 
-            {hasStateSection && hasDestructiveSection && <DropdownMenuSeparator />}
+            {hasActionsAboveDestructive && hasDestructiveSection && <DropdownMenuSeparator />}
             {onDelete && (
               <DropdownMenuItem disabled={disableDelete} onSelect={onDelete}>
                 <Trash />
@@ -148,7 +140,7 @@ export function DocumentContextMenu({
           onAddDocument && (
             <DropdownMenuItem disabled={disableAddDocument} onSelect={onAddDocument}>
               <Plus />
-              Add document
+              New documents
             </DropdownMenuItem>
           )
         )}

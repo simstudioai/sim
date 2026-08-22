@@ -324,9 +324,26 @@ export function isWorkflowBlockType(blockType: string | undefined): boolean {
 export const CHILD_EXECUTION_ID_OUTPUT_KEY = '_childExecutionId'
 
 /**
+ * Internal marker saying a custom block ran a child whose trace it deliberately
+ * did not publish. Carried instead of {@link CHILD_EXECUTION_ID_OUTPUT_KEY}, never
+ * beside it: withholding the handle is what makes tracing-off fail closed, and a
+ * marker that travelled with the handle would be one dropped field away from
+ * joining a run the caller opted out of. Underscore-prefixed for the same reason.
+ *
+ * Recorded because a boundary span with no children renders exactly like a leaf
+ * block, so an untraced invocation would otherwise read as one that did nothing.
+ *
+ * Neither key may become a globally hidden output key: on the Agent-tool path the
+ * block log's nested `toolCalls[].result` is the only carrier from the tool
+ * response to the tool span, so hiding them there would silently stop custom
+ * blocks invoked as tools from joining their child runs at all.
+ */
+export const CHILD_TRACE_DISABLED_OUTPUT_KEY = '_childTraceDisabled'
+
+/**
  * Whether a block runs another workflow underneath it, and therefore owns a
  * nested subtree in the trace/terminal — a workflow block, or a custom block
- * whose source run the viewer has been authorized to see.
+ * whose publisher opted its runs into consumer traces.
  *
  * Deliberately wider than {@link isWorkflowBlockType}, which stays narrow because
  * it also gates whether the child workflow's NAME may be attached to an error —

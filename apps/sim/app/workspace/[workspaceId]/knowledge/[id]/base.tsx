@@ -41,7 +41,12 @@ import { format } from 'date-fns'
 import { useParams, useRouter } from 'next/navigation'
 import { useQueryState, useQueryStates } from 'nuqs'
 import { usePostHog } from 'posthog-js/react'
-import { ALL_TAG_SLOTS, type AllTagSlot, getFieldTypeForSlot } from '@/lib/knowledge/constants'
+import {
+  ALL_TAG_SLOTS,
+  type AllTagSlot,
+  getFieldTypeForSlot,
+  KNOWLEDGE_DOCUMENT_PROCESSING_STALE_THRESHOLD_MS,
+} from '@/lib/knowledge/constants'
 import type { DocumentSortField, SortOrder } from '@/lib/knowledge/documents/types'
 import { type FilterFieldType, getOperatorsForFieldType } from '@/lib/knowledge/filters/types'
 import type { DocumentData } from '@/lib/knowledge/types'
@@ -53,7 +58,6 @@ import type {
   FilterTag,
   ResourceAction,
   ResourceCell,
-  ResourceColumn,
   ResourceRow,
   SelectableConfig,
   SortConfig,
@@ -83,6 +87,7 @@ import {
   DocumentContextMenu,
   RenameDocumentModal,
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/components'
+import { DOCUMENT_COLUMNS } from '@/app/workspace/[workspaceId]/knowledge/[id]/document-columns'
 import {
   addConnectorParam,
   documentFiltersParsers,
@@ -92,14 +97,18 @@ import {
 import { getDocumentIcon } from '@/app/workspace/[workspaceId]/knowledge/components'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
-import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import { BrandIcon } from '@/blocks/brand-icon'
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
-import { useKnowledgeBase, useKnowledgeBaseDocuments } from '@/hooks/kb/use-knowledge'
+import {
+  hasProcessingDocuments,
+  useKnowledgeBase,
+  useKnowledgeBaseDocuments,
+} from '@/hooks/kb/use-knowledge'
 import {
   type TagDefinition,
   useKnowledgeBaseTagDefinitions,
 } from '@/hooks/kb/use-knowledge-base-tag-definitions'
+import type { ConnectorData } from '@/hooks/queries/kb/connectors'
 import { isConnectorSyncingOrPending, useConnectorList } from '@/hooks/queries/kb/connectors'
 import type { DocumentTagFilter } from '@/hooks/queries/kb/knowledge'
 import {
@@ -109,6 +118,7 @@ import {
   useUpdateDocument,
   useUpdateKnowledgeBase,
 } from '@/hooks/queries/kb/knowledge'
+import { useContextMenu } from '@/hooks/use-context-menu'
 import { useDebounce } from '@/hooks/use-debounce'
 import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
 import { useInlineRename } from '@/hooks/use-inline-rename'
@@ -117,17 +127,27 @@ import { useUrlSort } from '@/hooks/use-url-sort'
 
 const logger = createLogger('KnowledgeBase')
 
+/**
+ * Identifies one processing *run*, not one document.
+ *
+ * Keying on the attempt's start time makes the reported-set self-invalidating:
+ * a document that is retried gets a new `processingStartedAt`, so a later stall
+ * is reportable again without the set needing to be pruned.
+ */
+function deadProcessKey(doc: Pick<DocumentData, 'id' | 'processingStartedAt'>) {
+  return `${doc.id}:${doc.processingStartedAt ?? ''}`
+}
+
 const DOCUMENTS_PER_PAGE = 50
 
-const DOCUMENT_COLUMNS: ResourceColumn[] = [
-  { id: 'name', header: 'Name', widthMultiplier: 0.8 },
-  { id: 'size', header: 'Size', widthMultiplier: 0.75 },
-  { id: 'tokens', header: 'Tokens', widthMultiplier: 0.75 },
-  { id: 'chunks', header: 'Chunks', widthMultiplier: 0.75 },
-  { id: 'uploaded', header: 'Uploaded' },
-  { id: 'status', header: 'Status', widthMultiplier: 0.75 },
-  { id: 'tags', header: 'Tags' },
-]
+/** Stable identity so an absent connector list does not re-fire list-dependent effects. */
+const EMPTY_CONNECTORS: ConnectorData[] = []
+
+/** Cadence while a document is still indexing — its own status is what moves. */
+const PROCESSING_POLL_INTERVAL_MS = 3000
+
+/** Slower cadence while only a connector sync is running: rows arrive in batches. */
+const CONNECTOR_SYNC_DOCUMENT_POLL_INTERVAL_MS = 5000
 
 const STATUS_FILTER_OPTIONS: ChipDropdownOption[] = [
   { value: 'all', label: 'All' },
@@ -407,7 +427,8 @@ export function KnowledgeBase({
     refresh: refreshKnowledgeBase,
   } = useKnowledgeBase(id)
 
-  const { data: connectors = [], isLoading: isLoadingConnectors } = useConnectorList(id)
+  const { data: connectors = EMPTY_CONNECTORS, isLoading: isLoadingConnectors } =
+    useConnectorList(id)
   const hasSyncingConnectors = connectors.some(isConnectorSyncingOrPending)
   const hasSyncingConnectorsRef = useRef(hasSyncingConnectors)
   hasSyncingConnectorsRef.current = hasSyncingConnectors
@@ -418,7 +439,6 @@ export function KnowledgeBase({
     isLoading: isLoadingDocuments,
     isPlaceholderData: isPlaceholderDocuments,
     error: documentsError,
-    hasProcessingDocuments,
     updateDocument,
     refreshDocuments,
   } = useKnowledgeBaseDocuments(id, {
@@ -429,11 +449,8 @@ export function KnowledgeBase({
     sortOrder: sortDirection as SortOrder,
     refetchInterval: (data) => {
       if (isDeleting) return false
-      const hasPending = data?.documents?.some(
-        (doc) => doc.processingStatus === 'pending' || doc.processingStatus === 'processing'
-      )
-      if (hasPending) return 3000
-      if (hasSyncingConnectorsRef.current) return 5000
+      if (hasProcessingDocuments(data?.documents ?? [])) return PROCESSING_POLL_INTERVAL_MS
+      if (hasSyncingConnectorsRef.current) return CONNECTOR_SYNC_DOCUMENT_POLL_INTERVAL_MS
       return false
     },
     enabledFilter: enabledFilter,
@@ -489,20 +506,27 @@ export function KnowledgeBase({
   const totalPages = Math.ceil(pagination.total / pagination.limit)
 
   /**
-   * Checks for documents with stale processing states and marks them as failed
+   * Processing runs already reported as timed out.
+   *
+   * The list below polls every few seconds while anything is processing, and
+   * each poll hands this effect a new array. Without this the same stale
+   * document is re-reported on every tick until the server's new status comes
+   * back — one redundant write per poll, per open tab.
    */
+  const reportedDeadProcessesRef = useRef<Set<string> | null>(null)
+
   const checkForDeadProcesses = useCallback(
     (docsToCheck: DocumentData[]) => {
-      const now = new Date()
-      const DEAD_PROCESS_THRESHOLD_MS = 600 * 1000 // 10 minutes
+      const reported = (reportedDeadProcessesRef.current ??= new Set())
+      const nowMs = Date.now()
 
       const staleDocuments = docsToCheck.filter((doc) => {
-        if (doc.processingStatus !== 'processing' || !doc.processingStartedAt) {
-          return false
-        }
-
-        const processingDuration = now.getTime() - new Date(doc.processingStartedAt).getTime()
-        return processingDuration > DEAD_PROCESS_THRESHOLD_MS
+        if (doc.processingStatus !== 'processing' || !doc.processingStartedAt) return false
+        if (reported.has(deadProcessKey(doc))) return false
+        return (
+          nowMs - new Date(doc.processingStartedAt).getTime() >
+          KNOWLEDGE_DOCUMENT_PROCESSING_STALE_THRESHOLD_MS
+        )
       })
 
       if (staleDocuments.length === 0) return
@@ -510,6 +534,7 @@ export function KnowledgeBase({
       logger.warn(`Found ${staleDocuments.length} documents with dead processes`)
 
       staleDocuments.forEach((doc) => {
+        reported.add(deadProcessKey(doc))
         updateDocumentMutation(
           {
             knowledgeBaseId: id,
@@ -522,6 +547,8 @@ export function KnowledgeBase({
                 `Successfully marked dead process as failed for document: ${doc.filename}`
               )
             },
+            /** Retried on the next poll rather than left silently unreported. */
+            onError: () => reported.delete(deadProcessKey(doc)),
           }
         )
       })
@@ -530,10 +557,8 @@ export function KnowledgeBase({
   )
 
   useEffect(() => {
-    if (hasProcessingDocuments) {
-      checkForDeadProcesses(documents)
-    }
-  }, [hasProcessingDocuments, documents, checkForDeadProcesses])
+    checkForDeadProcesses(documents)
+  }, [documents, checkForDeadProcesses])
 
   const handleToggleEnabled = (docId: string) => {
     const document = documents.find((doc) => doc.id === docId)
@@ -1083,6 +1108,7 @@ export function KnowledgeBase({
         {connectors.map((connector) => {
           const def = CONNECTOR_META_REGISTRY[connector.connectorType]
           const ConnectorIcon = def?.icon
+          const syncInFlight = isConnectorSyncingOrPending(connector)
           return (
             <button
               key={connector.id}
@@ -1091,12 +1117,12 @@ export function KnowledgeBase({
               className={cn(chipVariants({ variant: 'filled' }), 'max-w-[180px]')}
             >
               <span className='relative flex size-[14px] flex-shrink-0 items-center justify-center'>
-                {connector.status === 'syncing' ? (
+                {syncInFlight ? (
                   <Loader className='size-[14px]' animate />
                 ) : (
                   ConnectorIcon && <BrandIcon icon={ConnectorIcon} className='size-[14px]' />
                 )}
-                {connector.status !== 'active' && connector.status !== 'syncing' && (
+                {connector.status !== 'active' && !syncInFlight && (
                   <span
                     className={cn(
                       '-right-0.5 -top-0.5 absolute size-1.5 rounded-xs border border-[var(--surface-2)]',

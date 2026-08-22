@@ -13,7 +13,6 @@ import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/provide
 import { ContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/context-menu/context-menu'
 import { DeleteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/delete-modal/delete-modal'
 import {
-  useContextMenu,
   useFolderExpand,
   useItemDrag,
   useItemRename,
@@ -41,6 +40,7 @@ import {
 } from '@/hooks/queries/utils/folder-tree'
 import { getWorkflows } from '@/hooks/queries/utils/workflow-cache'
 import { useCreateWorkflow } from '@/hooks/queries/workflows'
+import { useContextMenu } from '@/hooks/use-context-menu'
 import { useFolderStore } from '@/stores/folders/store'
 import type { FolderTreeNode } from '@/stores/folders/types'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -65,6 +65,7 @@ export const FolderItem = memo(function FolderItem({ workspaceId, folder }: Fold
   const router = useRouter()
   const updateFolderMutation = useUpdateFolder()
   const createWorkflowMutation = useCreateWorkflow()
+  const createWorkflowMutate = createWorkflowMutation.mutate
   const createFolderMutation = useCreateFolder()
   const userPermissions = useUserPermissionsContext()
   const selectedFolders = useFolderStore((state) => state.selectedFolders)
@@ -149,18 +150,19 @@ export const FolderItem = memo(function FolderItem({ workspaceId, folder }: Fold
     const name = generateCreativeWorkflowName()
     const id = generateId()
 
-    createWorkflowMutation.mutate({
+    createWorkflowMutate({
       workspaceId,
       folderId: folder.id,
       name,
       id,
+      deduplicate: true,
     })
 
     useWorkflowRegistry.getState().markWorkflowCreating(id)
     expandFolder()
     router.push(`/workspace/${workspaceId}/w/${id}`)
     window.dispatchEvent(new CustomEvent(SIDEBAR_SCROLL_EVENT, { detail: { itemId: id } }))
-  }, [createWorkflowMutation, workspaceId, folder.id, effectiveLocked, router, expandFolder])
+  }, [createWorkflowMutate, workspaceId, folder.id, effectiveLocked, router, expandFolder])
 
   const handleCreateFolderInFolder = useCallback(async () => {
     if (effectiveLocked) return

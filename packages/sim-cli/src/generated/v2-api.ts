@@ -481,6 +481,30 @@ export type CancelWorkflowRunResponse = {
   data: CancelWorkflowRunResponseRef0
 }
 
+/** `POST /api/v2/chat` */
+export type ChatQuery = Record<string, unknown>
+
+export type ChatBody = {
+  workspaceId: string
+  message: string
+  conversationId?: string
+}
+
+export type ChatResponse = {
+  data: {
+    content: string
+    conversationId: string
+    model: string
+    tokens?: {
+      prompt?: number
+      completion?: number
+      total?: number
+    }
+    cost?: unknown
+    toolCalls?: Array<Record<string, unknown>>
+  }
+}
+
 /** `POST /api/v2/files/uploads/[uploadId]/complete` */
 export type CompleteFileUploadParams = {
   uploadId: string
@@ -934,7 +958,7 @@ type CreateKnowledgeConnectorResponseRef0 = {
   sourceConfig: Record<string, unknown>
   syncMode: string
   syncIntervalMinutes: number
-  status: 'active' | 'paused' | 'syncing' | 'error' | 'disabled'
+  status: 'active' | 'paused' | 'pending' | 'syncing' | 'error' | 'disabled'
   lastSyncAt: string | null
   lastSyncError: string | null
   lastSyncDocCount: number | null
@@ -2717,7 +2741,7 @@ type GetKnowledgeConnectorResponseRef1 = {
   sourceConfig: Record<string, unknown>
   syncMode: string
   syncIntervalMinutes: number
-  status: 'active' | 'paused' | 'syncing' | 'error' | 'disabled'
+  status: 'active' | 'paused' | 'pending' | 'syncing' | 'error' | 'disabled'
   lastSyncAt: string | null
   lastSyncError: string | null
   lastSyncDocCount: number | null
@@ -3715,7 +3739,7 @@ type ListKnowledgeConnectorsResponseRef0 = {
   sourceConfig: Record<string, unknown>
   syncMode: string
   syncIntervalMinutes: number
-  status: 'active' | 'paused' | 'syncing' | 'error' | 'disabled'
+  status: 'active' | 'paused' | 'pending' | 'syncing' | 'error' | 'disabled'
   lastSyncAt: string | null
   lastSyncError: string | null
   lastSyncDocCount: number | null
@@ -5370,7 +5394,7 @@ type UpdateKnowledgeConnectorResponseRef0 = {
   sourceConfig: Record<string, unknown>
   syncMode: string
   syncIntervalMinutes: number
-  status: 'active' | 'paused' | 'syncing' | 'error' | 'disabled'
+  status: 'active' | 'paused' | 'pending' | 'syncing' | 'error' | 'disabled'
   lastSyncAt: string | null
   lastSyncError: string | null
   lastSyncDocCount: number | null
@@ -6314,6 +6338,24 @@ export const V2_OPERATIONS = {
     pathParamDocs: { id: 'Unique workflow identifier.', runId: 'Unique workflow run identifier.' },
     responseMode: 'json',
     summary: 'Cancel Workflow Run',
+  },
+  chat: {
+    method: 'POST',
+    path: '/api/v2/chat',
+    pathParams: [] as const,
+    responseMode: 'json',
+    body: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace the conversation runs in.',
+      },
+      message: { kind: 'string', required: true, describe: 'The message to send to Sim.' },
+      conversationId: {
+        kind: 'string',
+        describe: 'Conversation to continue; a new one starts when omitted.',
+      },
+    },
   },
   completeFileUpload: {
     method: 'POST',
