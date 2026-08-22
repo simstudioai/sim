@@ -71,6 +71,16 @@ function reportRefusal({ site, registry, inputPath }: ResolvedSecretProjectionRe
           ...(diagnostics.scopeWorkspaceId
             ? { scopeWorkspaceId: diagnostics.scopeWorkspaceId }
             : {}),
+          /**
+           * Where the first guard tripped — the block, tool and input path that cost the run its
+           * completeness, which is what a reader needs to go and fix.
+           *
+           * Nested rather than spread flat: its `inputPath` names where the guard tripped, while
+           * this line's own `inputPath` names where the refusal happened. Those are different
+           * places whenever a latch travels, and flattening would silently overwrite one with the
+           * other.
+           */
+          ...(diagnostics.detail ? { detail: diagnostics.detail } : {}),
         }
       : {}),
   })

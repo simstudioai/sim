@@ -105,6 +105,55 @@ describe('GenericBlockHandler', () => {
     expect(result).toEqual(expectedOutput)
   })
 
+  /**
+   * `table_insert_row` posts row data to an internal API and declares no `modelInput` — nothing on
+   * that path reaches a model, and its provenance travels in the private bundle. Marking its
+   * `secretProvenance` roots as required-to-project made a projection failure fatal for a tool with
+   * no way to project, and the Table block's `parseJSON` throws once a placeholder stands where the
+   * JSON object was. The whole run's registry latched, costing provenance for every later boundary
+   * including the table write that prompted it.
+   */
+  it('keeps vouching when a bundle-only tool cannot project and its block params throw', async () => {
+    mockTool.request.secretProvenance = {
+      request: () => [{ key: '0', inputPaths: [['data', 'apiKey']] }],
+      response: { incomplete: 'propagate' },
+    } as never
+    mockGetBlock.mockReturnValue({
+      tools: {
+        access: ['some_custom_tool'],
+        config: {
+          tool: () => 'some_custom_tool',
+          params: (params: Record<string, unknown>) => {
+            /**
+             * Throws only on the projected copy. Real blocks reach this by validating or parsing a
+             * field a placeholder now sits in — the Table block runs `parseJSON` over `data` — and
+             * which shape breaks does not matter to the invariant under test.
+             */
+            if (typeof params.data === 'string' && params.data.includes('{{')) {
+              throw new Error('cannot coerce a projected input')
+            }
+            return { data: params.data }
+          },
+        },
+      },
+      inputs: { data: { type: 'json', description: 'Row data' } },
+    } as never)
+
+    /** Valid JSON, so the block's first `params` call over the real inputs succeeds. */
+    const rowJson = '{"apiKey":"x"}'
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'ROW_SECRET', plaintext: rowJson, encryptedValue: 'encrypted-row-secret' },
+    ])
+    registry.recordResolvedAtInputPath('ROW_SECRET', rowJson, ['data'])
+    registry.recordResolvedInputProjection(['data'], rowJson, '{{ROW_SECRET}}')
+    mockContext.resolvedSecretTraceRegistry = registry
+
+    await handler.execute(mockContext, mockBlock, { data: rowJson })
+
+    expect(registry.isComplete()).toBe(true)
+    expect(registry.getIncompletenessDiagnostics()).toBeUndefined()
+  })
+
   it('preserves exact secret provenance when block params rename a selected input', async () => {
     mockTool.request.modelInput = {
       mode: 'private-provenance',
