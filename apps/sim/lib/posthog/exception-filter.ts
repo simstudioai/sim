@@ -1,0 +1,84 @@
+import type { CaptureResult } from 'posthog-js'
+
+/**
+ * Exception types that only ever mean "something was cancelled".
+ *
+ * `AbortError` is what a fetch rejects with once its `AbortSignal` fires —
+ * React Query aborts in-flight queries on unmount and on refetch, so this is
+ * routine teardown. `Canceled` is Monaco's `CancellationError`
+ * (`monaco-editor/esm/vs/base/common/errors.js` sets both `name` and `message`
+ * to the bare string), raised whenever a language-service request is superseded
+ * by a newer keystroke.
+ *
+ * Neither can be acted on: there is no defect to fix and no user impact, but
+ * both fire often enough per session to bury real crashes in the issue list.
+ */
+const CANCELLATION_EXCEPTION_TYPES = new Set(['AbortError', 'Canceled'])
+
+/**
+ * Exception messages that carry no diagnosable content.
+ *
+ * `ResizeObserver loop …` is the browser reporting that a resize callback
+ * dirtied layout again before delivery. It is specified behaviour, not an
+ * error: the observer simply defers the remaining notifications to the next
+ * frame. It has no stack that points anywhere useful and fires constantly in
+ * resizable/canvas UIs — it was 92% of everything captured in the first days of
+ * error tracking. Both the current wording and the older `loop limit exceeded`
+ * spelling are matched.
+ *
+ * `Script error.` is what `window.onerror` reports for a cross-origin script
+ * served without CORS headers. The browser withholds the message, the file, and
+ * the stack, so nothing about it is recoverable.
+ *
+ * Matched by prefix because browsers disagree about the trailing period.
+ */
+const UNDIAGNOSABLE_EXCEPTION_MESSAGES = [
+  'ResizeObserver loop completed with undelivered notifications',
+  'ResizeObserver loop limit exceeded',
+  'Script error.',
+]
+
+interface CapturedException {
+  type?: unknown
+  value?: unknown
+}
+
+function isNoise(exception: CapturedException): boolean {
+  if (typeof exception.type === 'string' && CANCELLATION_EXCEPTION_TYPES.has(exception.type)) {
+    return true
+  }
+
+  if (typeof exception.value !== 'string') return false
+  const message = exception.value.trim()
+
+  return UNDIAGNOSABLE_EXCEPTION_MESSAGES.some((prefix) => message.startsWith(prefix))
+}
+
+/**
+ * `before_send` hook that drops browser noise from error tracking.
+ *
+ * Fails open in every direction: anything that is not a `$exception`, and any
+ * `$exception` whose list is missing or unrecognizable, passes through
+ * untouched. This runs on **every** captured event, so a filter that guessed
+ * wrong would silently delete product analytics rather than merely over-report.
+ *
+ * A chained exception is dropped only when *every* link is noise — one benign
+ * link must not hide a real error it was raised alongside.
+ *
+ * @param event - The event PostHog is about to send, or `null` if an earlier
+ *   hook already dropped it.
+ * @returns The event to send, or `null` to drop it.
+ */
+export function dropUnactionableExceptions(event: CaptureResult | null): CaptureResult | null {
+  if (!event || event.event !== '$exception') return event
+
+  const exceptions: unknown = event.properties?.$exception_list
+  if (!Array.isArray(exceptions) || exceptions.length === 0) return event
+
+  const allNoise = exceptions.every(
+    (exception) =>
+      typeof exception === 'object' && exception !== null && isNoise(exception as CapturedException)
+  )
+
+  return allNoise ? null : event
+}
