@@ -58,13 +58,16 @@ export const POST = withRouteHandler(
 
     try {
       const ip = getClientIp(request)
-      const ipRateLimit = await rateLimiter.checkRateLimitDirect(
-        `file-otp:ip:${ip}`,
-        OTP_IP_RATE_LIMIT
-      )
-      if (!ipRateLimit.allowed) {
-        logger.warn(`[${requestId}] OTP IP rate limit exceeded from ${ip}`)
-        return rateLimited(ipRateLimit.retryAfterMs, OTP_IP_RATE_LIMIT.refillIntervalMs)
+      if (ip) {
+        const ipRateLimit = await rateLimiter.checkRateLimitDirect(
+          `file-otp:ip:${ip}`,
+          OTP_IP_RATE_LIMIT,
+          { failClosed: true }
+        )
+        if (!ipRateLimit.allowed) {
+          logger.warn(`[${requestId}] OTP IP rate limit exceeded from ${ip}`)
+          return rateLimited(ipRateLimit.retryAfterMs, OTP_IP_RATE_LIMIT.refillIntervalMs)
+        }
       }
 
       const parsed = await parseRequest(requestPublicFileOtpContract, request, context)
@@ -91,7 +94,8 @@ export const POST = withRouteHandler(
 
       const emailRateLimit = await rateLimiter.checkRateLimitDirect(
         `file-otp:email:${resolved.share.id}:${email}`,
-        OTP_EMAIL_RATE_LIMIT
+        OTP_EMAIL_RATE_LIMIT,
+        { failClosed: true }
       )
       if (!emailRateLimit.allowed) {
         logger.warn(`[${requestId}] OTP email rate limit exceeded for ${email}`)

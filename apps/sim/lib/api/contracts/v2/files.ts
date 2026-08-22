@@ -6,7 +6,11 @@ import {
   workspaceFileNameSchema,
   workspaceIdSchema,
 } from '@/lib/api/contracts/primitives'
-import { shareAuthTypeSchema, shareRecordSchema } from '@/lib/api/contracts/public-shares'
+import {
+  shareAuthTypeSchema,
+  sharePasswordSchema,
+  shareRecordSchema,
+} from '@/lib/api/contracts/public-shares'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import {
   V2_FALSE_VALUES,
@@ -547,10 +551,7 @@ export const v2UpsertFileShareBodySchema = z
       .describe(
         'How access to the share is gated. The stored mode is kept when omitted. Enabling `public` clears the stored password and empties `allowedEmails`; `password` empties `allowedEmails`; `email` and `sso` clear the stored password.'
       ),
-    password: z
-      .string()
-      .min(1, 'password cannot be empty')
-      .max(1024, 'password is too long')
+    password: sharePasswordSchema
       .optional()
       .describe(
         'Password for a password-gated share. Kept when omitted; enabling `password` with neither a supplied nor a stored password is a 400.'

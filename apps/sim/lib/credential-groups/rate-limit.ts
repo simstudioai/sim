@@ -65,6 +65,7 @@ export async function enforcePublicCredentialGroupIpRateLimit(
 ): Promise<NextResponse | null> {
   const config = configForPublicScope(scope)
   const ip = getClientIp(request)
+  if (!ip) return null
   const result = await rateLimiter.checkRateLimitDirect(
     `public-credential-group:${scope}:ip:${ip}`,
     config,

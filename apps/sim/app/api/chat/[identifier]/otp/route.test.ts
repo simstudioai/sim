@@ -343,8 +343,8 @@ describe('Chat OTP API Route', () => {
       expect(headerSet).toHaveBeenCalledWith('Retry-After', '900')
     })
 
-    it('folds spoofed `unknown` client IPs into a single shared bucket', async () => {
-      requestUtilsMockFns.mockGetClientIp.mockReturnValueOnce('unknown')
+    it('skips the IP bucket when the client IP cannot be resolved', async () => {
+      requestUtilsMockFns.mockGetClientIp.mockReturnValueOnce(null)
       queueDeployment(emailDeployment)
 
       const request = new NextRequest('http://localhost:3000/api/chat/test/otp', {
@@ -354,14 +354,11 @@ describe('Chat OTP API Route', () => {
 
       await POST(request, { params: Promise.resolve({ identifier: mockIdentifier }) })
 
-      expect(mockCheckRateLimitDirect).toHaveBeenCalledTimes(2)
-      expect(mockCheckRateLimitDirect).toHaveBeenCalledWith(
-        expect.stringMatching(/^chat-otp:ip:.*:unknown$/),
-        expect.any(Object)
-      )
+      expect(mockCheckRateLimitDirect).toHaveBeenCalledTimes(1)
       expect(mockCheckRateLimitDirect).toHaveBeenCalledWith(
         expect.stringContaining('chat-otp:email:'),
-        expect.any(Object)
+        expect.any(Object),
+        { failClosed: true }
       )
     })
   })

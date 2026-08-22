@@ -22,15 +22,6 @@ vi.mock('@/lib/core/rate-limiter/storage', async () => {
   }
 })
 
-function passThroughClientIp() {
-  requestUtilsMockFns.mockGetClientIp.mockImplementation(
-    (req: { headers: { get(name: string): string | null } }) =>
-      req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
-      req.headers.get('x-real-ip')?.trim() ||
-      'unknown'
-  )
-}
-
 import { enforceIpRateLimit, enforceUserOrIpRateLimit, enforceUserRateLimit } from './route-helpers'
 
 const consume = mockAdapter.consumeTokens as Mock
@@ -103,7 +94,7 @@ describe('route-helpers rate limiting', () => {
 
   describe('enforceIpRateLimit', () => {
     beforeEach(() => {
-      passThroughClientIp()
+      requestUtilsMockFns.mockGetClientIp.mockReturnValue('203.0.113.7')
     })
 
     it('uses the X-Forwarded-For client IP in the bucket key', async () => {
@@ -125,20 +116,14 @@ describe('route-helpers rate limiting', () => {
       )
     })
 
-    it('folds spoofed `X-Forwarded-For: unknown` into a single shared bucket', async () => {
-      consume.mockResolvedValue({
-        allowed: true,
-        tokensRemaining: 9,
-        resetAt: new Date(),
-      })
+    it('does not create a shared bucket when the client IP cannot be resolved', async () => {
+      requestUtilsMockFns.mockGetClientIp.mockReturnValueOnce(null)
+      const request = createMockRequest('POST')
 
-      const reqA = createMockRequest('POST', undefined, { 'x-forwarded-for': 'unknown' })
-      const reqB = createMockRequest('POST', undefined, { 'x-forwarded-for': 'unknown' })
-      await enforceIpRateLimit('otp', reqA)
-      await enforceIpRateLimit('otp', reqB)
+      const result = await enforceIpRateLimit('otp', request)
 
-      const keys = consume.mock.calls.map((call) => call[0])
-      expect(keys).toEqual(['route:otp:ip:unknown', 'route:otp:ip:unknown'])
+      expect(result).toBeNull()
+      expect(consume).not.toHaveBeenCalled()
     })
 
     it('returns a 429 with Retry-After on rate limit', async () => {
@@ -160,7 +145,7 @@ describe('route-helpers rate limiting', () => {
 
   describe('enforceUserOrIpRateLimit', () => {
     beforeEach(() => {
-      passThroughClientIp()
+      requestUtilsMockFns.mockGetClientIp.mockReturnValue('203.0.113.7')
     })
 
     it('keys per-user when userId is present', async () => {

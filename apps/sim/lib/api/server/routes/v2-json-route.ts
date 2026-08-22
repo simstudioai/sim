@@ -277,6 +277,7 @@ export const v2OrchestrationErrorPolicy = {
 
 async function enforceV2PreAuthIpLimit(request: NextRequest): Promise<NextResponse | null> {
   const ip = getClientIp(request)
+  if (!ip) return null
   const abuseLimit = await rateLimiter.checkRateLimitDirect(
     `v2:preauth:ip:${ip}`,
     V2_PREAUTH_IP_LIMIT,

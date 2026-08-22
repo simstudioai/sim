@@ -210,7 +210,7 @@ describe('PATCH /api/v2/files/[fileId]/share', () => {
       workspaceId: WORKSPACE_ID,
       isActive: true,
       authType: 'password',
-      password: 'hunter2hunter2',
+      password: 'hunter2hunter2!',
     })
 
     expect(response.status).toBe(200)
@@ -222,7 +222,7 @@ describe('PATCH /api/v2/files/[fileId]/share', () => {
         assertedWorkspaceId: WORKSPACE_ID,
         isActive: true,
         authType: 'password',
-        password: 'hunter2hunter2',
+        password: 'hunter2hunter2!',
         allowedEmails: undefined,
       },
       request: expect.anything(),

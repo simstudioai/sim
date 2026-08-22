@@ -30,6 +30,7 @@ export async function enforcePublicFileRateLimit(
   scope: 'metadata' | 'content'
 ): Promise<NextResponse | null> {
   const ip = getClientIp(request)
+  if (!ip) return null
   const config = scope === 'content' ? CONTENT_RATE_LIMIT : METADATA_RATE_LIMIT
   const result = await rateLimiter.checkRateLimitDirect(`public-file:${scope}:${ip}`, config)
   if (result.allowed) return null

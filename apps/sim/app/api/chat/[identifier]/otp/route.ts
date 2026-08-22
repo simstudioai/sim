@@ -36,18 +36,21 @@ export const POST = withRouteHandler(
 
     try {
       const ip = getClientIp(request)
-      const ipRateLimit = await rateLimiter.checkRateLimitDirect(
-        `chat-otp:ip:${identifier}:${ip}`,
-        OTP_IP_RATE_LIMIT
-      )
-      if (!ipRateLimit.allowed) {
-        logger.warn(`[${requestId}] OTP IP rate limit exceeded for ${identifier} from ${ip}`)
-        const retryAfter = Math.ceil(
-          (ipRateLimit.retryAfterMs ?? OTP_IP_RATE_LIMIT.refillIntervalMs) / 1000
+      if (ip) {
+        const ipRateLimit = await rateLimiter.checkRateLimitDirect(
+          `chat-otp:ip:${identifier}:${ip}`,
+          OTP_IP_RATE_LIMIT,
+          { failClosed: true }
         )
-        const response = createErrorResponse('Too many requests. Please try again later.', 429)
-        response.headers.set('Retry-After', String(retryAfter))
-        return response
+        if (!ipRateLimit.allowed) {
+          logger.warn(`[${requestId}] OTP IP rate limit exceeded for ${identifier} from ${ip}`)
+          const retryAfter = Math.ceil(
+            (ipRateLimit.retryAfterMs ?? OTP_IP_RATE_LIMIT.refillIntervalMs) / 1000
+          )
+          const response = createErrorResponse('Too many requests. Please try again later.', 429)
+          response.headers.set('Retry-After', String(retryAfter))
+          return response
+        }
       }
 
       const parsed = await parseRequest(requestChatEmailOtpContract, request, context, {
@@ -91,7 +94,8 @@ export const POST = withRouteHandler(
 
       const emailRateLimit = await rateLimiter.checkRateLimitDirect(
         `chat-otp:email:${deployment.id}:${email.toLowerCase()}`,
-        OTP_EMAIL_RATE_LIMIT
+        OTP_EMAIL_RATE_LIMIT,
+        { failClosed: true }
       )
       if (!emailRateLimit.allowed) {
         logger.warn(

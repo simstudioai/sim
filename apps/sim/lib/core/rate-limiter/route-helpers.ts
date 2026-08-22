@@ -56,17 +56,14 @@ export async function enforceUserRateLimit(
   return buildRateLimitResponse(resetAt)
 }
 
-/**
- * Apply a per-IP token bucket to an unauthenticated route. The `unknown` IP
- * fallback shares one global bucket per route so it cannot be amplified by
- * `X-Forwarded-For: unknown` spoofing.
- */
+/** Apply a per-IP token bucket when the forwarded chain resolves safely. */
 export async function enforceIpRateLimit(
   bucketName: string,
   request: NextRequest,
   config: TokenBucketConfig = DEFAULT_PUBLIC_IP_ROUTE_LIMIT
 ): Promise<NextResponse | null> {
   const ip = getClientIp(request)
+  if (!ip) return null
   const key = `route:${bucketName}:ip:${ip}`
   const { allowed, resetAt } = await rateLimiter.checkRateLimitDirect(key, config)
   if (allowed) return null

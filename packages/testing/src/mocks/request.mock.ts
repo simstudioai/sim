@@ -79,7 +79,9 @@ export function createMockFormDataRequest(
  */
 export const requestUtilsMockFns = {
   mockGenerateRequestId: vi.fn(() => 'mock-request-id'),
-  mockGetClientIp: vi.fn(() => '127.0.0.1'),
+  mockGetClientIp: vi.fn(
+    (_request: { headers: { get(name: string): string | null } }): string | null => '127.0.0.1'
+  ),
 }
 
 /**
@@ -93,5 +95,6 @@ export const requestUtilsMockFns = {
 export const requestUtilsMock = {
   generateRequestId: requestUtilsMockFns.mockGenerateRequestId,
   getClientIp: requestUtilsMockFns.mockGetClientIp,
+  trustedProxies: [],
   noop: () => {},
 }
