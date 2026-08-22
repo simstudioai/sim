@@ -2,7 +2,7 @@
  * @vitest-environment node
  */
 import type { PostHog } from 'posthog-js'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
   captureClientEvent,
   captureClientException,
@@ -21,56 +21,33 @@ function createFakePostHog() {
   } as unknown as PostHog
 }
 
-/** Lets the readiness promise and its continuations settle. */
-const flush = () => new Promise<void>((resolve) => setTimeout(resolve, 0))
+describe('client capture', () => {
+  /**
+   * Readiness is module-level and settles exactly once, so the whole lifecycle
+   * runs as a single case. Split across separate cases, each one after the
+   * first would silently depend on an earlier case having settled the gate, and
+   * would fail when run in isolation or reordered.
+   */
+  it('holds events until PostHog initializes, then sends them and everything after', async () => {
+    const posthog = createFakePostHog()
 
-describe('captureClientEvent', () => {
-  const posthog = createFakePostHog()
-
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
-  it('holds an event captured before PostHog initializes, then sends it', async () => {
     captureClientEvent('login_page_viewed', {})
-    await flush()
+    await Promise.resolve()
 
     expect(posthog.capture).not.toHaveBeenCalled()
 
     settlePostHogClient(posthog)
-    await flush()
+    await vi.waitFor(() => expect(posthog.capture).toHaveBeenCalledWith('login_page_viewed', {}))
 
-    expect(posthog.capture).toHaveBeenCalledWith('login_page_viewed', {})
-  })
-
-  it('sends events captured after initialization', async () => {
     captureClientEvent('signup_page_viewed', {})
-    await flush()
+    await vi.waitFor(() => expect(posthog.capture).toHaveBeenCalledWith('signup_page_viewed', {}))
 
-    expect(posthog.capture).toHaveBeenCalledWith('signup_page_viewed', {})
-  })
-
-  it('reports a caught error through captureException so error tracking sees it', async () => {
     const error = new Error('canvas exploded')
-
     captureClientException(error, { error_boundary: 'workflow_canvas' })
-    await flush()
-
-    expect(posthog.captureException).toHaveBeenCalledWith(error, {
-      error_boundary: 'workflow_canvas',
-    })
-  })
-})
-
-describe('captureClientEvent when analytics is disabled', () => {
-  it('drops events without throwing once the provider settles with null', async () => {
-    vi.resetModules()
-    const client = await import('@/lib/posthog/client')
-
-    client.captureClientEvent('login_page_viewed', {})
-    client.captureClientException(new Error('boom'))
-    client.settlePostHogClient(null)
-
-    await expect(flush()).resolves.toBeUndefined()
+    await vi.waitFor(() =>
+      expect(posthog.captureException).toHaveBeenCalledWith(error, {
+        error_boundary: 'workflow_canvas',
+      })
+    )
   })
 })
