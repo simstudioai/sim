@@ -20,6 +20,7 @@ import {
   isModelSafeWorkspaceFileKey,
   MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE,
 } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
 import { getMimeTypeFromExtension } from '@/lib/uploads/utils/file-utils'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 import { assertToolFileAccess } from '@/app/api/files/authorization'
@@ -153,7 +154,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           { status: 400 }
         )
       }
-      const buffer = await downloadFileFromStorage(file, requestId, logger)
+      const buffer = await downloadFileFromStorage(file, requestId, logger, {
+        maxBytes: MAX_BUFFERED_TRANSFER_BYTES,
+      })
       const ext = file.name.split('.').pop()?.toLowerCase() || ''
       source = {
         buffer,

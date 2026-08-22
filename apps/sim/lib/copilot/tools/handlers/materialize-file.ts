@@ -39,6 +39,7 @@ import { hasCloudStorage, headObject } from '@/lib/uploads/core/storage-service'
 import { toLegacyWorkspaceFileSize } from '@/lib/uploads/shared/types'
 import { isArchiveFileName } from '@/lib/uploads/utils/file-utils'
 import { parseWorkflowJson } from '@/lib/workflows/operations/import-export'
+import { MAX_IMPORT_BODY_BYTES } from '@/lib/workflows/operations/import-workflow'
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { deduplicateWorkflowName } from '@/lib/workflows/utils'
 import { admitCreateWorkspaceFile } from '@/lib/workspace-files/application/create-workspace-file'
@@ -260,7 +261,11 @@ async function executeImport(
     }
   }
 
-  const buffer = await fetchWorkspaceFileBuffer(toFileRecord(row))
+  // The bytes are headed straight for `parseWorkflowJson`, so the import body ceiling is
+  // the real limit here — a larger file could not be imported even if it were read.
+  const buffer = await fetchWorkspaceFileBuffer(toFileRecord(row), {
+    maxBytes: MAX_IMPORT_BODY_BYTES,
+  })
   const content = buffer.toString('utf-8')
 
   let parsed: unknown

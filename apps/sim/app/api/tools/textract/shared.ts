@@ -12,6 +12,7 @@ import {
   isModelSafeWorkspaceFileKey,
   MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE,
 } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
 import type { RawFileInput } from '@/lib/uploads/utils/file-utils'
 import {
   extractStorageKey,
@@ -160,7 +161,10 @@ export async function resolveDocumentInput(
     const { buffer, contentType } = await downloadServableFileFromStorage(
       userFile,
       requestId,
-      logger
+      logger,
+      {
+        maxBytes: MAX_BUFFERED_TRANSFER_BYTES,
+      }
     )
     const resolvedContentType = contentType || userFile.type || 'application/octet-stream'
 

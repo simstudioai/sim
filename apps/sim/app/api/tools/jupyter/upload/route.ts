@@ -10,7 +10,9 @@ import {
   validateUrlWithDNS,
 } from '@/lib/core/security/input-validation.server'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
 import { processFilesToUserFiles, type RawFileInput } from '@/lib/uploads/utils/file-utils'
 import { downloadServableFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 import { docNotReadyResponse } from '@/lib/uploads/utils/servable-file-response'
@@ -58,14 +60,16 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       if (denied) return denied
 
       try {
-        const result = await downloadServableFileFromStorage(userFile, requestId, logger)
+        const result = await downloadServableFileFromStorage(userFile, requestId, logger, {
+          maxBytes: MAX_BUFFERED_TRANSFER_BYTES,
+        })
         fileBuffer = result.buffer
       } catch (error) {
         const notReady = docNotReadyResponse(error)
         if (notReady) return notReady
         return NextResponse.json(
           { success: false, error: getErrorMessage(error, 'Failed to download file') },
-          { status: 500 }
+          { status: isPayloadSizeLimitError(error) ? 413 : 500 }
         )
       }
       fileName = data.fileName || userFile.name

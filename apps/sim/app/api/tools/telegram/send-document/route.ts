@@ -5,6 +5,7 @@ import { telegramSendDocumentContract } from '@/lib/api/contracts/tools/communic
 import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
 import { downloadServableFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
@@ -97,12 +98,24 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     let buffer: Buffer
     let contentType: string
     try {
-      const downloaded = await downloadServableFileFromStorage(userFile, requestId, logger)
+      const downloaded = await downloadServableFileFromStorage(userFile, requestId, logger, {
+        maxBytes: maxSize,
+      })
       buffer = downloaded.buffer
       contentType = downloaded.contentType
     } catch (error) {
       const notReady = docNotReadyResponse(error)
       if (notReady) return notReady
+      if (isPayloadSizeLimitError(error)) {
+        const sizeMB = ((error.observedBytes ?? userFile.size) / (1024 * 1024)).toFixed(2)
+        return NextResponse.json(
+          {
+            success: false,
+            error: `The following files exceed Telegram's 50MB limit: ${userFile.name} (${sizeMB}MB)`,
+          },
+          { status: 400 }
+        )
+      }
       logger.error(`[${requestId}] Failed to download document ${userFile.name}:`, error)
       return NextResponse.json(
         {

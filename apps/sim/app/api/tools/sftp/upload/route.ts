@@ -109,7 +109,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
             logger.info(
               `[${requestId}] Downloading file for upload: ${file.name} (${file.size} bytes)`
             )
-            const { buffer } = await downloadServableFileFromStorage(file, requestId, logger)
+            const { buffer } = await downloadServableFileFromStorage(file, requestId, logger, {
+              maxBytes: maxSize - resolvedTotal,
+            })
 
             resolvedTotal += buffer.length
             if (resolvedTotal > maxSize) {

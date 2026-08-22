@@ -27,6 +27,7 @@ vi.mock('@/app/api/files/authorization', () => ({
   assertToolFileAccess: mockAssertToolFileAccess,
 }))
 
+import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { POST } from '@/app/api/tools/brex/upload-receipt/route'
 
 const mockFetch = vi.fn()
@@ -194,11 +195,25 @@ describe('POST /api/tools/brex/upload-receipt', () => {
     expect(inputValidationMockFns.mockSecureFetchWithPinnedIP).not.toHaveBeenCalled()
   })
 
+  it('asks the downloader for at most 50 MB', async () => {
+    await POST(createMockRequest('POST', baseBody))
+
+    expect(mockDownloadFileFromStorage).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.any(String),
+      expect.anything(),
+      { maxBytes: 50 * 1024 * 1024 }
+    )
+  })
+
   it('rejects files over the 50 MB limit', async () => {
-    mockDownloadFileFromStorage.mockResolvedValueOnce({
-      buffer: Buffer.alloc(50 * 1024 * 1024 + 1),
-      contentType: 'application/pdf',
-    })
+    mockDownloadFileFromStorage.mockRejectedValueOnce(
+      new PayloadSizeLimitError({
+        label: 'storage file download',
+        maxBytes: 50 * 1024 * 1024,
+        observedBytes: 50 * 1024 * 1024 + 1,
+      })
+    )
 
     const response = await POST(createMockRequest('POST', baseBody))
     expect(response.status).toBe(400)

@@ -1659,7 +1659,7 @@ export async function getWorkspaceFile(
  */
 export async function fetchServableWorkspaceFileBuffer(
   fileRecord: WorkspaceFileRecord,
-  options: { maxBytes?: number; signal?: AbortSignal; requestId?: string } = {}
+  options: { maxBytes: number; signal?: AbortSignal; requestId?: string }
 ): Promise<{ buffer: Buffer; contentType: string }> {
   const { downloadServableFileFromStorage } = await import('@/lib/uploads/utils/file-utils.server')
 
@@ -1685,7 +1685,7 @@ export async function fetchServableWorkspaceFileBuffer(
  */
 export async function fetchWorkspaceFileBuffer(
   fileRecord: WorkspaceFileRecord,
-  options: { maxBytes?: number } = {}
+  options: { maxBytes: number }
 ): Promise<Buffer> {
   logger.info(`Downloading workspace file: ${fileRecord.name}`)
 
