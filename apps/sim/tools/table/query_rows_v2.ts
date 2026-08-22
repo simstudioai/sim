@@ -98,7 +98,6 @@ export const tableQueryRowsV2Tool: ToolConfig<TableRowQueryV2Params, TableQueryV
         totalCount: data.totalCount,
         limit: data.limit,
         nextCursor: data.nextCursor,
-        ignoredColumns: data.ignoredColumns ?? [],
       },
     }
   },
@@ -115,11 +114,6 @@ export const tableQueryRowsV2Tool: ToolConfig<TableRowQueryV2Params, TableQueryV
     nextCursor: {
       type: 'string',
       description: 'Cursor to fetch the next page, or null on the last page',
-    },
-    ignoredColumns: {
-      type: 'array',
-      description:
-        'Requested columns that matched no column on the table and were skipped; empty when every requested column exists',
     },
   },
 }

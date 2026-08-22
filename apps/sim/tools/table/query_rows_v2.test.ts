@@ -84,20 +84,17 @@ describe('tableQueryRowsV2Tool response', () => {
     },
   }
 
-  it('returns the rows projected by the table query route, with any skipped column references', async () => {
+  it('returns projected rows without exposing skipped-column diagnostics', async () => {
     const result = await tableQueryRowsV2Tool.transformResponse!(
       new Response(JSON.stringify(responseBody))
     )
 
-    expect(result.output).toEqual(responseBody.data)
-  })
-
-  it('defaults ignoredColumns to an empty list for a response that omits it', async () => {
-    const { ignoredColumns: _omitted, ...data } = responseBody.data
-    const result = await tableQueryRowsV2Tool.transformResponse!(
-      new Response(JSON.stringify({ ...responseBody, data }))
-    )
-
-    expect(result.output.ignoredColumns).toEqual([])
+    expect(result.output).toEqual({
+      rows: responseBody.data.rows,
+      rowCount: responseBody.data.rowCount,
+      totalCount: responseBody.data.totalCount,
+      limit: responseBody.data.limit,
+      nextCursor: responseBody.data.nextCursor,
+    })
   })
 })

@@ -68,10 +68,12 @@ export const POST = withRouteHandler(async (request: NextRequest, context: RowQu
     const schema = table.schema as TableSchema
     const wire = rowWireTranslators(authResult.authType, schema)
     const cursor = body.cursor ? decodeCursor(body.cursor) : undefined
-    // A reference that matches no column is dropped, not rejected: a workflow
-    // whose picked column was since deleted keeps running and simply gets the
-    // columns that still exist (the editor shows the orphaned id so it can be
-    // cleared). The skipped references are returned so a typo stays visible.
+    /**
+     * A reference that matches no column is dropped, not rejected: a workflow
+     * whose picked column was since deleted keeps running and simply gets the
+     * columns that still exist (the editor shows the orphaned id so it can be
+     * cleared). Skipped references are logged for server-side diagnostics.
+     */
     let selectedColumnIds: Set<string> | undefined
     const ignoredColumns: string[] = []
     if (body.columns?.length) {
@@ -145,7 +147,6 @@ export const POST = withRouteHandler(async (request: NextRequest, context: RowQu
         totalCount: result.totalCount,
         limit: result.limit,
         nextCursor: result.nextCursor,
-        ignoredColumns,
       },
     }
     return createTableRowsResponse({
