@@ -997,12 +997,12 @@ Also available as `sim files mv`.
 
 </CommandTable>
 
-### sim files text list
+### sim files read
 
-Read File Text
+Read a file’s text content
 
 ```bash
-sim files text list <fileId> [options]
+sim files read <fileId> [options]
 ```
 
 **Arguments**
@@ -2438,12 +2438,12 @@ sim logs get <runId> [options]
 
 </CommandTable>
 
-### sim logs stats list
+### sim logs stats
 
-Get Log Statistics
+Summarize run counts, failures, and cost over a window
 
 ```bash
-sim logs stats list [options]
+sim logs stats [options]
 ```
 
 **Options**
@@ -2695,12 +2695,12 @@ sim mcp-servers update <mcpServerId> [options]
 
 ## sim meta
 
-### sim meta list
+### sim meta status
 
-Get API Capabilities
+Show what this API supports and which limits apply
 
 ```bash
-sim meta list
+sim meta status
 ```
 
 ## sim secrets
@@ -5007,12 +5007,12 @@ sim workflows chat unpublish <workflowId> [options]
 
 </CommandTable>
 
-### sim workflows chat list
+### sim workflows chat status
 
-Get Workflow Chat Deployment
+Show a workflow’s chat deployment
 
 ```bash
-sim workflows chat list <workflowId>
+sim workflows chat status <workflowId>
 ```
 
 **Arguments**

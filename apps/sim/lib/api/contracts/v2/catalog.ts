@@ -10,8 +10,8 @@ import {
 } from '@/lib/api/contracts/v2/shared'
 
 /**
- * v2 catalog contracts: the code-defined blocks, tools, connector types, and
- * enrichments a caller can build with.
+ * v2 catalog contracts: the code-defined blocks, tools, and connector types a
+ * caller can build with.
  *
  * These read like static reference data and are not: what a caller may place is
  * decided per workspace by its permission-group integration allowlist, per

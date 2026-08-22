@@ -1826,7 +1826,7 @@ export const resourcesOpenApiDocument = defineOpenApiDocument({
   info: {
     title: 'Sim API v2 — Workspace Resources',
     description:
-      'Version 2 of the Sim REST API for workspace metadata, members, MCP servers, skills, custom tools, credentials, write-only secrets, chat deployments, and the block, tool, connector-type, and enrichment catalogs.',
+      'Version 2 of the Sim REST API for workspace metadata, members, MCP servers, skills, custom tools, credentials, write-only secrets, and the block, tool, and connector-type catalogs.',
     version: '2.0.0',
     contact: {
       name: 'Sim Support',
@@ -1871,8 +1871,7 @@ export const resourcesOpenApiDocument = defineOpenApiDocument({
     },
     {
       name: 'Catalog',
-      description:
-        'Discover the blocks, tools, connector types, and enrichments this workspace can build with.',
+      description: 'Discover the blocks, tools, and connector types this workspace can build with.',
     },
   ],
   security: V2_API_KEY_SECURITY,

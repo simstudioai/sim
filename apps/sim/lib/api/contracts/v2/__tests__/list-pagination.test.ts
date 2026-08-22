@@ -89,8 +89,8 @@ const PAGED_LISTS = [
  *   not appear here.
  * - The credential-provider catalog is bounded by the code-defined OAuth and
  *   service-account registries.
- * - The connector-type and enrichment catalogs are bounded the same way, by the
- *   code-defined connector-meta and enrichment registries. The block and tool
+ * - The connector-type catalog is bounded the same way, by the code-defined
+ *   connector-meta registry. The block and tool
  *   catalogs are NOT — a workspace adds blocks by deploying workflows as blocks,
  *   and there are ~5,000 tool ids — which is why those two are paged and do not
  *   appear here.

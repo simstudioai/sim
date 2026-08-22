@@ -298,8 +298,29 @@ export const CLI_CONTRACT: CliContract = {
       { header: 'trace', path: 'traceSpans', format: 'trace-count' },
     ],
   },
+  /**
+   * Single-record GETs. `deriveCommandPath` calls a `GET` a `list` unless the
+   * path ends in a parameter, so each of these derived to `... list` while
+   * returning exactly one thing — the defect already corrected above for
+   * `getWorkflowDeployment`. None of these spellings has shipped, so no
+   * `renamedFrom` is owed.
+   */
+  getMeta: {
+    command: 'meta status',
+    describe: 'Show what this API supports and which limits apply',
+  },
+  getWorkflowChatDeployment: {
+    command: 'workflows chat status',
+    describe: 'Show a workflow’s chat deployment',
+  },
   getLogStats: {
+    command: 'logs stats',
+    describe: 'Summarize run counts, failures, and cost over a window',
     flags: LOG_LIST_FILTER_FLAGS,
+  },
+  readFileText: {
+    command: 'files read',
+    describe: 'Read a file’s text content',
   },
   // Publishing a workflow for an outside agent to call, and withdrawing it.
   createWorkflowMcpServer: {
@@ -761,7 +782,6 @@ export const CLI_CONTRACT: CliContract = {
    */
   restoreTable: {
     command: 'tables restore',
-    renamedFrom: ['tables restore create'],
     describe: 'Restore an archived table',
   },
   restoreTableFolder: {
@@ -772,12 +792,10 @@ export const CLI_CONTRACT: CliContract = {
   },
   restoreKnowledgeBase: {
     command: 'knowledge restore',
-    renamedFrom: ['knowledge restore create'],
     describe: 'Restore an archived knowledge base',
   },
   restoreWorkflow: {
     command: 'workflows restore',
-    renamedFrom: ['workflows restore create'],
     describe: 'Restore an archived workflow',
   },
   cancelTableDispatch: {
@@ -805,7 +823,6 @@ export const CLI_CONTRACT: CliContract = {
    */
   bulkSaveKnowledgeTagDefinitions: {
     command: 'knowledge tags save',
-    renamedFrom: ['knowledge documents tags save'],
     describe: 'Declare the tag definitions a knowledge base needs',
     pathArgumentNames: KNOWLEDGE_BASE_PATH_ARGUMENT,
     flags: {
@@ -814,7 +831,6 @@ export const CLI_CONTRACT: CliContract = {
   },
   deleteKnowledgeTagDefinitions: {
     command: 'knowledge tags cleanup',
-    renamedFrom: ['knowledge documents tags cleanup'],
     pathArgumentNames: KNOWLEDGE_BASE_PATH_ARGUMENT,
     describe: 'Remove tag definitions no document still uses',
     confirm:
