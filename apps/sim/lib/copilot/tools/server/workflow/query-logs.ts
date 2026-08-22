@@ -2,7 +2,7 @@ import { createLogger } from '@sim/logger'
 import { z } from 'zod'
 import { QueryLogs } from '@/lib/copilot/generated/tool-catalog-v1'
 import type { BaseServerTool, ServerToolContext } from '@/lib/copilot/tools/server/base-tool'
-import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { requireCopilotWorkspace } from '@/lib/copilot/tools/server/workspace-scope'
 import {
   collectLargeValueExecutionIds,
   collectLargeValueKeys,
@@ -118,12 +118,13 @@ const queryLogsArgsSchema = z.preprocess((value) => {
 
 type QueryLogsArgs = z.infer<typeof queryLogsArgsSchema>
 
+/**
+ * Logs are always read from the chat's delegated workspace. A model-supplied
+ * `workspaceId` may only re-assert that workspace — it can never select a
+ * different one, even one the acting user could otherwise access.
+ */
 function resolveWorkspaceId(args: QueryLogsArgs, context?: ServerToolContext): string {
-  const workspaceId = args.workspaceId ?? context?.workspaceId
-  if (!workspaceId) {
-    throw new OrchestrationError('validation', 'workspaceId is required')
-  }
-  return workspaceId
+  return requireCopilotWorkspace(context ?? {}, args.workspaceId)
 }
 
 function buildLogViewContext(

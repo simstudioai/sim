@@ -215,6 +215,36 @@ describe('queryLogsServerTool', () => {
     expect(result.error).toContain('missing')
   })
 
+  it('accepts a workspaceId that re-asserts the execution workspace', async () => {
+    listLogsMock.mockResolvedValue({ data: [], nextCursor: null, total: 0 })
+
+    await queryLogsServerTool.execute({ view: 'list', workspaceId: 'ws-1' } as any, ctx)
+
+    expect(listLogsMock).toHaveBeenCalledTimes(1)
+    expect(listLogsMock.mock.calls[0][0].workspaceId).toBe('ws-1')
+  })
+
+  it('rejects a workspaceId that names a different workspace', async () => {
+    await expect(
+      queryLogsServerTool.execute({ view: 'list', workspaceId: 'ws-other' } as any, ctx)
+    ).rejects.toThrow('Workspace ID does not match the Copilot execution workspace')
+
+    expect(listLogsMock).not.toHaveBeenCalled()
+  })
+
+  it('fails closed when the context carries no workspace', async () => {
+    await expect(
+      queryLogsServerTool.execute(
+        { view: 'list', workspaceId: 'ws-1' } as any,
+        {
+          userId: 'user-1',
+        } as any
+      )
+    ).rejects.toThrow('Copilot execution workspace is required')
+
+    expect(listLogsMock).not.toHaveBeenCalled()
+  })
+
   it('throws when unauthenticated', async () => {
     await expect(
       queryLogsServerTool.execute({ view: 'overview', executionId: 'exec-1' } as any, {} as any)

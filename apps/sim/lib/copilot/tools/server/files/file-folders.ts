@@ -9,10 +9,8 @@ import {
   type BaseServerTool,
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
-import {
-  ensureCopilotFileFolderPath,
-  requireCopilotWorkspace,
-} from '@/lib/copilot/tools/server/files/file-folder-application'
+import { ensureCopilotFileFolderPath } from '@/lib/copilot/tools/server/files/file-folder-application'
+import { requireCopilotWorkspace } from '@/lib/copilot/tools/server/workspace-scope'
 import { decodeVfsPathSegments } from '@/lib/copilot/vfs/path-utils'
 import { asOrchestrationError, OrchestrationError } from '@/lib/core/orchestration/types'
 import {

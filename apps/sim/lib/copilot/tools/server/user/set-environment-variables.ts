@@ -1,12 +1,9 @@
 import { createLogger } from '@sim/logger'
 import { z } from 'zod'
 import { SetEnvironmentVariables } from '@/lib/copilot/generated/tool-catalog-v1'
-import {
-  ensureWorkflowAccess,
-  ensureWorkspaceAccess,
-  getDefaultWorkspaceId,
-} from '@/lib/copilot/tools/handlers/access'
+import { ensureWorkflowAccess, ensureWorkspaceAccess } from '@/lib/copilot/tools/handlers/access'
 import type { BaseServerTool, ServerToolContext } from '@/lib/copilot/tools/server/base-tool'
+import { requireCopilotWorkspace } from '@/lib/copilot/tools/server/workspace-scope'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { performUpdateCredential } from '@/lib/credentials/orchestration'
 import { listVisibleWorkspaceCredentials } from '@/lib/credentials/queries'
@@ -153,6 +150,12 @@ async function describeSecrets(params: {
   return { described, failures }
 }
 
+/**
+ * Workspace secrets always land in the chat's delegated workspace. Model-supplied
+ * `workspaceId`/`workflowId` may only re-assert that workspace — never select a
+ * different one the acting user happens to access, and never fall back to a
+ * default workspace when the scope is missing.
+ */
 async function resolveWorkspaceId(
   params: SetEnvironmentVariablesParams,
   context: ServerToolContext | undefined,
@@ -166,16 +169,12 @@ async function resolveWorkspaceId(
         `Workflow ${params.workflowId} is not associated with a workspace`
       )
     }
-    return workflow.workspaceId
+    return requireCopilotWorkspace(context ?? {}, workflow.workspaceId)
   }
 
-  const workspaceId = params.workspaceId ?? context?.workspaceId
-  if (workspaceId) {
-    await ensureWorkspaceAccess(workspaceId, userId, 'write')
-    return workspaceId
-  }
-
-  return getDefaultWorkspaceId(userId)
+  const workspaceId = requireCopilotWorkspace(context ?? {}, params.workspaceId)
+  await ensureWorkspaceAccess(workspaceId, userId, 'write')
+  return workspaceId
 }
 
 export const setEnvironmentVariablesServerTool: BaseServerTool<

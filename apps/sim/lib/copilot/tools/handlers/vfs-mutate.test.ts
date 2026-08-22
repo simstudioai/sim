@@ -86,6 +86,9 @@ vi.mock('@/lib/copilot/tools/server/files/file-folder-application', () => ({
     ...(fileId ? { resourceScope: { fileId } } : {}),
   })),
   ensureCopilotFileFolderPath: mocks.ensureCopilotFileFolderPath,
+}))
+
+vi.mock('@/lib/copilot/tools/server/workspace-scope', () => ({
   requireCopilotWorkspace: vi.fn((context) => context.workspaceId),
 }))
 
