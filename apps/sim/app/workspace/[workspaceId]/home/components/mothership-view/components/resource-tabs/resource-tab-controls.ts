@@ -22,9 +22,14 @@ export const RESOURCE_HEADER_CLASSES = {
    * CONTENT box both clusters centre in, so the strip's box has to be a pixel
    * taller than it or the tabs would centre in 43px while the overlaid toggle
    * centres in 44px, and the two rows would sit half a pixel apart.
+   *
+   * The band is the tabs' own height, set below the 30px the collapse toggle
+   * keeps: a tab paints a fill, so its box is visible and wants air around it,
+   * where the toggle and the action buttons are bare glyphs whose box only shows
+   * on hover.
    */
   stripGeometry:
-    '[--tab-strip-height:calc(var(--resource-header-controls-height)_+_1px)] [--tab-strip-max-tab-width:160px] [--tab-strip-inline-start:var(--resource-header-end-inset)] [--tab-strip-inline-end:var(--resource-header-fixed-reserve)]',
+    '[--tab-strip-height:calc(var(--resource-header-controls-height)_+_1px)] [--tab-strip-band:26px] [--tab-strip-max-tab-width:160px] [--tab-strip-inline-start:var(--resource-header-end-inset)] [--tab-strip-inline-end:var(--resource-header-fixed-reserve)]',
   /**
    * Centred, matching the `floating` strip: its tabs and controls sit centred in
    * the header band rather than hanging from the top, so an overlaid control has
