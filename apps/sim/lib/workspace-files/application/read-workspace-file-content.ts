@@ -10,6 +10,7 @@ import {
   getBoundWorkspaceFileSecretProvenance,
   type WorkspaceFileSecretProvenance,
 } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
 import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { resolveActiveWorkspaceFileContext } from '@/lib/workspace-files/application/workspace-file-context'
@@ -43,7 +44,9 @@ async function executeReadWorkspaceFileContent({
     throwOnError: true,
   })
   if (!file) throw new OrchestrationError('not_found', 'File not found')
-  const content = await fetchWorkspaceFileBuffer(file, { maxBytes: input.maxBytes })
+  const content = await fetchWorkspaceFileBuffer(file, {
+    maxBytes: input.maxBytes ?? MAX_BUFFERED_TRANSFER_BYTES,
+  })
   const secretProvenance = input.includeSecretProvenance
     ? await getBoundWorkspaceFileSecretProvenance(context.workspaceId, {
         fileId: file.id,

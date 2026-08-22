@@ -5,15 +5,19 @@ import { sendGridSendMailContract } from '@/lib/api/contracts/tools/communicatio
 import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
-import { downloadServableFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
+import { downloadServableFilesWithinBudget } from '@/lib/uploads/utils/file-utils.server'
 import { docNotReadyResponse } from '@/lib/uploads/utils/servable-file-response'
 import { assertToolFileAccess } from '@/app/api/files/authorization'
 
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('SendGridSendMailAPI')
+
+/** SendGrid rejects a message whose total attachment payload exceeds 30MB. */
+const MAX_ATTACHMENT_TOTAL_BYTES = 30 * 1024 * 1024
 
 export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
@@ -109,17 +113,26 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
         let resolved: Array<{ buffer: Buffer; contentType: string }>
         try {
-          resolved = await Promise.all(
-            userFiles.map(async (file) => {
-              logger.info(
-                `[${requestId}] Downloading attachment: ${file.name} (${file.size} bytes)`
-              )
-              return await downloadServableFileFromStorage(file, requestId, logger)
-            })
-          )
+          resolved = await downloadServableFilesWithinBudget(userFiles, requestId, logger, {
+            totalMaxBytes: MAX_ATTACHMENT_TOTAL_BYTES,
+            label: 'Total attachment size',
+          })
         } catch (error) {
           const notReady = docNotReadyResponse(error)
           if (notReady) return notReady
+          if (isPayloadSizeLimitError(error)) {
+            const sizeMB = (
+              (error.observedBytes ?? MAX_ATTACHMENT_TOTAL_BYTES) /
+              (1024 * 1024)
+            ).toFixed(2)
+            return NextResponse.json(
+              {
+                success: false,
+                error: `Total attachment size (${sizeMB}MB) exceeds SendGrid's limit of 30MB`,
+              },
+              { status: 400 }
+            )
+          }
           logger.error(`[${requestId}] Failed to download an attachment:`, error)
           return NextResponse.json(
             {
@@ -127,19 +140,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
               error: `Failed to download attachment: ${getErrorMessage(error, 'Unknown error')}`,
             },
             { status: 500 }
-          )
-        }
-
-        const resolvedTotal = resolved.reduce((sum, r) => sum + r.buffer.length, 0)
-        const maxSize = 30 * 1024 * 1024
-        if (resolvedTotal > maxSize) {
-          const sizeMB = (resolvedTotal / (1024 * 1024)).toFixed(2)
-          return NextResponse.json(
-            {
-              success: false,
-              error: `Total attachment size (${sizeMB}MB) exceeds SendGrid's limit of 30MB`,
-            },
-            { status: 400 }
           )
         }
 
