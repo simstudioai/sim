@@ -825,6 +825,46 @@ describe('canonical-mode gates on a mixed action/trigger block', () => {
     expect(gates.isActiveManualMember('triggerSiteId')).toBe(false)
   })
 
+  it('leaves the DORMANT action surface classified exactly as before scoping', () => {
+    vi.mocked(getBlock).mockReturnValue(mixedSurfaceBlock())
+    const config = getBlock('webflow') as BlockConfig
+    const scoped = createCanonicalModeGates(config.subBlocks, values, { siteId: 'advanced' }, true)
+
+    // Scoping decides membership for LIVE fields only. The action surface's own values are still
+    // real keys in the block's value map, and the remap loop reads `isDormantMember` to decide
+    // both whether to clear a value and whether to skip detecting it. Answering "not a member"
+    // here would stop clearing them AND start detecting them, turning a stale action selector on
+    // a trigger-mode block into a mapping requirement that can block a sync.
+    expect(scoped.isDormantMember('siteSelector')).toBe(true)
+    expect(scoped.isActiveManualMember('manualSiteId')).toBe(true)
+
+    // Identical to what the unscoped gates answered for those same keys before the fix.
+    const legacy = createCanonicalModeGates(config.subBlocks, values, { siteId: 'advanced' }, false)
+    for (const key of ['siteSelector', 'manualSiteId']) {
+      expect(scoped.isDormantMember(key)).toBe(legacy.isDormantMember(key))
+      expect(scoped.isActiveManualMember(key)).toBe(legacy.isActiveManualMember(key))
+    }
+  })
+
+  it('does not turn a dormant action credential into a detected reference', () => {
+    vi.mocked(getBlock).mockReturnValue(mixedSurfaceBlock())
+    const subBlocks: SubBlockRecord = {
+      siteSelector: { type: 'project-selector', value: 'source-workspace-site' },
+      manualSiteId: { type: 'short-input', value: 'stale-manual-site' },
+      triggerSiteId: { type: 'dropdown', value: 'site-live' },
+    }
+    const result = remapForkSubBlocks(subBlocks, () => null, 'promote', {
+      blockType: 'webflow',
+      canonicalModes: { siteId: 'advanced' },
+      triggerMode: true,
+    })
+    // The dormant basic member is cleared and never becomes a promote blocker, exactly as it did
+    // before surface scoping — while the live trigger field survives.
+    expect(result.subBlocks.siteSelector.value).toBe('')
+    expect(result.unmapped.some((ref) => ref.subBlockKey === 'siteSelector')).toBe(false)
+    expect(result.subBlocks.triggerSiteId.value).toBe('site-live')
+  })
+
   it('still gates the action surface normally', () => {
     vi.mocked(getBlock).mockReturnValue(mixedSurfaceBlock())
     const config = getBlock('webflow') as BlockConfig

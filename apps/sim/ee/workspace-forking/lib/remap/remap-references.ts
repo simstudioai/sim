@@ -472,20 +472,45 @@ export function createCanonicalModeGates(
   if (!configSubBlocks || configSubBlocks.length === 0) return NO_GATES
   const surfaceSubBlocks = getCanonicalSubBlocksForSurface(configSubBlocks, triggerSurface)
   const canonicalIndex = buildCanonicalIndex(surfaceSubBlocks)
+  // canonical-index-unscoped: the fallback for keys the ACTIVE surface does not define — see
+  // `indexFor`. Scoping decides membership for live fields only; a dormant surface's own values
+  // keep the classification they had before scoping existed.
+  const fullIndex = buildCanonicalIndex(configSubBlocks)
   const configByBaseKey = new Map(
-    surfaceSubBlocks.filter((cfg) => cfg.id).map((cfg) => [cfg.id, cfg])
+    configSubBlocks.filter((cfg) => cfg.id).map((cfg) => [cfg.id, cfg])
   )
   const conditionValues = { ...values }
-  for (const [canonicalId, group] of Object.entries(canonicalIndex.groupsById)) {
-    if (conditionValues[canonicalId] === undefined) {
-      conditionValues[canonicalId] = resolveActiveCanonicalValue(group, values, canonicalModes)
+  for (const index of [canonicalIndex, fullIndex]) {
+    for (const [canonicalId, group] of Object.entries(index.groupsById)) {
+      if (conditionValues[canonicalId] === undefined) {
+        conditionValues[canonicalId] = resolveActiveCanonicalValue(group, values, canonicalModes)
+      }
     }
   }
 
+  /**
+   * The index that owns a key.
+   *
+   * The scoped index answers for anything the active surface defines — that is the fix: a trigger
+   * field sharing a `canonicalParamId` with an action pair gets its OWN group instead of being
+   * read as a stranded member of the action pair's.
+   *
+   * Everything else falls back to the whole array, deliberately. A dormant surface's values are
+   * still real keys in the block's value map, and the remap loop reads `isDormantMember` to decide
+   * both whether to CLEAR a value and whether to skip detecting it as a reference. Answering
+   * "not a member" for them would stop clearing them AND start detecting them, turning a stale
+   * action selector on a trigger-mode block into a mapping requirement that can block a sync.
+   * Scoping is meant to stop live fields being misread, not to re-classify dormant ones.
+   */
+  const indexFor = (key: string) =>
+    canonicalIndex.canonicalIdBySubBlockId[key] || canonicalIndex.groupsById[key]
+      ? canonicalIndex
+      : fullIndex
+
   const groupFor = (memberOrCanonicalId: string) => {
-    const canonicalId =
-      canonicalIndex.canonicalIdBySubBlockId[memberOrCanonicalId] ?? memberOrCanonicalId
-    const group = canonicalIndex.groupsById[canonicalId]
+    const index = indexFor(memberOrCanonicalId)
+    const canonicalId = index.canonicalIdBySubBlockId[memberOrCanonicalId] ?? memberOrCanonicalId
+    const group = index.groupsById[canonicalId]
     return group && isCanonicalPair(group) ? group : undefined
   }
   const baseKeyOf = (subBlockKey: string) => subBlockKey.replace(/_\d+$/, '')
@@ -500,7 +525,7 @@ export function createCanonicalModeGates(
     isDormantMember: (subBlockKey) => {
       const baseKey = baseKeyOf(subBlockKey)
       const group = groupFor(baseKey)
-      if (!group || !canonicalIndex.canonicalIdBySubBlockId[baseKey]) return false
+      if (!group || !indexFor(baseKey).canonicalIdBySubBlockId[baseKey]) return false
       return isAdvancedActiveGroup(baseKey) !== group.advancedIds.includes(baseKey)
     },
     isActiveManualMember: (subBlockKey) => {
@@ -645,6 +670,7 @@ export function remapToolBlockResources(
     tool.type
   )
   const toolBlockSubBlocks = (opts.blockConfigs?.[tool.type] ?? getBlock(tool.type))?.subBlocks
+  // canonical-index-unscoped: a nested tool's params are always the action surface
   const gates = createCanonicalModeGates(toolBlockSubBlocks, toolValues, scopedModes)
 
   // Clear DORMANT member keys first: a stale inactive value must not survive the copy (and must
@@ -1456,6 +1482,7 @@ function collectClearedToolParamDependents(
     // A DORMANT canonical member's cleared slot is not a lost configuration (only the pair's
     // active member executes). Modes resolve like the tool-input UI: tool-scoped overrides,
     // then the value heuristic over the merged params.
+    // canonical-index-unscoped: a nested tool's params are always the action surface
     const gates = createCanonicalModeGates(
       toolConfig.subBlocks,
       mergedValues,

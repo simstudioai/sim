@@ -511,6 +511,10 @@ export function extractBlockParams(block: BlockState): Record<string, any> {
     isCustomBlock && blockConfig.subBlocks.some((config) => !RESERVED_PARAMS.has(config.id))
   const isTriggerContext = block.triggerMode ?? false
   const isTriggerCategory = blockConfig.category === 'triggers'
+  // The serializer filters BEFORE it resolves, which is why execution has always been correct
+  // here even unscoped — see `getCanonicalSubBlocksForSurface`.
+  // canonical-index-unscoped: `shouldSerializeSubBlock` drops the inactive surface's members, and
+  // the collapse below reads `params` (the filtered map), never `allValues`.
   const canonicalIndex = buildCanonicalIndex(blockConfig.subBlocks)
   const allValues = buildSubBlockValues(block.subBlocks)
 
@@ -653,6 +657,8 @@ export function collectBlockFieldIssues(
   const displayAdvancedOptions = block.advancedMode ?? false
   const isTriggerContext = block.triggerMode ?? false
   const isTriggerCategory = blockConfig.category === 'triggers'
+  // canonical-index-unscoped: same filter-then-resolve ordering as `extractBlockParams`, and a
+  // trigger-mode block returns above before reaching here at all.
   const canonicalIndex = buildCanonicalIndex(blockConfig.subBlocks || [])
   const canonicalModeOverrides = block.data?.canonicalModes
   const allValues = buildSubBlockValues(block.subBlocks)

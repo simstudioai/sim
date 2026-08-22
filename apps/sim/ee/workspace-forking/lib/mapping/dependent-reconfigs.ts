@@ -135,6 +135,8 @@ function emitAnchoredDependents(params: EmitAnchoredParams): void {
   })
   const scanSubBlocks = getSelectorContextSubBlocks(config.subBlocks, values, triggerMode)
   const canonicalIndex = buildCanonicalIndex(scanSubBlocks)
+  // canonical-index-unscoped: `scanSubBlocks` is already narrowed to the active surface by
+  // `getSelectorContextSubBlocks` above, so scoping again here would be a no-op.
   const gates = createCanonicalModeGates(scanSubBlocks, values, canonicalModes)
   const configById = new Map(scanSubBlocks.filter((cfg) => cfg.id).map((cfg) => [cfg.id, cfg]))
   // Shared with `applyDependentOverrides`, so what the modal offers is exactly what the sync

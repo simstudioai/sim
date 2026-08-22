@@ -790,6 +790,7 @@ export function getToolInputParamConfigs({
       })
   }
 
+  // canonical-index-unscoped: a nested tool's params are always the action surface
   const toolCanonicalIndex = buildCanonicalIndex(
     blockConfig?.subBlocks ?? subBlocksResult.subBlocks
   )

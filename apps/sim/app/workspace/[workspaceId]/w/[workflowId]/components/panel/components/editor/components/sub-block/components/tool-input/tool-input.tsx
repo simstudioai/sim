@@ -533,6 +533,8 @@ export const ToolInput = memo(function ToolInput({
     for (const [toolIndex, tool] of selectedTools.entries()) {
       const blockConfig = allBlocks.find((b: { type: string }) => b.type === tool.type)
       if (!blockConfig?.subBlocks) continue
+      // canonical-index-unscoped: a nested tool resolves against `tool.params`, which only ever
+      // holds action-surface values — a tool is never invoked in trigger mode.
       const toolCanonical = buildCanonicalIndex(blockConfig.subBlocks)
       const scopedOverrides = scopeCanonicalModesForTool(
         canonicalModeOverrides,
@@ -1779,7 +1781,8 @@ export const ToolInput = memo(function ToolInput({
               : null
 
           const toolCanonicalIndex: CanonicalIndex | null = toolBlock?.subBlocks
-            ? buildCanonicalIndex(toolBlock.subBlocks)
+            ? // canonical-index-unscoped: nested tool params are always the action surface
+              buildCanonicalIndex(toolBlock.subBlocks)
             : null
 
           const toolContextValues = toolCanonicalIndex
