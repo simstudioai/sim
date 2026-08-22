@@ -17,6 +17,7 @@ import {
   MAX_OTP_ATTEMPTS,
   OTP_EMAIL_RATE_LIMIT,
   OTP_IP_RATE_LIMIT,
+  OTP_RESOURCE_RATE_LIMIT,
   storeOTP,
 } from '@/lib/core/security/otp'
 import { generateRequestId, getClientIp } from '@/lib/core/utils/request'
@@ -87,6 +88,24 @@ export const POST = withRouteHandler(
       const allowedEmails: string[] = Array.isArray(deployment.allowedEmails)
         ? deployment.allowedEmails
         : []
+
+      const resourceRateLimit = await rateLimiter.checkRateLimitDirect(
+        `chat-otp:resource:${deployment.id}`,
+        OTP_RESOURCE_RATE_LIMIT,
+        { failClosed: true }
+      )
+      if (!resourceRateLimit.allowed) {
+        logger.warn(`[${requestId}] OTP resource rate limit exceeded for chat ${deployment.id}`)
+        const retryAfter = Math.ceil(
+          (resourceRateLimit.retryAfterMs ?? OTP_RESOURCE_RATE_LIMIT.refillIntervalMs) / 1000
+        )
+        const response = createErrorResponse(
+          'Too many verification code requests. Please try again later.',
+          429
+        )
+        response.headers.set('Retry-After', String(retryAfter))
+        return response
+      }
 
       if (!isEmailAllowed(email, allowedEmails)) {
         return createErrorResponse('Email not authorized for this chat', 403)

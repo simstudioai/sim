@@ -1,6 +1,7 @@
 /**
  * @vitest-environment node
  */
+import { requestUtilsMockFns } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -49,6 +50,7 @@ vi.mock('@/lib/core/security/otp', () => ({
   MAX_OTP_ATTEMPTS: 5,
   OTP_IP_RATE_LIMIT: { maxTokens: 10, refillRate: 10, refillIntervalMs: 1000 },
   OTP_EMAIL_RATE_LIMIT: { maxTokens: 3, refillRate: 3, refillIntervalMs: 1000 },
+  OTP_RESOURCE_RATE_LIMIT: { maxTokens: 100, refillRate: 100, refillIntervalMs: 1000 },
 }))
 vi.mock('@/components/emails', () => ({
   getOtpSubject: (label: string) => `Verification code for ${label}`,
@@ -127,6 +129,40 @@ describe('POST /api/files/public/[token]/otp', () => {
     const res = await POST(post('user@acme.com'), params())
     expect(res.status).toBe(429)
     expect(res.headers.get('Retry-After')).toBe('1')
+  })
+
+  it('returns 429 when the share resource rate limit is exceeded', async () => {
+    mockCheckRateLimitDirect
+      .mockResolvedValueOnce({ allowed: true })
+      .mockResolvedValueOnce({ allowed: false, retryAfterMs: 1000 })
+
+    const res = await POST(post('user@acme.com'), params())
+
+    expect(res.status).toBe(429)
+    expect(res.headers.get('Retry-After')).toBe('1')
+    expect(mockStoreOTP).not.toHaveBeenCalled()
+    expect(mockSendEmail).not.toHaveBeenCalled()
+  })
+
+  it('retains resource and email backstops when the client IP cannot be resolved', async () => {
+    requestUtilsMockFns.mockGetClientIp.mockReturnValueOnce(null)
+
+    const res = await POST(post('user@acme.com'), params())
+
+    expect(res.status).toBe(200)
+    expect(mockCheckRateLimitDirect).toHaveBeenCalledTimes(2)
+    expect(mockCheckRateLimitDirect).toHaveBeenNthCalledWith(
+      1,
+      'file-otp:resource:sh_1',
+      expect.any(Object),
+      { failClosed: true }
+    )
+    expect(mockCheckRateLimitDirect).toHaveBeenNthCalledWith(
+      2,
+      'file-otp:email:sh_1:user@acme.com',
+      expect.any(Object),
+      { failClosed: true }
+    )
   })
 })
 

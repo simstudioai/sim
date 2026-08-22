@@ -19,6 +19,7 @@ import {
   MAX_OTP_ATTEMPTS,
   OTP_EMAIL_RATE_LIMIT,
   OTP_IP_RATE_LIMIT,
+  OTP_RESOURCE_RATE_LIMIT,
   storeOTP,
 } from '@/lib/core/security/otp'
 import { generateRequestId, getClientIp } from '@/lib/core/utils/request'
@@ -86,6 +87,18 @@ export const POST = withRouteHandler(
           { error: 'This file does not use email authentication' },
           { status: 400 }
         )
+      }
+
+      const resourceRateLimit = await rateLimiter.checkRateLimitDirect(
+        `file-otp:resource:${resolved.share.id}`,
+        OTP_RESOURCE_RATE_LIMIT,
+        { failClosed: true }
+      )
+      if (!resourceRateLimit.allowed) {
+        logger.warn(
+          `[${requestId}] OTP resource rate limit exceeded for share ${resolved.share.id}`
+        )
+        return rateLimited(resourceRateLimit.retryAfterMs, OTP_RESOURCE_RATE_LIMIT.refillIntervalMs)
       }
 
       if (!isEmailAllowed(email, shareAllowedEmails(resolved.share.allowedEmails))) {

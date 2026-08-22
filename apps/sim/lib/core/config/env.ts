@@ -612,7 +612,8 @@ export const env = createEnv({
     REACT_SCAN_ENABLED:                    z.boolean().optional(),                 // Enable React Scan for performance debugging (dev only)
 
     // Network / proxy trust
-    AUTH_TRUSTED_PROXIES:                  z.string().optional(),                  // Comma-separated reverse-proxy IPs or CIDR ranges. Sim and Better Auth walk the forwarded-IP chain right to left, skip these trusted hops, and use the first untrusted address. Invalid and catch-all entries fail at startup.
+    /** Comma-separated proxy IPs/CIDRs skipped while resolving the forwarded client chain. */
+    AUTH_TRUSTED_PROXIES:                  z.string().optional(),
 
     // SSO Configuration (for script-based registration)
     SSO_ENABLED:                           z.boolean().optional(),                 // Enable SSO functionality
