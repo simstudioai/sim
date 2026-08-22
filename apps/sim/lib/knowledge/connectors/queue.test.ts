@@ -99,6 +99,8 @@ describe('connector sync queue', () => {
         rehydrate: undefined,
         requestId: 'request-1',
         billingAttribution: BILLING_ATTRIBUTION,
+        /** Minted per dispatch; its own test asserts it matches the queue entry. */
+        dispatchToken: expect.any(String),
       },
       {
         tags: [
@@ -293,6 +295,37 @@ describe('connector sync queue', () => {
     expect(dbChainMockFns.set).not.toHaveBeenCalledWith(
       expect.objectContaining({ status: 'pending' })
     )
+  })
+
+  it('stamps the queue entry token onto the task so the worker can prove ownership', async () => {
+    await dispatchSync('connector-1', {
+      billingAttribution: BILLING_ATTRIBUTION,
+      requestId: 'request-1',
+    })
+
+    /**
+     * Without this the status check alone lets a task delayed past its lease
+     * take the replacement entry the reaper's re-dispatch created, running
+     * superseded options while the replacement is turned away.
+     */
+    const queuedToken = (dbChainMockFns.set.mock.calls[0][0] as Record<string, unknown>)
+      .syncLockToken
+    expect(mockTrigger).toHaveBeenCalledWith(
+      'knowledge-connector-sync',
+      expect.objectContaining({ dispatchToken: queuedToken }),
+      expect.anything()
+    )
+  })
+
+  it('tolerates a payload queued before the token existed', () => {
+    /** In-flight tasks from before this field shipped must not be stranded. */
+    expect(
+      assertConnectorSyncPayload({
+        connectorId: 'connector-1',
+        requestId: 'request-1',
+        billingAttribution: BILLING_ATTRIBUTION,
+      }).dispatchToken
+    ).toBeUndefined()
   })
 
   it('rejects legacy payloads without billing attribution', () => {

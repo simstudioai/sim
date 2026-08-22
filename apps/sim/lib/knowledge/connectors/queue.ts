@@ -33,6 +33,15 @@ export interface ConnectorSyncPayload {
   rehydrate?: boolean
   requestId: string
   billingAttribution: BillingAttributionSnapshot
+  /**
+   * The queue entry this task is allowed to consume, proving the run it starts
+   * is the one that was queued for it.
+   *
+   * Optional only for the rollout window: tasks queued before this field
+   * existed carry no token, and the lock falls back to the status check alone
+   * for them rather than stranding work already in the queue.
+   */
+  dispatchToken?: string
 }
 
 export interface DispatchSyncOptions {
@@ -62,6 +71,9 @@ export function assertConnectorSyncPayload(value: unknown): ConnectorSyncPayload
   if (value.rehydrate !== undefined && typeof value.rehydrate !== 'boolean') {
     throw new Error('Connector sync payload rehydrate must be a boolean when provided')
   }
+  if (value.dispatchToken !== undefined && !isNonEmptyString(value.dispatchToken)) {
+    throw new Error('Connector sync payload dispatchToken must be a string when provided')
+  }
   if (value.billingAttribution === undefined) {
     throw new Error('Connector sync payload requires billing attribution')
   }
@@ -72,6 +84,7 @@ export function assertConnectorSyncPayload(value: unknown): ConnectorSyncPayload
     rehydrate: value.rehydrate as boolean | undefined,
     requestId: value.requestId,
     billingAttribution: assertBillingAttributionSnapshot(value.billingAttribution),
+    dispatchToken: value.dispatchToken as string | undefined,
   }
 }
 
@@ -298,10 +311,11 @@ export async function dispatchSync(
      * `pending` until the reaper's TTL.
      */
     try {
-      await tasks.trigger('knowledge-connector-sync', payload, {
-        tags,
-        region: await resolveTriggerRegion(),
-      })
+      await tasks.trigger(
+        'knowledge-connector-sync',
+        { ...payload, dispatchToken },
+        { tags, region: await resolveTriggerRegion() }
+      )
     } catch (error) {
       await releaseFailedDispatch(connectorId, dispatchToken, error)
       throw error
@@ -323,6 +337,7 @@ export async function dispatchSync(
     fullSync: payload.fullSync,
     rehydrate: payload.rehydrate,
     billingAttribution: payload.billingAttribution,
+    dispatchToken,
   }).catch(async (error) => {
     logger.error(`Sync failed for connector ${connectorId}`, {
       error: toError(error).message,

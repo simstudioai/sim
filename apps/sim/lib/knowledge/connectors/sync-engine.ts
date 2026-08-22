@@ -1480,6 +1480,11 @@ export async function executeSync(
     billingAttribution: BillingAttributionSnapshot
     fullSync?: boolean
     rehydrate?: boolean
+    /**
+     * The queue entry this run is allowed to consume. Absent only for tasks
+     * queued before the token existed; see {@link ConnectorSyncPayload}.
+     */
+    dispatchToken?: string
   }
 ): Promise<SyncResult> {
   const billingAttribution = assertBillingAttributionSnapshot(options?.billingAttribution)
@@ -1581,6 +1586,20 @@ export async function executeSync(
       and(
         eq(knowledgeConnector.id, connectorId),
         inArray(knowledgeConnector.status, LOCKABLE_CONNECTOR_STATUSES),
+        /**
+         * Proves this run is consuming the queue entry that was made for it.
+         *
+         * A task delayed past the lease is reclaimed and replaced, and the
+         * status check alone would let that stale task take the replacement's
+         * entry — running superseded options (a plain sync where the user had
+         * just asked for a full resync) while the replacement is turned away as
+         * `sync_in_progress`. Matching the token is the same discipline
+         * {@link holdsSyncLockToken} already applies to the `syncing` phase,
+         * extended to the phase before it.
+         */
+        ...(options.dispatchToken
+          ? [eq(knowledgeConnector.syncLockToken, options.dispatchToken)]
+          : []),
         isNull(knowledgeConnector.archivedAt),
         isNull(knowledgeConnector.deletedAt)
       )
@@ -1594,10 +1613,18 @@ export async function executeSync(
      * connector someone paused as a concurrency conflict.
      */
     const [current] = await db
-      .select({ status: knowledgeConnector.status })
+      .select({
+        status: knowledgeConnector.status,
+        syncLockToken: knowledgeConnector.syncLockToken,
+      })
       .from(knowledgeConnector)
       .where(eq(knowledgeConnector.id, connectorId))
       .limit(1)
+
+    if (options.dispatchToken && current?.syncLockToken !== options.dispatchToken) {
+      logger.info('Sync superseded by a newer dispatch, skipping', { connectorId })
+      return { ...result, error: 'dispatch_superseded' }
+    }
 
     if (current?.status === 'paused' || current?.status === 'disabled') {
       logger.info('Connector is not accepting syncs, skipping', {
