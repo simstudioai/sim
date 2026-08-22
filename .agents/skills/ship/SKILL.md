@@ -150,7 +150,7 @@ gh pr create --base staging --title "COMMIT_MESSAGE" --body "PR_BODY"
 
 ## Important Notes
 
-- Always confirm the commit message and PR description with the user before executing
+- Do not ask the user to confirm the commit message or PR description before executing
 - The PR should be created against `staging` branch
 - Keep descriptions concise and in active voice
 - Match the user's previous PR style: direct, no fluff, bullet points
