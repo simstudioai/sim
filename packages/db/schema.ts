@@ -4346,6 +4346,17 @@ export const knowledgeConnector = pgTable(
     sourceConfig: json('source_config').notNull(),
     syncMode: text('sync_mode').notNull().default('full'),
     syncIntervalMinutes: integer('sync_interval_minutes').notNull().default(1440),
+    /**
+     * One of `active`, `pending`, `syncing`, `error`, `paused`, `disabled`.
+     *
+     * `pending` and `syncing` are the two halves of a sync in flight: `pending`
+     * is written as the sync is handed to the queue, `syncing` when a worker
+     * takes the lock. The split exists because the queue depth between them is
+     * unbounded — without `pending` the row is indistinguishable from idle for
+     * as long as the hand-off takes, which is what forced readers to guess from
+     * `created_at`. A row left `pending` past the lock TTL is reclaimed by the
+     * scheduler, which is the only thing that ever observes a lost hand-off.
+     */
     status: text('status').notNull().default('active'),
     lastSyncAt: timestamp('last_sync_at'),
     lastSyncError: text('last_sync_error'),

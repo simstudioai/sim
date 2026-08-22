@@ -60,7 +60,8 @@ export const connectorDataSchema = z
     sourceConfig: z.record(z.string(), z.unknown()),
     syncMode: z.string().nullable(),
     syncIntervalMinutes: z.number(),
-    status: z.enum(['active', 'paused', 'syncing', 'error', 'disabled']),
+    /** `pending` means a sync is queued but no worker has taken the lock yet. */
+    status: z.enum(['active', 'paused', 'pending', 'syncing', 'error', 'disabled']),
     lastSyncAt: z.string().nullable(),
     lastSyncError: z.string().nullable(),
     lastSyncDocCount: z.number().nullable(),

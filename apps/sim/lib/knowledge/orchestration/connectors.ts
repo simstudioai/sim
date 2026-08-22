@@ -295,7 +295,16 @@ export async function performCreateKnowledgeConnector(
           encryptedApiKey: resolvedEncryptedApiKey,
           sourceConfig: finalSourceConfig,
           syncIntervalMinutes,
-          status: 'active',
+          /**
+           * The initial sync is dispatched after this transaction commits, so
+           * the row is born with a sync already queued. `markSyncPending` writes
+           * this again moments later — this one exists so the create *response*
+           * is truthful, and the client renders the queued state immediately
+           * rather than an idle connector until its first refetch. The lease and
+           * ownership token that make the queue entry recoverable come from that
+           * later write, which is why it must not skip an already-`pending` row.
+           */
+          status: 'pending',
           nextSyncAt,
           createdAt: now,
           updatedAt: now,
@@ -447,6 +456,21 @@ export async function performUpdateKnowledgeConnector(
   if (existing.status === 'syncing') {
     return fail('Sync already in progress', 'conflict')
   }
+  /**
+   * A queued run has not read its config yet, so a status change is still safe
+   * and is deliberately allowed — refusing it would leave a connector stranded
+   * behind a lost queue entry unpausable until the reaper's TTL. The two config
+   * edits are refused for the same reasons the `syncing` guard above gives:
+   * `sourceConfig` would have the run list against one config and reconcile
+   * against another, and `syncIntervalMinutes` writes a `nextSyncAt` the run's
+   * terminal write overwrites moments later, silently discarding it.
+   */
+  if (
+    existing.status === 'pending' &&
+    (updates.sourceConfig !== undefined || updates.syncIntervalMinutes !== undefined)
+  ) {
+    return fail('Sync already in progress', 'conflict')
+  }
 
   if (updates.syncIntervalMinutes !== undefined) {
     if (!kb.workspaceId && updates.syncIntervalMinutes > 0 && updates.syncIntervalMinutes < 60) {
@@ -481,6 +505,15 @@ export async function performUpdateKnowledgeConnector(
   }
   if (updates.status !== undefined) {
     values.status = updates.status
+    /**
+     * Releases a queue entry this status change is walking away from, so no
+     * token survives on a row that is no longer `pending` and the reaper is not
+     * left with a lease it can never match.
+     */
+    if (existing.status === 'pending') {
+      values.syncLockToken = null
+      values.syncLockLeaseAt = null
+    }
     if (updates.status === 'active') {
       values.consecutiveFailures = 0
       values.lastSyncError = null
@@ -501,6 +534,17 @@ export async function performUpdateKnowledgeConnector(
         and(
           eq(knowledgeConnector.id, connectorId),
           eq(knowledgeConnector.knowledgeBaseId, kb.id),
+          /**
+           * Compare-and-set on the status this request was authorized against.
+           *
+           * The guards above ran on a row read moments earlier, and a worker can
+           * take the lock in between. Without this the write lands on a row that
+           * is now `syncing`: it would overwrite the run's status and — because
+           * leaving `pending` also clears the lock columns — wipe the token its
+           * heartbeat and terminal write match on, stranding a sync that had
+           * already started.
+           */
+          eq(knowledgeConnector.status, existing.status),
           isNull(knowledgeConnector.archivedAt),
           isNull(knowledgeConnector.deletedAt)
         )
@@ -508,7 +552,13 @@ export async function performUpdateKnowledgeConnector(
       .returning()
 
     if (!row) {
-      return fail('Connector not found', 'not_found')
+      /**
+       * Either the connector went away or its status moved under us. Both are
+       * conflicts rather than "not found": the caller's decision was made
+       * against a state that no longer holds, and re-reading to tell them apart
+       * would race the same way.
+       */
+      return fail('Connector changed while the update was being applied', 'conflict')
     }
     updated = row
   } catch (error) {
@@ -723,8 +773,21 @@ export async function performSyncKnowledgeConnector(
   if (!connector) {
     return fail('Connector not found', 'not_found')
   }
-  if (connector.status === 'syncing') {
+  if (connector.status === 'syncing' || connector.status === 'pending') {
     return fail('Sync already in progress', 'conflict')
+  }
+  /**
+   * A paused or disabled connector is not synced on demand.
+   *
+   * Nothing here can put the pause back: queueing overwrites `status`, and
+   * every exit from the run writes its own verdict — success writes `active`,
+   * and a lost queue entry writes `error`, which the scheduler's due-sweep then
+   * treats as a connector to keep syncing. So one "Sync now" on a paused
+   * connector silently resumes it for good. Resuming is a decision the caller
+   * has to make explicitly, through the status update that says so.
+   */
+  if (connector.status === 'paused' || connector.status === 'disabled') {
+    return fail(`Connector is ${connector.status}. Resume it before triggering a sync.`, 'conflict')
   }
   if (!kb.workspaceId) {
     return fail('Knowledge base is missing workspace billing context', 'conflict')

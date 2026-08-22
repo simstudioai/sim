@@ -958,7 +958,7 @@ type CreateKnowledgeConnectorResponseRef0 = {
   sourceConfig: Record<string, unknown>
   syncMode: string
   syncIntervalMinutes: number
-  status: 'active' | 'paused' | 'syncing' | 'error' | 'disabled'
+  status: 'active' | 'paused' | 'pending' | 'syncing' | 'error' | 'disabled'
   lastSyncAt: string | null
   lastSyncError: string | null
   lastSyncDocCount: number | null
@@ -2741,7 +2741,7 @@ type GetKnowledgeConnectorResponseRef1 = {
   sourceConfig: Record<string, unknown>
   syncMode: string
   syncIntervalMinutes: number
-  status: 'active' | 'paused' | 'syncing' | 'error' | 'disabled'
+  status: 'active' | 'paused' | 'pending' | 'syncing' | 'error' | 'disabled'
   lastSyncAt: string | null
   lastSyncError: string | null
   lastSyncDocCount: number | null
@@ -3739,7 +3739,7 @@ type ListKnowledgeConnectorsResponseRef0 = {
   sourceConfig: Record<string, unknown>
   syncMode: string
   syncIntervalMinutes: number
-  status: 'active' | 'paused' | 'syncing' | 'error' | 'disabled'
+  status: 'active' | 'paused' | 'pending' | 'syncing' | 'error' | 'disabled'
   lastSyncAt: string | null
   lastSyncError: string | null
   lastSyncDocCount: number | null
@@ -5394,7 +5394,7 @@ type UpdateKnowledgeConnectorResponseRef0 = {
   sourceConfig: Record<string, unknown>
   syncMode: string
   syncIntervalMinutes: number
-  status: 'active' | 'paused' | 'syncing' | 'error' | 'disabled'
+  status: 'active' | 'paused' | 'pending' | 'syncing' | 'error' | 'disabled'
   lastSyncAt: string | null
   lastSyncError: string | null
   lastSyncDocCount: number | null

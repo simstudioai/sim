@@ -1747,6 +1747,31 @@ describe('buildSyncLockAcquisition', () => {
   })
 })
 
+describe('LOCKABLE_CONNECTOR_STATUSES', () => {
+  it('refuses to start a run on a connector someone paused or disabled', async () => {
+    const { LOCKABLE_CONNECTOR_STATUSES } = await import('@/lib/knowledge/connectors/sync-engine')
+
+    /**
+     * The queue outlives the decision to sync. A connector paused *after* its
+     * run was queued still has a task in flight, and a bare not-syncing test
+     * let that task take the lock and then write `active` over the pause — so
+     * one pause during the queue window was silently undone. The dispatch-side
+     * guards cannot see a status change that happens after they ran; this CAS
+     * is the only point that can.
+     */
+    expect(LOCKABLE_CONNECTOR_STATUSES).not.toContain('paused')
+    expect(LOCKABLE_CONNECTOR_STATUSES).not.toContain('disabled')
+
+    /** A queued run must still be lockable, or nothing would ever sync. */
+    expect(LOCKABLE_CONNECTOR_STATUSES).toContain('pending')
+    expect(LOCKABLE_CONNECTOR_STATUSES).toContain('active')
+    expect(LOCKABLE_CONNECTOR_STATUSES).toContain('error')
+
+    /** `syncing` is already locked; re-locking it would strand the live run. */
+    expect(LOCKABLE_CONNECTOR_STATUSES).not.toContain('syncing')
+  })
+})
+
 describe('shouldHeartbeatSyncLock', () => {
   it('beats once the interval has elapsed', async () => {
     const { shouldHeartbeatSyncLock } = await import('@/lib/knowledge/connectors/sync-engine')
