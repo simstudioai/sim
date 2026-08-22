@@ -1051,7 +1051,7 @@ const declaredRoutes = [
       operationId: 'createTableDispatch',
       summary: 'Create Run Dispatch',
       description:
-        'Asynchronously run workflow or enrichment groups across all rows or a selected row subset. Poll the returned `dispatchId` with `GET /api/v2/tables/{tableId}/dispatches/{dispatchId}` until its status is `complete` or `cancelled`, and cancel it with `DELETE` on the same path. A `null` `dispatchId` means the run settled inline and there is nothing to poll.',
+        'Asynchronously run workflow or enrichment groups across all rows or a selected row subset. Poll the returned `dispatchId` with `GET /api/v2/tables/{tableId}/dispatches/{dispatchId}` until its status is `complete` or `canceled`, and cancel it with `DELETE` on the same path. A `null` `dispatchId` means the run settled inline and there is nothing to poll.',
       errors: RESOURCE_ERRORS,
       success: { description: 'The accepted run dispatch.' },
     }),
@@ -1742,7 +1742,7 @@ const declaredRoutes = [
       operationId: 'getTableDispatch',
       summary: 'Get Run Dispatch',
       description:
-        'Poll one workflow-column run dispatch by the `dispatchId` the run endpoints returned. Answers in every lifecycle state — `pending`, `dispatching`, `complete`, and `cancelled` — so a poller can wait for a run to settle. Per-cell outcomes are read with `includeRunState` on the row endpoints.',
+        'Poll one workflow-column run dispatch by the `dispatchId` the run endpoints returned. Answers in every lifecycle state — `pending`, `dispatching`, `complete`, and `canceled` — so a poller can wait for a run to settle. Per-cell outcomes are read with `includeRunState` on the row endpoints.',
       errors: RESOURCE_ERRORS,
       success: { description: 'The requested run dispatch.' },
     }),
@@ -1773,7 +1773,7 @@ const declaredRoutes = [
       operationId: 'cancelTableDispatch',
       summary: 'Cancel Run Dispatch',
       description:
-        'Cancel one run dispatch by the `dispatchId` the run endpoint returned. This stops the scheduler: the dispatcher observes the cancellation at its next iteration and enqueues no further cells. Cells already handed to the queue are NOT cancelled here — nothing links a queued cell back to the dispatch that enqueued it — so use `POST /api/v2/tables/{tableId}/cancel-runs` to stop work already in flight. Idempotent: a dispatch already `complete` or `cancelled` is returned unchanged.',
+        'Cancel one run dispatch by the `dispatchId` the run endpoint returned. This stops the scheduler: the dispatcher observes the cancellation at its next iteration and enqueues no further cells. Cells already handed to the queue are NOT canceled here — nothing links a queued cell back to the dispatch that enqueued it — so use `POST /api/v2/tables/{tableId}/cancel-runs` to stop work already in flight. Idempotent: a dispatch already `complete` or `canceled` is returned unchanged.',
       errors: RESOURCE_ERRORS,
       success: { description: 'The dispatch in its post-cancellation state.' },
     }),

@@ -470,3 +470,39 @@ describe('run retention is published on both run reads', () => {
     expect(description).toContain(RUN_RETENTION)
   })
 })
+
+/**
+ * Every published tag needs a sidebar entry in every locale, or its operations
+ * are unbrowsable.
+ *
+ * The specs and the reference nav are generated from different places, so a new
+ * tag group ships complete — paths, schemas, examples — and simply never
+ * appears in the docs. `Catalog` and `Meta` did exactly that: six operations
+ * were published and unreachable, and nothing failed.
+ */
+describe('api-reference navigation coverage', () => {
+  it('lists every published tag group in every localized sidebar', () => {
+    const tags = new Set<string>()
+    for (const output of EXPECTED_OPERATION_COUNTS.keys()) {
+      const spec = JSON.parse(readFileSync(path.resolve(process.cwd(), output), 'utf8')) as {
+        tags?: Array<{ name: string }>
+      }
+      for (const tag of spec.tags ?? []) tags.add(tag.name)
+    }
+    expect(tags.size).toBeGreaterThan(0)
+
+    for (const locale of ['en', 'de', 'es', 'fr', 'ja', 'zh']) {
+      const meta = JSON.parse(
+        readFileSync(
+          path.resolve(process.cwd(), `apps/docs/content/docs/${locale}/api-reference/meta.json`),
+          'utf8'
+        )
+      ) as { pages: string[] }
+      const slugs = new Set(meta.pages.map((page) => page.split('/').at(-1)))
+      const missing = [...tags]
+        .filter((tag) => !slugs.has(tag.toLowerCase().replaceAll(' ', '-')))
+        .sort()
+      expect(missing, `${locale} sidebar is missing a published tag group`).toEqual([])
+    }
+  })
+})

@@ -54,7 +54,12 @@ export function presentV2TableDispatch(dispatch: DispatchRow): V2TableRunDispatc
     id: dispatch.id,
     tableId: dispatch.tableId,
     workspaceId: dispatch.workspaceId,
-    status: dispatch.status,
+    /**
+     * The column stores `cancelled`; the surface publishes `canceled`, which is
+     * how table imports, exports, and job state already spell it. Mapping here
+     * keeps one spelling on the wire without renaming a stored value.
+     */
+    status: dispatch.status === 'cancelled' ? 'canceled' : dispatch.status,
     mode: dispatch.mode,
     scope: {
       groupIds: dispatch.scope.groupIds,
@@ -65,6 +70,6 @@ export function presentV2TableDispatch(dispatch: DispatchRow): V2TableRunDispatc
     isManualRun: dispatch.isManualRun,
     requestedAt: dispatch.requestedAt.toISOString(),
     completedAt: dispatch.completedAt?.toISOString() ?? null,
-    cancelledAt: dispatch.cancelledAt?.toISOString() ?? null,
+    canceledAt: dispatch.cancelledAt?.toISOString() ?? null,
   }
 }

@@ -24,7 +24,8 @@ export const POST = defineV2JsonRoute({
     folderKeying: 'paths' as const,
     tableIds: body.tableIds,
     folders: body.folderPaths,
-    targetFolder: body.targetFolderPath,
+    // The use case requires an explicit choice; omission is the root.
+    targetFolder: body.targetFolderPath ?? null,
   }),
   useCase: bulkMoveTables,
   present: ({ moved, skipped, notFound, failed }) => ({

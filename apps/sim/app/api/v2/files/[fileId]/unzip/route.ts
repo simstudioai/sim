@@ -1,4 +1,4 @@
-import { v2UnarchiveFileContract } from '@/lib/api/contracts/v2/files'
+import { v2UnzipFileContract } from '@/lib/api/contracts/v2/files'
 import { defineV2JsonRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/routes'
 import { buildFolderPath } from '@/lib/folders/paths'
 import { v2FileErrorPolicies } from '@/lib/workspace-files/api'
@@ -16,7 +16,7 @@ export const dynamic = 'force-dynamic'
 export const maxDuration = 300
 
 /**
- * POST /api/v2/files/[fileId]/unarchive — unzip an archive into a new folder
+ * POST /api/v2/files/[fileId]/unzip — unzip an archive into a new folder
  * beside it.
  *
  * Not `extract`: `GET /api/v2/files/[fileId]/text` is the endpoint that
@@ -30,7 +30,7 @@ export const maxDuration = 300
  * Concurrent unarchiving of the same archive answers `409`.
  */
 export const POST = defineV2JsonRoute({
-  contract: v2UnarchiveFileContract,
+  contract: v2UnzipFileContract,
   auth: v2ApiKeyAuth,
   operation: fileOperations.extractArchive,
   rateLimit: v2RateLimits.publicApi,

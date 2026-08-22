@@ -247,7 +247,7 @@ export const v2RowRunStateSchema = z
     status: z
       .string()
       .describe(
-        'Lifecycle state of the most recent run for this cell: `pending`, `queued`, `running`, `completed`, `error`, or `cancelled`.'
+        'Lifecycle state of the most recent run for this cell: `pending`, `queued`, `running`, `completed`, `error`, or `canceled`.'
       ),
     executionId: z
       .string()
@@ -259,9 +259,9 @@ export const v2RowRunStateSchema = z
     blockErrors: z
       .record(z.string(), z.string())
       .describe('Per-block failure messages keyed by block identifier.'),
-    cancelledAt: v2TimestampSchema
+    canceledAt: v2TimestampSchema
       .nullable()
-      .describe('ISO 8601 timestamp when the cell was cancelled, or null.'),
+      .describe('ISO 8601 timestamp when the cell was canceled, or null.'),
   })
   .meta({
     id: 'V2TableRowRunState',
@@ -1919,7 +1919,7 @@ export const v2EnrichmentRunDetailSchema = z
       .string()
       .nullable()
       .describe('Provider that produced the match, or null when none did.'),
-    aborted: z.boolean().describe('True when the run was cancelled before it settled.'),
+    aborted: z.boolean().describe('True when the run was canceled before it settled.'),
     providers: z
       .array(v2EnrichmentProviderOutcomeSchema)
       .describe('Every configured provider, in cascade order, including those that never ran.'),
@@ -2476,7 +2476,7 @@ export const v2TableDispatchStatusSchema = z.enum([
   'pending',
   'dispatching',
   'complete',
-  'cancelled',
+  'canceled',
 ])
 export type V2TableDispatchStatus = z.output<typeof v2TableDispatchStatusSchema>
 
@@ -2493,9 +2493,7 @@ export const v2TableRunDispatchSchema = z
     id: z.string().describe('Unique dispatch identifier.'),
     tableId: z.string().describe('Table the dispatch runs against.'),
     workspaceId: z.string().describe('Workspace that owns the dispatch.'),
-    status: v2TableDispatchStatusSchema.describe(
-      'Current dispatch lifecycle state. Note the spelling: a dispatch is `cancelled` with two `l`s, mirroring the stored column, while table imports, exports, and row run state spell the same concept `canceled`. Match the exact value for the resource you are reading rather than assuming one spelling across the API.'
-    ),
+    status: v2TableDispatchStatusSchema.describe('Current dispatch lifecycle state.'),
     mode: z
       .enum(['all', 'incomplete', 'new'])
       .describe(
@@ -2531,9 +2529,9 @@ export const v2TableRunDispatchSchema = z
     completedAt: v2TimestampSchema
       .nullable()
       .describe('ISO 8601 timestamp when the dispatch completed, or null.'),
-    cancelledAt: v2TimestampSchema
+    canceledAt: v2TimestampSchema
       .nullable()
-      .describe('ISO 8601 timestamp when the dispatch was cancelled, or null.'),
+      .describe('ISO 8601 timestamp when the dispatch was canceled, or null.'),
   })
   .meta({
     id: 'V2TableRunDispatch',
@@ -2643,9 +2641,10 @@ export const v2MoveTablesBodySchema = z
     folderPaths: v2BulkTableFolderPathListSchema.describe(
       'Table folders to re-parent, by canonical path.'
     ),
+    /** Omission moves the selection to the workspace root, as on `POST /files/move`. */
     targetFolderPath: v2FolderPathInputSchema
-      .nullable()
-      .describe('Destination folder path. `null` and `/` both mean the workspace root.'),
+      .optional()
+      .describe('Destination folder path. Omit to move the selection to the workspace root.'),
   })
   .strict()
   .superRefine(refineV2BoundedTableSelection)

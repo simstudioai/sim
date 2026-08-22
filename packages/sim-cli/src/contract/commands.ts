@@ -820,6 +820,12 @@ export const CLI_CONTRACT: CliContract = {
     confirm:
       'This deletes every tag definition no document still uses. Their slots become free for a different field.',
   },
+  unzipFile: {
+    // `files unzip create` created nothing; the verb is the whole command.
+    command: 'files unzip',
+    describe: 'Unzip an archive into a new folder beside it',
+    confirm: 'This writes every file in the archive into the workspace.',
+  },
   bulkDownloadFiles: {
     command: 'files bulk-download',
     describe: 'Download files and folders as a zip archive',

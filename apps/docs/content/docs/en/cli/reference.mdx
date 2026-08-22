@@ -1071,12 +1071,12 @@ sim files restore <fileId>
 
 </CommandTable>
 
-### sim files unarchive create
+### sim files unzip
 
-Unarchive File
+Unzip an archive into a new folder beside it
 
 ```bash
-sim files unarchive create <fileId>
+sim files unzip <fileId> [options]
 ```
 
 **Arguments**
@@ -1086,6 +1086,16 @@ sim files unarchive create <fileId>
 | Argument | Required | Description |
 | --- | --- | --- |
 | `fileId` | Yes | File identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `-y, --yes` | Yes | Confirm this destructive operation. |
 
 </CommandTable>
 
@@ -4174,7 +4184,7 @@ sim tables move [options]
 | --- | --- | --- |
 | `--table-ids <json\|@file>` | No | Tables to move, by identifier. (JSON, or @path / @- to read a file or stdin). |
 | `--folder <value...>` | No | Folder path as shown in the app; the leading / is optional (space-separated, or @path / @- with one value per line). |
-| `--to <json\|@file>` | Yes | Destination folder path; omit for root (JSON, or @path / @- to read a file or stdin). |
+| `--to <value>` | No | Destination folder path; omit for root. |
 
 </CommandTable>
 

@@ -158,7 +158,7 @@ describe('presentV2TableDispatch', () => {
     triggeredByUserId: 'user-1',
     requestedAt: new Date('2026-01-01T00:00:00.000Z'),
     completedAt: new Date('2026-01-01T00:05:00.000Z'),
-    cancelledAt: null,
+    canceledAt: null,
   }
 
   it('serializes lifecycle timestamps and keeps a terminal status readable', () => {
@@ -167,7 +167,7 @@ describe('presentV2TableDispatch', () => {
     expect(presented.status).toBe('complete')
     expect(presented.requestedAt).toBe('2026-01-01T00:00:00.000Z')
     expect(presented.completedAt).toBe('2026-01-01T00:05:00.000Z')
-    expect(presented.cancelledAt).toBeNull()
+    expect(presented.canceledAt).toBeNull()
   })
 
   /**
@@ -227,7 +227,7 @@ describe('toApiRow run state', () => {
       error: null,
       runningBlockIds: [],
       blockErrors: {},
-      cancelledAt: null,
+      canceledAt: null,
     })
   })
 
@@ -250,7 +250,7 @@ describe('toApiRow run state', () => {
       error: 'boom',
       runningBlockIds: ['block-1'],
       blockErrors: { 'block-1': 'boom' },
-      cancelledAt: '2026-01-03T00:00:00.000Z',
+      canceledAt: '2026-01-03T00:00:00.000Z',
     })
   })
 

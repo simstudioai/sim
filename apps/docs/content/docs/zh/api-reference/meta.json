@@ -22,6 +22,8 @@
     "(generated)/credentials",
     "(generated)/secrets",
     "(generated)/billing",
+    "(generated)/catalog",
+    "(generated)/meta",
     "(generated)/audit-logs"
   ]
 }

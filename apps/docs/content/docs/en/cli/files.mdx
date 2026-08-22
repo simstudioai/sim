@@ -368,10 +368,10 @@ sim files restore <fileId>
 
 </CommandTable>
 
-## Unarchive file
+## Unzip an archive into a new folder beside it
 
 ```bash
-sim files unarchive create <fileId>
+sim files unzip <fileId> [options]
 ```
 
 **Arguments**
@@ -381,6 +381,16 @@ sim files unarchive create <fileId>
 | Argument | Required | Description |
 | --- | --- | --- |
 | `fileId` | Yes | File identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `-y, --yes` | Yes | Confirm this destructive operation. |
 
 </CommandTable>
 

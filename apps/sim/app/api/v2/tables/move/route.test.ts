@@ -88,11 +88,14 @@ describe('POST /api/v2/tables/move', () => {
     })
   })
 
-  it('accepts null as the workspace root destination', async () => {
+  /**
+   * Omission is the workspace root, matching `POST /api/v2/files/move`. The use
+   * case still requires an explicit choice, so the route supplies the `null`.
+   */
+  it('treats an omitted destination as the workspace root', async () => {
     await call(BULK_MOVE, 'bulk-move', {
       workspaceId: WORKSPACE_ID,
       tableIds: ['table-1'],
-      targetFolderPath: null,
     }).response
 
     expect(mocks.move).toHaveBeenCalledWith(
@@ -100,10 +103,20 @@ describe('POST /api/v2/tables/move', () => {
     )
   })
 
+  it('rejects an explicit null rather than accepting two spellings of the root', async () => {
+    const response = await call(BULK_MOVE, 'bulk-move', {
+      workspaceId: WORKSPACE_ID,
+      tableIds: ['table-1'],
+      targetFolderPath: null,
+    }).response
+
+    expect(response.status).toBe(400)
+    expect(mocks.move).not.toHaveBeenCalled()
+  })
+
   it('rejects an empty selection before delegation', async () => {
     const response = await call(BULK_MOVE, 'bulk-move', {
       workspaceId: WORKSPACE_ID,
-      targetFolderPath: null,
     }).response
 
     expect(response.status).toBe(400)

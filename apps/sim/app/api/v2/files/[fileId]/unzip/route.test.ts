@@ -30,7 +30,7 @@ vi.mock('@/app/api/v2/lib/gate', () => v2GateModuleMock)
 
 import { NoWorkspaceAccessError } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { POST } from '@/app/api/v2/files/[fileId]/unarchive/route'
+import { POST } from '@/app/api/v2/files/[fileId]/unzip/route'
 
 const WORKSPACE_ID = '6fc7631d-88cd-46f8-9f0a-d4764daef7f8'
 const FILE_ID = 'wf_archive'
@@ -44,15 +44,15 @@ const AUTH = {
   keyType: 'workspace' as const,
 }
 
-function unarchiveRequest(body: Record<string, unknown> = { workspaceId: WORKSPACE_ID }) {
-  return new NextRequest(`http://localhost:3000/api/v2/files/${FILE_ID}/unarchive`, {
+function unzipRequest(body: Record<string, unknown> = { workspaceId: WORKSPACE_ID }) {
+  return new NextRequest(`http://localhost:3000/api/v2/files/${FILE_ID}/unzip`, {
     method: 'POST',
     headers: { 'x-api-key': 'secret', 'content-type': 'application/json' },
     body: JSON.stringify(body),
   })
 }
 
-describe('POST /api/v2/files/[fileId]/unarchive', () => {
+describe('POST /api/v2/files/[fileId]/unzip', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     v2RouteMocks.authenticate.mockResolvedValue(AUTH)
@@ -72,7 +72,7 @@ describe('POST /api/v2/files/[fileId]/unarchive', () => {
    * operation at all, because it was declared `['session']` only.
    */
   it('unarchives for a workspace API key', async () => {
-    const response = await POST(unarchiveRequest(), context)
+    const response = await POST(unzipRequest(), context)
 
     expect(response.status).toBe(200)
     expect(await response.json()).toEqual({
@@ -87,7 +87,7 @@ describe('POST /api/v2/files/[fileId]/unarchive', () => {
       keyType: 'personal' as const,
     })
 
-    const response = await POST(unarchiveRequest(), context)
+    const response = await POST(unzipRequest(), context)
 
     expect(response.status).toBe(200)
   })
@@ -97,7 +97,7 @@ describe('POST /api/v2/files/[fileId]/unarchive', () => {
    * large archive's whole contents into one response body.
    */
   it('does not return the unpacked files', async () => {
-    const response = await POST(unarchiveRequest(), context)
+    const response = await POST(unzipRequest(), context)
     const body = await response.json()
 
     expect(body.data).not.toHaveProperty('files')
@@ -110,7 +110,7 @@ describe('POST /api/v2/files/[fileId]/unarchive', () => {
 
   it('rejects a body with an undeclared key', async () => {
     const response = await POST(
-      unarchiveRequest({ workspaceId: WORKSPACE_ID, destination: '/elsewhere' }),
+      unzipRequest({ workspaceId: WORKSPACE_ID, destination: '/elsewhere' }),
       context
     )
 
@@ -121,7 +121,7 @@ describe('POST /api/v2/files/[fileId]/unarchive', () => {
   it('rejects an unauthenticated request', async () => {
     v2RouteMocks.authenticate.mockRejectedValueOnce(new MockV2ApiKeyUnauthenticatedError())
 
-    const response = await POST(unarchiveRequest(), context)
+    const response = await POST(unzipRequest(), context)
 
     expect(response.status).toBe(401)
     expect(mocks.extract).not.toHaveBeenCalled()
@@ -130,7 +130,7 @@ describe('POST /api/v2/files/[fileId]/unarchive', () => {
   it('conceals a cross-tenant archive as a missing file', async () => {
     mocks.extract.mockRejectedValueOnce(new NoWorkspaceAccessError())
 
-    const response = await POST(unarchiveRequest(), context)
+    const response = await POST(unzipRequest(), context)
 
     expect(response.status).toBe(404)
     expect(await response.json()).toEqual({
@@ -144,7 +144,7 @@ describe('POST /api/v2/files/[fileId]/unarchive', () => {
       new OrchestrationError('payload_too_large', 'Archive exceeds the 100 MB unzip limit')
     )
 
-    const response = await POST(unarchiveRequest(), context)
+    const response = await POST(unzipRequest(), context)
 
     expect(response.status).toBe(413)
     expect((await response.json()).error.message).toContain('unzip limit')
@@ -155,7 +155,7 @@ describe('POST /api/v2/files/[fileId]/unarchive', () => {
       new OrchestrationError('conflict', 'This archive is already being unzipped')
     )
 
-    const response = await POST(unarchiveRequest(), context)
+    const response = await POST(unzipRequest(), context)
 
     expect(response.status).toBe(409)
   })
@@ -165,7 +165,7 @@ describe('POST /api/v2/files/[fileId]/unarchive', () => {
       new OrchestrationError('validation', 'Only .zip files can be unzipped')
     )
 
-    const response = await POST(unarchiveRequest(), context)
+    const response = await POST(unzipRequest(), context)
 
     expect(response.status).toBe(400)
   })

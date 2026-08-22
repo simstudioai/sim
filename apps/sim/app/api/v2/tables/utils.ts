@@ -185,13 +185,14 @@ function toApiRunState(executions: RowExecutions): Record<string, V2RowRunState>
   const runState: Record<string, V2RowRunState> = {}
   for (const [groupId, execution] of Object.entries(executions)) {
     runState[groupId] = {
-      status: execution.status,
+      /** Stored as `cancelled`; published as `canceled`. See presentV2TableDispatch. */
+      status: execution.status === 'cancelled' ? 'canceled' : execution.status,
       executionId: execution.executionId,
       workflowId: execution.workflowId,
       error: execution.error,
       runningBlockIds: execution.runningBlockIds ?? [],
       blockErrors: execution.blockErrors ?? {},
-      cancelledAt: execution.cancelledAt ?? null,
+      canceledAt: execution.cancelledAt ?? null,
     }
   }
   return runState

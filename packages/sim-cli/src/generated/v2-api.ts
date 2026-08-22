@@ -745,7 +745,7 @@ type CancelTableDispatchResponseRef0 = {
   id: string
   tableId: string
   workspaceId: string
-  status: 'pending' | 'dispatching' | 'complete' | 'cancelled'
+  status: 'pending' | 'dispatching' | 'complete' | 'canceled'
   mode: 'all' | 'incomplete' | 'new'
   scope: {
     groupIds: Array<string>
@@ -759,7 +759,7 @@ type CancelTableDispatchResponseRef0 = {
   isManualRun: boolean
   requestedAt: string
   completedAt: string | null
-  cancelledAt: string | null
+  canceledAt: string | null
 }
 
 export type CancelTableDispatchResponse = {
@@ -2190,7 +2190,7 @@ type CreateTableRowsResponseRef2 = {
   error: string | null
   runningBlockIds: Array<string>
   blockErrors: Record<string, string>
-  cancelledAt: string | null
+  canceledAt: string | null
 }
 
 type CreateTableRowsResponseRef3 = {
@@ -4199,7 +4199,7 @@ type GetTableDispatchResponseRef0 = {
   id: string
   tableId: string
   workspaceId: string
-  status: 'pending' | 'dispatching' | 'complete' | 'cancelled'
+  status: 'pending' | 'dispatching' | 'complete' | 'canceled'
   mode: 'all' | 'incomplete' | 'new'
   scope: {
     groupIds: Array<string>
@@ -4213,7 +4213,7 @@ type GetTableDispatchResponseRef0 = {
   isManualRun: boolean
   requestedAt: string
   completedAt: string | null
-  cancelledAt: string | null
+  canceledAt: string | null
 }
 
 export type GetTableDispatchResponse = {
@@ -4322,7 +4322,7 @@ type GetTableRowResponseRef1 = {
   error: string | null
   runningBlockIds: Array<string>
   blockErrors: Record<string, string>
-  cancelledAt: string | null
+  canceledAt: string | null
 }
 
 type GetTableRowResponseRef2 = {
@@ -5785,7 +5785,7 @@ type ListTableDispatchesResponseRef0 = {
   id: string
   tableId: string
   workspaceId: string
-  status: 'pending' | 'dispatching' | 'complete' | 'cancelled'
+  status: 'pending' | 'dispatching' | 'complete' | 'canceled'
   mode: 'all' | 'incomplete' | 'new'
   scope: {
     groupIds: Array<string>
@@ -5799,7 +5799,7 @@ type ListTableDispatchesResponseRef0 = {
   isManualRun: boolean
   requestedAt: string
   completedAt: string | null
-  cancelledAt: string | null
+  canceledAt: string | null
 }
 
 export type ListTableDispatchesResponse = {
@@ -5860,7 +5860,7 @@ type ListTableRowsResponseRef2 = {
   error: string | null
   runningBlockIds: Array<string>
   blockErrors: Record<string, string>
-  cancelledAt: string | null
+  canceledAt: string | null
 }
 
 export type ListTableRowsResponse = {
@@ -6279,7 +6279,7 @@ export type MoveTablesBody = {
   workspaceId: string
   tableIds?: Array<string>
   folderPaths?: Array<MoveTablesBodyRef0>
-  targetFolderPath: MoveTablesBodyRef0 | null
+  targetFolderPath?: MoveTablesBodyRef0
 }
 
 type MoveTablesResponseRef0 = {
@@ -6453,7 +6453,7 @@ type QueryRowsResponseRef2 = {
   error: string | null
   runningBlockIds: Array<string>
   blockErrors: Record<string, string>
-  cancelledAt: string | null
+  canceledAt: string | null
 }
 
 export type QueryRowsResponse = {
@@ -7564,27 +7564,6 @@ export type TableExportDownloadResponse = {
   data: TableExportDownloadResponseRef0
 }
 
-/** `POST /api/v2/files/[fileId]/unarchive` */
-export type UnarchiveFileParams = {
-  fileId: string
-}
-
-export type UnarchiveFileQuery = Record<string, unknown>
-
-export type UnarchiveFileBody = {
-  workspaceId: string
-}
-
-type UnarchiveFileResponseRef0 = {
-  folderPath: string
-  extractedFileCount: number
-  skippedFileCount: number
-}
-
-export type UnarchiveFileResponse = {
-  data: UnarchiveFileResponseRef0
-}
-
 /** `DELETE /api/v2/workflows/[workflowId]/deploy` */
 export type UndeployWorkflowParams = {
   workflowId: string
@@ -7653,6 +7632,27 @@ type UndeployWorkflowMcpToolResponseRef0 = {
 
 export type UndeployWorkflowMcpToolResponse = {
   data: UndeployWorkflowMcpToolResponseRef0
+}
+
+/** `POST /api/v2/files/[fileId]/unzip` */
+export type UnzipFileParams = {
+  fileId: string
+}
+
+export type UnzipFileQuery = Record<string, unknown>
+
+export type UnzipFileBody = {
+  workspaceId: string
+}
+
+type UnzipFileResponseRef0 = {
+  folderPath: string
+  extractedFileCount: number
+  skippedFileCount: number
+}
+
+export type UnzipFileResponse = {
+  data: UnzipFileResponseRef0
 }
 
 /** `PATCH /api/v2/credentials/[credentialId]` */
@@ -8321,7 +8321,7 @@ type UpdateTableRowResponseRef1 = {
   error: string | null
   runningBlockIds: Array<string>
   blockErrors: Record<string, string>
-  cancelledAt: string | null
+  canceledAt: string | null
 }
 
 type UpdateTableRowResponseRef2 = {
@@ -8757,7 +8757,7 @@ type UpsertTableRowResponseRef1 = {
   error: string | null
   runningBlockIds: Array<string>
   blockErrors: Record<string, string>
-  cancelledAt: string | null
+  canceledAt: string | null
 }
 
 type UpsertTableRowResponseRef2 = {
@@ -12621,9 +12621,8 @@ export const V2_OPERATIONS = {
       tableIds: { kind: 'array', default: [], describe: 'Tables to move, by identifier.' },
       folderPaths: { kind: 'array', describe: 'Table folders to re-parent, by canonical path.' },
       targetFolderPath: {
-        kind: 'unknown',
-        required: true,
-        describe: 'Destination folder path. `null` and `/` both mean the workspace root.',
+        kind: 'string',
+        describe: 'Destination folder path. Omit to move the selection to the workspace root.',
       },
     },
   },
@@ -13189,17 +13188,6 @@ export const V2_OPERATIONS = {
       },
     },
   },
-  unarchiveFile: {
-    method: 'POST',
-    path: '/api/v2/files/[fileId]/unarchive',
-    pathParams: ['fileId'] as const,
-    pathParamDocs: { fileId: 'File identifier.' },
-    responseMode: 'json',
-    summary: 'Unarchive File',
-    body: {
-      workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the archive.' },
-    },
-  },
   undeployWorkflow: {
     method: 'DELETE',
     path: '/api/v2/workflows/[workflowId]/deploy',
@@ -13218,6 +13206,17 @@ export const V2_OPERATIONS = {
     },
     responseMode: 'json',
     summary: 'Unpublish Workflow MCP Tool',
+  },
+  unzipFile: {
+    method: 'POST',
+    path: '/api/v2/files/[fileId]/unzip',
+    pathParams: ['fileId'] as const,
+    pathParamDocs: { fileId: 'File identifier.' },
+    responseMode: 'json',
+    summary: 'Unzip File',
+    body: {
+      workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the archive.' },
+    },
   },
   updateCredential: {
     method: 'PATCH',

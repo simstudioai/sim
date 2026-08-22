@@ -542,7 +542,7 @@ describe('v2 table run dispatch contract', () => {
     isManualRun: true,
     requestedAt: '2026-01-01T00:00:00.000Z',
     completedAt: null,
-    cancelledAt: null,
+    canceledAt: null,
   }
 
   /**
@@ -551,7 +551,7 @@ describe('v2 table run dispatch contract', () => {
    * status set that stopped at the in-flight states would make polling a run to
    * completion — the only reason to poll — a 500.
    */
-  it.each(['pending', 'dispatching', 'complete', 'cancelled'] as const)(
+  it.each(['pending', 'dispatching', 'complete', 'canceled'] as const)(
     'publishes %s as a readable dispatch status',
     (status) => {
       expect(
@@ -610,19 +610,19 @@ describe('v2 opt-in row run state', () => {
       data: {},
       runState: {
         'group-1': {
-          status: 'cancelled',
+          status: 'canceled',
           executionId: null,
           workflowId: 'workflow-1',
           error: null,
           runningBlockIds: [],
           blockErrors: {},
-          cancelledAt: '2026-01-02T00:00:00.000Z',
+          canceledAt: '2026-01-02T00:00:00.000Z',
         },
       },
       createdAt: '2026-01-01T00:00:00.000Z',
       updatedAt: '2026-01-01T00:00:00.000Z',
     })
-    expect(parsed.runState?.['group-1'].status).toBe('cancelled')
+    expect(parsed.runState?.['group-1'].status).toBe('canceled')
   })
 
   /**
@@ -793,13 +793,20 @@ describe('v2 bulk table selection contracts', () => {
     ).toBe(false)
   })
 
-  it('accepts a workspace-root destination as null', () => {
+  /** Omission is the root, as on `POST /api/v2/files/move`; `null` is not a second spelling. */
+  it('treats an omitted destination as the workspace root and rejects an explicit null', () => {
+    expect(
+      v2MoveTablesBodySchema.safeParse({
+        workspaceId: WORKSPACE_ID,
+        tableIds: ['table-1'],
+      }).success
+    ).toBe(true)
     expect(
       v2MoveTablesBodySchema.safeParse({
         workspaceId: WORKSPACE_ID,
         tableIds: ['table-1'],
         targetFolderPath: null,
       }).success
-    ).toBe(true)
+    ).toBe(false)
   })
 })

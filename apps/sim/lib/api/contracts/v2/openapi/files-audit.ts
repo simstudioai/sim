@@ -22,7 +22,7 @@ import {
   v2RenameFileContract,
   v2RestoreFileContract,
   v2RestoreFileFolderContract,
-  v2UnarchiveFileContract,
+  v2UnzipFileContract,
   v2UpdateFileContentContract,
   v2UpsertFileShareContract,
 } from '@/lib/api/contracts/v2/files'
@@ -376,7 +376,7 @@ const declaredRoutes = [
     filesOperation({
       operationId: 'readFileText',
       summary: 'Read File Text',
-      description: `Return a file's text content, parsed out of the stored bytes. This reads the file; it writes nothing — \`POST /api/v2/files/{fileId}/unarchive\` is the endpoint that unzips an archive into the workspace. Answers \`400\` for a type no parser supports, naming the raw-bytes download as the escape hatch, and \`413\` for a file above the extraction ceiling. A generated document is extracted from its compiled artifact rather than its generation source, so one still compiling answers \`409\` and is worth retrying. **\`degraded: true\` means text extraction did not fully succeed and the returned text may be incomplete or synthesized from the file's raw bytes. Do not treat it as authoritative content.** The legacy \`.doc\` and \`.ppt\` parsers deliberately return best-effort content rather than failing, so this flag — not an error status — is how a partial extraction is reported. \`truncated\` separately reports that a parser limit stopped extraction early.`,
+      description: `Return a file's text content, parsed out of the stored bytes. This reads the file; it writes nothing — \`POST /api/v2/files/{fileId}/unzip\` is the endpoint that unzips an archive into the workspace. Answers \`400\` for a type no parser supports, naming the raw-bytes download as the escape hatch, and \`413\` for a file above the extraction ceiling. A generated document is extracted from its compiled artifact rather than its generation source, so one still compiling answers \`409\` and is worth retrying. **\`degraded: true\` means text extraction did not fully succeed and the returned text may be incomplete or synthesized from the file's raw bytes. Do not treat it as authoritative content.** The legacy \`.doc\` and \`.ppt\` parsers deliberately return best-effort content rather than failing, so this flag — not an error status — is how a partial extraction is reported. \`truncated\` separately reports that a parser limit stopped extraction early.`,
       errors: [...RESOURCE_CONFLICT_ERRORS, 'PayloadTooLarge'],
       success: { description: 'The extracted text and its extraction-quality flags.' },
     }),
@@ -424,33 +424,33 @@ const declaredRoutes = [
     }
   ),
   defineOpenApiRoute(
-    v2UnarchiveFileContract,
+    v2UnzipFileContract,
     filesOperation({
-      operationId: 'unarchiveFile',
-      summary: 'Unarchive File',
+      operationId: 'unzipFile',
+      summary: 'Unzip File',
       description:
-        "Unzip a `.zip` archive into a new folder beside it and answer counts plus the destination path. This writes new workspace files; it does not read anything out of the archive into the response — `GET /api/v2/files/{fileId}/text` is the endpoint that returns a file's text. The unpacked files are deliberately not returned — a large archive would materialize thousands of objects into one response — so page `GET /api/v2/files?folderPath=...` for the contents. Unzipping is slow: an archive near the size ceiling can run for minutes. Only one unarchive of a given archive runs at a time; a concurrent attempt answers `409`. Archives past the size ceiling, and runs that outrun their time budget, answer `413`.",
+        "Unzip a `.zip` archive into a new folder beside it and answer counts plus the destination path. This writes new workspace files; it does not read anything out of the archive into the response — `GET /api/v2/files/{fileId}/text` is the endpoint that returns a file's text. The unpacked files are deliberately not returned — a large archive would materialize thousands of objects into one response — so page `GET /api/v2/files?folderPath=...` for the contents. Unzipping is slow: an archive near the size ceiling can run for minutes. Only one unzip of a given archive runs at a time; a concurrent attempt answers `409`. Archives past the size ceiling, and runs that outrun their time budget, answer `413`.",
       errors: [...RESOURCE_CONFLICT_ERRORS, 'PayloadTooLarge'],
       success: { description: 'Counts and destination folder for the unpacked archive.' },
     }),
     {
       params: documentedSchema(
-        v2UnarchiveFileContract.params,
-        'UnarchiveFileParams',
-        'Unarchive file path parameters',
+        v2UnzipFileContract.params,
+        'UnzipFileParams',
+        'Unzip file path parameters',
         'Archive selected for unzipping.'
       ),
-      query: v2UnarchiveFileContract.query,
+      query: v2UnzipFileContract.query,
       body: documentedSchema(
-        v2UnarchiveFileContract.body,
-        'UnarchiveFileBody',
-        'Unarchive file body',
+        v2UnzipFileContract.body,
+        'UnzipFileBody',
+        'Unzip file body',
         'Workspace scope for the archive.'
       ),
       response: documentedSchema(
-        v2UnarchiveFileContract.response.schema,
-        'FileUnarchiveResponse',
-        'Unarchive file response',
+        v2UnzipFileContract.response.schema,
+        'FileUnzipResponse',
+        'Unzip file response',
         'Counts and destination folder for the unpacked archive.'
       ),
     }

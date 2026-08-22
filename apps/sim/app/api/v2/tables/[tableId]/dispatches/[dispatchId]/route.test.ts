@@ -114,17 +114,20 @@ describe('GET /api/v2/tables/[tableId]/dispatches/[dispatchId]', () => {
    * schema stops at the in-flight states, and v2 parses responses outbound, so
    * a poller reaching the state it was waiting for would have got a 500.
    */
-  it.each(['pending', 'dispatching', 'complete', 'cancelled'] as const)(
-    'answers 200 for a %s dispatch',
-    async (status) => {
-      mocks.readDispatch.mockResolvedValue({ dispatch: dispatch(status) })
+  it.each([
+    ['pending', 'pending'],
+    ['dispatching', 'dispatching'],
+    ['complete', 'complete'],
+    /** Stored with two `l`s; published with one, like every other table status. */
+    ['cancelled', 'canceled'],
+  ] as const)('answers 200 for a %s dispatch', async (stored, published) => {
+    mocks.readDispatch.mockResolvedValue({ dispatch: dispatch(stored) })
 
-      const response = await read().response
+    const response = await read().response
 
-      expect(response.status).toBe(200)
-      expect((await response.json()).data.status).toBe(status)
-    }
-  )
+    expect(response.status).toBe(200)
+    expect((await response.json()).data.status).toBe(published)
+  })
 
   it('never publishes the scheduler cursor', async () => {
     const response = await read().response
@@ -180,7 +183,7 @@ describe('DELETE /api/v2/tables/[tableId]/dispatches/[dispatchId]', () => {
       input: { tableId: 'table-1', dispatchId: 'dispatch-1', workspaceId: WORKSPACE_ID },
       request: invocation.request,
     })
-    expect((await response.json()).data.status).toBe('cancelled')
+    expect((await response.json()).data.status).toBe('canceled')
   })
 
   /**

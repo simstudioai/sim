@@ -1008,7 +1008,7 @@ describe('destructive operations are gated', () => {
     'deployWorkflowMcpTool',
     'duplicateWorkflow',
     'executeWorkflow',
-    'unarchiveFile',
+    'unzipFile',
     'searchTableRows',
     'grantSkillEditor',
     'importWorkflow',

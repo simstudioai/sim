@@ -2380,7 +2380,7 @@
       "post": {
         "operationId": "createTableDispatch",
         "summary": "Create Run Dispatch",
-        "description": "Asynchronously run workflow or enrichment groups across all rows or a selected row subset. Poll the returned `dispatchId` with `GET /api/v2/tables/{tableId}/dispatches/{dispatchId}` until its status is `complete` or `cancelled`, and cancel it with `DELETE` on the same path. A `null` `dispatchId` means the run settled inline and there is nothing to poll.",
+        "description": "Asynchronously run workflow or enrichment groups across all rows or a selected row subset. Poll the returned `dispatchId` with `GET /api/v2/tables/{tableId}/dispatches/{dispatchId}` until its status is `complete` or `canceled`, and cancel it with `DELETE` on the same path. A `null` `dispatchId` means the run settled inline and there is nothing to poll.",
         "tags": ["Tables"],
         "parameters": [
           {
@@ -4312,7 +4312,7 @@
       "get": {
         "operationId": "getTableDispatch",
         "summary": "Get Run Dispatch",
-        "description": "Poll one workflow-column run dispatch by the `dispatchId` the run endpoints returned. Answers in every lifecycle state — `pending`, `dispatching`, `complete`, and `cancelled` — so a poller can wait for a run to settle. Per-cell outcomes are read with `includeRunState` on the row endpoints.",
+        "description": "Poll one workflow-column run dispatch by the `dispatchId` the run endpoints returned. Answers in every lifecycle state — `pending`, `dispatching`, `complete`, and `canceled` — so a poller can wait for a run to settle. Per-cell outcomes are read with `includeRunState` on the row endpoints.",
         "tags": ["Tables"],
         "parameters": [
           {
@@ -4398,7 +4398,7 @@
       "delete": {
         "operationId": "cancelTableDispatch",
         "summary": "Cancel Run Dispatch",
-        "description": "Cancel one run dispatch by the `dispatchId` the run endpoint returned. This stops the scheduler: the dispatcher observes the cancellation at its next iteration and enqueues no further cells. Cells already handed to the queue are NOT cancelled here — nothing links a queued cell back to the dispatch that enqueued it — so use `POST /api/v2/tables/{tableId}/cancel-runs` to stop work already in flight. Idempotent: a dispatch already `complete` or `cancelled` is returned unchanged.",
+        "description": "Cancel one run dispatch by the `dispatchId` the run endpoint returned. This stops the scheduler: the dispatcher observes the cancellation at its next iteration and enqueues no further cells. Cells already handed to the queue are NOT canceled here — nothing links a queued cell back to the dispatch that enqueued it — so use `POST /api/v2/tables/{tableId}/cancel-runs` to stop work already in flight. Idempotent: a dispatch already `complete` or `canceled` is returned unchanged.",
         "tags": ["Tables"],
         "parameters": [
           {
@@ -5777,7 +5777,7 @@
         "properties": {
           "status": {
             "type": "string",
-            "description": "Lifecycle state of the most recent run for this cell: `pending`, `queued`, `running`, `completed`, `error`, or `cancelled`."
+            "description": "Lifecycle state of the most recent run for this cell: `pending`, `queued`, `running`, `completed`, `error`, or `canceled`."
           },
           "executionId": {
             "anyOf": [
@@ -5822,7 +5822,7 @@
             },
             "description": "Per-block failure messages keyed by block identifier."
           },
-          "cancelledAt": {
+          "canceledAt": {
             "anyOf": [
               {
                 "type": "string",
@@ -5833,7 +5833,7 @@
                 "type": "null"
               }
             ],
-            "description": "ISO 8601 timestamp when the cell was cancelled, or null."
+            "description": "ISO 8601 timestamp when the cell was canceled, or null."
           }
         },
         "required": [
@@ -5843,7 +5843,7 @@
           "error",
           "runningBlockIds",
           "blockErrors",
-          "cancelledAt"
+          "canceledAt"
         ],
         "additionalProperties": false,
         "title": "Table row run state",
@@ -9739,7 +9739,7 @@
           },
           "aborted": {
             "type": "boolean",
-            "description": "True when the run was cancelled before it settled."
+            "description": "True when the run was canceled before it settled."
           },
           "providers": {
             "type": "array",
@@ -9843,8 +9843,8 @@
           },
           "status": {
             "type": "string",
-            "enum": ["pending", "dispatching", "complete", "cancelled"],
-            "description": "Current dispatch lifecycle state. Note the spelling: a dispatch is `cancelled` with two `l`s, mirroring the stored column, while table imports, exports, and row run state spell the same concept `canceled`. Match the exact value for the resource you are reading rather than assuming one spelling across the API."
+            "enum": ["pending", "dispatching", "complete", "canceled"],
+            "description": "Current dispatch lifecycle state."
           },
           "mode": {
             "type": "string",
@@ -9928,7 +9928,7 @@
             ],
             "description": "ISO 8601 timestamp when the dispatch completed, or null."
           },
-          "cancelledAt": {
+          "canceledAt": {
             "anyOf": [
               {
                 "type": "string",
@@ -9939,7 +9939,7 @@
                 "type": "null"
               }
             ],
-            "description": "ISO 8601 timestamp when the dispatch was cancelled, or null."
+            "description": "ISO 8601 timestamp when the dispatch was canceled, or null."
           }
         },
         "required": [
@@ -9954,7 +9954,7 @@
           "isManualRun",
           "requestedAt",
           "completedAt",
-          "cancelledAt"
+          "canceledAt"
         ],
         "additionalProperties": false,
         "title": "Table run dispatch",
@@ -10159,18 +10159,11 @@
             }
           },
           "targetFolderPath": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/FolderPathInput"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Destination folder path. `null` and `/` both mean the workspace root."
+            "description": "Destination folder path. Omit to move the selection to the workspace root.",
+            "$ref": "#/components/schemas/FolderPathInput"
           }
         },
-        "required": ["workspaceId", "targetFolderPath"],
+        "required": ["workspaceId"],
         "additionalProperties": false,
         "title": "Bulk move tables request",
         "description": "Workspace scope, the tables and folder paths to move, and the destination folder path."

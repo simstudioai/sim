@@ -1571,7 +1571,7 @@ const declaredRoutes = [
       operationId: 'deleteWorkflowMcpServer',
       summary: 'Delete Workflow MCP Server',
       description: `Unpublish an MCP server. Every tool it served stops answering and connected clients lose the endpoint. The workflows themselves are untouched — their own deployments stay live and executable through the workflow API. ${WORKSPACE_API_KEY_DENIED}`,
-      errors: RESOURCE_ERRORS,
+      errors: RESOURCE_CONFLICT_ERRORS,
       success: { description: 'The MCP server was unpublished.' },
     }),
     {
@@ -1614,7 +1614,7 @@ const declaredRoutes = [
       operationId: 'undeployWorkflowMcpTool',
       summary: 'Unpublish Workflow MCP Tool',
       description: `Remove a workflow from an MCP server. Addressed by workflow rather than by tool identifier, because a server carries at most one live tool per workflow. The workflow's own deployment is untouched. ${WORKSPACE_API_KEY_DENIED}`,
-      errors: RESOURCE_ERRORS,
+      errors: RESOURCE_CONFLICT_ERRORS,
       success: { description: 'The tool was removed.' },
     }),
     {

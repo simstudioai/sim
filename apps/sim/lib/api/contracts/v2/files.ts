@@ -852,12 +852,12 @@ export const v2DeleteFileContract = defineRouteContract({
   },
 })
 
-export const v2UnarchiveFileBodySchema = z
+export const v2UnzipFileBodySchema = z
   .object({
     workspaceId: workspaceIdSchema.describe('Workspace that owns the archive.'),
   })
   .strict()
-export type V2UnarchiveFileBody = z.input<typeof v2UnarchiveFileBodySchema>
+export type V2UnzipFileBody = z.input<typeof v2UnzipFileBodySchema>
 
 /**
  * Counts plus the destination path, deliberately not the unpacked files.
@@ -867,7 +867,7 @@ export type V2UnarchiveFileBody = z.input<typeof v2UnarchiveFileBodySchema>
  * endpoints exist to avoid. The caller pages
  * `GET /api/v2/files?folderPath=...` instead.
  */
-export const v2UnarchiveFileDataSchema = z
+export const v2UnzipFileDataSchema = z
   .object({
     folderPath: v2FolderPathSchema.describe(
       'Canonical path of the folder the archive was unpacked into. May differ from the archive name when a sibling folder already claimed it.'
@@ -885,29 +885,32 @@ export const v2UnarchiveFileDataSchema = z
   })
   .strict()
   .meta({
-    id: 'V2FileUnarchiveResult',
-    title: 'Unarchive result',
+    id: 'V2FileUnzipResult',
+    title: 'Unzip result',
     description: 'Outcome of unzipping a workspace archive into a folder.',
   })
-export type V2FileUnarchiveResult = z.output<typeof v2UnarchiveFileDataSchema>
+export type V2FileUnzipResult = z.output<typeof v2UnzipFileDataSchema>
 
 /**
  * Unzips an archive into a new folder beside it.
  *
- * Named `unarchive`, not `extract`: the sibling `GET /api/v2/files/[fileId]/text`
- * is the endpoint that extracts something *out of* a file, and one surface
- * cannot use the same verb for reading a file's text and for unpacking an
- * archive into the workspace.
+ * Named `unzip` because both other candidates are already taken on this
+ * resource. `extract` reads as "extract text", which is what the sibling
+ * `GET /api/v2/files/[fileId]/text` does. `unarchive` reads as the inverse of
+ * `DELETE` + `POST /api/v2/files/[fileId]/restore`, since a soft-deleted file
+ * is an *archived* file here and `GET /api/v2/files?scope=archived` lists them.
+ * `unzip` collides with neither, and it is what the implementation calls
+ * itself — the format is `.zip` and nothing else.
  */
-export const v2UnarchiveFileContract = defineRouteContract({
+export const v2UnzipFileContract = defineRouteContract({
   method: 'POST',
-  path: '/api/v2/files/[fileId]/unarchive',
+  path: '/api/v2/files/[fileId]/unzip',
   query: noInputSchema,
   params: v2FileParamsSchema,
-  body: v2UnarchiveFileBodySchema,
+  body: v2UnzipFileBodySchema,
   response: {
     mode: 'json',
-    schema: v2DataResponse(v2UnarchiveFileDataSchema),
+    schema: v2DataResponse(v2UnzipFileDataSchema),
   },
 })
 
