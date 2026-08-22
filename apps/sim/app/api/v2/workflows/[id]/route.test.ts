@@ -98,6 +98,7 @@ describe('/api/v2/workflows/[id]', () => {
     expect(response.status).toBe(200)
     expect((await response.json()).data).toMatchObject({
       id: WORKFLOW_ID,
+      webUrl: `https://test.sim.ai/workspace/${WORKSPACE_ID}/w/${WORKFLOW_ID}`,
       workspaceId: WORKSPACE_ID,
       folderPath: '/',
       inputs: [],

@@ -1,4 +1,6 @@
 import type { V2ApiTable } from '@/lib/api/contracts/v2/tables'
+import { getBaseUrl } from '@/lib/core/utils/urls'
+import { workspaceResourceWebUrl } from '@/lib/resources'
 import type { RowData, TableDefinition, TableSchema } from '@/lib/table'
 import { getMaxRowsPerTable } from '@/lib/table/billing'
 import { buildColumnNameById, remapViewConfigColumnRefs } from '@/lib/table/column-keys'
@@ -47,10 +49,12 @@ function serializeApiTable(
   table: TableDefinition,
   folderPath: string,
   ownerEmail: string,
-  maxRows: number
+  maxRows: number,
+  baseUrl: string
 ): V2ApiTable {
   return {
     id: table.id,
+    webUrl: workspaceResourceWebUrl(baseUrl, table.workspaceId, 'table', table.id),
     name: table.name,
     description: table.description ?? null,
     ownerEmail,
@@ -88,7 +92,8 @@ export async function toApiTable(table: TableDefinition, folderPath: string): Pr
     table,
     folderPath,
     requireResolvedUserEmail(emailByUserId, table.createdBy),
-    maxRows
+    maxRows,
+    getBaseUrl()
   )
 }
 
@@ -106,12 +111,14 @@ export async function toApiTables(
     ),
   ])
   const maxRowsByWorkspaceId = new Map(limits)
+  const baseUrl = getBaseUrl()
   return entries.map(({ table, folderPath }) =>
     serializeApiTable(
       table,
       folderPath,
       requireResolvedUserEmail(emailByUserId, table.createdBy),
-      requireMaxRows(maxRowsByWorkspaceId, table.workspaceId)
+      requireMaxRows(maxRowsByWorkspaceId, table.workspaceId),
+      baseUrl
     )
   )
 }

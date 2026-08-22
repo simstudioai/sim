@@ -3128,6 +3128,11 @@
             "format": "date-time",
             "examples": ["2025-06-18T16:45:00Z"]
           },
+          "webUrl": {
+            "type": "string",
+            "format": "uri",
+            "description": "Canonical absolute URL for opening this resource in the Sim web application."
+          },
           "ownerEmail": {
             "type": "string",
             "format": "email",
@@ -3153,6 +3158,7 @@
           "chunkingConfig",
           "createdAt",
           "updatedAt",
+          "webUrl",
           "ownerEmail",
           "folderPath"
         ],

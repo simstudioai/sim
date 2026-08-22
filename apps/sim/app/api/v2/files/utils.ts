@@ -1,5 +1,7 @@
 import type { V2File } from '@/lib/api/contracts/v2/files'
+import { getBaseUrl } from '@/lib/core/utils/urls'
 import { buildFolderPath } from '@/lib/folders/paths'
+import { workspaceResourceWebUrl } from '@/lib/resources'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { getUserEmailsByIds, requireResolvedUserEmail } from '@/lib/users/queries'
 import { parseWorkspaceFileFolderDisplayPath } from '@/lib/workspace-files/folder-display-path'
@@ -10,7 +12,11 @@ import { parseWorkspaceFileFolderDisplayPath } from '@/lib/workspace-files/folde
  * Public file projection. `workspaceId` (already known to the caller, who
  * supplied it) and the internal storage/versioning columns are not exposed.
  */
-function serializeV2File(record: WorkspaceFileRecord, uploadedByEmail: string): V2File {
+function serializeV2File(
+  record: WorkspaceFileRecord,
+  uploadedByEmail: string,
+  baseUrl: string
+): V2File {
   const folderPath = record.folderId
     ? buildFolderPath(
         (() => {
@@ -22,6 +28,7 @@ function serializeV2File(record: WorkspaceFileRecord, uploadedByEmail: string): 
 
   return {
     id: record.id,
+    webUrl: workspaceResourceWebUrl(baseUrl, record.workspaceId, 'file', record.id),
     name: record.name,
     size: record.size,
     type: record.type,
@@ -37,13 +44,18 @@ function serializeV2File(record: WorkspaceFileRecord, uploadedByEmail: string): 
 /** Resolves and serializes one public file attribution. */
 export async function toV2File(record: WorkspaceFileRecord): Promise<V2File> {
   const emailByUserId = await getUserEmailsByIds([record.uploadedBy])
-  return serializeV2File(record, requireResolvedUserEmail(emailByUserId, record.uploadedBy))
+  return serializeV2File(
+    record,
+    requireResolvedUserEmail(emailByUserId, record.uploadedBy),
+    getBaseUrl()
+  )
 }
 
 /** Resolves a file page's attribution in one query before serialization. */
 export async function toV2Files(records: WorkspaceFileRecord[]): Promise<V2File[]> {
   const emailByUserId = await getUserEmailsByIds(records.map((record) => record.uploadedBy))
+  const baseUrl = getBaseUrl()
   return records.map((record) =>
-    serializeV2File(record, requireResolvedUserEmail(emailByUserId, record.uploadedBy))
+    serializeV2File(record, requireResolvedUserEmail(emailByUserId, record.uploadedBy), baseUrl)
   )
 }

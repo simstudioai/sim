@@ -132,6 +132,7 @@ describe('v2 table column contracts', () => {
     expect(
       v2ApiTableSchema.safeParse({
         id: 'table-1',
+        webUrl: 'https://www.sim.ai/workspace/workspace-1/tables/table-1',
         name: 'contacts',
         description: null,
         ownerEmail: 'owner@example.com',

@@ -554,6 +554,7 @@ export const CLI_CONTRACT: CliContract = {
     describe: 'Show file metadata and sharing status',
     fields: [
       { header: 'id' },
+      { header: 'web URL', path: 'webUrl' },
       { header: 'name' },
       { header: 'size', format: 'bytes' },
       { header: 'type' },

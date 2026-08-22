@@ -2411,6 +2411,11 @@
             "description": "Unique workflow identifier.",
             "examples": ["3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36"]
           },
+          "webUrl": {
+            "type": "string",
+            "format": "uri",
+            "description": "Canonical absolute URL for opening this resource in the Sim web application."
+          },
           "name": {
             "type": "string",
             "description": "Workflow name.",
@@ -2485,6 +2490,7 @@
         },
         "required": [
           "id",
+          "webUrl",
           "name",
           "description",
           "folderPath",
@@ -2531,6 +2537,7 @@
             "data": [
               {
                 "id": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36",
+                "webUrl": "https://www.sim.ai/workspace/a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64/w/3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36",
                 "name": "Customer support triage",
                 "description": "Routes incoming support requests to the right team.",
                 "folderPath": "/Operations",
@@ -2563,6 +2570,7 @@
           {
             "data": {
               "id": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36",
+              "webUrl": "https://www.sim.ai/workspace/a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64/w/3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36",
               "name": "Customer support triage",
               "description": "Routes incoming support requests to the right team.",
               "folderPath": "/Operations",
@@ -2641,6 +2649,11 @@
             "type": "string",
             "description": "Unique workflow identifier.",
             "examples": ["3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36"]
+          },
+          "webUrl": {
+            "type": "string",
+            "format": "uri",
+            "description": "Canonical absolute URL for opening this resource in the Sim web application."
           },
           "name": {
             "type": "string",
@@ -2733,6 +2746,7 @@
         },
         "required": [
           "id",
+          "webUrl",
           "name",
           "description",
           "folderPath",
@@ -2766,6 +2780,7 @@
           {
             "data": {
               "id": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36",
+              "webUrl": "https://www.sim.ai/workspace/a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64/w/3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36",
               "name": "Customer support triage",
               "description": "Routes incoming support requests to the right team.",
               "folderPath": "/Operations",
@@ -2798,6 +2813,7 @@
           {
             "data": {
               "id": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36",
+              "webUrl": "https://www.sim.ai/workspace/a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64/w/3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36",
               "name": "Customer support triage",
               "description": "Routes incoming support requests to the right team.",
               "folderPath": "/Operations",

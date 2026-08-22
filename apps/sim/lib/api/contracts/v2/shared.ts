@@ -180,6 +180,12 @@ import {
  */
 export const v2TimestampSchema = z.string().datetime().meta({ format: 'date-time' })
 
+/** Canonical absolute browser URL for a resource with a stable workspace UI destination. */
+export const v2ResourceWebUrlSchema = z
+  .string()
+  .url()
+  .describe('Canonical absolute URL for opening this resource in the Sim web application.')
+
 /** Canonical v2 error envelope. */
 export const v2ErrorResponseSchema = z.object({
   error: z
