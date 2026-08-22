@@ -91,7 +91,6 @@ export const FolderContextMenu = memo(function FolderContextMenu({
         )}
         {canEdit && (
           <>
-            <DropdownMenuSeparator />
             <DropdownMenuItem onSelect={onRename}>
               <Pencil />
               Rename

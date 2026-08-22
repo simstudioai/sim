@@ -59,6 +59,15 @@ genuinely buys is a stop before the action you cannot undo.
 A second rule is justified only when a menu mixes genuinely different *scopes* — cell-level and
 table-level actions in one menu, say — not different verbs.
 
+**The one standing exception: menus that emulate a native menu.** The text-editor menu
+(`editor-context-menu.tsx`), the terminal menu (`terminal-context-menu.tsx`), and the browser
+page menu (`browser-session.tsx`) each mirror the OS menu the user already knows — clipboard
+banding (`Cut · Copy · Paste │ Select all`) is a convention every text field on their machine
+teaches them. These keep their native banding, and that is the *same* principle as the ordering
+rule above: mirror the surface the user already reads. The test is whether a real menu outside
+Sim taught them the grouping. Our own resource, row, and action menus have no such precedent —
+the toolbars they mirror are flat — so they take the single rule.
+
 **Both sides of every rule must be guaranteed non-empty.** Write the separator's guard out of
 the *exact* render conditions of the items around it, never a looser approximation:
 
