@@ -66,6 +66,7 @@ import {
   type ResourceTableHandle,
 } from '@/app/workspace/[workspaceId]/components'
 import { LogsEmptyState } from '@/app/workspace/[workspaceId]/components/resource/components/resource-empty-state'
+import { SnapshotBoundary } from '@/app/workspace/[workspaceId]/logs/components/log-details/components/execution-snapshot/snapshot-boundary'
 import { useLogFilters } from '@/app/workspace/[workspaceId]/logs/hooks/use-log-filters'
 import { useSearchState } from '@/app/workspace/[workspaceId]/logs/hooks/use-search-state'
 import {
@@ -1275,15 +1276,17 @@ export default function Logs() {
       />
 
       {previewLogId !== null && previewDetailQuery.data?.executionId && (
-        <Suspense fallback={null}>
-          <ExecutionSnapshot
-            executionId={previewDetailQuery.data.executionId}
-            traceSpans={previewDetailQuery.data.executionData?.traceSpans}
-            isModal
-            isOpen={previewLogId !== null}
-            onClose={handleClosePreview}
-          />
-        </Suspense>
+        <SnapshotBoundary key={previewDetailQuery.data.executionId}>
+          <Suspense fallback={null}>
+            <ExecutionSnapshot
+              executionId={previewDetailQuery.data.executionId}
+              traceSpans={previewDetailQuery.data.executionData?.traceSpans}
+              isModal
+              isOpen={previewLogId !== null}
+              onClose={handleClosePreview}
+            />
+          </Suspense>
+        </SnapshotBoundary>
       )}
     </>
   )

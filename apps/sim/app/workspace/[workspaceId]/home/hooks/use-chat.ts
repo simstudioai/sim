@@ -2026,16 +2026,29 @@ export function useChat(
         (m) => m.executeLocalFilesystemTool(toolCallId, toolName, toolArgs, options),
         async (error) => {
           logger.error('Failed to load local filesystem tool executor', { error })
-          const [{ reportClientToolCompletion }, { ASYNC_TOOL_CONFIRMATION_STATUS }] =
-            await Promise.all([
-              import('@/lib/copilot/tools/client/completion'),
-              import('@/lib/copilot/async-runs/lifecycle'),
-            ])
-          await reportClientToolCompletion(
-            toolCallId,
-            ASYNC_TOOL_CONFIRMATION_STATUS.error,
-            'Local filesystem tool failed to load'
-          )
+          /**
+           * The recovery itself can reject (the helper chunks or the completion POST can
+           * fail for the same reason the executor chunk did). Contain it: an unhandled
+           * rejection here would settle nothing and surface as a console error, exactly
+           * like the executor's own report-failure path, which also degrades to a log.
+           */
+          try {
+            const [{ reportClientToolCompletion }, { ASYNC_TOOL_CONFIRMATION_STATUS }] =
+              await Promise.all([
+                import('@/lib/copilot/tools/client/completion'),
+                import('@/lib/copilot/async-runs/lifecycle'),
+              ])
+            await reportClientToolCompletion(
+              toolCallId,
+              ASYNC_TOOL_CONFIRMATION_STATUS.error,
+              'Local filesystem tool failed to load'
+            )
+          } catch (reportError) {
+            logger.error('Failed to report local filesystem tool load failure', {
+              toolCallId,
+              error: reportError,
+            })
+          }
         }
       )
     },
