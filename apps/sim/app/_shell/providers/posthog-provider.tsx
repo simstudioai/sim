@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import type { PostHog } from 'posthog-js'
 import { getEnv, isTruthy, publicEnvMissingAtModuleInit } from '@/lib/core/config/env'
+import { settlePostHogClient } from '@/lib/posthog/client'
 
 const logger = createLogger('PostHogProvider')
 
@@ -18,7 +19,10 @@ export function PostHogProvider({ children }: { children: React.ReactNode }) {
     const posthogEnabled = getEnv('NEXT_PUBLIC_POSTHOG_ENABLED')
     const posthogKey = getEnv('NEXT_PUBLIC_POSTHOG_KEY')
 
-    if (!isTruthy(posthogEnabled) || !posthogKey) return
+    if (!isTruthy(posthogEnabled) || !posthogKey) {
+      settlePostHogClient(null)
+      return
+    }
 
     Promise.all([import('posthog-js'), import('posthog-js/react')])
       .then(([posthogModule, { PostHogProvider: PHProvider }]) => {
@@ -88,6 +92,12 @@ export function PostHogProvider({ children }: { children: React.ReactNode }) {
             persistence: 'localStorage+cookie',
           })
         }
+        /**
+         * Releases anything captured while the imports above were in flight.
+         * Must run after `init`, since `capture` is a silent no-op until then.
+         */
+        settlePostHogClient(posthog)
+
         if (publicEnvMissingAtModuleInit) {
           posthog.capture('runtime_env_missing_at_module_init')
         }
@@ -95,6 +105,7 @@ export function PostHogProvider({ children }: { children: React.ReactNode }) {
         setProvider(() => PHProvider)
       })
       .catch((err) => {
+        settlePostHogClient(null)
         logger.error('Failed to load PostHog', { error: err })
       })
   }, [])
