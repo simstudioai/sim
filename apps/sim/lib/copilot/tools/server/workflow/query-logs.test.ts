@@ -36,9 +36,17 @@ vi.mock('@/lib/execution/payloads/large-execution-value', () => ({
   collectLargeValueKeys: vi.fn(() => []),
 }))
 
+import type { ServerToolContext } from '@/lib/copilot/tools/server/base-tool'
 import { queryLogsServerTool } from './query-logs'
 
-const ctx = { userId: 'user-1', workspaceId: 'ws-1' }
+const ctx: ServerToolContext = { userId: 'user-1', workspaceId: 'ws-1' }
+
+type QueryLogsArgs = Parameters<typeof queryLogsServerTool.execute>[0]
+
+/** Fully-typed list-view args with the schema's defaulted fields spelled out. */
+function listArgs(overrides: Partial<Extract<QueryLogsArgs, { view: 'list' }>>): QueryLogsArgs {
+  return { view: 'list', limit: 100, sortBy: 'date', sortOrder: 'desc', ...overrides }
+}
 
 function detail(overrides: Record<string, unknown> = {}) {
   return {
@@ -218,7 +226,7 @@ describe('queryLogsServerTool', () => {
   it('accepts a workspaceId that re-asserts the execution workspace', async () => {
     listLogsMock.mockResolvedValue({ data: [], nextCursor: null, total: 0 })
 
-    await queryLogsServerTool.execute({ view: 'list', workspaceId: 'ws-1' } as any, ctx)
+    await queryLogsServerTool.execute(listArgs({ workspaceId: 'ws-1' }), ctx)
 
     expect(listLogsMock).toHaveBeenCalledTimes(1)
     expect(listLogsMock.mock.calls[0][0].workspaceId).toBe('ws-1')
@@ -226,7 +234,7 @@ describe('queryLogsServerTool', () => {
 
   it('rejects a workspaceId that names a different workspace', async () => {
     await expect(
-      queryLogsServerTool.execute({ view: 'list', workspaceId: 'ws-other' } as any, ctx)
+      queryLogsServerTool.execute(listArgs({ workspaceId: 'ws-other' }), ctx)
     ).rejects.toThrow('Workspace ID does not match the Copilot execution workspace')
 
     expect(listLogsMock).not.toHaveBeenCalled()
@@ -234,12 +242,7 @@ describe('queryLogsServerTool', () => {
 
   it('fails closed when the context carries no workspace', async () => {
     await expect(
-      queryLogsServerTool.execute(
-        { view: 'list', workspaceId: 'ws-1' } as any,
-        {
-          userId: 'user-1',
-        } as any
-      )
+      queryLogsServerTool.execute(listArgs({ workspaceId: 'ws-1' }), { userId: 'user-1' })
     ).rejects.toThrow('Copilot execution workspace is required')
 
     expect(listLogsMock).not.toHaveBeenCalled()
