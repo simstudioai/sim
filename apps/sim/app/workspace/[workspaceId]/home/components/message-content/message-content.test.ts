@@ -27,6 +27,7 @@ import type { ContentBlock } from '../../types'
 import {
   assistantMessageHasVisibleExecutingTool,
   deriveThinkingLabel,
+  getOrchestratorMessageText,
   parseBlocks,
   shouldSmoothTextSegment,
 } from './message-content'
@@ -99,6 +100,66 @@ function toolEnvelope(
     },
   } as PersistedStreamEventEnvelope
 }
+
+describe('getOrchestratorMessageText', () => {
+  it('copies only orchestrator text from span-based messages', () => {
+    const blocks: ContentBlock[] = [
+      subagentStart('research', 'span-visible', 'main'),
+      {
+        type: 'subagent_text',
+        content: 'Visible research. ',
+        spanId: 'span-visible',
+        timestamp: 2,
+      },
+      {
+        type: 'subagent_text',
+        content: 'Hidden orphan. ',
+        spanId: 'span-orphan',
+        timestamp: 3,
+      },
+      mainText('Main answer.'),
+    ]
+
+    expect(getOrchestratorMessageText(blocks, 'Fallback.')).toBe('Main answer.')
+  })
+
+  it('copies only orchestrator text from legacy messages', () => {
+    const blocks: ContentBlock[] = [
+      { type: 'subagent_text', content: 'Hidden orphan. ', timestamp: 1 },
+      {
+        type: 'subagent',
+        content: 'research',
+        parentToolCallId: 'dispatch-visible',
+        timestamp: 2,
+      },
+      {
+        type: 'subagent_text',
+        content: 'Visible research. ',
+        parentToolCallId: 'dispatch-visible',
+        timestamp: 3,
+      },
+      mainText('Main answer.'),
+    ]
+
+    expect(getOrchestratorMessageText(blocks, 'Fallback.')).toBe('Main answer.')
+  })
+
+  it('separates orchestrator text blocks around excluded subagent output', () => {
+    const blocks: ContentBlock[] = [
+      mainText('Starting answer.'),
+      subagentStart('research', 'span-visible', 'main'),
+      {
+        type: 'subagent_text',
+        content: 'Visible research.',
+        spanId: 'span-visible',
+        timestamp: 2,
+      },
+      mainText('Main answer.'),
+    ]
+
+    expect(getOrchestratorMessageText(blocks, 'Fallback.')).toBe('Starting answer.\n\nMain answer.')
+  })
+})
 
 describe('parseBlocks span-identity tree', () => {
   it('refines a completed credential rename with its previous and new names', () => {

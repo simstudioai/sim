@@ -15,6 +15,7 @@ import {
   ThumbsUp,
   Tooltip,
   toast,
+  useCopyToClipboard,
 } from '@sim/emcn'
 import { useParams, useRouter } from 'next/navigation'
 import { isLiveAssistantMessageId } from '@/lib/copilot/chat/effective-transcript'
@@ -23,34 +24,15 @@ import { useSubmitCopilotFeedback } from '@/hooks/queries/copilot-feedback'
 import { useForkMothershipChat } from '@/hooks/queries/mothership-chats'
 import { useFolderStore } from '@/stores/folders/store'
 
-const SPECIAL_TAGS = 'thinking|options|usage_upgrade|credential|mothership-error|file|question'
-
-function toPlainText(raw: string): string {
-  return (
-    raw
-      // Strip special tags and their contents
-      .replace(new RegExp(`<\\/?(${SPECIAL_TAGS})(?:>[\\s\\S]*?<\\/(${SPECIAL_TAGS})>|>)`, 'g'), '')
-      // Strip markdown
-      .replace(/^#{1,6}\s+/gm, '')
-      .replace(/\*\*(.+?)\*\*/g, '$1')
-      .replace(/\*(.+?)\*/g, '$1')
-      .replace(/`{3}[\s\S]*?`{3}/g, '')
-      .replace(/`(.+?)`/g, '$1')
-      .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
-      .replace(/^[>\-*]\s+/gm, '')
-      .replace(/!\[[^\]]*\]\([^)]+\)/g, '')
-      // Normalize whitespace
-      .replace(/\n{3,}/g, '\n\n')
-      .trim()
-  )
-}
-
 const ICON_CLASS = 'size-[14px]'
 const BUTTON_CLASS =
   'flex size-[26px] items-center justify-center rounded-[6px] text-[var(--text-icon)] transition-colors hover-hover:bg-[var(--surface-hover)] focus-visible:outline-none'
 
 interface MessageActionsProps {
   content: string
+  getCopyContent?: () => string
+  hasCopyContent?: boolean
+  prepareContentForCopy?: (content: string) => string
   userQuery?: string
   requestId?: string
   messageId?: string
@@ -58,6 +40,9 @@ interface MessageActionsProps {
 
 export const MessageActions = memo(function MessageActions({
   content,
+  getCopyContent,
+  hasCopyContent,
+  prepareContentForCopy,
   userQuery,
   requestId,
   messageId,
@@ -65,40 +50,28 @@ export const MessageActions = memo(function MessageActions({
   const router = useRouter()
   const params = useParams<{ workspaceId: string }>()
   const { chatId } = useChatSurface()
-  const [copied, setCopied] = useState(false)
+  const { copied, copy: copyMessage } = useCopyToClipboard({ resetMs: 1500 })
   const [copiedRequestId, setCopiedRequestId] = useState(false)
   const [pendingFeedback, setPendingFeedback] = useState<'up' | 'down' | null>(null)
   const [feedbackText, setFeedbackText] = useState('')
-  const resetTimeoutRef = useRef<number | null>(null)
   const requestIdTimeoutRef = useRef<number | null>(null)
   const submitFeedback = useSubmitCopilotFeedback()
   const forkChat = useForkMothershipChat(params.workspaceId)
 
   useEffect(() => {
     return () => {
-      if (resetTimeoutRef.current !== null) {
-        window.clearTimeout(resetTimeoutRef.current)
-      }
       if (requestIdTimeoutRef.current !== null) {
         window.clearTimeout(requestIdTimeoutRef.current)
       }
     }
   }, [])
 
-  const copyToClipboard = async () => {
-    if (!content) return
-    const text = toPlainText(content)
-    if (!text) return
-    try {
-      await navigator.clipboard.writeText(text)
-      setCopied(true)
-      if (resetTimeoutRef.current !== null) {
-        window.clearTimeout(resetTimeoutRef.current)
-      }
-      resetTimeoutRef.current = window.setTimeout(() => setCopied(false), 1500)
-    } catch {
-      /* clipboard unavailable */
-    }
+  const copyToClipboard = () => {
+    const contentToCopy = getCopyContent?.() ?? content
+    if (!contentToCopy) return
+    const markdown = prepareContentForCopy?.(contentToCopy) ?? contentToCopy
+    if (!markdown) return
+    void copyMessage(markdown)
   }
 
   const copyRequestId = async () => {
@@ -166,18 +139,18 @@ export const MessageActions = memo(function MessageActions({
     }
   }
 
-  const hasContent = Boolean(content)
+  const canCopyContent = hasCopyContent ?? Boolean(content)
   const canSubmitFeedback = Boolean(chatId && userQuery)
   // A live (just-streamed) assistant message carries a synthetic id that the
   // persisted transcript doesn't know — forking it would 400. The button
   // appears once the transcript refetch swaps in the persisted message id.
   const canFork = Boolean(chatId && messageId && !isLiveAssistantMessageId(messageId))
-  if (!hasContent && !canSubmitFeedback && !canFork) return null
+  if (!canCopyContent && !canSubmitFeedback && !canFork) return null
 
   return (
     <>
       <div className='flex items-center gap-0.5'>
-        {hasContent && (
+        {canCopyContent && (
           <Tooltip.Root>
             <Tooltip.Trigger asChild>
               <button
