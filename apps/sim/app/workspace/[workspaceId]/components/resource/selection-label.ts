@@ -16,3 +16,21 @@ export function selectionActionLabel(
   if (selectedCount <= 1) return singleItemLabel
   return `${action} ${selectedCount} items`
 }
+
+interface SelectionToggleActionLabelOptions {
+  selectedCount: number
+  enabledCount: number
+  disabledCount: number
+  isSelectedItemEnabled: boolean
+}
+
+export function selectionToggleActionLabel({
+  selectedCount,
+  enabledCount,
+  disabledCount,
+  isSelectedItemEnabled,
+}: SelectionToggleActionLabelOptions): string {
+  if (selectedCount <= 1) return isSelectedItemEnabled ? 'Disable' : 'Enable'
+  if (disabledCount > 0) return selectionActionLabel('Enable', disabledCount)
+  return selectionActionLabel('Disable', enabledCount)
+}

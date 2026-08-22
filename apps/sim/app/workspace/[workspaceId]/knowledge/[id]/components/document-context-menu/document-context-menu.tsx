@@ -8,7 +8,10 @@ import {
   DropdownMenuTrigger,
 } from '@sim/emcn'
 import { Eye, Pencil, Plus, SquareArrowUpRight, TagIcon, Trash } from '@sim/emcn/icons'
-import { selectionActionLabel } from '@/app/workspace/[workspaceId]/components/resource/selection-label'
+import {
+  selectionActionLabel,
+  selectionToggleActionLabel,
+} from '@/app/workspace/[workspaceId]/components/resource/selection-label'
 
 interface DocumentContextMenuProps {
   isOpen: boolean
@@ -59,14 +62,12 @@ export function DocumentContextMenu({
   disabledCount = 0,
 }: DocumentContextMenuProps) {
   const isMultiSelect = selectedCount > 1
-
-  const getToggleLabel = () => {
-    if (isMultiSelect) {
-      if (disabledCount > 0) return 'Enable'
-      return 'Disable'
-    }
-    return isDocumentEnabled ? 'Disable' : 'Enable'
-  }
+  const toggleLabel = selectionToggleActionLabel({
+    selectedCount,
+    enabledCount,
+    disabledCount,
+    isSelectedItemEnabled: isDocumentEnabled,
+  })
 
   const hasNavigationSection = !isMultiSelect && (!!onOpenInNewTab || !!onOpenSource)
   const hasEditSection = !isMultiSelect && (!!onRename || !!onViewTags)
@@ -125,7 +126,7 @@ export function DocumentContextMenu({
             {onToggleEnabled && (
               <DropdownMenuItem disabled={disableToggleEnabled} onSelect={onToggleEnabled}>
                 <Eye />
-                {selectionActionLabel(getToggleLabel(), selectedCount)}
+                {toggleLabel}
               </DropdownMenuItem>
             )}
 

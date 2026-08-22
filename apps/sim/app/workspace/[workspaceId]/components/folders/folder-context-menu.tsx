@@ -63,6 +63,7 @@ export const FolderContextMenu = memo(function FolderContextMenu({
   const isMultiSelect = selectedCount > 1
   const hasMove = Boolean(onMove && moveOptions && moveOptions.length > 0)
   const hasActionsAboveDestructive = !isMultiSelect || hasMove
+  const hasAvailableActions = !isMultiSelect || canEdit
 
   return (
     <DropdownMenu open={isOpen} onOpenChange={(open) => !open && onClose()} modal={false}>
@@ -80,48 +81,54 @@ export const FolderContextMenu = memo(function FolderContextMenu({
         sideOffset={4}
         onCloseAutoFocus={(e) => e.preventDefault()}
       >
-        {!isMultiSelect && (
-          <>
-            <DropdownMenuItem onSelect={onOpen}>
-              <Eye />
-              Open
-            </DropdownMenuItem>
-            <DropdownMenuItem onSelect={onTogglePin}>
-              <Pin />
-              {pinned ? 'Unpin' : 'Pin'}
-            </DropdownMenuItem>
-            {onCopyId && (
-              <DropdownMenuItem onSelect={onCopyId}>
-                <Duplicate />
-                Copy ID
-              </DropdownMenuItem>
-            )}
-          </>
-        )}
-        {canEdit && (
+        {!hasAvailableActions ? (
+          <DropdownMenuItem disabled>No actions available</DropdownMenuItem>
+        ) : (
           <>
             {!isMultiSelect && (
-              <DropdownMenuItem onSelect={onRename}>
-                <Pencil />
-                Rename
-              </DropdownMenuItem>
+              <>
+                <DropdownMenuItem onSelect={onOpen}>
+                  <Eye />
+                  Open
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={onTogglePin}>
+                  <Pin />
+                  {pinned ? 'Unpin' : 'Pin'}
+                </DropdownMenuItem>
+                {onCopyId && (
+                  <DropdownMenuItem onSelect={onCopyId}>
+                    <Duplicate />
+                    Copy ID
+                  </DropdownMenuItem>
+                )}
+              </>
             )}
-            {hasMove && (
-              <DropdownMenuSub>
-                <DropdownMenuSubTrigger>
-                  <FolderInput />
-                  {selectionActionLabel('Move', selectedCount, 'Move to')}
-                </DropdownMenuSubTrigger>
-                <DropdownMenuSubContent>
-                  {renderMoveOptions(moveOptions!, onMove!)}
-                </DropdownMenuSubContent>
-              </DropdownMenuSub>
+            {canEdit && (
+              <>
+                {!isMultiSelect && (
+                  <DropdownMenuItem onSelect={onRename}>
+                    <Pencil />
+                    Rename
+                  </DropdownMenuItem>
+                )}
+                {hasMove && (
+                  <DropdownMenuSub>
+                    <DropdownMenuSubTrigger>
+                      <FolderInput />
+                      {selectionActionLabel('Move', selectedCount, 'Move to')}
+                    </DropdownMenuSubTrigger>
+                    <DropdownMenuSubContent>
+                      {renderMoveOptions(moveOptions!, onMove!)}
+                    </DropdownMenuSubContent>
+                  </DropdownMenuSub>
+                )}
+                {hasActionsAboveDestructive && <DropdownMenuSeparator />}
+                <DropdownMenuItem onSelect={onDelete}>
+                  <Trash />
+                  {selectionActionLabel('Delete', selectedCount)}
+                </DropdownMenuItem>
+              </>
             )}
-            {hasActionsAboveDestructive && <DropdownMenuSeparator />}
-            <DropdownMenuItem onSelect={onDelete}>
-              <Trash />
-              {selectionActionLabel('Delete', selectedCount)}
-            </DropdownMenuItem>
           </>
         )}
       </DropdownMenuContent>

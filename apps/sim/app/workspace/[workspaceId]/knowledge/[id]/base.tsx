@@ -908,6 +908,7 @@ export function KnowledgeBase({
       ? 0
       : pagination.total
     : selectedDocumentsList.filter((doc) => !doc.enabled).length
+  const selectedDocumentCount = isSelectAllMode ? pagination.total : selectedDocuments.size
 
   const handleDocumentContextMenu = useCallback(
     (e: React.MouseEvent, docId: string) => {
@@ -1501,11 +1502,11 @@ export function KnowledgeBase({
         onClose={handleContextMenuClose}
         hasDocument={contextMenuDocument !== null}
         isDocumentEnabled={contextMenuDocument?.enabled ?? true}
-        selectedCount={selectedDocuments.size}
+        selectedCount={selectedDocumentCount}
         enabledCount={enabledCount}
         disabledCount={disabledCount}
         onOpenInNewTab={
-          contextMenuDocument && selectedDocuments.size === 1
+          contextMenuDocument && selectedDocumentCount === 1
             ? () => {
                 const urlParams = new URLSearchParams({
                   kbName: knowledgeBaseName,
@@ -1519,14 +1520,14 @@ export function KnowledgeBase({
             : undefined
         }
         onOpenSource={
-          contextMenuDocument?.sourceUrl && selectedDocuments.size === 1
+          contextMenuDocument?.sourceUrl && selectedDocumentCount === 1
             ? () => window.open(contextMenuDocument.sourceUrl!, '_blank', 'noopener,noreferrer')
             : undefined
         }
         onRename={contextMenuDocument ? () => handleRenameDocument(contextMenuDocument) : undefined}
         onToggleEnabled={
           contextMenuDocument
-            ? selectedDocuments.size > 1
+            ? selectedDocumentCount > 1
               ? () => {
                   if (disabledCount > 0) {
                     handleBulkEnable()
@@ -1538,13 +1539,13 @@ export function KnowledgeBase({
             : undefined
         }
         onViewTags={
-          contextMenuDocument && selectedDocuments.size === 1 && userPermissions.canEdit
+          contextMenuDocument && selectedDocumentCount === 1 && userPermissions.canEdit
             ? () => handleViewDocumentTags(contextMenuDocument)
             : undefined
         }
         onDelete={
           contextMenuDocument
-            ? selectedDocuments.size > 1
+            ? selectedDocumentCount > 1
               ? handleBulkDelete
               : () => handleDeleteDocument(contextMenuDocument.id)
             : undefined

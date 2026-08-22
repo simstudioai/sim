@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   selectionActionLabel,
   selectionLabel,
+  selectionToggleActionLabel,
 } from '@/app/workspace/[workspaceId]/components/resource/selection-label'
 
 describe('selection labels', () => {
@@ -19,5 +20,27 @@ describe('selection labels', () => {
 
   it('states the scope of a multi-row action', () => {
     expect(selectionActionLabel('Delete', 3)).toBe('Delete 3 items')
+  })
+
+  it('counts only disabled items for a mixed-selection enable action', () => {
+    expect(
+      selectionToggleActionLabel({
+        selectedCount: 5,
+        enabledCount: 2,
+        disabledCount: 3,
+        isSelectedItemEnabled: true,
+      })
+    ).toBe('Enable 3 items')
+  })
+
+  it('counts enabled items when a selection can only be disabled', () => {
+    expect(
+      selectionToggleActionLabel({
+        selectedCount: 4,
+        enabledCount: 4,
+        disabledCount: 0,
+        isSelectedItemEnabled: true,
+      })
+    ).toBe('Disable 4 items')
   })
 })

@@ -23,6 +23,7 @@ vi.mock('@sim/emcn/icons', () => ({
   FolderInput: () => null,
   Pencil: () => null,
   Pin: () => null,
+  Plus: () => null,
   SquareArrowUpRight: () => null,
   TagIcon: () => null,
   Trash: () => null,
@@ -37,6 +38,8 @@ vi.mock('@/app/workspace/[workspaceId]/components/folders/move-options', () => (
 }))
 
 import { FolderContextMenu } from '@/app/workspace/[workspaceId]/components/folders/folder-context-menu'
+import { ChunkContextMenu } from '@/app/workspace/[workspaceId]/knowledge/[id]/[documentId]/components/chunk-context-menu/chunk-context-menu'
+import { DocumentContextMenu } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/document-context-menu/document-context-menu'
 import { KnowledgeBaseContextMenu } from '@/app/workspace/[workspaceId]/knowledge/components/knowledge-base-context-menu/knowledge-base-context-menu'
 import { TableContextMenu } from '@/app/workspace/[workspaceId]/tables/components/table-context-menu/table-context-menu'
 
@@ -123,5 +126,63 @@ describe('selection-aware resource context menus', () => {
     expect(menu).not.toContain('Rename')
     expect(menu).not.toContain('Copy ID')
     expect(menu).not.toContain('Pin')
+  })
+
+  it('explains when a read-only multi-folder selection has no actions', () => {
+    const menu = renderToStaticMarkup(
+      <FolderContextMenu
+        isOpen
+        position={POSITION}
+        onClose={() => {}}
+        onOpen={() => {}}
+        onRename={() => {}}
+        onDelete={() => {}}
+        onTogglePin={() => {}}
+        pinned={false}
+        canEdit={false}
+        selectedCount={2}
+      />
+    )
+
+    expect(menu).toContain('No actions available')
+    expect(menu).not.toContain('Open')
+    expect(menu).not.toContain('Delete')
+  })
+
+  it('counts only the documents affected by a mixed-selection toggle', () => {
+    const menu = renderToStaticMarkup(
+      <DocumentContextMenu
+        isOpen
+        position={POSITION}
+        onClose={() => {}}
+        hasDocument
+        selectedCount={25}
+        enabledCount={7}
+        disabledCount={18}
+        onToggleEnabled={() => {}}
+        onDelete={() => {}}
+      />
+    )
+
+    expect(menu).toContain('Enable 18 items')
+    expect(menu).toContain('Delete 25 items')
+  })
+
+  it('counts only the chunks affected by a multi-selection toggle', () => {
+    const menu = renderToStaticMarkup(
+      <ChunkContextMenu
+        isOpen
+        position={POSITION}
+        onClose={() => {}}
+        hasChunk
+        selectedCount={3}
+        enabledCount={3}
+        onToggleEnabled={() => {}}
+        onDelete={() => {}}
+      />
+    )
+
+    expect(menu).toContain('Disable 3 items')
+    expect(menu).toContain('Delete 3 items')
   })
 })
