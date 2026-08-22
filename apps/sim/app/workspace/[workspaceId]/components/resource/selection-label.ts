@@ -14,7 +14,11 @@ export function selectionActionLabel(
   singleItemLabel = action
 ): string {
   if (selectedCount <= 1) return singleItemLabel
-  return `${action} ${selectedCount} items`
+  return countedSelectionActionLabel(action, selectedCount)
+}
+
+function countedSelectionActionLabel(action: string, count: number): string {
+  return `${action} ${count} ${count === 1 ? 'item' : 'items'}`
 }
 
 interface SelectionToggleActionLabelOptions {
@@ -35,5 +39,5 @@ export function selectionToggleActionLabel({
   if (selectedCount <= 1) return isSelectedItemEnabled ? 'Disable' : 'Enable'
   const action = disabledCount > 0 ? 'Enable' : 'Disable'
   if (!hasExactAffectedCount) return `${action} selected items`
-  return selectionActionLabel(action, disabledCount > 0 ? disabledCount : enabledCount)
+  return countedSelectionActionLabel(action, disabledCount > 0 ? disabledCount : enabledCount)
 }

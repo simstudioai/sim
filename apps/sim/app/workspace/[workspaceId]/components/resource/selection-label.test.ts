@@ -33,6 +33,17 @@ describe('selection labels', () => {
     ).toBe('Enable 3 items')
   })
 
+  it('keeps a singular affected count visible within a larger selection', () => {
+    expect(
+      selectionToggleActionLabel({
+        selectedCount: 5,
+        enabledCount: 4,
+        disabledCount: 1,
+        isSelectedItemEnabled: true,
+      })
+    ).toBe('Enable 1 item')
+  })
+
   it('counts enabled items when a selection can only be disabled', () => {
     expect(
       selectionToggleActionLabel({

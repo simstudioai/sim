@@ -687,6 +687,7 @@ export function KnowledgeBase({
    * Handles selecting/deselecting a document
    */
   const handleSelectDocument = (docId: string, checked: boolean) => {
+    setIsSelectAllMode(false)
     setSelectedDocuments((prev) => {
       const newSet = new Set(prev)
       if (checked) {
@@ -918,6 +919,7 @@ export function KnowledgeBase({
       const isCurrentlySelected = selectedDocuments.has(doc.id)
 
       if (!isCurrentlySelected) {
+        setIsSelectAllMode(false)
         setSelectedDocuments(new Set([doc.id]))
       }
 
@@ -1423,15 +1425,15 @@ export function KnowledgeBase({
         srTitle='Delete Documents'
         title='Delete Documents'
         text={[
-          `Are you sure you want to delete ${selectedDocuments.size} document${selectedDocuments.size === 1 ? '' : 's'}? `,
+          `Are you sure you want to delete ${selectedDocumentCount} document${selectedDocumentCount === 1 ? '' : 's'}? `,
           {
-            text: `This will permanently delete the selected document${selectedDocuments.size === 1 ? '' : 's'}.`,
+            text: `This will permanently delete the selected document${selectedDocumentCount === 1 ? '' : 's'}.`,
             error: true,
           },
           ' This action cannot be undone.',
         ]}
         confirm={{
-          label: `Delete ${selectedDocuments.size} Document${selectedDocuments.size === 1 ? '' : 's'}`,
+          label: `Delete ${selectedDocumentCount} Document${selectedDocumentCount === 1 ? '' : 's'}`,
           onClick: confirmBulkDelete,
           pending: isBulkOperating,
           pendingLabel: 'Deleting...',
