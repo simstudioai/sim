@@ -323,24 +323,6 @@ export function parseSettingsPathSection<
   return items.find((item) => item.id === normalized)?.id ?? defaultSection
 }
 
-/**
- * True when a path addresses a section directly rather than a detail route beneath it —
- * `…/settings/billing` but not `…/settings/billing/credit-usage`.
- *
- * A detail route resolves to its parent section, so without this the shell would hand the
- * parent's catalog heading to a body that registers its own. That registration happens in a
- * layout effect, so the catalog title would render in the server frame and be swapped on
- * hydration.
- */
-export function isSettingsSectionRootPath(path: string | null | undefined): boolean {
-  if (!path) return false
-  const pathname = path.split(/[?#]/, 1)[0]
-  const segments = pathname.split('/').filter(Boolean)
-  const settingsIndex = segments.lastIndexOf('settings')
-  if (settingsIndex === -1) return segments.length === 1
-  return segments.length === settingsIndex + 2
-}
-
 export const ACCOUNT_SETTINGS_GROUPS = [
   { key: 'account', title: 'Account' },
   { key: 'developer', title: 'Developer' },
@@ -1083,19 +1065,6 @@ export function resolveWorkspaceNavigation({
 
     return [{ ...item, canMutate, locked }]
   })
-}
-
-/**
- * The routed section's static header identity for a standalone plane, or `null` when the
- * segment names no known section. The workspace plane resolves its own equivalent from its
- * catalog in `settings/navigation.ts`.
- */
-export function getSettingsHeaderMeta(
-  plane: SettingsPlane,
-  section: string
-): SettingsHeaderMeta | null {
-  const item = getSettingsSectionMeta(plane, section)
-  return item ? toSettingsHeaderMeta(item) : null
 }
 
 /**
