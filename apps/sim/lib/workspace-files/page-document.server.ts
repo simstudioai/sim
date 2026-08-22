@@ -5,6 +5,14 @@ import { renderSimPageDocument } from '@/lib/workspace-files/page-document'
 /** Images past this size stay as URL references rather than bloating the document. */
 const MAX_INLINE_IMAGE_BYTES = 8 * 1024 * 1024
 
+/**
+ * Ceiling on everything a single document inlines. A per-image limit does not bound
+ * the page on its own: N images each just under it still cost N times it, and they
+ * are fetched concurrently, so that product is also the peak. Images that do not fit
+ * the remaining budget keep their URL reference, exactly like an oversized one.
+ */
+const MAX_INLINE_TOTAL_BYTES = 32 * 1024 * 1024
+
 const IMAGE_SRC = /src="[^"]*\/api\/files\/view\/([^"]+)"/g
 
 /**
@@ -24,21 +32,45 @@ export async function renderSimPageDocumentWithAssets(
   const ids = [...new Set([...documentHtml.matchAll(IMAGE_SRC)].map((match) => match[1]))]
   if (ids.length === 0 || !options.workspaceId) return documentHtml
 
+  const candidates = await Promise.all(
+    ids.map(async (id) => {
+      const record = await getFileMetadataById(id).catch(() => null)
+      if (!record || record.context !== 'workspace' || record.workspaceId !== options.workspaceId)
+        return null
+      return { id, record }
+    })
+  )
+
+  // Pick the inline set from recorded sizes BEFORE fetching anything, so the concurrent
+  // downloads below are bounded in count and in total bytes rather than discovering the
+  // size of each image only once it is already resident. These sizes are written by the
+  // upload pipeline, not supplied by the caller, so they are sound to plan against —
+  // each download still carries its own ceiling in case a row understates its object.
+  let remaining = MAX_INLINE_TOTAL_BYTES
+  const eligible: NonNullable<(typeof candidates)[number]>[] = []
+  for (const candidate of candidates) {
+    if (!candidate) continue
+    const size = candidate.record.sizeBytes ?? candidate.record.size
+    if (size > MAX_INLINE_IMAGE_BYTES || size > remaining) continue
+    remaining -= size
+    eligible.push(candidate)
+  }
+
   const inlined = new Map<string, string>()
   await Promise.all(
-    ids.map(async (id) => {
+    eligible.map(async ({ id, record }) => {
       try {
-        const record = await getFileMetadataById(id)
-        if (!record || record.context !== 'workspace' || record.workspaceId !== options.workspaceId)
-          return
-        const bytes = await downloadFile({ key: record.key, context: 'workspace' })
-        if (bytes.length > MAX_INLINE_IMAGE_BYTES) return
+        const bytes = await downloadFile({
+          key: record.key,
+          context: 'workspace',
+          maxBytes: MAX_INLINE_IMAGE_BYTES,
+        })
         const mime = record.contentType?.startsWith('image/')
           ? record.contentType
           : 'application/octet-stream'
         inlined.set(id, `data:${mime};base64,${bytes.toString('base64')}`)
       } catch {
-        // A missing or unreadable image keeps its URL reference.
+        // A missing, unreadable or oversized image keeps its URL reference.
       }
     })
   )
