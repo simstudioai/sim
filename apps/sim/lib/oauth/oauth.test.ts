@@ -128,6 +128,7 @@ describe('Bitbucket OAuth Connector', () => {
         'pullrequest:write',
         'pipeline',
         'pipeline:write',
+        'webhook',
       ],
       responseType: 'code',
       pkce: false,
@@ -150,6 +151,7 @@ describe('Bitbucket OAuth Connector', () => {
       'pullrequest:write',
       'pipeline',
       'pipeline:write',
+      'webhook',
     ]
     const mockFetch = createMockFetch({
       json: {
@@ -186,6 +188,29 @@ describe('Bitbucket OAuth Connector', () => {
       grant_type: 'authorization_code',
       redirect_uri: 'http://localhost:3000/api/auth/oauth2/callback/bitbucket',
     })
+  })
+
+  it('normalizes Bitbucket’s singular scope response field', async () => {
+    const getToken = getBitbucketConnector().getToken
+    if (!getToken) throw new Error('Bitbucket connector must define getToken')
+
+    const tokens = await withMockFetch(
+      createMockFetch({
+        json: {
+          access_token: 'bitbucket_access_token',
+          refresh_token: 'bitbucket_refresh_token',
+          scope: 'account repository pullrequest webhook',
+          token_type: 'bearer',
+        },
+      }),
+      () =>
+        getToken({
+          code: 'authorization_code',
+          redirectURI: 'http://localhost:3000/api/auth/oauth2/callback/bitbucket',
+        })
+    )
+
+    expect(tokens.scopes).toEqual(['account', 'repository', 'pullrequest', 'webhook'])
   })
 
   it('uses account_id before uuid and always synthesizes an internal email', async () => {

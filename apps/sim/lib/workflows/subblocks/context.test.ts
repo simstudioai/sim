@@ -7,6 +7,7 @@ vi.unmock('@/blocks/registry')
 
 import * as blocksBarrel from '@/blocks'
 import { getAllBlocks, getBlock as getRealBlock } from '@/blocks/registry'
+import { bitbucketSelectors } from '@/hooks/selectors/providers/bitbucket/selectors'
 import {
   buildSelectorContextFromBlock,
   getSelectorContextSubBlocks,
@@ -228,6 +229,36 @@ describe('buildSelectorContextFromBlock', () => {
     )
 
     expect(ctx.oauthCredential).toBeUndefined()
+  })
+
+  it('exposes a trigger workspace slug to the Bitbucket repository selector', () => {
+    const context = buildSelectorContextFromBlock(
+      'bitbucket',
+      {
+        selectedTriggerId: {
+          id: 'selectedTriggerId',
+          type: 'dropdown',
+          value: 'bitbucket_push',
+        },
+        triggerCredentials: {
+          id: 'triggerCredentials',
+          type: 'oauth-input',
+          value: 'credential-1',
+        },
+        workspacePicker: {
+          id: 'workspacePicker',
+          type: 'project-selector',
+          value: 'acme-platform',
+        },
+      },
+      { triggerMode: true }
+    )
+
+    expect(context).toMatchObject({
+      oauthCredential: 'credential-1',
+      workspaceSlug: 'acme-platform',
+    })
+    expect(bitbucketSelectors['bitbucket.repositories'].enabled({ context } as never)).toBe(true)
   })
 
   it('should ignore subblock keys not in SELECTOR_CONTEXT_FIELDS', () => {
