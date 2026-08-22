@@ -578,7 +578,12 @@ describe('maybeWriteOutputToFile', () => {
     )
   })
 
-  it('preserves legacy writes without a registry and marks their provenance unknown', async () => {
+  /**
+   * No registry means no recorder ran, so nothing was written down about these bytes — an absence,
+   * which the surface's policy may relax, and distinct from the taint a refused safety decision
+   * produces below.
+   */
+  it('preserves legacy writes without a registry and marks their provenance unrecorded', async () => {
     const result = await maybeWriteOutputToFile(
       RunFunction.id,
       { outputs: { files: [{ path: 'files/report.json', mode: 'overwrite' }] } },
@@ -589,7 +594,7 @@ describe('maybeWriteOutputToFile', () => {
     expect(result.success).toBe(true)
     expect(mockWriteWorkspaceFileByPath).toHaveBeenCalledWith(
       expect.anything(),
-      expect.objectContaining({ secretProvenance: { status: 'unknown' } })
+      expect.objectContaining({ secretProvenance: { status: 'unrecorded' } })
     )
   })
 

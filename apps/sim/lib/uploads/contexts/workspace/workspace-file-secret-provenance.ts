@@ -242,7 +242,12 @@ export async function createWorkspaceFileSecretProvenanceFromRegistry(
   representations: readonly WorkspaceFileSecretProvenanceRepresentation[] = [],
   representationsComplete = true
 ): Promise<WorkspaceFileSecretProvenanceWriteDecision> {
-  if (!registry) return { safe: true, provenance: { status: 'unknown' } }
+  /**
+   * No registry means no recorder ran, so nothing was written down about these bytes. That is an
+   * absence, and it is the one thing this surface's policy may relax — distinct from the taint
+   * every `safe: false` below produces, which a caller persists as `unknown` and no policy relaxes.
+   */
+  if (!registry) return { safe: true, provenance: { status: 'unrecorded' } }
   const sourceProvenance = registry.exportCommittedProvenanceForValue(sourceValue)
   const persistedProvenance = Object.is(sourceValue, persistedValue)
     ? sourceProvenance
@@ -422,12 +427,19 @@ export async function replaceWorkspaceFileSecretProvenanceInTx(
     return
   }
 
+  /**
+   * Absence and taint are different claims and must not share a stored value. Collapsing them here
+   * is what let a file the writer deliberately refused — a child of a secret-bearing archive, a
+   * generated asset whose safety decision was `false` — become indistinguishable from one nobody
+   * recorded, and therefore eligible for the same relaxation.
+   */
+  const status = provenance.status === 'unrecorded' ? 'unrecorded' : 'unknown'
   await tx
     .insert(workspaceFileSecretProvenance)
-    .values({ fileId, contentUpdatedAt, status: 'unknown', entries: [], updatedAt: new Date() })
+    .values({ fileId, contentUpdatedAt, status, entries: [], updatedAt: new Date() })
     .onConflictDoUpdate({
       target: workspaceFileSecretProvenance.fileId,
-      set: { contentUpdatedAt, status: 'unknown', entries: [], updatedAt: new Date() },
+      set: { contentUpdatedAt, status, entries: [], updatedAt: new Date() },
     })
   await markWorkspaceFileSecretProvenanceTrackedInTx(tx, fileId, contentUpdatedAt)
 }
@@ -449,12 +461,13 @@ export async function initializeWorkspaceFileSecretProvenanceInTx(
 ): Promise<void> {
   const isExact = provenance.status === 'exact'
   const entries = isExact ? serializeExactEntriesForStorage(provenance.entries) : []
+  const status = isExact ? 'exact' : provenance.status === 'unrecorded' ? 'unrecorded' : 'unknown'
   await tx
     .insert(workspaceFileSecretProvenance)
     .values({
       fileId,
       contentUpdatedAt,
-      status: isExact ? 'exact' : 'unknown',
+      status,
       entries,
       updatedAt: new Date(),
     })
@@ -686,10 +699,12 @@ export async function getBoundWorkspaceFileSecretProvenance(
     row.provenanceContentUpdatedAt?.getTime() === row.fileContentUpdatedAt.getTime()
   if (!bindingIsCurrent || !isValidStoredEntries(row.entries)) return { status: 'unknown' }
   /**
-   * The one shape the surface's policy may relax: a sidecar bound to this exact content that says
-   * nobody recorded what it carries — the same statement the untracked file above makes.
+   * The one shape the surface's policy may relax: a sidecar bound to this exact content recording
+   * that nobody vouched for it — the same statement the untracked file above makes. A stored
+   * `unknown` is the opposite claim, written by a writer that refused these bytes on purpose, and
+   * stays refused.
    */
-  if (row.status === 'unknown') return { status: 'unrecorded' }
+  if (row.status === 'unrecorded') return { status: 'unrecorded' }
   if (row.status !== 'exact') return { status: 'unknown' }
   return { status: 'exact', entries: deserializeExactEntriesFromStorage(row.entries) }
 }
@@ -739,9 +754,22 @@ export async function getBoundWorkspaceFileSecretProvenanceByMetadata(
       if (
         row.secretProvenanceVersion !== 1 ||
         row.provenanceContentUpdatedAt?.getTime() !== row.fileContentUpdatedAt.getTime() ||
-        row.status !== 'exact' ||
         !isValidStoredEntries(row.entries)
       ) {
+        result.set(row.id, { status: 'unknown' })
+        continue
+      }
+      /**
+       * Same answer the single-file reader gives the same row. Collapsing a recorded absence into
+       * `unknown` here would leave two classifiers describing one policy differently, and the
+       * caller that eventually distinguishes them would get a different verdict depending on which
+       * one it happened to call.
+       */
+      if (row.status === 'unrecorded') {
+        result.set(row.id, { status: 'unrecorded' })
+        continue
+      }
+      if (row.status !== 'exact') {
         result.set(row.id, { status: 'unknown' })
         continue
       }
@@ -909,7 +937,7 @@ function classifyModelSafeWorkspaceFileRow(
   const bindingIsCurrent =
     row.provenanceContentUpdatedAt?.getTime() === row.fileContentUpdatedAt.getTime()
   if (!bindingIsCurrent || !isValidStoredEntries(row.entries)) return 'unsafe'
-  if (row.status === 'unknown') return 'unrecorded'
+  if (row.status === 'unrecorded') return 'unrecorded'
   if (row.status !== 'exact') return 'unsafe'
   return row.entries.length === 0 ? 'safe' : 'unsafe'
 }

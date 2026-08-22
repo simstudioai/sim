@@ -9,6 +9,19 @@ const logger = createLogger('DurableSecretProvenanceEnforcement')
  *
  * Named by the call site rather than derived, so the surface survives refactors and stays
  * greppable — the same convention the projection-refusal `site` strings use.
+ *
+ * One policy governs all of them: an **absence** — nobody recorded what these bytes carry — may be
+ * read, with an audit entry naming the surface, because a value nobody recorded says exactly what
+ * an untracked one does. A **taint** — a writer that knew secrets were present and could not map
+ * them to this output — is refused, and no policy relaxes it.
+ *
+ * Only `workspace-file` stores the difference, and that is deliberate rather than drift. On the
+ * other surfaces every non-exact sidecar comes from one condition, an incomplete incoming bundle
+ * or registry, which is always an absence; two stored statuses say everything there is to say.
+ * Files are the only surface that derives one stored object from another — an archive extracted
+ * into children, a generated asset, a transcoded output — so they are the only one that can refuse
+ * on purpose, and the only one with two claims to keep apart. Adding a third status elsewhere would
+ * encode a distinction that surface cannot make; removing it here would collapse one that matters.
  */
 export const DURABLE_SECRET_PROVENANCE_SURFACES = [
   'memory',

@@ -153,11 +153,11 @@ describe('workspace file secret provenance', () => {
   })
 
   /**
-   * The union carries three states; the column's CHECK constraint accepts two. Forwarding the
-   * status verbatim would send `'unrecorded'` to the database as a value it rejects, aborting the
-   * enclosing transaction rather than writing a bad row.
+   * Absence and taint are different claims and must round-trip separately. Collapsing them is what
+   * made a file a writer deliberately refused indistinguishable from one nobody recorded, and so
+   * eligible for the same relaxation.
    */
-  it('narrows an unrecorded initialization to a status the column accepts', async () => {
+  it('persists an unrecorded initialization as its own status', async () => {
     await initializeWorkspaceFileSecretProvenanceInTx(
       dbChainMock.db as unknown as DbTransaction,
       'file-1',
@@ -166,7 +166,33 @@ describe('workspace file secret provenance', () => {
     )
 
     expect(dbChainMockFns.values).toHaveBeenCalledWith(
+      expect.objectContaining({ fileId: 'file-1', status: 'unrecorded', entries: [] })
+    )
+  })
+
+  it('persists a refused write as unknown, not as an absence', async () => {
+    await replaceWorkspaceFileSecretProvenanceInTx(
+      dbChainMock.db as unknown as DbTransaction,
+      'file-1',
+      CONTENT_UPDATED_AT,
+      { status: 'unknown' }
+    )
+
+    expect(dbChainMockFns.values).toHaveBeenCalledWith(
       expect.objectContaining({ fileId: 'file-1', status: 'unknown', entries: [] })
+    )
+  })
+
+  it('persists an unrecorded replacement as its own status', async () => {
+    await replaceWorkspaceFileSecretProvenanceInTx(
+      dbChainMock.db as unknown as DbTransaction,
+      'file-1',
+      CONTENT_UPDATED_AT,
+      { status: 'unrecorded' }
+    )
+
+    expect(dbChainMockFns.values).toHaveBeenCalledWith(
+      expect.objectContaining({ fileId: 'file-1', status: 'unrecorded', entries: [] })
     )
   })
 
@@ -306,6 +332,17 @@ describe('workspace file secret provenance', () => {
         entries: [],
       },
       {
+        id: 'unrecorded-id',
+        key: 'unrecorded-key',
+        workspaceId: 'workspace-1',
+        context: 'workspace',
+        fileContentUpdatedAt: CONTENT_UPDATED_AT,
+        secretProvenanceVersion: 1,
+        provenanceContentUpdatedAt: CONTENT_UPDATED_AT,
+        status: 'unrecorded',
+        entries: [],
+      },
+      {
         id: 'other-workspace-id',
         key: 'other-workspace-key',
         workspaceId: 'workspace-2',
@@ -348,6 +385,7 @@ describe('workspace file secret provenance', () => {
       { id: 'wrong-id', key: 'safe-key' },
       { id: 'safe-id', key: 'tainted-key' },
       { id: 'unknown-id', key: 'unknown-key' },
+      { id: 'unrecorded-id', key: 'unrecorded-key' },
       { id: 'other-workspace-id', key: 'other-workspace-key' },
       { id: 'pre-marker-sidecar-id', key: 'pre-marker-sidecar-key' },
       { id: 'synthetic-execution-id', key: 'untracked-context-key' },
@@ -362,8 +400,12 @@ describe('workspace file secret provenance', () => {
       { key: 'safe-key' },
       { id: 'file-1700000000000', key: 'safe-key' },
       { id: 'wrong-id', key: 'safe-key' },
-      /** Unrecorded, so kept — the untracked keys below say the same thing and always were. */
-      { id: 'unknown-id', key: 'unknown-key' },
+      /**
+       * Unrecorded, so kept — the untracked keys below say the same thing and always were. The
+       * stored `unknown` above is dropped: a writer refused those bytes on purpose, which is a
+       * different claim from nobody having recorded them, and no policy relaxes it.
+       */
+      { id: 'unrecorded-id', key: 'unrecorded-key' },
       { id: 'pre-marker-sidecar-id', key: 'pre-marker-sidecar-key' },
       { id: 'synthetic-execution-id', key: 'untracked-context-key' },
       { id: 'legacy-id', key: 'legacy-key' },
@@ -720,7 +762,7 @@ describe('workspace file secret provenance', () => {
         fileContentUpdatedAt: CONTENT_UPDATED_AT,
         secretProvenanceVersion: 1,
         provenanceContentUpdatedAt: CONTENT_UPDATED_AT,
-        status: 'unknown',
+        status: 'unrecorded',
         entries: [],
       },
     ])
@@ -1331,7 +1373,7 @@ describe('workspace file secret provenance', () => {
         fileContentUpdatedAt: CONTENT_UPDATED_AT,
         secretProvenanceVersion: 1,
         provenanceContentUpdatedAt: CONTENT_UPDATED_AT,
-        status: 'unknown',
+        status: 'unrecorded',
         entries: [],
       },
     ])

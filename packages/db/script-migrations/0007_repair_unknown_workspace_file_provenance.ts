@@ -103,11 +103,22 @@ async function repairUnknownFileProvenancePage(
  * the state, which would otherwise report on every read forever; this clears them so the trail
  * carries only what happens next.
  *
- * A relabel, not a reconstruction, and only of files the reader already treats as an absence. Files
- * whose sidecar is stale, unversioned, or malformed are faults rather than absences: they stay
- * refused, exactly as the surface refuses them, and recover the way they always have — on the next
- * content write, which rebinds the sidecar. Idempotent: a repaired file has no sidecar row, so it
- * leaves the candidate set and a re-run costs one empty query.
+ * Files whose sidecar is stale, unversioned, or malformed are faults rather than absences: they
+ * stay refused, exactly as the surface refuses them, and recover the way they always have — on the
+ * next content write, which rebinds the sidecar. Idempotent: a repaired file has no sidecar row, so
+ * it leaves the candidate set and a re-run costs one empty query.
+ *
+ * One-time amnesty, and deliberately so. Until the release that ships this, storage collapsed two
+ * different claims into `unknown`: bytes nobody recorded, and bytes a writer refused on purpose —
+ * a child of a secret-bearing archive, a generated asset whose safety decision came back false.
+ * Writers now record those separately, so the distinction holds from here on and this population
+ * cannot grow. It cannot be recovered retroactively, though: the rows that already exist do not say
+ * which they were, and no column separates them. Clearing them therefore accepts that a few may
+ * have been refusals rather than absences — an accepted risk for a bounded, days-old population on
+ * a feature with no dependents yet, taken so the workspaces holding unusable files recover.
+ *
+ * Runs before the image that ships the distinction is promoted, so the rows it sees are exactly the
+ * collapsed legacy population and none of the ones written afterwards.
  */
 export const repairUnknownWorkspaceFileProvenance: ScriptMigration = {
   name: '0007_repair_unknown_workspace_file_provenance',
