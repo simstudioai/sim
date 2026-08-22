@@ -28,7 +28,30 @@ const TITLE_TOOLTIP_HIDDEN_PX = 8
  * revealed flush against the container edge lands under its gradient and reads
  * as half-faded, which is indistinguishable from "there is more to scroll".
  */
-const EDGE_FADE_PX = 16
+const EDGE_FADE_PX = 24
+
+/**
+ * Edge fades, as a mask rather than a tinted gradient laid over the tabs.
+ *
+ * Tabs paint their own fills, and an overlay tinted with the surface colour
+ * washes a pill's edge toward that colour instead of dissolving it — and it is
+ * only correct while whatever sits behind the strip is exactly that colour. A
+ * mask fades pill and label together to real transparency, over any background.
+ * This is how the command palette fades its results, and how every other
+ * horizontal fade in the app is drawn.
+ *
+ * The four combinations are spelled out because Tailwind scans for literal class
+ * strings; a template built at runtime would never be generated. Keep the 24px
+ * stops in step with {@link EDGE_FADE_PX}, which is how far `revealActiveTab`
+ * insets a tab so it lands clear of the fade rather than under it.
+ */
+const SCROLL_FADE = {
+  none: '',
+  start:
+    '[-webkit-mask-image:linear-gradient(to_right,transparent_0px,black_24px)] [mask-image:linear-gradient(to_right,transparent_0px,black_24px)]',
+  end: '[-webkit-mask-image:linear-gradient(to_right,black_calc(100%_-_24px),transparent_100%)] [mask-image:linear-gradient(to_right,black_calc(100%_-_24px),transparent_100%)]',
+  both: '[-webkit-mask-image:linear-gradient(to_right,transparent_0px,black_24px,black_calc(100%_-_24px),transparent_100%)] [mask-image:linear-gradient(to_right,transparent_0px,black_24px,black_calc(100%_-_24px),transparent_100%)]',
+} as const
 const TAB_TRANSITION = { duration: 0.1, ease: [0.2, 0, 0, 1] as const }
 
 /**
@@ -445,7 +468,7 @@ const Tab = forwardRef<HTMLDivElement, TabProps>(function Tab(
           aria-label={`Close ${tab.title}`}
           tabIndex={-1}
           className={cn(
-            'absolute top-[3px] right-0.5 z-20 size-[24px] p-0 transition-opacity',
+            '-translate-y-1/2 absolute top-1/2 right-0.5 z-20 size-[24px] p-0 transition-opacity',
             tab.active
               ? 'opacity-100'
               : 'opacity-0 group-focus-within:opacity-100 group-hover:opacity-100'
@@ -851,25 +874,27 @@ export function TabStrip({
             </AnimatePresence>
           </div>
         )}
-        <div className='relative flex min-w-0 shrink'>
+        <div className='flex min-w-0 shrink'>
           <div
             ref={scrollNodeRef}
             className={cn(
               'flex min-w-0 shrink select-none gap-0.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
-              variant === 'attached' ? 'items-end' : 'items-center gap-2'
+              variant === 'attached' ? 'items-end' : 'items-center gap-2',
+              SCROLL_FADE[
+                canScrollLeft
+                  ? canScrollRight
+                    ? 'both'
+                    : 'start'
+                  : canScrollRight
+                    ? 'end'
+                    : 'none'
+              ]
             )}
           >
             <AnimatePresence initial={false} mode='popLayout'>
               {regularTabs.map(renderTab)}
             </AnimatePresence>
           </div>
-          {canScrollLeft && (
-            /* w-4 — see EDGE_FADE_PX */
-            <div className='pointer-events-none absolute inset-y-0 left-0 z-20 w-4 bg-gradient-to-r from-[var(--bg)] to-transparent' />
-          )}
-          {canScrollRight && (
-            <div className='pointer-events-none absolute inset-y-0 right-0 z-20 w-4 bg-gradient-to-l from-[var(--bg)] to-transparent' />
-          )}
         </div>
       </div>
       {/* Both slots sit in the tab row's band so whatever fills them lines up
