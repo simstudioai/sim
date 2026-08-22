@@ -14,6 +14,8 @@ export interface SubBlockRowViewProps {
   title: string
   /** Resolved display value on the right; `undefined` hides the value span. */
   displayValue?: string
+  /** Full value for tooltip-only disclosure when `displayValue` is compact. */
+  tooltipValue?: string
   /** Render the value in a monospace font (e.g. filter expressions). */
   isMonospace?: boolean
   /**
@@ -45,6 +47,7 @@ export interface SubBlockRowViewProps {
 export function SubBlockRowView({
   title,
   displayValue,
+  tooltipValue,
   isMonospace,
   icon: Icon,
   variant = 'row',
@@ -54,6 +57,7 @@ export function SubBlockRowView({
       <InlineChip>
         <OverflowSpan
           value={displayValue ?? title}
+          tooltipValue={tooltipValue}
           className={cn('min-w-0 truncate', isMonospace && 'font-mono')}
         />
       </InlineChip>
@@ -64,6 +68,7 @@ export function SubBlockRowView({
     return (
       <OverflowSpan
         value={displayValue ?? title}
+        tooltipValue={tooltipValue}
         className={cn(
           'min-w-0 truncate text-sm',
           variant === 'statement-primary'
@@ -80,6 +85,7 @@ export function SubBlockRowView({
         <Icon className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
         <OverflowSpan
           value={displayValue ?? '-'}
+          tooltipValue={tooltipValue}
           className={cn(
             'min-w-0 flex-1 truncate text-left text-[var(--text-primary)] text-sm',
             isMonospace && 'font-mono'

@@ -53,6 +53,7 @@ import { getConditionRows, getRouterRows } from '@/lib/workflows/dynamic-handle-
 import { getDependsOnFields } from '@/lib/workflows/subblocks/dependencies'
 import {
   getDisplayValue,
+  getTooltipDisplayValue,
   hasDisplayableRowValue,
   resolveDropdownLabel,
   resolveFilterFieldLabel,
@@ -595,11 +596,16 @@ const SubBlockRow = memo(function SubBlockRow({
     webhookUrlDisplayValue ||
     selectorDisplayName
   const displayValue = maskedValue || hydratedName || (isSelectorType && value ? '-' : value)
+  const tooltipValue =
+    subBlock?.type === 'messages-input' && !maskedValue && !hydratedName
+      ? getTooltipDisplayValue(rawValue)
+      : displayValue
 
   return (
     <SubBlockRowView
       title={title}
       displayValue={displayValue}
+      tooltipValue={tooltipValue}
       isMonospace={isMonospaceField}
       variant={variant}
       icon={icon}
