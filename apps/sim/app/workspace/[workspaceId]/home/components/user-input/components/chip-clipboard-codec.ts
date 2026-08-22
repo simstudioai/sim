@@ -1,16 +1,14 @@
 import {
-  fromSimHrefId,
-  fromSimMarkdownLabel,
-  SIM_LINK_SCHEME,
-  toSimMarkdownLink,
-} from '@/lib/copilot/sim-link'
-import {
   computeMentionHighlightRanges,
   extractContextTokens,
   restoreSkillTriggerText,
   stripMentionTrigger,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/utils'
 import type { ChatContext } from '@/stores/panel'
+
+/** URI scheme for portable chip links (`[label](sim:kind/id)`). Custom so only
+ *  our own links — never generic markdown — are parsed back into chips. */
+const CHIP_LINK_SCHEME = 'sim'
 
 /**
  * Every chip kind that carries a single stable identifier → the
@@ -45,6 +43,16 @@ const PORTABLE_KIND_TO_ID_FIELD = {
  */
 export type PortableKind = keyof typeof PORTABLE_KIND_TO_ID_FIELD
 
+/** Serializes a portable chip link, escaping Markdown delimiters in its label. */
+export function serializePortableChipLink(kind: PortableKind, id: string, label: string): string {
+  const escapedLabel = label.replace(/[\\[\]]/g, '\\$&')
+  return `[${escapedLabel}](${CHIP_LINK_SCHEME}:${kind}/${id})`
+}
+
+function parsePortableChipLabel(label: string): string {
+  return label.replace(/\\([\\[\]])/g, '$1')
+}
+
 /**
  * Matches a portable chip markdown link: `[label](sim:kind/id)`.
  * - group 1: label (plain or backslash-escaped characters)
@@ -52,7 +60,7 @@ export type PortableKind = keyof typeof PORTABLE_KIND_TO_ID_FIELD
  * - group 3: id (any non-`)` / non-whitespace chars)
  */
 const CHIP_LINK_PATTERN = new RegExp(
-  `\\[((?:\\\\.|[^\\]\\\\])+)\\]\\(${SIM_LINK_SCHEME}:([a-z_]+)\\/([^)\\s]+)\\)`,
+  `\\[((?:\\\\.|[^\\]\\\\])+)\\]\\(${CHIP_LINK_SCHEME}:([a-z_]+)\\/([^)\\s]+)\\)`,
   'g'
 )
 
@@ -98,7 +106,7 @@ function serializeChipContext(context: ChatContext): string | null {
   if (!isPortableKind(context.kind)) return null
   const id = getPortableId(context)
   if (!id) return null
-  return toSimMarkdownLink(context.kind, id, context.label)
+  return serializePortableChipLink(context.kind, id, context.label)
 }
 
 /**
@@ -206,8 +214,8 @@ export function parseChipLinks(text: string): ParsedChipLink[] {
     if (!isPortableKind(kind)) continue
     links.push({
       kind,
-      id: fromSimHrefId(id),
-      label: fromSimMarkdownLabel(label),
+      id,
+      label: parsePortableChipLabel(label),
       start: match.index,
       end: match.index + full.length,
     })

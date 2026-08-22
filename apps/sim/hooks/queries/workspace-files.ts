@@ -5,7 +5,6 @@ import { toError } from '@sim/utils/errors'
 import { backoffWithJitter } from '@sim/utils/retry'
 import {
   keepPreviousData,
-  type QueryClient,
   useIsFetching,
   useMutation,
   useQuery,
@@ -62,7 +61,6 @@ export const workspaceFilesKeys = {
 }
 
 export const WORKSPACE_FILES_LIST_STALE_TIME = 30 * 1000
-const WORKSPACE_FILES_FORCE_REFRESH_STALE_TIME = 0
 export const WORKSPACE_FILE_CONTENT_STALE_TIME = 30 * 1000
 export const WORKSPACE_FILE_BINARY_STALE_TIME = 30 * 1000
 export const WORKSPACE_STORAGE_INFO_STALE_TIME = 60 * 1000
@@ -117,17 +115,6 @@ export function getWorkspaceFilesQueryOptions(
       fetchWorkspaceFiles(workspaceId, scope, signal),
     staleTime: WORKSPACE_FILES_LIST_STALE_TIME, // 30 seconds - files can change frequently
   }
-}
-
-export function fetchFreshWorkspaceFiles(
-  queryClient: QueryClient,
-  workspaceId: string,
-  scope: WorkspaceFileQueryScope = 'active'
-): Promise<WorkspaceFileRecord[]> {
-  return queryClient.fetchQuery({
-    ...getWorkspaceFilesQueryOptions(workspaceId, scope),
-    staleTime: WORKSPACE_FILES_FORCE_REFRESH_STALE_TIME,
-  })
 }
 
 /**

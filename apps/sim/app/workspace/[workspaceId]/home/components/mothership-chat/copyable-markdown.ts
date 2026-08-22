@@ -1,54 +1,58 @@
 import type { ClipboardContent } from '@sim/emcn'
-import { toSimMarkdownLink } from '@/lib/copilot/sim-link'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { sanitizeChatDisplayContent } from '@/app/workspace/[workspaceId]/home/components/message-content/components/chat-content/chat-sanitize'
 import {
-  appendInlineReferenceMarkdown,
-  workspaceResourceLabel,
-} from '@/app/workspace/[workspaceId]/home/components/message-content/components/chat-content/workspace-resource-markdown'
-import {
+  type ContentSegment,
   parseSpecialTags,
   type WorkspaceResourceTagData,
 } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
+import { serializePortableChipLink } from '@/app/workspace/[workspaceId]/home/components/user-input/components/chip-clipboard-codec'
 import { resolveWorkspaceResourceRef } from '@/app/workspace/[workspaceId]/home/resolve-resource-ref'
 
-interface PortableWorkspaceResourceMarkdown {
+interface CopyableMarkdownResult {
   markdown: string
   hasUnresolvedFile: boolean
 }
 
-export interface WorkspaceResourceNames {
-  workflow?: ReadonlyMap<string, string>
-  table?: ReadonlyMap<string, string>
+function workspaceResourceLabel(data: WorkspaceResourceTagData): string {
+  if (data.title) return data.title
+  return data.type === 'file' ? (data.path ?? data.id ?? '') : (data.id ?? '')
+}
+
+function appendInlineReferenceMarkdown(
+  currentMarkdown: string,
+  referenceMarkdown: string,
+  nextSegment?: ContentSegment
+): string {
+  const followingText =
+    nextSegment?.type === 'text'
+      ? nextSegment.content
+      : nextSegment?.type === 'workspace_resource'
+        ? nextSegment.data.title || nextSegment.data.id || ''
+        : ''
+  const leadingSpace = /[A-Za-z0-9_)]$/.test(currentMarkdown) ? ' ' : ''
+  const trailingSpace =
+    /^[A-Za-z0-9_(]/.test(followingText) && !/\s$/.test(referenceMarkdown) ? ' ' : ''
+  return `${currentMarkdown}${leadingSpace}${referenceMarkdown}${trailingSpace}`
 }
 
 function portableWorkspaceResourceMarkdown(
   data: WorkspaceResourceTagData,
-  workspaceFiles: readonly WorkspaceFileRecord[],
-  resourceNames: WorkspaceResourceNames
-): PortableWorkspaceResourceMarkdown {
+  workspaceFiles: readonly WorkspaceFileRecord[]
+): CopyableMarkdownResult {
   const label = workspaceResourceLabel(data)
   const resource = resolveWorkspaceResourceRef({ ...data, title: data.title ?? '' }, workspaceFiles)
-  const cachedLabel =
-    resource && data.type !== 'file' ? resourceNames[data.type]?.get(resource.id) : undefined
-  const resolvedLabel = cachedLabel ?? resource?.title
   return {
     markdown: resource
-      ? toSimMarkdownLink(resource.type, resource.id, resolvedLabel || label)
+      ? serializePortableChipLink(data.type, resource.id, resource.title || label)
       : label,
     hasUnresolvedFile: data.type === 'file' && !resource,
   }
 }
 
-export interface CopyableMarkdownResult {
-  markdown: string
-  hasUnresolvedFile: boolean
-}
-
-export function serializeCopyableMarkdown(
+function serializeCopyableMarkdown(
   raw: string,
-  workspaceFiles: readonly WorkspaceFileRecord[] = [],
-  resourceNames: WorkspaceResourceNames = {}
+  workspaceFiles: readonly WorkspaceFileRecord[] = []
 ): CopyableMarkdownResult {
   const displayContent = sanitizeChatDisplayContent(raw)
   const { segments } = parseSpecialTags(displayContent, false)
@@ -58,11 +62,7 @@ export function serializeCopyableMarkdown(
     .reduce((markdown, segment, index) => {
       if (segment.type === 'text') return markdown + segment.content
       if (segment.type === 'workspace_resource') {
-        const portable = portableWorkspaceResourceMarkdown(
-          segment.data,
-          workspaceFiles,
-          resourceNames
-        )
+        const portable = portableWorkspaceResourceMarkdown(segment.data, workspaceFiles)
         hasUnresolvedFile ||= portable.hasUnresolvedFile
         return appendInlineReferenceMarkdown(markdown, portable.markdown, segments[index + 1])
       }
@@ -75,26 +75,27 @@ export function serializeCopyableMarkdown(
 
 export function toCopyableMarkdown(
   raw: string,
-  workspaceFiles: readonly WorkspaceFileRecord[] = [],
-  resourceNames: WorkspaceResourceNames = {}
+  workspaceFiles: readonly WorkspaceFileRecord[] = []
 ): string {
-  return serializeCopyableMarkdown(raw, workspaceFiles, resourceNames).markdown
+  return serializeCopyableMarkdown(raw, workspaceFiles).markdown
 }
 
 export function prepareCopyableMarkdown(
   raw: string,
   workspaceFiles: readonly WorkspaceFileRecord[],
-  refreshWorkspaceFiles: () => Promise<readonly WorkspaceFileRecord[]>,
-  resourceNames: WorkspaceResourceNames = {}
+  refreshWorkspaceFiles: () => Promise<readonly WorkspaceFileRecord[]>
 ): ClipboardContent {
-  const initial = serializeCopyableMarkdown(raw, workspaceFiles, resourceNames)
+  const initial = serializeCopyableMarkdown(raw, workspaceFiles)
   if (!initial.hasUnresolvedFile) return initial.markdown
 
   return {
     fallback: initial.markdown,
-    prepare: () =>
-      refreshWorkspaceFiles()
-        .catch(() => workspaceFiles)
-        .then((refreshedFiles) => toCopyableMarkdown(raw, refreshedFiles, resourceNames)),
+    prepare: async () => {
+      try {
+        return toCopyableMarkdown(raw, await refreshWorkspaceFiles())
+      } catch {
+        return initial.markdown
+      }
+    },
   }
 }

@@ -1,20 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { fromSimHrefId, toSimHref } from '@/lib/copilot/sim-link'
 import { simLinkPath } from './sim-link'
-
-describe('sim link id codec', () => {
-  it('round-trips identifiers containing link delimiters', () => {
-    const id = 'files/Q1 plan).md'
-    const href = toSimHref('file', id)
-
-    expect(href).toBe('sim:file/files/Q1%20plan%29.md')
-    expect(fromSimHrefId(href.slice('sim:file/'.length))).toBe(id)
-  })
-
-  it('leaves malformed percent encoding intact', () => {
-    expect(fromSimHrefId('file%2')).toBe('file%2')
-  })
-})
 
 describe('simLinkPath', () => {
   const ws = 'ws1'

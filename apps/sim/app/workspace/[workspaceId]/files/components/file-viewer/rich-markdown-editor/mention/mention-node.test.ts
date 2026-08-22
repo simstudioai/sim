@@ -44,14 +44,6 @@ describe('mention node round-trip', () => {
     expect(serializeMarkdownBody(input).trim()).toBe(input)
   })
 
-  it('round-trips a file reference containing whitespace and a closing parenthesis', () => {
-    const input = '[Q1 plan](sim:file/files/Q1%20plan%29.md)'
-    const doc = parseMarkdownToDoc(input)
-    const mention = findMention(doc)
-    expect(mention?.attrs).toEqual({ kind: 'file', id: 'files/Q1 plan).md', label: 'Q1 plan' })
-    expect(serializeMarkdownBody(input).trim()).toBe(input)
-  })
-
   it('leaves a normal http link as a link, not a mention', () => {
     const doc = parseMarkdownToDoc('[Sim](https://sim.ai)')
     expect(findMention(doc)).toBeNull()

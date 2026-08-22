@@ -10,8 +10,8 @@ import {
   useRef,
   useState,
 } from 'react'
-import { cn } from '@sim/emcn'
-import { type QueryClient, useQueryClient } from '@tanstack/react-query'
+import { type ClipboardContent, cn } from '@sim/emcn'
+import { useQueryClient } from '@tanstack/react-query'
 import { defaultRangeExtractor, type Range, useVirtualizer } from '@tanstack/react-virtual'
 import { SMOOTH_CHASE_RATE } from '@/lib/core/utils/smooth-bottom-chase'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
@@ -32,10 +32,7 @@ import {
   parseLastCredentialTag,
   parseLastQuestionTag,
 } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
-import {
-  prepareCopyableMarkdown,
-  type WorkspaceResourceNames,
-} from '@/app/workspace/[workspaceId]/home/components/mothership-chat/copyable-markdown'
+import { prepareCopyableMarkdown } from '@/app/workspace/[workspaceId]/home/components/mothership-chat/copyable-markdown'
 import { nextSizerFloor } from '@/app/workspace/[workspaceId]/home/components/mothership-chat/sizer-floor'
 import { QueuedMessages } from '@/app/workspace/[workspaceId]/home/components/queued-messages'
 import {
@@ -53,9 +50,7 @@ import type {
   WorkspaceResourceRef,
 } from '@/app/workspace/[workspaceId]/home/types'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
-import { tableKeys } from '@/hooks/queries/utils/table-keys'
-import { workflowKeys } from '@/hooks/queries/utils/workflow-keys'
-import { fetchFreshWorkspaceFiles } from '@/hooks/queries/workspace-files'
+import { getWorkspaceFilesQueryOptions, workspaceFilesKeys } from '@/hooks/queries/workspace-files'
 import { useAutoScroll } from '@/hooks/use-auto-scroll'
 import type { ChatContext } from '@/stores/panel'
 import { MothershipChatSkeleton } from './components/mothership-chat-skeleton'
@@ -64,7 +59,6 @@ import { shouldShowAssistantMessageActions } from './message-actions-visibility'
 interface MothershipChatProps {
   workspaceId: string
   messages: ChatMessage[]
-  workspaceFiles?: readonly WorkspaceFileRecord[]
   isSending: boolean
   isReconnecting?: boolean
   isLoading?: boolean
@@ -162,29 +156,6 @@ const LAYOUT_STYLES = {
 const EMPTY_BLOCKS: ContentBlock[] = []
 const EMPTY_WORKSPACE_FILES: readonly WorkspaceFileRecord[] = []
 
-interface NamedWorkspaceResource {
-  id: string
-  name: string
-}
-
-function cachedWorkspaceResourceNames(
-  queryClient: QueryClient,
-  workspaceId: string
-): WorkspaceResourceNames {
-  const workflows =
-    queryClient.getQueryData<readonly NamedWorkspaceResource[]>(
-      workflowKeys.list(workspaceId, 'active')
-    ) ?? []
-  const tables =
-    queryClient.getQueryData<readonly NamedWorkspaceResource[]>(
-      tableKeys.list(workspaceId, 'active')
-    ) ?? []
-  return {
-    workflow: new Map(workflows.map((workflow) => [workflow.id, workflow.name])),
-    table: new Map(tables.map((table) => [table.id, table.name])),
-  }
-}
-
 interface UserMessageRowProps {
   content: string
   contexts?: ChatMessageContext[]
@@ -221,9 +192,7 @@ const UserMessageRow = memo(function UserMessageRow({
 
 interface AssistantMessageRowProps {
   message: ChatMessage
-  workspaceFiles: readonly WorkspaceFileRecord[]
-  refreshWorkspaceFiles: () => Promise<readonly WorkspaceFileRecord[]>
-  getWorkspaceResourceNames: () => WorkspaceResourceNames
+  prepareContentForCopy: (content: string) => ClipboardContent
   isStreaming: boolean
   isLast: boolean
   precedingUserContent?: string
@@ -240,9 +209,7 @@ interface AssistantMessageRowProps {
 
 const AssistantMessageRow = memo(function AssistantMessageRow({
   message,
-  workspaceFiles,
-  refreshWorkspaceFiles,
-  getWorkspaceResourceNames,
+  prepareContentForCopy,
   isStreaming,
   isLast,
   precedingUserContent,
@@ -271,17 +238,6 @@ const AssistantMessageRow = memo(function AssistantMessageRow({
     () => getOrchestratorMessageText(blocks, message.content),
     [blocks, message.content]
   )
-  const prepareContentForCopy = useCallback(
-    (content: string) =>
-      prepareCopyableMarkdown(
-        content,
-        workspaceFiles,
-        refreshWorkspaceFiles,
-        getWorkspaceResourceNames()
-      ),
-    [getWorkspaceResourceNames, refreshWorkspaceFiles, workspaceFiles]
-  )
-
   const hasRenderableAssistant = assistantMessageHasRenderableContent(blocks, message.content ?? '')
   if (!hasRenderableAssistant && !trimmedContent && !isStreaming) {
     return null
@@ -355,7 +311,6 @@ const AssistantMessageRow = memo(function AssistantMessageRow({
 export function MothershipChat({
   workspaceId,
   messages: messagesProp,
-  workspaceFiles = EMPTY_WORKSPACE_FILES,
   isSending,
   isReconnecting = false,
   isLoading = false,
@@ -399,12 +354,19 @@ export function MothershipChat({
   const heldHighWaterRef = useRef(0)
   const floorChatRef = useRef<string | undefined>(undefined)
   const floorDrainRafRef = useRef(0)
-  const refreshWorkspaceFiles = useCallback(
-    () => fetchFreshWorkspaceFiles(queryClient, workspaceId),
-    [queryClient, workspaceId]
-  )
-  const getWorkspaceResourceNames = useCallback(
-    () => cachedWorkspaceResourceNames(queryClient, workspaceId),
+  const prepareContentForCopy = useCallback(
+    (content: string) =>
+      prepareCopyableMarkdown(
+        content,
+        queryClient.getQueryData<readonly WorkspaceFileRecord[]>(
+          workspaceFilesKeys.list(workspaceId)
+        ) ?? EMPTY_WORKSPACE_FILES,
+        () =>
+          queryClient.fetchQuery({
+            ...getWorkspaceFilesQueryOptions(workspaceId),
+            staleTime: 0,
+          })
+      ),
     [queryClient, workspaceId]
   )
   useEffect(() => () => cancelAnimationFrame(floorDrainRafRef.current), [])
@@ -831,9 +793,7 @@ export function MothershipChat({
                     ) : (
                       <AssistantMessageRow
                         message={msg}
-                        workspaceFiles={workspaceFiles}
-                        refreshWorkspaceFiles={refreshWorkspaceFiles}
-                        getWorkspaceResourceNames={getWorkspaceResourceNames}
+                        prepareContentForCopy={prepareContentForCopy}
                         isStreaming={isStreamActive && isLast}
                         isLast={isLast}
                         precedingUserContent={precedingUserContentByIndex[index]}

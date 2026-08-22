@@ -1,18 +1,10 @@
 import { describe, expect, it, vi } from 'vitest'
-
-vi.mock('@/lib/auth/auth-client', () => ({
-  useSession: vi.fn(() => ({ data: null, isPending: false })),
-}))
-
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
-import { getOrchestratorMessageText } from '@/app/workspace/[workspaceId]/home/components/message-content'
 import {
   prepareCopyableMarkdown,
-  serializeCopyableMarkdown,
   toCopyableMarkdown,
 } from '@/app/workspace/[workspaceId]/home/components/mothership-chat/copyable-markdown'
 import { parseChipLinks } from '@/app/workspace/[workspaceId]/home/components/user-input/components/chip-clipboard-codec'
-import type { ContentBlock } from '@/app/workspace/[workspaceId]/home/types'
 
 const WORKSPACE_FILES: WorkspaceFileRecord[] = [
   {
@@ -83,7 +75,7 @@ describe('toCopyableMarkdown', () => {
         id: 'tbl_f26af6dae98d4222b014b250494d00fb',
         title: 'Checked_[rare]\\portal',
       })}</workspace_resource>.`,
-    ].join(' ')
+    ].join('')
 
     const markdown = toCopyableMarkdown(message, WORKSPACE_FILES)
 
@@ -117,32 +109,6 @@ describe('toCopyableMarkdown', () => {
     )
   })
 
-  it('uses cached names for workflow and table labels shown in the chat', () => {
-    const message = [
-      '<workspace_resource>{"type":"workflow","id":"workflow-1","title":"Old workflow name"}</workspace_resource>',
-      '<workspace_resource>{"type":"table","id":"table-1"}</workspace_resource>',
-    ].join(' and ')
-
-    expect(
-      toCopyableMarkdown(message, [], {
-        workflow: new Map([['workflow-1', 'Current workflow name']]),
-        table: new Map([['table-1', 'Current table name']]),
-      })
-    ).toBe(
-      '[Current workflow name](sim:workflow/workflow-1) and [Current table name](sim:table/table-1)'
-    )
-  })
-
-  it('reports file resources that need refreshed metadata before copying', () => {
-    const message =
-      'Read <workspace_resource>{"type":"file","path":"files/notes.md","title":"notes.md"}</workspace_resource>.'
-
-    expect(serializeCopyableMarkdown(message)).toEqual({
-      markdown: 'Read notes.md.',
-      hasUnresolvedFile: true,
-    })
-  })
-
   it('refreshes missing file metadata before producing copyable Markdown', async () => {
     const message =
       'Read <workspace_resource>{"type":"file","path":"files/The%20Bell%20at%20Low%20Tide.md","title":"The Bell at Low Tide.md"}</workspace_resource>.'
@@ -163,7 +129,7 @@ describe('toCopyableMarkdown', () => {
     const message =
       'Read <workspace_resource>{"type":"file","path":"files/Q1 plan).md","title":"Q1 plan).md"}</workspace_resource>.'
 
-    const { markdown } = serializeCopyableMarkdown(message)
+    const markdown = toCopyableMarkdown(message)
 
     expect(markdown).toBe('Read Q1 plan).md.')
     expect(parseChipLinks(markdown)).toEqual([])
@@ -192,21 +158,5 @@ describe('toCopyableMarkdown', () => {
       'Read [The Bell at Low Tide.md](sim:file/file_bell).'
     )
     expect(refreshWorkspaceFiles).not.toHaveBeenCalled()
-  })
-
-  it('copies workspace resources from orchestrator content blocks', () => {
-    const contentBlocks: ContentBlock[] = [
-      { type: 'text', content: 'Read ' },
-      { type: 'thinking', content: 'Do not copy this.' },
-      {
-        type: 'text',
-        content:
-          '<workspace_resource>{"type":"file","path":"files/notes.md","title":"notes.md"}</workspace_resource> for details.',
-      },
-    ]
-
-    const content = getOrchestratorMessageText(contentBlocks, 'Fallback without the resource.')
-
-    expect(toCopyableMarkdown(content, WORKSPACE_FILES)).toBe('Read notes.md for details.')
   })
 })

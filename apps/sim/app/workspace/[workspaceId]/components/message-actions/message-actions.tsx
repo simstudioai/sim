@@ -70,9 +70,9 @@ export const MessageActions = memo(function MessageActions({
   const copyToClipboard = () => {
     const contentToCopy = getCopyContent?.() ?? content
     if (!contentToCopy) return
-    const markdown = prepareContentForCopy?.(contentToCopy) ?? contentToCopy
-    if (typeof markdown === 'string' && !markdown) return
-    void copyMessage(markdown)
+    const copyContent = prepareContentForCopy?.(contentToCopy) ?? contentToCopy
+    if (typeof copyContent === 'string' && !copyContent) return
+    void copyMessage(copyContent)
   }
 
   const copyRequestId = async () => {

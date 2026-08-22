@@ -1,6 +1,6 @@
 import type { JSONContent, MarkdownToken } from '@tiptap/core'
 import { InputRule, Node } from '@tiptap/core'
-import { fromSimHrefId, fromSimMarkdownLabel, toSimMarkdownLink } from '@/lib/copilot/sim-link'
+import { toSimHref } from './sim-link'
 import type { MentionKind } from './types'
 
 export interface MentionAttrs {
@@ -15,6 +15,16 @@ export interface MentionAttrs {
  * `data[1].csv`) still round-trips into a chip instead of degrading to a plain link.
  */
 const MENTION_MD_RE = /^\[((?:\\.|[^\]\\])+)\]\(sim:([a-z_]+)\/([^)\s]+)\)/
+
+/** Escape `\`, `[`, `]` in a mention label so brackets in entity names can't break the link syntax. */
+function escapeLabel(label: string): string {
+  return label.replace(/[\\[\]]/g, '\\$&')
+}
+
+/** Inverse of {@link escapeLabel}, applied when parsing a mention back from markdown. */
+function unescapeLabel(label: string): string {
+  return label.replace(/\\([\\[\]])/g, '$1')
+}
 
 /** Custom fields the mention tokenizer hangs on the marked token (all optional, like the image token). */
 interface MentionTokenFields {
@@ -81,21 +91,17 @@ export const MarkdownMention = Node.create({
     const { kind, id, label } = token as MentionTokenFields
     return {
       type: 'mention',
-      attrs: {
-        kind: kind ?? '',
-        id: fromSimHrefId(id ?? ''),
-        label: fromSimMarkdownLabel(label ?? ''),
-      },
+      attrs: { kind: kind ?? '', id: id ?? '', label: unescapeLabel(label ?? '') },
     }
   },
   renderMarkdown: (node: JSONContent): string => {
     const { kind, id, label } = (node.attrs ?? {}) as MentionAttrs
-    return toSimMarkdownLink(kind, id, label)
+    return `[${escapeLabel(label)}](${toSimHref(kind, id)})`
   },
 
   renderText: ({ node }) => {
     const { kind, id, label } = node.attrs as MentionAttrs
-    return toSimMarkdownLink(kind, id, label)
+    return `[${escapeLabel(label)}](${toSimHref(kind, id)})`
   },
 
   /**
@@ -117,11 +123,7 @@ export const MarkdownMention = Node.create({
           state.tr.replaceWith(
             range.from,
             range.to,
-            type.create({
-              kind,
-              id: fromSimHrefId(id),
-              label: fromSimMarkdownLabel(rawLabel ?? ''),
-            })
+            type.create({ kind, id, label: unescapeLabel(rawLabel ?? '') })
           )
         },
       }),
