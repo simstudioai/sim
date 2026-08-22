@@ -207,13 +207,7 @@ export default async function WorkspaceSettingsSectionPage({
     }
   }
 
-  /**
-   * Scoped to the sections that actually read the key. The prefetch has to be awaited — an
-   * unsettled query is dropped from the dehydrated payload, so firing and forgetting would
-   * waterfall anyway — which means running it unconditionally charged the other ~25 sections
-   * a blocking round-trip for a cache entry they never touch. The viewer's profile is seeded
-   * by the workspace layout under a different key and is not repeated here.
-   */
+  /** Awaiting is required because unsettled queries are omitted from dehydration. */
   await sectionPrefetch
 
   return (

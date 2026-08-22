@@ -38,6 +38,7 @@ Read these before analyzing:
 - Compose caller-controlled `enabled` options with required-param guards (`Boolean(id) && (options?.enabled ?? true)`). Never spread options after an internal guard, because `{ enabled: true }` can silently re-enable an invalid request.
 - A disabled query can still report `isPending: true`. Aggregate loading state only for queries that are applicable/enabled, or an optional query can hold the whole surface in a permanent loading state.
 - Deferred authorization or policy queries must fail closed. Do not give pending/error data the same fallback as a successfully loaded unrestricted policy; disable guarded actions until the policy query succeeds.
+- Server prefetches must call the authorized use case, apply the route presenter/response schema, and reuse the client's exact key, mapper, and stale time. Keep all fallible auth/read/parse work inside `queryFn` so an optional warm cannot fail the page, and never bypass a route that redacts fields.
 
 ### Mutations
 - Use `onSettled` (not `onSuccess`) for cache reconciliation — it fires on both success and error

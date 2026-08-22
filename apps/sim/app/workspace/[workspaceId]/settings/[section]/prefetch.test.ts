@@ -64,7 +64,17 @@ describe('credential-groups prefetch', () => {
   })
 
   it('hydrates the key the panel subscribes to, through the authorized use case', async () => {
-    mockExecute.mockResolvedValue({ credentialGroups: [{ id: 'g1' }] })
+    const credentialGroup = {
+      id: 'g1',
+      workspaceId: 'w1',
+      name: 'Engineering',
+      description: null,
+      options: [],
+      status: 'active',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    }
+    mockExecute.mockResolvedValue({ credentialGroups: [{ ...credentialGroup, internal: true }] })
     const queryClient = new QueryClient()
 
     await SECTION_PREFETCHERS['credential-groups']?.(queryClient, {
@@ -76,12 +86,10 @@ describe('credential-groups prefetch', () => {
       principal: { kind: 'session', userId: 'u1', sessionId: 's1' },
       input: { workspaceId: 'w1' },
     })
-    expect(queryClient.getQueryData(credentialGroupKeys.list('w1'))).toEqual([{ id: 'g1' }])
+    expect(queryClient.getQueryData(credentialGroupKeys.list('w1'))).toEqual([credentialGroup])
   })
 
   it('leaves the cache empty when the use case denies the viewer', async () => {
-    // prefetchQuery swallows the rejection, so a denied viewer simply hydrates nothing and the
-    // client fetch renders the real error rather than a poisoned cache entry.
     mockExecute.mockRejectedValue(Object.assign(new Error('forbidden'), { code: 'forbidden' }))
     const queryClient = new QueryClient()
 
@@ -90,6 +98,19 @@ describe('credential-groups prefetch', () => {
       userId: 'u1',
     })
 
+    expect(queryClient.getQueryData(credentialGroupKeys.list('w1'))).toBeUndefined()
+  })
+
+  it('leaves the cache empty when session authentication fails', async () => {
+    mockAuthenticate.mockRejectedValue(new Error('unauthenticated'))
+    const queryClient = new QueryClient()
+
+    await SECTION_PREFETCHERS['credential-groups']?.(queryClient, {
+      workspaceId: 'w1',
+      userId: 'u1',
+    })
+
+    expect(mockExecute).not.toHaveBeenCalled()
     expect(queryClient.getQueryData(credentialGroupKeys.list('w1'))).toBeUndefined()
   })
 })
