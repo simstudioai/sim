@@ -21,6 +21,8 @@ const { mocks } = vi.hoisted(() => ({
     deletePersonal: vi.fn(),
     listCredentials: vi.fn(),
     secretUsage: vi.fn(),
+    workspaceEnvValue: vi.fn(),
+    scanReferences: vi.fn(),
     audit: vi.fn(),
   },
 }))
@@ -47,6 +49,10 @@ vi.mock('@/lib/workspaces/permissions/utils', () => ({
 vi.mock('@/lib/credentials/environment', () => ({
   getWorkspaceEnvKeyAdminAccess: mocks.keyAccess,
   getPersonalEnvCredentialMetadata: mocks.personalMetadata,
+  hasWorkspaceEnvValue: mocks.workspaceEnvValue,
+}))
+vi.mock('@/lib/secrets/references/scan', () => ({
+  scanSecretReferences: mocks.scanReferences,
 }))
 vi.mock('@/lib/credentials/queries', () => ({
   listVisibleWorkspaceCredentials: mocks.listCredentials,
@@ -63,6 +69,8 @@ vi.mock('@/lib/credentials/secret-values', () => ({
 
 import {
   deleteSecretUseCase,
+  type ListSecretReferencesInput,
+  listSecretReferencesUseCase,
   listSecretUsageUseCase,
   setSecretUseCase,
 } from '@/lib/secrets/application/use-cases'
@@ -397,5 +405,107 @@ describe('listSecretUsageUseCase', () => {
     ).resolves.toBeDefined()
     expect(mocks.workspaceAccess).not.toHaveBeenCalled()
     expect(mocks.keyAccess).not.toHaveBeenCalled()
+  })
+})
+
+describe('listSecretReferencesUseCase', () => {
+  const execute = listSecretReferencesUseCase.execute as (args: {
+    principal: Principal
+    input: ListSecretReferencesInput
+  }) => Promise<unknown>
+
+  const input: ListSecretReferencesInput = {
+    workspaceId: workspace.workspaceId,
+    name: 'STRIPE_API_KEY',
+  }
+  const scan = { workflows: [], resources: [], truncated: false }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.loadContext.mockResolvedValue(workspace)
+    mocks.resolvePermission.mockResolvedValue('write')
+    mocks.scanReferences.mockResolvedValue(scan)
+  })
+
+  /**
+   * The map names workflows, blocks, tools and servers. A Member who may use the secret but not
+   * read it has no claim on it, so this must fail the same way the usage trail does.
+   */
+  it('denies a member who is not an admin of a workspace key', async () => {
+    mocks.workspaceAccess.mockResolvedValue({ hasAccess: true, canWrite: true, canAdmin: false })
+    mocks.keyAccess.mockResolvedValue({ knownKeys: new Set(), adminKeys: new Set() })
+    mocks.workspaceEnvValue.mockResolvedValue(true)
+
+    await expect(execute({ principal: session, input })).rejects.toThrow(
+      'Credential admin permission required to view this secret usage'
+    )
+    expect(mocks.scanReferences).not.toHaveBeenCalled()
+  })
+
+  /**
+   * The gate reads the authoritative variables map, not `knownKeys`. A legacy value predating
+   * the credential ACL has no `env_workspace` row yet still wins at run time, so treating an
+   * empty `knownKeys` as "no workspace secret" would hand a non-admin exactly the oldest keys.
+   */
+  it('denies a personal owner when a legacy workspace value shares the name', async () => {
+    mocks.workspaceAccess.mockResolvedValue({ hasAccess: true, canWrite: true, canAdmin: false })
+    mocks.keyAccess.mockResolvedValue({ knownKeys: new Set(), adminKeys: new Set() })
+    mocks.workspaceEnvValue.mockResolvedValue(true)
+    mocks.personalMetadata.mockResolvedValue({ id: 'cred-1' })
+
+    await expect(execute({ principal: session, input })).rejects.toThrow(
+      'Credential admin permission required to view this secret usage'
+    )
+    expect(mocks.scanReferences).not.toHaveBeenCalled()
+  })
+
+  it('denies a caller who holds no secret of that name', async () => {
+    mocks.workspaceAccess.mockResolvedValue({ hasAccess: true, canWrite: true, canAdmin: false })
+    mocks.keyAccess.mockResolvedValue({ knownKeys: new Set(), adminKeys: new Set() })
+    mocks.workspaceEnvValue.mockResolvedValue(false)
+    mocks.personalMetadata.mockResolvedValue(null)
+
+    await expect(execute({ principal: session, input })).rejects.toThrow(
+      'Credential admin permission required to view this secret usage'
+    )
+    expect(mocks.scanReferences).not.toHaveBeenCalled()
+  })
+
+  it('allows the owner of a personal secret that no workspace value shadows', async () => {
+    mocks.workspaceAccess.mockResolvedValue({ hasAccess: true, canWrite: true, canAdmin: false })
+    mocks.keyAccess.mockResolvedValue({ knownKeys: new Set(), adminKeys: new Set() })
+    mocks.workspaceEnvValue.mockResolvedValue(false)
+    mocks.personalMetadata.mockResolvedValue({ id: 'cred-1' })
+
+    await expect(execute({ principal: session, input })).resolves.toEqual(scan)
+  })
+
+  it('allows a credential admin of that key', async () => {
+    mocks.workspaceAccess.mockResolvedValue({ hasAccess: true, canWrite: true, canAdmin: false })
+    mocks.keyAccess.mockResolvedValue({
+      knownKeys: new Set(['STRIPE_API_KEY']),
+      adminKeys: new Set(['STRIPE_API_KEY']),
+    })
+
+    await expect(execute({ principal: session, input })).resolves.toEqual(scan)
+    // An admin stays authorized however the name resolves, so the volatile input is never read.
+    expect(mocks.workspaceEnvValue).not.toHaveBeenCalled()
+  })
+
+  /**
+   * A `personal` grant rests on no workspace value existing under the name. If one is created
+   * between the check and the scan, the map now in hand is admin-gated — so the condition is
+   * re-read after the scan and the request fails closed rather than returning it.
+   */
+  it('refuses when a workspace value appears between the check and the scan', async () => {
+    mocks.workspaceAccess.mockResolvedValue({ hasAccess: true, canWrite: true, canAdmin: false })
+    mocks.keyAccess.mockResolvedValue({ knownKeys: new Set(), adminKeys: new Set() })
+    mocks.personalMetadata.mockResolvedValue({ id: 'cred-1' })
+    mocks.workspaceEnvValue.mockResolvedValueOnce(false).mockResolvedValueOnce(true)
+
+    await expect(execute({ principal: session, input })).rejects.toThrow(
+      'Credential admin permission required to view this secret usage'
+    )
+    expect(mocks.workspaceEnvValue).toHaveBeenCalledTimes(2)
   })
 })

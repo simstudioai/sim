@@ -65,6 +65,7 @@ export const FolderItem = memo(function FolderItem({ workspaceId, folder }: Fold
   const router = useRouter()
   const updateFolderMutation = useUpdateFolder()
   const createWorkflowMutation = useCreateWorkflow()
+  const createWorkflowMutate = createWorkflowMutation.mutate
   const createFolderMutation = useCreateFolder()
   const userPermissions = useUserPermissionsContext()
   const selectedFolders = useFolderStore((state) => state.selectedFolders)
@@ -149,18 +150,19 @@ export const FolderItem = memo(function FolderItem({ workspaceId, folder }: Fold
     const name = generateCreativeWorkflowName()
     const id = generateId()
 
-    createWorkflowMutation.mutate({
+    createWorkflowMutate({
       workspaceId,
       folderId: folder.id,
       name,
       id,
+      deduplicate: true,
     })
 
     useWorkflowRegistry.getState().markWorkflowCreating(id)
     expandFolder()
     router.push(`/workspace/${workspaceId}/w/${id}`)
     window.dispatchEvent(new CustomEvent(SIDEBAR_SCROLL_EVENT, { detail: { itemId: id } }))
-  }, [createWorkflowMutation, workspaceId, folder.id, effectiveLocked, router, expandFolder])
+  }, [createWorkflowMutate, workspaceId, folder.id, effectiveLocked, router, expandFolder])
 
   const handleCreateFolderInFolder = useCallback(async () => {
     if (effectiveLocked) return

@@ -20,6 +20,7 @@ import type {
   MothershipResource,
   MothershipResourceType,
 } from '@/app/workspace/[workspaceId]/home/types'
+import { getDisplayStatus, STATUS_CONFIG } from '@/app/workspace/[workspaceId]/logs/utils'
 import { BrandIcon, type StyleableIcon } from '@/blocks/brand-icon'
 import { logKeys } from '@/hooks/queries/logs'
 import { mothershipChatKeys } from '@/hooks/queries/mothership-chats'
@@ -40,6 +41,12 @@ export interface ResourceTypeConfig {
   icon: ElementType
   renderTabIcon: (resource: MothershipResource, className: string) => ReactNode
   renderDropdownItem: (props: DropdownItemRenderProps) => ReactNode
+  /**
+   * How many of this family's candidates an unfiltered `@` list shows.
+   * Uncapped by default; set it for a family whose near-identical rows would
+   * otherwise bury every other family.
+   */
+  mentionPreviewLimit?: number
 }
 
 function WorkflowDropdownItem({ item }: DropdownItemRenderProps) {
@@ -91,15 +98,37 @@ function IntegrationDropdownItem({ item }: DropdownItemRenderProps) {
   )
 }
 
+/**
+ * A run, not the workflow it ran — the Logs icon is what says so, and it is the
+ * same one the sidebar, the search palette, and the resulting chip already use.
+ *
+ * A run that did not simply succeed carries the same dot `Badge` draws at `sm`,
+ * so a status reads identically here and on the logs page. Marking every row
+ * would mark nothing, so a plain success gets none.
+ */
 function LogDropdownItem({ item }: DropdownItemRenderProps) {
   const workflowName = (item.workflowName as string) ?? item.name
   const time = (item.time as string) ?? ''
+  const status = getDisplayStatus(item.status as string | null | undefined)
+  const statusColor = status === 'info' ? null : STATUS_CONFIG[status].color
   return (
     <>
-      <Workflow className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
+      <Library className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
       <span className='truncate'>{workflowName}</span>
+      {statusColor && (
+        <div
+          aria-hidden
+          className='ml-auto size-[5px] flex-shrink-0 rounded-xs'
+          style={{ backgroundColor: statusColor }}
+        />
+      )}
       {time && (
-        <span className='ml-auto flex-shrink-0 text-[var(--text-tertiary)] text-caption'>
+        <span
+          className={cn(
+            'flex-shrink-0 text-[var(--text-tertiary)] text-caption',
+            !statusColor && 'ml-auto'
+          )}
+        >
           {time}
         </span>
       )}
@@ -189,6 +218,7 @@ export const RESOURCE_REGISTRY: Record<MothershipResourceType, ResourceTypeConfi
       <Library className={cn(className, 'text-[var(--text-icon)]')} />
     ),
     renderDropdownItem: (props) => <LogDropdownItem {...props} />,
+    mentionPreviewLimit: 5,
   },
   integration: {
     type: 'integration',

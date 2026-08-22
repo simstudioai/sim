@@ -19,6 +19,7 @@ const logger = createLogger('WorkflowLifecycle')
 
 /** Partial unique index on `(workspace_id, coalesce(folder_id, ''), name) WHERE archived_at IS NULL`. */
 const WORKFLOW_NAME_UNIQUE_INDEX = 'workflow_workspace_folder_name_active_unique'
+const WORKFLOW_NAME_DEDUPLICATION_ATTEMPTS = 8
 
 export interface PerformCreateWorkflowParams {
   userId: string
@@ -235,9 +236,7 @@ export async function performCreateWorkflowTransition(
     return { success: false, error: 'Target folder not found', errorCode: 'validation' }
   }
 
-  const name = params.deduplicate
-    ? await deduplicateWorkflowName(params.name, params.workspaceId, folderId)
-    : params.name
+  let name = params.name
 
   if (!params.deduplicate) {
     const duplicate = await workflowNameExistsInFolder({
@@ -261,51 +260,61 @@ export async function performCreateWorkflowTransition(
   const now = new Date()
   const { workflowState, subBlockValues, startBlockId } = buildDefaultWorkflowArtifacts()
 
-  try {
-    await db.transaction(async (tx) => {
-      await tx.insert(workflow).values({
-        id: workflowId,
-        userId: params.userId,
-        workspaceId: params.workspaceId,
-        folderId,
-        sortOrder,
-        name,
-        description: params.description,
-        lastSynced: now,
-        createdAt: now,
-        updatedAt: now,
-        isDeployed: false,
-        runCount: 0,
-        variables: {},
-      })
-
-      await saveWorkflowToNormalizedTables(workflowId, workflowState, tx)
-    })
-  } catch (error) {
-    /**
-     * The name pre-check above is a `SELECT`, so two concurrent creates of the same
-     * name both pass it and the loser is rejected by
-     * {@link WORKFLOW_NAME_UNIQUE_INDEX} as a raw Postgres `23505`. Reported as the
-     * conflict the pre-check already raises, so a caller sees one answer whether it
-     * lost the race or simply arrived second.
-     *
-     * Matched on the constraint name, not on the code alone. This transaction also
-     * runs `saveWorkflowToNormalizedTables`, whose inserts can raise `23505` from
-     * `workflow_blocks_pkey` — a globally unique block id colliding across
-     * workflows, an integrity fault this repository has already hit in production.
-     * A code-only match reported that as a name conflict and hid it.
-     */
-    if (
-      getPostgresErrorCode(error) === '23505' &&
-      getPostgresConstraintName(error) === WORKFLOW_NAME_UNIQUE_INDEX
-    ) {
-      return {
-        success: false,
-        error: `A workflow named "${name}" already exists in this folder`,
-        errorCode: 'conflict',
-      }
+  const maxAttempts = params.deduplicate ? WORKFLOW_NAME_DEDUPLICATION_ATTEMPTS : 1
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    if (params.deduplicate) {
+      name = await deduplicateWorkflowName(params.name, params.workspaceId, folderId)
     }
-    throw error
+
+    try {
+      await db.transaction(async (tx) => {
+        await tx.insert(workflow).values({
+          id: workflowId,
+          userId: params.userId,
+          workspaceId: params.workspaceId,
+          folderId,
+          sortOrder,
+          name,
+          description: params.description,
+          lastSynced: now,
+          createdAt: now,
+          updatedAt: now,
+          isDeployed: false,
+          runCount: 0,
+          variables: {},
+        })
+
+        await saveWorkflowToNormalizedTables(workflowId, workflowState, tx)
+      })
+      break
+    } catch (error) {
+      /**
+       * Name selection is a `SELECT`, so a concurrent create can claim the candidate
+       * before this transaction inserts it. Deduplicated creates retry against the
+       * newly committed names; exact-name creates keep returning the conflict the
+       * pre-check reports. Matching the constraint avoids relabeling a `23505` from
+       * normalized workflow tables as a name collision.
+       */
+      const isNameConflict =
+        getPostgresErrorCode(error) === '23505' &&
+        getPostgresConstraintName(error) === WORKFLOW_NAME_UNIQUE_INDEX
+      if (!isNameConflict) {
+        throw error
+      }
+
+      if (!params.deduplicate || attempt === maxAttempts - 1) {
+        return {
+          success: false,
+          error: `A workflow named "${name}" already exists in this folder`,
+          errorCode: 'conflict',
+        }
+      }
+
+      logger.warn(`[${requestId}] Workflow name was claimed during creation; retrying`, {
+        name,
+        attempt: attempt + 1,
+      })
+    }
   }
 
   logger.info(`[${requestId}] Successfully created workflow ${workflowId}`)

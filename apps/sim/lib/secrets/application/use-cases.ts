@@ -7,6 +7,7 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   getPersonalEnvCredentialMetadata,
   getWorkspaceEnvKeyAdminAccess,
+  hasWorkspaceEnvValue,
 } from '@/lib/credentials/environment'
 import {
   listVisibleWorkspaceCredentials,
@@ -19,6 +20,7 @@ import {
   setWorkspaceSecret,
 } from '@/lib/credentials/secret-values'
 import { secretOperations } from '@/lib/secrets/application/operations'
+import { scanSecretReferences } from '@/lib/secrets/references/scan'
 import { getSecretUsage } from '@/lib/secrets/usage/queries'
 import { loadActiveWorkspaceContext } from '@/lib/uploads/contexts/workspace'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
@@ -379,6 +381,12 @@ async function requireSecretUsageReadAccess(params: {
   scope: SecretScope
   userId: string
 }): Promise<void> {
+  /**
+   * Safe to trust the asserted scope here, and only here: the read below is NARROWED by it to
+   * `secretOwnerUserId`, so asserting `personal` for a workspace key returns the caller's own
+   * (empty) trail rather than the workspace one. A read that is not scope-narrowed must not
+   * reuse this — see {@link requireSecretReferencesReadAccess}.
+   */
   if (params.scope === 'personal') return
 
   const [workspaceAccess, keyAccess] = await Promise.all([
@@ -425,5 +433,124 @@ export const listSecretUsageUseCase = defineAuthorizedWorkspaceUseCase({
       secretOwnerUserId: input.scope === 'personal' ? userId : '',
       limit: input.limit,
     })
+  },
+})
+
+/**
+ * Deliberately carries no `scope`. A reference is found by name, so a scope here could only be
+ * an assertion the caller controls and the read never narrows by — exactly the shape that made
+ * the first cut of this operation bypassable. The name alone decides both access and result.
+ */
+export interface ListSecretReferencesInput {
+  workspaceId: string
+  name: string
+}
+
+/**
+ * Gates the reference scan on what the NAME resolves to, never on the scope the caller asserts.
+ *
+ * The usage trail can trust `scope` because it narrows the read by it — a personal request is
+ * filtered to `secretOwnerUserId`, so asserting `personal` for a workspace key returns nothing.
+ * A reference scan cannot: `{{KEY}}` names a key and not a scope, so the scan is name-based and
+ * workspace-wide by construction. Reusing the trail's gate therefore made `scope=personal` a
+ * bypass — it returns before any check, and a member could read the admin-gated map for any
+ * workspace secret by naming it under personal scope.
+ *
+ * So the asserted scope is discarded here and the canonical name decides:
+ *  - a workspace secret exists under this name → only its admins (or a workspace admin) may look,
+ *    which is the same predicate that reveals its value;
+ *  - no workspace secret exists → the caller must actually hold a personal secret of that name,
+ *    which stops a member enumerating arbitrary names for a map they have no claim to.
+ */
+/**
+ * Which branch authorized the read. `personal` depends on no workspace value existing under the
+ * name — a condition another request can change — so only that branch needs re-checking after
+ * the scan. An `admin` caller stays authorized however the name resolves, and pays nothing.
+ */
+type SecretReferencesGrant = 'admin' | 'personal'
+
+async function requireSecretReferencesReadAccess(params: {
+  workspaceId: string
+  name: string
+  userId: string
+}): Promise<SecretReferencesGrant> {
+  const [workspaceAccess, keyAccess] = await Promise.all([
+    checkWorkspaceAccess(params.workspaceId, params.userId),
+    getWorkspaceEnvKeyAdminAccess({
+      workspaceId: params.workspaceId,
+      envKeys: [params.name],
+      userId: params.userId,
+    }),
+  ])
+  if (workspaceAccess.canAdmin || keyAccess.adminKeys.has(params.name)) return 'admin'
+
+  const forbidden = new ForbiddenOperationError(
+    'SECRET_ADMIN_ACCESS_REQUIRED',
+    'Credential admin permission required to view this secret usage'
+  )
+
+  /**
+   * A workspace value under this name is admin-gated outright — a personal secret the caller
+   * happens to hold under the same name does not unlock the workspace one's reference map,
+   * and at run time the workspace value is the one that wins anyway.
+   *
+   * Read from the authoritative variables map rather than `keyAccess.knownKeys`: that set only
+   * covers names with an `env_workspace` credential row, so a legacy value written before the
+   * ACL existed would look like "no workspace secret here" and fall through to the personal
+   * branch — handing a non-admin the map for exactly the oldest keys.
+   */
+  if (await hasWorkspaceEnvValue({ workspaceId: params.workspaceId, envKey: params.name })) {
+    throw forbidden
+  }
+
+  const owned = await getPersonalEnvCredentialMetadata({
+    userId: params.userId,
+    envKey: params.name,
+  })
+  if (!owned) throw forbidden
+  return 'personal'
+}
+
+export const listSecretReferencesUseCase = defineAuthorizedWorkspaceUseCase({
+  operation: secretOperations.references,
+  resolveContext: ({ input }: { input: ListSecretReferencesInput }) =>
+    resolveWorkspaceContext(input.workspaceId),
+  authorizationOptions,
+  async execute({ principal, input, context }) {
+    const userId = principalUserId(principal)
+    const grant = await requireSecretReferencesReadAccess({
+      workspaceId: context.workspaceId,
+      name: input.name,
+      userId,
+    })
+
+    /**
+     * Name-based, not scope-narrowed: the same reference sites answer for a workspace secret and
+     * for the personal one it shadows. Narrowing by scope would report a personal secret as
+     * unreferenced the moment a workspace variable of the same name existed.
+     */
+    const scan = await scanSecretReferences({
+      workspaceId: context.workspaceId,
+      name: input.name,
+    })
+
+    /**
+     * Re-check the one input that can change under us. A `personal` grant rests on no workspace
+     * value existing under this name; a workspace secret created between the check and the scan
+     * would make the very map now in hand admin-gated. The read is cheap and skipped entirely
+     * for an `admin` grant, and failing closed here costs a non-admin nothing they were entitled
+     * to keep — the request is simply refused the way it would have been a moment later.
+     */
+    if (
+      grant === 'personal' &&
+      (await hasWorkspaceEnvValue({ workspaceId: context.workspaceId, envKey: input.name }))
+    ) {
+      throw new ForbiddenOperationError(
+        'SECRET_ADMIN_ACCESS_REQUIRED',
+        'Credential admin permission required to view this secret usage'
+      )
+    }
+
+    return scan
   },
 })
