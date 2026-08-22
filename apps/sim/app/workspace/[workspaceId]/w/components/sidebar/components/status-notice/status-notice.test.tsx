@@ -93,12 +93,14 @@ describe('StatusNotice', () => {
     expect(action?.getAttribute('rel')).toBe('noopener noreferrer')
   })
 
-  it('throws status query failures instead of hiding them', () => {
+  it('stays hidden when the optional status query fails', () => {
     mockUseStatusPage.mockReturnValue({
       data: undefined,
       error: new Error('status unavailable'),
     })
 
-    expect(render).toThrow('status unavailable')
+    render()
+
+    expect(container.textContent).toBe('')
   })
 })

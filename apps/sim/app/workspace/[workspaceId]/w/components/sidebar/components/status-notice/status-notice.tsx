@@ -39,11 +39,7 @@ function StatusAlert() {
 }
 
 export function StatusNotice({ preview = false }: StatusNoticeProps) {
-  const { data, error } = useStatusPage({ enabled: !preview })
-
-  if (!preview && error) {
-    throw error
-  }
+  const { data } = useStatusPage({ enabled: !preview })
 
   const status = preview ? PREVIEW_STATUS : data?.status
 
