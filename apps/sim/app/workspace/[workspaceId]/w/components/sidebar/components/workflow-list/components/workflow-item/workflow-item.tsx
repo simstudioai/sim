@@ -200,6 +200,10 @@ export const WorkflowItem = memo(function WorkflowItem({
   const isMixedSelection = useMemo(() => {
     return capturedSelectionRef.current?.isMixed ?? false
   }, [isContextMenuOpen])
+  const contextMenuSelectedCount = capturedSelectionRef.current
+    ? capturedSelectionRef.current.workflowIds.length +
+      capturedSelectionRef.current.folderIds.length
+    : 1
 
   const captureSelectionState = useCallback(() => {
     const store = useFolderStore.getState()
@@ -503,6 +507,7 @@ export const WorkflowItem = memo(function WorkflowItem({
         showLock={!isMixedSelection && selectedWorkflows.size <= 1}
         disableLock={!userPermissions.canAdmin || inheritedFolderLocked}
         isLocked={effectiveLocked}
+        selectedCount={contextMenuSelectedCount}
       />
 
       <DeleteModal

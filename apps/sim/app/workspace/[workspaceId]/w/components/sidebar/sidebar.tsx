@@ -1857,6 +1857,7 @@ export const Sidebar = memo(function Sidebar({
                   showDuplicate={false}
                   disableRename={!canEdit}
                   disableDelete={!canEdit}
+                  selectedCount={contextMenuSelectionRef.current.chatIds.length}
                 />
 
                 <DeleteModal

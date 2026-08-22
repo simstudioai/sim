@@ -7,3 +7,12 @@ export function selectionLabel(count: number, firstName: string | undefined): st
   if (count === 1) return firstName ?? 'selected item'
   return `${count} selected items`
 }
+
+export function selectionActionLabel(
+  action: string,
+  selectedCount: number,
+  singleItemLabel = action
+): string {
+  if (selectedCount <= 1) return singleItemLabel
+  return `${action} ${selectedCount} items`
+}

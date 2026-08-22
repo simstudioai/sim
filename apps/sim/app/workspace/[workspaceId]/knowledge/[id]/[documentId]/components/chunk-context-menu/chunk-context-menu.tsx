@@ -8,6 +8,7 @@ import {
   DropdownMenuTrigger,
 } from '@sim/emcn'
 import { Duplicate, Eye, Pencil, Plus, SquareArrowUpRight, Trash } from '@sim/emcn/icons'
+import { selectionActionLabel } from '@/app/workspace/[workspaceId]/components/resource/selection-label'
 
 interface ChunkContextMenuProps {
   isOpen: boolean
@@ -26,7 +27,7 @@ interface ChunkContextMenuProps {
   disableAddChunk?: boolean
   disableEdit?: boolean
   isConnectorDocument?: boolean
-  selectedCount?: number
+  selectedCount: number
   enabledCount?: number
   disabledCount?: number
 }
@@ -53,7 +54,7 @@ export function ChunkContextMenu({
   disableAddChunk = false,
   disableEdit = false,
   isConnectorDocument = false,
-  selectedCount = 1,
+  selectedCount,
   enabledCount = 0,
   disabledCount = 0,
 }: ChunkContextMenuProps) {
@@ -118,7 +119,7 @@ export function ChunkContextMenu({
             {onToggleEnabled && (
               <DropdownMenuItem disabled={disableToggleEnabled} onSelect={onToggleEnabled}>
                 <Eye />
-                {getToggleLabel()}
+                {selectionActionLabel(getToggleLabel(), selectedCount)}
               </DropdownMenuItem>
             )}
 
@@ -126,7 +127,7 @@ export function ChunkContextMenu({
             {onDelete && (
               <DropdownMenuItem disabled={disableDelete} onSelect={onDelete}>
                 <Trash />
-                Delete
+                {selectionActionLabel('Delete', selectedCount)}
               </DropdownMenuItem>
             )}
           </>

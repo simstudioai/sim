@@ -18,6 +18,7 @@ import {
 import { Download, Link, Pin, Send, Trash } from '@sim/emcn/icons'
 import type { MoveOptionNode } from '@/app/workspace/[workspaceId]/components/folders'
 import { renderMoveOption } from '@/app/workspace/[workspaceId]/components/folders'
+import { selectionActionLabel } from '@/app/workspace/[workspaceId]/components/resource/selection-label'
 
 interface FileRowContextMenuProps {
   isOpen: boolean
@@ -98,7 +99,7 @@ export const FileRowContextMenu = memo(function FileRowContextMenu({
         {onDownload && (
           <DropdownMenuItem onSelect={onDownload}>
             <Download />
-            {isMultiSelect ? `Download ${selectedCount} items` : 'Download'}
+            {selectionActionLabel('Download', selectedCount)}
           </DropdownMenuItem>
         )}
         {!isMultiSelect && (
@@ -125,7 +126,7 @@ export const FileRowContextMenu = memo(function FileRowContextMenu({
               <DropdownMenuSub>
                 <DropdownMenuSubTrigger>
                   <FolderInput />
-                  {isMultiSelect ? `Move ${selectedCount} items` : 'Move to'}
+                  {selectionActionLabel('Move', selectedCount, 'Move to')}
                 </DropdownMenuSubTrigger>
                 <DropdownMenuSubContent>
                   <DropdownMenuItem onSelect={() => onMove(moveOptions[0].value)}>
@@ -140,7 +141,7 @@ export const FileRowContextMenu = memo(function FileRowContextMenu({
             {hasActionsAboveDestructive && <DropdownMenuSeparator />}
             <DropdownMenuItem onSelect={onDelete}>
               <Trash />
-              {isMultiSelect ? `Delete ${selectedCount} items` : 'Delete'}
+              {selectionActionLabel('Delete', selectedCount)}
             </DropdownMenuItem>
           </>
         )}

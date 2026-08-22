@@ -14,6 +14,7 @@ import {
 import { Duplicate, Eye, FolderInput, Pencil, Pin, Trash } from '@sim/emcn/icons'
 import type { MoveOptionNode } from '@/app/workspace/[workspaceId]/components/folders/move-options'
 import { renderMoveOptions } from '@/app/workspace/[workspaceId]/components/folders/move-options'
+import { selectionActionLabel } from '@/app/workspace/[workspaceId]/components/resource/selection-label'
 
 interface FolderContextMenuProps {
   isOpen: boolean
@@ -29,6 +30,7 @@ interface FolderContextMenuProps {
   pinned: boolean
   moveOptions?: MoveOptionNode[]
   canEdit: boolean
+  selectedCount: number
 }
 
 /**
@@ -56,8 +58,11 @@ export const FolderContextMenu = memo(function FolderContextMenu({
   pinned,
   moveOptions,
   canEdit,
+  selectedCount,
 }: FolderContextMenuProps) {
+  const isMultiSelect = selectedCount > 1
   const hasMove = Boolean(onMove && moveOptions && moveOptions.length > 0)
+  const hasActionsAboveDestructive = !isMultiSelect || hasMove
 
   return (
     <DropdownMenu open={isOpen} onOpenChange={(open) => !open && onClose()} modal={false}>
@@ -75,41 +80,47 @@ export const FolderContextMenu = memo(function FolderContextMenu({
         sideOffset={4}
         onCloseAutoFocus={(e) => e.preventDefault()}
       >
-        <DropdownMenuItem onSelect={onOpen}>
-          <Eye />
-          Open
-        </DropdownMenuItem>
-        <DropdownMenuItem onSelect={onTogglePin}>
-          <Pin />
-          {pinned ? 'Unpin' : 'Pin'}
-        </DropdownMenuItem>
-        {onCopyId && (
-          <DropdownMenuItem onSelect={onCopyId}>
-            <Duplicate />
-            Copy ID
-          </DropdownMenuItem>
+        {!isMultiSelect && (
+          <>
+            <DropdownMenuItem onSelect={onOpen}>
+              <Eye />
+              Open
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={onTogglePin}>
+              <Pin />
+              {pinned ? 'Unpin' : 'Pin'}
+            </DropdownMenuItem>
+            {onCopyId && (
+              <DropdownMenuItem onSelect={onCopyId}>
+                <Duplicate />
+                Copy ID
+              </DropdownMenuItem>
+            )}
+          </>
         )}
         {canEdit && (
           <>
-            <DropdownMenuItem onSelect={onRename}>
-              <Pencil />
-              Rename
-            </DropdownMenuItem>
+            {!isMultiSelect && (
+              <DropdownMenuItem onSelect={onRename}>
+                <Pencil />
+                Rename
+              </DropdownMenuItem>
+            )}
             {hasMove && (
               <DropdownMenuSub>
                 <DropdownMenuSubTrigger>
                   <FolderInput />
-                  Move to
+                  {selectionActionLabel('Move', selectedCount, 'Move to')}
                 </DropdownMenuSubTrigger>
                 <DropdownMenuSubContent>
                   {renderMoveOptions(moveOptions!, onMove!)}
                 </DropdownMenuSubContent>
               </DropdownMenuSub>
             )}
-            <DropdownMenuSeparator />
+            {hasActionsAboveDestructive && <DropdownMenuSeparator />}
             <DropdownMenuItem onSelect={onDelete}>
               <Trash />
-              Delete
+              {selectionActionLabel('Delete', selectedCount)}
             </DropdownMenuItem>
           </>
         )}
