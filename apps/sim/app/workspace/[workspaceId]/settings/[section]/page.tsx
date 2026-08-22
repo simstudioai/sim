@@ -24,7 +24,7 @@ import {
 } from '@/app/workspace/[workspaceId]/settings/navigation'
 import { resolveWorkspaceGroup } from '@/ee/access-control/utils/permission-check'
 import { isForkingAvailableForWorkspace } from '@/ee/workspace-forking/lib/lineage/authz'
-import { prefetchGeneralSettings } from './prefetch'
+import { SECTION_PREFETCHERS } from './prefetch'
 import { SettingsPage } from './settings'
 
 interface WorkspaceSettingsSectionPageProps {
@@ -59,20 +59,6 @@ const ORGANIZATION_SECTION_MAP: Partial<Record<SettingsSection, OrganizationSett
   'data-drains': 'data-drains',
   whitelabeling: 'whitelabeling',
 }
-
-/**
- * Sections whose first paint reads the general-settings query.
- *
- * Their bodies default a missing value (`?? true` / `?? false`) and drive a switch off it, so
- * without a hydrated entry they paint the fallback and visibly flip when the client fetch
- * lands. The workspace layout's `SettingsLoader` warms this key only after hydration, which
- * covers client navigation but not a direct load of one of these sections.
- */
-const GENERAL_SETTINGS_SECTIONS: ReadonlySet<SettingsSection> = new Set([
-  'general',
-  'billing',
-  'admin',
-])
 
 /**
  * Settings availability varies across workspaces, so a preserved section may
@@ -120,9 +106,11 @@ export default async function WorkspaceSettingsSectionPage({
    * and section-entitlement gates remain authoritative, but their independent reads no longer
    * serialize in front of this data. The promise is still awaited before dehydration below.
    */
-  const generalSettingsPrefetch = GENERAL_SETTINGS_SECTIONS.has(parsed)
-    ? prefetchGeneralSettings(queryClient, session.user.id)
-    : Promise.resolve()
+  const sectionPrefetch =
+    SECTION_PREFETCHERS[parsed]?.(queryClient, {
+      workspaceId,
+      userId: session.user.id,
+    }) ?? Promise.resolve()
 
   const workspaceSection = WORKSPACE_SECTION_MAP[parsed]
   if (workspaceSection) {
@@ -226,7 +214,7 @@ export default async function WorkspaceSettingsSectionPage({
    * a blocking round-trip for a cache entry they never touch. The viewer's profile is seeded
    * by the workspace layout under a different key and is not repeated here.
    */
-  await generalSettingsPrefetch
+  await sectionPrefetch
 
   return (
     <HydrationBoundary state={dehydrate(queryClient)}>
