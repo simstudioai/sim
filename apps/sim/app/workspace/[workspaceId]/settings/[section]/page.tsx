@@ -8,6 +8,7 @@ import {
   type OrganizationSettingsSection,
   resolveWorkspaceNavigation,
   type WorkspaceSettingsSection,
+  workspaceSectionUsesPermissionConfig,
 } from '@/components/settings/navigation'
 import { getSession } from '@/lib/auth'
 import { isOrganizationOnEnterprisePlan } from '@/lib/billing'
@@ -113,6 +114,16 @@ export default async function WorkspaceSettingsSectionPage({
   if (!hostContext) notFound()
   if (requiresPlatformAdmin && !isViewerPlatformAdmin) notFound()
 
+  const queryClient = getQueryClient()
+  /**
+   * Start the viewer-scoped prefetch as soon as workspace access is established. Organization
+   * and section-entitlement gates remain authoritative, but their independent reads no longer
+   * serialize in front of this data. The promise is still awaited before dehydration below.
+   */
+  const generalSettingsPrefetch = GENERAL_SETTINGS_SECTIONS.has(parsed)
+    ? prefetchGeneralSettings(queryClient, session.user.id)
+    : Promise.resolve()
+
   const workspaceSection = WORKSPACE_SECTION_MAP[parsed]
   if (workspaceSection) {
     /**
@@ -130,12 +141,14 @@ export default async function WorkspaceSettingsSectionPage({
      * check it could not act on. Passing `false` elsewhere is safe in the one direction that
      * matters: it can only remove `forks` from a list this gate is not asking about.
      *
-     * `permissionConfig` is deliberately NOT narrowed the same way. Its keys hide sections, so
-     * skipping the lookup for a section that turns out to be config-gated would reveal it —
-     * fail-open, where the others fail closed.
+     * Permission-group config is narrowed by the same policy map that hides navigation items.
+     * Every other section is independent of that config, so resolving the viewer's group for it
+     * can never change this gate's answer.
      */
     const [permissionGroup, forksAvailable] = await Promise.all([
-      hostContext.hostOrganizationId && hostContext.ownerBilling.isEnterprise
+      hostContext.hostOrganizationId &&
+      hostContext.ownerBilling.isEnterprise &&
+      workspaceSectionUsesPermissionConfig(workspaceSection)
         ? resolveWorkspaceGroup(session.user.id, hostContext.hostOrganizationId, workspaceId)
         : null,
       workspaceSection === 'forks'
@@ -206,7 +219,6 @@ export default async function WorkspaceSettingsSectionPage({
     }
   }
 
-  const queryClient = getQueryClient()
   /**
    * Scoped to the sections that actually read the key. The prefetch has to be awaited — an
    * unsettled query is dropped from the dehydrated payload, so firing and forgetting would
@@ -214,9 +226,7 @@ export default async function WorkspaceSettingsSectionPage({
    * a blocking round-trip for a cache entry they never touch. The viewer's profile is seeded
    * by the workspace layout under a different key and is not repeated here.
    */
-  if (GENERAL_SETTINGS_SECTIONS.has(parsed)) {
-    await prefetchGeneralSettings(queryClient)
-  }
+  await generalSettingsPrefetch
 
   return (
     <HydrationBoundary state={dehydrate(queryClient)}>

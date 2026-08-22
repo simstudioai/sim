@@ -1,5 +1,4 @@
 import type { QueryClient } from '@tanstack/react-query'
-import { getSession } from '@/lib/auth'
 import { getUserSettings } from '@/lib/users/queries'
 import {
   GENERAL_SETTINGS_STALE_TIME,
@@ -13,16 +12,19 @@ import {
  * Uses the same query key and mapper as the client `useGeneralSettings` hook, so the
  * hydrated entry is indistinguishable from one a client fetch produced.
  *
- * Callers must `await` this. Only a settled query is dehydrated, so an unawaited prefetch
- * is dropped from the payload entirely and the panel waterfalls on every load as if it had
- * never been prefetched.
+ * The authenticated caller supplies the viewer ID it already resolved. Re-reading the session
+ * inside the query would add another dependency to a prefetch that is deliberately started as
+ * soon as workspace access succeeds.
+ *
+ * Callers must await the returned promise before dehydration. Only a settled query is included
+ * by the current dehydration policy, so dropping the promise would leave the panel to fetch on
+ * the client as if it had never been prefetched.
  */
-export function prefetchGeneralSettings(queryClient: QueryClient) {
+export function prefetchGeneralSettings(queryClient: QueryClient, userId: string) {
   return queryClient.prefetchQuery({
     queryKey: generalSettingsKeys.settings(),
     queryFn: async () => {
-      const session = await getSession()
-      const data = await getUserSettings(session?.user?.id ?? null)
+      const data = await getUserSettings(userId)
       return mapGeneralSettingsResponse(data)
     },
     staleTime: GENERAL_SETTINGS_STALE_TIME,

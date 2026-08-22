@@ -966,6 +966,20 @@ export interface WorkspacePermissionConfig {
   disableCustomTools?: boolean
 }
 
+const WORKSPACE_PERMISSION_CONFIG_KEYS: Partial<
+  Record<WorkspaceSettingsSection, keyof WorkspacePermissionConfig>
+> = {
+  secrets: 'hideSecretsTab',
+  'api-keys': 'hideApiKeysTab',
+  inbox: 'hideInboxTab',
+  mcp: 'disableMcpTools',
+  'custom-tools': 'disableCustomTools',
+}
+
+export function workspaceSectionUsesPermissionConfig(section: WorkspaceSettingsSection): boolean {
+  return WORKSPACE_PERMISSION_CONFIG_KEYS[section] !== undefined
+}
+
 export interface WorkspaceSettingsEntitlements {
   byok: boolean
   credentialGroups: boolean
@@ -1037,11 +1051,8 @@ export function resolveWorkspaceNavigation({
   entitlements,
 }: ResolveWorkspaceNavigationOptions): ResolvedWorkspaceNavigationItem[] {
   return WORKSPACE_SETTINGS_ITEMS.flatMap((item) => {
-    if (item.id === 'secrets' && permissionConfig.hideSecretsTab) return []
-    if (item.id === 'api-keys' && permissionConfig.hideApiKeysTab) return []
-    if (item.id === 'inbox' && permissionConfig.hideInboxTab) return []
-    if (item.id === 'mcp' && permissionConfig.disableMcpTools) return []
-    if (item.id === 'custom-tools' && permissionConfig.disableCustomTools) return []
+    const permissionConfigKey = WORKSPACE_PERMISSION_CONFIG_KEYS[item.id]
+    if (permissionConfigKey && permissionConfig[permissionConfigKey]) return []
     if (item.id === 'forks' && (permission !== 'admin' || !entitlements.forks)) return []
     if (
       item.id === 'credential-groups' &&

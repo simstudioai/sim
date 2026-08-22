@@ -67,7 +67,9 @@ export function AccessControl({ isOrganizationAdmin, organizationId }: AccessCon
   const { data: userPermissionConfig, isPending: entitlementLoading } =
     useUserPermissionConfig(workspaceId)
   const { data: organizationBillingData, isPending: organizationBillingLoading } =
-    useOrganizationBilling(organizationId)
+    useOrganizationBilling(organizationId, {
+      enabled: !isAccessControlEnabled && !userPermissionConfig?.entitled,
+    })
   const currentUserIsOrgAdmin = isOrganizationAdmin
 
   const { data: permissionGroups = [], isPending: groupsLoading } = usePermissionGroups(
@@ -88,9 +90,12 @@ export function AccessControl({ isOrganizationAdmin, organizationId }: AccessCon
     !!userPermissionConfig?.entitled ||
     isEnterprise(organizationBillingData?.data?.subscriptionPlan)
   const canManage = isEntitled && currentUserIsOrgAdmin && !!organizationId
+  const organizationEntitlementLoading =
+    !isAccessControlEnabled && !userPermissionConfig?.entitled && organizationBillingLoading
 
   const isLoading =
-    (workspaceId ? entitlementLoading : organizationBillingLoading) ||
+    (workspaceId ? entitlementLoading : false) ||
+    organizationEntitlementLoading ||
     (!!organizationId && currentUserIsOrgAdmin && groupsLoading)
 
   const createPermissionGroup = useCreatePermissionGroup()
@@ -200,8 +205,25 @@ export function AccessControl({ isOrganizationAdmin, organizationId }: AccessCon
     setCreateError(null)
   }, [])
 
+  const listSearch = {
+    value: searchTerm,
+    onChange: setSearchTerm,
+    placeholder: 'Search permission groups...',
+    disabled: isLoading,
+  }
+  const listActions = [
+    {
+      id: 'create-group',
+      text: 'Create group',
+      icon: Plus,
+      variant: 'primary' as const,
+      onSelect: () => setShowCreateModal(true),
+      disabled: isLoading,
+    },
+  ]
+
   if (isLoading) {
-    return null
+    return <SettingsPanel search={listSearch} actions={listActions} />
   }
 
   if (!canManage) {
@@ -231,21 +253,7 @@ export function AccessControl({ isOrganizationAdmin, organizationId }: AccessCon
 
   return (
     <>
-      <SettingsPanel
-        search={{
-          value: searchTerm,
-          onChange: setSearchTerm,
-          placeholder: 'Search permission groups...',
-        }}
-        actions={[
-          {
-            text: 'Create group',
-            icon: Plus,
-            variant: 'primary',
-            onSelect: () => setShowCreateModal(true),
-          },
-        ]}
-      >
+      <SettingsPanel search={listSearch} actions={listActions}>
         <SettingsSection label={`Permission groups (${permissionGroups.length})`}>
           {permissionGroups.length === 0 ? (
             <SettingsEmptyState variant='inline'>

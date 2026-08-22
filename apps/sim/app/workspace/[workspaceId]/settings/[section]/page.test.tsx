@@ -40,6 +40,9 @@ vi.mock('@/components/settings/navigation', () => ({
   getOrganizationSettingsFeatures: vi.fn(() => ({})),
   isOrganizationSettingsSectionAvailable: mockIsOrganizationSettingsSectionAvailable,
   resolveWorkspaceNavigation: mockResolveWorkspaceNavigation,
+  workspaceSectionUsesPermissionConfig: vi.fn((section: string) =>
+    ['secrets', 'api-keys', 'inbox', 'mcp', 'custom-tools'].includes(section)
+  ),
 }))
 
 vi.mock('@/lib/auth', () => ({
@@ -84,7 +87,7 @@ const { mockGetQueryClient, mockPrefetchGeneralSettings } = vi.hoisted(() => ({
 }))
 
 const { mockSections, mockAliases } = vi.hoisted(() => ({
-  mockSections: ['general', 'billing', 'secrets', 'sessions', 'admin'],
+  mockSections: ['general', 'billing', 'secrets', 'sessions', 'admin', 'teammates'],
   /** Mirrors the real alias table so a legacy segment behaves here as it does in production. */
   mockAliases: {
     subscription: 'billing',
@@ -133,6 +136,21 @@ const PERSONAL_HOST_CONTEXT = {
   viewer: {
     permission: 'admin',
     isHostOrganizationAdmin: false,
+  },
+}
+
+const ORGANIZATION_HOST_CONTEXT = {
+  workspace: {
+    id: 'workspace-b',
+    billedAccountUserId: 'owner-b',
+  },
+  hostOrganizationId: 'organization-b',
+  ownerBilling: {
+    isEnterprise: true,
+  },
+  viewer: {
+    permission: 'admin',
+    isHostOrganizationAdmin: true,
   },
 }
 
@@ -194,6 +212,43 @@ describe('WorkspaceSettingsSectionPage unavailable sections', () => {
     expect(mockPrefetchGeneralSettings).not.toHaveBeenCalled()
   })
 
+  it('resolves a permission group only when its config can hide the requested section', async () => {
+    mockGetWorkspaceHostContext.mockResolvedValue(ORGANIZATION_HOST_CONTEXT)
+    mockResolveWorkspaceNavigation.mockReturnValue([{ id: 'teammates' }])
+
+    await WorkspaceSettingsSectionPage(pageProps('teammates'))
+
+    expect(mockResolveWorkspaceGroup).not.toHaveBeenCalled()
+
+    mockResolveWorkspaceNavigation.mockReturnValue([{ id: 'secrets' }])
+    await WorkspaceSettingsSectionPage(pageProps('secrets'))
+
+    expect(mockResolveWorkspaceGroup).toHaveBeenCalledTimes(1)
+    expect(mockResolveWorkspaceGroup).toHaveBeenCalledWith(
+      'viewer-a',
+      'organization-b',
+      'workspace-b'
+    )
+  })
+
+  it('overlaps general-settings hydration with the organization section gate', async () => {
+    let resolveCanOpenSection: ((value: boolean) => void) | undefined
+    mockGetWorkspaceHostContext.mockResolvedValue(ORGANIZATION_HOST_CONTEXT)
+    mockCanOpenOrganizationSettingsSection.mockReturnValue(
+      new Promise<boolean>((resolve) => {
+        resolveCanOpenSection = resolve
+      })
+    )
+
+    const render = WorkspaceSettingsSectionPage(pageProps('billing'))
+    await vi.waitFor(() => expect(mockCanOpenOrganizationSettingsSection).toHaveBeenCalledTimes(1))
+
+    expect(mockPrefetchGeneralSettings).toHaveBeenCalledWith(expect.any(QueryClient), 'viewer-a')
+
+    resolveCanOpenSection?.(true)
+    await render
+  })
+
   it('gates the hydration on the resolved section, not the raw segment', async () => {
     // `/settings/subscription` is a legacy link for billing, which does read the key. Billing on
     // a personal workspace is only reachable by the billed account owner.
@@ -210,5 +265,6 @@ describe('WorkspaceSettingsSectionPage unavailable sections', () => {
     await expect(WorkspaceSettingsSectionPage(pageProps('general'))).rejects.toThrow(
       'NEXT_NOT_FOUND'
     )
+    expect(mockPrefetchGeneralSettings).not.toHaveBeenCalled()
   })
 })

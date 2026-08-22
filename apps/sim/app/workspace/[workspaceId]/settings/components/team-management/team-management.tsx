@@ -44,12 +44,21 @@ export function TeamManagement({
   const { isInvitationsDisabled } = usePermissionConfig()
   const [memberQuery, setMemberQuery] = useSettingsSearch()
 
-  const { data: userSubscriptionData } = useSubscriptionData()
+  const { data: organization, isLoading, error: orgError } = useOrganization(organizationId)
+  /**
+   * Personal billing only supports the legacy missing-organization recovery view. A valid
+   * organization page derives its plan from organization billing, so avoid that unrelated read
+   * on the normal first paint.
+   */
+  const shouldLoadRecoverySubscription = !isLoading && !orgError && !organization
+  const { data: userSubscriptionData, isPending: isRecoverySubscriptionPending } =
+    useSubscriptionData({
+      enabled: shouldLoadRecoverySubscription,
+    })
   const subscriptionAccess = getSubscriptionAccessState(userSubscriptionData?.data)
   const hasTeamPlan = subscriptionAccess.hasUsableTeamAccess
   const hasEnterprisePlan = subscriptionAccess.hasUsableEnterpriseAccess
 
-  const { data: organization, isLoading, error: orgError } = useOrganization(organizationId)
   const adminOrOwner = isAdminOrOwner(organization, session?.user?.email)
 
   const { data: organizationBillingData, isLoading: isOrgBillingLoading } = useOrganizationBilling(
@@ -277,6 +286,10 @@ export function TeamManagement({
   const displayOrganization = organization
 
   if (isLoading && !displayOrganization) {
+    return null
+  }
+
+  if (!displayOrganization && shouldLoadRecoverySubscription && isRecoverySubscriptionPending) {
     return null
   }
 
