@@ -145,15 +145,26 @@ export function invalidateDeployedStateCache(deploymentVersionId?: string): void
   deployedStateCache.clear()
 }
 
-interface DeploymentStateRow {
+export interface DeploymentStateRow {
   id: string
   state: unknown
 }
 
-async function materializeDeploymentState(
+/**
+ * Projects a deployment version's frozen jsonb into the shape change detection
+ * compares against.
+ *
+ * Exported because both sides of "needs redeploy" must be materialized the same
+ * way. The client asks through `/api/workflows/[id]/deployed`; the server asks
+ * through `checkNeedsRedeployment`. When only one of them ran the migrations,
+ * the handle canonicalization and the `errorEnabled` backfill below, the two
+ * surfaces answered the same question differently for the same workflow.
+ */
+export async function materializeDeploymentState(
   workflowId: string,
   version: DeploymentStateRow,
-  providedWorkspaceId?: string
+  providedWorkspaceId?: string,
+  executor?: DbOrTx
 ): Promise<DeployedWorkflowData> {
   const cached = deployedStateCache.get(version.id)
   if (cached) {
@@ -173,7 +184,8 @@ async function materializeDeploymentState(
 
   const { blocks: migratedBlocks } = await applyBlockMigrations(
     state.blocks || {},
-    resolvedWorkspaceId
+    resolvedWorkspaceId,
+    executor
   )
   /*
    * Read straight out of the version's jsonb blob, so unlike every path that

@@ -5,7 +5,9 @@ import { Chip, Tooltip, toast } from '@sim/emcn'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { DeployModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/components/deploy-modal/deploy-modal'
 import {
+  resolveDeployButtonStatus,
   useChangeDetection,
+  useChangeDetectionCanary,
   useDeployment,
   useDeployReadiness,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/hooks'
@@ -40,12 +42,41 @@ export function Deploy({ activeWorkflowId, userPermissions, disabled = false }: 
   const deployedState = isDeployedStateEnabled ? (deployedStateData ?? null) : null
   const deployReadiness = useDeployReadiness(activeWorkflowId)
 
-  const { changeDetected, isChangeDetectionSettling } = useChangeDetection({
+  /*
+   * `isLoading` (no snapshot yet), NOT `isFetching`. A background refetch — which
+   * `refetchOnWindowFocus` fires on every focus — still has the cached snapshot
+   * to compare against, so treating it as loading blanked the answer and pushed
+   * an already-correct "Update" back through "Live" and out again.
+   */
+  const { changeDetected, changedFields, isChangeDetectionSettling } = useChangeDetection({
     workflowId: activeWorkflowId,
     deployedState,
-    isLoadingDeployedState: isLoadingDeployedState || isFetchingDeployedState,
+    isLoadingDeployedState,
   })
   const isDeploymentSettling = isChangeDetectionSettling || deployReadiness.isSyncing
+
+  const serverNeedsRedeployment = isDeployedStateEnabled
+    ? deploymentInfo?.needsRedeployment
+    : undefined
+
+  const buttonStatus = resolveDeployButtonStatus({
+    workflowId: activeWorkflowId,
+    isDeployed,
+    isAwaitingFirstDeployedState: isLoadingDeployedState,
+    clientChangeDetected: changeDetected,
+    hasDeployedState: deployedState !== null,
+    serverNeedsRedeployment,
+  })
+  const changeDetectedForModal = buttonStatus === 'changed'
+
+  useChangeDetectionCanary({
+    workflowId: activeWorkflowId,
+    clientChangeDetected: changeDetected,
+    clientChangedFields: changedFields,
+    serverNeedsRedeployment,
+    isSettling: isDeploymentSettling || deployedState === null,
+    isSettled: deployReadiness.status === 'ready',
+  })
 
   const { isDeploying, handleDeployClick } = useDeployment({
     workflowId: activeWorkflowId,
@@ -110,23 +141,28 @@ export function Deploy({ activeWorkflowId, userPermissions, disabled = false }: 
     if (deployReadiness.isBlocked && !isDeployed) {
       return deployReadiness.tooltip
     }
-    if (changeDetected) {
+    if (buttonStatus === 'changed') {
       return 'Update deployment'
     }
-    if (isDeployed) {
+    if (buttonStatus === 'live') {
       return 'Active deployment'
     }
     return 'Deploy workflow'
   }
 
   const getButtonLabel = () => {
-    if (changeDetected) {
-      return 'Update'
+    switch (buttonStatus) {
+      case 'changed':
+        return 'Update'
+      case 'live':
+        return 'Live'
+      /*
+       * Only reachable before we know the workflow is deployed, so "Deploy" is
+       * the answer rather than a guess we would have to take back.
+       */
+      default:
+        return 'Deploy'
     }
-    if (isDeployed) {
-      return 'Live'
-    }
-    return 'Deploy'
   }
 
   return (
@@ -151,7 +187,7 @@ export function Deploy({ activeWorkflowId, userPermissions, disabled = false }: 
         onOpenChange={setIsModalOpen}
         workflowId={activeWorkflowId}
         isDeployed={isDeployed}
-        needsRedeployment={changeDetected}
+        needsRedeployment={changeDetectedForModal}
         deployedState={deployedState}
         isLoadingDeployedState={isLoadingDeployedState || isFetchingDeployedState}
         deployReadiness={deployReadiness}
