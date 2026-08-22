@@ -41,7 +41,7 @@ import type {
   MothershipResourceType,
 } from '@/app/workspace/[workspaceId]/home/types'
 import { formatDate } from '@/app/workspace/[workspaceId]/logs/utils'
-import { listIntegrations } from '@/blocks/integration-matcher'
+import { listIntegrationsByPopularity } from '@/blocks/integration-matcher'
 import { useFolders } from '@/hooks/queries/folders'
 import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
 import { useLogsList } from '@/hooks/queries/logs'
@@ -255,7 +255,7 @@ export function useAvailableResources(
       },
       {
         type: 'integration' as const,
-        items: listIntegrations().map((integration) => ({
+        items: listIntegrationsByPopularity().map((integration) => ({
           id: integration.blockType,
           name: integration.name,
           iconComponent: integration.icon,
