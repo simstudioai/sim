@@ -31,7 +31,7 @@ export const bitbucketConnectorMeta: ConnectorMeta = {
   auth: {
     mode: 'oauth',
     provider: 'bitbucket',
-    requiredScopes: ['repository', 'pullrequest'],
+    requiredScopes: ['pullrequest'],
   },
 
   configFields: [
@@ -88,7 +88,7 @@ export const bitbucketConnectorMeta: ConnectorMeta = {
       ],
       placeholder: 'Code (repository files) only',
       description:
-        'Which content to index. Defaults to repository files when left unset. Bitbucket Cloud wikis and the issue tracker are not indexed — see the connector notes.',
+        'Which content to index. Defaults to repository files when left unset. Git LFS-managed files, Bitbucket Cloud wikis, and the issue tracker are not indexed.',
     },
     {
       id: 'ref',

@@ -161,7 +161,13 @@ function createBitbucketApiError(status: number, action: 'create' | 'delete', de
 
 type BitbucketCandidateLookup =
   | { kind: 'absent' }
-  | { kind: 'found'; externalId: string }
+  | {
+      kind: 'found'
+      externalId: string
+      active: boolean
+      events: string[]
+      secretSet: boolean
+    }
   | { kind: 'ambiguous'; matchCount: number }
   | { kind: 'unavailable'; error: Error }
 
@@ -220,9 +226,18 @@ async function findBitbucketCandidateHook(
     return { kind: 'ambiguous', matchCount: matchingHooks.length }
   }
 
-  const externalId = nullableString(toRecord(matchingHooks[0]).uuid)?.trim()
+  const matchedHook = toRecord(matchingHooks[0])
+  const externalId = nullableString(matchedHook.uuid)?.trim()
   return externalId
-    ? { kind: 'found', externalId }
+    ? {
+        kind: 'found',
+        externalId,
+        active: matchedHook.active === true,
+        events: Array.isArray(matchedHook.events)
+          ? matchedHook.events.filter((event): event is string => typeof event === 'string')
+          : [],
+        secretSet: matchedHook.secret_set === true,
+      }
     : { kind: 'ambiguous', matchCount: matchingHooks.length }
 }
 
@@ -500,7 +515,14 @@ export const bitbucketHandler: WebhookProviderHandler = {
       if (existingCandidate.kind === 'found') {
         const checkpointedExternalId = nullableString(config.externalId)?.trim()
         const checkpointedSecret = nullableString(config.webhookSecret)?.trim()
-        if (checkpointedExternalId === existingCandidate.externalId && checkpointedSecret) {
+        const candidateMatchesCheckpoint =
+          checkpointedExternalId === existingCandidate.externalId &&
+          Boolean(checkpointedSecret) &&
+          existingCandidate.active &&
+          existingCandidate.secretSet &&
+          existingCandidate.events.length === 1 &&
+          existingCandidate.events[0] === eventKey
+        if (candidateMatchesCheckpoint && checkpointedSecret) {
           logger.info(
             `[${ctx.requestId}] Reusing checkpointed Bitbucket candidate ${existingCandidate.externalId}`
           )

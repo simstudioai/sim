@@ -232,23 +232,27 @@ describe('buildSelectorContextFromBlock', () => {
   })
 
   it('exposes a trigger workspace slug to the Bitbucket repository selector', () => {
-    const context = buildSelectorContextFromBlock('bitbucket', {
-      selectedTriggerId: {
-        id: 'selectedTriggerId',
-        type: 'dropdown',
-        value: 'bitbucket_push',
+    const context = buildSelectorContextFromBlock(
+      'bitbucket',
+      {
+        selectedTriggerId: {
+          id: 'selectedTriggerId',
+          type: 'dropdown',
+          value: 'bitbucket_push',
+        },
+        triggerCredentials: {
+          id: 'triggerCredentials',
+          type: 'oauth-input',
+          value: 'credential-1',
+        },
+        workspacePicker: {
+          id: 'workspacePicker',
+          type: 'project-selector',
+          value: 'acme-platform',
+        },
       },
-      triggerCredentials: {
-        id: 'triggerCredentials',
-        type: 'oauth-input',
-        value: 'credential-1',
-      },
-      workspacePicker: {
-        id: 'workspacePicker',
-        type: 'project-selector',
-        value: 'acme-platform',
-      },
-    })
+      { triggerMode: true }
+    )
 
     expect(context).toMatchObject({
       oauthCredential: 'credential-1',

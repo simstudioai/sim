@@ -545,6 +545,9 @@ describe('Bitbucket webhook provider', () => {
       uuid: '{candidate-hook}',
       description: CANDIDATE_DESCRIPTION,
       url: CALLBACK_URL,
+      active: true,
+      events: ['repo:push'],
+      secret_set: true,
     }
 
     function hooksResponse(values: Array<Record<string, unknown>>): Response {
@@ -912,6 +915,31 @@ describe('Bitbucket webhook provider', () => {
 
       const result = await bitbucketHandler.createSubscription!(
         subscriptionContext({ ...validConfig, ...checkpoint })
+      )
+
+      expect(fetchMock).toHaveBeenCalledTimes(3)
+      expect(fetchMock.mock.calls[1][1]).toMatchObject({ method: 'DELETE' })
+      expect(fetchMock.mock.calls[2][1]).toMatchObject({ method: 'POST' })
+      expect(result?.providerConfigUpdates).toMatchObject({ externalId: '{new-candidate-hook}' })
+    })
+
+    it.each([
+      ['disabled', { active: false }],
+      ['missing its secret', { secret_set: false }],
+      ['subscribed to the wrong event', { events: ['pullrequest:created'] }],
+      ['subscribed to additional events', { events: ['repo:push', 'pullrequest:created'] }],
+    ])('replaces a checkpointed candidate that is %s', async (_case, hookOverride) => {
+      fetchMock
+        .mockResolvedValueOnce(hooksResponse([activeHook, { ...candidateHook, ...hookOverride }]))
+        .mockResolvedValueOnce(emptyResponse(204))
+        .mockResolvedValueOnce(jsonResponse(201, { uuid: '{new-candidate-hook}' }))
+
+      const result = await bitbucketHandler.createSubscription!(
+        subscriptionContext({
+          ...validConfig,
+          externalId: '{candidate-hook}',
+          webhookSecret: 'checkpointed-secret',
+        })
       )
 
       expect(fetchMock).toHaveBeenCalledTimes(3)
