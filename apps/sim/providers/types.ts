@@ -21,6 +21,7 @@ export type ProviderId =
   | 'ollama'
   | 'ollama-cloud'
   | 'openrouter'
+  | 'orcarouter'
   | 'fireworks'
   | 'together'
   | 'baseten'

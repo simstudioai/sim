@@ -26,6 +26,7 @@ export type AttachmentProvider =
   | 'google'
   | 'bedrock'
   | 'openrouter'
+  | 'orcarouter'
   | 'mistral'
   | 'groq'
   | 'fireworks'
@@ -164,6 +165,7 @@ const PROVIDER_SUPPORTED_LABELS: Record<AttachmentProvider, string> = {
   google: 'images, audio, video, PDFs, and text documents through Gemini inlineData',
   bedrock: 'Bedrock Converse image, document, and video content blocks',
   openrouter: 'images and PDFs through OpenRouter multimodal message parts',
+  orcarouter: 'images and PDFs through OrcaRouter multimodal message parts',
   mistral: 'images through image_url message parts',
   groq: 'images through image_url message parts on multimodal models',
   fireworks: 'images through image_url message parts on vision models',
@@ -188,6 +190,7 @@ export function getAttachmentProvider(providerId: ProviderId | string): Attachme
   if (providerId === 'google' || providerId === 'vertex') return 'google'
   if (providerId === 'bedrock') return 'bedrock'
   if (providerId === 'openrouter') return 'openrouter'
+  if (providerId === 'orcarouter') return 'orcarouter'
   if (providerId === 'mistral') return 'mistral'
   if (providerId === 'groq') return 'groq'
   if (providerId === 'fireworks') return 'fireworks'
@@ -306,7 +309,8 @@ export function isProviderAttachmentFilenameModelBound(
     providerId === 'openai' ||
     provider === 'anthropic' ||
     provider === 'bedrock' ||
-    provider === 'openrouter'
+    provider === 'openrouter' ||
+    provider === 'orcarouter'
   )
 }
 
@@ -401,6 +405,7 @@ function isMimeTypeSupportedByProvider(
         (contentType === 'video' && BEDROCK_VIDEO_FORMATS.has(extension))
       )
     case 'openrouter':
+    case 'orcarouter':
       return isImageMimeType(mimeType) || mimeType === PDF_MIME_TYPE
     case 'mistral':
     case 'groq':

@@ -12,6 +12,7 @@ export const useProvidersStore = create<ProvidersStore>((set, get) => ({
     vllm: { models: [], isLoading: false },
     litellm: { models: [], isLoading: false },
     openrouter: { models: [], isLoading: false },
+    orcarouter: { models: [], isLoading: false },
     fireworks: { models: [], isLoading: false },
     together: { models: [], isLoading: false },
     baseten: { models: [], isLoading: false },

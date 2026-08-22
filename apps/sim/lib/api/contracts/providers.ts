@@ -268,6 +268,15 @@ export const getOpenRouterProviderModelsContract = defineRouteContract({
   },
 })
 
+export const getOrcaRouterProviderModelsContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/providers/orcarouter/models',
+  response: {
+    mode: 'json',
+    schema: providerModelsResponseSchema,
+  },
+})
+
 export const getOpenRouterEmbeddingModelsContract = defineRouteContract({
   method: 'GET',
   path: '/api/providers/openrouter/embeddings/models',

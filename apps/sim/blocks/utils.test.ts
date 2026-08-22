@@ -26,6 +26,7 @@ const { mockProviders } = vi.hoisted(() => ({
       vllm: { models: [] as string[], isLoading: false },
       litellm: { models: [] as string[], isLoading: false },
       openrouter: { models: [] as string[], isLoading: false },
+      orcarouter: { models: [] as string[], isLoading: false },
       fireworks: { models: [] as string[], isLoading: false },
     },
   },
@@ -109,6 +110,7 @@ describe('getApiKeyCondition / shouldRequireApiKeyForModel', () => {
       vllm: { models: [], isLoading: false },
       litellm: { models: [], isLoading: false },
       openrouter: { models: [], isLoading: false },
+      orcarouter: { models: [], isLoading: false },
       fireworks: { models: [], isLoading: false },
     }
     mockGetHostedModels.mockReturnValue([])

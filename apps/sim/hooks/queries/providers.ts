@@ -11,6 +11,7 @@ import {
   getOllamaProviderModelsContract,
   getOpenRouterEmbeddingModelsContract,
   getOpenRouterProviderModelsContract,
+  getOrcaRouterProviderModelsContract,
   getTogetherProviderModelsContract,
   getVllmProviderModelsContract,
   type ProviderModelsResponse,
@@ -73,6 +74,8 @@ async function requestProviderModels(
       return requestJson(getLitellmProviderModelsContract, { signal })
     case 'openrouter':
       return requestJson(getOpenRouterProviderModelsContract, { signal })
+    case 'orcarouter':
+      return requestJson(getOrcaRouterProviderModelsContract, { signal })
     case 'openrouter-embeddings':
       return requestJson(getOpenRouterEmbeddingModelsContract, { signal })
     case 'fireworks':

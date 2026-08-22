@@ -11,6 +11,7 @@ import {
   updateOllamaCloudProviderModels,
   updateOllamaProviderModels,
   updateOpenRouterProviderModels,
+  updateOrcaRouterProviderModels,
   updateTogetherProviderModels,
   updateVLLMProviderModels,
 } from '@/providers/utils'
@@ -45,6 +46,8 @@ function useSyncProvider(provider: ProviderName, workspaceId?: string) {
         if (data.modelInfo) {
           setOpenRouterModelInfo(data.modelInfo)
         }
+      } else if (provider === 'orcarouter') {
+        void updateOrcaRouterProviderModels(data.models)
       } else if (provider === 'fireworks') {
         void updateFireworksProviderModels(data.models)
       } else if (provider === 'together') {
@@ -76,6 +79,7 @@ export function ProviderModelsLoader() {
   useSyncProvider('vllm')
   useSyncProvider('litellm')
   useSyncProvider('openrouter')
+  useSyncProvider('orcarouter')
   useSyncProvider('fireworks', workspaceId)
   useSyncProvider('together', workspaceId)
   useSyncProvider('baseten', workspaceId)
