@@ -1384,6 +1384,11 @@ describe('workspace file secret provenance', () => {
     )
   })
 
+  /**
+   * The row has to be a recorded absence, not a refusal. A stored `unknown` is refused whatever the
+   * flag says, so asserting against one would pass with enforcement off and prove nothing about the
+   * switch this whole posture rests on.
+   */
   it('refuses an unrecorded file again once the surface is closed', async () => {
     mockIsEnforced.mockReturnValue(true)
     queueTableRows(workspaceFiles, [
@@ -1395,7 +1400,7 @@ describe('workspace file secret provenance', () => {
         fileContentUpdatedAt: CONTENT_UPDATED_AT,
         secretProvenanceVersion: 1,
         provenanceContentUpdatedAt: CONTENT_UPDATED_AT,
-        status: 'unknown',
+        status: 'unrecorded',
         entries: [],
       },
     ])
