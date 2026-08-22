@@ -128,7 +128,13 @@ import {
 } from '@/app/workspace/[workspaceId]/files/untitled-title'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
-import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
+/**
+ * Deep-imported rather than taken from the `sidebar/hooks` barrel on purpose. That barrel
+ * also exports `useWorkflowOperations`, whose graph reaches `stores/workflow-diff` ->
+ * `serializer` -> `tools/metadata`, pulling the 5 MB generated tool-metadata artifact into
+ * this route's client bundle for a hook that is a dependency-free leaf.
+ */
+import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks/use-context-menu'
 import { usePinItem, usePinnedIds, useUnpinItem } from '@/hooks/queries/pinned-items'
 import { useWorkspaceMembersQuery, type WorkspaceMember } from '@/hooks/queries/workspace'
 import {

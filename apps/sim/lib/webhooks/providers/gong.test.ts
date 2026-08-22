@@ -3,11 +3,11 @@ import * as jose from 'jose'
 import { NextRequest } from 'next/server'
 import { describe, expect, it } from 'vitest'
 import {
-  GONG_JWT_PUBLIC_KEY_CONFIG_KEY,
   gongHandler,
   normalizeGongPublicKeyPem,
   verifyGongJwtAuth,
 } from '@/lib/webhooks/providers/gong'
+import { GONG_JWT_PUBLIC_KEY_CONFIG_KEY } from '@/lib/webhooks/providers/gong-config'
 
 describe('normalizeGongPublicKeyPem', () => {
   it('passes through PEM', () => {

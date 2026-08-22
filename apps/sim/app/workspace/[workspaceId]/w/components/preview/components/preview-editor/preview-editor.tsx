@@ -37,11 +37,17 @@ import {
   isSubBlockVisibleForMode,
   isToolInputOnlySubBlock,
 } from '@/lib/workflows/subblocks/visibility'
-import { DELETED_WORKFLOW_LABEL } from '@/app/workspace/[workspaceId]/logs/utils'
+import { DELETED_WORKFLOW_LABEL } from '@/lib/workflows/workflow-labels'
 import { SubBlock } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components'
 import { PreviewContextMenu } from '@/app/workspace/[workspaceId]/w/components/preview/components/preview-context-menu'
 import { PreviewWorkflow } from '@/app/workspace/[workspaceId]/w/components/preview/components/preview-workflow'
-import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
+/**
+ * Deep-imported rather than taken from the `sidebar/hooks` barrel on purpose. That barrel
+ * also exports `useWorkflowOperations`, whose graph reaches `stores/workflow-diff` ->
+ * `serializer` -> `tools/metadata`, pulling the 5 MB generated tool-metadata artifact into
+ * this route's client bundle for a hook that is a dependency-free leaf.
+ */
+import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks/use-context-menu'
 import { getBlock } from '@/blocks'
 import { BlockTile } from '@/blocks/block-tile'
 import type { BlockConfig, SubBlockConfig, SubBlockType } from '@/blocks/types'

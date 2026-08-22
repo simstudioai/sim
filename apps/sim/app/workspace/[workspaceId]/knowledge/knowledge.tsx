@@ -79,7 +79,13 @@ import {
 } from '@/app/workspace/[workspaceId]/knowledge/search-params'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
-import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
+/**
+ * Deep-imported rather than taken from the `sidebar/hooks` barrel on purpose. That barrel
+ * also exports `useWorkflowOperations`, whose graph reaches `stores/workflow-diff` ->
+ * `serializer` -> `tools/metadata`, pulling the 5 MB generated tool-metadata artifact into
+ * this route's client bundle for a hook that is a dependency-free leaf.
+ */
+import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks/use-context-menu'
 import { BrandIcon } from '@/blocks/brand-icon'
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
 import { useKnowledgeBasesList } from '@/hooks/kb/use-knowledge'
