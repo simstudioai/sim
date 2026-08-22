@@ -75,6 +75,15 @@ describe('serializeOutputForFile (csv)', () => {
     expect(serializeOutputForFile(output, 'csv')).toBe('name,age\nAlice,30\nBob,40')
   })
 
+  it('neutralizes formula-leading values in generated CSV', () => {
+    const output = {
+      result: [{ value: '=1+1' }],
+      stdout: '',
+    }
+
+    expect(serializeOutputForFile(output, 'csv')).toBe("value\n'=1+1")
+  })
+
   it('returns the raw string when the non-envelope output is already a CSV string', () => {
     expect(serializeOutputForFile('a,b\n1,2', 'csv')).toBe('a,b\n1,2')
   })

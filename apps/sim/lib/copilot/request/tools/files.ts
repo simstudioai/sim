@@ -12,6 +12,7 @@ import { projectToolErrorMessageForCopilot } from '@/lib/copilot/request/tools/r
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
 import { decodeVfsPathSegments } from '@/lib/copilot/vfs/path-utils'
 import { writeCopilotWorkspaceFileByPath } from '@/lib/copilot/vfs/resource-writer'
+import { formatCsvValue, toCsvRow } from '@/lib/core/utils/csv'
 import {
   createWorkspaceFileSecretProvenanceFromRegistry,
   type WorkspaceFileSecretProvenance,
@@ -99,15 +100,6 @@ export function extractTabularData(output: unknown): Record<string, unknown>[] |
   return null
 }
 
-export function escapeCsvValue(value: unknown): string {
-  if (value === null || value === undefined) return ''
-  const str = typeof value === 'object' ? JSON.stringify(value) : String(value)
-  if (str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r')) {
-    return `"${str.replace(/"/g, '""')}"`
-  }
-  return str
-}
-
 export function normalizeOutputWorkspaceFileName(outputPath: string): string {
   const segments = decodeVfsPathSegments(outputPath.trim().replace(/^\/+|\/+$/g, ''))
   const fileName = segments.at(-1)
@@ -180,7 +172,7 @@ function convertRowsToCsvWithProvenance(
     }
   }
   const serializeCell = (sourceValue: unknown): string => {
-    const persistedValue = escapeCsvValue(sourceValue)
+    const persistedValue = formatCsvValue(sourceValue)
     const serializedSource =
       sourceValue === null || sourceValue === undefined
         ? ''
@@ -223,9 +215,9 @@ function convertRowsToCsvWithProvenance(
     return persistedValue
   }
 
-  const lines = [headers.map(serializeCell).join(',')]
+  const lines = [toCsvRow(headers.map(serializeCell))]
   for (const row of rows) {
-    lines.push(headers.map((header) => serializeCell(row[header])).join(','))
+    lines.push(toCsvRow(headers.map((header) => serializeCell(row[header]))))
   }
   return {
     content: lines.join('\n'),
