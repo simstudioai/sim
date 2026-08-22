@@ -298,6 +298,15 @@ export function ToolCredentialSelector({
           // the credential — deriving it from the service id would send a
           // sandbox user to production, where they cannot sign in at all.
           providerId={selectedCredential?.provider ?? effectiveProviderId}
+          reconnectTarget={
+            selectedCredential
+              ? {
+                  workspaceId,
+                  credentialId: selectedCredential.id,
+                  displayName: selectedCredential.name,
+                }
+              : undefined
+          }
         />
       )}
     </div>

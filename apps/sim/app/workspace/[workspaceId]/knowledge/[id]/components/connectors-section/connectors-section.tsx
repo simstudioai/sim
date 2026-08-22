@@ -286,12 +286,15 @@ function ConnectorCard({
 
   useCredentialRefreshTriggers(refetchCredentials, providerId ?? '', workspaceId)
 
-  const missingScopes = useMemo(() => {
-    if (!credentials || !connector.credentialId) return []
-    const credential = credentials.find((c) => c.id === connector.credentialId)
-    if (!credential) return []
-    return getMissingRequiredScopes(credential, requiredScopes)
-  }, [credentials, connector.credentialId, requiredScopes])
+  const selectedCredential = useMemo(() => {
+    if (!credentials || !connector.credentialId) return undefined
+    return credentials.find((credential) => credential.id === connector.credentialId)
+  }, [credentials, connector.credentialId])
+
+  const missingScopes = useMemo(
+    () => (selectedCredential ? getMissingRequiredScopes(selectedCredential, requiredScopes) : []),
+    [selectedCredential, requiredScopes]
+  )
 
   const { data: detail, isLoading: detailLoading } = useConnectorDetail(
     expanded ? knowledgeBaseId : undefined,
@@ -614,7 +617,12 @@ function ConnectorCard({
           requiredScopes={getCanonicalScopesForProvider(providerId)}
           newScopes={missingScopes}
           serviceId={serviceId}
-          providerId={providerId}
+          providerId={selectedCredential?.provider ?? providerId}
+          reconnectTarget={{
+            workspaceId,
+            credentialId: connector.credentialId,
+            displayName: selectedCredential?.name ?? connectorDef?.name ?? connector.connectorType,
+          }}
         />
       )}
     </div>
