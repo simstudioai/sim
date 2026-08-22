@@ -43,7 +43,7 @@ import {
   useMothershipChatHistory,
 } from '@/hooks/queries/mothership-chats'
 import { useWorkflows } from '@/hooks/queries/workflows'
-import { getWorkspaceFilesQueryOptions, useWorkspaceFiles } from '@/hooks/queries/workspace-files'
+import { fetchFreshWorkspaceFiles, useWorkspaceFiles } from '@/hooks/queries/workspace-files'
 import { useOAuthReturnRouter } from '@/hooks/use-oauth-return'
 import type { ChatContext } from '@/stores/panel'
 import {
@@ -563,9 +563,7 @@ export function Home({ chatId, userName, userId, tableViewsEnabled }: HomeProps)
     // handler is invoked as a void callback, so failure becomes null rather
     // than an unhandled rejection — and stays distinct from an empty list, so
     // "we could not look" is never reported as "it is not there".
-    const files = await queryClient
-      .fetchQuery({ ...getWorkspaceFilesQueryOptions(workspaceId), staleTime: 0 })
-      .catch(() => null)
+    const files = await fetchFreshWorkspaceFiles(queryClient, workspaceId).catch(() => null)
     const resolved = files && resolveWorkspaceResourceRef(ref, files)
     if (resolved) {
       openWorkspaceResource(resolved)
@@ -652,7 +650,9 @@ export function Home({ chatId, userName, userId, tableViewsEnabled }: HomeProps)
           </div>
         ) : (
           <MothershipChat
+            workspaceId={workspaceId}
             messages={messages}
+            workspaceFiles={workspaceFiles}
             isSending={isSending}
             isReconnecting={isReconnecting}
             isLoading={showChatSkeleton}
