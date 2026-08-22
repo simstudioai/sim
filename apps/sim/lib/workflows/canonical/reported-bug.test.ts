@@ -1,13 +1,16 @@
 /**
  * @vitest-environment node
  *
- * The originally reported workflow, kept verbatim as a fixture.
+ * The block shape from the originally reported workflow. Identifiers are
+ * replaced; the stored subblock spelling is reproduced exactly, because that is
+ * the part that carries the bug.
  *
  * `provider-config-round-trip.test.ts` asserts the same property across the whole
- * registry and is the stronger guard, but it synthesizes its blocks. This one is
- * a real block a real user hit, including the exact spelling mix that produced
- * the bug: `verifyTestEvents` stored as `null`, and `acceptOtherMethods` /
- * `exposeRequestHeaders` absent entirely because the workflow predates #6893.
+ * registry and is the stronger guard, but it synthesizes its blocks. This one
+ * pins the combination a real deployment actually held: `verifyTestEvents`
+ * stored as `null`, `acceptOtherMethods` / `exposeRequestHeaders` absent
+ * entirely because the workflow predates #6893, `responseMode` explicitly set
+ * away from its default, and `inputFormat` as an empty array rather than null.
  */
 import { describe, expect, it, vi } from 'vitest'
 
@@ -21,9 +24,9 @@ import { generateWorkflowDiffSummary } from '@/lib/workflows/comparison/compare'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
 const deployedWebhookBlock = {
-  id: 'ddbc6e68-fbfc-5ac0-970e-40fcd7fa6493',
+  id: 'webhook-block',
   type: 'generic_webhook',
-  name: 'AskRVTReturn',
+  name: 'Webhook',
   position: { x: 150, y: 143.65 },
   subBlocks: {
     token: { id: 'token', type: 'short-input', value: null },
