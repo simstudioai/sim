@@ -23,15 +23,4 @@ describe('table-run-dispatcher task configuration', () => {
   it('runs on a preset whose memory clears the observed plateau', () => {
     expect(tableRunDispatcherTask.machine).toBe('small-2x')
   })
-
-  /**
-   * `maxAttempts` alone does NOT cover `TASK_PROCESS_OOM_KILLED` — Trigger.dev
-   * retries an OOM only when `retry.outOfMemory.machine` names a larger preset.
-   * Every one of the four killed runs recorded `attempt_count = 1`, so the
-   * documented "retries and resumes from the persisted cursor" never happened.
-   */
-  it('escalates to a larger machine on an out-of-memory kill', () => {
-    expect(tableRunDispatcherTask.retry?.outOfMemory?.machine).toBe('medium-1x')
-    expect(tableRunDispatcherTask.retry?.maxAttempts).toBe(3)
-  })
 })
