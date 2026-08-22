@@ -534,6 +534,17 @@ export async function performUpdateKnowledgeConnector(
         and(
           eq(knowledgeConnector.id, connectorId),
           eq(knowledgeConnector.knowledgeBaseId, kb.id),
+          /**
+           * Compare-and-set on the status this request was authorized against.
+           *
+           * The guards above ran on a row read moments earlier, and a worker can
+           * take the lock in between. Without this the write lands on a row that
+           * is now `syncing`: it would overwrite the run's status and — because
+           * leaving `pending` also clears the lock columns — wipe the token its
+           * heartbeat and terminal write match on, stranding a sync that had
+           * already started.
+           */
+          eq(knowledgeConnector.status, existing.status),
           isNull(knowledgeConnector.archivedAt),
           isNull(knowledgeConnector.deletedAt)
         )
@@ -541,7 +552,13 @@ export async function performUpdateKnowledgeConnector(
       .returning()
 
     if (!row) {
-      return fail('Connector not found', 'not_found')
+      /**
+       * Either the connector went away or its status moved under us. Both are
+       * conflicts rather than "not found": the caller's decision was made
+       * against a state that no longer holds, and re-reading to tell them apart
+       * would race the same way.
+       */
+      return fail('Connector changed while the update was being applied', 'conflict')
     }
     updated = row
   } catch (error) {

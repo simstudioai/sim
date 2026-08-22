@@ -88,7 +88,11 @@ export function ConnectorsSection({
   className,
 }: ConnectorsSectionProps) {
   const { mutate: triggerSync } = useTriggerSync()
-  const { mutate: updateConnector } = useUpdateConnector()
+  const {
+    mutate: updateConnector,
+    isPending: isUpdatingConnector,
+    variables: updatingVariables,
+  } = useUpdateConnector()
   const { mutate: deleteConnector, isPending: isDeleting } = useDeleteConnector()
   const deleteDocumentsId = useId()
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
@@ -178,6 +182,14 @@ export function ConnectorsSection({
               workspaceId={workspaceId}
               knowledgeBaseId={knowledgeBaseId}
               canEdit={canEdit}
+              /**
+               * The optimistic status flip relabels this control Pause -> Resume
+               * immediately, so without a guard a second click would send
+               * `active` before the first pause settles and resume a connector
+               * the user meant to pause. Read from the mutation rather than a
+               * local id set: React Query already knows which row is in flight.
+               */
+              isUpdating={isUpdatingConnector && updatingVariables?.connectorId === connector.id}
               onSync={(rehydrate) => handleSync(connector.id, rehydrate)}
               onTogglePause={() => handleTogglePause(connector)}
               onEdit={() => setEditingConnector(connector)}
@@ -234,6 +246,7 @@ interface ConnectorCardProps {
   workspaceId: string
   knowledgeBaseId: string
   canEdit: boolean
+  isUpdating: boolean
   onSync: (rehydrate?: boolean) => void
   onEdit: () => void
   onTogglePause: () => void
@@ -245,6 +258,7 @@ function ConnectorCard({
   workspaceId,
   knowledgeBaseId,
   canEdit,
+  isUpdating,
   onSync,
   onEdit,
   onTogglePause,
@@ -437,6 +451,7 @@ function ConnectorCard({
                     variant='ghost'
                     className={CONNECTOR_ACTION_BUTTON_CLASSES}
                     onClick={onTogglePause}
+                    disabled={isUpdating}
                   >
                     {connector.status === 'paused' || connector.status === 'disabled' ? (
                       <Play className='size-3.5' />

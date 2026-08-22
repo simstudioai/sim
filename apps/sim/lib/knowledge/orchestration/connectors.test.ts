@@ -2,7 +2,14 @@
  * @vitest-environment node
  */
 import { document } from '@sim/db/schema'
-import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
+import {
+  dbChainMockFns,
+  hasMockCondition,
+  type MockCondition,
+  queueTableRows,
+  resetDbChainMock,
+  schemaMock,
+} from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -288,6 +295,43 @@ describe('performUpdateKnowledgeConnector', () => {
 
     expect(outcome).toMatchObject({ success: true })
     expect(mockRecordAudit).not.toHaveBeenCalled()
+  })
+
+  it('refuses an update whose status moved after the guards ran', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      { id: 'conn-1', connectorType: 'notion', status: 'pending' },
+    ])
+    /** The CAS matches nothing because a worker took the lock in between. */
+    dbChainMockFns.returning.mockResolvedValueOnce([])
+
+    const outcome = await performUpdateKnowledgeConnector({
+      ...ACTOR,
+      knowledgeBase: KB,
+      connectorId: 'conn-1',
+      updates: { status: 'paused' },
+    })
+
+    /**
+     * Leaving `pending` clears the lock columns. Landing that on a row that has
+     * since gone `syncing` would wipe the token the run's heartbeat and terminal
+     * write match on, stranding a sync that had already started.
+     */
+    expect(outcome).toMatchObject({ success: false, errorCode: 'conflict' })
+    expect(mockRecordAudit).not.toHaveBeenCalled()
+
+    /**
+     * The mock does not evaluate predicates, so assert the clause itself is
+     * present — an empty `returning()` alone would pass without it.
+     */
+    expect(
+      hasMockCondition(
+        dbChainMockFns.where.mock.calls.at(-1)?.[0],
+        (node: MockCondition) =>
+          node.type === 'eq' &&
+          node.left === schemaMock.knowledgeConnector.status &&
+          node.right === 'pending'
+      )
+    ).toBe(true)
   })
 })
 
