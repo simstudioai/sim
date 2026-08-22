@@ -114,8 +114,6 @@ export function TableContextMenu({
             </DropdownMenuSubContent>
           </DropdownMenuSub>
         )}
-        {(onViewSchema || onRename || onImportCsv || onExportCsv || onMove) &&
-          (onCopyId || onTogglePin || onDelete) && <DropdownMenuSeparator />}
         {onTogglePin && (
           <DropdownMenuItem onSelect={onTogglePin}>
             <Pin />
@@ -128,7 +126,14 @@ export function TableContextMenu({
             Copy ID
           </DropdownMenuItem>
         )}
-        {(onCopyId || onTogglePin) && onDelete && <DropdownMenuSeparator />}
+        {(onViewSchema ||
+          onRename ||
+          onImportCsv ||
+          onExportCsv ||
+          onMove ||
+          onCopyId ||
+          onTogglePin) &&
+          onDelete && <DropdownMenuSeparator />}
         {onDelete && (
           <DropdownMenuItem disabled={disableDelete} onSelect={onDelete}>
             <Trash />

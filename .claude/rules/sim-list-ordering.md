@@ -26,6 +26,54 @@ Left-to-right becomes top-to-bottom. A toolbar reading `Filter · Sort · Export
 
 Platform-only entries (desktop **Browser** and **Terminal**) trail the shared set rather than interleaving, so the common prefix is identical on every platform.
 
+## Grouping: one rule, before the destructive action
+
+Order is governed above. **Separators are governed here** — and the answer is: use at most one.
+
+Put a single `DropdownMenuSeparator` immediately before the destructive group (Delete, Leave,
+Close, Hide) and nowhere else. Everything above it runs uninterrupted in toolbar-mirroring order.
+
+```tsx
+// ✗ Bad — four semantic bands the user meets nowhere else
+Open in new tab │─── Rename, Lock │─── Duplicate, Export │─── Delete
+
+// ✓ Good — one rule, isolating the irreversible action
+Open in new tab, Rename, Lock, Duplicate, Export │─── Delete
+```
+
+**Why one.** No toolbar in this app renders a divider — every header is a flat
+`HEADER_ACTION_CLUSTER` (`gap-1`) chip row and every bulk action bar a flat `gap-[5px]` run. A
+menu banded into navigation / status / edit / copy / destructive therefore teaches a taxonomy
+that appears on no other surface, and because each band is conditional, the same action lands in
+a different group depending on which sibling items happen to be visible. The one thing a rule
+genuinely buys is a stop before the action you cannot undo.
+
+A second rule is justified only when a menu mixes genuinely different *scopes* — cell-level and
+table-level actions in one menu, say — not different verbs.
+
+**Both sides of every rule must be guaranteed non-empty.** Write the separator's guard out of
+the *exact* render conditions of the items around it, never a looser approximation:
+
+```tsx
+// ✗ Bad — `showLeave` alone, while the Leave item needs `showLeave && onLeave`.
+//         A caller passing showLeave from a permission check with a conditional
+//         onLeave renders a trailing rule under the last item.
+{hasActionsAbove && (showLeave || showDelete) && <DropdownMenuSeparator />}
+
+// ✓ Good — each term is the item's own condition, verbatim
+const hasDestructiveSection = (showLeave && onLeave) || showDelete
+{hasActionsAboveDestructive && hasDestructiveSection && <DropdownMenuSeparator />}
+```
+
+This is the failure that put a dangling rule at the bottom of the logs row menu, where two
+unconditional separators sat above conditional items.
+
+**Do not add a prop to move a rule.** The shared workflow context menu grew
+`groupNonDestructiveActions` and `separateNavigationAction` for this; between them they moved one
+separator for one caller, four of six branches were unreachable, and `separateNavigationAction`
+had no observable effect anywhere in the repo. Both are gone. A menu that wants different
+grouping wants the standard grouping.
+
 ## Encode the order once
 
 An order duplicated across surfaces is an order that will drift. Export **one** constant and sort by it — do not hand-maintain a matching literal per menu.

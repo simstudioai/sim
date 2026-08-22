@@ -71,6 +71,8 @@ export function ChunkContextMenu({
   const hasEditSection = !isMultiSelect && (!!onEdit || !!onCopyContent)
   const hasStateSection = !!onToggleEnabled
   const hasDestructiveSection = !!onDelete
+  /** @see `.claude/rules/sim-list-ordering.md` — one rule, before the destructive group. */
+  const hasActionsAboveDestructive = hasNavigationSection || hasEditSection || hasStateSection
 
   return (
     <DropdownMenu open={isOpen} onOpenChange={(open) => !open && onClose()} modal={false}>
@@ -102,11 +104,6 @@ export function ChunkContextMenu({
                 Open in new tab
               </DropdownMenuItem>
             )}
-            {hasNavigationSection &&
-              (hasEditSection || hasStateSection || hasDestructiveSection) && (
-                <DropdownMenuSeparator />
-              )}
-
             {!isMultiSelect && onEdit && (
               <DropdownMenuItem disabled={disableEdit} onSelect={onEdit}>
                 <Pencil />
@@ -119,10 +116,6 @@ export function ChunkContextMenu({
                 Copy content
               </DropdownMenuItem>
             )}
-            {hasEditSection && (hasStateSection || hasDestructiveSection) && (
-              <DropdownMenuSeparator />
-            )}
-
             {onToggleEnabled && (
               <DropdownMenuItem disabled={disableToggleEnabled} onSelect={onToggleEnabled}>
                 <Eye />
@@ -130,7 +123,7 @@ export function ChunkContextMenu({
               </DropdownMenuItem>
             )}
 
-            {hasStateSection && hasDestructiveSection && <DropdownMenuSeparator />}
+            {hasActionsAboveDestructive && hasDestructiveSection && <DropdownMenuSeparator />}
             {onDelete && (
               <DropdownMenuItem disabled={disableDelete} onSelect={onDelete}>
                 <Trash />

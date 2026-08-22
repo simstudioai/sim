@@ -160,34 +160,31 @@ export function ColumnOptionsMenu({
         onCloseAutoFocus={(e) => e.preventDefault()}
       >
         {showRunActions && (
-          <>
-            <DropdownMenuSub>
-              <DropdownMenuSubTrigger>
-                <PlayOutline />
-                Run
-              </DropdownMenuSubTrigger>
-              <DropdownMenuSubContent>
-                {showRunSelected && (
-                  <DropdownMenuItem onSelect={() => onRunColumnSelected?.()}>
-                    {`Run ${selectedRowCount} selected ${selectedRowCount === 1 ? 'row' : 'rows'}`}
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger>
+              <PlayOutline />
+              Run
+            </DropdownMenuSubTrigger>
+            <DropdownMenuSubContent>
+              {showRunSelected && (
+                <DropdownMenuItem onSelect={() => onRunColumnSelected?.()}>
+                  {`Run ${selectedRowCount} selected ${selectedRowCount === 1 ? 'row' : 'rows'}`}
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuItem onSelect={() => onRunColumnAll?.()}>
+                {runLabels.all}
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => onRunColumnIncomplete?.()}>
+                {runLabels.incomplete}
+              </DropdownMenuItem>
+              {onRunColumnLimited &&
+                LIMITED_RUN_PRESETS.map((max) => (
+                  <DropdownMenuItem key={max} onSelect={() => onRunColumnLimited(max)}>
+                    {runLabels.limited(max)}
                   </DropdownMenuItem>
-                )}
-                <DropdownMenuItem onSelect={() => onRunColumnAll?.()}>
-                  {runLabels.all}
-                </DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => onRunColumnIncomplete?.()}>
-                  {runLabels.incomplete}
-                </DropdownMenuItem>
-                {onRunColumnLimited &&
-                  LIMITED_RUN_PRESETS.map((max) => (
-                    <DropdownMenuItem key={max} onSelect={() => onRunColumnLimited(max)}>
-                      {runLabels.limited(max)}
-                    </DropdownMenuItem>
-                  ))}
-              </DropdownMenuSubContent>
-            </DropdownMenuSub>
-            <DropdownMenuSeparator />
-          </>
+                ))}
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
         )}
         {/* Sort leads the column-scoped block: the options bar reads Filter ·
             Sort · Columns, and this menu carries no Filter item, so Sort is the
@@ -217,7 +214,6 @@ export function ColumnOptionsMenu({
               <ArrowDown />
               Sort descending
             </DropdownMenuItem>
-            <DropdownMenuSeparator />
           </>
         )}
         {onViewWorkflow && (
@@ -236,7 +232,6 @@ export function ColumnOptionsMenu({
             {isPinned ? 'Unpin column' : 'Pin column'}
           </DropdownMenuItem>
         )}
-        <DropdownMenuSeparator />
         <DropdownMenuItem onSelect={() => onInsertLeft(column.key)}>
           <ArrowLeft />
           Insert column left
