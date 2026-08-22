@@ -29,6 +29,25 @@ export const linqUploadAttachmentBodySchema = z.object({
   contentType: z.string().min(1).max(255).optional().nullable(),
 })
 
+/**
+ * Photon reaches iMessage over gRPC through the `@spectrum-ts/imessage` SDK, so the send runs in an
+ * internal route rather than as a plain HTTP request from the tool. Exactly one of `to` (an address
+ * that starts or reuses a DM) or `chatId` (an existing chat GUID) must be supplied; they are
+ * alternate ways to name the target, not a basic/advanced pair.
+ */
+export const photonImessageSendBodySchema = z
+  .object({
+    projectId: z.string().min(1, 'Photon project ID is required'),
+    projectSecret: z.string().min(1, 'Photon project secret is required'),
+    to: z.string().min(1).optional().nullable(),
+    chatId: z.string().min(1).optional().nullable(),
+    text: z.string().min(1, 'Message text is required'),
+  })
+  .refine((value) => Boolean(value.to) !== Boolean(value.chatId), {
+    message: 'Provide exactly one of "to" (phone number or email) or "chatId" (existing chat GUID)',
+    path: ['to'],
+  })
+
 export const smsSendContract = defineCommunicationToolContract(
   '/api/tools/sms/send',
   smsSendBodySchema
@@ -45,13 +64,19 @@ export const linqUploadAttachmentContract = defineCommunicationToolContract(
   '/api/tools/linq/upload',
   linqUploadAttachmentBodySchema
 )
+export const photonImessageSendContract = defineCommunicationToolContract(
+  '/api/tools/photon_imessage/send',
+  photonImessageSendBodySchema
+)
 
 export type SmsSendBody = ContractBodyInput<typeof smsSendContract>
 export type TelegramSendDocumentBody = ContractBodyInput<typeof telegramSendDocumentContract>
 export type TwilioGetRecordingBody = ContractBodyInput<typeof twilioGetRecordingContract>
 export type LinqUploadAttachmentBody = ContractBodyInput<typeof linqUploadAttachmentContract>
+export type PhotonImessageSendBody = ContractBodyInput<typeof photonImessageSendContract>
 
 export type SmsSendResponse = ContractJsonResponse<typeof smsSendContract>
 export type TelegramSendDocumentResponse = ContractJsonResponse<typeof telegramSendDocumentContract>
 export type TwilioGetRecordingResponse = ContractJsonResponse<typeof twilioGetRecordingContract>
 export type LinqUploadAttachmentResponse = ContractJsonResponse<typeof linqUploadAttachmentContract>
+export type PhotonImessageSendResponse = ContractJsonResponse<typeof photonImessageSendContract>

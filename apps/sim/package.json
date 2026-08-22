@@ -124,6 +124,8 @@
     "@sim/workflow-persistence": "workspace:*",
     "@sim/workflow-renderer": "workspace:*",
     "@sim/workflow-types": "workspace:*",
+    "@spectrum-ts/core": "12.8.0",
+    "@spectrum-ts/imessage": "12.8.0",
     "@t3-oss/env-nextjs": "0.13.4",
     "@tanstack/react-query": "5.90.8",
     "@tanstack/react-virtual": "3.13.24",

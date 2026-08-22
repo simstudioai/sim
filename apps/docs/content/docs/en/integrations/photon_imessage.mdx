@@ -1,0 +1,73 @@
+---
+title: iMessage (Photon)
+description: Send and receive iMessage
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="photon_imessage"
+  color="#0B84FE"
+/>
+
+## Usage Instructions
+
+Send iMessages from a Photon-managed number and trigger workflows on inbound messages. Photon runs the iMessage line, so no Mac is required. Reply into an existing conversation with the chat ID from the trigger, or start one from a phone number or Apple ID email.
+
+
+
+## Actions
+
+### Send iMessage
+
+Send an iMessage to a phone number or email address, or reply into an existing chat, through a Photon project
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Photon project ID from app.photon.codes |
+| `projectSecret` | string | Yes | Photon project secret from app.photon.codes |
+| `to` | string | No | Recipient phone number in E.164 form \(e.g. +14155551234\) or an Apple ID email. Starts or reuses a direct conversation. Omit when using chatId. |
+| `chatId` | string | No | Existing chat GUID to send into, such as the chatId from an iMessage trigger. Required to reach a group chat. Omit when using to. |
+| `text` | string | Yes | Message text to send. iMessage is plain text, so Markdown is not rendered. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `messageId` | string | Identifier of the sent message |
+| `chatId` | string | Chat GUID the message was sent to. Pass this back to reply into the same chat. |
+| `timestamp` | string | ISO 8601 time the message was sent |
+
+
+
+## Triggers
+
+A **Trigger** is a block that starts a workflow when an event happens in this service.
+
+### Photon iMessage Received
+
+Trigger workflow when an inbound iMessage is received through Photon
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | Yes | Signing secret from the Photon webhook, used to verify the X-Spectrum-Signature header on every delivery. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `messageId` | string | Unique message identifier \(use to deduplicate\) |
+| `text` | string | Message text. Empty for messages whose content is not text. |
+| `contentType` | string | Content arm of the message, such as text, attachment, voice, reaction, reply, or group |
+| `senderId` | string | Phone number or Apple ID email of the sender |
+| `chatId` | string | Chat GUID. Pass this to the send tool to reply into the same conversation. |
+| `chatType` | string | Conversation type, dm or group |
+| `platform` | string | Photon platform that delivered the message, such as imessage |
+| `timestamp` | string | ISO 8601 time the message was sent |
+| `attachments` | json | Attachment metadata as \{ id, name, mimeType, size \} objects. Bytes are not delivered by webhook. |
+| `raw` | string | Complete raw webhook payload from Photon as a JSON string |
+

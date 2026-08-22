@@ -1042,6 +1042,17 @@ export function PerplexityIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
+export function PhotonIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg width='1em' height='1em' viewBox='2 5 24 24' xmlns='http://www.w3.org/2000/svg' {...props}>
+      <path
+        d='M21.56 18.452H24.192C24.668 18.452 25.004 18.9 24.892 19.32L22.876 27.328C22.82 27.636 22.54 27.86 22.204 27.86H19.544C19.124 27.86 18.788 27.412 18.872 26.992L20.888 18.984C20.972 18.676 21.224 18.452 21.56 18.452ZM16.24 6.02H18.872C19.348 6.02 19.684 6.468 19.544 6.888L17.584 14.896C17.472 15.204 17.192 15.428 16.856 15.428H14.252C13.776 15.428 13.44 14.98 13.58 14.56L15.568 6.552C15.624 6.244 15.932 6.02 16.24 6.02ZM5.712 11.788H8.344C8.792 11.788 9.128 12.236 9.016 12.684L7.028 20.664C6.944 20.972 6.664 21.196 6.356 21.196H3.696C3.248 21.196 2.884 20.776 3.024 20.328L5.012 12.348C5.096 12.012 5.376 11.788 5.712 11.788Z'
+        fill='currentColor'
+      />
+    </svg>
+  )
+}
+
 export function ObsidianIcon(props: SVGProps<SVGSVGElement>) {
   const id = useId()
   const bl = `${id}-bl`

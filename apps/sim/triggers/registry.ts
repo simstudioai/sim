@@ -376,6 +376,7 @@ import {
   pagerdutyIncidentTriggeredTrigger,
   pagerdutyWebhookTrigger,
 } from '@/triggers/pagerduty'
+import { photonImessageMessageReceivedTrigger } from '@/triggers/photon_imessage'
 import {
   resendEmailBouncedTrigger,
   resendEmailClickedTrigger,
@@ -750,6 +751,7 @@ export const TRIGGER_REGISTRY: TriggerRegistry = {
   pagerduty_incident_escalated: pagerdutyIncidentEscalatedTrigger,
   pagerduty_incident_reassigned: pagerdutyIncidentReassignedTrigger,
   pagerduty_webhook: pagerdutyWebhookTrigger,
+  photon_imessage_message_received: photonImessageMessageReceivedTrigger,
   resend_email_sent: resendEmailSentTrigger,
   resend_email_delivered: resendEmailDeliveredTrigger,
   resend_email_bounced: resendEmailBouncedTrigger,

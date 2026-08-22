@@ -3344,6 +3344,7 @@ import {
   personaUpdateAccountTool,
   personaUpdateInquiryTool,
 } from '@/tools/persona'
+import { photonImessageSendMessageTool } from '@/tools/photon_imessage'
 import {
   pineconeDeleteVectorsTool,
   pineconeDescribeIndexStatsTool,
@@ -8435,6 +8436,7 @@ export const tools: Record<string, ToolConfig> = {
   persona_resume_inquiry: personaResumeInquiryTool,
   persona_update_account: personaUpdateAccountTool,
   persona_update_inquiry: personaUpdateInquiryTool,
+  photon_imessage_send_message: photonImessageSendMessageTool,
   profound_bot_logs: profoundBotLogsTool,
   profound_bots_report: profoundBotsReportTool,
   profound_category_assets: profoundCategoryAssetsTool,

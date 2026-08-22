@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-08-21",
+  "updatedAt": "2026-08-22",
   "integrations": [
     {
       "type": "onepassword",
@@ -10938,6 +10938,30 @@
       "category": "tools",
       "integrationType": "sales",
       "tags": ["enrichment", "sales-engagement"]
+    },
+    {
+      "type": "photon_imessage",
+      "slug": "imessage-photon",
+      "name": "iMessage (Photon)",
+      "description": "Send and receive iMessage",
+      "longDescription": "Send iMessages from a Photon-managed number and trigger workflows on inbound messages. Photon runs the iMessage line, so no Mac is required. Reply into an existing conversation with the chat ID from the trigger, or start one from a phone number or Apple ID email.",
+      "bgColor": "#0B84FE",
+      "iconName": "PhotonIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/photon_imessage",
+      "operations": [],
+      "operationCount": 0,
+      "triggers": [
+        {
+          "id": "photon_imessage_message_received",
+          "name": "Photon iMessage Received",
+          "description": "Trigger workflow when an inbound iMessage is received through Photon"
+        }
+      ],
+      "triggerCount": 1,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "communication",
+      "tags": ["messaging", "automation", "webhooks"]
     },
     {
       "type": "incidentio",
