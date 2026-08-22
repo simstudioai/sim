@@ -169,10 +169,10 @@ async function resolveWorkspaceId(
         `Workflow ${params.workflowId} is not associated with a workspace`
       )
     }
-    return requireCopilotWorkspace(context ?? {}, workflow.workspaceId)
+    return requireCopilotWorkspace(context, workflow.workspaceId)
   }
 
-  const workspaceId = requireCopilotWorkspace(context ?? {}, params.workspaceId)
+  const workspaceId = requireCopilotWorkspace(context, params.workspaceId)
   await ensureWorkspaceAccess(workspaceId, userId, 'write')
   return workspaceId
 }

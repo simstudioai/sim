@@ -152,7 +152,7 @@ export async function executeCreateWorkflow(
     if (name.length > 200) {
       return { success: false, error: 'Workflow name must be 200 characters or less' }
     }
-    const workspaceId = requireCopilotWorkspace(context, params?.workspaceId || undefined)
+    const workspaceId = requireCopilotWorkspace(context, params?.workspaceId)
 
     const folderPath = typeof params?.folderPath === 'string' ? params.folderPath.trim() : ''
     const folderId =
@@ -362,7 +362,7 @@ export async function executeGenerateApiKey(
       return { success: false, error: 'API key name must be 200 characters or less' }
     }
 
-    const workspaceId = requireCopilotWorkspace(context, params.workspaceId || undefined)
+    const workspaceId = requireCopilotWorkspace(context, params.workspaceId)
     assertWorkflowMutationNotAborted(context)
 
     const result = await executeCopilotApiKeyUseCase(context, createCopilotWorkspaceApiKey, {

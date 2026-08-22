@@ -139,7 +139,7 @@ export async function executeListWorkspaceMcpServers(
   context: ExecutionContext
 ): Promise<ToolCallResult> {
   try {
-    const workspaceId = requireCopilotWorkspace(context, params.workspaceId || undefined)
+    const workspaceId = requireCopilotWorkspace(context, params.workspaceId)
     const result = await executeCopilotMcpServerUseCase(context, listWorkflowMcpDeployments, {
       workspaceId,
     })
@@ -161,7 +161,7 @@ export async function executeCreateWorkspaceMcpServer(
   context: ExecutionContext
 ): Promise<ToolCallResult> {
   try {
-    const workspaceId = requireCopilotWorkspace(context, params.workspaceId || undefined)
+    const workspaceId = requireCopilotWorkspace(context, params.workspaceId)
 
     const name = params.name?.trim()
     if (!name) {

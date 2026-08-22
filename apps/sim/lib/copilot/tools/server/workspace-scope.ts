@@ -9,10 +9,12 @@ interface CopilotWorkspaceScopeContext {
  * but can never select a different workspace or trigger a default-workspace fallback.
  */
 export function requireCopilotWorkspace(
-  context: CopilotWorkspaceScopeContext,
+  context: CopilotWorkspaceScopeContext | undefined,
   assertedWorkspaceId?: string
 ): string {
-  if (!context.workspaceId) throw new Error('Copilot execution workspace is required')
+  if (!context?.workspaceId) {
+    throw new OrchestrationError('validation', 'Copilot execution workspace is required')
+  }
   if (assertedWorkspaceId && assertedWorkspaceId !== context.workspaceId) {
     throw new OrchestrationError(
       'validation',

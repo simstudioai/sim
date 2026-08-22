@@ -56,9 +56,8 @@ export const getCredentialsServerTool: BaseServerTool<GetCredentialsParams, any>
       }
 
       // A model-supplied workflowId may only re-assert the chat's workspace —
-      // it can never steer the credential listing to another workspace. A
-      // legacy workflow with no workspace contributes no workspace scope.
-      workspaceId = wId ? requireCopilotWorkspace(context, wId) : undefined
+      // it can never steer the credential listing to another workspace.
+      workspaceId = requireCopilotWorkspace(context, wId)
     }
 
     const userId = authenticatedUserId
