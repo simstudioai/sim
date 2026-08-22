@@ -35,6 +35,7 @@ import {
   tryAcquireDeployAction,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/hooks/deploy-action-lock'
 import type { DeployReadiness } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/hooks/use-deploy-readiness'
+import type { DeploymentViewState } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/hooks/use-deployment-view-state'
 import { runPreDeployChecks } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/hooks/use-predeploy-checks'
 import { normalizeName, startsWithUuid } from '@/executor/constants'
 import { useApiKeys } from '@/hooks/queries/api-keys'
@@ -66,12 +67,10 @@ interface DeployModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   workflowId: string | null
-  isDeployed: boolean
-  needsRedeployment: boolean
+  /** The one derived deployment verdict, shared with the deploy chip. */
+  deployment: DeploymentViewState
   deployedState?: WorkflowState | null
-  isLoadingDeployedState: boolean
   deployReadiness: DeployReadiness
-  isDeploymentSettling: boolean
 }
 
 interface WorkflowDeploymentInfoUI {
@@ -96,13 +95,19 @@ export function DeployModal({
   open,
   onOpenChange,
   workflowId,
-  isDeployed: isDeployedProp,
-  needsRedeployment,
-  deployedState,
-  isLoadingDeployedState,
+  deployment,
   deployReadiness,
-  isDeploymentSettling,
 }: DeployModalProps) {
+  const {
+    status: deploymentStatus,
+    isDeployed: isDeployedProp,
+    deployedState,
+    isAwaitingSnapshot,
+    isSettling: isDeploymentSettling,
+  } = deployment
+  const needsRedeployment = deploymentStatus === 'changed'
+  /* A snapshot that is expected but absent reads as loading everywhere. */
+  const isLoadingDeployedState = isAwaitingSnapshot
   const queryClient = useQueryClient()
   const params = useParams()
   const workspaceId = params?.workspaceId as string
@@ -561,6 +566,7 @@ export function DeployModal({
                   workflowId={workflowId}
                   deployedState={deployedState}
                   isLoadingDeployedState={isLoadingDeployedState}
+                  isAwaitingSnapshot={isAwaitingSnapshot}
                   versions={versions}
                   versionsLoading={versionsLoading}
                   isPromotingVersion={isActivatingVersion || activateVersionMutation.isPending}
