@@ -48,9 +48,11 @@ const TAB_WIDTH: Record<TabStripVariant, string> = {
 /** The resting shape of a tab that is not the active one. */
 const TAB_SHAPE: Record<TabStripVariant, string> = {
   attached: 'rounded-b-none border border-transparent border-b-0',
-  // No shape at all: bare labels, so the row reads as one quiet line rather than
-  // a strip of buttons competing with the panel's own controls.
-  floating: 'rounded-lg text-[var(--text-secondary)]',
+  // No shape at all at rest: bare labels, so the row reads as one quiet line
+  // rather than a strip of buttons competing with the panel's own controls. A
+  // shape appears on hover, which is where the close affordance lives.
+  floating:
+    'rounded-lg text-[var(--text-secondary)] hover-hover:bg-[var(--surface-hover)] hover-hover:text-[var(--text-primary)]',
 }
 
 /**
@@ -66,15 +68,17 @@ const TAB_ACTIVE: Record<TabStripVariant, string> = {
 }
 
 /**
- * A tab held in a multi-selection that is not the one on screen. It has to sit
- * below the active tab in emphasis: `attached` can reuse `--surface-active`
- * because its active tab reads by border and page-background fill instead, but
- * `floating`'s active tab already owns that token, so a selected tab takes the
- * step below it on the same ramp.
+ * A tab held in a multi-selection that is not the one on screen. `attached` can
+ * reuse `--surface-active` because its active tab reads by border and page
+ * background instead. `floating`'s ramp has four rungs and each token does the
+ * job it is named for: bare is transparent, hover is `--surface-hover`, active
+ * is `--surface-active`, and a selected tab takes the one rung left between
+ * them. Keep them in that order — the fills are 3 hex steps apart, so swapping
+ * any two makes a state read as another.
  */
 const TAB_SELECTED: Record<TabStripVariant, string> = {
   attached: 'bg-[var(--surface-active)]',
-  floating: 'bg-[var(--surface-hover)]',
+  floating: 'bg-[var(--surface-4)]',
 }
 
 /** Whether a tab draws no shape of its own, and so needs dividing from its neighbour. */

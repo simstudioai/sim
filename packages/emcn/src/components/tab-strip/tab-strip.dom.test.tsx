@@ -244,7 +244,7 @@ describe('TabStrip interactions', () => {
       // The active tab owns `--surface-active`; a selected tab takes the step
       // below it, or the two would be one undifferentiated run of pills.
       expect(tabButton('one').className).toContain('bg-[var(--surface-active)]')
-      expect(tabButton('two').className).toContain('bg-[var(--surface-hover)]')
+      expect(tabButton('two').className).toContain('bg-[var(--surface-4)]')
       expect(tabButton('two').className).not.toContain('bg-[var(--surface-active)]')
     })
 
