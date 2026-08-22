@@ -1,16 +1,18 @@
 /**
- * Route-transition fallback for a account settings section.
+ * Route-transition fallback for the account settings sections.
  *
- * Without a loading boundary the App Router holds the outgoing section on screen until the
- * incoming page's access gate resolves, so a click reads as a dead click. This commits the
- * navigation immediately — the URL changes and the shell's heading updates with it — and
- * lets the gate resolve behind an empty body.
+ * Its job is to exist. Without a loading boundary the App Router holds the outgoing section on
+ * screen until the incoming page's access gate resolves, so a click reads as a dead click; with
+ * one, the navigation commits immediately and the heading changes with it. It is also what
+ * makes the sidebar's `router.prefetch` worth anything — with no loading boundary in the
+ * subtree the scheduler skips the segment request entirely, and an `AUTO` prefetch caches the
+ * shell only as far as the nearest boundary.
  *
- * The body is empty rather than a skeleton, matching every other route-level fallback in the
- * app: `ResourceChromeFallback` renders its real header and column headers over zero rows,
- * and the credit-usage fallback renders its real title and description over nothing. The
- * chrome is what signals arrival; placeholder rows would only add a shape that no section
- * actually has, and a layout shift when the real body replaces it.
+ * It renders no body of its own because the shell that owns the header, heading and scroll
+ * region renders above it and is already resolved by this point. That lands in the same place
+ * as the two neighbouring settings fallbacks — credit-usage renders its title and description
+ * over an empty body, `ResourceChromeFallback` renders a real header and column headers over
+ * zero rows — without restating chrome this route already has.
  */
 export default function AccountSettingsSectionLoading() {
   return null

@@ -32,13 +32,6 @@ interface WorkspaceSettingsSectionPageProps {
   params: Promise<{ workspaceId: string; section: string }>
 }
 
-const TOP_LEVEL_REDIRECTS: Readonly<Record<string, (workspaceId: string) => string>> = {
-  integrations: (workspaceId) => `/workspace/${workspaceId}/integrations`,
-  skills: (workspaceId) => `/workspace/${workspaceId}/skills`,
-  // Cookie preferences moved into General; keep old links working.
-  privacy: (workspaceId) => `/workspace/${workspaceId}/settings/general?view=privacy`,
-}
-
 const WORKSPACE_SECTION_MAP: Partial<Record<SettingsSection, WorkspaceSettingsSection>> = {
   teammates: 'teammates',
   secrets: 'secrets',
@@ -104,18 +97,23 @@ export default async function WorkspaceSettingsSectionPage({
   if (!session?.user) redirect('/login')
 
   const { workspaceId, section } = await params
-  const topLevelHref = TOP_LEVEL_REDIRECTS[section]?.(workspaceId)
-  if (topLevelHref) redirect(topLevelHref)
+  /** The layout already rejected an unknown segment; this narrows the type and fails safe. */
   const resolved = resolveSettingsSection(section)
   if (!resolved) notFound()
   const parsed = resolved.id
 
-  const hostContext = await getWorkspaceHostContextForViewer(workspaceId, session.user.id)
+  /**
+   * Independent given the session, and both gate the same render, so they overlap rather than
+   * queue. Every await here sits in front of the section's body, so it is the length of this
+   * chain that the user waits out.
+   */
+  const requiresPlatformAdmin = parsed === 'admin' || parsed === 'mothership'
+  const [hostContext, isViewerPlatformAdmin] = await Promise.all([
+    getWorkspaceHostContextForViewer(workspaceId, session.user.id),
+    requiresPlatformAdmin ? isPlatformAdmin(session.user.id) : Promise.resolve(false),
+  ])
   if (!hostContext) notFound()
-
-  if (parsed === 'admin' || parsed === 'mothership') {
-    if (!(await isPlatformAdmin(session.user.id))) notFound()
-  }
+  if (requiresPlatformAdmin && !isViewerPlatformAdmin) notFound()
 
   const workspaceSection = WORKSPACE_SECTION_MAP[parsed]
   if (workspaceSection) {
@@ -162,23 +160,30 @@ export default async function WorkspaceSettingsSectionPage({
       if (!hostContext.viewer.isHostOrganizationAdmin) {
         redirectToGeneralSettings(workspaceId)
       }
-      if (
-        !(await canOpenOrganizationSettingsSection(
+      /**
+       * Overlapped for the same reason: neither reads the other's result. The plan lookup is
+       * skipped for the two sections that do not gate on it, so the only case that pays for a
+       * lookup it does not use is one that was about to redirect anyway.
+       */
+      const needsEnterprisePlan =
+        organizationSection !== 'members' && organizationSection !== 'billing'
+      const [canOpenSection, isEnterpriseOrganization] = await Promise.all([
+        canOpenOrganizationSettingsSection(
           hostContext.hostOrganizationId,
           session.user.id,
           organizationSection
-        ))
-      ) {
+        ),
+        needsEnterprisePlan
+          ? isOrganizationOnEnterprisePlan(hostContext.hostOrganizationId)
+          : Promise.resolve(false),
+      ])
+      if (!canOpenSection) {
         redirectToGeneralSettings(workspaceId)
       }
-      const hasEnterprisePlan =
-        organizationSection !== 'members' &&
-        organizationSection !== 'billing' &&
-        (await isOrganizationOnEnterprisePlan(hostContext.hostOrganizationId))
       if (
         !isOrganizationSettingsSectionAvailable(
           organizationSection,
-          getOrganizationSettingsFeatures(hasEnterprisePlan)
+          getOrganizationSettingsFeatures(needsEnterprisePlan && isEnterpriseOrganization)
         )
       ) {
         redirectToGeneralSettings(workspaceId)

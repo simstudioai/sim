@@ -7,12 +7,16 @@
  * clicking Delete would invoke Save. These tests pin the pairing at the render
  * level, which the pure-function tests cannot reach.
  */
-import { act } from 'react'
+import { act, type ReactNode } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { saveDiscardActions } from '@/components/settings/save-discard-actions'
 import type { SettingsAction } from '@/components/settings/settings-header'
-import { SettingsHeaderProvider, SettingsHeaderShell } from '@/components/settings/settings-header'
+import {
+  SettingsHeaderProvider,
+  SettingsHeaderShell,
+  useSettingsHeader,
+} from '@/components/settings/settings-header'
 import { SettingsPanel } from '@/components/settings/settings-panel'
 
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
@@ -115,6 +119,8 @@ describe('SettingsHeaderShell action routing', () => {
   })
 })
 
+const EMPTY_HEADER = {}
+
 describe('SettingsHeaderShell static meta', () => {
   const META = { title: 'Secrets', description: 'Workspace credentials.' }
 
@@ -122,11 +128,12 @@ describe('SettingsHeaderShell static meta', () => {
     return container.querySelector('h1')?.textContent?.trim() ?? null
   }
 
+  /** The header's own description, not any paragraph a body happens to render. */
   function paragraph(): string | null {
-    return container.querySelector('p')?.textContent?.trim() ?? null
+    return container.querySelector('h1 + p')?.textContent?.trim() ?? null
   }
 
-  function renderWithMeta(body: React.ReactNode) {
+  function renderWithMeta(body: ReactNode) {
     act(() => {
       root.render(
         <SettingsHeaderProvider>
@@ -155,13 +162,31 @@ describe('SettingsHeaderShell static meta', () => {
   })
 
   it('keeps the meta description out of a body that registered a title without one', () => {
-    renderWithMeta(
-      <SettingsPanel title='Add secret'>
-        <div />
-      </SettingsPanel>
-    )
+    // Registers through the raw hook, not SettingsPanel: SettingsPanel always emits a
+    // `description` key (explicitly undefined), which would let a field-merge implementation
+    // pass this test by overwriting the meta description with undefined.
+    function TitleOnlyBody() {
+      useSettingsHeader({ title: 'Add secret' })
+      return <div />
+    }
+
+    renderWithMeta(<TitleOnlyBody />)
 
     expect(heading()).toBe('Add secret')
+    expect(paragraph()).toBeNull()
+  })
+
+  it('lets a body claim the header with nothing in it, suppressing the meta entirely', () => {
+    // How SettingsUnavailable opts out: it renders its own centred heading, so the routed
+    // section's catalog title must not caption it.
+    function OwnHeadingBody() {
+      useSettingsHeader(EMPTY_HEADER)
+      return <div />
+    }
+
+    renderWithMeta(<OwnHeadingBody />)
+
+    expect(heading()).toBeNull()
     expect(paragraph()).toBeNull()
   })
 

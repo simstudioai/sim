@@ -13,6 +13,7 @@ import {
   getSelfHostSettingsHref,
   getSettingsHeaderMeta,
   isOrganizationSettingsSectionAvailable,
+  isSettingsSectionRootPath,
   ORGANIZATION_SETTINGS_GROUPS,
   ORGANIZATION_SETTINGS_ITEMS,
   ORGANIZATION_SETTINGS_PATH_ALIASES,
@@ -107,6 +108,14 @@ export function StandaloneSettingsShell(props: StandaloneSettingsShellProps) {
       : plane === 'selfhost'
         ? selfHostSection
         : organizationSection
+  /**
+   * Only a section's own route gets the catalog heading. A detail route beneath it resolves to
+   * its parent section, and its body registers a heading of its own.
+   */
+  const headerMeta = isSettingsSectionRootPath(pathname)
+    ? getSettingsHeaderMeta(plane, activeSection)
+    : null
+
   const sidebar =
     plane === 'selfhost' ? (
       <SettingsSidebar
@@ -153,7 +162,7 @@ export function StandaloneSettingsShell(props: StandaloneSettingsShellProps) {
         <div className='flex min-w-0 flex-1 flex-col p-[8px] pl-0'>
           <main className='flex-1 overflow-hidden rounded-[8px] border border-[var(--border)] bg-[var(--bg)]'>
             <SettingsHeaderProvider>
-              <SettingsHeaderShell meta={getSettingsHeaderMeta(plane, activeSection)}>
+              <SettingsHeaderShell meta={headerMeta}>
                 <SettingsSectionProvider plane={plane} section={activeSection}>
                   {children}
                 </SettingsSectionProvider>
