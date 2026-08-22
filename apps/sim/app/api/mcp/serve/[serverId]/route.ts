@@ -17,6 +17,7 @@ import {
   SUPPORTED_PROTOCOL_VERSIONS,
   type Tool,
 } from '@modelcontextprotocol/sdk/types.js'
+import type { WorkflowExecutionPrincipal } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import {
   workflow,
@@ -96,6 +97,7 @@ interface RouteParams {
 interface ExecuteAuthContext {
   userId: string
   useAuthenticatedUserAsActor: boolean
+  principal: WorkflowExecutionPrincipal
 }
 
 function createResponse(id: RequestId, result: unknown): JSONRPCResultResponse {
@@ -364,6 +366,9 @@ async function authorizeMcpServeRequest(
   if (!auth.success || !auth.userId) {
     return { response: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) }
   }
+  if (!auth.principal) {
+    throw new Error('Authenticated MCP request is missing its principal')
+  }
 
   if (server.isPublic) return {}
 
@@ -396,6 +401,7 @@ async function authorizeMcpServeRequest(
     executeAuthContext: {
       userId: auth.userId,
       useAuthenticatedUserAsActor: isPersonalApiKey,
+      principal: auth.principal,
     },
   }
 }
@@ -856,6 +862,14 @@ async function handleToolsCall(
      */
     const serviceResult = await executeWorkflowService({
       workflowId: tool.workflowId,
+      principal:
+        executeAuthContext?.principal ??
+        ({
+          kind: 'system',
+          serviceId: 'public_api',
+          workspaceId: wf.workspaceId,
+          workflowId: tool.workflowId,
+        } satisfies WorkflowExecutionPrincipal),
       userId: actorUserId,
       input: workflowInput,
       triggerType: 'mcp',

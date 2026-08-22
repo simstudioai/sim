@@ -3,9 +3,12 @@
  */
 import {
   PrincipalSubjectUserRequiredError,
+  parsePrincipal,
   requirePrincipalSubjectUserId,
   resolvePrincipalAttribution,
   resolvePrincipalAuditAttribution,
+  resolvePrincipalSubject,
+  serializePrincipal,
   toPrincipalActor,
 } from '@sim/auth/principal'
 import { describe, expect, it } from 'vitest'
@@ -61,6 +64,178 @@ describe('principal subject users', () => {
         invitationTokenHash: 'hash-1',
       })
     ).toThrow(PrincipalSubjectUserRequiredError)
+  })
+
+  it('fails fast instead of fabricating a system subject', () => {
+    expect(() =>
+      requirePrincipalSubjectUserId({
+        kind: 'system',
+        serviceId: 'public_api',
+        workspaceId: 'workspace-1',
+        workflowId: 'workflow-1',
+      })
+    ).toThrow(PrincipalSubjectUserRequiredError)
+  })
+})
+
+describe('principal persistence', () => {
+  it('round trips delegated principals and restores dates', () => {
+    const principal = {
+      kind: 'delegated' as const,
+      serviceId: 'copilot' as const,
+      subjectUserId: 'user-1',
+      workspaceId: 'workspace-1',
+      delegationId: 'delegation-1',
+      audience: 'sim:workflows',
+      issuedAt: new Date('2026-01-01T00:00:00.000Z'),
+      expiresAt: new Date('2026-01-01T00:05:00.000Z'),
+      resourceScope: { executionId: 'execution-1' },
+    }
+
+    const restored = parsePrincipal(structuredClone(serializePrincipal(principal)))
+
+    expect(restored).toEqual(principal)
+    expect(restored.kind === 'delegated' && restored.issuedAt).toBeInstanceOf(Date)
+  })
+
+  it('rejects unknown versions, fields, and invalid dates', () => {
+    expect(() =>
+      parsePrincipal({
+        version: 2,
+        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      })
+    ).toThrow('Unsupported serialized principal version')
+    expect(() =>
+      parsePrincipal({
+        version: 1,
+        principal: {
+          kind: 'session',
+          userId: 'user-1',
+          sessionId: 'session-1',
+          token: 'must-not-survive',
+        },
+      })
+    ).toThrow('unsupported field token')
+    expect(() =>
+      parsePrincipal({
+        version: 1,
+        principal: {
+          kind: 'delegated',
+          serviceId: 'copilot',
+          subjectUserId: 'user-1',
+          workspaceId: 'workspace-1',
+          delegationId: 'delegation-1',
+          audience: 'sim:workflows',
+          issuedAt: 'not-a-date',
+          expiresAt: '2026-01-01T00:05:00.000Z',
+        },
+      })
+    ).toThrow('issuedAt must be an ISO timestamp')
+  })
+
+  it('does not accept Credential Group invitation principals', () => {
+    expect(() =>
+      parsePrincipal({
+        version: 1,
+        principal: {
+          kind: 'credential_group_enrollment',
+          workspaceId: 'workspace-1',
+          credentialGroupId: 'group-1',
+          enrollmentId: 'enrollment-1',
+          email: 'person@example.com',
+          invitationTokenHash: 'hash-1',
+        },
+      })
+    ).toThrow('cannot be persisted')
+  })
+
+  it('round trips a verified external webhook subject', () => {
+    const principal = {
+      kind: 'system' as const,
+      serviceId: 'webhook' as const,
+      workspaceId: 'workspace-1',
+      workflowId: 'workflow-1',
+      webhookId: 'webhook-1',
+      provider: 'slack',
+      subject: {
+        kind: 'external_user' as const,
+        provider: 'slack',
+        tenantId: 'T123',
+        subjectId: 'U123',
+      },
+    }
+
+    expect(parsePrincipal(serializePrincipal(principal))).toEqual(principal)
+  })
+
+  it('rejects incomplete or cross-provider webhook identity', () => {
+    expect(() =>
+      parsePrincipal({
+        version: 1,
+        principal: {
+          kind: 'system',
+          serviceId: 'webhook',
+          workspaceId: 'workspace-1',
+          workflowId: 'workflow-1',
+        },
+      })
+    ).toThrow('require webhookId and provider')
+    expect(() =>
+      parsePrincipal({
+        version: 1,
+        principal: {
+          kind: 'system',
+          serviceId: 'webhook',
+          workspaceId: 'workspace-1',
+          workflowId: 'workflow-1',
+          webhookId: 'webhook-1',
+          provider: 'slack',
+          subject: {
+            kind: 'external_user',
+            provider: 'discord',
+            tenantId: 'T123',
+            subjectId: 'U123',
+          },
+        },
+      })
+    ).toThrow('subject provider must match')
+  })
+})
+
+describe('principal subjects', () => {
+  it('keeps Sim and external subjects distinct', () => {
+    expect(
+      resolvePrincipalSubject({ kind: 'session', userId: 'user-1', sessionId: 'session-1' })
+    ).toEqual({ kind: 'sim_user', userId: 'user-1' })
+    expect(
+      resolvePrincipalSubject({
+        kind: 'system',
+        serviceId: 'webhook',
+        workspaceId: 'workspace-1',
+        workflowId: 'workflow-1',
+        webhookId: 'webhook-1',
+        provider: 'slack',
+        subject: {
+          kind: 'external_user',
+          provider: 'slack',
+          tenantId: 'T123',
+          subjectId: 'U123',
+        },
+      })
+    ).toEqual({
+      kind: 'external_user',
+      provider: 'slack',
+      tenantId: 'T123',
+      subjectId: 'U123',
+    })
+    expect(
+      resolvePrincipalSubject({
+        kind: 'system',
+        serviceId: 'schedule',
+        workspaceId: 'workspace-1',
+        workflowId: 'workflow-1',
+      })
+    ).toBeNull()
   })
 })
 

@@ -112,6 +112,7 @@ describe('executeWorkflowOperation', () => {
       expect(mocks.executeService).toHaveBeenCalledWith(
         expect.objectContaining({
           workflowId: 'workflow-1',
+          principal,
           userId: actorUserId,
           workflowRecord: workflow,
           triggerType: 'api',

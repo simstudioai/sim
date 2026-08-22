@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   loadContext: vi.fn(),
+  requireEnrollmentAccess: vi.fn(),
   resolvePermission: vi.fn(),
   resolveToken: vi.fn(),
   recordAudit: vi.fn(),
@@ -14,6 +15,10 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@/lib/credentials/managed-oauth', () => ({
   loadManagedOAuthCredentialApplicationContext: mocks.loadContext,
   resolveManagedOAuthToken: mocks.resolveToken,
+}))
+
+vi.mock('@/lib/credential-groups/application/authorization', () => ({
+  requireCredentialGroupEnrollmentAccess: mocks.requireEnrollmentAccess,
 }))
 
 vi.mock('@sim/platform-authz/workspace', () => ({
@@ -32,6 +37,8 @@ import { resolveManagedOAuthCredentialToken } from '@/lib/credentials/applicatio
 
 const context = {
   credentialId: 'credential-1',
+  credentialGroupId: 'group-1',
+  credentialGroupEnrollmentId: 'enrollment-1',
   workspaceId: 'workspace-1',
   workspaceOrganizationId: null,
   allowPersonalApiKeys: true,
@@ -55,7 +62,11 @@ function executorPrincipal(credentialId = 'credential-1'): WorkflowExecutionDele
     issuedAt: new Date(Date.now() - 1_000),
     expiresAt: new Date(Date.now() + 60_000),
     resourceScope: { credentialId },
-    delegationContext: { kind: 'workflow_execution', workflowId: 'workflow-1' },
+    delegationContext: {
+      kind: 'workflow_execution',
+      workflowId: 'workflow-1',
+      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+    },
   }
 }
 
@@ -64,6 +75,10 @@ describe('resolveManagedOAuthCredentialToken', () => {
     vi.clearAllMocks()
     mocks.loadContext.mockResolvedValue(context)
     mocks.resolvePermission.mockResolvedValue('read')
+    mocks.requireEnrollmentAccess.mockResolvedValue({
+      enrollmentId: 'enrollment-1',
+      email: 'person@example.com',
+    })
     mocks.resolveToken.mockResolvedValue({ accessToken: 'access-token', refreshed: false })
   })
 
@@ -107,5 +122,20 @@ describe('resolveManagedOAuthCredentialToken', () => {
     })
     expect(result).toEqual({ accessToken: 'access-token', refreshed: false })
     expect(mocks.recordAudit).toHaveBeenCalledOnce()
+  })
+
+  it('rejects a credential owned by another group enrollment', async () => {
+    mocks.requireEnrollmentAccess.mockResolvedValueOnce({
+      enrollmentId: 'enrollment-2',
+      email: 'other@example.com',
+    })
+
+    await expect(
+      resolveManagedOAuthCredentialToken.execute({ principal: executorPrincipal(), input })
+    ).rejects.toMatchObject({
+      code: 'forbidden',
+      message: 'Credential Group enrollment access required',
+    })
+    expect(mocks.resolveToken).not.toHaveBeenCalled()
   })
 })

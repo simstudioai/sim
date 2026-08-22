@@ -257,6 +257,12 @@ export function serializePauseSnapshot(
       `Cannot serialize pause snapshot: missing workspaceId for workflow ${context.workflowId}`
     )
   }
+  const principal = metadataFromContext?.principal ?? context.principal
+  if (!principal) {
+    throw new Error(
+      `Cannot serialize pause snapshot: missing principal for workflow ${context.workflowId}`
+    )
+  }
 
   const executionMetadata: ExecutionMetadata = {
     requestId:
@@ -265,6 +271,7 @@ export function serializePauseSnapshot(
     workflowId: context.workflowId,
     workspaceId,
     userId: metadataFromContext?.userId ?? '',
+    principal,
     billingAttribution: metadataFromContext?.billingAttribution,
     sessionUserId: metadataFromContext?.sessionUserId,
     workflowUserId: metadataFromContext?.workflowUserId,
