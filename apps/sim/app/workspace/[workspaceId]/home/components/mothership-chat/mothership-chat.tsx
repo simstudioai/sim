@@ -18,6 +18,7 @@ import { ChatMessageAttachments } from '@/app/workspace/[workspaceId]/home/compo
 import { ChatSurfaceProvider } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
 import {
   assistantMessageHasRenderableContent,
+  getOrchestratorMessageText,
   MessageContent,
   type MessagePhase,
 } from '@/app/workspace/[workspaceId]/home/components/message-content'
@@ -29,6 +30,7 @@ import {
   parseLastCredentialTag,
   parseLastQuestionTag,
 } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
+import { toCopyableMarkdown } from '@/app/workspace/[workspaceId]/home/components/mothership-chat/copyable-markdown'
 import { nextSizerFloor } from '@/app/workspace/[workspaceId]/home/components/mothership-chat/sizer-floor'
 import { QueuedMessages } from '@/app/workspace/[workspaceId]/home/components/queued-messages'
 import {
@@ -225,6 +227,12 @@ const AssistantMessageRow = memo(function AssistantMessageRow({
     onAnimatingChangeRef.current?.(phase !== 'settled')
   }, [phase])
 
+  const getCopyContent = useCallback(
+    () => getOrchestratorMessageText(blocks, message.content),
+    [blocks, message.content]
+  )
+  const prepareContentForCopy = useCallback((content: string) => toCopyableMarkdown(content), [])
+
   const hasRenderableAssistant = assistantMessageHasRenderableContent(blocks, message.content ?? '')
   if (!hasRenderableAssistant && !trimmedContent && !isStreaming) {
     return null
@@ -281,6 +289,9 @@ const AssistantMessageRow = memo(function AssistantMessageRow({
           actionsEligible ? (
             <MessageActions
               content={message.content}
+              getCopyContent={getCopyContent}
+              hasCopyContent={Boolean(getOrchestratorMessageText(blocks, message.content).trim())}
+              prepareContentForCopy={prepareContentForCopy}
               userQuery={precedingUserContent}
               requestId={message.requestId}
               messageId={message.id}
