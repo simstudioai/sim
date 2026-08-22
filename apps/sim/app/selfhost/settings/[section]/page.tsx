@@ -8,6 +8,7 @@ import {
   SELFHOST_SETTINGS_ITEMS,
 } from '@/components/settings/navigation'
 import { SelfHostSettingsRenderer } from '@/components/settings/selfhost-settings-renderer'
+import { SettingsSectionSkeleton } from '@/components/settings/settings-section-skeleton'
 import { getSession } from '@/lib/auth'
 import { isBillingEnabled, isHosted } from '@/lib/core/config/env-flags'
 
@@ -46,10 +47,12 @@ export default async function SelfHostSettingsSectionPage({
 
   /**
    * Sections read URL query params via nuqs (which uses `useSearchParams`
-   * internally), so the renderer must sit under a Suspense boundary.
+   * internally), so the renderer must sit under a Suspense boundary. It shares the
+   * route's loading placeholder, so a section resolving its params looks the same as one
+   * whose chunk is still in flight.
    */
   return (
-    <Suspense fallback={null}>
+    <Suspense fallback={<SettingsSectionSkeleton />}>
       <SelfHostSettingsRenderer section={parsed} />
     </Suspense>
   )

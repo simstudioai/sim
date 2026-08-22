@@ -9,6 +9,7 @@ import {
   resolveWorkspaceNavigation,
   type WorkspaceSettingsSection,
 } from '@/components/settings/navigation'
+import { SettingsSectionSkeleton } from '@/components/settings/settings-section-skeleton'
 import { getSession } from '@/lib/auth'
 import { isOrganizationOnEnterprisePlan } from '@/lib/billing'
 import { hasWorkspaceInboxAccess, hasWorkspaceSandboxAccess } from '@/lib/billing/core/subscription'
@@ -20,8 +21,7 @@ import { isPlatformAdmin } from '@/lib/permissions/super-user'
 import { getWorkspaceHostContextForViewer } from '@/lib/workspaces/host-context'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import {
-  allNavigationItems,
-  getSettingsSectionMeta,
+  resolveSettingsSection,
   type SettingsSection,
 } from '@/app/workspace/[workspaceId]/settings/navigation'
 import { resolveWorkspaceGroup } from '@/ee/access-control/utils/permission-check'
@@ -31,14 +31,6 @@ import { SettingsPage } from './settings'
 
 interface WorkspaceSettingsSectionPageProps {
   params: Promise<{ workspaceId: string; section: string }>
-}
-
-const SECTION_ALIASES: Readonly<Record<string, SettingsSection>> = {
-  subscription: 'billing',
-  team: 'organization',
-  'api-keys': 'apikeys',
-  // Verified domains moved into the SSO page; keep old links working.
-  domains: 'sso',
 }
 
 const TOP_LEVEL_REDIRECTS: Readonly<Record<string, (workspaceId: string) => string>> = {
@@ -77,12 +69,19 @@ const ORGANIZATION_SECTION_MAP: Partial<Record<SettingsSection, OrganizationSett
   whitelabeling: 'whitelabeling',
 }
 
-function parseSection(section: string): SettingsSection | null {
-  const normalized = SECTION_ALIASES[section] ?? section
-  return allNavigationItems.some((item) => item.id === normalized)
-    ? (normalized as SettingsSection)
-    : null
-}
+/**
+ * Sections whose first paint reads the general-settings query.
+ *
+ * Their bodies default a missing value (`?? true` / `?? false`) and drive a switch off it, so
+ * without a hydrated entry they paint the fallback and visibly flip when the client fetch
+ * lands. The workspace layout's `SettingsLoader` warms this key only after hydration, which
+ * covers client navigation but not a direct load of one of these sections.
+ */
+const GENERAL_SETTINGS_SECTIONS: ReadonlySet<SettingsSection> = new Set([
+  'general',
+  'billing',
+  'admin',
+])
 
 /**
  * Settings availability varies across workspaces, so a preserved section may
@@ -96,9 +95,7 @@ export async function generateMetadata({
   params,
 }: WorkspaceSettingsSectionPageProps): Promise<Metadata> {
   const { section } = await params
-  const parsed = parseSection(section)
-  const meta = parsed ? getSettingsSectionMeta(parsed) : null
-  return { title: meta?.label ?? 'Settings' }
+  return { title: resolveSettingsSection(section)?.meta.title ?? 'Settings' }
 }
 
 export default async function WorkspaceSettingsSectionPage({
@@ -110,8 +107,9 @@ export default async function WorkspaceSettingsSectionPage({
   const { workspaceId, section } = await params
   const topLevelHref = TOP_LEVEL_REDIRECTS[section]?.(workspaceId)
   if (topLevelHref) redirect(topLevelHref)
-  const parsed = parseSection(section)
-  if (!parsed) notFound()
+  const resolved = resolveSettingsSection(section)
+  if (!resolved) notFound()
+  const parsed = resolved.id
 
   const hostContext = await getWorkspaceHostContextForViewer(workspaceId, session.user.id)
   if (!hostContext) notFound()
@@ -191,16 +189,25 @@ export default async function WorkspaceSettingsSectionPage({
 
   const queryClient = getQueryClient()
   /**
-   * Awaited, not fired and forgotten: only a settled query is dehydrated, so an unawaited
-   * prefetch is dropped from the payload and the panel waterfalls anyway. The viewer's
-   * profile is already seeded by the workspace layout under the same key, so it is not
-   * repeated here.
+   * Scoped to the sections that actually read the key. The prefetch has to be awaited — an
+   * unsettled query is dropped from the dehydrated payload, so firing and forgetting would
+   * waterfall anyway — which means running it unconditionally charged the other ~25 sections
+   * a blocking round-trip for a cache entry they never touch. The viewer's profile is seeded
+   * by the workspace layout under a different key and is not repeated here.
    */
-  await prefetchGeneralSettings(queryClient)
+  if (GENERAL_SETTINGS_SECTIONS.has(parsed)) {
+    await prefetchGeneralSettings(queryClient)
+  }
 
   return (
     <HydrationBoundary state={dehydrate(queryClient)}>
-      <Suspense fallback={null}>
+      {/*
+        Sections read URL query params via nuqs (which uses `useSearchParams` internally),
+        so the panel must sit under a Suspense boundary. It shares the route's loading
+        placeholder, so a section resolving its params looks the same as one whose chunk is
+        still in flight.
+      */}
+      <Suspense fallback={<SettingsSectionSkeleton />}>
         <SettingsPage section={parsed} />
       </Suspense>
     </HydrationBoundary>

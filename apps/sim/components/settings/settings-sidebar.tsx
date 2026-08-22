@@ -60,6 +60,12 @@ function SidebarTooltip({
   )
 }
 
+/**
+ * Rows are buttons rather than links so leaving a dirty section runs the unsaved-changes
+ * guard first. That costs them Next's automatic viewport prefetch, so the route payload is
+ * warmed explicitly on hover and focus instead — without it every section switch pays a
+ * cold server round-trip at click time.
+ */
 export function SettingsSidebar<Section extends SettingsSection>({
   activeSection,
   plane,
@@ -159,6 +165,8 @@ export function SettingsSidebar<Section extends SettingsSection>({
                         <button
                           type='button'
                           className={chipVariants({ active, fullWidth: true })}
+                          onMouseEnter={() => router.prefetch(hrefForSection(item.id))}
+                          onFocus={() => router.prefetch(hrefForSection(item.id))}
                           onClick={() => {
                             if (active) return
                             requestLeave(() => {

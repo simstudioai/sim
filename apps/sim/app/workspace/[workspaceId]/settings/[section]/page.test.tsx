@@ -87,8 +87,16 @@ vi.mock('@/app/_shell/providers/get-query-client', () => ({
   getQueryClient: vi.fn(),
 }))
 
+const { mockSections } = vi.hoisted(() => ({
+  mockSections: ['general', 'billing', 'secrets', 'sessions'],
+}))
+
 vi.mock('@/app/workspace/[workspaceId]/settings/navigation', () => ({
-  allNavigationItems: [{ id: 'general' }, { id: 'billing' }, { id: 'secrets' }, { id: 'sessions' }],
+  allNavigationItems: mockSections.map((id) => ({ id })),
+  resolveSettingsSection: vi.fn((section: string) => {
+    const id = section === 'subscription' ? 'billing' : section
+    return mockSections.includes(id) ? { id, meta: { title: id } } : null
+  }),
   getSettingsSectionMeta: vi.fn(() => null),
 }))
 

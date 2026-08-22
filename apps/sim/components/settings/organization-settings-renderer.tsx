@@ -3,40 +3,57 @@
 import { useEffect } from 'react'
 import dynamic from 'next/dynamic'
 import { usePostHog } from 'posthog-js/react'
+import { SETTINGS_SECTION_LOADING_OPTIONS } from '@/components/settings/lazy-section'
 import type { OrganizationSettingsSection } from '@/components/settings/navigation'
 import { captureEvent } from '@/lib/posthog/client'
 
-const TeamManagement = dynamic(() =>
-  import('@/app/workspace/[workspaceId]/settings/components/team-management/team-management').then(
-    (module) => module.TeamManagement
-  )
+const TeamManagement = dynamic(
+  () =>
+    import(
+      '@/app/workspace/[workspaceId]/settings/components/team-management/team-management'
+    ).then((module) => module.TeamManagement),
+  SETTINGS_SECTION_LOADING_OPTIONS
 )
-const Billing = dynamic(() =>
-  import('@/app/workspace/[workspaceId]/settings/components/billing/billing').then(
-    (module) => module.Billing
-  )
+const Billing = dynamic(
+  () =>
+    import('@/app/workspace/[workspaceId]/settings/components/billing/billing').then(
+      (module) => module.Billing
+    ),
+  SETTINGS_SECTION_LOADING_OPTIONS
 )
-const AccessControl = dynamic(() =>
-  import('@/ee/access-control/components/access-control').then((module) => module.AccessControl)
+const AccessControl = dynamic(
+  () =>
+    import('@/ee/access-control/components/access-control').then((module) => module.AccessControl),
+  SETTINGS_SECTION_LOADING_OPTIONS
 )
-const AuditLogs = dynamic(() =>
-  import('@/ee/audit-logs/components/audit-logs').then((module) => module.AuditLogs)
+const AuditLogs = dynamic(
+  () => import('@/ee/audit-logs/components/audit-logs').then((module) => module.AuditLogs),
+  SETTINGS_SECTION_LOADING_OPTIONS
 )
-const SSO = dynamic(() => import('@/ee/sso/components/sso-settings').then((module) => module.SSO))
-const SessionPolicySettings = dynamic(() =>
-  import('@/ee/session-policy/components/session-policy-settings').then(
-    (module) => module.SessionPolicySettings
-  )
+const SSO = dynamic(
+  () => import('@/ee/sso/components/sso-settings').then((module) => module.SSO),
+  SETTINGS_SECTION_LOADING_OPTIONS
 )
-const DataRetentionSettings = dynamic(() =>
-  import('@/ee/data-retention/components/data-retention-settings').then(
-    (module) => module.DataRetentionSettings
-  )
+const SessionPolicySettings = dynamic(
+  () =>
+    import('@/ee/session-policy/components/session-policy-settings').then(
+      (module) => module.SessionPolicySettings
+    ),
+  SETTINGS_SECTION_LOADING_OPTIONS
 )
-const DataDrainsSettings = dynamic(() =>
-  import('@/ee/data-drains/components/data-drains-settings').then(
-    (module) => module.DataDrainsSettings
-  )
+const DataRetentionSettings = dynamic(
+  () =>
+    import('@/ee/data-retention/components/data-retention-settings').then(
+      (module) => module.DataRetentionSettings
+    ),
+  SETTINGS_SECTION_LOADING_OPTIONS
+)
+const DataDrainsSettings = dynamic(
+  () =>
+    import('@/ee/data-drains/components/data-drains-settings').then(
+      (module) => module.DataDrainsSettings
+    ),
+  SETTINGS_SECTION_LOADING_OPTIONS
 )
 const WhitelabelingSettings = dynamic(
   () =>

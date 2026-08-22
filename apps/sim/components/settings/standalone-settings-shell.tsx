@@ -11,6 +11,7 @@ import {
   getOrganizationSettingsFeatures,
   getOrganizationSettingsHref,
   getSelfHostSettingsHref,
+  getSettingsHeaderMeta,
   isOrganizationSettingsSectionAvailable,
   ORGANIZATION_SETTINGS_GROUPS,
   ORGANIZATION_SETTINGS_ITEMS,
@@ -152,7 +153,7 @@ export function StandaloneSettingsShell(props: StandaloneSettingsShellProps) {
         <div className='flex min-w-0 flex-1 flex-col p-[8px] pl-0'>
           <main className='flex-1 overflow-hidden rounded-[8px] border border-[var(--border)] bg-[var(--bg)]'>
             <SettingsHeaderProvider>
-              <SettingsHeaderShell>
+              <SettingsHeaderShell meta={getSettingsHeaderMeta(plane, activeSection)}>
                 <SettingsSectionProvider plane={plane} section={activeSection}>
                   {children}
                 </SettingsSectionProvider>

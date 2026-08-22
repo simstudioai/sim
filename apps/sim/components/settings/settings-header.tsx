@@ -66,6 +66,18 @@ export interface SettingsHeaderConfig {
   scrollContainerRef?: Ref<HTMLDivElement>
 }
 
+/**
+ * A section's static header identity, derivable from its navigation entry alone.
+ *
+ * The shell renders this until the section body mounts and registers a live config, so the
+ * heading paints in the route's first frame instead of arriving a chunk fetch later.
+ */
+export interface SettingsHeaderMeta {
+  title: string
+  description?: string
+  docsLink?: string
+}
+
 const EMPTY_CONFIG: SettingsHeaderConfig = {}
 const RegisterContext = createContext<((config: SettingsHeaderConfig) => void) | null>(null)
 
@@ -233,10 +245,27 @@ export function orderHeaderActions(
     .sort((a, b) => rank(a.action) - rank(b.action))
 }
 
-export function SettingsHeaderShell({ children }: { children: ReactNode }) {
+interface SettingsHeaderShellProps {
+  /**
+   * The routed section's static header identity. Owns the heading whenever no section body
+   * has registered one — on the route's first frame, while a lazily-loaded section chunk is
+   * still in flight, and across the gap where an outgoing body has already reset the config.
+   * Without it the heading blanks and re-fills on every section switch.
+   */
+  meta?: SettingsHeaderMeta | null
+  children: ReactNode
+}
+
+export function SettingsHeaderShell({ meta, children }: SettingsHeaderShellProps) {
   const read = useContext(ReadContext)
   const configRef = read?.configRef
-  const config = configRef?.current ?? EMPTY_CONFIG
+  const registered = configRef?.current ?? EMPTY_CONFIG
+  /**
+   * Substituted wholesale rather than field-by-field: a section that registers an explicit
+   * `title` and no `description` is deliberately suppressing the meta description, so the
+   * two must never be merged.
+   */
+  const config: SettingsHeaderConfig = registered === EMPTY_CONFIG && meta ? meta : registered
   const { title, description, docsLink, back, actions, search, scrollContainerRef } = config
 
   return (

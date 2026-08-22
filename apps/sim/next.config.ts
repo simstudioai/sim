@@ -146,6 +146,23 @@ const nextConfig: NextConfig = {
   },
   experimental: {
     /**
+     * How long a prefetched or already-visited route segment stays reusable in the client
+     * router cache before a revisit refetches its RSC payload.
+     *
+     * The default for dynamic segments is 0, which means returning to a page you just left
+     * re-runs its server work — for the settings panel, that is the whole per-section access
+     * gate, on every back-and-forth between two tabs. 30s covers the window in which a user
+     * is actually moving between sections; anything they open after it is stale enough to be
+     * worth re-authorizing anyway.
+     *
+     * It also sets how long a hover prefetch stays useful: below the time between hovering a
+     * row and clicking it, the prefetch would expire before it could be spent.
+     */
+    staleTimes: {
+      dynamic: 30,
+      static: 180,
+    },
+    /**
      * Turbopack's dev filesystem cache stays ON (this is also the Next default
      * since v16.1). It is what makes a dev-server restart cheap: without it every
      * restart recompiles the route graph from scratch.

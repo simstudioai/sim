@@ -114,3 +114,67 @@ describe('SettingsHeaderShell action routing', () => {
     expect(onSave).not.toHaveBeenCalled()
   })
 })
+
+describe('SettingsHeaderShell static meta', () => {
+  const META = { title: 'Secrets', description: 'Workspace credentials.' }
+
+  function heading(): string | null {
+    return container.querySelector('h1')?.textContent?.trim() ?? null
+  }
+
+  function paragraph(): string | null {
+    return container.querySelector('p')?.textContent?.trim() ?? null
+  }
+
+  function renderWithMeta(body: React.ReactNode) {
+    act(() => {
+      root.render(
+        <SettingsHeaderProvider>
+          <SettingsHeaderShell meta={META}>{body}</SettingsHeaderShell>
+        </SettingsHeaderProvider>
+      )
+    })
+  }
+
+  it('renders the routed section title before any body has registered one', () => {
+    renderWithMeta(<div />)
+
+    expect(heading()).toBe('Secrets')
+    expect(paragraph()).toBe('Workspace credentials.')
+  })
+
+  it('yields to a body that registers its own header', () => {
+    renderWithMeta(
+      <SettingsPanel title='Add secret' description='One value.'>
+        <div />
+      </SettingsPanel>
+    )
+
+    expect(heading()).toBe('Add secret')
+    expect(paragraph()).toBe('One value.')
+  })
+
+  it('keeps the meta description out of a body that registered a title without one', () => {
+    renderWithMeta(
+      <SettingsPanel title='Add secret'>
+        <div />
+      </SettingsPanel>
+    )
+
+    expect(heading()).toBe('Add secret')
+    expect(paragraph()).toBeNull()
+  })
+
+  it('falls back to the meta title when the body unmounts mid-navigation', () => {
+    renderWithMeta(
+      <SettingsPanel title='Add secret'>
+        <div />
+      </SettingsPanel>
+    )
+    expect(heading()).toBe('Add secret')
+
+    renderWithMeta(<div />)
+
+    expect(heading()).toBe('Secrets')
+  })
+})

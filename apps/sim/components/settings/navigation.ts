@@ -27,6 +27,7 @@ import {
 } from '@sim/emcn/icons'
 import { type PermissionType, permissionSatisfies } from '@sim/platform-authz/workspace'
 import { CodeIcon, McpIcon } from '@/components/icons'
+import type { SettingsHeaderMeta } from '@/components/settings/settings-header'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
 import {
   isAccessControlEnabled,
@@ -1064,6 +1065,32 @@ export function resolveWorkspaceNavigation({
 
     return [{ ...item, canMutate, locked }]
   })
+}
+
+/**
+ * The routed section's static header identity for a standalone plane, or `null` when the
+ * segment names no known section. The workspace plane resolves its own equivalent from its
+ * catalog in `settings/navigation.ts`.
+ */
+export function getSettingsHeaderMeta(
+  plane: SettingsPlane,
+  section: string
+): SettingsHeaderMeta | null {
+  const item = getSettingsSectionMeta(plane, section)
+  return item ? toSettingsHeaderMeta(item) : null
+}
+
+/**
+ * Adapts a navigation entry to the header shell's static identity.
+ *
+ * The catalog calls it `label` because it names a sidebar row; the shell calls it `title`
+ * because it renders a heading. One adapter keeps every plane's shell fed from the catalog
+ * instead of each one restating the mapping.
+ */
+export function toSettingsHeaderMeta(
+  item: Pick<SettingsNavigationItem, 'label' | 'description' | 'docsLink'>
+): SettingsHeaderMeta {
+  return { title: item.label, description: item.description, docsLink: item.docsLink }
 }
 
 export function getSettingsSectionMeta(

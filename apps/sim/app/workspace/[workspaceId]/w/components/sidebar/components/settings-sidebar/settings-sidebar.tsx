@@ -9,7 +9,7 @@ import {
   cn,
 } from '@sim/emcn'
 import { ChevronLeft } from '@sim/emcn/icons'
-import { useQueryClient } from '@tanstack/react-query'
+import { type QueryClient, useQueryClient } from '@tanstack/react-query'
 import { useParams, usePathname, useRouter } from 'next/navigation'
 import type { DesktopSettingsSurface } from '@/components/settings/navigation'
 import { ORGANIZATION_PLANE_UNIFIED_SECTIONS } from '@/components/settings/navigation'
@@ -38,11 +38,33 @@ import { SidebarTooltip } from '@/app/workspace/[workspaceId]/w/components/sideb
 import { useSSOProviders } from '@/ee/sso/hooks/sso'
 import { useForkingAvailable } from '@/ee/workspace-forking/hooks/use-forking-available'
 import { prefetchWorkspaceCredentials } from '@/hooks/queries/credentials'
-import { prefetchGeneralSettings, useGeneralSettings } from '@/hooks/queries/general-settings'
+import { useGeneralSettings } from '@/hooks/queries/general-settings'
 import { useInboxConfig } from '@/hooks/queries/inbox'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'
+
+/**
+ * Sections whose first paint waits on a query the sidebar is able to start early.
+ *
+ * Deliberately short: warming every section's queries on hover would trade a cold panel for a
+ * cold sidebar, and the rest are cheap enough to fetch on mount. The section's chunk is warmed
+ * separately, for all of them, via `sectionLoaders`.
+ *
+ * `general` is absent because it cannot help here — this sidebar only renders inside the
+ * workspace layout, whose `SettingsLoader` already holds a live observer on that key with an
+ * hour-long stale time, so `prefetchQuery` would short-circuit on every hover.
+ *
+ * The type argument is load-bearing: workspace credentials are cached per type, and the
+ * secrets panel subscribes to `env_workspace`. Warming the unfiltered list writes a different
+ * cache entry and leaves the panel to fetch cold anyway.
+ */
+const SECTION_QUERY_WARMERS: Partial<
+  Record<SettingsSection, (queryClient: QueryClient, workspaceId: string) => void>
+> = {
+  secrets: (queryClient, workspaceId) =>
+    prefetchWorkspaceCredentials(queryClient, workspaceId, 'env_workspace'),
+}
 
 interface SettingsSidebarProps {
   isCollapsed?: boolean
@@ -226,35 +248,23 @@ export function SettingsSidebar({
     return 'general'
   }, [pathname])
 
-  const handlePrefetch = useCallback(
-    (itemId: string) => {
-      switch (itemId) {
-        case 'general':
-          prefetchGeneralSettings(queryClient)
-          void import('@/app/workspace/[workspaceId]/settings/components/general/general')
-          break
-        case 'secrets':
-          prefetchWorkspaceCredentials(queryClient, workspaceId)
-          void import('@/app/workspace/[workspaceId]/settings/components/secrets/secrets')
-          break
-        case 'billing':
-          void import('@/app/workspace/[workspaceId]/settings/components/billing/billing')
-          break
-        case 'desktop':
-          void import('@/app/workspace/[workspaceId]/settings/components/desktop/desktop')
-          break
-        case 'browser':
-          void import('@/app/workspace/[workspaceId]/settings/components/browser/browser')
-          break
-        case 'terminal':
-          void import('@/app/workspace/[workspaceId]/settings/components/terminal/terminal')
-          break
-      }
-    },
-    [queryClient, workspaceId]
-  )
-
   const { popSettingsReturnUrl, getSettingsHref } = useSettingsNavigation()
+
+  const handlePrefetch = (section: SettingsSection) => {
+    /**
+     * The route payload is the slowest hop behind a section — the access gate runs on the
+     * server — and the one a row can never get for free, because Next only auto-prefetches
+     * `<Link>` and these rows are buttons that must run the unsaved-changes guard first.
+     *
+     * The section's JS chunk is deliberately NOT warmed here. Naming those chunks from this
+     * file puts every settings section into the module graph of the workflow editor and the
+     * other workspace routes this sidebar ships with — ~200 modules on the app's hottest
+     * pages to save one hop on a page they are not on. `dynamic()`'s shared skeleton covers
+     * that hop gracefully instead.
+     */
+    router.prefetch(getSettingsHref({ section }))
+    SECTION_QUERY_WARMERS[section]?.(queryClient, workspaceId)
+  }
 
   const handleBack = useCallback(() => {
     requestLeave(() => {
