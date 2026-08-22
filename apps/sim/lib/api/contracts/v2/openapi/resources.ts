@@ -3,7 +3,6 @@ import {
   v2GetToolContract,
   v2ListBlocksContract,
   v2ListConnectorTypesContract,
-  v2ListEnrichmentsContract,
   v2ListToolsContract,
 } from '@/lib/api/contracts/v2/catalog'
 import {
@@ -186,21 +185,6 @@ const CONNECTOR_TYPE_EXAMPLE = {
   ],
   supportsIncrementalSync: true,
   tagDefinitions: [{ id: 'owner', displayName: 'Owner', fieldType: 'text' }],
-} as const
-
-const ENRICHMENT_EXAMPLE = {
-  id: 'work-email',
-  name: 'Work email',
-  description: 'Find a person’s work email from their name and company.',
-  inputs: [
-    { id: 'fullName', name: 'Full name', type: 'string', required: true },
-    { id: 'domain', name: 'Company domain', type: 'string', required: true },
-  ],
-  outputs: [{ id: 'email', name: 'Work email', type: 'string' }],
-  providers: [
-    { id: 'hunter', label: 'Hunter', toolId: 'hunter_email_finder' },
-    { id: 'pdl', label: 'People Data Labs', toolId: 'peopledatalabs_person_enrich' },
-  ],
 } as const
 
 /**
@@ -1830,31 +1814,6 @@ const declaredRoutes = [
         'List connector types response',
         'Knowledge-base connector types and their configuration fields.',
         [{ data: [CONNECTOR_TYPE_EXAMPLE], nextCursor: null }]
-      ),
-    }
-  ),
-  defineOpenApiRoute(
-    v2ListEnrichmentsContract,
-    resourceOperation('Catalog', {
-      operationId: 'listEnrichments',
-      summary: 'List Enrichments',
-      description: `List every code-defined table enrichment, the per-row inputs it needs, the columns it fills, and the providers it draws from. Providers are listed in the order they are attempted: the first to return a non-empty result fills the cell. ${FULL_SET_LIST}`,
-      errors: RESOURCE_ERRORS,
-      success: { description: 'The enrichment catalog.' },
-    }),
-    {
-      query: documentedSchema(
-        v2ListEnrichmentsContract.query,
-        'ListEnrichmentsQuery',
-        'List enrichments query',
-        'Workspace scope and optional enrichment-name search.'
-      ),
-      response: documentedSchema(
-        v2ListEnrichmentsContract.response.schema,
-        'ListEnrichmentsResponse',
-        'List enrichments response',
-        'Table enrichments and their provider cascades.',
-        [{ data: [ENRICHMENT_EXAMPLE], nextCursor: null }]
       ),
     }
   ),

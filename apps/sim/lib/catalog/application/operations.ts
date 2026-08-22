@@ -45,10 +45,4 @@ export const catalogOperations = {
     workspaceApiKey: 'allow',
     principalKinds: ['session', 'personal_api_key', 'workspace_api_key'],
   }),
-  listEnrichments: defineWorkspaceOperation({
-    id: 'catalog.enrichments.list',
-    minimumRole: 'read',
-    workspaceApiKey: 'allow',
-    principalKinds: ['session', 'personal_api_key', 'workspace_api_key'],
-  }),
 } as const

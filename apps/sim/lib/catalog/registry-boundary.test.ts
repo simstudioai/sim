@@ -31,7 +31,6 @@ const CATALOG_ROOTS = [
   'app/api/v2/blocks',
   'app/api/v2/tools',
   'app/api/v2/connector-types',
-  'app/api/v2/enrichments',
   /** The Copilot tool the shared projection was extracted for: ~6,756 modules down to ~1,321. */
   'lib/copilot/tools/server/blocks',
 ] as const

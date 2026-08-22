@@ -107,11 +107,6 @@ const ENTRY_SOURCES: readonly EntrySource[] = [
     reason: 'the public connector-type catalog',
   },
   {
-    root: 'app/api/v2/enrichments',
-    matches: isRouteEntry,
-    reason: 'the public enrichment catalog',
-  },
-  {
     /**
      * Every projection module, not a barrel over them. The barrel measured a
      * graph no consumer paid for: all six consumers deep-import, so guarding

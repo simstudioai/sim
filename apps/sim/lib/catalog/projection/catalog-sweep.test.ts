@@ -28,20 +28,17 @@ import {
   v2BlockDetailSchema,
   v2BlockSummarySchema,
   v2ConnectorTypeSchema,
-  v2EnrichmentSchema,
   v2ToolDetailSchema,
   v2ToolSummarySchema,
 } from '@/lib/api/contracts/v2/catalog'
 import { projectBlockDetail } from '@/lib/catalog/projection/block-detail'
 import { projectBlockSummary } from '@/lib/catalog/projection/block-summary'
 import { projectConnectorType } from '@/lib/catalog/projection/connector-type'
-import { projectEnrichment } from '@/lib/catalog/projection/enrichment'
 import type { CatalogDeployment } from '@/lib/catalog/projection/tool'
 import { projectToolDetail, projectToolSummaryById } from '@/lib/catalog/projection/tool'
 import { buildCustomBlockConfig } from '@/blocks/custom/build-config'
 import { getBlockRegistry } from '@/blocks/registry'
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
-import { ALL_ENRICHMENTS } from '@/enrichments/registry'
 import { getToolIds } from '@/tools/tool-ids'
 
 /** Hosted deployment: the state under which every declared hosted key is published. */
@@ -227,17 +224,6 @@ describe('connector-type catalog projection sweep', () => {
       const projected = projectConnectorType(connectorType, meta)
       expectSerializable(projected, `connector ${connectorType}`)
       expectPublishedIntact(v2ConnectorTypeSchema, projected, `connector ${connectorType}`)
-    }
-  })
-})
-
-describe('enrichment catalog projection sweep', () => {
-  it('projects every registered enrichment to a publishable entry', () => {
-    expect(ALL_ENRICHMENTS.length).toBeGreaterThan(0)
-    for (const enrichment of ALL_ENRICHMENTS) {
-      const projected = projectEnrichment(enrichment)
-      expectSerializable(projected, `enrichment ${enrichment.id}`)
-      expectPublishedIntact(v2EnrichmentSchema, projected, `enrichment ${enrichment.id}`)
     }
   })
 })

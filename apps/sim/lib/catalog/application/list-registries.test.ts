@@ -27,12 +27,11 @@ vi.mock('@sim/audit', () => ({
 }))
 
 import { listCatalogConnectorTypes } from '@/lib/catalog/application/list-connector-types'
-import { listCatalogEnrichments } from '@/lib/catalog/application/list-enrichments'
 
 const WORKSPACE_ID = 'workspace-1'
 const session: SessionPrincipal = { kind: 'session', userId: 'user-1', sessionId: 'session-1' }
 
-describe('connector-type and enrichment catalogs', () => {
+describe('connector-type catalog', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.loadWorkspace.mockResolvedValue({
@@ -80,29 +79,16 @@ describe('connector-type and enrichment catalogs', () => {
     mocks.loadWorkspace.mockResolvedValue(null)
 
     await expect(
-      listCatalogEnrichments.execute({ principal: session, input: { workspaceId: WORKSPACE_ID } })
+      listCatalogConnectorTypes.execute({
+        principal: session,
+        input: { workspaceId: WORKSPACE_ID },
+      })
     ).rejects.toMatchObject({ code: 'not_found', message: 'Workspace not found' })
-  })
-
-  it('returns every enrichment with its provider cascade in declared order', async () => {
-    const { enrichments } = await listCatalogEnrichments.execute({
-      principal: session,
-      input: { workspaceId: WORKSPACE_ID },
-    })
-
-    expect(enrichments.length).toBeGreaterThan(0)
-    for (const enrichment of enrichments) {
-      expect(enrichment.providers.length).toBeGreaterThan(0)
-      for (const provider of enrichment.providers) {
-        expect(typeof provider.toolId).toBe('string')
-        expect(Object.keys(provider).sort()).toEqual(['id', 'label', 'toolId'])
-      }
-    }
   })
 
   it('rejects a blank search rather than silently matching everything', async () => {
     await expect(
-      listCatalogEnrichments.execute({
+      listCatalogConnectorTypes.execute({
         principal: session,
         input: { workspaceId: WORKSPACE_ID, search: ' ' },
       })

@@ -105,7 +105,6 @@ const PAGED_LISTS = [
 const FULL_SET_LISTS = [
   'GET /api/v2/connector-types',
   'GET /api/v2/credentials/providers',
-  'GET /api/v2/enrichments',
   'GET /api/v2/files/folders',
   'GET /api/v2/knowledge/[knowledgeBaseId]/tags',
   'GET /api/v2/knowledge/[knowledgeBaseId]/tags/usage',

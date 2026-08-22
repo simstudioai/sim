@@ -33,7 +33,6 @@ export const DOCS_MANIFEST: readonly string[] = [
   'cli/connector-types.mdx',
   'cli/credentials.mdx',
   'cli/custom-tools.mdx',
-  'cli/enrichments.mdx',
   'cli/files.mdx',
   'cli/knowledge.mdx',
   'cli/logs.mdx',

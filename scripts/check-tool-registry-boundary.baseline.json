@@ -1,5 +1,5 @@
 {
-  "generatedFrom": "module graphs of every entry under: app/workspace, app/api/v2/blocks, app/api/v2/tools, app/api/v2/connector-types, app/api/v2/enrichments, lib/catalog/projection, lib/copilot/tools/server/blocks",
+  "generatedFrom": "module graphs of every entry under: app/workspace, app/api/v2/blocks, app/api/v2/tools, app/api/v2/connector-types, lib/catalog/projection, lib/copilot/tools/server/blocks",
   "tolerance": {
     "modules": 25,
     "percent": 2
@@ -35,19 +35,6 @@
       "modules": 1772,
       "gateways": {
         "apps/sim/blocks/registry.ts": 610,
-        "apps/sim/triggers/index.ts": 453,
-        "apps/sim/lib/api/server/routes/index.ts": 350,
-        "apps/sim/lib/api/server/routes/internal-json-route.ts": 308,
-        "apps/sim/lib/auth/index.ts": 297,
-        "apps/sim/blocks/blocks/credential-group.ts": 269,
-        "apps/sim/stores/workflows/registry/store.ts": 248,
-        "apps/sim/hooks/queries/deployments.ts": 240
-      }
-    },
-    "app/api/v2/enrichments/route.ts": {
-      "modules": 1707,
-      "gateways": {
-        "apps/sim/blocks/registry.ts": 595,
         "apps/sim/triggers/index.ts": 453,
         "apps/sim/lib/api/server/routes/index.ts": 350,
         "apps/sim/lib/api/server/routes/internal-json-route.ts": 308,
@@ -216,12 +203,12 @@
       }
     },
     "app/workspace/[workspaceId]/knowledge/page.tsx": {
-      "modules": 2257,
+      "modules": 2258,
       "gateways": {
         "apps/sim/triggers/registry.ts": 452,
         "apps/sim/blocks/registry.ts": 339,
-        "apps/sim/app/workspace/[workspaceId]/knowledge/prefetch.ts": 289,
-        "apps/sim/lib/knowledge/application/knowledge-bases.ts": 233,
+        "apps/sim/app/workspace/[workspaceId]/knowledge/prefetch.ts": 290,
+        "apps/sim/lib/knowledge/application/knowledge-bases.ts": 234,
         "apps/sim/app/workspace/[workspaceId]/knowledge/knowledge.tsx": 183,
         "apps/sim/lib/auth/index.ts": 178,
         "apps/sim/lib/knowledge/orchestration/index.ts": 146,
@@ -483,10 +470,6 @@
       }
     },
     "lib/catalog/projection/connector-type.ts": {
-      "modules": 1,
-      "gateways": {}
-    },
-    "lib/catalog/projection/enrichment.ts": {
       "modules": 1,
       "gateways": {}
     },

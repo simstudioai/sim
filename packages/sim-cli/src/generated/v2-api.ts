@@ -5189,40 +5189,6 @@ export type ListCustomToolsResponse = {
   nextCursor: string | null
 }
 
-/** `GET /api/v2/enrichments` */
-export type ListEnrichmentsQuery = {
-  workspaceId: string
-  search?: string
-}
-
-type ListEnrichmentsResponseRef0 = {
-  id: string
-  name: string
-  description: string
-  inputs: Array<{
-    id: string
-    name: string
-    type: 'string' | 'number' | 'boolean'
-    required?: boolean
-    description?: string
-  }>
-  outputs: Array<{
-    id: string
-    name: string
-    type: 'string' | 'number' | 'currency' | 'boolean' | 'date' | 'json' | 'select'
-  }>
-  providers: Array<{
-    id: string
-    label: string
-    toolId: string
-  }>
-}
-
-export type ListEnrichmentsResponse = {
-  data: Array<ListEnrichmentsResponseRef0>
-  nextCursor: string | null
-}
-
 /** `GET /api/v2/files/folders` */
 type ListFileFoldersQueryRef0 = string
 
@@ -11437,25 +11403,6 @@ export const V2_OPERATIONS = {
         kind: 'string',
         describe:
           'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
-      },
-    },
-  },
-  listEnrichments: {
-    method: 'GET',
-    path: '/api/v2/enrichments',
-    pathParams: [] as const,
-    responseMode: 'json',
-    summary: 'List Enrichments',
-    query: {
-      workspaceId: {
-        kind: 'string',
-        required: true,
-        describe:
-          'Workspace whose integration allowlist, revealed preview blocks, and deployed custom blocks decide what this catalog contains.',
-      },
-      search: {
-        kind: 'string',
-        describe: 'Case-insensitive substring match against the enrichment name.',
       },
     },
   },

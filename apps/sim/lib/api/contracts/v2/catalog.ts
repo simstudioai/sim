@@ -1,6 +1,5 @@
 import { z } from 'zod'
 import { workspaceIdSchema } from '@/lib/api/contracts/primitives'
-import { columnTypeSchema } from '@/lib/api/contracts/tables'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import {
   v2CursorListResponse,
@@ -626,55 +625,6 @@ export const v2ConnectorTypeSchema = z
   })
 export type V2ConnectorType = z.output<typeof v2ConnectorTypeSchema>
 
-/** A code-defined table enrichment. */
-export const v2EnrichmentSchema = z
-  .object({
-    id: z.string().describe('Enrichment identifier.'),
-    name: z.string().describe('Display name.'),
-    description: z.string().describe('What the enrichment fills in.'),
-    inputs: z
-      .array(
-        z.object({
-          id: z.string().describe('Key the value is supplied under.'),
-          name: z.string().describe('Human-readable label.'),
-          type: z.enum(['string', 'number', 'boolean']).describe('Value type.'),
-          required: z.boolean().optional().describe('Whether the input must be mapped.'),
-          description: z.string().optional().describe('What the input means.'),
-        })
-      )
-      .describe('Per-row inputs the enrichment needs, each mapped to a table column.'),
-    outputs: z
-      .array(
-        z.object({
-          id: z.string().describe('Key the value is returned under.'),
-          name: z.string().describe('Default column name.'),
-          type: columnTypeSchema.describe('Table column type the value is stored as.'),
-        })
-      )
-      .describe('Values the enrichment produces, each becoming a table column.'),
-    providers: z
-      .array(
-        z.object({
-          id: z.string().describe('Provider identifier.'),
-          label: z.string().describe('Human-readable provider name.'),
-          toolId: z
-            .string()
-            .describe(
-              'Built-in tool the provider runs. Resolve it with `GET /api/v2/tools/{toolId}`.'
-            ),
-        })
-      )
-      .describe(
-        'Data sources in the order they are attempted. The first provider to return a non-empty result fills the cell, so this order is behavior rather than presentation.'
-      ),
-  })
-  .meta({
-    id: 'V2Enrichment',
-    title: 'Enrichment',
-    description: 'A code-defined table enrichment and its provider cascade.',
-  })
-export type V2Enrichment = z.output<typeof v2EnrichmentSchema>
-
 export const v2BlockSortFields = ['id', 'name', 'category'] as const
 export const v2ToolSortFields = ['id', 'name'] as const
 
@@ -746,15 +696,6 @@ export const v2ListConnectorTypesQuerySchema = catalogWorkspaceQuerySchema
   .strict()
 export type V2ListConnectorTypesQuery = z.output<typeof v2ListConnectorTypesQuerySchema>
 
-export const v2ListEnrichmentsQuerySchema = catalogWorkspaceQuerySchema
-  .extend({
-    search: v2SearchSchema.describe(
-      'Case-insensitive substring match against the enrichment name.'
-    ),
-  })
-  .strict()
-export type V2ListEnrichmentsQuery = z.output<typeof v2ListEnrichmentsQuerySchema>
-
 /**
  * Block list, paginated by an opaque offset cursor rather than the keyset most
  * v2 lists use — the same case as `GET /api/v2/skills`. The sequence merges the
@@ -804,15 +745,5 @@ export const v2ListConnectorTypesContract = defineRouteContract({
   response: {
     mode: 'json',
     schema: v2CursorListResponse(v2ConnectorTypeSchema, { paged: false }),
-  },
-})
-
-export const v2ListEnrichmentsContract = defineRouteContract({
-  method: 'GET',
-  path: '/api/v2/enrichments',
-  query: v2ListEnrichmentsQuerySchema,
-  response: {
-    mode: 'json',
-    schema: v2CursorListResponse(v2EnrichmentSchema, { paged: false }),
   },
 })

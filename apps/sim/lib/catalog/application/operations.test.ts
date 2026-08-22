@@ -15,11 +15,10 @@ const EXPECTED_OPERATION_IDS = {
   listTools: 'catalog.tools.list',
   readTool: 'catalog.tools.read',
   listConnectorTypes: 'catalog.connector_types.list',
-  listEnrichments: 'catalog.enrichments.list',
 } as const
 
 describe('catalogOperations', () => {
-  it('declares exactly the six catalog reads under their published ids', () => {
+  it('declares exactly the five catalog reads under their published ids', () => {
     expect(Object.keys(catalogOperations).sort()).toEqual(
       Object.keys(EXPECTED_OPERATION_IDS).sort()
     )
