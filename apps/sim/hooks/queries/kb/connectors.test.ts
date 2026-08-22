@@ -2,7 +2,7 @@
  * @vitest-environment node
  */
 
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   requestJson: vi.fn(),
@@ -21,9 +21,37 @@ vi.mock('@/lib/api/client/request', () => ({
   requestJson: mocks.requestJson,
 }))
 
-import { listKnowledgeConnectorDocumentsContract } from '@/lib/api/contracts/knowledge'
+import {
+  type ConnectorData,
+  listKnowledgeConnectorDocumentsContract,
+} from '@/lib/api/contracts/knowledge'
 import { MAX_KNOWLEDGE_CONNECTOR_DOCUMENT_PAGE_SIZE } from '@/lib/knowledge/constants'
-import { useConnectorDocuments } from '@/hooks/queries/kb/connectors'
+import { isConnectorSyncingOrPending, useConnectorDocuments } from '@/hooks/queries/kb/connectors'
+
+const NOW_MS = new Date('2026-08-21T12:00:00.000Z').getTime()
+
+function makeConnector(overrides: Partial<ConnectorData> = {}): ConnectorData {
+  const createdAt = new Date(NOW_MS - 60_000).toISOString()
+
+  return {
+    id: 'connector-1',
+    knowledgeBaseId: 'knowledge-1',
+    connectorType: 'hubspot',
+    credentialId: 'credential-1',
+    sourceConfig: {},
+    syncMode: 'full',
+    syncIntervalMinutes: 1440,
+    status: 'active',
+    lastSyncAt: null,
+    lastSyncError: null,
+    lastSyncDocCount: null,
+    nextSyncAt: null,
+    consecutiveFailures: 0,
+    createdAt,
+    updatedAt: createdAt,
+    ...overrides,
+  }
+}
 
 interface ConnectorDocumentsPage {
   documents: Array<{ id: string }>
@@ -38,6 +66,53 @@ interface ConnectorDocumentsQueryOptions {
     pages: ConnectorDocumentsPage[]
   ) => number | undefined
 }
+
+describe('isConnectorSyncingOrPending', () => {
+  beforeEach(() => {
+    vi.spyOn(Date, 'now').mockReturnValue(NOW_MS)
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('treats a recently created active connector without a completed sync as pending', () => {
+    expect(isConnectorSyncingOrPending(makeConnector())).toBe(true)
+  })
+
+  it('treats a syncing connector as syncing regardless of its age or sync history', () => {
+    const connector = makeConnector({
+      status: 'syncing',
+      createdAt: new Date(NOW_MS - 24 * 60 * 60 * 1000).toISOString(),
+      lastSyncAt: new Date(NOW_MS - 60 * 60 * 1000).toISOString(),
+    })
+
+    expect(isConnectorSyncingOrPending(connector)).toBe(true)
+  })
+
+  it('does not treat an active connector with a completed sync as pending', () => {
+    const connector = makeConnector({
+      lastSyncAt: new Date(NOW_MS - 30_000).toISOString(),
+    })
+
+    expect(isConnectorSyncingOrPending(connector)).toBe(false)
+  })
+
+  it('stops treating an active connector as pending at the two-minute boundary', () => {
+    const connector = makeConnector({
+      createdAt: new Date(NOW_MS - 2 * 60 * 1000).toISOString(),
+    })
+
+    expect(isConnectorSyncingOrPending(connector)).toBe(false)
+  })
+
+  it.each(['error', 'paused', 'disabled'] as const)(
+    'does not treat a recent %s connector as pending',
+    (status) => {
+      expect(isConnectorSyncingOrPending(makeConnector({ status }))).toBe(false)
+    }
+  )
+})
 
 describe('useConnectorDocuments', () => {
   beforeEach(() => {

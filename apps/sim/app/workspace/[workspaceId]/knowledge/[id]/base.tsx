@@ -1091,7 +1091,7 @@ export function KnowledgeBase({
               className={cn(chipVariants({ variant: 'filled' }), 'max-w-[180px]')}
             >
               <span className='relative flex size-[14px] flex-shrink-0 items-center justify-center'>
-                {connector.status === 'syncing' ? (
+                {isConnectorSyncingOrPending(connector) ? (
                   <Loader className='size-[14px]' animate />
                 ) : (
                   ConnectorIcon && <BrandIcon icon={ConnectorIcon} className='size-[14px]' />
