@@ -26,12 +26,20 @@ Left-to-right becomes top-to-bottom. A toolbar reading `Filter · Sort · Export
 
 Platform-only entries (desktop **Browser** and **Terminal**) trail the shared set rather than interleaving, so the common prefix is identical on every platform.
 
-## Grouping: one rule, before the destructive action
+## Grouping: one rule, against the consequential group
 
 Order is governed above. **Separators are governed here** — and the answer is: use at most one.
 
-Put a single `DropdownMenuSeparator` immediately before the destructive group (Delete, Leave,
-Close, Hide) and nowhere else. Everything above it runs uninterrupted in toolbar-mirroring order.
+Put a single `DropdownMenuSeparator` against the **consequential group** — the actions that
+delete, detach, or change a run — and nowhere else. Everything on the other side of it runs
+uninterrupted in toolbar-mirroring order.
+
+That group trails in almost every menu, so in practice the rule reads "one rule immediately
+before Delete / Leave / Close / Hide". It leads in exactly one place: the **logs row menu**,
+where `Retry` and `Cancel Run` are the primary actions on a failed run and sit at the top, with
+the rule beneath them. Ordering follows the surface (see "The rule" above); the separator simply
+fences whichever end the consequential group occupies. A menu whose consequential actions are
+merely *disabled* still gets no extra rule — `disabled` is not a group.
 
 ```tsx
 // ✗ Bad — four semantic bands the user meets nowhere else

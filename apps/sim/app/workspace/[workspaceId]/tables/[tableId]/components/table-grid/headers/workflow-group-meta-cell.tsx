@@ -44,6 +44,12 @@ const LIMITED_RUN_PRESETS = [10, 1000] as const
 /** Labels for the table-scoped run items. With an active filter the run is
  *  scoped to matching rows, so the labels say "filtered rows" to make the
  *  narrowed target visible. Shared by both menu surfaces. */
+/**
+ * Incomplete before all, matching the action bar and the row context menu, which both
+ * present Play (empty or failed) ahead of Refresh (every row). These two menus read the
+ * same four run actions the user already met on the action bar, so they must not invert
+ * the pair — see `.claude/rules/sim-list-ordering.md`.
+ */
 function runMenuLabels(hasActiveFilter: boolean) {
   const rows = hasActiveFilter ? 'filtered rows' : 'rows'
   return {
@@ -171,11 +177,11 @@ export function ColumnOptionsMenu({
                   {`Run ${selectedRowCount} selected ${selectedRowCount === 1 ? 'row' : 'rows'}`}
                 </DropdownMenuItem>
               )}
-              <DropdownMenuItem onSelect={() => onRunColumnAll?.()}>
-                {runLabels.all}
-              </DropdownMenuItem>
               <DropdownMenuItem onSelect={() => onRunColumnIncomplete?.()}>
                 {runLabels.incomplete}
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => onRunColumnAll?.()}>
+                {runLabels.all}
               </DropdownMenuItem>
               {onRunColumnLimited &&
                 LIMITED_RUN_PRESETS.map((max) => (
@@ -510,10 +516,10 @@ export function WorkflowGroupMetaCell({
                   {`Run ${selectedCount} selected ${selectedCount === 1 ? 'row' : 'rows'}`}
                 </DropdownMenuItem>
               )}
-              <DropdownMenuItem onSelect={handleRunAll}>{runLabels.all}</DropdownMenuItem>
               <DropdownMenuItem onSelect={handleRunIncomplete}>
                 {runLabels.incomplete}
               </DropdownMenuItem>
+              <DropdownMenuItem onSelect={handleRunAll}>{runLabels.all}</DropdownMenuItem>
               {LIMITED_RUN_PRESETS.map((max) => (
                 <DropdownMenuItem key={max} onSelect={() => handleRunLimited(max)}>
                   {runLabels.limited(max)}

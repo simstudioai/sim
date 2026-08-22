@@ -141,7 +141,7 @@ export function DocumentContextMenu({
           onAddDocument && (
             <DropdownMenuItem disabled={disableAddDocument} onSelect={onAddDocument}>
               <Plus />
-              Add document
+              New documents
             </DropdownMenuItem>
           )
         )}

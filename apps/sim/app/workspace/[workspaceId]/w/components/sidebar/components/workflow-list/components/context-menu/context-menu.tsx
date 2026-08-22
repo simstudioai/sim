@@ -185,6 +185,9 @@ export function ContextMenu({
    * rendered a trailing rule under the last item.
    */
   const hasActionsAboveDestructive =
+    /* No `openInNewTabPosition` term: the item renders in the 'first' slot or the
+       'last' one, and the prop is a closed two-value union, so `showOpenInNewTab &&
+       onOpenInNewTab` already means exactly "the nav item renders somewhere above". */
     (showOpenInNewTab && onOpenInNewTab) ||
     (showMarkAsRead && onMarkAsRead) ||
     (showMarkAsUnread && onMarkAsUnread) ||
