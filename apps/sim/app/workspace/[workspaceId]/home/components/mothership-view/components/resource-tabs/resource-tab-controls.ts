@@ -21,11 +21,11 @@ export const RESOURCE_HEADER_CLASSES = {
   stripGeometry:
     '[--tab-strip-height:var(--resource-header-controls-height)] [--tab-strip-inline-start:var(--resource-header-end-inset)] [--tab-strip-inline-end:var(--resource-header-fixed-reserve)]',
   /**
-   * Bottom-aligned rather than centred: the header's own controls sit in the tab
-   * strip's band, one pixel clear of its border, and an overlaid control has to
-   * land in that same band to read as part of the row.
+   * Centred, matching the `floating` strip: its tabs and controls sit centred in
+   * the header band rather than hanging from the top, so an overlaid control has
+   * to centre too or it lands a pixel below the row it belongs to.
    */
-  overlay: 'absolute top-0 flex h-[var(--resource-header-controls-height)] items-end pb-px',
+  overlay: 'absolute top-0 flex h-[var(--resource-header-controls-height)] items-center',
   endPosition: 'right-[var(--resource-header-end-inset)]',
   /**
    * Sits a control 1px clear of the overlaid 30px collapse toggle — the same

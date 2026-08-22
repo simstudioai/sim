@@ -24,6 +24,64 @@ const DRAG_SCROLL_SPEED = 8
 const TITLE_TOOLTIP_HIDDEN_PX = 8
 const TAB_TRANSITION = { duration: 0.1, ease: [0.2, 0, 0, 1] as const }
 
+/**
+ * Width, not flex-basis: `flex-1` compiles to `flex: 1 1 0%`, and Tailwind emits
+ * the `flex` shorthand after `flex-basis`, so pairing the two silently discarded
+ * the basis and left every tab sized by its own title.
+ *
+ * `attached` gives every tab the same width and a floor, so a crowded strip
+ * degrades evenly and then scrolls. `floating` sizes to content up to a cap, so
+ * short labels stay short and only a long one ellipsizes — a row of bare labels
+ * must not read as a grid of buttons.
+ *
+ * Both refuse to shrink below their floor, and that is what makes the strip
+ * scrollable at all: a flex child that is both shrinkable and `min-w-0` compresses
+ * to fit its container instead of overflowing it, so `scrollWidth` never exceeds
+ * `clientWidth`, the edge fades never appear, and every label crushes to an
+ * ellipsis. `floating` therefore never shrinks; `attached` shrinks only to 96px.
+ */
+const TAB_WIDTH: Record<TabStripVariant, string> = {
+  attached: 'w-[156px] min-w-[96px] shrink',
+  floating: 'max-w-[200px] shrink-0',
+}
+
+/** The resting shape of a tab that is not the active one. */
+const TAB_SHAPE: Record<TabStripVariant, string> = {
+  attached: 'rounded-b-none border border-transparent border-b-0',
+  // No shape at all: bare labels, so the row reads as one quiet line rather than
+  // a strip of buttons competing with the panel's own controls.
+  floating: 'rounded-lg text-[var(--text-secondary)]',
+}
+
+/**
+ * The active tab. `attached` fills with the page background and keeps a border,
+ * having already dropped its bottom edge to merge into the surface below;
+ * `floating` has no surface to merge with, so it reads by fill alone.
+ */
+const TAB_ACTIVE: Record<TabStripVariant, string> = {
+  attached:
+    'hover-hover:!border-[var(--border)] hover-hover:!bg-[var(--bg)] hover-hover:!text-[var(--text-primary)] hover-hover:!brightness-100 hover-hover:!opacity-100 border-[var(--border)] bg-[var(--bg)] text-[var(--text-primary)] transition-none',
+  floating:
+    'hover-hover:!bg-[var(--surface-active)] hover-hover:!text-[var(--text-primary)] bg-[var(--surface-active)] text-[var(--text-primary)]',
+}
+
+/**
+ * A tab held in a multi-selection that is not the one on screen. It has to sit
+ * below the active tab in emphasis: `attached` can reuse `--surface-active`
+ * because its active tab reads by border and page-background fill instead, but
+ * `floating`'s active tab already owns that token, so a selected tab takes the
+ * step below it on the same ramp.
+ */
+const TAB_SELECTED: Record<TabStripVariant, string> = {
+  attached: 'bg-[var(--surface-active)]',
+  floating: 'bg-[var(--surface-hover)]',
+}
+
+/** Whether a tab draws no shape of its own, and so needs dividing from its neighbour. */
+function isBareTab(tab: TabStripItem | undefined): boolean {
+  return Boolean(tab) && !tab?.active && !tab?.selected
+}
+
 /** One tab in a {@link TabStrip}. */
 export interface TabStripItem {
   id: string
@@ -68,6 +126,18 @@ export interface TabStripDragContext {
    */
   preventReorder: () => void
 }
+
+/**
+ * How the tabs are drawn.
+ *
+ * - `attached` — browser-style. Every tab is a shape, and the active one loses
+ *   its bottom border to merge into the surface below. For a strip that owns
+ *   the whole surface under it.
+ * - `floating` — only the active tab carries a shape; the rest are bare labels
+ *   divided by a hairline. Quieter, and it does not claim the surface below, so
+ *   it suits a panel header that sits above content it does not own.
+ */
+export type TabStripVariant = 'attached' | 'floating'
 
 /** How a tab selection was initiated. */
 export type TabStripSelectionSource = 'pointer' | 'keyboard'
@@ -138,6 +208,8 @@ interface TabStripBaseProps {
    * what separates it from {@link TabStripBaseProps.endActions}.
    */
   overlays?: ReactNode
+  /** Defaults to `attached`. See {@link TabStripVariant}. */
+  variant?: TabStripVariant
   /**
    * Merged onto the strip root. Intended for the geometry custom properties
    * below rather than for competing utility classes, so a caller that owns the
@@ -214,6 +286,13 @@ export function tabDropIndex(
 
 interface TabProps {
   tab: TabStripItem
+  variant: TabStripVariant
+  /**
+   * Draws the hairline that separates two adjacent bare tabs in the `floating`
+   * variant. Suppressed next to a tab that has a shape of its own, since the
+   * shape already does the dividing.
+   */
+  showDivider: boolean
   onSelect: (
     id: string,
     source?: TabStripSelectionSource,
@@ -235,6 +314,8 @@ interface TabProps {
 const Tab = forwardRef<HTMLDivElement, TabProps>(function Tab(
   {
     tab,
+    variant,
+    showDivider,
     onSelect,
     onClose,
     onContextMenu,
@@ -274,14 +355,9 @@ const Tab = forwardRef<HTMLDivElement, TabProps>(function Tab(
       transition={TAB_TRANSITION}
       className={cn(
         'group relative select-none',
-        // Width, not flex-basis: `flex-1` compiles to `flex: 1 1 0%`, and
-        // Tailwind emits the `flex` shorthand after `flex-basis`, so pairing
-        // the two silently discarded the basis and left every tab sized by its
-        // own title. `shrink` still lets a crowded strip squeeze them to the
-        // floor before it starts scrolling.
-        tab.pinned
-          ? 'w-[34px] min-w-[34px] max-w-[34px] flex-none'
-          : 'w-[156px] min-w-[96px] shrink',
+        // `shrink` lets a crowded strip squeeze tabs to their floor before it
+        // starts scrolling.
+        tab.pinned ? 'w-[34px] min-w-[34px] max-w-[34px] flex-none' : TAB_WIDTH[variant],
         dragging && 'opacity-30'
       )}
       data-tab-strip-item={tab.id}
@@ -295,11 +371,14 @@ const Tab = forwardRef<HTMLDivElement, TabProps>(function Tab(
         onClose?.(tab.id)
       }}
     >
+      {showDivider && (
+        <div className='-translate-y-1/2 -left-1 pointer-events-none absolute top-1/2 h-4 w-px bg-[var(--border)]' />
+      )}
       {showDropBefore && (
-        <div className='-translate-x-1/2 -translate-y-1/2 pointer-events-none absolute top-1/2 left-0 z-30 h-[16px] w-[2px] rounded-full bg-[var(--text-subtle)]' />
+        <div className='-translate-x-1/2 -translate-y-1/2 pointer-events-none absolute top-1/2 left-0 z-30 h-4 w-[2px] rounded-full bg-[var(--text-subtle)]' />
       )}
       {showDropAfter && (
-        <div className='-translate-y-1/2 pointer-events-none absolute top-1/2 right-0 z-30 h-[16px] w-[2px] translate-x-1/2 rounded-full bg-[var(--text-subtle)]' />
+        <div className='-translate-y-1/2 pointer-events-none absolute top-1/2 right-0 z-30 h-4 w-[2px] translate-x-1/2 rounded-full bg-[var(--text-subtle)]' />
       )}
       <Tooltip.Root>
         <Tooltip.Trigger asChild>
@@ -313,12 +392,13 @@ const Tab = forwardRef<HTMLDivElement, TabProps>(function Tab(
             data-tab-strip-button={tab.id}
             tabIndex={focusable ? 0 : -1}
             className={cn(
-              'h-[var(--tab-strip-band,30px)] w-full select-none rounded-b-none border border-transparent border-b-0 bg-transparent py-0 text-caption',
+              'h-[var(--tab-strip-band,30px)] w-full select-none bg-transparent py-0 text-caption',
               tab.pinned ? 'justify-center px-0' : 'justify-start gap-1.5 px-2',
-              closeable && !tab.pinned && 'pr-8',
-              tab.selected && !tab.active && 'bg-[var(--surface-active)]',
-              tab.active &&
-                'hover-hover:!border-[var(--border)] hover-hover:!bg-[var(--bg)] hover-hover:!text-[var(--text-primary)] hover-hover:!brightness-100 hover-hover:!opacity-100 relative z-10 border-[var(--border)] bg-[var(--bg)] text-[var(--text-primary)] transition-none'
+              closeable && 'pr-8',
+              TAB_SHAPE[variant],
+              tab.selected && !tab.active && TAB_SELECTED[variant],
+              tab.active && 'relative z-10',
+              tab.active && TAB_ACTIVE[variant]
             )}
             onClick={(event) => onSelect(tab.id, 'pointer', event)}
             onKeyDown={(event) => onKeyDown(event, tab.id)}
@@ -392,6 +472,7 @@ export function TabStrip({
   newTabControl,
   endActions,
   overlays,
+  variant = 'attached',
   className,
 }: TabStripProps) {
   const atLimit = maxTabs !== undefined && tabs.length >= maxTabs
@@ -653,12 +734,23 @@ export function TabStrip({
     [focusTab, onClose, onSelect, tabs]
   )
 
-  const renderTab = (tab: TabStripItem) => {
+  // Called as a `map` callback, so `lane` is whichever of the two rows — pinned
+  // or regular — is being rendered. The neighbour has to come from that lane
+  // rather than from `tabs`: the rows are separate containers, so a tab's
+  // predecessor in the combined list may not be the one beside it on screen, and
+  // the first tab in a lane has no on-screen predecessor at all.
+  const renderTab = (tab: TabStripItem, laneIndex: number, lane: TabStripItem[]) => {
     const index = tabs.findIndex((candidate) => candidate.id === tab.id)
+    // A hairline stands between two adjacent bare tabs only. A tab that carries
+    // a shape — the active one, or one held in a multi-selection — already
+    // separates itself, and doubling up reads as a seam.
+    const previous = lane[laneIndex - 1]
     return (
       <Tab
         key={tab.id}
         tab={tab}
+        variant={variant}
+        showDivider={variant === 'floating' && isBareTab(tab) && isBareTab(previous)}
         draggable={reorderable || Boolean(onTabDragStart)}
         dragging={draggedId === tab.id}
         focusable={tab.active || (activeIndex < 0 && index === 0)}
@@ -682,7 +774,10 @@ export function TabStrip({
       // `var()` calls, so a caller resizes the strip by setting a property
       // rather than by passing a utility class that has to out-merge this one.
       className={cn(
-        'flex h-[var(--tab-strip-height,34px)] shrink-0 select-none items-end gap-1 border-[var(--border)] border-b bg-transparent pt-1 pr-[var(--tab-strip-inline-end,8px)] pl-[var(--tab-strip-inline-start,8px)]',
+        'flex h-[var(--tab-strip-height,34px)] shrink-0 select-none gap-1 border-[var(--border)] border-b bg-transparent pr-[var(--tab-strip-inline-end,8px)] pl-[var(--tab-strip-inline-start,8px)]',
+        // Attached tabs hang from the top so the active one can reach the strip's
+        // bottom border and cover it; floating tabs are centred in the bar.
+        variant === 'attached' ? 'items-end pt-1' : 'items-center',
         className
       )}
       onDragOver={handleDragOver}
@@ -717,10 +812,18 @@ export function TabStrip({
       <div
         role='tablist'
         aria-label='Tabs'
-        className='-mb-px flex min-w-0 shrink items-end gap-0.5'
+        className={cn(
+          'flex min-w-0 shrink gap-0.5',
+          variant === 'attached' ? '-mb-px items-end' : 'items-center gap-2'
+        )}
       >
         {pinnedTabs.length > 0 && (
-          <div className='flex shrink-0 items-end gap-0.5'>
+          <div
+            className={cn(
+              'flex shrink-0 gap-0.5',
+              variant === 'attached' ? 'items-end' : 'items-center gap-2'
+            )}
+          >
             <AnimatePresence initial={false} mode='popLayout'>
               {pinnedTabs.map(renderTab)}
             </AnimatePresence>
@@ -729,7 +832,10 @@ export function TabStrip({
         <div className='relative flex min-w-0 shrink'>
           <div
             ref={scrollNodeRef}
-            className='flex min-w-0 shrink select-none items-end gap-0.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
+            className={cn(
+              'flex min-w-0 shrink select-none gap-0.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
+              variant === 'attached' ? 'items-end' : 'items-center gap-2'
+            )}
           >
             <AnimatePresence initial={false} mode='popLayout'>
               {regularTabs.map(renderTab)}
@@ -746,7 +852,12 @@ export function TabStrip({
       {/* Both slots sit in the tab row's band so whatever fills them lines up
           with the tabs rather than with the taller strip box. */}
       {newTabControl ? (
-        <div className='mb-px flex h-[var(--tab-strip-band,30px)] shrink-0 items-center'>
+        <div
+          className={cn(
+            'flex h-[var(--tab-strip-band,30px)] shrink-0 items-center',
+            variant === 'attached' && 'mb-px'
+          )}
+        >
           {newTabControl}
         </div>
       ) : onNew ? (
@@ -757,7 +868,10 @@ export function TabStrip({
               variant='ghost-secondary'
               size='sm'
               aria-label={newTabLabel}
-              className='mb-px size-[var(--tab-strip-band,30px)] shrink-0 p-0'
+              className={cn(
+                'size-[var(--tab-strip-band,30px)] shrink-0 p-0',
+                variant === 'attached' && 'mb-px'
+              )}
               disabled={atLimit}
               onClick={onNew}
             >
@@ -770,7 +884,12 @@ export function TabStrip({
         </Tooltip.Root>
       ) : null}
       {endActions && (
-        <div className='mb-px ml-auto flex h-[var(--tab-strip-band,30px)] shrink-0 items-center gap-1'>
+        <div
+          className={cn(
+            'ml-auto flex h-[var(--tab-strip-band,30px)] shrink-0 items-center gap-1',
+            variant === 'attached' && 'mb-px'
+          )}
+        >
           {endActions}
         </div>
       )}

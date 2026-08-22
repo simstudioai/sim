@@ -452,6 +452,7 @@ export function ResourceTabs({
       onClose={handleClose}
       onReorder={handleReorder}
       onTabDragStart={handleTabDragStart}
+      variant='floating'
       className={RESOURCE_HEADER_CLASSES.stripGeometry}
       newTabControl={
         // Offered before the chat exists too: a resource opened while composing
