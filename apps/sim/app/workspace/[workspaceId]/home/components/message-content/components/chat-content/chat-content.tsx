@@ -16,6 +16,10 @@ import { decodeVfsSegmentSafe } from '@/lib/copilot/vfs/path-utils'
 import { extractTextContent } from '@/lib/core/utils/react-node-text'
 import { ContextMentionIcon } from '@/app/workspace/[workspaceId]/home/components/context-mention-icon'
 import {
+  appendInlineReferenceMarkdown,
+  workspaceResourceReferenceMarkdown,
+} from '@/app/workspace/[workspaceId]/home/components/message-content/components/chat-content/workspace-resource-markdown'
+import {
   type ContentSegment,
   type CredentialSubmissionPayload,
   parseSpecialTags,
@@ -94,47 +98,6 @@ const ANIMATION_DRAIN_MS = 300
  * into a reply.
  */
 const FADE_MAX_REVEALED_CHARS = 6000
-
-function startsInlineWord(value: string): boolean {
-  return /^[A-Za-z0-9_(]/.test(value)
-}
-
-function endsInlineWord(value: string): boolean {
-  return /[A-Za-z0-9_)]$/.test(value)
-}
-
-function nextInlineSegmentLabel(segment?: ContentSegment): string {
-  if (!segment) return ''
-  // Thinking segments are never rendered, so they contribute no following text.
-  if (segment.type === 'text') return segment.content
-  if (segment.type === 'workspace_resource') return segment.data.title || segment.data.id || ''
-  return ''
-}
-
-function appendInlineReferenceMarkdown(
-  currentMarkdown: string,
-  referenceMarkdown: string,
-  nextSegment?: ContentSegment
-): string {
-  let nextMarkdown = currentMarkdown
-  if (currentMarkdown && endsInlineWord(currentMarkdown) && !/\s$/.test(currentMarkdown)) {
-    nextMarkdown += ' '
-  }
-
-  nextMarkdown += referenceMarkdown
-
-  const followingText = nextInlineSegmentLabel(nextSegment)
-  if (
-    followingText &&
-    startsInlineWord(followingText) &&
-    !/^\s/.test(followingText) &&
-    !/\s$/.test(nextMarkdown)
-  ) {
-    nextMarkdown += ' '
-  }
-
-  return nextMarkdown
-}
 
 type TdProps = ComponentPropsWithoutRef<'td'>
 type ThProps = ComponentPropsWithoutRef<'th'>
@@ -586,14 +549,9 @@ function ChatContentInner({
     const s = parsed.segments[i]
     const nextSegment = parsed.segments[i + 1]
     if (s.type === 'workspace_resource') {
-      // Files are addressed by their encoded VFS path (copied verbatim from the tag);
-      // workflows/tables/KBs by id. The angle-bracket link destination keeps the path
-      // intact through markdown parsing (tolerates parens) without re-encoding it.
-      const ref = s.data.type === 'file' ? (s.data.path ?? s.data.id ?? '') : (s.data.id ?? '')
-      const label = s.data.title || ref
       pendingMarkdown = appendInlineReferenceMarkdown(
         pendingMarkdown,
-        `[${label}](<#wsres-${s.data.type}-${ref}>)`,
+        workspaceResourceReferenceMarkdown(s.data),
         nextSegment
       )
     } else if (s.type === 'thinking') {

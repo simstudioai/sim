@@ -1,14 +1,16 @@
 import {
+  fromSimHrefId,
+  fromSimMarkdownLabel,
+  SIM_LINK_SCHEME,
+  toSimMarkdownLink,
+} from '@/lib/copilot/sim-link'
+import {
   computeMentionHighlightRanges,
   extractContextTokens,
   restoreSkillTriggerText,
   stripMentionTrigger,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/utils'
 import type { ChatContext } from '@/stores/panel'
-
-/** URI scheme for portable chip links (`[label](sim:kind/id)`). Custom so only
- *  our own links — never generic markdown — are parsed back into chips. */
-const CHIP_LINK_SCHEME = 'sim'
 
 /**
  * Every chip kind that carries a single stable identifier → the
@@ -45,12 +47,12 @@ export type PortableKind = keyof typeof PORTABLE_KIND_TO_ID_FIELD
 
 /**
  * Matches a portable chip markdown link: `[label](sim:kind/id)`.
- * - group 1: label (any non-`]` chars)
+ * - group 1: label (plain or backslash-escaped characters)
  * - group 2: kind (lowercase letters / underscores, e.g. `past_chat`)
  * - group 3: id (any non-`)` / non-whitespace chars)
  */
 const CHIP_LINK_PATTERN = new RegExp(
-  `\\[([^\\]]+)\\]\\(${CHIP_LINK_SCHEME}:([a-z_]+)\\/([^)\\s]+)\\)`,
+  `\\[((?:\\\\.|[^\\]\\\\])+)\\]\\(${SIM_LINK_SCHEME}:([a-z_]+)\\/([^)\\s]+)\\)`,
   'g'
 )
 
@@ -96,7 +98,7 @@ function serializeChipContext(context: ChatContext): string | null {
   if (!isPortableKind(context.kind)) return null
   const id = getPortableId(context)
   if (!id) return null
-  return `[${context.label}](${CHIP_LINK_SCHEME}:${context.kind}/${id})`
+  return toSimMarkdownLink(context.kind, id, context.label)
 }
 
 /**
@@ -204,8 +206,8 @@ export function parseChipLinks(text: string): ParsedChipLink[] {
     if (!isPortableKind(kind)) continue
     links.push({
       kind,
-      id,
-      label,
+      id: fromSimHrefId(id),
+      label: fromSimMarkdownLabel(label),
       start: match.index,
       end: match.index + full.length,
     })
