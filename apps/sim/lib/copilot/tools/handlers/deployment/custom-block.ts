@@ -151,8 +151,6 @@ export async function executeDeployCustomBlock(
     if (!workflowRecord.workspaceId) {
       return { success: false, error: 'Workflow must belong to a workspace' }
     }
-    // A model-supplied workflowId may only re-assert the chat's workspace — it
-    // can never publish or unpublish a custom block in another workspace.
     let workspaceId: string
     try {
       workspaceId = requireCopilotWorkspace(context, workflowRecord.workspaceId)

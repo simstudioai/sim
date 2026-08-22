@@ -168,9 +168,6 @@ export const queryLogsServerTool: BaseServerTool<QueryLogsArgs, unknown> = {
       throw new Error('Unauthorized access')
     }
     const userId = context.userId
-    // Logs are always read from the chat's delegated workspace. A model-supplied
-    // `workspaceId` may only re-assert that workspace — it can never select a
-    // different one, even one the acting user could otherwise access.
     const workspaceId = requireCopilotWorkspace(context, args.workspaceId)
 
     if (args.view === 'list') {

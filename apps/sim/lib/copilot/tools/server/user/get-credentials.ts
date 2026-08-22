@@ -55,8 +55,6 @@ export const getCredentialsServerTool: BaseServerTool<GetCredentialsParams, any>
         throw new OrchestrationError('forbidden', errorMessage)
       }
 
-      // A model-supplied workflowId may only re-assert the chat's workspace —
-      // it can never steer the credential listing to another workspace.
       workspaceId = requireCopilotWorkspace(context, wId)
     }
 
