@@ -5,8 +5,10 @@ import {
   cn,
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuLabel,
   DropdownMenuSearchInput,
   DropdownMenuTrigger,
+  dropdownMenuRowClass,
 } from '@sim/emcn'
 import {
   ResourceMenuSections,
@@ -14,9 +16,13 @@ import {
   useAvailableResources,
   useResourceTreeSections,
 } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/add-resource-dropdown'
-import { getResourceConfig } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
+import {
+  getResourceConfig,
+  MENTION_PREVIEW_DEFAULT_LIMIT,
+} from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
 import type { PlusMenuHandle } from '@/app/workspace/[workspaceId]/home/components/user-input/components/constants'
 import {
+  buildMentionPreview,
   resourceMentionMatches,
   withDesktopTabMentions,
 } from '@/app/workspace/[workspaceId]/home/components/user-input/components/plus-menu-dropdown/resource-mention-items'
@@ -26,6 +32,14 @@ import type {
 } from '@/app/workspace/[workspaceId]/home/types'
 import { useBrowserSessionStore } from '@/stores/browser-session/store'
 import { useCopilotTerminalStore } from '@/stores/copilot-terminal/store'
+
+/**
+ * The `@` list is shorter than the emcn menu default (420px, sized for right-click
+ * action menus). This one floats directly over the chat input, so a menu tall enough
+ * to swallow the conversation behind it reads as a takeover rather than an
+ * autocomplete. ~10 rows is enough to show several families at once.
+ */
+const MENTION_MAX_HEIGHT_CLASS = 'max-h-[min(280px,var(--radix-popper-available-height,280px))]'
 
 /**
  * Resource types that are only offered via `@`-mention autocomplete and hidden
@@ -130,11 +144,10 @@ export const PlusMenuDropdown = React.memo(
       const q = rawQuery.toLowerCase().trim()
       if (!isMention && !q) return null
       if (isMention && !q) {
-        return visibleResources.flatMap(({ type, items }) => {
-          const limit = getResourceConfig(type).mentionPreviewLimit
-          const previewed = limit === undefined ? items : items.slice(0, limit)
-          return previewed.map((item) => ({ type, item }))
-        })
+        return buildMentionPreview(
+          visibleResources,
+          (type) => getResourceConfig(type).mentionPreviewLimit ?? MENTION_PREVIEW_DEFAULT_LIMIT
+        )
       }
       return visibleResources.flatMap(({ type, items }) =>
         items.filter((item) => resourceMentionMatches(item, q)).map((item) => ({ type, item }))
@@ -298,7 +311,7 @@ export const PlusMenuDropdown = React.memo(
             // Plus-click shows short fixed labels (Workflows, Tables, …) — let it size
             // to its content via the emcn DropdownMenuContent default max-w.
             // Mention mode renders resource names directly, so widen for breathing room.
-            isMention && 'max-w-[min(300px,calc(100vw-32px))]'
+            isMention && `max-w-[min(300px,calc(100vw-32px))] ${MENTION_MAX_HEIGHT_CLASS}`
           )}
           onCloseAutoFocus={handleCloseAutoFocus}
           onOpenAutoFocus={handleOpenAutoFocus}
@@ -334,28 +347,36 @@ export const PlusMenuDropdown = React.memo(
                 filteredItems.map(({ type, item }, index) => {
                   const config = getResourceConfig(type)
                   const isActive = index === activeIndex
+                  /* Items arrive grouped by family (one group per type, ordered by
+                     RESOURCE_MENU_ORDER), so a type change marks a section boundary.
+                     Deriving the heading from the flat list keeps `activeIndex` — and
+                     therefore every keyboard path — indexing exactly what it did. */
+                  const startsSection = index === 0 || filteredItems[index - 1]?.type !== type
                   return (
-                    <button
-                      key={`${type}:${item.id}`}
-                      type='button'
-                      role='menuitem'
-                      data-filtered-idx={index}
-                      onMouseEnter={() => setActiveIndex(index)}
-                      onClick={() => {
-                        handleSelect(resourceFromItem(type, item))
-                      }}
-                      className={cn(
-                        'relative flex w-full min-w-0 cursor-pointer select-none items-center gap-2 rounded-[5px] px-2 py-1.5 text-left text-[var(--text-body)] text-caption outline-none transition-colors duration-0 [&>span]:min-w-0 [&>span]:truncate [&_svg]:pointer-events-none [&_svg]:size-[14px] [&_svg]:shrink-0 [&_svg]:text-[var(--text-icon)]',
-                        /* `activeIndex` is the cursor, not a selection — hover surface. */
-                        isActive && 'bg-[var(--surface-hover)]'
-                      )}
-                    >
-                      {config.renderDropdownItem({ item })}
-                    </button>
+                    <React.Fragment key={`${type}:${item.id}`}>
+                      {startsSection && <DropdownMenuLabel>{config.label}</DropdownMenuLabel>}
+                      <button
+                        type='button'
+                        role='menuitem'
+                        data-filtered-idx={index}
+                        onMouseEnter={() => setActiveIndex(index)}
+                        onClick={() => {
+                          handleSelect(resourceFromItem(type, item))
+                        }}
+                        className={cn(
+                          dropdownMenuRowClass,
+                          'w-full text-left',
+                          /* `activeIndex` is the cursor, not a selection — hover surface. */
+                          isActive && 'bg-[var(--surface-hover)]'
+                        )}
+                      >
+                        {config.renderDropdownItem({ item })}
+                      </button>
+                    </React.Fragment>
                   )
                 })
               ) : (
-                <div className='px-2 py-1.5 text-center text-[var(--text-tertiary)] text-caption'>
+                <div className='flex h-[28px] items-center justify-center px-2 text-[var(--text-muted)] text-caption'>
                   No results
                 </div>
               ))}
