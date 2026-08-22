@@ -115,6 +115,31 @@ describe('unknown provenance repair lock order', () => {
   })
 
   /**
+   * The reader answers `unrecorded` only for a sidecar that is version 1, bound to the file's
+   * current bytes, and holding a well-formed entries array. A status-only predicate is wider than
+   * that, and the extra rows are faults rather than absences — clearing one sets the version to
+   * NULL, which reads back as exact-empty, promoting a refused file to positively vouched for with
+   * no audit entry. Both the candidate query and the delete carry every condition.
+   */
+  it('targets only what the reader calls unrecorded, in the select and the delete', async () => {
+    const { sql, statements } = createRecordingSql('workspace_file_secret_provenance')
+    await repairUnknownWorkspaceFileProvenance.up(sql)
+
+    const candidateSelect = statements.find(
+      (statement) =>
+        statement.includes('FROM workspace_file_secret_provenance') && statement.includes('LIMIT')
+    )
+    const deleteStatement = statements.find((statement) => statement.startsWith('DELETE'))
+
+    for (const statement of [candidateSelect, deleteStatement]) {
+      expect(statement).toContain("status = 'unknown'")
+      expect(statement).toContain('secret_provenance_version = 1')
+      expect(statement).toContain('content_updated_at = f.content_updated_at')
+      expect(statement).toContain("jsonb_typeof(p.entries) = 'array'")
+    }
+  })
+
+  /**
    * Re-checking `status = 'unknown'` under the parent lock is what stops the repair clearing a
    * sidecar a writer just made exact — which would strand a genuinely secret-bearing file reading
    * as legacy, provenance destroyed by the repair meant to make provenance safe.

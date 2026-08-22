@@ -10,7 +10,18 @@ interface RepairPage {
 }
 
 /**
- * Returns one page of `unknown` files to the untracked state.
+ * Returns one page of files the reader calls `unrecorded` to the untracked state.
+ *
+ * The predicate is the reader's own, condition for condition: version 1, a sidecar bound to the
+ * file's current bytes, a well-formed entries array, and a status of `unknown`. That is precisely
+ * the branch `getBoundWorkspaceFileSecretProvenance` answers `unrecorded` to, and a status-only
+ * query is wider than it. A sidecar left bound to bytes the file no longer holds reads as `unknown`
+ * — a fault the surface refuses and no policy relaxes — but clearing it here would set
+ * `secret_provenance_version` to NULL, and a NULL version reads as *exact-empty*: the file would go
+ * from refused to positively vouched for, silently and with no audit entry, on the strength of a
+ * sidecar that described different bytes. Relaxing an absence is this migration's whole purpose;
+ * promoting a fault is not, and the same three conditions guard the delete so the distinction
+ * cannot be lost to a concurrent write.
  *
  * Takes the parent row lock before touching the sidecar, in `id` order, because that is the order
  * a content write takes them: `workspace-file-manager` updates `workspace_files` and only then
@@ -18,9 +29,10 @@ interface RepairPage {
  * parent after is the opposite order, so an overlapping upload would deadlock and Postgres would
  * resolve it by aborting either the deployment or somebody's file write.
  *
- * Holding that lock is also what makes the status re-check decisive: a content write moves
+ * Holding that lock is also what makes the re-check decisive: a content write moves
  * `content_updated_at` and rewrites the sidecar under the same lock, so once it is held the write
- * is either wholly done or has not begun, and a file it has meanwhile made exact stops matching.
+ * is either wholly done or has not begun, and a file it has meanwhile made exact or rebound stops
+ * matching.
  */
 async function repairUnknownFileProvenancePage(
   sql: Sql,
@@ -28,10 +40,15 @@ async function repairUnknownFileProvenancePage(
   afterFileId: string
 ): Promise<RepairPage> {
   const candidates = await sql<{ fileId: string }[]>`
-    SELECT file_id AS "fileId"
-    FROM workspace_file_secret_provenance
-    WHERE status = 'unknown' AND file_id > ${afterFileId}
-    ORDER BY file_id
+    SELECT p.file_id AS "fileId"
+    FROM workspace_file_secret_provenance p
+    JOIN workspace_files f ON f.id = p.file_id
+    WHERE p.status = 'unknown'
+      AND f.secret_provenance_version = 1
+      AND p.content_updated_at = f.content_updated_at
+      AND jsonb_typeof(p.entries) = 'array'
+      AND p.file_id > ${afterFileId}
+    ORDER BY p.file_id
     LIMIT ${batchSize}
   `
   if (candidates.length === 0) return { candidates: 0, repaired: 0, lastFileId: null }
@@ -45,10 +62,15 @@ async function repairUnknownFileProvenancePage(
       FOR UPDATE
     `
     const cleared = await tx<{ fileId: string }[]>`
-      DELETE FROM workspace_file_secret_provenance
-      WHERE file_id = ANY(${fileIds}::text[])
-        AND status = 'unknown'
-      RETURNING file_id AS "fileId"
+      DELETE FROM workspace_file_secret_provenance p
+      USING workspace_files f
+      WHERE p.file_id = f.id
+        AND p.file_id = ANY(${fileIds}::text[])
+        AND p.status = 'unknown'
+        AND f.secret_provenance_version = 1
+        AND p.content_updated_at = f.content_updated_at
+        AND jsonb_typeof(p.entries) = 'array'
+      RETURNING p.file_id AS "fileId"
     `
     if (cleared.length === 0) return 0
     const marked = await tx<{ id: string }[]>`
@@ -81,9 +103,11 @@ async function repairUnknownFileProvenancePage(
  * the state, which would otherwise report on every read forever; this clears them so the trail
  * carries only what happens next.
  *
- * A relabel, not a reconstruction. It claims strictly less than the sidecar did — "unrecorded" —
- * and puts the file exactly where the untracked file beside it already sits. Idempotent: a repaired
- * file has no sidecar row, so it leaves the candidate set and a re-run costs one empty query.
+ * A relabel, not a reconstruction, and only of files the reader already treats as an absence. Files
+ * whose sidecar is stale, unversioned, or malformed are faults rather than absences: they stay
+ * refused, exactly as the surface refuses them, and recover the way they always have — on the next
+ * content write, which rebinds the sidecar. Idempotent: a repaired file has no sidecar row, so it
+ * leaves the candidate set and a re-run costs one empty query.
  */
 export const repairUnknownWorkspaceFileProvenance: ScriptMigration = {
   name: '0007_repair_unknown_workspace_file_provenance',
