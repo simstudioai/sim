@@ -36,10 +36,18 @@ const ROOT = path.resolve(import.meta.dir, '..')
 const ANNOTATION = 'canonical-index-unscoped:'
 
 /**
- * Where the surface-scoping primitives are defined. `buildCanonicalIndexForSurface` has to call
- * the raw `buildCanonicalIndex`, so the defining module is exempt rather than annotated.
+ * Files that hold the guarded names without calling them.
+ *
+ * `buildCanonicalIndexForSurface` has to call the raw `buildCanonicalIndex`, so its defining
+ * module is exempt rather than annotated. This audit's own source carries both names as string
+ * literals to search for — without the exemption it flags itself, which is not hypothetical: it
+ * passed locally while the file was still untracked and failed the moment it was committed and
+ * `git ls-files` started listing it.
  */
-const DEFINING_MODULE = 'apps/sim/lib/workflows/subblocks/visibility.ts'
+const NOT_CALLERS = new Set([
+  'apps/sim/lib/workflows/subblocks/visibility.ts',
+  'scripts/check-canonical-index-surface.ts',
+])
 
 /** The `triggerSurface` argument's position in `createCanonicalModeGates`. */
 const GATES_SURFACE_ARG_COUNT = 4
@@ -108,7 +116,7 @@ if (listed.status !== 0) {
 const files = listed.stdout
   .toString('utf8')
   .split('\0')
-  .filter((entry) => entry.length > 0 && !entry.includes('.test.') && entry !== DEFINING_MODULE)
+  .filter((entry) => entry.length > 0 && !entry.includes('.test.') && !NOT_CALLERS.has(entry))
 
 const offenders: Offender[] = []
 let scanned = 0
