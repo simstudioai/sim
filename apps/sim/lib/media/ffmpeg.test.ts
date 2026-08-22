@@ -183,6 +183,52 @@ describe('runFfmpegOperation scale targets', () => {
   })
 })
 
+describe('runFfmpegOperation concat normalization target', () => {
+  const twoVideoStreams = JSON.stringify({
+    streams: [{ codec_type: 'video', codec_name: 'h264', width: 4096, height: 4096 }],
+    format: { duration: '2', format_name: 'mp4' },
+  })
+
+  it('fits an oversized square source inside the same area budget scale_pad enforces', async () => {
+    probeReport.json = twoVideoStreams
+
+    await runFfmpegOperation('concat', [videoInput, videoInput])
+
+    // First filter is the normalization pass for input 0.
+    const target = capturedVideoFilters[0].match(/scale=(\d+):(\d+):/)
+    expect(target).not.toBeNull()
+    const width = Number(target![1])
+    const height = Number(target![2])
+    expect(width * height).toBeLessThanOrEqual(4096 * 2304)
+    // Aspect ratio of the square source survives the fit.
+    expect(width).toBe(height)
+  })
+
+  it('emits even dimensions, which yuv420p requires', async () => {
+    probeReport.json = JSON.stringify({
+      streams: [{ codec_type: 'video', codec_name: 'h264', width: 1919, height: 1081 }],
+      format: { duration: '2', format_name: 'mp4' },
+    })
+
+    await runFfmpegOperation('concat', [videoInput, videoInput])
+
+    const target = capturedVideoFilters[0].match(/scale=(\d+):(\d+):/)
+    expect(Number(target![1]) % 2).toBe(0)
+    expect(Number(target![2]) % 2).toBe(0)
+  })
+
+  it('leaves an ordinary source untouched', async () => {
+    probeReport.json = JSON.stringify({
+      streams: [{ codec_type: 'video', codec_name: 'h264', width: 1920, height: 1080 }],
+      format: { duration: '2', format_name: 'mp4' },
+    })
+
+    await runFfmpegOperation('concat', [videoInput, videoInput])
+
+    expect(capturedVideoFilters[0]).toContain('scale=1920:1080')
+  })
+})
+
 describe('runFfmpegOperation process bounds', () => {
   it('kills a command that outlives the operation budget', async () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })

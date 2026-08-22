@@ -381,6 +381,46 @@ describe('ffmpeg server tool input admission', () => {
     expect(fetchWorkspaceFileBufferMock).not.toHaveBeenCalled()
   })
 
+  it('stops preparing inputs the moment the caller cancels', async () => {
+    const controller = new AbortController()
+    controller.abort()
+
+    const result = await ffmpegServerTool.execute(
+      {
+        operation: 'concat',
+        inputs: { files: [{ path: 'files/a.mp4' }, { path: 'files/b.mp4' }] },
+      },
+      { ...context, abortSignal: controller.signal }
+    )
+
+    expect(result.success).toBe(false)
+    // Not one storage read, let alone all of them.
+    expect(resolveWorkspaceFileReferenceMock).not.toHaveBeenCalled()
+    expect(fetchWorkspaceFileBufferMock).not.toHaveBeenCalled()
+    expect(runFfmpegOperationMock).not.toHaveBeenCalled()
+  })
+
+  it('stops between inputs when the cancel lands mid-preparation', async () => {
+    const controller = new AbortController()
+    // Abort once the first input has been read, so the second is never fetched.
+    fetchWorkspaceFileBufferMock.mockImplementationOnce(async () => {
+      controller.abort()
+      return Buffer.from('media')
+    })
+
+    const result = await ffmpegServerTool.execute(
+      {
+        operation: 'concat',
+        inputs: { files: [{ path: 'files/a.mp4' }, { path: 'files/b.mp4' }] },
+      },
+      { ...context, abortSignal: controller.signal }
+    )
+
+    expect(result.success).toBe(false)
+    expect(fetchWorkspaceFileBufferMock).toHaveBeenCalledTimes(1)
+    expect(runFfmpegOperationMock).not.toHaveBeenCalled()
+  })
+
   it('hands the caller cancellation signal to the transcode', async () => {
     const controller = new AbortController()
 

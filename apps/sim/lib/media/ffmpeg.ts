@@ -535,8 +535,7 @@ async function concat(
   // Clamped, not rejected: these describe the caller's own file rather than a
   // value they asserted, but a container is free to declare a frame size far
   // larger than anything worth normalizing to.
-  const width = clampProbedDimension(probes[0].width || 1280)
-  const height = clampProbedDimension(probes[0].height || 720)
+  const { width, height } = clampProbedFrame(probes[0].width || 1280, probes[0].height || 720)
   const fps = 30
 
   // Normalize every clip to identical codec/size/fps/pixfmt, and SYNTHESIZE silent
@@ -623,8 +622,32 @@ async function trim(
   return readOut(outputPath, ext)
 }
 
-function clampProbedDimension(value: number): number {
-  return Math.min(Math.max(Math.round(value), MIN_SCALE_DIMENSION), MAX_SCALE_DIMENSION)
+/**
+ * Fit a probed source frame inside the same budget `scale_pad` enforces.
+ *
+ * Clamping each axis on its own is not enough: two axes at the per-axis ceiling
+ * are 4096x4096, nearly double the area limit, and that target is baked into the
+ * same `scale=`/`pad=` graph. Scale the pair down together instead, so aspect
+ * ratio survives and one ceiling governs both entry points.
+ *
+ * Dimensions come back even because the normalization encodes yuv420p, which
+ * has no odd-sized frame.
+ */
+function clampProbedFrame(width: number, height: number): { width: number; height: number } {
+  let w = clampProbedAxis(width)
+  let h = clampProbedAxis(height)
+  const area = w * h
+  if (area > MAX_SCALE_PIXELS) {
+    const ratio = Math.sqrt(MAX_SCALE_PIXELS / area)
+    w = clampProbedAxis(w * ratio)
+    h = clampProbedAxis(h * ratio)
+  }
+  return { width: w, height: h }
+}
+
+function clampProbedAxis(value: number): number {
+  const bounded = Math.min(Math.max(Math.round(value), MIN_SCALE_DIMENSION), MAX_SCALE_DIMENSION)
+  return bounded - (bounded % 2)
 }
 
 function resolveScaleDimension(value: number, label: string): number {

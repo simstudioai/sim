@@ -114,6 +114,12 @@ export const ffmpegServerTool: BaseServerTool<FfmpegArgs, FfmpegResult> = {
       let totalInputBytes = 0
       const inputProvenances: WorkspaceFileSecretProvenance[] = []
       for (const filePath of inputPaths) {
+        // Preparing the inputs is itself the expensive part of a many-file call —
+        // up to the whole byte budget in storage reads. Without this the run only
+        // notices an explicit stop once every download has already finished.
+        if (context.abortSignal?.aborted) {
+          throw new Error('ffmpeg cancelled while preparing inputs')
+        }
         const fileRecord = await resolveCopilotWorkspaceFileReference(
           context,
           fileOperations.readContent,
