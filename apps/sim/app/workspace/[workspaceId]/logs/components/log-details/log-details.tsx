@@ -1,6 +1,16 @@
 'use client'
 
-import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import {
+  lazy,
+  memo,
+  Suspense,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import {
   Badge,
   Button,
@@ -48,11 +58,13 @@ import { filterHiddenOutputKeys } from '@/lib/logs/execution/trace-spans/trace-s
 import type { TraceSpan } from '@/lib/logs/types'
 import { sendMothershipMessage } from '@/lib/mothership/events'
 import { DELETED_WORKFLOW_LABEL } from '@/lib/workflows/workflow-labels'
-import {
-  ExecutionSnapshot,
-  FileCards,
-  TraceView,
-} from '@/app/workspace/[workspaceId]/logs/components'
+/**
+ * Deep imports on purpose: importing these back through the parent `logs/components`
+ * barrel forms a parent->child cycle that would keep the barrel edge to the snapshot
+ * alive and silently defeat the ExecutionSnapshot lazy split below.
+ */
+import { FileCards } from '@/app/workspace/[workspaceId]/logs/components/log-details/components/file-download'
+import { TraceView } from '@/app/workspace/[workspaceId]/logs/components/log-details/components/trace-view'
 import { useLogDetailsResize } from '@/app/workspace/[workspaceId]/logs/hooks'
 import {
   logDetailsTabParam,
@@ -72,6 +84,17 @@ import { formatCost } from '@/providers/utils'
 import { useLogDetailsUIStore } from '@/stores/logs/store'
 import { MAX_LOG_DETAILS_WIDTH_RATIO, MIN_LOG_DETAILS_WIDTH } from '@/stores/logs/utils'
 import type { ChatContext } from '@/stores/panel'
+
+/**
+ * Lazy per the code-splitting rule in `sim-imports.md`: the snapshot renders the workflow
+ * preview canvas, whose graph is ~7.6 MB of source. Rendering is gated on the detail's
+ * open state, so the chunk is fetched on first use, never during SSR or hydration.
+ */
+const ExecutionSnapshot = lazy(() =>
+  import(
+    '@/app/workspace/[workspaceId]/logs/components/log-details/components/execution-snapshot/execution-snapshot'
+  ).then((m) => ({ default: m.ExecutionSnapshot }))
+)
 
 /**
  * Renders an already-apportioned integer credit value. `dollars` is only used
@@ -679,13 +702,15 @@ export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentP
 
       {/* Frozen Canvas Modal */}
       {log.executionId && (
-        <ExecutionSnapshot
-          executionId={log.executionId}
-          traceSpans={traceSpans}
-          isModal
-          isOpen={isExecutionSnapshotOpen}
-          onClose={() => setIsExecutionSnapshotOpen(false)}
-        />
+        <Suspense fallback={null}>
+          <ExecutionSnapshot
+            executionId={log.executionId}
+            traceSpans={traceSpans}
+            isModal
+            isOpen={isExecutionSnapshotOpen}
+            onClose={() => setIsExecutionSnapshotOpen(false)}
+          />
+        </Suspense>
       )}
     </>
   )

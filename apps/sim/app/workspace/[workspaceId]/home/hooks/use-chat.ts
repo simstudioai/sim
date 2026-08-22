@@ -74,7 +74,6 @@ import {
   TERMINAL_SESSION_RESOURCE_ID,
 } from '@/lib/copilot/resources/types'
 import { executeBrowserToolOnClient } from '@/lib/copilot/tools/client/browser-tool-execution'
-import { executeLocalFilesystemTool } from '@/lib/copilot/tools/client/local-filesystem'
 import {
   bindRunToolToExecution,
   cancelRunToolExecution,
@@ -2009,11 +2008,36 @@ export function useChat(
         return
       }
       handledClientLocalFilesystemToolIdsRef.current.add(toolCallId)
-      executeLocalFilesystemTool(toolCallId, toolName, toolArgs, {
+      const options = {
         workspaceId,
         chatId: chatIdRef.current ?? selectedChatIdRef.current,
         signal: abortControllerRef.current?.signal,
-      })
+      }
+      /**
+       * Dynamic on purpose: the local-filesystem executor only runs for desktop-local
+       * VFS tool calls, and a static import kept it in the shared chat chunk on every
+       * surface that mounts the composer. The guard, the dedupe add, and the option
+       * capture above stay synchronous, so re-entrancy behaviour is unchanged. If the
+       * chunk fails to load (deploy skew), the server-side tool call must still settle:
+       * report an error completion rather than leaving it hanging with the dedupe ref
+       * already marked handled.
+       */
+      import('@/lib/copilot/tools/client/local-filesystem').then(
+        (m) => m.executeLocalFilesystemTool(toolCallId, toolName, toolArgs, options),
+        async (error) => {
+          logger.error('Failed to load local filesystem tool executor', { error })
+          const [{ reportClientToolCompletion }, { ASYNC_TOOL_CONFIRMATION_STATUS }] =
+            await Promise.all([
+              import('@/lib/copilot/tools/client/completion'),
+              import('@/lib/copilot/async-runs/lifecycle'),
+            ])
+          await reportClientToolCompletion(
+            toolCallId,
+            ASYNC_TOOL_CONFIRMATION_STATUS.error,
+            'Local filesystem tool failed to load'
+          )
+        }
+      )
     },
     [workspaceId]
   )

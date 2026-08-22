@@ -21,13 +21,13 @@ import {
   type CsvHeaderMapping,
   CsvImportValidationError,
   coerceRowsForTable,
-  createCsvParser,
   inferColumnType,
   inferSchemaFromCsv,
   sanitizeName,
   validateMapping,
 } from '@/lib/table/import'
 import { importAppendRows, importReplaceRows } from '@/lib/table/import-data'
+import { createCsvParser } from '@/lib/table/import-stream'
 import { markTableJobRunning, releaseJobClaim } from '@/lib/table/jobs/service'
 import { TableLockedError } from '@/lib/table/mutation-locks'
 import { createExactEmptyTableRowSecretProvenance } from '@/lib/table/rows/secret-provenance'
