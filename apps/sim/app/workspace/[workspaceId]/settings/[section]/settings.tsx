@@ -3,7 +3,6 @@
 import { useEffect } from 'react'
 import dynamic from 'next/dynamic'
 import { usePostHog } from 'posthog-js/react'
-import { SETTINGS_SECTION_LOADING_OPTIONS } from '@/components/settings/lazy-section'
 import { useSession } from '@/lib/auth/auth-client'
 import { captureEvent } from '@/lib/posthog/client'
 import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
@@ -15,174 +14,113 @@ import {
   type SettingsSection,
 } from '@/app/workspace/[workspaceId]/settings/navigation'
 
-const Admin = dynamic(
-  () =>
-    import('@/app/workspace/[workspaceId]/settings/components/admin/admin').then((m) => m.Admin),
-  SETTINGS_SECTION_LOADING_OPTIONS
+const Admin = dynamic(() =>
+  import('@/app/workspace/[workspaceId]/settings/components/admin/admin').then((m) => m.Admin)
 )
-const ApiKeys = dynamic(
-  () =>
-    import('@/app/workspace/[workspaceId]/settings/components/api-keys/api-keys').then(
-      (m) => m.ApiKeys
-    ),
-  SETTINGS_SECTION_LOADING_OPTIONS
+const ApiKeys = dynamic(() =>
+  import('@/app/workspace/[workspaceId]/settings/components/api-keys/api-keys').then(
+    (m) => m.ApiKeys
+  )
 )
-const BYOK = dynamic(
-  () => import('@/app/workspace/[workspaceId]/settings/components/byok/byok').then((m) => m.BYOK),
-  SETTINGS_SECTION_LOADING_OPTIONS
+const BYOK = dynamic(() =>
+  import('@/app/workspace/[workspaceId]/settings/components/byok/byok').then((m) => m.BYOK)
 )
-const Forks = dynamic(
-  () => import('@/ee/workspace-forking/components/forks').then((m) => m.Forks),
-  SETTINGS_SECTION_LOADING_OPTIONS
+const Forks = dynamic(() => import('@/ee/workspace-forking/components/forks').then((m) => m.Forks))
+const Secrets = dynamic(() =>
+  import('@/app/workspace/[workspaceId]/settings/components/secrets/secrets').then((m) => m.Secrets)
 )
-const Secrets = dynamic(
-  () =>
-    import('@/app/workspace/[workspaceId]/settings/components/secrets/secrets').then(
-      (m) => m.Secrets
-    ),
-  SETTINGS_SECTION_LOADING_OPTIONS
+const Sandboxes = dynamic(() =>
+  import('@/app/workspace/[workspaceId]/settings/components/sandboxes/sandboxes').then(
+    (m) => m.Sandboxes
+  )
 )
-const Sandboxes = dynamic(
-  () =>
-    import('@/app/workspace/[workspaceId]/settings/components/sandboxes/sandboxes').then(
-      (m) => m.Sandboxes
-    ),
-  SETTINGS_SECTION_LOADING_OPTIONS
+const CustomTools = dynamic(() =>
+  import('@/app/workspace/[workspaceId]/settings/components/custom-tools/custom-tools').then(
+    (m) => m.CustomTools
+  )
 )
-const CustomTools = dynamic(
-  () =>
-    import('@/app/workspace/[workspaceId]/settings/components/custom-tools/custom-tools').then(
-      (m) => m.CustomTools
-    ),
-  SETTINGS_SECTION_LOADING_OPTIONS
+const Inbox = dynamic(() =>
+  import('@/app/workspace/[workspaceId]/settings/components/inbox/inbox').then((m) => m.Inbox)
 )
-const Inbox = dynamic(
-  () =>
-    import('@/app/workspace/[workspaceId]/settings/components/inbox/inbox').then((m) => m.Inbox),
-  SETTINGS_SECTION_LOADING_OPTIONS
+const MCP = dynamic(() =>
+  import('@/app/workspace/[workspaceId]/settings/components/mcp/mcp').then((m) => m.MCP)
 )
-const MCP = dynamic(
-  () => import('@/app/workspace/[workspaceId]/settings/components/mcp/mcp').then((m) => m.MCP),
-  SETTINGS_SECTION_LOADING_OPTIONS
+const Mothership = dynamic(() =>
+  import('@/app/workspace/[workspaceId]/settings/components/mothership/mothership').then(
+    (m) => m.Mothership
+  )
 )
-const Mothership = dynamic(
-  () =>
-    import('@/app/workspace/[workspaceId]/settings/components/mothership/mothership').then(
-      (m) => m.Mothership
-    ),
-  SETTINGS_SECTION_LOADING_OPTIONS
+const RecentlyDeleted = dynamic(() =>
+  import(
+    '@/app/workspace/[workspaceId]/settings/components/recently-deleted/recently-deleted'
+  ).then((m) => m.RecentlyDeleted)
 )
-const RecentlyDeleted = dynamic(
-  () =>
-    import(
-      '@/app/workspace/[workspaceId]/settings/components/recently-deleted/recently-deleted'
-    ).then((m) => m.RecentlyDeleted),
-  SETTINGS_SECTION_LOADING_OPTIONS
+const SelfHost = dynamic(() =>
+  import('@/app/workspace/[workspaceId]/settings/components/self-host/self-host').then(
+    (m) => m.SelfHost
+  )
 )
-const SelfHost = dynamic(
-  () =>
-    import('@/app/workspace/[workspaceId]/settings/components/self-host/self-host').then(
-      (m) => m.SelfHost
-    ),
-  SETTINGS_SECTION_LOADING_OPTIONS
+const Billing = dynamic(() =>
+  import('@/app/workspace/[workspaceId]/settings/components/billing/billing').then((m) => m.Billing)
 )
-const Billing = dynamic(
-  () =>
-    import('@/app/workspace/[workspaceId]/settings/components/billing/billing').then(
-      (m) => m.Billing
-    ),
-  SETTINGS_SECTION_LOADING_OPTIONS
+const Teammates = dynamic(() =>
+  import('@/app/workspace/[workspaceId]/settings/components/teammates/teammates').then(
+    (m) => m.Teammates
+  )
 )
-const Teammates = dynamic(
-  () =>
-    import('@/app/workspace/[workspaceId]/settings/components/teammates/teammates').then(
-      (m) => m.Teammates
-    ),
-  SETTINGS_SECTION_LOADING_OPTIONS
+const TeamManagement = dynamic(() =>
+  import('@/app/workspace/[workspaceId]/settings/components/team-management/team-management').then(
+    (m) => m.TeamManagement
+  )
 )
-const TeamManagement = dynamic(
-  () =>
-    import(
-      '@/app/workspace/[workspaceId]/settings/components/team-management/team-management'
-    ).then((m) => m.TeamManagement),
-  SETTINGS_SECTION_LOADING_OPTIONS
+const WorkflowMcpServers = dynamic(() =>
+  import(
+    '@/app/workspace/[workspaceId]/settings/components/workflow-mcp-servers/workflow-mcp-servers'
+  ).then((m) => m.WorkflowMcpServers)
 )
-const WorkflowMcpServers = dynamic(
-  () =>
-    import(
-      '@/app/workspace/[workspaceId]/settings/components/workflow-mcp-servers/workflow-mcp-servers'
-    ).then((m) => m.WorkflowMcpServers),
-  SETTINGS_SECTION_LOADING_OPTIONS
+const AccessControl = dynamic(() =>
+  import('@/ee/access-control/components/access-control').then((m) => m.AccessControl)
 )
-const AccessControl = dynamic(
-  () => import('@/ee/access-control/components/access-control').then((m) => m.AccessControl),
-  SETTINGS_SECTION_LOADING_OPTIONS
+const CustomBlocks = dynamic(() =>
+  import('@/ee/custom-blocks/components/custom-blocks').then((m) => m.CustomBlocks)
 )
-const CustomBlocks = dynamic(
-  () => import('@/ee/custom-blocks/components/custom-blocks').then((m) => m.CustomBlocks),
-  SETTINGS_SECTION_LOADING_OPTIONS
+const CredentialGroups = dynamic(() =>
+  import('@/ee/credential-groups/components').then((m) => m.CredentialGroupsSettings)
 )
-const CredentialGroups = dynamic(
-  () => import('@/ee/credential-groups/components').then((m) => m.CredentialGroupsSettings),
-  SETTINGS_SECTION_LOADING_OPTIONS
+const AuditLogs = dynamic(() =>
+  import('@/ee/audit-logs/components/audit-logs').then((m) => m.AuditLogs)
 )
-const AuditLogs = dynamic(
-  () => import('@/ee/audit-logs/components/audit-logs').then((m) => m.AuditLogs),
-  SETTINGS_SECTION_LOADING_OPTIONS
+const SSO = dynamic(() => import('@/ee/sso/components/sso-settings').then((m) => m.SSO))
+const SessionPolicySettings = dynamic(() =>
+  import('@/ee/session-policy/components/session-policy-settings').then(
+    (m) => m.SessionPolicySettings
+  )
 )
-const SSO = dynamic(
-  () => import('@/ee/sso/components/sso-settings').then((m) => m.SSO),
-  SETTINGS_SECTION_LOADING_OPTIONS
+const DataRetentionSettings = dynamic(() =>
+  import('@/ee/data-retention/components/data-retention-settings').then(
+    (m) => m.DataRetentionSettings
+  )
 )
-const SessionPolicySettings = dynamic(
-  () =>
-    import('@/ee/session-policy/components/session-policy-settings').then(
-      (m) => m.SessionPolicySettings
-    ),
-  SETTINGS_SECTION_LOADING_OPTIONS
+const DataDrainsSettings = dynamic(() =>
+  import('@/ee/data-drains/components/data-drains-settings').then((m) => m.DataDrainsSettings)
 )
-const DataRetentionSettings = dynamic(
-  () =>
-    import('@/ee/data-retention/components/data-retention-settings').then(
-      (m) => m.DataRetentionSettings
-    ),
-  SETTINGS_SECTION_LOADING_OPTIONS
+const Desktop = dynamic(() =>
+  import('@/app/workspace/[workspaceId]/settings/components/desktop/desktop').then((m) => m.Desktop)
 )
-const DataDrainsSettings = dynamic(
-  () =>
-    import('@/ee/data-drains/components/data-drains-settings').then((m) => m.DataDrainsSettings),
-  SETTINGS_SECTION_LOADING_OPTIONS
+const Browser = dynamic(() =>
+  import('@/app/workspace/[workspaceId]/settings/components/browser/browser').then((m) => m.Browser)
 )
-const Desktop = dynamic(
-  () =>
-    import('@/app/workspace/[workspaceId]/settings/components/desktop/desktop').then(
-      (m) => m.Desktop
-    ),
-  SETTINGS_SECTION_LOADING_OPTIONS
-)
-const Browser = dynamic(
-  () =>
-    import('@/app/workspace/[workspaceId]/settings/components/browser/browser').then(
-      (m) => m.Browser
-    ),
-  SETTINGS_SECTION_LOADING_OPTIONS
-)
-const Terminal = dynamic(
-  () =>
-    import('@/app/workspace/[workspaceId]/settings/components/terminal/terminal').then(
-      (m) => m.Terminal
-    ),
-  SETTINGS_SECTION_LOADING_OPTIONS
+const Terminal = dynamic(() =>
+  import('@/app/workspace/[workspaceId]/settings/components/terminal/terminal').then(
+    (m) => m.Terminal
+  )
 )
 const WhitelabelingSettings = dynamic(
   () =>
     import('@/ee/whitelabeling/components/whitelabeling-settings').then(
       (m) => m.WhitelabelingSettings
     ),
-  {
-    ...SETTINGS_SECTION_LOADING_OPTIONS,
-    ssr: false,
-  }
+  { ssr: false }
 )
 
 interface SettingsPageProps {

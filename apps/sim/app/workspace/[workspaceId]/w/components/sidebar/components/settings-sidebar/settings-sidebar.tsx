@@ -45,19 +45,35 @@ import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'
 
 /**
+ * Sections whose JS chunk is warmed on hover.
+ *
+ * Deliberately not all of them. Naming a section's chunk from this file puts that section into
+ * the module graph of the workflow editor and the other workspace routes this sidebar ships
+ * with; listing all 28 measured ~200 extra modules across six of the app's hottest routes on
+ * the boundary audit, to save one hop on a page the user is not currently on. These six were
+ * already in the graph before this map existed, so warming them costs nothing new.
+ *
+ * Every section still gets its route payload warmed — see `handlePrefetch`.
+ */
+const SECTION_CHUNK_WARMERS: Partial<Record<SettingsSection, () => Promise<unknown>>> = {
+  general: () => import('@/app/workspace/[workspaceId]/settings/components/general/general'),
+  secrets: () => import('@/app/workspace/[workspaceId]/settings/components/secrets/secrets'),
+  billing: () => import('@/app/workspace/[workspaceId]/settings/components/billing/billing'),
+  desktop: () => import('@/app/workspace/[workspaceId]/settings/components/desktop/desktop'),
+  browser: () => import('@/app/workspace/[workspaceId]/settings/components/browser/browser'),
+  terminal: () => import('@/app/workspace/[workspaceId]/settings/components/terminal/terminal'),
+}
+
+/**
  * Sections whose first paint waits on a query the sidebar is able to start early.
  *
- * Deliberately short: warming every section's queries on hover would trade a cold panel for a
- * cold sidebar, and the rest are cheap enough to fetch on mount. The section's chunk is warmed
- * separately, for all of them, via `sectionLoaders`.
+ * `general` is absent because a warm cannot help here: this sidebar only renders inside the
+ * workspace layout, whose `SettingsLoader` holds a live observer on that key with an hour-long
+ * stale time, so `prefetchQuery` short-circuits on every hover.
  *
- * `general` is absent because it cannot help here — this sidebar only renders inside the
- * workspace layout, whose `SettingsLoader` already holds a live observer on that key with an
- * hour-long stale time, so `prefetchQuery` would short-circuit on every hover.
- *
- * The type argument is load-bearing: workspace credentials are cached per type, and the
- * secrets panel subscribes to `env_workspace`. Warming the unfiltered list writes a different
- * cache entry and leaves the panel to fetch cold anyway.
+ * The type argument is load-bearing: workspace credentials are cached per type and the secrets
+ * panel subscribes to `env_workspace`, so warming the unfiltered list writes a different cache
+ * entry and leaves the panel to fetch cold anyway.
  */
 const SECTION_QUERY_WARMERS: Partial<
   Record<SettingsSection, (queryClient: QueryClient, workspaceId: string) => void>
@@ -252,17 +268,12 @@ export function SettingsSidebar({
 
   const handlePrefetch = (section: SettingsSection) => {
     /**
-     * The route payload is the slowest hop behind a section — the access gate runs on the
-     * server — and the one a row can never get for free, because Next only auto-prefetches
+     * The route payload first, for every section. It is the slowest hop — the access gate runs
+     * on the server — and the one a row can never get for free, because Next only auto-prefetches
      * `<Link>` and these rows are buttons that must run the unsaved-changes guard first.
-     *
-     * The section's JS chunk is deliberately NOT warmed here. Naming those chunks from this
-     * file puts every settings section into the module graph of the workflow editor and the
-     * other workspace routes this sidebar ships with — ~200 modules on the app's hottest
-     * pages to save one hop on a page they are not on. `dynamic()`'s shared skeleton covers
-     * that hop gracefully instead.
      */
     router.prefetch(getSettingsHref({ section }))
+    void SECTION_CHUNK_WARMERS[section]?.()
     SECTION_QUERY_WARMERS[section]?.(queryClient, workspaceId)
   }
 

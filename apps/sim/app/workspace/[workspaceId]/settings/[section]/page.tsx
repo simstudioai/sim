@@ -9,7 +9,6 @@ import {
   resolveWorkspaceNavigation,
   type WorkspaceSettingsSection,
 } from '@/components/settings/navigation'
-import { SettingsSectionSkeleton } from '@/components/settings/settings-section-skeleton'
 import { getSession } from '@/lib/auth'
 import { isOrganizationOnEnterprisePlan } from '@/lib/billing'
 import { hasWorkspaceInboxAccess, hasWorkspaceSandboxAccess } from '@/lib/billing/core/subscription'
@@ -201,13 +200,7 @@ export default async function WorkspaceSettingsSectionPage({
 
   return (
     <HydrationBoundary state={dehydrate(queryClient)}>
-      {/*
-        Sections read URL query params via nuqs (which uses `useSearchParams` internally),
-        so the panel must sit under a Suspense boundary. It shares the route's loading
-        placeholder, so a section resolving its params looks the same as one whose chunk is
-        still in flight.
-      */}
-      <Suspense fallback={<SettingsSectionSkeleton />}>
+      <Suspense fallback={null}>
         <SettingsPage section={parsed} />
       </Suspense>
     </HydrationBoundary>

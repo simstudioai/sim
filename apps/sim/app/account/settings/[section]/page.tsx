@@ -9,7 +9,6 @@ import {
   getSettingsSectionMeta,
   parseSettingsPathSection,
 } from '@/components/settings/navigation'
-import { SettingsSectionSkeleton } from '@/components/settings/settings-section-skeleton'
 import { getSession } from '@/lib/auth'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import { isPlatformAdmin } from '@/lib/permissions/super-user'
@@ -54,12 +53,12 @@ export default async function AccountSettingsSectionPage({
 
   /**
    * Sections read URL query params via nuqs (which uses `useSearchParams`
-   * internally), so the renderer must sit under a Suspense boundary. It shares the
-   * route's loading placeholder, so a section resolving its params looks the same as one
-   * whose chunk is still in flight.
+   * internally), so the renderer must sit under a Suspense boundary. The
+   * `null` fallback matches the existing visual behavior — the sections are
+   * `next/dynamic` components that render nothing while their chunk loads.
    */
   return (
-    <Suspense fallback={<SettingsSectionSkeleton />}>
+    <Suspense fallback={null}>
       <AccountSettingsRenderer section={parsed} />
     </Suspense>
   )
