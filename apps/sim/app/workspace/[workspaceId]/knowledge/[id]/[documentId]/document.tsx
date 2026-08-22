@@ -59,7 +59,6 @@ import {
 import { ActionBar } from '@/app/workspace/[workspaceId]/knowledge/[id]/components'
 import { getDocumentIcon } from '@/app/workspace/[workspaceId]/knowledge/components'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
-import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
 import { useDocument, useDocumentChunks, useKnowledgeBase } from '@/hooks/kb/use-knowledge'
 import {
@@ -69,6 +68,7 @@ import {
   useUpdateChunk,
   useUpdateDocument,
 } from '@/hooks/queries/kb/knowledge'
+import { useContextMenu } from '@/hooks/use-context-menu'
 import { useDebounce } from '@/hooks/use-debounce'
 import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
 import { useInlineRename } from '@/hooks/use-inline-rename'

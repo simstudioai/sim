@@ -77,13 +77,6 @@ import {
   tablesSortParams,
   tablesUrlKeys,
 } from '@/app/workspace/[workspaceId]/tables/search-params'
-/**
- * Deep-imported rather than taken from the `sidebar/hooks` barrel on purpose. That barrel
- * also exports `useWorkflowOperations`, whose graph reaches `stores/workflow-diff` ->
- * `serializer` -> `tools/metadata`, pulling the 5 MB generated tool-metadata artifact into
- * this route's client bundle for a hook that is a dependency-free leaf.
- */
-import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks/use-context-menu'
 import { useCreateFolder, useDeleteFolderMutation, useUpdateFolder } from '@/hooks/queries/folders'
 import { usePinItem, usePinnedIds, useUnpinItem } from '@/hooks/queries/pinned-items'
 import {
@@ -99,6 +92,7 @@ import {
 } from '@/hooks/queries/tables'
 import { getCanonicalFolderPath } from '@/hooks/queries/utils/folder-tree'
 import { useWorkspaceMembersQuery, type WorkspaceMember } from '@/hooks/queries/workspace'
+import { useContextMenu } from '@/hooks/use-context-menu'
 import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
 import { useInlineRename } from '@/hooks/use-inline-rename'
 import { usePermissionConfig } from '@/hooks/use-permission-config'

@@ -13,7 +13,6 @@ import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/provide
 import { ContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/context-menu/context-menu'
 import { DeleteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/delete-modal/delete-modal'
 import {
-  useContextMenu,
   useFolderExpand,
   useItemDrag,
   useItemRename,
@@ -41,6 +40,7 @@ import {
 } from '@/hooks/queries/utils/folder-tree'
 import { getWorkflows } from '@/hooks/queries/utils/workflow-cache'
 import { useCreateWorkflow } from '@/hooks/queries/workflows'
+import { useContextMenu } from '@/hooks/use-context-menu'
 import { useFolderStore } from '@/stores/folders/store'
 import type { FolderTreeNode } from '@/stores/folders/types'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
