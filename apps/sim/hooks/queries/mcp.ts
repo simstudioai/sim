@@ -525,11 +525,11 @@ async function fetchStoredMcpTools(
   return data.data.tools
 }
 
-export function useStoredMcpTools(workspaceId: string) {
+export function useStoredMcpTools(workspaceId: string, options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: mcpKeys.storedToolsList(workspaceId),
     queryFn: ({ signal }) => fetchStoredMcpTools(workspaceId, signal),
-    enabled: !!workspaceId,
+    enabled: !!workspaceId && (options?.enabled ?? true),
     staleTime: MCP_STORED_TOOL_LIST_STALE_TIME,
   })
 }
@@ -702,10 +702,11 @@ async function fetchAllowedMcpDomains(signal?: AbortSignal): Promise<string[] | 
   return data.allowedMcpDomains ?? null
 }
 
-export function useAllowedMcpDomains() {
-  return useQuery<string[] | null>({
+export function useAllowedMcpDomains(options?: { enabled?: boolean }) {
+  return useQuery({
     queryKey: mcpKeys.allowedDomains(),
     queryFn: ({ signal }) => fetchAllowedMcpDomains(signal),
+    enabled: options?.enabled ?? true,
     staleTime: MCP_ALLOWED_DOMAINS_STALE_TIME,
   })
 }

@@ -425,7 +425,7 @@ export const Sidebar = memo(function Sidebar({
     isToolAllowed,
     integrationAvailability,
   } = usePermissionConfig()
-  const { navigateToSettings } = useSettingsNavigation()
+  const { getSettingsHref, navigateToSettings } = useSettingsNavigation()
   const initializeSearchData = useSearchModalStore((state) => state.initializeData)
   const customBlockOverlayVersion = useCustomBlockOverlayVersion()
   const providers = useProvidersStore((state) => state.providers)
@@ -1818,6 +1818,7 @@ export const Sidebar = memo(function Sidebar({
                   workspaceId={workspaceId}
                   isCollapsed={isCollapsed}
                   showCollapsedTooltips={showCollapsedTooltips}
+                  getSettingsHref={(section) => getSettingsHref({ section })}
                   onOpenSettings={handleOpenSettings}
                   onOpenDocs={handleOpenDocs}
                   onJoinSlack={handleOpenSlackCommunity}

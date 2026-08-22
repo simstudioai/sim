@@ -11,6 +11,7 @@ import {
   ChipModalFooter,
   ChipModalHeader,
   ChipSelect,
+  cn,
   Input,
   Label,
   Switch,
@@ -256,10 +257,6 @@ export function General() {
 
   const imageUrl = profilePictureUrl || profile?.image || brandConfig.logoUrl
 
-  if (isLoading) {
-    return null
-  }
-
   if (view === 'privacy') {
     return <PrivacyView onBack={() => setView(null)} />
   }
@@ -268,18 +265,28 @@ export function General() {
     ...(isHosted
       ? [
           {
+            id: 'home-page',
             text: 'Home page',
             onSelect: () => window.open('/?home', '_blank', 'noopener,noreferrer'),
           },
         ]
       : []),
-    ...(!isAuthDisabled
+    ...(session?.user?.id && !isAuthDisabled
       ? [
-          { text: 'Sign out', onSelect: handleSignOut },
-          { text: 'Reset password', onSelect: () => setShowResetPasswordModal(true) },
+          { id: 'sign-out', text: 'Sign out', onSelect: handleSignOut },
+          {
+            id: 'reset-password',
+            text: 'Reset password',
+            onSelect: () => setShowResetPasswordModal(true),
+            disabled: !profile?.email,
+          },
         ]
       : []),
   ]
+
+  if (isLoading) {
+    return <SettingsPanel actions={actions} />
+  }
 
   return (
     <>
@@ -291,7 +298,10 @@ export function General() {
                 <button
                   type='button'
                   aria-label='Change profile picture'
-                  className={`group relative flex size-9 flex-shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-full transition-all hover-hover:bg-[var(--bg)] ${!imageUrl ? 'border border-[var(--border)]' : ''}`}
+                  className={cn(
+                    'group relative flex size-9 flex-shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-full transition-colors hover-hover:bg-[var(--bg)]',
+                    !imageUrl && 'border border-[var(--border)]'
+                  )}
                   onClick={handleProfilePictureClick}
                 >
                   {(() => {
