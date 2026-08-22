@@ -645,8 +645,17 @@ function clampProbedFrame(width: number, height: number): { width: number; heigh
   return { width: w, height: h }
 }
 
+/**
+ * Floors rather than rounds, which is what makes the area bound hold.
+ *
+ * The scale factor lands both axes on a product of exactly the budget, so any
+ * axis allowed to round *up* can put the pair back over it — and when both round
+ * up and both land even, nothing pulls them back. Flooring keeps each axis at or
+ * below its exact target, so the product cannot exceed the budget. Probed
+ * dimensions are already integers, so this only ever bites on the scaled path.
+ */
 function clampProbedAxis(value: number): number {
-  const bounded = Math.min(Math.max(Math.round(value), MIN_SCALE_DIMENSION), MAX_SCALE_DIMENSION)
+  const bounded = Math.min(Math.max(Math.floor(value), MIN_SCALE_DIMENSION), MAX_SCALE_DIMENSION)
   return bounded - (bounded % 2)
 }
 

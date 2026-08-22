@@ -204,6 +204,21 @@ describe('runFfmpegOperation concat normalization target', () => {
     expect(width).toBe(height)
   })
 
+  it('holds the area bound for dimensions that round up on both axes', async () => {
+    // 2694x3520 is the worst case in the whole dimension space: the scale factor
+    // lands both axes on .5, and rounding both up to an even number put the pair
+    // 3072 pixels back over the budget it had just been scaled into.
+    probeReport.json = JSON.stringify({
+      streams: [{ codec_type: 'video', codec_name: 'h264', width: 2694, height: 3520 }],
+      format: { duration: '2', format_name: 'mp4' },
+    })
+
+    await runFfmpegOperation('concat', [videoInput, videoInput])
+
+    const target = capturedVideoFilters[0].match(/scale=(\d+):(\d+):/)
+    expect(Number(target![1]) * Number(target![2])).toBeLessThanOrEqual(4096 * 2304)
+  })
+
   it('emits even dimensions, which yuv420p requires', async () => {
     probeReport.json = JSON.stringify({
       streams: [{ codec_type: 'video', codec_name: 'h264', width: 1919, height: 1081 }],
