@@ -12,6 +12,7 @@ import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import { AuthSubmitButton } from '@/app/(auth)/components'
 
 const logger = createLogger('SSOForm')
+const SSO_SIGN_IN_ERROR = 'Unable to start SSO. Check your email and try again.'
 
 const validateEmailField = (emailValue: string): string[] => {
   const errors: string[] = []
@@ -110,33 +111,22 @@ export default function SSOForm({ registrationDisabled }: SSOFormProps) {
     try {
       const safeCallbackUrl = callbackUrl
 
-      await client.signIn.sso({
+      const result = await client.signIn.sso({
         email: emailValue,
         callbackURL: safeCallbackUrl,
         errorCallbackURL: `/sso?error=sso_failed&callbackUrl=${encodeURIComponent(safeCallbackUrl)}`,
       })
+
+      if (!result || result.error) {
+        logger.error('SSO sign-in failed', { error: result?.error, email: emailValue })
+        setEmailErrors([SSO_SIGN_IN_ERROR])
+        setShowEmailValidationError(true)
+      }
     } catch (err) {
       logger.error('SSO sign-in failed', { error: err, email: emailValue })
-
-      let errorMessage = 'SSO sign-in failed. Please try again.'
-      if (err instanceof Error) {
-        if (err.message.includes('NO_PROVIDER_FOUND')) {
-          errorMessage = 'SSO provider not found. Please check your configuration.'
-        } else if (err.message.includes('INVALID_EMAIL_DOMAIN')) {
-          errorMessage = 'Email domain not configured for SSO. Please contact your administrator.'
-        } else if (err.message.includes('network')) {
-          errorMessage = 'Network error. Please check your connection and try again.'
-        } else if (err.message.includes('rate limit')) {
-          errorMessage = 'Too many requests. Please wait a moment before trying again.'
-        } else if (err.message.includes('SSO_DISABLED')) {
-          errorMessage = 'SSO authentication is disabled. Please use another sign-in method.'
-        } else {
-          errorMessage = err.message
-        }
-      }
-
-      setEmailErrors([errorMessage])
+      setEmailErrors([SSO_SIGN_IN_ERROR])
       setShowEmailValidationError(true)
+    } finally {
       setIsLoading(false)
     }
   }
