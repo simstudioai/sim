@@ -2,7 +2,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { getErrorMessage } from '@sim/utils/errors'
 import { isEqual } from 'es-toolkit'
 import { useStoreWithEqualityFn } from 'zustand/traditional'
-import { buildSelectorContextFromBlock } from '@/lib/workflows/subblocks/context'
+import {
+  buildSelectorContextFromBlock,
+  getSelectorContextSubBlocks,
+} from '@/lib/workflows/subblocks/context'
 import { buildCanonicalIndex, resolveDependencyValue } from '@/lib/workflows/subblocks/visibility'
 import { getBlock } from '@/blocks/registry'
 import { getSelectorDefinition, loadAllSelectorOptions } from '@/hooks/selectors/registry'
@@ -93,10 +96,6 @@ export function useFetchedOptions({
   const blockState = useWorkflowStore((state) => state.blocks[blockId])
   const blockConfig = blockState?.type ? getBlock(blockState.type) : null
   const canonicalModeOverrides = blockState?.data?.canonicalModes
-  const canonicalIndex = useMemo(
-    () => buildCanonicalIndex(blockConfig?.subBlocks || []),
-    [blockConfig?.subBlocks]
-  )
 
   const dependencyValues = useStoreWithEqualityFn(
     useSubBlockStore,
@@ -105,11 +104,24 @@ export function useFetchedOptions({
         if (dependsOnFields.length === 0 || !activeWorkflowId) return []
         const workflowValues = state.workflowValues[activeWorkflowId] || {}
         const blockValues = workflowValues[blockId] || {}
+        const contextConfigs = getSelectorContextSubBlocks(
+          blockConfig?.subBlocks || [],
+          blockValues,
+          blockState?.triggerMode
+        )
+        const canonicalIndex = buildCanonicalIndex(contextConfigs)
         return dependsOnFields.map((depKey) =>
           resolveDependencyValue(depKey, blockValues, canonicalIndex, canonicalModeOverrides)
         )
       },
-      [dependsOnFields, activeWorkflowId, blockId, canonicalIndex, canonicalModeOverrides]
+      [
+        dependsOnFields,
+        activeWorkflowId,
+        blockId,
+        blockConfig?.subBlocks,
+        blockState?.triggerMode,
+        canonicalModeOverrides,
+      ]
     ),
     isEqual
   )
@@ -131,6 +143,7 @@ export function useFetchedOptions({
       workflowId: activeWorkflowId ?? undefined,
       workspaceId: workspaceId ?? undefined,
       canonicalModes: block.data?.canonicalModes,
+      triggerMode: block.triggerMode,
     })
     if (selectorExcludeSelf && activeWorkflowId) context.excludeWorkflowId = activeWorkflowId
     return context
