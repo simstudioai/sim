@@ -43,4 +43,16 @@ describe('selection labels', () => {
       })
     ).toBe('Disable 4 items')
   })
+
+  it('keeps the action selection-aware when the affected subset count is unknown', () => {
+    expect(
+      selectionToggleActionLabel({
+        selectedCount: 10,
+        enabledCount: 10,
+        disabledCount: 10,
+        isSelectedItemEnabled: true,
+        hasExactAffectedCount: false,
+      })
+    ).toBe('Enable selected items')
+  })
 })

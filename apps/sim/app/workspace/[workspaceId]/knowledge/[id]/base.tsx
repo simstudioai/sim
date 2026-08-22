@@ -1505,6 +1505,7 @@ export function KnowledgeBase({
         selectedCount={selectedDocumentCount}
         enabledCount={enabledCount}
         disabledCount={disabledCount}
+        hasExactToggleCount={!isSelectAllMode || enabledFilter !== 'all'}
         onOpenInNewTab={
           contextMenuDocument && selectedDocumentCount === 1
             ? () => {

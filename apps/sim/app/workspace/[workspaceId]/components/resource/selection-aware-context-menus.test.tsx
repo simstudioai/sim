@@ -168,6 +168,25 @@ describe('selection-aware resource context menus', () => {
     expect(menu).toContain('Delete 25 items')
   })
 
+  it('does not overstate an unknown select-all toggle count', () => {
+    const menu = renderToStaticMarkup(
+      <DocumentContextMenu
+        isOpen
+        position={POSITION}
+        onClose={() => {}}
+        hasDocument
+        selectedCount={25}
+        enabledCount={25}
+        disabledCount={25}
+        hasExactToggleCount={false}
+        onToggleEnabled={() => {}}
+      />
+    )
+
+    expect(menu).toContain('Enable selected items')
+    expect(menu).not.toContain('Enable 25 items')
+  })
+
   it('counts only the chunks affected by a multi-selection toggle', () => {
     const menu = renderToStaticMarkup(
       <ChunkContextMenu

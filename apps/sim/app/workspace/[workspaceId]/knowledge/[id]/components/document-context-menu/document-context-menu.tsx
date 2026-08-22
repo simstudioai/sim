@@ -33,6 +33,7 @@ interface DocumentContextMenuProps {
   selectedCount: number
   enabledCount?: number
   disabledCount?: number
+  hasExactToggleCount?: boolean
 }
 
 /**
@@ -60,6 +61,7 @@ export function DocumentContextMenu({
   selectedCount,
   enabledCount = 0,
   disabledCount = 0,
+  hasExactToggleCount = true,
 }: DocumentContextMenuProps) {
   const isMultiSelect = selectedCount > 1
   const toggleLabel = selectionToggleActionLabel({
@@ -67,6 +69,7 @@ export function DocumentContextMenu({
     enabledCount,
     disabledCount,
     isSelectedItemEnabled: isDocumentEnabled,
+    hasExactAffectedCount: hasExactToggleCount,
   })
 
   const hasNavigationSection = !isMultiSelect && (!!onOpenInNewTab || !!onOpenSource)
