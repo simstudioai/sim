@@ -12,6 +12,7 @@ interface ScannerBlock {
   type: string
   subBlocks: unknown
   canonicalModes?: CanonicalModeOverrides
+  triggerMode?: boolean
 }
 
 /**
@@ -45,6 +46,7 @@ export function toScannerBlocks(state: WorkflowState): ScannerBlock[] {
     type: block.type,
     subBlocks: block.subBlocks as unknown,
     canonicalModes: block.data?.canonicalModes,
+    triggerMode: block.triggerMode,
   }))
 }
 

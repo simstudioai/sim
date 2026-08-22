@@ -35,6 +35,7 @@ import {
   applyDependentOverrides,
   clearDependentsOnRemap,
   collectClearedDependents,
+  createCanonicalModeGates,
   createForkSubBlockTransform,
   type ForkReferenceResolver,
   parseNestedDependentKey,
@@ -774,6 +775,78 @@ describe('clearDependentsOnRemap canonical-pair gating', () => {
     )
     // Basic is active; its remap clears the dependent (unchanged behavior).
     expect(result.documentSelector.value).toBe('')
+  })
+})
+
+describe('canonical-mode gates on a mixed action/trigger block', () => {
+  /**
+   * Webflow's shape: an action pair plus a trigger alias sharing one `canonicalParamId` under a
+   * DIFFERENT id. Both surfaces live in one `subBlocks` array and share one `canonicalModes` key.
+   */
+  const mixedSurfaceBlock = () =>
+    blockWith([
+      {
+        id: 'siteSelector',
+        title: 'Site',
+        type: 'project-selector',
+        canonicalParamId: 'siteId',
+        mode: 'basic',
+      },
+      {
+        id: 'manualSiteId',
+        title: 'Site ID',
+        type: 'short-input',
+        canonicalParamId: 'siteId',
+        mode: 'advanced',
+      },
+      {
+        id: 'triggerSiteId',
+        title: 'Site',
+        type: 'dropdown',
+        canonicalParamId: 'siteId',
+        mode: 'trigger',
+      },
+    ])
+
+  const values = {
+    siteSelector: '',
+    manualSiteId: 'stale-manual-site',
+    triggerSiteId: 'site-live',
+  }
+
+  it('does not call a live trigger field dormant when the shared mode is advanced', () => {
+    vi.mocked(getBlock).mockReturnValue(mixedSurfaceBlock())
+    const config = getBlock('webflow') as BlockConfig
+    // Configured as an action with the manual Site ID, then switched to trigger mode. The mode key
+    // is shared, so unscoped the trigger field reads as a dormant member of the action pair — and
+    // a fork CLEARS dormant members, silently wiping the trigger's configured site.
+    const gates = createCanonicalModeGates(config.subBlocks, values, { siteId: 'advanced' }, true)
+    expect(gates.isDormantMember('triggerSiteId')).toBe(false)
+    expect(gates.isActiveManualMember('triggerSiteId')).toBe(false)
+  })
+
+  it('still gates the action surface normally', () => {
+    vi.mocked(getBlock).mockReturnValue(mixedSurfaceBlock())
+    const config = getBlock('webflow') as BlockConfig
+    const gates = createCanonicalModeGates(config.subBlocks, values, { siteId: 'advanced' }, false)
+    // Basic is dormant while advanced is active; the manual member is the live one.
+    expect(gates.isDormantMember('siteSelector')).toBe(true)
+    expect(gates.isActiveManualMember('manualSiteId')).toBe(true)
+  })
+
+  it("keeps a trigger-mode block's live field through the fork remap", () => {
+    vi.mocked(getBlock).mockReturnValue(mixedSurfaceBlock())
+    const subBlocks: SubBlockRecord = {
+      siteSelector: { type: 'project-selector', value: '' },
+      manualSiteId: { type: 'short-input', value: 'stale-manual-site' },
+      triggerSiteId: { type: 'dropdown', value: 'site-live' },
+    }
+    const result = remapForkSubBlocks(subBlocks, () => null, 'create', {
+      blockType: 'webflow',
+      canonicalModes: { siteId: 'advanced' },
+      triggerMode: true,
+    })
+    expect(result.subBlocks.triggerSiteId.value).toBe('site-live')
   })
 })
 

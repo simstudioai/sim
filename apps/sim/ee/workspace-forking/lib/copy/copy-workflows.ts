@@ -520,11 +520,21 @@ export async function copyWorkflowStateIntoTarget(
     let activeCanonicalModes: CanonicalModeOverrides | undefined = (
       block.data as { canonicalModes?: Record<string, 'basic' | 'advanced'> } | undefined
     )?.canonicalModes
+    // A mixed action/trigger block shares one `canonicalModes` key across both surfaces, so the
+    // remap has to know which surface is live: without it a trigger field reads as a dormant
+    // member of the action pair and the remap clears the value.
+    const blockTriggerMode = block.triggerMode === true
     if (transformSubBlocks) {
-      subBlocks = transformSubBlocks(subBlocks, block.type, activeCanonicalModes, (next) => {
-        activeCanonicalModes = next
-        updatedData = { ...updatedData, canonicalModes: next } as BlockData
-      })
+      subBlocks = transformSubBlocks(
+        subBlocks,
+        block.type,
+        activeCanonicalModes,
+        (next) => {
+          activeCanonicalModes = next
+          updatedData = { ...updatedData, canonicalModes: next } as BlockData
+        },
+        blockTriggerMode
+      )
     }
     if (varIdMapping.size > 0) {
       subBlocks = remapVariableIdsInSubBlocks(subBlocks, varIdMapping)
@@ -565,7 +575,8 @@ export async function copyWorkflowStateIntoTarget(
           block.name,
           targetCurrent.subBlocks,
           subBlocks,
-          activeCanonicalModes
+          activeCanonicalModes,
+          blockTriggerMode
         )
       )
     }
