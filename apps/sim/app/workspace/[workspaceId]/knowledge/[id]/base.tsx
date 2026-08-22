@@ -53,7 +53,6 @@ import type {
   FilterTag,
   ResourceAction,
   ResourceCell,
-  ResourceColumn,
   ResourceRow,
   SelectableConfig,
   SortConfig,
@@ -83,6 +82,7 @@ import {
   DocumentContextMenu,
   RenameDocumentModal,
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/components'
+import { DOCUMENT_COLUMNS } from '@/app/workspace/[workspaceId]/knowledge/[id]/document-columns'
 import {
   addConnectorParam,
   documentFiltersParsers,
@@ -118,16 +118,6 @@ import { useUrlSort } from '@/hooks/use-url-sort'
 const logger = createLogger('KnowledgeBase')
 
 const DOCUMENTS_PER_PAGE = 50
-
-const DOCUMENT_COLUMNS: ResourceColumn[] = [
-  { id: 'name', header: 'Name', widthMultiplier: 0.8 },
-  { id: 'size', header: 'Size', widthMultiplier: 0.75 },
-  { id: 'tokens', header: 'Tokens', widthMultiplier: 0.75 },
-  { id: 'chunks', header: 'Chunks', widthMultiplier: 0.75 },
-  { id: 'uploaded', header: 'Uploaded' },
-  { id: 'status', header: 'Status', widthMultiplier: 0.75 },
-  { id: 'tags', header: 'Tags' },
-]
 
 const STATUS_FILTER_OPTIONS: ChipDropdownOption[] = [
   { value: 'all', label: 'All' },
