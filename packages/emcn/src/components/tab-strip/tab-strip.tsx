@@ -40,6 +40,13 @@ export interface TabStripItem {
    */
   pinned?: boolean
   /**
+   * Belongs to a multi-tab selection without being the tab on screen. Renders
+   * as a secondary highlight on `--surface-active` — the token the app already
+   * uses for a selected row — so it never competes with the active tab, which
+   * stays the only one merged into the surface below.
+   */
+  selected?: boolean
+  /**
    * Fuller detail for the hover tooltip — a path the label abbreviates, the
    * command a tab is running. Shown whenever present, not only when the label
    * is clipped: it says something the tab cannot, so there is always a reason
@@ -51,16 +58,62 @@ export interface TabStripItem {
   attention?: boolean
 }
 
+/** Handed to {@link TabStripBaseProps.onTabDragStart} to shape the gesture it starts. */
+export interface TabStripDragContext {
+  /**
+   * Declares that this gesture is not a reorder — a drag carrying a whole
+   * multi-tab selection out of the strip, say. The strip drops its own drag
+   * tracking, so no drop indicator, no edge auto-scroll and no `onReorder`
+   * follow.
+   */
+  preventReorder: () => void
+}
+
 /** How a tab selection was initiated. */
 export type TabStripSelectionSource = 'pointer' | 'keyboard'
 
-export interface TabStripProps {
+/**
+ * The new-tab slot holds either the built-in button or a caller's own control,
+ * never both — a supplied control owns its own label and limit, so `onNew`,
+ * `newTabLabel` and `maxTabs` are not merely ignored alongside it, they are
+ * rejected.
+ */
+type TabStripNewTabProps =
+  | {
+      /** Omit to hide the new-tab button. */
+      onNew?: () => void
+      newTabLabel?: string
+      /** Disables the new-tab button, with a tooltip explaining why. */
+      maxTabs?: number
+      newTabControl?: never
+    }
+  | {
+      /**
+       * Replaces the built-in new-tab button for a strip whose "new" action opens
+       * a menu rather than acting on click. It takes the same slot, so it keeps
+       * its place beside the last tab and inside the wheel-scroll region.
+       */
+      newTabControl: ReactNode
+      onNew?: never
+      newTabLabel?: never
+      maxTabs?: never
+    }
+
+export type TabStripProps = TabStripBaseProps & TabStripNewTabProps
+
+interface TabStripBaseProps {
   tabs: TabStripItem[]
-  onSelect: (id: string, source?: TabStripSelectionSource) => void
+  /**
+   * The originating click is forwarded so a caller can layer modifier
+   * behaviour — shift for a range, cmd/ctrl to toggle — over plain selection.
+   */
+  onSelect: (
+    id: string,
+    source?: TabStripSelectionSource,
+    event?: ReactMouseEvent<HTMLButtonElement>
+  ) => void
   /** Omit to make tabs uncloseable. Never offered for a pinned tab. */
   onClose?: (id: string) => void
-  /** Omit to hide the new-tab button. */
-  onNew?: () => void
   /** Enables drag reordering. Receives the tab's final index. */
   onReorder?: (id: string, targetIndex: number) => void
   onTabContextMenu?: (event: ReactMouseEvent<HTMLDivElement>, id: string) => void
@@ -68,13 +121,34 @@ export interface TabStripProps {
    * Called as a tab starts being dragged, to add whatever that tab means
    * outside the strip to the drag. Supplying it also makes tabs draggable in a
    * strip that cannot be reordered.
+   *
+   * The `drag` handle lets it declare that the gesture is not a reorder at all;
+   * see {@link TabStripDragContext.preventReorder}.
    */
-  onTabDragStart?: (event: ReactDragEvent<HTMLDivElement>, id: string) => void
-  /** Disables the new-tab button, with a tooltip explaining why. */
-  maxTabs?: number
-  newTabLabel?: string
-  /** Rendered after the new-tab button, for menus and overlays. */
-  children?: ReactNode
+  onTabDragStart?: (
+    event: ReactDragEvent<HTMLDivElement>,
+    id: string,
+    drag: TabStripDragContext
+  ) => void
+  /** In-flow controls pinned to the far end, past the tabs and the new-tab slot. */
+  endActions?: ReactNode
+  /**
+   * Out-of-flow content that has to live inside the strip — a context menu
+   * anchored to a tab, say. Rendered last and contributing no layout, which is
+   * what separates it from {@link TabStripBaseProps.endActions}.
+   */
+  overlays?: ReactNode
+  /**
+   * Merged onto the strip root. Intended for the geometry custom properties
+   * below rather than for competing utility classes, so a caller that owns the
+   * surrounding header can size the strip without fighting its base classes:
+   *
+   * - `--tab-strip-height` (default `34px`) — the strip's own height.
+   * - `--tab-strip-band` (default `30px`) — the height of the tabs and the
+   *   controls beside them, which is the band an overlaid control must match.
+   * - `--tab-strip-inline-start` / `--tab-strip-inline-end` (default `8px`).
+   */
+  className?: string
 }
 
 /**
@@ -87,6 +161,15 @@ export function isTabTitleTruncated(
 ): boolean {
   const hiddenWidth = element.scrollWidth - element.clientWidth
   return hiddenWidth >= TITLE_TOOLTIP_HIDDEN_PX
+}
+
+/**
+ * Selector matching a tab's outer element. Part of the strip's API: a caller
+ * building its own drag image needs the real, laid-out nodes to snapshot, and
+ * this keeps it from hardcoding the attribute.
+ */
+export function tabStripItemSelector(id: string): string {
+  return `[data-tab-strip-item="${CSS.escape(id)}"]`
 }
 
 /** Final horizontal position for a wheel gesture, or null when it cannot move the strip. */
@@ -131,7 +214,11 @@ export function tabDropIndex(
 
 interface TabProps {
   tab: TabStripItem
-  onSelect: (id: string, source?: TabStripSelectionSource) => void
+  onSelect: (
+    id: string,
+    source?: TabStripSelectionSource,
+    event?: ReactMouseEvent<HTMLButtonElement>
+  ) => void
   onClose?: (id: string) => void
   onContextMenu?: (event: ReactMouseEvent<HTMLDivElement>, id: string) => void
   onKeyDown: (event: ReactKeyboardEvent<HTMLButtonElement>, id: string) => void
@@ -226,13 +313,14 @@ const Tab = forwardRef<HTMLDivElement, TabProps>(function Tab(
             data-tab-strip-button={tab.id}
             tabIndex={focusable ? 0 : -1}
             className={cn(
-              'h-[30px] w-full select-none rounded-b-none border border-transparent border-b-0 bg-transparent py-0 text-caption',
+              'h-[var(--tab-strip-band,30px)] w-full select-none rounded-b-none border border-transparent border-b-0 bg-transparent py-0 text-caption',
               tab.pinned ? 'justify-center px-0' : 'justify-start gap-1.5 px-2',
               closeable && !tab.pinned && 'pr-8',
+              tab.selected && !tab.active && 'bg-[var(--surface-active)]',
               tab.active &&
                 'hover-hover:!border-[var(--border)] hover-hover:!bg-[var(--bg)] hover-hover:!text-[var(--text-primary)] hover-hover:!brightness-100 hover-hover:!opacity-100 relative z-10 border-[var(--border)] bg-[var(--bg)] text-[var(--text-primary)] transition-none'
             )}
-            onClick={() => onSelect(tab.id, 'pointer')}
+            onClick={(event) => onSelect(tab.id, 'pointer', event)}
             onKeyDown={(event) => onKeyDown(event, tab.id)}
           >
             {tab.icon}
@@ -301,7 +389,10 @@ export function TabStrip({
   onTabDragStart,
   maxTabs,
   newTabLabel = 'New tab',
-  children,
+  newTabControl,
+  endActions,
+  overlays,
+  className,
 }: TabStripProps) {
   const atLimit = maxTabs !== undefined && tabs.length >= maxTabs
   const stripRef = useRef<HTMLDivElement>(null)
@@ -434,8 +525,18 @@ export function TabStrip({
       }
       // The strip knows about ordering and nothing else. Anything a tab means
       // outside it — the page it holds, the shell it runs — belongs to whoever
-      // owns the tabs, so they attach it.
-      onTabDragStart?.(event, id)
+      // owns the tabs, so they attach it, and they may decline the reorder the
+      // strip just started tracking.
+      let reorderPrevented = false
+      onTabDragStart?.(event, id, {
+        preventReorder: () => {
+          reorderPrevented = true
+        },
+      })
+      if (reorderPrevented) {
+        draggedIdRef.current = null
+        setDraggedId(null)
+      }
     },
     [reorderable, onTabDragStart]
   )
@@ -577,7 +678,13 @@ export function TabStrip({
   return (
     <div
       ref={stripRef}
-      className='flex h-[34px] shrink-0 select-none items-end gap-1 border-[var(--border)] border-b bg-transparent px-2 pt-1'
+      // Geometry reads from custom properties with defaults baked into the
+      // `var()` calls, so a caller resizes the strip by setting a property
+      // rather than by passing a utility class that has to out-merge this one.
+      className={cn(
+        'flex h-[var(--tab-strip-height,34px)] shrink-0 select-none items-end gap-1 border-[var(--border)] border-b bg-transparent pt-1 pr-[var(--tab-strip-inline-end,8px)] pl-[var(--tab-strip-inline-start,8px)]',
+        className
+      )}
       onDragOver={handleDragOver}
       onDragLeave={(event) => {
         if (
@@ -636,7 +743,13 @@ export function TabStrip({
           )}
         </div>
       </div>
-      {onNew && (
+      {/* Both slots sit in the tab row's band so whatever fills them lines up
+          with the tabs rather than with the taller strip box. */}
+      {newTabControl ? (
+        <div className='mb-px flex h-[var(--tab-strip-band,30px)] shrink-0 items-center'>
+          {newTabControl}
+        </div>
+      ) : onNew ? (
         <Tooltip.Root>
           <Tooltip.Trigger asChild>
             <Button
@@ -644,7 +757,7 @@ export function TabStrip({
               variant='ghost-secondary'
               size='sm'
               aria-label={newTabLabel}
-              className='mb-px size-[30px] shrink-0 p-0'
+              className='mb-px size-[var(--tab-strip-band,30px)] shrink-0 p-0'
               disabled={atLimit}
               onClick={onNew}
             >
@@ -655,8 +768,13 @@ export function TabStrip({
             {atLimit ? `Maximum of ${maxTabs} tabs` : newTabLabel}
           </Tooltip.Content>
         </Tooltip.Root>
+      ) : null}
+      {endActions && (
+        <div className='mb-px ml-auto flex h-[var(--tab-strip-band,30px)] shrink-0 items-center gap-1'>
+          {endActions}
+        </div>
       )}
-      {children}
+      {overlays}
     </div>
   )
 }

@@ -183,10 +183,12 @@ export { Switch } from './switch/switch'
 export {
   isTabTitleTruncated,
   TabStrip,
+  type TabStripDragContext,
   type TabStripItem,
   type TabStripProps,
   type TabStripSelectionSource,
   tabDropIndex,
+  tabStripItemSelector,
   tabStripWheelPosition,
 } from './tab-strip/tab-strip'
 export {

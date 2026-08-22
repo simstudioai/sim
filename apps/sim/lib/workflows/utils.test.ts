@@ -13,6 +13,9 @@ import {
   createWorkflowRecord,
   expectWorkflowAccessDenied,
   expectWorkflowAccessGranted,
+  queueTableRows,
+  resetDbChainMock,
+  schemaMock,
   workflowAuthzMockFns,
 } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -23,7 +26,11 @@ afterAll(() => {
   mockAuthorizeWorkflow.mockReset()
 })
 
-import { createHttpResponseFromBlock, validateWorkflowPermissions } from '@/lib/workflows/utils'
+import {
+  createHttpResponseFromBlock,
+  deduplicateWorkflowName,
+  validateWorkflowPermissions,
+} from '@/lib/workflows/utils'
 
 const mockSession = createSession({ userId: 'user-1', email: 'user1@test.com' })
 const mockWorkflow = createWorkflowRecord({
@@ -54,6 +61,23 @@ const denied = (status: number, message: string, workspacePermission: string | n
   message,
   workflow: mockWorkflow,
   workspacePermission,
+})
+
+describe('deduplicateWorkflowName', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
+  it('appends the next available numerical suffix within the workflow folder', async () => {
+    queueTableRows(schemaMock.workflow, [{ id: 'workflow-1' }])
+    queueTableRows(schemaMock.workflow, [{ id: 'workflow-2' }])
+    queueTableRows(schemaMock.workflow, [])
+
+    await expect(deduplicateWorkflowName('city-grove', 'workspace-1', null)).resolves.toBe(
+      'city-grove (3)'
+    )
+  })
 })
 
 describe('validateWorkflowPermissions', () => {
