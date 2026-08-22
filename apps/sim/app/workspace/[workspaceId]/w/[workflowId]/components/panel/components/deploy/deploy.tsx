@@ -54,6 +54,13 @@ export function Deploy({ activeWorkflowId, userPermissions, disabled = false }: 
     isDeploying ||
     !canDeploy ||
     isEmpty ||
+    /*
+     * A click is interpreted against `isDeployed`: deployed opens the modal,
+     * undeployed deploys. While that is unknown the click has no defined
+     * meaning, and guessing "undeployed" would turn a failed info read into an
+     * unintended new version.
+     */
+    buttonStatus === 'unknown' ||
     (!isDeployed && deployReadiness.isBlocked && !deployReadiness.isSyncing)
 
   const onDeployClick = async () => {

@@ -52,6 +52,8 @@ export function useDeploymentViewState({
   deployReadiness,
 }: UseDeploymentViewStateProps): DeploymentViewState {
   const { data: deploymentInfo } = useDeploymentInfo(workflowId, { enabled })
+  /* Undefined covers both "still loading" and "the request failed". */
+  const isDeploymentInfoResolved = deploymentInfo !== undefined
   const isDeployed = deploymentInfo?.isDeployed ?? false
 
   const snapshotEnabled = Boolean(workflowId) && isDeployed && enabled
@@ -77,6 +79,7 @@ export function useDeploymentViewState({
 
   const status = resolveDeployButtonStatus({
     workflowId,
+    isDeploymentInfoResolved,
     isDeployed,
     isAwaitingFirstDeployedState: isLoadingDeployedState,
     clientChangeDetected: changeDetected,
@@ -99,7 +102,12 @@ export function useDeploymentViewState({
     status,
     isDeployed,
     deployedState,
-    isAwaitingSnapshot: snapshotEnabled && deployedState === null,
+    /*
+     * "We cannot show you the live workflow yet" covers both a snapshot in
+     * flight and not knowing whether one exists. Neither is evidence the
+     * workflow is undeployed, so neither may render as that claim.
+     */
+    isAwaitingSnapshot: status === 'unknown' || (snapshotEnabled && deployedState === null),
     isSettling,
     changeDetected,
     changedFields,

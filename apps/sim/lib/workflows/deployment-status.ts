@@ -1,4 +1,5 @@
 import { db, workflowDeploymentVersion } from '@sim/db'
+import { workflow as workflowTable } from '@sim/db/schema'
 import { and, desc, eq, sql } from 'drizzle-orm'
 import { hasWorkflowChanged } from '@/lib/workflows/comparison'
 import {
@@ -22,12 +23,23 @@ import type { WorkflowState } from '@/stores/workflows/workflow/types'
 export async function checkNeedsRedeployment(workflowId: string): Promise<boolean> {
   return db.transaction(async (tx) => {
     await tx.execute(sql`SET TRANSACTION ISOLATION LEVEL REPEATABLE READ`)
+    /*
+     * `workspaceId` is selected here, in this transaction, rather than left for
+     * `materializeDeploymentState` to look up. It resolves an absent one through
+     * `getActiveWorkflowContext`, which runs on the global pool — a second
+     * connection checkout while this transaction already holds one. Under any
+     * concurrency (this endpoint is polled, and refetches on window focus) that
+     * starves the pool and fails the nested read, surfacing as a 500 on
+     * `/api/workflows/[id]/deploy`. A transaction must not await a checkout.
+     */
     const [active] = await tx
       .select({
         id: workflowDeploymentVersion.id,
         state: workflowDeploymentVersion.state,
+        workspaceId: workflowTable.workspaceId,
       })
       .from(workflowDeploymentVersion)
+      .innerJoin(workflowTable, eq(workflowTable.id, workflowDeploymentVersion.workflowId))
       .where(
         and(
           eq(workflowDeploymentVersion.workflowId, workflowId),
@@ -37,7 +49,8 @@ export async function checkNeedsRedeployment(workflowId: string): Promise<boolea
       .orderBy(desc(workflowDeploymentVersion.createdAt))
       .limit(1)
 
-    if (!active?.state) return false
+    /* The inner join guarantees a workspace row; a null id means unusable data. */
+    if (!active?.state || !active.workspaceId) return false
 
     /*
      * Sequential, not `Promise.all`: both reads share the transaction's single
@@ -46,7 +59,12 @@ export async function checkNeedsRedeployment(workflowId: string): Promise<boolea
     const currentState = await loadWorkflowDeploymentSnapshot(workflowId, tx)
     if (!currentState) return false
 
-    const deployedState = await materializeDeploymentState(workflowId, active, undefined, tx)
+    const deployedState = await materializeDeploymentState(
+      workflowId,
+      active,
+      active.workspaceId,
+      tx
+    )
 
     return hasWorkflowChanged(currentState, deployedState as WorkflowState)
   })

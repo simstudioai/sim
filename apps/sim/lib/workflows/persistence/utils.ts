@@ -145,7 +145,20 @@ export function invalidateDeployedStateCache(deploymentVersionId?: string): void
   deployedStateCache.clear()
 }
 
-export interface DeploymentStateRow {
+export /**
+ * Only for entry points that are NOT inside a transaction — it checks out a
+ * connection of its own.
+ */
+async function resolveWorkspaceId(workflowId: string, provided?: string): Promise<string> {
+  if (provided) return provided
+  const workflowContext = await getActiveWorkflowContext(workflowId)
+  if (!workflowContext?.workspaceId) {
+    throw new Error(`Workflow ${workflowId} has no workspace`)
+  }
+  return workflowContext.workspaceId
+}
+
+interface DeploymentStateRow {
   id: string
   state: unknown
 }
@@ -160,10 +173,18 @@ export interface DeploymentStateRow {
  * the handle canonicalization and the `errorEnabled` backfill below, the two
  * surfaces answered the same question differently for the same workflow.
  */
+/**
+ * `workspaceId` is required rather than resolved here on purpose. Resolving it
+ * means `getActiveWorkflowContext`, which runs on the global pool — and this
+ * function is called from inside a REPEATABLE READ transaction by
+ * `checkNeedsRedeployment`, where a second connection checkout while holding one
+ * starves the pool under concurrency and fails the nested read. Taking it as an
+ * argument makes that impossible instead of merely avoided.
+ */
 export async function materializeDeploymentState(
   workflowId: string,
   version: DeploymentStateRow,
-  providedWorkspaceId?: string,
+  workspaceId: string,
   executor?: DbOrTx
 ): Promise<DeployedWorkflowData> {
   const cached = deployedStateCache.get(version.id)
@@ -172,19 +193,10 @@ export async function materializeDeploymentState(
   }
 
   const state = version.state as WorkflowState & { variables?: Record<string, unknown> }
-  let resolvedWorkspaceId = providedWorkspaceId
-  if (!resolvedWorkspaceId) {
-    const workflowContext = await getActiveWorkflowContext(workflowId)
-    resolvedWorkspaceId = workflowContext?.workspaceId
-  }
-
-  if (!resolvedWorkspaceId) {
-    throw new Error(`Workflow ${workflowId} has no workspace`)
-  }
 
   const { blocks: migratedBlocks } = await applyBlockMigrations(
     state.blocks || {},
-    resolvedWorkspaceId,
+    workspaceId,
     executor
   )
   /*
@@ -255,7 +267,11 @@ export async function loadDeployedWorkflowState(
       throw new NoActiveDeploymentError(workflowId)
     }
 
-    return materializeDeploymentState(workflowId, active, providedWorkspaceId)
+    return materializeDeploymentState(
+      workflowId,
+      active,
+      await resolveWorkspaceId(workflowId, providedWorkspaceId)
+    )
   } catch (error) {
     logger.error(`Error loading deployed workflow state ${workflowId}:`, error)
     throw error
@@ -288,7 +304,11 @@ export async function loadWorkflowDeploymentVersionState(
     throw new Error(`Deployment ${deploymentVersionId} was not found for workflow ${workflowId}`)
   }
 
-  return materializeDeploymentState(workflowId, version, providedWorkspaceId)
+  return materializeDeploymentState(
+    workflowId,
+    version,
+    await resolveWorkspaceId(workflowId, providedWorkspaceId)
+  )
 }
 
 interface MigrationContext {

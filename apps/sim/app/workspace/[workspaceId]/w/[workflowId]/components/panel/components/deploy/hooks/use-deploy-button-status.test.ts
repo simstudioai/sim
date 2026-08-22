@@ -11,6 +11,7 @@ type Input = Parameters<typeof resolveDeployButtonStatus>[0]
 
 const base: Input = {
   workflowId: 'wf-1',
+  isDeploymentInfoResolved: false,
   isDeployed: false,
   isAwaitingFirstDeployedState: false,
   clientChangeDetected: false,
@@ -39,9 +40,15 @@ describe('resolveDeployButtonStatus', () => {
       // 1. Nothing loaded.
       {},
       // 2. deploymentInfo lands — isDeployed and needsRedeployment arrive together.
-      { isDeployed: true, serverNeedsRedeployment: true, isAwaitingFirstDeployedState: true },
+      {
+        isDeploymentInfoResolved: true,
+        isDeployed: true,
+        serverNeedsRedeployment: true,
+        isAwaitingFirstDeployedState: true,
+      },
       // 3. The deployed snapshot lands; the client diff agrees.
       {
+        isDeploymentInfoResolved: true,
         isDeployed: true,
         serverNeedsRedeployment: true,
         hasDeployedState: true,
@@ -49,18 +56,28 @@ describe('resolveDeployButtonStatus', () => {
       },
     ])
 
-    expect(statuses).toEqual(['undeployed', 'changed'])
+    expect(statuses).toEqual(['unknown', 'changed'])
     expect(statuses).not.toContain('live')
   })
 
   it('settles straight to live for a deployed workflow with no changes', () => {
     const statuses = committed([
       {},
-      { isDeployed: true, serverNeedsRedeployment: false, isAwaitingFirstDeployedState: true },
-      { isDeployed: true, serverNeedsRedeployment: false, hasDeployedState: true },
+      {
+        isDeploymentInfoResolved: true,
+        isDeployed: true,
+        serverNeedsRedeployment: false,
+        isAwaitingFirstDeployedState: true,
+      },
+      {
+        isDeploymentInfoResolved: true,
+        isDeployed: true,
+        serverNeedsRedeployment: false,
+        hasDeployedState: true,
+      },
     ])
 
-    expect(statuses).toEqual(['undeployed', 'live'])
+    expect(statuses).toEqual(['unknown', 'live'])
     expect(statuses).not.toContain('changed')
   })
 
@@ -70,6 +87,7 @@ describe('resolveDeployButtonStatus', () => {
    */
   it('holds its answer across a background refetch', () => {
     const settled: Partial<Input> = {
+      isDeploymentInfoResolved: true,
       isDeployed: true,
       serverNeedsRedeployment: true,
       hasDeployedState: true,
@@ -90,6 +108,7 @@ describe('resolveDeployButtonStatus', () => {
     // Unsaved edits: the server still describes the persisted draft.
     const status = resolveDeployButtonStatus({
       ...base,
+      isDeploymentInfoResolved: true,
       isDeployed: true,
       serverNeedsRedeployment: false,
       hasDeployedState: true,
@@ -103,9 +122,40 @@ describe('resolveDeployButtonStatus', () => {
     expect(resolveDeployButtonStatus({ ...base, workflowId: null })).toBe('undeployed')
   })
 
+  /**
+   * `GET /api/workflows/[id]/deploy` returning 500 made `isDeployed` default to
+   * false, which rendered a live workflow as "Deploy" beside a version list
+   * showing v4 live — an absence of information presented as a fact.
+   *
+   * The click is also interpreted against the same flag (deployed opens the
+   * modal, undeployed deploys), so guessing here decides an action, not just a
+   * label. Both reasons say the same thing: do not answer until asked.
+   */
+  it('does not claim undeployed when deployment info has not answered', () => {
+    const status = resolveDeployButtonStatus({
+      ...base,
+      isDeploymentInfoResolved: false,
+      isDeployed: false,
+    })
+
+    expect(status).toBe('unknown')
+    expect(status).not.toBe('undeployed')
+  })
+
+  it('reports undeployed only once info has actually said so', () => {
+    const status = resolveDeployButtonStatus({
+      ...base,
+      isDeploymentInfoResolved: true,
+      isDeployed: false,
+    })
+
+    expect(status).toBe('undeployed')
+  })
+
   it('falls back to unknown only when deployed with no verdict from either side', () => {
     const status = resolveDeployButtonStatus({
       ...base,
+      isDeploymentInfoResolved: true,
       isDeployed: true,
       isAwaitingFirstDeployedState: true,
       serverNeedsRedeployment: undefined,

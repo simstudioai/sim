@@ -10,6 +10,12 @@ export type DeployButtonStatus = 'unknown' | 'undeployed' | 'live' | 'changed'
 
 interface ResolveDeployButtonStatusInput {
   workflowId: string | null
+  /**
+   * Whether deployment info has actually answered. `isDeployed` defaults to
+   * `false` while the request is pending OR failed, so without this the two are
+   * indistinguishable and a 500 reads as "not deployed".
+   */
+  isDeploymentInfoResolved: boolean
   isDeployed: boolean
   /** True only before the FIRST deployed snapshot lands — never on a refetch. */
   isAwaitingFirstDeployedState: boolean
@@ -49,13 +55,27 @@ interface ResolveDeployButtonStatusInput {
  */
 export function resolveDeployButtonStatus({
   workflowId,
+  isDeploymentInfoResolved,
   isDeployed,
   isAwaitingFirstDeployedState,
   clientChangeDetected,
   hasDeployedState,
   serverNeedsRedeployment,
 }: ResolveDeployButtonStatusInput): DeployButtonStatus {
-  if (!workflowId || !isDeployed) return 'undeployed'
+  if (!workflowId) return 'undeployed'
+
+  /*
+   * Not knowing is its own answer. `isDeployed` is `deploymentInfo?.isDeployed
+   * ?? false`, so a pending or FAILED info request is indistinguishable from a
+   * genuinely undeployed workflow — and a transient 500 on that endpoint
+   * rendered a live workflow as "Deploy", next to a version list showing v4
+   * live. Worse, the chip acts on that: with `isDeployed` false a click runs a
+   * fresh deploy instead of opening the modal, so a failed read could be
+   * converted into an unintended new version.
+   */
+  if (!isDeploymentInfoResolved) return 'unknown'
+
+  if (!isDeployed) return 'undeployed'
 
   if (hasDeployedState && !isAwaitingFirstDeployedState) {
     return clientChangeDetected ? 'changed' : 'live'

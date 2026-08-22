@@ -186,13 +186,14 @@ async function main(): Promise<void> {
       const webhooks = webhooksByWorkflow.get(row.workflowId)
       if (webhooksOnly && !webhooks) continue
 
+      if (!row.workspaceId) continue
       const current = await loadWorkflowDeploymentSnapshot(row.workflowId)
       if (!current) continue
 
       const deployed = await materializeDeploymentState(
         row.workflowId,
         { id: row.versionId, state: row.state },
-        row.workspaceId ?? undefined
+        row.workspaceId
       )
 
       const currentBlocks =
