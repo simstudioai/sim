@@ -21,13 +21,12 @@ const logger = createLogger('DataverseUploadFileAPI')
 /** Dataverse Web API's absolute ceiling for a single-request (non-chunked) file column upload. */
 const DATAVERSE_SINGLE_REQUEST_UPLOAD_MAX_BYTES = 128 * 1024 * 1024
 
-function uploadTooLargeError(observedBytes?: number): NextResponse {
-  const sizeLabel =
-    observedBytes === undefined ? '' : `(${(observedBytes / (1024 * 1024)).toFixed(2)}MB) `
+function uploadTooLargeError(observedBytes: number): NextResponse {
+  const sizeMB = (observedBytes / (1024 * 1024)).toFixed(2)
   return NextResponse.json(
     {
       success: false,
-      error: `File size ${sizeLabel}exceeds Dataverse's 128MB limit for single-request file column uploads. Split the file and use chunked upload instead.`,
+      error: `File size (${sizeMB}MB) exceeds Dataverse's 128MB limit for single-request file column uploads. Split the file and use chunked upload instead.`,
     },
     { status: 400 }
   )
@@ -97,7 +96,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       } catch (error) {
         const notReady = docNotReadyResponse(error)
         if (notReady) return notReady
-        if (isPayloadSizeLimitError(error)) return uploadTooLargeError(error.observedBytes)
+        if (isPayloadSizeLimitError(error))
+          return uploadTooLargeError(error.observedBytes ?? userFile.size)
         logger.error(`[${requestId}] Failed to download file from storage:`, error)
         return NextResponse.json(
           { success: false, error: getErrorMessage(error, 'Failed to download file') },

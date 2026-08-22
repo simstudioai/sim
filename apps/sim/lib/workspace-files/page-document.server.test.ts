@@ -45,37 +45,46 @@ function documentReferencing(ids: string[]) {
 describe('renderSimPageDocumentWithAssets memory bounds', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockDownloadFile.mockImplementation(async ({ maxBytes }) => Buffer.alloc(maxBytes ?? 4 * MB))
   })
 
-  it('stops inlining once the per-document budget is spent, without fetching the rest', async () => {
-    // Five 8MB images against a 32MB document budget: four fit, the fifth must not
-    // even be downloaded — discovering its size after the fact is the bug.
-    const ids = ['a', 'b', 'c', 'd', 'e']
+  it('charges the budget by delivered bytes, not by what the metadata claimed', async () => {
+    // Every row claims to be tiny; the objects are 8MB each. The budget must still
+    // stop at 32MB — planning off the recorded size would admit all six.
+    const ids = ['a', 'b', 'c', 'd', 'e', 'f']
     mockRenderSimPageDocument.mockReturnValue(documentReferencing(ids))
-    mockGetFileMetadataById.mockImplementation(async (id: string) => imageRecord(id, 8 * MB))
+    mockGetFileMetadataById.mockImplementation(async (id: string) => imageRecord(id, 1024))
     mockDownloadFile.mockImplementation(async () => Buffer.alloc(8 * MB))
 
     const html = await renderSimPageDocumentWithAssets('source', { workspaceId: WORKSPACE_ID })
 
     expect(mockDownloadFile).toHaveBeenCalledTimes(4)
-    // The image that did not fit keeps its URL reference rather than failing the render.
+    // The images past the budget keep their URL reference rather than failing the render.
     expect(html).toContain('src="/api/files/view/e"')
+    expect(html).toContain('src="/api/files/view/f"')
   })
 
-  it('never fetches an image whose recorded size already exceeds the per-image limit', async () => {
-    mockRenderSimPageDocument.mockReturnValue(documentReferencing(['big']))
-    mockGetFileMetadataById.mockResolvedValue(imageRecord('big', 9 * MB))
+  it('offers each download only what the budget has left', async () => {
+    mockRenderSimPageDocument.mockReturnValue(documentReferencing(['a', 'b']))
+    mockGetFileMetadataById.mockImplementation(async (id: string) => imageRecord(id, 1024))
+    mockDownloadFile.mockImplementation(async () => Buffer.alloc(30 * MB))
 
-    const html = await renderSimPageDocumentWithAssets('source', { workspaceId: WORKSPACE_ID })
+    await renderSimPageDocumentWithAssets('source', { workspaceId: WORKSPACE_ID })
 
-    expect(mockDownloadFile).not.toHaveBeenCalled()
-    expect(html).toContain('src="/api/files/view/big"')
+    expect(mockDownloadFile).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ maxBytes: 8 * MB })
+    )
+    // 30MB delivered leaves 2MB, which is below the per-image limit and becomes the cap.
+    expect(mockDownloadFile).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ maxBytes: 2 * MB })
+    )
   })
 
-  it('caps each download so a row understating its object cannot be inlined', async () => {
-    mockRenderSimPageDocument.mockReturnValue(documentReferencing(['liar']))
-    mockGetFileMetadataById.mockResolvedValue(imageRecord('liar', 1024))
+  it('never offers a download more than the per-image limit', async () => {
+    mockRenderSimPageDocument.mockReturnValue(documentReferencing(['solo']))
+    mockGetFileMetadataById.mockResolvedValue(imageRecord('solo', 1024))
+    mockDownloadFile.mockResolvedValue(Buffer.from('png-bytes'))
 
     await renderSimPageDocumentWithAssets('source', { workspaceId: WORKSPACE_ID })
 
@@ -85,13 +94,13 @@ describe('renderSimPageDocumentWithAssets memory bounds', () => {
   })
 
   it('keeps the URL reference when a capped download rejects', async () => {
-    mockRenderSimPageDocument.mockReturnValue(documentReferencing(['liar']))
-    mockGetFileMetadataById.mockResolvedValue(imageRecord('liar', 1024))
+    mockRenderSimPageDocument.mockReturnValue(documentReferencing(['big']))
+    mockGetFileMetadataById.mockResolvedValue(imageRecord('big', 1024))
     mockDownloadFile.mockRejectedValue(new Error('storage download exceeds maximum size'))
 
     const html = await renderSimPageDocumentWithAssets('source', { workspaceId: WORKSPACE_ID })
 
-    expect(html).toContain('src="/api/files/view/liar"')
+    expect(html).toContain('src="/api/files/view/big"')
   })
 
   it('inlines images that fit and leaves cross-workspace references alone', async () => {
