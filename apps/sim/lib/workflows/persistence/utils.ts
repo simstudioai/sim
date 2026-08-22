@@ -145,9 +145,12 @@ export function invalidateDeployedStateCache(deploymentVersionId?: string): void
   deployedStateCache.clear()
 }
 
-export /**
- * Only for entry points that are NOT inside a transaction — it checks out a
- * connection of its own.
+/**
+ * Deliberately module-private: it queries the global pool, so calling it inside
+ * a transaction callback is the nested checkout `packages/db/tx-tripwire.ts`
+ * throws on. Keeping it unexported is what stops a future caller reaching for it
+ * from somewhere that already holds a connection — the same reasoning that made
+ * `materializeDeploymentState` take a `workspaceId` instead of resolving one.
  */
 async function resolveWorkspaceId(workflowId: string, provided?: string): Promise<string> {
   if (provided) return provided
