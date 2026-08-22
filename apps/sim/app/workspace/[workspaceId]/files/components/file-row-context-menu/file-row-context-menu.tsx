@@ -15,7 +15,7 @@ import {
   FolderInput,
   Pencil,
 } from '@sim/emcn'
-import { Download, Link, Pin, Trash } from '@sim/emcn/icons'
+import { Download, Link, Pin, Send, Trash } from '@sim/emcn/icons'
 import type { MoveOptionNode } from '@/app/workspace/[workspaceId]/components/folders'
 import { renderMoveOption } from '@/app/workspace/[workspaceId]/components/folders'
 
@@ -24,6 +24,7 @@ interface FileRowContextMenuProps {
   position: { x: number; y: number }
   onClose: () => void
   onOpen: () => void
+  onCopyLink?: () => void
   onDownload?: () => void
   onRename: () => void
   onDelete: () => void
@@ -42,6 +43,7 @@ export const FileRowContextMenu = memo(function FileRowContextMenu({
   position,
   onClose,
   onOpen,
+  onCopyLink,
   onDownload,
   onRename,
   onDelete,
@@ -87,6 +89,12 @@ export const FileRowContextMenu = memo(function FileRowContextMenu({
             Open
           </DropdownMenuItem>
         )}
+        {!isMultiSelect && onCopyLink && (
+          <DropdownMenuItem onSelect={onCopyLink}>
+            <Link />
+            Copy Link
+          </DropdownMenuItem>
+        )}
         {onDownload && (
           <DropdownMenuItem onSelect={onDownload}>
             <Download />
@@ -109,7 +117,7 @@ export const FileRowContextMenu = memo(function FileRowContextMenu({
             )}
             {!isMultiSelect && onShare && (
               <DropdownMenuItem onSelect={onShare}>
-                <Link />
+                <Send />
                 Share
               </DropdownMenuItem>
             )}

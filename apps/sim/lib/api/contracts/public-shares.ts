@@ -48,8 +48,7 @@ export const upsertFileShareBodySchema = z.object({
     .max(1024, 'Password is too long')
     .optional(),
   allowedEmails: z.array(allowedEmailSchema).max(200, 'Too many allowed emails').optional(),
-  // Client-reserved token shown as the link before saving; persisted on first
-  // enable so a copied link resolves. Ignored once the share row already exists.
+  /** Client-reserved token persisted on first share. Ignored once the share row exists. */
   token: z
     .string()
     .regex(/^[A-Za-z0-9_-]+$/, 'Invalid token')
