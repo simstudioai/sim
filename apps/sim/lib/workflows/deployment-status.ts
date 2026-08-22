@@ -25,12 +25,15 @@ export async function checkNeedsRedeployment(workflowId: string): Promise<boolea
     await tx.execute(sql`SET TRANSACTION ISOLATION LEVEL REPEATABLE READ`)
     /*
      * `workspaceId` is selected here, in this transaction, rather than left for
-     * `materializeDeploymentState` to look up. It resolves an absent one through
-     * `getActiveWorkflowContext`, which runs on the global pool — a second
-     * connection checkout while this transaction already holds one. Under any
-     * concurrency (this endpoint is polled, and refetches on window focus) that
-     * starves the pool and fails the nested read, surfacing as a 500 on
-     * `/api/workflows/[id]/deploy`. A transaction must not await a checkout.
+     * `materializeDeploymentState` to look up: resolving an absent one goes
+     * through `getActiveWorkflowContext`, which queries the global pool, and
+     * this callback already holds a pooled connection.
+     *
+     * `packages/db/tx-tripwire.ts` detects exactly that and throws outside
+     * production, so it did not degrade quietly — it 500'd every
+     * `/api/workflows/[id]/deploy` in dev, reported against the authz lookup
+     * rather than anything this function wrote. Hoisting the read into the
+     * transaction is the tripwire's own first remedy.
      */
     const [active] = await tx
       .select({
@@ -52,10 +55,6 @@ export async function checkNeedsRedeployment(workflowId: string): Promise<boolea
     /* The inner join guarantees a workspace row; a null id means unusable data. */
     if (!active?.state || !active.workspaceId) return false
 
-    /*
-     * Sequential, not `Promise.all`: both reads share the transaction's single
-     * connection, which cannot serve concurrent statements.
-     */
     const currentState = await loadWorkflowDeploymentSnapshot(workflowId, tx)
     if (!currentState) return false
 

@@ -175,11 +175,11 @@ interface DeploymentStateRow {
  */
 /**
  * `workspaceId` is required rather than resolved here on purpose. Resolving it
- * means `getActiveWorkflowContext`, which runs on the global pool — and this
- * function is called from inside a REPEATABLE READ transaction by
- * `checkNeedsRedeployment`, where a second connection checkout while holding one
- * starves the pool under concurrency and fails the nested read. Taking it as an
- * argument makes that impossible instead of merely avoided.
+ * means `getActiveWorkflowContext`, which queries the global pool, and
+ * `checkNeedsRedeployment` calls this from inside a REPEATABLE READ transaction
+ * that already holds a pooled connection — the nested checkout
+ * `packages/db/tx-tripwire.ts` exists to catch. Taking the id as an argument
+ * makes the violation unrepresentable rather than merely avoided.
  */
 export async function materializeDeploymentState(
   workflowId: string,
