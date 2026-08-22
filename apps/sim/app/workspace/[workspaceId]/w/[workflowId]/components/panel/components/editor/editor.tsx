@@ -23,11 +23,11 @@ import { isRetryEligibleBlock } from '@/lib/workflows/blocks/retry-eligibility'
 import {
   buildCanonicalIndex,
   evaluateSubBlockCondition,
+  getCanonicalSubBlocksForSurface,
   hasAdvancedValues,
   isCanonicalPair,
   isStandaloneAdvancedMode,
   resolveCanonicalMode,
-  shouldUseSubBlockForTriggerModeCanonicalIndex,
 } from '@/lib/workflows/subblocks/visibility'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import {
@@ -157,11 +157,10 @@ export function Editor() {
     isEqual
   )
 
-  const subBlocksForCanonical = useMemo(() => {
-    const subBlocks = blockConfig?.subBlocks || []
-    if (!triggerMode) return subBlocks
-    return subBlocks.filter(shouldUseSubBlockForTriggerModeCanonicalIndex)
-  }, [blockConfig?.subBlocks, triggerMode])
+  const subBlocksForCanonical = useMemo(
+    () => getCanonicalSubBlocksForSurface(blockConfig?.subBlocks || [], triggerMode),
+    [blockConfig?.subBlocks, triggerMode]
+  )
 
   const canonicalIndex = useMemo(
     () => buildCanonicalIndex(subBlocksForCanonical),

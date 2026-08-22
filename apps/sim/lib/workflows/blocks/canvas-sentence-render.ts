@@ -3,7 +3,6 @@ import {
   getSeededSubBlockValues,
 } from '@/lib/workflows/blocks/canvas-card-fields'
 import { type CardSelector, resolveCanvasSentence } from '@/lib/workflows/blocks/canvas-sentence'
-import { buildCanonicalIndex } from '@/lib/workflows/subblocks/visibility'
 import type { BlockConfig, SubBlockConfig } from '@/blocks/types'
 
 /**
@@ -76,7 +75,6 @@ export function renderSentenceReadings(
   for (const subBlock of getCardSubBlocks(config, {
     advanced: false,
     values,
-    canonicalIndex: buildCanonicalIndex(config.subBlocks),
     triggerMode: card.mode === 'trigger',
   })) {
     if (!onCardById.has(subBlock.id)) onCardById.set(subBlock.id, subBlock)

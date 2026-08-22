@@ -30,7 +30,7 @@ import { useParams } from 'next/navigation'
 import { ReactFlowProvider } from 'reactflow'
 import { extractReferencePrefixes } from '@/lib/workflows/sanitization/references'
 import {
-  buildCanonicalIndex,
+  buildCanonicalIndexForSurface,
   evaluateSubBlockCondition,
   hasAdvancedValues,
   isSubBlockFeatureEnabled,
@@ -1055,9 +1055,10 @@ function PreviewEditorContent({
     }, {})
   }, [subBlockValues])
 
+  const effectiveTrigger = block.triggerMode === true
   const canonicalIndex = useMemo(
-    () => buildCanonicalIndex(blockConfig?.subBlocks || []),
-    [blockConfig?.subBlocks]
+    () => buildCanonicalIndexForSurface(blockConfig?.subBlocks || [], effectiveTrigger),
+    [blockConfig?.subBlocks, effectiveTrigger]
   )
 
   const isSubflow = block.type === 'loop' || block.type === 'parallel'
@@ -1118,7 +1119,6 @@ function PreviewEditorContent({
     hasAdvancedValues(blockConfig.subBlocks, rawValues, canonicalIndex)
 
   const isPureTriggerBlock = blockConfig.triggers?.enabled && blockConfig.category === 'triggers'
-  const effectiveTrigger = block.triggerMode === true
 
   const visibleSubBlocks = blockConfig.subBlocks.filter((subBlock) => {
     if (subBlock.hidden || subBlock.hideFromPreview) return false
