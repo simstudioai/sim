@@ -120,6 +120,14 @@ export function useConnectorDetail(knowledgeBaseId?: string, connectorId?: strin
   })
 }
 
+/**
+ * Writes the status into both caches that render it.
+ *
+ * The detail query drives its own sync poll off its own copy of `status`, so
+ * patching only the list would leave an already-expanded card reading `active`,
+ * never starting that poll, and showing stale sync history behind the list's
+ * spinner.
+ */
 function setCachedConnectorStatus(
   queryClient: QueryClient,
   knowledgeBaseId: string,
@@ -130,6 +138,10 @@ function setCachedConnectorStatus(
     connectors?.map((connector) =>
       connector.id === connectorId ? { ...connector, status } : connector
     )
+  )
+  queryClient.setQueryData<ConnectorDetailData>(
+    connectorKeys.detail(knowledgeBaseId, connectorId),
+    (detail) => (detail ? { ...detail, status } : detail)
   )
 }
 

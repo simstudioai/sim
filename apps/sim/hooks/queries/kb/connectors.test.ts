@@ -78,6 +78,16 @@ function capturedQueryOptions<TData>(): PollableQueryOptions<TData> {
   return mocks.useQuery.mock.calls.at(-1)?.[0] as PollableQueryOptions<TData>
 }
 
+/**
+ * The status write patches the list and the detail cache, so pick the call for
+ * the list rather than whichever landed last.
+ */
+function lastListStatusUpdater() {
+  const listKey = JSON.stringify(connectorKeys.lists(KB_ID))
+  const call = mocks.setQueryData.mock.calls.filter((c) => JSON.stringify(c[0]) === listKey).at(-1)
+  return call?.[1] as (connectors?: ConnectorData[]) => ConnectorData[] | undefined
+}
+
 describe('isConnectorSyncingOrPending', () => {
   it('treats a queued sync as in flight', () => {
     expect(isConnectorSyncingOrPending(makeConnector({ status: 'pending' }))).toBe(true)
@@ -171,7 +181,11 @@ describe('useTriggerSync optimistic state', () => {
   function capturedMutationOptions() {
     return mocks.useMutation.mock.calls.at(-1)?.[0] as {
       onMutate: (vars: { knowledgeBaseId: string; connectorId: string }) => Promise<unknown>
-      onError: (error: unknown, vars: unknown, context: unknown) => void
+      onError: (
+        error: unknown,
+        vars: { knowledgeBaseId: string; connectorId: string },
+        context: unknown
+      ) => void
     }
   }
 
@@ -184,11 +198,7 @@ describe('useTriggerSync optimistic state', () => {
 
     /** `all`, not `lists`: the detail query polls the same status and must not land after the settle. */
     expect(mocks.cancelQueries).toHaveBeenCalledWith({ queryKey: connectorKeys.all(KB_ID) })
-    const [, updater] = mocks.setQueryData.mock.calls.at(-1) as [
-      unknown,
-      (connectors?: ConnectorData[]) => ConnectorData[] | undefined,
-    ]
-    expect(updater(existing)?.[0].status).toBe('pending')
+    expect(lastListStatusUpdater()(existing)?.[0].status).toBe('pending')
   })
 
   it('restores the previous status when the request fails', async () => {
@@ -200,13 +210,13 @@ describe('useTriggerSync optimistic state', () => {
     const context = await options.onMutate({ knowledgeBaseId: KB_ID, connectorId: 'connector-1' })
 
     mocks.setQueryData.mockClear()
-    options.onError(new Error('boom'), {}, context)
+    options.onError(
+      new Error('boom'),
+      { knowledgeBaseId: KB_ID, connectorId: 'connector-1' },
+      context
+    )
 
-    const [, updater] = mocks.setQueryData.mock.calls.at(-1) as [
-      unknown,
-      (connectors?: ConnectorData[]) => ConnectorData[] | undefined,
-    ]
-    expect(updater(existing)?.[0].status).toBe('active')
+    expect(lastListStatusUpdater()(existing)?.[0].status).toBe('active')
   })
 
   /**
@@ -230,13 +240,13 @@ describe('useTriggerSync optimistic state', () => {
     )
 
     mocks.setQueryData.mockClear()
-    options.onError(new Error('boom'), {}, context)
+    options.onError(
+      new Error('boom'),
+      { knowledgeBaseId: KB_ID, connectorId: 'connector-1' },
+      context
+    )
 
-    const [, updater] = mocks.setQueryData.mock.calls.at(-1) as [
-      unknown,
-      (connectors?: ConnectorData[]) => ConnectorData[] | undefined,
-    ]
-    const rolledBack = updater(concurrent)
+    const rolledBack = lastListStatusUpdater()(concurrent)
     expect(rolledBack?.find((c) => c.id === 'connector-1')?.status).toBe('active')
     expect(rolledBack?.find((c) => c.id === 'connector-2')?.status).toBe('pending')
   })

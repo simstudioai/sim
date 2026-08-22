@@ -5,13 +5,17 @@ import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { isRecordLike } from '@sim/utils/object'
 import { tasks } from '@trigger.dev/sdk'
-import { and, eq, ne } from 'drizzle-orm'
+import { and, eq, inArray } from 'drizzle-orm'
 import {
   assertBillingAttributionSnapshot,
   type BillingAttributionSnapshot,
 } from '@/lib/billing/core/billing-attribution'
 import { resolveTriggerRegion } from '@/lib/core/async-jobs/region'
-import { connectorIsLive, executeSync } from '@/lib/knowledge/connectors/sync-engine'
+import {
+  connectorIsLive,
+  executeSync,
+  LOCKABLE_CONNECTOR_STATUSES,
+} from '@/lib/knowledge/connectors/sync-engine'
 import { isTriggerAvailable } from '@/lib/knowledge/documents/service'
 
 const logger = createLogger('ConnectorSyncQueue')
@@ -99,16 +103,20 @@ export const SYNC_DISPATCH_FAILED_ERROR = 'Sync could not be queued'
  * extra UPDATE per connector creation, which is rare; the scheduler's own
  * dispatches only ever see `active`/`error` rows and are unaffected.
  *
- * Skips a `syncing` row for the reason the lock acquisition does: a run may
- * have taken the lock between the caller's read and this write, and demoting a
- * live run to `pending` would strand it, since the reaper only looks at
- * `syncing` rows.
+ * Takes the entry only from a status a run may start from — the same
+ * {@link LOCKABLE_CONNECTOR_STATUSES} the lock acquisition uses, so queueing and
+ * starting agree on one rule. The dispatch-side guards run before this write and
+ * cannot see a status change that races it: without the allowlist, pausing a
+ * connector in the window between "Sync now" being accepted and this UPDATE
+ * landing would be silently overwritten back to `pending`. Returns `null` when
+ * it takes nothing, so the caller can skip a hand-off that would only be refused
+ * at the lock.
  */
-async function markSyncPending(connectorId: string): Promise<string> {
+async function markSyncPending(connectorId: string): Promise<string | null> {
   const dispatchToken = generateId()
   const now = new Date()
 
-  await db
+  const taken = await db
     .update(knowledgeConnector)
     .set({
       status: 'pending',
@@ -119,12 +127,13 @@ async function markSyncPending(connectorId: string): Promise<string> {
     .where(
       and(
         eq(knowledgeConnector.id, connectorId),
-        ne(knowledgeConnector.status, 'syncing'),
+        inArray(knowledgeConnector.status, LOCKABLE_CONNECTOR_STATUSES),
         connectorIsLive()
       )
     )
+    .returning({ id: knowledgeConnector.id })
 
-  return dispatchToken
+  return taken.length > 0 ? dispatchToken : null
 }
 
 /**
@@ -273,6 +282,13 @@ export async function dispatchSync(
 
   if (isTriggerAvailable()) {
     const dispatchToken = await markSyncPending(connectorId)
+    if (!dispatchToken) {
+      logger.info('Skipping sync dispatch: connector is not accepting a queued sync', {
+        connectorId,
+        requestId,
+      })
+      return
+    }
 
     /**
      * Everything between taking the queue entry and the hand-off landing has to
@@ -295,6 +311,13 @@ export async function dispatchSync(
   }
 
   const dispatchToken = await markSyncPending(connectorId)
+  if (!dispatchToken) {
+    logger.info('Skipping sync execution: connector is not accepting a queued sync', {
+      connectorId,
+      requestId,
+    })
+    return
+  }
 
   executeSync(connectorId, {
     fullSync: payload.fullSync,

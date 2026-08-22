@@ -691,6 +691,19 @@ export function holdsSyncLockToken(connectorId: string, syncLockToken: string) {
  * unrelated write to the row, so a config edit on a wedged connector used to
  * renew the lock it was meant to recover.
  */
+/**
+ * The statuses a run may take the lock from.
+ *
+ * An allowlist rather than `ne(status, 'syncing')`, because the queue outlives
+ * the decision to sync: a connector paused or disabled *after* its run was
+ * queued still had a task in flight, and a bare not-syncing test let that task
+ * lock the row and then write its own terminal status over the pause. This CAS
+ * is the single point where a run decides to start, so it is where the refusal
+ * belongs — the dispatch-side guards cannot see a status change that happens
+ * after they ran.
+ */
+export const LOCKABLE_CONNECTOR_STATUSES = ['active', 'error', 'pending'] as const
+
 export function buildSyncLockAcquisition(syncLogId: string, now: Date) {
   return {
     status: 'syncing' as const,
@@ -1567,7 +1580,7 @@ export async function executeSync(
     .where(
       and(
         eq(knowledgeConnector.id, connectorId),
-        ne(knowledgeConnector.status, 'syncing'),
+        inArray(knowledgeConnector.status, LOCKABLE_CONNECTOR_STATUSES),
         isNull(knowledgeConnector.archivedAt),
         isNull(knowledgeConnector.deletedAt)
       )
@@ -1575,6 +1588,25 @@ export async function executeSync(
     .returning({ id: knowledgeConnector.id })
 
   if (lockResult.length === 0) {
+    /**
+     * Distinguishes the two ways the CAS can find no row. Costs one read on a
+     * path that already decided not to work, and the alternative is reporting a
+     * connector someone paused as a concurrency conflict.
+     */
+    const [current] = await db
+      .select({ status: knowledgeConnector.status })
+      .from(knowledgeConnector)
+      .where(eq(knowledgeConnector.id, connectorId))
+      .limit(1)
+
+    if (current?.status === 'paused' || current?.status === 'disabled') {
+      logger.info('Connector is not accepting syncs, skipping', {
+        connectorId,
+        status: current.status,
+      })
+      return { ...result, error: 'connector_not_syncable' }
+    }
+
     logger.info('Sync already in progress, skipping', { connectorId })
     // Reported as an error so the task wrapper's `success: !result.error` does not
     // present a skipped run as a successful zero-document sync.

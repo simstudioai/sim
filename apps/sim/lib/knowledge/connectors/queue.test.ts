@@ -3,6 +3,7 @@
  */
 import {
   dbChainMockFns,
+  flattenMockConditions,
   hasMockCondition,
   type MockCondition,
   queueTableRows,
@@ -29,6 +30,7 @@ vi.mock('@/lib/knowledge/documents/service', () => ({
 vi.mock('@/lib/knowledge/connectors/sync-engine', () => ({
   executeSync: mockExecuteSync,
   connectorIsLive: () => ({ type: 'connectorIsLive' }),
+  LOCKABLE_CONNECTOR_STATUSES: ['active', 'error', 'pending'],
 }))
 
 import {
@@ -71,6 +73,8 @@ describe('connector sync queue', () => {
         kbDeletedAt: null,
       },
     ])
+    /** `markSyncPending` now reports whether it actually took the queue entry. */
+    dbChainMockFns.returning.mockResolvedValue([{ id: 'connector-1' }])
     mockIsTriggerAvailable.mockReturnValue(true)
     mockResolveTriggerRegion.mockResolvedValue('us-east-1')
     mockTrigger.mockResolvedValue({ id: 'run-1' })
@@ -201,25 +205,26 @@ describe('connector sync queue', () => {
         hasMockCondition(
           where,
           (node: MockCondition) =>
-            node.type === 'ne' && node.left === schemaMock.knowledgeConnector.status
+            node.type === 'inArray' && node.column === schemaMock.knowledgeConnector.status
         )
       )
     expect(queueWhere).toBeDefined()
 
-    expect(
-      hasMockCondition(
-        queueWhere,
-        (node: MockCondition) => node.type === 'ne' && node.right === 'pending'
-      )
-    ).toBe(false)
+    const lockable = flattenMockConditions(queueWhere).find(
+      (node: MockCondition) =>
+        node.type === 'inArray' && node.column === schemaMock.knowledgeConnector.status
+    )?.values as string[] | undefined
 
-    /** A live run still owns its row: demoting it to `pending` would strand it. */
-    expect(
-      hasMockCondition(
-        queueWhere,
-        (node: MockCondition) => node.type === 'ne' && node.right === 'syncing'
-      )
-    ).toBe(true)
+    /** The create path is born `pending`, so queueing must still take that row. */
+    expect(lockable).toContain('pending')
+
+    /**
+     * A live run owns its row, and a paused or disabled connector must not be
+     * pulled back into a queued sync by a dispatch that raced the status change.
+     */
+    expect(lockable).not.toContain('syncing')
+    expect(lockable).not.toContain('paused')
+    expect(lockable).not.toContain('disabled')
   })
 
   it('releases the queued connector when the hand-off throws', async () => {
