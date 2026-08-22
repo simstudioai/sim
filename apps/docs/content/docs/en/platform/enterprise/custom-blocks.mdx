@@ -74,7 +74,15 @@ Pick which of the workflow's outputs consumers can use, and give each one a name
 
 <Image src="/static/enterprise/custom-blocks-form.png" alt="Create block form filled in: Workspace and Workflow selectors, an uploaded icon, Name and Description fields, an expanded input with a placeholder, and two selected outputs each given a name" width={900} height={570} />
 
-### 6. Save
+### 6. Choose whether runs are traced
+
+**Trace runs in consumer logs** is off by default. Leave it off and your block stays a single step in every workflow that uses it: nothing about the run is recorded anywhere a consumer can reach.
+
+Turn it on and the block's steps appear inside the trace of every workflow that runs it, org-wide. That means anyone who can read those workflows' logs sees your workflow's block names, inputs, outputs, and prompts — including people with no access to this workspace. It is the same information curated outputs and redacted errors otherwise keep on your side of the block, so turn it on when you want consumers to be able to debug your block themselves, and leave it off otherwise.
+
+You can change this at any time; it applies to runs from that point on. Failures always return a reference id either way, so you can find a run in your own logs even with tracing off.
+
+### 7. Save
 
 Click **Save changes**. The block is published immediately and becomes available to everyone in your organization in the workflow editor's block toolbar.
 
@@ -86,7 +94,7 @@ In the workflow editor, open the block toolbar. Published custom blocks appear u
 
 <Image src="/static/enterprise/custom-blocks-toolbar.png" alt="Workflow editor block toolbar with a Custom Blocks section listing two published blocks below Core Blocks" width={400} height={476} />
 
-Consumers don't need any access to the source workflow. The block runs on its own, using only the inputs provided, and returns only the outputs you exposed. Internal steps, models, and intermediate values of the source workflow are never visible.
+Consumers don't need any access to the source workflow. The block runs on its own, using only the inputs provided, and returns only the outputs you exposed. Its internal steps, models, and intermediate values stay hidden unless the block's publisher turned on **Trace runs in consumer logs**, in which case they appear under the block in the run's trace.
 
 <Image src="/static/enterprise/custom-blocks-canvas.png" alt="A custom block connected to a Start block on the workflow canvas, with its query input filled in and the run output showing the returned fields" width={900} height={570} />
 
@@ -96,7 +104,7 @@ Consumers don't need any access to the source workflow. The block runs on its ow
 
 Open a block from **Settings → Enterprise → Custom blocks** to edit or delete it.
 
-- **Editing** changes only the block's presentation and interface — name, description, icon, input placeholders, and exposed outputs. The source workflow can't be re-pointed.
+- **Editing** changes only the block's presentation, interface, and trace policy — name, description, icon, input placeholders, exposed outputs, and whether runs are traced in consumer logs. The source workflow can't be re-pointed.
 - **Changing what the block does** is done by editing and **redeploying the source workflow**. The block picks up the new deployment automatically; there's nothing to republish.
 - **Deleting** a block is permanent. Workflows already using it will have that block removed, so replace it before deleting if it's in active use.
 
