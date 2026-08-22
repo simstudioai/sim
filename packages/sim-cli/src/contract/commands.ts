@@ -390,7 +390,9 @@ export const CLI_CONTRACT: CliContract = {
     describe: 'Apply a distinct patch to each listed row',
   },
   bulkDeleteTables: {
-    command: 'tables bulk-delete',
+    // `batch-`, not `bulk-`: `tables delete` exists, so this is the same
+    // collision rename as `files batch-delete` above and takes the same word.
+    command: 'tables batch-delete',
     flags: { folderPaths: FOLDER_PATHS_FLAG },
     confirm: 'This deletes every listed table and all of their rows.',
   },
@@ -842,6 +844,13 @@ export const CLI_CONTRACT: CliContract = {
     describe: 'Unzip an archive into a new folder beside it',
     confirm: 'This writes every file in the archive into the workspace.',
   },
+  /**
+   * Configured even though `buildGeneratedCommands` skips it: it only builds
+   * operations whose `responseMode` is `json` (runtime/build.ts), so this
+   * zip-streaming endpoint has no command today. The entry is not inert — the
+   * contract sweeps read it, and `folderPaths` must be marked for encoding
+   * here or `folder-path fields` fails.
+   */
   bulkDownloadFiles: {
     command: 'files bulk-download',
     describe: 'Download files and folders as a zip archive',
