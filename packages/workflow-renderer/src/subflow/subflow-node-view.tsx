@@ -5,6 +5,7 @@ import {
   Handle,
   internalsSymbol,
   Position,
+  useStore as useReactFlowStore,
   useStoreApi as useReactFlowStoreApi,
   useUpdateNodeInternals,
 } from 'reactflow'
@@ -343,6 +344,14 @@ export function SubflowNodeView({
   const isPreviewSelected = data?.isPreviewSelected || false
 
   const endHandleId = data.kind === 'loop' ? 'loop-end-source' : 'parallel-end-source'
+  const hasDisplayedEndEdge = useReactFlowStore(
+    useCallback(
+      (state) =>
+        state.edges.some((edge) => edge.source === id && edge.sourceHandle === endHandleId),
+      [endHandleId, id]
+    )
+  )
+  const showFixedEndPort = !data.parentId || hasDisplayedEndEdge
   const BlockIcon = data.kind === 'loop' ? Repeat : Split
   const blockName = data.name || (data.kind === 'loop' ? 'Loop' : 'Parallel')
   const blockTypeLabel = data.kind === 'loop' ? 'Loop' : 'Parallel'
@@ -474,13 +483,16 @@ export function SubflowNodeView({
         position: HANDLE_POSITIONS.SUBFLOW_CONNECTION_Y,
         plateau: CURSOR_SWELL_LENGTH_PX,
       },
-      {
+    ]
+
+    if (showFixedEndPort) {
+      ports.push({
         id: endHandleId,
         side: 'right',
         position: HANDLE_POSITIONS.SUBFLOW_CONNECTION_Y,
         plateau: CURSOR_SWELL_LENGTH_PX,
-      },
-    ]
+      })
+    }
 
     if (showActionMenu) {
       ports.push({
@@ -495,7 +507,7 @@ export function SubflowNodeView({
     }
 
     return ports
-  }, [actionMenuSwellOpen, actionMenuWidth, endHandleId, showActionMenu])
+  }, [actionMenuSwellOpen, actionMenuWidth, endHandleId, showActionMenu, showFixedEndPort])
 
   return (
     <div
