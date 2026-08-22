@@ -5,14 +5,11 @@ import { Chip, Tooltip, toast } from '@sim/emcn'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { DeployModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/components/deploy-modal/deploy-modal'
 import {
-  resolveDeployButtonStatus,
-  useChangeDetection,
-  useChangeDetectionCanary,
   useDeployment,
+  useDeploymentViewState,
   useDeployReadiness,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/hooks'
 import { useCurrentWorkflow } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-current-workflow'
-import { useDeployedWorkflowState, useDeploymentInfo } from '@/hooks/queries/deployments'
 import type { WorkspaceUserPermissions } from '@/hooks/use-user-permissions'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
@@ -28,55 +25,21 @@ export function Deploy({ activeWorkflowId, userPermissions, disabled = false }: 
   const isRegistryLoading = hydrationPhase === 'idle' || hydrationPhase === 'state-loading'
   const { hasBlocks } = useCurrentWorkflow()
 
-  const { data: deploymentInfo } = useDeploymentInfo(activeWorkflowId, {
-    enabled: !isRegistryLoading,
-  })
-  const isDeployed = deploymentInfo?.isDeployed ?? false
-
-  const isDeployedStateEnabled = Boolean(activeWorkflowId) && isDeployed && !isRegistryLoading
-  const {
-    data: deployedStateData,
-    isLoading: isLoadingDeployedState,
-    isFetching: isFetchingDeployedState,
-  } = useDeployedWorkflowState(activeWorkflowId, { enabled: isDeployedStateEnabled })
-  const deployedState = isDeployedStateEnabled ? (deployedStateData ?? null) : null
   const deployReadiness = useDeployReadiness(activeWorkflowId)
 
   /*
-   * `isLoading` (no snapshot yet), NOT `isFetching`. A background refetch — which
-   * `refetchOnWindowFocus` fires on every focus — still has the cached snapshot
-   * to compare against, so treating it as loading blanked the answer and pushed
-   * an already-correct "Update" back through "Live" and out again.
+   * One derivation for the chip, the modal preview and the modal footer. They
+   * previously each read their own mix of raw flags, which is how the preview
+   * could say "Deploy your workflow to see a preview" while the version list
+   * beneath it said `v1 (live)`.
    */
-  const { changeDetected, changedFields, isChangeDetectionSettling } = useChangeDetection({
+  const deployment = useDeploymentViewState({
     workflowId: activeWorkflowId,
-    deployedState,
-    isLoadingDeployedState,
+    enabled: !isRegistryLoading,
+    deployReadiness,
   })
-  const isDeploymentSettling = isChangeDetectionSettling || deployReadiness.isSyncing
-
-  const serverNeedsRedeployment = isDeployedStateEnabled
-    ? deploymentInfo?.needsRedeployment
-    : undefined
-
-  const buttonStatus = resolveDeployButtonStatus({
-    workflowId: activeWorkflowId,
-    isDeployed,
-    isAwaitingFirstDeployedState: isLoadingDeployedState,
-    clientChangeDetected: changeDetected,
-    hasDeployedState: deployedState !== null,
-    serverNeedsRedeployment,
-  })
-  const changeDetectedForModal = buttonStatus === 'changed'
-
-  useChangeDetectionCanary({
-    workflowId: activeWorkflowId,
-    clientChangeDetected: changeDetected,
-    clientChangedFields: changedFields,
-    serverNeedsRedeployment,
-    isSettling: isDeploymentSettling || deployedState === null,
-    isSettled: deployReadiness.status === 'ready',
-  })
+  const { status: buttonStatus, isDeployed, deployedState } = deployment
+  const isDeploymentSettling = deployment.isSettling
 
   const { isDeploying, handleDeployClick } = useDeployment({
     workflowId: activeWorkflowId,
@@ -135,7 +98,7 @@ export function Deploy({ activeWorkflowId, userPermissions, disabled = false }: 
     if (isDeploying) {
       return 'Deploying...'
     }
-    if (isChangeDetectionSettling) {
+    if (isDeploymentSettling) {
       return 'Syncing deployment state...'
     }
     if (deployReadiness.isBlocked && !isDeployed) {
@@ -151,6 +114,22 @@ export function Deploy({ activeWorkflowId, userPermissions, disabled = false }: 
   }
 
   const getButtonLabel = () => {
+    /*
+     * The label carries the busy state, matching every sibling control on this
+     * surface (`{isUndeploying ? 'Undeploying...' : 'Undeploy'}` in the modal
+     * footer) and the vocabulary `deployReadiness` already speaks. This chip was
+     * the one button that announced nothing and merely went disabled.
+     *
+     * Scoped to the deploy action, which is bounded by the mutation. The
+     * readiness states are deliberately NOT surfaced here: `saving` fires on
+     * every settled keystroke, so rendering it would reintroduce exactly the
+     * label churn this state machine exists to remove. Those stay in the
+     * tooltip, where they explain why the button is disabled.
+     */
+    if (isDeploying) {
+      return 'Deploying...'
+    }
+
     switch (buttonStatus) {
       case 'changed':
         return 'Update'
@@ -186,12 +165,8 @@ export function Deploy({ activeWorkflowId, userPermissions, disabled = false }: 
         open={isModalOpen}
         onOpenChange={setIsModalOpen}
         workflowId={activeWorkflowId}
-        isDeployed={isDeployed}
-        needsRedeployment={changeDetectedForModal}
-        deployedState={deployedState}
-        isLoadingDeployedState={isLoadingDeployedState || isFetchingDeployedState}
+        deployment={deployment}
         deployReadiness={deployReadiness}
-        isDeploymentSettling={isDeploymentSettling}
       />
     </>
   )

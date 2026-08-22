@@ -34,6 +34,8 @@ export type { ChatDetail, DeploymentVersionsResponse }
 export const DEPLOYMENT_INFO_STALE_TIME = 30 * 1000
 export const DEPLOYMENT_STATUS_REFETCH_INTERVAL = 5 * 1000
 export const DEPLOYED_WORKFLOW_STATE_STALE_TIME = 30 * 1000
+/** Retry cadence while the deployed snapshot is expected but not yet readable. */
+export const DEPLOYED_STATE_RECOVERY_INTERVAL = 3 * 1000
 export const DEPLOYMENT_VERSIONS_STALE_TIME = 30 * 1000
 export const CHAT_DEPLOYMENT_STATUS_STALE_TIME = 30 * 1000
 export const CHAT_DETAIL_STALE_TIME = 30 * 1000
@@ -158,6 +160,19 @@ export function useDeployedWorkflowState(
     queryFn: ({ signal }) => fetchDeployedWorkflowState(workflowId!, signal),
     enabled: Boolean(workflowId) && (options?.enabled ?? true),
     staleTime: DEPLOYED_WORKFLOW_STATE_STALE_TIME,
+    /*
+     * Callers enable this only once deployment info reports the workflow as
+     * deployed, so a null snapshot is a contradiction rather than an answer:
+     * the version exists but is not readable yet.
+     *
+     * Nothing re-invalidates this key when activation cuts over —
+     * `refetchDeploymentBoundary` fires while the query is still disabled, and a
+     * disabled query cannot be refetched — so the null was cached for the whole
+     * stale window. That is what put an empty preview next to a live version
+     * row. Retrying resolves the contradiction and stops the instant it does.
+     */
+    refetchInterval: (query) =>
+      query.state.data == null ? DEPLOYED_STATE_RECOVERY_INTERVAL : false,
   })
 }
 
