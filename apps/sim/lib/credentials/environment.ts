@@ -1,5 +1,11 @@
 import { db } from '@sim/db'
-import { credential, credentialMember, permissions, workspace } from '@sim/db/schema'
+import {
+  credential,
+  credentialMember,
+  permissions,
+  workspace,
+  workspaceEnvironment,
+} from '@sim/db/schema'
 import { permissionSatisfies } from '@sim/platform-authz/workspace'
 import { chunkArray } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
@@ -167,6 +173,32 @@ export async function getPersonalEnvKeyRawAccess(params: {
   }
 
   return { ownedKeys, adminKeys }
+}
+
+/**
+ * Whether the workspace holds a value under this env key, read from the authoritative
+ * `workspace_environment.variables` map.
+ *
+ * Deliberately NOT {@link getWorkspaceEnvKeyAdminAccess}'s `knownKeys`, which answers the
+ * narrower "does an `env_workspace` credential row exist". A legacy value written before the
+ * credential ACL existed has no such row yet still wins at run time, so a gate that reads
+ * `knownKeys` as "there is no workspace secret here" would let a non-admin through on exactly
+ * the keys that predate the ACL. Callers deciding whether a NAME belongs to the workspace must
+ * ask this; callers deciding who may administer an ACL keep asking `knownKeys`.
+ */
+export async function hasWorkspaceEnvValue(params: {
+  workspaceId: string
+  envKey: string
+}): Promise<boolean> {
+  const [row] = await db
+    .select({ variables: workspaceEnvironment.variables })
+    .from(workspaceEnvironment)
+    .where(eq(workspaceEnvironment.workspaceId, params.workspaceId))
+    .limit(1)
+
+  const variables = row?.variables
+  if (!variables || typeof variables !== 'object') return false
+  return Object.hasOwn(variables as Record<string, unknown>, params.envKey)
 }
 
 /**
