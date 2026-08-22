@@ -1,3 +1,9 @@
+import {
+  BLOCK_Z_BASE,
+  CONTAINER_CHILD_Z_BASE,
+  getEdgeZIndex,
+  getEdgeZIndexForTarget,
+} from '@sim/workflow-renderer'
 import { type Edge, type Node, Position } from 'reactflow'
 
 /**
@@ -61,6 +67,24 @@ export interface HighlightOptions {
   selectedBlock?: string
 }
 
+/** Semantic container depth used for z-order while docs positions stay flattened. */
+function getNestingDepth(block: PreviewBlock, blocksById: Map<string, PreviewBlock>): number {
+  let depth = 0
+  let parentId = block.parentId
+  const visited = new Set<string>()
+
+  while (parentId && !visited.has(parentId)) {
+    const parent = blocksById.get(parentId)
+    if (!parent) break
+
+    visited.add(parentId)
+    depth += 1
+    parentId = parent.parentId
+  }
+
+  return depth
+}
+
 /**
  * Converts a {@link PreviewWorkflow} to React Flow nodes and edges.
  *
@@ -81,6 +105,7 @@ export function toReactFlowElements(
 
   const nodes: Node[] = workflow.blocks.map((block, index) => {
     const isContainer = Boolean(block.size)
+    const nestingDepth = getNestingDepth(block, blocksById)
     // Nested blocks are authored relative to their container; render them at
     // absolute coordinates (not React Flow parentNode children) so the edges
     // between a container and its nested blocks render reliably and on top.
@@ -92,7 +117,7 @@ export function toReactFlowElements(
       id: block.id,
       type: isContainer ? 'previewContainer' : 'previewBlock',
       position,
-      zIndex: isContainer ? 0 : 1,
+      zIndex: isContainer ? nestingDepth : block.parentId ? CONTAINER_CHILD_Z_BASE : BLOCK_Z_BASE,
       ...(block.size ? { style: { width: block.size.width, height: block.size.height } } : {}),
       data: {
         name: block.name,
@@ -103,6 +128,7 @@ export function toReactFlowElements(
         tools: block.tools,
         hideTargetHandle: block.hideTargetHandle,
         size: block.size,
+        parentId: block.parentId,
         index,
         animate,
         isHighlighted: highlightBlock === block.id || selectedBlock === block.id,
@@ -127,6 +153,14 @@ export function toReactFlowElements(
     // so edges into and out of Loop/Parallel containers still connect.
     const sourceBlock = blocksById.get(e.source)
     const targetBlock = blocksById.get(e.target)
+    const parentContainer = blocksById.get(sourceBlock?.parentId ?? targetBlock?.parentId ?? '')
+    const baseZIndex = getEdgeZIndex(
+      parentContainer ? getNestingDepth(parentContainer, blocksById) : undefined,
+      { isHighlighted: isEdgeHighlight }
+    )
+    const targetContainerZIndex = targetBlock?.size
+      ? getNestingDepth(targetBlock, blocksById)
+      : undefined
     const sourceHandle =
       e.sourceHandle ?? (sourceBlock?.size ? `${sourceBlock.type}-end-source` : 'source')
     const targetHandle = targetBlock?.size ? undefined : 'target'
@@ -142,6 +176,7 @@ export function toReactFlowElements(
       },
       sourceHandle,
       targetHandle,
+      zIndex: getEdgeZIndexForTarget(baseZIndex, targetContainerZIndex),
       data: {
         animate,
         delay: animate ? sourceIndex * BLOCK_STAGGER + BLOCK_STAGGER : 0,
