@@ -586,10 +586,15 @@ export function extractBlockParams(block: BlockState): Record<string, any> {
   Object.values(canonicalIndex.groupsById).forEach((group) => {
     const { basicValue, advancedValue } = getCanonicalValues(group, params)
     const hasExplicitOverride = canonicalModeOverrides?.[group.canonicalId] != null
-    const pairMode =
-      hasExplicitOverride || !legacyAdvancedMode
-        ? resolveCanonicalMode(group, allValues, canonicalModeOverrides)
-        : 'advanced'
+    // Legacy `advancedMode: true` (a block flag the editor no longer writes) means "the advanced
+    // member of a PAIR wins". A group with no advanced member has nothing for it to select, so it
+    // must resolve normally - forcing 'advanced' there leaves `chosen` undefined while the sourceIds
+    // sweep below still deletes the basic member, dropping the value the block actually holds.
+    // Mirrors the `isCanonicalPair` guard `shouldSerializeSubBlock` already applies upstream.
+    const legacyAdvancedWins = legacyAdvancedMode && !hasExplicitOverride && isCanonicalPair(group)
+    const pairMode = legacyAdvancedWins
+      ? 'advanced'
+      : resolveCanonicalMode(group, allValues, canonicalModeOverrides)
     const chosen = pairMode === 'advanced' ? advancedValue : basicValue
 
     const sourceIds = [group.basicId, ...group.advancedIds].filter(Boolean) as string[]

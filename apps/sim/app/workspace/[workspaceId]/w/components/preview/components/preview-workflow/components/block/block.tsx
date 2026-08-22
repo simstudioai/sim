@@ -28,7 +28,7 @@ import {
   resolveWorkflowSelectionLabel,
 } from '@/lib/workflows/subblocks/display'
 import {
-  buildCanonicalIndex,
+  buildCanonicalIndexForSurface,
   evaluateSubBlockCondition,
   isSubBlockFeatureEnabled,
   isSubBlockVisibleForMode,
@@ -237,10 +237,11 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>
   } = data
 
   const blockConfig = getBlock(type)
+  const effectiveTrigger = isTrigger || type === 'starter'
 
   const canonicalIndex = useMemo(
-    () => buildCanonicalIndex(blockConfig?.subBlocks || []),
-    [blockConfig?.subBlocks]
+    () => buildCanonicalIndexForSurface(blockConfig?.subBlocks || [], effectiveTrigger),
+    [blockConfig?.subBlocks, effectiveTrigger]
   )
 
   const rawValues = useMemo(() => {
@@ -267,7 +268,6 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>
     if (!blockConfig?.subBlocks) return []
 
     const isPureTriggerBlock = blockConfig.triggers?.enabled && blockConfig.category === 'triggers'
-    const effectiveTrigger = isTrigger || type === 'starter'
 
     return blockConfig.subBlocks.filter((subBlock) => {
       if (subBlock.hidden) return false
@@ -308,8 +308,7 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>
     blockConfig?.subBlocks,
     blockConfig?.triggers?.enabled,
     blockConfig?.category,
-    type,
-    isTrigger,
+    effectiveTrigger,
     canonicalIndex,
     rawValues,
     canvasPresentation,
@@ -348,7 +347,6 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>
    * lightweight mode, which has no values to resolve chips from.
    */
   const sentenceSegments = useMemo(() => {
-    const effectiveTrigger = isTrigger || type === 'starter'
     if (lightweight || !blockConfig) return null
     if (type === 'condition' || type === 'router_v2' || type === 'starter') return null
 
@@ -374,7 +372,7 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>
       (subBlockId) => availableIds.has(subBlockId),
       (subBlockId) => onCardById.get(subBlockId) ?? null
     )
-  }, [lightweight, blockConfig, type, isTrigger, visibleSubBlocks, onCardById, rawValues])
+  }, [lightweight, blockConfig, type, effectiveTrigger, visibleSubBlocks, onCardById, rawValues])
 
   /**
    * Compute condition rows for condition blocks.
