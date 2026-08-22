@@ -661,11 +661,6 @@ Return ONLY the JSON object:`,
       description: 'Cursor to fetch the next page, or null on the last page',
       condition: { field: 'operation', value: 'query_rows' },
     },
-    ignoredColumns: {
-      type: 'array',
-      description: 'Columns to Return entries that matched no column and were skipped',
-      condition: { field: 'operation', value: 'query_rows' },
-    },
     insertedCount: {
       type: 'number',
       description: 'Number of rows inserted',
