@@ -33,6 +33,17 @@ const LEGACY_ANONYMOUS_WORKSPACE_FILE_SECRET_STORAGE_NAME =
 export const MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE =
   'File cannot be sent to a model because its secret provenance is unavailable'
 
+/**
+ * What can be said about the secrets a file's bytes carry.
+ *
+ * Note the deliberate mismatch with storage: the sidecar's `status` column holds only
+ * `'exact' | 'unknown'`, and a stored `'unknown'` maps to `'unrecorded'` here, not to the
+ * `'unknown'` below. Storage is recording what the writer could vouch for; this union is recording
+ * what a reader can conclude, and "the writer said it could not vouch" and "there is nothing usable
+ * to read" are different conclusions that must not share a branch — only the first is an absence a
+ * policy may relax. `'unrecorded'` is the name the shared vocabulary already uses for it
+ * (`reportUnrecordedDurableProvenance`, the `secret_provenance.unrecorded` audit action).
+ */
 export type WorkspaceFileSecretProvenance =
   | { status: 'exact'; entries: readonly WorkspaceFileSecretProvenanceEntry[] }
   /** Nothing can be said: the row is gone, the version moved, or the sidecar is stale or malformed. */
@@ -421,21 +432,29 @@ export async function replaceWorkspaceFileSecretProvenanceInTx(
   await markWorkspaceFileSecretProvenanceTrackedInTx(tx, fileId, contentUpdatedAt)
 }
 
-/** Initializes provenance for an exact file version without replacing an existing classification. */
+/**
+ * Initializes provenance for an exact file version without replacing an existing classification.
+ *
+ * Narrows to the two states the column accepts, as {@link replaceWorkspaceFileSecretProvenanceInTx}
+ * does. The union has three; the CHECK constraint permits `('exact', 'unknown')`, so forwarding the
+ * status verbatim would let an `'unrecorded'` reach the database as a value it rejects — a
+ * constraint violation aborting the enclosing transaction, not a bad row. Nothing passes one today,
+ * which is exactly why it needs saying here rather than in a caller.
+ */
 export async function initializeWorkspaceFileSecretProvenanceInTx(
   tx: DbTransaction,
   fileId: string,
   contentUpdatedAt: Date,
   provenance: WorkspaceFileSecretProvenance
 ): Promise<void> {
-  const entries =
-    provenance.status === 'exact' ? serializeExactEntriesForStorage(provenance.entries) : []
+  const isExact = provenance.status === 'exact'
+  const entries = isExact ? serializeExactEntriesForStorage(provenance.entries) : []
   await tx
     .insert(workspaceFileSecretProvenance)
     .values({
       fileId,
       contentUpdatedAt,
-      status: provenance.status,
+      status: isExact ? 'exact' : 'unknown',
       entries,
       updatedAt: new Date(),
     })

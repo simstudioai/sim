@@ -152,6 +152,24 @@ describe('workspace file secret provenance', () => {
     expect(dbChainMockFns.set).toHaveBeenCalledWith({ secretProvenanceVersion: 1 })
   })
 
+  /**
+   * The union carries three states; the column's CHECK constraint accepts two. Forwarding the
+   * status verbatim would send `'unrecorded'` to the database as a value it rejects, aborting the
+   * enclosing transaction rather than writing a bad row.
+   */
+  it('narrows an unrecorded initialization to a status the column accepts', async () => {
+    await initializeWorkspaceFileSecretProvenanceInTx(
+      dbChainMock.db as unknown as DbTransaction,
+      'file-1',
+      CONTENT_UPDATED_AT,
+      { status: 'unrecorded' }
+    )
+
+    expect(dbChainMockFns.values).toHaveBeenCalledWith(
+      expect.objectContaining({ fileId: 'file-1', status: 'unknown', entries: [] })
+    )
+  })
+
   it('rejects a marker write that cannot bind the exact tracked content version', async () => {
     dbChainMockFns.returning.mockResolvedValueOnce([])
 
