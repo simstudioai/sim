@@ -116,13 +116,14 @@ describe('route-helpers rate limiting', () => {
       )
     })
 
-    it('does not create a shared bucket when the client IP cannot be resolved', async () => {
+    it('fails closed without creating a shared bucket when the client IP cannot be resolved', async () => {
       requestUtilsMockFns.mockGetClientIp.mockReturnValueOnce(null)
       const request = createMockRequest('POST')
 
       const result = await enforceIpRateLimit('otp', request)
 
-      expect(result).toBeNull()
+      expect(result?.status).toBe(429)
+      expect(result?.headers.get('Retry-After')).toBe('60')
       expect(consume).not.toHaveBeenCalled()
     })
 

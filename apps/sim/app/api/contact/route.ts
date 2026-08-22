@@ -54,20 +54,22 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
 
   try {
     const ip = getClientIp(req)
-    if (ip) {
-      const storageKey = `public:contact:${ip}`
-      const { allowed, remaining, resetAt } = await rateLimiter.checkRateLimitDirect(
-        storageKey,
-        PUBLIC_ENDPOINT_RATE_LIMIT
-      )
+    if (!ip) {
+      logger.warn(`[${requestId}] Unable to resolve client IP for public rate limit`)
+      return NextResponse.json(TOO_MANY_REQUESTS_RESPONSE, { status: 429 })
+    }
+    const storageKey = `public:contact:${ip}`
+    const { allowed, remaining, resetAt } = await rateLimiter.checkRateLimitDirect(
+      storageKey,
+      PUBLIC_ENDPOINT_RATE_LIMIT
+    )
 
-      if (!allowed) {
-        logger.warn(`[${requestId}] Rate limit exceeded for IP ${ip}`, { remaining, resetAt })
-        return NextResponse.json(TOO_MANY_REQUESTS_RESPONSE, {
-          status: 429,
-          headers: { 'Retry-After': String(Math.ceil((resetAt.getTime() - Date.now()) / 1000)) },
-        })
-      }
+    if (!allowed) {
+      logger.warn(`[${requestId}] Rate limit exceeded for IP ${ip}`, { remaining, resetAt })
+      return NextResponse.json(TOO_MANY_REQUESTS_RESPONSE, {
+        status: 429,
+        headers: { 'Retry-After': String(Math.ceil((resetAt.getTime() - Date.now()) / 1000)) },
+      })
     }
 
     const parsed = await parseRequest(submitContactContract, req, {})
@@ -90,7 +92,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
         typeof captchaToken === 'string' && captchaToken.length > 0 ? captchaToken : null
 
       if (token) {
-        const verification = await verifyTurnstileToken({ token, remoteIp: ip ?? undefined })
+        const verification = await verifyTurnstileToken({ token, remoteIp: ip })
         if (verification.success) {
           captchaVerified = true
         } else if (!verification.transportError) {
@@ -111,10 +113,6 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       }
 
       if (!captchaVerified) {
-        if (!ip) {
-          logger.warn(`[${requestId}] Cannot enforce no-captcha rate limit without a client IP`)
-          return NextResponse.json(TOO_MANY_REQUESTS_RESPONSE, { status: 429 })
-        }
         const nocaptchaKey = `public:contact:nocaptcha:${ip}`
         const { allowed: nocaptchaAllowed } = await rateLimiter.checkRateLimitDirect(
           nocaptchaKey,

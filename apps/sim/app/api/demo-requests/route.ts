@@ -28,23 +28,28 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
 
   try {
     const ip = getClientIp(req)
-    if (ip) {
-      const storageKey = `public:demo-request:${ip}`
-      const { allowed, remaining, resetAt } = await rateLimiter.checkRateLimitDirect(
-        storageKey,
-        PUBLIC_ENDPOINT_RATE_LIMIT
+    if (!ip) {
+      logger.warn(`[${requestId}] Unable to resolve client IP for public rate limit`)
+      return NextResponse.json(
+        { error: 'Too many requests. Please try again later.' },
+        { status: 429 }
       )
+    }
+    const storageKey = `public:demo-request:${ip}`
+    const { allowed, remaining, resetAt } = await rateLimiter.checkRateLimitDirect(
+      storageKey,
+      PUBLIC_ENDPOINT_RATE_LIMIT
+    )
 
-      if (!allowed) {
-        logger.warn(`[${requestId}] Rate limit exceeded for IP ${ip}`, { remaining, resetAt })
-        return NextResponse.json(
-          { error: 'Too many requests. Please try again later.' },
-          {
-            status: 429,
-            headers: { 'Retry-After': String(Math.ceil((resetAt.getTime() - Date.now()) / 1000)) },
-          }
-        )
-      }
+    if (!allowed) {
+      logger.warn(`[${requestId}] Rate limit exceeded for IP ${ip}`, { remaining, resetAt })
+      return NextResponse.json(
+        { error: 'Too many requests. Please try again later.' },
+        {
+          status: 429,
+          headers: { 'Retry-After': String(Math.ceil((resetAt.getTime() - Date.now()) / 1000)) },
+        }
+      )
     }
 
     const parsed = await parseRequest(submitDemoRequestContract, req, {})

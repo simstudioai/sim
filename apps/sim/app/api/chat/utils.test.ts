@@ -5,6 +5,7 @@
  */
 import {
   authMockFns,
+  createMockRequest,
   encryptionMock,
   encryptionMockFns,
   loggingSessionMock,
@@ -290,10 +291,7 @@ describe('Chat API Utils', () => {
         authType: 'password',
         password: 'encrypted-password',
       }
-      const mockRequest = {
-        method: 'POST',
-        cookies: { get: vi.fn().mockReturnValue(null) },
-      } as any
+      const mockRequest = createMockRequest('POST')
       const candidate = 'password-attempt-fixture'
 
       const result = await validateChatAuth('request-id', deployment, mockRequest, {
@@ -319,13 +317,11 @@ describe('Chat API Utils', () => {
         authType: 'password',
         password: 'encrypted-password',
       }
-      const mockRequest = {
-        method: 'POST',
-        cookies: { get: vi.fn().mockReturnValue(null) },
-      } as any
+      const mockRequest = createMockRequest('POST')
+      const candidate = 'correct-password'
 
       const result = await validateChatAuth('request-id', deployment, mockRequest, {
-        password: 'correct-password',
+        password: candidate,
       })
 
       expect(result.authorized).toBe(true)

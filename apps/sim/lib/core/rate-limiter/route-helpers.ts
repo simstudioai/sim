@@ -56,14 +56,17 @@ export async function enforceUserRateLimit(
   return buildRateLimitResponse(resetAt)
 }
 
-/** Apply a per-IP token bucket when the forwarded chain resolves safely. */
+/** Apply a per-IP token bucket and fail closed when the client cannot be resolved safely. */
 export async function enforceIpRateLimit(
   bucketName: string,
   request: NextRequest,
   config: TokenBucketConfig = DEFAULT_PUBLIC_IP_ROUTE_LIMIT
 ): Promise<NextResponse | null> {
   const ip = getClientIp(request)
-  if (!ip) return null
+  if (!ip) {
+    logger.warn('Unable to resolve client IP for public rate limit', { bucket: bucketName })
+    return buildRateLimitResponse(new Date(Date.now() + config.refillIntervalMs))
+  }
   const key = `route:${bucketName}:ip:${ip}`
   const { allowed, resetAt } = await rateLimiter.checkRateLimitDirect(key, config)
   if (allowed) return null
