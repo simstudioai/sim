@@ -17,8 +17,15 @@ import type { ScriptMigration } from './types'
  * remedy.
  *
  * A new entry rather than deleting 0005's tracking row: the registry is append-only, and a repair
- * that ran twice should say so twice. Ordered after the fix that stopped producing these — repairing
- * while the writer still creates them only refills the backlog.
+ * that ran twice should say so twice.
+ *
+ * It assumes the writer that produced these is already live-fixed, and that is a deploy-ordering
+ * requirement rather than something this file can enforce. `promote-images` needs `migrate`, so a
+ * script migration runs while the previous image is still serving: any row an old instance creates
+ * between this walk and the end of the rollout is behind the cursor, and the name is recorded on
+ * success, so it is never offered again. Widening the walk would not help — it is the minutes after
+ * it returns that are exposed, not the milliseconds during. Ship this in a release *after* the
+ * writer fix is already promoted, and the window closes because nothing is producing rows to miss.
  *
  * Shares 0005's implementation rather than restating it. The walk locks the parent row before the
  * sidecar to match the application writer's order, and re-checks `status` under that lock so a
