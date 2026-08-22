@@ -66,17 +66,31 @@ export interface SettingsHeaderConfig {
   scrollContainerRef?: Ref<HTMLDivElement>
 }
 
+/**
+ * A section's static header identity, derivable from its navigation entry alone.
+ *
+ * The shell renders this until the section body mounts and registers a live config, so the
+ * heading paints in the route's first frame instead of arriving a chunk fetch later.
+ */
+export interface SettingsHeaderMeta {
+  title: string
+  description?: string
+  docsLink?: string
+}
+
 const EMPTY_CONFIG: SettingsHeaderConfig = {}
-const RegisterContext = createContext<((config: SettingsHeaderConfig) => void) | null>(null)
+const RegisterContext = createContext<((config: SettingsHeaderConfig | null) => void) | null>(null)
 
 interface ReadContextValue {
-  configRef: { current: SettingsHeaderConfig }
+  /** `null` means no body currently owns the header. */
+  configRef: { current: SettingsHeaderConfig | null }
   signature: string
 }
 
 const ReadContext = createContext<ReadContextValue | null>(null)
 
-function computeSignature(config: SettingsHeaderConfig): string {
+function computeSignature(config: SettingsHeaderConfig | null): string {
+  if (config === null) return 'released'
   return JSON.stringify({
     title: config.title ?? '',
     description: config.description ?? '',
@@ -102,10 +116,10 @@ function computeSignature(config: SettingsHeaderConfig): string {
 }
 
 export function SettingsHeaderProvider({ children }: { children: ReactNode }) {
-  const configRef = useRef<SettingsHeaderConfig>(EMPTY_CONFIG)
+  const configRef = useRef<SettingsHeaderConfig | null>(null)
   const [signature, setSignature] = useState('')
 
-  const register = useCallback((config: SettingsHeaderConfig) => {
+  const register = useCallback((config: SettingsHeaderConfig | null) => {
     configRef.current = config
     const next = computeSignature(config)
     setSignature((previous) => (previous === next ? previous : next))
@@ -123,12 +137,19 @@ export function SettingsHeaderProvider({ children }: { children: ReactNode }) {
 export function useSettingsHeader(config: SettingsHeaderConfig) {
   const register = useContext(RegisterContext)
 
+  /**
+   * A layout effect, not a passive one, and load-bearing for that reason: on a section swap
+   * the shell renders before the outgoing body's cleanup runs, so `configRef` still holds the
+   * previous section's config during that render. Flushing the release synchronously before
+   * paint is what stops the previous section's title showing for a frame. Downgrading this to
+   * `useEffect` reintroduces that flicker.
+   */
   useIsomorphicLayoutEffect(() => {
     register?.(config)
   })
 
   useIsomorphicLayoutEffect(() => {
-    return () => register?.(EMPTY_CONFIG)
+    return () => register?.(null)
   }, [register])
 }
 
@@ -233,10 +254,29 @@ export function orderHeaderActions(
     .sort((a, b) => rank(a.action) - rank(b.action))
 }
 
-export function SettingsHeaderShell({ children }: { children: ReactNode }) {
+interface SettingsHeaderShellProps {
+  /**
+   * The routed section's static header identity. Owns the heading whenever no section body
+   * has registered one — on the route's first frame, while a lazily-loaded section chunk is
+   * still in flight, and across the gap where an outgoing body has already reset the config.
+   * Without it the heading blanks and re-fills on every section switch.
+   */
+  meta?: SettingsHeaderMeta | null
+  children: ReactNode
+}
+
+export function SettingsHeaderShell({ meta, children }: SettingsHeaderShellProps) {
   const read = useContext(ReadContext)
   const configRef = read?.configRef
-  const config = configRef?.current ?? EMPTY_CONFIG
+  const registered = configRef?.current ?? null
+  /**
+   * Meta fills in only while no body owns the header. Substituted wholesale rather than
+   * field-by-field: a body that registers an explicit `title` and no `description` is
+   * deliberately suppressing the meta description, so the two must never be merged — and a
+   * body that registers an empty config is deliberately asking for no heading at all, which
+   * is how a surface that renders its own (`SettingsUnavailable`) opts out.
+   */
+  const config: SettingsHeaderConfig = registered ?? meta ?? EMPTY_CONFIG
   const { title, description, docsLink, back, actions, search, scrollContainerRef } = config
 
   return (
@@ -249,7 +289,7 @@ export function SettingsHeaderShell({ children }: { children: ReactNode }) {
         )}
       >
         {back ? (
-          <Chip leftIcon={back.icon} onClick={() => configRef?.current.back?.onSelect()}>
+          <Chip leftIcon={back.icon} onClick={() => configRef?.current?.back?.onSelect()}>
             {back.text}
           </Chip>
         ) : (
@@ -265,10 +305,10 @@ export function SettingsHeaderShell({ children }: { children: ReactNode }) {
             <SettingsActionChip
               key={action.id ?? action.text}
               action={action}
-              onSelect={() => configRef?.current.actions?.[index]?.onSelect()}
+              onSelect={() => configRef?.current?.actions?.[index]?.onSelect()}
               onPrefetch={
                 action.onPrefetch
-                  ? () => configRef?.current.actions?.[index]?.onPrefetch?.()
+                  ? () => configRef?.current?.actions?.[index]?.onPrefetch?.()
                   : undefined
               }
             />
@@ -291,7 +331,7 @@ export function SettingsHeaderShell({ children }: { children: ReactNode }) {
               icon={Search}
               placeholder={search.placeholder ?? 'Search...'}
               value={search.value}
-              onChange={(event) => configRef?.current.search?.onChange(event.target.value)}
+              onChange={(event) => configRef?.current?.search?.onChange(event.target.value)}
               disabled={search.disabled}
               autoComplete='off'
               className='w-full'

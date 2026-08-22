@@ -51,10 +51,14 @@ export type {
  * Prefetch workspace credentials into a QueryClient cache.
  * Use on hover to warm data before navigation.
  */
-export function prefetchWorkspaceCredentials(queryClient: QueryClient, workspaceId: string) {
+export function prefetchWorkspaceCredentials(
+  queryClient: QueryClient,
+  workspaceId: string,
+  type?: WorkspaceCredentialType
+) {
   queryClient.prefetchQuery({
-    queryKey: workspaceCredentialKeys.list(workspaceId),
-    queryFn: ({ signal }) => fetchWorkspaceCredentialList(workspaceId, signal),
+    queryKey: workspaceCredentialKeys.list(workspaceId, type),
+    queryFn: ({ signal }) => fetchWorkspaceCredentialList(workspaceId, signal, type),
     staleTime: WORKSPACE_CREDENTIAL_LIST_STALE_TIME,
   })
 }

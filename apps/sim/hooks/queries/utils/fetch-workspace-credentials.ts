@@ -3,6 +3,7 @@ import {
   type ContractJsonResponse,
   listWorkspaceCredentialsContract,
   type WorkspaceCredential,
+  type WorkspaceCredentialType,
 } from '@/lib/api/contracts'
 
 export const WORKSPACE_CREDENTIAL_LIST_STALE_TIME = 60 * 1000
@@ -25,10 +26,11 @@ export function requireWorkspaceCredentialListResponse(
  */
 export async function fetchWorkspaceCredentialList(
   workspaceId: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  type?: WorkspaceCredentialType
 ): Promise<WorkspaceCredential[]> {
   const data = await requestJson(listWorkspaceCredentialsContract, {
-    query: { workspaceId },
+    query: { workspaceId, type },
     signal,
   })
   return requireWorkspaceCredentialListResponse(data)
