@@ -138,7 +138,7 @@ export async function fetchLogDetail({
     )
 
     // A custom block's child ran in another workspace and kept its spans on its
-    // own log row. Join them in now, for the workspaces this viewer can read.
+    // own log row. Join in the ones whose publisher opened them to consumers.
     if (Array.isArray(executionData?.traceSpans)) {
       await hydrateChildTraces(executionData.traceSpans as TraceSpan[], { viewerUserId: userId })
     }

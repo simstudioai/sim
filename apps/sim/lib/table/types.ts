@@ -632,6 +632,12 @@ export interface QueryOptions {
    * the public reads publish a `413` for this, so only they impose it.
    */
   runStateBudgetBytes?: number
+  /**
+   * Stable column ids to keep in each returned row's `data`; omitted = every
+   * column. Applied inside the drain before byte accounting, so the response
+   * budget and page cut measure the projected payload the caller receives.
+   */
+  columnIds?: ReadonlySet<string>
 }
 
 export interface QueryResult {

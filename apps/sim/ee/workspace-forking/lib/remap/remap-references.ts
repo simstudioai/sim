@@ -122,6 +122,22 @@ const PRESERVED_NAME_BASED_DEPENDENT_TYPES = new Set<string>([
  */
 const PRESERVED_UNDER_COPY_DEPENDENT_TYPES = new Set<string>(['column-selector'])
 
+/**
+ * Selector-backed dependents that hold stable column ids the same way a `column-selector` does
+ * (a multi-select column pick is a `dropdown` with a column selector behind it), so they are
+ * preserved under a COPIED parent on the same terms. Keyed by selector, not subblock type,
+ * because the type says how the field renders, not what it stores.
+ */
+const PRESERVED_UNDER_COPY_SELECTOR_KEYS = new Set<string>(['table.columns', 'table.outputColumns'])
+
+/** Whether a dependent's value stays valid on a COPY of its parent (see the sets above). */
+function isPreservedUnderCopy(cfg: Pick<SubBlockConfig, 'type' | 'selectorKey'>): boolean {
+  return (
+    PRESERVED_UNDER_COPY_DEPENDENT_TYPES.has(cfg.type) ||
+    (cfg.selectorKey !== undefined && PRESERVED_UNDER_COPY_SELECTOR_KEYS.has(cfg.selectorKey))
+  )
+}
+
 /** Matches `{{ENV_KEY}}` references inside subblock values; shared with cascade detection. */
 export const ENV_REF_PATTERN = /\{\{\s*([A-Za-z_][A-Za-z0-9_]*)\s*\}\}/g
 
@@ -792,7 +808,7 @@ export function remapToolBlockResources(
           parentRemappedNonEmpty &&
           dependentCfg &&
           (PRESERVED_NAME_BASED_DEPENDENT_TYPES.has(dependentCfg.type) ||
-            (parentCopied && PRESERVED_UNDER_COPY_DEPENDENT_TYPES.has(dependentCfg.type)))
+            (parentCopied && isPreservedUnderCopy(dependentCfg)))
         ) {
           continue
         }
@@ -1317,7 +1333,7 @@ export function clearDependentsOnRemap(
       if (nonEmptyParent && PRESERVED_NAME_BASED_DEPENDENT_TYPES.has(dependent.type)) {
         preservedDependents.add(dependent.id)
       }
-      if (copiedParent && PRESERVED_UNDER_COPY_DEPENDENT_TYPES.has(dependent.type)) {
+      if (copiedParent && isPreservedUnderCopy(dependent)) {
         preservedDependents.add(dependent.id)
       }
     }

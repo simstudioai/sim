@@ -187,6 +187,7 @@ export {
   type TabStripItem,
   type TabStripProps,
   type TabStripSelectionSource,
+  type TabStripVariant,
   tabDropIndex,
   tabStripItemSelector,
   tabStripWheelPosition,

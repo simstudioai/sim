@@ -86,6 +86,7 @@ export type SelectorKey =
   | 'monday.groups'
   | 'sim.workflows'
   | 'table.columns'
+  | 'table.outputColumns'
   | 'workspace.credentialProviders'
   | 'workspace.credentialGroups'
   | 'workspace.credentialGroupProviders'

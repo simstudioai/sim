@@ -9,12 +9,14 @@ describe('tableQueryRowsV2Tool request body', () => {
     const body = tableQueryRowsV2Tool.request.body!({
       tableId: 'tbl_1',
       filter: { field: 'status', op: 'eq', value: 'active' },
+      columns: ['col_status'],
       _context: { workspaceId: 'ws-1' },
     })
 
     expect(body).toEqual({
       workspaceId: 'ws-1',
       predicate: { all: [{ field: 'status', op: 'eq', value: 'active' }] },
+      columns: ['col_status'],
     })
   })
 
@@ -42,5 +44,60 @@ describe('tableQueryRowsV2Tool request body', () => {
         _context: { workspaceId: 'ws-1' },
       })
     ).toThrow(/group.*condition/i)
+  })
+
+  it.each([undefined, []])('omits columns when the selection is %j', (columns) => {
+    const body = tableQueryRowsV2Tool.request.body!({
+      tableId: 'tbl_1',
+      columns,
+      _context: { workspaceId: 'ws-1' },
+    })
+
+    expect(body).toEqual({ workspaceId: 'ws-1' })
+  })
+})
+
+describe('tableQueryRowsV2Tool response', () => {
+  const responseBody = {
+    success: true,
+    data: {
+      rows: [
+        {
+          id: 'row_1',
+          data: {
+            name: 'Ana',
+            email: 'ana@example.com',
+            private_notes: 'Call next week',
+          },
+          executions: {},
+          position: 1,
+          orderKey: 'a0',
+          createdAt: '2026-08-20T10:00:00.000Z',
+          updatedAt: '2026-08-20T10:00:00.000Z',
+        },
+      ],
+      rowCount: 1,
+      totalCount: 1,
+      limit: 100,
+      nextCursor: null,
+      ignoredColumns: ['private_notez'],
+    },
+  }
+
+  it('returns the rows projected by the table query route, with any skipped column references', async () => {
+    const result = await tableQueryRowsV2Tool.transformResponse!(
+      new Response(JSON.stringify(responseBody))
+    )
+
+    expect(result.output).toEqual(responseBody.data)
+  })
+
+  it('defaults ignoredColumns to an empty list for a response that omits it', async () => {
+    const { ignoredColumns: _omitted, ...data } = responseBody.data
+    const result = await tableQueryRowsV2Tool.transformResponse!(
+      new Response(JSON.stringify({ ...responseBody, data }))
+    )
+
+    expect(result.output.ignoredColumns).toEqual([])
   })
 })

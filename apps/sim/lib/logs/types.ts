@@ -296,20 +296,30 @@ export interface TraceSpan {
   /**
    * For a custom-block span: the child run's own execution id, in the SOURCE
    * workspace. Only this opaque handle is persisted — the child's spans are
-   * joined at read time by `hydrateChildTraces`, after the viewer has been
-   * authorized against that workspace.
+   * joined at read time by `hydrateChildTraces`. Written only for a block whose
+   * publisher opted its runs into consumer traces, so its presence IS the permission
+   * and no check runs at read time.
    */
   childExecutionId?: string
   /**
-   * Set by read-time hydration on a span carrying {@link childExecutionId}:
-   * whether the viewer was allowed to see the child run, whether it still exists,
-   * and — for `truncated` — whether hydration simply never attempted it (past the
-   * nesting/row cap, or the lookup failed). `truncated` must never be conflated
-   * with an empty child: a boundary span with no children and no marker is
-   * indistinguishable from a leaf block, which would render a partial trace as a
-   * complete one. Never persisted — it describes one viewer's read, not the run.
+   * A custom block ran a child whose publisher has not opened it to consumers, so
+   * no {@link childExecutionId} was ever written and there is nothing to join.
+   * Persisted, unlike {@link childTraceAccess}: it describes the run, not a read.
+   * Without it an untraced boundary renders exactly like a leaf block.
    */
-  childTraceAccess?: 'granted' | 'denied' | 'missing' | 'truncated'
+  childTraceDisabled?: boolean
+  /**
+   * Set by read-time hydration on a span carrying {@link childExecutionId}: whether
+   * the child run was joined, whether the block's publisher currently allows it
+   * (`disabled`), whether the run still exists, and — for `truncated` — whether
+   * hydration simply never attempted it (past the nesting/row cap, or the lookup
+   * failed). It carries no verdict about the READER; the only policy is the
+   * publisher's. `truncated` must never be conflated with an empty child: a boundary
+   * span with no children and no marker is indistinguishable from a leaf block, which
+   * would render a partial trace as a complete one. Never persisted — it describes
+   * one read, not the run.
+   */
+  childTraceAccess?: 'granted' | 'disabled' | 'missing' | 'truncated'
   model?: string
   cost?: {
     input?: number

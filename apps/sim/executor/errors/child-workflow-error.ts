@@ -22,6 +22,11 @@ interface ChildWorkflowErrorOptions {
    * started — including for boundary-safe failures, which carry no `ref`.
    */
   childExecutionId?: string
+  /**
+   * A child run happened but the invocation opted out of publishing it. Mutually
+   * exclusive with {@link childExecutionId} — see `CHILD_TRACE_DISABLED_OUTPUT_KEY`.
+   */
+  childTraceDisabled?: boolean
   cause?: Error
 }
 
@@ -45,6 +50,7 @@ export class ChildWorkflowError extends Error {
   readonly rootErrorMessage: string
   readonly consumerFacing?: CustomBlockFailure
   readonly childExecutionId?: string
+  readonly childTraceDisabled?: boolean
 
   constructor(options: ChildWorkflowErrorOptions) {
     super(options.message, { cause: options.cause })
@@ -58,6 +64,7 @@ export class ChildWorkflowError extends Error {
     this.rootErrorMessage = options.rootErrorMessage ?? options.message
     this.consumerFacing = options.consumerFacing
     this.childExecutionId = options.childExecutionId
+    this.childTraceDisabled = options.childTraceDisabled
   }
 
   static isChildWorkflowError(error: unknown): error is ChildWorkflowError {

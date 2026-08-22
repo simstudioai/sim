@@ -179,6 +179,7 @@ function extractSelectorContext(
     workflowId,
     workspaceId,
     canonicalModes: block.data?.canonicalModes,
+    triggerMode: block.triggerMode,
   })
 }
 
