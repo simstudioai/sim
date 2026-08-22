@@ -251,6 +251,7 @@ import { ParallelBlock, ParallelBlockMeta } from '@/blocks/blocks/parallel'
 import { PeopleDataLabsBlock, PeopleDataLabsBlockMeta } from '@/blocks/blocks/peopledatalabs'
 import { PerplexityBlock, PerplexityBlockMeta } from '@/blocks/blocks/perplexity'
 import { PersonaBlock, PersonaBlockMeta } from '@/blocks/blocks/persona'
+import { PhotonImessageBlock, PhotonImessageBlockMeta } from '@/blocks/blocks/photon_imessage'
 import { PiBlock } from '@/blocks/blocks/pi'
 import { PineconeBlock, PineconeBlockMeta } from '@/blocks/blocks/pinecone'
 import { PipedriveBlock, PipedriveBlockMeta } from '@/blocks/blocks/pipedrive'
@@ -586,6 +587,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   peopledatalabs: PeopleDataLabsBlock,
   perplexity: PerplexityBlock,
   persona: PersonaBlock,
+  photon_imessage: PhotonImessageBlock,
   pi: PiBlock,
   pinecone: PineconeBlock,
   pipedrive: PipedriveBlock,
@@ -901,6 +903,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   peopledatalabs: PeopleDataLabsBlockMeta,
   perplexity: PerplexityBlockMeta,
   persona: PersonaBlockMeta,
+  photon_imessage: PhotonImessageBlockMeta,
   pinecone: PineconeBlockMeta,
   pipedrive: PipedriveBlockMeta,
   pitchbook: PitchBookBlockMeta,

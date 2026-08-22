@@ -240,6 +240,7 @@ export const DOCS_MANIFEST: readonly string[] = [
   'integrations/peopledatalabs.mdx',
   'integrations/perplexity.mdx',
   'integrations/persona.mdx',
+  'integrations/photon_imessage.mdx',
   'integrations/pinecone.mdx',
   'integrations/pipedrive-service-account.mdx',
   'integrations/pipedrive.mdx',
