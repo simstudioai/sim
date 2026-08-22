@@ -86,6 +86,9 @@ export function useConnectorList(knowledgeBaseId?: string) {
     enabled: Boolean(knowledgeBaseId),
     staleTime: CONNECTOR_LIST_STALE_TIME,
     placeholderData: keepPreviousData,
+    // Pending state is time-based, so identical poll responses must still trigger a render
+    // for consumers to drop the pending UI when its two-minute window expires.
+    notifyOnChangeProps: 'all',
     refetchInterval: (query) => {
       const connectors = query.state.data
       if (!connectors?.length) return false

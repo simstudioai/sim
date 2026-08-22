@@ -7,13 +7,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
   requestJson: vi.fn(),
   useInfiniteQuery: vi.fn(),
+  useQuery: vi.fn(),
 }))
 
 vi.mock('@tanstack/react-query', () => ({
   keepPreviousData: Symbol('keepPreviousData'),
   useInfiniteQuery: mocks.useInfiniteQuery,
   useMutation: vi.fn(),
-  useQuery: vi.fn(),
+  useQuery: mocks.useQuery,
   useQueryClient: vi.fn(() => ({ invalidateQueries: vi.fn() })),
 }))
 
@@ -26,7 +27,11 @@ import {
   listKnowledgeConnectorDocumentsContract,
 } from '@/lib/api/contracts/knowledge'
 import { MAX_KNOWLEDGE_CONNECTOR_DOCUMENT_PAGE_SIZE } from '@/lib/knowledge/constants'
-import { isConnectorSyncingOrPending, useConnectorDocuments } from '@/hooks/queries/kb/connectors'
+import {
+  isConnectorSyncingOrPending,
+  useConnectorDocuments,
+  useConnectorList,
+} from '@/hooks/queries/kb/connectors'
 
 const NOW_MS = new Date('2026-08-21T12:00:00.000Z').getTime()
 
@@ -65,6 +70,10 @@ interface ConnectorDocumentsQueryOptions {
     lastPage: ConnectorDocumentsPage,
     pages: ConnectorDocumentsPage[]
   ) => number | undefined
+}
+
+interface ConnectorListQueryOptions {
+  notifyOnChangeProps?: 'all'
 }
 
 describe('isConnectorSyncingOrPending', () => {
@@ -112,6 +121,19 @@ describe('isConnectorSyncingOrPending', () => {
       expect(isConnectorSyncingOrPending(makeConnector({ status }))).toBe(false)
     }
   )
+})
+
+describe('useConnectorList', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('notifies consumers when identical polls complete so pending UI can expire', () => {
+    useConnectorList('knowledge-1')
+
+    const options = mocks.useQuery.mock.calls[0]?.[0] as ConnectorListQueryOptions
+    expect(options.notifyOnChangeProps).toBe('all')
+  })
 })
 
 describe('useConnectorDocuments', () => {
