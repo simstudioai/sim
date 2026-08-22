@@ -3,11 +3,13 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Plus } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { useSession } from '@/lib/auth/auth-client'
 import { getSubscriptionAccessState } from '@/lib/billing/client/utils'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { generateSlug, isAdminOrOwner, type Member } from '@/lib/workspaces/organization'
 import { InviteModal } from '@/app/workspace/[workspaceId]/components/invite-modal'
+import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import {
   NoOrganizationView,
@@ -281,12 +283,20 @@ export function TeamManagement({
     )
   }, [organizationId, openBillingPortal])
 
-  const queryError = orgError
-  const errorMessage = queryError instanceof Error ? queryError.message : null
   const displayOrganization = organization
 
   if (isLoading && !displayOrganization) {
     return null
+  }
+
+  if (orgError && !displayOrganization) {
+    return (
+      <SettingsPanel>
+        <SettingsEmptyState tone='error'>
+          {getErrorMessage(orgError, 'Failed to load organization')}
+        </SettingsEmptyState>
+      </SettingsPanel>
+    )
   }
 
   if (!displayOrganization && shouldLoadRecoverySubscription && isRecoverySubscriptionPending) {
@@ -304,7 +314,11 @@ export function TeamManagement({
         onOrgNameChange={handleOrgNameChange}
         onCreateOrganization={handleCreateOrganization}
         isCreatingOrg={createOrgMutation.isPending}
-        error={errorMessage}
+        error={
+          createOrgMutation.error
+            ? getErrorMessage(createOrgMutation.error, 'Failed to create organization')
+            : null
+        }
         createOrgDialogOpen={createOrgDialogOpen}
         setCreateOrgDialogOpen={setCreateOrgDialogOpen}
       />
