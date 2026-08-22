@@ -312,6 +312,26 @@ export const getDisplayValue = (value: unknown): string => {
 }
 
 /**
+ * Formats the full value shown by a collapsed-row tooltip.
+ *
+ * Message arrays keep a compact first-message preview in {@link getDisplayValue},
+ * but their tooltip needs the complete first-message content. Other values keep
+ * the same resolved display text so selector labels and structured summaries do
+ * not change semantics.
+ */
+export const getTooltipDisplayValue = (value: unknown): string => {
+  const parsedValue = tryParseJson(value)
+
+  if (isMessagesArray(parsedValue)) {
+    const firstMessage = parsedValue[0]
+    if (!firstMessage?.content || firstMessage.content.trim() === '') return '-'
+    return firstMessage.content.trim()
+  }
+
+  return getDisplayValue(value)
+}
+
+/**
  * Whether a collapsed-node row has a meaningful value to display.
  * Rows whose value renders as the empty placeholder are hidden from the
  * node preview so blocks only surface configured fields.

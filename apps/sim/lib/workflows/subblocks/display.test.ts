@@ -13,6 +13,7 @@ vi.mock('@/blocks', () => ({
 
 import {
   getDisplayValue,
+  getTooltipDisplayValue,
   resolveDropdownLabel,
   resolveFilterFieldLabel,
   resolveSandboxLabel,
@@ -286,5 +287,23 @@ describe('getDisplayValue', () => {
       ])
     ).toBe('one, two +1')
     expect(getDisplayValue(['a', 'b'])).toBe('a, b')
+  })
+
+  it('keeps message previews compact while tooltips retain the full first message', () => {
+    const content = `You are a research assistant. ${'Keep every instruction. '.repeat(4)}`.trim()
+    const messages = [{ role: 'system', content }]
+    const serializedMessages = JSON.stringify(messages)
+
+    expect(getDisplayValue(messages)).toBe(`${content.slice(0, 50)}...`)
+    expect(getTooltipDisplayValue(messages)).toBe(content)
+    expect(getDisplayValue(serializedMessages)).toBe(`${content.slice(0, 50)}...`)
+    expect(getTooltipDisplayValue(serializedMessages)).toBe(content)
+  })
+
+  it('keeps long plain strings complete for both display and tooltip use', () => {
+    const code = `const result = ${'computeValue() + '.repeat(6)}0; return result;`
+
+    expect(getDisplayValue(code)).toBe(code)
+    expect(getTooltipDisplayValue(code)).toBe(code)
   })
 })

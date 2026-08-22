@@ -19,6 +19,7 @@ import {
 import { resolveSelectedTriggerId } from '@/lib/workflows/blocks/canvas-trigger-sentence'
 import {
   getDisplayValue,
+  getTooltipDisplayValue,
   hasDisplayableRowValue,
   resolveDropdownLabel,
   resolveSkillsLabel,
@@ -556,6 +557,16 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>
                   workflowMap,
                   workflowLabelsReady
                 )
+                const tooltipValue =
+                  subBlock.type === 'messages-input'
+                    ? resolvePreviewDisplayValue(
+                        getTooltipDisplayValue(rawValue),
+                        subBlock,
+                        rawValue,
+                        workflowMap,
+                        workflowLabelsReady
+                      )
+                    : displayValue
                 /* The preview has no hooks, so a selector it cannot hydrate comes
                    back as the `-` sentinel. That reads as noise mid-sentence, so
                    hand the slot back and let its noun stand in instead. */
@@ -564,6 +575,7 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>
                   <SubBlockRowView
                     title={subBlock.title ?? subBlock.id}
                     displayValue={displayValue}
+                    tooltipValue={tooltipValue}
                     variant='inline-value'
                   />
                 )
