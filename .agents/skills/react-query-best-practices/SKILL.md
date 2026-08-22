@@ -35,6 +35,8 @@ Read these before analyzing:
 - Every query must have an explicit `staleTime` (default 0 is almost never correct), assigned from a named exported constant — never an inline numeric literal. A server-side prefetch hydrating the same query key must import and reuse that constant instead of restating the number
 - `keepPreviousData` / `placeholderData` only on variable-key queries (where params change), never on static keys
 - Use `enabled` to prevent queries from running without required params
+- Warm data for hover/focus intent with `queryClient.prefetchQuery` and shared `queryOptions`; never temporarily enable a mounted hidden observer, which can remain active after focus restoration and refetch data for closed UI
+- When gating a query by view or modal state, move every consumer to the active query too: imperative refresh/pagination, loading and error feedback, and data-derived controls must never read a disabled query or placeholder data from a previous key
 
 ### Mutations
 - Use `onSettled` (not `onSuccess`) for cache reconciliation — it fires on both success and error

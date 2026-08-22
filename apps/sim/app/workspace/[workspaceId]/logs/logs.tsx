@@ -240,6 +240,7 @@ export default function Logs() {
 
   const viewMode = useFilterStore((s) => s.viewMode)
   const setViewMode = useFilterStore((s) => s.setViewMode)
+  const isDashboardView = viewMode === 'dashboard'
 
   const [{ selectedLogId, isSidebarOpen }, dispatch] = useReducer(logSelectionReducer, {
     selectedLogId: null,
@@ -277,7 +278,7 @@ export default function Logs() {
   const isSidebarOpenRef = useRef(false)
   const shouldScrollIntoViewRef = useRef(false)
   const resourceTableRef = useRef<ResourceTableHandle>(null)
-  const logsRefetchRef = useRef<() => void>(() => {})
+  const activeViewRefetchRef = useRef<() => void>(() => {})
   const activeLogRefetchRef = useRef<() => void>(() => {})
   const activeLogTabRef = useRef<string>('overview')
   const logsQueryRef = useRef({ isFetching: false, hasNextPage: false, fetchNextPage: () => {} })
@@ -316,6 +317,7 @@ export default function Logs() {
   )
 
   const selectedDetailQuery = useLogDetail(selectedLogId ?? undefined, workspaceId, {
+    enabled: isSidebarOpen,
     refetchInterval,
   })
 
@@ -352,6 +354,7 @@ export default function Logs() {
   )
 
   const logsQuery = useLogsList(workspaceId, logFilters, {
+    enabled: !isDashboardView || isSidebarOpen,
     refetchInterval: isLive ? LIVE_REFRESH_INTERVAL_MS : false,
   })
 
@@ -370,6 +373,7 @@ export default function Logs() {
   )
 
   const dashboardStatsQuery = useDashboardStats(workspaceId, dashboardFilters, {
+    enabled: isDashboardView,
     refetchInterval: isLive ? LIVE_REFRESH_INTERVAL_MS : false,
   })
 
@@ -394,7 +398,14 @@ export default function Logs() {
   selectedLogIndexRef.current = selectedLogIndex
   selectedLogIdRef.current = selectedLogId
   isSidebarOpenRef.current = isSidebarOpen
-  logsRefetchRef.current = logsQuery.refetch
+  activeViewRefetchRef.current = () => {
+    if (isDashboardView) {
+      void dashboardStatsQuery.refetch()
+    }
+    if (!isDashboardView || isSidebarOpen) {
+      void logsQuery.refetch()
+    }
+  }
   activeLogRefetchRef.current = selectedDetailQuery.refetch
   logsQueryRef.current = {
     isFetching: logsQuery.isFetching,
@@ -641,22 +652,25 @@ export default function Logs() {
 
   const handleRefresh = useCallback(() => {
     triggerVisualRefresh()
-    logsRefetchRef.current()
-    if (selectedLogIdRef.current) {
+    activeViewRefetchRef.current()
+    if (selectedLogIdRef.current && isSidebarOpenRef.current) {
       activeLogRefetchRef.current()
     }
   }, [triggerVisualRefresh])
 
-  const prevIsFetchingRef = useRef(logsQuery.isFetching)
+  const activeViewIsFetching = isDashboardView
+    ? dashboardStatsQuery.isFetching || (isSidebarOpen && logsQuery.isFetching)
+    : logsQuery.isFetching
+  const prevIsFetchingRef = useRef(activeViewIsFetching)
   useEffect(() => {
     const wasFetching = prevIsFetchingRef.current
-    const isFetching = logsQuery.isFetching
+    const isFetching = activeViewIsFetching
     prevIsFetchingRef.current = isFetching
 
     if (isLive && !wasFetching && isFetching) {
       triggerVisualRefresh()
     }
-  }, [logsQuery.isFetching, isLive, triggerVisualRefresh])
+  }, [activeViewIsFetching, isLive, triggerVisualRefresh])
 
   const handleExport = useCallback(async () => {
     setIsExporting(true)
@@ -776,8 +790,6 @@ export default function Logs() {
   function handleClosePreview() {
     setPreviewLogId(null)
   }
-
-  const isDashboardView = viewMode === 'dashboard'
 
   const rows: ResourceRow[] = useMemo(
     () =>
@@ -1135,6 +1147,9 @@ export default function Logs() {
   )
 
   const refreshIcon = isVisuallyRefreshing ? SpinningRefreshCw : RefreshCw
+  const hasExportableLogs = isDashboardView
+    ? !dashboardStatsQuery.isPlaceholderData && (dashboardStatsQuery.data?.totalRuns ?? 0) > 0
+    : !logsQuery.isPlaceholderData && logs.length > 0
 
   const headerActions = useMemo<ResourceAction[]>(
     () => [
@@ -1142,7 +1157,7 @@ export default function Logs() {
         text: 'Export',
         icon: Download,
         onSelect: handleExport,
-        disabled: !userPermissions.canEdit || isExporting || logs.length === 0,
+        disabled: !userPermissions.canEdit || isExporting || !hasExportableLogs,
       },
       {
         text: 'Refresh',
@@ -1170,7 +1185,7 @@ export default function Logs() {
       handleExport,
       userPermissions.canEdit,
       isExporting,
-      logs.length,
+      hasExportableLogs,
     ]
   )
 
