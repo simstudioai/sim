@@ -784,6 +784,7 @@ export function useWorkflowExecution() {
           async start(controller) {
             const { encodeSSE } = await import('@/lib/core/utils/sse')
             const streamedChunks = new Map<string, string[]>()
+            const streamedBlockIds = new Set<string>()
             const streamReadingPromises: Promise<void>[] = []
 
             const safeEnqueue = (data: Uint8Array) => {
@@ -821,6 +822,7 @@ export function useWorkflowExecution() {
                     }
                     const chunk = new TextDecoder().decode(value)
                     if (streamKey) {
+                      if (blockId) streamedBlockIds.add(blockId)
                       streamedChunks.get(streamKey)!.push(chunk)
                     }
 
@@ -844,9 +846,9 @@ export function useWorkflowExecution() {
 
             /**
              * Intermediate-turn reconciliation: drop the block's streamed text
-             * (chunk_reset frame) and remove its bookkeeping entirely so
-             * separator counting ignores it and the final turn (or, if none
-             * re-streams, onBlockComplete's output fallback) starts clean.
+             * (chunk_reset frame) and remove its per-invocation chunks so
+             * separator counting ignores them. The block-level streamed marker
+             * remains to prevent a sibling invocation from appending stale output.
              */
             const onStreamReset = (blockId: string, blockExecutionId?: string) => {
               const streamKey = blockExecutionId ?? blockId
@@ -864,7 +866,7 @@ export function useWorkflowExecution() {
             ) => {
               const streamKey = blockExecutionId ?? blockId
               // Skip if this block already had streaming content (avoid duplicates)
-              if (streamedChunks.has(streamKey)) {
+              if (streamedChunks.has(streamKey) || streamedBlockIds.has(blockId)) {
                 logger.debug('[handleRunWorkflow] Skipping onBlockComplete for streaming block', {
                   blockId,
                 })

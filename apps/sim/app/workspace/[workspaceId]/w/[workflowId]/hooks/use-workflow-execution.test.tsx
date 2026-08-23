@@ -7,6 +7,7 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
+  chatStoreState,
   executionStoreState,
   mockCancel,
   mockExecute,
@@ -22,6 +23,9 @@ const {
   workflowBlocks,
   workflowStoreState,
 } = vi.hoisted(() => {
+  const chatStoreState = {
+    selectedWorkflowOutputs: [] as string[],
+  }
   const workflowBlocks = {
     start: {
       id: 'start',
@@ -82,6 +86,7 @@ const {
   }
 
   return {
+    chatStoreState,
     executionStoreState,
     mockCancel: vi.fn(),
     mockExecute: vi.fn(),
@@ -167,9 +172,18 @@ vi.mock('@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-current-workflow
 
 vi.mock('@/app/workspace/[workspaceId]/w/[workflowId]/utils/workflow-execution-utils', () => ({
   addHttpErrorConsoleEntry: vi.fn(),
-  createBlockEventHandlers: () => ({
+  createBlockEventHandlers: (config: {
+    onBlockCompleteCallback?: (
+      blockId: string,
+      output: unknown,
+      blockExecutionId?: string
+    ) => Promise<void>
+  }) => ({
     onBlockStarted: vi.fn(),
-    onBlockCompleted: vi.fn(),
+    onBlockCompleted: vi.fn(
+      (data: { blockId: string; output: unknown; blockExecutionId?: string }) =>
+        config.onBlockCompleteCallback?.(data.blockId, data.output, data.blockExecutionId)
+    ),
     onBlockError: vi.fn(),
     onBlockChildWorkflowStarted: vi.fn(),
   }),
@@ -221,7 +235,7 @@ vi.mock('@/serializer', () => ({
 vi.mock('@/stores/chat/store', () => ({
   useChatStore: {
     getState: () => ({
-      getSelectedWorkflowOutput: () => [],
+      getSelectedWorkflowOutput: () => chatStoreState.selectedWorkflowOutputs,
     }),
   },
 }))
@@ -343,6 +357,7 @@ async function drainStream(value: unknown): Promise<void> {
 describe('useWorkflowExecution cancellation', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    chatStoreState.selectedWorkflowOutputs = []
     executionStoreState.getCurrentExecutionId.mockReturnValue('execution-1')
     mockRequestJson.mockResolvedValue({ success: true })
   })
@@ -402,6 +417,7 @@ describe('useWorkflowExecution cancellation', () => {
 describe('useWorkflowExecution attachment uploads', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    chatStoreState.selectedWorkflowOutputs = []
     executionStoreState.getCurrentExecutionId.mockReturnValue(null)
     mockResolveStartCandidates.mockReturnValue([])
     mockSelectBestTrigger.mockReturnValue([])
@@ -580,6 +596,52 @@ describe('useWorkflowExecution attachment uploads', () => {
     expect(JSON.stringify(terminalStoreState.updateConsole.mock.calls)).not.toContain(
       'sk-resolved-secret'
     )
+
+    unmount()
+  })
+
+  it('does not append a later sibling output after the block has streamed', async () => {
+    chatStoreState.selectedWorkflowOutputs = ['agent-1_content']
+    mockExecute.mockImplementationOnce(async (options) => {
+      options.onExecutionId?.('execution-1')
+      await options.callbacks?.onStreamChunk?.({
+        blockId: 'agent-1',
+        blockExecutionId: 'invoke-streamed',
+        chunk: 'streamed answer',
+      })
+      await new Promise((resolve) => setTimeout(resolve, 0))
+      await options.callbacks?.onBlockCompleted?.({
+        blockId: 'agent-1',
+        blockExecutionId: 'invoke-streamed',
+        output: { content: 'streamed answer' },
+      })
+      await options.callbacks?.onBlockCompleted?.({
+        blockId: 'agent-1',
+        blockExecutionId: 'invoke-later',
+        output: { content: 'later answer' },
+      })
+    })
+
+    const { result, unmount } = renderWorkflowExecutionHook()
+    const decoder = new TextDecoder()
+    let streamedText = ''
+
+    await act(async () => {
+      const runResult = await result().handleRunWorkflow({ input: 'chat input' })
+      if (!isChatWorkflowRunResult(runResult)) {
+        throw new Error('Expected a chat workflow run result')
+      }
+      const reader = runResult.stream.getReader()
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        streamedText += decoder.decode(value, { stream: true })
+      }
+      streamedText += decoder.decode()
+    })
+
+    expect(streamedText).toContain('streamed answer')
+    expect(streamedText).not.toContain('later answer')
 
     unmount()
   })
