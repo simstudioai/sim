@@ -193,6 +193,7 @@ interface WithdrawnSend {
 
 export interface UseChatReturn {
   messages: ChatMessage[]
+  isChatHistoryPending: boolean
   isSending: boolean
   isReconnecting: boolean
   error: string | null
@@ -1790,7 +1791,8 @@ export function useChat(
     [flushPendingResources, queryClient, workspaceId]
   )
 
-  const { data: chatHistory } = useMothershipChatHistory(resolvedChatId)
+  const { data: chatHistory, isPending: isChatHistoryPending } =
+    useMothershipChatHistory(resolvedChatId)
   const messages = useMemo(() => {
     const source = chatHistory?.messages.map(toDisplayMessage) ?? pendingMessages
     return source.map((m) => restoreRevealedSimKeysForMessage(m, revealedSimKeysRef.current))
@@ -5210,6 +5212,7 @@ export function useChat(
 
   return {
     messages,
+    isChatHistoryPending,
     isSending,
     isReconnecting,
     error,

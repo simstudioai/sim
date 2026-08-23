@@ -1,3 +1,4 @@
+export { ChatNavigationLink } from './chat-navigation-link/chat-navigation-link'
 export {
   CollapsedChatFlyoutItem,
   CollapsedFolderItems,

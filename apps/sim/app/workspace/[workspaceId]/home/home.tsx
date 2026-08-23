@@ -38,10 +38,7 @@ import { RESOURCE_HEADER_CLASSES } from '@/app/workspace/[workspaceId]/home/comp
 import { resolveWorkspaceResourceRef } from '@/app/workspace/[workspaceId]/home/resolve-resource-ref'
 import { resourceParam, resourceUrlKeys } from '@/app/workspace/[workspaceId]/home/search-params'
 import { useFolders } from '@/hooks/queries/folders'
-import {
-  useMarkMothershipChatRead,
-  useMothershipChatHistory,
-} from '@/hooks/queries/mothership-chats'
+import { useMarkMothershipChatRead } from '@/hooks/queries/mothership-chats'
 import { useWorkflows } from '@/hooks/queries/workflows'
 import { getWorkspaceFilesQueryOptions, useWorkspaceFiles } from '@/hooks/queries/workspace-files'
 import { useOAuthReturnRouter } from '@/hooks/use-oauth-return'
@@ -205,7 +202,6 @@ export function Home({ chatId, userName, userId, tableViewsEnabled }: HomeProps)
 
   const wasSendingRef = useRef(false)
 
-  const { isPending: isChatHistoryPending } = useMothershipChatHistory(chatId)
   const { mutate: markRead } = useMarkMothershipChatRead(workspaceId)
 
   const [isResourceCollapsed, setIsResourceCollapsed] = useState(true)
@@ -242,6 +238,7 @@ export function Home({ chatId, userName, userId, tableViewsEnabled }: HomeProps)
 
   const {
     messages,
+    isChatHistoryPending,
     isSending,
     isReconnecting,
     sendMessage,
