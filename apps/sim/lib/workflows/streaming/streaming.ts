@@ -129,6 +129,7 @@ export function agentStreamProtocolResponseHeaders(options: {
 
 interface StreamingState {
   streamedChunks: Map<string, string[]>
+  streamedBlockIds: Set<string>
   processedOutputs: Set<string>
   streamCompletionTimes: Map<string, number>
   completedBlockIds: Set<string>
@@ -319,6 +320,7 @@ async function buildMinimalResult(
   result: ExecutionResult,
   selectedOutputs: string[] | undefined,
   streamedContent: Map<string, string>,
+  streamedBlockIds: Set<string>,
   completedBlockIds: Set<string>,
   streamedSelectedOutputKeys: Set<string>,
   requestId: string,
@@ -387,15 +389,8 @@ async function buildMinimalResult(
   let selectedOutputBytes = assertSelectedOutputBytes(minimalResult.output)
   for (const descriptor of getSelectedOutputDescriptors(selectedOutputs)) {
     const { blockId, path } = descriptor
-    const blockLogs = result.logs.filter((log: BlockLog) => log.blockId === blockId)
 
-    if (
-      streamedContent.has(blockId) ||
-      blockLogs.some(
-        (log: BlockLog) =>
-          log.blockExecutionId !== undefined && streamedContent.has(log.blockExecutionId)
-      )
-    ) {
+    if (streamedContent.has(blockId) || streamedBlockIds.has(blockId)) {
       continue
     }
 
@@ -417,7 +412,7 @@ async function buildMinimalResult(
       continue
     }
 
-    const blockLog = blockLogs[0]
+    const blockLog = result.logs.find((log: BlockLog) => log.blockId === blockId)
     if (!blockLog?.output) {
       continue
     }
@@ -545,6 +540,7 @@ export async function createStreamingResponse(
     async start(controller) {
       const state: StreamingState = {
         streamedChunks: new Map(),
+        streamedBlockIds: new Set(),
         processedOutputs: new Set(),
         streamCompletionTimes: new Map(),
         completedBlockIds: new Set(),
@@ -689,6 +685,7 @@ export async function createStreamingResponse(
             }
 
             const textChunk = decoder.decode(value, { stream: true })
+            state.streamedBlockIds.add(blockId)
             if (!state.streamedChunks.has(streamKey)) {
               state.streamedChunks.set(streamKey, [])
             }
@@ -728,7 +725,7 @@ export async function createStreamingResponse(
           return
         }
 
-        if (state.streamedChunks.has(blockExecutionId ?? blockId)) {
+        if (state.streamedBlockIds.has(blockId)) {
           return
         }
 
@@ -880,6 +877,7 @@ export async function createStreamingResponse(
               result,
               streamConfig.selectedOutputs,
               streamedContent,
+              state.streamedBlockIds,
               state.completedBlockIds,
               state.streamedSelectedOutputKeys,
               requestId,

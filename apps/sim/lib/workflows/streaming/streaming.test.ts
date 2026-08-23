@@ -1043,7 +1043,7 @@ describe('createStreamingResponse agent-events-v1', () => {
     expect(events.some((event) => event.event === 'final')).toBe(true)
   })
 
-  it('suppresses final selected output when streamed content is keyed by invocation', async () => {
+  it('suppresses repeated selected output when one invocation streams', async () => {
     const stream = await createStreamingResponse({
       requestId: 'request-invocation-selected-output',
       streamConfig: {
@@ -1068,6 +1068,7 @@ describe('createStreamingResponse agent-events-v1', () => {
           },
         } as any)
         await onBlockComplete('agent-1', { content: 'current answer' }, 'invoke-current')
+        await onBlockComplete('agent-1', { content: 'later answer' }, 'invoke-later')
 
         return {
           success: true,
@@ -1075,8 +1076,8 @@ describe('createStreamingResponse agent-events-v1', () => {
           logs: [
             {
               blockId: 'agent-1',
-              blockExecutionId: 'invoke-stale',
-              output: { content: 'stale answer' },
+              blockExecutionId: 'invoke-later',
+              output: { content: 'later answer' },
               startedAt: new Date().toISOString(),
               endedAt: new Date().toISOString(),
               durationMs: 1,
