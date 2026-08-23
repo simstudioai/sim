@@ -22,7 +22,7 @@ import {
   removeMcpToolsForWorkflow,
   syncMcpToolsForWorkflow,
 } from '@/lib/mcp/workflow-mcp-sync'
-import { deliverOutboxServerEvent } from '@/lib/posthog/server'
+import { captureServerEvent } from '@/lib/posthog/server'
 import {
   cleanupWebhooksForWorkflow,
   prepareStableTriggerWebhooksForDeploy,
@@ -329,19 +329,16 @@ async function prepareDeploymentOperation(
   }
 
   if (operation.status === 'active') {
-    await cleanupRetiredWebhooksForOperation({
-      payload,
-      workflow: workflowRecord as Record<string, unknown>,
-      context,
-    })
-    await cleanupInactiveDeploymentsForOperation({
-      payload,
-      workflow: workflowRecord as Record<string, unknown>,
-      checkpoints,
-      checkpoint,
-      context,
-    })
-    await emitPostActivationSideEffects({
+    /**
+     * Resuming an attempt that already activated. The terminal short circuit
+     * above cannot catch this case — a superseded-after-activation attempt
+     * keeps its own `active` status — so the generation fence is applied per
+     * step inside {@link runPostActivationWork} rather than here: the
+     * notifications describe a cutover that really happened and stay owed
+     * whatever else has started since, while only the fenced cleanup is
+     * skipped.
+     */
+    await runPostActivationWork({
       payload,
       operation,
       workflow: workflowRecord as Record<string, unknown>,
@@ -491,25 +488,56 @@ async function prepareDeploymentOperation(
   notifyMcpToolServers(affectedMcpServers)
   context.signal.throwIfAborted()
 
-  await cleanupRetiredWebhooksForOperation({
-    payload,
-    workflow: workflowRecord as Record<string, unknown>,
-    context,
-  })
-  await cleanupInactiveDeploymentsForOperation({
-    payload,
-    workflow: workflowRecord as Record<string, unknown>,
-    checkpoints,
-    checkpoint,
-    context,
-  })
-  await emitPostActivationSideEffects({
+  await runPostActivationWork({
     payload,
     operation,
     workflow: workflowRecord as Record<string, unknown>,
     checkpoints,
     checkpoint,
     context,
+  })
+}
+
+/**
+ * Runs everything that follows a committed cutover — notifications first.
+ *
+ * The ordering is load-bearing. The audit entry, analytics event, socket
+ * notification, and workspace event all describe an activation that is
+ * already durable, and each is individually checkpointed. Retiring the
+ * previous generation's external subscriptions is best-effort cleanup that
+ * makes one provider call per retired row and is by far the slowest, most
+ * failure-prone step here. Running cleanup first put every one of those
+ * notifications behind it, so a single flaky provider — or the handler
+ * timeout its latency burns through — silently cost the deploy its audit
+ * trail and left clients on the old version until something else refreshed
+ * them. Nothing below depends on the cleanup having run.
+ *
+ * It also decides where the generation fence goes. Both cleanups carry their
+ * own, because only they are fenced; the notifications are not, and gating
+ * them on the same predicate would drop them for good in the window where a
+ * newer generation exists but has not activated — this activation is still
+ * the live one there, and nothing else will emit them.
+ */
+async function runPostActivationWork(params: {
+  payload: PrepareDeploymentV2Payload
+  operation: WorkflowDeploymentOperation
+  workflow: Record<string, unknown>
+  checkpoints: DeploymentPreparationCheckpoints
+  checkpoint: (patch: Partial<DeploymentPreparationCheckpoints>) => Promise<void>
+  context: OutboxEventContext
+}): Promise<void> {
+  await emitPostActivationSideEffects(params)
+  await cleanupRetiredWebhooksForOperation({
+    payload: params.payload,
+    workflow: params.workflow,
+    context: params.context,
+  })
+  await cleanupInactiveDeploymentsForOperation({
+    payload: params.payload,
+    workflow: params.workflow,
+    checkpoints: params.checkpoints,
+    checkpoint: params.checkpoint,
+    context: params.context,
   })
 }
 
@@ -559,13 +587,35 @@ async function cleanupRetiredWebhooksForOperation(params: {
   context: OutboxEventContext
 }): Promise<void> {
   params.context.signal.throwIfAborted()
-  await cleanupRetiredWebhookRegistrationsAfterActivation({
-    fence: {
+  const fence = {
+    workflowId: params.payload.workflowId,
+    operationId: params.payload.operationId,
+    generation: params.payload.generation,
+    deploymentVersionId: params.payload.deploymentVersionId,
+  }
+
+  /**
+   * Gated exactly like {@link cleanupInactiveDeploymentsForOperation} below,
+   * and on the same predicate the store asserts internally — the store throws
+   * where this returns, so a superseded attempt would otherwise fail here
+   * identically on every retry until the event dead-lettered. Skipping loses
+   * nothing: a newer generation collects every retired row below its own
+   * fence, this one included.
+   */
+  const isCurrent = await isDeploymentOperationCurrent({ ...fence, statuses: ['active'] })
+  params.context.signal.throwIfAborted()
+  if (!isCurrent) {
+    logger.info('Skipping retired webhook cleanup for a superseded generation', {
       workflowId: params.payload.workflowId,
       operationId: params.payload.operationId,
       generation: params.payload.generation,
-      deploymentVersionId: params.payload.deploymentVersionId,
-    },
+      errorCode: DEPLOYMENT_ERROR_CODES.operationSuperseded,
+    })
+    return
+  }
+
+  await cleanupRetiredWebhookRegistrationsAfterActivation({
+    fence,
     workflow: params.workflow,
     requestId: params.payload.requestId,
     signal: params.context.signal,
@@ -642,12 +692,23 @@ async function emitPostActivationSideEffects(params: {
     await params.checkpoint({ auditEmitted: true })
   }
 
+  /**
+   * Analytics is fire-and-forget by contract: PostHog being unreachable must
+   * never fail an activation that is already durable. Awaiting a flush here
+   * bought no delivery the process does not already have — the client flushes
+   * on its own interval and again from the `SIGTERM`/`SIGINT` hook in
+   * `instrumentation-node.ts` — while holding the socket notification, the
+   * workspace event, and subscription cleanup behind a third party, and
+   * failing the outbox event until it dead-lettered when that party was down.
+   * `flush()` also drains the whole shared client queue, so an unrelated
+   * event's network error surfaced here as a failed deploy.
+   */
   if (!params.checkpoints.analyticsCaptured) {
     params.context.signal.throwIfAborted()
     if (params.payload.captureAnalytics !== false) {
       const workspaceId = (params.workflow.workspaceId as string) || ''
       const isVersionActivation = params.operation.action === 'activate'
-      await deliverOutboxServerEvent(
+      captureServerEvent(
         params.payload.userId,
         isVersionActivation ? 'deployment_version_activated' : 'workflow_deployed',
         {
