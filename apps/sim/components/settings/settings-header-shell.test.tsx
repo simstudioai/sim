@@ -41,7 +41,7 @@ function renderHeader(actions: SettingsAction[]) {
     root.render(
       <SettingsHeaderProvider>
         <SettingsHeaderShell>
-          <SettingsPanel title='Thing' actions={actions}>
+          <SettingsPanel back={{ text: 'Back', onSelect: vi.fn() }} title='Thing' actions={actions}>
             <div />
           </SettingsPanel>
         </SettingsHeaderShell>
@@ -152,7 +152,11 @@ describe('SettingsHeaderShell static meta', () => {
 
   it('yields to a body that registers its own header', () => {
     renderWithMeta(
-      <SettingsPanel title='Add secret' description='One value.'>
+      <SettingsPanel
+        back={{ text: 'Secrets', onSelect: vi.fn() }}
+        title='Add secret'
+        description='One value.'
+      >
         <div />
       </SettingsPanel>
     )
@@ -192,7 +196,7 @@ describe('SettingsHeaderShell static meta', () => {
 
   it('falls back to the meta title when the body unmounts mid-navigation', () => {
     renderWithMeta(
-      <SettingsPanel title='Add secret'>
+      <SettingsPanel back={{ text: 'Secrets', onSelect: vi.fn() }} title='Add secret'>
         <div />
       </SettingsPanel>
     )
