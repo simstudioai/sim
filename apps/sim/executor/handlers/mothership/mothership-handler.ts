@@ -689,7 +689,7 @@ async function buildMothershipFileAttachments(
   )
   const modelSafe = await areModelSafeWorkspaceFileKeys(
     userFiles.map((file) => file.key).filter((key): key is string => Boolean(key)),
-    { workspaceId: ctx.workspaceId }
+    { workspaceId: ctx.workspaceId, ...(ctx.userId ? { actorUserId: ctx.userId } : {}) }
   )
   if (!modelSafe) throw new Error(MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE)
 

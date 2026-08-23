@@ -1680,6 +1680,7 @@ export class AgentBlockHandler implements BlockHandler {
               identity,
               registry: ctx.resolvedSecretTraceRegistry,
               view: 'opaque',
+              ...(ctx.userId ? { actorUserId: ctx.userId } : {}),
             })
             if (!safe) {
               unsafeGeneratedDocumentFiles.add(`${file.key}:${file.id}`)
