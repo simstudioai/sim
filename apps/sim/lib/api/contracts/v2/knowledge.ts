@@ -1652,7 +1652,9 @@ export const v2UpdateKnowledgeConnectorBodySchema = z
     sourceConfig: z
       .record(z.string(), z.unknown().describe('Connector-specific source configuration value.'))
       .optional()
-      .describe('Replacement source selection and filtering configuration.'),
+      .describe(
+        'Replacement source selection and filtering configuration. Updating a runnable connector queues synchronization; paused connectors remain paused.'
+      ),
     syncIntervalMinutes: z
       .number()
       .int()

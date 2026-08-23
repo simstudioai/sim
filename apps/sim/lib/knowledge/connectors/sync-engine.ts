@@ -200,6 +200,12 @@ const STALE_PROCESSING_MINUTES = resolveStaleProcessingMinutes(
   envNumber(env.KB_CONFIG_MAX_ATTEMPTS, 3)
 )
 const RETRY_WINDOW_DAYS = 7
+const RUNNABLE_CONNECTOR_STATUSES = ['active', 'error'] as const
+
+/** Whether an automatic connector sync may begin from this persisted state. */
+export function isConnectorRunnableStatus(status: string): boolean {
+  return RUNNABLE_CONNECTOR_STATUSES.some((runnableStatus) => runnableStatus === status)
+}
 
 /**
  * Processing states the stuck-document sweep may reclaim from.
@@ -1479,6 +1485,7 @@ export async function executeSync(
   options: {
     billingAttribution: BillingAttributionSnapshot
     fullSync?: boolean
+    requireRunnable?: boolean
     rehydrate?: boolean
     /**
      * The queue entry this run is allowed to consume. Absent only for tasks
@@ -1513,22 +1520,27 @@ export async function executeSync(
     return { ...result, error: 'connector_unavailable' }
   }
 
-  const connector = connectorRows[0]
+  const connectorBeforeLock = connectorRows[0]
 
-  const connectorConfig = CONNECTOR_REGISTRY[connector.connectorType]
+  const connectorConfig = CONNECTOR_REGISTRY[connectorBeforeLock.connectorType]
   if (!connectorConfig) {
-    throw new Error(`Unknown connector type: ${connector.connectorType}`)
+    throw new Error(`Unknown connector type: ${connectorBeforeLock.connectorType}`)
   }
 
   const kbRows = await db
     .select({ userId: knowledgeBase.userId, workspaceId: knowledgeBase.workspaceId })
     .from(knowledgeBase)
-    .where(and(eq(knowledgeBase.id, connector.knowledgeBaseId), isNull(knowledgeBase.deletedAt)))
+    .where(
+      and(
+        eq(knowledgeBase.id, connectorBeforeLock.knowledgeBaseId),
+        isNull(knowledgeBase.deletedAt)
+      )
+    )
     .limit(1)
 
   if (kbRows.length === 0) {
     logger.warn(
-      `Skipping sync: knowledge base ${connector.knowledgeBaseId} is deleted (connector ${connectorId})`
+      `Skipping sync: knowledge base ${connectorBeforeLock.knowledgeBaseId} is deleted (connector ${connectorId})`
     )
     await db
       .update(knowledgeConnector)
@@ -1561,7 +1573,7 @@ export async function executeSync(
   const kbOwner: KnowledgeBaseOwner = { workspaceId: kbRows[0].workspaceId, userId }
   if (!kbOwner.workspaceId) {
     throw new Error(
-      `Knowledge base ${connector.knowledgeBaseId} is missing workspace billing context`
+      `Knowledge base ${connectorBeforeLock.knowledgeBaseId} is missing workspace billing context`
     )
   }
   if (billingAttribution.workspaceId !== kbOwner.workspaceId) {
@@ -1569,8 +1581,6 @@ export async function executeSync(
       `Connector sync billing attribution does not match knowledge base workspace ${kbOwner.workspaceId}`
     )
   }
-  const sourceConfig = connector.sourceConfig as Record<string, unknown>
-
   /**
    * Identifies this run for the terminal writes. Generated before the CAS and
    * written by it, so ownership is established atomically with the lock — and
@@ -1604,7 +1614,7 @@ export async function executeSync(
         isNull(knowledgeConnector.deletedAt)
       )
     )
-    .returning({ id: knowledgeConnector.id })
+    .returning()
 
   if (lockResult.length === 0) {
     /**
@@ -1647,6 +1657,13 @@ export async function executeSync(
     return { ...result, error: 'sync_in_progress' }
   }
 
+  /**
+   * The row returned by the lock is the authoritative sync snapshot. A source update
+   * committed before the lock is included here; one attempted after it sees `syncing`
+   * and conflicts instead of letting this worker process stale configuration.
+   */
+  const connector = lockResult[0]
+  const sourceConfig = connector.sourceConfig as Record<string, unknown>
   const syncStartedAt = new Date()
   /** Seeded at lock acquisition, which wrote `updatedAt` itself. */
   let lastHeartbeatAtMs = Date.now()

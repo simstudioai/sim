@@ -296,6 +296,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     const dueConnectors = await db
       .select({
         id: knowledgeConnector.id,
+        nextSyncAt: knowledgeConnector.nextSyncAt,
         workspaceId: knowledgeBase.workspaceId,
       })
       .from(knowledgeConnector)
@@ -328,7 +329,12 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
           throw new Error(`Connector ${connector.id} is missing workspace billing context`)
         }
         const billingAttribution = await resolveSystemBillingAttribution(connector.workspaceId)
-        await dispatchSync(connector.id, { billingAttribution, requestId })
+        await dispatchSync(connector.id, {
+          billingAttribution,
+          expectedNextSyncAt: connector.nextSyncAt ?? undefined,
+          requestId,
+          requireRunnable: true,
+        })
       } catch (error) {
         logger.error(`[${requestId}] Failed to dispatch sync for connector ${connector.id}`, error)
       }
