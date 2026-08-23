@@ -222,6 +222,8 @@ describe('versioned deployment preparation outbox', () => {
   })
 
   it('activates only after every preparation component is ready', async () => {
+    /** Nothing newer has been enqueued, so this deploy owns its generation. */
+    mockIsDeploymentOperationCurrent.mockResolvedValue(true)
     const preparing = operation()
     const webhooksReady = operation({
       componentReadiness: {
@@ -318,11 +320,10 @@ describe('versioned deployment preparation outbox', () => {
     )
 
     /**
-     * The resume still owns the latest generation, so it re-enters
-     * post-activation work and the checkpoints — not the generation gate —
-     * are what must keep analytics from being captured twice.
+     * The resume re-enters post-activation work, so the checkpoints — not the
+     * generation fence — are what must keep analytics from being captured
+     * twice.
      */
-    mockIsDeploymentOperationCurrent.mockResolvedValue(true)
     mockGetDeploymentOperation.mockResolvedValue(active)
     queueTableRows(schemaMock.workflow, [
       { id: 'workflow-1', name: 'Workflow', workspaceId: 'workspace-1' },
@@ -545,7 +546,7 @@ describe('versioned deployment preparation outbox', () => {
    * requeues it. Every resumed attempt then re-fails the same generation
    * fence, so without the guard it exhausts the retry budget and dead-letters.
    */
-  it('skips post-activation work once a newer deploy supersedes an activated attempt', async () => {
+  it('skips the fenced cleanup once a newer deploy supersedes an activated attempt', async () => {
     mockGetDeploymentOperation.mockResolvedValue(operation({ status: 'active', completedAt: NOW }))
     queueTableRows(schemaMock.workflow, [
       { id: 'workflow-1', name: 'Workflow', workspaceId: 'workspace-1' },
@@ -557,9 +558,28 @@ describe('versioned deployment preparation outbox', () => {
     await expect(handler()(payload(), context(new AbortController(), 3))).resolves.toBeUndefined()
 
     expect(mockCleanupRetiredWebhookRegistrations).not.toHaveBeenCalled()
-    expect(mockRecordAudit).not.toHaveBeenCalled()
     expect(mockMarkDeploymentOperationFailed).not.toHaveBeenCalled()
     expect(mockRecordDeploymentOperationRetry).not.toHaveBeenCalled()
+  })
+
+  /**
+   * `isDeploymentOperationCurrent` goes false the moment any newer generation
+   * row exists, including one still `preparing` or already `failed`. This
+   * activation is the live cutover in that window and no newer attempt will
+   * adopt its notifications, so the fence must cost it only the cleanup.
+   */
+  it('still notifies when the newer generation has not activated', async () => {
+    mockGetDeploymentOperation.mockResolvedValue(operation({ status: 'active', completedAt: NOW }))
+    queueTableRows(schemaMock.workflow, [
+      { id: 'workflow-1', name: 'Workflow', workspaceId: 'workspace-1' },
+    ])
+
+    await expect(handler()(payload(), context())).resolves.toBeUndefined()
+
+    expect(mockRecordAudit).toHaveBeenCalledTimes(1)
+    expect(mockCaptureServerEvent).toHaveBeenCalledTimes(1)
+    expect(mockEmitWorkflowDeployedEvent).toHaveBeenCalledTimes(1)
+    expect(mockCleanupRetiredWebhookRegistrations).not.toHaveBeenCalled()
   })
 
   it('resumes post-activation work while the activated attempt is still current', async () => {

@@ -330,31 +330,14 @@ async function prepareDeploymentOperation(
 
   if (operation.status === 'active') {
     /**
-     * Resuming an attempt that already activated: every remaining step is
-     * fenced to this generation, so once a newer one exists they can only
-     * fail, identically, on every retry until the event dead-letters. The
-     * terminal short circuit above cannot catch this — a superseded-after-
-     * activation attempt keeps its own `active` status — and the newer
-     * generation adopts the leftover work anyway, retired registrations
-     * included (it collects every retired row below its own fence).
+     * Resuming an attempt that already activated. The terminal short circuit
+     * above cannot catch this case — a superseded-after-activation attempt
+     * keeps its own `active` status — so the generation fence is applied per
+     * step inside {@link runPostActivationWork} rather than here: the
+     * notifications describe a cutover that really happened and stay owed
+     * whatever else has started since, while only the fenced cleanup is
+     * skipped.
      */
-    context.signal.throwIfAborted()
-    const isCurrent = await isDeploymentOperationCurrent({
-      workflowId: payload.workflowId,
-      operationId: payload.operationId,
-      generation: payload.generation,
-    })
-    context.signal.throwIfAborted()
-    if (!isCurrent) {
-      logger.info('Skipping post-activation work for a superseded generation', {
-        workflowId: payload.workflowId,
-        operationId: payload.operationId,
-        generation: payload.generation,
-        errorCode: DEPLOYMENT_ERROR_CODES.operationSuperseded,
-      })
-      return
-    }
-
     await runPostActivationWork({
       payload,
       operation,
@@ -528,6 +511,12 @@ async function prepareDeploymentOperation(
  * timeout its latency burns through — silently cost the deploy its audit
  * trail and left clients on the old version until something else refreshed
  * them. Nothing below depends on the cleanup having run.
+ *
+ * It also decides where the generation fence goes. Both cleanups carry their
+ * own, because only they are fenced; the notifications are not, and gating
+ * them on the same predicate would drop them for good in the window where a
+ * newer generation exists but has not activated — this activation is still
+ * the live one there, and nothing else will emit them.
  */
 async function runPostActivationWork(params: {
   payload: PrepareDeploymentV2Payload
@@ -598,13 +587,35 @@ async function cleanupRetiredWebhooksForOperation(params: {
   context: OutboxEventContext
 }): Promise<void> {
   params.context.signal.throwIfAborted()
-  await cleanupRetiredWebhookRegistrationsAfterActivation({
-    fence: {
+  const fence = {
+    workflowId: params.payload.workflowId,
+    operationId: params.payload.operationId,
+    generation: params.payload.generation,
+    deploymentVersionId: params.payload.deploymentVersionId,
+  }
+
+  /**
+   * Gated exactly like {@link cleanupInactiveDeploymentsForOperation} below,
+   * and on the same predicate the store asserts internally — the store throws
+   * where this returns, so a superseded attempt would otherwise fail here
+   * identically on every retry until the event dead-lettered. Skipping loses
+   * nothing: a newer generation collects every retired row below its own
+   * fence, this one included.
+   */
+  const isCurrent = await isDeploymentOperationCurrent({ ...fence, statuses: ['active'] })
+  params.context.signal.throwIfAborted()
+  if (!isCurrent) {
+    logger.info('Skipping retired webhook cleanup for a superseded generation', {
       workflowId: params.payload.workflowId,
       operationId: params.payload.operationId,
       generation: params.payload.generation,
-      deploymentVersionId: params.payload.deploymentVersionId,
-    },
+      errorCode: DEPLOYMENT_ERROR_CODES.operationSuperseded,
+    })
+    return
+  }
+
+  await cleanupRetiredWebhookRegistrationsAfterActivation({
+    fence,
     workflow: params.workflow,
     requestId: params.payload.requestId,
     signal: params.context.signal,
