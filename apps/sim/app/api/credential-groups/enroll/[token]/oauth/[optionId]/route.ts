@@ -10,7 +10,7 @@ import { startPublicCredentialGroupOAuth } from '@/lib/credential-groups/applica
 import { CredentialGroupOAuthError } from '@/lib/credential-groups/provider-adapter'
 import {
   enforceCredentialGroupEnrollmentOAuthRateLimit,
-  enforcePublicCredentialGroupIpRateLimit,
+  enforcePublicCredentialGroupOAuthStartIpRateLimit,
 } from '@/lib/credential-groups/rate-limit'
 import { createCredentialGroupEnrollmentRedirect } from '@/app/api/credential-groups/enrollment-redirect'
 
@@ -24,7 +24,7 @@ export const GET = withRouteHandler(
     request: NextRequest,
     context: { params: Promise<{ token: string; optionId: string }> }
   ) => {
-    const limited = await enforcePublicCredentialGroupIpRateLimit(request, 'oauth-start')
+    const limited = await enforcePublicCredentialGroupOAuthStartIpRateLimit(request)
 
     const parsed = await parseRequest(startCredentialGroupOAuthContract, request, context)
     if (!parsed.success) return limited ?? parsed.response

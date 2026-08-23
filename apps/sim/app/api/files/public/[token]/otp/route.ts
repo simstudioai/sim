@@ -19,6 +19,7 @@ import {
   MAX_OTP_ATTEMPTS,
   OTP_EMAIL_RATE_LIMIT,
   OTP_IP_RATE_LIMIT,
+  OTP_RESOURCE_RATE_LIMIT,
   storeOTP,
 } from '@/lib/core/security/otp'
 import { generateRequestId, getClientIp } from '@/lib/core/utils/request'
@@ -58,13 +59,16 @@ export const POST = withRouteHandler(
 
     try {
       const ip = getClientIp(request)
-      const ipRateLimit = await rateLimiter.checkRateLimitDirect(
-        `file-otp:ip:${ip}`,
-        OTP_IP_RATE_LIMIT
-      )
-      if (!ipRateLimit.allowed) {
-        logger.warn(`[${requestId}] OTP IP rate limit exceeded from ${ip}`)
-        return rateLimited(ipRateLimit.retryAfterMs, OTP_IP_RATE_LIMIT.refillIntervalMs)
+      if (ip) {
+        const ipRateLimit = await rateLimiter.checkRateLimitDirect(
+          `file-otp:ip:${ip}`,
+          OTP_IP_RATE_LIMIT,
+          { failClosed: true }
+        )
+        if (!ipRateLimit.allowed) {
+          logger.warn(`[${requestId}] OTP IP rate limit exceeded from ${ip}`)
+          return rateLimited(ipRateLimit.retryAfterMs, OTP_IP_RATE_LIMIT.refillIntervalMs)
+        }
       }
 
       const parsed = await parseRequest(requestPublicFileOtpContract, request, context)
@@ -85,13 +89,26 @@ export const POST = withRouteHandler(
         )
       }
 
+      const resourceRateLimit = await rateLimiter.checkRateLimitDirect(
+        `file-otp:resource:${resolved.share.id}`,
+        OTP_RESOURCE_RATE_LIMIT,
+        { failClosed: true }
+      )
+      if (!resourceRateLimit.allowed) {
+        logger.warn(
+          `[${requestId}] OTP resource rate limit exceeded for share ${resolved.share.id}`
+        )
+        return rateLimited(resourceRateLimit.retryAfterMs, OTP_RESOURCE_RATE_LIMIT.refillIntervalMs)
+      }
+
       if (!isEmailAllowed(email, shareAllowedEmails(resolved.share.allowedEmails))) {
         return NextResponse.json({ error: 'Email not authorized for this file' }, { status: 403 })
       }
 
       const emailRateLimit = await rateLimiter.checkRateLimitDirect(
         `file-otp:email:${resolved.share.id}:${email}`,
-        OTP_EMAIL_RATE_LIMIT
+        OTP_EMAIL_RATE_LIMIT,
+        { failClosed: true }
       )
       if (!emailRateLimit.allowed) {
         logger.warn(`[${requestId}] OTP email rate limit exceeded for ${email}`)
