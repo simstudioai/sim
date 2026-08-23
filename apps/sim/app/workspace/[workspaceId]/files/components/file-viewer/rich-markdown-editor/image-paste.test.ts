@@ -11,7 +11,6 @@ import {
 import { createMarkdownEditorExtensions } from './editor-extensions'
 import {
   extractImageFiles,
-  extractImgSrcs,
   findHostedImageAttrs,
   hasHostedImageHtml,
   htmlReferencesSrc,
@@ -148,19 +147,6 @@ describe('hasHostedImageHtml', () => {
 
   it('matches single-quoted src attributes too', () => {
     expect(hasHostedImageHtml("<img src='/api/files/view/wf_abc'>", isHosted)).toBe(true)
-  })
-})
-
-describe('extractImgSrcs', () => {
-  it('extracts every img src in document order, including duplicates', () => {
-    expect(
-      extractImgSrcs('<img src="/a.png"><p>text</p><img src="/b.png"><img src="/a.png">')
-    ).toEqual(['/a.png', '/b.png', '/a.png'])
-  })
-
-  it('returns an empty array for html with no img', () => {
-    expect(extractImgSrcs('<p>hello</p>')).toEqual([])
-    expect(extractImgSrcs('')).toEqual([])
   })
 })
 

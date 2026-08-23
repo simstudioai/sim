@@ -1,43 +1,62 @@
-import { describe, expect, it } from 'vitest'
-import {
-  extractEmbeddedImageIds,
-  extractEmbeddedImageKeys,
-} from '@/lib/copilot/tools/server/files/embedded-image-refs'
+/**
+ * @vitest-environment node
+ */
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const KEY = 'workspace/W1/1700000000000-deadbeefdeadbeef-photo.png'
+const { mockGetFileMetadataById } = vi.hoisted(() => ({
+  mockGetFileMetadataById: vi.fn(),
+}))
 
-describe('extractEmbeddedImageIds', () => {
-  it('extracts unique ids from view-url and in-app-path embeds (wf_ and uuid)', () => {
-    const a = 'wf_YwDXi8eWOkTxn0sbgChlB'
-    const b = '4bdaf6c4-072e-464e-891d-b6af3b5fe2cc'
-    const content = `![x](/api/files/view/${a}) ![y](/workspace/W1/files/${b}) ![dup](/api/files/view/${a})`
-    expect(extractEmbeddedImageIds(content).sort()).toEqual([b, a].sort())
+vi.mock('@/lib/uploads/server/metadata', () => ({
+  getFileMetadataById: mockGetFileMetadataById,
+}))
+
+import { findUnembeddableImageRefs } from '@/lib/copilot/tools/server/files/embedded-image-refs'
+
+const WORKSPACE_ID = 'W1'
+
+describe('findUnembeddableImageRefs', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
   })
 
-  it('ignores serve-url, external, and plain content', () => {
-    expect(
-      extractEmbeddedImageIds(`![a](/api/files/serve/${encodeURIComponent(KEY)}) plain`)
-    ).toEqual([])
+  it('flags embeds that are not workspace files in this workspace', async () => {
+    mockGetFileMetadataById.mockImplementation(async (id: string) => {
+      if (id === 'wf_here') return { context: 'workspace', workspaceId: WORKSPACE_ID }
+      if (id === 'wf_elsewhere') return { context: 'workspace', workspaceId: 'W2' }
+      if (id === 'wf_chat') return { context: 'mothership', workspaceId: WORKSPACE_ID }
+      return null
+    })
+
+    const content = `![a](/api/files/view/wf_here) ![b](/api/files/view/wf_elsewhere)
+      ![c](/api/files/view/wf_chat) ![d](/api/files/view/wf_missing)`
+
+    expect((await findUnembeddableImageRefs(content, WORKSPACE_ID)).sort()).toEqual([
+      'wf_chat',
+      'wf_elsewhere',
+      'wf_missing',
+    ])
   })
 
-  it('caps the result at 50 ids', () => {
-    const content = Array.from(
-      { length: 60 },
-      (_, i) => `/api/files/view/wf_${String(i).padStart(6, '0')}`
-    ).join(' ')
-    expect(extractEmbeddedImageIds(content)).toHaveLength(50)
-  })
-})
+  it('never warns about a url the document only mentions', async () => {
+    const content = 'Call `/api/files/view/{id}`; see [the docs](/api/files/view/wf_linked).'
 
-describe('extractEmbeddedImageKeys', () => {
-  it('extracts decoded workspace keys from serve-url embeds (encoded + s3/blob prefixed)', () => {
-    const content = `![a](/api/files/serve/${encodeURIComponent(KEY)}?context=workspace) ![b](/api/files/serve/s3/${encodeURIComponent(KEY)})`
-    expect(extractEmbeddedImageKeys(content)).toEqual([KEY])
+    expect(await findUnembeddableImageRefs(content, WORKSPACE_ID)).toEqual([])
+    expect(mockGetFileMetadataById).not.toHaveBeenCalled()
   })
 
-  it('drops non-workspace keys (e.g. public profile pictures) and view-url embeds', () => {
-    const content =
-      '![a](/api/files/serve/profile-pictures%2Fu1%2Favatar.png) ![b](/api/files/view/wf_abc)'
-    expect(extractEmbeddedImageKeys(content)).toEqual([])
+  /**
+   * The export bundler resolves an embed by its stored id, so reporting the same embed as one that
+   * will not survive an export would contradict what the export actually does with it.
+   */
+  it('resolves a percent-encoded embed by its stored id, like the export does', async () => {
+    mockGetFileMetadataById.mockImplementation(async (id: string) =>
+      id === 'wf_abc' ? { context: 'workspace', workspaceId: WORKSPACE_ID } : null
+    )
+
+    expect(await findUnembeddableImageRefs('![a](/api/files/view/wf%5Fabc)', WORKSPACE_ID)).toEqual(
+      []
+    )
+    expect(mockGetFileMetadataById).toHaveBeenCalledWith('wf_abc')
   })
 })
