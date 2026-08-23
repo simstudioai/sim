@@ -22,7 +22,12 @@ vi.mock('@/lib/core/rate-limiter/storage', async () => {
   }
 })
 
-import { enforceIpRateLimit, enforceUserOrIpRateLimit, enforceUserRateLimit } from './route-helpers'
+import {
+  enforceIpRateLimit,
+  enforceIpRateLimitWithIndependentBackstop,
+  enforceUserOrIpRateLimit,
+  enforceUserRateLimit,
+} from './route-helpers'
 
 const consume = mockAdapter.consumeTokens as Mock
 
@@ -124,6 +129,16 @@ describe('route-helpers rate limiting', () => {
 
       expect(result?.status).toBe(429)
       expect(result?.headers.get('Retry-After')).toBe('60')
+      expect(consume).not.toHaveBeenCalled()
+    })
+
+    it('defers an unresolved client only when the caller declares an independent backstop', async () => {
+      requestUtilsMockFns.mockGetClientIp.mockReturnValueOnce(null)
+      const request = createMockRequest('POST')
+
+      const result = await enforceIpRateLimitWithIndependentBackstop('password-reset', request)
+
+      expect(result).toBeNull()
       expect(consume).not.toHaveBeenCalled()
     })
 
