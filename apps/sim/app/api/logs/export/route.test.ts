@@ -1,0 +1,187 @@
+/**
+ * @vitest-environment node
+ */
+import { workflowExecutionLogs } from '@sim/db/schema'
+import {
+  authMockFns,
+  createMockRequest,
+  dbChainMockFns,
+  queueTableRows,
+  resetDbChainMock,
+} from '@sim/testing'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const {
+  mockCheckWorkspaceAccess,
+  mockExpandFolderIdsWithDescendants,
+  mockMapWithConcurrency,
+  mockMaterializeExecutionDataForDisplay,
+} = vi.hoisted(() => ({
+  mockCheckWorkspaceAccess: vi.fn(),
+  mockExpandFolderIdsWithDescendants: vi.fn(),
+  mockMapWithConcurrency: vi.fn(),
+  mockMaterializeExecutionDataForDisplay: vi.fn(),
+}))
+
+vi.mock('@/lib/workspaces/permissions/utils', () => ({
+  checkWorkspaceAccess: mockCheckWorkspaceAccess,
+}))
+
+vi.mock('@/lib/logs/folder-expansion', () => ({
+  expandFolderIdsWithDescendants: mockExpandFolderIdsWithDescendants,
+}))
+
+vi.mock('@/lib/logs/execution/trace-store', () => ({
+  materializeExecutionDataForDisplay: mockMaterializeExecutionDataForDisplay,
+}))
+
+vi.mock('@/lib/core/utils/concurrency', () => ({
+  MATERIALIZE_CONCURRENCY: 20,
+  mapWithConcurrency: mockMapWithConcurrency,
+}))
+
+import { GET } from '@/app/api/logs/export/route'
+
+const mockGetSession = authMockFns.mockGetSession
+const STARTED_AT = new Date('2026-08-23T12:00:00.000Z')
+
+function makeRequest() {
+  return createMockRequest(
+    'GET',
+    undefined,
+    {},
+    'http://localhost:3000/api/logs/export?workspaceId=workspace-1'
+  )
+}
+
+function logRow(index: number, overrides: Record<string, unknown> = {}) {
+  const startedAt = new Date(STARTED_AT.getTime() - index * 1000)
+  return {
+    id: `log-${index.toString().padStart(4, '0')}`,
+    workflowId: 'workflow-1',
+    executionId: `execution-${index}`,
+    level: 'info',
+    trigger: 'manual',
+    startedAt,
+    startedAtCursor: startedAt.toISOString(),
+    endedAt: new Date(STARTED_AT.getTime() - index * 1000 + 500),
+    totalDurationMs: 500,
+    costTotal: '0.01',
+    executionData: { message: `message-${index}` },
+    workflowName: 'Workflow',
+    ...overrides,
+  }
+}
+
+function flattenConditions(condition: unknown): Array<Record<string, unknown>> {
+  if (!condition || typeof condition !== 'object') return []
+  const node = condition as Record<string, unknown>
+  if (Array.isArray(node.conditions)) {
+    return node.conditions.flatMap(flattenConditions)
+  }
+  return [node]
+}
+
+describe('GET /api/logs/export', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+    mockGetSession.mockResolvedValue({ user: { id: 'user-1' } })
+    mockCheckWorkspaceAccess.mockResolvedValue({ hasAccess: true })
+    mockExpandFolderIdsWithDescendants.mockImplementation(
+      async (_workspaceId: string, folderIds: string | undefined) => folderIds
+    )
+    mockMaterializeExecutionDataForDisplay.mockImplementation(
+      async (executionData: Record<string, unknown> | null | undefined) => executionData ?? {}
+    )
+    mockMapWithConcurrency.mockImplementation(
+      async (
+        items: unknown[],
+        _limit: number,
+        mapper: (item: unknown, index: number) => Promise<unknown>
+      ) => Promise.all(items.map(mapper))
+    )
+  })
+
+  it('materializes one bounded page at a time while preserving CSV row order', async () => {
+    queueTableRows(workflowExecutionLogs, [logRow(0)])
+    queueTableRows(workflowExecutionLogs, [logRow(1)])
+    queueTableRows(workflowExecutionLogs, [logRow(2)])
+
+    const response = await GET(makeRequest())
+    const lines = (await response.text()).trimEnd().split('\n')
+
+    expect(response.status).toBe(200)
+    expect(mockMapWithConcurrency.mock.calls.map(([items]) => items.length)).toEqual([1, 1, 1])
+    expect(lines).toHaveLength(4)
+    expect(lines[1]).toContain('execution-0')
+    expect(lines.at(-1)).toContain('execution-2')
+  })
+
+  it('resumes full pages by startedAt and id without using OFFSET', async () => {
+    const last = logRow(0, { startedAtCursor: '2026-08-23 12:00:00.000123' })
+    const secondPage = [
+      logRow(1, {
+        id: 'log-0000-second',
+        startedAt: last.startedAt,
+        startedAtCursor: '2026-08-23 12:00:00.000122',
+      }),
+    ]
+    queueTableRows(workflowExecutionLogs, [last])
+    queueTableRows(workflowExecutionLogs, secondPage)
+
+    const response = await GET(makeRequest())
+    const lines = (await response.text()).trimEnd().split('\n')
+
+    expect(lines).toHaveLength(3)
+    expect(dbChainMockFns.offset).not.toHaveBeenCalled()
+    expect(dbChainMockFns.where).toHaveBeenCalledTimes(3)
+    expect(dbChainMockFns.orderBy).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        type: 'desc',
+        column: workflowExecutionLogs.startedAt,
+      }),
+      expect.objectContaining({
+        type: 'desc',
+        column: workflowExecutionLogs.id,
+      })
+    )
+
+    const cursorConditions = flattenConditions(dbChainMockFns.where.mock.calls[1][0])
+    const timestampConditions = cursorConditions.filter(
+      (condition) => condition.left === workflowExecutionLogs.startedAt
+    )
+    expect(timestampConditions.map((condition) => condition.type)).toEqual(['lt', 'eq'])
+    for (const condition of timestampConditions) {
+      expect(condition.right).not.toBeInstanceOf(Date)
+      expect(condition.right).toEqual(
+        expect.objectContaining({ values: expect.arrayContaining([last.startedAtCursor]) })
+      )
+    }
+    expect(cursorConditions).toContainEqual(
+      expect.objectContaining({
+        type: 'lt',
+        left: workflowExecutionLogs.id,
+        right: last.id,
+      })
+    )
+  })
+
+  it('does not load the next database page until the current row is consumed', async () => {
+    queueTableRows(workflowExecutionLogs, [logRow(0)])
+    queueTableRows(workflowExecutionLogs, [logRow(1)])
+
+    const response = await GET(makeRequest())
+    const reader = response.body!.getReader()
+
+    await reader.read()
+    expect(dbChainMockFns.where).not.toHaveBeenCalled()
+
+    await reader.read()
+    expect(dbChainMockFns.where).toHaveBeenCalledTimes(1)
+
+    await reader.cancel()
+    expect(dbChainMockFns.where).toHaveBeenCalledTimes(1)
+  })
+})
