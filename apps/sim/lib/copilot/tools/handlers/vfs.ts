@@ -126,6 +126,7 @@ async function canReturnWorkspaceFileValue(
         registry: context.resolvedSecretTraceRegistry,
         view: provenanceView,
         value,
+        actorUserId: context.userId,
       }))
     ) {
       return false
