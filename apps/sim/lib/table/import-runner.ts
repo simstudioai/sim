@@ -12,7 +12,6 @@ import {
   CSV_SCHEMA_SAMPLE_SIZE,
   type CsvHeaderMapping,
   coerceRowsForTable,
-  createCsvParser,
   inferColumnType,
   inferSchemaFromCsv,
   sanitizeName,
@@ -29,6 +28,7 @@ import {
   deleteAllTableRows,
   setTableSchemaForImport,
 } from '@/lib/table/import-data'
+import { createCsvParser } from '@/lib/table/import-stream'
 import {
   markJobFailedInWorkspace,
   markJobReadyInWorkspace,

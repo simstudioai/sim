@@ -1,6 +1,8 @@
 'use client'
 
 import {
+  lazy,
+  Suspense,
   useCallback,
   useEffect,
   useEffectEvent,
@@ -64,6 +66,10 @@ import {
   type ResourceTableHandle,
 } from '@/app/workspace/[workspaceId]/components'
 import { LogsEmptyState } from '@/app/workspace/[workspaceId]/components/resource/components/resource-empty-state'
+import {
+  SnapshotBoundary,
+  SnapshotModalFallback,
+} from '@/app/workspace/[workspaceId]/logs/components/log-details/components/execution-snapshot/snapshot-boundary'
 import { useLogFilters } from '@/app/workspace/[workspaceId]/logs/hooks/use-log-filters'
 import { useSearchState } from '@/app/workspace/[workspaceId]/logs/hooks/use-search-state'
 import {
@@ -93,7 +99,7 @@ import { useDebounce } from '@/hooks/use-debounce'
 import { useUrlSort } from '@/hooks/use-url-sort'
 import { useFilterStore } from '@/stores/logs/filters/store'
 import { CORE_TRIGGER_TYPES } from '@/stores/logs/filters/types'
-import { Dashboard, ExecutionSnapshot, LogDetails, LogRowContextMenu } from './components'
+import { Dashboard, LogDetails, LogRowContextMenu } from './components'
 import {
   formatDate,
   getDisplayStatus,
@@ -105,6 +111,20 @@ import {
   TriggerBadge,
   workflowEditorPath,
 } from './utils'
+
+/**
+ * Lazy per the code-splitting rule in `sim-imports.md`: the snapshot renders the workflow
+ * preview canvas, whose graph is ~7.6 MB of source (the editor's sub-block components and
+ * the generated tool metadata). Both render sites are gated on client-only state (a preview
+ * selection / an opened detail), so the chunk is fetched on first use, never during SSR or
+ * hydration. The now-dead barrel re-export is deleted — with no `sideEffects: false`, a
+ * leftover re-export would silently defeat this split.
+ */
+const ExecutionSnapshot = lazy(() =>
+  import(
+    '@/app/workspace/[workspaceId]/logs/components/log-details/components/execution-snapshot/execution-snapshot'
+  ).then((m) => ({ default: m.ExecutionSnapshot }))
+)
 
 const LOGS_PER_PAGE = 50 as const
 const REFRESH_SPINNER_DURATION_MS = 1000 as const
@@ -1259,13 +1279,21 @@ export default function Logs() {
       />
 
       {previewLogId !== null && previewDetailQuery.data?.executionId && (
-        <ExecutionSnapshot
-          executionId={previewDetailQuery.data.executionId}
-          traceSpans={previewDetailQuery.data.executionData?.traceSpans}
-          isModal
-          isOpen={previewLogId !== null}
-          onClose={handleClosePreview}
-        />
+        <SnapshotBoundary
+          key={previewDetailQuery.data.executionId}
+          isOpen
+          onLoadError={handleClosePreview}
+        >
+          <Suspense fallback={<SnapshotModalFallback isOpen onClose={handleClosePreview} />}>
+            <ExecutionSnapshot
+              executionId={previewDetailQuery.data.executionId}
+              traceSpans={previewDetailQuery.data.executionData?.traceSpans}
+              isModal
+              isOpen={previewLogId !== null}
+              onClose={handleClosePreview}
+            />
+          </Suspense>
+        </SnapshotBoundary>
       )}
     </>
   )

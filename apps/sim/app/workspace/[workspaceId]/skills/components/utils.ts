@@ -1,4 +1,3 @@
-import JSZip from 'jszip'
 import { isApiClientError } from '@/lib/api/client/errors'
 
 export interface ParsedSkill {
@@ -91,6 +90,12 @@ function inferNameFromHeading(markdown: string): string {
 export async function extractSkillFromZip(
   data: File | Blob | ArrayBuffer | Uint8Array
 ): Promise<string> {
+  /**
+   * Dynamic on purpose (mirrors `lib/workflows/operations/import-export.ts`): jszip is
+   * ~28 KB gzip and this user-triggered upload path is the only reason it would sit in
+   * the initial bundle of every route that links the skills surface.
+   */
+  const { default: JSZip } = await import('jszip')
   const zip = await JSZip.loadAsync(data)
 
   const candidates: string[] = []

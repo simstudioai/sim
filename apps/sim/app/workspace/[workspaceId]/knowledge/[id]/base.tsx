@@ -77,7 +77,13 @@ import {
   useFolderAncestors,
 } from '@/app/workspace/[workspaceId]/components/folders'
 import { DocumentsEmptyState } from '@/app/workspace/[workspaceId]/components/resource/components/resource-empty-state'
-import { DocumentTagsModal } from '@/app/workspace/[workspaceId]/knowledge/[id]/[documentId]/components'
+/**
+ * Deep import on purpose: the `[documentId]/components` barrel also exports `ChunkEditor`,
+ * which needs exact token counts and therefore `js-tiktoken` (~2.5 MB gzip of BPE rank
+ * tables). Importing the modal through the barrel shipped the tokenizer to the document
+ * LIST route, which never edits chunks.
+ */
+import { DocumentTagsModal } from '@/app/workspace/[workspaceId]/knowledge/[id]/[documentId]/components/document-tags-modal'
 import {
   ActionBar,
   AddConnectorModal,
