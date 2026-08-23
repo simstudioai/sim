@@ -1,7 +1,12 @@
 import { requestJson } from '@/lib/api/client/request'
 import * as selectorContracts from '@/lib/api/contracts/selectors'
 import { fetchOAuthToken } from '@/hooks/selectors/helpers'
-import { ensureCredential, ensureDomain, SELECTOR_STALE } from '@/hooks/selectors/providers/shared'
+import {
+  ensureCredential,
+  ensureDomain,
+  SELECTOR_SEARCH_STALE,
+  SELECTOR_STALE,
+} from '@/hooks/selectors/providers/shared'
 import type { SelectorDefinition, SelectorKey, SelectorQueryArgs } from '@/hooks/selectors/types'
 
 export const jiraSelectors = {
@@ -71,7 +76,7 @@ export const jiraSelectors = {
       selectorContracts.jiraIssuesSelectorContract,
       selectorContracts.jiraIssueSelectorContract,
     ],
-    staleTime: 15 * 1000,
+    staleTime: SELECTOR_SEARCH_STALE,
     getQueryKey: ({ context, search }: SelectorQueryArgs) => [
       'selectors',
       'jira.issues',

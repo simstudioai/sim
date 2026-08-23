@@ -1,3 +1,4 @@
+import { getErrorMessage } from '@sim/utils/errors'
 import { HttpError } from '@/lib/core/utils/http-error'
 import type { ExecutionContext, ExecutionResult } from '@/executor/types'
 import type { SerializedBlock } from '@/serializer/types'
@@ -49,8 +50,7 @@ export interface BlockExecutionErrorDetails {
  * every block boundary.
  */
 export function buildBlockExecutionError(details: BlockExecutionErrorDetails): Error {
-  const errorMessage =
-    details.error instanceof Error ? details.error.message : String(details.error)
+  const errorMessage = getErrorMessage(details.error)
   const blockName = details.block.metadata?.name || details.block.id
   const blockType = details.block.metadata?.id || 'unknown'
 
