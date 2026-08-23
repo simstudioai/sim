@@ -32,7 +32,7 @@ import { selectModelBoundFileInputPaths } from '@/lib/uploads/utils/model-input'
 import { hydrateUserFilesWithBase64 } from '@/lib/uploads/utils/user-file-base64.server'
 import { resolveCustomBlockToolBinding } from '@/lib/workflows/custom-blocks/operations'
 import { getCustomToolById } from '@/lib/workflows/custom-tools/operations'
-import { getAllBlocks } from '@/blocks'
+import { getAllBlocks, getBlock } from '@/blocks'
 import { assembleCustomBlockInputMapping, isCustomBlockType } from '@/blocks/custom/build-config'
 import type { BlockOutput } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
@@ -857,7 +857,7 @@ export class AgentBlockHandler implements BlockHandler {
     )
     if (tool.type === 'mcp' || tool.type === 'custom-tool') return alignedParams
 
-    const blockInputs = getAllBlocks().find((block) => block.type === tool.type)?.inputs
+    const blockInputs = tool.type ? getBlock(tool.type)?.inputs : undefined
     return prepareResolvedSecretProjectedInputs(alignedParams, blockInputs, formattedParams)
   }
 

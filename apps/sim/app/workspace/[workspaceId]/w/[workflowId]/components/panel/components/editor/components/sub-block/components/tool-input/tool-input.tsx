@@ -520,7 +520,7 @@ export const ToolInput = memo(function ToolInput({
   // subBlock): shown in the picker but greyed out with a tooltip instead of added.
   const blockType = useWorkflowStore(useCallback((state) => state.blocks[blockId]?.type, [blockId]))
   const unsupportedToolTypes = useMemo<readonly ('mcp' | 'custom-tool')[]>(() => {
-    const block = getBlock(blockType)
+    const block = blockType ? getBlock(blockType) : undefined
     return block?.subBlocks.find((sb) => sb.id === subBlockId)?.unsupportedToolTypes ?? []
   }, [blockType, subBlockId])
   const mcpUnsupported = unsupportedToolTypes.includes('mcp')
