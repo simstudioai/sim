@@ -161,6 +161,29 @@ describe('markdown export bundling', () => {
     expect(zip.file('assets/bad.png')).toBeNull()
   })
 
+  /**
+   * The two id representations have to stay distinct: metadata resolves by the stored id, while the
+   * rewrite finds the embed by the spelling the document used. Collapsing them either drops the
+   * asset or bundles it behind a link still pointing at the API.
+   */
+  it('resolves and rewrites an embed whose id is percent-encoded in the document', async () => {
+    embeds('wf%5Fa')
+    assetsResolveTo((id) => (id === 'wf_a' ? assetRecord(id, 1 * MB) : null))
+    mockDownloadFile.mockImplementation(async ({ key }: { key: string }) =>
+      key.endsWith('doc.md')
+        ? Buffer.from('# Doc\n![x](/api/files/view/wf%5Fa)\n')
+        : Buffer.from('png-bytes')
+    )
+
+    const response = await GET(request(), context)
+
+    const zip = await JSZip.loadAsync(Buffer.from(await response.arrayBuffer()))
+    expect(zip.file('assets/wf_a.png')).not.toBeNull()
+    const md = await zip.file('doc.md')?.async('string')
+    expect(md).toContain('./assets/wf_a.png')
+    expect(md).not.toContain('/api/files/view/')
+  })
+
   it('skips an asset the caller cannot read', async () => {
     embeds('secret')
     mockVerifyFileAccess.mockImplementation(async (key: string) => !key.endsWith('secret'))

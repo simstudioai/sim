@@ -51,6 +51,19 @@ function safeFilename(name: string): string {
     .replace(/[\r\n\t]/g, '')
 }
 
+/**
+ * The stored id behind an embed's spelling. Ids arrive spelled as the document writes them, because
+ * the rewrite below locates each embed by searching for that spelling; metadata lookup needs the
+ * decoded id instead, so the two representations are kept distinct rather than reconciled.
+ */
+function storedId(spelledId: string): string {
+  try {
+    return decodeURIComponent(spelledId)
+  } catch {
+    return spelledId
+  }
+}
+
 function deduplicatedFilename(preferred: string, existing: Set<string>, imageId: string): string {
   if (!existing.has(preferred)) return preferred
   const ext = path.extname(preferred)
@@ -160,7 +173,7 @@ export const GET = withRouteHandler(
     const assetTargets = (
       await mapWithConcurrency(imageIds, MATERIALIZE_CONCURRENCY, async (imageId) => {
         try {
-          const imgRecord = await getFileMetadataById(imageId)
+          const imgRecord = await getFileMetadataById(storedId(imageId))
           if (!imgRecord) return null
           if (!(await verifyFileAccess(imgRecord.key, userId))) return null
           return { imageId, record: imgRecord }
