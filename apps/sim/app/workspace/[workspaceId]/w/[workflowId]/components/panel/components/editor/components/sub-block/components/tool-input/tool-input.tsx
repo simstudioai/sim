@@ -530,7 +530,7 @@ export const ToolInput = memo(function ToolInput({
   // Uses canonical resolution so the active field (basic vs advanced) is respected.
   const toolCredentialId = useMemo(() => {
     for (const [toolIndex, tool] of selectedTools.entries()) {
-      const blockConfig = getBlock(tool.type)
+      const blockConfig = tool.type ? getBlock(tool.type) : undefined
       if (!blockConfig?.subBlocks) continue
       // canonical-index-unscoped: a nested tool resolves against `tool.params`, which only ever
       // holds action-surface values — a tool is never invoked in trigger mode.
