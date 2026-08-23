@@ -3,11 +3,13 @@ import type { SelectorContext, SelectorKey } from '@/hooks/selectors/types'
 export const SELECTOR_STALE = 60 * 1000
 
 /**
- * Stale window for selectors whose result set is search-backed.
+ * The shorter stale window carried by `google.drive`, `jira.issues` and
+ * `webflow.items`, whose listings turn over faster than {@link SELECTOR_STALE}
+ * assumes.
  *
- * Shorter than {@link SELECTOR_STALE} because the query key carries the search
- * term, so a stale entry is a stale answer to a question the user is still
- * typing rather than a stale copy of a stable list.
+ * Not every search-backed selector uses it — several still sit on
+ * {@link SELECTOR_STALE} — so treat this as the value those three share rather
+ * than a rule about search.
  */
 export const SELECTOR_SEARCH_STALE = 15 * 1000
 
