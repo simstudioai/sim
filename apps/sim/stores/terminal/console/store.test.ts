@@ -1,6 +1,7 @@
 /**
  * @vitest-environment node
  */
+import { createLogger } from '@sim/logger'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockSaveBlob } = vi.hoisted(() => ({
@@ -16,12 +17,19 @@ vi.unmock('@/stores/terminal/console/store')
 
 import { useTerminalConsoleStore } from '@/stores/terminal/console/store'
 
+const storeLoggerCallIndex = vi
+  .mocked(createLogger)
+  .mock.calls.findIndex(([name]) => name === 'TerminalConsoleStore')
+const storeLogger = vi.mocked(createLogger).mock.results[storeLoggerCallIndex]?.value
+
 describe('terminal console store', () => {
   beforeEach(() => {
     mockSaveBlob.mockClear()
+    storeLogger?.warn.mockClear()
     useTerminalConsoleStore.setState({
       workflowEntries: {},
       entryIdsByBlockExecution: {},
+      entryIdByBlockExecutionId: {},
       entryLocationById: {},
       isOpen: false,
       _hasHydrated: true,
@@ -143,6 +151,140 @@ describe('terminal console store', () => {
 
     expect(after.workflowEntries['wf-2']).toBe(workflowTwoEntries)
     expect(after.getWorkflowEntries('wf-1')[0].output).toMatchObject({ status: 'updated' })
+  })
+
+  describe('per-invocation attribution', () => {
+    it('isolates colliding iteration updates by blockExecutionId', () => {
+      const addConsole = useTerminalConsoleStore.getState().addConsole
+      for (const blockExecutionId of ['invoke-0', 'invoke-1']) {
+        addConsole({
+          workflowId: 'wf-1',
+          blockId: 'function-1',
+          blockExecutionId,
+          blockName: 'Function',
+          blockType: 'function',
+          executionId: 'exec-1',
+          executionOrder: 7,
+          iterationCurrent: 0,
+          iterationType: 'loop',
+          iterationContainerId: 'loop-1',
+          isRunning: true,
+        })
+      }
+
+      useTerminalConsoleStore.getState().updateConsole(
+        'function-1',
+        {
+          blockExecutionId: 'invoke-0',
+          blockName: 'Function success',
+          replaceOutput: { iteration: 0 },
+          success: true,
+          startedAt: '2026-08-22T10:00:00.000Z',
+          endedAt: '2026-08-22T10:00:00.010Z',
+          durationMs: 10,
+          isRunning: false,
+        },
+        'exec-1'
+      )
+      useTerminalConsoleStore.getState().updateConsole(
+        'function-1',
+        {
+          blockExecutionId: 'invoke-1',
+          blockName: 'Function failure',
+          replaceOutput: {},
+          error: 'iteration-1-failure',
+          success: false,
+          startedAt: '2026-08-22T10:00:01.000Z',
+          endedAt: '2026-08-22T10:00:01.020Z',
+          durationMs: 20,
+          isRunning: false,
+        },
+        'exec-1'
+      )
+
+      const entries = useTerminalConsoleStore.getState().getWorkflowEntries('wf-1')
+      expect(entries.find((entry) => entry.blockExecutionId === 'invoke-0')).toMatchObject({
+        blockName: 'Function success',
+        output: { iteration: 0 },
+        success: true,
+        error: undefined,
+        durationMs: 10,
+        startedAt: '2026-08-22T10:00:00.000Z',
+        endedAt: '2026-08-22T10:00:00.010Z',
+        isRunning: false,
+      })
+      expect(entries.find((entry) => entry.blockExecutionId === 'invoke-1')).toMatchObject({
+        blockName: 'Function failure',
+        output: {},
+        success: false,
+        error: 'iteration-1-failure',
+        durationMs: 20,
+        startedAt: '2026-08-22T10:00:01.000Z',
+        endedAt: '2026-08-22T10:00:01.020Z',
+        isRunning: false,
+      })
+    })
+
+    it('treats a replayed start as idempotent', () => {
+      const start = {
+        workflowId: 'wf-1',
+        blockId: 'function-1',
+        blockExecutionId: 'invoke-0',
+        blockName: 'Function',
+        blockType: 'function',
+        executionId: 'exec-1',
+        executionOrder: 1,
+        isRunning: true,
+      }
+
+      const first = useTerminalConsoleStore.getState().addConsole(start)
+      const replay = useTerminalConsoleStore.getState().addConsole(start)
+
+      expect(replay?.id).toBe(first?.id)
+      expect(useTerminalConsoleStore.getState().getWorkflowEntries('wf-1')).toHaveLength(1)
+    })
+
+    it('warns and leaves ambiguous legacy entries unchanged', () => {
+      const addConsole = useTerminalConsoleStore.getState().addConsole
+      for (const blockName of ['First', 'Second']) {
+        addConsole({
+          workflowId: 'wf-1',
+          blockId: 'function-1',
+          blockName,
+          blockType: 'function',
+          executionId: 'exec-1',
+          executionOrder: 1,
+          iterationCurrent: 0,
+          iterationType: 'loop',
+          iterationContainerId: 'loop-1',
+          isRunning: true,
+        })
+      }
+
+      useTerminalConsoleStore.getState().updateConsole(
+        'function-1',
+        {
+          executionOrder: 1,
+          iterationCurrent: 0,
+          iterationType: 'loop',
+          iterationContainerId: 'loop-1',
+          replaceOutput: { overwritten: true },
+          success: true,
+        },
+        'exec-1'
+      )
+
+      expect(
+        useTerminalConsoleStore
+          .getState()
+          .getWorkflowEntries('wf-1')
+          .every((entry) => entry.output === undefined && entry.success === undefined)
+      ).toBe(true)
+      expect(storeLogger?.warn).toHaveBeenCalledWith(
+        'Ignoring ambiguous legacy terminal update',
+        expect.objectContaining({ blockId: 'function-1', candidateCount: 2 })
+      )
+    })
   })
 
   describe('cancelRunningEntries', () => {

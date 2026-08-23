@@ -9,6 +9,32 @@ import { stripCustomToolPrefix } from '@/executor/constants'
 import type { ExecutionResult } from '@/executor/types'
 
 describe('buildTraceSpans', () => {
+  it('preserves block invocation identity on trace spans', () => {
+    const { traceSpans } = buildTraceSpans({
+      success: true,
+      output: {},
+      logs: [
+        {
+          blockId: 'function-1',
+          blockExecutionId: 'invoke-1',
+          blockName: 'Function',
+          blockType: 'function',
+          startedAt: '2026-08-22T10:00:00.000Z',
+          endedAt: '2026-08-22T10:00:00.010Z',
+          durationMs: 10,
+          success: true,
+          executionOrder: 1,
+          output: { ok: true },
+        },
+      ],
+    })
+
+    expect(traceSpans[0]).toMatchObject({
+      blockId: 'function-1',
+      blockExecutionId: 'invoke-1',
+    })
+  })
+
   it.concurrent('extracts sequential segments from timeSegments data', () => {
     const mockExecutionResult: ExecutionResult = {
       success: true,

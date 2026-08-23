@@ -145,6 +145,7 @@ interface BlockStartedEvent extends BaseExecutionEvent {
     parentIterations?: ParentIteration[]
     childWorkflowBlockId?: string
     childWorkflowName?: string
+    blockExecutionId?: string
   }
 }
 
@@ -174,6 +175,7 @@ interface BlockCompletedEvent extends BaseExecutionEvent {
     childWorkflowName?: string
     /** Per-invocation unique ID for correlating child block events with this workflow block. */
     childWorkflowInstanceId?: string
+    blockExecutionId?: string
   }
 }
 
@@ -203,6 +205,7 @@ interface BlockErrorEvent extends BaseExecutionEvent {
     childWorkflowName?: string
     /** Per-invocation unique ID for correlating child block events with this workflow block. */
     childWorkflowInstanceId?: string
+    blockExecutionId?: string
   }
 }
 
@@ -225,6 +228,7 @@ interface BlockChildWorkflowStartedEvent extends BaseExecutionEvent {
     childWorkflowBlockId?: string
     childWorkflowName?: string
     executionOrder?: number
+    blockExecutionId?: string
   }
 }
 
@@ -236,6 +240,7 @@ interface StreamChunkEvent extends BaseExecutionEvent {
   workflowId: string
   data: {
     blockId: string
+    blockExecutionId?: string
     chunk: string
     display?: ExecutionEventDisplayData
   }
@@ -252,6 +257,7 @@ interface StreamChunkResetEvent extends BaseExecutionEvent {
   workflowId: string
   data: {
     blockId: string
+    blockExecutionId?: string
   }
 }
 
@@ -263,6 +269,7 @@ interface StreamDoneEvent extends BaseExecutionEvent {
   workflowId: string
   data: {
     blockId: string
+    blockExecutionId?: string
   }
 }
 
@@ -276,6 +283,7 @@ interface StreamThinkingEvent extends BaseExecutionEvent {
   workflowId: string
   data: {
     blockId: string
+    blockExecutionId?: string
     text: string
     display?: ExecutionEventDisplayData
   }
@@ -290,6 +298,7 @@ interface StreamToolEvent extends BaseExecutionEvent {
   workflowId: string
   data: {
     blockId: string
+    blockExecutionId?: string
     phase: 'start' | 'end'
     id: string
     name: string
@@ -365,7 +374,8 @@ export function createExecutionCallbacks(options: {
     blockType: string,
     executionOrder: number,
     iterationContext?: IterationContext,
-    childWorkflowContext?: ChildWorkflowContext
+    childWorkflowContext?: ChildWorkflowContext,
+    blockExecutionId?: string
   ) => {
     await sendBufferedEvent({
       type: 'block:started',
@@ -390,6 +400,7 @@ export function createExecutionCallbacks(options: {
           childWorkflowBlockId: childWorkflowContext.parentBlockId,
           childWorkflowName: childWorkflowContext.workflowName,
         }),
+        ...(blockExecutionId && { blockExecutionId }),
       },
     })
   }
@@ -400,7 +411,8 @@ export function createExecutionCallbacks(options: {
     blockType: string,
     callbackData: BlockCompletionCallbackData,
     iterationContext?: IterationContext,
-    childWorkflowContext?: ChildWorkflowContext
+    childWorkflowContext?: ChildWorkflowContext,
+    blockExecutionId?: string
   ) => {
     const callbackError = callbackData.output?.error
     const iterationData = iterationContext
@@ -424,6 +436,10 @@ export function createExecutionCallbacks(options: {
     const instanceData = callbackData.childWorkflowInstanceId
       ? { childWorkflowInstanceId: callbackData.childWorkflowInstanceId }
       : {}
+    const invocationData =
+      blockExecutionId || callbackData.blockExecutionId
+        ? { blockExecutionId: blockExecutionId ?? callbackData.blockExecutionId }
+        : {}
     if (callbackError) {
       await sendBufferedEvent({
         type: 'block:error',
@@ -443,6 +459,7 @@ export function createExecutionCallbacks(options: {
           ...iterationData,
           ...childWorkflowData,
           ...instanceData,
+          ...invocationData,
         },
       })
     } else {
@@ -464,14 +481,20 @@ export function createExecutionCallbacks(options: {
           ...iterationData,
           ...childWorkflowData,
           ...instanceData,
+          ...invocationData,
         },
       })
     }
   }
 
   const onStream = async (streamingExecution: unknown) => {
-    const streamingExec = streamingExecution as { stream: ReadableStream; execution: any }
+    const streamingExec = streamingExecution as {
+      stream: ReadableStream
+      execution: any
+      blockExecutionId?: string
+    }
     const blockId = streamingExec.execution?.blockId
+    const { blockExecutionId } = streamingExec
     const reader = streamingExec.stream.getReader()
     const decoder = new TextDecoder()
 
@@ -485,7 +508,7 @@ export function createExecutionCallbacks(options: {
           timestamp: new Date().toISOString(),
           executionId,
           workflowId,
-          data: { blockId, chunk },
+          data: { blockId, ...(blockExecutionId && { blockExecutionId }), chunk },
         })
       }
       await sendBufferedEvent({
@@ -493,7 +516,7 @@ export function createExecutionCallbacks(options: {
         timestamp: new Date().toISOString(),
         executionId,
         workflowId,
-        data: { blockId },
+        data: { blockId, ...(blockExecutionId && { blockExecutionId }) },
       })
     } finally {
       try {
@@ -507,7 +530,8 @@ export function createExecutionCallbacks(options: {
     childWorkflowInstanceId: string,
     iterationContext?: IterationContext,
     executionOrder?: number,
-    childWorkflowContext?: ChildWorkflowContext
+    childWorkflowContext?: ChildWorkflowContext,
+    blockExecutionId?: string
   ) => {
     await sendBufferedEvent({
       type: 'block:childWorkflowStarted',
@@ -531,6 +555,7 @@ export function createExecutionCallbacks(options: {
           childWorkflowName: childWorkflowContext.workflowName,
         }),
         ...(executionOrder !== undefined && { executionOrder }),
+        ...(blockExecutionId && { blockExecutionId }),
       },
     })
   }

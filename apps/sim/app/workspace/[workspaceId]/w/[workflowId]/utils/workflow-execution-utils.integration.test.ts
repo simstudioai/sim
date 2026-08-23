@@ -21,6 +21,7 @@ describe('reconcileFinalBlockLogs (real store)', () => {
     useTerminalConsoleStore.setState({
       workflowEntries: {},
       entryIdsByBlockExecution: {},
+      entryIdByBlockExecutionId: {},
       entryLocationById: {},
       isOpen: false,
       _hasHydrated: true,

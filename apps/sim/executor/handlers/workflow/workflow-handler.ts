@@ -466,7 +466,8 @@ export class WorkflowBlockHandler implements BlockHandler {
           instanceId,
           iterationContext,
           nodeMetadata?.executionOrder,
-          ctx.childWorkflowContext
+          ctx.childWorkflowContext,
+          nodeMetadata?.blockExecutionId
         )
       }
 
@@ -666,7 +667,8 @@ export class WorkflowBlockHandler implements BlockHandler {
           blockType,
           executionOrder,
           iterationContext,
-          childWorkflowContext
+          childWorkflowContext,
+          blockExecutionId
         ) => {
           if (activeSession && emitsSessionMarkers) {
             try {
@@ -687,7 +689,8 @@ export class WorkflowBlockHandler implements BlockHandler {
               blockType,
               executionOrder,
               iterationContext,
-              childWorkflowContext
+              childWorkflowContext,
+              blockExecutionId
             )
           }
         }
@@ -697,7 +700,8 @@ export class WorkflowBlockHandler implements BlockHandler {
           blockType,
           output,
           iterationContext,
-          childWorkflowContext
+          childWorkflowContext,
+          blockExecutionId
         ) => {
           if (activeSession && emitsSessionMarkers) {
             try {
@@ -713,7 +717,8 @@ export class WorkflowBlockHandler implements BlockHandler {
               blockType,
               output,
               iterationContext,
-              childWorkflowContext
+              childWorkflowContext,
+              blockExecutionId
             )
           }
         }

@@ -679,7 +679,8 @@ async function executeWorkflowCoreImpl(
       blockType: string,
       output: BlockCompletionCallbackData,
       iterationContext?: IterationContext,
-      childWorkflowContext?: ChildWorkflowContext
+      childWorkflowContext?: ChildWorkflowContext,
+      blockExecutionId?: string
     ) => {
       let persistenceSucceeded = false
       const persistencePromise = (async () => {
@@ -707,7 +708,8 @@ async function executeWorkflowCoreImpl(
             blockType,
             output,
             iterationContext,
-            childWorkflowContext
+            childWorkflowContext,
+            blockExecutionId
           )
         } catch (error) {
           logger.warn(
@@ -731,7 +733,8 @@ async function executeWorkflowCoreImpl(
       blockType: string,
       executionOrder: number,
       iterationContext?: IterationContext,
-      childWorkflowContext?: ChildWorkflowContext
+      childWorkflowContext?: ChildWorkflowContext,
+      blockExecutionId?: string
     ) => {
       let persistenceSucceeded = false
       const persistencePromise = (async () => {
@@ -759,7 +762,8 @@ async function executeWorkflowCoreImpl(
             blockType,
             executionOrder,
             iterationContext,
-            childWorkflowContext
+            childWorkflowContext,
+            blockExecutionId
           )
         } catch (error) {
           logger.warn(

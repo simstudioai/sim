@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { generateId } from '@sim/utils/id'
 import { DEFAULTS } from '@/executor/constants'
 import type { ContextExtensions } from '@/executor/execution/types'
 import { type BlockLog, type ExecutionContext, getNextExecutionOrder } from '@/executor/types'
@@ -222,12 +223,14 @@ export async function addSubflowErrorLog(
 ): Promise<void> {
   const now = new Date().toISOString()
   const execOrder = getNextExecutionOrder(ctx)
+  const blockExecutionId = generateId()
 
   const block = ctx.workflow?.blocks?.find((b) => b.id === blockId)
   const blockName = block?.metadata?.name || (blockType === 'loop' ? 'Loop' : 'Parallel')
 
   const blockLog: BlockLog = {
     blockId,
+    blockExecutionId,
     blockName,
     blockType,
     startedAt: now,
@@ -244,7 +247,15 @@ export async function addSubflowErrorLog(
 
   if (contextExtensions?.onBlockStart) {
     try {
-      await contextExtensions.onBlockStart(blockId, blockName, blockType, execOrder)
+      await contextExtensions.onBlockStart(
+        blockId,
+        blockName,
+        blockType,
+        execOrder,
+        undefined,
+        undefined,
+        blockExecutionId
+      )
     } catch (error) {
       logger.warn('Subflow error start callback failed', {
         blockId,
@@ -256,14 +267,23 @@ export async function addSubflowErrorLog(
 
   if (contextExtensions?.onBlockComplete) {
     try {
-      await contextExtensions.onBlockComplete(blockId, blockName, blockType, {
-        input: inputData,
-        output: { error: errorMessage },
-        executionTime: 0,
-        startedAt: now,
-        executionOrder: execOrder,
-        endedAt: now,
-      })
+      await contextExtensions.onBlockComplete(
+        blockId,
+        blockName,
+        blockType,
+        {
+          input: inputData,
+          output: { error: errorMessage },
+          executionTime: 0,
+          startedAt: now,
+          executionOrder: execOrder,
+          endedAt: now,
+          blockExecutionId,
+        },
+        undefined,
+        undefined,
+        blockExecutionId
+      )
     } catch (error) {
       logger.warn('Subflow error completion callback failed', {
         blockId,
@@ -290,6 +310,7 @@ export async function emitSubflowSuccessEvents(
 ): Promise<void> {
   const now = new Date().toISOString()
   const executionOrder = getNextExecutionOrder(ctx)
+  const blockExecutionId = generateId()
   const block = ctx.workflow?.blocks.find((b) => b.id === blockId)
   const blockName = block?.metadata?.name ?? blockType
   const iterationContext = buildContainerIterationContext(ctx, blockId)
@@ -297,6 +318,7 @@ export async function emitSubflowSuccessEvents(
 
   ctx.blockLogs.push({
     blockId,
+    blockExecutionId,
     blockName,
     blockType,
     startedAt: now,
@@ -322,8 +344,11 @@ export async function emitSubflowSuccessEvents(
           startedAt: now,
           executionOrder,
           endedAt: now,
+          blockExecutionId,
         },
-        iterationContext
+        iterationContext,
+        undefined,
+        blockExecutionId
       )
     } catch (error) {
       logger.warn('Subflow success completion callback failed', {

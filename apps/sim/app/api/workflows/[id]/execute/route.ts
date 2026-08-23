@@ -1866,7 +1866,8 @@ async function handleExecutePost(
             blockType: string,
             executionOrder: number,
             iterationContext?: IterationContext,
-            childWorkflowContext?: ChildWorkflowContext
+            childWorkflowContext?: ChildWorkflowContext,
+            blockExecutionId?: string
           ) => {
             reqLogger.info('onBlockStart called', { blockId, blockName, blockType })
             await sendEvent({
@@ -1892,6 +1893,7 @@ async function handleExecutePost(
                   childWorkflowBlockId: childWorkflowContext.parentBlockId,
                   childWorkflowName: childWorkflowContext.workflowName,
                 }),
+                ...(blockExecutionId && { blockExecutionId }),
               },
             })
           }
@@ -1902,7 +1904,8 @@ async function handleExecutePost(
             blockType: string,
             callbackData: BlockCompletionCallbackData,
             iterationContext?: IterationContext,
-            childWorkflowContext?: ChildWorkflowContext
+            childWorkflowContext?: ChildWorkflowContext,
+            blockExecutionId?: string
           ) => {
             const compactCallbackData = {
               ...callbackData,
@@ -1982,6 +1985,9 @@ async function handleExecutePost(
                   }),
                   ...childWorkflowData,
                   ...instanceData,
+                  ...((blockExecutionId || callbackData.blockExecutionId) && {
+                    blockExecutionId: blockExecutionId ?? callbackData.blockExecutionId,
+                  }),
                 },
               })
             } else {
@@ -2021,6 +2027,9 @@ async function handleExecutePost(
                   }),
                   ...childWorkflowData,
                   ...instanceData,
+                  ...((blockExecutionId || callbackData.blockExecutionId) && {
+                    blockExecutionId: blockExecutionId ?? callbackData.blockExecutionId,
+                  }),
                 },
               })
             }
@@ -2028,6 +2037,7 @@ async function handleExecutePost(
 
           const onStream = async (streamingExec: StreamingExecution) => {
             const blockId = (streamingExec.execution as any).blockId
+            const { blockExecutionId } = streamingExec
 
             // Live answer text rides the sink when available (pending deltas
             // stream as the model generates; chunk_reset clears intermediate
@@ -2038,6 +2048,7 @@ async function handleExecutePost(
             // Sync window: attach sink before first await so pump delivers thinking/tools.
             const unsubscribe = forwardAgentStreamToExecutionEvents(streamingExec, {
               blockId,
+              blockExecutionId,
               executionId,
               workflowId,
               sendEvent,
@@ -2079,7 +2090,7 @@ async function handleExecutePost(
                   timestamp: new Date().toISOString(),
                   executionId,
                   workflowId,
-                  data: { blockId, chunk, display },
+                  data: { blockId, ...(blockExecutionId && { blockExecutionId }), chunk, display },
                 })
               }
 
@@ -2089,7 +2100,7 @@ async function handleExecutePost(
                   timestamp: new Date().toISOString(),
                   executionId,
                   workflowId,
-                  data: { blockId },
+                  data: { blockId, ...(blockExecutionId && { blockExecutionId }) },
                 })
               }
             } catch (error) {
@@ -2150,7 +2161,8 @@ async function handleExecutePost(
             childWorkflowInstanceId: string,
             iterationContext?: IterationContext,
             executionOrder?: number,
-            childWorkflowContext?: ChildWorkflowContext
+            childWorkflowContext?: ChildWorkflowContext,
+            blockExecutionId?: string
           ) => {
             await sendEvent({
               type: 'block:childWorkflowStarted',
@@ -2174,6 +2186,7 @@ async function handleExecutePost(
                   childWorkflowName: childWorkflowContext.workflowName,
                 }),
                 ...(executionOrder !== undefined && { executionOrder }),
+                ...(blockExecutionId && { blockExecutionId }),
               },
             })
           }

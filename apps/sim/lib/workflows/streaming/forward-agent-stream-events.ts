@@ -17,6 +17,7 @@ import type { StreamingExecution } from '@/executor/types'
 
 export interface ForwardAgentStreamEventsOptions {
   blockId: string
+  blockExecutionId?: string
   executionId: string
   workflowId: string
   sendEvent: (event: ExecutionEvent) => void | Promise<void>
@@ -72,6 +73,7 @@ export function forwardAgentStreamToExecutionEvents(
 
   const {
     blockId,
+    blockExecutionId,
     executionId,
     workflowId,
     sendEvent,
@@ -91,6 +93,7 @@ export function forwardAgentStreamToExecutionEvents(
           workflowId,
           data: {
             blockId,
+            ...(blockExecutionId && { blockExecutionId }),
             text: event.text,
             ...(display !== undefined ? { display } : {}),
           },
@@ -103,7 +106,13 @@ export function forwardAgentStreamToExecutionEvents(
           timestamp: new Date().toISOString(),
           executionId,
           workflowId,
-          data: { blockId, phase: 'start', id: event.id, name: event.name },
+          data: {
+            blockId,
+            ...(blockExecutionId && { blockExecutionId }),
+            phase: 'start',
+            id: event.id,
+            name: event.name,
+          },
         })
         return
       }
@@ -113,7 +122,14 @@ export function forwardAgentStreamToExecutionEvents(
           timestamp: new Date().toISOString(),
           executionId,
           workflowId,
-          data: { blockId, phase: 'end', id: event.id, name: event.name, status: event.status },
+          data: {
+            blockId,
+            ...(blockExecutionId && { blockExecutionId }),
+            phase: 'end',
+            id: event.id,
+            name: event.name,
+            status: event.status,
+          },
         })
         return
       }
@@ -131,6 +147,7 @@ export function forwardAgentStreamToExecutionEvents(
           workflowId,
           data: {
             blockId,
+            ...(blockExecutionId && { blockExecutionId }),
             chunk: event.text,
             ...(display !== undefined ? { display } : {}),
           },
@@ -144,7 +161,7 @@ export function forwardAgentStreamToExecutionEvents(
           timestamp: new Date().toISOString(),
           executionId,
           workflowId,
-          data: { blockId },
+          data: { blockId, ...(blockExecutionId && { blockExecutionId }) },
         })
       }
     },

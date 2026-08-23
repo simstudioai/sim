@@ -9,6 +9,7 @@ import { BlockType, EDGE } from '@/executor/constants'
 import type { DAGNode } from '@/executor/dag/builder'
 import { BlockExecutor } from '@/executor/execution/block-executor'
 import { ExecutionState } from '@/executor/execution/state'
+import type { ContextExtensions } from '@/executor/execution/types'
 import type { BlockHandler, ExecutionContext } from '@/executor/types'
 import { VariableResolver } from '@/executor/variables/resolver'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
@@ -62,7 +63,12 @@ function createNode(block: SerializedBlock, withErrorPort = false): DAGNode {
   } as unknown as DAGNode
 }
 
-function buildExecutor(block: SerializedBlock, handler: BlockHandler, state: ExecutionState) {
+function buildExecutor(
+  block: SerializedBlock,
+  handler: BlockHandler,
+  state: ExecutionState,
+  callbacks: Pick<ContextExtensions, 'onBlockStart' | 'onBlockComplete'> = {}
+) {
   const workflow: SerializedWorkflow = {
     version: '1',
     blocks: [block],
@@ -87,6 +93,7 @@ function buildExecutor(block: SerializedBlock, handler: BlockHandler, state: Exe
         useDraftState: false,
         startTime: new Date().toISOString(),
       },
+      ...callbacks,
     },
     state
   )
@@ -135,6 +142,50 @@ describe('BlockExecutor retry', () => {
     expect(output).toMatchObject({ ok: true })
     expect(ctx.blockLogs[0]?.success).toBe(true)
     expect(ctx.blockLogs[0]?.tries).toBe(2)
+  })
+
+  it('keeps one invocation ID across retries and mints a new ID for the next invocation', async () => {
+    const block = createBlock(enabled)
+    const handlerInvocationIds: Array<string | undefined> = []
+    const execute: BlockHandler['execute'] = vi.fn(async (_ctx, _block, _inputs, nodeMetadata) => {
+      handlerInvocationIds.push(nodeMetadata?.blockExecutionId)
+      if (handlerInvocationIds.length === 1) throw new Error('retry me')
+      return { ok: true }
+    })
+    const onBlockStart = vi.fn(async () => {})
+    const onBlockComplete = vi.fn(async () => {})
+    const state = new ExecutionState()
+    const ctx = createContext(state)
+    const executor = buildExecutor(block, { canHandle: () => true, execute }, state, {
+      onBlockStart,
+      onBlockComplete,
+    })
+
+    await executor.execute(ctx, createNode(block), block)
+    await executor.execute(ctx, createNode(block), block)
+    await vi.waitFor(() => expect(onBlockComplete).toHaveBeenCalledTimes(2))
+
+    const [firstLog, secondLog] = ctx.blockLogs
+    expect(firstLog.blockExecutionId).toBeTypeOf('string')
+    expect(secondLog.blockExecutionId).toBeTypeOf('string')
+    expect(secondLog.blockExecutionId).not.toBe(firstLog.blockExecutionId)
+    expect(handlerInvocationIds).toEqual([
+      firstLog.blockExecutionId,
+      firstLog.blockExecutionId,
+      secondLog.blockExecutionId,
+    ])
+    expect(onBlockStart.mock.calls.map((call) => call[6])).toEqual([
+      firstLog.blockExecutionId,
+      secondLog.blockExecutionId,
+    ])
+    expect(onBlockComplete.mock.calls.map((call) => call[6])).toEqual([
+      firstLog.blockExecutionId,
+      secondLog.blockExecutionId,
+    ])
+    expect(onBlockComplete.mock.calls.map((call) => call[3]?.blockExecutionId)).toEqual([
+      firstLog.blockExecutionId,
+      secondLog.blockExecutionId,
+    ])
   })
 
   it('stops at maxTries and rethrows the final error unchanged', async () => {

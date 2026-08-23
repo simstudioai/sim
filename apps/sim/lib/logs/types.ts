@@ -282,6 +282,8 @@ export interface TraceSpan {
   tokens?: TokenInfo
   relativeStartMs?: number
   blockId?: string
+  /** Unique identity for the block invocation represented by this span. */
+  blockExecutionId?: string
   executionOrder?: number
   input?: Record<string, unknown>
   output?: Record<string, unknown>

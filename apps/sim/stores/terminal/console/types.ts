@@ -11,6 +11,8 @@ export interface ConsoleEntry {
   blockName: string
   blockType: string
   executionId?: string
+  /** Unique identity for this individual block invocation. */
+  blockExecutionId?: string
   startedAt?: string
   executionOrder: number
   endedAt?: string
@@ -42,6 +44,7 @@ export interface ConsoleEntry {
 }
 
 export interface ConsoleUpdate {
+  blockExecutionId?: string
   content?: string
   output?: Partial<NormalizedBlockOutput>
   replaceOutput?: NormalizedBlockOutput
@@ -79,6 +82,7 @@ export interface ConsoleEntryLocation {
 export interface ConsoleStore {
   workflowEntries: Record<string, ConsoleEntry[]>
   entryIdsByBlockExecution: Record<string, string[]>
+  entryIdByBlockExecutionId: Record<string, string>
   entryLocationById: Record<string, ConsoleEntryLocation>
   isOpen: boolean
   addConsole: (entry: Omit<ConsoleEntry, 'id' | 'timestamp'>) => ConsoleEntry | undefined

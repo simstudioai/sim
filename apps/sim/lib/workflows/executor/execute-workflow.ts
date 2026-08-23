@@ -33,9 +33,10 @@ export interface ExecuteWorkflowOptions {
     blockId: string,
     blockName: string,
     blockType: string,
-    executionOrder: number
+    executionOrder: number,
+    blockExecutionId?: string
   ) => Promise<void>
-  onBlockComplete?: (blockId: string, output: unknown) => Promise<void>
+  onBlockComplete?: (blockId: string, output: unknown, blockExecutionId?: string) => Promise<void>
   /** Transfers post-execution logging ownership to the streaming caller after execution succeeds. */
   skipLoggingComplete?: boolean
   includeFileBase64?: boolean
@@ -170,14 +171,31 @@ export async function executeWorkflow(
               blockId: string,
               blockName: string,
               blockType: string,
-              executionOrder: number
+              executionOrder: number,
+              _iterationContext,
+              _childWorkflowContext,
+              blockExecutionId
             ) => {
-              await streamConfig.onBlockStart!(blockId, blockName, blockType, executionOrder)
+              await streamConfig.onBlockStart!(
+                blockId,
+                blockName,
+                blockType,
+                executionOrder,
+                blockExecutionId
+              )
             }
           : undefined,
         onBlockComplete: streamConfig?.onBlockComplete
-          ? async (blockId: string, _blockName: string, _blockType: string, output: unknown) => {
-              await streamConfig.onBlockComplete!(blockId, output)
+          ? async (
+              blockId: string,
+              _blockName: string,
+              _blockType: string,
+              output,
+              _iterationContext,
+              _childWorkflowContext,
+              blockExecutionId
+            ) => {
+              await streamConfig.onBlockComplete!(blockId, output, blockExecutionId)
             }
           : undefined,
       },

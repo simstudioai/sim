@@ -612,6 +612,7 @@ describe('workflow-execution-utils', () => {
         blockName: 'Function',
         blockType: 'function',
         executionId: 'exec-1',
+        blockExecutionId: 'fn-invoke-1',
         executionOrder: 3,
         isRunning: true,
       })
@@ -620,6 +621,7 @@ describe('workflow-execution-utils', () => {
       reconcileFinalBlockLogs(updateConsole, 'wf-1', 'exec-1', [
         makeLog({
           blockId: 'fn-1',
+          blockExecutionId: 'fn-invoke-1',
           executionOrder: 3,
           success: false,
           error: 'JSON parse failed',
@@ -628,6 +630,7 @@ describe('workflow-execution-utils', () => {
 
       expect(updateConsole).toHaveBeenCalledTimes(1)
       expect(updateConsole.mock.calls[0][1]).toMatchObject({
+        blockExecutionId: 'fn-invoke-1',
         success: false,
         error: 'JSON parse failed',
         isRunning: false,
@@ -1315,6 +1318,7 @@ describe('workflow-execution-utils', () => {
       terminalConsoleMockFns.mockAddConsole({
         workflowId: 'wf-1',
         blockId: 'fn-leaf',
+        blockExecutionId: 'leaf-invoke-0',
         blockType: 'function',
         blockName: 'Leaf',
         executionId: 'exec-1',
@@ -1329,6 +1333,7 @@ describe('workflow-execution-utils', () => {
       terminalConsoleMockFns.mockAddConsole({
         workflowId: 'wf-1',
         blockId: 'fn-leaf',
+        blockExecutionId: 'leaf-invoke-1',
         blockType: 'function',
         blockName: 'Leaf',
         executionId: 'exec-1',
@@ -1354,6 +1359,7 @@ describe('workflow-execution-utils', () => {
               name: 'Leaf',
               type: 'function',
               blockId: 'fn-leaf',
+              blockExecutionId: 'leaf-invoke-0',
               executionOrder: 2,
               loopId: 'loop-1',
               iterationIndex: 0,
@@ -1368,6 +1374,7 @@ describe('workflow-execution-utils', () => {
               name: 'Leaf',
               type: 'function',
               blockId: 'fn-leaf',
+              blockExecutionId: 'leaf-invoke-1',
               executionOrder: 3,
               loopId: 'loop-1',
               iterationIndex: 1,
@@ -1386,10 +1393,12 @@ describe('workflow-execution-utils', () => {
       // still-running iteration is actually mutated. We assert the args carry
       // distinct iteration identities so the store can target the right row.
       expect(updateConsole.mock.calls[0][1]).toMatchObject({
+        blockExecutionId: 'leaf-invoke-0',
         executionOrder: 2,
         iterationCurrent: 0,
       })
       expect(updateConsole.mock.calls[1][1]).toMatchObject({
+        blockExecutionId: 'leaf-invoke-1',
         executionOrder: 3,
         iterationCurrent: 1,
         replaceOutput: { i: 1 },

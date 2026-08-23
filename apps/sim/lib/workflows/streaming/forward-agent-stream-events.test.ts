@@ -33,7 +33,13 @@ describe('forwardAgentStreamToExecutionEvents', () => {
       makeStreamingExec((handler) => {
         sinkHandler = handler
       }, unsubscribe),
-      { blockId: 'agent-1', executionId: 'exec-1', workflowId: 'wf-1', sendEvent }
+      {
+        blockId: 'agent-1',
+        blockExecutionId: 'invoke-1',
+        executionId: 'exec-1',
+        workflowId: 'wf-1',
+        sendEvent,
+      }
     )
 
     expect(sinkHandler).toBeTypeOf('function')
@@ -53,16 +59,29 @@ describe('forwardAgentStreamToExecutionEvents', () => {
       type: 'stream:thinking',
       executionId: 'exec-1',
       workflowId: 'wf-1',
-      data: { blockId: 'agent-1', text: 'plan ' },
+      data: { blockId: 'agent-1', blockExecutionId: 'invoke-1', text: 'plan ' },
     })
     expect(sendEvent.mock.calls[0][0].data).not.toHaveProperty('display')
     expect(sendEvent.mock.calls[1][0]).toMatchObject({
       type: 'stream:tool',
-      data: { blockId: 'agent-1', phase: 'start', id: 't1', name: 'http_request' },
+      data: {
+        blockId: 'agent-1',
+        blockExecutionId: 'invoke-1',
+        phase: 'start',
+        id: 't1',
+        name: 'http_request',
+      },
     })
     expect(sendEvent.mock.calls[2][0]).toMatchObject({
       type: 'stream:tool',
-      data: { blockId: 'agent-1', phase: 'end', id: 't1', name: 'http_request', status: 'success' },
+      data: {
+        blockId: 'agent-1',
+        blockExecutionId: 'invoke-1',
+        phase: 'end',
+        id: 't1',
+        name: 'http_request',
+        status: 'success',
+      },
     })
 
     unsub()
@@ -96,6 +115,7 @@ describe('forwardAgentStreamToExecutionEvents', () => {
       }),
       {
         blockId: 'agent-1',
+        blockExecutionId: 'invoke-1',
         executionId: 'exec-1',
         workflowId: 'wf-1',
         sendEvent,
@@ -116,10 +136,20 @@ describe('forwardAgentStreamToExecutionEvents', () => {
     expect(calls).toEqual([
       {
         type: 'stream:chunk',
-        data: { blockId: 'agent-1', chunk: 'Let me check…' },
+        data: {
+          blockId: 'agent-1',
+          blockExecutionId: 'invoke-1',
+          chunk: 'Let me check…',
+        },
       },
-      { type: 'stream:chunk_reset', data: { blockId: 'agent-1' } },
-      { type: 'stream:chunk', data: { blockId: 'agent-1', chunk: 'Answer' } },
+      {
+        type: 'stream:chunk_reset',
+        data: { blockId: 'agent-1', blockExecutionId: 'invoke-1' },
+      },
+      {
+        type: 'stream:chunk',
+        data: { blockId: 'agent-1', blockExecutionId: 'invoke-1', chunk: 'Answer' },
+      },
     ])
   })
 

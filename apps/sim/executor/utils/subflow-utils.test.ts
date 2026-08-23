@@ -8,8 +8,13 @@ import {
   LARGE_ARRAY_MANIFEST_VERSION,
 } from '@/lib/execution/payloads/large-array-manifest-metadata'
 import { LARGE_VALUE_REF_MARKER } from '@/lib/execution/payloads/large-value-ref'
+import type { ContextExtensions } from '@/executor/execution/types'
 import type { ExecutionContext } from '@/executor/types'
-import { findEffectiveContainerId } from '@/executor/utils/subflow-utils'
+import {
+  addSubflowErrorLog,
+  emitSubflowSuccessEvents,
+  findEffectiveContainerId,
+} from '@/executor/utils/subflow-utils'
 import { resolveArrayInputAsync } from '@/executor/utils/subflow-utils.server'
 import type { VariableResolver } from '@/executor/variables/resolver'
 
@@ -239,5 +244,38 @@ describe('findEffectiveContainerId', () => {
     expect(
       findEffectiveContainerId('inner-parallel', 'leaf__clone7__obranch-2₍0₎', executionMap)
     ).toBe('inner-parallel__clone3__obranch-2')
+  })
+})
+
+describe('subflow invocation identity', () => {
+  it('mints one stable, distinct ID for each synthetic subflow log and callback', async () => {
+    const ctx = {
+      blockLogs: [],
+      blockStates: new Map(),
+      workflow: {
+        blocks: [
+          { id: 'loop-1', metadata: { name: 'Loop' } },
+          { id: 'parallel-1', metadata: { name: 'Parallel' } },
+        ],
+      },
+    } as unknown as ExecutionContext
+    const onBlockStart = vi.fn(
+      async (..._args: Parameters<NonNullable<ContextExtensions['onBlockStart']>>) => {}
+    )
+    const onBlockComplete = vi.fn(
+      async (..._args: Parameters<NonNullable<ContextExtensions['onBlockComplete']>>) => {}
+    )
+    const callbacks = { onBlockStart, onBlockComplete } as ContextExtensions
+
+    await addSubflowErrorLog(ctx, 'loop-1', 'loop', 'failed', {}, callbacks)
+    await addSubflowErrorLog(ctx, 'loop-1', 'loop', 'failed again', {}, callbacks)
+    await emitSubflowSuccessEvents(ctx, 'parallel-1', 'parallel', { results: [] }, callbacks)
+
+    const ids = ctx.blockLogs.map((log) => log.blockExecutionId)
+    expect(ids.every((id) => typeof id === 'string')).toBe(true)
+    expect(new Set(ids).size).toBe(3)
+    expect(onBlockStart.mock.calls.map((call) => call[6])).toEqual(ids.slice(0, 2))
+    expect(onBlockComplete.mock.calls.map((call) => call[3].blockExecutionId)).toEqual(ids)
+    expect(onBlockComplete.mock.calls.map((call) => call[6])).toEqual(ids)
   })
 })

@@ -161,6 +161,8 @@ export interface WorkflowNodeMetadata
     'subflowType' | 'subflowId' | 'branchIndex' | 'branchTotal' | 'originalBlockId' | 'isLoopNode'
   > {
   nodeId: string
+  /** Unique identity for this individual block invocation. */
+  blockExecutionId?: string
   loopId?: string
   parallelId?: string
   executionOrder?: number
@@ -193,6 +195,8 @@ export interface BlockCompletionCallbackData {
   endedAt: string
   /** Per-invocation unique ID linking this workflow block execution to its child block events. */
   childWorkflowInstanceId?: string
+  /** Unique identity for this individual block invocation. */
+  blockExecutionId?: string
 }
 
 export interface ExecutionCallbacks {
@@ -203,7 +207,8 @@ export interface ExecutionCallbacks {
     blockType: string,
     executionOrder: number,
     iterationContext?: IterationContext,
-    childWorkflowContext?: ChildWorkflowContext
+    childWorkflowContext?: ChildWorkflowContext,
+    blockExecutionId?: string
   ) => Promise<void>
   onBlockComplete?: (
     blockId: string,
@@ -211,7 +216,8 @@ export interface ExecutionCallbacks {
     blockType: string,
     output: BlockCompletionCallbackData,
     iterationContext?: IterationContext,
-    childWorkflowContext?: ChildWorkflowContext
+    childWorkflowContext?: ChildWorkflowContext,
+    blockExecutionId?: string
   ) => Promise<void>
   /** Fires immediately after instanceId is generated, before child execution begins. */
   onChildWorkflowInstanceReady?: (
@@ -219,7 +225,8 @@ export interface ExecutionCallbacks {
     childWorkflowInstanceId: string,
     iterationContext?: IterationContext,
     executionOrder?: number,
-    childWorkflowContext?: ChildWorkflowContext
+    childWorkflowContext?: ChildWorkflowContext,
+    blockExecutionId?: string
   ) => Promise<void>
 }
 
@@ -296,7 +303,8 @@ export interface ContextExtensions {
     blockType: string,
     executionOrder: number,
     iterationContext?: IterationContext,
-    childWorkflowContext?: ChildWorkflowContext
+    childWorkflowContext?: ChildWorkflowContext,
+    blockExecutionId?: string
   ) => Promise<void>
   onBlockComplete?: (
     blockId: string,
@@ -304,7 +312,8 @@ export interface ContextExtensions {
     blockType: string,
     output: BlockCompletionCallbackData,
     iterationContext?: IterationContext,
-    childWorkflowContext?: ChildWorkflowContext
+    childWorkflowContext?: ChildWorkflowContext,
+    blockExecutionId?: string
   ) => Promise<void>
 
   /** Context identifying this execution as a child of a workflow block */
@@ -316,7 +325,8 @@ export interface ContextExtensions {
     childWorkflowInstanceId: string,
     iterationContext?: IterationContext,
     executionOrder?: number,
-    childWorkflowContext?: ChildWorkflowContext
+    childWorkflowContext?: ChildWorkflowContext,
+    blockExecutionId?: string
   ) => Promise<void>
 
   /**

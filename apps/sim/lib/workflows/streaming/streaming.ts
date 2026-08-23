@@ -88,7 +88,7 @@ interface StreamingConfig {
 
 export type StreamingExecutorFn = (callbacks: {
   onStream: (streamingExec: StreamingExecution) => Promise<void>
-  onBlockComplete: (blockId: string, output: unknown) => Promise<void>
+  onBlockComplete: (blockId: string, output: unknown, blockExecutionId?: string) => Promise<void>
   abortSignal: AbortSignal
 }) => Promise<ExecutionResult>
 
@@ -454,15 +454,16 @@ function updateLogsWithStreamedContent(
   streamCompletionTimes: Map<string, number>
 ): BlockLog[] {
   return logs.map((log: BlockLog) => {
-    if (!streamedContent.has(log.blockId)) {
+    const streamKey = log.blockExecutionId ?? log.blockId
+    if (!streamedContent.has(streamKey)) {
       return log
     }
 
-    const content = streamedContent.get(log.blockId)
+    const content = streamedContent.get(streamKey)
     const updatedLog = { ...log }
 
-    if (streamCompletionTimes.has(log.blockId)) {
-      const completionTime = streamCompletionTimes.get(log.blockId)!
+    if (streamCompletionTimes.has(streamKey)) {
+      const completionTime = streamCompletionTimes.get(streamKey)!
       const startTime = new Date(log.startedAt).getTime()
       updatedLog.endedAt = new Date(completionTime).toISOString()
       updatedLog.durationMs = completionTime - startTime
@@ -608,6 +609,7 @@ export async function createStreamingResponse(
           logger.warn(`[${requestId}] Streaming execution missing blockId`)
           return
         }
+        const streamKey = streamingExec.blockExecutionId ?? blockId
 
         /**
          * Negotiated clients get answer text live from the sink (pending deltas
@@ -675,15 +677,15 @@ export async function createStreamingResponse(
           while (true) {
             const { done, value } = await reader.read()
             if (done) {
-              state.streamCompletionTimes.set(blockId, Date.now())
+              state.streamCompletionTimes.set(streamKey, Date.now())
               break
             }
 
             const textChunk = decoder.decode(value, { stream: true })
-            if (!state.streamedChunks.has(blockId)) {
-              state.streamedChunks.set(blockId, [])
+            if (!state.streamedChunks.has(streamKey)) {
+              state.streamedChunks.set(streamKey, [])
             }
-            state.streamedChunks.get(blockId)!.push(textChunk)
+            state.streamedChunks.get(streamKey)!.push(textChunk)
 
             if (!sinkAnswerText) {
               emitAnswerChunk(textChunk)
@@ -708,14 +710,18 @@ export async function createStreamingResponse(
       const includeFileBase64 = streamConfig.includeFileBase64 ?? true
       const base64MaxBytes = streamConfig.base64MaxBytes
 
-      const onBlockCompleteCallback = async (blockId: string, output: unknown) => {
+      const onBlockCompleteCallback = async (
+        blockId: string,
+        output: unknown,
+        blockExecutionId?: string
+      ) => {
         state.completedBlockIds.add(blockId)
 
         if (!streamConfig.selectedOutputs?.length) {
           return
         }
 
-        if (state.streamedChunks.has(blockId)) {
+        if (state.streamedChunks.has(blockExecutionId ?? blockId)) {
           return
         }
 

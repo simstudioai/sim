@@ -718,20 +718,25 @@ describe('BlockExecutor', () => {
       state
     )
 
-    await executor.execute(createContext(state), createNode(block), block)
+    const ctx = createContext(state)
+    await executor.execute(ctx, createNode(block), block)
+    const blockExecutionId = ctx.blockLogs[0]?.blockExecutionId
 
-    expect(onBlockStart).toHaveBeenCalled()
+    expect(blockExecutionId).toBeTypeOf('string')
+    expect(onBlockStart.mock.calls[0]?.[6]).toBe(blockExecutionId)
     expect(onBlockComplete).toHaveBeenCalledWith(
       block.id,
       'Human in the Loop',
       BlockType.HUMAN_IN_THE_LOOP,
       expect.objectContaining({
+        blockExecutionId,
         output: expect.objectContaining({
           response: { status: 'paused' },
         }),
       }),
       undefined,
-      undefined
+      undefined,
+      blockExecutionId
     )
     expect(state.getBlockOutput(block.id)).toEqual(output)
   })

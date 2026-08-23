@@ -261,6 +261,8 @@ export interface StartBlockRunMetadata {
 
 export interface BlockLog {
   blockId: string
+  /** Unique identity for this individual block invocation. */
+  blockExecutionId?: string
   blockName?: string
   blockType?: string
   startedAt: string
@@ -484,7 +486,8 @@ export interface ExecutionContext {
     blockType: string,
     executionOrder: number,
     iterationContext?: IterationContext,
-    childWorkflowContext?: ChildWorkflowContext
+    childWorkflowContext?: ChildWorkflowContext,
+    blockExecutionId?: string
   ) => Promise<void>
   onBlockComplete?: (
     blockId: string,
@@ -492,7 +495,8 @@ export interface ExecutionContext {
     blockType: string,
     output: any,
     iterationContext?: IterationContext,
-    childWorkflowContext?: ChildWorkflowContext
+    childWorkflowContext?: ChildWorkflowContext,
+    blockExecutionId?: string
   ) => Promise<void>
 
   /** Context identifying this execution as a child of a workflow block */
@@ -504,7 +508,8 @@ export interface ExecutionContext {
     childWorkflowInstanceId: string,
     iterationContext?: IterationContext,
     executionOrder?: number,
-    childWorkflowContext?: ChildWorkflowContext
+    childWorkflowContext?: ChildWorkflowContext,
+    blockExecutionId?: string
   ) => Promise<void>
 
   /**
@@ -607,6 +612,8 @@ export interface ExecutionResult {
 }
 
 export interface StreamingExecution {
+  /** Unique identity for the block invocation that owns this stream. */
+  blockExecutionId?: string
   /**
    * Provider stream payload. Format is declared by {@link streamFormat}:
    * - `'text'` (default): UTF-8 answer bytes (`ReadableStream<Uint8Array>`)
@@ -667,6 +674,8 @@ interface BlockExecutor {
  */
 export interface BlockNodeMetadata {
   nodeId: string
+  /** Unique identity for this individual block invocation. */
+  blockExecutionId?: string
   loopId?: string
   parallelId?: string
   branchIndex?: number

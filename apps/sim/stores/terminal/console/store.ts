@@ -136,6 +136,21 @@ const matchesEntryForUpdate = (
     return false
   }
 
+  if (update.iterationTotal !== undefined && entry.iterationTotal !== update.iterationTotal) {
+    return false
+  }
+
+  if (update.iterationType !== undefined && entry.iterationType !== update.iterationType) {
+    return false
+  }
+
+  if (
+    update.parentIterations !== undefined &&
+    JSON.stringify(entry.parentIterations ?? []) !== JSON.stringify(update.parentIterations)
+  ) {
+    return false
+  }
+
   if (
     update.childWorkflowBlockId !== undefined &&
     entry.childWorkflowBlockId !== update.childWorkflowBlockId
@@ -144,14 +159,76 @@ const matchesEntryForUpdate = (
   }
 
   if (
+    update.childWorkflowName !== undefined &&
+    entry.childWorkflowName !== update.childWorkflowName
+  ) {
+    return false
+  }
+
+  if (
     update.childWorkflowInstanceId !== undefined &&
-    entry.childWorkflowInstanceId !== undefined &&
     entry.childWorkflowInstanceId !== update.childWorkflowInstanceId
   ) {
     return false
   }
 
   return true
+}
+
+function resolveEntryIdForUpdate(
+  state: ConsoleStore,
+  blockId: string,
+  executionId: string | undefined,
+  update: string | ConsoleUpdate,
+  warnOnAmbiguity = true
+): string | undefined {
+  const blockExecutionId = typeof update === 'object' ? update.blockExecutionId : undefined
+  const directEntryId = blockExecutionId
+    ? state.entryIdByBlockExecutionId[blockExecutionId]
+    : undefined
+
+  if (directEntryId) {
+    const location = state.entryLocationById[directEntryId]
+    const entry = location && state.workflowEntries[location.workflowId]?.[location.index]
+    if (
+      entry?.id === directEntryId &&
+      entry.blockId === blockId &&
+      entry.executionId === executionId
+    ) {
+      return directEntryId
+    }
+    logger.warn('Ignoring terminal update whose invocation identity conflicts with its block', {
+      blockExecutionId,
+      blockId,
+      executionId,
+    })
+    return undefined
+  }
+
+  const candidateIds =
+    state.entryIdsByBlockExecution[getBlockExecutionKey(blockId, executionId)] ?? []
+  const matchingIds = candidateIds.filter((entryId) => {
+    const location = state.entryLocationById[entryId]
+    const entry = location && state.workflowEntries[location.workflowId]?.[location.index]
+    return (
+      entry?.id === entryId &&
+      (!blockExecutionId ||
+        !entry.blockExecutionId ||
+        entry.blockExecutionId === blockExecutionId) &&
+      matchesEntryForUpdate(entry, blockId, executionId, update)
+    )
+  })
+
+  if (matchingIds.length === 1) return matchingIds[0]
+  if (matchingIds.length > 1 && warnOnAmbiguity) {
+    logger.warn('Ignoring ambiguous legacy terminal update', {
+      blockId,
+      executionId,
+      blockExecutionId,
+      candidateCount: matchingIds.length,
+    })
+  }
+  return undefined
 }
 
 function cloneWorkflowEntries(
@@ -164,10 +241,14 @@ function removeWorkflowIndexes(
   workflowId: string,
   entries: ConsoleEntry[],
   entryIdsByBlockExecution: Record<string, string[]>,
+  entryIdByBlockExecutionId: Record<string, string>,
   entryLocationById: Record<string, ConsoleEntryLocation>
 ): void {
   for (const entry of entries) {
     delete entryLocationById[entry.id]
+    if (entry.blockExecutionId && entryIdByBlockExecutionId[entry.blockExecutionId] === entry.id) {
+      delete entryIdByBlockExecutionId[entry.blockExecutionId]
+    }
     const blockExecutionKey = getBlockExecutionKey(entry.blockId, entry.executionId)
     const existingIds = entryIdsByBlockExecution[blockExecutionKey]
     if (!existingIds) {
@@ -187,10 +268,14 @@ function indexWorkflowEntries(
   workflowId: string,
   entries: ConsoleEntry[],
   entryIdsByBlockExecution: Record<string, string[]>,
+  entryIdByBlockExecutionId: Record<string, string>,
   entryLocationById: Record<string, ConsoleEntryLocation>
 ): void {
   entries.forEach((entry, index) => {
     entryLocationById[entry.id] = { workflowId, index }
+    if (entry.blockExecutionId) {
+      entryIdByBlockExecutionId[entry.blockExecutionId] = entry.id
+    }
     const blockExecutionKey = getBlockExecutionKey(entry.blockId, entry.executionId)
     const existingIds = entryIdsByBlockExecution[blockExecutionKey]
     if (existingIds) {
@@ -203,35 +288,58 @@ function indexWorkflowEntries(
 
 function rebuildWorkflowStateMaps(workflowEntries: Record<string, ConsoleEntry[]>) {
   const entryIdsByBlockExecution: Record<string, string[]> = {}
+  const entryIdByBlockExecutionId: Record<string, string> = {}
   const entryLocationById: Record<string, ConsoleEntryLocation> = {}
 
   Object.entries(workflowEntries).forEach(([workflowId, entries]) => {
-    indexWorkflowEntries(workflowId, entries, entryIdsByBlockExecution, entryLocationById)
+    indexWorkflowEntries(
+      workflowId,
+      entries,
+      entryIdsByBlockExecution,
+      entryIdByBlockExecutionId,
+      entryLocationById
+    )
   })
 
-  return { entryIdsByBlockExecution, entryLocationById }
+  return { entryIdsByBlockExecution, entryIdByBlockExecutionId, entryLocationById }
 }
 
 function replaceWorkflowEntries(
   state: ConsoleStore,
   workflowId: string,
   nextEntries: ConsoleEntry[]
-): Pick<ConsoleStore, 'workflowEntries' | 'entryIdsByBlockExecution' | 'entryLocationById'> {
+): Pick<
+  ConsoleStore,
+  'workflowEntries' | 'entryIdsByBlockExecution' | 'entryIdByBlockExecutionId' | 'entryLocationById'
+> {
   const workflowEntries = cloneWorkflowEntries(state.workflowEntries)
   const entryIdsByBlockExecution = { ...state.entryIdsByBlockExecution }
+  const entryIdByBlockExecutionId = { ...state.entryIdByBlockExecutionId }
   const entryLocationById = { ...state.entryLocationById }
   const previousEntries = workflowEntries[workflowId] ?? EMPTY_CONSOLE_ENTRIES
 
-  removeWorkflowIndexes(workflowId, previousEntries, entryIdsByBlockExecution, entryLocationById)
+  removeWorkflowIndexes(
+    workflowId,
+    previousEntries,
+    entryIdsByBlockExecution,
+    entryIdByBlockExecutionId,
+    entryLocationById
+  )
 
   if (nextEntries.length === 0) {
     delete workflowEntries[workflowId]
   } else {
     workflowEntries[workflowId] = nextEntries
-    indexWorkflowEntries(workflowId, nextEntries, entryIdsByBlockExecution, entryLocationById)
+    indexWorkflowEntries(
+      workflowId,
+      nextEntries,
+      entryIdsByBlockExecution,
+      entryIdByBlockExecutionId,
+      entryLocationById
+    )
   }
 
-  return { workflowEntries, entryIdsByBlockExecution, entryLocationById }
+  return { workflowEntries, entryIdsByBlockExecution, entryIdByBlockExecutionId, entryLocationById }
 }
 
 function appendWorkflowEntry(
@@ -239,23 +347,37 @@ function appendWorkflowEntry(
   workflowId: string,
   newEntry: ConsoleEntry,
   trimmedEntries: ConsoleEntry[]
-): Pick<ConsoleStore, 'workflowEntries' | 'entryIdsByBlockExecution' | 'entryLocationById'> {
+): Pick<
+  ConsoleStore,
+  'workflowEntries' | 'entryIdsByBlockExecution' | 'entryIdByBlockExecutionId' | 'entryLocationById'
+> {
   const workflowEntries = cloneWorkflowEntries(state.workflowEntries)
   const previousEntries = workflowEntries[workflowId] ?? EMPTY_CONSOLE_ENTRIES
   workflowEntries[workflowId] = trimmedEntries
 
   const entryLocationById = { ...state.entryLocationById }
   const entryIdsByBlockExecution = { ...state.entryIdsByBlockExecution }
+  const entryIdByBlockExecutionId = { ...state.entryIdByBlockExecutionId }
 
   const survivingIds = new Set(trimmedEntries.map((e) => e.id))
   const droppedEntries = previousEntries.filter((e) => !survivingIds.has(e.id))
   if (droppedEntries.length > 0) {
-    removeWorkflowIndexes(workflowId, droppedEntries, entryIdsByBlockExecution, entryLocationById)
+    removeWorkflowIndexes(
+      workflowId,
+      droppedEntries,
+      entryIdsByBlockExecution,
+      entryIdByBlockExecutionId,
+      entryLocationById
+    )
   }
 
   trimmedEntries.forEach((entry, index) => {
     entryLocationById[entry.id] = { workflowId, index }
   })
+
+  if (newEntry.blockExecutionId) {
+    entryIdByBlockExecutionId[newEntry.blockExecutionId] = newEntry.id
+  }
 
   const blockExecutionKey = getBlockExecutionKey(newEntry.blockId, newEntry.executionId)
   const existingIds = entryIdsByBlockExecution[blockExecutionKey]
@@ -267,7 +389,7 @@ function appendWorkflowEntry(
     entryIdsByBlockExecution[blockExecutionKey] = [newEntry.id]
   }
 
-  return { workflowEntries, entryIdsByBlockExecution, entryLocationById }
+  return { workflowEntries, entryIdsByBlockExecution, entryIdByBlockExecutionId, entryLocationById }
 }
 
 interface NotifyBlockErrorParams {
@@ -336,6 +458,7 @@ export const useTerminalConsoleStore = create<ConsoleStore>()(
   devtools((set, get) => ({
     workflowEntries: {},
     entryIdsByBlockExecution: {},
+    entryIdByBlockExecutionId: {},
     entryLocationById: {},
     isOpen: false,
     _hasHydrated: false,
@@ -343,6 +466,15 @@ export const useTerminalConsoleStore = create<ConsoleStore>()(
     addConsole: (entry: Omit<ConsoleEntry, 'id' | 'timestamp'>) => {
       if (shouldSkipEntry(entry.output)) {
         return get().getWorkflowEntries(entry.workflowId)[0] as ConsoleEntry | undefined
+      }
+
+      if (entry.blockExecutionId) {
+        const existingId = get().entryIdByBlockExecutionId[entry.blockExecutionId]
+        const location = existingId ? get().entryLocationById[existingId] : undefined
+        const existingEntry = location
+          ? get().workflowEntries[location.workflowId]?.[location.index]
+          : undefined
+        if (existingId && existingEntry?.id === existingId) return existingEntry
       }
 
       const redactedEntry = { ...entry }
@@ -484,16 +616,12 @@ export const useTerminalConsoleStore = create<ConsoleStore>()(
 
     updateConsole: (blockId: string, update: string | ConsoleUpdate, executionId?: string) => {
       set((state) => {
-        const candidateIds =
-          state.entryIdsByBlockExecution[getBlockExecutionKey(blockId, executionId)] ?? []
-        if (candidateIds.length === 0) {
-          return state
-        }
+        const entryId = resolveEntryIdForUpdate(state, blockId, executionId, update)
+        if (!entryId) return state
 
-        const workflowId = state.entryLocationById[candidateIds[0]]?.workflowId
-        if (!workflowId) {
-          return state
-        }
+        const candidateIds = [entryId]
+        const workflowId = state.entryLocationById[entryId]?.workflowId
+        if (!workflowId) return state
 
         const currentEntries = state.workflowEntries[workflowId] ?? EMPTY_CONSOLE_ENTRIES
         let nextEntries: ConsoleEntry[] | null = null
@@ -505,11 +633,8 @@ export const useTerminalConsoleStore = create<ConsoleStore>()(
           const source = nextEntries ?? currentEntries
           const entry = source[location.index]
           if (!entry || entry.id !== candidateId) continue
-          if (!matchesEntryForUpdate(entry, blockId, executionId, update)) continue
 
-          if (!nextEntries) {
-            nextEntries = [...currentEntries]
-          }
+          if (!nextEntries) nextEntries = [...currentEntries]
 
           if (typeof update === 'string') {
             const newOutput = normalizeConsoleOutput(updateBlockOutput(entry.output, update))
@@ -542,103 +667,60 @@ export const useTerminalConsoleStore = create<ConsoleStore>()(
                 : normalizeConsoleOutput(mergedOutput)
           }
 
-          if (update.blockName !== undefined) {
-            updatedEntry.blockName = update.blockName
-          }
-
-          if (update.blockType !== undefined) {
-            updatedEntry.blockType = update.blockType
-          }
-
-          if (update.error !== undefined) {
-            updatedEntry.error = normalizeConsoleError(update.error)
-          }
-
+          if (update.blockName !== undefined) updatedEntry.blockName = update.blockName
+          if (update.blockType !== undefined) updatedEntry.blockType = update.blockType
+          if (update.error !== undefined) updatedEntry.error = normalizeConsoleError(update.error)
           if (update.warning !== undefined) {
             updatedEntry.warning = normalizeConsoleError(update.warning) ?? undefined
           }
-
-          if (update.success !== undefined) {
-            updatedEntry.success = update.success
-          }
-
-          if (update.startedAt !== undefined) {
-            updatedEntry.startedAt = update.startedAt
-          }
-
-          if (update.endedAt !== undefined) {
-            updatedEntry.endedAt = update.endedAt
-          }
-
-          if (update.durationMs !== undefined) {
-            updatedEntry.durationMs = update.durationMs
-          }
-
+          if (update.success !== undefined) updatedEntry.success = update.success
+          if (update.startedAt !== undefined) updatedEntry.startedAt = update.startedAt
+          if (update.endedAt !== undefined) updatedEntry.endedAt = update.endedAt
+          if (update.durationMs !== undefined) updatedEntry.durationMs = update.durationMs
           if (update.input !== undefined) {
             updatedEntry.input =
               typeof update.input === 'object' && update.input !== null
                 ? normalizeConsoleInput(redactApiKeys(update.input))
                 : normalizeConsoleInput(update.input)
           }
-
-          if (update.isRunning !== undefined) {
-            updatedEntry.isRunning = update.isRunning
-          }
-
-          if (update.isCanceled !== undefined) {
-            updatedEntry.isCanceled = update.isCanceled
-          }
-
+          if (update.isRunning !== undefined) updatedEntry.isRunning = update.isRunning
+          if (update.isCanceled !== undefined) updatedEntry.isCanceled = update.isCanceled
           if (update.iterationCurrent !== undefined) {
             updatedEntry.iterationCurrent = update.iterationCurrent
           }
-
           if (update.iterationTotal !== undefined) {
             updatedEntry.iterationTotal = update.iterationTotal
           }
-
-          if (update.iterationType !== undefined) {
-            updatedEntry.iterationType = update.iterationType
-          }
-
+          if (update.iterationType !== undefined) updatedEntry.iterationType = update.iterationType
           if (update.iterationContainerId !== undefined) {
             updatedEntry.iterationContainerId = update.iterationContainerId
           }
-
           if (update.parentIterations !== undefined) {
             updatedEntry.parentIterations = update.parentIterations
           }
-
           if (update.childWorkflowBlockId !== undefined) {
             updatedEntry.childWorkflowBlockId = update.childWorkflowBlockId
           }
-
           if (update.childWorkflowName !== undefined) {
             updatedEntry.childWorkflowName = update.childWorkflowName
           }
-
           if (update.childWorkflowInstanceId !== undefined) {
             updatedEntry.childWorkflowInstanceId = update.childWorkflowInstanceId
           }
-
+          if (update.blockExecutionId !== undefined) {
+            updatedEntry.blockExecutionId = update.blockExecutionId
+          }
           if (update.agentStreamThinking !== undefined) {
             updatedEntry.agentStreamThinking = update.agentStreamThinking
           }
-
-          if (update.clearAgentStreamThinking) {
-            updatedEntry.agentStreamThinking = undefined
-          }
-
+          if (update.clearAgentStreamThinking) updatedEntry.agentStreamThinking = undefined
           if (update.agentStreamToolCalls !== undefined) {
             updatedEntry.agentStreamToolCalls = update.agentStreamToolCalls
           }
-
           if (update.agentStreamActive !== undefined) {
             updatedEntry.agentStreamActive = update.agentStreamActive
           }
 
-          // Settle live chrome whenever an entry stops running or stream activity ends.
-          // block:error / timeouts often skip stream:done and only flip isRunning.
           const shouldSettleAgentStream =
             update.isRunning === false ||
             update.agentStreamActive === false ||
@@ -657,28 +739,30 @@ export const useTerminalConsoleStore = create<ConsoleStore>()(
           nextEntries[location.index] = updatedEntry
         }
 
-        if (!nextEntries) {
-          return state
-        }
+        if (!nextEntries) return state
 
-        const workflowEntriesClone = cloneWorkflowEntries(state.workflowEntries)
-        workflowEntriesClone[workflowId] = nextEntries
+        const workflowEntries = cloneWorkflowEntries(state.workflowEntries)
+        workflowEntries[workflowId] = nextEntries
+        const entryIdByBlockExecutionId =
+          typeof update === 'object' && update.blockExecutionId
+            ? { ...state.entryIdByBlockExecutionId, [update.blockExecutionId]: entryId }
+            : state.entryIdByBlockExecutionId
         return {
-          workflowEntries: workflowEntriesClone,
+          workflowEntries,
           entryIdsByBlockExecution: state.entryIdsByBlockExecution,
+          entryIdByBlockExecutionId,
           entryLocationById: state.entryLocationById,
         }
       })
 
       if (typeof update === 'object' && update.error) {
-        const matchingEntry = get()
-          .getWorkflowEntries(
-            get().entryLocationById[
-              (get().entryIdsByBlockExecution[getBlockExecutionKey(blockId, executionId)] ??
-                [])[0] ?? ''
-            ]?.workflowId ?? ''
-          )
-          .find((entry) => matchesEntryForUpdate(entry, blockId, executionId, update))
+        const state = get()
+        const matchingId = resolveEntryIdForUpdate(state, blockId, executionId, update, false)
+        const location = matchingId ? state.entryLocationById[matchingId] : undefined
+        const matchingEntry = location
+          ? state.workflowEntries[location.workflowId]?.[location.index]
+          : undefined
+        if (!matchingEntry) return
         notifyBlockError({
           error: update.error,
           blockName: update.blockName || matchingEntry?.blockName || 'Unknown Block',

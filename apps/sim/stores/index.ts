@@ -37,6 +37,7 @@ export const resetAllStores = () => {
   useTerminalConsoleStore.setState({
     workflowEntries: {},
     entryIdsByBlockExecution: {},
+    entryIdByBlockExecutionId: {},
     entryLocationById: {},
     isOpen: false,
   })

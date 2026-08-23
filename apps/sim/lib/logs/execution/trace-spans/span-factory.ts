@@ -107,6 +107,7 @@ function createBaseSpan(log: ValidBlockLog): TraceSpan {
     status: log.error ? 'error' : 'success',
     children: [],
     blockId: log.blockId,
+    ...(log.blockExecutionId && { blockExecutionId: log.blockExecutionId }),
     executionOrder: log.executionOrder,
     input: log.input,
     output,

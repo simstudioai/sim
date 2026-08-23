@@ -1,5 +1,6 @@
 import { createLogger, type Logger } from '@sim/logger'
 import { sleep } from '@sim/utils/helpers'
+import { generateId } from '@sim/utils/id'
 import { isRecordLike } from '@sim/utils/object'
 import { isTimeoutAbortReason } from '@/lib/core/execution-limits/types'
 import { redactApiKeys } from '@/lib/core/security/redaction'
@@ -146,7 +147,8 @@ export class BlockExecutor {
         blockCtx,
         node,
         block,
-        blockLog.executionOrder
+        blockLog.executionOrder,
+        blockLog.blockExecutionId
       )
       await blockStartPromise
     }
@@ -157,6 +159,7 @@ export class BlockExecutor {
     const nodeMetadata = {
       ...this.buildNodeMetadata(node),
       executionOrder: blockLog?.executionOrder,
+      blockExecutionId: blockLog?.blockExecutionId,
     }
     let cleanupSelfReference: (() => void) | undefined
 
@@ -258,6 +261,7 @@ export class BlockExecutor {
             node,
             block,
             streamingExec,
+            blockLog?.blockExecutionId,
             resolvedInputs,
             normalizeStringArray(blockCtx.selectedOutputs)
           )
@@ -396,7 +400,8 @@ export class BlockExecutor {
           blockLog.endedAt,
           childWorkflowInstanceId,
           stateProvenance,
-          displayProvenance
+          displayProvenance,
+          blockLog.blockExecutionId
         )
       }
 
@@ -613,7 +618,8 @@ export class BlockExecutor {
           blockLog.endedAt,
           undefined,
           softOutputProvenance,
-          displayProvenance
+          displayProvenance,
+          blockLog.blockExecutionId
         )
       }
 
@@ -727,7 +733,8 @@ export class BlockExecutor {
         blockLog.endedAt,
         childWorkflowInstanceId,
         errorOutputProvenance,
-        displayProvenance
+        displayProvenance,
+        blockLog.blockExecutionId
       )
     }
 
@@ -809,6 +816,7 @@ export class BlockExecutor {
 
     return {
       blockId,
+      blockExecutionId: generateId(),
       blockName,
       blockType: block.metadata?.id ?? DEFAULTS.BLOCK_TYPE,
       startedAt,
@@ -926,7 +934,8 @@ export class BlockExecutor {
     ctx: ExecutionContext,
     node: DAGNode,
     block: SerializedBlock,
-    executionOrder: number
+    executionOrder: number,
+    blockExecutionId?: string
   ): Promise<void> | undefined {
     if (!this.contextExtensions.onBlockStart) return undefined
 
@@ -942,7 +951,8 @@ export class BlockExecutor {
         blockType,
         executionOrder,
         iterationContext,
-        ctx.childWorkflowContext
+        ctx.childWorkflowContext,
+        blockExecutionId
       )
       .catch((error) => {
         this.execLogger.warn('Block start callback failed', {
@@ -971,7 +981,8 @@ export class BlockExecutor {
     endedAt: string,
     childWorkflowInstanceId?: string,
     resolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceV1,
-    displayResolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceV1
+    displayResolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceV1,
+    blockExecutionId?: string
   ): void {
     if (!this.contextExtensions.onBlockComplete) return
 
@@ -996,9 +1007,11 @@ export class BlockExecutor {
           executionOrder,
           endedAt,
           childWorkflowInstanceId,
+          blockExecutionId,
         },
         iterationContext,
-        ctx.childWorkflowContext
+        ctx.childWorkflowContext,
+        blockExecutionId
       )
     })().catch((error) => {
       this.execLogger.warn('Block completion callback failed', {
@@ -1084,6 +1097,7 @@ export class BlockExecutor {
     node: DAGNode,
     block: SerializedBlock,
     streamingExec: StreamingExecution,
+    blockExecutionId: string | undefined,
     resolvedInputs: Record<string, any>,
     selectedOutputs: string[]
   ): Promise<void> {
@@ -1137,6 +1151,7 @@ export class BlockExecutor {
       onStreamPromise = ctx
         .onStream({
           ...streamingExecutionForConsumer,
+          blockExecutionId,
           stream: processedClientStream,
           streamFormat: 'text',
           subscribe: pump.subscribe,

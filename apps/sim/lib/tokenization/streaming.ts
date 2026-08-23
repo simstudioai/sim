@@ -133,7 +133,7 @@ export function processStreamingBlockLogs(
   let processedCount = 0
 
   for (const log of logs) {
-    const content = streamedContentMap.get(log.blockId)
+    const content = streamedContentMap.get(log.blockExecutionId ?? log.blockId)
     if (content && processStreamingBlockLog(log, content)) {
       processedCount++
     }

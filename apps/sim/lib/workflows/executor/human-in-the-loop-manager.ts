@@ -390,7 +390,7 @@ interface StartResumeExecutionArgs {
   userId: string
   sendEvent?: (event: ExecutionEvent) => void
   onStream?: (streamingExec: StreamingExecution) => Promise<void>
-  onBlockComplete?: (blockId: string, output: unknown) => Promise<void>
+  onBlockComplete?: (blockId: string, output: unknown, blockExecutionId?: string) => Promise<void>
   abortSignal?: AbortSignal
 }
 
@@ -1039,7 +1039,7 @@ export class PauseResumeManager {
     userId: string
     sendEvent?: (event: ExecutionEvent) => void
     onStream?: (streamingExec: StreamingExecution) => Promise<void>
-    onBlockComplete?: (blockId: string, output: unknown) => Promise<void>
+    onBlockComplete?: (blockId: string, output: unknown, blockExecutionId?: string) => Promise<void>
     abortSignal?: AbortSignal
   }): Promise<ExecutionResult> {
     const {
@@ -1588,7 +1588,8 @@ export class PauseResumeManager {
         blockType: string,
         executionOrder: number,
         iterationContext?: IterationContext,
-        childWorkflowContext?: ChildWorkflowContext
+        childWorkflowContext?: ChildWorkflowContext,
+        blockExecutionId?: string
       ) => {
         await writeBufferedEvent({
           type: 'block:started',
@@ -1613,6 +1614,7 @@ export class PauseResumeManager {
               childWorkflowBlockId: childWorkflowContext.parentBlockId,
               childWorkflowName: childWorkflowContext.workflowName,
             }),
+            ...(blockExecutionId && { blockExecutionId }),
           },
         } as ExecutionEvent)
       },
@@ -1622,7 +1624,8 @@ export class PauseResumeManager {
         blockType: string,
         callbackData: BlockCompletionCallbackData,
         iterationContext?: IterationContext,
-        childWorkflowContext?: ChildWorkflowContext
+        childWorkflowContext?: ChildWorkflowContext,
+        blockExecutionId?: string
       ) => {
         const output = callbackData.output as Record<string, unknown> | undefined
         const hasError = output?.error
@@ -1659,6 +1662,9 @@ export class PauseResumeManager {
           ...(callbackData.childWorkflowInstanceId
             ? { childWorkflowInstanceId: callbackData.childWorkflowInstanceId }
             : {}),
+          ...((blockExecutionId || callbackData.blockExecutionId) && {
+            blockExecutionId: blockExecutionId ?? callbackData.blockExecutionId,
+          }),
         }
 
         await writeBufferedEvent({
@@ -1688,14 +1694,20 @@ export class PauseResumeManager {
         } as ExecutionEvent)
 
         if (externalOnBlockComplete) {
-          await externalOnBlockComplete(blockId, callbackData.output)
+          await externalOnBlockComplete(
+            blockId,
+            callbackData.output,
+            blockExecutionId ?? callbackData.blockExecutionId
+          )
         }
       },
       onChildWorkflowInstanceReady: async (
         blockId: string,
         childWorkflowInstanceId: string,
         iterationContext?: IterationContext,
-        executionOrder?: number
+        executionOrder?: number,
+        _childWorkflowContext?: ChildWorkflowContext,
+        blockExecutionId?: string
       ) => {
         await writeBufferedEvent({
           type: 'block:childWorkflowStarted',
@@ -1710,6 +1722,7 @@ export class PauseResumeManager {
               iterationContainerId: iterationContext.iterationContainerId,
             }),
             ...(executionOrder !== undefined && { executionOrder }),
+            ...(blockExecutionId && { blockExecutionId }),
           },
         } as ExecutionEvent)
       },
@@ -1723,6 +1736,7 @@ export class PauseResumeManager {
           ? streamingExec.execution.blockId
           : undefined
         const blockId = typeof blockIdValue === 'string' ? blockIdValue : ''
+        const { blockExecutionId } = streamingExec
 
         // Live answer text rides the sink when available; the byte stream is
         // then drained without re-emitting chunks (same final-turn content).
@@ -1730,6 +1744,7 @@ export class PauseResumeManager {
 
         const unsubscribe = forwardAgentStreamToExecutionEvents(streamingExec, {
           blockId,
+          blockExecutionId,
           executionId: resumeExecutionId,
           workflowId,
           sendEvent: writeBufferedEvent,
@@ -1760,7 +1775,7 @@ export class PauseResumeManager {
               timestamp: new Date().toISOString(),
               executionId: resumeExecutionId,
               workflowId,
-              data: { blockId, chunk, display },
+              data: { blockId, ...(blockExecutionId && { blockExecutionId }), chunk, display },
             } as ExecutionEvent)
           }
           await writeBufferedEvent({
@@ -1768,7 +1783,7 @@ export class PauseResumeManager {
             timestamp: new Date().toISOString(),
             executionId: resumeExecutionId,
             workflowId,
-            data: { blockId },
+            data: { blockId, ...(blockExecutionId && { blockExecutionId }) },
           } as ExecutionEvent)
         } catch (streamError) {
           logger.error(

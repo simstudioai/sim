@@ -127,7 +127,11 @@ export interface BlockEventHandlerConfig {
   accumulatedBlockStates: Map<string, BlockState>
   executedBlockIds: Set<string>
   includeStartConsoleEntry: boolean
-  onBlockCompleteCallback?: (blockId: string, output: unknown) => Promise<void>
+  onBlockCompleteCallback?: (
+    blockId: string,
+    output: unknown,
+    blockExecutionId?: string
+  ) => Promise<void>
 }
 
 interface BlockEventHandlerDeps {
@@ -239,6 +243,7 @@ export function createBlockEventHandlers(
     ...('childWorkflowInstanceId' in data && {
       childWorkflowInstanceId: data.childWorkflowInstanceId,
     }),
+    ...(data.blockExecutionId && { blockExecutionId: data.blockExecutionId }),
   })
 
   const parentIterationsMatch = (
@@ -260,6 +265,7 @@ export function createBlockEventHandlers(
 
   type StartedIdentity = {
     blockId: string
+    blockExecutionId?: string
     executionOrder?: number
     iterationCurrent?: BlockStartedData['iterationCurrent']
     iterationTotal?: BlockStartedData['iterationTotal']
@@ -273,6 +279,7 @@ export function createBlockEventHandlers(
   const startedEntryKey = (data: StartedIdentity) =>
     JSON.stringify({
       blockId: data.blockId,
+      blockExecutionId: data.blockExecutionId,
       executionOrder: data.executionOrder,
       iterationCurrent: data.iterationCurrent,
       iterationTotal: data.iterationTotal,
@@ -286,6 +293,7 @@ export function createBlockEventHandlers(
   const matchesStartedIdentity = (entry: ConsoleEntry, data: StartedIdentity) =>
     entry.executionId === executionIdRef.current &&
     entry.blockId === data.blockId &&
+    (data.blockExecutionId ? entry.blockExecutionId === data.blockExecutionId : true) &&
     (data.executionOrder === undefined || entry.executionOrder === data.executionOrder) &&
     entry.iterationCurrent === data.iterationCurrent &&
     entry.iterationTotal === data.iterationTotal &&
@@ -324,6 +332,7 @@ export function createBlockEventHandlers(
           childWorkflowName: data.childWorkflowName,
         }),
         ...(data.executionOrder !== undefined && { executionOrder: data.executionOrder }),
+        ...(data.blockExecutionId && { blockExecutionId: data.blockExecutionId }),
       },
       executionIdRef.current
     )
@@ -334,6 +343,7 @@ export function createBlockEventHandlers(
     options: { success: boolean; output?: unknown; error?: string }
   ): BlockLog => ({
     blockId: data.blockId,
+    ...(data.blockExecutionId && { blockExecutionId: data.blockExecutionId }),
     blockName: data.blockName || 'Unknown Block',
     blockType: data.blockType || 'unknown',
     input: data.input || {},
@@ -470,7 +480,10 @@ export function createBlockEventHandlers(
     updateConsoleEntry(data)
 
     if (onBlockCompleteCallback) {
-      onBlockCompleteCallback(data.blockId, data.output).catch((error) => {
+      const completionPromise = data.blockExecutionId
+        ? onBlockCompleteCallback(data.blockId, data.output, data.blockExecutionId)
+        : onBlockCompleteCallback(data.blockId, data.output)
+      completionPromise.catch((error) => {
         logger.error('Error in onBlockComplete callback:', { blockId: data.blockId, error })
       })
     }
@@ -554,11 +567,31 @@ export function reconcileFinalBlockLogs(
   for (const log of finalBlockLogs) {
     const errorMessage = normalizeDisplayError(log.error)
     const entries = useTerminalConsoleStore.getState().getWorkflowEntries(workflowId)
-    const matchesFinalLog = (entry: ConsoleEntry) =>
-      entry.blockId === log.blockId &&
-      entry.executionId === executionId &&
-      entry.executionOrder === log.executionOrder
-    const matchingEntry = entries.find(matchesFinalLog)
+    const invocationEntry = log.blockExecutionId
+      ? entries.find(
+          (entry) =>
+            entry.blockId === log.blockId &&
+            entry.executionId === executionId &&
+            entry.blockExecutionId === log.blockExecutionId
+        )
+      : undefined
+    const legacyCandidates = invocationEntry
+      ? []
+      : entries.filter(
+          (entry) =>
+            entry.blockExecutionId === undefined &&
+            matchesFinalBlockLogIdentity(entry, log, executionId)
+        )
+    if (!invocationEntry && legacyCandidates.length > 1) {
+      logger.warn('Ignoring ambiguous legacy final block log', {
+        blockId: log.blockId,
+        executionId,
+        executionOrder: log.executionOrder,
+        candidateCount: legacyCandidates.length,
+      })
+    }
+    const matchingEntry =
+      invocationEntry ?? (legacyCandidates.length === 1 ? legacyCandidates[0] : undefined)
     const hasExistingContent =
       matchingEntry?.input !== undefined ||
       matchingEntry?.output !== undefined ||
@@ -579,6 +612,7 @@ export function reconcileFinalBlockLogs(
         log.blockId,
         {
           executionOrder: log.executionOrder,
+          ...(log.blockExecutionId && { blockExecutionId: log.blockExecutionId }),
           blockName: log.blockName,
           blockType: log.blockType,
           replaceOutput: (log.output ?? {}) as Record<string, unknown>,
@@ -684,6 +718,7 @@ function spanConsoleIdentity(span: TraceSpan, childWorkflowInstanceId: string): 
   const iterationContainerId = span.loopId ?? span.parallelId
   const iterationType = span.loopId ? 'loop' : span.parallelId ? 'parallel' : undefined
   return {
+    ...(span.blockExecutionId && { blockExecutionId: span.blockExecutionId }),
     blockName: span.name,
     blockType: span.type,
     ...(span.executionOrder !== undefined && { executionOrder: span.executionOrder }),
@@ -703,18 +738,31 @@ function findConsoleEntryForSpan(
 ): ConsoleEntry | undefined {
   if (!span.blockId) return undefined
   const identity = spanConsoleIdentity(span, childWorkflowInstanceId)
-  return useTerminalConsoleStore
-    .getState()
-    .getWorkflowEntries(workflowId)
-    .find(
-      (entry) =>
-        entry.blockId === span.blockId &&
-        entry.executionId === executionId &&
-        matchesConsoleIdentity(entry, identity)
-    )
+  const entries = useTerminalConsoleStore.getState().getWorkflowEntries(workflowId)
+  const invocationEntry = span.blockExecutionId
+    ? entries.find(
+        (entry) =>
+          entry.blockId === span.blockId &&
+          entry.executionId === executionId &&
+          entry.blockExecutionId === span.blockExecutionId
+      )
+    : undefined
+  if (invocationEntry) return invocationEntry
+
+  const legacyCandidates = entries.filter(
+    (entry) =>
+      entry.blockExecutionId === undefined &&
+      entry.blockId === span.blockId &&
+      entry.executionId === executionId &&
+      matchesConsoleIdentity(entry, { ...identity, blockExecutionId: undefined })
+  )
+  return legacyCandidates.length === 1 ? legacyCandidates[0] : undefined
 }
 
 function matchesConsoleIdentity(entry: ConsoleEntry, identity: ConsoleUpdate): boolean {
+  if (identity.blockExecutionId !== undefined) {
+    return entry.blockExecutionId === identity.blockExecutionId
+  }
   if (identity.executionOrder !== undefined && entry.executionOrder !== identity.executionOrder) {
     return false
   }
@@ -727,6 +775,15 @@ function matchesConsoleIdentity(entry: ConsoleEntry, identity: ConsoleUpdate): b
   if (
     identity.iterationContainerId !== undefined &&
     entry.iterationContainerId !== identity.iterationContainerId
+  ) {
+    return false
+  }
+  if (identity.iterationType !== undefined && entry.iterationType !== identity.iterationType) {
+    return false
+  }
+  if (
+    identity.parentIterations !== undefined &&
+    JSON.stringify(entry.parentIterations ?? []) !== JSON.stringify(identity.parentIterations)
   ) {
     return false
   }
@@ -744,6 +801,30 @@ function matchesConsoleIdentity(entry: ConsoleEntry, identity: ConsoleUpdate): b
     return false
   }
   return true
+}
+
+function matchesFinalBlockLogIdentity(
+  entry: ConsoleEntry,
+  log: SecretSafeBlockLog,
+  executionId: string
+): boolean {
+  const iterationContainerId = log.loopId ?? log.parallelId
+  const iterationType = log.loopId ? 'loop' : log.parallelId ? 'parallel' : undefined
+  const childWorkflowInstanceId =
+    typeof log.output?._childWorkflowInstanceId === 'string'
+      ? log.output._childWorkflowInstanceId
+      : undefined
+  return (
+    entry.blockId === log.blockId &&
+    entry.executionId === executionId &&
+    entry.executionOrder === log.executionOrder &&
+    entry.iterationCurrent === log.iterationIndex &&
+    entry.iterationType === iterationType &&
+    entry.iterationContainerId === iterationContainerId &&
+    JSON.stringify(entry.parentIterations ?? []) === JSON.stringify(log.parentIterations ?? []) &&
+    (childWorkflowInstanceId === undefined ||
+      entry.childWorkflowInstanceId === childWorkflowInstanceId)
+  )
 }
 
 function normalizeDisplayError(error: unknown): string | undefined {
@@ -951,7 +1032,7 @@ interface WorkflowExecutionOptions {
   workflowInput?: any
   onStream?: (se: StreamingExecution) => Promise<void>
   executionId?: string
-  onBlockComplete?: (blockId: string, output: any) => Promise<void>
+  onBlockComplete?: (blockId: string, output: any, blockExecutionId?: string) => Promise<void>
   overrideTriggerType?: 'chat' | 'manual' | 'api' | 'copilot' | 'webhook' | 'schedule'
   triggerBlockId?: string
   useDraftState?: boolean
