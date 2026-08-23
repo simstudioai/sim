@@ -15,7 +15,7 @@ import { captureServerEvent } from '@/lib/posthog/server'
 import type { StorageContext } from '@/lib/uploads/config'
 import { getServeStoragePrefix } from '@/lib/uploads/config'
 import { downloadFile } from '@/lib/uploads/core/storage-service'
-import { extractEmbeddedFileRefs } from '@/lib/uploads/server/embedded-image-refs'
+import { extractEmbeddedFileRefs, storedFileId } from '@/lib/uploads/server/embedded-image-refs'
 import { getFileMetadataById } from '@/lib/uploads/server/metadata'
 import { formatFileSize } from '@/lib/uploads/utils/file-utils'
 import { verifyFileAccess } from '@/app/api/files/authorization'
@@ -49,19 +49,6 @@ function safeFilename(name: string): string {
     .basename(name)
     .replace(/["\\]/g, '_')
     .replace(/[\r\n\t]/g, '')
-}
-
-/**
- * The stored id behind an embed's spelling. Ids arrive spelled as the document writes them, because
- * the rewrite below locates each embed by searching for that spelling; metadata lookup needs the
- * decoded id instead, so the two representations are kept distinct rather than reconciled.
- */
-function storedId(spelledId: string): string {
-  try {
-    return decodeURIComponent(spelledId)
-  } catch {
-    return spelledId
-  }
 }
 
 function deduplicatedFilename(preferred: string, existing: Set<string>, imageId: string): string {
@@ -173,7 +160,7 @@ export const GET = withRouteHandler(
     const assetTargets = (
       await mapWithConcurrency(imageIds, MATERIALIZE_CONCURRENCY, async (imageId) => {
         try {
-          const imgRecord = await getFileMetadataById(storedId(imageId))
+          const imgRecord = await getFileMetadataById(storedFileId(imageId))
           if (!imgRecord) return null
           if (!(await verifyFileAccess(imgRecord.key, userId))) return null
           return { imageId, record: imgRecord }

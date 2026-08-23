@@ -44,4 +44,19 @@ describe('findUnembeddableImageRefs', () => {
     expect(await findUnembeddableImageRefs(content, WORKSPACE_ID)).toEqual([])
     expect(mockGetFileMetadataById).not.toHaveBeenCalled()
   })
+
+  /**
+   * The export bundler resolves an embed by its stored id, so reporting the same embed as one that
+   * will not survive an export would contradict what the export actually does with it.
+   */
+  it('resolves a percent-encoded embed by its stored id, like the export does', async () => {
+    mockGetFileMetadataById.mockImplementation(async (id: string) =>
+      id === 'wf_abc' ? { context: 'workspace', workspaceId: WORKSPACE_ID } : null
+    )
+
+    expect(await findUnembeddableImageRefs('![a](/api/files/view/wf%5Fabc)', WORKSPACE_ID)).toEqual(
+      []
+    )
+    expect(mockGetFileMetadataById).toHaveBeenCalledWith('wf_abc')
+  })
 })

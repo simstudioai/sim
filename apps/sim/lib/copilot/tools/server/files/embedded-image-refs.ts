@@ -1,4 +1,4 @@
-import { extractEmbeddedFileRefs } from '@/lib/uploads/server/embedded-image-refs'
+import { extractEmbeddedFileRefs, storedFileId } from '@/lib/uploads/server/embedded-image-refs'
 import { getFileMetadataById } from '@/lib/uploads/server/metadata'
 
 /**
@@ -9,6 +9,9 @@ import { getFileMetadataById } from '@/lib/uploads/server/metadata'
  * flagged by id alone, without disclosing the referenced file's real context or owning workspace, so
  * the result can't be used to probe files outside this workspace. Best-effort and never throws, so a
  * content write is never blocked by this validation.
+ *
+ * Resolved through {@link storedFileId}, like the export bundler: an embed the export would resolve
+ * and bundle must not be reported here as one that will not survive it.
  */
 export async function findUnembeddableImageRefs(
   content: string,
@@ -19,7 +22,7 @@ export async function findUnembeddableImageRefs(
   const checked = await Promise.all(
     ids.map(async (id): Promise<string | null> => {
       try {
-        const record = await getFileMetadataById(id)
+        const record = await getFileMetadataById(storedFileId(id))
         const embeddable = record?.context === 'workspace' && record.workspaceId === workspaceId
         return embeddable ? null : id
       } catch {
