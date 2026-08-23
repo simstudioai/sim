@@ -518,13 +518,15 @@ function ConnectorCard({
             {canEdit && serviceId && providerId && (
               <Button
                 variant='primary'
+                disabled={Boolean(connector.credentialId && !selectedCredential)}
                 onClick={() => {
                   if (connector.credentialId) {
+                    if (!selectedCredential) return
                     writeOAuthReturnContext({
                       origin: 'kb-connectors',
                       knowledgeBaseId,
                       displayName: connectorDef?.name ?? connector.connectorType,
-                      providerId: providerId!,
+                      providerId: selectedCredential.provider,
                       preCount: credentials?.length ?? 0,
                       workspaceId,
                       reconnect: true,
@@ -555,11 +557,12 @@ function ConnectorCard({
                 variant='primary'
                 onClick={() => {
                   if (connector.credentialId) {
+                    if (!selectedCredential) return
                     writeOAuthReturnContext({
                       origin: 'kb-connectors',
                       knowledgeBaseId,
                       displayName: connectorDef?.name ?? connector.connectorType,
-                      providerId: providerId!,
+                      providerId: selectedCredential.provider,
                       preCount: credentials?.length ?? 0,
                       workspaceId,
                       reconnect: true,
@@ -603,28 +606,32 @@ function ConnectorCard({
         />
       )}
 
-      {showOAuthModal && serviceId && providerId && connector.credentialId && (
-        <ConnectOAuthModal
-          mode='reauthorize'
-          open={showOAuthModal}
-          onOpenChange={(open) => {
-            if (!open) {
-              consumeOAuthReturnContext()
-              setShowOAuthModal(false)
-            }
-          }}
-          toolName={connectorDef?.name ?? connector.connectorType}
-          requiredScopes={getCanonicalScopesForProvider(providerId)}
-          newScopes={missingScopes}
-          serviceId={serviceId}
-          providerId={selectedCredential?.provider ?? providerId}
-          reconnectTarget={{
-            workspaceId,
-            credentialId: connector.credentialId,
-            displayName: selectedCredential?.name ?? connectorDef?.name ?? connector.connectorType,
-          }}
-        />
-      )}
+      {showOAuthModal &&
+        serviceId &&
+        providerId &&
+        connector.credentialId &&
+        selectedCredential && (
+          <ConnectOAuthModal
+            mode='reauthorize'
+            open={showOAuthModal}
+            onOpenChange={(open) => {
+              if (!open) {
+                consumeOAuthReturnContext()
+                setShowOAuthModal(false)
+              }
+            }}
+            toolName={connectorDef?.name ?? connector.connectorType}
+            requiredScopes={getCanonicalScopesForProvider(providerId)}
+            newScopes={missingScopes}
+            serviceId={serviceId}
+            providerId={selectedCredential.provider}
+            reconnectTarget={{
+              workspaceId,
+              credentialId: selectedCredential.id,
+              displayName: selectedCredential.name,
+            }}
+          />
+        )}
     </div>
   )
 }

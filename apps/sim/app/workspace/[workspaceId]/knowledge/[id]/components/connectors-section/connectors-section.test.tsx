@@ -1,17 +1,21 @@
 /**
  * @vitest-environment jsdom
  */
-import type { ReactNode, SVGProps } from 'react'
+import type { ButtonHTMLAttributes, ReactNode, SVGProps } from 'react'
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { SyncLogData } from '@/lib/api/contracts/knowledge/connectors'
 import { CONNECTOR_SYNC_STALE_LOCK_TTL_MS } from '@/lib/knowledge/connectors/sync-limits'
 
-const { icon } = vi.hoisted(() => ({
+const { connectOAuthModalMock, icon, oauthCredentialsState } = vi.hoisted(() => ({
+  connectOAuthModalMock: vi.fn(),
   icon: (name: string) => (props: SVGProps<SVGSVGElement>) => (
     <svg data-testid={`icon-${name}`} className={props.className} />
   ),
+  oauthCredentialsState: {
+    current: [] as Array<{ id: string; name: string; provider: string }>,
+  },
 }))
 
 vi.mock('@sim/emcn/icons', () => ({
@@ -30,7 +34,16 @@ vi.mock('@sim/emcn/icons', () => ({
 
 vi.mock('@sim/emcn', () => ({
   Badge: ({ children }: { children?: ReactNode }) => <span>{children}</span>,
-  Button: ({ children }: { children?: ReactNode }) => <button type='button'>{children}</button>,
+  Button: ({
+    children,
+    variant: _variant,
+    size: _size,
+    ...props
+  }: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: string; size?: string }) => (
+    <button type='button' {...props}>
+      {children}
+    </button>
+  ),
   Checkbox: () => <input type='checkbox' />,
   ChipConfirmModal: () => null,
   cn: (...classes: unknown[]) => classes.filter(Boolean).join(' '),
@@ -38,7 +51,11 @@ vi.mock('@sim/emcn', () => ({
   DropdownMenuContent: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
   DropdownMenuItem: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
   DropdownMenuTrigger: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
-  Tooltip: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
+  Tooltip: {
+    Root: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
+    Trigger: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
+    Content: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
+  },
 }))
 
 vi.mock('@/lib/credentials/client-state', () => ({
@@ -47,11 +64,14 @@ vi.mock('@/lib/credentials/client-state', () => ({
 }))
 vi.mock('@/lib/oauth', () => ({
   getCanonicalScopesForProvider: vi.fn(() => []),
-  getProviderIdFromServiceId: vi.fn(() => undefined),
+  getProviderIdFromServiceId: vi.fn(() => 'slack'),
 }))
 vi.mock('@/lib/oauth/utils', () => ({ getMissingRequiredScopes: vi.fn(() => []) }))
 vi.mock('@/app/workspace/[workspaceId]/components/connect-oauth-modal', () => ({
-  ConnectOAuthModal: () => null,
+  ConnectOAuthModal: (props: unknown) => {
+    connectOAuthModalMock(props)
+    return null
+  },
 }))
 vi.mock(
   '@/app/workspace/[workspaceId]/knowledge/[id]/components/edit-connector-modal/edit-connector-modal',
@@ -59,21 +79,37 @@ vi.mock(
 )
 vi.mock('@/blocks', () => ({ getBlock: vi.fn(() => undefined) }))
 vi.mock('@/blocks/icon-color', () => ({ getTileIconColorClass: vi.fn(() => '') }))
-vi.mock('@/connectors/registry', () => ({ CONNECTOR_META_REGISTRY: {} }))
+vi.mock('@/connectors/registry', () => ({
+  CONNECTOR_META_REGISTRY: {
+    slack: {
+      id: 'slack',
+      name: 'Slack',
+      auth: { mode: 'oauth', provider: 'slack', requiredScopes: ['channels:read'] },
+    },
+  },
+}))
 vi.mock('@/hooks/queries/kb/connectors', () => ({
+  isConnectorSyncingOrPending: vi.fn(
+    (connector: { status: string }) =>
+      connector.status === 'pending' || connector.status === 'syncing'
+  ),
   useConnectorDetail: vi.fn(() => ({ data: undefined, isLoading: false })),
   useDeleteConnector: vi.fn(() => ({ mutate: vi.fn(), isPending: false })),
   useTriggerSync: vi.fn(() => ({ mutate: vi.fn() })),
   useUpdateConnector: vi.fn(() => ({ mutate: vi.fn() })),
 }))
 vi.mock('@/hooks/queries/oauth/oauth-credentials', () => ({
-  useOAuthCredentials: vi.fn(() => ({ data: [] })),
+  useOAuthCredentials: vi.fn(() => ({ data: oauthCredentialsState.current })),
 }))
 vi.mock('@/hooks/use-credential-refresh-triggers', () => ({
   useCredentialRefreshTriggers: vi.fn(),
 }))
 
-import { SyncHistory } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connectors-section/connectors-section'
+import {
+  ConnectorsSection,
+  SyncHistory,
+} from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connectors-section/connectors-section'
+import type { ConnectorData } from '@/hooks/queries/kb/connectors'
 
 let root: Root | null = null
 
@@ -102,6 +138,46 @@ function render(log: SyncLogData) {
   return container
 }
 
+function makeConnector(overrides: Partial<ConnectorData> = {}): ConnectorData {
+  return {
+    id: 'connector-1',
+    knowledgeBaseId: 'knowledge-1',
+    connectorType: 'slack',
+    credentialId: 'credential-1',
+    sourceConfig: {},
+    syncMode: null,
+    syncIntervalMinutes: 60,
+    status: 'disabled',
+    lastSyncAt: null,
+    lastSyncError: 'invalid_auth',
+    lastSyncDocCount: null,
+    nextSyncAt: null,
+    consecutiveFailures: 3,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    ...overrides,
+  }
+}
+
+function renderSection(connector: ConnectorData) {
+  ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
+  const container = document.createElement('div')
+  document.body.appendChild(container)
+  root = createRoot(container)
+  act(() =>
+    root?.render(
+      <ConnectorsSection
+        workspaceId='workspace-1'
+        knowledgeBaseId='knowledge-1'
+        connectors={[connector]}
+        isLoading={false}
+        canEdit
+      />
+    )
+  )
+  return container
+}
+
 function icons(container: HTMLElement) {
   return Array.from(container.querySelectorAll('[data-testid^="icon-"]')).map((node) =>
     node.getAttribute('data-testid')
@@ -112,7 +188,48 @@ afterEach(() => {
   act(() => root?.unmount())
   root = null
   document.body.innerHTML = ''
+  oauthCredentialsState.current = []
   vi.clearAllMocks()
+})
+
+describe('Connector credential reauthorization', () => {
+  it('fails closed when the connector credential cannot be resolved', () => {
+    const container = renderSection(makeConnector())
+    const reconnectButton = Array.from(container.querySelectorAll('button')).find(
+      (button) => button.textContent === 'Reconnect'
+    )
+
+    expect(reconnectButton?.disabled).toBe(true)
+
+    act(() => reconnectButton?.click())
+
+    expect(connectOAuthModalMock).not.toHaveBeenCalled()
+  })
+
+  it('reauthorizes with the resolved credential provider and identity', () => {
+    oauthCredentialsState.current = [
+      { id: 'credential-1', name: 'Workspace Slack', provider: 'slack-custom' },
+    ]
+    const container = renderSection(makeConnector())
+    const reconnectButton = Array.from(container.querySelectorAll('button')).find(
+      (button) => button.textContent === 'Reconnect'
+    )
+
+    expect(reconnectButton?.disabled).toBe(false)
+
+    act(() => reconnectButton?.click())
+
+    expect(connectOAuthModalMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        providerId: 'slack-custom',
+        reconnectTarget: {
+          workspaceId: 'workspace-1',
+          credentialId: 'credential-1',
+          displayName: 'Workspace Slack',
+        },
+      })
+    )
+  })
 })
 
 describe('SyncHistory', () => {
