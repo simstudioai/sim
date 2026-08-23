@@ -2,7 +2,7 @@ import { AuditAction, AuditResourceType } from '@sim/audit'
 import { resolvePrincipalAttribution } from '@sim/auth/principal'
 import type { folder } from '@sim/db/schema'
 import type { OrchestrationErrorCode } from '@/lib/core/orchestration/types'
-import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { OrchestrationError, throwOrchestrationFailure } from '@/lib/core/orchestration/types'
 import { MAX_FOLDERS_PER_WORKSPACE } from '@/lib/folders/constants'
 import { withFolderTreeLock } from '@/lib/folders/locks'
 import {
@@ -73,11 +73,7 @@ function throwFolderMutationFailure(result: {
   error?: string
   errorCode?: OrchestrationErrorCode
 }): never {
-  const code = result.errorCode ?? 'internal'
-  throw new OrchestrationError(
-    code,
-    code === 'internal' ? 'Internal server error' : (result.error ?? 'Folder mutation failed')
-  )
+  throwOrchestrationFailure(result, 'Internal server error')
 }
 
 export async function resolveWorkflowFolderPath(
