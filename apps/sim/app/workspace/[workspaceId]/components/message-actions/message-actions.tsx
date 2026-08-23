@@ -8,6 +8,7 @@ import {
   ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
+  type ClipboardContent,
   cn,
   Duplicate,
   Split,
@@ -32,7 +33,7 @@ interface MessageActionsProps {
   content: string
   getCopyContent?: () => string
   hasCopyContent?: boolean
-  prepareContentForCopy?: (content: string) => string
+  prepareContentForCopy?: (content: string) => ClipboardContent
   userQuery?: string
   requestId?: string
   messageId?: string
@@ -69,9 +70,9 @@ export const MessageActions = memo(function MessageActions({
   const copyToClipboard = () => {
     const contentToCopy = getCopyContent?.() ?? content
     if (!contentToCopy) return
-    const markdown = prepareContentForCopy?.(contentToCopy) ?? contentToCopy
-    if (!markdown) return
-    void copyMessage(markdown)
+    const copyContent = prepareContentForCopy?.(contentToCopy) ?? contentToCopy
+    if (typeof copyContent === 'string' && !copyContent) return
+    void copyMessage(copyContent)
   }
 
   const copyRequestId = async () => {

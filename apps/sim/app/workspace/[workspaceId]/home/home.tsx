@@ -652,6 +652,7 @@ export function Home({ chatId, userName, userId, tableViewsEnabled }: HomeProps)
           </div>
         ) : (
           <MothershipChat
+            workspaceId={workspaceId}
             messages={messages}
             isSending={isSending}
             isReconnecting={isReconnecting}

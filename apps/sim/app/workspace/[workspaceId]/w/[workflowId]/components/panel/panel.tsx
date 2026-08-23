@@ -931,6 +931,7 @@ export const Panel = memo(function Panel() {
 
                 <MothershipChat
                   className='min-h-0 flex-1'
+                  workspaceId={workspaceId}
                   messages={copilotMessages}
                   isSending={copilotIsSending}
                   isReconnecting={copilotIsReconnecting}
