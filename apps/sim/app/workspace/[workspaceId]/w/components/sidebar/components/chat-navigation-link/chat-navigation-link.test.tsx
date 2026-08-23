@@ -140,15 +140,23 @@ describe('ChatNavigationLink', () => {
 
   it('prefetches before direct mouse clicks and completed touch taps', () => {
     const link = renderLink()
+    linkPrefetch.mockClear()
 
-    act(() => link.dispatchEvent(pointerEvent('pointerdown', 'mouse', { button: 0 })))
+    act(() => {
+      link.dispatchEvent(pointerEvent('pointerdown', 'mouse', { button: 0 }))
+      link.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }))
+    })
 
     expect(linkPrefetch).toHaveBeenLastCalledWith(true)
     expect(prefetchQuery).toHaveBeenCalledTimes(1)
 
     act(() => link.dispatchEvent(new FocusEvent('focusout', { bubbles: true })))
+    linkPrefetch.mockClear()
     prefetchQuery.mockClear()
-    act(() => link.dispatchEvent(pointerEvent('pointerup', 'touch', { button: 0 })))
+    act(() => {
+      link.dispatchEvent(pointerEvent('pointerup', 'touch', { button: 0 }))
+      link.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }))
+    })
 
     expect(linkPrefetch).toHaveBeenLastCalledWith(true)
     expect(prefetchQuery).toHaveBeenCalledTimes(1)
@@ -198,6 +206,45 @@ describe('ChatNavigationLink', () => {
 
     expect(linkPrefetch).toHaveBeenLastCalledWith(false)
     expect(prefetchQuery).not.toHaveBeenCalled()
+  })
+
+  it('clears prior intent when a persistent row changes route roles', () => {
+    const renderRouteRole = (isCurrentRoute: boolean) => {
+      act(() => {
+        root.render(
+          <QueryClientProvider client={queryClient}>
+            <ChatNavigationLink
+              chatId='chat-1'
+              href='/workspace/ws-1/chat/chat-1'
+              isCurrentRoute={isCurrentRoute}
+            >
+              Open chat
+            </ChatNavigationLink>
+          </QueryClientProvider>
+        )
+      })
+    }
+
+    renderRouteRole(false)
+    const link = container.querySelector('a')
+    if (!link) throw new Error('chat link not rendered')
+    act(() => {
+      link.dispatchEvent(pointerEvent('pointerdown', 'mouse', { button: 0 }))
+      link.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }))
+    })
+    expect(linkPrefetch).toHaveBeenLastCalledWith(true)
+
+    renderRouteRole(true)
+    renderRouteRole(false)
+
+    expect(linkPrefetch).toHaveBeenLastCalledWith(false)
+    prefetchQuery.mockClear()
+    const destinationLink = container.querySelector('a')
+    if (!destinationLink) throw new Error('destination link not rendered')
+    act(() => {
+      destinationLink.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }))
+    })
+    expect(prefetchQuery).toHaveBeenCalledTimes(1)
   })
 
   it('does not prefetch when the click is canceled or opens another browsing context', () => {

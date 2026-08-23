@@ -35,7 +35,12 @@ interface ChatNavigationLinkProps extends Omit<ComponentProps<typeof Link>, 'hre
   isCurrentRoute?: boolean
 }
 
-export function ChatNavigationLink({
+export function ChatNavigationLink(props: ChatNavigationLinkProps) {
+  const routeRole = props.isCurrentRoute ? 'current' : 'destination'
+  return <IntentAwareChatNavigationLink key={`${props.chatId}:${routeRole}`} {...props} />
+}
+
+function IntentAwareChatNavigationLink({
   chatId,
   href,
   isCurrentRoute = false,
@@ -52,6 +57,7 @@ export function ChatNavigationLink({
 }: ChatNavigationLinkProps) {
   const queryClient = useQueryClient()
   const prefetchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const navigationIntentRef = useRef(false)
   const [shouldPrefetchRoute, setShouldPrefetchRoute] = useState(false)
 
   const cancelScheduledPrefetch = useCallback(() => {
@@ -69,6 +75,7 @@ export function ChatNavigationLink({
   const prefetchForIntent = () => {
     cancelScheduledPrefetch()
     if (isCurrentRoute) return
+    navigationIntentRef.current = true
     setShouldPrefetchRoute(true)
     prefetchHistory()
   }
@@ -95,6 +102,7 @@ export function ChatNavigationLink({
       onMouseLeave={(event) => {
         onMouseLeave?.(event)
         cancelScheduledPrefetch()
+        navigationIntentRef.current = false
         setShouldPrefetchRoute(false)
       }}
       onFocus={(event) => {
@@ -104,6 +112,7 @@ export function ChatNavigationLink({
       onBlur={(event) => {
         onBlur?.(event)
         cancelScheduledPrefetch()
+        navigationIntentRef.current = false
         setShouldPrefetchRoute(false)
       }}
       onPointerDown={(event) => {
@@ -121,6 +130,7 @@ export function ChatNavigationLink({
       onPointerCancel={(event) => {
         onPointerCancel?.(event)
         cancelScheduledPrefetch()
+        navigationIntentRef.current = false
         setShouldPrefetchRoute(false)
       }}
       onTouchStart={onTouchStart}
@@ -134,8 +144,7 @@ export function ChatNavigationLink({
           !event.altKey
         ) {
           cancelScheduledPrefetch()
-          if (!isCurrentRoute && !shouldPrefetchRoute) prefetchHistory()
-          setShouldPrefetchRoute(false)
+          if (!isCurrentRoute && !navigationIntentRef.current) prefetchHistory()
         }
       }}
     />
