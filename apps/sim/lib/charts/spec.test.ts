@@ -1,8 +1,17 @@
 /**
  * @vitest-environment node
  */
+import * as echarts from 'echarts'
 import { describe, expect, it } from 'vitest'
+import { buildChartRenderOption } from '@/lib/charts/option'
 import { parseChartSpec, shapeTableRows } from '@/lib/charts/spec'
+
+/** Parses a chart document written as a plain object, asserting it was accepted. */
+function parse(doc: Record<string, unknown>): Record<string, unknown> {
+  const { spec, error } = parseChartSpec(JSON.stringify(doc))
+  expect(error).toBeUndefined()
+  return spec!.option
+}
 
 const rows = [
   { month: '2024-01', region: 'NA', revenue: 100, conversion: 4 },
@@ -82,6 +91,182 @@ describe('shapeTableRows', () => {
         aggregate: { v: 'avg' },
       })
     ).toEqual([{ g: 'a', v: 2 }])
+  })
+})
+
+const XSS_FORMATTER = '<img src=x onerror="alert(1)">'
+
+describe('parseChartSpec option confinement', () => {
+  it('forces the tooltip off the innerHTML path, keeping the formatter template', () => {
+    const option = parse({
+      schema_version: 1,
+      option: { tooltip: { trigger: 'item', formatter: XSS_FORMATTER }, series: [{ type: 'bar' }] },
+    })
+    expect(option.tooltip).toEqual({
+      trigger: 'item',
+      formatter: XSS_FORMATTER,
+      renderMode: 'richText',
+    })
+  })
+
+  it('overrides a spec-declared html render mode', () => {
+    const option = parse({
+      schema_version: 1,
+      option: { tooltip: { renderMode: 'html', formatter: XSS_FORMATTER } },
+    })
+    expect((option.tooltip as Record<string, unknown>).renderMode).toBe('richText')
+  })
+
+  it('reaches tooltips nested under media, baseOption, timeline options, and series', () => {
+    const option = parse({
+      schema_version: 1,
+      option: {
+        baseOption: { tooltip: { formatter: XSS_FORMATTER } },
+        options: [{ tooltip: { formatter: XSS_FORMATTER } }],
+        media: [{ query: { minWidth: 100 }, option: { tooltip: { formatter: XSS_FORMATTER } } }],
+        series: [
+          {
+            type: 'bar',
+            tooltip: { formatter: XSS_FORMATTER },
+            data: [{ value: 1, tooltip: { formatter: XSS_FORMATTER } }],
+          },
+        ],
+      },
+    })
+    const renderModes: unknown[] = []
+    function collect(node: unknown): void {
+      if (node === null || typeof node !== 'object') return
+      if (Array.isArray(node)) {
+        for (const entry of node) collect(entry)
+        return
+      }
+      const record = node as Record<string, unknown>
+      if (record.formatter === XSS_FORMATTER) renderModes.push(record.renderMode)
+      for (const value of Object.values(record)) collect(value)
+    }
+    collect(option)
+    expect(renderModes).toHaveLength(5)
+    expect(renderModes.every((mode) => mode === 'richText')).toBe(true)
+  })
+
+  it('confines a tooltip declared as an array', () => {
+    const option = parse({
+      schema_version: 1,
+      option: { tooltip: [{ formatter: XSS_FORMATTER }, { formatter: 'plain' }] },
+    })
+    expect(option.tooltip).toEqual([
+      { formatter: XSS_FORMATTER, renderMode: 'richText' },
+      { formatter: 'plain', renderMode: 'richText' },
+    ])
+  })
+
+  it('drops the toolbox at every level', () => {
+    const option = parse({
+      schema_version: 1,
+      option: {
+        toolbox: { feature: { dataView: { lang: [XSS_FORMATTER] } } },
+        baseOption: { toolbox: { feature: { saveAsImage: {} } } },
+        media: [{ query: { minWidth: 100 }, option: { toolbox: { show: true } } }],
+      },
+    })
+    expect(option.toolbox).toBeUndefined()
+    expect((option.baseOption as Record<string, unknown>).toolbox).toBeUndefined()
+    const media = option.media as Array<{ option: Record<string, unknown> }>
+    expect(media[0].option.toolbox).toBeUndefined()
+  })
+
+  it('adds no tooltip to a document that declares none', () => {
+    const option = parse({ schema_version: 1, option: { series: [{ type: 'bar', data: [1] }] } })
+    expect('tooltip' in option).toBe(false)
+  })
+
+  it('rejects a document too deep to walk instead of throwing', () => {
+    const nest = (depth: number) => {
+      let series = '1'
+      for (let i = 0; i < depth; i++) series = `[${series}]`
+      return `{"schema_version":1,"option":{"series":${series}}}`
+    }
+    expect(parseChartSpec(nest(500)).error).toBeUndefined()
+    expect(parseChartSpec(nest(50_000)).error).toMatch(/deeply/)
+  })
+
+  it('leaves dataset rows alone — they hold data, not components', () => {
+    const rows = [{ tooltip: 'ok', toolbox: 'ok' }]
+    const option = parse({ schema_version: 1, option: { dataset: { source: rows } } })
+    expect((option.dataset as Record<string, unknown>).source).toEqual(rows)
+  })
+})
+
+describe('chart option confinement against echarts', () => {
+  /**
+   * Pins the library behavior the confinement relies on: the tooltip's render
+   * mode is resolved from the single tooltip component, and a tooltip reaching
+   * that component only through `media` would otherwise default to HTML. Renders
+   * server-side so the assertion runs without a DOM.
+   */
+  function renderModel(option: Record<string, unknown>) {
+    const chart = echarts.init(null, null, {
+      renderer: 'svg',
+      ssr: true,
+      width: 400,
+      height: 300,
+    })
+    try {
+      chart.setOption(buildChartRenderOption({ option, rows: null }))
+      return chart.getModel()
+    } finally {
+      chart.dispose()
+    }
+  }
+
+  it('resolves a media-only tooltip to the canvas render mode', () => {
+    const model = renderModel(
+      parse({
+        schema_version: 1,
+        option: {
+          xAxis: {},
+          yAxis: {},
+          series: [{ type: 'bar', data: [1, 2] }],
+          media: [{ query: { minWidth: 100 }, option: { tooltip: { formatter: XSS_FORMATTER } } }],
+        },
+      })
+    )
+    expect(model.getComponent('tooltip')?.get('renderMode')).toBe('richText')
+  })
+
+  it.each([
+    ['top-level', { tooltip: { formatter: XSS_FORMATTER } }],
+    [
+      'series-level',
+      { series: [{ type: 'bar', data: [1], tooltip: { formatter: XSS_FORMATTER } }] },
+    ],
+    ['non-object top-level', { tooltip: 'x', series: [{ type: 'bar', data: [1], tooltip: {} }] }],
+    ['array', { tooltip: [{ formatter: XSS_FORMATTER }] }],
+    ['baseOption', { baseOption: { tooltip: { formatter: XSS_FORMATTER } } }],
+  ])('leaves no tooltip component on the innerHTML path (%s)', (_label, declaration) => {
+    const model = renderModel(
+      parse({
+        schema_version: 1,
+        option: { xAxis: {}, yAxis: {}, series: [{ type: 'bar', data: [1] }], ...declaration },
+      })
+    )
+    const renderMode = model.getComponent('tooltip')?.get('renderMode')
+    expect(renderMode === undefined || renderMode === 'richText').toBe(true)
+  })
+
+  it('never instantiates a toolbox component', () => {
+    const model = renderModel(
+      parse({
+        schema_version: 1,
+        option: {
+          xAxis: {},
+          yAxis: {},
+          series: [{ type: 'bar', data: [1] }],
+          toolbox: { feature: { dataView: {} } },
+        },
+      })
+    )
+    expect(model.getComponent('toolbox')).toBeUndefined()
   })
 })
 
