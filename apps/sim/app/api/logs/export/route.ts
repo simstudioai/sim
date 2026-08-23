@@ -177,22 +177,26 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       }
     })()
 
+    let cancelled = false
     const stream = new ReadableStream<Uint8Array>(
       {
         pull: async (controller) => {
           try {
             const next = await csvChunks.next()
+            if (cancelled) return
             if (next.done) {
               controller.close()
               return
             }
             controller.enqueue(next.value)
           } catch (error) {
+            if (cancelled) return
             logger.error('Export stream error', { error: getErrorMessage(error) })
             controller.error(error)
           }
         },
         cancel: async () => {
+          cancelled = true
           await csvChunks.return(undefined)
         },
       },

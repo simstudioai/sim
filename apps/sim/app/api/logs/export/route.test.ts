@@ -214,4 +214,26 @@ describe('GET /api/logs/export', () => {
     await reader.cancel()
     expect(dbChainMockFns.where).toHaveBeenCalledTimes(1)
   })
+
+  it('stops a pending pull cleanly when the reader cancels', async () => {
+    queueTableRows(workflowExecutionLogs, [logRow(0)])
+    let resolveMaterialization: ((value: unknown[]) => void) | undefined
+    mockMapWithConcurrency.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveMaterialization = resolve
+        })
+    )
+
+    const response = await GET(makeRequest())
+    const reader = response.body!.getReader()
+    await reader.read()
+
+    const pendingRead = reader.read()
+    await vi.waitFor(() => expect(mockMapWithConcurrency).toHaveBeenCalledTimes(1))
+    const cancellation = reader.cancel()
+    resolveMaterialization?.([{ message: 'message-0' }])
+
+    await expect(Promise.all([pendingRead, cancellation])).resolves.toBeDefined()
+  })
 })
