@@ -344,14 +344,15 @@ export function SubflowNodeView({
   const isPreviewSelected = data?.isPreviewSelected || false
 
   const endHandleId = data.kind === 'loop' ? 'loop-end-source' : 'parallel-end-source'
-  const hasDisplayedEndEdge = useReactFlowStore(
-    useCallback(
-      (state) =>
-        state.edges.some((edge) => edge.source === id && edge.sourceHandle === endHandleId),
-      [endHandleId, id]
-    )
+  const displayedEdges = useReactFlowStore(
+    useCallback((state) => (data.parentId ? state.edges : null), [data.parentId])
   )
-  const showFixedEndPort = !data.parentId || hasDisplayedEndEdge
+  const showFixedEndPort = useMemo(
+    () =>
+      !displayedEdges ||
+      displayedEdges.some((edge) => edge.source === id && edge.sourceHandle === endHandleId),
+    [displayedEdges, endHandleId, id]
+  )
   const BlockIcon = data.kind === 'loop' ? Repeat : Split
   const blockName = data.name || (data.kind === 'loop' ? 'Loop' : 'Parallel')
   const blockTypeLabel = data.kind === 'loop' ? 'Loop' : 'Parallel'
