@@ -238,6 +238,34 @@ async function withTempDir<T>(fn: (dir: string) => Promise<T>): Promise<T> {
   }
 }
 
+/**
+ * Extensions this module will build an output path from: letters and digits only.
+ *
+ * `format` reaches the tool as an unconstrained string and is the one
+ * caller-controlled value that becomes a path. Because the pattern admits no `.`
+ * and no separator, `out.${ext}` is always a single path segment, so the joined
+ * path cannot leave the temp directory — the containment is the pattern, not a
+ * second check that could drift away from it.
+ */
+const OUTPUT_EXT_PATTERN = /^[a-z0-9]{1,12}$/
+
+/**
+ * Resolve a temp-dir output path for a caller-supplied extension.
+ *
+ * Unvalidated, `path.join(dir, 'out.' + '../../../../tmp/x.mp4')` resolves to
+ * `/tmp/x.mp4`: FFmpeg writes wherever the traversal points, the bytes are
+ * attacker-influenced media, and the temp-directory cleanup never sees the file
+ * because it was never inside the directory being removed.
+ */
+function outputPathForExt(dir: string, ext: string): string {
+  if (!OUTPUT_EXT_PATTERN.test(ext)) {
+    throw new Error(
+      `Unsupported output format "${ext}" — use a plain extension such as mp4, mp3, wav, or gif`
+    )
+  }
+  return path.join(dir, `out.${ext}`)
+}
+
 async function writeInput(dir: string, file: MediaFile, index: number): Promise<string> {
   const ext = extFromMime(file.mimeType)
   const filePath = path.join(dir, `in-${index}.${ext}`)
@@ -807,7 +835,7 @@ async function extractAudio(
   options: FfmpegOptions
 ): Promise<FfmpegResult> {
   const ext = (options.format || 'mp3').toLowerCase()
-  const outputPath = path.join(dir, `out.${ext}`)
+  const outputPath = outputPathForExt(dir, ext)
   const command = ffmpeg(inputPath).noVideo()
   await runCommand(ctx, command, outputPath)
   return readOut(outputPath, ext)
@@ -821,7 +849,7 @@ async function convert(
 ): Promise<FfmpegResult> {
   if (!options.format) throw new Error('convert requires a target format')
   const ext = options.format.toLowerCase()
-  const outputPath = path.join(dir, `out.${ext}`)
+  const outputPath = outputPathForExt(dir, ext)
   await runCommand(ctx, ffmpeg(inputPath), outputPath)
   return readOut(outputPath, ext)
 }

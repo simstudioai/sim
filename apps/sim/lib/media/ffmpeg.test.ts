@@ -244,6 +244,44 @@ describe('runFfmpegOperation concat normalization target', () => {
   })
 })
 
+describe('runFfmpegOperation output format', () => {
+  const traversals = [
+    '../../../../../../../../tmp/pwned.mp4',
+    '../sibling.mp4',
+    'mp4/../../../etc/x',
+    '/etc/passwd',
+    'mp4\u0000.txt',
+  ]
+
+  for (const format of traversals) {
+    it(`refuses to build an output path from ${JSON.stringify(format)}`, async () => {
+      await expect(runFfmpegOperation('convert', [videoInput], { format })).rejects.toThrow(
+        /Unsupported output format/
+      )
+      // Rejected before FFmpeg is handed anything to write.
+      expect(saves.waiters.length).toBe(0)
+    })
+  }
+
+  it('refuses a traversal on extract_audio too', async () => {
+    await expect(
+      runFfmpegOperation('extract_audio', [videoInput], { format: '../../../tmp/pwned.mp3' })
+    ).rejects.toThrow(/Unsupported output format/)
+  })
+
+  it('still accepts ordinary container extensions', async () => {
+    for (const format of ['mp4', 'mp3', 'webm', 'm4a', 'flac', 'opus', 'gif', 'mkv']) {
+      const result = await runFfmpegOperation('convert', [videoInput], { format })
+      expect(result.ext).toBe(format)
+    }
+  })
+
+  it('lowercases before validating, so MP4 is still a valid target', async () => {
+    const result = await runFfmpegOperation('convert', [videoInput], { format: 'MP4' })
+    expect(result.ext).toBe('mp4')
+  })
+})
+
 describe('runFfmpegOperation process bounds', () => {
   it('kills a command that outlives the operation budget', async () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
