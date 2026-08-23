@@ -75,6 +75,12 @@ describe('ChatNavigationLink', () => {
     return link
   }
 
+  function pointerEvent(type: string, pointerType: 'mouse' | 'touch', init?: MouseEventInit) {
+    const event = new MouseEvent(type, { bubbles: true, ...init })
+    Object.defineProperty(event, 'pointerType', { value: pointerType })
+    return event
+  }
+
   it('prefetches the route and exact history after deliberate pointer intent', () => {
     const link = renderLink()
 
@@ -127,6 +133,59 @@ describe('ChatNavigationLink', () => {
     const link = renderLink()
 
     act(() => link.dispatchEvent(new TouchEvent('touchstart', { bubbles: true })))
+
+    expect(linkPrefetch).toHaveBeenLastCalledWith(false)
+    expect(prefetchQuery).not.toHaveBeenCalled()
+  })
+
+  it('prefetches before direct mouse clicks and completed touch taps', () => {
+    const link = renderLink()
+
+    act(() => link.dispatchEvent(pointerEvent('pointerdown', 'mouse', { button: 0 })))
+
+    expect(linkPrefetch).toHaveBeenLastCalledWith(true)
+    expect(prefetchQuery).toHaveBeenCalledTimes(1)
+
+    act(() => link.dispatchEvent(new FocusEvent('focusout', { bubbles: true })))
+    prefetchQuery.mockClear()
+    act(() => link.dispatchEvent(pointerEvent('pointerup', 'touch', { button: 0 })))
+
+    expect(linkPrefetch).toHaveBeenLastCalledWith(true)
+    expect(prefetchQuery).toHaveBeenCalledTimes(1)
+  })
+
+  it('cancels touch-scroll pointer intent before it can prefetch', () => {
+    const link = renderLink()
+
+    act(() => {
+      link.dispatchEvent(pointerEvent('pointerdown', 'touch', { button: 0 }))
+      link.dispatchEvent(pointerEvent('pointercancel', 'touch', { button: 0 }))
+    })
+
+    expect(linkPrefetch).toHaveBeenLastCalledWith(false)
+    expect(prefetchQuery).not.toHaveBeenCalled()
+  })
+
+  it('does not prefetch when a nested chat action is pressed', () => {
+    act(() => {
+      root.render(
+        <QueryClientProvider client={queryClient}>
+          <ChatNavigationLink chatId='chat-1' href='/workspace/ws-1/chat/chat-1'>
+            <button type='button' onClick={(event) => event.preventDefault()}>
+              Chat options
+            </button>
+          </ChatNavigationLink>
+        </QueryClientProvider>
+      )
+    })
+    const button = container.querySelector('button')
+    if (!button) throw new Error('chat action not rendered')
+
+    act(() => {
+      button.dispatchEvent(pointerEvent('pointerdown', 'mouse', { button: 0 }))
+      button.dispatchEvent(pointerEvent('pointerup', 'touch', { button: 0 }))
+      button.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }))
+    })
 
     expect(linkPrefetch).toHaveBeenLastCalledWith(false)
     expect(prefetchQuery).not.toHaveBeenCalled()
