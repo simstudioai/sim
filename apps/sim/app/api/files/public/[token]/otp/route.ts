@@ -49,6 +49,10 @@ function rateLimited(retryAfterMs: number | undefined, fallbackMs: number): Next
   return response
 }
 
+function otpRequestAccepted(): NextResponse {
+  return NextResponse.json({ message: 'Verification code sent' })
+}
+
 /**
  * POST /api/files/public/[token]/otp
  * Sends a 6-digit verification code to an allow-listed email for an email-gated share.
@@ -90,21 +94,7 @@ export const POST = withRouteHandler(
       }
 
       if (!isEmailAllowed(email, shareAllowedEmails(resolved.share.allowedEmails))) {
-        const rejectedRateLimit = await rateLimiter.checkRateLimitDirect(
-          `file-otp:rejected:${resolved.share.id}`,
-          OTP_RESOURCE_RATE_LIMIT,
-          { failClosed: true }
-        )
-        if (!rejectedRateLimit.allowed) {
-          logger.warn(
-            `[${requestId}] OTP rejected-email rate limit exceeded for share ${resolved.share.id}`
-          )
-          return rateLimited(
-            rejectedRateLimit.retryAfterMs,
-            OTP_RESOURCE_RATE_LIMIT.refillIntervalMs
-          )
-        }
-        return NextResponse.json({ error: 'Email not authorized for this file' }, { status: 403 })
+        return otpRequestAccepted()
       }
 
       const resourceRateLimit = await rateLimiter.checkRateLimitDirect(
@@ -116,7 +106,7 @@ export const POST = withRouteHandler(
         logger.warn(
           `[${requestId}] OTP resource rate limit exceeded for share ${resolved.share.id}`
         )
-        return rateLimited(resourceRateLimit.retryAfterMs, OTP_RESOURCE_RATE_LIMIT.refillIntervalMs)
+        return otpRequestAccepted()
       }
 
       const emailRateLimit = await rateLimiter.checkRateLimitDirect(
@@ -126,7 +116,7 @@ export const POST = withRouteHandler(
       )
       if (!emailRateLimit.allowed) {
         logger.warn(`[${requestId}] OTP email rate limit exceeded for ${email}`)
-        return rateLimited(emailRateLimit.retryAfterMs, OTP_EMAIL_RATE_LIMIT.refillIntervalMs)
+        return otpRequestAccepted()
       }
 
       const otp = generateOTP()
@@ -140,11 +130,11 @@ export const POST = withRouteHandler(
       })
       if (!emailResult.success) {
         logger.error(`[${requestId}] Failed to send OTP email:`, emailResult.message)
-        return NextResponse.json({ error: 'Failed to send verification email' }, { status: 500 })
+        return otpRequestAccepted()
       }
 
       logger.info(`[${requestId}] OTP sent for share ${resolved.share.id}`)
-      return NextResponse.json({ message: 'Verification code sent' })
+      return otpRequestAccepted()
     } catch (error) {
       logger.error(`[${requestId}] Error processing OTP request:`, error)
       return NextResponse.json({ error: 'Failed to process request' }, { status: 500 })

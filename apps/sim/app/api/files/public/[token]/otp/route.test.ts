@@ -102,46 +102,25 @@ describe('POST /api/files/public/[token]/otp', () => {
     expect(mockSendEmail).toHaveBeenCalled()
   })
 
-  it('rejects an email not on the allow-list with 403', async () => {
+  it('returns the generic acceptance response for an email not on the allow-list', async () => {
     mockIsEmailAllowed.mockReturnValueOnce(false)
     const res = await POST(post('user@evil.com'), params())
-    expect(res.status).toBe(403)
-    expect(mockCheckRateLimitDirect).toHaveBeenCalledTimes(2)
-    expect(mockCheckRateLimitDirect).toHaveBeenNthCalledWith(
-      2,
-      'file-otp:rejected:sh_1',
-      expect.any(Object),
-      { failClosed: true }
-    )
-    expect(mockStoreOTP).not.toHaveBeenCalled()
-  })
-
-  it('isolates rejected emails from the OTP send bucket without a client IP', async () => {
-    requestUtilsMockFns.mockGetClientIp.mockReturnValueOnce(null)
-    mockIsEmailAllowed.mockReturnValueOnce(false)
-
-    const res = await POST(post('user@evil.com'), params())
-
-    expect(res.status).toBe(403)
+    expect(res.status).toBe(200)
+    await expect(res.json()).resolves.toEqual({ message: 'Verification code sent' })
     expect(mockCheckRateLimitDirect).toHaveBeenCalledTimes(1)
-    expect(mockCheckRateLimitDirect).toHaveBeenCalledWith(
-      'file-otp:rejected:sh_1',
-      expect.any(Object),
-      { failClosed: true }
-    )
     expect(mockStoreOTP).not.toHaveBeenCalled()
     expect(mockSendEmail).not.toHaveBeenCalled()
   })
 
-  it('rate limits rejected emails independently without a client IP', async () => {
+  it('does not consume a send bucket for a rejected email without a client IP', async () => {
     requestUtilsMockFns.mockGetClientIp.mockReturnValueOnce(null)
     mockIsEmailAllowed.mockReturnValueOnce(false)
-    mockCheckRateLimitDirect.mockResolvedValueOnce({ allowed: false, retryAfterMs: 1000 })
 
     const res = await POST(post('user@evil.com'), params())
 
-    expect(res.status).toBe(429)
-    expect(res.headers.get('Retry-After')).toBe('1')
+    expect(res.status).toBe(200)
+    await expect(res.json()).resolves.toEqual({ message: 'Verification code sent' })
+    expect(mockCheckRateLimitDirect).not.toHaveBeenCalled()
     expect(mockStoreOTP).not.toHaveBeenCalled()
     expect(mockSendEmail).not.toHaveBeenCalled()
   })
@@ -168,17 +147,40 @@ describe('POST /api/files/public/[token]/otp', () => {
     expect(res.headers.get('Retry-After')).toBe('1')
   })
 
-  it('returns 429 when the share resource rate limit is exceeded', async () => {
+  it('returns the generic acceptance response when the share resource limit is exceeded', async () => {
     mockCheckRateLimitDirect
       .mockResolvedValueOnce({ allowed: true })
       .mockResolvedValueOnce({ allowed: false, retryAfterMs: 1000 })
 
     const res = await POST(post('user@acme.com'), params())
 
-    expect(res.status).toBe(429)
-    expect(res.headers.get('Retry-After')).toBe('1')
+    expect(res.status).toBe(200)
+    await expect(res.json()).resolves.toEqual({ message: 'Verification code sent' })
     expect(mockStoreOTP).not.toHaveBeenCalled()
     expect(mockSendEmail).not.toHaveBeenCalled()
+  })
+
+  it('returns the generic acceptance response when the email rate limit is exceeded', async () => {
+    mockCheckRateLimitDirect
+      .mockResolvedValueOnce({ allowed: true })
+      .mockResolvedValueOnce({ allowed: true })
+      .mockResolvedValueOnce({ allowed: false, retryAfterMs: 1000 })
+
+    const res = await POST(post('user@acme.com'), params())
+
+    expect(res.status).toBe(200)
+    await expect(res.json()).resolves.toEqual({ message: 'Verification code sent' })
+    expect(mockStoreOTP).not.toHaveBeenCalled()
+    expect(mockSendEmail).not.toHaveBeenCalled()
+  })
+
+  it('returns the generic acceptance response when email delivery fails', async () => {
+    mockSendEmail.mockResolvedValueOnce({ success: false, message: 'Delivery failed' })
+
+    const res = await POST(post('user@acme.com'), params())
+
+    expect(res.status).toBe(200)
+    await expect(res.json()).resolves.toEqual({ message: 'Verification code sent' })
   })
 
   it('retains resource and email backstops when the client IP cannot be resolved', async () => {
