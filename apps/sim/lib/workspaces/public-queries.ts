@@ -49,7 +49,7 @@ async function countWorkspaceMembers(
     sql`, `
   )
   const targets = sql.join(
-    workspaceRows.map(({ id, organizationId }) => sql`(${id}, ${organizationId})`),
+    workspaceRows.map(({ id, organizationId }) => sql`(${id}::text, ${organizationId}::text)`),
     sql`, `
   )
   const rows = await db.execute<WorkspaceMemberCountRow>(sql`

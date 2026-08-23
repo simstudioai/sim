@@ -53,6 +53,16 @@ describe('getPublicWorkspaceDetails', () => {
       memberCount: 4,
     })
     expect(dbChainMockFns.execute).toHaveBeenCalledTimes(1)
+    const countQuery = dbChainMockFns.execute.mock.calls[0][0] as {
+      values: Array<{
+        fragments: Array<{ strings: string[]; values: unknown[] }>
+      }>
+    }
+    const targetRows = countQuery.values[0].fragments
+    expect(
+      targetRows.every((fragment) => fragment.strings.join('?') === '(?::text, ?::text)')
+    ).toBe(true)
+    expect(targetRows.flatMap((fragment) => fragment.values)).toContain(null)
   })
 
   it('does not run a count query for an empty batch', async () => {
