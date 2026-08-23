@@ -35,6 +35,17 @@ function InvalidRequest() {
 }
 
 /**
+ * Absolute URL better-auth returns the browser to once the OAuth callback is
+ * done. Composed through the URL API rather than concatenated, so a trailing
+ * slash on `NEXT_PUBLIC_APP_URL` cannot yield a `//desktop/...` pathname that
+ * matches no route — this page is what bounces the result to the app's
+ * loopback, so a base-URL typo would otherwise strand the whole flow.
+ */
+function buildConnectCompleteUrl(state: string, port: number, draftId?: string): string {
+  return new URL(buildConnectCompletePath(state, port, draftId), getBaseUrl()).toString()
+}
+
+/**
  * Desktop OAuth-connect landing. The desktop app opens this page in the
  * system browser with the provider to connect, a one-time state, and the port
  * of its 127.0.0.1 loopback listener. The whole OAuth flow runs here — in the
@@ -112,10 +123,7 @@ export default async function DesktopConnectPage({ searchParams }: DesktopConnec
     const authorize = new URL('/api/auth/oauth2/authorize', getBaseUrl())
     authorize.searchParams.set('providerId', providerId)
     authorize.searchParams.set('workspaceId', workspaceId)
-    authorize.searchParams.set(
-      'callbackURL',
-      `${getBaseUrl()}${buildConnectCompletePath(state, port)}`
-    )
+    authorize.searchParams.set('callbackURL', buildConnectCompleteUrl(state, port))
     if (credentialId) {
       authorize.searchParams.set('credentialId', credentialId)
     }
@@ -125,7 +133,7 @@ export default async function DesktopConnectPage({ searchParams }: DesktopConnec
   return (
     <ConnectLauncher
       providerId={providerId}
-      completePath={buildConnectCompletePath(state, port, draftId)}
+      completeUrl={buildConnectCompleteUrl(state, port, draftId)}
     />
   )
 }
