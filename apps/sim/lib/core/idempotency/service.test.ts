@@ -14,10 +14,25 @@ vi.mock('@/lib/core/config/redis', () => ({
   getRedisClient: () => ({ del: redisDelMock, eval: redisEvalMock }),
 }))
 
-import { IdempotencyService } from '@/lib/core/idempotency/service'
+vi.mock('@/lib/core/storage', () => ({
+  getStorageMethod: () => 'redis',
+  isRedisStorage: () => true,
+  isDatabaseStorage: () => false,
+  requireRedis: () => ({ del: redisDelMock, eval: redisEvalMock }),
+  resetStorageMethod: () => {},
+}))
+
+import {
+  IdempotencyService,
+  WEBHOOK_IN_PROGRESS_LEASE_SECONDS,
+  webhookIdempotency,
+} from '@/lib/core/idempotency/service'
+
+const SEVEN_DAYS_SECONDS = 60 * 60 * 24 * 7
 
 afterEach(() => {
   vi.useRealTimers()
+  vi.restoreAllMocks()
   vi.clearAllMocks()
 })
 
@@ -207,6 +222,65 @@ describe('IdempotencyService in-progress deadlines', () => {
       observedValue
     )
     expect(claimSpy).toHaveBeenCalledTimes(2)
+  })
+
+  it('bounds a webhook lease well under the dedupe window', () => {
+    expect(WEBHOOK_IN_PROGRESS_LEASE_SECONDS).toBeGreaterThan(0)
+    expect(WEBHOOK_IN_PROGRESS_LEASE_SECONDS).toBeLessThan(SEVEN_DAYS_SECONDS)
+  })
+
+  it('leases an untimed webhook claim for the bounded lease, not the seven-day dedupe window', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-08-03T12:00:00.000Z'))
+    redisEvalMock.mockResolvedValue([1, ''])
+
+    await webhookIdempotency.atomicallyClaim('gmail', 'wh_1:untimed-delivery')
+
+    const [, , redisKey, serialized, ttlSeconds] = redisEvalMock.mock.calls[0] as [
+      string,
+      number,
+      string,
+      string,
+      number,
+    ]
+    expect(redisKey).toBe('idempotency:webhook:gmail:wh_1:untimed-delivery')
+    expect(ttlSeconds).toBe(WEBHOOK_IN_PROGRESS_LEASE_SECONDS)
+    expect(JSON.parse(serialized).inProgressExpiresAt).toBe(
+      Date.now() + WEBHOOK_IN_PROGRESS_LEASE_SECONDS * 1000
+    )
+  })
+
+  it('keeps the seven-day dedupe window on a completed webhook result', async () => {
+    redisEvalMock.mockResolvedValueOnce([1, '']).mockResolvedValueOnce(1)
+    const claim = await webhookIdempotency.atomicallyClaim('gmail', 'wh_1:completed-delivery')
+
+    await webhookIdempotency.storeResult(
+      claim.normalizedKey,
+      { success: true, status: 'completed' },
+      'redis',
+      claim.claimToken as string
+    )
+
+    expect(redisEvalMock.mock.calls[1]?.[4]).toBe(SEVEN_DAYS_SECONDS)
+  })
+
+  it('stops a duplicate webhook delivery waiting at the lease, not at the dedupe window', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-08-03T12:00:00.000Z'))
+    const startedAt = Date.now() - 1_000
+    vi.spyOn(webhookIdempotency, 'atomicallyClaim').mockResolvedValue({
+      claimed: false,
+      existingResult: { success: false, status: 'in-progress', startedAt },
+      normalizedKey: 'webhook:gmail:wh_1:duplicate-delivery',
+      storageMethod: 'redis',
+    })
+    const waitSpy = vi.spyOn(webhookIdempotency, 'waitForResult').mockResolvedValue(undefined)
+
+    await webhookIdempotency.executeWithIdempotency('gmail', 'wh_1:duplicate-delivery', vi.fn())
+
+    const waitUntil = waitSpy.mock.calls[0]?.[2] as number
+    expect(waitUntil).toBe(startedAt + WEBHOOK_IN_PROGRESS_LEASE_SECONDS * 1000)
+    expect(waitUntil).toBeLessThan(Date.now() + SEVEN_DAYS_SECONDS * 1000)
   })
 
   it('fences retryable failed-result deletion to the database value observed', async () => {

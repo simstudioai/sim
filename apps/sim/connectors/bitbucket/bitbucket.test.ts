@@ -31,7 +31,13 @@ const REPOSITORY = {
 }
 
 function fileEntry(path: string, size = 10, attributes: string[] = []) {
-  return { type: 'commit_file', path, size, attributes, commit: { hash: COMMIT } }
+  return {
+    type: 'commit_file',
+    path,
+    size,
+    attributes,
+    commit: { hash: COMMIT },
+  }
 }
 
 function dirEntry(path: string) {
@@ -43,11 +49,17 @@ function pullRequestFixture(id: number, overrides: Record<string, unknown> = {})
     id,
     title: `PR ${id}`,
     state: 'OPEN',
-    summary: { raw: `Body of ${id}`, markup: 'markdown', html: `<p>Body of ${id}</p>` },
+    summary: {
+      raw: `Body of ${id}`,
+      markup: 'markdown',
+      html: `<p>Body of ${id}</p>`,
+    },
     author: { display_name: 'Ada Lovelace', nickname: 'ada' },
     created_on: '2026-01-01T00:00:00.000000+00:00',
     updated_on: '2026-02-01T00:00:00.000000+00:00',
-    links: { html: { href: `https://bitbucket.org/acme/widgets/pull-requests/${id}` } },
+    links: {
+      html: { href: `https://bitbucket.org/acme/widgets/pull-requests/${id}` },
+    },
     ...overrides,
   }
 }
@@ -77,6 +89,14 @@ afterEach(() => {
 })
 
 describe('bitbucket repository file listing', () => {
+  it('uses the least OAuth scope that covers both pull requests and repository reads', () => {
+    expect(bitbucketConnector.auth).toMatchObject({
+      mode: 'oauth',
+      provider: 'bitbucket',
+      requiredScopes: ['pullrequest'],
+    })
+  })
+
   it('lists text files as deferred stubs and drops binary, symlink, and submodule entries', async () => {
     mockApi([
       [
@@ -171,7 +191,10 @@ describe('bitbucket repository file listing', () => {
     mockApi([
       [
         /\/src\/[a-f0-9]+\/\?/,
-        () => jsonResponse({ values: [dirEntry('a/b/c/d/e'), fileEntry('root.md')] }),
+        () =>
+          jsonResponse({
+            values: [dirEntry('a/b/c/d/e'), fileEntry('root.md')],
+          }),
       ],
       [
         /\/src\/[a-f0-9]+\/a\/b\/c\/d\/e\/\?/,
@@ -201,8 +224,7 @@ describe('bitbucket repository file listing', () => {
   })
 
   it('replays the opaque next link verbatim instead of rebuilding it', async () => {
-    const nextUrl =
-      'https://api.bitbucket.org/2.0/repositories/acme/widgets/src/abc/?page=2&opaque=xyz'
+    const nextUrl = `https://api.bitbucket.org/2.0/repositories/acme/widgets/src/${COMMIT}/?page=2&opaque=xyz`
     mockApi([
       [/page=2/, () => jsonResponse({ values: [fileEntry('second.md')] })],
       [/\/src\//, () => jsonResponse({ values: [fileEntry('first.md')], next: nextUrl })],
@@ -226,7 +248,11 @@ describe('bitbucket repository file listing', () => {
     mockApi([
       [
         /\/src\//,
-        () => jsonResponse({ values: [], next: 'https://evil.example.com/2.0/repositories/x' }),
+        () =>
+          jsonResponse({
+            values: [],
+            next: 'https://evil.example.com/2.0/repositories/x',
+          }),
       ],
     ])
 
@@ -241,6 +267,55 @@ describe('bitbucket repository file listing', () => {
     await expect(
       bitbucketConnector.listDocuments(ACCESS_TOKEN, CONFIG, first.nextCursor, syncContext)
     ).rejects.toThrow(/Bitbucket Cloud API/)
+  })
+
+  it('rejects a next cursor for another Bitbucket repository', async () => {
+    mockApi([
+      [
+        /\/src\//,
+        () =>
+          jsonResponse({
+            values: [],
+            next: `https://api.bitbucket.org/2.0/repositories/other/repo/src/${COMMIT}/?page=2`,
+          }),
+      ],
+    ])
+
+    const syncContext: Record<string, unknown> = {}
+    const first = await bitbucketConnector.listDocuments(
+      ACCESS_TOKEN,
+      CONFIG,
+      undefined,
+      syncContext
+    )
+
+    await expect(
+      bitbucketConnector.listDocuments(ACCESS_TOKEN, CONFIG, first.nextCursor, syncContext)
+    ).rejects.toThrow(/does not belong/)
+  })
+
+  it('rejects a malformed source pagination envelope', async () => {
+    mockApi([[/\/src\//, () => jsonResponse({ next: null })]])
+
+    await expect(
+      bitbucketConnector.listDocuments(ACCESS_TOKEN, CONFIG, undefined, {})
+    ).rejects.toThrow(/values array/)
+  })
+
+  it('blocks reconciliation when a source entry lacks its documented path', async () => {
+    mockApi([[/\/src\//, () => jsonResponse({ values: [{ type: 'commit_file' }] })]])
+
+    const syncContext: Record<string, unknown> = {}
+    const result = await bitbucketConnector.listDocuments(
+      ACCESS_TOKEN,
+      CONFIG,
+      undefined,
+      syncContext
+    )
+
+    expect(result.documents).toEqual([])
+    expect(syncContext.listingCapped).toBe(true)
+    expect(syncContext.listingTruncated).toBe(true)
   })
 })
 
@@ -278,13 +353,13 @@ describe('bitbucket source listing timeouts', () => {
     )
 
     expect(syncContext.listingCapped).toBe(true)
+    expect(syncContext.listingTruncated).toBe(true)
     expect(result.documents).toEqual([])
     expect(requestedUrls(/\/src\//)).toHaveLength(2)
   })
 
   it('flags the listing capped when a replayed next cursor times out, without re-cutting it', async () => {
-    const nextUrl =
-      'https://api.bitbucket.org/2.0/repositories/acme/widgets/src/abc/?page=2&max_depth=5'
+    const nextUrl = `https://api.bitbucket.org/2.0/repositories/acme/widgets/src/${COMMIT}/?page=2&max_depth=5`
     mockApi([
       [/page=2/, () => new Response('timeout', { status: 555 })],
       [/\/src\//, () => jsonResponse({ values: [fileEntry('first.md')], next: nextUrl })],
@@ -305,12 +380,13 @@ describe('bitbucket source listing timeouts', () => {
     )
 
     expect(syncContext.listingCapped).toBe(true)
+    expect(syncContext.listingTruncated).toBe(true)
     expect(second.documents).toEqual([])
     /** Exactly one attempt: an opaque cursor is never rebuilt at another depth. */
     expect(requestedUrls(/page=2/)).toHaveLength(1)
   })
 
-  it('leaves the listing reconcilable when a directory is simply absent', async () => {
+  it('blocks reconciliation when a pinned source directory is unexpectedly absent', async () => {
     mockApi([[/\/src\//, () => jsonResponse({ type: 'error' }, 404)]])
 
     const syncContext: Record<string, unknown> = {}
@@ -321,17 +397,17 @@ describe('bitbucket source listing timeouts', () => {
       syncContext
     )
 
-    expect(syncContext.listingCapped).toBeUndefined()
+    expect(syncContext.listingCapped).toBe(true)
+    expect(syncContext.listingTruncated).toBe(true)
     expect(result.hasMore).toBe(false)
   })
 
-  it('flags the listing capped when the token stops working mid-walk', async () => {
+  it('fails the sync when the token stops working mid-walk', async () => {
     mockApi([[/\/src\//, () => jsonResponse({ type: 'error' }, 403)]])
 
-    const syncContext: Record<string, unknown> = {}
-    await bitbucketConnector.listDocuments(ACCESS_TOKEN, CONFIG, undefined, syncContext)
-
-    expect(syncContext.listingCapped).toBe(true)
+    await expect(
+      bitbucketConnector.listDocuments(ACCESS_TOKEN, CONFIG, undefined, {})
+    ).rejects.toThrow(/authorization failed.*403/i)
   })
 })
 
@@ -340,7 +416,10 @@ describe('bitbucket maxItems cap', () => {
     mockApi([
       [
         /\/src\//,
-        () => jsonResponse({ values: [fileEntry('a.md'), fileEntry('b.md'), fileEntry('c.md')] }),
+        () =>
+          jsonResponse({
+            values: [fileEntry('a.md'), fileEntry('b.md'), fileEntry('c.md')],
+          }),
       ],
     ])
 
@@ -395,7 +474,7 @@ describe('bitbucket maxItems cap', () => {
         () =>
           jsonResponse({
             values: [fileEntry('a.md'), fileEntry('b.md')],
-            next: 'https://api.bitbucket.org/2.0/repositories/acme/widgets/src/abc/?page=2',
+            next: `https://api.bitbucket.org/2.0/repositories/acme/widgets/src/${COMMIT}/?page=2`,
           }),
       ],
     ])
@@ -463,7 +542,7 @@ describe('bitbucket pull request listing', () => {
     const url = requestedUrls(/\/pullrequests/)[0]
     expect(url).toContain('pagelen=50')
     /** `+` must reach Bitbucket percent-encoded or it is read as a space. */
-    expect(url).toContain('fields=%2Bvalues.summary')
+    expect(url).toContain('fields=%2Bvalues.rendered.description')
     expect(url).toContain('sort=-id')
     expect(url).toContain('state=OPEN')
   })
@@ -500,17 +579,20 @@ describe('bitbucket pull request listing', () => {
     expect(url.searchParams.get('q')).toBe('updated_on > 2026-02-03T04:05:06.007+00:00')
   })
 
-  it('maps the author-typed body and falls back to the rendered description', async () => {
+  it('prefers the rendered description and falls back to the summary', async () => {
     mockApi([
       [
         /\/pullrequests/,
         () =>
           jsonResponse({
             values: [
-              pullRequestFixture(7),
+              pullRequestFixture(7, {
+                summary: { raw: 'Summary value' },
+                rendered: { description: { raw: 'Rendered pull request body' } },
+              }),
               pullRequestFixture(8, {
-                summary: undefined,
-                rendered: { description: { raw: 'Rendered body' } },
+                summary: { raw: 'Summary fallback' },
+                rendered: undefined,
               }),
             ],
           }),
@@ -519,12 +601,28 @@ describe('bitbucket pull request listing', () => {
 
     const result = await bitbucketConnector.listDocuments(ACCESS_TOKEN, PR_CONFIG, undefined, {})
 
-    expect(result.documents[0].content).toBe('PR 7\n\nBody of 7')
+    expect(result.documents[0].content).toBe('PR 7\n\nRendered pull request body')
     expect(result.documents[0].contentDeferred).toBe(false)
     expect(result.documents[0].contentHash).toBe(
       'bitbucket:pr:acme/widgets:7:2026-02-01T00:00:00.000000+00:00'
     )
-    expect(result.documents[1].content).toBe('PR 8\n\nRendered body')
+    expect(result.documents[1].content).toBe('PR 8\n\nSummary fallback')
+  })
+
+  it('blocks reconciliation when a pull request record has no documented ID', async () => {
+    mockApi([[/\/pullrequests/, () => jsonResponse({ values: [{ title: 'Malformed PR' }] })]])
+
+    const syncContext: Record<string, unknown> = {}
+    const result = await bitbucketConnector.listDocuments(
+      ACCESS_TOKEN,
+      PR_CONFIG,
+      undefined,
+      syncContext
+    )
+
+    expect(result.documents).toEqual([])
+    expect(syncContext.listingCapped).toBe(true)
+    expect(syncContext.listingTruncated).toBe(true)
   })
 
   it('walks from the code phase into the pull request phase for combined content', async () => {
@@ -599,6 +697,19 @@ describe('bitbucket getDocument', () => {
     expect(doc?.content).toBe('')
   })
 
+  it('does not misclassify an undocumented redirect as Git LFS', async () => {
+    mockApi([
+      [
+        /\/src\/[a-f0-9]+\/moved\.txt$/,
+        () => new Response(null, { status: 302, headers: { Location: '/unexpected' } }),
+      ],
+    ])
+
+    await expect(
+      bitbucketConnector.getDocument(ACCESS_TOKEN, CONFIG, 'file:moved.txt', {})
+    ).rejects.toThrow(/302/)
+  })
+
   it('surfaces a file with a NUL byte as a skipped binary', async () => {
     mockApi([
       [
@@ -610,6 +721,20 @@ describe('bitbucket getDocument', () => {
     const doc = await bitbucketConnector.getDocument(ACCESS_TOKEN, CONFIG, 'file:data.md', {})
 
     expect(doc?.skippedReason).toMatch(/Binary/)
+  })
+
+  it('surfaces non-UTF-8 source as skipped instead of indexing replacement characters', async () => {
+    mockApi([
+      [
+        /\/src\/[a-f0-9]+\/latin1\.txt$/,
+        () => new Response(Buffer.from([0x63, 0x61, 0x66, 0xe9]), { status: 200 }),
+      ],
+    ])
+
+    const doc = await bitbucketConnector.getDocument(ACCESS_TOKEN, CONFIG, 'file:latin1.txt', {})
+
+    expect(doc?.skippedReason).toMatch(/Non-UTF-8/)
+    expect(doc?.content).toBe('')
   })
 
   it('returns null for a file the ref no longer carries', async () => {
@@ -632,6 +757,14 @@ describe('bitbucket getDocument', () => {
     mockApi([[/\/pullrequests\/9$/, () => jsonResponse({ type: 'error' }, 404)]])
 
     expect(await bitbucketConnector.getDocument(ACCESS_TOKEN, CONFIG, 'pr:9', {})).toBeNull()
+  })
+
+  it('throws when a successful pull request response lacks its documented ID', async () => {
+    mockApi([[/\/pullrequests\/9$/, () => jsonResponse({ title: 'Malformed PR' })]])
+
+    await expect(bitbucketConnector.getDocument(ACCESS_TOKEN, CONFIG, 'pr:9', {})).rejects.toThrow(
+      /response was malformed/
+    )
   })
 
   it('rejects an externalId with no recognized resource prefix', async () => {
@@ -704,7 +837,10 @@ describe('bitbucket validateConfig', () => {
     ])
 
     expect(
-      await bitbucketConnector.validateConfig(ACCESS_TOKEN, { ...CONFIG, ref: 'v1.0' })
+      await bitbucketConnector.validateConfig(ACCESS_TOKEN, {
+        ...CONFIG,
+        ref: 'v1.0',
+      })
     ).toEqual({ valid: true })
   })
 
@@ -712,7 +848,21 @@ describe('bitbucket validateConfig', () => {
     mockApi([])
 
     expect(
-      await bitbucketConnector.validateConfig(ACCESS_TOKEN, { ...CONFIG, maxItems: '0' })
-    ).toEqual({ valid: false, error: 'Max items must be a positive number' })
+      await bitbucketConnector.validateConfig(ACCESS_TOKEN, {
+        ...CONFIG,
+        maxItems: '0',
+      })
+    ).toEqual({ valid: false, error: 'Max items must be a positive integer' })
+  })
+
+  it('rejects a fractional maxItems value', async () => {
+    mockApi([])
+
+    expect(
+      await bitbucketConnector.validateConfig(ACCESS_TOKEN, {
+        ...CONFIG,
+        maxItems: '1.5',
+      })
+    ).toEqual({ valid: false, error: 'Max items must be a positive integer' })
   })
 })

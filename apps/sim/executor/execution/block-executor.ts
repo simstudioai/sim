@@ -20,6 +20,7 @@ import {
   buildResumeApiUrl,
   buildResumeUiUrl,
   CHILD_EXECUTION_ID_OUTPUT_KEY,
+  CHILD_TRACE_DISABLED_OUTPUT_KEY,
   DEFAULTS,
   EDGE,
   isSentinelBlockType,
@@ -237,7 +238,7 @@ export class BlockExecutor {
       const output = await this.runHandlerWithRetry(blockCtx, block, blockLog, () =>
         handler.executeWithNode
           ? handler.executeWithNode(blockCtx, block, resolvedInputs, nodeMetadata)
-          : handler.execute(blockCtx, block, resolvedInputs)
+          : handler.execute(blockCtx, block, resolvedInputs, nodeMetadata)
       )
 
       const isStreamingExecution =
@@ -351,11 +352,15 @@ export class BlockExecutor {
         if (typeof childExecutionId === 'string' && childExecutionId) {
           blockLog.childExecution = { executionId: childExecutionId }
         }
+        if (normalizedOutput[CHILD_TRACE_DISABLED_OUTPUT_KEY] === true) {
+          blockLog.childTraceDisabled = true
+        }
       }
 
       const {
         childTraceSpans: _traces,
         [CHILD_EXECUTION_ID_OUTPUT_KEY]: _childExecutionId,
+        [CHILD_TRACE_DISABLED_OUTPUT_KEY]: _childTraceDisabled,
         ...outputForState
       } = normalizedOutput
       const stateOutput = outputForState as NormalizedBlockOutput
@@ -663,9 +668,13 @@ export class BlockExecutor {
       if (ChildWorkflowError.isChildWorkflowError(error) && error.childTraceSpans.length > 0) {
         blockLog.childTraceSpans = error.childTraceSpans
       }
-      // A failed custom block still has its own child run to join at read time.
+      // A failed custom block still has its own child run to join at read time —
+      // unless the instance opted out, which leaves only the marker.
       if (ChildWorkflowError.isChildWorkflowError(error) && error.childExecutionId) {
         blockLog.childExecution = { executionId: error.childExecutionId }
+      }
+      if (ChildWorkflowError.isChildWorkflowError(error) && error.childTraceDisabled) {
+        blockLog.childTraceDisabled = true
       }
     }
 

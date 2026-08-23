@@ -94,6 +94,7 @@ export const enterpriseMetadataSyncPayloadSchema = z.object({
       billingInterval: z.enum(['month', 'year']),
     })
     .optional(),
+  commercialTermsRetiredAt: z.string().datetime().optional(),
   stripeProgress: z.object({ priceId: z.string().min(1).optional() }).default({}),
   deliveryState: z
     .object({
@@ -116,6 +117,14 @@ export function enterpriseMetadataDeliveryIsVerified(
   payload: EnterpriseMetadataSyncPayload
 ): boolean {
   return payload.deliveryState?.verifiedAt !== undefined
+}
+
+export function enterpriseMetadataIntentProviderAccepted(
+  payload: EnterpriseMetadataSyncPayload
+): boolean {
+  return (
+    payload.deliveryState?.providerAcceptedAt !== undefined || payload.acknowledgement !== undefined
+  )
 }
 
 function stripeMetadataValueMatches(
@@ -274,7 +283,8 @@ export function enterpriseOperationMatchesStripeSubscription(
     stripeMetadataInteger(metadata, 'invoiceAmountCents') === request.invoiceAmountCents &&
     stripeMetadataInteger(metadata, 'usageLimitCredits') === request.usageLimitCredits &&
     (request.reportingPeriodAnchorDate === undefined ||
-      metadata.reportingPeriodAnchorDate === request.reportingPeriodAnchorDate) &&
+      (metadata.reportingPeriodAnchorDate === request.reportingPeriodAnchorDate &&
+        metadata.reportingPeriodInterval === request.billingInterval)) &&
     stripeMetadataInteger(metadata, 'seats') === request.seats &&
     (request.concurrencyLimit === undefined ||
       stripeMetadataInteger(metadata, 'concurrencyLimit') === request.concurrencyLimit) &&
@@ -422,11 +432,15 @@ export async function resolveEnterpriseMetadataIntent(
 
   const appliedOperationId = appliedMetadata.simConfigOperationId
   const operationApplied = appliedOperationId === latest.id
-  const providerAccepted =
-    parsed.data.deliveryState?.providerAcceptedAt !== undefined ||
-    parsed.data.acknowledgement !== undefined
+  const providerAccepted = enterpriseMetadataIntentProviderAccepted(parsed.data)
+  const retiredCommercialTerms =
+    parsed.data.terms !== undefined &&
+    parsed.data.commercialTermsRetiredAt !== undefined &&
+    !providerAccepted
   const hasUnappliedIntent =
-    !operationApplied && (latest.status !== 'dead_letter' || providerAccepted)
+    !operationApplied &&
+    !retiredCommercialTerms &&
+    (latest.status !== 'dead_letter' || providerAccepted)
   const desiredMetadata = hasUnappliedIntent ? parsed.data.metadata : appliedMetadata
   const desiredSeats = positiveInteger(parsed.data.metadata.seats)
   const effectiveSeatCapacity = hasUnappliedIntent
@@ -448,7 +462,7 @@ export async function resolveEnterpriseMetadataIntent(
       : {
           id: latest.id,
           status:
-            latest.status === 'dead_letter'
+            retiredCommercialTerms || latest.status === 'dead_letter'
               ? 'failed'
               : latest.status === 'processing'
                 ? 'processing'
@@ -456,7 +470,11 @@ export async function resolveEnterpriseMetadataIntent(
           requestedMetadata: parsed.data.metadata,
           requestedTerms: parsed.data.terms ?? null,
           providerAccepted,
-          error: latest.status === 'dead_letter' ? (latest.lastError ?? null) : null,
+          error: retiredCommercialTerms
+            ? 'Enterprise commercial-term updates are no longer supported. Submit a reporting-period change instead.'
+            : latest.status === 'dead_letter'
+              ? (latest.lastError ?? null)
+              : null,
         },
   }
 }

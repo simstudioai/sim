@@ -38,7 +38,7 @@ import { usePostHog } from 'posthog-js/react'
 import { useSession } from '@/lib/auth/auth-client'
 import { focusVisibleBrowserOmnibox } from '@/lib/browser-agent/renderer-shortcuts'
 import { SIM_RESOURCES_DRAG_TYPE } from '@/lib/copilot/resource-types'
-import { isChatEnabled } from '@/lib/core/config/env-flags'
+import { isChatEnabled, isHosted, isStatusNoticePreviewEnabled } from '@/lib/core/config/env-flags'
 import { isMacPlatform } from '@/lib/core/utils/platform'
 import { buildFolderTree, getFolderPathNames } from '@/lib/folders/tree'
 import { captureEvent } from '@/lib/posthog/client'
@@ -62,6 +62,7 @@ import {
   SidebarNavChip,
   type SidebarNavItemData,
   SidebarSection,
+  StatusNotice,
   TablesRailFlyout,
   WorkflowList,
   WorkspaceHeader,
@@ -84,7 +85,6 @@ import {
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/constants'
 import {
   useChatSelection,
-  useContextMenu,
   useFlyoutInlineRename,
   useFolderOperations,
   useHoverMenu,
@@ -115,6 +115,7 @@ import {
 } from '@/hooks/queries/mothership-chats'
 import { useUpdateWorkflow } from '@/hooks/queries/workflows'
 import type { Workspace } from '@/hooks/queries/workspace'
+import { useContextMenu } from '@/hooks/use-context-menu'
 import { useMothershipChatEvents } from '@/hooks/use-mothership-chat-events'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
@@ -424,7 +425,7 @@ export const Sidebar = memo(function Sidebar({
     isToolAllowed,
     integrationAvailability,
   } = usePermissionConfig()
-  const { navigateToSettings } = useSettingsNavigation()
+  const { getSettingsHref, navigateToSettings } = useSettingsNavigation()
   const initializeSearchData = useSearchModalStore((state) => state.initializeData)
   const customBlockOverlayVersion = useCustomBlockOverlayVersion()
   const providers = useProvidersStore((state) => state.providers)
@@ -1479,7 +1480,7 @@ export const Sidebar = memo(function Sidebar({
                   ref={isCollapsed ? undefined : scrollContainerRef}
                   className={cn(
                     SIDEBAR_DIVIDER_PAD_BELOW_CLASS,
-                    'flex flex-1 flex-col overflow-y-auto overflow-x-hidden border-t transition-colors duration-150',
+                    'flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden border-t transition-colors duration-150',
                     !hasOverflowTop && 'border-transparent'
                   )}
                 >
@@ -1807,10 +1808,17 @@ export const Sidebar = memo(function Sidebar({
                   </div>
                 </div>
 
+                {(isHosted || isStatusNoticePreviewEnabled) && !isCollapsed ? (
+                  <div className='flex-shrink-0 px-2 py-2'>
+                    <StatusNotice preview={isStatusNoticePreviewEnabled} />
+                  </div>
+                ) : null}
+
                 <SidebarFooter
                   workspaceId={workspaceId}
                   isCollapsed={isCollapsed}
                   showCollapsedTooltips={showCollapsedTooltips}
+                  getSettingsHref={(section) => getSettingsHref({ section })}
                   onOpenSettings={handleOpenSettings}
                   onOpenDocs={handleOpenDocs}
                   onJoinSlack={handleOpenSlackCommunity}
@@ -1850,6 +1858,7 @@ export const Sidebar = memo(function Sidebar({
                   showDuplicate={false}
                   disableRename={!canEdit}
                   disableDelete={!canEdit}
+                  selectedCount={contextMenuSelectionRef.current.chatIds.length}
                 />
 
                 <DeleteModal

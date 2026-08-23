@@ -81,11 +81,13 @@ describe('Enterprise subscription metadata', () => {
         invoiceAmountCents: '120000',
         seats: '25',
         reportingPeriodAnchorDate: '2026-01-31',
+        reportingPeriodInterval: 'year',
       })
     ).toMatchObject({
       invoiceAmountCents: 120000,
       invoiceAmountUsd: 1200,
       reportingPeriodAnchorDate: '2026-01-31',
+      reportingPeriodInterval: 'year',
     })
   })
 })

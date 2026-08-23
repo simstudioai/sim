@@ -41,6 +41,11 @@ export type ResolvedSecretIncompletenessReason =
   | 'inherited-incomplete-input-path'
   | 'tool-call-scope-mismatch'
   | 'value-provenance-untrusted'
+  /**
+   * A crossing carried no provenance at all, which is what a run that failed before producing any
+   * looks like. Distinct from `untrusted`: nothing was rejected, there was nothing to reject.
+   */
+  | 'value-provenance-absent'
   | 'value-provenance-import-failed'
   | 'value-provenance-filter-incomplete'
   | 'durable-provenance-unknown'
@@ -174,6 +179,14 @@ export interface ResolvedSecretIncompletenessDiagnostics {
   readonly activeEntryCount: number
   /** Correlates a refusal with the guard that caused it; never carries user or secret material. */
   readonly scopeWorkspaceId?: string
+  /**
+   * Where the first guard tripped, carried alongside the reason that named it.
+   *
+   * A refusal is often frames away from its cause, which is why this struct exists — but it only
+   * ever carried *what* went wrong, so a downstream reporter printed a reason with no location and
+   * a reader had to join to the registry's own line to find the block.
+   */
+  readonly detail?: MarkIncompleteDetail
 }
 
 export const ANONYMOUS_SECRET_TRACE_REPLACEMENT = OPAQUE_RESOLVED_SECRET_REPLACEMENT
@@ -322,7 +335,7 @@ interface MarkIncompleteContext {
  * an input reaching one of these guards may still hold a resolved secret. That is the same promise
  * `reason` already makes about this log, restated where it is easy to break.
  */
-interface MarkIncompleteDetail {
+export interface MarkIncompleteDetail {
   /** Block type id, e.g. `api`. */
   blockType?: string
   /** Tool id, e.g. `http_request`. */
@@ -854,6 +867,8 @@ export class ResolvedSecretTraceRegistry {
   private readonly incompletenessReasons = new Set<ResolvedSecretIncompletenessReason>()
   /** Import callers that cost this registry its completeness; bounded by {@link MAX_RETAINED_ORIGINS}. */
   private readonly incompletenessOrigins = new Set<string>()
+  /** First guard's location; later ones describe propagation, not the cause. */
+  private incompletenessDetail: MarkIncompleteDetail | undefined
   private activeProvenanceEntryBytes = 0
   private complete = true
   private pendingActivations = 0
@@ -1586,8 +1601,18 @@ export class ResolvedSecretTraceRegistry {
     value: unknown,
     options: { trusted: boolean; inputPath?: ResolvedSecretInputPath; origin?: string }
   ): Promise<ImportResolvedSecretTraceProvenanceForValueResult> {
+    /**
+     * Absence and distrust are different facts and are reported as such. A run that failed before
+     * producing provenance hands this `undefined`, which is the expected shape of a failed
+     * crossing, not a guard catching something wrong — reporting it as a fault put a recurring
+     * by-design state at error level with a name that reads like a breach.
+     */
     if (!options.trusted || !isResolvedSecretTraceProvenanceV1(provenance)) {
-      this.markInputPathIncomplete(options.inputPath, 'value-provenance-untrusted', options.origin)
+      const reason =
+        options.trusted && provenance === undefined
+          ? 'value-provenance-absent'
+          : 'value-provenance-untrusted'
+      this.markInputPathIncomplete(options.inputPath, reason, options.origin)
       return { success: false, matched: false }
     }
 
@@ -1802,6 +1827,7 @@ export class ResolvedSecretTraceRegistry {
       incompleteInputPathCount: this.incompleteInputPaths.size,
       activeEntryCount: this.activeEntries.size,
       ...(this.scope?.workspaceId ? { scopeWorkspaceId: this.scope.workspaceId } : {}),
+      ...(this.incompletenessDetail ? { detail: this.incompletenessDetail } : {}),
     }
   }
 
@@ -1823,6 +1849,7 @@ export class ResolvedSecretTraceRegistry {
   private inheritIncompletenessReasonsFrom(source: ResolvedSecretTraceRegistry): void {
     for (const reason of source.incompletenessReasons) this.recordIncompletenessReason(reason)
     for (const origin of source.incompletenessOrigins) this.recordIncompletenessOrigin(origin)
+    this.incompletenessDetail ??= source.incompletenessDetail
   }
 
   isPermanentlyIncomplete(): boolean {
@@ -1843,6 +1870,7 @@ export class ResolvedSecretTraceRegistry {
     if (context.source) this.inheritIncompletenessReasonsFrom(context.source)
     this.recordIncompletenessReason(reason)
     if (context.origin) this.recordIncompletenessOrigin(context.origin)
+    this.incompletenessDetail ??= context.detail
     if (!this.complete) return
     this.complete = false
     this.modelEgressRevision += 1

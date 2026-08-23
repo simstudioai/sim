@@ -1,13 +1,7 @@
 /**
  * @vitest-environment node
  */
-import {
-  auditMock,
-  dbChainMock,
-  dbChainMockFns,
-  requestUtilsMockFns,
-  resetDbChainMock,
-} from '@sim/testing'
+import { auditMock, dbChainMock, dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@sim/db', () => ({
@@ -81,12 +75,6 @@ describe('recordAudit', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
-    requestUtilsMockFns.mockGetClientIp.mockImplementation(
-      (request: { headers: { get(name: string): string | null } }) =>
-        request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
-        request.headers.get('x-real-ip')?.trim() ||
-        'unknown'
-    )
   })
 
   afterEach(() => {
@@ -187,13 +175,13 @@ describe('recordAudit', () => {
 
     expect(dbChainMockFns.values).toHaveBeenCalledWith(
       expect.objectContaining({
-        ipAddress: '1.2.3.4',
+        ipAddress: '5.6.7.8',
         userAgent: 'TestAgent/1.0',
       })
     )
   })
 
-  it('falls back to x-real-ip when x-forwarded-for is absent', async () => {
+  it('records null when x-forwarded-for is absent', async () => {
     const request = new Request('https://example.com', {
       headers: { 'x-real-ip': '10.0.0.1' },
     })
@@ -212,7 +200,7 @@ describe('recordAudit', () => {
 
     expect(dbChainMockFns.values).toHaveBeenCalledWith(
       expect.objectContaining({
-        ipAddress: '10.0.0.1',
+        ipAddress: null,
         userAgent: undefined,
       })
     )

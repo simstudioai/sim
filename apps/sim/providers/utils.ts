@@ -786,7 +786,9 @@ export async function transformBlockTool(
   const userProvidedParams = block.params || {}
 
   const canonicalGroups: CanonicalGroup[] = blockDef?.subBlocks
-    ? Object.values(buildCanonicalIndex(blockDef.subBlocks).groupsById).filter(isCanonicalPair)
+    ? // canonical-index-unscoped: an agent tool resolves against `block.params`, which only ever
+      // holds action-surface values — a tool is never invoked in trigger mode.
+      Object.values(buildCanonicalIndex(blockDef.subBlocks).groupsById).filter(isCanonicalPair)
     : []
 
   const resolvedResourceParams = resolveCanonicalResourceParams(
@@ -1559,7 +1561,28 @@ export function prepareToolExecution(
     billingAttribution?: BillingAttributionSnapshot
     /** Invoking run's execution id — see `ProviderRequest.executionId`. */
     executionId?: string
-  }
+    /** Invoking agent block's id — see `ProviderRequest.blockId`. */
+    blockId?: string
+    /**
+     * The model's own id for this tool call. It is what makes a keyed tool's
+     * idempotency token distinguishing on the agent path: one agent block can
+     * issue the same tool several times inside one execution, and `executionId`
+     * plus `blockId` alone would collapse them into a single token the provider
+     * would dedupe down to one delivery. Stable across retries because it is read
+     * from the model's response rather than minted per attempt.
+     */
+    invocationId?: string
+  },
+  /**
+   * The model's own id for this tool call, read from the provider's response.
+   *
+   * Required rather than optional — `string | undefined` — so the argument
+   * cannot be forgotten. A provider with no model-supplied id must pass
+   * `undefined` explicitly and take the loud fallback; omitting it entirely
+   * would silently leave `invocationId` unset, which is the unstable-token path
+   * this parameter exists to close.
+   */
+  toolCallId: string | undefined
 ): {
   toolParams: Record<string, any>
   executionParams: Record<string, any>
@@ -1627,6 +1650,10 @@ export function prepareToolExecution(
               : {}),
             ...(request.callChain ? { callChain: request.callChain } : {}),
             ...(request.executionId ? { executionId: request.executionId } : {}),
+            ...(request.blockId ? { blockId: request.blockId } : {}),
+            ...((toolCallId ?? request.invocationId)
+              ? { invocationId: toolCallId ?? request.invocationId }
+              : {}),
             ...(request.billingAttribution
               ? { billingAttribution: request.billingAttribution }
               : {}),

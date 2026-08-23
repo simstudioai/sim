@@ -207,33 +207,32 @@ export function BrowserTabStrip({
       onTabContextMenu={openTabContextMenu}
       onTabDragStart={startTabDrag}
       onReorder={onReorderTab}
-    >
-      <ContextMenu
-        isOpen={contextMenuOpen && Boolean(contextTab)}
-        position={contextMenuPosition}
-        menuRef={contextMenuRef}
-        onClose={closeTabContextMenu}
-        onOpenInNewTab={openTabInExternalBrowser}
-        openInNewTabLabel='Open in External Browser'
-        openInNewTabPosition='last'
-        separateNavigationAction
-        showOpenInNewTab={Boolean(contextTab?.url && contextTab.url !== 'about:blank')}
-        groupNonDestructiveActions
-        onTogglePin={
-          contextTab ? () => onSetTabPinned(contextTab.tabId, !contextTab.pinned) : undefined
-        }
-        onDuplicate={contextTab ? () => onDuplicateTab(contextTab.tabId) : undefined}
-        // Pinned tabs are durable and deliberately have no close action.
-        {...(contextTab && !contextTab.pinned
-          ? { onCloseTab: () => onCloseTab(contextTab.tabId), showCloseTab: true }
-          : {})}
-        onDelete={() => {}}
-        showPin={Boolean(contextTab)}
-        isPinned={Boolean(contextTab?.pinned)}
-        showRename={false}
-        showDuplicate={Boolean(contextTab)}
-        showDelete={false}
-      />
-    </TabStrip>
+      overlays={
+        <ContextMenu
+          isOpen={contextMenuOpen && Boolean(contextTab)}
+          position={contextMenuPosition}
+          menuRef={contextMenuRef}
+          onClose={closeTabContextMenu}
+          onOpenInNewTab={openTabInExternalBrowser}
+          openInNewTabLabel='Open in External Browser'
+          openInNewTabPosition='last'
+          showOpenInNewTab={Boolean(contextTab?.url && contextTab.url !== 'about:blank')}
+          onTogglePin={
+            contextTab ? () => onSetTabPinned(contextTab.tabId, !contextTab.pinned) : undefined
+          }
+          onDuplicate={contextTab ? () => onDuplicateTab(contextTab.tabId) : undefined}
+          // Pinned tabs are durable and deliberately have no close action.
+          {...(contextTab && !contextTab.pinned
+            ? { onCloseTab: () => onCloseTab(contextTab.tabId), showCloseTab: true }
+            : {})}
+          onDelete={() => {}}
+          showPin={Boolean(contextTab)}
+          isPinned={Boolean(contextTab?.pinned)}
+          showRename={false}
+          showDuplicate={Boolean(contextTab)}
+          showDelete={false}
+        />
+      }
+    />
   )
 }

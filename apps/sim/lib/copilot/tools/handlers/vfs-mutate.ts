@@ -11,7 +11,7 @@ import {
 } from '@/lib/copilot/application/execute-workflow-use-case'
 import { messageForCopilotTableError } from '@/lib/copilot/auth/table-delegation'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
-import { requireCopilotWorkspace } from '@/lib/copilot/tools/server/files/file-folder-application'
+import { requireCopilotWorkspace } from '@/lib/copilot/tools/server/workspace-scope'
 import { decodeVfsPathSegments, encodeVfsPathSegments } from '@/lib/copilot/vfs/path-utils'
 import { asOrchestrationError } from '@/lib/core/orchestration/types'
 import { PlatformEvents } from '@/lib/core/telemetry'

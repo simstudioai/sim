@@ -1491,8 +1491,8 @@ export const v2KnowledgeConnectorSchema = z
       .nonnegative()
       .describe('Scheduled synchronization interval in minutes; zero disables scheduled syncs.'),
     status: z
-      .enum(['active', 'paused', 'syncing', 'error', 'disabled'])
-      .describe('Current connector state.'),
+      .enum(['active', 'paused', 'pending', 'syncing', 'error', 'disabled'])
+      .describe('Current connector state. `pending` means a sync is queued but not yet running.'),
     lastSyncAt: v2TimestampSchema
       .nullable()
       .describe('Time of the most recent synchronization, or null before the first sync.'),
@@ -1652,7 +1652,9 @@ export const v2UpdateKnowledgeConnectorBodySchema = z
     sourceConfig: z
       .record(z.string(), z.unknown().describe('Connector-specific source configuration value.'))
       .optional()
-      .describe('Replacement source selection and filtering configuration.'),
+      .describe(
+        'Replacement source selection and filtering configuration. Updating a runnable connector queues synchronization; paused connectors remain paused.'
+      ),
     syncIntervalMinutes: z
       .number()
       .int()

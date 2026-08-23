@@ -139,3 +139,17 @@ describe('knowledge processing worker', () => {
     )
   })
 })
+
+describe('knowledge-process-document task configuration', () => {
+  /**
+   * `maxAttempts` does not cover an out-of-memory kill — Trigger.dev retries
+   * `TASK_PROCESS_OOM_KILLED` only when a larger preset is named. Eleven
+   * documents were killed in one afternoon and every one recorded
+   * `attempt_count = 1`, so each was left `failed` having never been retried.
+   */
+  it('escalates to a larger machine on an out-of-memory kill', async () => {
+    const { processDocument } = await import('@/background/knowledge-processing')
+
+    expect(processDocument.retry?.outOfMemory?.machine).toBe('large-2x')
+  })
+})

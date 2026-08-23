@@ -2061,9 +2061,12 @@ function buildBubbleChartOption(
       : undefined,
     tooltip: {
       trigger: 'item',
+      // The name comes from the uploaded document and lands in the tooltip's innerHTML.
+      // ECharts escapes the markup it builds itself; a hand-built one escapes its own.
       formatter: (params: unknown) => {
         const p = params as { seriesName: string; value: number[] }
-        return `${p.seriesName}<br/>x: ${p.value[0]}, y: ${p.value[1]}, size: ${p.value[2]}`
+        const name = echarts.format.encodeHTML(p.seriesName)
+        return `${name}<br/>x: ${p.value[0]}, y: ${p.value[1]}, size: ${p.value[2]}`
       },
     },
     legend: buildLegendOption(

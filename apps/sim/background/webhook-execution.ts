@@ -23,7 +23,11 @@ import {
   getTimeoutErrorMessage,
   RESERVATION_TTL_BUFFER_MS,
 } from '@/lib/core/execution-limits'
-import { IdempotencyService, webhookIdempotency } from '@/lib/core/idempotency'
+import {
+  IdempotencyService,
+  WEBHOOK_IN_PROGRESS_LEASE_SECONDS,
+  webhookIdempotency,
+} from '@/lib/core/idempotency'
 import {
   type EnvironmentResolutionSnapshot,
   getEffectiveEnvironmentSnapshot,
@@ -364,9 +368,12 @@ export async function executeWebhookJob(
           idempotencyKey,
           runOperation,
           undefined,
-          executionDeadlineAt === undefined
-            ? undefined
-            : { inProgressExpiresAt: executionDeadlineAt + RESERVATION_TTL_BUFFER_MS }
+          {
+            inProgressExpiresAt:
+              executionDeadlineAt === undefined
+                ? Date.now() + WEBHOOK_IN_PROGRESS_LEASE_SECONDS * 1000
+                : executionDeadlineAt + RESERVATION_TTL_BUFFER_MS,
+          }
         )
         if (!operationStarted) {
           await releaseExecutionSlot(executionId)

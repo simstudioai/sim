@@ -10,6 +10,7 @@ const {
   mockPersonalQuery,
   mockUpdateOrganizationLimit,
   mockUpdateUserLimit,
+  mockUseInvoices,
   mockUseOrganizationBilling,
   mockUseSubscriptionData,
   mockUseUsageLimitData,
@@ -18,6 +19,7 @@ const {
   mockPersonalQuery: { current: null as unknown },
   mockUpdateOrganizationLimit: vi.fn(),
   mockUpdateUserLimit: vi.fn(),
+  mockUseInvoices: vi.fn(),
   mockUseOrganizationBilling: vi.fn(),
   mockUseSubscriptionData: vi.fn(),
   mockUseUsageLimitData: vi.fn(),
@@ -106,7 +108,10 @@ vi.mock('@/hooks/queries/organization', () => ({
 }))
 
 vi.mock('@/hooks/queries/subscription', () => ({
-  useInvoices: () => ({ data: { invoices: [], hasMore: false } }),
+  useInvoices: (...args: unknown[]) => {
+    mockUseInvoices(...args)
+    return { data: { invoices: [], hasMore: false } }
+  },
   useOpenBillingPortal: () => ({ isPending: false, mutate: vi.fn() }),
   useSubscriptionData: (...args: unknown[]) => {
     mockUseSubscriptionData(...args)
@@ -276,6 +281,10 @@ describe('Billing payer scope', () => {
     expect(mockUseSubscriptionData).toHaveBeenCalledWith(
       expect.objectContaining({ enabled: false })
     )
+    expect(mockUseInvoices).toHaveBeenCalledWith({
+      context: 'organization',
+      organizationId: 'org-target',
+    })
     expect(mockUseUsageLimitData).not.toHaveBeenCalled()
     expect(
       container.querySelector('a[href="/workspace/organization-workspace/upgrade"]')?.textContent
@@ -336,6 +345,10 @@ describe('Billing payer scope', () => {
 
     expect(container.textContent).toContain('Personal Free plan')
     expect(container.querySelector('main > p')).toBeNull()
+    expect(mockUseInvoices).toHaveBeenCalledWith({
+      context: 'user',
+      organizationId: undefined,
+    })
   })
 
   it('renders an explicit free organization state without subscription controls', async () => {

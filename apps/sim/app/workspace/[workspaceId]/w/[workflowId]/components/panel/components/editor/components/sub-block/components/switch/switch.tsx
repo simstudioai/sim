@@ -22,7 +22,7 @@ export function Switch({
 }: SwitchProps) {
   const [storeValue, setStoreValue] = useSubBlockValue<boolean>(blockId, subBlockId)
 
-  const value = isPreview ? previewValue : propValue !== undefined ? propValue : storeValue
+  const value = isPreview ? previewValue : (storeValue ?? propValue)
 
   const handleChange = (checked: boolean) => {
     if (!isPreview && !disabled) {

@@ -535,6 +535,9 @@ export function backfillCanonicalModes(blocks: Record<string, BlockState>): {
       continue
     }
 
+    // canonical-index-unscoped: the backfill writes a mode only for canonical PAIRS, whose two
+    // members always sit on the same surface — a cross-surface alias joins an existing group
+    // rather than forming a pair, so scoping cannot change what gets backfilled.
     const canonicalIndex = buildCanonicalIndex(blockConfig.subBlocks)
     const pairs = Object.values(canonicalIndex.groupsById).filter(isCanonicalPair)
     if (pairs.length === 0) {

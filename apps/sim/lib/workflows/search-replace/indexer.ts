@@ -30,6 +30,7 @@ import { getTransitiveSubBlockDependents } from '@/lib/workflows/subblocks/depen
 import { resolveStoredToolName } from '@/lib/workflows/subblocks/display'
 import {
   buildCanonicalIndex,
+  buildCanonicalIndexForSurface,
   buildSubBlockValues,
   type CanonicalModeOverrides,
   evaluateSubBlockCondition,
@@ -41,7 +42,6 @@ import {
   parseDependsOn,
   resolveDependencyValue,
   scopeCanonicalModesForTool,
-  shouldUseSubBlockForTriggerModeCanonicalIndex,
 } from '@/lib/workflows/subblocks/visibility'
 import { isSyntheticToolSubBlockId } from '@/lib/workflows/tool-input/synthetic-subblocks'
 import { type ParsedStoredTool, parseStoredToolInputValue } from '@/lib/workflows/tool-input/types'
@@ -790,6 +790,7 @@ export function getToolInputParamConfigs({
       })
   }
 
+  // canonical-index-unscoped: a nested tool's params are always the action surface
   const toolCanonicalIndex = buildCanonicalIndex(
     blockConfig?.subBlocks ?? subBlocksResult.subBlocks
   )
@@ -1287,11 +1288,11 @@ export function indexWorkflowSearchMatches(
   for (const block of Object.values(workflow.blocks)) {
     const blockConfig = blockConfigs[block.type] ?? getBlock(block.type)
     const subBlockConfigs = blockConfig?.subBlocks ?? []
-    const canonicalSubBlockConfigs = block.triggerMode
-      ? subBlockConfigs.filter(shouldUseSubBlockForTriggerModeCanonicalIndex)
-      : subBlockConfigs
     const configsById = new Map(subBlockConfigs.map((subBlock) => [subBlock.id, subBlock]))
-    const canonicalIndex = buildCanonicalIndex(canonicalSubBlockConfigs)
+    const canonicalIndex = buildCanonicalIndexForSurface(
+      subBlockConfigs,
+      Boolean(block.triggerMode)
+    )
     const subBlockValues = buildSubBlockValues(block.subBlocks ?? {})
     const canonicalModes = getSearchCanonicalModes(block)
     const protectedByLock = isWorkflowBlockProtected(block.id, workflow.blocks)

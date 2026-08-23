@@ -790,6 +790,7 @@ function SubBlockComponent({
             blockId={blockId}
             subBlockId={config.id}
             title={config.title ?? ''}
+            value={typeof config.defaultValue === 'boolean' ? config.defaultValue : undefined}
             isPreview={isPreview}
             previewValue={previewValue as any}
             disabled={isDisabled}

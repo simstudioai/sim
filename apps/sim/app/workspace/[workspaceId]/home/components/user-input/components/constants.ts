@@ -125,7 +125,12 @@ const RESOURCE_TO_CONTEXT: Record<
   folder: (r) => ({ kind: 'folder', folderId: r.id, label: r.title }),
   filefolder: (r) => ({ kind: 'filefolder', fileFolderId: r.id, label: r.title }),
   task: (r) => ({ kind: 'past_chat', chatId: r.id, label: r.title }),
-  log: (r) => ({ kind: 'logs', executionId: r.id, label: r.title }),
+  // Addressed by run, not by log row: `id` is the row's key, and the server
+  // resolves this context against `workflow_execution_logs.execution_id`. A
+  // picked resource carries the run id; one rebuilt from the wire (a restored
+  // or agent-opened tab) cannot, since the stored and streamed resource shapes
+  // are the identity triple — those keep the row id they have always sent.
+  log: (r) => ({ kind: 'logs', executionId: r.executionId ?? r.id, label: r.title }),
   integration: (r) => ({ kind: 'integration', blockType: r.id, label: r.title }),
   generic: (r) => ({ kind: 'docs', label: r.title }),
 }

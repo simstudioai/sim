@@ -3,6 +3,7 @@ import { sha256Hex } from '@sim/security/hash'
 import { toError } from '@sim/utils/errors'
 import * as jose from 'jose'
 import { NextResponse } from 'next/server'
+import { GONG_JWT_PUBLIC_KEY_CONFIG_KEY } from '@/lib/webhooks/providers/gong-config'
 import type {
   AuthContext,
   FormatInputContext,
@@ -13,7 +14,6 @@ import type {
 const logger = createLogger('WebhookProvider:Gong')
 
 /** providerConfig key: PEM or raw base64 RSA public key from Gong (Signed JWT header auth). */
-export const GONG_JWT_PUBLIC_KEY_CONFIG_KEY = 'gongJwtPublicKeyPem'
 
 /**
  * Gong automation webhooks support either URL secrecy (token in path) or a signed JWT in

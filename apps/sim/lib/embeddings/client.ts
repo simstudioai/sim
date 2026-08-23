@@ -33,7 +33,8 @@ import {
   isRetryableError,
   retryWithExponentialBackoff,
 } from '@/lib/knowledge/documents/utils'
-import { batchByTokenLimit, estimateTokenCount, truncateToTokenLimit } from '@/lib/tokenization'
+import { estimateTokenCount } from '@/lib/tokenization'
+import { batchByTokenLimit, truncateToTokenLimit } from '@/lib/tokenization/accurate'
 
 const logger = createLogger('EmbeddingClient')
 

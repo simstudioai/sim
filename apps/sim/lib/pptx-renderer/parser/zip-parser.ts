@@ -4,7 +4,6 @@
  */
 
 import type { JSZipObject } from 'jszip'
-import JSZip from 'jszip'
 
 export interface PptxFiles {
   contentTypes: string
@@ -80,6 +79,9 @@ export async function parseZip(
     throwZipLimitExceeded(`maxConcurrency ${limits.maxConcurrency} must be an integer >= 1`)
   }
 
+  /** Dynamic on purpose — keeps jszip out of the initial bundle of routes that only
+   * *can* open a PPTX; the archive load below is already async. */
+  const { default: JSZip } = await import('jszip')
   const zip = await JSZip.loadAsync(buffer)
   const entries = Object.entries(zip.files).filter(([, file]) => !file.dir)
 

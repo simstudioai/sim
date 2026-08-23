@@ -289,7 +289,12 @@ export const nvidiaProvider: ProviderConfig = {
                 }
               }
 
-              const { toolParams, executionParams } = prepareToolExecution(tool, toolArgs, request)
+              const { toolParams, executionParams } = prepareToolExecution(
+                tool,
+                toolArgs,
+                request,
+                toolCall.id
+              )
               const { rawResponse, modelResponse } = await executeProviderTool(
                 toolName,
                 executionParams,

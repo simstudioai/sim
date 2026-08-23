@@ -101,6 +101,34 @@ sim configure [options]
 
 </CommandTable>
 
+## sim chat
+
+Ask Sim and print the reply
+
+```bash
+sim chat <message> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `message` | Yes | What to ask Sim |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `-c, --conversation <id>` | No | Continue the conversation with this ID. |
+
+</CommandTable>
+
 ## sim profiles
 
 Also spelled `sim profile`.
@@ -1208,7 +1236,7 @@ sim knowledge create [options]
 Create Knowledge Connector
 
 ```bash
-sim knowledge connectors create <id> [options]
+sim knowledge connectors create <knowledgeBaseId> [options]
 ```
 
 **Arguments**
@@ -1217,7 +1245,7 @@ sim knowledge connectors create <id> [options]
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `id` | Yes | Unique knowledge base identifier. |
+| `knowledgeBaseId` | Yes | Unique knowledge base identifier. |
 
 </CommandTable>
 
@@ -1240,7 +1268,7 @@ sim knowledge connectors create <id> [options]
 Delete Knowledge Connector
 
 ```bash
-sim knowledge connectors delete <id> <connectorId> [options]
+sim knowledge connectors delete <knowledgeBaseId> <connectorId> [options]
 ```
 
 **Arguments**
@@ -1249,7 +1277,7 @@ sim knowledge connectors delete <id> <connectorId> [options]
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `id` | Yes | Knowledge base that owns the connector. |
+| `knowledgeBaseId` | Yes | Knowledge base that owns the connector. |
 | `connectorId` | Yes | Connector selected for the operation. |
 
 </CommandTable>
@@ -1271,7 +1299,7 @@ sim knowledge connectors delete <id> <connectorId> [options]
 Get Knowledge Connector
 
 ```bash
-sim knowledge connectors get <id> <connectorId>
+sim knowledge connectors get <knowledgeBaseId> <connectorId>
 ```
 
 **Arguments**
@@ -1280,7 +1308,7 @@ sim knowledge connectors get <id> <connectorId>
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `id` | Yes | Knowledge base that owns the connector. |
+| `knowledgeBaseId` | Yes | Knowledge base that owns the connector. |
 | `connectorId` | Yes | Connector selected for the operation. |
 
 </CommandTable>
@@ -1290,7 +1318,7 @@ sim knowledge connectors get <id> <connectorId>
 List Knowledge Connector Documents
 
 ```bash
-sim knowledge connectors documents list <id> <connectorId> [options]
+sim knowledge connectors documents list <knowledgeBaseId> <connectorId> [options]
 ```
 
 **Arguments**
@@ -1299,7 +1327,7 @@ sim knowledge connectors documents list <id> <connectorId> [options]
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `id` | Yes | Knowledge base that owns the connector. |
+| `knowledgeBaseId` | Yes | Knowledge base that owns the connector. |
 | `connectorId` | Yes | Connector selected for the operation. |
 
 </CommandTable>
@@ -1316,12 +1344,12 @@ sim knowledge connectors documents list <id> <connectorId> [options]
 
 </CommandTable>
 
-### sim knowledge connectors list
+### sim knowledge connectors documents update
 
-List Knowledge Connectors
+Update Knowledge Connector Documents
 
 ```bash
-sim knowledge connectors list <id> [options]
+sim knowledge connectors documents update <knowledgeBaseId> <connectorId> [options]
 ```
 
 **Arguments**
@@ -1330,7 +1358,37 @@ sim knowledge connectors list <id> [options]
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `id` | Yes | Unique knowledge base identifier. |
+| `knowledgeBaseId` | Yes | Knowledge base that owns the connector. |
+| `connectorId` | Yes | Connector selected for the operation. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--operation <value>` | Yes | Whether to restore or exclude the selected documents. Accepted values: `restore`, `exclude`. |
+| `--document <value...>` | Yes | Connector document identifiers to update. (space-separated, or @path / @- with one value per line). |
+
+</CommandTable>
+
+### sim knowledge connectors list
+
+List Knowledge Connectors
+
+```bash
+sim knowledge connectors list <knowledgeBaseId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `knowledgeBaseId` | Yes | Unique knowledge base identifier. |
 
 </CommandTable>
 
@@ -1346,12 +1404,42 @@ sim knowledge connectors list <id> [options]
 
 </CommandTable>
 
+### sim knowledge connectors sync
+
+Queue a knowledge connector synchronization
+
+```bash
+sim knowledge connectors sync <knowledgeBaseId> <connectorId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `knowledgeBaseId` | Yes | Knowledge base that owns the connector. |
+| `connectorId` | Yes | Connector selected for the operation. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--rehydrate` | No | Re-fetch and re-index every existing connector document. |
+| `--no-rehydrate` | No | Send --rehydrate as false. |
+
+</CommandTable>
+
 ### sim knowledge connectors update
 
 Update Knowledge Connector
 
 ```bash
-sim knowledge connectors update <id> <connectorId> [options]
+sim knowledge connectors update <knowledgeBaseId> <connectorId> [options]
 ```
 
 **Arguments**
@@ -1360,7 +1448,7 @@ sim knowledge connectors update <id> <connectorId> [options]
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `id` | Yes | Knowledge base that owns the connector. |
+| `knowledgeBaseId` | Yes | Knowledge base that owns the connector. |
 | `connectorId` | Yes | Connector selected for the operation. |
 
 </CommandTable>
@@ -1371,39 +1459,9 @@ sim knowledge connectors update <id> <connectorId> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--source-config <json\|@file>` | No | Replacement source selection and filtering configuration. (JSON, or @path / @- to read a file or stdin). |
+| `--source-config <json\|@file>` | No | Replacement source selection and filtering configuration. Updating a runnable connector queues synchronization; paused connectors remain paused. (JSON, or @path / @- to read a file or stdin). |
 | `--sync-interval-minutes <value>` | No | New scheduled synchronization interval in minutes. |
 | `--status <value>` | No | New connector state. Accepted values: `active`, `paused`. |
-
-</CommandTable>
-
-### sim knowledge connectors documents update
-
-Update Knowledge Connector Documents
-
-```bash
-sim knowledge connectors documents update <id> <connectorId> [options]
-```
-
-**Arguments**
-
-<CommandTable>
-
-| Argument | Required | Description |
-| --- | --- | --- |
-| `id` | Yes | Knowledge base that owns the connector. |
-| `connectorId` | Yes | Connector selected for the operation. |
-
-</CommandTable>
-
-**Options**
-
-<CommandTable>
-
-| Option | Required | Description |
-| --- | --- | --- |
-| `--operation <value>` | Yes | Whether to restore or exclude the selected documents. Accepted values: `restore`, `exclude`. |
-| `--document <value...>` | Yes | Connector document identifiers to update. (space-separated, or @path / @- with one value per line). |
 
 </CommandTable>
 
@@ -1607,36 +1665,6 @@ sim knowledge search [options]
 | `--no-reranker-enabled` | No | Send --reranker-enabled as false. |
 | `--reranker-model <value>` | No | Reranking model to use when `rerankerEnabled` is true. Defaults to `rerank-v4.0-fast`. Accepted values: `rerank-v4.0-pro`, `rerank-v4.0-fast`, `rerank-v3.5`. |
 | `--reranker-input-count <value>` | No | How many candidate chunks to retrieve before reranking. Defaults to four times `topK`, capped at 100. A larger pool costs more retrieval work but gives the reranker more to choose from. |
-
-</CommandTable>
-
-### sim knowledge sync create
-
-Sync Knowledge Connector
-
-```bash
-sim knowledge sync create <id> <connectorId> [options]
-```
-
-**Arguments**
-
-<CommandTable>
-
-| Argument | Required | Description |
-| --- | --- | --- |
-| `id` | Yes | Knowledge base that owns the connector. |
-| `connectorId` | Yes | Connector selected for the operation. |
-
-</CommandTable>
-
-**Options**
-
-<CommandTable>
-
-| Option | Required | Description |
-| --- | --- | --- |
-| `--rehydrate` | No | Re-fetch and re-index every existing connector document. |
-| `--no-rehydrate` | No | Send --rehydrate as false. |
 
 </CommandTable>
 

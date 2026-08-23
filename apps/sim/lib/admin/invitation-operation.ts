@@ -18,7 +18,7 @@ import {
 import {
   DIRECT_GRANT_EMAIL_EVENT_TYPE,
   type DirectGrantEmailPayload,
-} from '@/lib/invitations/direct-grant'
+} from '@/lib/invitations/direct-grant-event'
 import { MAX_INVITE_EMAILS, MAX_INVITE_WORKSPACES } from '@/lib/invitations/limits'
 
 export const ADMIN_INVITATION_OPERATION_EVENT_TYPE = 'admin.organization-invitation-operation'

@@ -17,6 +17,7 @@ import {
 } from '@sim/emcn'
 import { BookOpen, Credit, Download, HelpCircle, Settings, Trash, Users } from '@sim/emcn/icons'
 import { SlackIcon } from '@/components/icons'
+import { SettingsIntentLink } from '@/components/settings/settings-intent-link'
 import { useSession } from '@/lib/auth/auth-client'
 import { canViewWorkspaceBillingSettings } from '@/lib/billing/workspace-permissions'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
@@ -86,6 +87,7 @@ interface SidebarFooterProps {
   workspaceId: string
   isCollapsed: boolean
   showCollapsedTooltips: boolean
+  getSettingsHref: (section: SettingsSection) => string
   onOpenSettings: (section: SettingsSection) => void
   onOpenDocs: () => void
   onJoinSlack: () => void
@@ -119,6 +121,7 @@ export function SidebarFooter({
   workspaceId,
   isCollapsed,
   showCollapsedTooltips,
+  getSettingsHref,
   onOpenSettings,
   onOpenDocs,
   onJoinSlack,
@@ -179,12 +182,11 @@ export function SidebarFooter({
    * the workspace switcher's "Manage workspace" entry carried before this menu
    * took the section over.
    */
-  const handleSelectSection = (section: SettingsSection) => {
+  const resolveMenuDestination = (section: SettingsSection): SettingsSection | null => {
     if (section === 'teammates' && isInvitationsDisabled) {
-      if (isBillingEnabled) onOpenSettings('billing')
-      return
+      return isBillingEnabled ? 'billing' : null
     }
-    onOpenSettings(section)
+    return section
   }
 
   /**
@@ -257,12 +259,32 @@ export function SidebarFooter({
         </DropdownMenuTrigger>
       </SidebarTooltip>
       <DropdownMenuContent align='start' side='top' sideOffset={4}>
-        {menuItems.map(({ section, label, icon: Icon }) => (
-          <DropdownMenuItem key={section} onSelect={() => handleSelectSection(section)}>
-            <Icon className='size-[14px]' />
-            {label}
-          </DropdownMenuItem>
-        ))}
+        {menuItems.map(({ section, label, icon: Icon }) => {
+          const destination = resolveMenuDestination(section)
+          if (!destination) {
+            return (
+              <DropdownMenuItem key={section}>
+                <Icon className='size-[14px]' />
+                {label}
+              </DropdownMenuItem>
+            )
+          }
+
+          return (
+            <DropdownMenuItem key={section} asChild>
+              <SettingsIntentLink
+                href={getSettingsHref(destination)}
+                onNavigate={(event) => {
+                  event.preventDefault()
+                  onOpenSettings(destination)
+                }}
+              >
+                <Icon className='size-[14px]' />
+                <span>{label}</span>
+              </SettingsIntentLink>
+            </DropdownMenuItem>
+          )
+        })}
       </DropdownMenuContent>
     </DropdownMenu>
   )

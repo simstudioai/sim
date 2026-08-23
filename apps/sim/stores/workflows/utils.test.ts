@@ -10,7 +10,8 @@ import type { Edge } from 'reactflow'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { getBlock } from '@/blocks/registry'
 import { normalizeName } from '@/executor/constants'
-import { filterNewEdges, getUniqueBlockName, prepareBlockState, regenerateBlockIds } from './utils'
+import { prepareBlockState } from './prepare-block-state'
+import { filterNewEdges, getUniqueBlockName, regenerateBlockIds } from './utils'
 
 describe('normalizeName', () => {
   it.concurrent('should convert to lowercase', () => {

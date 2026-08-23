@@ -20,7 +20,7 @@ vi.mock('@/lib/credential-groups/application/public-enrollment', () => ({
 }))
 
 vi.mock('@/lib/credential-groups/rate-limit', () => ({
-  enforcePublicCredentialGroupIpRateLimit: mocks.ipRateLimit,
+  enforcePublicCredentialGroupOAuthStartIpRateLimit: mocks.ipRateLimit,
   enforceCredentialGroupEnrollmentOAuthRateLimit: mocks.enrollmentRateLimit,
 }))
 

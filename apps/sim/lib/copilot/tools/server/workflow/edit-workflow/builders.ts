@@ -213,7 +213,10 @@ export function createBlockFromParams(
         blockState.subBlocks[subBlock.id] = {
           id: subBlock.id,
           type: subBlock.type,
-          value: null,
+          value:
+            subBlock.hidden && subBlock.defaultValue !== undefined
+              ? structuredClone(subBlock.defaultValue)
+              : null,
         }
       } else {
         blockState.subBlocks[subBlock.id].type = subBlock.type
@@ -260,6 +263,8 @@ export function updateCanonicalModesForInputs(
 ): void {
   if (!blockConfig.subBlocks?.length) return
 
+  // canonical-index-unscoped: structural only — this maps written input ids to the mode they
+  // imply and reads no values, so neither surface can shadow the other.
   const canonicalIndex = buildCanonicalIndex(blockConfig.subBlocks)
   const canonicalModeUpdates: Record<string, 'basic' | 'advanced'> = {}
 

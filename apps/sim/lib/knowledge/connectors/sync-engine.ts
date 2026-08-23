@@ -10,7 +10,20 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { randomInt } from '@sim/utils/random'
-import { and, desc, eq, exists, gt, inArray, isNotNull, isNull, lt, ne, sql } from 'drizzle-orm'
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  exists,
+  gt,
+  inArray,
+  isNotNull,
+  isNull,
+  lt,
+  ne,
+  sql,
+} from 'drizzle-orm'
 import { decryptApiKey } from '@/lib/api-key/crypto'
 import {
   assertBillingAttributionSnapshot,
@@ -95,6 +108,25 @@ const MAX_SAFE_TITLE_LENGTH = 200
 const STUCK_RETRY_DISPATCH_CHUNK_SIZE = 25
 
 /**
+ * How many stuck-document candidates one sync will consider.
+ *
+ * {@link STUCK_RETRY_DISPATCH_CHUNK_SIZE} paces the dispatch loop but does not
+ * bound it — the candidate query had no limit, so a connector carrying a large
+ * backlog dispatched the whole thing at once. One did: 2,959 documents enqueued
+ * in fifteen seconds onto a queue every workspace shares, at
+ * {@link PROCESSING_QUEUE_CONCURRENCY} concurrent runs. Nothing was
+ * double-billed — those documents were genuinely unindexed — but one connector
+ * monopolized the queue, and each dispatch mints a fresh `requestId`, so the
+ * Trigger.dev idempotency key differs every pass and none of it deduplicates.
+ *
+ * 200 keeps a single sync's contribution to roughly ten minutes of queue
+ * occupancy at the default concurrency. A backlog larger than this is not
+ * dropped: candidates are taken oldest-first and whatever is left stays
+ * eligible, so consecutive syncs drain it steadily instead of in one burst.
+ */
+export const STUCK_RETRY_MAX_CANDIDATES_PER_SYNC = 200
+
+/**
  * How many documents reconciliation hard-deletes per call.
  *
  * `hardDeleteDocuments` deletes storage objects, embeddings, and rows for its
@@ -168,6 +200,12 @@ const STALE_PROCESSING_MINUTES = resolveStaleProcessingMinutes(
   envNumber(env.KB_CONFIG_MAX_ATTEMPTS, 3)
 )
 const RETRY_WINDOW_DAYS = 7
+const RUNNABLE_CONNECTOR_STATUSES = ['active', 'error'] as const
+
+/** Whether an automatic connector sync may begin from this persisted state. */
+export function isConnectorRunnableStatus(status: string): boolean {
+  return RUNNABLE_CONNECTOR_STATUSES.some((runnableStatus) => runnableStatus === status)
+}
 
 /**
  * Processing states the stuck-document sweep may reclaim from.
@@ -624,7 +662,7 @@ export function stillHoldsSyncLock(connectorId: string, syncLockToken: string) {
 }
 
 /** The archived/deleted half of {@link stillHoldsSyncLock}. */
-function connectorIsLive() {
+export function connectorIsLive() {
   return and(isNull(knowledgeConnector.archivedAt), isNull(knowledgeConnector.deletedAt))
 }
 
@@ -659,6 +697,19 @@ export function holdsSyncLockToken(connectorId: string, syncLockToken: string) {
  * unrelated write to the row, so a config edit on a wedged connector used to
  * renew the lock it was meant to recover.
  */
+/**
+ * The statuses a run may take the lock from.
+ *
+ * An allowlist rather than `ne(status, 'syncing')`, because the queue outlives
+ * the decision to sync: a connector paused or disabled *after* its run was
+ * queued still had a task in flight, and a bare not-syncing test let that task
+ * lock the row and then write its own terminal status over the pause. This CAS
+ * is the single point where a run decides to start, so it is where the refusal
+ * belongs — the dispatch-side guards cannot see a status change that happens
+ * after they ran.
+ */
+export const LOCKABLE_CONNECTOR_STATUSES = ['active', 'error', 'pending'] as const
+
 export function buildSyncLockAcquisition(syncLogId: string, now: Date) {
   return {
     status: 'syncing' as const,
@@ -1434,7 +1485,13 @@ export async function executeSync(
   options: {
     billingAttribution: BillingAttributionSnapshot
     fullSync?: boolean
+    requireRunnable?: boolean
     rehydrate?: boolean
+    /**
+     * The queue entry this run is allowed to consume. Absent only for tasks
+     * queued before the token existed; see {@link ConnectorSyncPayload}.
+     */
+    dispatchToken?: string
   }
 ): Promise<SyncResult> {
   const billingAttribution = assertBillingAttributionSnapshot(options?.billingAttribution)
@@ -1463,22 +1520,27 @@ export async function executeSync(
     return { ...result, error: 'connector_unavailable' }
   }
 
-  const connector = connectorRows[0]
+  const connectorBeforeLock = connectorRows[0]
 
-  const connectorConfig = CONNECTOR_REGISTRY[connector.connectorType]
+  const connectorConfig = CONNECTOR_REGISTRY[connectorBeforeLock.connectorType]
   if (!connectorConfig) {
-    throw new Error(`Unknown connector type: ${connector.connectorType}`)
+    throw new Error(`Unknown connector type: ${connectorBeforeLock.connectorType}`)
   }
 
   const kbRows = await db
     .select({ userId: knowledgeBase.userId, workspaceId: knowledgeBase.workspaceId })
     .from(knowledgeBase)
-    .where(and(eq(knowledgeBase.id, connector.knowledgeBaseId), isNull(knowledgeBase.deletedAt)))
+    .where(
+      and(
+        eq(knowledgeBase.id, connectorBeforeLock.knowledgeBaseId),
+        isNull(knowledgeBase.deletedAt)
+      )
+    )
     .limit(1)
 
   if (kbRows.length === 0) {
     logger.warn(
-      `Skipping sync: knowledge base ${connector.knowledgeBaseId} is deleted (connector ${connectorId})`
+      `Skipping sync: knowledge base ${connectorBeforeLock.knowledgeBaseId} is deleted (connector ${connectorId})`
     )
     await db
       .update(knowledgeConnector)
@@ -1511,7 +1573,7 @@ export async function executeSync(
   const kbOwner: KnowledgeBaseOwner = { workspaceId: kbRows[0].workspaceId, userId }
   if (!kbOwner.workspaceId) {
     throw new Error(
-      `Knowledge base ${connector.knowledgeBaseId} is missing workspace billing context`
+      `Knowledge base ${connectorBeforeLock.knowledgeBaseId} is missing workspace billing context`
     )
   }
   if (billingAttribution.workspaceId !== kbOwner.workspaceId) {
@@ -1519,8 +1581,6 @@ export async function executeSync(
       `Connector sync billing attribution does not match knowledge base workspace ${kbOwner.workspaceId}`
     )
   }
-  const sourceConfig = connector.sourceConfig as Record<string, unknown>
-
   /**
    * Identifies this run for the terminal writes. Generated before the CAS and
    * written by it, so ownership is established atomically with the lock — and
@@ -1535,20 +1595,75 @@ export async function executeSync(
     .where(
       and(
         eq(knowledgeConnector.id, connectorId),
-        ne(knowledgeConnector.status, 'syncing'),
+        inArray(knowledgeConnector.status, LOCKABLE_CONNECTOR_STATUSES),
+        /**
+         * Proves this run is consuming the queue entry that was made for it.
+         *
+         * A task delayed past the lease is reclaimed and replaced, and the
+         * status check alone would let that stale task take the replacement's
+         * entry — running superseded options (a plain sync where the user had
+         * just asked for a full resync) while the replacement is turned away as
+         * `sync_in_progress`. Matching the token is the same discipline
+         * {@link holdsSyncLockToken} already applies to the `syncing` phase,
+         * extended to the phase before it.
+         */
+        ...(options.dispatchToken
+          ? [eq(knowledgeConnector.syncLockToken, options.dispatchToken)]
+          : []),
         isNull(knowledgeConnector.archivedAt),
         isNull(knowledgeConnector.deletedAt)
       )
     )
-    .returning({ id: knowledgeConnector.id })
+    .returning()
 
   if (lockResult.length === 0) {
+    /**
+     * Distinguishes the two ways the CAS can find no row. Costs one read on a
+     * path that already decided not to work, and the alternative is reporting a
+     * connector someone paused as a concurrency conflict.
+     */
+    const [current] = await db
+      .select({
+        status: knowledgeConnector.status,
+        syncLockToken: knowledgeConnector.syncLockToken,
+      })
+      .from(knowledgeConnector)
+      .where(eq(knowledgeConnector.id, connectorId))
+      .limit(1)
+
+    /**
+     * Status is checked before ownership because pausing a queued connector
+     * releases its token, so a mismatch is the *symptom* there and the status is
+     * the actual reason. Testing ownership first would report every
+     * pause-while-queued — the common case — as a superseded dispatch, losing
+     * the distinction this branch exists to draw.
+     */
+    if (current?.status === 'paused' || current?.status === 'disabled') {
+      logger.info('Connector is not accepting syncs, skipping', {
+        connectorId,
+        status: current.status,
+      })
+      return { ...result, error: 'connector_not_syncable' }
+    }
+
+    if (options.dispatchToken && current?.syncLockToken !== options.dispatchToken) {
+      logger.info('Sync superseded by a newer dispatch, skipping', { connectorId })
+      return { ...result, error: 'dispatch_superseded' }
+    }
+
     logger.info('Sync already in progress, skipping', { connectorId })
     // Reported as an error so the task wrapper's `success: !result.error` does not
     // present a skipped run as a successful zero-document sync.
     return { ...result, error: 'sync_in_progress' }
   }
 
+  /**
+   * The row returned by the lock is the authoritative sync snapshot. A source update
+   * committed before the lock is included here; one attempted after it sees `syncing`
+   * and conflicts instead of letting this worker process stale configuration.
+   */
+  const connector = lockResult[0]
+  const sourceConfig = connector.sourceConfig as Record<string, unknown>
   const syncStartedAt = new Date()
   /** Seeded at lock acquisition, which wrote `updatedAt` itself. */
   let lastHeartbeatAtMs = Date.now()
@@ -2312,6 +2427,13 @@ export async function executeSync(
           isNull(document.deletedAt)
         )
       )
+      /**
+       * Oldest first, so the most overdue documents drain before newer ones and
+       * the bound below can never starve a document indefinitely. Without an
+       * order the limit would take an arbitrary subset each sync.
+       */
+      .orderBy(asc(document.uploadedAt))
+      .limit(STUCK_RETRY_MAX_CANDIDATES_PER_SYNC)
     const stuckDocs = sweepCandidates
       .filter((row): row is typeof row & { processingStatus: DocumentProcessingStatus } =>
         isDocumentProcessingStatus(row.processingStatus)

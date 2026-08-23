@@ -9,7 +9,7 @@
 import { isRecordLike } from '@sim/utils/object'
 import { truncate } from '@sim/utils/string'
 import type { FilterRule, SortRule } from '@/lib/table/types'
-import { DELETED_WORKFLOW_LABEL } from '@/app/workspace/[workspaceId]/logs/utils'
+import { DELETED_WORKFLOW_LABEL } from '@/lib/workflows/workflow-labels'
 import { getBlock } from '@/blocks'
 import type { SubBlockConfig } from '@/blocks/types'
 

@@ -367,7 +367,8 @@ export function createAnthropicStreamingToolLoopStream(
                   const { toolParams, executionParams } = prepareToolExecution(
                     tool,
                     toolArgs,
-                    request
+                    request,
+                    toolUse.id
                   )
                   const { rawResponse, modelResponse } = await executeProviderTool(
                     toolName,

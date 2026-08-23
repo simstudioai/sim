@@ -1,5 +1,9 @@
-import { generateId } from '@sim/utils/id'
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import {
+  defineSquareKeyedSite,
+  type SquareDeliveryContextParams,
+  withSquareIdempotencyKey,
+} from '@/tools/square/idempotency'
 import type { CreatePaymentParams, PaymentResponse } from '@/tools/square/types'
 import {
   PAYMENT_METADATA_OUTPUT_PROPERTIES,
@@ -9,7 +13,15 @@ import {
 } from '@/tools/square/types'
 import type { ToolConfig } from '@/tools/types'
 
-export const squareCreatePaymentTool: ToolConfig<CreatePaymentParams, PaymentResponse> = {
+const DELIVERY = defineSquareKeyedSite(
+  'square_create_payment',
+  "the buyer's card would be charged a second time"
+)
+
+export const squareCreatePaymentTool: ToolConfig<
+  CreatePaymentParams & SquareDeliveryContextParams,
+  PaymentResponse
+> = {
   id: 'square_create_payment',
   name: 'Square Create Payment',
   description: 'Take a payment using a payment source such as a card nonce or a card on file',
@@ -91,7 +103,6 @@ export const squareCreatePaymentTool: ToolConfig<CreatePaymentParams, PaymentRes
     headers: (params) => squareHeaders(params.apiKey),
     body: (params) => {
       const body: Record<string, unknown> = {
-        idempotency_key: params.idempotencyKey || generateId(),
         source_id: params.sourceId,
         amount_money: { amount: params.amount, currency: params.currency },
       }
@@ -101,7 +112,7 @@ export const squareCreatePaymentTool: ToolConfig<CreatePaymentParams, PaymentRes
       if (params.referenceId) body.reference_id = params.referenceId
       if (params.note) body.note = params.note
       if (params.autocomplete !== undefined) body.autocomplete = params.autocomplete
-      return body
+      return withSquareIdempotencyKey(DELIVERY, params, body)
     },
   },
 

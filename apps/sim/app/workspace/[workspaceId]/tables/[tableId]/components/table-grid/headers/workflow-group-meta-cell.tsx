@@ -44,6 +44,12 @@ const LIMITED_RUN_PRESETS = [10, 1000] as const
 /** Labels for the table-scoped run items. With an active filter the run is
  *  scoped to matching rows, so the labels say "filtered rows" to make the
  *  narrowed target visible. Shared by both menu surfaces. */
+/**
+ * Incomplete before all, matching the action bar and the row context menu, which both
+ * present Play (empty or failed) ahead of Refresh (every row). These two menus read the
+ * same four run actions the user already met on the action bar, so they must not invert
+ * the pair — see `.claude/rules/sim-list-ordering.md`.
+ */
 function runMenuLabels(hasActiveFilter: boolean) {
   const rows = hasActiveFilter ? 'filtered rows' : 'rows'
   return {
@@ -160,34 +166,31 @@ export function ColumnOptionsMenu({
         onCloseAutoFocus={(e) => e.preventDefault()}
       >
         {showRunActions && (
-          <>
-            <DropdownMenuSub>
-              <DropdownMenuSubTrigger>
-                <PlayOutline />
-                Run
-              </DropdownMenuSubTrigger>
-              <DropdownMenuSubContent>
-                {showRunSelected && (
-                  <DropdownMenuItem onSelect={() => onRunColumnSelected?.()}>
-                    {`Run ${selectedRowCount} selected ${selectedRowCount === 1 ? 'row' : 'rows'}`}
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger>
+              <PlayOutline />
+              Run
+            </DropdownMenuSubTrigger>
+            <DropdownMenuSubContent>
+              {showRunSelected && (
+                <DropdownMenuItem onSelect={() => onRunColumnSelected?.()}>
+                  {`Run ${selectedRowCount} selected ${selectedRowCount === 1 ? 'row' : 'rows'}`}
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuItem onSelect={() => onRunColumnIncomplete?.()}>
+                {runLabels.incomplete}
+              </DropdownMenuItem>
+              {onRunColumnLimited &&
+                LIMITED_RUN_PRESETS.map((max) => (
+                  <DropdownMenuItem key={max} onSelect={() => onRunColumnLimited(max)}>
+                    {runLabels.limited(max)}
                   </DropdownMenuItem>
-                )}
-                <DropdownMenuItem onSelect={() => onRunColumnAll?.()}>
-                  {runLabels.all}
-                </DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => onRunColumnIncomplete?.()}>
-                  {runLabels.incomplete}
-                </DropdownMenuItem>
-                {onRunColumnLimited &&
-                  LIMITED_RUN_PRESETS.map((max) => (
-                    <DropdownMenuItem key={max} onSelect={() => onRunColumnLimited(max)}>
-                      {runLabels.limited(max)}
-                    </DropdownMenuItem>
-                  ))}
-              </DropdownMenuSubContent>
-            </DropdownMenuSub>
-            <DropdownMenuSeparator />
-          </>
+                ))}
+              <DropdownMenuItem onSelect={() => onRunColumnAll?.()}>
+                {runLabels.all}
+              </DropdownMenuItem>
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
         )}
         {/* Sort leads the column-scoped block: the options bar reads Filter ·
             Sort · Columns, and this menu carries no Filter item, so Sort is the
@@ -217,7 +220,6 @@ export function ColumnOptionsMenu({
               <ArrowDown />
               Sort descending
             </DropdownMenuItem>
-            <DropdownMenuSeparator />
           </>
         )}
         {onViewWorkflow && (
@@ -236,6 +238,8 @@ export function ColumnOptionsMenu({
             {isPinned ? 'Unpin column' : 'Pin column'}
           </DropdownMenuItem>
         )}
+        {/* Stops acting on this column and starts creating siblings — `Edit column`
+            above is unconditional, so the rule is always backed. */}
         <DropdownMenuSeparator />
         <DropdownMenuItem onSelect={() => onInsertLeft(column.key)}>
           <ArrowLeft />
@@ -515,7 +519,6 @@ export function WorkflowGroupMetaCell({
                   {`Run ${selectedCount} selected ${selectedCount === 1 ? 'row' : 'rows'}`}
                 </DropdownMenuItem>
               )}
-              <DropdownMenuItem onSelect={handleRunAll}>{runLabels.all}</DropdownMenuItem>
               <DropdownMenuItem onSelect={handleRunIncomplete}>
                 {runLabels.incomplete}
               </DropdownMenuItem>
@@ -524,6 +527,7 @@ export function WorkflowGroupMetaCell({
                   {runLabels.limited(max)}
                 </DropdownMenuItem>
               ))}
+              <DropdownMenuItem onSelect={handleRunAll}>{runLabels.all}</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         )}

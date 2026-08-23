@@ -131,6 +131,91 @@ describe('collectForkDependentReconfigs', () => {
     ])
   })
 
+  it('anchors duplicate trigger selectors to the active trigger credential', () => {
+    vi.mocked(getBlock).mockReturnValue(
+      blockWith([
+        {
+          id: 'credential',
+          title: 'Credential',
+          type: 'oauth-input',
+          canonicalParamId: 'oauthCredential',
+          mode: 'basic',
+        },
+        {
+          id: 'workspacePicker',
+          title: 'Workspace',
+          type: 'project-selector',
+          canonicalParamId: 'workspaceSlug',
+          selectorKey: 'bitbucket.workspaces',
+          dependsOn: ['credential'],
+          mode: 'basic',
+        },
+        {
+          id: 'selectedTriggerId',
+          title: 'Trigger Type',
+          type: 'dropdown',
+          mode: 'trigger',
+        },
+        {
+          id: 'triggerCredentials',
+          title: 'Trigger Credential',
+          type: 'oauth-input',
+          canonicalParamId: 'oauthCredential',
+          mode: 'trigger',
+          condition: { field: 'selectedTriggerId', value: 'bitbucket_push' },
+        },
+        {
+          id: 'workspacePicker',
+          title: 'Workspace',
+          type: 'project-selector',
+          canonicalParamId: 'workspaceSlug',
+          selectorKey: 'bitbucket.workspaces',
+          dependsOn: ['triggerCredentials'],
+          mode: 'trigger',
+          condition: { field: 'selectedTriggerId', value: 'bitbucket_push' },
+        },
+        {
+          id: 'triggerCredentials',
+          title: 'Trigger Credential',
+          type: 'oauth-input',
+          canonicalParamId: 'oauthCredential',
+          mode: 'trigger',
+          condition: { field: 'selectedTriggerId', value: 'bitbucket_pull_request_created' },
+        },
+        {
+          id: 'workspacePicker',
+          title: 'Workspace',
+          type: 'project-selector',
+          canonicalParamId: 'workspaceSlug',
+          selectorKey: 'bitbucket.workspaces',
+          dependsOn: ['triggerCredentials'],
+          mode: 'trigger',
+          condition: { field: 'selectedTriggerId', value: 'bitbucket_pull_request_created' },
+        },
+      ])
+    )
+    const state = sourceState('bitbucket', {
+      credential: { value: 'dormant-action-credential' },
+      selectedTriggerId: { value: 'bitbucket_push' },
+      triggerCredentials: { value: 'active-trigger-credential' },
+      workspacePicker: { value: 'acme' },
+    })
+    state.blocks['block-1'].triggerMode = true
+
+    const result = collectForkDependentReconfigs(
+      [replaceItem],
+      new Map([['wf-src', state]]),
+      resolve
+    )
+
+    expect(result).toHaveLength(1)
+    expect(result[0]).toMatchObject({
+      parentSourceId: 'active-trigger-credential',
+      subBlockKey: 'workspacePicker',
+      currentValue: 'acme',
+    })
+  })
+
   it('skips an anchor whose canonical pair is in advanced (manual) mode - the value passes through', () => {
     vi.mocked(getBlock).mockReturnValue(
       blockWith([

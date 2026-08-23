@@ -1,10 +1,22 @@
-import { generateId } from '@sim/utils/id'
+import {
+  type BrexDeliveryContextParams,
+  brexIdempotencyHeader,
+  defineBrexKeyedSite,
+} from '@/tools/brex/idempotency'
 import type { BrexCreateBudgetParams, BrexCreateBudgetResponse } from '@/tools/brex/types'
 import { BREX_MONEY_PROPERTIES } from '@/tools/brex/types'
 import { BREX_API_BASE, buildBrexHeaders, parseBrexJson, splitBrexIdList } from '@/tools/brex/utils'
 import type { ToolConfig } from '@/tools/types'
 
-export const brexCreateBudgetTool: ToolConfig<BrexCreateBudgetParams, BrexCreateBudgetResponse> = {
+const DELIVERY = defineBrexKeyedSite(
+  'brex_create_budget',
+  'a second budget of the same amount would be created, doubling the spend the company has authorized'
+)
+
+export const brexCreateBudgetTool: ToolConfig<
+  BrexCreateBudgetParams & BrexDeliveryContextParams,
+  BrexCreateBudgetResponse
+> = {
   id: 'brex_create_budget',
   name: 'Brex Create Budget',
   description: 'Create a new budget in the Brex account',
@@ -78,7 +90,7 @@ export const brexCreateBudgetTool: ToolConfig<BrexCreateBudgetParams, BrexCreate
     method: 'POST',
     headers: (params) => ({
       ...buildBrexHeaders(params.apiKey),
-      'Idempotency-Key': generateId(),
+      ...brexIdempotencyHeader(DELIVERY, params),
     }),
     body: (params) => {
       const body: Record<string, unknown> = {

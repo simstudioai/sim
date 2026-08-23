@@ -1078,6 +1078,7 @@ describe('Enterprise issuance outbox handler', () => {
         metadata: expect.objectContaining({
           invoiceAmountCents: '120000',
           reportingPeriodAnchorDate: '2026-08-01',
+          reportingPeriodInterval: 'year',
         }),
       }),
       expect.any(Object)
@@ -1251,6 +1252,8 @@ describe('Enterprise metadata outbox handler', () => {
         seats: 15,
         usageLimitCredits: 35000,
         concurrencyLimit: 1250,
+        reportingPeriodAnchorDate: '2026-05-01',
+        reportingPeriodInterval: 'year',
       },
     }
     queueTableRows(schemaMock.subscription, [
@@ -1259,7 +1262,15 @@ describe('Enterprise metadata outbox handler', () => {
     queueTableRows(schemaMock.subscription, [{ metadata: {} }])
     queueTableRows(schemaMock.outboxEvent, [{ id: 'metadata-event-1', payload }])
     queueTableRows(schemaMock.member, [{ value: 10 }])
-    mocks.subscriptionsUpdate.mockResolvedValue({ id: 'sub_1' })
+    mocks.subscriptionsRetrieve.mockResolvedValue({
+      id: 'sub_1',
+      metadata: {},
+      pause_collection: { behavior: 'keep_as_draft', resumes_at: null },
+    })
+    mocks.subscriptionsUpdate.mockResolvedValue({
+      id: 'sub_1',
+      pause_collection: { behavior: 'keep_as_draft', resumes_at: null },
+    })
     const checkpointPayload = vi.fn()
 
     await expect(
@@ -1289,17 +1300,21 @@ describe('Enterprise metadata outbox handler', () => {
         metadata: expect.objectContaining({
           seats: '15',
           concurrencyLimit: '1250',
+          reportingPeriodAnchorDate: '2026-05-01',
+          reportingPeriodInterval: 'year',
           simConfigRevision: '4',
           simConfigOperationId: 'metadata-event-1',
           simConfigDeliveryRevision: '0',
           simConfigDeliveryAttempt: '0',
         }),
-        expand: ['latest_invoice'],
       },
       {
         idempotencyKey: 'enterprise-config:local-sub-1:metadata-event-1:delivery:0:attempt:0',
       }
     )
+    expect(mocks.pricesCreate).not.toHaveBeenCalled()
+    expect(mocks.invoicesUpdate).not.toHaveBeenCalled()
+    expect(mocks.subscriptionsRetrieve).toHaveBeenCalledWith('sub_1')
   })
 
   it('does not send a seat decrease below current pending reservations to Stripe', async () => {
@@ -1351,7 +1366,12 @@ describe('Enterprise metadata outbox handler', () => {
     queueTableRows(schemaMock.subscription, [{ metadata: {} }])
     queueTableRows(schemaMock.outboxEvent, [{ id: 'metadata-event-2', payload }])
     queueTableRows(schemaMock.member, [{ value: 10 }])
-    mocks.subscriptionsUpdate.mockResolvedValue({ id: 'sub_1' })
+    mocks.subscriptionsRetrieve.mockResolvedValue({
+      id: 'sub_1',
+      metadata: {},
+      pause_collection: null,
+    })
+    mocks.subscriptionsUpdate.mockResolvedValue({ id: 'sub_1', pause_collection: null })
 
     await expect(
       syncEnterpriseMetadataInStripe(payload, {
@@ -1430,33 +1450,79 @@ describe('Enterprise metadata outbox handler', () => {
     expect(mocks.subscriptionsUpdate).not.toHaveBeenCalled()
   })
 
-  it('repairs a paused cadence-change invoice before waiting for the webhook', async () => {
+  it('retires an unapplied legacy commercial intent even when its seats are now too low', async () => {
     const payload = {
       subscriptionId: 'local-sub-1',
       revision: 7,
-      deliveryRevision: 1,
-      acknowledgement: {
-        startedAt: '2026-08-13T00:00:00.000Z',
-        deadlineAt: '2099-08-13T00:30:00.000Z',
-      },
+      deliveryRevision: 0,
       metadata: {
         plan: 'enterprise',
         referenceId: 'org-1',
-        seats: 15,
+        seats: 5,
         invoiceAmountCents: 120000,
+        reportingPeriodAnchorDate: '2026-05-01',
       },
       terms: { invoiceAmountCents: 120000, billingInterval: 'year' as const },
-      stripeProgress: { priceId: 'price_year' },
-      deliveryState: {
-        priorPause: { behavior: 'keep_as_draft' as const, resumesAt: null },
-        billingIntervalChanged: true,
-      },
+      stripeProgress: {},
     }
     queueTableRows(schemaMock.subscription, [
       { stripeSubscriptionId: 'sub_1', referenceId: 'org-1', metadata: {} },
     ])
     queueTableRows(schemaMock.subscription, [{ metadata: {} }])
-    queueTableRows(schemaMock.outboxEvent, [{ id: 'metadata-event-recovery', payload }])
+    queueTableRows(schemaMock.outboxEvent, [{ id: 'legacy-terms-event', payload }])
+    queueTableRows(schemaMock.member, [{ value: 10 }])
+    mocks.subscriptionsRetrieve.mockResolvedValue({
+      id: 'sub_1',
+      metadata: {},
+      items: { data: [] },
+      pause_collection: { behavior: 'keep_as_draft', resumes_at: null },
+    })
+    const checkpointPayload = vi.fn()
+
+    await expect(
+      syncEnterpriseMetadataInStripe(payload, {
+        eventId: 'legacy-terms-event',
+        eventType: 'stripe.sync-enterprise-metadata',
+        attempts: 7,
+        checkpointPayload,
+      })
+    ).resolves.toBeUndefined()
+
+    expect(mocks.subscriptionsRetrieve).toHaveBeenCalledWith('sub_1')
+    expect(checkpointPayload).toHaveBeenCalledWith({
+      commercialTermsRetiredAt: expect.any(String),
+    })
+    expect(mocks.subscriptionsUpdate).not.toHaveBeenCalled()
+    expect(mocks.pricesCreate).not.toHaveBeenCalled()
+    expect(mocks.invoicesUpdate).not.toHaveBeenCalled()
+  })
+
+  it('finishes verification when Stripe already contains an accepted legacy commercial intent', async () => {
+    const payload = {
+      subscriptionId: 'local-sub-1',
+      revision: 7,
+      deliveryRevision: 2,
+      metadata: {
+        plan: 'enterprise',
+        referenceId: 'org-1',
+        seats: 15,
+        invoiceAmountCents: 120000,
+        reportingPeriodAnchorDate: '2026-05-01',
+      },
+      terms: { invoiceAmountCents: 120000, billingInterval: 'year' as const },
+      commercialTermsRetiredAt: '2026-08-21T18:01:00.000Z',
+      deliveryState: {
+        priorPause: { behavior: 'keep_as_draft' as const, resumesAt: null },
+        billingIntervalChanged: true,
+        providerAcceptedAt: '2026-08-21T18:00:00.000Z',
+      },
+      stripeProgress: { priceId: 'price_year' },
+    }
+    queueTableRows(schemaMock.subscription, [
+      { stripeSubscriptionId: 'sub_1', referenceId: 'org-1', metadata: {} },
+    ])
+    queueTableRows(schemaMock.subscription, [{ metadata: {} }])
+    queueTableRows(schemaMock.outboxEvent, [{ id: 'accepted-legacy-terms-event', payload }])
     queueTableRows(schemaMock.member, [{ value: 10 }])
     mocks.subscriptionsRetrieve.mockResolvedValue({
       id: 'sub_1',
@@ -1465,15 +1531,15 @@ describe('Enterprise metadata outbox handler', () => {
         referenceId: 'org-1',
         seats: '15',
         invoiceAmountCents: '120000',
-        simConfigOperationId: 'metadata-event-recovery',
+        reportingPeriodAnchorDate: '2026-05-01',
+        simConfigOperationId: 'accepted-legacy-terms-event',
         simConfigRevision: '7',
-        simConfigDeliveryRevision: '1',
+        simConfigDeliveryRevision: '2',
       },
-      schedule: null,
       collection_method: 'send_invoice',
       days_until_due: 30,
+      schedule: null,
       pause_collection: { behavior: 'keep_as_draft', resumes_at: null },
-      latest_invoice: { id: 'in_change', status: 'draft', auto_advance: true },
       items: {
         data: [
           {
@@ -1491,25 +1557,86 @@ describe('Enterprise metadata outbox handler', () => {
 
     await expect(
       syncEnterpriseMetadataInStripe(payload, {
-        eventId: 'metadata-event-recovery',
+        eventId: 'accepted-legacy-terms-event',
         eventType: 'stripe.sync-enterprise-metadata',
-        attempts: 2,
+        attempts: 7,
         checkpointPayload,
       })
-    ).resolves.toMatchObject({ outcome: 'deferred', consumeAttempt: false })
+    ).resolves.toMatchObject({
+      outcome: 'deferred',
+      consumeAttempt: false,
+      reason: 'Waiting for the verified Stripe webhook acknowledgement',
+    })
 
+    expect(checkpointPayload).toHaveBeenNthCalledWith(1, {
+      deliveryState: expect.objectContaining({
+        providerAcceptedAt: '2026-08-21T18:00:00.000Z',
+        verifiedAt: expect.any(String),
+      }),
+    })
+    expect(checkpointPayload).toHaveBeenNthCalledWith(2, {
+      acknowledgement: expect.objectContaining({
+        startedAt: expect.any(String),
+        deadlineAt: expect.any(String),
+      }),
+    })
     expect(mocks.subscriptionsUpdate).not.toHaveBeenCalled()
-    expect(mocks.invoicesUpdate).toHaveBeenCalledWith(
-      'in_change',
-      { auto_advance: false },
-      { idempotencyKey: 'enterprise:metadata-event-recovery:initial-invoice-draft' }
+    expect(mocks.pricesCreate).not.toHaveBeenCalled()
+    expect(mocks.invoicesUpdate).not.toHaveBeenCalled()
+  })
+
+  it('keeps an accepted legacy commercial intent fail-closed when Stripe no longer matches', async () => {
+    const payload = {
+      subscriptionId: 'local-sub-1',
+      revision: 7,
+      deliveryRevision: 2,
+      metadata: {
+        plan: 'enterprise',
+        referenceId: 'org-1',
+        seats: 15,
+        invoiceAmountCents: 120000,
+        reportingPeriodAnchorDate: '2026-05-01',
+      },
+      terms: { invoiceAmountCents: 120000, billingInterval: 'year' as const },
+      commercialTermsRetiredAt: '2026-08-21T18:01:00.000Z',
+      deliveryState: {
+        priorPause: { behavior: 'keep_as_draft' as const, resumesAt: null },
+        billingIntervalChanged: true,
+        providerAcceptedAt: '2026-08-21T18:00:00.000Z',
+      },
+      stripeProgress: { priceId: 'price_year' },
+    }
+    queueTableRows(schemaMock.subscription, [
+      { stripeSubscriptionId: 'sub_1', referenceId: 'org-1', metadata: {} },
+    ])
+    queueTableRows(schemaMock.subscription, [{ metadata: {} }])
+    queueTableRows(schemaMock.outboxEvent, [{ id: 'accepted-legacy-terms-event', payload }])
+    queueTableRows(schemaMock.member, [{ value: 10 }])
+    mocks.subscriptionsRetrieve.mockResolvedValue({
+      id: 'sub_1',
+      metadata: {},
+      items: { data: [] },
+      pause_collection: { behavior: 'keep_as_draft', resumes_at: null },
+    })
+    const checkpointPayload = vi.fn()
+
+    await expect(
+      syncEnterpriseMetadataInStripe(payload, {
+        eventId: 'accepted-legacy-terms-event',
+        eventType: 'stripe.sync-enterprise-metadata',
+        attempts: 7,
+        checkpointPayload,
+      })
+    ).rejects.toThrow(
+      'Legacy Enterprise commercial terms were accepted by Stripe but no longer match; manual reconciliation is required'
     )
-    expect(checkpointPayload).toHaveBeenCalledWith({
-      deliveryState: expect.objectContaining({ providerAcceptedAt: expect.any(String) }),
+
+    expect(checkpointPayload).not.toHaveBeenCalledWith({
+      commercialTermsRetiredAt: expect.any(String),
     })
-    expect(checkpointPayload).toHaveBeenCalledWith({
-      deliveryState: expect.objectContaining({ verifiedAt: expect.any(String) }),
-    })
+    expect(mocks.subscriptionsUpdate).not.toHaveBeenCalled()
+    expect(mocks.pricesCreate).not.toHaveBeenCalled()
+    expect(mocks.invoicesUpdate).not.toHaveBeenCalled()
   })
 
   it('consumes the finite missing-ack budget only after the durable grace deadline', async () => {
@@ -1551,7 +1678,7 @@ describe('Enterprise metadata outbox handler', () => {
     })
   })
 
-  it('replaces the single Enterprise Price in place without proration', async () => {
+  it('does not replace a Stripe Price for a legacy interval-change intent', async () => {
     const payload = {
       subscriptionId: 'local-sub-1',
       revision: 6,
@@ -1606,27 +1733,17 @@ describe('Enterprise metadata outbox handler', () => {
         attempts: 0,
         checkpointPayload,
       })
-    ).resolves.toMatchObject({ outcome: 'deferred' })
+    ).resolves.toBeUndefined()
 
-    expect(mocks.subscriptionsUpdate).toHaveBeenCalledWith(
-      'sub_1',
-      expect.objectContaining({
-        items: [{ id: 'si_1', price: 'price_year', quantity: 1 }],
-        proration_behavior: 'none',
-        billing_cycle_anchor: 'now',
-        metadata: expect.objectContaining({
-          invoiceAmountCents: '120000',
-          reportingPeriodAnchorDate: '2026-01-31',
-        }),
-      }),
-      expect.any(Object)
-    )
+    expect(mocks.subscriptionsRetrieve).toHaveBeenCalledWith('sub_1')
+    expect(mocks.pricesCreate).not.toHaveBeenCalled()
+    expect(mocks.subscriptionsUpdate).not.toHaveBeenCalled()
     expect(checkpointPayload).toHaveBeenCalledWith({
-      stripeProgress: { priceId: 'price_year' },
+      commercialTermsRetiredAt: expect.any(String),
     })
   })
 
-  it('preserves paused collection and freezes the cadence-change invoice as a draft', async () => {
+  it('does not touch a paused subscription for a legacy commercial intent', async () => {
     const payload = {
       subscriptionId: 'local-sub-1',
       revision: 7,
@@ -1677,22 +1794,21 @@ describe('Enterprise metadata outbox handler', () => {
       latest_invoice: { id: 'in_change', status: 'draft', auto_advance: true },
     })
 
-    await syncEnterpriseMetadataInStripe(payload, {
-      eventId: 'metadata-event-paused',
-      eventType: 'stripe.sync-enterprise-metadata',
-      attempts: 0,
-      checkpointPayload: vi.fn(),
-    })
+    await expect(
+      syncEnterpriseMetadataInStripe(payload, {
+        eventId: 'metadata-event-paused',
+        eventType: 'stripe.sync-enterprise-metadata',
+        attempts: 0,
+        checkpointPayload: vi.fn(),
+      })
+    ).resolves.toBeUndefined()
 
-    expect(mocks.invoicesUpdate).toHaveBeenCalledWith(
-      'in_change',
-      { auto_advance: false },
-      { idempotencyKey: 'enterprise:metadata-event-paused:initial-invoice-draft' }
-    )
-    expect(mocks.subscriptionsUpdate.mock.calls[0][1]).not.toHaveProperty('pause_collection')
+    expect(mocks.subscriptionsRetrieve).toHaveBeenCalledWith('sub_1')
+    expect(mocks.invoicesUpdate).not.toHaveBeenCalled()
+    expect(mocks.subscriptionsUpdate).not.toHaveBeenCalled()
   })
 
-  it('does not treat an old paid invoice as a failed paused amount-only update', async () => {
+  it('does not inspect invoices for a legacy amount-change intent', async () => {
     const payload = {
       subscriptionId: 'local-sub-1',
       revision: 8,
@@ -1751,13 +1867,14 @@ describe('Enterprise metadata outbox handler', () => {
         attempts: 0,
         checkpointPayload: vi.fn(),
       })
-    ).resolves.toMatchObject({ outcome: 'deferred' })
+    ).resolves.toBeUndefined()
 
+    expect(mocks.subscriptionsRetrieve).toHaveBeenCalledWith('sub_1')
     expect(mocks.invoicesUpdate).not.toHaveBeenCalled()
-    expect(mocks.subscriptionsUpdate.mock.calls[0][1]).not.toHaveProperty('billing_cycle_anchor')
+    expect(mocks.subscriptionsUpdate).not.toHaveBeenCalled()
   })
 
-  it('rejects billing-term changes controlled by a Stripe Schedule', async () => {
+  it('retires a legacy billing-term intent without touching its Stripe Schedule', async () => {
     const payload = {
       subscriptionId: 'local-sub-1',
       revision: 6,
@@ -1788,7 +1905,8 @@ describe('Enterprise metadata outbox handler', () => {
         attempts: 0,
         checkpointPayload: vi.fn(),
       })
-    ).rejects.toThrow('Stripe Schedule')
+    ).resolves.toBeUndefined()
+    expect(mocks.subscriptionsRetrieve).toHaveBeenCalledWith('sub_1')
     expect(mocks.subscriptionsUpdate).not.toHaveBeenCalled()
   })
 

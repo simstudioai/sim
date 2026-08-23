@@ -177,3 +177,12 @@ export function getPlaceholderForFieldType(fieldType: string): string {
       return 'Enter value'
   }
 }
+
+/**
+ * How long a document may sit in `processing` before its run is treated as dead.
+ *
+ * Lives here rather than beside the server-side claim helpers so the client can
+ * read the same number without importing a module that pulls in the database
+ * client. `processing-claim.ts` re-exports it for its own callers.
+ */
+export const KNOWLEDGE_DOCUMENT_PROCESSING_STALE_THRESHOLD_MS = 10 * 60 * 1000

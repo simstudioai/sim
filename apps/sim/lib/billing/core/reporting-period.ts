@@ -3,6 +3,7 @@ import { defaultBillingPeriod } from '@/lib/billing/core/billing-period'
 import { isEnterprise } from '@/lib/billing/plan-helpers'
 
 export const ENTERPRISE_REPORTING_PERIOD_ANCHOR_METADATA_KEY = 'reportingPeriodAnchorDate'
+export const ENTERPRISE_REPORTING_PERIOD_INTERVAL_METADATA_KEY = 'reportingPeriodInterval'
 
 export type BillingInterval = 'month' | 'year'
 export type UsagePeriodSource = 'reporting' | 'stripe' | 'default'
@@ -92,7 +93,9 @@ export function resolveSubscriptionUsagePeriod(
   if (subscription && isEnterprise(subscription.plan)) {
     const metadata = isRecordLike(subscription.metadata) ? subscription.metadata : {}
     const anchor = metadata[ENTERPRISE_REPORTING_PERIOD_ANCHOR_METADATA_KEY]
-    const interval = parseBillingInterval(subscription.billingInterval)
+    const interval =
+      parseBillingInterval(metadata[ENTERPRISE_REPORTING_PERIOD_INTERVAL_METADATA_KEY]) ??
+      parseBillingInterval(subscription.billingInterval)
     if (typeof anchor === 'string' && interval) {
       const reportingPeriod = resolveEnterpriseReportingPeriod(anchor, interval, now)
       if (reportingPeriod) return reportingPeriod

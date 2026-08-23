@@ -19,11 +19,16 @@ import {
 } from '@/lib/workflows/custom-blocks/child-execution'
 import { getCustomBlockAuthority } from '@/lib/workflows/custom-blocks/operations'
 import { extractInputFieldsFromBlocks } from '@/lib/workflows/input-format'
-import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 import { type CustomBlockOutput, isCustomBlockType } from '@/blocks/custom/build-config'
 import type { BlockOutput } from '@/blocks/types'
 import { Executor } from '@/executor'
-import { BlockType, CHILD_EXECUTION_ID_OUTPUT_KEY, DEFAULTS, HTTP } from '@/executor/constants'
+import {
+  BlockType,
+  CHILD_EXECUTION_ID_OUTPUT_KEY,
+  CHILD_TRACE_DISABLED_OUTPUT_KEY,
+  DEFAULTS,
+  HTTP,
+} from '@/executor/constants'
 import {
   BoundarySafeError,
   type CustomBlockErrorType,
@@ -147,6 +152,22 @@ export function remapCustomBlockInputKeys(
   return remapped
 }
 
+/**
+ * What a finished custom-block invocation tells the caller about its child run:
+ * the handle that joins the child's spans at read time, or — when the publisher has
+ * not opened this block — only that a child ran and was not traced. Never both, so
+ * an unopened block has no handle for anything downstream to join.
+ */
+function buildChildTraceHandle(
+  childExecutionId: string | undefined,
+  traceChildRuns: boolean
+): Record<string, unknown> {
+  if (!childExecutionId) return {}
+  return traceChildRuns
+    ? { [CHILD_EXECUTION_ID_OUTPUT_KEY]: childExecutionId }
+    : { [CHILD_TRACE_DISABLED_OUTPUT_KEY]: true }
+}
+
 type WorkflowTraceSpan = TraceSpan & {
   metadata?: Record<string, unknown>
   children?: WorkflowTraceSpan[]
@@ -193,6 +214,18 @@ export class WorkflowBlockHandler implements BlockHandler {
     const blockTypeId = block.metadata?.id
     const isCustomBlock = isCustomBlockType(blockTypeId)
 
+    // Whether this invocation publishes its child run to the caller: streams the
+    // source workflow's block events live, and persists the handle that joins the
+    // child's spans into the caller's trace at read time.
+    //
+    // The PUBLISHER decides, per block, org-wide — it is their workflow's internals
+    // being exposed — and that decision is the whole policy: nothing downstream
+    // re-checks who is reading. Resolved from `getCustomBlockAuthority` below, so it
+    // is a server-side property of the block rather than anything a consumer's
+    // workflow can assert. A regular workflow block is not a boundary at all; its
+    // child is the same run and always belongs in the trace.
+    let traceChildRuns = !isCustomBlock
+
     // Custom (deploy-as-block) blocks are an invocation boundary: resolve the bound
     // workflow + authority from the DB (never trust the serialized value) and run the
     // source workflow's LATEST deployment under its OWNER's authority — the same
@@ -220,13 +253,15 @@ export class WorkflowBlockHandler implements BlockHandler {
           }),
           block,
           instanceId,
-          undefined
+          undefined,
+          traceChildRuns
         )
       }
       workflowId = authority.workflowId
       loadUserId = authority.ownerUserId
       exposedOutputs = authority.exposedOutputs
       requiredInputIds = authority.requiredInputIds
+      traceChildRuns = authority.traceChildRuns
 
       // Curation is required at publish, so this only trips on a row that
       // predates that rule. Fail loudly rather than fall back to exposing the
@@ -240,7 +275,8 @@ export class WorkflowBlockHandler implements BlockHandler {
           }),
           block,
           instanceId,
-          undefined
+          undefined,
+          traceChildRuns
         )
       }
     }
@@ -401,15 +437,16 @@ export class WorkflowBlockHandler implements BlockHandler {
       const withinSseChildDepth = childDepth <= DEFAULTS.MAX_SSE_CHILD_DEPTH
       // Forwarding the consumer's SSE callbacks into a custom block's source run
       // streams the publisher's block names, inputs, outputs, and raw agent tokens
-      // to whoever holds the stream. That is only safe when the stream has exactly
-      // one known, authenticated viewer AND that viewer can already read the source
-      // workspace — which is what `canStreamCustomBlockToViewer` establishes. Every
-      // surface whose consumer may be anonymous (chat deployments, public API)
-      // leaves `liveTraceViewerUserId` unset, so the boundary holds by default.
+      // to whoever holds the stream. The publisher's `traceChildRuns` is what permits
+      // that, and it is checked against no viewer — but it is a decision about what
+      // the ORG may see, so it still requires a stream with a known, authenticated
+      // consumer. `liveTraceViewerUserId` is set only by surfaces whose consumer is a
+      // signed-in Sim user; chat deployments and the public API leave it unset, and a
+      // publisher opting in has not thereby opted into an anonymous visitor on the
+      // internet receiving their agent's raw tokens.
       const shouldPropagateCallbacks =
         withinSseChildDepth &&
-        (!isCustomBlock ||
-          (await this.canStreamCustomBlockToViewer(ctx, childWorkflow.workspaceId)))
+        (!isCustomBlock || (traceChildRuns && Boolean(ctx.liveTraceViewerUserId)))
 
       if (!withinSseChildDepth && !isCustomBlock) {
         logger.info('Dropping SSE callbacks beyond max child depth', {
@@ -608,7 +645,7 @@ export class WorkflowBlockHandler implements BlockHandler {
 
       const activeSession = childSession
       const emitsSessionMarkers = Boolean(activeSession && childSessionStarted)
-      // A custom block streaming to an authorized viewer needs BOTH sinks: its own
+      // A custom block that is streaming needs BOTH sinks: its own
       // logging session's progress markers, and the parent's live stream. They are
       // composed into one fan-out rather than spread into the options object twice
       // — two spreads of the same keys silently keep only the last, which would
@@ -729,8 +766,8 @@ export class WorkflowBlockHandler implements BlockHandler {
           // A custom block's own session markers and the parent's live stream, fanned
           // out together — see `childCallbacks` above for why this is not two spreads.
           ...childCallbacks,
-          // A live viewer of a custom block is authorized against the source
-          // workspace, so the child may name it. Deeper hops inherit the same gate.
+          // The publisher opened this block's runs to the org, so the child may name
+          // the source. Deeper hops inherit the same gate.
           liveTraceViewerUserId: shouldPropagateCallbacks ? ctx.liveTraceViewerUserId : undefined,
           // The emit-only sink travels WITH the viewer id, or a nested hop would clear the
           // access check and then have nothing to stream through — live traces would stop
@@ -770,15 +807,16 @@ export class WorkflowBlockHandler implements BlockHandler {
       }
 
       // A custom block's spans are never PERSISTED into the parent's log — they belong to
-      // the child's own row in the source workspace and are joined at read time, per viewer
-      // (`hydrateChildTraces`). `createSpanFromLog` enforces that: it only calls
-      // `attachChildWorkflowSpans` for `isWorkflowBlockType`, which excludes custom blocks.
+      // the child's own row in the source workspace and are joined at read time from the
+      // opaque handle (`hydrateChildTraces`). `createSpanFromLog` enforces that: it only
+      // calls `attachChildWorkflowSpans` for `isWorkflowBlockType`, which excludes custom
+      // blocks.
       //
-      // They ARE handed to a live viewer who has already been authorized against the source
-      // workspace, so the terminal can reconcile a child row whose `block:completed` event
-      // was dropped. Projected through the CHILD's session: the invoking run's registry knows
-      // nothing about the publisher's secrets, so projecting there would leave a source-owner
-      // credential unmasked in the consumer's stream.
+      // They ARE handed to a live stream the publisher's policy has opened, so the terminal
+      // can reconcile a child row whose `block:completed` event was dropped. Projected
+      // through the CHILD's session: the invoking run's registry knows nothing about the
+      // publisher's secrets, so projecting there would leave a source-owner credential
+      // unmasked in the consumer's stream.
       let childTraceSpans: WorkflowTraceSpan[] = []
       if (!isCustomBlock) {
         childTraceSpans = this.captureChildWorkflowLogs(executionResult, childWorkflowName, ctx)
@@ -819,10 +857,15 @@ export class WorkflowBlockHandler implements BlockHandler {
         // curated payload. The block executor lifts `_childExecutionId` onto the
         // block log and strips it before the output reaches workflow state, so it
         // never becomes referenceable from the consumer's own blocks.
+        //
+        // With tracing off the handle is withheld outright rather than persisted
+        // behind a flag: there is then nothing to join, so the opt-out cannot be
+        // undone by a reader, a later migration, or a dropped field. The marker
+        // that replaces it says a child ran, which the span already says.
         return {
           ...exposedOutput,
-          ...(childExecutionId ? { [CHILD_EXECUTION_ID_OUTPUT_KEY]: childExecutionId } : {}),
-          // Both are only set while the child is streaming to an authorized viewer. The
+          ...buildChildTraceHandle(childExecutionId, traceChildRuns),
+          // Both are only set while the child is streaming to an identified consumer. The
           // instance id is how the terminal correlates the child's live rows back to this
           // invocation; the spans let it reconcile a row whose completion event was lost.
           // The block executor lifts them onto the block log and strips them from state.
@@ -851,7 +894,7 @@ export class WorkflowBlockHandler implements BlockHandler {
       // `buildBoundaryFailure` preserves an already-attached `consumerFacing`, so the
       // depth guard keeps its own classification.
       if (isCustomBlock) {
-        throw this.buildBoundaryFailure(error, block, instanceId, childExecutionId)
+        throw this.buildBoundaryFailure(error, block, instanceId, childExecutionId, traceChildRuns)
       }
 
       // An error this same invocation already attributed (e.g. the depth guard, or
@@ -962,37 +1005,6 @@ export class WorkflowBlockHandler implements BlockHandler {
   }
 
   /**
-   * Whether a custom block may stream the SOURCE workflow's block events into the
-   * invoking run's live trace.
-   *
-   * Two conditions, both required. First, the run must have a single known,
-   * authenticated viewer: `liveTraceViewerUserId` is set only by surfaces whose SSE
-   * consumer is a Sim user (an editor/manual run), never by chat deployments or the
-   * public API, whose consumer may be an anonymous visitor. Second, that viewer must
-   * already be able to read the source workspace — streaming reveals exactly what
-   * opening the source workspace's own logs would.
-   *
-   * Fail-closed on every uncertain path: no viewer, no source workspace, or an
-   * access check that throws all keep the boundary shut.
-   */
-  private async canStreamCustomBlockToViewer(
-    ctx: ExecutionContext,
-    sourceWorkspaceId: string | null | undefined
-  ): Promise<boolean> {
-    const viewerUserId = ctx.liveTraceViewerUserId
-    if (!viewerUserId || !sourceWorkspaceId) return false
-    try {
-      const access = await checkWorkspaceAccess(sourceWorkspaceId, viewerUserId)
-      return access.hasAccess === true
-    } catch (error) {
-      logger.warn('Custom block live-trace access check failed; keeping boundary closed', {
-        error: getErrorMessage(error),
-      })
-      return false
-    }
-  }
-
-  /**
    * The consumer-facing failure for a custom block. The invocation boundary means
    * the consumer must never see the source workflow's name, its nested error text
    * (which names internal blocks), its trace spans, or its execution result — the
@@ -1003,14 +1015,25 @@ export class WorkflowBlockHandler implements BlockHandler {
    * crosses verbatim. Everything else collapses to a generic failure: the default
    * is fail-closed, so a `throw` added later is redacted automatically. Deliberately
    * sets no `cause` — that is what severs the error chain at the trust boundary.
+   *
+   * `traceChildRuns` governs only the trace handle. The consumer-facing `ref` is
+   * unaffected: it is an opaque id the consumer is already given so a publisher can
+   * find the failing run, and suppressing it would take away the one thing that
+   * makes an untraced failure reportable.
    */
   private buildBoundaryFailure(
     error: unknown,
     block: SerializedBlock,
     instanceId: string,
-    childExecutionId: string | undefined
+    childExecutionId: string | undefined,
+    traceChildRuns: boolean
   ): ChildWorkflowError {
     const blockName = block.metadata?.name || 'Custom block'
+    const traceHandle = childExecutionId
+      ? traceChildRuns
+        ? { childExecutionId }
+        : { childTraceDisabled: true }
+      : {}
 
     // An error this invocation already classified for the consumer (the depth
     // guard) keeps its own type and message rather than collapsing to generic.
@@ -1024,7 +1047,7 @@ export class WorkflowBlockHandler implements BlockHandler {
         childWorkflowName: blockName,
         childWorkflowInstanceId: instanceId,
         consumerFacing: alreadyClassified,
-        ...(childExecutionId ? { childExecutionId } : {}),
+        ...traceHandle,
       })
     }
 
@@ -1047,7 +1070,7 @@ export class WorkflowBlockHandler implements BlockHandler {
       // Carried even when `ref` is withheld (boundary-safe failures such as
       // `cancelled` set no ref), so the parent's log always keeps the handle
       // needed to join the child's own run at read time.
-      ...(childExecutionId ? { childExecutionId } : {}),
+      ...traceHandle,
     })
   }
 

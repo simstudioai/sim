@@ -209,6 +209,8 @@ export function buildProviderConfig(
     Object.entries(block.subBlocks || {}).map(([key, value]) => [key, { value: value.value }])
   )
 
+  // canonical-index-unscoped: a trigger DEFINITION's subblocks are the trigger surface by
+  // construction — this never sees the host block's action fields.
   const canonicalIndex = buildCanonicalIndex(triggerDef.subBlocks)
   const satisfiedCanonicalIds = new Set<string>()
   const filledSubBlockIds = new Set<string>()

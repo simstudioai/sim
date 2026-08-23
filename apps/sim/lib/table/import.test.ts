@@ -12,7 +12,6 @@ import {
   CsvImportValidationError,
   coerceRowsForTable,
   coerceValue,
-  createCsvParser,
   csvParseOptions,
   dedupeHeaders,
   detectCsvDelimiter,
@@ -22,6 +21,7 @@ import {
   sanitizeName,
   validateMapping,
 } from '@/lib/table/import'
+import { createCsvParser } from '@/lib/table/import-stream'
 import type { TableSchema } from '@/lib/table/types'
 
 describe('import', () => {

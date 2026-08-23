@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import type { PostHog } from 'posthog-js'
 import { getEnv, isTruthy, publicEnvMissingAtModuleInit } from '@/lib/core/config/env'
+import { settlePostHogClient } from '@/lib/posthog/client'
+import { dropUnactionableExceptions } from '@/lib/posthog/exception-filter'
 
 const logger = createLogger('PostHogProvider')
 
@@ -18,7 +20,10 @@ export function PostHogProvider({ children }: { children: React.ReactNode }) {
     const posthogEnabled = getEnv('NEXT_PUBLIC_POSTHOG_ENABLED')
     const posthogKey = getEnv('NEXT_PUBLIC_POSTHOG_KEY')
 
-    if (!isTruthy(posthogEnabled) || !posthogKey) return
+    if (!isTruthy(posthogEnabled) || !posthogKey) {
+      settlePostHogClient(null)
+      return
+    }
 
     Promise.all([import('posthog-js'), import('posthog-js/react')])
       .then(([posthogModule, { PostHogProvider: PHProvider }]) => {
@@ -52,6 +57,14 @@ export function PostHogProvider({ children }: { children: React.ReactNode }) {
               capture_unhandled_rejections: true,
               capture_console_errors: false,
             },
+            /**
+             * Drops the browser artifacts that autocapture cannot help but
+             * see — resize-loop notices, opaque cross-origin failures, and
+             * cancelled requests. Filtering here rather than with a PostHog
+             * suppression rule keeps the list reviewable in the diff and stops
+             * the events before they leave the browser.
+             */
+            before_send: dropUnactionableExceptions,
             disable_session_recording: true,
             session_recording: {
               maskAllInputs: false,
@@ -88,6 +101,12 @@ export function PostHogProvider({ children }: { children: React.ReactNode }) {
             persistence: 'localStorage+cookie',
           })
         }
+        /**
+         * Releases anything captured while the imports above were in flight.
+         * Must run after `init`, since `capture` is a silent no-op until then.
+         */
+        settlePostHogClient(posthog)
+
         if (publicEnvMissingAtModuleInit) {
           posthog.capture('runtime_env_missing_at_module_init')
         }
@@ -95,6 +114,7 @@ export function PostHogProvider({ children }: { children: React.ReactNode }) {
         setProvider(() => PHProvider)
       })
       .catch((err) => {
+        settlePostHogClient(null)
         logger.error('Failed to load PostHog', { error: err })
       })
   }, [])

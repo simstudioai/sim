@@ -98,22 +98,3 @@ export function captureServerEvent<E extends PostHogEventName>(
     logger.warn('Failed to capture PostHog server event', { event, error })
   }
 }
-
-/** Captures and flushes one outbox event before its durable checkpoint advances. */
-export async function deliverOutboxServerEvent<E extends PostHogEventName>(
-  distinctId: string,
-  event: E,
-  properties: PostHogEventMap[E],
-  options?: CaptureOptions
-): Promise<'delivered' | 'skipped'> {
-  const client = getClient()
-  if (!client) return 'skipped'
-
-  client.capture({
-    distinctId,
-    event,
-    properties: buildCaptureProperties(properties, options),
-  })
-  await client.flush()
-  return 'delivered'
-}

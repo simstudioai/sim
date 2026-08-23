@@ -10,6 +10,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
   Duplicate,
   Layout,
@@ -742,6 +743,7 @@ export const Panel = memo(function Panel() {
                     <Duplicate />
                     Duplicate workflow
                   </DropdownMenuItem>
+                  <DropdownMenuSeparator />
                   <DropdownMenuItem
                     onSelect={() => {
                       setIsDeleteModalOpen(true)
@@ -929,6 +931,7 @@ export const Panel = memo(function Panel() {
 
                 <MothershipChat
                   className='min-h-0 flex-1'
+                  workspaceId={workspaceId}
                   messages={copilotMessages}
                   isSending={copilotIsSending}
                   isReconnecting={copilotIsReconnecting}

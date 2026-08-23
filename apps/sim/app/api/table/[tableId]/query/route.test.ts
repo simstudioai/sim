@@ -125,6 +125,119 @@ describe('POST /api/table/[tableId]/query', () => {
     expect(options.withExecutions).toBe(false)
   })
 
+  it('selects a stable column id and returns its current name to a workflow', async () => {
+    authAs('internal_jwt')
+    mockCheckAccess.mockResolvedValue({
+      ok: true,
+      table: createTableDefinition({
+        columns: [
+          { id: 'col_aaa', name: 'renamed_name', type: 'string' },
+          { id: 'col_bbb', name: 'wins', type: 'number' },
+        ],
+        maxRows: 100,
+        createdAt: new Date('2024-01-01'),
+        updatedAt: new Date('2024-01-01'),
+      }),
+    })
+    mockQueryRows.mockResolvedValue({
+      ...EMPTY_RESULT,
+      rows: [
+        {
+          id: 'row_1',
+          data: { col_aaa: 'Ana' },
+          executions: {},
+          position: 1,
+          orderKey: 'a0',
+          createdAt: new Date('2026-08-20T10:00:00.000Z'),
+          updatedAt: new Date('2026-08-20T10:00:00.000Z'),
+        },
+      ],
+      rowCount: 1,
+      totalCount: 1,
+      limit: 100,
+    })
+
+    const res = await callQuery({ workspaceId: 'workspace-1', columns: ['col_aaa'] })
+
+    expect(res.status).toBe(200)
+    // The service projects (so the byte budget measures the response); the route only resolves ids.
+    expect(mockQueryRows.mock.calls[0][1].columnIds).toEqual(new Set(['col_aaa']))
+    expect((await res.json()).data.rows[0].data).toEqual({ renamed_name: 'Ana' })
+  })
+
+  it('accepts an exact column name for direct callers', async () => {
+    authAs('internal_jwt')
+    mockQueryRows.mockResolvedValue({
+      ...EMPTY_RESULT,
+      rows: [
+        {
+          id: 'row_1',
+          data: { col_bbb: 12 },
+          executions: {},
+          position: 1,
+          orderKey: 'a0',
+          createdAt: new Date('2026-08-20T10:00:00.000Z'),
+          updatedAt: new Date('2026-08-20T10:00:00.000Z'),
+        },
+      ],
+      rowCount: 1,
+      totalCount: 1,
+      limit: 100,
+    })
+
+    const res = await callQuery({ workspaceId: 'workspace-1', columns: ['wins'] })
+
+    expect(res.status).toBe(200)
+    expect(mockQueryRows.mock.calls[0][1].columnIds).toEqual(new Set(['col_bbb']))
+    expect((await res.json()).data.rows[0].data).toEqual({ wins: 12 })
+  })
+
+  it('asks for every column when the selection is omitted or empty', async () => {
+    authAs('internal_jwt')
+
+    const omitted = await callQuery({ workspaceId: 'workspace-1' })
+    const empty = await callQuery({ workspaceId: 'workspace-1', columns: [] })
+
+    expect(omitted.status).toBe(200)
+    expect(empty.status).toBe(200)
+    expect(mockQueryRows.mock.calls[0][1].columnIds).toBeUndefined()
+    expect(mockQueryRows.mock.calls[1][1].columnIds).toBeUndefined()
+  })
+
+  it('drops a column reference that no longer exists without exposing diagnostics', async () => {
+    authAs('internal_jwt')
+    const staleId = `col_${'0'.repeat(32)}`
+
+    const res = await callQuery({
+      workspaceId: 'workspace-1',
+      columns: ['col_aaa', 'missing', staleId],
+    })
+
+    expect(res.status).toBe(200)
+    expect(mockQueryRows.mock.calls[0][1].columnIds).toEqual(new Set(['col_aaa']))
+    expect((await res.json()).data).not.toHaveProperty('ignoredColumns')
+  })
+
+  it('returns empty row data, not every column, when no requested column exists', async () => {
+    authAs('internal_jwt')
+
+    const res = await callQuery({ workspaceId: 'workspace-1', columns: ['missing'] })
+
+    expect(res.status).toBe(200)
+    expect(mockQueryRows.mock.calls[0][1].columnIds).toEqual(new Set())
+    expect((await res.json()).data).not.toHaveProperty('ignoredColumns')
+  })
+
+  it('does not expose ignored-column diagnostics for valid or omitted selections', async () => {
+    authAs('internal_jwt')
+
+    const selected = await callQuery({ workspaceId: 'workspace-1', columns: ['col_aaa'] })
+    const all = await callQuery({ workspaceId: 'workspace-1' })
+
+    expect((await selected.json()).data).not.toHaveProperty('ignoredColumns')
+    expect((await all.json()).data).not.toHaveProperty('ignoredColumns')
+  })
+
   it('accepts a root condition and executes its canonical all group', async () => {
     authAs('internal_jwt')
     const res = await callQuery({

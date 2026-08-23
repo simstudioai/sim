@@ -36,6 +36,7 @@ function toWire(block: CustomBlockWithInputs) {
     description: block.description,
     iconUrl: block.iconUrl,
     enabled: block.enabled,
+    traceChildRuns: block.traceChildRuns,
     inputFields: block.inputFields,
     exposedOutputs: block.exposedOutputs,
   }
@@ -82,8 +83,16 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   if (!parsed.success) return parsed.response
 
   const userId = session.user.id
-  const { workspaceId, workflowId, name, description, iconUrl, inputs, exposedOutputs } =
-    parsed.data.body
+  const {
+    workspaceId,
+    workflowId,
+    name,
+    description,
+    iconUrl,
+    inputs,
+    exposedOutputs,
+    traceChildRuns,
+  } = parsed.data.body
 
   const access = await checkWorkspaceAccess(workspaceId, userId)
   if (!access.canAdmin) {
@@ -120,6 +129,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       iconUrl,
       inputs,
       exposedOutputs,
+      traceChildRuns,
     })
     recordAudit({
       workspaceId,

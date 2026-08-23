@@ -76,6 +76,17 @@ describe('rowQueryBodySchema', () => {
     expect(rowQueryBodySchema.safeParse({ workspaceId: 'ws-1' }).success).toBe(true)
   })
 
+  it('accepts selected column references and treats an empty list as all columns', () => {
+    expect(
+      rowQueryBodySchema.parse({ workspaceId: 'ws-1', columns: ['col_status', 'wins'] }).columns
+    ).toEqual(['col_status', 'wins'])
+    expect(rowQueryBodySchema.parse({ workspaceId: 'ws-1', columns: [] }).columns).toEqual([])
+  })
+
+  it('rejects blank column references', () => {
+    expect(rowQueryBodySchema.safeParse({ workspaceId: 'ws-1', columns: [''] }).success).toBe(false)
+  })
+
   it('rejects an unknown operator and a malformed leaf', () => {
     expect(
       rowQueryBodySchema.safeParse({

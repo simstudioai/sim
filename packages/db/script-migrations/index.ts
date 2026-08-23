@@ -4,6 +4,8 @@ import { backfillPausedBillingAttribution } from './0002_backfill_paused_billing
 import { backfillWorkspaceStorageUsage } from './0003_backfill_workspace_storage_usage'
 import { backfillForkKnowledgeBaseFileOwnership } from './0004_backfill_fork_kb_file_ownership'
 import { repairUnknownTableRowProvenance } from './0005_repair_unknown_table_row_provenance'
+import { repairUnknownTableRowProvenanceSecondPass } from './0006_repair_unknown_table_row_provenance_second_pass'
+import { repairUnknownWorkspaceFileProvenance } from './0007_repair_unknown_workspace_file_provenance'
 import type { ScriptMigration } from './types'
 
 export type { ScriptMigration } from './types'
@@ -19,6 +21,8 @@ export const scriptMigrations: readonly ScriptMigration[] = [
   backfillWorkspaceStorageUsage,
   backfillForkKnowledgeBaseFileOwnership,
   repairUnknownTableRowProvenance,
+  repairUnknownTableRowProvenanceSecondPass,
+  repairUnknownWorkspaceFileProvenance,
 ]
 
 /**

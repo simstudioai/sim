@@ -302,7 +302,11 @@ async function getFileContentProvenance(
       continue
     }
     const provenance = await getBoundWorkspaceFileSecretProvenance(workspaceId, source.identity)
-    if (provenance.status === 'unknown') {
+    /**
+     * `unrecorded` is a more specific `unknown`, and this accumulator has not opted into the
+     * workspace file surface's policy, so it latches exactly as it did before.
+     */
+    if (provenance.status !== 'exact') {
       accumulator.markIncomplete('workspace-file-provenance-unknown')
       continue
     }

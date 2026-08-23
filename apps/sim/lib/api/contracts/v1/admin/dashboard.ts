@@ -161,8 +161,7 @@ export const adminDashboardOrganizationDetailSchema =
         id: z.string(),
         status: z.enum(['pending', 'processing', 'failed']),
         requestedUsageLimitDollars: dollarAmountSchema.nullable(),
-        requestedInvoiceAmountUsd: z.number().positive().nullable(),
-        requestedBillingInterval: adminDashboardBillingIntervalSchema.nullable(),
+        requestedReportingPeriodInterval: adminDashboardBillingIntervalSchema.nullable(),
         requestedReportingPeriodAnchorDate: adminDashboardDateOnlySchema.nullable(),
         requestedSeats: z.number().int().positive().nullable(),
         requestedConcurrencyLimit: z
@@ -178,6 +177,7 @@ export const adminDashboardOrganizationDetailSchema =
           .max(MAX_WORKFLOW_EXECUTION_TIMEOUT_SECONDS)
           .nullable(),
         providerAccepted: z.boolean(),
+        retryable: z.boolean(),
         error: z.string().nullable(),
       })
       .nullable(),
@@ -551,13 +551,12 @@ export const adminDashboardEnterpriseReviewSchema = z.object({
   }),
 })
 
-export const adminDashboardBillingTermsBodySchema = z.object({
-  invoiceAmountUsd: z.number().min(0.01).max(10_000_000).multipleOf(0.01),
-  billingInterval: adminDashboardBillingIntervalSchema,
+export const adminDashboardReportingPeriodBodySchema = z.object({
+  reportingPeriodInterval: adminDashboardBillingIntervalSchema,
   reportingPeriodAnchorDate: adminDashboardDateOnlySchema,
 })
 
-export const adminDashboardBillingTermsPreviewSchema = z.object({
+export const adminDashboardReportingPeriodPreviewSchema = z.object({
   reportingPeriod: adminDashboardReportingPeriodSchema,
   usage: adminDashboardUsageSchema,
   exceedsLimit: z.boolean(),
@@ -876,22 +875,22 @@ export const adminDashboardUpdateLimitsContract = defineRouteContract({
   },
 })
 
-export const adminDashboardPreviewBillingTermsContract = defineRouteContract({
+export const adminDashboardPreviewReportingPeriodContract = defineRouteContract({
   method: 'POST',
-  path: '/api/v1/admin/dashboard/organizations/[id]/billing-terms/preview',
+  path: '/api/v1/admin/dashboard/organizations/[id]/reporting-period/preview',
   params: adminV1IdParamsSchema,
-  body: adminDashboardBillingTermsBodySchema,
+  body: adminDashboardReportingPeriodBodySchema,
   response: {
     mode: 'json',
-    schema: adminV1SingleResponseSchema(adminDashboardBillingTermsPreviewSchema),
+    schema: adminV1SingleResponseSchema(adminDashboardReportingPeriodPreviewSchema),
   },
 })
 
-export const adminDashboardUpdateBillingTermsContract = defineRouteContract({
+export const adminDashboardUpdateReportingPeriodContract = defineRouteContract({
   method: 'PATCH',
-  path: '/api/v1/admin/dashboard/organizations/[id]/billing-terms',
+  path: '/api/v1/admin/dashboard/organizations/[id]/reporting-period',
   params: adminV1IdParamsSchema,
-  body: adminDashboardBillingTermsBodySchema,
+  body: adminDashboardReportingPeriodBodySchema,
   response: {
     mode: 'json',
     schema: adminV1SingleResponseSchema(adminDashboardMutationResultSchema),

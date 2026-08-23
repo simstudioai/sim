@@ -78,11 +78,11 @@ vi.mock('@/lib/posthog/server', () => ({
 }))
 
 import {
-  DIRECT_GRANT_EMAIL_EVENT_TYPE,
   DirectGrantContextChangedError,
   directGrantOutboxHandlers,
   grantWorkspaceAccessDirectly,
 } from '@/lib/invitations/direct-grant'
+import { DIRECT_GRANT_EMAIL_EVENT_TYPE } from '@/lib/invitations/direct-grant-event'
 
 const baseInput = {
   userId: 'user-2',
