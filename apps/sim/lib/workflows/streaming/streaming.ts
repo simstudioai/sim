@@ -387,8 +387,15 @@ async function buildMinimalResult(
   let selectedOutputBytes = assertSelectedOutputBytes(minimalResult.output)
   for (const descriptor of getSelectedOutputDescriptors(selectedOutputs)) {
     const { blockId, path } = descriptor
+    const blockLogs = result.logs.filter((log: BlockLog) => log.blockId === blockId)
 
-    if (streamedContent.has(blockId)) {
+    if (
+      streamedContent.has(blockId) ||
+      blockLogs.some(
+        (log: BlockLog) =>
+          log.blockExecutionId !== undefined && streamedContent.has(log.blockExecutionId)
+      )
+    ) {
       continue
     }
 
@@ -410,7 +417,7 @@ async function buildMinimalResult(
       continue
     }
 
-    const blockLog = result.logs.find((log: BlockLog) => log.blockId === blockId)
+    const blockLog = blockLogs[0]
     if (!blockLog?.output) {
       continue
     }

@@ -285,6 +285,38 @@ describe('terminal console store', () => {
         expect.objectContaining({ blockId: 'function-1', candidateCount: 2 })
       )
     })
+
+    it('enriches an exactly matched legacy child workflow entry with its instance id', () => {
+      useTerminalConsoleStore.getState().addConsole({
+        workflowId: 'wf-1',
+        blockId: 'workflow-1',
+        blockName: 'Workflow',
+        blockType: 'workflow',
+        executionId: 'exec-1',
+        executionOrder: 3,
+        iterationCurrent: 1,
+        iterationType: 'loop',
+        iterationContainerId: 'loop-1',
+        isRunning: true,
+      })
+
+      useTerminalConsoleStore.getState().updateConsole(
+        'workflow-1',
+        {
+          childWorkflowInstanceId: 'child-inst-1',
+          executionOrder: 3,
+          iterationCurrent: 1,
+          iterationType: 'loop',
+          iterationContainerId: 'loop-1',
+        },
+        'exec-1'
+      )
+
+      expect(useTerminalConsoleStore.getState().getWorkflowEntries('wf-1')[0]).toMatchObject({
+        childWorkflowInstanceId: 'child-inst-1',
+        isRunning: true,
+      })
+    })
   })
 
   describe('cancelRunningEntries', () => {

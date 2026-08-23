@@ -1043,6 +1043,69 @@ describe('createStreamingResponse agent-events-v1', () => {
     expect(events.some((event) => event.event === 'final')).toBe(true)
   })
 
+  it('suppresses final selected output when streamed content is keyed by invocation', async () => {
+    const stream = await createStreamingResponse({
+      requestId: 'request-invocation-selected-output',
+      streamConfig: {
+        selectedOutputs: ['agent-1_content'],
+      },
+      executeFn: async ({ onStream, onBlockComplete }) => {
+        await onStream({
+          stream: new ReadableStream<Uint8Array>({
+            start(controller) {
+              controller.enqueue(new TextEncoder().encode('current answer'))
+              controller.close()
+            },
+          }),
+          streamFormat: 'text',
+          blockExecutionId: 'invoke-current',
+          execution: {
+            blockId: 'agent-1',
+            success: true,
+            output: { content: 'current answer' },
+            logs: [],
+            metadata: {},
+          },
+        } as any)
+        await onBlockComplete('agent-1', { content: 'current answer' }, 'invoke-current')
+
+        return {
+          success: true,
+          output: { content: 'current answer' },
+          logs: [
+            {
+              blockId: 'agent-1',
+              blockExecutionId: 'invoke-stale',
+              output: { content: 'stale answer' },
+              startedAt: new Date().toISOString(),
+              endedAt: new Date().toISOString(),
+              durationMs: 1,
+              success: true,
+            },
+            {
+              blockId: 'agent-1',
+              blockExecutionId: 'invoke-current',
+              output: { content: '' },
+              startedAt: new Date().toISOString(),
+              endedAt: new Date().toISOString(),
+              durationMs: 1,
+              success: true,
+            },
+          ],
+        } as any
+      },
+    })
+
+    const events = await collectSSEEvents(stream)
+    expect(events.filter((event) => event.chunk !== undefined)).toEqual([
+      { blockId: 'agent-1', chunk: 'current answer' },
+    ])
+    expect(events.find((event) => event.event === 'final')).toEqual({
+      event: 'final',
+      data: { success: true, output: {} },
+    })
+  })
+
   it('stays fully text-only when both policies are off', async () => {
     const stream = await createStreamingResponse({
       requestId: 'request-1',
