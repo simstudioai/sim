@@ -2,7 +2,6 @@ import { authorizeWorkflowByWorkspacePermission } from '@sim/platform-authz/work
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { getWorkflowById } from '@/lib/workflows/utils'
 import { checkWorkspaceAccess, type WorkspaceAccess } from '@/lib/workspaces/permissions/utils'
-import { listAccessibleWorkspaceRowsForUser } from '@/lib/workspaces/utils'
 
 type WorkflowRecord = NonNullable<Awaited<ReturnType<typeof getWorkflowById>>>
 
@@ -38,19 +37,6 @@ export async function ensureWorkflowAccess(
   }
 
   return { workflow: result.workflow, workspaceId: result.workflow.workspaceId }
-}
-
-export async function getDefaultWorkspaceId(userId: string): Promise<string> {
-  const accessibleRows = await listAccessibleWorkspaceRowsForUser(userId)
-  const mostRecent = accessibleRows
-    .map((row) => row.workspace)
-    .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())[0]
-
-  if (!mostRecent) {
-    throw new Error('No workspace found for user')
-  }
-
-  return mostRecent.id
 }
 
 export async function ensureWorkspaceAccess(
