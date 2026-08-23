@@ -5,6 +5,7 @@ import {
   Handle,
   internalsSymbol,
   Position,
+  type ReactFlowState,
   useStore as useReactFlowStore,
   useStoreApi as useReactFlowStoreApi,
   useUpdateNodeInternals,
@@ -344,14 +345,21 @@ export function SubflowNodeView({
   const isPreviewSelected = data?.isPreviewSelected || false
 
   const endHandleId = data.kind === 'loop' ? 'loop-end-source' : 'parallel-end-source'
-  const displayedEdges = useReactFlowStore(
-    useCallback((state) => (data.parentId ? state.edges : null), [data.parentId])
-  )
-  const showFixedEndPort = useMemo(
-    () =>
-      !displayedEdges ||
-      displayedEdges.some((edge) => edge.source === id && edge.sourceHandle === endHandleId),
-    [displayedEdges, endHandleId, id]
+  const showFixedEndPort = useReactFlowStore(
+    useMemo(() => {
+      let previousEdges: ReactFlowState['edges'] | undefined
+      let previousResult = !data.parentId
+
+      return (state: ReactFlowState) => {
+        if (!data.parentId || state.edges === previousEdges) return previousResult
+
+        previousEdges = state.edges
+        previousResult = state.edges.some(
+          (edge) => edge.source === id && edge.sourceHandle === endHandleId
+        )
+        return previousResult
+      }
+    }, [data.parentId, endHandleId, id])
   )
   const BlockIcon = data.kind === 'loop' ? Repeat : Split
   const blockName = data.name || (data.kind === 'loop' ? 'Loop' : 'Parallel')

@@ -5,7 +5,7 @@
  * a knob-paint bug once threw only when a card had a coloured knob — invisible
  * on an idle canvas, fatal on node creation.
  */
-import { act, useLayoutEffect } from 'react'
+import { act, Profiler, useLayoutEffect } from 'react'
 import {
   normalizeWorkflowEdgeSourceHandle,
   normalizeWorkflowEdgeTargetHandle,
@@ -83,26 +83,26 @@ function mount(element: React.ReactElement) {
   return { host, root }
 }
 
-const NO_EDGES: Edge[] = []
-
 function SubflowMountFixture({
   id,
   kind,
   parentId,
-  edges = NO_EDGES,
+  edges,
+  onRender,
 }: {
   id: string
   kind: 'loop' | 'parallel'
   parentId?: string
   edges?: Edge[]
+  onRender?: () => void
 }) {
   const reactFlowStore = useReactFlowStoreApi()
 
   useLayoutEffect(() => {
-    reactFlowStore.setState({ edges })
+    if (edges) reactFlowStore.setState({ edges })
   }, [edges, reactFlowStore])
 
-  return (
+  const view = (
     <SubflowNodeView
       id={id}
       data={{ kind, name: kind === 'loop' ? 'Loop' : 'Parallel', parentId, isPreview: true }}
@@ -113,6 +113,14 @@ function SubflowMountFixture({
       canEditWorkflow={false}
       onSelect={() => undefined}
     />
+  )
+
+  return onRender ? (
+    <Profiler id={id} onRender={onRender}>
+      {view}
+    </Profiler>
+  ) : (
+    view
   )
 }
 
@@ -1076,6 +1084,44 @@ describe('WorkflowBlockBorder mount', () => {
       }
     }
   )
+
+  it('does not rerender a nested subflow when unrelated edges change', () => {
+    const baselineRender = vi.fn()
+    const unrelatedEdgeRender = vi.fn()
+    const unrelatedEdges: Edge[] = [
+      {
+        id: 'unrelated-edge',
+        source: 'other-source',
+        sourceHandle: 'source',
+        target: 'other-target',
+        targetHandle: 'target',
+      },
+    ]
+
+    mount(
+      <div>
+        <ReactFlowProvider>
+          <SubflowMountFixture
+            id='baseline-nested-loop'
+            kind='loop'
+            parentId='parent-loop'
+            onRender={baselineRender}
+          />
+        </ReactFlowProvider>
+        <ReactFlowProvider>
+          <SubflowMountFixture
+            id='unrelated-edge-nested-loop'
+            kind='loop'
+            parentId='parent-loop'
+            edges={unrelatedEdges}
+            onRender={unrelatedEdgeRender}
+          />
+        </ReactFlowProvider>
+      </div>
+    )
+
+    expect(unrelatedEdgeRender).toHaveBeenCalledTimes(baselineRender.mock.calls.length)
+  })
 
   it('retracts a selected loop action swell after hover ends', () => {
     vi.useFakeTimers()
