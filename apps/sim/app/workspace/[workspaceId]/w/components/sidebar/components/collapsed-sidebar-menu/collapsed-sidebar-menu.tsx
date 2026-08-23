@@ -18,6 +18,7 @@ import { Folder, MoreHorizontal, Pencil, Pin, Plus, SquareArrowUpRight } from '@
 import Link from 'next/link'
 import { ConversationListItem } from '@/app/workspace/[workspaceId]/components'
 import type { FlyoutEntry } from '@/app/workspace/[workspaceId]/components/folders'
+import { ChatNavigationLink } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/chat-navigation-link/chat-navigation-link'
 import {
   SidebarNavChip,
   type SidebarNavItemData,
@@ -341,8 +342,10 @@ export function CollapsedChatFlyoutItem({
         ) : undefined
       }
     >
-      <Link
+      <ChatNavigationLink
+        chatId={chat.id}
         href={chat.href}
+        isCurrentRoute={isCurrentRoute}
         onContextMenu={
           chat.id !== 'new' && onContextMenu ? (e) => onContextMenu(e, chat.id) : undefined
         }
@@ -352,7 +355,7 @@ export function CollapsedChatFlyoutItem({
           isActive={!!chat.isActive}
           isUnread={!!chat.isUnread && !isCurrentRoute}
         />
-      </Link>
+      </ChatNavigationLink>
     </DropdownMenuItem>
   )
 }

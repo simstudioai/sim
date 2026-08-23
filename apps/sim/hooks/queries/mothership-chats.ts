@@ -1,6 +1,7 @@
 import { isRecordLike } from '@sim/utils/object'
 import {
   keepPreviousData,
+  queryOptions,
   skipToken,
   useMutation,
   useQuery,
@@ -16,6 +17,7 @@ import {
   listMothershipChatsContract,
   type MothershipChat,
   type MothershipChatScope,
+  markMothershipChatReadContract,
   removeMothershipChatResourceContract,
   reorderMothershipChatResourcesContract,
   restoreMothershipChatContract,
@@ -252,9 +254,7 @@ export async function fetchMothershipChatHistory(
     })
     return parseChatHistory(data)
   } catch (error) {
-    if (!isApiClientError(error)) throw error
-    // Fall through to the legacy copilot-shape alias on any HTTP error (typically 404
-    // when the chat lives in the older copilot table and isn't a mothership-typed row).
+    if (!isApiClientError(error) || error.status !== 404) throw error
   }
 
   // boundary-raw-fetch: legacy alias path /api/mothership/chat?chatId=... returns the
@@ -271,16 +271,20 @@ export async function fetchMothershipChatHistory(
   return parseChatHistory(await copilotRes.json())
 }
 
+export function mothershipChatHistoryQueryOptions(chatId: string | undefined) {
+  return queryOptions({
+    queryKey: mothershipChatKeys.detail(chatId),
+    queryFn: chatId ? ({ signal }) => fetchMothershipChatHistory(chatId, signal) : skipToken,
+    staleTime: MOTHERSHIP_CHAT_HISTORY_STALE_TIME,
+  })
+}
+
 /**
  * Fetches chat history for a single chat (mothership chat).
  * Used by the chat page to load an existing conversation.
  */
 export function useMothershipChatHistory(chatId: string | undefined) {
-  return useQuery({
-    queryKey: mothershipChatKeys.detail(chatId),
-    queryFn: chatId ? ({ signal }) => fetchMothershipChatHistory(chatId, signal) : skipToken,
-    staleTime: MOTHERSHIP_CHAT_HISTORY_STALE_TIME,
-  })
+  return useQuery(mothershipChatHistoryQueryOptions(chatId))
 }
 
 async function deleteChat(chatId: string): Promise<void> {
@@ -530,9 +534,8 @@ export function useRemoveChatResource(chatId?: string) {
 }
 
 async function markChatRead(chatId: string): Promise<void> {
-  await requestJson(updateMothershipChatContract, {
-    params: { chatId },
-    body: { isUnread: false },
+  await requestJson(markMothershipChatReadContract, {
+    body: { chatId },
   })
 }
 

@@ -90,6 +90,19 @@ const [{ id }, { kbName }] = await Promise.all([params, searchParams])
 
 Only keep awaits sequential when a later call genuinely uses an earlier result, or when the ordering is deliberate (rate-limited batches, retry loops, write-then-read).
 
+## Prefetch dynamic destination lists on intent
+
+For long lists of dynamic destinations, do not viewport-prefetch every row and do not assume
+`router.prefetch()` warms the full route: in Next 16 it uses the automatic/PPR strategy. Gate
+`<Link prefetch={true}>` behind deliberate hover or keyboard focus, and prefetch destination
+server state with the consumer's shared React Query options. A short, cancelable hover dwell
+avoids drive-by downloads. Do not treat `touchstart` as intent because it also begins scrolling;
+let the actual unmodified click start the data request.
+
+If a continuity-focused surface intentionally omits `loading.tsx` so the current view remains
+mounted until its peer is ready, the intent path must warm both the full route and its critical
+data. Otherwise keep the loading boundary so dynamic navigation remains responsive.
+
 ## Local feature barrels are the convention — do not "fix" them
 
 Tooling (e.g. react-doctor's `no-barrel-import`) will flag imports from local `index.ts` barrels as a bundle cost. In this repo that is a **false positive**: barrel imports for 3+ export folders are mandated by `.claude/rules/sim-imports.md`. Leave them.
