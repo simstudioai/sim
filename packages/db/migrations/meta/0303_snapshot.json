@@ -5044,25 +5044,13 @@
           "method": "btree",
           "with": {}
         },
-        "doc_active_kb_filename_idx": {
-          "name": "doc_active_kb_filename_idx",
+        "doc_active_kb_token_count_idx": {
+          "name": "doc_active_kb_token_count_idx",
           "columns": [
             {
               "expression": "knowledge_base_id",
               "isExpression": false,
               "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "filename",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "\"uploaded_at\" DESC",
-              "asc": true,
-              "isExpression": true,
               "nulls": "last"
             },
             {
@@ -6760,40 +6748,6 @@
           "method": "btree",
           "with": {}
         },
-        "folder_active_workspace_resource_sort_idx": {
-          "name": "folder_active_workspace_resource_sort_idx",
-          "columns": [
-            {
-              "expression": "workspace_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "resource_type",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "sort_order",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "created_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "where": "\"folder\".\"deleted_at\" IS NULL",
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
         "folder_deleted_at_idx": {
           "name": "folder_deleted_at_idx",
           "columns": [
@@ -8123,21 +8077,6 @@
         }
       },
       "indexes": {
-        "kcsl_connector_id_idx": {
-          "name": "kcsl_connector_id_idx",
-          "columns": [
-            {
-              "expression": "connector_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
         "kcsl_connector_started_at_idx": {
           "name": "kcsl_connector_started_at_idx",
           "columns": [
@@ -15611,46 +15550,6 @@
           "method": "btree",
           "with": {}
         },
-        "workflow_active_workspace_folder_sort_idx": {
-          "name": "workflow_active_workspace_folder_sort_idx",
-          "columns": [
-            {
-              "expression": "workspace_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "folder_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "sort_order",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "created_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "where": "\"workflow\".\"archived_at\" IS NULL",
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
         "workflow_archived_at_idx": {
           "name": "workflow_archived_at_idx",
           "columns": [
@@ -16953,33 +16852,6 @@
             },
             {
               "expression": "started_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "workflow_execution_logs_workflow_started_at_id_idx": {
-          "name": "workflow_execution_logs_workflow_started_at_id_idx",
-          "columns": [
-            {
-              "expression": "workflow_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "started_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"

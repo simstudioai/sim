@@ -182,9 +182,6 @@ export const folder = pgTable(
       table.parentId
     ),
     parentSortIdx: index('folder_parent_sort_idx').on(table.parentId, table.sortOrder),
-    activeWorkspaceResourceSortIdx: index('folder_active_workspace_resource_sort_idx')
-      .on(table.workspaceId, table.resourceType, table.sortOrder, table.createdAt)
-      .where(sql`${table.deletedAt} IS NULL`),
     deletedAtIdx: index('folder_deleted_at_idx').on(table.deletedAt),
     workspaceDeletedAtPartialIdx: index('folder_workspace_deleted_partial_idx')
       .on(table.workspaceId, table.deletedAt)
@@ -294,9 +291,6 @@ export const workflow = pgTable(
     folderSortIdx: index('workflow_folder_sort_idx').on(table.folderId, table.sortOrder),
     activeWorkspaceSortIdx: index('workflow_active_workspace_sort_idx')
       .on(table.workspaceId, table.sortOrder, table.createdAt, table.id)
-      .where(sql`${table.archivedAt} IS NULL`),
-    activeWorkspaceFolderSortIdx: index('workflow_active_workspace_folder_sort_idx')
-      .on(table.workspaceId, table.folderId, table.sortOrder, table.createdAt, table.id)
       .where(sql`${table.archivedAt} IS NULL`),
     archivedAtIdx: index('workflow_archived_at_idx').on(table.archivedAt),
     workspaceArchivedAtPartialIdx: index('workflow_workspace_archived_partial_idx')
@@ -497,11 +491,6 @@ export const workflowExecutionLogs = pgTable(
     workflowStartedAtIdx: index('workflow_execution_logs_workflow_started_at_idx').on(
       table.workflowId,
       table.startedAt
-    ),
-    workflowStartedAtIdIdx: index('workflow_execution_logs_workflow_started_at_id_idx').on(
-      table.workflowId,
-      table.startedAt,
-      table.id
     ),
     workspaceStartedAtIdx: index('workflow_execution_logs_workspace_started_at_idx').on(
       table.workspaceId,
@@ -2632,8 +2621,8 @@ export const document = pgTable(
       .where(sql`${table.deletedAt} IS NULL`),
     // Sync engine: load all active docs for a connector
     connectorIdIdx: index('doc_connector_id_idx').on(table.connectorId),
-    activeKnowledgeBaseFilenameIdx: index('doc_active_kb_filename_idx')
-      .on(table.knowledgeBaseId, table.filename, sql`${table.uploadedAt} DESC`, table.tokenCount)
+    activeKnowledgeBaseTokenCountIdx: index('doc_active_kb_token_count_idx')
+      .on(table.knowledgeBaseId, table.tokenCount)
       .where(
         sql`${table.userExcluded} = false AND ${table.archivedAt} IS NULL AND ${table.deletedAt} IS NULL`
       ),
@@ -4429,7 +4418,6 @@ export const knowledgeConnectorSyncLog = pgTable(
     errorMessage: text('error_message'),
   },
   (table) => ({
-    connectorIdIdx: index('kcsl_connector_id_idx').on(table.connectorId),
     connectorStartedAtIdx: index('kcsl_connector_started_at_idx').on(
       table.connectorId,
       sql`${table.startedAt} DESC`

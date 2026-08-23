@@ -141,6 +141,29 @@ describe('checkUsageStatus', () => {
     expect(mockGetBillingPeriodUsageCost).not.toHaveBeenCalled()
   })
 
+  it('preserves the paid daily-refresh clamp for negative effective usage', async () => {
+    const periodStart = new Date('2026-06-01T00:00:00.000Z')
+    const periodEnd = new Date('2026-07-01T00:00:00.000Z')
+    const subscription = {
+      referenceId: 'user-1',
+      plan: 'pro',
+      status: 'active',
+      seats: 1,
+      periodStart,
+      periodEnd,
+    }
+    dbChainMockFns.limit.mockResolvedValueOnce([{ currentPeriodCost: '0' }])
+    mockComputeBillingPeriodUsageWithDailyRefresh.mockResolvedValueOnce({
+      ledgerUsage: -1,
+      refreshConsumed: 1,
+    })
+
+    await expect(checkUsageStatus('user-1', subscription)).resolves.toMatchObject({
+      currentUsage: 0,
+      scope: 'user',
+    })
+  })
+
   it('keeps unpaid personal usage on the ledger-only query', async () => {
     const periodStart = new Date('2026-06-01T00:00:00.000Z')
     const periodEnd = new Date('2026-07-01T00:00:00.000Z')
@@ -163,6 +186,28 @@ describe('checkUsageStatus', () => {
       { type: 'user', id: 'user-1' },
       { start: periodStart, end: periodEnd }
     )
+    expect(mockComputeBillingPeriodUsageWithDailyRefresh).not.toHaveBeenCalled()
+  })
+
+  it('preserves negative ledger-only personal usage', async () => {
+    const periodStart = new Date('2026-06-01T00:00:00.000Z')
+    const periodEnd = new Date('2026-07-01T00:00:00.000Z')
+    const subscription = {
+      referenceId: 'user-1',
+      plan: 'free',
+      status: 'active',
+      seats: 1,
+      periodStart,
+      periodEnd,
+    }
+    dbChainMockFns.limit.mockResolvedValueOnce([{ currentPeriodCost: '0' }])
+    mockGetBillingPeriodUsageCost.mockResolvedValueOnce(-1)
+
+    await expect(checkUsageStatus('user-1', subscription)).resolves.toMatchObject({
+      currentUsage: -1,
+      scope: 'user',
+    })
+
     expect(mockComputeBillingPeriodUsageWithDailyRefresh).not.toHaveBeenCalled()
   })
 

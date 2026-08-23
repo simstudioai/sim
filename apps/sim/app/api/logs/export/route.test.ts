@@ -103,17 +103,44 @@ describe('GET /api/logs/export', () => {
     )
   })
 
-  it('materializes one bounded page at a time while preserving CSV row order', async () => {
-    queueTableRows(workflowExecutionLogs, [logRow(0), logRow(1), logRow(2)])
+  it('rejects unauthenticated exports before checking workspace access', async () => {
+    mockGetSession.mockResolvedValueOnce(null)
+
+    const response = await GET(makeRequest())
+
+    expect(response.status).toBe(401)
+    expect(mockCheckWorkspaceAccess).not.toHaveBeenCalled()
+    expect(dbChainMockFns.where).not.toHaveBeenCalled()
+    expect(mockMaterializeExecutionDataForDisplay).not.toHaveBeenCalled()
+  })
+
+  it('returns only the CSV header when workspace access is denied', async () => {
+    mockCheckWorkspaceAccess.mockResolvedValueOnce({ hasAccess: false })
+
+    const response = await GET(makeRequest())
+
+    expect(response.status).toBe(200)
+    expect(await response.text()).toBe(
+      'startedAt,level,workflow,trigger,durationMs,costTotal,workflowId,executionId,message,traceSpans\n'
+    )
+    expect(dbChainMockFns.where).not.toHaveBeenCalled()
+    expect(mockMaterializeExecutionDataForDisplay).not.toHaveBeenCalled()
+  })
+
+  it('materializes bounded chunks while preserving CSV row order', async () => {
+    queueTableRows(
+      workflowExecutionLogs,
+      Array.from({ length: 45 }, (_, index) => logRow(index))
+    )
 
     const response = await GET(makeRequest())
     const lines = (await response.text()).trimEnd().split('\n')
 
     expect(response.status).toBe(200)
-    expect(mockMapWithConcurrency.mock.calls.map(([items]) => items.length)).toEqual([1, 1, 1])
-    expect(lines).toHaveLength(4)
+    expect(mockMapWithConcurrency.mock.calls.map(([items]) => items.length)).toEqual([20, 20, 5])
+    expect(lines).toHaveLength(46)
     expect(lines[1]).toContain('execution-0')
-    expect(lines.at(-1)).toContain('execution-2')
+    expect(lines.at(-1)).toContain('execution-44')
   })
 
   it('resumes full pages by startedAt and id without using OFFSET', async () => {

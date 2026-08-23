@@ -182,6 +182,7 @@ export async function checkUsageStatus(
         : defaultBillingPeriod())
     let ledgerUsage: number
     let refreshConsumed = 0
+    let appliedDailyRefresh = false
     if (sub && isPaid(sub.plan) && sub.periodStart) {
       const planDollars = getPlanTierDollars(sub.plan)
       if (planDollars > 0) {
@@ -195,16 +196,16 @@ export async function checkUsageStatus(
         })
         ledgerUsage = usage.ledgerUsage
         refreshConsumed = usage.refreshConsumed
+        appliedDailyRefresh = true
       } else {
         ledgerUsage = await getBillingPeriodUsageCost({ type: 'user', id: userId }, billingPeriod)
       }
     } else {
       ledgerUsage = await getBillingPeriodUsageCost({ type: 'user', id: userId }, billingPeriod)
     }
-    const currentUsage = Math.max(
-      0,
+    const usageBeforeRefresh =
       toNumber(toDecimal(statsRecords[0].currentPeriodCost)) + ledgerUsage - refreshConsumed
-    )
+    const currentUsage = appliedDailyRefresh ? Math.max(0, usageBeforeRefresh) : usageBeforeRefresh
 
     return buildUsageData({ currentUsage, limit, scope, organizationId })
   } catch (error) {
