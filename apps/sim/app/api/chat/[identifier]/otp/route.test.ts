@@ -31,6 +31,7 @@ const {
   mockSetChatAuthCookie,
   mockGetStorageMethod,
   mockZodParse,
+  mockAfterResponse,
 } = vi.hoisted(() => {
   const mockRedisSet = vi.fn()
   const mockRedisGet = vi.fn()
@@ -49,6 +50,7 @@ const {
   const mockSetChatAuthCookie = vi.fn()
   const mockGetStorageMethod = vi.fn()
   const mockZodParse = vi.fn()
+  const mockAfterResponse = vi.fn()
 
   return {
     mockRedisSet,
@@ -62,6 +64,7 @@ const {
     mockSetChatAuthCookie,
     mockGetStorageMethod,
     mockZodParse,
+    mockAfterResponse,
   }
 })
 
@@ -82,6 +85,10 @@ vi.mock('@/lib/core/rate-limiter', () => ({
   RateLimiter: class {
     checkRateLimitDirect = mockCheckRateLimitDirect
   },
+}))
+
+vi.mock('@/lib/core/utils/after-response', () => ({
+  afterResponse: mockAfterResponse,
 }))
 
 vi.mock('@/lib/messaging/email/mailer', () => ({
@@ -149,7 +156,14 @@ vi.mock('zod', () => {
   }
 })
 
-import { POST, PUT } from './route'
+import { PUT, POST as routePost } from './route'
+
+const POST: typeof routePost = async (...args) => {
+  const response = await routePost(...args)
+  const task = mockAfterResponse.mock.calls.at(-1)?.[0] as (() => Promise<void>) | undefined
+  if (task) await task()
+  return response
+}
 
 describe('Chat OTP API Route', () => {
   const mockEmail = 'test@example.com'
@@ -209,7 +223,6 @@ describe('Chat OTP API Route', () => {
       remaining: 10,
       resetAt: new Date(Date.now() + 60_000),
     })
-
     mockZodParse.mockImplementation((data: unknown) => data)
 
     setEnv({ NEXT_PUBLIC_APP_URL: 'http://localhost:3000', NODE_ENV: 'test' })
@@ -267,6 +280,7 @@ describe('Chat OTP API Route', () => {
 
       expect(response.status).toBe(200)
       await expect(response.json()).resolves.toEqual({ message: 'Verification code sent' })
+      expect(mockAfterResponse).toHaveBeenCalledTimes(1)
       expect(mockCheckRateLimitDirect).not.toHaveBeenCalled()
       expect(mockRedisSet).not.toHaveBeenCalled()
       expect(mockSendEmail).not.toHaveBeenCalled()
@@ -402,6 +416,7 @@ describe('Chat OTP API Route', () => {
 
       await POST(request, { params: Promise.resolve({ identifier: mockIdentifier }) })
 
+      expect(mockAfterResponse).toHaveBeenCalledTimes(1)
       expect(mockCheckRateLimitDirect).toHaveBeenCalledTimes(2)
       expect(mockCheckRateLimitDirect).toHaveBeenNthCalledWith(
         1,

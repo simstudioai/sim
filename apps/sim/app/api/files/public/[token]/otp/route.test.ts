@@ -18,6 +18,7 @@ const {
   mockRenderOTPEmail,
   mockSendEmail,
   mockCheckRateLimitDirect,
+  mockAfterResponse,
 } = vi.hoisted(() => ({
   mockResolveActiveShareByToken: vi.fn(),
   mockIsEmailAllowed: vi.fn(),
@@ -31,6 +32,7 @@ const {
   mockRenderOTPEmail: vi.fn(),
   mockSendEmail: vi.fn(),
   mockCheckRateLimitDirect: vi.fn(),
+  mockAfterResponse: vi.fn(),
 }))
 
 vi.mock('@/lib/public-shares/share-manager', () => ({
@@ -62,8 +64,18 @@ vi.mock('@/lib/core/rate-limiter', () => ({
     checkRateLimitDirect = mockCheckRateLimitDirect
   },
 }))
+vi.mock('@/lib/core/utils/after-response', () => ({
+  afterResponse: mockAfterResponse,
+}))
 
-import { POST, PUT } from '@/app/api/files/public/[token]/otp/route'
+import { PUT, POST as routePost } from '@/app/api/files/public/[token]/otp/route'
+
+const POST: typeof routePost = async (...args) => {
+  const response = await routePost(...args)
+  const task = mockAfterResponse.mock.calls.at(-1)?.[0] as (() => Promise<void>) | undefined
+  if (task) await task()
+  return response
+}
 
 const params = (token = 'tok_1') => ({ params: Promise.resolve({ token }) })
 const post = (email: string, token = 'tok_1') =>
@@ -98,6 +110,7 @@ describe('POST /api/files/public/[token]/otp', () => {
   it('sends a code to an allow-listed email', async () => {
     const res = await POST(post('user@acme.com'), params())
     expect(res.status).toBe(200)
+    expect(mockAfterResponse).toHaveBeenCalledTimes(1)
     expect(mockStoreOTP).toHaveBeenCalledWith('file', 'sh_1', 'user@acme.com', '123456')
     expect(mockSendEmail).toHaveBeenCalled()
   })
@@ -120,6 +133,7 @@ describe('POST /api/files/public/[token]/otp', () => {
 
     expect(res.status).toBe(200)
     await expect(res.json()).resolves.toEqual({ message: 'Verification code sent' })
+    expect(mockAfterResponse).toHaveBeenCalledTimes(1)
     expect(mockCheckRateLimitDirect).not.toHaveBeenCalled()
     expect(mockStoreOTP).not.toHaveBeenCalled()
     expect(mockSendEmail).not.toHaveBeenCalled()
