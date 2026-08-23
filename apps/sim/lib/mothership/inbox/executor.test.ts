@@ -119,7 +119,7 @@ const WORKSPACE = {
   inboxMountedSecrets: ['INBOX_KEY'],
 }
 
-describe('Inbox raw-secret actor', () => {
+describe('Inbox execution actor', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
@@ -150,6 +150,8 @@ describe('Inbox raw-secret actor', () => {
       expect.objectContaining({
         userId: 'member-1',
         secretActorUserId: 'member-1',
+        /** Their own, so an emailed request reaches exactly what they could in the app. */
+        userPermission: 'write',
         secretMountPolicy: {
           secretScope: 'selected',
           mountedSecrets: ['INBOX_KEY'],
@@ -158,10 +160,33 @@ describe('Inbox raw-secret actor', () => {
     )
   })
 
-  it('keeps owner execution fallback but removes raw-secret authority for an external sender', async () => {
+  it('does not lend a read-only member write authority', async () => {
+    queueTableRows(schemaMock.mothershipInboxTask, [INBOX_TASK])
+    queueTableRows(schemaMock.workspace, [WORKSPACE])
+    queueTableRows(schemaMock.user, [{ id: 'member-1' }])
+    mockCheckWorkspaceAccess.mockResolvedValue({ permission: 'read' })
+    mockGetUserEntityPermissions.mockResolvedValue('read')
+
+    await executeInboxTask('task-1')
+
+    expect(mockRunHeadlessCopilotLifecycle).toHaveBeenCalledWith(
+      expect.any(Object),
+      expect.objectContaining({ userId: 'member-1', userPermission: 'read' })
+    )
+  })
+
+  /**
+   * The owner identity is there for billing and workspace reads, not to lend an unknown
+   * sender the owner's authority. Without the read ceiling the write-gated workflow tools
+   * would let an allowlisted external correspondent build and run a workflow as the owner,
+   * which resolves the owner's workspace and personal secrets — the same reach the null
+   * secret actor already refuses for a direct mount.
+   */
+  it('caps an external sender at read even when the owner is an admin', async () => {
     queueTableRows(schemaMock.mothershipInboxTask, [INBOX_TASK])
     queueTableRows(schemaMock.workspace, [WORKSPACE])
     queueTableRows(schemaMock.user, [])
+    mockCheckWorkspaceAccess.mockResolvedValue({ permission: 'admin' })
 
     await executeInboxTask('task-1')
 
@@ -170,6 +195,7 @@ describe('Inbox raw-secret actor', () => {
       expect.objectContaining({
         userId: 'owner-1',
         secretActorUserId: null,
+        userPermission: 'read',
         secretMountPolicy: {
           secretScope: 'selected',
           mountedSecrets: ['INBOX_KEY'],
@@ -177,5 +203,17 @@ describe('Inbox raw-secret actor', () => {
       })
     )
     expect(mockGetUserEntityPermissions).not.toHaveBeenCalled()
+  })
+
+  it('leaves an external sender with no permission at none rather than promoting to read', async () => {
+    queueTableRows(schemaMock.mothershipInboxTask, [INBOX_TASK])
+    queueTableRows(schemaMock.workspace, [WORKSPACE])
+    queueTableRows(schemaMock.user, [])
+    mockCheckWorkspaceAccess.mockResolvedValue({ permission: null })
+
+    await executeInboxTask('task-1')
+
+    const [, options] = mockRunHeadlessCopilotLifecycle.mock.calls[0]
+    expect(options.userPermission).toBeUndefined()
   })
 })

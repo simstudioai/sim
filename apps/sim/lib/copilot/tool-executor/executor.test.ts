@@ -242,13 +242,47 @@ describe('copilot tool executor fallback', () => {
     const runWorkflowHandler = vi.fn().mockResolvedValue({ success: true, output: { ran: true } })
     registerHandler('run_workflow', runWorkflowHandler)
 
-    const context = { userId: 'user-1', workflowId: 'workflow-1', workspaceId: 'ws-1' }
+    const context = {
+      userId: 'user-1',
+      workflowId: 'workflow-1',
+      workspaceId: 'ws-1',
+      userPermission: 'write',
+    }
     const result = await executeTool('run_workflow', { workflow_input: {} }, context)
 
     expect(runWorkflowHandler).toHaveBeenCalledWith({ workflow_input: {} }, context)
     expect(executeAppTool).not.toHaveBeenCalled()
     expect(result).toEqual({ success: true, output: { ran: true } })
   })
+
+  /**
+   * `run_workflow` carries no catalog permission — the browser path authorizes it through the
+   * workflow APIs against the caller's own session. The headless fallback has no session, so
+   * without a bar of its own a deliberately capped run (an unattributed inbox message) would
+   * still execute workflows under the principal it was capped away from.
+   */
+  it.each([['read'], [undefined]] as const)(
+    'refuses the headless client fallback for a %s permission',
+    async (userPermission) => {
+      isKnownTool.mockReturnValue(true)
+      isSimExecuted.mockReturnValue(false)
+      isClientExecuted.mockReturnValue(true)
+
+      const runWorkflowHandler = vi.fn().mockResolvedValue({ success: true })
+      registerHandler('run_workflow', runWorkflowHandler)
+
+      const result = await executeTool(
+        'run_workflow',
+        { workflow_input: {} },
+        { userId: 'user-1', workflowId: 'workflow-1', workspaceId: 'ws-1', userPermission }
+      )
+
+      expect(result.success).toBe(false)
+      expect(result.error).toContain('requires write access')
+      expect(runWorkflowHandler).not.toHaveBeenCalled()
+      expect(executeAppTool).not.toHaveBeenCalled()
+    }
+  )
 
   it('falls back to app tool executor for client-routed tools with no registered handler', async () => {
     isKnownTool.mockReturnValue(true)
