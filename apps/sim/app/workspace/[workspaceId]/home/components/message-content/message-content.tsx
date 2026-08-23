@@ -492,6 +492,23 @@ export function parseBlocks(blocks: ContentBlock[]): MessageSegment[] {
   return parseBlocksLegacy(blocks)
 }
 
+function joinRenderableText(parts: string[]): string {
+  return parts.filter(Boolean).join('\n\n')
+}
+
+/** Returns only top-level orchestrator text, excluding agent groups and other UI segments. */
+export function getOrchestratorMessageText(
+  blocks: ContentBlock[],
+  fallbackContent: string
+): string {
+  const parsed = blocks.length > 0 ? parseBlocks(blocks) : []
+  if (parsed.length === 0) return fallbackContent
+
+  return joinRenderableText(
+    parsed.map((segment) => (segment.type === 'text' ? segment.content : ''))
+  )
+}
+
 function parseBlocksLegacy(blocks: ContentBlock[]): MessageSegment[] {
   const segments: MessageSegment[] = []
   const groupsByKey = new Map<string, AgentGroupSegment>()
