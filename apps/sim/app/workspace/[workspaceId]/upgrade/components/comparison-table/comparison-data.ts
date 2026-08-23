@@ -194,6 +194,10 @@ export const COMPARISON_SECTIONS: ComparisonSection[] = [
         values: [false, false, true, true],
       },
       {
+        label: 'Sandboxes',
+        values: [false, false, true, true],
+      },
+      {
         label: 'Slack Connect',
         values: [false, false, SLACK, SLACK],
       },
