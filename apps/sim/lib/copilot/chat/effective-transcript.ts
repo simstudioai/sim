@@ -134,7 +134,6 @@ function buildLiveAssistantMessage(params: {
   const toolIndexById = new Map<string, number>()
   const subagentByParentToolCallId = new Map<string, string>()
   const subagentBySpanId = new Map<string, string>()
-  let activeSubagent: string | undefined
   let activeSubagentParentToolCallId: string | undefined
   const activeCompactionIdByLane = new Map<string, string>()
   let runningText = ''
@@ -143,8 +142,8 @@ function buildLiveAssistantMessage(params: {
   let lastTimestamp: string | undefined
 
   // Scope-only resolution (mirrors the live browser stream loop): with
-  // concurrent subagents the legacy activeSubagent fallback / name-match scan
-  // would mis-attribute interleaved replayed events to the wrong lane.
+  // concurrent subagents the legacy name-match scan would mis-attribute
+  // interleaved replayed events to the wrong lane.
   const resolveScopedSubagent = (
     agentId: string | undefined,
     parentToolCallId: string | undefined,
@@ -404,7 +403,6 @@ function buildLiveAssistantMessage(params: {
           if (parentToolCallId) {
             subagentByParentToolCallId.set(parentToolCallId, name)
           }
-          activeSubagent = name
           activeSubagentParentToolCallId = parentToolCallId
           blocks.push({
             type: MothershipStreamV1EventType.span,
@@ -431,7 +429,6 @@ function buildLiveAssistantMessage(params: {
           // or an unscoped end — never by agent name, which would tear down a
           // concurrent same-name sibling that is still open.
           if (!parentToolCallId || parentToolCallId === activeSubagentParentToolCallId) {
-            activeSubagent = undefined
             activeSubagentParentToolCallId = undefined
           }
           blocks.push({
