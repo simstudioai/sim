@@ -125,7 +125,7 @@ export default async function DesktopConnectPage({ searchParams }: DesktopConnec
   return (
     <ConnectLauncher
       providerId={providerId}
-      completePath={buildConnectCompletePath(state, port, draftId)}
+      completeUrl={`${getBaseUrl()}${buildConnectCompletePath(state, port, draftId)}`}
     />
   )
 }

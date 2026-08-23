@@ -25,13 +25,40 @@ type AvailableOAuthCredentialDraftBinding = Extract<
 
 const oauthCredentialDraftBindings = new WeakMap<object, AvailableOAuthCredentialDraftBinding>()
 
-/** Extracts a draft binding from Better Auth state and rejects malformed callback state. */
+/**
+ * Base a path-absolute callback URL is resolved against. Only the query string
+ * is ever read, so the origin reaches nothing — an RFC 2606 `.invalid` host says
+ * so at a glance, and keeps this parse independent of `NEXT_PUBLIC_APP_URL`,
+ * whose absence would otherwise turn a state read into a configuration throw.
+ */
+const CALLBACK_URL_RESOLUTION_BASE = 'http://callback.invalid'
+
+/**
+ * Extracts a draft binding from Better Auth state and rejects malformed callback state.
+ *
+ * Better Auth documents `callbackURL` as a reference relative to the app
+ * (`/dashboard`) and stores whatever it is handed verbatim, so a path and a full
+ * URL are equally legitimate — these two shapes are what is accepted. Bare
+ * `new URL()` rejects the path form, and because this runs inside the
+ * `account.create.before` database hook, which Better Auth's OAuth callback does
+ * not guard, that rejection surfaced as a 500 on the callback rather than a
+ * failed connection.
+ *
+ * A network-path reference (`//host/path`, RFC 3986 §4.2) is not a path and
+ * still throws, as does anything else malformed: a callback URL we cannot read
+ * must stay loud rather than read as "carried no draft", which would fall back
+ * to guessing the draft from the user and provider alone.
+ */
 export function parseCredentialDraftIdFromCallbackUrl(callbackUrl: unknown): string | undefined {
   if (callbackUrl === undefined) return undefined
   if (typeof callbackUrl !== 'string') {
     throw new Error('OAuth state callback URL must be a string')
   }
-  return new URL(callbackUrl).searchParams.get(OAUTH_CREDENTIAL_DRAFT_CALLBACK_PARAM) ?? undefined
+  const isPathAbsolute = callbackUrl.startsWith('/') && !callbackUrl.startsWith('//')
+  const url = isPathAbsolute
+    ? new URL(callbackUrl, CALLBACK_URL_RESOLUTION_BASE)
+    : new URL(callbackUrl)
+  return url.searchParams.get(OAUTH_CREDENTIAL_DRAFT_CALLBACK_PARAM) ?? undefined
 }
 
 /** Reads an exact draft binding without falling back when OAuth state is unavailable. */
