@@ -8,11 +8,15 @@ const logger = createLogger('ExecutionSnapshotBoundary')
 
 interface SnapshotBoundaryProps {
   children: ReactNode
+  isOpen: boolean
+  onLoadError: () => void
 }
 
 interface SnapshotBoundaryState {
   hasError: boolean
 }
+
+const reportedErrors = new WeakSet<Error>()
 
 /**
  * Error boundary for the lazily loaded execution snapshot.
@@ -22,11 +26,15 @@ interface SnapshotBoundaryState {
  * unwind to the route-level boundary and replace the whole logs page with an
  * error view over an optional modal. Mirrors `PreviewErrorBoundary` in the
  * file viewer: contain, log, degrade. The snapshot is an overlay, so the
- * degraded state renders nothing and a toast explains why it didn't open.
+ * degraded state renders nothing. Closed snapshots are mounted to pre-warm
+ * their chunk and data, so a background failure is logged without interrupting
+ * the user. If the user actually opens a failed snapshot, the caller closes
+ * the modal state and a toast explains why it did not open.
  *
- * Callers must `key` this boundary by the snapshot's identity (execution id)
- * — the error state resets only via remount, so a tripped boundary would
- * otherwise stay stuck for every later log.
+ * Callers must remount this boundary when the snapshot identity changes and
+ * when a pre-warmed snapshot is explicitly opened. Error boundaries reset only
+ * via remount; without both transitions, a failed pre-warm would leave the
+ * later open action stuck in the already-tripped state.
  */
 export class SnapshotBoundary extends Component<SnapshotBoundaryProps, SnapshotBoundaryState> {
   public state: SnapshotBoundaryState = { hasError: false }
@@ -36,11 +44,18 @@ export class SnapshotBoundary extends Component<SnapshotBoundaryProps, SnapshotB
   }
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    logger.error('Execution snapshot failed to load', {
-      error: error.message,
-      componentStack: errorInfo.componentStack,
-    })
-    toast.error('Could not load the workflow snapshot. Refresh and try again.')
+    if (!reportedErrors.has(error)) {
+      reportedErrors.add(error)
+      logger.error('Execution snapshot failed to load', {
+        error: error.message,
+        componentStack: errorInfo.componentStack,
+      })
+    }
+
+    if (this.props.isOpen) {
+      toast.error('Could not load the workflow snapshot. Refresh and try again.')
+      this.props.onLoadError()
+    }
   }
 
   public render() {

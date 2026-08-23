@@ -703,7 +703,11 @@ export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentP
 
       {/* Frozen Canvas Modal */}
       {log.executionId && (
-        <SnapshotBoundary key={log.executionId}>
+        <SnapshotBoundary
+          key={`${log.executionId}:${isExecutionSnapshotOpen ? 'open' : 'closed'}`}
+          isOpen={isExecutionSnapshotOpen}
+          onLoadError={() => setIsExecutionSnapshotOpen(false)}
+        >
           <Suspense fallback={null}>
             <ExecutionSnapshot
               executionId={log.executionId}

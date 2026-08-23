@@ -1276,7 +1276,11 @@ export default function Logs() {
       />
 
       {previewLogId !== null && previewDetailQuery.data?.executionId && (
-        <SnapshotBoundary key={previewDetailQuery.data.executionId}>
+        <SnapshotBoundary
+          key={previewDetailQuery.data.executionId}
+          isOpen
+          onLoadError={handleClosePreview}
+        >
           <Suspense fallback={null}>
             <ExecutionSnapshot
               executionId={previewDetailQuery.data.executionId}
