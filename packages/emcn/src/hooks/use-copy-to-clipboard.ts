@@ -7,9 +7,35 @@ interface UseCopyToClipboardOptions {
   resetMs?: number
 }
 
+export interface DeferredClipboardContent {
+  /** Safe text that can be written immediately when promise-backed writes are unavailable. */
+  fallback: string
+  /** Produces the preferred text when the browser supports promise-backed clipboard items. */
+  prepare: () => Promise<string>
+}
+
+export type ClipboardContent = string | DeferredClipboardContent
+
 interface UseCopyToClipboardReturn {
   copied: boolean
-  copy: (text: string) => Promise<boolean>
+  copy: (content: ClipboardContent) => Promise<boolean>
+}
+
+/**
+ * Starts an async clipboard write while the caller still has transient user activation.
+ * Deferred text uses `ClipboardItem` when available and an immediate fallback otherwise.
+ */
+export function writeTextToClipboard(content: ClipboardContent): Promise<void> {
+  if (typeof content === 'string') return navigator.clipboard.writeText(content)
+
+  if (typeof ClipboardItem !== 'undefined' && typeof navigator.clipboard.write === 'function') {
+    const blob = Promise.resolve()
+      .then(() => content.prepare())
+      .then((value) => new Blob([value], { type: 'text/plain' }))
+    return navigator.clipboard.write([new ClipboardItem({ 'text/plain': blob })])
+  }
+
+  return navigator.clipboard.writeText(content.fallback)
 }
 
 /**
@@ -34,9 +60,9 @@ export function useCopyToClipboard(
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const copy = useCallback(
-    async (text: string): Promise<boolean> => {
+    async (content: ClipboardContent): Promise<boolean> => {
       try {
-        await navigator.clipboard.writeText(text)
+        await writeTextToClipboard(content)
         setCopied(true)
         if (timerRef.current) clearTimeout(timerRef.current)
         timerRef.current = setTimeout(() => setCopied(false), resetMs)

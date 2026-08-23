@@ -114,10 +114,10 @@ function hideMountedMenuSurfaces(): void {
  */
 const COMMAND_SETTLE_MS = 1_000
 
-/** Full working directory, plus whatever the shell is running in it. */
-function terminalTooltip(tab: TerminalTabState): string {
+/** Full working directory, plus a concise name for whatever the shell is running. */
+export function terminalTooltip(tab: TerminalTabState): string {
   const where = tab.cwd ?? 'Terminal'
-  return tab.running ? `${where} — ${tab.running}` : where
+  return tab.running ? `${where} — ${describeRunningCommand(tab.running)}` : where
 }
 
 function sameIds(a: ReadonlySet<string>, b: ReadonlySet<string>): boolean {
@@ -902,8 +902,8 @@ export function TerminalSession({ visible, scopeId }: TerminalSessionProps) {
         id: tab.terminalId,
         title: counts.get(label) === 1 ? label : `${label} ${occurrence}`,
         // The label is a basename, and the tab may be running something it
-        // is not naming yet, so hovering gives the whole picture: where the
-        // shell is, and what it is doing there.
+        // is not naming yet, so hovering identifies the working directory and
+        // foreground program without exposing the literal command.
         tooltip: terminalTooltip(tab),
         icon: (
           <TerminalTabIcon

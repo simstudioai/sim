@@ -37,15 +37,62 @@ export interface ChartStaticSource {
 
 /**
  * A `.chart` file (`text/x-sim-chart`): a declarative ECharts document. The
- * `option` is a plain ECharts option object; `source` optionally supplies the
- * data — inline rows, or a live read of a Sim table injected as
- * `option.dataset.source` so the chart stays current with the table.
+ * `option` is a plain ECharts option object, confined to ECharts' canvas render
+ * paths by {@link confineOptionToCanvas}; `source` optionally supplies the data —
+ * inline rows, or a live read of a Sim table injected as `option.dataset.source`
+ * so the chart stays current with the table.
  */
 export interface ChartSpec {
   schema_version: number
   title?: string
   source?: ChartStaticSource | ChartTableSource
   option: Record<string, unknown>
+}
+
+/** ECharts' tooltip render mode that draws into the chart canvas instead of the DOM. */
+const CANVAS_TOOLTIP_RENDER_MODE = 'richText'
+
+/**
+ * Closes the paths by which an ECharts option reaches the DOM, so a `.chart`
+ * document cannot inject markup into the page that renders it. A document is
+ * untrusted input: any workspace member authors one, and `/f/<token>` renders it
+ * to anonymous visitors on the app origin.
+ *
+ * ECharts draws through canvas with two exceptions. A `tooltip` left in its
+ * default `renderMode: 'html'` assigns its content to `el.innerHTML`, and a
+ * string `formatter` is used as that content's template verbatim — only the
+ * values substituted into it are escaped. A `toolbox` assigns `dataView.lang`
+ * entries to `innerHTML` and fills a `saveAsImage` popup with `document.write`.
+ * Forcing the render mode and dropping the toolbox leaves the document no DOM
+ * sink at all, which holds whatever any individual option value contains.
+ *
+ * The walk is deep because `tooltip` is not only a top-level component:
+ * `baseOption`, `media[].option`, and timeline `options[]` each carry their own,
+ * a tooltip declared *only* under `media` still instantiates the component in
+ * HTML mode once its query matches, and a `media` entry can override a top-level
+ * `renderMode`. `dataset` is skipped — it holds rows, not components.
+ */
+function confineOptionToCanvas(node: unknown): void {
+  if (Array.isArray(node)) {
+    for (const entry of node) confineOptionToCanvas(entry)
+    return
+  }
+  if (node === null || typeof node !== 'object') return
+  const record = node as Record<string, unknown>
+  // biome-ignore lint/performance/noDelete: the key must be absent, not undefined-valued
+  if ('toolbox' in record) delete record.toolbox
+  for (const key of Object.keys(record)) {
+    if (key === 'dataset') continue
+    const value = record[key]
+    if (key === 'tooltip') {
+      for (const tooltip of Array.isArray(value) ? value : [value]) {
+        if (tooltip !== null && typeof tooltip === 'object') {
+          ;(tooltip as Record<string, unknown>).renderMode = CANVAS_TOOLTIP_RENDER_MODE
+        }
+      }
+    }
+    confineOptionToCanvas(value)
+  }
 }
 
 export function parseChartSpec(content: string): { spec?: ChartSpec; error?: string } {
@@ -98,6 +145,17 @@ export function parseChartSpec(content: string): { spec?: ChartSpec; error?: str
       return { error: '"source.type" must be "static" or "table"' }
     }
   }
+  const option = doc.option as Record<string, unknown>
+  try {
+    confineOptionToCanvas(option)
+  } catch {
+    // Exhausting the stack is the only way the walk fails, and an option that
+    // deep never reaches the renderer anyway — `structuredClone` in
+    // `buildChartRenderOption` throws on it too. Rejecting it here shows the
+    // document's error card instead of failing inside the render.
+    return { error: 'chart document is nested too deeply' }
+  }
+
   // Built explicitly from the validated fields — no blanket cast, and no
   // unvalidated extra keys riding along on the parsed spec.
   return {
@@ -105,7 +163,7 @@ export function parseChartSpec(content: string): { spec?: ChartSpec; error?: str
       schema_version: 1,
       title: typeof doc.title === 'string' ? doc.title : undefined,
       source,
-      option: doc.option as Record<string, unknown>,
+      option,
     },
   }
 }
