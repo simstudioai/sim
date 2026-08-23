@@ -4,10 +4,12 @@
 
 import { describe, expect, it } from 'vitest'
 import {
+  buildSlackBotDescription,
   buildSlackBotDisplayName,
   buildSlackCustomBotSecretBlob,
   type EnvironmentLookup,
   extractSlackBotSources,
+  groupSlackSourcesByWorkflowCredentials,
   planLegacySlackTriggerLink,
   resolveSlackSourceSecrets,
   type SlackBotSource,
@@ -195,20 +197,14 @@ describe('extractSlackBotSources', () => {
 })
 
 describe('buildSlackBotDisplayName', () => {
-  it('uses workflow, block, and optional tool names', () => {
-    expect(buildSlackBotDisplayName(source(), new Set())).toBe('Escalations — Notify Support')
-    expect(
-      buildSlackBotDisplayName(
-        source({ kind: 'embedded_tool', toolTitle: 'Send to incidents' }),
-        new Set()
-      )
-    ).toBe('Escalations — Notify Support — Send to incidents')
+  it('uses only the workflow name', () => {
+    expect(buildSlackBotDisplayName('Escalations', new Set())).toBe('Escalations')
   })
 
   it('allocates a normalized suffix while keeping names within 255 characters', () => {
-    const longSource = source({ workflowName: 'W'.repeat(250), blockName: 'Block' })
-    const first = buildSlackBotDisplayName(longSource, new Set())
-    const second = buildSlackBotDisplayName(longSource, new Set([first.toLowerCase()]))
+    const workflowName = 'W'.repeat(300)
+    const first = buildSlackBotDisplayName(workflowName, new Set())
+    const second = buildSlackBotDisplayName(workflowName, new Set([first.toLowerCase()]))
 
     expect(first).toHaveLength(255)
     expect(second).toHaveLength(255)
@@ -216,25 +212,135 @@ describe('buildSlackBotDisplayName', () => {
   })
 })
 
+describe('buildSlackBotDescription', () => {
+  it('identifies blocks without migration terminology', () => {
+    expect(
+      buildSlackBotDescription('Escalations', [
+        source(),
+        source({
+          sourceId: 'workflow-1:block-2:tools:0',
+          blockId: 'block-2',
+          blockName: 'Incident Agent',
+          kind: 'embedded_tool',
+          toolTitle: 'Notify channel',
+        }),
+      ])
+    ).toBe(
+      'Used by workflow "Escalations". Blocks: "Incident Agent" (Notify channel), "Notify Support".'
+    )
+  })
+})
+
+describe('groupSlackSourcesByWorkflowCredentials', () => {
+  it('groups matching credentials within a workflow and keeps different credentials separate', () => {
+    const groups = groupSlackSourcesByWorkflowCredentials([
+      { source: source(), botToken: 'xoxb-one', signingSecret: 'secret-one' },
+      {
+        source: source({
+          sourceId: 'workflow-1:block-2:trigger',
+          blockId: 'block-2',
+          blockName: 'Handle Reply',
+          kind: 'trigger',
+        }),
+        botToken: 'xoxb-one',
+        signingSecret: 'secret-one',
+      },
+      {
+        source: source({
+          sourceId: 'workflow-1:block-3:trigger',
+          blockId: 'block-3',
+          blockName: 'Handle Mention',
+          kind: 'trigger',
+        }),
+        botToken: 'xoxb-two',
+        signingSecret: 'secret-two',
+      },
+    ])
+
+    expect(groups).toHaveLength(2)
+    expect(groups[0].sources.map((candidate) => candidate.blockName)).toEqual([
+      'Notify Support',
+      'Handle Reply',
+    ])
+    expect(groups[1].sources.map((candidate) => candidate.blockName)).toEqual(['Handle Mention'])
+  })
+
+  it('does not combine matching credentials across workflows', () => {
+    const groups = groupSlackSourcesByWorkflowCredentials([
+      { source: source(), botToken: 'xoxb-one', signingSecret: 'secret-one' },
+      {
+        source: source({
+          sourceId: 'workflow-2:block-2:trigger',
+          workflowId: 'workflow-2',
+          workflowName: 'Onboarding',
+          blockId: 'block-2',
+          kind: 'trigger',
+        }),
+        botToken: 'xoxb-one',
+        signingSecret: 'secret-one',
+      },
+    ])
+
+    expect(groups).toHaveLength(2)
+  })
+
+  it('keeps different signing secrets separate when bot tokens match', () => {
+    const groups = groupSlackSourcesByWorkflowCredentials([
+      { source: source(), botToken: 'xoxb-one', signingSecret: 'secret-one' },
+      {
+        source: source({
+          sourceId: 'workflow-1:block-2:trigger',
+          blockId: 'block-2',
+          blockName: 'Slack Trigger',
+          kind: 'trigger',
+        }),
+        botToken: 'xoxb-one',
+        signingSecret: 'secret-two',
+      },
+    ])
+
+    expect(groups).toHaveLength(2)
+  })
+
+  it('joins an action-only source to the unique matching trigger credential', () => {
+    const groups = groupSlackSourcesByWorkflowCredentials([
+      { source: source(), botToken: 'xoxb-one' },
+      {
+        source: source({
+          sourceId: 'workflow-1:block-2:trigger',
+          blockId: 'block-2',
+          blockName: 'Slack Trigger',
+          kind: 'trigger',
+        }),
+        botToken: 'xoxb-one',
+        signingSecret: 'secret-one',
+      },
+    ])
+
+    expect(groups).toHaveLength(1)
+    expect(groups[0].signingSecret).toBe('secret-one')
+    expect(groups[0].sources.map((candidate) => candidate.blockName)).toEqual([
+      'Slack Trigger',
+      'Notify Support',
+    ])
+  })
+})
+
 describe('buildSlackCustomBotSecretBlob', () => {
   it('builds a trigger-capable credential without calling Slack for identity', () => {
-    expect(
-      buildSlackCustomBotSecretBlob('workflow-1:block-1:trigger', 'xoxb-token', 'secret')
-    ).toEqual({
+    expect(buildSlackCustomBotSecretBlob('workflow-1', 'xoxb-token', 'secret')).toEqual({
       type: 'slack_custom_bot',
       signingSecret: 'secret',
       botToken: 'xoxb-token',
-      metadata: { migrationSourceId: 'workflow-1:block-1:trigger' },
+      metadata: { migrationWorkflowId: 'workflow-1' },
     })
   })
 
   it('builds an action-only credential without inventing a signing secret', () => {
-    expect(
-      buildSlackCustomBotSecretBlob('workflow-1:block-1:action', 'xoxb-token', undefined)
-    ).toEqual({
+    expect(buildSlackCustomBotSecretBlob('workflow-1', 'xoxb-token', undefined)).toEqual({
       type: 'slack_custom_bot',
       botToken: 'xoxb-token',
-      metadata: { migrationSourceId: 'workflow-1:block-1:action' },
+      metadata: { migrationWorkflowId: 'workflow-1' },
     })
   })
 })

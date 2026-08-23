@@ -60,10 +60,12 @@ const SLACK_CUSTOM_BOT_PROVIDER_ID = 'slack-custom-bot'
 const SLACK_CUSTOM_BOT_SECRET_TYPE = 'slack_custom_bot'
 const LEGACY_SLACK_CUSTOM_BOT_INGRESS_MODE = 'legacy_custom_bot'
 const DISPLAY_NAME_MAX_LENGTH = 255
+const DESCRIPTION_MAX_LENGTH = 500
 const OUTPUT_FILE = 'migrate-slack-custom-bot-workspace-ids.txt'
 const WORKSPACE_CONCURRENCY = 3
 const WORKSPACE_DISCOVERY_PAGE_SIZE = 250
 const MEMBERSHIP_INSERT_CHUNK_SIZE = 500
+const TRIGGER_BLOCK_UPDATE_CHUNK_SIZE = 500
 const WEBHOOK_UPDATE_CHUNK_SIZE = 500
 const ENVIRONMENT_USER_QUERY_CHUNK_SIZE = 500
 const MAX_BLOCKS_PER_WORKSPACE = 10_000
@@ -136,22 +138,49 @@ export type SlackSourceSecretResolution =
   | { status: 'ready'; botToken: string; signingSecret?: string }
   | { status: 'unresolved'; reason: string }
 
-interface PreparedCredential {
+export interface ResolvedSlackBotSource {
   source: SlackBotSource
+  botToken: string
+  signingSecret?: string
+}
+
+export interface SlackCredentialGroup {
+  workflowId: string
+  workflowName: string
+  botToken: string
+  signingSecret?: string
+  sources: SlackBotSource[]
+}
+
+interface PreparedSourceLink {
+  source: SlackBotSource
+  updateTriggerBlock: boolean
+  legacyWebhookCount: number
+  webhookIdsToUpdate: string[]
+}
+
+interface PreparedCredential {
+  workflowId: string
+  workflowName: string
+  sources: SlackBotSource[]
+  sourceLinks: PreparedSourceLink[]
   credentialId: string
   insertCredential: boolean
   displayName?: string
   description?: string
   botToken?: string
   signingSecret?: string
-  updateTriggerBlock: boolean
-  legacyWebhookCount: number
-  webhookIdsToUpdate: string[]
 }
 
 export interface ExistingMigrationCredential {
   credentialId: string
   hasSigningSecret: boolean
+}
+
+interface StoredMigrationCredential extends ExistingMigrationCredential {
+  workflowId: string
+  botToken: string
+  signingSecret?: string
 }
 
 export interface LegacySlackWebhookRow {
@@ -358,12 +387,11 @@ export function extractSlackBotSources(block: SlackMigrationBlock): SlackBotSour
 }
 
 export function buildSlackBotDisplayName(
-  source: SlackBotSource,
+  workflowName: string,
   takenNames: ReadonlySet<string>
 ): string {
-  const parts = [source.workflowName.trim(), source.blockName.trim()]
-  if (source.toolTitle) parts.push(source.toolTitle.trim())
-  const base = parts.join(' — ')
+  const base = workflowName.trim()
+  if (!base) throw new Error('Slack credential workflow name cannot be empty')
 
   const first = truncate(base, DISPLAY_NAME_MAX_LENGTH, '')
   if (!takenNames.has(first.toLowerCase())) return first
@@ -373,12 +401,105 @@ export function buildSlackBotDisplayName(
     const candidate = `${truncate(base, DISPLAY_NAME_MAX_LENGTH - suffix.length, '')}${suffix}`
     if (!takenNames.has(candidate.toLowerCase())) return candidate
   }
-  throw new Error(`Could not allocate a unique credential name for source ${source.sourceId}`)
+  throw new Error(`Could not allocate a unique credential name for workflow "${workflowName}"`)
+}
+
+export function buildSlackBotDescription(workflowName: string, sources: SlackBotSource[]): string {
+  const sourceLabels = [
+    ...new Set(
+      sources.map((source) =>
+        source.toolTitle
+          ? `"${source.blockName.trim()}" (${source.toolTitle.trim()})`
+          : `"${source.blockName.trim()}"`
+      )
+    ),
+  ].sort((left, right) => left.localeCompare(right))
+  const description = `Used by workflow "${workflowName.trim()}". Blocks: ${sourceLabels.join(', ')}.`
+  return truncate(description, DESCRIPTION_MAX_LENGTH)
+}
+
+function slackCredentialGroupKey(
+  workflowId: string,
+  botToken: string,
+  signingSecret: string | undefined
+): string {
+  return JSON.stringify([workflowId, botToken, signingSecret ?? null])
+}
+
+function slackBotTokenGroupKey(workflowId: string, botToken: string): string {
+  return JSON.stringify([workflowId, botToken])
+}
+
+export function groupSlackSourcesByWorkflowCredentials(
+  resolvedSources: ResolvedSlackBotSource[]
+): SlackCredentialGroup[] {
+  const groups = new Map<string, SlackCredentialGroup>()
+  const signedGroupKeysByBotToken = new Map<string, string[]>()
+  const orderedSources = [...resolvedSources].sort((left, right) =>
+    left.source.sourceId.localeCompare(right.source.sourceId)
+  )
+
+  for (const resolved of orderedSources.filter((candidate) => candidate.signingSecret)) {
+    const key = slackCredentialGroupKey(
+      resolved.source.workflowId,
+      resolved.botToken,
+      resolved.signingSecret
+    )
+    const existing = groups.get(key)
+    if (existing) {
+      if (existing.workflowName !== resolved.source.workflowName) {
+        throw new Error(`Workflow ${resolved.source.workflowId} has inconsistent names`)
+      }
+      existing.sources.push(resolved.source)
+      continue
+    }
+
+    groups.set(key, {
+      workflowId: resolved.source.workflowId,
+      workflowName: resolved.source.workflowName,
+      botToken: resolved.botToken,
+      signingSecret: resolved.signingSecret,
+      sources: [resolved.source],
+    })
+
+    const botTokenKey = slackBotTokenGroupKey(resolved.source.workflowId, resolved.botToken)
+    const signedGroupKeys = signedGroupKeysByBotToken.get(botTokenKey) ?? []
+    signedGroupKeys.push(key)
+    signedGroupKeysByBotToken.set(botTokenKey, signedGroupKeys)
+  }
+
+  for (const resolved of orderedSources.filter((candidate) => !candidate.signingSecret)) {
+    const botTokenKey = slackBotTokenGroupKey(resolved.source.workflowId, resolved.botToken)
+    const signedGroupKeys = signedGroupKeysByBotToken.get(botTokenKey) ?? []
+    const key =
+      signedGroupKeys.length === 1
+        ? signedGroupKeys[0]
+        : slackCredentialGroupKey(resolved.source.workflowId, resolved.botToken, undefined)
+    if (!key) throw new Error(`Could not group Slack source ${resolved.source.sourceId}`)
+
+    const existing = groups.get(key)
+    if (existing) {
+      if (existing.workflowName !== resolved.source.workflowName) {
+        throw new Error(`Workflow ${resolved.source.workflowId} has inconsistent names`)
+      }
+      existing.sources.push(resolved.source)
+      continue
+    }
+
+    groups.set(key, {
+      workflowId: resolved.source.workflowId,
+      workflowName: resolved.source.workflowName,
+      botToken: resolved.botToken,
+      sources: [resolved.source],
+    })
+  }
+
+  return [...groups.values()]
 }
 
 /** Creates the exact plaintext payload consumed by `getSlackBotCredential`. */
 export function buildSlackCustomBotSecretBlob(
-  sourceId: string,
+  workflowId: string,
   botToken: string,
   signingSecret: string | undefined
 ): Record<string, unknown> {
@@ -386,7 +507,7 @@ export function buildSlackCustomBotSecretBlob(
     type: SLACK_CUSTOM_BOT_SECRET_TYPE,
     ...(signingSecret ? { signingSecret } : {}),
     botToken,
-    metadata: { migrationSourceId: sourceId },
+    metadata: { migrationWorkflowId: workflowId },
   }
 }
 
@@ -513,18 +634,28 @@ function readExistingMigrationCredential(
   credentialId: string,
   encryptedValue: string,
   encryptionKey: string
-): { sourceId: string; credential: ExistingMigrationCredential } | null {
+): StoredMigrationCredential | null {
   const parsed: unknown = JSON.parse(decryptSecret(encryptedValue, encryptionKey))
   if (!isRecordLike(parsed) || !isRecordLike(parsed.metadata)) return null
-  const sourceId = nonEmptyString(parsed.metadata.migrationSourceId)
-  if (!sourceId) return null
+  const workflowId = nonEmptyString(parsed.metadata.migrationWorkflowId)
+  const legacySourceId = nonEmptyString(parsed.metadata.migrationSourceId)
+  if (!workflowId && !legacySourceId) return null
+
+  const resolvedWorkflowId = workflowId ?? legacySourceId?.split(':')[0]
+  if (!resolvedWorkflowId) {
+    throw new Error(`Slack credential ${credentialId} has invalid migration metadata`)
+  }
+
+  const botToken = nonEmptyString(parsed.botToken)
+  if (!botToken) throw new Error(`Slack credential ${credentialId} has no bot token`)
+  const signingSecret = nonEmptyString(parsed.signingSecret)
 
   return {
-    sourceId,
-    credential: {
-      credentialId,
-      hasSigningSecret: Boolean(nonEmptyString(parsed.signingSecret)),
-    },
+    credentialId,
+    workflowId: resolvedWorkflowId,
+    botToken,
+    signingSecret,
+    hasSigningSecret: Boolean(signingSecret),
   }
 }
 
@@ -682,41 +813,20 @@ async function prepareWorkspaceCredentials(params: {
   sources: SlackBotSource[]
   encryptionKey: string
   takenNames: Set<string>
-  existingCredentialsBySourceId: Map<string, ExistingMigrationCredential>
+  existingCredentialsByGroupKey: Map<string, StoredMigrationCredential>
   webhookRowsBySourceId: Map<string, LegacySlackWebhookRow[]>
   stats: MigrationStats
 }): Promise<PreparedCredential[]> {
-  const sourcesNeedingCredentials = params.sources.filter(
-    (source) => !params.existingCredentialsBySourceId.has(source.sourceId)
-  )
   const environmentLookup = await loadEnvironmentLookup(
     params.db,
     params.workspaceId,
     params.workspaceOwnerId,
-    sourcesNeedingCredentials,
+    params.sources,
     params.encryptionKey
   )
-  const prepared: PreparedCredential[] = []
+  const resolvedSources: ResolvedSlackBotSource[] = []
 
   for (const source of params.sources) {
-    const legacyWebhookRows = params.webhookRowsBySourceId.get(source.sourceId) ?? []
-    const existingCredential = params.existingCredentialsBySourceId.get(source.sourceId)
-    if (existingCredential) {
-      params.stats.skippedExisting++
-      const link = planLegacySlackTriggerLink(source, existingCredential, legacyWebhookRows)
-      if (link.updateTriggerBlock || link.webhookIdsToUpdate.length > 0) {
-        prepared.push({
-          source,
-          credentialId: existingCredential.credentialId,
-          insertCredential: false,
-          updateTriggerBlock: link.updateTriggerBlock,
-          legacyWebhookCount: legacyWebhookRows.length,
-          webhookIdsToUpdate: link.webhookIdsToUpdate,
-        })
-      }
-      continue
-    }
-
     const resolution = resolveSlackSourceSecrets(source, environmentLookup)
     if (resolution.status === 'unresolved') {
       params.stats.skippedUnresolved++
@@ -732,29 +842,66 @@ async function prepareWorkspaceCredentials(params: {
       continue
     }
 
-    const { botToken, signingSecret } = resolution
-
-    const displayName = buildSlackBotDisplayName(source, params.takenNames)
-    params.takenNames.add(displayName.toLowerCase())
-    if (!signingSecret) params.stats.actionOnly++
-    const credentialId = generateId()
-    const link = planLegacySlackTriggerLink(
+    resolvedSources.push({
       source,
-      { credentialId, hasSigningSecret: Boolean(signingSecret) },
-      legacyWebhookRows
-    )
+      botToken: resolution.botToken,
+      signingSecret: resolution.signingSecret,
+    })
+  }
+
+  const prepared: PreparedCredential[] = []
+
+  for (const group of groupSlackSourcesByWorkflowCredentials(resolvedSources)) {
+    const groupKey = slackCredentialGroupKey(group.workflowId, group.botToken, group.signingSecret)
+    const existingCredential = params.existingCredentialsByGroupKey.get(groupKey)
+    const credentialId = existingCredential?.credentialId ?? generateId()
+    const credential = {
+      credentialId,
+      hasSigningSecret: Boolean(group.signingSecret),
+    }
+    const sourceLinks = group.sources.map((source): PreparedSourceLink => {
+      const legacyWebhookRows = params.webhookRowsBySourceId.get(source.sourceId) ?? []
+      const link = planLegacySlackTriggerLink(source, credential, legacyWebhookRows)
+      return {
+        source,
+        updateTriggerBlock: link.updateTriggerBlock,
+        legacyWebhookCount: legacyWebhookRows.length,
+        webhookIdsToUpdate: link.webhookIdsToUpdate,
+      }
+    })
+
+    if (existingCredential) {
+      params.stats.skippedExisting++
+      if (
+        sourceLinks.some((link) => link.updateTriggerBlock || link.webhookIdsToUpdate.length > 0)
+      ) {
+        prepared.push({
+          workflowId: group.workflowId,
+          workflowName: group.workflowName,
+          sources: group.sources,
+          sourceLinks,
+          credentialId: existingCredential.credentialId,
+          insertCredential: false,
+        })
+      }
+      continue
+    }
+
+    const displayName = buildSlackBotDisplayName(group.workflowName, params.takenNames)
+    params.takenNames.add(displayName.toLowerCase())
+    if (!group.signingSecret) params.stats.actionOnly++
 
     prepared.push({
-      source,
+      workflowId: group.workflowId,
+      workflowName: group.workflowName,
+      sources: group.sources,
+      sourceLinks,
       credentialId,
       insertCredential: true,
       displayName,
-      description: `Backfilled from Slack credentials in workflow "${source.workflowName}", block "${source.blockName}".`,
-      botToken,
-      signingSecret,
-      updateTriggerBlock: link.updateTriggerBlock,
-      legacyWebhookCount: legacyWebhookRows.length,
-      webhookIdsToUpdate: link.webhookIdsToUpdate,
+      description: buildSlackBotDescription(group.workflowName, group.sources),
+      botToken: group.botToken,
+      signingSecret: group.signingSecret,
     })
   }
 
@@ -768,18 +915,18 @@ async function applyPreparedCredential(params: {
   memberUserIds: string[]
   encryptionKey: string
   prepared: PreparedCredential
-}): Promise<{ triggerLinked: boolean; webhooksMarked: number }> {
+}): Promise<{ triggersLinked: number; webhooksMarked: number }> {
   const now = new Date()
   const { credentialId } = params.prepared
   const encryptedServiceAccountKey = params.prepared.insertCredential
     ? (() => {
         if (!params.prepared.botToken) {
-          throw new Error(`Prepared source ${params.prepared.source.sourceId} has no bot token`)
+          throw new Error(`Prepared workflow ${params.prepared.workflowId} has no bot token`)
         }
         return encryptSecret(
           JSON.stringify(
             buildSlackCustomBotSecretBlob(
-              params.prepared.source.sourceId,
+              params.prepared.workflowId,
               params.prepared.botToken,
               params.prepared.signingSecret
             )
@@ -799,7 +946,7 @@ async function applyPreparedCredential(params: {
         !params.prepared.description ||
         !encryptedServiceAccountKey
       ) {
-        throw new Error(`Prepared source ${params.prepared.source.sourceId} is incomplete`)
+        throw new Error(`Prepared workflow ${params.prepared.workflowId} is incomplete`)
       }
       await tx.insert(credential).values({
         id: credentialId,
@@ -830,7 +977,8 @@ async function applyPreparedCredential(params: {
       }
     }
 
-    if (params.prepared.updateTriggerBlock) {
+    const triggerLinks = params.prepared.sourceLinks.filter((link) => link.updateTriggerBlock)
+    for (const triggerLinkChunk of chunkArray(triggerLinks, TRIGGER_BLOCK_UPDATE_CHUNK_SIZE)) {
       const updatedBlocks = await tx
         .update(workflowBlocks)
         .set({
@@ -839,23 +987,26 @@ async function applyPreparedCredential(params: {
         })
         .where(
           and(
-            eq(workflowBlocks.id, params.prepared.source.blockId),
-            eq(workflowBlocks.workflowId, params.prepared.source.workflowId),
+            inArray(
+              workflowBlocks.id,
+              triggerLinkChunk.map((link) => link.source.blockId)
+            ),
+            eq(workflowBlocks.workflowId, params.prepared.workflowId),
             sql`(${workflowBlocks.subBlocks}->'botCredential'->>'value' IS NULL OR ${workflowBlocks.subBlocks}->'botCredential'->>'value' = ${credentialId})`
           )
         )
         .returning({ id: workflowBlocks.id })
-      if (updatedBlocks.length !== 1) {
+      if (updatedBlocks.length !== triggerLinkChunk.length) {
         throw new Error(
-          `Trigger source ${params.prepared.source.sourceId} changed while the migration was running`
+          `A Slack trigger in workflow ${params.prepared.workflowId} changed while the migration was running`
         )
       }
     }
 
-    for (const webhookIdChunk of chunkArray(
-      params.prepared.webhookIdsToUpdate,
-      WEBHOOK_UPDATE_CHUNK_SIZE
-    )) {
+    const webhookIdsToUpdate = params.prepared.sourceLinks.flatMap(
+      (link) => link.webhookIdsToUpdate
+    )
+    for (const webhookIdChunk of chunkArray(webhookIdsToUpdate, WEBHOOK_UPDATE_CHUNK_SIZE)) {
       const updatedWebhooks = await tx
         .update(webhook)
         .set({
@@ -878,15 +1029,18 @@ async function applyPreparedCredential(params: {
         .returning({ id: webhook.id })
       if (updatedWebhooks.length !== webhookIdChunk.length) {
         throw new Error(
-          `A legacy Slack webhook for source ${params.prepared.source.sourceId} changed while the migration was running`
+          `A legacy Slack webhook for workflow ${params.prepared.workflowId} changed while the migration was running`
         )
       }
     }
   })
 
   return {
-    triggerLinked: params.prepared.updateTriggerBlock,
-    webhooksMarked: params.prepared.webhookIdsToUpdate.length,
+    triggersLinked: params.prepared.sourceLinks.filter((link) => link.updateTriggerBlock).length,
+    webhooksMarked: params.prepared.sourceLinks.reduce(
+      (count, link) => count + link.webhookIdsToUpdate.length,
+      0
+    ),
   }
 }
 
@@ -1052,7 +1206,7 @@ async function processWorkspace(params: {
       return { stats, approvedForLiveRun: false }
     }
 
-    const existingCredentialsBySourceId = new Map<string, ExistingMigrationCredential>()
+    const existingCredentialsByGroupKey = new Map<string, StoredMigrationCredential>()
     const takenNames = new Set<string>()
     for (const row of existingCredentialRows) {
       takenNames.add(row.displayName.toLowerCase())
@@ -1070,10 +1224,17 @@ async function processWorkspace(params: {
         params.encryptionKey
       )
       if (!existing) continue
-      if (existingCredentialsBySourceId.has(existing.sourceId)) {
-        throw new Error(`Multiple Slack credentials claim migration source ${existing.sourceId}`)
+      const groupKey = slackCredentialGroupKey(
+        existing.workflowId,
+        existing.botToken,
+        existing.signingSecret
+      )
+      if (existingCredentialsByGroupKey.has(groupKey)) {
+        throw new Error(
+          `Multiple Slack credentials match the same credentials in workflow ${existing.workflowId}`
+        )
       }
-      existingCredentialsBySourceId.set(existing.sourceId, existing.credential)
+      existingCredentialsByGroupKey.set(groupKey, existing)
     }
 
     const webhookRowsBySourceId = new Map<string, LegacySlackWebhookRow[]>()
@@ -1097,7 +1258,7 @@ async function processWorkspace(params: {
       sources,
       encryptionKey: params.encryptionKey,
       takenNames,
-      existingCredentialsBySourceId,
+      existingCredentialsByGroupKey,
       webhookRowsBySourceId,
       stats,
     })
@@ -1107,48 +1268,71 @@ async function processWorkspace(params: {
       return { stats, approvedForLiveRun: false }
     }
 
+    const triggersToLink = prepared.reduce(
+      (count, candidate) =>
+        count + candidate.sourceLinks.filter((link) => link.updateTriggerBlock).length,
+      0
+    )
+    const undeployedTriggersToLink = prepared.reduce(
+      (count, candidate) =>
+        count +
+        candidate.sourceLinks.filter(
+          (link) => link.updateTriggerBlock && link.legacyWebhookCount === 0
+        ).length,
+      0
+    )
+    const webhooksToMark = prepared.reduce(
+      (count, candidate) =>
+        count +
+        candidate.sourceLinks.reduce(
+          (sourceCount, link) => sourceCount + link.webhookIdsToUpdate.length,
+          0
+        ),
+      0
+    )
+
     logger.info(
       `${params.dryRun ? '[DRY RUN] ' : ''}Workspace ${params.index}${params.total ? `/${params.total}` : ''} ready`,
       {
         workspaceId: params.workspaceId,
         sources: sources.length,
         credentialsToInsert: prepared.filter((candidate) => candidate.insertCredential).length,
-        triggersToLink: prepared.filter((candidate) => candidate.updateTriggerBlock).length,
-        undeployedTriggersToLink: prepared.filter(
-          (candidate) =>
-            candidate.source.kind === 'trigger' &&
-            candidate.updateTriggerBlock &&
-            candidate.legacyWebhookCount === 0
-        ).length,
-        webhooksToMark: prepared.reduce(
-          (total, candidate) => total + candidate.webhookIdsToUpdate.length,
-          0
-        ),
+        triggersToLink,
+        undeployedTriggersToLink,
+        webhooksToMark,
       }
     )
 
     if (params.dryRun) {
       for (const candidate of prepared) {
-        logger.info('[DRY RUN] Would migrate Slack bot source', {
+        const candidateTriggersToLink = candidate.sourceLinks.filter(
+          (link) => link.updateTriggerBlock
+        ).length
+        const candidateWebhooksToMark = candidate.sourceLinks.reduce(
+          (count, link) => count + link.webhookIdsToUpdate.length,
+          0
+        )
+        logger.info('[DRY RUN] Would migrate Slack credential', {
           workspaceId: params.workspaceId,
-          workflowId: candidate.source.workflowId,
-          blockId: candidate.source.blockId,
-          sourceKind: candidate.source.kind,
+          workflowId: candidate.workflowId,
+          blockIds: candidate.sources.map((source) => source.blockId),
+          blockNames: [...new Set(candidate.sources.map((source) => source.blockName))],
+          sourceKinds: [...new Set(candidate.sources.map((source) => source.kind))],
           displayName: candidate.displayName,
           createCredential: candidate.insertCredential,
-          linkTrigger: candidate.updateTriggerBlock,
-          triggerDeployment:
-            candidate.source.kind === 'trigger'
-              ? candidate.legacyWebhookCount > 0
-                ? 'deployed'
-                : 'undeployed'
-              : undefined,
-          webhooksToMark: candidate.webhookIdsToUpdate.length,
+          triggersToLink: candidateTriggersToLink,
+          deployedTriggersToLink: candidate.sourceLinks.filter(
+            (link) => link.updateTriggerBlock && link.legacyWebhookCount > 0
+          ).length,
+          undeployedTriggersToLink: candidate.sourceLinks.filter(
+            (link) => link.updateTriggerBlock && link.legacyWebhookCount === 0
+          ).length,
+          webhooksToMark: candidateWebhooksToMark,
           actionOnly: candidate.insertCredential && !candidate.signingSecret,
         })
         if (candidate.insertCredential) stats.inserted++
-        if (candidate.updateTriggerBlock) stats.triggersLinked++
-        stats.webhooksMarked += candidate.webhookIdsToUpdate.length
+        stats.triggersLinked += candidateTriggersToLink
+        stats.webhooksMarked += candidateWebhooksToMark
       }
       return { stats, approvedForLiveRun: true }
     }
@@ -1166,22 +1350,17 @@ async function processWorkspace(params: {
         prepared: candidate,
       })
       if (candidate.insertCredential) stats.inserted++
-      if (applied.triggerLinked) stats.triggersLinked++
+      stats.triggersLinked += applied.triggersLinked
       stats.webhooksMarked += applied.webhooksMarked
-      logger.info('Migrated Slack bot source', {
+      logger.info('Migrated Slack credential', {
         workspaceId: params.workspaceId,
-        workflowId: candidate.source.workflowId,
-        blockId: candidate.source.blockId,
-        sourceKind: candidate.source.kind,
+        workflowId: candidate.workflowId,
+        blockIds: candidate.sources.map((source) => source.blockId),
+        blockNames: [...new Set(candidate.sources.map((source) => source.blockName))],
+        sourceKinds: [...new Set(candidate.sources.map((source) => source.kind))],
         displayName: candidate.displayName,
         createdCredential: candidate.insertCredential,
-        linkedTrigger: applied.triggerLinked,
-        triggerDeployment:
-          candidate.source.kind === 'trigger'
-            ? candidate.legacyWebhookCount > 0
-              ? 'deployed'
-              : 'undeployed'
-            : undefined,
+        triggersLinked: applied.triggersLinked,
         webhooksMarked: applied.webhooksMarked,
         actionOnly: candidate.insertCredential && !candidate.signingSecret,
       })
