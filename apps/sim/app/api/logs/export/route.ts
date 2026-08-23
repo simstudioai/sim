@@ -5,7 +5,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { and, desc, eq, lt, or, type SQL, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
-import { MATERIALIZE_CONCURRENCY, mapWithConcurrency } from '@/lib/core/utils/concurrency'
+import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { formatCsvValue, toCsvRow } from '@/lib/core/utils/csv'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { materializeExecutionDataForDisplay } from '@/lib/logs/execution/trace-store'
@@ -14,7 +14,8 @@ import { expandFolderIdsWithDescendants } from '@/lib/logs/folder-expansion'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('LogsExportAPI')
-const LOG_EXPORT_PAGE_SIZE = 1
+const LOG_EXPORT_PAGE_SIZE = 100
+const LOG_EXPORT_MATERIALIZE_CONCURRENCY = 1
 
 export const revalidate = 0
 
@@ -119,18 +120,25 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
         if (!rows.length) break
 
-        for (let chunkStart = 0; chunkStart < rows.length; chunkStart += MATERIALIZE_CONCURRENCY) {
-          const chunk = rows.slice(chunkStart, chunkStart + MATERIALIZE_CONCURRENCY)
-          const materialized = await mapWithConcurrency(chunk, MATERIALIZE_CONCURRENCY, (row) =>
-            materializeExecutionDataForDisplay(
-              row.executionData as Record<string, unknown> | null,
-              {
-                workspaceId: params.workspaceId,
-                workflowId: row.workflowId,
-                executionId: row.executionId,
-                userId: session.user.id,
-              }
-            )
+        for (
+          let chunkStart = 0;
+          chunkStart < rows.length;
+          chunkStart += LOG_EXPORT_MATERIALIZE_CONCURRENCY
+        ) {
+          const chunk = rows.slice(chunkStart, chunkStart + LOG_EXPORT_MATERIALIZE_CONCURRENCY)
+          const materialized = await mapWithConcurrency(
+            chunk,
+            LOG_EXPORT_MATERIALIZE_CONCURRENCY,
+            (row) =>
+              materializeExecutionDataForDisplay(
+                row.executionData as Record<string, unknown> | null,
+                {
+                  workspaceId: params.workspaceId,
+                  workflowId: row.workflowId,
+                  executionId: row.executionId,
+                  userId: session.user.id,
+                }
+              )
           )
 
           for (let index = 0; index < chunk.length; index++) {

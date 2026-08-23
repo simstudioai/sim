@@ -104,9 +104,7 @@ describe('GET /api/logs/export', () => {
   })
 
   it('materializes one bounded page at a time while preserving CSV row order', async () => {
-    queueTableRows(workflowExecutionLogs, [logRow(0)])
-    queueTableRows(workflowExecutionLogs, [logRow(1)])
-    queueTableRows(workflowExecutionLogs, [logRow(2)])
+    queueTableRows(workflowExecutionLogs, [logRow(0), logRow(1), logRow(2)])
 
     const response = await GET(makeRequest())
     const lines = (await response.text()).trimEnd().split('\n')
@@ -119,23 +117,25 @@ describe('GET /api/logs/export', () => {
   })
 
   it('resumes full pages by startedAt and id without using OFFSET', async () => {
-    const last = logRow(0, { startedAtCursor: '2026-08-23 12:00:00.000123' })
+    const firstPage = Array.from({ length: 100 }, (_, index) => logRow(index))
+    firstPage[99] = logRow(99, { startedAtCursor: '2026-08-23 11:58:21.000123' })
+    const last = firstPage.at(-1)!
     const secondPage = [
-      logRow(1, {
+      logRow(100, {
         id: 'log-0000-second',
         startedAt: last.startedAt,
-        startedAtCursor: '2026-08-23 12:00:00.000122',
+        startedAtCursor: '2026-08-23 11:58:21.000122',
       }),
     ]
-    queueTableRows(workflowExecutionLogs, [last])
+    queueTableRows(workflowExecutionLogs, firstPage)
     queueTableRows(workflowExecutionLogs, secondPage)
 
     const response = await GET(makeRequest())
     const lines = (await response.text()).trimEnd().split('\n')
 
-    expect(lines).toHaveLength(3)
+    expect(lines).toHaveLength(102)
     expect(dbChainMockFns.offset).not.toHaveBeenCalled()
-    expect(dbChainMockFns.where).toHaveBeenCalledTimes(3)
+    expect(dbChainMockFns.where).toHaveBeenCalledTimes(2)
     expect(dbChainMockFns.orderBy).toHaveBeenNthCalledWith(
       1,
       expect.objectContaining({
@@ -169,7 +169,10 @@ describe('GET /api/logs/export', () => {
   })
 
   it('does not load the next database page until the current row is consumed', async () => {
-    queueTableRows(workflowExecutionLogs, [logRow(0)])
+    queueTableRows(
+      workflowExecutionLogs,
+      Array.from({ length: 100 }, (_, index) => logRow(index))
+    )
     queueTableRows(workflowExecutionLogs, [logRow(1)])
 
     const response = await GET(makeRequest())
