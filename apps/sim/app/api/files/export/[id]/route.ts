@@ -8,7 +8,6 @@ import { NextResponse } from 'next/server'
 import { fileExportContract } from '@/lib/api/contracts/storage-transfer'
 import { parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
-import { extractEmbeddedImageIds } from '@/lib/copilot/tools/server/files/embedded-image-refs'
 import { MATERIALIZE_CONCURRENCY, mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -16,6 +15,7 @@ import { captureServerEvent } from '@/lib/posthog/server'
 import type { StorageContext } from '@/lib/uploads/config'
 import { getServeStoragePrefix } from '@/lib/uploads/config'
 import { downloadFile } from '@/lib/uploads/core/storage-service'
+import { extractEmbeddedFileRefs } from '@/lib/uploads/server/embedded-image-refs'
 import { getFileMetadataById } from '@/lib/uploads/server/metadata'
 import { formatFileSize } from '@/lib/uploads/utils/file-utils'
 import { verifyFileAccess } from '@/app/api/files/authorization'
@@ -149,23 +149,11 @@ export const GET = withRouteHandler(
     }
     let mdContent = mdBuffer.toString('utf-8')
 
-    const imageIds = extractEmbeddedImageIds(mdContent)
+    // Ids only: a serve-URL embed names a storage key, which the bundler has no id to rewrite the
+    // markdown against, so those images stay pointed at their original URL.
+    const { ids: imageIds } = extractEmbeddedFileRefs(mdContent)
 
     logger.info('Exporting markdown', { id, imageCount: imageIds.length })
-
-    if (imageIds.length === 0) {
-      const mdName = safeFilename(record.originalName)
-      const mdBytes = Buffer.from(mdContent, 'utf-8')
-      auditExport('markdown', 0)
-      return new NextResponse(new Uint8Array(mdBytes), {
-        status: 200,
-        headers: {
-          'Content-Type': 'text/markdown; charset=utf-8',
-          'Content-Disposition': `attachment; ${encodeFilenameForHeader(mdName)}`,
-          'Content-Length': String(mdBytes.length),
-        },
-      })
-    }
 
     // Metadata first: declared sizes bound the download before a byte is read, and the
     // authorization check costs nothing to run here.
@@ -232,6 +220,21 @@ export const GET = withRouteHandler(
       const filename = deduplicatedFilename(preferred, usedFilenames, imageId)
       usedFilenames.add(filename)
       assetMap.set(imageId, { filename, buffer })
+    }
+
+    // Format follows what was bundled, not what was referenced: an embed can point at a file that is
+    // missing, unreadable, or oversized, and an empty `assets/` zip is a worse answer than the
+    // document itself. `mdContent` is still unrewritten here, so `mdBuffer` holds exactly its bytes.
+    if (assetMap.size === 0) {
+      auditExport('markdown', 0)
+      return new NextResponse(new Uint8Array(mdBuffer), {
+        status: 200,
+        headers: {
+          'Content-Type': 'text/markdown; charset=utf-8',
+          'Content-Disposition': `attachment; ${encodeFilenameForHeader(safeFilename(record.originalName))}`,
+          'Content-Length': String(mdBuffer.length),
+        },
+      })
     }
 
     for (const [imageId, asset] of assetMap) {

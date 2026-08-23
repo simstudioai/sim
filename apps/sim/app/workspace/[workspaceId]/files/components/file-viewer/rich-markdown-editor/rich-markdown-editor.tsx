@@ -14,7 +14,7 @@ import {
   truncateSelectionText,
 } from '@/lib/copilot/chat/selection-context'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
-import { extractEmbeddedFileRef } from '@/lib/uploads/utils/embedded-image-ref'
+import { extractEmbeddedFileRef, extractImgSrcs } from '@/lib/uploads/utils/embedded-image-ref'
 import { isUntitledName } from '@/app/workspace/[workspaceId]/files/untitled-title'
 import { useUploadWorkspaceFile } from '@/hooks/queries/workspace-files'
 import { useAddToChat } from '@/hooks/use-add-to-chat'
@@ -40,12 +40,7 @@ import { useFileDocCollaboration } from './collaboration/use-file-doc-collaborat
 import { createMarkdownEditorExtensions } from './editor-extensions'
 import { findHeadingPos } from './heading-anchors'
 import { moveDraggedImageNode } from './image-drag-move'
-import {
-  extractImageFiles,
-  extractImgSrcs,
-  findHostedImageAttrs,
-  shouldSkipFileUpload,
-} from './image-paste'
+import { extractImageFiles, findHostedImageAttrs, shouldSkipFileUpload } from './image-paste'
 import {
   applyFrontmatter,
   normalizeLinkHref,
