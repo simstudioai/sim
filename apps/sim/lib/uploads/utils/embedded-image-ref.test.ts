@@ -21,9 +21,13 @@ describe('extractEmbeddedFileRef', () => {
     expect(extractEmbeddedFileRef('/workspace/W1/files/wf_abc')).toEqual({ fileId: 'wf_abc' })
   })
 
-  it('percent-decodes the id, like it already does the key', () => {
-    expect(extractEmbeddedFileRef('/api/files/view/wf%5Fabc')).toEqual({ fileId: 'wf_abc' })
-    expect(extractEmbeddedFileRef('/workspace/W1/files/wf%5Fabc')).toEqual({ fileId: 'wf_abc' })
+  /**
+   * The export bundler rewrites an embed by searching the document for the id it was handed, so a
+   * decoded id would bundle the asset and leave the markdown pointing at the API URL.
+   */
+  it('returns the id as spelled in the src, so the export can find it again', () => {
+    expect(extractEmbeddedFileRef('/api/files/view/wf%5Fabc')).toEqual({ fileId: 'wf%5Fabc' })
+    expect(extractEmbeddedFileRef('/workspace/W1/files/wf%5Fabc')).toEqual({ fileId: 'wf%5Fabc' })
   })
 
   it('returns null for external, data, and non-workspace serve urls', () => {

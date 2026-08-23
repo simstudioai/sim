@@ -18,7 +18,10 @@ export type EmbeddedFileRef = { key: string } | { fileId: string } | null
  * and the in-app path `/workspace/<wsId>/files/<id>`. Returns null for absolute, `data:`, or non-workspace
  * URLs (e.g. public `profile-pictures/` assets), which render as-is.
  *
- * Path segments are percent-decoded, so callers always receive the real key or id.
+ * A key is percent-decoded — it is matched against stored keys. An id is returned exactly as it is
+ * spelled in the `src`, because the export bundler rewrites embeds by searching the document for
+ * that spelling; handing it a decoded id it cannot find would bundle an asset and leave the markdown
+ * pointing at the API URL, which renders as a broken image offline.
  */
 export function extractEmbeddedFileRef(src: string): EmbeddedFileRef {
   try {
@@ -36,10 +39,10 @@ export function extractEmbeddedFileRef(src: string): EmbeddedFileRef {
       return key.startsWith('workspace/') ? { key } : null
     }
     if (segs[1] === 'api' && segs[2] === 'files' && segs[3] === 'view' && segs[4]) {
-      return { fileId: decodeURIComponent(segs[4]) }
+      return { fileId: segs[4] }
     }
     if (segs[1] === 'workspace' && segs[3] === 'files' && segs[4]) {
-      return { fileId: decodeURIComponent(segs[4]) }
+      return { fileId: segs[4] }
     }
     return null
   } catch {
