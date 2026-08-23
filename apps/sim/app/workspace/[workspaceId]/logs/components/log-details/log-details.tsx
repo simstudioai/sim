@@ -63,7 +63,10 @@ import { DELETED_WORKFLOW_LABEL } from '@/lib/workflows/workflow-labels'
  * barrel forms a parent->child cycle that would keep the barrel edge to the snapshot
  * alive and silently defeat the ExecutionSnapshot lazy split below.
  */
-import { SnapshotBoundary } from '@/app/workspace/[workspaceId]/logs/components/log-details/components/execution-snapshot/snapshot-boundary'
+import {
+  SnapshotBoundary,
+  SnapshotModalFallback,
+} from '@/app/workspace/[workspaceId]/logs/components/log-details/components/execution-snapshot/snapshot-boundary'
 import { FileCards } from '@/app/workspace/[workspaceId]/logs/components/log-details/components/file-download'
 import { TraceView } from '@/app/workspace/[workspaceId]/logs/components/log-details/components/trace-view'
 import { useLogDetailsResize } from '@/app/workspace/[workspaceId]/logs/hooks'
@@ -708,7 +711,14 @@ export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentP
           isOpen={isExecutionSnapshotOpen}
           onLoadError={() => setIsExecutionSnapshotOpen(false)}
         >
-          <Suspense fallback={null}>
+          <Suspense
+            fallback={
+              <SnapshotModalFallback
+                isOpen={isExecutionSnapshotOpen}
+                onClose={() => setIsExecutionSnapshotOpen(false)}
+              />
+            }
+          >
             <ExecutionSnapshot
               executionId={log.executionId}
               traceSpans={traceSpans}

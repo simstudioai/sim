@@ -1,7 +1,7 @@
 /**
  * @vitest-environment jsdom
  */
-import { act } from 'react'
+import { act, type ReactNode } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -10,10 +10,35 @@ const { mockToastError } = vi.hoisted(() => ({
 }))
 
 vi.mock('@sim/emcn', () => ({
+  Loader: () => <span aria-hidden='true' />,
+  Modal: ({
+    children,
+    open,
+    onOpenChange,
+  }: {
+    children: ReactNode
+    open: boolean
+    onOpenChange: (open: boolean) => void
+  }) =>
+    open ? (
+      <div>
+        {children}
+        <button type='button' onClick={() => onOpenChange(false)}>
+          Close
+        </button>
+      </div>
+    ) : null,
+  ModalBody: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  ModalContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  ModalDescription: ({ children }: { children: ReactNode }) => <p>{children}</p>,
+  ModalHeader: ({ children }: { children: ReactNode }) => <h2>{children}</h2>,
   toast: { error: mockToastError },
 }))
 
-import { SnapshotBoundary } from '@/app/workspace/[workspaceId]/logs/components/log-details/components/execution-snapshot/snapshot-boundary'
+import {
+  SnapshotBoundary,
+  SnapshotModalFallback,
+} from '@/app/workspace/[workspaceId]/logs/components/log-details/components/execution-snapshot/snapshot-boundary'
 
 const LOAD_ERROR = new Error('snapshot chunk failed')
 
@@ -71,5 +96,21 @@ describe('SnapshotBoundary', () => {
       'Could not load the workflow snapshot. Refresh and try again.'
     )
     expect(onLoadError).toHaveBeenCalledOnce()
+  })
+
+  it('keeps the modal shell visible while the snapshot bundle loads', () => {
+    const onClose = vi.fn()
+
+    act(() => {
+      root.render(<SnapshotModalFallback isOpen onClose={onClose} />)
+    })
+
+    expect(container.textContent).toContain('Workflow State')
+    expect(container.textContent).toContain('Loading run snapshot…')
+
+    const closeButton = container.querySelector('button')
+    expect(closeButton).not.toBeNull()
+    act(() => closeButton?.click())
+    expect(onClose).toHaveBeenCalledOnce()
   })
 })

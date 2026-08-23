@@ -1,7 +1,15 @@
 'use client'
 
 import { Component, type ErrorInfo, type ReactNode } from 'react'
-import { toast } from '@sim/emcn'
+import {
+  Loader,
+  Modal,
+  ModalBody,
+  ModalContent,
+  ModalDescription,
+  ModalHeader,
+  toast,
+} from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 
 const logger = createLogger('ExecutionSnapshotBoundary')
@@ -17,6 +25,35 @@ interface SnapshotBoundaryState {
 }
 
 const reportedErrors = new WeakSet<Error>()
+
+interface SnapshotModalFallbackProps {
+  isOpen: boolean
+  onClose: () => void
+}
+
+export function SnapshotModalFallback({ isOpen, onClose }: SnapshotModalFallbackProps) {
+  return (
+    <Modal
+      open={isOpen}
+      onOpenChange={(open) => {
+        if (!open) onClose()
+      }}
+    >
+      <ModalContent size='full' className='flex h-[90vh] flex-col'>
+        <ModalHeader>Workflow State</ModalHeader>
+        <ModalBody className='!p-0 flex min-h-0 flex-1 items-center justify-center overflow-hidden'>
+          <ModalDescription className='sr-only'>
+            Loading the workflow state snapshot for this execution
+          </ModalDescription>
+          <div className='flex items-center gap-2 text-[var(--text-secondary)]'>
+            <Loader className='size-[16px]' animate />
+            <span className='text-small'>Loading run snapshot…</span>
+          </div>
+        </ModalBody>
+      </ModalContent>
+    </Modal>
+  )
+}
 
 /**
  * Error boundary for the lazily loaded execution snapshot.
