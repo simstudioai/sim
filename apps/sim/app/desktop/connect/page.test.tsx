@@ -3,11 +3,13 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetSession, mockRedirect } = vi.hoisted(() => ({
+const { mockGetSession, mockRedirect, baseUrl } = vi.hoisted(() => ({
   mockGetSession: vi.fn(),
   mockRedirect: vi.fn((url: string) => {
     throw new Error(`NEXT_REDIRECT:${url}`)
   }),
+  /** Mutable so a test can give the deployment a trailing-slash base URL. */
+  baseUrl: { value: 'https://sim.test' },
 }))
 
 vi.mock('@/lib/auth', () => ({
@@ -21,7 +23,7 @@ vi.mock('@/lib/auth/auth-client', () => ({
 }))
 
 vi.mock('@/lib/core/utils/urls', () => ({
-  getBaseUrl: () => 'https://sim.test',
+  getBaseUrl: () => baseUrl.value,
 }))
 
 /** Keeps the landing-page barrel the real shell pulls in out of this graph. */
@@ -57,6 +59,7 @@ async function renderPage(params: Record<string, string>) {
 describe('DesktopConnectPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    baseUrl.value = 'https://sim.test'
     mockGetSession.mockResolvedValue({ user: { id: 'user-1', email: 'user@example.com' } })
   })
 
@@ -91,6 +94,32 @@ describe('DesktopConnectPage', () => {
 
     expect(result.type.name).toBe('ConnectLauncher')
     expect(() => new URL(result.props.completeUrl as string)).not.toThrow()
+  })
+
+  it('keeps the completion route intact when the deployment base URL has a trailing slash', async () => {
+    // `//desktop/connect/complete` matches no route, so the provider result
+    // would never reach the loopback and the connect would hang.
+    baseUrl.value = 'https://sim.test/'
+
+    const launcher = await renderPage({
+      provider: 'google-email',
+      state: VALID_STATE,
+      port: PORT,
+    })
+    expect(new URL(launcher.props.completeUrl as string).pathname).toBe('/desktop/connect/complete')
+
+    await expect(
+      DesktopConnectPage(
+        pageProps({
+          provider: 'google-email',
+          state: VALID_STATE,
+          port: PORT,
+          workspaceId: 'workspace-1',
+        })
+      )
+    ).rejects.toThrow('NEXT_REDIRECT:')
+    const callbackUrl = new URL(mockRedirect.mock.calls[0][0]).searchParams.get('callbackURL')
+    expect(new URL(callbackUrl as string).pathname).toBe('/desktop/connect/complete')
   })
 
   it('sends a workspace-scoped connect to the authorize route with an absolute callback', async () => {
