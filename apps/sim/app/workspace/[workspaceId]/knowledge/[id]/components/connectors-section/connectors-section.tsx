@@ -1,6 +1,6 @@
 'use client'
 
-import { useId, useMemo, useState } from 'react'
+import { useEffect, useId, useMemo, useState } from 'react'
 import {
   Badge,
   Button,
@@ -295,6 +295,13 @@ function ConnectorCard({
     () => (selectedCredential ? getMissingRequiredScopes(selectedCredential, requiredScopes) : []),
     [selectedCredential, requiredScopes]
   )
+
+  useEffect(() => {
+    if (showOAuthModal && connector.credentialId && !selectedCredential) {
+      consumeOAuthReturnContext()
+      setShowOAuthModal(false)
+    }
+  }, [showOAuthModal, connector.credentialId, selectedCredential])
 
   const { data: detail, isLoading: detailLoading } = useConnectorDetail(
     expanded ? knowledgeBaseId : undefined,

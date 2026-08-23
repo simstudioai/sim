@@ -8,15 +8,17 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { SyncLogData } from '@/lib/api/contracts/knowledge/connectors'
 import { CONNECTOR_SYNC_STALE_LOCK_TTL_MS } from '@/lib/knowledge/connectors/sync-limits'
 
-const { connectOAuthModalMock, icon, oauthCredentialsState } = vi.hoisted(() => ({
-  connectOAuthModalMock: vi.fn(),
-  icon: (name: string) => (props: SVGProps<SVGSVGElement>) => (
-    <svg data-testid={`icon-${name}`} className={props.className} />
-  ),
-  oauthCredentialsState: {
-    current: [] as Array<{ id: string; name: string; provider: string }>,
-  },
-}))
+const { consumeOAuthReturnContextMock, connectOAuthModalMock, icon, oauthCredentialsState } =
+  vi.hoisted(() => ({
+    consumeOAuthReturnContextMock: vi.fn(),
+    connectOAuthModalMock: vi.fn(),
+    icon: (name: string) => (props: SVGProps<SVGSVGElement>) => (
+      <svg data-testid={`icon-${name}`} className={props.className} />
+    ),
+    oauthCredentialsState: {
+      current: [] as Array<{ id: string; name: string; provider: string }>,
+    },
+  }))
 
 vi.mock('@sim/emcn/icons', () => ({
   ChevronDown: icon('chevron-down'),
@@ -59,7 +61,7 @@ vi.mock('@sim/emcn', () => ({
 }))
 
 vi.mock('@/lib/credentials/client-state', () => ({
-  consumeOAuthReturnContext: vi.fn(),
+  consumeOAuthReturnContext: consumeOAuthReturnContextMock,
   writeOAuthReturnContext: vi.fn(),
 }))
 vi.mock('@/lib/oauth', () => ({
@@ -229,6 +231,37 @@ describe('Connector credential reauthorization', () => {
         },
       })
     )
+  })
+
+  it('clears the OAuth return context if the credential disappears while open', () => {
+    oauthCredentialsState.current = [
+      { id: 'credential-1', name: 'Workspace Slack', provider: 'slack-custom' },
+    ]
+    const connector = makeConnector()
+    const container = renderSection(connector)
+    const reconnectButton = Array.from(container.querySelectorAll('button')).find(
+      (button) => button.textContent === 'Reconnect'
+    )
+
+    act(() => reconnectButton?.click())
+    expect(connectOAuthModalMock).toHaveBeenCalledOnce()
+
+    connectOAuthModalMock.mockClear()
+    oauthCredentialsState.current = []
+    act(() =>
+      root?.render(
+        <ConnectorsSection
+          workspaceId='workspace-1'
+          knowledgeBaseId='knowledge-1'
+          connectors={[connector]}
+          isLoading={false}
+          canEdit
+        />
+      )
+    )
+
+    expect(consumeOAuthReturnContextMock).toHaveBeenCalledOnce()
+    expect(connectOAuthModalMock).not.toHaveBeenCalled()
   })
 })
 
