@@ -22,6 +22,7 @@ import {
   OTP_RESOURCE_RATE_LIMIT,
   storeOTP,
 } from '@/lib/core/security/otp'
+import { afterResponse } from '@/lib/core/utils/after-response'
 import { generateRequestId, getClientIp } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { sendEmail } from '@/lib/messaging/email/mailer'
@@ -47,6 +48,48 @@ function rateLimited(retryAfterMs: number | undefined, fallbackMs: number): Next
   )
   response.headers.set('Retry-After', String(Math.ceil((retryAfterMs ?? fallbackMs) / 1000)))
   return response
+}
+
+function otpRequestAccepted(): NextResponse {
+  return NextResponse.json({ message: 'Verification code sent' })
+}
+
+async function deliverOtp(requestId: string, shareId: string, email: string): Promise<void> {
+  const resourceRateLimit = await rateLimiter.checkRateLimitDirect(
+    `file-otp:resource:${shareId}`,
+    OTP_RESOURCE_RATE_LIMIT,
+    { failClosed: true }
+  )
+  if (!resourceRateLimit.allowed) {
+    logger.warn(`[${requestId}] OTP resource rate limit exceeded for share ${shareId}`)
+    return
+  }
+
+  const emailRateLimit = await rateLimiter.checkRateLimitDirect(
+    `file-otp:email:${shareId}:${email}`,
+    OTP_EMAIL_RATE_LIMIT,
+    { failClosed: true }
+  )
+  if (!emailRateLimit.allowed) {
+    logger.warn(`[${requestId}] OTP email rate limit exceeded for ${email}`)
+    return
+  }
+
+  const otp = generateOTP()
+  await storeOTP('file', shareId, email, otp)
+
+  const emailHtml = await renderOTPEmail(otp, email, 'email-verification', SHARE_EMAIL_LABEL)
+  const emailResult = await sendEmail({
+    to: email,
+    subject: getOtpSubject(SHARE_EMAIL_LABEL),
+    html: emailHtml,
+  })
+  if (!emailResult.success) {
+    logger.error(`[${requestId}] Failed to send OTP email:`, emailResult.message)
+    return
+  }
+
+  logger.info(`[${requestId}] OTP sent for share ${shareId}`)
 }
 
 /**
@@ -88,49 +131,13 @@ export const POST = withRouteHandler(
           { status: 400 }
         )
       }
+      const emailAllowed = isEmailAllowed(email, shareAllowedEmails(resolved.share.allowedEmails))
 
-      const resourceRateLimit = await rateLimiter.checkRateLimitDirect(
-        `file-otp:resource:${resolved.share.id}`,
-        OTP_RESOURCE_RATE_LIMIT,
-        { failClosed: true }
-      )
-      if (!resourceRateLimit.allowed) {
-        logger.warn(
-          `[${requestId}] OTP resource rate limit exceeded for share ${resolved.share.id}`
-        )
-        return rateLimited(resourceRateLimit.retryAfterMs, OTP_RESOURCE_RATE_LIMIT.refillIntervalMs)
-      }
-
-      if (!isEmailAllowed(email, shareAllowedEmails(resolved.share.allowedEmails))) {
-        return NextResponse.json({ error: 'Email not authorized for this file' }, { status: 403 })
-      }
-
-      const emailRateLimit = await rateLimiter.checkRateLimitDirect(
-        `file-otp:email:${resolved.share.id}:${email}`,
-        OTP_EMAIL_RATE_LIMIT,
-        { failClosed: true }
-      )
-      if (!emailRateLimit.allowed) {
-        logger.warn(`[${requestId}] OTP email rate limit exceeded for ${email}`)
-        return rateLimited(emailRateLimit.retryAfterMs, OTP_EMAIL_RATE_LIMIT.refillIntervalMs)
-      }
-
-      const otp = generateOTP()
-      await storeOTP('file', resolved.share.id, email, otp)
-
-      const emailHtml = await renderOTPEmail(otp, email, 'email-verification', SHARE_EMAIL_LABEL)
-      const emailResult = await sendEmail({
-        to: email,
-        subject: getOtpSubject(SHARE_EMAIL_LABEL),
-        html: emailHtml,
+      afterResponse(async () => {
+        if (!emailAllowed) return
+        await deliverOtp(requestId, resolved.share.id, email)
       })
-      if (!emailResult.success) {
-        logger.error(`[${requestId}] Failed to send OTP email:`, emailResult.message)
-        return NextResponse.json({ error: 'Failed to send verification email' }, { status: 500 })
-      }
-
-      logger.info(`[${requestId}] OTP sent for share ${resolved.share.id}`)
-      return NextResponse.json({ message: 'Verification code sent' })
+      return otpRequestAccepted()
     } catch (error) {
       logger.error(`[${requestId}] Error processing OTP request:`, error)
       return NextResponse.json({ error: 'Failed to process request' }, { status: 500 })
