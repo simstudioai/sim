@@ -22,7 +22,11 @@ function hasHttpProtocol(url: string): boolean {
  * route, and breaks the `startsWith(`${base}/`)` prefix checks that decide
  * whether a redirect target is our own. Normalizing once here is what lets
  * those call sites stay simple instead of each defending against the operator's
- * spelling. A path-prefixed base (`https://host/sim/`) keeps its path.
+ * spelling.
+ *
+ * Trailing slashes are the only spelling this absorbs. The app declares no Next
+ * `basePath`, so its routes are served at the origin root and a path-prefixed
+ * value could not address them however this normalized it.
  */
 function normalizeBaseUrl(url: string): string {
   const protocol = isProd ? 'https://' : 'http://'

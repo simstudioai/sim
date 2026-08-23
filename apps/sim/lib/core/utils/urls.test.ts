@@ -74,11 +74,16 @@ describe('getBaseUrl', () => {
     }
   })
 
-  it('keeps the path of a path-prefixed base URL', () => {
+  /**
+   * Pins the trim's shape — it must not eat more than the trailing slashes.
+   * Not a claim that a path-prefixed deployment works: the app declares no Next
+   * `basePath`, so such a value could not address its routes either way.
+   */
+  it('trims only trailing slashes, never interior ones', () => {
     mockGetEnv.mockImplementation((key) =>
-      key === 'NEXT_PUBLIC_APP_URL' ? 'https://example.com/sim/' : undefined
+      key === 'NEXT_PUBLIC_APP_URL' ? 'https://example.com/a/b/' : undefined
     )
-    expect(getBaseUrl()).toBe('https://example.com/sim')
+    expect(getBaseUrl()).toBe('https://example.com/a/b')
   })
 
   it('adds the protocol and strips the trailing slash together', () => {
