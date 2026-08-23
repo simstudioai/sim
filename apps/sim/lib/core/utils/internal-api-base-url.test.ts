@@ -12,7 +12,15 @@
  * @vitest-environment node
  */
 import { resetEnvMock, setEnv } from '@sim/testing'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+
+/**
+ * `vitest.setup.ts` mocks this module globally with a hand-written mirror, so
+ * without this the suite would assert against that mirror rather than the
+ * function it names — and any drift between the two would pass unnoticed.
+ */
+vi.unmock('@/lib/core/utils/urls')
+
 import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
 
 const PUBLIC_URL = 'https://sim.ai'
@@ -26,6 +34,17 @@ describe('getInternalApiBaseUrl', () => {
   it('uses the internal URL in the app container', () => {
     setEnv({
       INTERNAL_API_BASE_URL: LOOPBACK,
+      NEXT_PUBLIC_APP_URL: PUBLIC_URL,
+      DB_APP_NAME: 'sim',
+    })
+
+    expect(getInternalApiBaseUrl()).toBe(LOOPBACK)
+  })
+
+  /** Callers concatenate `${base}/api/...`, exactly as they do with getBaseUrl(). */
+  it('strips a trailing slash from the internal URL', () => {
+    setEnv({
+      INTERNAL_API_BASE_URL: `${LOOPBACK}/`,
       NEXT_PUBLIC_APP_URL: PUBLIC_URL,
       DB_APP_NAME: 'sim',
     })

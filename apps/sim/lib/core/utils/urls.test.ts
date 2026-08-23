@@ -57,6 +57,38 @@ describe('getBaseUrl', () => {
   })
 
   /**
+   * Call sites build `${getBaseUrl()}/path`, so a trailing slash would give them
+   * a `//path` pathname that matches no route — and would break the
+   * `startsWith(`${base}/`)` prefix checks that decide whether a redirect target
+   * is our own, silently sending those redirects to their fallback instead.
+   */
+  it('strips trailing slashes so concatenated paths stay single-slashed', () => {
+    for (const configured of ['https://app.example.com/', 'https://app.example.com///']) {
+      mockGetEnv.mockImplementation((key) =>
+        key === 'NEXT_PUBLIC_APP_URL' ? configured : undefined
+      )
+      expect(getBaseUrl()).toBe('https://app.example.com')
+      expect(new URL(`${getBaseUrl()}/desktop/connect/complete`).pathname).toBe(
+        '/desktop/connect/complete'
+      )
+    }
+  })
+
+  it('keeps the path of a path-prefixed base URL', () => {
+    mockGetEnv.mockImplementation((key) =>
+      key === 'NEXT_PUBLIC_APP_URL' ? 'https://example.com/sim/' : undefined
+    )
+    expect(getBaseUrl()).toBe('https://example.com/sim')
+  })
+
+  it('adds the protocol and strips the trailing slash together', () => {
+    mockGetEnv.mockImplementation((key) =>
+      key === 'NEXT_PUBLIC_APP_URL' ? 'app.example.com/' : undefined
+    )
+    expect(getBaseUrl()).toBe('http://app.example.com')
+  })
+
+  /**
    * Never guesses from `window.location.origin`: an opaque origin (a sandboxed
    * iframe) serializes to the truthy string `'null'`, which would silently
    * produce `null/api/...` rather than surfacing the misconfiguration.
