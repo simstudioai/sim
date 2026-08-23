@@ -89,6 +89,26 @@ export const POST = withRouteHandler(
         ? deployment.allowedEmails
         : []
 
+      if (!isEmailAllowed(email, allowedEmails)) {
+        const rejectedRateLimit = await rateLimiter.checkRateLimitDirect(
+          `chat-otp:rejected:${deployment.id}`,
+          OTP_RESOURCE_RATE_LIMIT,
+          { failClosed: true }
+        )
+        if (!rejectedRateLimit.allowed) {
+          logger.warn(
+            `[${requestId}] OTP rejected-email rate limit exceeded for chat ${deployment.id}`
+          )
+          const retryAfter = Math.ceil(
+            (rejectedRateLimit.retryAfterMs ?? OTP_RESOURCE_RATE_LIMIT.refillIntervalMs) / 1000
+          )
+          const response = createErrorResponse('Too many requests. Please try again later.', 429)
+          response.headers.set('Retry-After', String(retryAfter))
+          return response
+        }
+        return createErrorResponse('Email not authorized for this chat', 403)
+      }
+
       const resourceRateLimit = await rateLimiter.checkRateLimitDirect(
         `chat-otp:resource:${deployment.id}`,
         OTP_RESOURCE_RATE_LIMIT,
@@ -105,10 +125,6 @@ export const POST = withRouteHandler(
         )
         response.headers.set('Retry-After', String(retryAfter))
         return response
-      }
-
-      if (!isEmailAllowed(email, allowedEmails)) {
-        return createErrorResponse('Email not authorized for this chat', 403)
       }
 
       const emailRateLimit = await rateLimiter.checkRateLimitDirect(

@@ -89,6 +89,24 @@ export const POST = withRouteHandler(
         )
       }
 
+      if (!isEmailAllowed(email, shareAllowedEmails(resolved.share.allowedEmails))) {
+        const rejectedRateLimit = await rateLimiter.checkRateLimitDirect(
+          `file-otp:rejected:${resolved.share.id}`,
+          OTP_RESOURCE_RATE_LIMIT,
+          { failClosed: true }
+        )
+        if (!rejectedRateLimit.allowed) {
+          logger.warn(
+            `[${requestId}] OTP rejected-email rate limit exceeded for share ${resolved.share.id}`
+          )
+          return rateLimited(
+            rejectedRateLimit.retryAfterMs,
+            OTP_RESOURCE_RATE_LIMIT.refillIntervalMs
+          )
+        }
+        return NextResponse.json({ error: 'Email not authorized for this file' }, { status: 403 })
+      }
+
       const resourceRateLimit = await rateLimiter.checkRateLimitDirect(
         `file-otp:resource:${resolved.share.id}`,
         OTP_RESOURCE_RATE_LIMIT,
@@ -99,10 +117,6 @@ export const POST = withRouteHandler(
           `[${requestId}] OTP resource rate limit exceeded for share ${resolved.share.id}`
         )
         return rateLimited(resourceRateLimit.retryAfterMs, OTP_RESOURCE_RATE_LIMIT.refillIntervalMs)
-      }
-
-      if (!isEmailAllowed(email, shareAllowedEmails(resolved.share.allowedEmails))) {
-        return NextResponse.json({ error: 'Email not authorized for this file' }, { status: 403 })
       }
 
       const emailRateLimit = await rateLimiter.checkRateLimitDirect(

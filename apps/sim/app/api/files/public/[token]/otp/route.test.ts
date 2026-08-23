@@ -106,7 +106,44 @@ describe('POST /api/files/public/[token]/otp', () => {
     mockIsEmailAllowed.mockReturnValueOnce(false)
     const res = await POST(post('user@evil.com'), params())
     expect(res.status).toBe(403)
+    expect(mockCheckRateLimitDirect).toHaveBeenCalledTimes(2)
+    expect(mockCheckRateLimitDirect).toHaveBeenNthCalledWith(
+      2,
+      'file-otp:rejected:sh_1',
+      expect.any(Object),
+      { failClosed: true }
+    )
     expect(mockStoreOTP).not.toHaveBeenCalled()
+  })
+
+  it('isolates rejected emails from the OTP send bucket without a client IP', async () => {
+    requestUtilsMockFns.mockGetClientIp.mockReturnValueOnce(null)
+    mockIsEmailAllowed.mockReturnValueOnce(false)
+
+    const res = await POST(post('user@evil.com'), params())
+
+    expect(res.status).toBe(403)
+    expect(mockCheckRateLimitDirect).toHaveBeenCalledTimes(1)
+    expect(mockCheckRateLimitDirect).toHaveBeenCalledWith(
+      'file-otp:rejected:sh_1',
+      expect.any(Object),
+      { failClosed: true }
+    )
+    expect(mockStoreOTP).not.toHaveBeenCalled()
+    expect(mockSendEmail).not.toHaveBeenCalled()
+  })
+
+  it('rate limits rejected emails independently without a client IP', async () => {
+    requestUtilsMockFns.mockGetClientIp.mockReturnValueOnce(null)
+    mockIsEmailAllowed.mockReturnValueOnce(false)
+    mockCheckRateLimitDirect.mockResolvedValueOnce({ allowed: false, retryAfterMs: 1000 })
+
+    const res = await POST(post('user@evil.com'), params())
+
+    expect(res.status).toBe(429)
+    expect(res.headers.get('Retry-After')).toBe('1')
+    expect(mockStoreOTP).not.toHaveBeenCalled()
+    expect(mockSendEmail).not.toHaveBeenCalled()
   })
 
   it('lowercases the email for allow-list matching and OTP storage', async () => {
