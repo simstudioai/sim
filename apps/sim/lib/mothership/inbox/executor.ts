@@ -370,9 +370,11 @@ interface InboxExecutionActor {
  * An unattributed message resolves to the workspace owner so the run has a real
  * user for billing and workspace reads, and the owner is typically an admin. Left
  * alone, that hands an allowlisted external correspondent the owner's write
- * authority: `create_workflow`, `edit_workflow` and `run_workflow` all gate on
- * `requiredPermission: 'write'`, and a workflow built and run through them executes
- * with `enforceCredentialAccess`, resolving the owner's workspace *and personal*
+ * authority: `create_workflow` and `edit_workflow` gate on
+ * `requiredPermission: 'write'`, and `run_workflow` is gated by the headless
+ * client-fallback bar in `executeTool` — it carries no catalog permission of its
+ * own. A workflow built or run through any of them executes with
+ * `enforceCredentialAccess`, resolving the owner's workspace *and personal*
  * secrets. That is the same reach `secretActorUserId: null` already refuses for a
  * direct mount, so refusing it here keeps one answer rather than two.
  *
