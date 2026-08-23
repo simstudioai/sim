@@ -22,7 +22,7 @@ import {
   removeMcpToolsForWorkflow,
   syncMcpToolsForWorkflow,
 } from '@/lib/mcp/workflow-mcp-sync'
-import { deliverOutboxServerEvent } from '@/lib/posthog/server'
+import { captureServerEvent } from '@/lib/posthog/server'
 import {
   cleanupWebhooksForWorkflow,
   prepareStableTriggerWebhooksForDeploy,
@@ -681,12 +681,23 @@ async function emitPostActivationSideEffects(params: {
     await params.checkpoint({ auditEmitted: true })
   }
 
+  /**
+   * Analytics is fire-and-forget by contract: PostHog being unreachable must
+   * never fail an activation that is already durable. Awaiting a flush here
+   * bought no delivery the process does not already have — the client flushes
+   * on its own interval and again from the `SIGTERM`/`SIGINT` hook in
+   * `instrumentation-node.ts` — while holding the socket notification, the
+   * workspace event, and subscription cleanup behind a third party, and
+   * failing the outbox event until it dead-lettered when that party was down.
+   * `flush()` also drains the whole shared client queue, so an unrelated
+   * event's network error surfaced here as a failed deploy.
+   */
   if (!params.checkpoints.analyticsCaptured) {
     params.context.signal.throwIfAborted()
     if (params.payload.captureAnalytics !== false) {
       const workspaceId = (params.workflow.workspaceId as string) || ''
       const isVersionActivation = params.operation.action === 'activate'
-      await deliverOutboxServerEvent(
+      captureServerEvent(
         params.payload.userId,
         isVersionActivation ? 'deployment_version_activated' : 'workflow_deployed',
         {

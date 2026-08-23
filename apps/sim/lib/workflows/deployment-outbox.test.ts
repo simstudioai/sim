@@ -75,7 +75,7 @@ vi.mock('@/lib/mcp/server-locks', () => ({
 }))
 
 vi.mock('@/lib/posthog/server', () => ({
-  deliverOutboxServerEvent: mockCaptureServerEvent,
+  captureServerEvent: mockCaptureServerEvent,
 }))
 
 vi.mock('@/lib/mcp/workflow-mcp-sync', () => ({
@@ -212,7 +212,7 @@ describe('versioned deployment preparation outbox', () => {
     mockSyncMcpToolsForWorkflow.mockResolvedValue([{ serverId: 'mcp-server-1' }])
     mockSetWorkflowMcpTransactionLockTimeout.mockResolvedValue(undefined)
     mockEmitWorkflowDeployedEvent.mockResolvedValue(undefined)
-    mockCaptureServerEvent.mockResolvedValue('delivered')
+    mockCaptureServerEvent.mockReturnValue(undefined)
     mockMarkDeploymentOperationFailed.mockResolvedValue({
       success: true,
       operation: operation({ status: 'failed' }),
@@ -354,15 +354,20 @@ describe('versioned deployment preparation outbox', () => {
     expect(mockActivateDeploymentOperation).not.toHaveBeenCalled()
   })
 
-  it('does not checkpoint analytics until durable PostHog delivery resolves', async () => {
+  /**
+   * Analytics was briefly flushed durably here, which put a deploy's audit
+   * trail, socket notification, and subscription cleanup behind PostHog and
+   * retried the event until it dead-lettered. Capture is fire-and-forget
+   * again: the checkpoint advances on capture, and everything the cutover
+   * actually owes still runs. `captureServerEvent` swallowing its own
+   * failures is pinned in `lib/posthog/server.test.ts`.
+   */
+  it('checkpoints analytics on capture and still finishes the deploy', async () => {
     mockIsDeploymentOperationCurrent.mockResolvedValue(true)
-    const active = operation({ status: 'active', completedAt: NOW })
-    mockGetDeploymentOperation.mockResolvedValue(active)
+    mockGetDeploymentOperation.mockResolvedValue(operation({ status: 'active', completedAt: NOW }))
     queueTableRows(schemaMock.workflow, [
       { id: 'workflow-1', name: 'Workflow', workspaceId: 'workspace-1' },
     ])
-    const deliveryFailure = new Error('PostHog flush failed')
-    mockCaptureServerEvent.mockRejectedValueOnce(deliveryFailure)
     const outboxContext = context()
 
     await expect(
@@ -373,13 +378,16 @@ describe('versioned deployment preparation outbox', () => {
         },
         outboxContext
       )
-    ).rejects.toBe(deliveryFailure)
+    ).resolves.toBeUndefined()
 
-    expect(outboxContext.checkpointPayload).not.toHaveBeenCalledWith(
+    expect(mockCaptureServerEvent).toHaveBeenCalledTimes(1)
+    expect(outboxContext.checkpointPayload).toHaveBeenCalledWith(
       expect.objectContaining({
         checkpoints: expect.objectContaining({ analyticsCaptured: true }),
       })
     )
+    expect(mockEmitWorkflowDeployedEvent).toHaveBeenCalledTimes(1)
+    expect(mockCleanupRetiredWebhookRegistrations).toHaveBeenCalledTimes(1)
   })
 
   it('honors an aborted signal before starting any side effect', async () => {
