@@ -1,3 +1,4 @@
+import { omit } from '@sim/utils/object'
 import { GrainIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
@@ -758,7 +759,7 @@ export const GrainV2Block: BlockConfig = {
     },
   },
   inputs: {
-    ...Object.fromEntries(Object.entries(GrainBlock.inputs).filter(([key]) => key !== 'viewId')),
+    ...omit(GrainBlock.inputs, ['viewId']),
     apiKey: { type: 'string', description: 'Grain API key (Personal or Workspace Access Token)' },
     hookType: { type: 'string', description: 'Grain event type for the webhook' },
     hookInclude: {
