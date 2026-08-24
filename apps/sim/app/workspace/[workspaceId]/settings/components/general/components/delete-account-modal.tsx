@@ -96,6 +96,7 @@ export function DeleteAccountModal({ open, onOpenChange, email }: DeleteAccountM
       }}
       size='md'
       title='Delete account'
+      defaultAction='none'
       confirm={{
         label: 'Delete account',
         pendingLabel: 'Deleting...',

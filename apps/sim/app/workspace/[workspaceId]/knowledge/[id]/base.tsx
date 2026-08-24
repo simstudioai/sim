@@ -1372,6 +1372,7 @@ export function KnowledgeBase({
         onOpenChange={setShowDeleteDialog}
         srTitle='Delete Knowledge Base'
         title='Delete Knowledge Base'
+        defaultAction='confirm'
         text={[
           'Are you sure you want to delete ',
           { text: knowledgeBaseName, bold: true },

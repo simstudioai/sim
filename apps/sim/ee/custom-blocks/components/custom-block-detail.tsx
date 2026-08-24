@@ -755,6 +755,7 @@ export function CustomBlockDetail({ blockId, workspaceId, onBack }: CustomBlockD
         onOpenChange={() => setShowDelete(false)}
         srTitle='Delete custom block'
         title='Delete custom block'
+        defaultAction='none'
         text={[
           'Delete ',
           { text: existing?.name ?? 'this block', bold: true },
