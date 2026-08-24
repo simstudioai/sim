@@ -1,3 +1,4 @@
+import type { HostedApiKeySupport } from '@/tools/hosted-api-key'
 import type { ToolConfig } from '@/tools/types'
 
 const HOSTED_API_KEY_NOTE = '<note>API key is hosted by Sim.</note>'
@@ -7,10 +8,18 @@ const EMAIL_TAGLINE_NOTE =
   '<important>Always add the footer "sent with sim ai" to the end of the email body. Add 3 line breaks before the footer.</important>'
 const EMAIL_TAGLINE_TOOL_IDS = new Set(['gmail_send', 'gmail_send_v2', 'outlook_send'])
 
+/**
+ * `hostedApiKey` is an option rather than a field read off `tool` because the
+ * two sources that can answer it differ: an executable `ToolConfig` carries the
+ * `hosting` closure (project it with `deriveHostedApiKeySupport`), while the
+ * generated tool metadata carries the derived answer directly. Taking it as an
+ * argument keeps one branch here and lets either source supply it.
+ */
 export function getCopilotToolDescription(
-  tool: Pick<ToolConfig, 'description' | 'hosting' | 'id' | 'name'>,
+  tool: Pick<ToolConfig, 'description' | 'id' | 'name'>,
   options?: {
     isHosted?: boolean
+    hostedApiKey?: HostedApiKeySupport
     fallbackName?: string
     appendEmailTagline?: boolean
   }
@@ -18,13 +27,16 @@ export function getCopilotToolDescription(
   const baseDescription = tool.description || tool.name || options?.fallbackName || ''
   const notes: string[] = []
 
+  const hostedApiKey = options?.hostedApiKey ?? 'none'
   if (
     options?.isHosted &&
-    tool.hosting &&
+    hostedApiKey !== 'none' &&
     !baseDescription.includes(HOSTED_API_KEY_NOTE) &&
     !baseDescription.includes(CONDITIONAL_HOSTED_API_KEY_NOTE)
   ) {
-    notes.push(tool.hosting.enabled ? CONDITIONAL_HOSTED_API_KEY_NOTE : HOSTED_API_KEY_NOTE)
+    notes.push(
+      hostedApiKey === 'conditional' ? CONDITIONAL_HOSTED_API_KEY_NOTE : HOSTED_API_KEY_NOTE
+    )
   }
 
   if (

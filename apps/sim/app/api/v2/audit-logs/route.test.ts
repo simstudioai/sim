@@ -31,7 +31,7 @@ vi.mock('@/lib/audit-logs/application/get-audit-log', () => ({
 
 import { REFILTERED_CURSOR_MESSAGE } from '@/lib/api/cursor-binding'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { GET as getDetail } from '@/app/api/v2/audit-logs/[id]/route'
+import { GET as getDetail } from '@/app/api/v2/audit-logs/[auditLogId]/route'
 import { GET as listLogs } from '@/app/api/v2/audit-logs/route'
 
 const auth = {
@@ -244,7 +244,7 @@ describe('v2 audit-log routes', () => {
       'http://localhost:3000/api/v2/audit-logs/audit-1?organizationId=org-1'
     )
     const response = await getDetail(request, {
-      params: Promise.resolve({ id: 'audit-1' }),
+      params: Promise.resolve({ auditLogId: 'audit-1' }),
     })
 
     expect(response.status).toBe(200)

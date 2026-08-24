@@ -625,6 +625,19 @@ export interface QueryOptions {
    * (the public v1 route does not expose executions).
    */
   withExecutions?: boolean
+  /**
+   * Byte ceiling for the run-state sidecar, spent during the read.
+   *
+   * Omitted means unbounded, which is what every first-party caller wants: only
+   * the public reads publish a `413` for this, so only they impose it.
+   */
+  runStateBudgetBytes?: number
+  /**
+   * Stable column ids to keep in each returned row's `data`; omitted = every
+   * column. Applied inside the drain before byte accounting, so the response
+   * budget and page cut measure the projected payload the caller receives.
+   */
+  columnIds?: ReadonlySet<string>
 }
 
 export interface QueryResult {

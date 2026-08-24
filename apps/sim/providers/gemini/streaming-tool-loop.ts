@@ -460,10 +460,21 @@ export function createGeminiStreamingToolLoopStream(
                     return value
                   }
 
+                  /*
+                   * The RAW model id, not the `ensureToolCallId` value used for
+                   * stream events: that helper falls back to an
+                   * execution-local id when Gemini supplies none, which is
+                   * freshly allocated per attempt. Passing it would complete the
+                   * keyed context — silencing the "could not derive" warning —
+                   * while leaving the token unstable, which is worse than the
+                   * loud fallback. Gemini often omits the id entirely, in which
+                   * case this is `undefined` and the fallback stands.
+                   */
                   const { toolParams, executionParams } = prepareToolExecution(
                     tool,
                     toolArgs,
-                    request
+                    request,
+                    part.functionCall?.id
                   )
                   const { rawResponse, modelResponse } = await executeProviderTool(
                     toolName,

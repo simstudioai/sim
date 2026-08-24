@@ -103,7 +103,7 @@ export type TableEvent =
   | {
       /** A dispatch was stopped because the billed account is over its usage
        *  limit. The client surfaces an upgrade prompt and redirects to billing.
-       *  The dispatch is halted via `markDispatchComplete` and the blocked
+       *  The dispatch is halted via `completeDispatchIfActive` and the blocked
        *  cells' pre-stamps are cleared so they revert to un-run. `dispatchId`
        *  is absent for cascade/auto-fire payloads with no owning dispatch. */
       kind: 'usageLimitReached'

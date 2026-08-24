@@ -252,7 +252,12 @@ async function executeOpenAIToolCall(options: {
       throw new DOMException('Stream aborted', 'AbortError')
     }
 
-    const { toolParams, executionParams } = prepareToolExecution(tool, toolArgs, request)
+    const { toolParams, executionParams } = prepareToolExecution(
+      tool,
+      toolArgs,
+      request,
+      toolCall.id
+    )
     const { rawResponse, modelResponse } = await executeProviderTool(
       toolCall.name,
       executionParams,

@@ -36,9 +36,10 @@ vi.mock('@/lib/table/application/exports', () => ({
   },
 }))
 
+import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { GET as DOWNLOAD } from '@/app/api/v2/tables/[tableId]/exports/[exportId]/download/route'
+import { GET as STATUS } from '@/app/api/v2/tables/[tableId]/exports/[exportId]/route'
 import { POST } from '@/app/api/v2/tables/[tableId]/exports/route'
-import { GET as DOWNLOAD } from '@/app/api/v2/tables/exports/[exportId]/download/route'
-import { GET as STATUS } from '@/app/api/v2/tables/exports/[exportId]/route'
 
 const WORKSPACE_ID = '6fc7631d-88cd-46f8-9f0a-d4764daef7f8'
 const principal = {
@@ -102,17 +103,17 @@ describe('v2 table exports', () => {
       expiresAt: '2026-01-01T01:00:00.000Z',
     })
     const statusRequest = new NextRequest(
-      `http://localhost:3000/api/v2/tables/exports/export-1?workspaceId=${WORKSPACE_ID}`
+      `http://localhost:3000/api/v2/tables/table-1/exports/export-1?workspaceId=${WORKSPACE_ID}`
     )
     const downloadRequest = new NextRequest(
-      `http://localhost:3000/api/v2/tables/exports/export-1/download?workspaceId=${WORKSPACE_ID}`
+      `http://localhost:3000/api/v2/tables/table-1/exports/export-1/download?workspaceId=${WORKSPACE_ID}`
     )
 
     const status = await STATUS(statusRequest, {
-      params: Promise.resolve({ exportId: 'export-1' }),
+      params: Promise.resolve({ tableId: 'table-1', exportId: 'export-1' }),
     })
     const download = await DOWNLOAD(downloadRequest, {
-      params: Promise.resolve({ exportId: 'export-1' }),
+      params: Promise.resolve({ tableId: 'table-1', exportId: 'export-1' }),
     })
 
     expect(status.status).toBe(200)
@@ -121,12 +122,12 @@ describe('v2 table exports', () => {
     expect((await download.json()).data.fileName).toBe('Contacts.csv')
     expect(mocks.read).toHaveBeenCalledWith({
       principal,
-      input: { exportId: 'export-1', workspaceId: WORKSPACE_ID },
+      input: { tableId: 'table-1', exportId: 'export-1', workspaceId: WORKSPACE_ID },
       request: statusRequest,
     })
     expect(mocks.download).toHaveBeenCalledWith({
       principal,
-      input: { exportId: 'export-1', workspaceId: WORKSPACE_ID },
+      input: { tableId: 'table-1', exportId: 'export-1', workspaceId: WORKSPACE_ID },
       request: downloadRequest,
     })
   })
@@ -143,5 +144,26 @@ describe('v2 table exports', () => {
 
     expect(response.status).toBe(401)
     expect((await response.json()).error.code).toBe('UNAUTHORIZED')
+  })
+})
+
+/**
+ * Cross-table concealment. Nesting the export reads under their parent puts the table in the
+ * path, so an `exportId` belonging to a DIFFERENT table must answer the same not-found an id
+ * that never existed does — otherwise the id space leaks which table owns which export.
+ */
+describe('nested export addressing', () => {
+  it('conceals an export belonging to another table as a 404', async () => {
+    mocks.read.mockRejectedValueOnce(new OrchestrationError('not_found', 'Table export not found'))
+    const request = new NextRequest(
+      `http://localhost:3000/api/v2/tables/table-other/exports/export-1?workspaceId=${WORKSPACE_ID}`
+    )
+
+    const response = await STATUS(request, {
+      params: Promise.resolve({ tableId: 'table-other', exportId: 'export-1' }),
+    })
+
+    expect(response.status).toBe(404)
+    expect((await response.json()).error.code).toBe('NOT_FOUND')
   })
 })

@@ -105,7 +105,12 @@ describe('/api/v2/tables/[tableId]/rows/[rowId]', () => {
     })
     expect(mocks.readRow).toHaveBeenCalledWith({
       principal: PRINCIPAL,
-      input: { tableId: 'table-1', rowId: 'row-1', assertedWorkspaceId: WORKSPACE_ID },
+      input: {
+        tableId: 'table-1',
+        rowId: 'row-1',
+        assertedWorkspaceId: WORKSPACE_ID,
+        includeRunState: false,
+      },
       request: req,
     })
   })

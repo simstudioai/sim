@@ -5,11 +5,11 @@ import type {
   Principal,
 } from '@sim/auth/principal'
 import type { PermissionType } from '@sim/platform-authz/workspace'
-import type { ApplicationOperation } from '@/lib/core/application/operation'
+import type { ApplicationOperation, PrincipalKind } from '@/lib/core/application/operation'
 
 type WorkspaceApiKeyPolicy<R extends PermissionType> = R extends 'admin' ? 'deny' : 'allow' | 'deny'
 
-export type PrincipalKind = Exclude<Principal['kind'], 'credential_group_enrollment'>
+export type { PrincipalKind }
 
 type NonDelegatedPrincipalForOperation<
   O extends { readonly principalKinds: readonly PrincipalKind[] },

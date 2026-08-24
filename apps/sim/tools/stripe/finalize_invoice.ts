@@ -1,8 +1,21 @@
+import {
+  defineStripeKeyedSite,
+  type StripeDeliveryContextParams,
+  stripeIdempotencyHeader,
+} from '@/tools/stripe/idempotency'
 import type { FinalizeInvoiceParams, InvoiceResponse } from '@/tools/stripe/types'
 import { INVOICE_METADATA_OUTPUT_PROPERTIES, INVOICE_OUTPUT } from '@/tools/stripe/types'
 import type { ToolConfig } from '@/tools/types'
 
-export const stripeFinalizeInvoiceTool: ToolConfig<FinalizeInvoiceParams, InvoiceResponse> = {
+const DELIVERY = defineStripeKeyedSite(
+  'stripe_finalize_invoice',
+  'the invoice would be finalized twice, and finalization can both email the customer the bill and charge their saved card'
+)
+
+export const stripeFinalizeInvoiceTool: ToolConfig<
+  FinalizeInvoiceParams & StripeDeliveryContextParams,
+  InvoiceResponse
+> = {
   id: 'stripe_finalize_invoice',
   name: 'Stripe Finalize Invoice',
   description: 'Finalize a draft invoice',
@@ -32,9 +45,18 @@ export const stripeFinalizeInvoiceTool: ToolConfig<FinalizeInvoiceParams, Invoic
   request: {
     url: (params) => `https://api.stripe.com/v1/invoices/${params.id}/finalize`,
     method: 'POST',
+    /**
+     * The `Idempotency-Key` must be the *same* on every delivery of one
+     * instruction rather than fresh per attempt — it is what lets Stripe
+     * recognize a resend and replay its first answer instead of acting again. A
+     * value minted at request-build time is the inverse of the header's purpose:
+     * it is stable only inside the transport loop, and every retry layer above
+     * that re-enters tool preparation and looks to Stripe like a new write.
+     */
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,
       'Content-Type': 'application/x-www-form-urlencoded',
+      ...stripeIdempotencyHeader(DELIVERY, params),
     }),
     body: (params) => {
       const formData = new URLSearchParams()

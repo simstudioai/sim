@@ -83,6 +83,42 @@ describe('commands parsed through commander', () => {
     expect(options.query).toMatchObject({ minDurationMs: 250 })
   })
 
+  /**
+   * A dry run writes nothing, so demanding `--yes` to preview a change would
+   * teach callers to pass `--yes` reflexively — the exact habit the confirm gate
+   * depends on not forming.
+   */
+  describe('destructive confirmation and --dry-run', () => {
+    it('refuses a graph replace without --yes', async () => {
+      await expect(
+        run(['workflows', 'state', 'replace', 'wf-1', '--blocks', '{}', '--edges', '[]'])
+      ).rejects.toThrow(/--yes/)
+      expect(mockRequest).not.toHaveBeenCalled()
+    })
+
+    it('allows the same command as a dry run without --yes', async () => {
+      const [, options] = await run([
+        'workflows',
+        'state',
+        'replace',
+        'wf-1',
+        '--blocks',
+        '{}',
+        '--edges',
+        '[]',
+        '--dry-run',
+      ])
+
+      expect(options.query).toMatchObject({ dryRun: true })
+    })
+
+    it('still refuses a committed apply of operations without --yes', async () => {
+      await expect(
+        run(['workflows', 'operations', 'apply', 'wf-1', '--operations', '[]'])
+      ).rejects.toThrow(/--yes/)
+    })
+  })
+
   it('registers singular aliases for every plural resource group', () => {
     const aliases = {
       'audit-logs': 'audit-log',
@@ -130,9 +166,9 @@ describe('commands parsed through commander', () => {
     await expect(root.parseAsync(['node', 'sim', 'skills', 'update'])).rejects.toMatchObject({
       code: 'commander.missingArgument',
     })
-    expect(errorOutput).toContain("error: missing required argument 'id'")
-    expect(errorOutput).toContain('Example: sim skills update <id>')
-    expect(errorOutput).not.toContain('--id')
+    expect(errorOutput).toContain("error: missing required argument 'skillId'")
+    expect(errorOutput).toContain('Example: sim skills update <skillId>')
+    expect(errorOutput).not.toContain('--skillId')
   })
 
   it('dispatches generated commands through their singular resource alias', async () => {
@@ -383,7 +419,7 @@ describe('commands parsed through commander', () => {
     expect(updateOptions.body).toEqual({ description: 'Updated' })
 
     const moveHelp = commandAt('workflows', 'mv').helpInformation()
-    expect(moveHelp).toContain('<id> <folder>')
+    expect(moveHelp).toContain('<workflowId> <folder>')
     expect(moveHelp).not.toContain('--folder')
     expect(commandAt('workflows', 'update').helpInformation()).not.toContain('update|mv')
   })

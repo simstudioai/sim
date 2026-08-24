@@ -10,6 +10,7 @@ import {
 } from '@sim/emcn'
 import {
   ResourceMenuSections,
+  resourceFromItem,
   useAvailableResources,
   useResourceTreeSections,
 } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/add-resource-dropdown'
@@ -127,10 +128,13 @@ export const PlusMenuDropdown = React.memo(
     const filteredItems = useMemo(() => {
       const rawQuery = isMention ? (mentionQuery ?? '') : search
       const q = rawQuery.toLowerCase().trim()
-      // In mention mode always render a flat filtered list — empty query = show everything.
       if (!isMention && !q) return null
       if (isMention && !q) {
-        return visibleResources.flatMap(({ type, items }) => items.map((item) => ({ type, item })))
+        return visibleResources.flatMap(({ type, items }) => {
+          const limit = getResourceConfig(type).mentionPreviewLimit
+          const previewed = limit === undefined ? items : items.slice(0, limit)
+          return previewed.map((item) => ({ type, item }))
+        })
       }
       return visibleResources.flatMap(({ type, items }) =>
         items.filter((item) => resourceMentionMatches(item, q)).map((item) => ({ type, item }))
@@ -181,11 +185,7 @@ export const PlusMenuDropdown = React.memo(
           const items = filteredItemsRef.current
           const target = items?.length ? (items[activeIndexRef.current] ?? items[0]) : undefined
           if (!target) return isHydratingRef.current ? 'hydrating' : 'empty'
-          handleSelectRef.current({
-            type: target.type,
-            id: target.item.id,
-            title: target.item.name,
-          })
+          handleSelectRef.current(resourceFromItem(target.type, target.item))
           return 'selected'
         },
       }),
@@ -224,7 +224,7 @@ export const PlusMenuDropdown = React.memo(
       } else if (e.key === 'Enter' || (e.key === 'Tab' && !e.shiftKey)) {
         e.preventDefault()
         const target = filteredItems[activeIndex] ?? filteredItems[0]
-        if (target) handleSelect({ type: target.type, id: target.item.id, title: target.item.name })
+        if (target) handleSelect(resourceFromItem(target.type, target.item))
       }
     }
 
@@ -342,7 +342,7 @@ export const PlusMenuDropdown = React.memo(
                       data-filtered-idx={index}
                       onMouseEnter={() => setActiveIndex(index)}
                       onClick={() => {
-                        handleSelect({ type, id: item.id, title: item.name })
+                        handleSelect(resourceFromItem(type, item))
                       }}
                       className={cn(
                         'relative flex w-full min-w-0 cursor-pointer select-none items-center gap-2 rounded-[5px] px-2 py-1.5 text-left text-[var(--text-body)] text-caption outline-none transition-colors duration-0 [&>span]:min-w-0 [&>span]:truncate [&_svg]:pointer-events-none [&_svg]:size-[14px] [&_svg]:shrink-0 [&_svg]:text-[var(--text-icon)]',

@@ -15,3 +15,19 @@ export const secretDetailViewUrlKeys = {
   history: 'push',
   clearOnDefault: true,
 } as const
+
+/**
+ * Active tab inside the usage view, so a shared `secret-view=usage` link can land on either
+ * reading. Defaults to `logs`, which is what the header's "See usage" opened before References
+ * existed — the action's name still promises the trail.
+ */
+export const secretUsageTabParam = {
+  key: 'usage-tab',
+  parser: parseAsStringLiteral(['references', 'logs'] as const).withDefault('logs'),
+} as const
+
+/** Tab view-state: clean URLs, no back-stack churn. */
+export const secretUsageTabUrlKeys = {
+  history: 'replace',
+  clearOnDefault: true,
+} as const

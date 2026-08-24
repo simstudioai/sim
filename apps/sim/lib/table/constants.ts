@@ -55,6 +55,14 @@ export const TABLE_LIMITS = {
   /** Cap on the exclusion set ("select all, minus these") sent to an async delete job. */
   MAX_EXCLUDE_ROW_IDS: 10000,
   /**
+   * Byte budget for the per-row run-state sidecar a read may materialize when
+   * it opts in. `blockErrors` is unbounded jsonb, so a full page of rows times
+   * a group each has no ceiling of its own. A read past the budget is refused
+   * (413) rather than silently truncated — a partial answer to "which of my
+   * rows errored" is a wrong answer.
+   */
+  MAX_ROW_RUN_STATE_BYTES: 2 * 1024 * 1024,
+  /**
    * Matching cells one Find returns. The scan fetches one extra to decide
    * `truncated`; matches carry no cursor, so a caller past the cap narrows its
    * predicate instead of paging. Published in the response contract — a cap a

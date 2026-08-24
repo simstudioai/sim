@@ -35,6 +35,28 @@ sim logs get <runId> [options]
 
 </CommandTable>
 
+## Summarize run counts, failures, and cost over a window
+
+```bash
+sim logs stats [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--workflow <value...>` | No | Comma-separated workflow identifiers to include. At most 200 entries. An empty entry is rejected. (space-separated, or @path / @- with one value per line). |
+| `--folder <value...>` | No | Folder path as shown in the app; the leading / is optional (space-separated, or @path / @- with one value per line). |
+| `--trigger <value...>` | No | Comma-separated trigger types to include. An empty entry is rejected. The vocabulary is open, so an unrecognized member selects no runs; the literal `all` disables this filter. (space-separated, or @path / @- with one value per line). |
+| `--level <value>` | No | Severity level to include. Accepted values: `info`, `error`. |
+| `--start-date <value>` | No | Only include runs started at or after this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected, as is year `0000`, which names no storable instant. |
+| `--end-date <value>` | No | Only include runs started at or before this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected, as is year `0000`, which names no storable instant. |
+| `--segment-count <value>` | No | Number of equal time buckets to divide the window into, from 1 to 500. Exactly this many buckets are always returned. Buckets are never narrower than one minute, so on a short window the series extends past the end of the window rather than being compressed, and the trailing buckets are empty. |
+
+</CommandTable>
+
 ## List logs
 
 ```bash
@@ -47,8 +69,8 @@ sim logs list [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--workflow <value...>` | No | Comma-separated workflow identifiers to include. An empty entry is rejected. (space-separated, or @path / @- with one value per line). |
-| `--trigger <value...>` | No | Comma-separated trigger types to include. An empty entry is rejected. Values are matched exactly and are case-sensitive — every recorded trigger is lowercase, so `API` matches nothing while `api` matches. The vocabulary is open: it covers the core trigger types (`manual`, `api`, `schedule`, `chat`, `webhook`, `mcp`, `copilot`, `workflow`, `custom_block`) and the provider id of any webhook trigger (`slack`, `gmail`, `github`, …), so an unrecognized member is not rejected — it selects no runs. The literal value `all` is a sentinel that disables this filter entirely, so a list containing it returns runs of every trigger type; no real trigger type is named `all`. (space-separated, or @path / @- with one value per line). |
+| `--workflow <value...>` | No | Comma-separated workflow identifiers to include. An empty entry is rejected. At most 200 entries. (space-separated, or @path / @- with one value per line). |
+| `--trigger <value...>` | No | Comma-separated trigger types to include. An empty entry is rejected. Values are matched exactly and are case-sensitive — every recorded trigger is lowercase, so `API` matches nothing while `api` matches. The vocabulary is open: it covers the core trigger types (`manual`, `api`, `schedule`, `chat`, `webhook`, `mcp`, `copilot`, `workflow`, `custom_block`) and the provider id of any webhook trigger (`slack`, `gmail`, `github`, …), so an unrecognized member is not rejected — it selects no runs. The literal value `all` is a sentinel that disables this filter entirely, so a list containing it returns runs of every trigger type; no real trigger type is named `all`. At most 100 entries. (space-separated, or @path / @- with one value per line). |
 | `--level <value>` | No | Severity level to include. Accepted values: `info`, `error`. |
 | `--start-date <value>` | No | Only include runs started at or after this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected, as is year `0000`, which names no storable instant. |
 | `--end-date <value>` | No | Only include runs started at or before this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected, as is year `0000`, which names no storable instant. |
@@ -61,8 +83,13 @@ sim logs list [options]
 | `--include-trace-spans` | No | Include trace spans in JSON or YAML output (implies full detail). |
 | `--include-final-output` | No | Include final output in JSON or YAML output (implies full detail). |
 | `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
-| `--order <value>` | No | Sort direction by execution start time. This list is sortable only by execution start time, so it takes `order` in place of `sortBy`/`sortOrder`, which it rejects. Accepted values: `asc`, `desc`. |
+| `--status <value>` | No | Comma-separated execution statuses to include, from `pending` \| `running` \| `paused` \| `redacting` \| `completed` \| `failed` \| `cancelled`. An empty entry is rejected. ANDed with `level`, which reports severity rather than lifecycle. |
+| `--workflow-name <value>` | No | Case-insensitive substring match against the run's workflow name. Runs whose workflow has been deleted match nothing, because the name is no longer joinable. |
+| `--include-job-runs` | No | Whether Chat and Sim-agent job runs join the sequence alongside workflow runs. Job runs report `kind: "job"`, carry no `workflow` summary, and never carry a cost ledger. They are dropped entirely — not partially matched — whenever a filter they cannot answer is set (`workflowIds`, `workflowName`, `folderPaths`, `model`, or `status`), so a filter never means two different things across the union. Accepted only under `sortBy=startedAt`: job runs record cost as a document and no comparable status, so they cannot participate in the other orderings. |
+| `--no-include-job-runs` | No | Send --include-job-runs as false. |
 | `--run-id <value>` | No | Exact run identifier to match. |
+| `--sort-by <value>` | No | Field used to sort the result. `durationMs` and `cost` are null until a run settles; those runs order as though the value were below every recorded one, so they trail an ascending page and lead a descending one. Only `startedAt` can order Chat and Sim-agent job runs, so any other value is rejected together with `includeJobRuns=true`. Accepted values: `startedAt`, `durationMs`, `cost`, `status`. |
+| `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
 | `--folder <value...>` | No | Folder path as shown in the app; the leading / is optional (space-separated, or @path / @- with one value per line). |
 
 </CommandTable>

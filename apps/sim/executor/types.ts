@@ -293,11 +293,18 @@ export interface BlockLog {
   /**
    * A custom block's child run, which executes under its own execution id against
    * the SOURCE workspace. Only the opaque id crosses the invocation boundary — the
-   * child's spans stay on its own log row and are joined at READ time, once the
-   * viewer has been authorized against the source workspace. Kept off `output` for
-   * the same reason {@link childTraceSpans} is.
+   * child's spans stay on its own log row and are joined at READ time. Written only
+   * for a block whose publisher opted its runs into consumer traces — the presence of
+   * this id IS that permission. Kept off `output` for the same reason
+   * {@link childTraceSpans} is.
    */
   childExecution?: { executionId: string }
+  /**
+   * A custom block ran a child whose publisher has not opened it to consumers, so no
+   * `childExecution` handle exists to join. Recorded because a boundary span with
+   * no children is otherwise indistinguishable from a leaf block.
+   */
+  childTraceDisabled?: boolean
   /** Internal encrypted sidecar used only for causal display projection. */
   displayResolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceV1
 }
@@ -543,10 +550,11 @@ export interface ExecutionContext {
    * run. Deliberately UNSET on chat deployments, public API, webhook, and schedule
    * runs, whose stream consumer may be an anonymous external visitor.
    *
-   * Used to decide whether a custom block may stream the SOURCE workflow's block
-   * events across the invocation boundary: only if this viewer has access to the
-   * source workspace. Absent means the boundary holds, so every surface that does
-   * not opt in is fail-closed by default.
+   * Whether a custom block may stream the SOURCE workflow's block events is the
+   * publisher's decision, not this viewer's — but that decision covers the ORG, so it
+   * still requires a stream with an identified consumer. This field is the proof of
+   * one; absent, the boundary holds and every anonymous-consumer surface is
+   * fail-closed by default.
    */
   liveTraceViewerUserId?: string
 
@@ -557,10 +565,10 @@ export interface ExecutionContext {
    * `LoggingSession` before reaching the stream.
    *
    * A custom block's child must reach the emit half and never the persist half. The
-   * stream is gated per viewer against the source workspace, but a persisted marker is
-   * keyed by the PARENT execution and is readable by anyone with parent-workspace access
-   * long after that check — so persisting the source workflow's block names there would
-   * leak them past the boundary the gate exists to hold.
+   * stream is gated on the publisher's trace policy AND an identified consumer, but a
+   * persisted marker is keyed by the PARENT execution and is readable by anyone with
+   * parent-workspace access on any surface — so persisting the source workflow's block
+   * names there would leak them past the gate entirely.
    */
   liveStreamCallbacks?: Pick<ExecutionCallbacks, 'onBlockStart' | 'onBlockComplete'>
 
@@ -648,29 +656,45 @@ interface BlockExecutor {
   ): Promise<BlockOutput>
 }
 
+/**
+ * Per-invocation identity for one run of one block.
+ *
+ * `executionOrder` is the field a `keyed` delivery derives its idempotency token
+ * from. It is assigned once, before the block executor's retry wrapper, and is
+ * distinct per loop iteration and per parallel branch — so it is both stable
+ * across every retry layer and distinguishing between logically separate
+ * invocations. Both halves are required; see `KeyedDeliveryContext`.
+ */
+export interface BlockNodeMetadata {
+  nodeId: string
+  loopId?: string
+  parallelId?: string
+  branchIndex?: number
+  branchTotal?: number
+  originalBlockId?: string
+  isLoopNode?: boolean
+  executionOrder?: number
+}
+
 export interface BlockHandler {
   canHandle(block: SerializedBlock): boolean
 
+  /**
+   * `nodeMetadata` is optional so the many handlers that do not need an
+   * invocation identity keep their three-parameter signature.
+   */
   execute(
     ctx: ExecutionContext,
     block: SerializedBlock,
-    inputs: Record<string, any>
+    inputs: Record<string, any>,
+    nodeMetadata?: BlockNodeMetadata
   ): Promise<BlockOutput | StreamingExecution>
 
   executeWithNode?: (
     ctx: ExecutionContext,
     block: SerializedBlock,
     inputs: Record<string, any>,
-    nodeMetadata: {
-      nodeId: string
-      loopId?: string
-      parallelId?: string
-      branchIndex?: number
-      branchTotal?: number
-      originalBlockId?: string
-      isLoopNode?: boolean
-      executionOrder?: number
-    }
+    nodeMetadata: BlockNodeMetadata
   ) => Promise<BlockOutput | StreamingExecution>
 }
 

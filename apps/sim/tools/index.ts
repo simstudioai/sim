@@ -801,8 +801,14 @@ interface HostedKeyCostResult {
 }
 
 /**
- * Calculate and log hosted key cost for a tool execution.
- * Logs to usageLog for audit trail and returns cost + metadata for output.
+ * Calculate hosted-key cost for a tool execution.
+ *
+ * Returns the cost and its metadata for the caller to attach to the tool
+ * output. It does NOT write a usage-ledger row: the only `usageLog` insert is
+ * `recordUsage` in `lib/billing/core/usage-log.ts`, which nothing on this path
+ * calls. Cost reaches the ledger only through the `_serviceCost` field
+ * `applyHostedKeyCostToResult` emits under `copilotToolExecution`, so any new
+ * caller of `executeTool` that is not Copilot must arrange its own metering.
  */
 async function processHostedKeyCost(
   tool: ToolConfig,
@@ -818,10 +824,6 @@ async function processHostedKeyCost(
   const { cost, metadata } = calculateToolCost(tool.hosting.pricing, params, response, tool.id)
 
   if (cost <= 0) return { cost: 0 }
-
-  const { userId } = resolveToolScope(params, executionContext)
-
-  if (!userId) return { cost, metadata }
 
   logger.debug(
     `[${requestId}] Hosted key cost for ${tool.id}: $${cost}`,
@@ -2703,6 +2705,7 @@ async function executeToolRequest(
             signal,
             proxyUrl: proxyOption,
             stripAuthOnRedirect: requestParams.stripAuthOnRedirect,
+            redirectPolicy: requestParams.redirectPolicy,
           })
 
           const responseHeaders = new Headers(secureResponse.headers.toRecord())

@@ -4,7 +4,7 @@ import { toError } from '@sim/utils/errors'
 import { isPlainRecord } from '@sim/utils/object'
 import { getBlock } from '@/blocks/index'
 import { isMcpTool } from '@/executor/constants'
-import type { BlockHandler, ExecutionContext } from '@/executor/types'
+import type { BlockHandler, BlockNodeMetadata, ExecutionContext } from '@/executor/types'
 import { readStatusCode } from '@/executor/utils/errors'
 import { prepareResolvedSecretProjectedInputs } from '@/executor/utils/resolved-secret-input-projection'
 import type { ResolvedSecretInputPath } from '@/executor/utils/resolved-secret-trace-registry'
@@ -152,7 +152,8 @@ export class GenericBlockHandler implements BlockHandler {
   async execute(
     ctx: ExecutionContext,
     block: SerializedBlock,
-    inputs: Record<string, any>
+    inputs: Record<string, any>,
+    nodeMetadata?: BlockNodeMetadata
   ): Promise<any> {
     const isMcp = block.config.tool ? isMcpTool(block.config.tool) : false
     let tool = null
@@ -301,6 +302,19 @@ export class GenericBlockHandler implements BlockHandler {
             userId: ctx.userId,
             isDeployedContext: ctx.isDeployedContext,
             enforceCredentialAccess: ctx.enforceCredentialAccess,
+            blockId: block.id,
+            /*
+             * The identity a `keyed` tool derives its provider idempotency token
+             * from. `executionOrder` is assigned before the block executor's
+             * retry wrapper, so it is identical across the transport loop, the
+             * hosted-key loop and a block-level retry — and it differs per loop
+             * iteration and per parallel branch, so five iterations paying five
+             * invoices derive five distinct tokens rather than collapsing into
+             * one the provider would dedupe down to a single payment.
+             */
+            ...(nodeMetadata?.executionOrder !== undefined
+              ? { invocationId: String(nodeMetadata.executionOrder) }
+              : {}),
           },
         },
         { executionContext: ctx }

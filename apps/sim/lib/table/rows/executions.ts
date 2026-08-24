@@ -10,6 +10,8 @@ import { and, eq, inArray, type SQL, sql } from 'drizzle-orm'
 import type { DbOrTx } from '@/lib/db/types'
 import { getColumnId } from '@/lib/table/column-keys'
 import { areGroupDepsSatisfied } from '@/lib/table/deps'
+import { TableRunStateCollectionLimitExceededError } from '@/lib/table/rows/errors'
+import { normalizeBlockErrors } from '@/lib/table/rows/run-state'
 import type {
   EnrichmentRunDetail,
   RowData,
@@ -20,59 +22,99 @@ import type {
 } from '@/lib/table/types'
 
 /**
+ * Rows whose sidecar is fetched per round trip. Bounds the `IN (...)` list and,
+ * with it, the heap a single batch can materialize: `blockErrors` is unbounded
+ * jsonb, so one query over a whole page's row ids has no ceiling of its own.
+ */
+const RUN_STATE_ID_CHUNK_SIZE = 250
+
+interface LoadExecutionsOptions {
+  /**
+   * Ceiling on the serialized sidecar this call may materialize. Accumulated as
+   * the drain proceeds and enforced BEFORE the next chunk is fetched, so a
+   * refusal costs one over-budget chunk rather than the whole page — measuring
+   * an already-materialized result could only report a spike that had already
+   * happened.
+   */
+  budgetBytes?: number
+}
+
+/**
  * Loads `tableRowExecutions` rows for the given row ids and groups them into a
  * `Map<rowId, RowExecutions>` suitable for plugging into `TableRow.executions`.
+ *
+ * Drains in bounded chunks rather than one unbounded `IN (...)`. Pass
+ * `budgetBytes` on any path that hands the sidecar to a caller; without it the
+ * drain is still chunked but will read every named row.
  */
 export async function loadExecutionsByRow(
   trx: DbOrTx,
-  rowIds: Iterable<string>
+  rowIds: Iterable<string>,
+  options?: LoadExecutionsOptions
 ): Promise<Map<string, RowExecutions>> {
   const ids = Array.from(new Set(rowIds))
   const result = new Map<string, RowExecutions>()
   if (ids.length === 0) return result
-  // Explicit column list, never `select()` — `enrichmentDetails` is large and
-  // must stay off the hot grid read path (fetched on demand via
-  // `loadEnrichmentDetail`).
-  const rows = await trx
-    .select({
-      rowId: tableRowExecutions.rowId,
-      groupId: tableRowExecutions.groupId,
-      status: tableRowExecutions.status,
-      executionId: tableRowExecutions.executionId,
-      jobId: tableRowExecutions.jobId,
-      workflowId: tableRowExecutions.workflowId,
-      error: tableRowExecutions.error,
-      runningBlockIds: tableRowExecutions.runningBlockIds,
-      blockErrors: tableRowExecutions.blockErrors,
-      cancelledAt: tableRowExecutions.cancelledAt,
-    })
-    .from(tableRowExecutions)
-    .where(inArray(tableRowExecutions.rowId, ids))
-  for (const r of rows) {
-    const existing = result.get(r.rowId) ?? {}
-    const meta: RowExecutionMetadata = {
-      status: r.status as RowExecutionMetadata['status'],
-      executionId: r.executionId ?? null,
-      jobId: r.jobId ?? null,
-      workflowId: r.workflowId,
-      error: r.error ?? null,
-      ...(r.runningBlockIds && r.runningBlockIds.length > 0
-        ? { runningBlockIds: r.runningBlockIds }
-        : {}),
-      ...(r.blockErrors && Object.keys(r.blockErrors as Record<string, string>).length > 0
-        ? { blockErrors: r.blockErrors as Record<string, string> }
-        : {}),
-      ...(r.cancelledAt ? { cancelledAt: r.cancelledAt.toISOString() } : {}),
+  const budgetBytes = options?.budgetBytes
+  let bytes = 0
+  for (let offset = 0; offset < ids.length; offset += RUN_STATE_ID_CHUNK_SIZE) {
+    if (budgetBytes !== undefined && bytes > budgetBytes) {
+      throw new TableRunStateCollectionLimitExceededError(budgetBytes)
     }
-    existing[r.groupId] = meta
-    result.set(r.rowId, existing)
+    const chunk = ids.slice(offset, offset + RUN_STATE_ID_CHUNK_SIZE)
+    // Explicit column list, never `select()` — `enrichmentDetails` is large and
+    // must stay off the hot grid read path (fetched on demand via
+    // `loadEnrichmentDetail`).
+    const rows = await trx
+      .select({
+        rowId: tableRowExecutions.rowId,
+        groupId: tableRowExecutions.groupId,
+        status: tableRowExecutions.status,
+        executionId: tableRowExecutions.executionId,
+        jobId: tableRowExecutions.jobId,
+        workflowId: tableRowExecutions.workflowId,
+        error: tableRowExecutions.error,
+        runningBlockIds: tableRowExecutions.runningBlockIds,
+        blockErrors: tableRowExecutions.blockErrors,
+        cancelledAt: tableRowExecutions.cancelledAt,
+      })
+      .from(tableRowExecutions)
+      .where(inArray(tableRowExecutions.rowId, chunk))
+    for (const r of rows) {
+      const existing = result.get(r.rowId) ?? {}
+      const blockErrors = normalizeBlockErrors(r.blockErrors)
+      const meta: RowExecutionMetadata = {
+        status: r.status as RowExecutionMetadata['status'],
+        executionId: r.executionId ?? null,
+        jobId: r.jobId ?? null,
+        workflowId: r.workflowId,
+        error: r.error ?? null,
+        ...(r.runningBlockIds && r.runningBlockIds.length > 0
+          ? { runningBlockIds: r.runningBlockIds }
+          : {}),
+        ...(blockErrors ? { blockErrors } : {}),
+        ...(r.cancelledAt ? { cancelledAt: r.cancelledAt.toISOString() } : {}),
+      }
+      if (budgetBytes !== undefined) {
+        bytes += Buffer.byteLength(JSON.stringify(meta), 'utf8')
+        if (bytes > budgetBytes) {
+          throw new TableRunStateCollectionLimitExceededError(budgetBytes)
+        }
+      }
+      existing[r.groupId] = meta
+      result.set(r.rowId, existing)
+    }
   }
   return result
 }
 
 /** Convenience: load executions for one row, returning `{}` when missing. */
-export async function loadExecutionsForRow(trx: DbOrTx, rowId: string): Promise<RowExecutions> {
-  const byRow = await loadExecutionsByRow(trx, [rowId])
+export async function loadExecutionsForRow(
+  trx: DbOrTx,
+  rowId: string,
+  options?: LoadExecutionsOptions
+): Promise<RowExecutions> {
+  const byRow = await loadExecutionsByRow(trx, [rowId], options)
   return byRow.get(rowId) ?? {}
 }
 

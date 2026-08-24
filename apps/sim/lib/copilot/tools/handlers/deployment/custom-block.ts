@@ -276,6 +276,10 @@ export async function executeDeployCustomBlock(
       }
     }
 
+    // `traceChildRuns` is deliberately not passed and must never become a
+    // parameter here: opening a block's runs to every consumer in the org exposes
+    // the source workflow's internals, and that is a decision for a human
+    // publisher in the settings UI, not one an agent makes on their behalf.
     const block = await publishCustomBlock({
       organizationId,
       workspaceId,

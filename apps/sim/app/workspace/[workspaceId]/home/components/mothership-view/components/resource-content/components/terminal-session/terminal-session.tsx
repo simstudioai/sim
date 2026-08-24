@@ -1090,26 +1090,27 @@ export function TerminalSession({ visible, scopeId }: TerminalSessionProps) {
         {...(canReorderTabs ? { onReorder: handleReorder } : {})}
         newTabLabel='New terminal'
         onClose={handleClose}
-      >
-        <ContextMenu
-          isOpen={isContextMenuOpen && Boolean(contextTab)}
-          position={contextMenuPosition}
-          menuRef={contextMenuRef}
-          onClose={closeContextMenu}
-          onDuplicate={contextTab ? () => handleDuplicate(contextTab.cwd) : undefined}
-          onCloseOtherTabs={contextTab ? closeOtherTabs : undefined}
-          onCloseTabsToRight={contextTab ? closeTabsToRight : undefined}
-          disableCloseOtherTabs={tabs.length <= 1}
-          disableCloseTabsToRight={contextIndex < 0 || contextIndex === tabs.length - 1}
-          {...(contextTab
-            ? { onCloseTab: () => handleClose(contextTab.terminalId), showCloseTab: true }
-            : {})}
-          onDelete={() => {}}
-          showRename={false}
-          showDuplicate={Boolean(contextTab)}
-          showDelete={false}
-        />
-      </TabStrip>
+        overlays={
+          <ContextMenu
+            isOpen={isContextMenuOpen && Boolean(contextTab)}
+            position={contextMenuPosition}
+            menuRef={contextMenuRef}
+            onClose={closeContextMenu}
+            onDuplicate={contextTab ? () => handleDuplicate(contextTab.cwd) : undefined}
+            onCloseOtherTabs={contextTab ? closeOtherTabs : undefined}
+            onCloseTabsToRight={contextTab ? closeTabsToRight : undefined}
+            disableCloseOtherTabs={tabs.length <= 1}
+            disableCloseTabsToRight={contextIndex < 0 || contextIndex === tabs.length - 1}
+            {...(contextTab
+              ? { onCloseTab: () => handleClose(contextTab.terminalId), showCloseTab: true }
+              : {})}
+            onDelete={() => {}}
+            showRename={false}
+            showDuplicate={Boolean(contextTab)}
+            showDelete={false}
+          />
+        }
+      />
 
       <div className='relative min-h-0 flex-1'>
         {tabs.map((tab) => (

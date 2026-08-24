@@ -2074,6 +2074,46 @@ describe('executeSync hard-delete reconciliation', () => {
     expect(calls.flatMap((call) => call[0] as string[])).toEqual(missingIds)
   })
 
+  it('bounds and orders the stuck-document sweep instead of draining a backlog at once', async () => {
+    const { executeSync, STUCK_RETRY_MAX_CANDIDATES_PER_SYNC } = await import(
+      '@/lib/knowledge/connectors/sync-engine'
+    )
+    const { hardDeleteDocuments } = await import('@/lib/knowledge/documents/service')
+
+    primeReconciliation()
+    vi.mocked(hardDeleteDocuments).mockResolvedValue(0)
+    /**
+     * Every batch and the post-batch check re-read the connector to confirm the
+     * sync target still exists; without enough rows the run exits as
+     * connector-deleted before the sweep it is meant to exercise.
+     */
+    for (let i = 0; i < 40; i++) {
+      queueTableRows(schemaMock.knowledgeConnector, [
+        { connectorArchivedAt: null, connectorDeletedAt: null, kbDeletedAt: null },
+      ])
+    }
+    // The sweep's own candidate read: no stuck documents, so it dispatches none.
+    queueTableRows(schemaMock.document, [])
+
+    await executeSync('c-1', {
+      billingAttribution: { workspaceId: 'ws-1' } as never,
+      fullSync: true,
+    })
+
+    /**
+     * The dispatch loop's chunk size paced the sweep but never bounded it — the
+     * candidate query had no limit, so one connector enqueued its entire backlog
+     * (2,959 documents in fifteen seconds) onto the queue every workspace shares.
+     */
+    expect(dbChainMockFns.limit).toHaveBeenCalledWith(STUCK_RETRY_MAX_CANDIDATES_PER_SYNC)
+    /**
+     * Ordered, so the bound takes the most overdue documents first and can never
+     * starve one indefinitely. An unordered limit takes an arbitrary subset each
+     * sync, which is a cap that silently loses work rather than deferring it.
+     */
+    expect(dbChainMockFns.orderBy).toHaveBeenCalled()
+  })
+
   it('releases the lock when it errors a connector whose knowledge base is gone', async () => {
     const { executeSync } = await import('@/lib/knowledge/connectors/sync-engine')
 

@@ -1,6 +1,7 @@
 import { isDeepStrictEqual } from 'node:util'
 import { isPlainRecord } from '@sim/utils/object'
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
+import type { HttpRedirectPolicy } from '@/lib/core/security/http-redirect-policy'
 import {
   addModelInputProvenanceToRequest,
   createModelInputProvenanceRequestMetadata,
@@ -25,6 +26,7 @@ export interface PreparedToolRequest {
   timeout?: number
   proxyUrl?: string
   stripAuthOnRedirect?: boolean
+  redirectPolicy?: HttpRedirectPolicy
   isInternalRoute: boolean
 }
 
@@ -126,7 +128,36 @@ export function projectToolModelInputParams(
   }
 }
 
-function formatToolRequest(tool: ToolConfig, params: Record<string, any>): PreparedToolRequest {
+function collectProvenanceSensitiveHeaders(
+  tool: ToolConfig,
+  params: Record<string, any>,
+  headers: Headers,
+  registry: ResolvedSecretTraceRegistry | undefined
+): string[] {
+  if (!registry) return []
+  const projections = registry.projectResolvedInputSelections(params)
+  if (!projections.complete) return []
+
+  const sensitiveHeaders = new Set<string>()
+  for (const projection of projections.values) {
+    let projectedHeaders: Headers
+    try {
+      projectedHeaders = new Headers(tool.request.headers(projection.value))
+    } catch {
+      continue
+    }
+    headers.forEach((value, name) => {
+      if (projectedHeaders.get(name) !== value) sensitiveHeaders.add(name)
+    })
+  }
+  return [...sensitiveHeaders]
+}
+
+function formatToolRequest(
+  tool: ToolConfig,
+  params: Record<string, any>,
+  registry?: ResolvedSecretTraceRegistry
+): PreparedToolRequest {
   const url = typeof tool.request.url === 'function' ? tool.request.url(params) : tool.request.url
   const method =
     typeof tool.request.method === 'function'
@@ -165,6 +196,17 @@ function formatToolRequest(tool: ToolConfig, params: Record<string, any>): Prepa
     typeof params.proxyUrl === 'string' && params.proxyUrl.trim()
       ? params.proxyUrl.trim()
       : undefined
+  const configuredRedirectPolicy = tool.request.redirectPolicy?.(params)
+  const redirectPolicy =
+    configuredRedirectPolicy && !configuredRedirectPolicy.sendCredentialsOnCrossOriginRedirect
+      ? {
+          ...configuredRedirectPolicy,
+          sensitiveHeaders: [
+            ...(configuredRedirectPolicy.sensitiveHeaders ?? []),
+            ...collectProvenanceSensitiveHeaders(tool, params, headers, registry),
+          ],
+        }
+      : configuredRedirectPolicy
 
   return {
     url,
@@ -174,6 +216,7 @@ function formatToolRequest(tool: ToolConfig, params: Record<string, any>): Prepa
     timeout: validTimeout,
     proxyUrl,
     stripAuthOnRedirect: tool.request.stripAuthOnRedirect,
+    redirectPolicy,
     isInternalRoute: url.startsWith('/api/'),
   }
 }
@@ -200,7 +243,7 @@ export function prepareToolRequest(
   }
 
   const requestInput = projectToolModelInputParams(tool, params, registry)
-  const request = formatToolRequest(tool, requestInput)
+  const request = formatToolRequest(tool, requestInput, registry)
   if (hasPrivateModelInputProvenance && !request.isInternalRoute) {
     throw new Error(PRIVATE_MODEL_INPUT_EXTERNAL_URL_ERROR_MESSAGE)
   }

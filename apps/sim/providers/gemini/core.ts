@@ -132,7 +132,19 @@ async function executeToolCallsBatch(
         throw new Error(`Arguments for tool "${toolName}" must be an object`)
       }
 
-      const { toolParams, executionParams } = prepareToolExecution(tool, args, request)
+      /*
+       * The RAW model id, not a synthesized one. Gemini often omits an id on a
+       * function-call part, in which case this is `undefined` and the keyed
+       * helper falls back loudly rather than deriving a token from something —
+       * a positional index, an execution-local id — that would look stable and
+       * not be.
+       */
+      const { toolParams, executionParams } = prepareToolExecution(
+        tool,
+        args,
+        request,
+        part.functionCall?.id
+      )
       const { rawResponse, modelResponse } = await executeProviderTool(toolName, executionParams, {
         signal: request.abortSignal,
       })

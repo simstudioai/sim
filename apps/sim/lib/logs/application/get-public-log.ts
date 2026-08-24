@@ -1,8 +1,11 @@
+import type { CostLedger } from '@/lib/api/contracts/logs'
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { MAX_FOLDERS_PER_WORKSPACE } from '@/lib/folders/constants'
 import { ROOT_FOLDER_PATH } from '@/lib/folders/paths'
 import { loadActiveFolderPathIndex } from '@/lib/folders/queries'
 import { logOperations } from '@/lib/logs/application/operations'
+import { buildCostLedger } from '@/lib/logs/cost-ledger'
 import { materializeExecutionDataForDisplay } from '@/lib/logs/execution/trace-store'
 import { getPublicWorkflowLog, getPublicWorkflowLogScope } from '@/lib/logs/public-queries'
 import { sanitizeExecutionSnapshotState } from '@/lib/logs/snapshot-sanitizer'
@@ -38,6 +41,14 @@ export interface GetPublicLogResult {
    */
   workflowFolderPath: string | null
   executionData: Record<string, unknown>
+  /**
+   * The run's itemized billing lines, or `null` when no ledger exists for it.
+   *
+   * `null` is a distinct answer from an empty item list and is reachable: the
+   * ledger is keyed on `usage_log` rows recorded with `source = 'workflow'`, so a
+   * run that predates the ledger has none at all.
+   */
+  costLedger: CostLedger | null
 }
 
 /**
@@ -84,7 +95,14 @@ export const getPublicLog = defineAuthorizedWorkspaceUseCase({
     if (!log || log.workflowId !== context.workflowId) {
       throw new OrchestrationError('not_found', 'Log not found')
     }
-    const folderIndex = await loadActiveFolderPathIndex(context.workspaceId, 'workflow')
+    const folderIndex = await loadActiveFolderPathIndex(
+      context.workspaceId,
+      'workflow',
+      undefined,
+      {
+        maxRows: MAX_FOLDERS_PER_WORKSPACE,
+      }
+    )
     const executionData = await materializeExecutionDataForDisplay(
       log.executionData as Record<string, unknown> | null,
       {
@@ -97,8 +115,10 @@ export const getPublicLog = defineAuthorizedWorkspaceUseCase({
     if (log.workflowUserId && !log.workflowOwnerEmail) {
       throw new Error(`Unable to resolve workflow owner email for ${log.workflowUserId}`)
     }
+    const costLedger = await buildCostLedger(log.executionId)
     return {
       log: { ...log, workflowState: sanitizeExecutionSnapshotState(log.workflowState) },
+      costLedger,
       workflowFolderPath: publicLogFolderPath(
         folderIndex.pathById,
         log.workflowFolderId,

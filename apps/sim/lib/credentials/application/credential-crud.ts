@@ -7,6 +7,7 @@ import { canUseCredential, getCredentialActorContext } from '@/lib/credentials/a
 import {
   defineAuthorizedCredentialUseCase,
   requireCredentialAccess,
+  requireManageableCredentialType,
 } from '@/lib/credentials/application/authorized-credential-use-case'
 import { resolveCredentialApplicationContext } from '@/lib/credentials/application/credential-context'
 import { credentialOperations } from '@/lib/credentials/application/operations'
@@ -242,17 +243,23 @@ export const getWorkspaceCredentialUseCase = defineAuthorizedCredentialUseCase({
 export type UpdateWorkspaceCredentialInput = Omit<
   PerformUpdateCredentialParams,
   'userId' | 'actorName' | 'actorEmail' | 'allowedTypes' | 'reason' | 'request'
->
+> & {
+  /**
+   * Workspace the caller asserts owns the credential; a mismatch is concealed as
+   * a not-found. The internal surface omits it and resolves the credential's own
+   * workspace instead, which is what it did before this field existed.
+   */
+  assertedWorkspaceId?: string
+}
 
 export const updateWorkspaceCredentialUseCase = defineAuthorizedCredentialUseCase({
   operation: credentialOperations.update,
   resolveContext: ({ input }: { input: UpdateWorkspaceCredentialInput }) =>
     resolveCredentialApplicationContext(input),
   async execute({ principal, input, context }) {
-    if (principal.kind === 'delegated' && context.credential.type !== 'oauth') {
-      throw new OrchestrationError('validation', 'Copilot can update only oauth credentials')
-    }
-    const result = await updateCredentialRecord({ ...input, credential: context.credential })
+    requireManageableCredentialType(principal, context.credential)
+    const { assertedWorkspaceId, ...fields } = input
+    const result = await updateCredentialRecord({ ...fields, credential: context.credential })
     if (!result.success) throwCredentialMutationFailure(result)
     const access = await getCredentialActorContext(
       context.credential.id,
