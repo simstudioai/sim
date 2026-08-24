@@ -3,7 +3,6 @@ import {
   isGithubAuthDisabled,
   isGoogleAuthDisabled,
   isMicrosoftAuthDisabled,
-  isProd,
 } from '@/lib/core/config/env-flags'
 
 export async function getOAuthProviderStatus() {
@@ -16,5 +15,5 @@ export async function getOAuthProviderStatus() {
   const microsoftAvailable =
     !!(env.MICROSOFT_CLIENT_ID && env.MICROSOFT_CLIENT_SECRET) && !isMicrosoftAuthDisabled
 
-  return { githubAvailable, googleAvailable, microsoftAvailable, isProduction: isProd }
+  return { githubAvailable, googleAvailable, microsoftAvailable }
 }

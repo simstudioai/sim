@@ -91,7 +91,6 @@ interface SignupFormProps {
   githubAvailable: boolean
   googleAvailable: boolean
   microsoftAvailable: boolean
-  isProduction: boolean
   emailSignupEnabled: boolean
   /** Server-derived: verification is enabled AND a mail provider is configured. */
   emailVerificationEnabled: boolean
@@ -101,7 +100,6 @@ function SignupFormContent({
   githubAvailable,
   googleAvailable,
   microsoftAvailable,
-  isProduction,
   emailSignupEnabled,
   emailVerificationEnabled,
 }: SignupFormProps) {
@@ -484,7 +482,6 @@ function SignupFormContent({
           googleAvailable={googleAvailable}
           microsoftAvailable={microsoftAvailable}
           callbackURL={redirectUrl || '/workspace'}
-          isProduction={isProduction}
         >
           {ssoEnabled && !hasOnlySSO && (
             <SSOLoginButton callbackURL={redirectUrl || '/workspace'} variant='outline' />
@@ -507,7 +504,6 @@ export default function SignupPage({
   githubAvailable,
   googleAvailable,
   microsoftAvailable,
-  isProduction,
   emailSignupEnabled,
   emailVerificationEnabled,
 }: SignupFormProps) {
@@ -519,7 +515,6 @@ export default function SignupPage({
         githubAvailable={githubAvailable}
         googleAvailable={googleAvailable}
         microsoftAvailable={microsoftAvailable}
-        isProduction={isProduction}
         emailSignupEnabled={emailSignupEnabled}
         emailVerificationEnabled={emailVerificationEnabled}
       />
