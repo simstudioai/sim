@@ -643,6 +643,33 @@ describe('stored provenance display reporting', () => {
     expect(mockLogger.error).not.toHaveBeenCalled()
   })
 
+  /** The block entry point runs both display functions; each names its own site for the envelope. */
+  it('attributes an incomplete run envelope under both sites on a block-outputs read', async () => {
+    await materializeExecutionDataForDisplayWithBlockOutputs(
+      {
+        finalOutput: { result: 'value' },
+        executionState: {
+          resolvedSecretTraceProvenance: { version: 1, complete: false, entries: [] },
+          blockStates: {
+            'block-1': { output: { value: 1 } },
+          },
+        },
+      },
+      CONTEXT,
+      ['block-1']
+    )
+
+    expect(registrySummaryLines()).toHaveLength(0)
+    expect(mockLogger.warn).toHaveBeenCalledWith(
+      'Stored execution provenance cannot vouch for display content',
+      expect.objectContaining({ site: 'traceStore.displayProjection', parts: ['traceSpans'] })
+    )
+    expect(mockLogger.warn).toHaveBeenCalledWith(
+      'Stored execution provenance cannot vouch for display content',
+      expect.objectContaining({ site: 'traceStore.blockOutputs', parts: ['run'] })
+    )
+  })
+
   it('reports incomplete block-output envelopes once for the whole block read', async () => {
     const result = await materializeExecutionDataForDisplayWithBlockOutputs(
       {

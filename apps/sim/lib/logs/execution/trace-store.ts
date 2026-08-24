@@ -307,7 +307,7 @@ export async function materializeExecutionDataForDisplayWithBlockOutputs(
     'traceStore.blockOutputRunProvenance'
   )
   const provenanceFaults = new Map<string, StoredDisplayProvenanceFault>()
-  if (isResolvedSecretTraceProvenanceV1(runProvenance) && !runProvenance.complete) {
+  if (isIncompleteStoredEnvelope(runProvenance)) {
     provenanceFaults.set('run', 'incomplete')
   }
   const blockOutputs = new Map<string, unknown>()
@@ -318,11 +318,11 @@ export async function materializeExecutionDataForDisplayWithBlockOutputs(
     if (!blockState || blockState.output === undefined) continue
 
     const hasExactProvenance = Object.hasOwn(blockState, RESOLVED_SECRET_PROVENANCE_KEY)
-    if (hasExactProvenance) {
-      const blockProvenance = blockState[RESOLVED_SECRET_PROVENANCE_KEY]
-      if (isResolvedSecretTraceProvenanceV1(blockProvenance) && !blockProvenance.complete) {
-        provenanceFaults.set(`blockOutput:${blockId}`, 'incomplete')
-      }
+    if (
+      hasExactProvenance &&
+      isIncompleteStoredEnvelope(blockState[RESOLVED_SECRET_PROVENANCE_KEY])
+    ) {
+      provenanceFaults.set(`blockOutput:${blockId}`, 'incomplete')
     }
     const registry = hasExactProvenance
       ? await importResolvedSecretTraceRegistry(
@@ -377,17 +377,27 @@ async function importResolvedSecretTraceRegistry(
 
 type StoredDisplayProvenanceFault = 'incomplete' | 'malformed'
 
+/** True for a stored envelope that parses but cannot vouch for the value it accompanies. */
+function isIncompleteStoredEnvelope(value: unknown): boolean {
+  return isResolvedSecretTraceProvenanceV1(value) && !value.complete
+}
+
 const MAX_REPORTED_PROVENANCE_FAULT_PARTS = 20
 
 /**
- * One attributed line per display materialization, in place of one registry summary per envelope
- * per view.
+ * One attributed line per display function per materialization, in place of one registry summary
+ * per envelope per view.
  *
  * The registry summaries these replace carried counts and a workspace but no execution id, so a
  * reader repeatedly materializing the same stored rows produced an unattributable stream — the
  * lines could not say which executions to go look at. Incomplete stays at warn (a stored state
  * being re-read); malformed stays at error (a stored envelope that cannot be parsed is a fault
  * wherever it is met, matching the level its registry reason carries elsewhere).
+ *
+ * A block-outputs read runs the display projection first, so an incomplete run envelope appears
+ * once under each site — `traceSpans` guarding the span projection, `run` as the block fallback.
+ * Two sites reading the same envelope are two facts about the view; collapsing them would couple
+ * the display functions to share reporting state for one line less.
  */
 function reportStoredDisplayProvenanceFaults(
   site: string,
@@ -489,7 +499,7 @@ export async function projectExecutionDataForDisplay(
   const projectionStore = createReadOnlyProjectionStore(context)
 
   const provenanceFaults = new Map<string, StoredDisplayProvenanceFault>()
-  if (isResolvedSecretTraceProvenanceV1(provenance) && !provenance.complete) {
+  if (isIncompleteStoredEnvelope(provenance)) {
     provenanceFaults.set('traceSpans', 'incomplete')
   }
 

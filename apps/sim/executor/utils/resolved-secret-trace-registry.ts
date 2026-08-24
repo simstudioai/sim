@@ -880,9 +880,10 @@ export class ResolvedSecretTraceRegistry {
   private readonly scope?: ResolvedSecretTraceScopeV1
   private readonly completeProvenanceEnvelopeBytes: number
   /**
-   * A staged registry filters one value and is then discarded. Its caller re-reports whatever
-   * fault it hits against the real input path, so its own summary lines would restate that with
-   * strictly less context. Entry-level detail still logs — the caller cannot reconstruct it.
+   * A staged registry filters values for one operation and is then discarded. Its caller owns the
+   * reporting and says it with strictly more context — the real input path for a value filter, the
+   * execution for a display read — so the registry's own summary lines would only restate it.
+   * Entry-level detail still logs — the caller cannot reconstruct it.
    */
   private readonly staged: boolean
 
