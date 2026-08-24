@@ -5,9 +5,18 @@ import { describe, expect, it, vi } from 'vitest'
 import { getReadTargetBlock } from '@/lib/copilot/tools/client/read-block'
 
 const gmailBlock = { type: 'gmail_v2', name: 'Gmail', icon: () => null }
+const customBlock = {
+  type: 'custom_block_invoice_parser',
+  name: 'Invoice Parser',
+  icon: () => null,
+}
 
 vi.mock('@/blocks/registry', () => ({
-  getBlock: vi.fn((type: string) => (type === 'gmail_v2' ? gmailBlock : undefined)),
+  getBlock: vi.fn((type: string) => {
+    if (type === 'gmail_v2') return gmailBlock
+    if (type === 'custom_block_invoice_parser') return customBlock
+    return undefined
+  }),
   getLatestBlock: vi.fn((baseType: string) => (baseType === 'gmail' ? gmailBlock : undefined)),
 }))
 
@@ -19,6 +28,12 @@ describe('getReadTargetBlock', () => {
   it('resolves integration operation and service-directory reads to the latest service block', () => {
     expect(getReadTargetBlock('components/integrations/gmail/send.json')?.name).toBe('Gmail')
     expect(getReadTargetBlock('components/integrations/gmail')?.name).toBe('Gmail')
+  })
+
+  it('resolves an organization custom-block read to its block', () => {
+    expect(
+      getReadTargetBlock('organization/custom-blocks/custom_block_invoice_parser.json')?.name
+    ).toBe('Invoice Parser')
   })
 
   it('returns undefined for unknown blocks and non-component paths', () => {
