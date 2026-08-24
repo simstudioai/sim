@@ -45,7 +45,6 @@ export const PRIVACY_CONFIG: LegalPageConfig = {
   description: 'Sim Studio, Inc. · Operating the Sim platform (sim.ai)',
   lastUpdated: 'August 24, 2026',
   intro: [
-    { kind: 'paragraph', content: richText('Source: https://sim.ai/privacy') },
     {
       kind: 'paragraph',
       content: richText(
