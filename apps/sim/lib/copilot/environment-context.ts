@@ -23,6 +23,7 @@ export async function createCopilotEnvironmentContext(
     workspaceDecrypted: environment.workspaceDecrypted,
     decryptionFailures: environment.decryptionFailures,
     personalOwners: environment.personalOwners,
+    workspaceUnredactedKeys: environment.workspaceUnredactedKeys,
     scope: { userId, workspaceId },
   })
 

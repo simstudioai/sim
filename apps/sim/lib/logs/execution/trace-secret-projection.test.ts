@@ -30,6 +30,7 @@ import {
 } from '@/lib/logs/execution/trace-secret-projection'
 import type { TraceSpan } from '@/lib/logs/types'
 import {
+  createResolvedSecretTraceRegistry,
   type ResolvedSecretTraceMatch,
   ResolvedSecretTraceRegistry,
 } from '@/executor/utils/resolved-secret-trace-registry'
@@ -264,6 +265,58 @@ describe('projectTraceSpansForSecrets', () => {
     expect(span.children?.[0].output).toEqual({ child: '{{API_SECRET}}' })
     expect(source.output).toEqual({ [secret]: secret })
     expect(result[0]).not.toBe(source)
+  })
+
+  it('passes content holding only an exempt secret through projection and invariant verbatim', async () => {
+    const registry = await createResolvedSecretTraceRegistry({
+      personalEncrypted: {},
+      workspaceEncrypted: { NAME: 'encrypted-exempt' },
+      personalDecrypted: {},
+      workspaceDecrypted: { NAME: 'exempt-value-123' },
+      workspaceUnredactedKeys: ['NAME'],
+    })
+    expect(registry.recordResolved('NAME', 'exempt-value-123')).toBe(true)
+    const source = [
+      createSpan({
+        input: { code: 'return {{NAME}}' },
+        output: { token: 'Bearer exempt-value-123' },
+      }),
+    ]
+
+    const [projected] = await projectTraceSpansForSecrets(source, { registry, store: STORE })
+
+    expect(projected.input).toEqual({ code: 'return {{NAME}}' })
+    expect(projected.output).toEqual({ token: 'Bearer exempt-value-123' })
+
+    const enforced = await enforceTraceSpanSecretInvariant(source, { registry, store: STORE })
+
+    expect(enforced).toBe(source)
+    expect(enforced[0].output).toEqual({ token: 'Bearer exempt-value-123' })
+  })
+
+  it('still substitutes a non-exempt secret alongside an exempt one', async () => {
+    const registry = await createResolvedSecretTraceRegistry({
+      personalEncrypted: {},
+      workspaceEncrypted: {
+        EXEMPT_KEY: 'encrypted-exempt',
+        PROTECTED_KEY: 'encrypted-protected',
+      },
+      personalDecrypted: {},
+      workspaceDecrypted: {
+        EXEMPT_KEY: 'exempt-value-123',
+        PROTECTED_KEY: 'protected-value-456',
+      },
+      workspaceUnredactedKeys: ['EXEMPT_KEY'],
+    })
+    expect(registry.recordResolved('EXEMPT_KEY', 'exempt-value-123')).toBe(true)
+    expect(registry.recordResolved('PROTECTED_KEY', 'protected-value-456')).toBe(true)
+
+    const [projected] = await projectTraceSpansForSecrets(
+      [createSpan({ output: { value: 'exempt-value-123 protected-value-456' } })],
+      { registry, store: STORE }
+    )
+
+    expect(projected.output).toEqual({ value: 'exempt-value-123 {{PROTECTED_KEY}}' })
   })
 
   it('uses deterministic longest matches and does not rescan replacements', async () => {

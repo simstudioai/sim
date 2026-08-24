@@ -543,6 +543,7 @@ async function executeWorkflowCoreImpl(
       workspaceDecrypted,
       decryptionFailures,
       personalOwners,
+      workspaceUnredactedKeys,
     } = env
 
     // Use encrypted values for logging (don't log decrypted secrets)
@@ -566,6 +567,7 @@ async function executeWorkflowCoreImpl(
       workspaceDecrypted,
       decryptionFailures,
       personalOwners,
+      workspaceUnredactedKeys,
       restoredProvenance: restoreTrusted ? restoredState?.resolvedSecretTraceProvenance : undefined,
       restoredCheckpointVersion: restoredState?.resolvedSecretTraceCheckpointVersion,
       restoreTrusted,

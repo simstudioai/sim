@@ -143,6 +143,100 @@ describe('materializeCopilotCodeSecrets', () => {
     ])
   })
 
+  it('stamps a member-granted workspace mount unredacted when its credential row carries the flag', async () => {
+    queueSources({
+      workspace: { API_KEY: 'workspace-cipher' },
+      credentials: [
+        credentialRow({
+          type: 'env_workspace',
+          envKey: 'API_KEY',
+          role: 'member',
+          status: 'active',
+        }),
+      ],
+    })
+    /** The membership-free unredacted-flag query reads the credential table again. */
+    queueTableRows(credential, [{ envKey: 'API_KEY' }])
+
+    const result = await materializeCopilotCodeSecrets({
+      actorUserId: 'user-1',
+      workspaceId: 'workspace-1',
+      requestedNames: ['API_KEY'],
+    })
+
+    expect(result.catalogEntries).toEqual([
+      {
+        name: 'API_KEY',
+        plaintext: 'plain:workspace-cipher',
+        encryptedValue: 'workspace-cipher',
+        scope: 'workspace',
+        unredacted: true,
+      },
+    ])
+  })
+
+  it('stamps an admin-authorized mount that has no credentialMember row at all', async () => {
+    mockCheckWorkspaceAccess.mockResolvedValue({
+      exists: true,
+      hasAccess: true,
+      canWrite: true,
+      canAdmin: true,
+    })
+    queueSources({ workspace: { API_KEY: 'workspace-cipher' }, credentials: [] })
+    queueTableRows(credential, [{ envKey: 'API_KEY' }])
+
+    const result = await materializeCopilotCodeSecrets({
+      actorUserId: 'user-1',
+      workspaceId: 'workspace-1',
+      requestedNames: ['API_KEY'],
+    })
+
+    expect(result.catalogEntries).toEqual([
+      expect.objectContaining({ name: 'API_KEY', scope: 'workspace', unredacted: true }),
+    ])
+  })
+
+  it('never stamps a personal mount even when a flagged workspace row shares the name', async () => {
+    queueSources({ personal: { API_KEY: 'personal-cipher' } })
+    queueTableRows(credential, [{ envKey: 'API_KEY' }])
+
+    const result = await materializeCopilotCodeSecrets({
+      actorUserId: 'user-1',
+      workspaceId: 'workspace-1',
+      requestedNames: ['API_KEY'],
+    })
+
+    expect(result.catalogEntries).toEqual([
+      {
+        name: 'API_KEY',
+        plaintext: 'plain:personal-cipher',
+        encryptedValue: 'personal-cipher',
+        scope: 'personal',
+        ownerUserId: 'user-1',
+      },
+    ])
+    expect(result.catalogEntries[0]).not.toHaveProperty('unredacted')
+  })
+
+  it('leaves a workspace mount unstamped when its credential row has no flag', async () => {
+    mockCheckWorkspaceAccess.mockResolvedValue({
+      exists: true,
+      hasAccess: true,
+      canWrite: true,
+      canAdmin: true,
+    })
+    queueSources({ workspace: { API_KEY: 'workspace-cipher' }, credentials: [] })
+    queueTableRows(credential, [])
+
+    const result = await materializeCopilotCodeSecrets({
+      actorUserId: 'user-1',
+      workspaceId: 'workspace-1',
+      requestedNames: ['API_KEY'],
+    })
+
+    expect(result.catalogEntries[0]).not.toHaveProperty('unredacted')
+  })
+
   it('mounts an own __proto__ secret as data without mutating record prototypes', async () => {
     queueSources({ personal: Object.fromEntries([['__proto__', 'personal-cipher']]) })
 

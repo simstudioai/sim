@@ -3924,6 +3924,13 @@ export const credential = pgTable(
     type: credentialTypeEnum('type').notNull(),
     displayName: text('display_name').notNull(),
     description: text('description'),
+    /**
+     * Opts an env_workspace secret out of resolved-secret redaction: its value renders in
+     * plaintext across surfaces (logs, model-visible content, sandbox file exports) instead
+     * of `{{NAME}}`, and is not recorded into durable provenance. Meaningful only for
+     * type = 'env_workspace'; writes for other types are rejected in the orchestration layer.
+     */
+    unredacted: boolean('unredacted').notNull().default(false),
     providerId: text('provider_id'),
     accountId: text('account_id').references(() => account.id, { onDelete: 'cascade' }),
     envKey: text('env_key'),

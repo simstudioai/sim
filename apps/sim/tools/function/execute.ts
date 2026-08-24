@@ -173,6 +173,7 @@ export const functionExecuteTool: ToolConfig<CodeExecutionInput, CodeExecutionOu
         sandboxId: params.sandboxId,
         secretScope: params.secretScope,
         mountedSecrets: params.mountedSecrets,
+        unredactedSecretNames: params.unredactedSecretNames,
         overwriteFileId: params.overwriteFileId,
         inputs: params.inputs,
         outputs: params.outputs,
