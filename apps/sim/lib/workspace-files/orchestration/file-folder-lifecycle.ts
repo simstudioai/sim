@@ -1,6 +1,6 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
-import { getPostgresErrorCode, toError } from '@sim/utils/errors'
+import { getErrorMessage, getPostgresErrorCode, toError } from '@sim/utils/errors'
 import { asOrchestrationError, type OrchestrationErrorCode } from '@/lib/core/orchestration/types'
 import { FolderPathError } from '@/lib/folders/paths'
 import { notifyWorkspaceFilesChanged } from '@/lib/realtime/notify'
@@ -385,10 +385,10 @@ export async function performMoveWorkspaceFileItems(
     ) {
       return {
         success: false,
-        error:
-          error instanceof Error
-            ? error.message
-            : 'A file or folder with this name already exists in the destination folder',
+        error: getErrorMessage(
+          error,
+          'A file or folder with this name already exists in the destination folder'
+        ),
         errorCode: 'conflict',
       }
     }
