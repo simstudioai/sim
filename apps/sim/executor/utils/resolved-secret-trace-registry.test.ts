@@ -2230,6 +2230,8 @@ describe('unredacted catalog exemption', () => {
     registry.markIncomplete('unspecified')
     expect(registry.getModelEgressSnapshot()).toEqual({ complete: false })
     expect(registry.exportProvenance().complete).toBe(false)
+    /** A missing collider is indistinguishable from none — certify nothing once latched. */
+    expect(registry.getUnredactedSecretNames()).toEqual([])
   })
 
   it('releases an exempt-only recorded input leaf to the model raw', async () => {

@@ -1791,8 +1791,14 @@ export class ResolvedSecretTraceRegistry {
    * sees only names and cannot re-check collisions itself, so any flagged name whose plaintext
    * another catalog entry or a non-exempt active entry shares is withheld — the file export
    * then records the colliding owner's provenance exactly as before.
+   *
+   * Certifies nothing once the registry is permanently incomplete: the collision set is built
+   * from the active entries, and a failed import or capacity latch means entries — including a
+   * collider for a flagged plaintext — may be missing. The same bar model egress applies, and
+   * for the same reason: incompleteness must only ever widen protection.
    */
   getUnredactedSecretNames(): readonly string[] {
+    if (this.isPermanentlyIncomplete()) return []
     const protectedPlaintexts = this.collectProtectedPlaintexts()
     const nonExemptCatalogPlaintexts = new Set<string>()
     for (const entry of this.catalog.values()) {
