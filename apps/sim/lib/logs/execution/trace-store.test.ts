@@ -616,6 +616,74 @@ describe('stored provenance display reporting', () => {
     )
   })
 
+  /** A complete envelope whose entries cannot be decrypted withholds content like any fault. */
+  it('attributes an undecryptable stored envelope to its execution at error', async () => {
+    decryptSecretMock.mockRejectedValue(new Error('key rotated'))
+
+    const displayData = await projectExecutionDataForDisplay(
+      {
+        finalOutput: { result: 'value' },
+        executionState: {
+          resolvedSecretTraceProvenance: {
+            version: 1,
+            complete: true,
+            entries: [],
+            scope: { userId: 'user-1', workspaceId: 'workspace-1' },
+          },
+          finalOutputResolvedSecretTraceProvenance: {
+            version: 1,
+            complete: true,
+            entries: [{ name: 'SECRET', encryptedValue: 'ciphertext' }],
+            scope: { userId: 'user-1', workspaceId: 'workspace-1' },
+          },
+        },
+      },
+      CONTEXT
+    )
+
+    expect(displayData).not.toHaveProperty('finalOutput')
+    expect(registrySummaryLines()).toHaveLength(0)
+    expect(mockLogger.error).toHaveBeenCalledWith(
+      'Stored execution provenance could not be decrypted',
+      expect.objectContaining({
+        site: 'traceStore.displayProjection',
+        executionId: 'execution-1',
+        parts: ['finalOutput'],
+      })
+    )
+  })
+
+  it('reports a malformed block-output envelope at error, withholding the output', async () => {
+    const result = await materializeExecutionDataForDisplayWithBlockOutputs(
+      {
+        executionState: {
+          resolvedSecretTraceProvenance: {
+            version: 1,
+            complete: true,
+            entries: [],
+            scope: { userId: 'user-1', workspaceId: 'workspace-1' },
+          },
+          blockStates: {
+            'block-1': { output: { value: 1 }, resolvedSecretTraceProvenance: 'garbage' },
+          },
+        },
+      },
+      CONTEXT,
+      ['block-1']
+    )
+
+    expect(result.blockOutputs.has('block-1')).toBe(false)
+    expect(registrySummaryLines()).toHaveLength(0)
+    expect(mockLogger.error).toHaveBeenCalledWith(
+      'Stored execution provenance is malformed',
+      expect.objectContaining({
+        site: 'traceStore.blockOutputs',
+        executionId: 'execution-1',
+        parts: ['blockOutput:block-1'],
+      })
+    )
+  })
+
   it('stays silent when every stored envelope is complete', async () => {
     const displayData = await projectExecutionDataForDisplay(
       {
