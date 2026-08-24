@@ -1,0 +1,585 @@
+---
+title: iMessage (Photon)
+description: Send and receive iMessage
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="photon_imessage"
+  color="#0B84FE"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Photon](https://photon.codes) gives your workflows a real iMessage presence. Photon runs the iMessage line in its cloud, so messages send and receive from a genuine blue-bubble number with no Mac to babysit — and the full conversation surface is available to automation, not just plain text.
+
+## Why Photon?
+
+- **Apple-native depth**: tapback reactions, threaded replies, screen and bubble effects, native polls, group chat administration, shared chat backgrounds, and typing indicators — the things that make a conversation feel human on an iPhone.
+- **True unsend and edit**: retract or correct a sent message on the recipient's device, not just in an API's records.
+- **Attachments as files**: photos and documents texted to your number download straight into the workflow as files ready for extraction, storage, or classification.
+- **Typed, verified events**: inbound messages, tapbacks, and read receipts arrive as signed webhooks with structured fields — signatures are verified with Photon's own scheme and replayed deliveries are deduplicated.
+- **One-click wiring**: enter your project credentials and Sim registers the webhook with Photon on deploy, stores the signing secret, and cleans up when the trigger is removed.
+
+## Using iMessage (Photon) in Sim
+
+With 20 operations spanning conversation (send, media, voice memos, tapbacks, polls, typing, read receipts), message lifecycle (edit, unsend, fetch, attachment download), group administration (create, rename, photo, membership), and presence (contact card, chat backgrounds) — plus four triggers for inbound messages, tapbacks, read receipts, and a catch-all — workflows can hold a conversation end to end: greet a new lead, react to their reply with a tapback, send a photo, run a poll in a group, and retract a mistake before anyone screenshots it.
+
+Get a project ID and secret at [app.photon.codes](https://app.photon.codes). The same credentials power both the tools and automatic webhook registration.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Send iMessages from a Photon-managed number and trigger workflows on inbound messages, tapbacks, and read receipts. Photon runs the iMessage line, so no Mac is required. Beyond text, workflows can send media and voice memos, react with tapbacks, edit and unsend messages, run native polls, manage group chats, and download received attachments.
+
+
+
+## Actions
+
+### Send iMessage
+
+Send an iMessage to a phone number or email address, or into an existing chat, optionally as a reply or with a screen or bubble effect
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Photon project ID from app.photon.codes |
+| `projectSecret` | string | Yes | Photon project secret from app.photon.codes |
+| `to` | string | Yes | Where to send: a phone number in E.164 form \(e.g. +14155551234\), an Apple ID email, or a chat ID from an iMessage trigger. A chat ID is the only way to reach a group chat. |
+| `text` | string | Yes | Message text to send. iMessage is plain text, so Markdown is not rendered. |
+| `effectName` | string | No | Send with an iMessage effect: balloons, celebration, confetti, echo, fireworks, gentle, heart, invisible, lasers, loud, slam, sparkles, or spotlight |
+| `replyToMessageId` | string | No | Message ID to reply to inline \(threaded reply\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `messageId` | string | Identifier of the sent message |
+| `chatId` | string | Chat GUID the message was sent to. Pass this back to target the same chat. |
+| `timestamp` | string | ISO 8601 time the message was sent |
+
+### Send Media
+
+Send a photo, video, or file over iMessage, with an optional caption
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Photon project ID from app.photon.codes |
+| `projectSecret` | string | Yes | Photon project secret from app.photon.codes |
+| `to` | string | Yes | Where to send: a phone number in E.164 form \(e.g. +14155551234\), an Apple ID email, or a chat ID from an iMessage trigger. A chat ID is the only way to reach a group chat. |
+| `file` | file | No | File to send, uploaded or referenced from a previous block |
+| `fileContent` | string | No | Legacy base64 file content |
+| `filename` | string | No | File name including extension |
+| `contentType` | string | No | MIME type of the file \(inferred from the upload when omitted\) |
+| `caption` | string | No | Text sent right after the media as a caption bubble |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `messageId` | string | Identifier of the sent message |
+| `chatId` | string | Chat GUID the message was sent to. Pass this back to target the same chat. |
+| `timestamp` | string | ISO 8601 time the message was sent |
+
+### Send Voice Memo
+
+Send an audio file as a native iMessage voice memo
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Photon project ID from app.photon.codes |
+| `projectSecret` | string | Yes | Photon project secret from app.photon.codes |
+| `to` | string | Yes | Where to send: a phone number in E.164 form \(e.g. +14155551234\), an Apple ID email, or a chat ID from an iMessage trigger. A chat ID is the only way to reach a group chat. |
+| `file` | file | No | File to send, uploaded or referenced from a previous block |
+| `fileContent` | string | No | Legacy base64 file content |
+| `filename` | string | No | File name including extension |
+| `contentType` | string | No | MIME type of the file \(inferred from the upload when omitted\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `messageId` | string | Identifier of the sent message |
+| `chatId` | string | Chat GUID the message was sent to. Pass this back to target the same chat. |
+| `timestamp` | string | ISO 8601 time the message was sent |
+
+### Send Tapback
+
+React to a message with an iMessage tapback (love, like, dislike, laugh, emphasize, question) or any emoji
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Photon project ID from app.photon.codes |
+| `projectSecret` | string | Yes | Photon project secret from app.photon.codes |
+| `to` | string | Yes | Where to send: a phone number in E.164 form \(e.g. +14155551234\), an Apple ID email, or a chat ID from an iMessage trigger. A chat ID is the only way to reach a group chat. |
+| `messageId` | string | Yes | ID of the message to react to, such as the messageId from an iMessage trigger |
+| `emoji` | string | Yes | Reaction emoji. Heart, thumbs up, thumbs down, laugh, double exclamation, and question mark map to native tapbacks; any other emoji sends a custom emoji tapback. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `messageId` | string | Identifier of the sent message |
+| `chatId` | string | Chat GUID the message was sent to. Pass this back to target the same chat. |
+| `timestamp` | string | ISO 8601 time the message was sent |
+
+### Edit Message
+
+Edit the text of a previously sent iMessage in place
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Photon project ID from app.photon.codes |
+| `projectSecret` | string | Yes | Photon project secret from app.photon.codes |
+| `to` | string | Yes | Where to send: a phone number in E.164 form \(e.g. +14155551234\), an Apple ID email, or a chat ID from an iMessage trigger. A chat ID is the only way to reach a group chat. |
+| `messageId` | string | Yes | ID of the sent message to edit |
+| `text` | string | Yes | Replacement text |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `messageId` | string | Identifier of the sent message |
+| `chatId` | string | Chat GUID the message was sent to. Pass this back to target the same chat. |
+| `timestamp` | string | ISO 8601 time the message was sent |
+
+### Unsend Message
+
+Retract a sent iMessage so it disappears from the recipient device
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Photon project ID from app.photon.codes |
+| `projectSecret` | string | Yes | Photon project secret from app.photon.codes |
+| `to` | string | Yes | Where to send: a phone number in E.164 form \(e.g. +14155551234\), an Apple ID email, or a chat ID from an iMessage trigger. A chat ID is the only way to reach a group chat. |
+| `messageId` | string | Yes | ID of the sent message to unsend |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `chatId` | string | Chat GUID the operation ran in |
+| `messageId` | string | Identifier of the affected message |
+
+### Create Poll
+
+Create a native iMessage poll with 2-10 options
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Photon project ID from app.photon.codes |
+| `projectSecret` | string | Yes | Photon project secret from app.photon.codes |
+| `to` | string | Yes | Where to send: a phone number in E.164 form \(e.g. +14155551234\), an Apple ID email, or a chat ID from an iMessage trigger. A chat ID is the only way to reach a group chat. |
+| `title` | string | Yes | Poll question \(up to 300 characters\) |
+| `options` | array | Yes | Poll choices as an array of 2-10 strings |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `messageId` | string | Identifier of the sent message |
+| `chatId` | string | Chat GUID the message was sent to. Pass this back to target the same chat. |
+| `timestamp` | string | ISO 8601 time the message was sent |
+
+### Typing Indicator
+
+Show or hide the typing indicator in a conversation
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Photon project ID from app.photon.codes |
+| `projectSecret` | string | Yes | Photon project secret from app.photon.codes |
+| `to` | string | Yes | Where to send: a phone number in E.164 form \(e.g. +14155551234\), an Apple ID email, or a chat ID from an iMessage trigger. A chat ID is the only way to reach a group chat. |
+| `state` | string | Yes | Either start to show the typing indicator or stop to hide it |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `chatId` | string | Chat GUID the indicator was updated in |
+| `state` | string | Resulting indicator state \(start or stop\) |
+
+### Mark as Read
+
+Send a read receipt for a received message
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Photon project ID from app.photon.codes |
+| `projectSecret` | string | Yes | Photon project secret from app.photon.codes |
+| `to` | string | Yes | Where to send: a phone number in E.164 form \(e.g. +14155551234\), an Apple ID email, or a chat ID from an iMessage trigger. A chat ID is the only way to reach a group chat. |
+| `messageId` | string | Yes | ID of the received message to mark as read |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `chatId` | string | Chat GUID the operation ran in |
+| `messageId` | string | Identifier of the affected message |
+
+### Create Group Chat
+
+Start a new group chat with two or more participants (requires a dedicated Photon line)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Photon project ID from app.photon.codes |
+| `projectSecret` | string | Yes | Photon project secret from app.photon.codes |
+| `handles` | array | Yes | Participant phone numbers \(E.164\) or Apple ID emails, at least 2 |
+| `initialText` | string | No | First message to send into the new group |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `messageId` | string | Identifier of the sent message |
+| `chatId` | string | Chat GUID the message was sent to. Pass this back to target the same chat. |
+| `timestamp` | string | ISO 8601 time the message was sent |
+
+### Rename Group Chat
+
+Change the display name of a group chat
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Photon project ID from app.photon.codes |
+| `projectSecret` | string | Yes | Photon project secret from app.photon.codes |
+| `chatId` | string | Yes | Group chat GUID to rename |
+| `displayName` | string | Yes | New group chat name |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `chatId` | string | Chat GUID that was renamed |
+| `displayName` | string | The new chat name |
+
+### Set Group Photo
+
+Set or clear the photo of a group chat
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Photon project ID from app.photon.codes |
+| `projectSecret` | string | Yes | Photon project secret from app.photon.codes |
+| `chatId` | string | Yes | Group chat GUID to update |
+| `file` | file | No | File to send, uploaded or referenced from a previous block |
+| `fileContent` | string | No | Legacy base64 file content |
+| `filename` | string | No | File name including extension |
+| `contentType` | string | No | MIME type of the file \(inferred from the upload when omitted\) |
+| `clear` | boolean | No | Set true to remove the current group photo instead of uploading one |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `chatId` | string | Chat GUID that was updated |
+| `cleared` | boolean | True when the photo was removed rather than set |
+
+### Add Participant
+
+Add a person to a group chat
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Photon project ID from app.photon.codes |
+| `projectSecret` | string | Yes | Photon project secret from app.photon.codes |
+| `chatId` | string | Yes | Group chat GUID to update |
+| `handle` | string | Yes | Phone number \(E.164\) or Apple ID email of the participant |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `chatId` | string | Chat GUID that was updated |
+| `handle` | string | The participant handle |
+
+### Remove Participant
+
+Remove a person from a group chat
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Photon project ID from app.photon.codes |
+| `projectSecret` | string | Yes | Photon project secret from app.photon.codes |
+| `chatId` | string | Yes | Group chat GUID to update |
+| `handle` | string | Yes | Phone number \(E.164\) or Apple ID email of the participant |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `chatId` | string | Chat GUID that was updated |
+| `handle` | string | The participant handle |
+
+### Leave Group Chat
+
+Remove the Photon line from a group chat
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Photon project ID from app.photon.codes |
+| `projectSecret` | string | Yes | Photon project secret from app.photon.codes |
+| `chatId` | string | Yes | Group chat GUID to leave |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `chatId` | string | Chat GUID the operation ran in |
+
+### Get Group Info
+
+Fetch the display name and member list of a group chat
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Photon project ID from app.photon.codes |
+| `projectSecret` | string | Yes | Photon project secret from app.photon.codes |
+| `chatId` | string | Yes | Group chat GUID to inspect |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `chatId` | string | The group chat GUID |
+| `displayName` | string | Group name, when one is set |
+| `members` | json | Member handles as an array of strings |
+
+### Get Message
+
+Fetch a single message with its text, sender, and attachment metadata
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Photon project ID from app.photon.codes |
+| `projectSecret` | string | Yes | Photon project secret from app.photon.codes |
+| `chatId` | string | Yes | Chat GUID the message belongs to |
+| `messageId` | string | Yes | ID of the message to fetch |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `messageId` | string | The message ID |
+| `chatId` | string | Chat GUID the message belongs to |
+| `text` | string | Plain-text content, when the message has any |
+| `contentType` | string | Content kind \(text, attachment, reaction, and so on\) |
+| `senderId` | string | Sender handle |
+| `timestamp` | string | ISO 8601 send time |
+| `attachments` | json | Attachment metadata as an array of \{ id, name, mimeType, size \}, covering media and voice memos |
+
+### Download Attachment
+
+Download a received attachment into the workflow as a file usable by downstream blocks
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Photon project ID from app.photon.codes |
+| `projectSecret` | string | Yes | Photon project secret from app.photon.codes |
+| `attachmentId` | string | Yes | Attachment ID from an iMessage trigger or Get Message output |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `attachmentId` | string | The attachment ID |
+| `fileName` | string | Original file name |
+| `mimeType` | string | MIME type of the file |
+| `sizeBytes` | number | File size in bytes |
+| `file` | file | The downloaded file, usable by downstream blocks |
+
+### Share Contact Card
+
+Share the name-and-photo contact card of the Photon line into a conversation
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Photon project ID from app.photon.codes |
+| `projectSecret` | string | Yes | Photon project secret from app.photon.codes |
+| `to` | string | Yes | Where to send: a phone number in E.164 form \(e.g. +14155551234\), an Apple ID email, or a chat ID from an iMessage trigger. A chat ID is the only way to reach a group chat. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `chatId` | string | Chat GUID the operation ran in |
+
+### Set Chat Background
+
+Set or clear the shared background image of a conversation
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Photon project ID from app.photon.codes |
+| `projectSecret` | string | Yes | Photon project secret from app.photon.codes |
+| `to` | string | Yes | Where to send: a phone number in E.164 form \(e.g. +14155551234\), an Apple ID email, or a chat ID from an iMessage trigger. A chat ID is the only way to reach a group chat. |
+| `file` | file | No | File to send, uploaded or referenced from a previous block |
+| `fileContent` | string | No | Legacy base64 file content |
+| `filename` | string | No | File name including extension |
+| `contentType` | string | No | MIME type of the file \(inferred from the upload when omitted\) |
+| `clear` | boolean | No | Set true to remove the current background instead of uploading one |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `chatId` | string | Chat GUID that was updated |
+| `cleared` | boolean | True when the background was removed rather than set |
+
+
+
+## Triggers
+
+A **Trigger** is a block that starts a workflow when an event happens in this service.
+
+### Photon Any Event
+
+Trigger workflow on every inbound Photon delivery: messages, tapbacks, and read receipts
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `triggerProjectId` | string | Yes | Project ID from app.photon.codes, used to register the webhook. |
+| `triggerProjectSecret` | string | Yes | Project secret from app.photon.codes. Also used to clean up the webhook when the trigger is removed. |
+| `triggerSenderAllowlist` | string | No | Comma-separated phone numbers or Apple ID emails. When set, only deliveries from these senders fire the workflow. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `messageId` | string | Unique identifier of the delivered record \(use to deduplicate\) |
+| `contentType` | string | Content arm of the delivery: text, attachment, reaction, read, and so on |
+| `text` | string | Message text when the delivery carries any |
+| `senderId` | string | Phone number or Apple ID email of the actor |
+| `chatId` | string | Chat GUID the event happened in |
+| `chatType` | string | Conversation type, dm or group |
+| `timestamp` | string | ISO 8601 event time |
+| `raw` | string | Complete raw webhook payload from Photon as a JSON string |
+
+
+---
+
+### Photon iMessage Received
+
+Trigger workflow when an inbound iMessage is received through Photon
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `triggerProjectId` | string | Yes | Project ID from app.photon.codes, used to register the webhook. |
+| `triggerProjectSecret` | string | Yes | Project secret from app.photon.codes. Also used to clean up the webhook when the trigger is removed. |
+| `triggerSenderAllowlist` | string | No | Comma-separated phone numbers or Apple ID emails. When set, only deliveries from these senders fire the workflow. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `messageId` | string | Unique message identifier \(use to deduplicate\) |
+| `text` | string | Message text. Empty for messages whose content is not text. |
+| `contentType` | string | Content arm of the message, such as text, attachment, voice, reply, or group |
+| `senderId` | string | Phone number or Apple ID email of the sender |
+| `chatId` | string | Chat GUID. Pass this to the send tool to reply into the same conversation. |
+| `chatType` | string | Conversation type, dm or group |
+| `platform` | string | Photon platform that delivered the message, such as imessage |
+| `timestamp` | string | ISO 8601 time the message was sent |
+| `attachments` | json | Attachment metadata as \{ id, name, mimeType, size \} objects. Use the Download Attachment operation to fetch bytes. |
+| `raw` | string | Complete raw webhook payload from Photon as a JSON string |
+
+
+---
+
+### Photon Read Receipt
+
+Trigger workflow when a sent message is read
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `triggerProjectId` | string | Yes | Project ID from app.photon.codes, used to register the webhook. |
+| `triggerProjectSecret` | string | Yes | Project secret from app.photon.codes. Also used to clean up the webhook when the trigger is removed. |
+| `triggerSenderAllowlist` | string | No | Comma-separated phone numbers or Apple ID emails. When set, only deliveries from these senders fire the workflow. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `messageId` | string | Unique identifier of the read-receipt event \(use to deduplicate\) |
+| `targetMessageId` | string | ID of the sent message that was read |
+| `readerId` | string | Phone number or Apple ID email of the person who read the message |
+| `chatId` | string | Chat GUID the read receipt came from |
+| `timestamp` | string | ISO 8601 time the message was read |
+| `raw` | string | Complete raw webhook payload from Photon as a JSON string |
+
+
+---
+
+### Photon Tapback Received
+
+Trigger workflow when someone reacts to a message with a tapback or emoji
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `triggerProjectId` | string | Yes | Project ID from app.photon.codes, used to register the webhook. |
+| `triggerProjectSecret` | string | Yes | Project secret from app.photon.codes. Also used to clean up the webhook when the trigger is removed. |
+| `triggerSenderAllowlist` | string | No | Comma-separated phone numbers or Apple ID emails. When set, only deliveries from these senders fire the workflow. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `messageId` | string | Unique identifier of the reaction event \(use to deduplicate\) |
+| `emoji` | string | The tapback emoji, such as a heart or thumbs up |
+| `targetMessageId` | string | ID of the message that was reacted to |
+| `targetPreview` | string | Text preview of the message that was reacted to |
+| `senderId` | string | Phone number or Apple ID email of the person who reacted |
+| `chatId` | string | Chat GUID the reaction happened in |
+| `chatType` | string | Conversation type, dm or group |
+| `timestamp` | string | ISO 8601 time of the reaction |
+| `raw` | string | Complete raw webhook payload from Photon as a JSON string |
+

@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-08-21",
+  "updatedAt": "2026-08-24",
   "integrations": [
     {
       "type": "onepassword",
@@ -11034,6 +11034,126 @@
       "category": "tools",
       "integrationType": "sales",
       "tags": ["enrichment", "sales-engagement"]
+    },
+    {
+      "type": "photon_imessage",
+      "slug": "imessage-photon",
+      "name": "iMessage (Photon)",
+      "description": "Send and receive iMessage",
+      "longDescription": "Send iMessages from a Photon-managed number and trigger workflows on inbound messages, tapbacks, and read receipts. Photon runs the iMessage line, so no Mac is required. Beyond text, workflows can send media and voice memos, react with tapbacks, edit and unsend messages, run native polls, manage group chats, and download received attachments.",
+      "bgColor": "#0B84FE",
+      "iconName": "PhotonIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/photon_imessage",
+      "operations": [
+        {
+          "name": "Send Message",
+          "description": "Send an iMessage to a phone number or email address, or into an existing chat, optionally as a reply or with a screen or bubble effect"
+        },
+        {
+          "name": "Send Media",
+          "description": "Send a photo, video, or file over iMessage, with an optional caption"
+        },
+        {
+          "name": "Send Voice Memo",
+          "description": "Send an audio file as a native iMessage voice memo"
+        },
+        {
+          "name": "Send Tapback",
+          "description": "React to a message with an iMessage tapback (love, like, dislike, laugh, emphasize, question) or any emoji"
+        },
+        {
+          "name": "Create Poll",
+          "description": "Create a native iMessage poll with 2-10 options"
+        },
+        {
+          "name": "Typing Indicator",
+          "description": "Show or hide the typing indicator in a conversation"
+        },
+        {
+          "name": "Mark as Read",
+          "description": "Send a read receipt for a received message"
+        },
+        {
+          "name": "Edit Message",
+          "description": "Edit the text of a previously sent iMessage in place"
+        },
+        {
+          "name": "Unsend Message",
+          "description": "Retract a sent iMessage so it disappears from the recipient device"
+        },
+        {
+          "name": "Get Message",
+          "description": "Fetch a single message with its text, sender, and attachment metadata"
+        },
+        {
+          "name": "Download Attachment",
+          "description": "Download a received attachment into the workflow as a file usable by downstream blocks"
+        },
+        {
+          "name": "Create Group Chat",
+          "description": "Start a new group chat with two or more participants (requires a dedicated Photon line)"
+        },
+        {
+          "name": "Rename Group Chat",
+          "description": "Change the display name of a group chat"
+        },
+        {
+          "name": "Set Group Photo",
+          "description": "Set or clear the photo of a group chat"
+        },
+        {
+          "name": "Add Participant",
+          "description": "Add a person to a group chat"
+        },
+        {
+          "name": "Remove Participant",
+          "description": "Remove a person from a group chat"
+        },
+        {
+          "name": "Leave Group Chat",
+          "description": "Remove the Photon line from a group chat"
+        },
+        {
+          "name": "Get Group Info",
+          "description": "Fetch the display name and member list of a group chat"
+        },
+        {
+          "name": "Share Contact Card",
+          "description": "Share the name-and-photo contact card of the Photon line into a conversation"
+        },
+        {
+          "name": "Set Chat Background",
+          "description": "Set or clear the shared background image of a conversation"
+        }
+      ],
+      "operationCount": 20,
+      "triggers": [
+        {
+          "id": "photon_imessage_message_received",
+          "name": "Photon iMessage Received",
+          "description": "Trigger workflow when an inbound iMessage is received through Photon"
+        },
+        {
+          "id": "photon_imessage_reaction_received",
+          "name": "Photon Tapback Received",
+          "description": "Trigger workflow when someone reacts to a message with a tapback or emoji"
+        },
+        {
+          "id": "photon_imessage_read_receipt",
+          "name": "Photon Read Receipt",
+          "description": "Trigger workflow when a sent message is read"
+        },
+        {
+          "id": "photon_imessage_webhook",
+          "name": "Photon Any Event",
+          "description": "Trigger workflow on every inbound Photon delivery: messages, tapbacks, and read receipts"
+        }
+      ],
+      "triggerCount": 4,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "communication",
+      "tags": ["messaging", "automation", "webhooks"]
     },
     {
       "type": "incidentio",

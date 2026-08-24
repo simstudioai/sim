@@ -101,6 +101,11 @@ const nextConfig: NextConfig = {
     '@daytona/sdk',
     '@earendil-works/pi-ai',
     '@earendil-works/pi-coding-agent',
+    // Photon's iMessage transport is gRPC over http2. Bundling it breaks @grpc/grpc-js's dynamic
+    // loading of its native/proto internals, so keep the SDK and its transport external.
+    '@spectrum-ts/imessage',
+    '@grpc/grpc-js',
+    'nice-grpc',
     // The collab-doc seed converter lazily `require`s jsdom for a headless TipTap editor. Keep it
     // external so webpack doesn't try to bundle jsdom's dynamic internal requires.
     'jsdom',
