@@ -48,7 +48,7 @@ export const GLOBAL_CONSENT_SCRIPTS = [
     },
   },
   ahrefsAnalytics({ key: AHREFS_ANALYTICS_KEY }),
-]
+] as const
 
 /** Marketing-page integrations that should not load on a direct workspace visit. */
 export const X_PIXEL_SCRIPT = xPixel({ pixelId: X_PIXEL_ID })
