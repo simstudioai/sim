@@ -100,6 +100,12 @@ describe('processDocumentsWithQueue billing attribution', () => {
     )
 
     const jobs = mockBatchTrigger.mock.calls[0][1]
+    const queueWrite = dbChainMockFns.set.mock.calls.find(
+      (call) => (call[0] as Record<string, unknown> | undefined)?.processingQueuedAt instanceof Date
+    )
+    expect(queueWrite).toBeDefined()
+    const processingQueuedAt = (queueWrite?.[0] as Record<string, unknown>)
+      .processingQueuedAt as Date
     expect(structuredClone(jobs[0].payload)).toEqual({
       knowledgeBaseId: 'knowledge-base-1',
       documentId: 'document-1',
@@ -111,6 +117,7 @@ describe('processDocumentsWithQueue billing attribution', () => {
       },
       processingOptions: {},
       requestId: 'request-1',
+      processingQueuedAt: processingQueuedAt.toISOString(),
       billingScope: 'workspace',
       actorUserId: 'external-admin',
       workspaceId: 'workspace-1',

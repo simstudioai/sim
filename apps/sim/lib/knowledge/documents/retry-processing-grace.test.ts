@@ -294,7 +294,8 @@ describe('retryDocumentProcessing requeue guard', () => {
     // No dispatch means no queue stamp was written either.
     expect(
       dbChainMockFns.set.mock.calls.some(
-        (call) => (call[0] as Record<string, unknown> | undefined)?.processingQueuedAt !== undefined
+        (call) =>
+          (call[0] as Record<string, unknown> | undefined)?.processingQueuedAt instanceof Date
       )
     ).toBe(false)
   })

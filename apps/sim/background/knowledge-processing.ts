@@ -77,9 +77,10 @@ export async function runDocumentProcessing(
       processingOptions,
       billingContext,
       requestId,
-      attemptNumber === 1 && payload.quotaRetryCount === undefined
-        ? { chargedAtDispatch: true }
-        : undefined
+      {
+        chargedAtDispatch: attemptNumber === 1 && payload.quotaRetryCount === undefined,
+        processingQueuedAt: new Date(payload.processingQueuedAt),
+      }
     )
 
     logger.info(`[${requestId}] Successfully processed document: ${docData.filename}`)

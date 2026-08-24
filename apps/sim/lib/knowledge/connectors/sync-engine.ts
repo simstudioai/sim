@@ -2851,10 +2851,12 @@ export async function executeSync(
               .update(document)
               .set({
                 processingStatus: 'pending',
-                // `processingQueuedAt` is not stamped here: the dispatch below
-                // funnels through `markDocumentsQueued`, which stamps it for
-                // every caller. Setting it here wrote a value that was
-                // immediately overwritten.
+                /**
+                 * Invalidates the prior dispatch generation in the same write
+                 * that reopens the row. The dispatch below installs its fresh
+                 * generation through `markDocumentsQueued`.
+                 */
+                processingQueuedAt: null,
                 processingStartedAt: null,
                 processingCompletedAt: null,
                 processingError: null,
@@ -3404,6 +3406,11 @@ async function updateDocument(
           sourceUrl: extDoc.sourceUrl ?? null,
           ...tagValues,
           processingStatus: 'pending',
+          /** Prevents an older delayed worker from claiming newly stored content. */
+          processingQueuedAt: null,
+          processingStartedAt: null,
+          processingCompletedAt: null,
+          processingError: null,
           uploadedAt: new Date(),
           // A tombstoned document reappearing with changed content is resurrected
           // in the same write as its content update — otherwise reconciliation's

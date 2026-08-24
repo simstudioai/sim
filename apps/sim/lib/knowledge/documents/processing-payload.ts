@@ -18,6 +18,8 @@ export interface DocumentProcessingPayloadBase {
     lang?: string
   }
   requestId: string
+  /** Exact queue-generation stamp this task is allowed to claim. */
+  processingQueuedAt: string
   /** Number of durable quota continuations already scheduled for this indexing pass. */
   quotaRetryCount?: number
 }
@@ -141,6 +143,16 @@ export function assertDocumentProcessingPayload(value: unknown): DocumentProcess
   ) {
     throw new Error('Document processing payload is missing an identifier')
   }
+  if (!isNonEmptyString(value.processingQueuedAt)) {
+    throw new Error('Document processing payload is missing its queue stamp')
+  }
+  const processingQueuedAt = new Date(value.processingQueuedAt)
+  if (
+    Number.isNaN(processingQueuedAt.getTime()) ||
+    processingQueuedAt.toISOString() !== value.processingQueuedAt
+  ) {
+    throw new Error('Document processing queue stamp is invalid')
+  }
   if (!isRecordLike(value.docData)) {
     throw new Error('Document processing payload is missing document data')
   }
@@ -189,6 +201,7 @@ export function assertDocumentProcessingPayload(value: unknown): DocumentProcess
       ...(processingOptions.lang !== undefined ? { lang: processingOptions.lang } : {}),
     },
     requestId: value.requestId,
+    processingQueuedAt: value.processingQueuedAt,
     ...(value.quotaRetryCount !== undefined ? { quotaRetryCount: value.quotaRetryCount } : {}),
     ...billingContext,
   }

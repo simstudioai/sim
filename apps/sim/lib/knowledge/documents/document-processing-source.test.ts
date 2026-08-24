@@ -325,6 +325,44 @@ describe('processDocumentAsync write guards', () => {
     expect(guardForStatusWrite('processing')).toBeDefined()
   })
 
+  it('claims only the queue generation carried by the worker', async () => {
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([PERSISTED_CONTEXT])
+      .mockResolvedValueOnce([PERSISTED_PROVENANCE_ROW])
+      .mockResolvedValueOnce([{ id: 'document-1' }])
+    mockGetFileMetadataByKeys.mockResolvedValue([SOURCE_BINDING])
+    mockGetBoundWorkspaceFileSecretProvenanceByMetadata.mockResolvedValue(
+      new Map([[SOURCE_BINDING.id, { status: 'exact', entries: [] }]])
+    )
+    const processingQueuedAt = new Date('2026-08-24T22:00:00.000Z')
+
+    await processDocumentAsync(
+      'knowledge-base-1',
+      'document-1',
+      {
+        filename: 'a.pdf',
+        fileUrl: 'https://example.com/a.pdf',
+        fileSize: 1,
+        mimeType: 'text/plain',
+      },
+      {},
+      undefined,
+      'request-1',
+      { chargedAtDispatch: true, processingQueuedAt }
+    )
+
+    const claimGuard = guardForStatusWrite('processing')
+    expect(
+      hasMockCondition(
+        claimGuard,
+        (node: MockCondition) =>
+          node.type === 'eq' &&
+          node.left === schemaMock.document.processingQueuedAt &&
+          node.right === processingQueuedAt
+      )
+    ).toBe(true)
+  })
+
   it('does not process or bill a document it failed to claim', async () => {
     dbChainMockFns.limit
       .mockResolvedValueOnce([PERSISTED_CONTEXT])
@@ -490,7 +528,10 @@ describe('processDocumentAsync write guards', () => {
           {},
           undefined,
           undefined,
-          chargedAtDispatch ? { chargedAtDispatch: true } : undefined
+          {
+            chargedAtDispatch,
+            processingQueuedAt: new Date('2026-08-24T22:00:00.000Z'),
+          }
         )
       ).rejects.toBeInstanceOf(EmbeddingQuotaExhaustedError)
 

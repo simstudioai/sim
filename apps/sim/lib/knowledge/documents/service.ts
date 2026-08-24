@@ -652,6 +652,7 @@ function buildJobPayload(
   knowledgeBaseId: string,
   processingOptions: ProcessingOptions,
   requestId: string,
+  processingQueuedAt: Date,
   billingContext: DocumentProcessingBillingContext
 ): DocumentProcessingPayload {
   return createDocumentProcessingPayload(
@@ -666,6 +667,7 @@ function buildJobPayload(
       },
       processingOptions,
       requestId,
+      processingQueuedAt: processingQueuedAt.toISOString(),
     },
     billingContext
   )
@@ -815,12 +817,11 @@ export async function processDocumentsWithQueue(
     knowledgeBaseId,
     billingAttribution
   )
-  const jobPayloads = createdDocuments.map((doc) =>
-    buildJobPayload(doc, knowledgeBaseId, processingOptions, requestId, billingContext)
-  )
-
-  const documentIds = createdDocuments.map((doc) => doc.documentId)
   const queuedAt = new Date()
+  const jobPayloads = createdDocuments.map((doc) =>
+    buildJobPayload(doc, knowledgeBaseId, processingOptions, requestId, queuedAt, billingContext)
+  )
+  const documentIds = createdDocuments.map((doc) => doc.documentId)
   await markDocumentsQueued(documentIds, queuedAt)
 
   const useTrigger = isTriggerAvailable()
@@ -921,7 +922,9 @@ const IN_PROCESS_DISPATCH_CONCURRENCY = 5
 
 export interface DocumentProcessingAttemptContext {
   /** True only when this invocation follows a successful queue-budget charge. */
-  readonly chargedAtDispatch: true
+  readonly chargedAtDispatch: boolean
+  /** Queue generation this invocation is allowed to claim. */
+  readonly processingQueuedAt: Date
 }
 
 async function dispatchInProcess(
@@ -940,7 +943,7 @@ async function dispatchInProcess(
           p.processingOptions,
           p,
           p.requestId,
-          { chargedAtDispatch: true }
+          { chargedAtDispatch: true, processingQueuedAt: new Date(p.processingQueuedAt) }
         )
         return true
       } catch (error) {
@@ -1079,14 +1082,17 @@ export async function processDocumentAsync(
     }
 
     /**
-     * Claiming is guarded on the document not already being `completed`.
+     * Claiming is guarded by both completion status and queue generation.
      *
      * Without a status predicate this write was reachable for a finished
      * document — a late or duplicate dispatch would flip `completed` back to
      * `processing`, discard the pass that had already indexed and billed, and
-     * index it a second time. `pending`, `failed` and `processing` stay
-     * claimable so a Trigger.dev retry of the same run still proceeds; the
-     * commit CAS downstream is what keeps two live workers from both finishing.
+     * index it a second time. `pending`, `failed`, and `processing` remain
+     * claimable so a Trigger retry can recover if an earlier attempt threw
+     * before persisting its failure. Queued workers also match the exact stamp
+     * carried in their payload. A retry or recovery sweep re-stamps the row, so
+     * an older delayed quota continuation becomes a harmless no-op instead of
+     * stealing the newer pass.
      */
     const claimed = await db
       .update(document)
@@ -1100,6 +1106,9 @@ export async function processDocumentAsync(
         and(
           eq(document.id, documentId),
           ne(document.processingStatus, 'completed'),
+          ...(attemptContext
+            ? [eq(document.processingQueuedAt, attemptContext.processingQueuedAt)]
+            : []),
           isNull(document.archivedAt),
           isNull(document.deletedAt)
         )
@@ -1108,7 +1117,7 @@ export async function processDocumentAsync(
 
     if (claimed.length === 0) {
       logger.info(
-        `[${documentId}] Skipping document processing: already completed, archived, or deleted`
+        `[${documentId}] Skipping document processing: superseded, already active, completed, archived, or deleted`
       )
       return
     }
@@ -2732,8 +2741,11 @@ export async function retryDocumentProcessing(
       .update(document)
       .set({
         processingStatus: 'pending',
-        // `processingQueuedAt` is stamped by `markDocumentsQueued` on the
-        // dispatch below, for this and every other caller.
+        /**
+         * Invalidates the prior dispatch generation in the same write that
+         * reopens the row. The dispatch below installs its fresh generation.
+         */
+        processingQueuedAt: null,
         processingStartedAt: null,
         processingCompletedAt: null,
         processingError: null,

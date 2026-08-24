@@ -58,6 +58,7 @@ const BASE_PAYLOAD = {
   },
   processingOptions: {},
   requestId: 'request-1',
+  processingQueuedAt: '2026-08-24T22:00:00.000Z',
 }
 
 const WORKSPACE_PAYLOAD = {
@@ -104,6 +105,16 @@ describe('knowledge processing worker', () => {
     expect(mockProcessDocumentAsync).not.toHaveBeenCalled()
   })
 
+  it('rejects an invalid queue-generation stamp before processing starts', async () => {
+    await expect(
+      runDocumentProcessing({
+        ...WORKSPACE_PAYLOAD,
+        processingQueuedAt: 'not-a-date',
+      })
+    ).rejects.toThrow('Document processing queue stamp is invalid')
+    expect(mockProcessDocumentAsync).not.toHaveBeenCalled()
+  })
+
   it('preserves the validated actor and payer snapshot through serialization', async () => {
     await runDocumentProcessing(structuredClone(WORKSPACE_PAYLOAD))
 
@@ -119,7 +130,10 @@ describe('knowledge processing worker', () => {
         billingAttribution: BILLING_ATTRIBUTION,
       },
       BASE_PAYLOAD.requestId,
-      { chargedAtDispatch: true }
+      {
+        chargedAtDispatch: true,
+        processingQueuedAt: new Date(BASE_PAYLOAD.processingQueuedAt),
+      }
     )
   })
 
@@ -162,7 +176,10 @@ describe('knowledge processing worker', () => {
         workspaceId: null,
       },
       BASE_PAYLOAD.requestId,
-      { chargedAtDispatch: true }
+      {
+        chargedAtDispatch: true,
+        processingQueuedAt: new Date(BASE_PAYLOAD.processingQueuedAt),
+      }
     )
   })
 
@@ -302,11 +319,14 @@ describe('knowledge processing worker', () => {
         workspaceId: null,
       },
       BASE_PAYLOAD.requestId,
-      undefined
+      {
+        chargedAtDispatch: false,
+        processingQueuedAt: new Date(BASE_PAYLOAD.processingQueuedAt),
+      }
     )
   })
 
-  it('does not refund an original dispatch charge from a quota continuation run', async () => {
+  it('preserves the queue generation without refunding a quota continuation run', async () => {
     await runDocumentProcessing({
       ...BASE_PAYLOAD,
       quotaRetryCount: 3,
@@ -322,7 +342,10 @@ describe('knowledge processing worker', () => {
       {},
       expect.objectContaining({ billingScope: 'non-workspace' }),
       BASE_PAYLOAD.requestId,
-      undefined
+      {
+        chargedAtDispatch: false,
+        processingQueuedAt: new Date(BASE_PAYLOAD.processingQueuedAt),
+      }
     )
   })
 })
