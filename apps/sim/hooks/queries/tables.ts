@@ -622,11 +622,24 @@ export function useAddTableColumn({ workspaceId, tableId }: RowMutationContext) 
   const queryClient = useQueryClient()
 
   return useMutation({
+    mutationKey: tableKeys.columnWrites(tableId),
     mutationFn: async (column: CreateTableColumnBodyInput['column']) => {
       return requestJson(addTableColumnContract, {
         params: { tableId },
         body: { workspaceId, column },
       })
+    },
+    onSuccess: (result) => {
+      // The response carries the full post-insert schema; write it straight
+      // into the detail cache so the new column renders in the same commit the
+      // caller reacts in. Waiting for the settle-time refetch leaves a gap in
+      // which a header draft has already unmounted but the column it became
+      // has not arrived — the grid visibly loses and regains the column.
+      queryClient.setQueryData<TableDefinition>(tableKeys.detail(tableId), (previous) =>
+        previous
+          ? { ...previous, schema: { ...previous.schema, columns: result.data.columns } }
+          : previous
+      )
     },
     onError: (error) => {
       if (handleTableLockRejection(error, queryClient, tableId)) return

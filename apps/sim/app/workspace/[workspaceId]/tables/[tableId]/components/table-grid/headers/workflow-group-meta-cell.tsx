@@ -20,16 +20,20 @@ import {
   ArrowUp,
   Eye,
   EyeOff,
+  Fingerprint,
   Pencil,
   Pin,
   PinOff,
   PlayOutline,
+  Settings,
   Trash,
   Workflow,
   X,
 } from '@sim/emcn/icons'
 import type { RunLimit, RunMode } from '@/lib/api/contracts/tables'
-import type { SortDirection, WorkflowGroupType } from '@/lib/table'
+import type { ColumnDefinition, SortDirection, WorkflowGroupType } from '@/lib/table'
+import { columnTypeOf } from '@/lib/table/column-types'
+import { PLAIN_COLUMN_TYPE_OPTIONS } from '@/app/workspace/[workspaceId]/tables/[tableId]/components/column-config-sidebar'
 import { HeaderLabel } from '@/app/workspace/[workspaceId]/tables/[tableId]/components/table-grid/headers/header-label'
 import { getEnrichment } from '@/enrichments/registry'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
@@ -69,9 +73,24 @@ interface ColumnOptionsMenuProps {
    *  destructive action is non-lossy (workflow-output column where removing
    *  it leaves the group with siblings). */
   deleteLabel?: string
-  onOpenConfig: (columnName: string) => void
+  /** Renders the "Edit column" item. Only workflow-owned columns still have a
+   *  config surface behind it (the workflow sidebar); plain columns edit
+   *  name/type/unique from this menu directly and omit it. */
+  onOpenConfig?: (columnName: string) => void
+  /** Starts the inline header rename. Plain and enrichment columns only. */
+  onRenameColumn?: (columnName: string) => void
+  /** Converts the column to `type`. Callers route `select` conversions through
+   *  the config sidebar (the option set must be collected first). */
+  onChangeType?: (columnName: string, type: ColumnDefinition['type']) => void
+  /** Opens the config sidebar for a type with per-column configuration
+   *  (registry `hasConfiguration`) — a select's options, a currency's code. */
+  onConfigure?: (columnName: string) => void
   onInsertLeft: (columnName: string) => void
   onInsertRight: (columnName: string) => void
+  /** Flip the column's `unique` constraint. Callers pass it only for columns
+   *  that can carry one (plain/enrichment columns of a `supportsUnique` type),
+   *  so the item's presence is the capability check. */
+  onToggleUnique?: (columnName: string) => void
   onDeleteColumn: (columnName: string) => void
   /** When provided (i.e. menu opened from a workflow-group meta header), the
    *  "Delete" item deletes the entire workflow group rather than the single
@@ -112,8 +131,9 @@ interface ColumnOptionsMenuProps {
  * Shared column-options dropdown rendered next to the column header chevron
  * AND on right-click of the workflow group meta cell. Anchors to a fixed
  * position passed in (so callers can place it under the chevron, or at the
- * cursor for context-menu use). Rename / change type / unique live in the
- * column sidebar (opened by Edit column).
+ * cursor for context-menu use). Rename, change type, and the unique
+ * constraint are handled from here; per-type configuration and workflow
+ * outputs open their sidebars.
  */
 export function ColumnOptionsMenu({
   open,
@@ -122,8 +142,12 @@ export function ColumnOptionsMenu({
   column,
   deleteLabel,
   onOpenConfig,
+  onRenameColumn,
+  onChangeType,
+  onConfigure,
   onInsertLeft,
   onInsertRight,
+  onToggleUnique,
   onDeleteColumn,
   onDeleteGroup,
   onRunColumnAll,
@@ -142,6 +166,8 @@ export function ColumnOptionsMenu({
   const showRunActions = Boolean(onRunColumnAll && onRunColumnIncomplete)
   const showRunSelected = Boolean(onRunColumnSelected) && selectedRowCount > 0
   const runLabels = runMenuLabels(hasActiveFilter)
+  const typeDefinition = columnTypeOf(column)
+  const CurrentTypeIcon = typeDefinition.icon
   return (
     <DropdownMenu open={open} onOpenChange={onOpenChange}>
       <DropdownMenuTrigger asChild>
@@ -228,10 +254,53 @@ export function ColumnOptionsMenu({
             View workflow
           </DropdownMenuItem>
         )}
-        <DropdownMenuItem onSelect={() => onOpenConfig(column.key)}>
-          <Pencil />
-          Edit column
-        </DropdownMenuItem>
+        {onOpenConfig && (
+          <DropdownMenuItem onSelect={() => onOpenConfig(column.key)}>
+            <Pencil />
+            Edit column
+          </DropdownMenuItem>
+        )}
+        {onRenameColumn && (
+          <DropdownMenuItem onSelect={() => onRenameColumn(column.key)}>
+            <Pencil />
+            Rename column
+          </DropdownMenuItem>
+        )}
+        {onChangeType && (
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger>
+              <CurrentTypeIcon />
+              Change type
+            </DropdownMenuSubTrigger>
+            <DropdownMenuSubContent>
+              {PLAIN_COLUMN_TYPE_OPTIONS.map((option) => {
+                const Icon = option.icon
+                return (
+                  <DropdownMenuItem
+                    key={option.type}
+                    active={column.type === option.type}
+                    onSelect={() => onChangeType(column.key, option.type)}
+                  >
+                    <Icon />
+                    {option.label}
+                  </DropdownMenuItem>
+                )
+              })}
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
+        )}
+        {onConfigure && typeDefinition.hasConfiguration && (
+          <DropdownMenuItem onSelect={() => onConfigure(column.key)}>
+            <Settings />
+            {`Configure ${typeDefinition.label.toLowerCase()}`}
+          </DropdownMenuItem>
+        )}
+        {onToggleUnique && (
+          <DropdownMenuItem onSelect={() => onToggleUnique(column.key)}>
+            <Fingerprint />
+            {column.unique ? 'Remove unique' : 'Set unique'}
+          </DropdownMenuItem>
+        )}
         {onPinToggle && (
           <DropdownMenuItem onSelect={() => onPinToggle(column.key)}>
             {isPinned ? <PinOff /> : <Pin />}

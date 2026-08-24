@@ -1,28 +1,20 @@
 'use client'
 
 import { useState } from 'react'
-import { Button, ChipCombobox, ChipInput, cn, FieldDivider, Label, Switch, toast } from '@sim/emcn'
+import { Button, ChipCombobox, cn, FieldDivider, Label, Switch, toast } from '@sim/emcn'
 import { X } from '@sim/emcn/icons'
 import { toError } from '@sim/utils/errors'
-import { findValidationIssue, isValidationError } from '@/lib/api/client/errors'
+import { useIsMutating } from '@tanstack/react-query'
+import { isValidationError } from '@/lib/api/client/errors'
 import type { ColumnDefinition, SelectOption } from '@/lib/table'
-import {
-  DEFAULT_CURRENCY_CODE,
-  getCurrencyOptions,
-  resolveCurrencyCode,
-} from '@/lib/table/currency'
+import { getCurrencyOptions, resolveCurrencyCode } from '@/lib/table/currency'
 import {
   FieldError,
   RequiredLabel,
 } from '@/app/workspace/[workspaceId]/tables/[tableId]/components/sidebar-fields'
-import { useAddTableColumn, useUpdateColumn } from '@/hooks/queries/tables'
+import { useUpdateColumn } from '@/hooks/queries/tables'
+import { tableKeys } from '@/hooks/queries/utils/table-keys'
 import { SelectOptionsEditor } from '../select-field'
-import { PLAIN_COLUMN_TYPE_OPTIONS } from './column-types'
-
-/** Whether a column type carries an option set. */
-function isSelectType(type: ColumnDefinition['type']): boolean {
-  return type === 'select'
-}
 
 /**
  * Picker entries, built once at module load: the option list is derived from the
@@ -38,41 +30,55 @@ function optionsEqual(a: SelectOption[], b: SelectOption[]): boolean {
 }
 
 /**
- * Discriminates the two flows the column-config sidebar handles. Workflow
- * configuration is a separate component (`<WorkflowSidebar>`) so this surface
- * never has to branch on `isWorkflow`.
+ * Discriminates the flows the column-config sidebar handles. Name and type
+ * never appear here — renaming is inline in the header and type changes go
+ * through the header menu's "Change type" submenu. Workflow configuration is a
+ * separate component (`<WorkflowSidebar>`).
  */
 export type ColumnConfig =
-  | { mode: 'create'; proposedName: string; type: ColumnDefinition['type'] }
-  | { mode: 'edit'; columnName: string }
+  /**
+   * A select column being created: its name has been committed in the grid
+   * header, but it exists only as a draft there until Save hands the option
+   * set to the creator, which persists name and options in one create.
+   * Dismissing discards the draft.
+   */
+  | { mode: 'draft-select' }
+  /**
+   * Convert an existing column to select: Save applies the type change
+   * together with the configured options; dismissing leaves the column's
+   * current type untouched.
+   */
+  | { mode: 'convert-select'; columnName: string }
+  /** Edit the configuration of an existing select or currency column. */
+  | { mode: 'configure'; columnName: string }
 
 interface ColumnConfigSidebarProps {
   /** When non-null the sidebar is open. */
   config: ColumnConfig | null
   onClose: () => void
-  /** Existing column record for `mode: 'edit'`; ignored otherwise. */
+  /**
+   * `draft-select` Save: hands the validated option set to the draft's owner,
+   * which persists the column. Resolves `true` once created (the parent then
+   * closes the sidebar) or `false` to stay open — the draft's name was refused
+   * or the create failed, and the owner has already surfaced why.
+   */
+  onDraftSave: (options: SelectOption[], multiple: boolean) => Promise<boolean>
+  /** Existing column record for modes that carry a `columnName`; otherwise null. */
   existingColumn: ColumnDefinition | null
   workspaceId: string
   tableId: string
-  /** Notify parent of a rename so it can rewrite local `columnOrder` /
-   *  `columnWidths` keys that reference the old name. */
-  onColumnRename?: (oldName: string, newName: string) => void
 }
 
 /**
- * Right-edge sidebar for plain (non-workflow) column configuration. Handles
- * create (with type pre-chosen by the parent's "+ New column" dropdown) and
- * edit. No `isWorkflow` branches — workflow-output columns route through
- * `<WorkflowSidebar>` instead.
+ * Right-edge sidebar for per-type column configuration: a select's option set
+ * and a currency's display code. Everything else about a column — name, type,
+ * unique — is edited in the grid header and its menu.
  *
- * Form state seeds from props via lazy `useState` initializers; the parent
- * uses `key={config?.columnName ?? 'closed'}` to remount when switching
- * columns, eliminating the prop-mirroring `useEffect` the previous combined
- * sidebar relied on.
+ * Form state seeds from props via lazy `useState` initializers; the body is
+ * keyed on the config identity so opening a different column or mode remounts
+ * and re-seeds.
  */
 export function ColumnConfigSidebar(props: ColumnConfigSidebarProps) {
-  // Mount the form body with `key` keyed on the config identity so opening a
-  // different column / mode remounts and re-seeds state from props.
   const open = props.config !== null
   return (
     <aside
@@ -91,7 +97,7 @@ export function ColumnConfigSidebar(props: ColumnConfigSidebarProps) {
 }
 
 function configKey(config: ColumnConfig): string {
-  return config.mode === 'edit' ? `edit:${config.columnName}` : `create:${config.proposedName}`
+  return config.mode === 'draft-select' ? 'draft-select' : `${config.mode}:${config.columnName}`
 }
 
 interface ColumnConfigBodyProps extends Omit<ColumnConfigSidebarProps, 'config'> {
@@ -101,47 +107,34 @@ interface ColumnConfigBodyProps extends Omit<ColumnConfigSidebarProps, 'config'>
 function ColumnConfigBody({
   config,
   onClose,
+  onDraftSave,
   existingColumn,
   workspaceId,
   tableId,
-  onColumnRename,
 }: ColumnConfigBodyProps) {
   const updateColumn = useUpdateColumn({ workspaceId, tableId })
-  const addColumn = useAddTableColumn({ workspaceId, tableId })
+  const draftSaving = useIsMutating({ mutationKey: tableKeys.columnWrites(tableId) }) > 0
 
-  const [nameInput, setNameInput] = useState<string>(() =>
-    config.mode === 'edit' ? (existingColumn?.name ?? config.columnName) : config.proposedName
+  // draft-select and convert-select always edit an option set; configure
+  // shows whichever configuration the column's type carries.
+  const isSelectTarget = config.mode !== 'configure' || existingColumn?.type === 'select'
+  const isCurrencyTarget = config.mode === 'configure' && existingColumn?.type === 'currency'
+
+  const [optionsInput, setOptionsInput] = useState<SelectOption[]>(
+    () => existingColumn?.options ?? []
   )
-  const [typeInput, setTypeInput] = useState<ColumnDefinition['type']>(() =>
-    config.mode === 'edit' ? (existingColumn?.type ?? 'string') : config.type
-  )
-  const [uniqueInput, setUniqueInput] = useState<boolean>(() =>
-    config.mode === 'edit' ? !!existingColumn?.unique : false
-  )
-  const [optionsInput, setOptionsInput] = useState<SelectOption[]>(() =>
-    config.mode === 'edit' ? (existingColumn?.options ?? []) : []
-  )
-  const [multipleInput, setMultipleInput] = useState<boolean>(() =>
-    config.mode === 'edit' ? !!existingColumn?.multiple : false
-  )
+  const [multipleInput, setMultipleInput] = useState<boolean>(() => !!existingColumn?.multiple)
   const [currencyInput, setCurrencyInput] = useState<string>(() =>
-    config.mode === 'edit'
-      ? resolveCurrencyCode(existingColumn?.currencyCode)
-      : DEFAULT_CURRENCY_CODE
+    resolveCurrencyCode(existingColumn?.currencyCode)
   )
-  const [showValidation, setShowValidation] = useState(false)
-  const [nameError, setNameError] = useState<string | null>(null)
   const [optionsError, setOptionsError] = useState<string | null>(null)
 
-  const saveDisabled = updateColumn.isPending || addColumn.isPending
-  const trimmedName = nameInput.trim()
-  const wantsOptions = isSelectType(typeInput)
-  const wantsCurrency = typeInput === 'currency'
+  const saveDisabled = updateColumn.isPending || draftSaving
   const trimmedOptions = optionsInput.map((o) => ({ ...o, name: o.name.trim() }))
 
   /** Client-side option validation mirroring the server rules; returns an error message or null. */
   function validateOptions(): string | null {
-    if (!wantsOptions) return null
+    if (!isSelectTarget) return null
     if (trimmedOptions.length === 0) return 'Add at least one option'
     if (trimmedOptions.some((o) => !o.name)) return 'Option names cannot be empty'
     const names = trimmedOptions.map((o) => o.name.toLowerCase())
@@ -150,85 +143,70 @@ function ColumnConfigBody({
   }
 
   async function handleSave() {
-    if (!trimmedName) {
-      setShowValidation(true)
-      return
-    }
-
     const optionsIssue = validateOptions()
     if (optionsIssue) {
       setOptionsError(optionsIssue)
       return
     }
 
+    if (config.mode === 'draft-select') {
+      // The draft's owner persists name + options together and reports back;
+      // the parent closes the sidebar on success, so nothing to do here.
+      await onDraftSave(trimmedOptions, multipleInput)
+      return
+    }
+
+    const columnLabel = existingColumn?.name ?? config.columnName
+
     try {
-      if (config.mode === 'create') {
-        await addColumn.mutateAsync({
-          name: trimmedName,
-          type: typeInput,
-          // Select columns don't expose a unique constraint.
-          ...(!wantsOptions && uniqueInput ? { unique: true } : {}),
-          ...(wantsOptions ? { options: trimmedOptions } : {}),
-          ...(wantsOptions && multipleInput ? { multiple: true } : {}),
-          ...(wantsCurrency ? { currencyCode: currencyInput } : {}),
+      if (config.mode === 'convert-select') {
+        await updateColumn.mutateAsync({
+          columnName: config.columnName,
+          updates: {
+            type: 'select',
+            options: trimmedOptions,
+            ...(multipleInput ? { multiple: true } : {}),
+            // Select columns can't carry a unique constraint (the header-menu
+            // toggle is hidden for them), so converting a unique column would
+            // strand the constraint with no way to clear it.
+            ...(existingColumn?.unique ? { unique: false } : {}),
+          },
         })
-        toast.success(`Added "${trimmedName}"`)
+        toast.success(`Saved "${columnLabel}"`)
         onClose()
         return
       }
 
-      // `config.columnName` is the column id; compare against the current display
-      // name to detect an actual rename.
-      const renamed = trimmedName !== (existingColumn?.name ?? config.columnName)
-      const typeChanged = !!existingColumn && existingColumn.type !== typeInput
-      const uniqueChanged =
-        !wantsOptions && !!existingColumn && !!existingColumn.unique !== uniqueInput
-      // Select columns don't offer a Unique control, so converting a unique
-      // column to select would strand the constraint with no way to clear it.
-      const uniqueCleared = wantsOptions && !!existingColumn?.unique
-      const optionsChanged =
-        wantsOptions && !optionsEqual(existingColumn?.options ?? [], trimmedOptions)
-      const multipleChanged = wantsOptions && !!existingColumn?.multiple !== multipleInput
-      const currencyChanged =
-        wantsCurrency && resolveCurrencyCode(existingColumn?.currencyCode) !== currencyInput
-
-      const updates: {
-        name?: string
-        type?: ColumnDefinition['type']
-        unique?: boolean
-        options?: SelectOption[]
-        multiple?: boolean
-        currencyCode?: string
-      } = {
-        ...(renamed ? { name: trimmedName } : {}),
-        ...(typeChanged ? { type: typeInput } : {}),
-        ...(uniqueChanged ? { unique: uniqueInput } : {}),
-        ...(uniqueCleared ? { unique: false } : {}),
-        ...(wantsOptions && (typeChanged || optionsChanged) ? { options: trimmedOptions } : {}),
-        ...(wantsOptions && (typeChanged || multipleChanged) ? { multiple: multipleInput } : {}),
-        ...(wantsCurrency && (typeChanged || currencyChanged)
-          ? { currencyCode: currencyInput }
-          : {}),
-      }
-      if (Object.keys(updates).length === 0) {
+      if (isCurrencyTarget) {
+        const currencyChanged = resolveCurrencyCode(existingColumn?.currencyCode) !== currencyInput
+        if (currencyChanged) {
+          await updateColumn.mutateAsync({
+            columnName: config.columnName,
+            updates: { currencyCode: currencyInput },
+          })
+          toast.success(`Saved "${columnLabel}"`)
+        }
         onClose()
         return
       }
 
-      await updateColumn.mutateAsync({ columnName: config.columnName, updates })
-      if (renamed) onColumnRename?.(config.columnName, trimmedName)
-      toast.success(`Saved "${trimmedName}"`)
+      const optionsChanged = !optionsEqual(existingColumn?.options ?? [], trimmedOptions)
+      const multipleChanged = !!existingColumn?.multiple !== multipleInput
+      if (!optionsChanged && !multipleChanged) {
+        onClose()
+        return
+      }
+      await updateColumn.mutateAsync({
+        columnName: config.columnName,
+        updates: {
+          ...(optionsChanged ? { options: trimmedOptions } : {}),
+          ...(multipleChanged ? { multiple: multipleInput } : {}),
+        },
+      })
+      toast.success(`Saved "${columnLabel}"`)
       onClose()
     } catch (err) {
       if (isValidationError(err)) {
-        const nameIssue =
-          findValidationIssue(err, ['updates', 'name']) ??
-          findValidationIssue(err, ['name']) ??
-          findValidationIssue(err, ['columnName'])
-        if (nameIssue) {
-          setNameError(nameIssue.message)
-          return
-        }
         toast.error(toError(err).message)
       }
     }
@@ -250,65 +228,23 @@ function ColumnConfigBody({
       </div>
 
       <div className='flex-1 overflow-y-auto overflow-x-hidden px-2 pt-3 pb-2 [overflow-anchor:none]'>
-        <div className='flex flex-col gap-[9.5px]'>
-          <RequiredLabel htmlFor='column-sidebar-name'>Column name</RequiredLabel>
-          <ChipInput
-            id='column-sidebar-name'
-            value={nameInput}
-            onChange={(e) => {
-              setNameInput(e.target.value)
-              if (nameError) setNameError(null)
-            }}
-            spellCheck={false}
-            autoComplete='off'
-            error={Boolean((showValidation && !trimmedName) || nameError)}
-            aria-invalid={(showValidation && !trimmedName) || nameError ? true : undefined}
-          />
-          {showValidation && !trimmedName && <FieldError message='Column name is required' />}
-          {nameError && !(showValidation && !trimmedName) && <FieldError message={nameError} />}
-        </div>
-
-        {config.mode === 'edit' && (
-          <>
-            <FieldDivider />
-            <div className='flex flex-col gap-[9.5px]'>
-              <RequiredLabel>Type</RequiredLabel>
-              <ChipCombobox
-                options={PLAIN_COLUMN_TYPE_OPTIONS.map((o) => ({
-                  label: o.label,
-                  value: o.type,
-                  icon: o.icon,
-                }))}
-                value={typeInput}
-                onChange={(v) => setTypeInput(v as ColumnDefinition['type'])}
-                placeholder='Select type'
-                maxHeight={300}
-              />
-            </div>
-          </>
+        {isCurrencyTarget && (
+          <div className='flex flex-col gap-[9.5px]'>
+            <RequiredLabel>Currency</RequiredLabel>
+            <ChipCombobox
+              options={CURRENCY_COMBOBOX_OPTIONS}
+              value={currencyInput}
+              onChange={setCurrencyInput}
+              placeholder='Select currency'
+              searchable
+              searchPlaceholder='Search currencies'
+              maxHeight={260}
+            />
+          </div>
         )}
 
-        {wantsCurrency && (
+        {isSelectTarget && (
           <>
-            <FieldDivider />
-            <div className='flex flex-col gap-[9.5px]'>
-              <RequiredLabel>Currency</RequiredLabel>
-              <ChipCombobox
-                options={CURRENCY_COMBOBOX_OPTIONS}
-                value={currencyInput}
-                onChange={setCurrencyInput}
-                placeholder='Select currency'
-                searchable
-                searchPlaceholder='Search currencies'
-                maxHeight={260}
-              />
-            </div>
-          </>
-        )}
-
-        {wantsOptions && (
-          <>
-            <FieldDivider />
             <div className='flex flex-col gap-[9.5px]'>
               <RequiredLabel>Options</RequiredLabel>
               <SelectOptionsEditor
@@ -328,23 +264,6 @@ function ColumnConfigBody({
                 checked={multipleInput}
                 onCheckedChange={(v) => setMultipleInput(!!v)}
               />
-            </div>
-          </>
-        )}
-
-        {/* Select columns don't expose a unique constraint. */}
-        {!wantsOptions && (
-          <>
-            <FieldDivider />
-            <div className='flex flex-col gap-[9.5px]'>
-              <div className='flex items-center justify-between pl-0.5'>
-                <Label htmlFor='column-sidebar-unique'>Unique</Label>
-                <Switch
-                  id='column-sidebar-unique'
-                  checked={uniqueInput}
-                  onCheckedChange={(v) => setUniqueInput(!!v)}
-                />
-              </div>
             </div>
           </>
         )}

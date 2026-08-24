@@ -14,6 +14,7 @@ import { captureEvent } from '@/lib/posthog/client'
 import type {
   ColumnDefinition,
   Predicate,
+  SelectOption,
   SortDirection,
   SortSpec,
   TableMetadata,
@@ -229,7 +230,21 @@ export function Table({
   // for free — matching the panel's own-chrome layout.
   const { otherUsers: presenceUsers, remoteSelections, emitCellSelection } = useTableRoom(tableId)
 
-  const [slideout, dispatch] = useReducer(slideoutReducer, { kind: 'none' })
+  const [slideout, dispatchSlideout] = useReducer(slideoutReducer, { kind: 'none' })
+  /**
+   * Sink the grid populates with its column-draft discard. A select draft
+   * exists only while its options sidebar is open, so every slideout
+   * transition other than entering `draft-select` (Cancel, X, another panel)
+   * drops it — in the same batch as the transition, from the handler that
+   * causes it. Idempotent: after a successful save the draft is already gone.
+   */
+  const abortColumnDraftSinkRef = useRef<(() => void) | null>(null)
+  const dispatch = useCallback((action: SlideoutAction) => {
+    dispatchSlideout(action)
+    if (action.type !== 'OPEN_COLUMN' || action.config.mode !== 'draft-select') {
+      abortColumnDraftSinkRef.current?.()
+    }
+  }, [])
   const [showDeleteTableConfirm, setShowDeleteTableConfirm] = useState(false)
   const [showLockSettings, setShowLockSettings] = useState(false)
   // Id of the last blocked-action toast, so a user who keeps typing into a
@@ -333,6 +348,28 @@ export function Table({
   const columnRenameSinkRef = useRef<((oldName: string, newName: string) => void) | null>(null)
   const onColumnRename = (oldName: string, newName: string) => {
     columnRenameSinkRef.current?.(oldName, newName)
+  }
+
+  /**
+   * Sink populated by the grid: starts a header draft of the given type,
+   * focused for naming. Lets the page-header "+ New column" dropdown share
+   * the in-grid trigger's create path.
+   */
+  const addColumnOfTypeSinkRef = useRef<((type: ColumnDefinition['type']) => void) | null>(null)
+
+  /**
+   * Sink for the select-draft handshake with the grid, which owns the draft
+   * column: Save in the `draft-select` sidebar persists it through here, and
+   * the slideout leaving `draft-select` discards it through
+   * `abortColumnDraftSinkRef` (see `dispatch`).
+   */
+  const draftSelectSaveSinkRef = useRef<
+    ((options: SelectOption[], multiple: boolean) => Promise<boolean>) | null
+  >(null)
+  const onDraftSelectSave = async (options: SelectOption[], multiple: boolean) => {
+    const created = (await draftSelectSaveSinkRef.current?.(options, multiple)) ?? false
+    if (created) dispatch({ type: 'CLOSE' })
+    return created
   }
 
   /**
@@ -1105,7 +1142,7 @@ export function Table({
   }, [tableHeaderRename.startRename, tableId])
 
   const handleAddColumnOfType = (type: ColumnDefinition['type']) => {
-    onOpenColumnConfig({ mode: 'create', proposedName: generateColumnName(columns), type })
+    addColumnOfTypeSinkRef.current?.(type)
   }
 
   const handleAddWorkflowColumn = () => {
@@ -1575,6 +1612,8 @@ export function Table({
         remoteSelections={remoteSelections}
         emitCellSelection={emitCellSelection}
         onOpenColumnConfig={onOpenColumnConfig}
+        onCloseColumnConfig={onCloseSlideout}
+        draftSelectOpen={columnConfig?.mode === 'draft-select'}
         onOpenWorkflowConfig={onOpenWorkflowConfig}
         onOpenEnrichments={onOpenEnrichments}
         onOpenEnrichmentConfig={onOpenEnrichmentConfig}
@@ -1603,6 +1642,9 @@ export function Table({
         // write to the wrong place between settle and adoption.
         onPersistLayout={viewsEnabled ? handlePersistLayout : undefined}
         columnRenameSinkRef={columnRenameSinkRef}
+        addColumnOfTypeSinkRef={addColumnOfTypeSinkRef}
+        draftSelectSaveSinkRef={draftSelectSaveSinkRef}
+        abortColumnDraftSinkRef={abortColumnDraftSinkRef}
         layoutSnapshotSinkRef={layoutSnapshotRef}
         afterDeleteRowsSinkRef={afterDeleteRowsSinkRef}
         afterDeleteAllSinkRef={afterDeleteAllSinkRef}
@@ -1675,14 +1717,14 @@ export function Table({
       <ColumnConfigSidebar
         config={columnConfig}
         onClose={onCloseSlideout}
+        onDraftSave={onDraftSelectSave}
         existingColumn={
-          columnConfig?.mode === 'edit'
+          columnConfig && columnConfig.mode !== 'draft-select'
             ? (columns.find((c) => getColumnId(c) === columnConfig.columnName) ?? null)
             : null
         }
         workspaceId={workspaceId}
         tableId={tableId}
-        onColumnRename={onColumnRename}
       />
       <EnrichmentsSidebar
         open={slideout.kind === 'enrichments'}

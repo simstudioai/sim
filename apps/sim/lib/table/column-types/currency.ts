@@ -15,6 +15,7 @@ export const currencyColumnType: ColumnTypeDefinition = {
   jsonbCast: 'numeric',
   storesOpaqueIds: false,
   supportsUnique: true,
+  hasConfiguration: true,
   sampleValue: 123,
   ownedMetadata: ['currencyCode'],
   workflowInputType: 'number',

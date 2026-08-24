@@ -12,6 +12,7 @@ import {
   buildTableSelectionContext,
   canWriteRowsWithChip,
   chipRowCount,
+  columnNameIssue,
   drainTargetForChip,
   horizontalEdgeScrollVelocity,
   selectedColumnIds,
@@ -195,5 +196,25 @@ describe('drainTargetForChip', () => {
 
   it('loads exactly the cap when nothing is excluded', () => {
     expect(drainTargetForChip(0)).toBe(MAX_TABLE_SELECTION_ROWS)
+  })
+})
+
+describe('columnNameIssue', () => {
+  it('accepts a pattern-safe, unused name', () => {
+    expect(columnNameIssue('email_address', ['name', 'status'])).toBeNull()
+  })
+
+  it('refuses spaces and leading digits, naming the rule', () => {
+    expect(columnNameIssue('New Text', [])).toMatch(/letter or underscore/)
+    expect(columnNameIssue('1st', [])).toMatch(/letter or underscore/)
+  })
+
+  it('refuses a name longer than the column-name limit', () => {
+    const long = 'a'.repeat(TABLE_LIMITS.MAX_COLUMN_NAME_LENGTH + 1)
+    expect(columnNameIssue(long, [])).toMatch(/characters or less/)
+  })
+
+  it('refuses a name already taken, case-insensitively, quoting the existing one', () => {
+    expect(columnNameIssue('EMAIL', ['email'])).toBe('A column named "email" already exists')
   })
 })

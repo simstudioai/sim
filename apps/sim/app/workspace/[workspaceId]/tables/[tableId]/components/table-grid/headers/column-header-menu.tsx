@@ -3,7 +3,8 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { cn } from '@sim/emcn'
 import { ChevronDown } from '@sim/emcn/icons'
-import type { SortDirection, WorkflowGroup } from '@/lib/table'
+import type { ColumnDefinition, SortDirection, WorkflowGroup } from '@/lib/table'
+import { columnTypeOf } from '@/lib/table/column-types'
 import { HeaderLabel } from '@/app/workspace/[workspaceId]/tables/[tableId]/components/table-grid/headers/header-label'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 import { COL_WIDTH, SELECTION_TINT_BG } from '../constants'
@@ -18,12 +19,25 @@ interface ColumnHeaderMenuProps {
   isRenaming: boolean
   isColumnSelected: boolean
   renameValue: string
+  /** True after a refused rename — paints the name red until it's edited. */
+  renameError?: boolean
   onRenameValueChange: (value: string) => void
   onRenameSubmit: () => void
   onRenameCancel: () => void
   onColumnSelect: (colIndex: number, shiftKey: boolean) => void
   onInsertLeft: (columnName: string) => void
   onInsertRight: (columnName: string) => void
+  /** Flip the column's `unique` constraint. Only forwarded to the menu for
+   *  columns whose type supports it (registry `supportsUnique`) and that are
+   *  not workflow outputs. */
+  onToggleUnique?: (columnName: string) => void
+  /** Starts the inline header rename. Forwarded for plain/enrichment columns;
+   *  workflow outputs rename through the workflow sidebar. */
+  onRenameColumn?: (columnName: string) => void
+  /** Converts the column to another type. Plain/enrichment columns only. */
+  onChangeType?: (columnName: string, type: ColumnDefinition['type']) => void
+  /** Opens the config sidebar for types with per-column configuration. */
+  onConfigure?: (columnName: string) => void
   onDeleteColumn: (columnName: string) => void
   onResizeStart: (columnKey: string) => void
   onResize: (columnKey: string, width: number) => void
@@ -68,12 +82,17 @@ export const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
   isRenaming,
   isColumnSelected,
   renameValue,
+  renameError,
   onRenameValueChange,
   onRenameSubmit,
   onRenameCancel,
   onColumnSelect,
   onInsertLeft,
   onInsertRight,
+  onToggleUnique,
+  onRenameColumn,
+  onChangeType,
+  onConfigure,
   onDeleteColumn,
   onResizeStart,
   onResize,
@@ -115,6 +134,11 @@ export const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
       ? 'Hide column'
       : 'Delete column'
     : undefined
+  // Workflow outputs never take a unique constraint; enrichment outputs behave
+  // like plain columns (matching `handleConfigureColumn`'s routing). The type's
+  // own say-so comes from the registry, never a per-type check here.
+  const isWorkflowOutput = !!column.workflowGroupId && ownGroup?.type !== 'enrichment'
+  const supportsUnique = !isWorkflowOutput && columnTypeOf(column).supportsUnique
   useEffect(() => {
     if (isRenaming && renameInputRef.current) {
       renameInputRef.current.focus()
@@ -225,7 +249,10 @@ export const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
     }
     if (isRenaming) return
     onColumnSelect(colIndex, e.shiftKey)
-    if (!e.shiftKey) {
+    // Only workflow-output columns still have a config surface behind a plain
+    // click (the workflow sidebar). Plain columns edit inline / via the menu,
+    // so clicking their header just selects the column.
+    if (!e.shiftKey && isWorkflowOutput) {
       onOpenConfig(column.key)
     }
   }
@@ -295,7 +322,11 @@ export const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
               if (e.key === 'Escape') onRenameCancel()
             }}
             onBlur={onRenameSubmit}
-            className='ml-1.5 min-w-0 flex-1 border-0 bg-transparent p-0 text-[var(--text-primary)] text-small outline-none focus:outline-none focus:ring-0'
+            aria-invalid={renameError || undefined}
+            className={cn(
+              'ml-1.5 min-w-0 flex-1 border-0 bg-transparent p-0 text-small outline-none focus:outline-none focus:ring-0',
+              renameError ? 'text-[var(--text-error)]' : 'text-[var(--text-primary)]'
+            )}
           />
         </div>
       ) : readOnly ? (
@@ -345,9 +376,13 @@ export const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
             position={menuPosition}
             column={column}
             deleteLabel={deleteLabel}
-            onOpenConfig={onOpenConfig}
+            onOpenConfig={isWorkflowOutput ? onOpenConfig : undefined}
+            onRenameColumn={isWorkflowOutput ? undefined : onRenameColumn}
+            onChangeType={isWorkflowOutput ? undefined : onChangeType}
+            onConfigure={isWorkflowOutput ? undefined : onConfigure}
             onInsertLeft={onInsertLeft}
             onInsertRight={onInsertRight}
+            onToggleUnique={supportsUnique ? onToggleUnique : undefined}
             onDeleteColumn={onDeleteColumn}
             onViewWorkflow={
               onViewWorkflow && ownGroup ? () => onViewWorkflow(ownGroup.workflowId) : undefined

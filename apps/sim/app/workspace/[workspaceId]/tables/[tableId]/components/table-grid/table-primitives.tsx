@@ -10,10 +10,16 @@ export const TableColGroup = React.memo(function TableColGroup({
   columns,
   columnWidths,
   checkboxColWidth,
+  draftColumnWidth,
 }: {
   columns: DisplayColumn[]
   columnWidths: Record<string, number>
   checkboxColWidth: number
+  /** Width of the draft (being-named) column's cell, when one is mounted
+   *  between the real columns and the "+ New column" cell. The table is
+   *  `table-fixed` with an explicit width, so a cell without its own `<col>`
+   *  would take the add-column slot and collapse that cell instead. */
+  draftColumnWidth?: number
 }) {
   return (
     <colgroup>
@@ -21,6 +27,7 @@ export const TableColGroup = React.memo(function TableColGroup({
       {columns.map((col) => (
         <col key={col.key} style={{ width: columnWidths[col.key] ?? COL_WIDTH }} />
       ))}
+      {draftColumnWidth !== undefined && <col style={{ width: draftColumnWidth }} />}
       <col style={{ width: ADD_COL_WIDTH }} />
     </colgroup>
   )

@@ -10,12 +10,14 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { useParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
+import { extractValidationIssues, isValidationError } from '@/lib/api/client/errors'
 import type { RunLimit, RunMode, TableFindMatch } from '@/lib/api/contracts/tables'
 import { attachSelectionContextToClipboard } from '@/lib/copilot/chat/selection-clipboard'
 import { captureEvent } from '@/lib/posthog/client'
 import type {
   ColumnDefinition,
   Predicate,
+  SelectOption,
   SortDirection,
   TableLocks,
   TableMetadata,
@@ -24,7 +26,7 @@ import type {
   WorkflowGroup,
 } from '@/lib/table'
 import { getColumnId } from '@/lib/table/column-keys'
-import { columnTypeOf } from '@/lib/table/column-types'
+import { columnTypeById, columnTypeOf } from '@/lib/table/column-types'
 import { TABLE_LIMITS } from '@/lib/table/constants'
 import { cellValueFilterConditions } from '@/lib/table/query-builder/cell-filter'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
@@ -62,7 +64,7 @@ import type { WorkflowConfig } from '../workflow-sidebar'
 import { ExpandedCellPopover } from './cells'
 import { ADD_COL_WIDTH, COL_WIDTH, SELECTION_TINT_BG } from './constants'
 import { DataRow } from './data-row'
-import { ColumnHeaderMenu, WorkflowGroupMetaCell } from './headers'
+import { ColumnHeaderMenu, DraftColumnHeader, WorkflowGroupMetaCell } from './headers'
 import { RemoteSelectionOverlay } from './remote-selection-overlay'
 import { AddRowButton, SelectAllCheckbox, TableColGroup } from './table-primitives'
 import type { DisplayColumn } from './types'
@@ -75,6 +77,7 @@ import {
   chipRowCount,
   classifyExecStatusMix,
   collectRowSnapshots,
+  columnNameIssue,
   computeNormalizedSelection,
   drainTargetForChip,
   type ExecStatusMix,
@@ -194,6 +197,16 @@ interface TableGridProps {
    * and enforces mutual-exclusion (only one slideout open at a time).
    */
   onOpenColumnConfig: (cfg: ColumnConfig) => void
+  /** Close the column-config slideout — used when a select draft is discarded
+   *  from its header input while its options sidebar is open. */
+  onCloseColumnConfig: () => void
+  /**
+   * Whether the column-config slideout is showing the `draft-select` options
+   * sidebar for the grid's current draft. Read by the draft handlers instead
+   * of a grid-local "named" flag, so the wrapper's slideout state is the only
+   * record of which panel is open.
+   */
+  draftSelectOpen: boolean
   onOpenWorkflowConfig: (cfg: WorkflowConfig) => void
   /** Open the enrichments list (Clay-style catalog) slideout. */
   onOpenEnrichments: () => void
@@ -282,6 +295,27 @@ interface TableGridProps {
    * `columnWidths` / `columnOrder` keys). The wrapper just forwards the call.
    */
   columnRenameSinkRef: React.MutableRefObject<((oldName: string, newName: string) => void) | null>
+  /**
+   * Ref the grid populates with its `handleAddColumnOfType` so the wrapper's
+   * page-header "+ New column" dropdown starts a draft through the same path
+   * as the in-grid trigger.
+   */
+  addColumnOfTypeSinkRef: React.MutableRefObject<((type: ColumnDefinition['type']) => void) | null>
+  /**
+   * Ref the grid populates with the `draft-select` sidebar's Save handler: it
+   * persists the draft column (name from the header input, options from the
+   * sidebar) in one create and resolves whether it succeeded.
+   */
+  draftSelectSaveSinkRef: React.MutableRefObject<
+    ((options: SelectOption[], multiple: boolean) => Promise<boolean>) | null
+  >
+  /**
+   * Ref the grid populates with its draft discard. The wrapper fires it from
+   * every slideout transition other than entering `draft-select`, so
+   * dismissing the options sidebar (or replacing it with another panel) also
+   * drops the header draft. Idempotent.
+   */
+  abortColumnDraftSinkRef: React.MutableRefObject<(() => void) | null>
   /**
    * Ref the grid populates with a reader for its CURRENT column layout. The grid
    * owns this state, so the wrapper asks for it when creating a view rather than
@@ -438,6 +472,8 @@ export function TableGrid({
   onBlockedAction,
   sidebarReservedPx,
   onOpenColumnConfig,
+  onCloseColumnConfig,
+  draftSelectOpen,
   onOpenWorkflowConfig,
   onOpenEnrichments,
   onOpenEnrichmentConfig,
@@ -463,6 +499,9 @@ export function TableGrid({
   viewLayoutKey = null,
   onPersistLayout,
   columnRenameSinkRef,
+  addColumnOfTypeSinkRef,
+  draftSelectSaveSinkRef,
+  abortColumnDraftSinkRef,
   layoutSnapshotSinkRef,
   afterDeleteRowsSinkRef,
   afterDeleteAllSinkRef,
@@ -974,13 +1013,34 @@ export function TableGrid({
     [selectionAnchor, selectionFocus]
   )
 
+  /**
+   * A column being created. It lives only here until its name commits (or,
+   * for a type with configuration, until the options sidebar saves), so a
+   * reload or an Escape before that leaves nothing behind — the column was
+   * never persisted. Name-only types persist on Enter/blur. A select's commit
+   * instead opens the options sidebar (the wrapper's `draftSelectOpen` records
+   * that); it persists from there together with its options.
+   */
+  const [columnDraft, setColumnDraft] = useState<{
+    type: ColumnDefinition['type']
+    name: string
+    invalid: boolean
+  } | null>(null)
+  const columnDraftRef = useRef(columnDraft)
+  columnDraftRef.current = columnDraft
+
+  // The draft column occupies a real slot: it needs its own `<col>` and its
+  // width in the table's explicit width, or the fixed layout collapses the
+  // "+ New column" cell to make room for it.
+  const draftColumnWidth = columnDraft ? COL_WIDTH : undefined
+
   const tableWidth = useMemo(() => {
     const colsWidth = displayColumns.reduce(
       (sum, col) => sum + (columnWidths[col.key] ?? COL_WIDTH),
       0
     )
-    return checkboxColWidth + colsWidth + ADD_COL_WIDTH
-  }, [displayColumns, columnWidths, checkboxColWidth])
+    return checkboxColWidth + colsWidth + (draftColumnWidth ?? 0) + ADD_COL_WIDTH
+  }, [displayColumns, columnWidths, checkboxColWidth, draftColumnWidth])
 
   const resizeIndicatorLeft = useMemo(() => {
     if (!resizingColumn) return 0
@@ -1480,6 +1540,9 @@ export function TableGrid({
   const handleFindCloseRef = useRef(handleFindClose)
   handleFindCloseRef.current = handleFindClose
 
+  /** True after a refused rename — paints the header input red until it's edited. */
+  const [renameError, setRenameError] = useState(false)
+
   const columnRename = useInlineRename({
     // `columnName` is the column id; record the prior display name + id so undo
     // restores the label (not the id) and targets the right column.
@@ -1487,9 +1550,55 @@ export function TableGrid({
       const oldName = columnsRef.current.find((c) => c.key === columnName)?.name ?? columnName
       pushUndoRef.current({ type: 'rename-column', oldName, newName, columnId: columnName })
       handleColumnRename(columnName, newName)
-      return updateColumnMutation.mutateAsync({ columnName, updates: { name: newName } })
+      return updateColumnMutation
+        .mutateAsync({ columnName, updates: { name: newName } })
+        .catch((err: unknown) => {
+          // The mutation hook toasts non-validation failures; a server-side
+          // name rejection (e.g. a race on uniqueness) is ours to surface.
+          if (isValidationError(err)) {
+            toast.error(extractValidationIssues(err)[0]?.message ?? getErrorMessage(err))
+          }
+          setRenameError(true)
+          throw err
+        })
     },
   })
+  const columnRenameRef = useRef(columnRename)
+  columnRenameRef.current = columnRename
+
+  const handleRenameValueChange = useCallback((value: string) => {
+    setRenameError(false)
+    columnRenameRef.current.setEditValue(value)
+  }, [])
+
+  /**
+   * Refuse an unsaveable name in place — toast, red text, session kept — so
+   * it never reaches the contract as a raw `ZodError`. An unchanged or empty
+   * value falls through to the hook, which ends the session without saving.
+   */
+  const handleRenameSubmit = useCallback(() => {
+    const { editingId, editValue, submitRename } = columnRenameRef.current
+    const trimmed = editValue.trim()
+    const current = columnsRef.current.find((c) => c.key === editingId)
+    if (trimmed && current && trimmed !== current.name) {
+      const issue = columnNameIssue(
+        trimmed,
+        schemaColumnsRef.current.filter((c) => getColumnId(c) !== editingId).map((c) => c.name)
+      )
+      if (issue) {
+        toast.error(issue)
+        setRenameError(true)
+        return
+      }
+    }
+    setRenameError(false)
+    void submitRename()
+  }, [])
+
+  const handleRenameCancel = useCallback(() => {
+    setRenameError(false)
+    columnRenameRef.current.cancelRename()
+  }, [])
 
   const toggleBooleanCell = useCallback(
     (rowId: string, columnName: string, currentValue: unknown) => {
@@ -3877,35 +3986,192 @@ export function TableGrid({
     [generateColumnName, insertColumnInOrder]
   )
 
+  const draftPersistingRef = useRef(false)
+  const onCloseColumnConfigRef = useRef(onCloseColumnConfig)
+  onCloseColumnConfigRef.current = onCloseColumnConfig
+  const draftSelectOpenRef = useRef(draftSelectOpen)
+  draftSelectOpenRef.current = draftSelectOpen
+
   /**
-   * Open the column-config sidebar pre-seeded with the chosen scalar type.
-   * Nothing is persisted until the user fills in the name and hits Save.
+   * Start a draft of the chosen type with a generated name, focused for
+   * naming. Every type starts the same way; a select's options sidebar only
+   * opens once its name commits (see {@link handleDraftCommit}).
    */
   function handleAddColumnOfType(type: ColumnDefinition['type']) {
-    onOpenColumnConfig({ mode: 'create', proposedName: generateColumnName(), type })
+    if (columnDraftRef.current) return
+    setColumnDraft({ type, name: generateColumnName(), invalid: false })
   }
+  addColumnOfTypeSinkRef.current = handleAddColumnOfType
+
+  const handleDraftNameChange = useCallback((name: string) => {
+    setColumnDraft((draft) => (draft ? { ...draft, name, invalid: false } : draft))
+  }, [])
+
+  /**
+   * The draft's name if it can be saved; otherwise toasts why, paints the
+   * name red, and returns null. Checked here, before a request is built, so a
+   * bad name never surfaces as a raw contract error.
+   */
+  const acceptDraftName = useCallback((): string | null => {
+    const draft = columnDraftRef.current
+    if (!draft) return null
+    const trimmed = draft.name.trim()
+    const issue = trimmed
+      ? columnNameIssue(
+          trimmed,
+          schemaColumnsRef.current.map((c) => c.name)
+        )
+      : 'Column name is required'
+    if (issue) {
+      toast.error(issue)
+      setColumnDraft({ ...draft, invalid: true })
+      return null
+    }
+    return trimmed
+  }, [])
+
+  /** Persist the draft (plus any type metadata). Resolves whether it was created. */
+  const persistDraft = useCallback(
+    async (metadata: { options?: SelectOption[]; multiple?: boolean } = {}): Promise<boolean> => {
+      const draft = columnDraftRef.current
+      if (!draft || draftPersistingRef.current) return false
+      const name = acceptDraftName()
+      if (!name) return false
+      const position = schemaColumnsRef.current.length
+      const owner = viewLayoutKeyRef.current
+      draftPersistingRef.current = true
+      try {
+        const result = await addColumnMutation.mutateAsync({ name, type: draft.type, ...metadata })
+        const newId = result.data.columns.find((c) => c.name === name)?.id ?? name
+        pushUndoRef.current(
+          { type: 'create-column', columnName: name, columnId: newId, position },
+          owner
+        )
+        setColumnDraft(null)
+        return true
+      } catch (err) {
+        // The mutation hook already toasts non-validation failures; a
+        // server-side name rejection is ours to surface.
+        if (isValidationError(err)) {
+          toast.error(extractValidationIssues(err)[0]?.message ?? getErrorMessage(err))
+        }
+        setColumnDraft((current) => (current ? { ...current, invalid: true } : current))
+        return false
+      } finally {
+        draftPersistingRef.current = false
+      }
+    },
+    [acceptDraftName]
+  )
+
+  const handleDraftCommit = useCallback(() => {
+    const draft = columnDraftRef.current
+    if (!draft) return
+    // A select can't persist until it has options: committing its name opens
+    // the options sidebar (once), and Save there persists name + options. A
+    // later edit of the name only re-validates, so a bad one is flagged.
+    if (columnTypeById(draft.type).requiresConfigurationOnCreate) {
+      const name = acceptDraftName()
+      if (!name || draftSelectOpenRef.current) return
+      onOpenColumnConfig({ mode: 'draft-select' })
+      return
+    }
+    void persistDraft()
+  }, [acceptDraftName, persistDraft, onOpenColumnConfig])
+
+  const handleDraftCancel = useCallback(() => {
+    if (!columnDraftRef.current) return
+    setColumnDraft(null)
+    if (draftSelectOpenRef.current) onCloseColumnConfigRef.current()
+  }, [])
+
+  draftSelectSaveSinkRef.current = (options, multiple) =>
+    persistDraft({ options, ...(multiple ? { multiple: true } : {}) })
+  abortColumnDraftSinkRef.current = () => setColumnDraft(null)
+
+  /** Toggle the `unique` constraint on a plain column, recording the flip for undo. */
+  const handleToggleUnique = useCallback((columnKey: string) => {
+    const column = columnsRef.current.find((c) => c.key === columnKey)
+    if (!column) return
+    const previousValue = !!column.unique
+    pushUndoRef.current({
+      type: 'toggle-column-constraint',
+      columnName: columnKey,
+      constraint: 'unique',
+      previousValue,
+      newValue: !previousValue,
+    })
+    updateColumnMutation.mutate({ columnName: columnKey, updates: { unique: !previousValue } })
+  }, [])
 
   /** Open the workflow-config sidebar to spawn a brand-new workflow group. */
   function handleAddWorkflowColumn() {
     onOpenWorkflowConfig({ mode: 'create', kind: 'manual', proposedName: generateColumnName() })
   }
 
+  /**
+   * "Edit column" exists only for workflow-output columns, whose config
+   * surface is the workflow sidebar. Plain and enrichment columns edit name,
+   * type, and unique from the header and its menu — the callers gate on that,
+   * so the guard here is just belt-and-braces.
+   */
   const handleConfigureColumn = useCallback(
     (columnName: string) => {
       const column = columnsRef.current.find((c) => c.key === columnName)
       const group = column?.workflowGroupId
         ? workflowGroupById.get(column.workflowGroupId)
         : undefined
-      // Enrichment output columns behave like plain columns (rename / type /
-      // unique) — route them to the normal column editor, not the workflow
-      // "Configure output column" panel.
       if (column?.workflowGroupId && group?.type !== 'enrichment') {
         onOpenWorkflowConfig({ mode: 'edit-output', columnName })
-      } else {
-        onOpenColumnConfig({ mode: 'edit', columnName })
       }
     },
-    [onOpenColumnConfig, onOpenWorkflowConfig, workflowGroupById]
+    [onOpenWorkflowConfig, workflowGroupById]
+  )
+
+  /** Starts the inline header rename from the menu's "Rename column" item. */
+  const handleRenameColumn = useCallback(
+    (columnName: string) => {
+      const column = columnsRef.current.find((c) => c.key === columnName)
+      columnRename.startRename(columnName, column?.name ?? columnName)
+    },
+    [columnRename.startRename]
+  )
+
+  /**
+   * Converts a column's type from the menu's "Change type" submenu. Converting
+   * to select routes through the config sidebar instead — the option set has
+   * to be collected before the conversion can be applied.
+   */
+  const handleChangeType = useCallback(
+    (columnName: string, newType: ColumnDefinition['type']) => {
+      const column = columnsRef.current.find((c) => c.key === columnName)
+      if (!column || column.type === newType) return
+      if (columnTypeById(newType).requiresConfigurationOnCreate) {
+        onOpenColumnConfig({ mode: 'convert-select', columnName })
+        return
+      }
+      const previousType = column.type
+      // Recorded on success only: the server refuses a retype whose existing
+      // values can't convert (the hook toasts why), and an entry for a change
+      // that never landed would make undo "restore" the type it already has.
+      updateColumnMutation.mutate(
+        { columnName, updates: { type: newType } },
+        {
+          onSuccess: () => {
+            pushUndoRef.current({ type: 'update-column-type', columnName, previousType, newType })
+          },
+        }
+      )
+    },
+    [onOpenColumnConfig]
+  )
+
+  /** Opens the config sidebar for a select's options / a currency's code. */
+  const handleOpenConfigure = useCallback(
+    (columnName: string) => {
+      onOpenColumnConfig({ mode: 'configure', columnName })
+    },
+    [onOpenColumnConfig]
   )
 
   const handleConfigureWorkflowGroup = useCallback(
@@ -4638,6 +4904,7 @@ export function TableGrid({
                 columns={displayColumns}
                 columnWidths={columnWidths}
                 checkboxColWidth={checkboxColWidth}
+                draftColumnWidth={draftColumnWidth}
               />
               <thead ref={theadRef} className='sticky top-0 z-10'>
                 {isLoadingTable ? null : (
@@ -4791,9 +5058,10 @@ export function TableGrid({
                             renameValue={
                               columnRename.editingId === column.key ? columnRename.editValue : ''
                             }
-                            onRenameValueChange={columnRename.setEditValue}
-                            onRenameSubmit={columnRename.submitRename}
-                            onRenameCancel={columnRename.cancelRename}
+                            renameError={renameError && columnRename.editingId === column.key}
+                            onRenameValueChange={handleRenameValueChange}
+                            onRenameSubmit={handleRenameSubmit}
+                            onRenameCancel={handleRenameCancel}
                             onColumnSelect={handleColumnSelect}
                             // Required props here, and the menu is already
                             // suppressed for non-editors by `readOnly`.
@@ -4818,6 +5086,14 @@ export function TableGrid({
                             workflowGroups={tableWorkflowGroups}
                             sourceInfo={columnSourceInfo.get(column.key)}
                             onOpenConfig={handleConfigureColumn}
+                            onToggleUnique={
+                              userPermissions.canEdit ? handleToggleUnique : undefined
+                            }
+                            onRenameColumn={
+                              userPermissions.canEdit ? handleRenameColumn : undefined
+                            }
+                            onChangeType={userPermissions.canEdit ? handleChangeType : undefined}
+                            onConfigure={userPermissions.canEdit ? handleOpenConfigure : undefined}
                             onViewWorkflow={handleViewWorkflow}
                             onSortColumn={onSortColumn}
                             onClearSort={onClearSort}
@@ -4831,6 +5107,16 @@ export function TableGrid({
                           />
                         )
                       })}
+                      {columnDraft && (
+                        <DraftColumnHeader
+                          type={columnDraft.type}
+                          name={columnDraft.name}
+                          invalid={columnDraft.invalid}
+                          onNameChange={handleDraftNameChange}
+                          onCommit={handleDraftCommit}
+                          onCancel={handleDraftCancel}
+                        />
+                      )}
                       {userPermissions.canEdit && (
                         <NewColumnDropdown
                           trigger='inline-header'

@@ -1,5 +1,6 @@
 'use client'
 
+import { useRef } from 'react'
 import {
   ChipChevronDown,
   chipContentIconClass,
@@ -39,8 +40,10 @@ interface NewColumnDropdownProps {
 
 /**
  * "+ New column" dropdown — the single entry point for creating a column.
- * Lists every column type plus "Workflow" and "Enrichments"; picking a type
- * opens the right sidebar pre-seeded.
+ * Lists every column type plus "Workflow" and "Enrichments". Picking a scalar
+ * type adds a draft header cell for naming — nothing persists until the name
+ * commits (committing a select's name opens its options sidebar, and it
+ * persists from there). Workflow and Enrichments open their own sidebars.
  */
 export function NewColumnDropdown({
   trigger,
@@ -51,6 +54,8 @@ export function NewColumnDropdown({
   blocked,
   onBlocked,
 }: NewColumnDropdownProps) {
+  const pendingTypeRef = useRef<ColumnDefinition['type'] | null>(null)
+
   const triggerButton =
     trigger === 'header' ? (
       <button
@@ -90,7 +95,25 @@ export function NewColumnDropdown({
           (295px with its separator and padding), so the default cut the last
           two off behind a scrollbar. Sized here rather than in the shared
           component, which every other dropdown in the app relies on. */}
-      <DropdownMenuContent align='start' side='bottom' sideOffset={4} className='max-h-[320px]'>
+      {/* A type pick is deferred to here, the moment the menu has fully
+          unmounted. Started from `onSelect`, the draft header's name input
+          would mount while this menu is still playing its exit animation —
+          and as the content zooms away from under the pointer, Radix's
+          item-leave handler focuses the closing menu, stealing the input's
+          focus mid-keystroke. The default close behavior (refocusing the
+          trigger) is prevented for the same reason. */}
+      <DropdownMenuContent
+        align='start'
+        side='bottom'
+        sideOffset={4}
+        className='max-h-[320px]'
+        onCloseAutoFocus={(e) => {
+          e.preventDefault()
+          const type = pendingTypeRef.current
+          pendingTypeRef.current = null
+          if (type) onPickType(type)
+        }}
+      >
         <>
           <DropdownMenuItem onSelect={onPickEnrichment}>
             <Sparkles className='size-[14px] text-[var(--text-icon)]' />
@@ -103,7 +126,9 @@ export function NewColumnDropdown({
           const onSelect =
             option.type === 'workflow'
               ? onPickWorkflow
-              : () => onPickType(option.type as ColumnDefinition['type'])
+              : () => {
+                  pendingTypeRef.current = option.type as ColumnDefinition['type']
+                }
           return (
             <DropdownMenuItem key={option.type} onSelect={onSelect}>
               <Icon className='size-[14px] text-[var(--text-icon)]' />

@@ -259,3 +259,66 @@ describe('salvage — the machine-path reading', () => {
     expect(COLUMN_TYPE_REGISTRY.select.salvage?.('ghost', column)).toEqual({ ok: false })
   })
 })
+
+describe('formatters are total', () => {
+  // The grid renders through `formatForDisplay` / `formatForInput` with
+  // whatever a cell currently holds — and during a retype the optimistic
+  // schema update flips the column's type one render before the server has
+  // converted (or refused) the values, so every formatter sees every other
+  // type's values. One that throws takes the whole table route down.
+  const foreign: unknown[] = [
+    100,
+    12.5,
+    1999.99,
+    0,
+    -3,
+    1e21,
+    '100',
+    '12.50',
+    '$1,234.56',
+    'hello',
+    'true',
+    true,
+    false,
+    '2024-01-01',
+    '2024-01-01T10:00:00Z',
+    '2024-01-01T10:00:00+02:00',
+    'Jan 5 2024',
+    '1700000000000',
+    '[]',
+    [],
+    {},
+    ['a'],
+    { a: 1 },
+    null,
+    undefined,
+    '',
+    ' ',
+    'opt_x',
+    'NaN',
+  ]
+
+  for (const definition of ALL_COLUMN_TYPES) {
+    it(`${definition.id} never throws on a foreign value`, () => {
+      const column = {
+        id: 'c',
+        name: 'c',
+        type: definition.id,
+        options: [{ id: 'opt_x', name: 'X' }],
+      } as ColumnDefinition
+      for (const value of foreign) {
+        expect(() => definition.formatForDisplay(value, column)).not.toThrow()
+        expect(() => definition.formatForInput(value, column)).not.toThrow()
+      }
+    })
+  }
+
+  it('renders a number retyped to date verbatim instead of recursing', () => {
+    // `100` parses as year 100 and normalizes to a three-digit-year string
+    // that matches no canonical shape — the input that used to recurse
+    // until the stack overflowed.
+    const column: ColumnDefinition = { name: 'd', type: 'date' }
+    expect(COLUMN_TYPE_REGISTRY.date.formatForDisplay(100, column)).toBe('100')
+    expect(COLUMN_TYPE_REGISTRY.date.formatForDisplay('2024-01-05', column)).toBe('01/05/2024')
+  })
+})

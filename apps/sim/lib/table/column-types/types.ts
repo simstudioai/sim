@@ -104,6 +104,21 @@ export interface ColumnTypeDefinition {
   readonly supportsUnique: boolean
 
   /**
+   * Whether a column of this type needs configuration before it can exist (a
+   * `select` is invalid without options). The create flow keeps such a column
+   * as a local draft, opens the config sidebar once its name is committed, and
+   * persists name and configuration in one create when that sidebar saves.
+   */
+  readonly requiresConfigurationOnCreate?: boolean
+
+  /**
+   * Whether the type has per-column configuration (a `select`'s options, a
+   * `currency`'s display code) edited in the column config sidebar. Drives the
+   * header menu's "Configure …" item.
+   */
+  readonly hasConfiguration?: boolean
+
+  /**
    * A representative value, used to show an LLM what this column's cells look
    * like. Keeps prompt examples from restating per-type knowledge.
    */

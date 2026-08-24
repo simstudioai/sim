@@ -12,7 +12,7 @@ import type {
   WorkflowGroup,
 } from '@/lib/table'
 import { getColumnId } from '@/lib/table/column-keys'
-import { TABLE_LIMITS } from '@/lib/table/constants'
+import { NAME_PATTERN, TABLE_LIMITS } from '@/lib/table/constants'
 import { areGroupDepsSatisfied, areOutputsFilled } from '@/lib/table/deps'
 import type { ChatContext } from '@/stores/panel'
 import type { DeletedRowSnapshot } from '@/stores/table/types'
@@ -485,4 +485,28 @@ export function canWriteRowsWithChip(opts: {
 }): boolean {
   if (!opts.hasContext || !opts.complete) return false
   return opts.rowCount > 0 && opts.rowCount <= TABLE_LIMITS.MAX_COPY_ROWS
+}
+
+/**
+ * Why a proposed column name can't be saved, phrased for a toast, or `null`
+ * when it can. Mirrors the contract's `columnNameSchema` (length and
+ * `NAME_PATTERN`) plus the server's case-insensitive uniqueness check, so the
+ * header input can refuse a name in place instead of surfacing a raw
+ * `ZodError` after the request has already been built.
+ *
+ * @param takenNames - Names of the other columns in the table (the column
+ * being renamed must be excluded by the caller).
+ */
+export function columnNameIssue(name: string, takenNames: Iterable<string>): string | null {
+  if (name.length > TABLE_LIMITS.MAX_COLUMN_NAME_LENGTH) {
+    return `Column names must be ${TABLE_LIMITS.MAX_COLUMN_NAME_LENGTH} characters or less`
+  }
+  if (!NAME_PATTERN.test(name)) {
+    return 'Column names must start with a letter or underscore and use only letters, numbers, and underscores'
+  }
+  const lower = name.toLowerCase()
+  for (const taken of takenNames) {
+    if (taken.toLowerCase() === lower) return `A column named "${taken}" already exists`
+  }
+  return null
 }

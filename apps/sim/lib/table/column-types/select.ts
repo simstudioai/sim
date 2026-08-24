@@ -39,6 +39,8 @@ export const selectColumnType: ColumnTypeDefinition = {
   jsonbCast: null,
   storesOpaqueIds: true,
   supportsUnique: false,
+  requiresConfigurationOnCreate: true,
+  hasConfiguration: true,
   sampleValue: 'Option',
   ownedMetadata: ['options', 'multiple'],
   workflowInputType: 'string',

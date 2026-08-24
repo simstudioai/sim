@@ -34,6 +34,8 @@ export const tableKeys = {
   infiniteRows: (tableId: string, paramsKey: string) =>
     [...tableKeys.infiniteRowsRoot(tableId), paramsKey] as const,
   rowWrites: (tableId: string) => [...tableKeys.rowsRoot(tableId), 'write'] as const,
+  /** Mutation key for column creates, so a surface that does not own the mutation can read its pending state. */
+  columnWrites: (tableId: string) => [...tableKeys.detail(tableId), 'column-write'] as const,
   /** Bounded single-page row read for chart files (`.chart` previews). */
   sample: (tableId: string, paramsKey: string) =>
     [...tableKeys.rowsRoot(tableId), 'sample', paramsKey] as const,

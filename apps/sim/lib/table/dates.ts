@@ -285,11 +285,30 @@ function formatWallForDisplay(
  * viewer, no timezone conversion. Legacy strings that predate
  * canonicalization render via a runtime-local normalization; unparseable
  * ones are returned as-is.
+ *
+ * Total by construction: the normalization is attempted exactly once, and a
+ * canonical form that still matches no shape renders verbatim. Recursing on
+ * the canonical form instead looped forever on inputs like `100` — which
+ * parses as year 100 and normalizes to a three-digit-year string that matches
+ * nothing and normalizes to itself — taking the whole table route down with a
+ * stack overflow the moment a number column was retyped to date.
  */
 export function formatDateCellDisplay(
   stored: string,
   options?: FormatDateCellDisplayOptions
 ): string {
+  const direct = formatCanonicalDateCell(stored, options)
+  if (direct !== null) return direct
+  const canonical = normalizeDateCellValue(stored)
+  if (!canonical) return stored
+  return formatCanonicalDateCell(canonical, options) ?? stored
+}
+
+/** Renders a value already in one of the canonical stored shapes, or `null` when it is not. */
+function formatCanonicalDateCell(
+  stored: string,
+  options?: FormatDateCellDisplayOptions
+): string | null {
   const calendar = stored.match(/^(\d{4})-(\d{2})-(\d{2})$/)
   if (calendar) return `${calendar[2]}/${calendar[3]}/${calendar[1]}`
   if (UTC_MIDNIGHT_PATTERN.test(stored)) {
@@ -309,7 +328,5 @@ export function formatDateCellDisplay(
       options?.seconds
     )
   }
-  const canonical = normalizeDateCellValue(stored)
-  if (!canonical) return stored
-  return formatDateCellDisplay(canonical, options)
+  return null
 }

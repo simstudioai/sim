@@ -30,5 +30,9 @@ export const COLUMN_TYPE_OPTIONS: ColumnTypeOption[] = [
   { type: 'workflow', label: 'Workflow', icon: PlayOutline },
 ]
 
-/** Plain column types (no workflow). Used by `<ColumnConfigSidebar>`'s type combobox in edit mode. */
-export const PLAIN_COLUMN_TYPE_OPTIONS = COLUMN_TYPE_OPTIONS.filter((o) => o.type !== 'workflow')
+/** Plain column types (no workflow). Used by the column header menu's "Change type" submenu. */
+export const PLAIN_COLUMN_TYPE_OPTIONS: (ColumnTypeOption & {
+  type: ColumnDefinition['type']
+})[] = COLUMN_TYPE_OPTIONS.filter(
+  (o): o is ColumnTypeOption & { type: ColumnDefinition['type'] } => o.type !== 'workflow'
+)
