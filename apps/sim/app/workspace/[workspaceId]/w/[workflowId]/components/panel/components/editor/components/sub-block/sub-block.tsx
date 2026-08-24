@@ -844,12 +844,10 @@ function SubBlockComponent({
           <GroupedCheckboxList
             blockId={blockId}
             subBlockId={config.id}
-            title={config.title ?? ''}
             options={config.options as { label: string; id: string; group?: string }[]}
             isPreview={isPreview}
             subBlockValues={subBlockValues ?? {}}
             disabled={isDisabled}
-            maxHeight={config.maxHeight}
           />
         )
 
