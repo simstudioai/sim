@@ -510,6 +510,46 @@ describe('photonImessageHandler', () => {
       expect(methods).toEqual(['POST', 'GET', 'DELETE', 'POST'])
     })
 
+    it('fails with the real cause when the stale registration cannot be deleted', async () => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
+          const method = init?.method ?? 'GET'
+          if (method === 'POST') return new Response(JSON.stringify({}), { status: 409 })
+          if (method === 'DELETE') return new Response(JSON.stringify({}), { status: 500 })
+          const notificationUrl = (
+            await import('@/lib/webhooks/provider-subscription-utils')
+          ).getNotificationUrl({ id: 'wh-1', path: 'hook-path', providerConfig: {} })
+          return new Response(
+            JSON.stringify({
+              succeed: true,
+              data: [{ id: 'wh-old', webhookUrl: notificationUrl }],
+            }),
+            { status: 200 }
+          )
+        })
+      )
+
+      await expect(
+        photonImessageHandler.createSubscription!(subscriptionContext(CREDS))
+      ).rejects.toThrow(/could not remove the stale registration/i)
+    })
+
+    it('fails clearly when Photon reports a conflict but does not list the webhook', async () => {
+      const fetchMock = vi.fn(async (_url: RequestInfo | URL, init?: RequestInit) => {
+        const method = init?.method ?? 'GET'
+        if (method === 'POST') return new Response(JSON.stringify({}), { status: 409 })
+        return new Response(JSON.stringify({ succeed: true, data: [] }), { status: 200 })
+      })
+      vi.stubGlobal('fetch', fetchMock)
+
+      await expect(
+        photonImessageHandler.createSubscription!(subscriptionContext(CREDS))
+      ).rejects.toThrow(/did not return it when listing webhooks/i)
+      // No second registration attempt: it would only earn another conflict.
+      expect(fetchMock.mock.calls.filter((call) => call[1]?.method === 'POST')).toHaveLength(1)
+    })
+
     it('maps a 401 to a friendly credentials error', async () => {
       vi.stubGlobal(
         'fetch',

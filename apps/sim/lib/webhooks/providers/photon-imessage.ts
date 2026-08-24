@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { isRecordLike } from '@sim/utils/object'
 import { slimEnvelopeSchema, verifySpectrumSignature } from '@spectrum-ts/core/webhook'
 import { NextResponse } from 'next/server'
+import { collectPhotonAttachments, collectPhotonText } from '@/lib/photon-imessage/content'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
 import type {
   AuthContext,
@@ -39,13 +40,6 @@ const SKIPPED_TYPES = new Set<string>(PHOTON_SKIPPED_CONTENT_TYPES)
  */
 const OUTBOUND_DIRECTION = 'outbound'
 
-interface AttachmentSummary {
-  id: string
-  name: string
-  mimeType: string
-  size: number | null
-}
-
 const asString = (value: unknown): string => (typeof value === 'string' ? value : '')
 
 function lowercaseHeaders(headers: Headers): Record<string, string> {
@@ -54,63 +48,6 @@ function lowercaseHeaders(headers: Headers): Record<string, string> {
     result[key.toLowerCase()] = value
   })
   return result
-}
-
-/**
- * Collect the human-readable text from a content tree. A reply carries its own inner content and a
- * group carries N items, so the text a workflow wants is not always at the top level.
- */
-function collectText(content: unknown): string {
-  if (!isRecordLike(content)) {
-    return ''
-  }
-
-  switch (content.type) {
-    case 'text':
-      return asString(content.text)
-    case 'reply':
-      return collectText(content.content)
-    case 'group': {
-      const items = Array.isArray(content.items) ? content.items : []
-      return items
-        .map((item) => (isRecordLike(item) ? collectText(item.content) : ''))
-        .filter(Boolean)
-        .join('\n')
-    }
-    default:
-      return ''
-  }
-}
-
-/**
- * Photon delivers attachment metadata only — bytes stay behind the platform and are fetched on
- * demand, which a webhook payload cannot do.
- */
-function collectAttachments(content: unknown): AttachmentSummary[] {
-  if (!isRecordLike(content)) {
-    return []
-  }
-
-  switch (content.type) {
-    case 'attachment':
-    case 'voice':
-      return [
-        {
-          id: asString(content.id),
-          name: asString(content.name),
-          mimeType: asString(content.mimeType),
-          size: typeof content.size === 'number' ? content.size : null,
-        },
-      ]
-    case 'reply':
-      return collectAttachments(content.content)
-    case 'group': {
-      const items = Array.isArray(content.items) ? content.items : []
-      return items.flatMap((item) => (isRecordLike(item) ? collectAttachments(item.content) : []))
-    }
-    default:
-      return []
-  }
 }
 
 /** Parse the optional comma/newline-separated sender allowlist into normalized handles. */
@@ -316,7 +253,7 @@ export const photonImessageHandler: WebhookProviderHandler = {
         input: {
           ...common,
           contentType: content.type,
-          text: collectText(content),
+          text: collectPhotonText(content),
           senderId: message.sender?.id ?? '',
         },
       }
@@ -325,11 +262,11 @@ export const photonImessageHandler: WebhookProviderHandler = {
     return {
       input: {
         ...common,
-        text: collectText(content),
+        text: collectPhotonText(content),
         contentType: content.type,
         senderId: message.sender?.id ?? '',
         platform: message.platform ?? space.platform ?? '',
-        attachments: collectAttachments(content),
+        attachments: collectPhotonAttachments(content),
       },
     }
   },
@@ -384,16 +321,34 @@ export const photonImessageHandler: WebhookProviderHandler = {
       // The URL is already registered — from an earlier deploy whose secret was lost with the
       // trigger. The secret is only returned at creation, so re-key it: delete the stale
       // registration and create a fresh one.
+      //
+      // Every step is checked. Re-registering over a stale record that is still there just earns
+      // another 409, so a failure here has to surface as the thing the operator can act on rather
+      // than as a second conflict with no explanation.
       logger.info(`[${requestId}] Photon webhook URL already registered; re-keying`)
+
       const listed = await photonWebhooksRequest(projectId, projectSecret, '')
       const existing = (Array.isArray(listed.body.data) ? listed.body.data : []).find(
         (record: PhotonWebhookRecord) => record.webhookUrl === webhookUrl
       ) as PhotonWebhookRecord | undefined
-      if (existing?.id) {
-        await photonWebhooksRequest(projectId, projectSecret, `${existing.id}/`, {
-          method: 'DELETE',
-        })
+
+      if (!existing?.id) {
+        throw new Error(
+          `Photon reports ${webhookUrl} is already registered but did not return it when listing webhooks (status ${listed.status}). Its signing secret can only be reissued by re-creating it — delete the webhook in the Photon dashboard, then deploy again.`
+        )
       }
+
+      const deleted = await photonWebhooksRequest(projectId, projectSecret, `${existing.id}/`, {
+        method: 'DELETE',
+      })
+      // A 404 means it is already gone, which is the state this branch wants.
+      if (deleted.status >= 400 && deleted.status !== 404) {
+        throw new Error(
+          `Photon could not remove the stale registration for ${webhookUrl} (status ${deleted.status}). Delete the webhook in the Photon dashboard, then deploy again.`
+        )
+      }
+
+      logger.info(`[${requestId}] Deleted stale Photon webhook ${existing.id}; re-registering`)
       response = await register()
     }
 

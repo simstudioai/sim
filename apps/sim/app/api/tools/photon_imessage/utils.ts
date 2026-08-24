@@ -22,9 +22,16 @@ import {
 } from '@spectrum-ts/core'
 import { effect, imessage } from '@spectrum-ts/imessage'
 import { LRUCache } from 'lru-cache'
+import {
+  collectPhotonAttachments,
+  collectPhotonText,
+  type PhotonAttachmentSummary,
+} from '@/lib/photon-imessage/content'
 
-// Apple effect identifiers keyed by friendly name (balloons, confetti, slam, …), exposed as a
-// static on the provider callable.
+/**
+ * Apple effect identifiers keyed by friendly name (balloons, confetti, slam, …), exposed as a
+ * static on the provider callable.
+ */
 const messageEffects = imessage.effect.message
 
 const logger = createLogger('PhotonImessageClient')
@@ -458,13 +465,6 @@ export async function createPhotonGroup(
   })
 }
 
-export interface PhotonAttachmentSummary {
-  id: string | null
-  name: string | null
-  mimeType: string | null
-  size: number | null
-}
-
 export interface PhotonMessageDetails {
   messageId: string
   chatId: string
@@ -473,59 +473,6 @@ export interface PhotonMessageDetails {
   senderId: string | null
   timestamp: string | null
   attachments: PhotonAttachmentSummary[]
-}
-
-/** Depth-first text extraction through reply/group wrappers, mirroring the webhook handler. */
-function extractText(content: unknown): string | null {
-  if (!content || typeof content !== 'object') {
-    return null
-  }
-  const node = content as Record<string, unknown>
-  if (node.type === 'text' && typeof node.text === 'string') {
-    return node.text
-  }
-  if (node.type === 'reply') {
-    return extractText(node.content)
-  }
-  if (node.type === 'group' && Array.isArray(node.items)) {
-    for (const item of node.items) {
-      const found = extractText((item as Record<string, unknown>).content ?? item)
-      if (found !== null) {
-        return found
-      }
-    }
-  }
-  return null
-}
-
-/**
- * Attachment metadata, mirroring `collectAttachments` in the webhook handler. A native voice memo
- * is a distinct content arm carrying the same id/name/mimeType, so both feed Download Attachment.
- */
-function extractAttachments(content: unknown): PhotonAttachmentSummary[] {
-  if (!content || typeof content !== 'object') {
-    return []
-  }
-  const node = content as Record<string, unknown>
-  if (node.type === 'attachment' || node.type === 'voice') {
-    return [
-      {
-        id: typeof node.id === 'string' ? node.id : null,
-        name: typeof node.name === 'string' ? node.name : null,
-        mimeType: typeof node.mimeType === 'string' ? node.mimeType : null,
-        size: typeof node.size === 'number' ? node.size : null,
-      },
-    ]
-  }
-  if (node.type === 'reply') {
-    return extractAttachments(node.content)
-  }
-  if (node.type === 'group' && Array.isArray(node.items)) {
-    return node.items.flatMap((item) =>
-      extractAttachments((item as Record<string, unknown>).content ?? item)
-    )
-  }
-  return []
 }
 
 export async function getPhotonMessage(
@@ -541,11 +488,12 @@ export async function getPhotonMessage(
     return {
       messageId: message.id,
       chatId: space.id,
-      text: extractText(message.content),
+      // `''` from the shared walker means "no text"; this surface reports that as null.
+      text: collectPhotonText(message.content) || null,
       contentType: message.content?.type ?? 'unknown',
       senderId: message.sender?.id ?? null,
       timestamp: message.timestamp?.toISOString() ?? null,
-      attachments: extractAttachments(message.content),
+      attachments: collectPhotonAttachments(message.content),
     }
   })
 }

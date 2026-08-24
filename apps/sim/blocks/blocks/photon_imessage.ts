@@ -50,6 +50,12 @@ const FILE_OPS = [
 
 const CLEARABLE_OPS = ['set_group_avatar', 'set_chat_background'] as const
 
+/**
+ * File operations with no alternative to sending bytes. The clearable ops are excluded because
+ * `imageAction: 'clear'` is a valid way to run them without a file.
+ */
+const FILE_REQUIRED_OPS = ['send_media', 'send_voice_memo'] as const
+
 const PARTICIPANT_OPS = ['add_participant', 'remove_participant'] as const
 
 const splitHandles = (value: unknown): string[] =>
@@ -386,6 +392,7 @@ export const PhotonImessageBlock: BlockConfig = {
       placeholder: 'Upload a file (max 100MB)',
       multiple: false,
       condition: { field: 'operation', value: [...FILE_OPS] },
+      required: { field: 'operation', value: [...FILE_REQUIRED_OPS] },
       mode: 'basic',
     },
     {
@@ -395,6 +402,7 @@ export const PhotonImessageBlock: BlockConfig = {
       canonicalParamId: 'file',
       placeholder: 'Reference a file from a previous block (e.g. {{block.output.file}})',
       condition: { field: 'operation', value: [...FILE_OPS] },
+      required: { field: 'operation', value: [...FILE_REQUIRED_OPS] },
       mode: 'advanced',
     },
     {
