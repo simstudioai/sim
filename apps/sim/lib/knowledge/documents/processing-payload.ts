@@ -18,6 +18,8 @@ export interface DocumentProcessingPayloadBase {
     lang?: string
   }
   requestId: string
+  /** Number of durable quota continuations already scheduled for this indexing pass. */
+  quotaRetryCount?: number
 }
 
 export interface WorkspaceDocumentProcessingBillingContext {
@@ -156,6 +158,14 @@ export function assertDocumentProcessingPayload(value: unknown): DocumentProcess
   if (!isRecordLike(value.processingOptions)) {
     throw new Error('Document processing payload is missing processing options')
   }
+  if (
+    value.quotaRetryCount !== undefined &&
+    (typeof value.quotaRetryCount !== 'number' ||
+      !Number.isSafeInteger(value.quotaRetryCount) ||
+      value.quotaRetryCount < 0)
+  ) {
+    throw new Error('Document processing quota retry count is invalid')
+  }
   const processingOptions = value.processingOptions
   if (
     (processingOptions.recipe !== undefined && typeof processingOptions.recipe !== 'string') ||
@@ -179,6 +189,7 @@ export function assertDocumentProcessingPayload(value: unknown): DocumentProcess
       ...(processingOptions.lang !== undefined ? { lang: processingOptions.lang } : {}),
     },
     requestId: value.requestId,
+    ...(value.quotaRetryCount !== undefined ? { quotaRetryCount: value.quotaRetryCount } : {}),
     ...billingContext,
   }
 }

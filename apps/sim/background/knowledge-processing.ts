@@ -1,7 +1,8 @@
 import { createLogger } from '@sim/logger'
-import { task } from '@trigger.dev/sdk'
+import { task, tasks } from '@trigger.dev/sdk'
+import { resolveTriggerRegion } from '@/lib/core/async-jobs/region'
 import { env, envNumber } from '@/lib/core/config/env'
-import { isEmbeddingQuotaExhaustion } from '@/lib/embeddings'
+import { EMBEDDING_QUOTA_EXHAUSTED_MESSAGE, isEmbeddingQuotaExhaustion } from '@/lib/embeddings'
 import { EMBEDDING_QUOTA_CIRCUIT_TTL_MS } from '@/lib/embeddings/quota-circuit'
 import { isPermanentDocumentProcessingError } from '@/lib/knowledge/documents/document-processing-error'
 import {
@@ -12,6 +13,38 @@ import {
 import { processDocumentAsync } from '@/lib/knowledge/documents/service'
 
 const logger = createLogger('TriggerKnowledgeProcessing')
+const MAX_QUOTA_CONTINUATION_DELAY_MS = 6 * 60 * 60 * 1000
+const MAX_QUOTA_BACKOFF_EXPONENT = Math.ceil(
+  Math.log2(MAX_QUOTA_CONTINUATION_DELAY_MS / EMBEDDING_QUOTA_CIRCUIT_TTL_MS)
+)
+
+/** Backs durable quota continuations off to a six-hour polling ceiling. */
+export function resolveQuotaContinuationDelayMs(quotaRetryCount: number): number {
+  const exponent = Math.min(Math.max(quotaRetryCount - 1, 0), MAX_QUOTA_BACKOFF_EXPONENT)
+  return Math.min(EMBEDDING_QUOTA_CIRCUIT_TTL_MS * 2 ** exponent, MAX_QUOTA_CONTINUATION_DELAY_MS)
+}
+
+/**
+ * Hands quota-blocked work to a new delayed run before the current run completes.
+ * A Trigger run has a finite attempt budget, so retrying the same run can still
+ * strand an upload during a prolonged outage. Chaining acknowledged runs keeps
+ * recovery durable until credit returns; a failed handoff throws and consumes the
+ * current run's ordinary infrastructure retries instead of claiming success.
+ */
+async function scheduleQuotaContinuation(payload: DocumentProcessingPayload): Promise<void> {
+  const quotaRetryCount = (payload.quotaRetryCount ?? 0) + 1
+  const delayMs = resolveQuotaContinuationDelayMs(quotaRetryCount)
+  await tasks.trigger(
+    'knowledge-process-document',
+    { ...payload, quotaRetryCount },
+    {
+      delay: new Date(Date.now() + delayMs),
+      idempotencyKey: `knowledge-quota-${payload.documentId}-${payload.requestId}-${quotaRetryCount}`,
+      tags: [`knowledgeBaseId:${payload.knowledgeBaseId}`, `documentId:${payload.documentId}`],
+      region: await resolveTriggerRegion(),
+    }
+  )
+}
 
 export async function runDocumentProcessing(
   rawPayload: DocumentProcessingPayload,
@@ -44,7 +77,9 @@ export async function runDocumentProcessing(
       processingOptions,
       billingContext,
       requestId,
-      attemptNumber === 1 ? { chargedAtDispatch: true } : undefined
+      attemptNumber === 1 && payload.quotaRetryCount === undefined
+        ? { chargedAtDispatch: true }
+        : undefined
     )
 
     logger.info(`[${requestId}] Successfully processed document: ${docData.filename}`)
@@ -57,10 +92,19 @@ export async function runDocumentProcessing(
     }
   } catch (error) {
     if (isEmbeddingQuotaExhaustion(error)) {
-      logger.warn(`[${requestId}] Embedding quota is exhausted; requesting a delayed task retry`, {
+      logger.warn(`[${requestId}] Embedding quota is exhausted; scheduling a continuation`, {
         filename: docData.filename,
+        quotaRetryCount: payload.quotaRetryCount ?? 0,
       })
-      throw error
+      await scheduleQuotaContinuation(payload)
+      return {
+        success: false,
+        outcome: 'quota_deferred' as const,
+        documentId,
+        filename: docData.filename,
+        error: EMBEDDING_QUOTA_EXHAUSTED_MESSAGE,
+        processingTime: Date.now() - startedAt,
+      }
     }
     if (isPermanentDocumentProcessingError(error)) {
       logger.warn(`[${requestId}] Document cannot be processed without changing its content`, {
@@ -80,14 +124,6 @@ export async function runDocumentProcessing(
     logger.error(`[${requestId}] Failed to process document: ${docData.filename}`, error)
     throw error
   }
-}
-
-export function documentProcessingRetryOverride(
-  error: unknown,
-  now = Date.now()
-): { retryAt: Date } | undefined {
-  if (!isEmbeddingQuotaExhaustion(error)) return
-  return { retryAt: new Date(now + EMBEDDING_QUOTA_CIRCUIT_TTL_MS) }
 }
 
 export const processDocument = task({
@@ -114,7 +150,6 @@ export const processDocument = task({
     concurrencyLimit: envNumber(env.KB_CONFIG_CONCURRENCY_LIMIT, 20),
     name: 'document-processing-queue',
   },
-  catchError: ({ error }: { error: unknown }) => documentProcessingRetryOverride(error),
   run: (payload: DocumentProcessingPayload, { ctx }) =>
     runDocumentProcessing(payload, ctx.attempt.number),
 })

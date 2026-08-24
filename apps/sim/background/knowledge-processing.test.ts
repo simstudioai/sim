@@ -3,15 +3,22 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockAssertBillingAttributionSnapshot, mockProcessDocumentAsync, mockTask } = vi.hoisted(
-  () => ({
-    mockAssertBillingAttributionSnapshot: vi.fn(),
-    mockProcessDocumentAsync: vi.fn(),
-    mockTask: vi.fn((config) => config),
-  })
-)
+const {
+  mockAssertBillingAttributionSnapshot,
+  mockProcessDocumentAsync,
+  mockResolveTriggerRegion,
+  mockTask,
+  mockTrigger,
+} = vi.hoisted(() => ({
+  mockAssertBillingAttributionSnapshot: vi.fn(),
+  mockProcessDocumentAsync: vi.fn(),
+  mockResolveTriggerRegion: vi.fn(),
+  mockTask: vi.fn((config) => config),
+  mockTrigger: vi.fn(),
+}))
 
-vi.mock('@trigger.dev/sdk', () => ({ task: mockTask }))
+vi.mock('@trigger.dev/sdk', () => ({ task: mockTask, tasks: { trigger: mockTrigger } }))
+vi.mock('@/lib/core/async-jobs/region', () => ({ resolveTriggerRegion: mockResolveTriggerRegion }))
 vi.mock('@/lib/billing/core/billing-attribution', () => ({
   assertBillingAttributionSnapshot: mockAssertBillingAttributionSnapshot,
 }))
@@ -23,7 +30,7 @@ import { EmbeddingQuotaExhaustedError } from '@/lib/embeddings/client'
 import { EMBEDDING_QUOTA_CIRCUIT_TTL_MS } from '@/lib/embeddings/quota-circuit'
 import { PermanentDocumentProcessingError } from '@/lib/knowledge/documents/document-processing-error'
 import {
-  documentProcessingRetryOverride,
+  resolveQuotaContinuationDelayMs,
   runDocumentProcessing,
 } from '@/background/knowledge-processing'
 
@@ -71,6 +78,8 @@ describe('knowledge processing worker', () => {
       return value
     })
     mockProcessDocumentAsync.mockResolvedValue(undefined)
+    mockResolveTriggerRegion.mockResolvedValue('us-east-1')
+    mockTrigger.mockResolvedValue({ id: 'quota-continuation-run' })
   })
 
   it('rejects workspace work without attribution before document processing starts', async () => {
@@ -82,6 +91,16 @@ describe('knowledge processing worker', () => {
         workspaceId: 'workspace-1',
       })
     ).rejects.toThrow('Workspace document processing requires a billing attribution snapshot')
+    expect(mockProcessDocumentAsync).not.toHaveBeenCalled()
+  })
+
+  it('rejects an invalid durable quota retry count before processing starts', async () => {
+    await expect(
+      runDocumentProcessing({
+        ...WORKSPACE_PAYLOAD,
+        quotaRetryCount: -1,
+      })
+    ).rejects.toThrow('Document processing quota retry count is invalid')
     expect(mockProcessDocumentAsync).not.toHaveBeenCalled()
   })
 
@@ -197,7 +216,8 @@ describe('knowledge processing worker', () => {
     ).rejects.toBe(transientError)
   })
 
-  it('rethrows quota exhaustion so Trigger.dev can delay the retry', async () => {
+  it('durably continues quota exhaustion beyond the task attempt budget', async () => {
+    vi.spyOn(Date, 'now').mockReturnValue(1_000)
     const quotaError = new EmbeddingQuotaExhaustedError('openai')
     mockProcessDocumentAsync.mockRejectedValue(quotaError)
 
@@ -208,7 +228,56 @@ describe('knowledge processing worker', () => {
         actorUserId: 'legacy-owner',
         workspaceId: null,
       })
-    ).rejects.toBe(quotaError)
+    ).resolves.toMatchObject({ success: false, outcome: 'quota_deferred' })
+
+    expect(mockTrigger).toHaveBeenCalledWith(
+      'knowledge-process-document',
+      expect.objectContaining({
+        documentId: 'document-1',
+        requestId: 'request-1',
+        quotaRetryCount: 1,
+      }),
+      expect.objectContaining({
+        delay: new Date(1_000 + EMBEDDING_QUOTA_CIRCUIT_TTL_MS),
+        idempotencyKey: 'knowledge-quota-document-1-request-1-1',
+        region: 'us-east-1',
+      })
+    )
+  })
+
+  it('keeps the task failed when the durable continuation handoff fails', async () => {
+    mockProcessDocumentAsync.mockRejectedValue(new EmbeddingQuotaExhaustedError('openai'))
+    const dispatchError = new Error('Trigger dispatch unavailable')
+    mockTrigger.mockRejectedValue(dispatchError)
+
+    await expect(
+      runDocumentProcessing({
+        ...BASE_PAYLOAD,
+        billingScope: 'non-workspace',
+        actorUserId: 'legacy-owner',
+        workspaceId: null,
+      })
+    ).rejects.toBe(dispatchError)
+  })
+
+  it('continues an existing quota chain with the same indexing pass identity', async () => {
+    mockProcessDocumentAsync.mockRejectedValue(new EmbeddingQuotaExhaustedError('openai'))
+
+    await runDocumentProcessing({
+      ...BASE_PAYLOAD,
+      quotaRetryCount: 3,
+      billingScope: 'non-workspace',
+      actorUserId: 'legacy-owner',
+      workspaceId: null,
+    })
+
+    expect(mockTrigger).toHaveBeenCalledWith(
+      'knowledge-process-document',
+      expect.objectContaining({ requestId: 'request-1', quotaRetryCount: 4 }),
+      expect.objectContaining({
+        idempotencyKey: 'knowledge-quota-document-1-request-1-4',
+      })
+    )
   })
 
   it('does not refund the original dispatch charge again on a task retry', async () => {
@@ -236,6 +305,26 @@ describe('knowledge processing worker', () => {
       undefined
     )
   })
+
+  it('does not refund an original dispatch charge from a quota continuation run', async () => {
+    await runDocumentProcessing({
+      ...BASE_PAYLOAD,
+      quotaRetryCount: 3,
+      billingScope: 'non-workspace',
+      actorUserId: 'legacy-owner',
+      workspaceId: null,
+    })
+
+    expect(mockProcessDocumentAsync).toHaveBeenLastCalledWith(
+      'knowledge-base-1',
+      'document-1',
+      BASE_PAYLOAD.docData,
+      {},
+      expect.objectContaining({ billingScope: 'non-workspace' }),
+      BASE_PAYLOAD.requestId,
+      undefined
+    )
+  })
 })
 
 describe('knowledge-process-document task configuration', () => {
@@ -251,12 +340,9 @@ describe('knowledge-process-document task configuration', () => {
     expect(processDocument.retry?.outOfMemory?.machine).toBe('large-2x')
   })
 
-  it('delays quota retries until the shared provider circuit can close', () => {
-    const now = Date.parse('2026-08-24T12:00:00.000Z')
-
-    expect(
-      documentProcessingRetryOverride(new EmbeddingQuotaExhaustedError('openai'), now)
-    ).toEqual({ retryAt: new Date(now + EMBEDDING_QUOTA_CIRCUIT_TTL_MS) })
-    expect(documentProcessingRetryOverride(new Error('transient'), now)).toBeUndefined()
+  it('backs durable quota continuations off to a bounded polling interval', () => {
+    expect(resolveQuotaContinuationDelayMs(1)).toBe(EMBEDDING_QUOTA_CIRCUIT_TTL_MS)
+    expect(resolveQuotaContinuationDelayMs(2)).toBe(EMBEDDING_QUOTA_CIRCUIT_TTL_MS * 2)
+    expect(resolveQuotaContinuationDelayMs(Number.MAX_SAFE_INTEGER)).toBe(6 * 60 * 60 * 1000)
   })
 })
