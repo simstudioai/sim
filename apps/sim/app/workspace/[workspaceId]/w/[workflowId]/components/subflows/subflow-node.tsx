@@ -75,7 +75,6 @@ export const SubflowNodeComponent = memo(({ data, id, selected }: NodeProps<Subf
       isLocked={isLocked}
       isFocused={isFocused}
       isRunning={isRunning}
-      isWorkflowRunning={isWorkflowRunning}
       isExecutionHighlighted={isExecutionHighlighted}
       diffStatus={diffStatus}
       nestingLevel={nestingLevel}
