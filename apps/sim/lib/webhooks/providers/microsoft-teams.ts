@@ -3,7 +3,7 @@ import { account } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { safeCompare } from '@sim/security/compare'
 import { hmacSha256Base64 } from '@sim/security/hmac'
-import { toError } from '@sim/utils/errors'
+import { getErrorMessage, toError } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
@@ -733,9 +733,7 @@ export const microsoftTeamsHandler: WebhookProviderHandler = {
         error
       )
       throw new Error(
-        error instanceof Error
-          ? error.message
-          : 'Failed to create Teams subscription. Please try again.'
+        getErrorMessage(error, 'Failed to create Teams subscription. Please try again.')
       )
     }
   },
