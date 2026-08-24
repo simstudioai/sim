@@ -72,13 +72,46 @@ const ENTRY_FILENAMES = new Set([
   'error.tsx',
   'loading.tsx',
   'not-found.tsx',
+  'template.tsx',
+  'default.tsx',
 ])
+
+/**
+ * A default export, which every convention-composed entry must have — Next
+ * renders the default and nothing else.
+ *
+ * The filename alone is not enough. `[workspaceId]/components/error/error.tsx`
+ * is named like a boundary and is not one: it exports `ErrorShell` and
+ * `ErrorState` for the thirteen real boundaries to use, and Next would reject
+ * it as a boundary for having no default. Counting it as an entry both inflated
+ * the coverage number and would have recorded a shared component in the
+ * graph-weight baseline as though it were a route.
+ *
+ * All four declaring forms count — `export default …`, `export { default } from`,
+ * `export { default, … } from`, and `export { X as default }`. `export { default
+ * as X }` does not: it re-exports someone else's default under a name and leaves
+ * the module without one. Missing a form is the dangerous direction, since the
+ * entry would drop out of the walk and skip both the registry gate and the
+ * graph-weight ratchet silently.
+ */
+const DEFAULT_EXPORT_RE =
+  /(?:^|\n)\s*export\s+default\b|(?:^|\n)\s*export\s*\{[^}]*(?:\bas\s+default\b|\bdefault\s*[,}])/
+
+function hasDefaultExport(file: string): boolean {
+  try {
+    return DEFAULT_EXPORT_RE.test(readFileSync(file, 'utf8'))
+  } catch {
+    return false
+  }
+}
 
 function collectEntries(dir: string, found: string[] = []): string[] {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     const full = join(dir, entry.name)
     if (entry.isDirectory()) collectEntries(full, found)
-    else if (ENTRY_FILENAMES.has(entry.name)) found.push(relative(APP, full))
+    else if (ENTRY_FILENAMES.has(entry.name) && hasDefaultExport(full)) {
+      found.push(relative(APP, full))
+    }
   }
   return found
 }
