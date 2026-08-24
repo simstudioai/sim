@@ -7,6 +7,7 @@ import { toError } from '@sim/utils/errors'
 import { useIsMutating } from '@tanstack/react-query'
 import { isValidationError } from '@/lib/api/client/errors'
 import type { ColumnDefinition, SelectOption } from '@/lib/table'
+import { getColumnId } from '@/lib/table/column-keys'
 import { getCurrencyOptions, resolveCurrencyCode } from '@/lib/table/currency'
 import {
   FieldError,
@@ -63,6 +64,11 @@ interface ColumnConfigSidebarProps {
    * or the create failed, and the owner has already surfaced why.
    */
   onDraftSave: (options: SelectOption[], multiple: boolean) => Promise<boolean>
+  onColumnTypeChange: (
+    columnName: string,
+    previousColumn: ColumnDefinition,
+    newColumn: ColumnDefinition
+  ) => void
   /** Existing column record for modes that carry a `columnName`; otherwise null. */
   existingColumn: ColumnDefinition | null
   workspaceId: string
@@ -108,6 +114,7 @@ function ColumnConfigBody({
   config,
   onClose,
   onDraftSave,
+  onColumnTypeChange,
   existingColumn,
   workspaceId,
   tableId,
@@ -115,8 +122,6 @@ function ColumnConfigBody({
   const updateColumn = useUpdateColumn({ workspaceId, tableId })
   const draftSaving = useIsMutating({ mutationKey: tableKeys.columnWrites(tableId) }) > 0
 
-  // draft-select and convert-select always edit an option set; configure
-  // shows whichever configuration the column's type carries.
   const isSelectTarget = config.mode !== 'configure' || existingColumn?.type === 'select'
   const isCurrencyTarget = config.mode === 'configure' && existingColumn?.type === 'currency'
 
@@ -148,7 +153,6 @@ function ColumnConfigBody({
       setOptionsError(optionsIssue)
       return
     }
-
     if (config.mode === 'draft-select') {
       // The draft's owner persists name + options together and reports back;
       // the parent closes the sidebar on success, so nothing to do here.
@@ -160,7 +164,7 @@ function ColumnConfigBody({
 
     try {
       if (config.mode === 'convert-select') {
-        await updateColumn.mutateAsync({
+        const result = await updateColumn.mutateAsync({
           columnName: config.columnName,
           updates: {
             type: 'select',
@@ -172,6 +176,18 @@ function ColumnConfigBody({
             ...(existingColumn?.unique ? { unique: false } : {}),
           },
         })
+        if (existingColumn) {
+          const updatedColumn = result.data.columns.find(
+            (candidate) => getColumnId(candidate) === config.columnName
+          ) ?? {
+            ...existingColumn,
+            type: 'select',
+            options: trimmedOptions,
+            unique: false,
+            ...(multipleInput ? { multiple: true } : {}),
+          }
+          onColumnTypeChange(config.columnName, existingColumn, updatedColumn)
+        }
         toast.success(`Saved "${columnLabel}"`)
         onClose()
         return
@@ -220,6 +236,7 @@ function ColumnConfigBody({
           variant='ghost'
           size='sm'
           onClick={onClose}
+          disabled={saveDisabled}
           className='!p-1 size-7'
           aria-label='Close'
         >
@@ -270,7 +287,7 @@ function ColumnConfigBody({
       </div>
 
       <div className='flex items-center justify-end gap-2 border-[var(--border)] border-t px-2 py-3'>
-        <Button variant='default' size='sm' onClick={onClose}>
+        <Button variant='default' size='sm' onClick={onClose} disabled={saveDisabled}>
           Cancel
         </Button>
         <Button variant='primary' size='sm' onClick={handleSave} disabled={saveDisabled}>

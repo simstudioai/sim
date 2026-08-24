@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef } from 'react'
 import { toast } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
+import { getColumnId } from '@/lib/table/column-keys'
+import { typeMetadataOf } from '@/lib/table/column-types'
 import { TABLE_LIMITS } from '@/lib/table/constants'
 import {
   TABLE_LOCK_FLAGS,
@@ -333,9 +335,7 @@ export function useTableUndo({
           }
 
           case 'create-column': {
-            // Identity (delete lookup + id-keyed metadata) uses the stable id;
-            // re-create uses the display name.
-            const colKey = action.columnId ?? action.columnName
+            const colKey = getColumnId(action.column)
             if (direction === 'undo') {
               deleteColumnMutation.mutate(colKey, {
                 onSuccess: () => {
@@ -363,9 +363,14 @@ export function useTableUndo({
               })
             } else {
               addColumnMutation.mutate({
-                ...(action.columnId ? { id: action.columnId } : {}),
-                name: action.columnName,
-                type: 'string',
+                ...(action.column.id ? { id: action.column.id } : {}),
+                name: action.column.name,
+                type: action.column.type,
+                ...(action.column.required !== undefined
+                  ? { required: action.column.required }
+                  : {}),
+                ...(action.column.unique !== undefined ? { unique: action.column.unique } : {}),
+                ...typeMetadataOf(action.column),
                 position: action.position,
               })
             }
@@ -504,10 +509,15 @@ export function useTableUndo({
           }
 
           case 'update-column-type': {
-            const type = direction === 'undo' ? action.previousType : action.newType
+            const column = direction === 'undo' ? action.previousColumn : action.newColumn
             updateColumnMutation.mutate({
               columnName: action.columnName,
-              updates: { type },
+              updates: {
+                type: column.type,
+                ...(column.required !== undefined ? { required: column.required } : {}),
+                ...(column.unique !== undefined ? { unique: column.unique } : {}),
+                ...typeMetadataOf(column),
+              },
             })
             break
           }

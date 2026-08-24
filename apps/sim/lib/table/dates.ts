@@ -304,7 +304,6 @@ export function formatDateCellDisplay(
   return formatCanonicalDateCell(canonical, options) ?? stored
 }
 
-/** Renders a value already in one of the canonical stored shapes, or `null` when it is not. */
 function formatCanonicalDateCell(
   stored: string,
   options?: FormatDateCellDisplayOptions

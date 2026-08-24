@@ -3,7 +3,7 @@
 import React, { useEffect, useRef } from 'react'
 import { cn } from '@sim/emcn'
 import type { ColumnDefinition } from '@/lib/table'
-import { ColumnTypeIcon } from './column-type-icon'
+import { ColumnTypeIcon } from '@/app/workspace/[workspaceId]/tables/[tableId]/components/table-grid/headers/column-type-icon'
 
 interface DraftColumnHeaderProps {
   type: ColumnDefinition['type']
@@ -11,9 +11,7 @@ interface DraftColumnHeaderProps {
   /** True after a refused commit — paints the name red until it's edited. */
   invalid: boolean
   onNameChange: (name: string) => void
-  /** Enter or blur. The grid decides whether this persists the column. */
   onCommit: () => void
-  /** Escape. Discards the draft — nothing was ever persisted. */
   onCancel: () => void
 }
 

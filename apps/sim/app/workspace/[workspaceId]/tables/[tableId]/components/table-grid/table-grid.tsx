@@ -310,6 +310,14 @@ interface TableGridProps {
     ((options: SelectOption[], multiple: boolean) => Promise<boolean>) | null
   >
   /**
+   * Ref the grid populates with the sidebar's successful type-conversion undo
+   * recorder, keeping the undo stack owned by the grid.
+   */
+  recordColumnTypeChangeSinkRef: React.MutableRefObject<
+    | ((columnName: string, previousColumn: ColumnDefinition, newColumn: ColumnDefinition) => void)
+    | null
+  >
+  /**
    * Ref the grid populates with its draft discard. The wrapper fires it from
    * every slideout transition other than entering `draft-select`, so
    * dismissing the options sidebar (or replacing it with another panel) also
@@ -501,6 +509,7 @@ export function TableGrid({
   columnRenameSinkRef,
   addColumnOfTypeSinkRef,
   draftSelectSaveSinkRef,
+  recordColumnTypeChangeSinkRef,
   abortColumnDraftSinkRef,
   layoutSnapshotSinkRef,
   afterDeleteRowsSinkRef,
@@ -1540,7 +1549,6 @@ export function TableGrid({
   const handleFindCloseRef = useRef(handleFindClose)
   handleFindCloseRef.current = handleFindClose
 
-  /** True after a refused rename — paints the header input red until it's edited. */
   const [renameError, setRenameError] = useState(false)
 
   const columnRename = useInlineRename({
@@ -3946,9 +3954,13 @@ export function TableGrid({
         { name, type: 'string', position: index },
         {
           onSuccess: (result) => {
-            const newId = result.data.columns.find((c) => c.name === name)?.id ?? name
+            const createdColumn = result.data.columns.find((c) => c.name === name) ?? {
+              name,
+              type: 'string' as const,
+            }
+            const newId = getColumnId(createdColumn)
             pushUndoRef.current(
-              { type: 'create-column', columnName: name, columnId: newId, position: index },
+              { type: 'create-column', column: createdColumn, position: index },
               owner
             )
             // Skipped after a mid-flight view switch: the destination re-seeded
@@ -3973,11 +3985,12 @@ export function TableGrid({
         { name, type: 'string', position },
         {
           onSuccess: (result) => {
-            const newId = result.data.columns.find((c) => c.name === name)?.id ?? name
-            pushUndoRef.current(
-              { type: 'create-column', columnName: name, columnId: newId, position },
-              owner
-            )
+            const createdColumn = result.data.columns.find((c) => c.name === name) ?? {
+              name,
+              type: 'string' as const,
+            }
+            const newId = getColumnId(createdColumn)
+            pushUndoRef.current({ type: 'create-column', column: createdColumn, position }, owner)
             if (owner === viewLayoutKeyRef.current) insertColumnInOrder(columnId, newId, 'right')
           },
         }
@@ -4042,11 +4055,12 @@ export function TableGrid({
       draftPersistingRef.current = true
       try {
         const result = await addColumnMutation.mutateAsync({ name, type: draft.type, ...metadata })
-        const newId = result.data.columns.find((c) => c.name === name)?.id ?? name
-        pushUndoRef.current(
-          { type: 'create-column', columnName: name, columnId: newId, position },
-          owner
-        )
+        const createdColumn = result.data.columns.find((c) => c.name === name) ?? {
+          name,
+          type: draft.type,
+          ...metadata,
+        }
+        pushUndoRef.current({ type: 'create-column', column: createdColumn, position }, owner)
         setColumnDraft(null)
         return true
       } catch (err) {
@@ -4089,19 +4103,25 @@ export function TableGrid({
     persistDraft({ options, ...(multiple ? { multiple: true } : {}) })
   abortColumnDraftSinkRef.current = () => setColumnDraft(null)
 
-  /** Toggle the `unique` constraint on a plain column, recording the flip for undo. */
+  /** Toggle the `unique` constraint on a plain column, recording successful flips for undo. */
   const handleToggleUnique = useCallback((columnKey: string) => {
     const column = columnsRef.current.find((c) => c.key === columnKey)
     if (!column) return
     const previousValue = !!column.unique
-    pushUndoRef.current({
-      type: 'toggle-column-constraint',
-      columnName: columnKey,
-      constraint: 'unique',
-      previousValue,
-      newValue: !previousValue,
-    })
-    updateColumnMutation.mutate({ columnName: columnKey, updates: { unique: !previousValue } })
+    updateColumnMutation.mutate(
+      { columnName: columnKey, updates: { unique: !previousValue } },
+      {
+        onSuccess: () => {
+          pushUndoRef.current({
+            type: 'toggle-column-constraint',
+            columnName: columnKey,
+            constraint: 'unique',
+            previousValue,
+            newValue: !previousValue,
+          })
+        },
+      }
+    )
   }, [])
 
   /** Open the workflow-config sidebar to spawn a brand-new workflow group. */
@@ -4128,7 +4148,6 @@ export function TableGrid({
     [onOpenWorkflowConfig, workflowGroupById]
   )
 
-  /** Starts the inline header rename from the menu's "Rename column" item. */
   const handleRenameColumn = useCallback(
     (columnName: string) => {
       const column = columnsRef.current.find((c) => c.key === columnName)
@@ -4150,21 +4169,40 @@ export function TableGrid({
         onOpenColumnConfig({ mode: 'convert-select', columnName })
         return
       }
-      const previousType = column.type
       // Recorded on success only: the server refuses a retype whose existing
       // values can't convert (the hook toasts why), and an entry for a change
       // that never landed would make undo "restore" the type it already has.
       updateColumnMutation.mutate(
         { columnName, updates: { type: newType } },
         {
-          onSuccess: () => {
-            pushUndoRef.current({ type: 'update-column-type', columnName, previousType, newType })
+          onSuccess: (result) => {
+            const updatedColumn = result.data.columns.find(
+              (candidate) => getColumnId(candidate) === columnName
+            ) ?? {
+              ...column,
+              type: newType,
+            }
+            pushUndoRef.current({
+              type: 'update-column-type',
+              columnName,
+              previousColumn: column,
+              newColumn: updatedColumn,
+            })
           },
         }
       )
     },
     [onOpenColumnConfig]
   )
+
+  recordColumnTypeChangeSinkRef.current = (columnName, previousColumn, newColumn) => {
+    pushUndoRef.current({
+      type: 'update-column-type',
+      columnName,
+      previousColumn,
+      newColumn,
+    })
+  }
 
   /** Opens the config sidebar for a select's options / a currency's code. */
   const handleOpenConfigure = useCallback(
@@ -4192,12 +4230,6 @@ export function TableGrid({
     deleteWorkflowGroupRef.current({ groupId })
   }, [])
 
-  /**
-   * Computes the names slated for deletion given a click on `columnName` and
-   * the current column selection. If the click landed inside a multi-column
-   * selection, the entire selection is the target; otherwise it's just the
-   * clicked column.
-   */
   const resolveDeletionNames = useCallback((columnName: string): string[] => {
     const cols = columnsRef.current
     if (isColumnSelectionRef.current && selectionAnchorRef.current) {

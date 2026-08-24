@@ -231,6 +231,7 @@ export function Table({
   const { otherUsers: presenceUsers, remoteSelections, emitCellSelection } = useTableRoom(tableId)
 
   const [slideout, dispatchSlideout] = useReducer(slideoutReducer, { kind: 'none' })
+  const draftSelectSavingRef = useRef(false)
   /**
    * Sink the grid populates with its column-draft discard. A select draft
    * exists only while its options sidebar is open, so every slideout
@@ -240,6 +241,7 @@ export function Table({
    */
   const abortColumnDraftSinkRef = useRef<(() => void) | null>(null)
   const dispatch = useCallback((action: SlideoutAction) => {
+    if (draftSelectSavingRef.current) return
     dispatchSlideout(action)
     if (action.type !== 'OPEN_COLUMN' || action.config.mode !== 'draft-select') {
       abortColumnDraftSinkRef.current?.()
@@ -367,9 +369,28 @@ export function Table({
     ((options: SelectOption[], multiple: boolean) => Promise<boolean>) | null
   >(null)
   const onDraftSelectSave = async (options: SelectOption[], multiple: boolean) => {
-    const created = (await draftSelectSaveSinkRef.current?.(options, multiple)) ?? false
-    if (created) dispatch({ type: 'CLOSE' })
-    return created
+    if (draftSelectSavingRef.current) return false
+    draftSelectSavingRef.current = true
+    let created = false
+    try {
+      created = (await draftSelectSaveSinkRef.current?.(options, multiple)) ?? false
+      return created
+    } finally {
+      draftSelectSavingRef.current = false
+      if (created) dispatch({ type: 'CLOSE' })
+    }
+  }
+
+  const recordColumnTypeChangeSinkRef = useRef<
+    | ((columnName: string, previousColumn: ColumnDefinition, newColumn: ColumnDefinition) => void)
+    | null
+  >(null)
+  const onColumnTypeChange = (
+    columnName: string,
+    previousColumn: ColumnDefinition,
+    newColumn: ColumnDefinition
+  ) => {
+    recordColumnTypeChangeSinkRef.current?.(columnName, previousColumn, newColumn)
   }
 
   /**
@@ -1644,6 +1665,7 @@ export function Table({
         columnRenameSinkRef={columnRenameSinkRef}
         addColumnOfTypeSinkRef={addColumnOfTypeSinkRef}
         draftSelectSaveSinkRef={draftSelectSaveSinkRef}
+        recordColumnTypeChangeSinkRef={recordColumnTypeChangeSinkRef}
         abortColumnDraftSinkRef={abortColumnDraftSinkRef}
         layoutSnapshotSinkRef={layoutSnapshotRef}
         afterDeleteRowsSinkRef={afterDeleteRowsSinkRef}
@@ -1718,6 +1740,7 @@ export function Table({
         config={columnConfig}
         onClose={onCloseSlideout}
         onDraftSave={onDraftSelectSave}
+        onColumnTypeChange={onColumnTypeChange}
         existingColumn={
           columnConfig && columnConfig.mode !== 'draft-select'
             ? (columns.find((c) => getColumnId(c) === columnConfig.columnName) ?? null)

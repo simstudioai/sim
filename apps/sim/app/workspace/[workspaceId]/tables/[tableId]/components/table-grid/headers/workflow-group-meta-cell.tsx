@@ -77,7 +77,6 @@ interface ColumnOptionsMenuProps {
    *  config surface behind it (the workflow sidebar); plain columns edit
    *  name/type/unique from this menu directly and omit it. */
   onOpenConfig?: (columnName: string) => void
-  /** Starts the inline header rename. Plain and enrichment columns only. */
   onRenameColumn?: (columnName: string) => void
   /** Converts the column to `type`. Callers route `select` conversions through
    *  the config sidebar (the option set must be collected first). */

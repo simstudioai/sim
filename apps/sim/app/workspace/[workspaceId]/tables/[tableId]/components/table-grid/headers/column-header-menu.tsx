@@ -19,7 +19,6 @@ interface ColumnHeaderMenuProps {
   isRenaming: boolean
   isColumnSelected: boolean
   renameValue: string
-  /** True after a refused rename — paints the name red until it's edited. */
   renameError?: boolean
   onRenameValueChange: (value: string) => void
   onRenameSubmit: () => void

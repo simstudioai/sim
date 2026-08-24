@@ -44,9 +44,7 @@ export type TableUndoAction =
       }>
     }
   | { type: 'delete-rows'; rows: DeletedRowSnapshot[] }
-  // `columnName` is the display name (for re-create); `columnId` is the stable
-  // storage key used for the delete/update lookup and id-keyed metadata cleanup.
-  | { type: 'create-column'; columnName: string; columnId?: string; position: number }
+  | { type: 'create-column'; column: ColumnDefinition; position: number }
   | {
       type: 'delete-column'
       columnName: string
@@ -73,8 +71,8 @@ export type TableUndoAction =
   | {
       type: 'update-column-type'
       columnName: string
-      previousType: ColumnDefinition['type']
-      newType: ColumnDefinition['type']
+      previousColumn: ColumnDefinition
+      newColumn: ColumnDefinition
     }
   | {
       type: 'toggle-column-constraint'

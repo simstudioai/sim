@@ -647,7 +647,7 @@ export function useAddTableColumn({ workspaceId, tableId }: RowMutationContext) 
       toast.error(error.message, { duration: 5000 })
     },
     onSettled: () => {
-      invalidateTableSchemaOnly(queryClient, tableId)
+      queryClient.invalidateQueries({ queryKey: tableKeys.lists() })
     },
   })
 }

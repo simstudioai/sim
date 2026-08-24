@@ -272,3 +272,85 @@ describe('useTableUndo – restoring a deleted select column', () => {
     expect(payload.id).toBe('col_status')
   })
 })
+
+describe('useTableUndo – typed column replay', () => {
+  it('recreates a typed column with its type metadata on redo', async () => {
+    mockPopRedo.mockReturnValueOnce(
+      makeEntry({
+        type: 'create-column',
+        column: {
+          id: 'col_status',
+          name: 'status',
+          type: 'select',
+          options: [{ id: 'opt_open', name: 'Open' }],
+          multiple: true,
+        },
+        position: 2,
+      })
+    )
+
+    const { redo } = TestHook()
+    ;(redo as () => void)()
+    await flush()
+
+    expect(mockMutate.mock.calls[0][0]).toEqual({
+      id: 'col_status',
+      name: 'status',
+      type: 'select',
+      options: [{ id: 'opt_open', name: 'Open' }],
+      multiple: true,
+      position: 2,
+    })
+  })
+
+  const typeChangeAction: TableUndoAction = {
+    type: 'update-column-type',
+    columnName: 'col_value',
+    previousColumn: {
+      id: 'col_value',
+      name: 'value',
+      type: 'currency',
+      unique: true,
+      currencyCode: 'EUR',
+    },
+    newColumn: {
+      id: 'col_value',
+      name: 'value',
+      type: 'select',
+      unique: false,
+      options: [{ id: 'opt_high', name: 'High' }],
+      multiple: true,
+    },
+  }
+
+  it('restores the previous type, constraints, and metadata on undo', async () => {
+    mockPopUndo.mockReturnValueOnce(makeEntry(typeChangeAction))
+
+    const { undo } = TestHook()
+    ;(undo as () => void)()
+    await flush()
+
+    expect(mockMutate.mock.calls[0][0]).toEqual({
+      columnName: 'col_value',
+      updates: { type: 'currency', unique: true, currencyCode: 'EUR' },
+    })
+  })
+
+  it('restores the new type, constraints, and metadata on redo', async () => {
+    mockPopRedo.mockReturnValueOnce(makeEntry(typeChangeAction))
+
+    const { redo } = TestHook()
+    ;(redo as () => void)()
+    await flush()
+
+    expect(mockMutate.mock.calls[0][0]).toEqual({
+      columnName: 'col_value',
+      updates: {
+        type: 'select',
+        unique: false,
+        options: [{ id: 'opt_high', name: 'High' }],
+        multiple: true,
+      },
+    })
+  })
+})
