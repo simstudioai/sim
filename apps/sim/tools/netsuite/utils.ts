@@ -451,6 +451,7 @@ async function readSuiteTalkBody(
     maxBytes: response.ok ? MAX_INLINE_MATERIALIZATION_BYTES : DEFAULT_MAX_ERROR_BODY_BYTES,
     label: response.ok ? 'NetSuite response' : 'NetSuite error response',
     signal,
+    allowNoBodyFallback: response.status === 202,
   })
   if (!text.trim()) return null
   try {

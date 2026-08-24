@@ -109,6 +109,13 @@ describe('shouldReconcileDeletions', () => {
       shouldReconcileDeletions(false, { listingCapped: true, listingTruncated: true }, true)
     ).toBe(false)
   })
+
+  it('never runs when provider pagination is non-authoritative', async () => {
+    const { shouldReconcileDeletions } = await import('@/lib/knowledge/connectors/sync-engine')
+
+    expect(shouldReconcileDeletions(false, { reconciliationUnsafe: true }, undefined)).toBe(false)
+    expect(shouldReconcileDeletions(false, { reconciliationUnsafe: true }, true)).toBe(false)
+  })
 })
 
 describe('shouldRunIncrementalSync', () => {
@@ -520,7 +527,8 @@ describe('chunkOpsByByteBudget', () => {
     extDoc: {
       externalId: `e-${generateShortId()}`,
       title: 'f',
-      content: 'x',
+      content: sizeBytes == null ? 'x' : '',
+      contentDeferred: sizeBytes != null,
       contentHash: 'h',
       mimeType: 'text/plain',
       ...(sizeBytes != null ? { metadata: { fileSize: sizeBytes } } : {}),
@@ -570,6 +578,42 @@ describe('chunkOpsByByteBudget', () => {
       5
     )
     expect(chunks).toHaveLength(1)
+  })
+})
+
+describe('connector sync working-set bounds', () => {
+  it('reserves one sentinel row beyond the remaining corpus budget', async () => {
+    const {
+      CONNECTOR_SYNC_MAX_CORPUS_DOCUMENTS,
+      sourcePageFitsSyncWorkingSet,
+      syncWorkingSetQueryLimit,
+    } = await import('@/lib/knowledge/connectors/sync-engine')
+
+    expect(syncWorkingSetQueryLimit(0)).toBe(CONNECTOR_SYNC_MAX_CORPUS_DOCUMENTS + 1)
+    expect(syncWorkingSetQueryLimit(CONNECTOR_SYNC_MAX_CORPUS_DOCUMENTS - 25)).toBe(26)
+    expect(syncWorkingSetQueryLimit(CONNECTOR_SYNC_MAX_CORPUS_DOCUMENTS)).toBe(1)
+    expect(sourcePageFitsSyncWorkingSet(CONNECTOR_SYNC_MAX_CORPUS_DOCUMENTS - 1, 1)).toBe(true)
+    expect(sourcePageFitsSyncWorkingSet(CONNECTOR_SYNC_MAX_CORPUS_DOCUMENTS, 1)).toBe(false)
+  })
+
+  it('counts retained source payload in UTF-8 bytes', async () => {
+    const { addSourcePagePayloadBytes, CONNECTOR_SYNC_MAX_SOURCE_PAYLOAD_BYTES } = await import(
+      '@/lib/knowledge/connectors/sync-engine'
+    )
+    const document = {
+      externalId: '',
+      title: '',
+      content: 'é',
+      mimeType: 'text/plain',
+      metadata: {},
+    }
+
+    expect(addSourcePagePayloadBytes(CONNECTOR_SYNC_MAX_SOURCE_PAYLOAD_BYTES - 4, [document])).toBe(
+      CONNECTOR_SYNC_MAX_SOURCE_PAYLOAD_BYTES
+    )
+    expect(() =>
+      addSourcePagePayloadBytes(CONNECTOR_SYNC_MAX_SOURCE_PAYLOAD_BYTES - 3, [document])
+    ).toThrow('retained-payload limit')
   })
 })
 
@@ -728,6 +772,56 @@ describe('mergeHydratedDocument', () => {
 
     expect(merged.title).toBe('Report.pdf')
     expect(merged.sourceUrl).toBe('https://example.com/a')
+  })
+})
+
+describe('requireHydratedListedDocument', () => {
+  it('turns ambiguous null hydration into a sync failure instead of a silent drop', async () => {
+    const { requireHydratedListedDocument } = await import('@/lib/knowledge/connectors/sync-engine')
+
+    expect(() => requireHydratedListedDocument(null, 'listed-1')).toThrow(
+      'Connector returned no content for listed document listed-1'
+    )
+  })
+
+  it('passes through a hydrated document', async () => {
+    const { requireHydratedListedDocument } = await import('@/lib/knowledge/connectors/sync-engine')
+    const hydrated: ExternalDocument = {
+      externalId: 'listed-1',
+      title: 'Listed',
+      content: 'body',
+      mimeType: 'text/plain',
+    }
+
+    expect(requireHydratedListedDocument(hydrated, 'listed-1')).toBe(hydrated)
+  })
+})
+
+describe('recordUnverifiedExistingRefresh', () => {
+  it('keeps last-known-good content while holding the incremental watermark', async () => {
+    const { recordUnverifiedExistingRefresh } = await import(
+      '@/lib/knowledge/connectors/sync-engine'
+    )
+    const result = { docsFailed: 0 }
+    const failedExternalIds = new Set<string>()
+
+    recordUnverifiedExistingRefresh(result, failedExternalIds, 'existing-1')
+
+    expect(result).toEqual({ docsFailed: 1 })
+    expect(failedExternalIds).toEqual(new Set(['existing-1']))
+  })
+
+  it('counts one document once if multiple unusable signals converge', async () => {
+    const { recordUnverifiedExistingRefresh } = await import(
+      '@/lib/knowledge/connectors/sync-engine'
+    )
+    const result = { docsFailed: 0 }
+    const failedExternalIds = new Set<string>()
+
+    recordUnverifiedExistingRefresh(result, failedExternalIds, 'existing-1')
+    recordUnverifiedExistingRefresh(result, failedExternalIds, 'existing-1')
+
+    expect(result).toEqual({ docsFailed: 1 })
   })
 })
 
@@ -1188,6 +1282,35 @@ describe('partitionSyncReconciliation — user-excluded documents', () => {
   })
 })
 
+describe('connectorDocumentSyncTarget', () => {
+  it('cannot refresh a detached, moved, excluded, or archived document', async () => {
+    const { connectorDocumentSyncTarget } = await import('@/lib/knowledge/connectors/sync-engine')
+
+    const condition = connectorDocumentSyncTarget('doc-1', 'kb-1', 'connector-1')
+    for (const [column, value] of [
+      [schemaMock.document.id, 'doc-1'],
+      [schemaMock.document.knowledgeBaseId, 'kb-1'],
+      [schemaMock.document.connectorId, 'connector-1'],
+      [schemaMock.document.userExcluded, false],
+    ] as const) {
+      expect(
+        hasMockCondition(
+          condition,
+          (node: MockCondition) =>
+            node.type === 'eq' && node.left === column && node.right === value
+        )
+      ).toBe(true)
+    }
+    expect(
+      hasMockCondition(
+        condition,
+        (node: MockCondition) =>
+          node.type === 'isNull' && node.column === schemaMock.document.archivedAt
+      )
+    ).toBe(true)
+  })
+})
+
 describe('countNonExcludedListed', () => {
   it('subtracts the excluded documents that appeared in the listing', async () => {
     const { countNonExcludedListed } = await import('@/lib/knowledge/connectors/sync-engine')
@@ -1463,6 +1586,16 @@ describe('buildSyncSuccessUpdate', () => {
     expect(update.status).toBe('active')
     expect(update.consecutiveFailures).toBe(0)
   })
+
+  it('preserves the incremental watermark when source work failed', async () => {
+    const { buildSyncSuccessUpdate } = await import('@/lib/knowledge/connectors/sync-engine')
+
+    const update = buildSyncSuccessUpdate(now, 42, null, null, false)
+
+    expect(update).not.toHaveProperty('lastSyncAt')
+    expect(update.status).toBe('active')
+    expect(update.nextSyncAt).toBeNull()
+  })
 })
 
 describe('completeSyncLog', () => {
@@ -1479,7 +1612,9 @@ describe('completeSyncLog', () => {
       docsUpdated: 0,
       docsDeleted: 0,
       docsUnchanged: 0,
+      docsSkipped: 0,
       docsFailed: 0,
+      processingDispatch: { requested: 0, accepted: 0, failed: 0 },
     })
 
     const where = dbChainMockFns.where.mock.calls[0][0]
@@ -1505,6 +1640,79 @@ describe('completeSyncLog', () => {
           node.right === 'log-1'
       )
     ).toBe(true)
+  })
+
+  it('persists skipped and failed source outcomes separately', async () => {
+    const { completeSyncLog } = await import('@/lib/knowledge/connectors/sync-engine')
+
+    await completeSyncLog('log-1', 'completed', {
+      docsAdded: 0,
+      docsUpdated: 0,
+      docsDeleted: 0,
+      docsUnchanged: 0,
+      docsSkipped: 3,
+      docsFailed: 2,
+      processingDispatch: { requested: 0, accepted: 0, failed: 0 },
+    })
+
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({ docsSkipped: 3, docsFailed: 2 })
+    )
+  })
+})
+
+describe('completeSuccessfulSync', () => {
+  const RESULT = {
+    docsAdded: 1,
+    docsUpdated: 0,
+    docsDeleted: 0,
+    docsUnchanged: 0,
+    docsSkipped: 0,
+    docsFailed: 1,
+    processingDispatch: { requested: 0, accepted: 0, failed: 0 },
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
+  it('commits the completed log and connector state in one guarded transaction', async () => {
+    const { completeSuccessfulSync } = await import('@/lib/knowledge/connectors/sync-engine')
+
+    queueTableRows(schemaMock.knowledgeBase, [{ id: 'kb-1' }])
+    queueTableRows(schemaMock.knowledgeConnector, [{ id: 'c-1' }])
+    queueTableRows(schemaMock.document, [{ count: 4 }])
+    dbChainMockFns.returning
+      .mockResolvedValueOnce([{ id: 'log-1' }])
+      .mockResolvedValueOnce([{ id: 'c-1' }])
+
+    await expect(completeSuccessfulSync('c-1', 'kb-1', 'log-1', 60, RESULT, null)).resolves.toBe(
+      true
+    )
+
+    expect(dbChainMockFns.transaction).toHaveBeenCalledTimes(1)
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'completed', docsFailed: 1 })
+    )
+    const connectorUpdate = dbChainMockFns.set.mock.calls.find(
+      (call) => (call[0] as Record<string, unknown> | undefined)?.status === 'active'
+    )?.[0] as Record<string, unknown> | undefined
+    expect(connectorUpdate).toBeDefined()
+    expect(connectorUpdate).not.toHaveProperty('lastSyncAt')
+  })
+
+  it('publishes neither terminal state when lock ownership is gone', async () => {
+    const { completeSuccessfulSync } = await import('@/lib/knowledge/connectors/sync-engine')
+
+    queueTableRows(schemaMock.knowledgeBase, [{ id: 'kb-1' }])
+    queueTableRows(schemaMock.knowledgeConnector, [])
+
+    await expect(completeSuccessfulSync('c-1', 'kb-1', 'log-1', 60, RESULT, null)).resolves.toBe(
+      false
+    )
+
+    expect(dbChainMockFns.set).not.toHaveBeenCalled()
   })
 })
 
@@ -1640,8 +1848,7 @@ describe('markSyncSuperseded', () => {
       '@/lib/knowledge/connectors/sync-engine'
     )
 
-    // The task wrapper reports `success: !result.error`.
-    expect(markSyncSuperseded(result).error).toBe(SUPERSEDED_SYNC_ERROR)
+    expect(markSyncSuperseded(result).skipReason).toBe(SUPERSEDED_SYNC_ERROR)
   })
 
   it('preserves the document counters of the discarded run', async () => {
@@ -1858,6 +2065,29 @@ describe('heartbeatSyncLock', () => {
     dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'c-1' }])
     expect(await heartbeatSyncLock('c-1', 'run-a')).toBe(true)
   })
+
+  it('can require the connector to remain live before destructive follow-up work', async () => {
+    const { heartbeatLiveSyncLock } = await import('@/lib/knowledge/connectors/sync-engine')
+
+    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'c-1' }])
+    expect(await heartbeatLiveSyncLock('c-1', 'run-a')).toBe(true)
+
+    const where = dbChainMockFns.where.mock.calls[0][0]
+    expect(
+      hasMockCondition(
+        where,
+        (node: MockCondition) =>
+          node.type === 'isNull' && node.column === schemaMock.knowledgeConnector.archivedAt
+      )
+    ).toBe(true)
+    expect(
+      hasMockCondition(
+        where,
+        (node: MockCondition) =>
+          node.type === 'isNull' && node.column === schemaMock.knowledgeConnector.deletedAt
+      )
+    ).toBe(true)
+  })
 })
 
 describe('executeSync heartbeats during the listing phase', () => {
@@ -1921,7 +2151,7 @@ describe('executeSync heartbeats during the listing phase', () => {
 
     // Aborted on the beat before page 2 rather than paging on under a lost lock.
     expect(mockListDocuments).toHaveBeenCalledTimes(1)
-    expect(result.error).toBe('sync_superseded')
+    expect(result.skipReason).toBe('sync_superseded')
   })
 
   it('does not beat when pages return faster than the interval', async () => {
@@ -2056,7 +2286,10 @@ describe('executeSync hard-delete reconciliation', () => {
   /** Primes every read the reconciliation path makes, in the order it makes them. */
   function primeReconciliation() {
     queueTableRows(schemaMock.knowledgeConnector, [CONNECTOR])
+    // Unconditional ownership check inside the destructive reconciliation transaction.
+    queueTableRows(schemaMock.knowledgeConnector, [{ id: 'c-1' }])
     queueTableRows(schemaMock.knowledgeBase, [{ userId: 'u-1', workspaceId: 'ws-1' }])
+    queueTableRows(schemaMock.knowledgeBase, [{ id: 'kb-1' }])
     // hasTombstonedDocs, then existingDocs / tombstonedDocs / excludedDocs.
     queueTableRows(schemaMock.document, [])
     queueTableRows(schemaMock.document, ownedDocs)
@@ -2067,7 +2300,7 @@ describe('executeSync hard-delete reconciliation', () => {
       schemaMock.document,
       missingIds.map((id) => ({ id }))
     )
-    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'c-1' }])
+    dbChainMockFns.returning.mockResolvedValueOnce([CONNECTOR])
 
     mockListDocuments.mockResolvedValue({
       documents: ownedDocs.slice(0, LISTED_DOC_COUNT).map((d) => ({
@@ -2166,7 +2399,7 @@ describe('executeSync hard-delete reconciliation', () => {
      * without releasing the token and lease left a row that was neither locked
      * nor reclaimable — the reaper only looks at `syncing` rows.
      */
-    expect(result.error).toBe('knowledge_base_deleted')
+    expect(result.skipReason).toBe('knowledge_base_deleted')
     expect(dbChainMockFns.set).toHaveBeenCalledWith(
       expect.objectContaining({
         status: 'error',
@@ -2176,24 +2409,11 @@ describe('executeSync hard-delete reconciliation', () => {
     )
   })
 
-  it('lets a heartbeat run between chunks of a long purge', async () => {
+  it('passes a transactional sync-lock guard to every hard-delete chunk', async () => {
     const { executeSync } = await import('@/lib/knowledge/connectors/sync-engine')
     const { hardDeleteDocuments } = await import('@/lib/knowledge/documents/service')
-    const { SYNC_LOCK_HEARTBEAT_INTERVAL_MS } = await import(
-      '@/lib/knowledge/connectors/sync-limits'
-    )
-
-    vi.useFakeTimers()
-    vi.setSystemTime(new Date('2026-08-20T00:00:00.000Z'))
     primeReconciliation()
-
-    // Each chunk takes longer than the heartbeat interval, which is the case
-    // chunking exists for: without a beat between them the reaper reclaims a
-    // connector whose purge is still running.
-    vi.mocked(hardDeleteDocuments).mockImplementation(async () => {
-      vi.setSystemTime(new Date(Date.now() + SYNC_LOCK_HEARTBEAT_INTERVAL_MS + 1_000))
-      return 0
-    })
+    vi.mocked(hardDeleteDocuments).mockResolvedValue(0)
     dbChainMockFns.returning.mockResolvedValue([{ id: 'c-1' }])
 
     await executeSync('c-1', {
@@ -2201,11 +2421,13 @@ describe('executeSync hard-delete reconciliation', () => {
       fullSync: true,
     })
 
-    const beats = dbChainMockFns.set.mock.calls.filter(
-      (call) => (call[0] as Record<string, unknown> | undefined)?.syncLockLeaseAt instanceof Date
-    )
-    // One for the lock acquisition, then at least one more from inside the loop.
-    expect(beats.length).toBeGreaterThan(1)
+    for (const call of vi.mocked(hardDeleteDocuments).mock.calls) {
+      expect(call[4]).toEqual({
+        connectorId: 'c-1',
+        knowledgeBaseId: 'kb-1',
+        syncLockToken: expect.any(String),
+      })
+    }
   })
 })
 
@@ -2215,7 +2437,9 @@ describe('completeSyncLog ownership guard', () => {
     docsUpdated: 0,
     docsDeleted: 0,
     docsUnchanged: 0,
+    docsSkipped: 0,
     docsFailed: 0,
+    processingDispatch: { requested: 0, accepted: 0, failed: 0 },
   }
 
   beforeEach(() => {
@@ -2368,7 +2592,7 @@ describe('executeSync terminal exits under a lost lock', () => {
       billingAttribution: { workspaceId: 'ws-1' } as never,
     })
 
-    expect(result.error).toBe('sync_superseded')
+    expect(result.skipReason).toBe('sync_superseded')
 
     /**
      * A refused close means the run no longer owns the outcome it was about to
@@ -2380,12 +2604,9 @@ describe('executeSync terminal exits under a lost lock', () => {
       expect.objectContaining({ status: 'active', consecutiveFailures: 0 })
     )
 
-    // The success call site is the one that must ask for the guard.
-    expect(
-      dbChainMockFns.where.mock.calls.some((call) =>
-        hasMockCondition(call[0], (node: MockCondition) => node.type === 'exists')
-      )
-    ).toBe(true)
+    // Completion first locks the live knowledge base; finding it gone refuses
+    // the whole atomic log+connector publication.
+    expect(dbChainMockFns.for).toHaveBeenCalledWith('update')
   })
 
   it('releases the lock on a connector archived out from under the run', async () => {
@@ -2424,7 +2645,7 @@ describe('executeSync terminal exits under a lost lock', () => {
       billingAttribution: { workspaceId: 'ws-1' } as never,
     })
 
-    expect(result.error).toBe('Connector deleted during sync')
+    expect(result.skipReason).toBe('connector_deleted_during_sync')
 
     /**
      * This exit wrote nothing to the connector row, leaving it `syncing` with a

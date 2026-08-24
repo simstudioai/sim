@@ -94,6 +94,7 @@ export const syncLogDataSchema = z
     docsUpdated: z.number(),
     docsDeleted: z.number(),
     docsUnchanged: z.number(),
+    docsSkipped: z.number().int().nonnegative().default(0),
     docsFailed: z.number(),
     errorMessage: z.string().nullable(),
   })

@@ -1,6 +1,7 @@
 import { existsSync } from 'fs'
 import { readFile } from 'fs/promises'
 import { createLogger } from '@sim/logger'
+import { FileParserError } from '@/lib/file-parsers/errors'
 import { loadParseOfficeAsync } from '@/lib/file-parsers/officeparser-module'
 import type { FileParseResult, FileParser } from '@/lib/file-parsers/types'
 import { sanitizeTextForUTF8 } from '@/lib/file-parsers/utils'
@@ -10,21 +11,16 @@ const logger = createLogger('DocParser')
 
 export class DocParser implements FileParser {
   async parseFile(filePath: string): Promise<FileParseResult> {
-    try {
-      if (!filePath) {
-        throw new Error('No file path provided')
-      }
-
-      if (!existsSync(filePath)) {
-        throw new Error(`File not found: ${filePath}`)
-      }
-
-      const buffer = await readFile(filePath)
-      return this.parseBuffer(buffer)
-    } catch (error) {
-      logger.error('DOC file parsing error:', error)
-      throw new Error(`Failed to parse DOC file: ${(error as Error).message}`)
+    if (!filePath) {
+      throw new Error('No file path provided')
     }
+
+    if (!existsSync(filePath)) {
+      throw new Error(`File not found: ${filePath}`)
+    }
+
+    const buffer = await readFile(filePath)
+    return this.parseBuffer(buffer)
   }
 
   /**
@@ -36,13 +32,14 @@ export class DocParser implements FileParser {
   async parseBuffer(buffer: Buffer): Promise<FileParseResult> {
     try {
       if (!buffer || buffer.length === 0) {
-        throw new Error('Empty buffer provided')
+        throw new FileParserError('empty_input', 'Empty buffer provided')
       }
 
       assertOoxmlArchiveWithinLimits(buffer)
 
+      const parseOfficeAsync = await loadParseOfficeAsync()
+
       try {
-        const parseOfficeAsync = await loadParseOfficeAsync()
         const result = await parseOfficeAsync(buffer)
 
         if (result) {
@@ -85,7 +82,7 @@ export class DocParser implements FileParser {
       return this.fallbackExtraction(buffer)
     } catch (error) {
       logger.error('DOC parsing error:', error)
-      throw new Error(`Failed to parse DOC buffer: ${(error as Error).message}`)
+      throw error
     }
   }
 

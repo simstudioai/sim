@@ -8,6 +8,7 @@ import {
   type HTTPError,
   isRetryableError,
   type RetryOptions,
+  readBoundedHttpErrorBody,
   resolveRetryDelayMs,
   retryWithExponentialBackoff,
 } from '@/lib/knowledge/documents/utils'
@@ -56,7 +57,7 @@ export async function secureFetchWithRetry(
      * limit) use instead.
      */
     if (!response.ok && isRetryableError({ status: response.status, headers: response.headers })) {
-      const errorText = await response.text()
+      const errorText = await readBoundedHttpErrorBody(response)
       const error: HTTPError = new Error(
         `HTTP ${response.status}: ${response.statusText} - ${errorText}`
       )

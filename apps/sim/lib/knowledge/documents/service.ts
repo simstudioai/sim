@@ -61,12 +61,18 @@ import { getCostMultiplier, isTriggerDevEnabled } from '@/lib/core/config/env-fl
 import { isInsideTriggerRun } from '@/lib/core/config/trigger-runtime'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
+import { EMBEDDING_QUOTA_EXHAUSTED_MESSAGE, isEmbeddingQuotaExhaustion } from '@/lib/embeddings'
 import {
   type DurableSecretProvenance,
   durableSecretProvenanceFromRegistry,
   EXACT_EMPTY_DURABLE_SECRET_PROVENANCE,
   mergeDurableSecretProvenance,
 } from '@/lib/execution/durable-secret-provenance'
+import {
+  assertDocumentChunkCountWithinLimit,
+  isPermanentDocumentProcessingError,
+  toPermanentDocumentProcessingError,
+} from '@/lib/knowledge/documents/document-processing-error'
 import { processDocument } from '@/lib/knowledge/documents/document-processor'
 import {
   failStaleDocumentProcessingClaim,
@@ -88,6 +94,7 @@ import {
 } from '@/lib/knowledge/documents/tag-filter'
 import {
   type DocumentSortField,
+  MAX_PROCESSING_ATTEMPTS,
   QUEUED_DISPATCH_GRACE_MS,
   type SortOrder,
 } from '@/lib/knowledge/documents/types'
@@ -289,7 +296,6 @@ const LARGE_DOC_CONFIG = {
   MAX_CHUNKS_PER_BATCH: 500,
   MAX_EMBEDDING_BATCH: envNumber(env.KB_CONFIG_BATCH_SIZE, 2000),
   MAX_FILE_SIZE: 100 * 1024 * 1024,
-  MAX_CHUNKS_PER_DOCUMENT: 100000,
 }
 
 const HARD_DELETE_DOCUMENT_BATCH_SIZE = 250
@@ -627,6 +633,20 @@ function bindKnowledgeDocumentWriteSecretProvenance(options: {
 /** Per-call cap for `tasks.batchTrigger` on Trigger.dev SDK 4.3.1+. */
 const TRIGGER_BATCH_SIZE = 1000
 
+/**
+ * Immediate outcome of handing document work to its execution backend.
+ *
+ * `accepted` means Trigger.dev accepted the child run, or the direct fallback
+ * finished the job. It deliberately does not claim that an asynchronous child
+ * succeeded: that eventual outcome belongs to the document row and child task
+ * run, neither of which the dispatching connector waits for.
+ */
+export interface DocumentProcessingDispatchResult {
+  requested: number
+  accepted: number
+  failed: number
+}
+
 function buildJobPayload(
   doc: DocumentData,
   knowledgeBaseId: string,
@@ -776,7 +796,9 @@ async function clearDocumentsQueued(documentIds: string[], queuedAt: Date): Prom
 /**
  * Dispatches document processing jobs via Trigger.dev's `batchTrigger` when
  * available, or in-process otherwise. Throws only when every dispatch fails;
- * partial failures are logged and recovered by the next sync's stuck-doc pass.
+ * partial failures are returned and recovered by the next sync's stuck-doc
+ * pass. A successful Trigger.dev hand-off is only an accepted child run, not a
+ * claim about its eventual processing outcome.
  */
 export async function processDocumentsWithQueue(
   createdDocuments: DocumentData[],
@@ -784,8 +806,10 @@ export async function processDocumentsWithQueue(
   processingOptions: ProcessingOptions,
   requestId: string,
   billingAttribution: BillingAttributionSnapshot | undefined
-): Promise<void> {
-  if (createdDocuments.length === 0) return
+): Promise<DocumentProcessingDispatchResult> {
+  if (createdDocuments.length === 0) {
+    return { requested: 0, accepted: 0, failed: 0 }
+  }
 
   const billingContext = await resolveDocumentProcessingBillingContext(
     knowledgeBaseId,
@@ -828,6 +852,12 @@ export async function processDocumentsWithQueue(
       })
     }
     throw new Error(`All ${jobPayloads.length} document processing dispatches failed`)
+  }
+
+  return {
+    requested: jobPayloads.length,
+    accepted: dispatched,
+    failed: jobPayloads.length - dispatched,
   }
 }
 
@@ -889,6 +919,11 @@ async function dispatchViaBatchTrigger(
 /** Each in-process job runs chunking + embedding + many DB inserts. */
 const IN_PROCESS_DISPATCH_CONCURRENCY = 5
 
+export interface DocumentProcessingAttemptContext {
+  /** True only when this invocation follows a successful queue-budget charge. */
+  readonly chargedAtDispatch: true
+}
+
 async function dispatchInProcess(
   jobPayloads: DocumentProcessingPayload[],
   requestId: string
@@ -904,10 +939,18 @@ async function dispatchInProcess(
           p.docData,
           p.processingOptions,
           p,
-          p.requestId
+          p.requestId,
+          { chargedAtDispatch: true }
         )
         return true
       } catch (error) {
+        if (isPermanentDocumentProcessingError(error) || isEmbeddingQuotaExhaustion(error)) {
+          logger.warn(`[${requestId}] Document processing reached an expected terminal state`, {
+            ...(isPermanentDocumentProcessingError(error) ? { code: error.code } : {}),
+            quotaDeferred: isEmbeddingQuotaExhaustion(error),
+          })
+          return true
+        }
         logger.error(`[${requestId}] Document dispatch failed`, { error: getErrorMessage(error) })
         return false
       }
@@ -926,6 +969,9 @@ async function dispatchInProcess(
  * user-triggered reprocess) mints a fresh one. It is what makes the embedding
  * charge bill once per pass — see the `sourceReference` note at the `recordUsage`
  * call below.
+ * @param attemptContext - Identifies whether queue admission charged this
+ * invocation against the document's retry budget. Direct callers omit it and
+ * therefore cannot refund an attempt they never charged.
  */
 export async function processDocumentAsync(
   knowledgeBaseId: string,
@@ -938,10 +984,12 @@ export async function processDocumentAsync(
   },
   processingOptions: ProcessingOptions = {},
   providedBillingContext?: BillingAttributionSnapshot | DocumentProcessingBillingContext,
-  indexingPassId?: string
+  indexingPassId?: string,
+  attemptContext?: DocumentProcessingAttemptContext
 ): Promise<void> {
   const startTime = Date.now()
   const processingStartedAt = new Date()
+  let processingFilename = docData.filename
   try {
     logger.info(`[${documentId}] Starting document processing`, {
       knowledgeBaseId,
@@ -1022,6 +1070,7 @@ export async function processDocumentAsync(
     }
 
     const ctx = contextRows[0]
+    processingFilename = ctx.filename
     const persistedDocData = {
       filename: ctx.filename,
       fileUrl: ctx.fileUrl,
@@ -1179,12 +1228,7 @@ export async function processDocumentAsync(
             rawConfig?.strategyOptions
           )
 
-          if (processed.chunks.length > LARGE_DOC_CONFIG.MAX_CHUNKS_PER_DOCUMENT) {
-            throw new Error(
-              `Document has ${processed.chunks.length.toLocaleString()} chunks, exceeding maximum of ${LARGE_DOC_CONFIG.MAX_CHUNKS_PER_DOCUMENT.toLocaleString()}. ` +
-                `This document is unusually large and may need to be split into multiple files or preprocessed to reduce content.`
-            )
-          }
+          assertDocumentChunkCountWithinLimit(processed.chunks.length)
 
           const now = new Date()
 
@@ -1439,13 +1483,24 @@ export async function processDocumentAsync(
     }
   } catch (error) {
     const processingTime = Date.now() - startTime
-    const errorMessage = getErrorMessage(error, 'Unknown error')
-    logger.error(`[${documentId}] Failed to process document after ${processingTime}ms:`, {
+    const embeddingQuotaExhausted = isEmbeddingQuotaExhaustion(error)
+    const permanentError = toPermanentDocumentProcessingError(error, processingFilename)
+    const recordedError = permanentError ?? error
+    const errorMessage = embeddingQuotaExhausted
+      ? EMBEDDING_QUOTA_EXHAUSTED_MESSAGE
+      : getErrorMessage(recordedError, 'Unknown error')
+    const logContext = {
       errorType: toError(error).name,
       knowledgeBaseId,
       mimeType: docData.mimeType,
       fileSize: docData.fileSize,
-    })
+    }
+    const logMessage = `[${documentId}] Failed to process document after ${processingTime}ms:`
+    if (embeddingQuotaExhausted || permanentError) {
+      logger.warn(logMessage, logContext)
+    } else {
+      logger.error(logMessage, logContext)
+    }
 
     await db
       .update(document)
@@ -1453,6 +1508,11 @@ export async function processDocumentAsync(
         processingStatus: 'failed',
         processingError: errorMessage,
         processingCompletedAt: new Date(),
+        ...(permanentError
+          ? { processingAttempts: MAX_PROCESSING_ATTEMPTS }
+          : embeddingQuotaExhausted && attemptContext?.chargedAtDispatch
+            ? { processingAttempts: sql`GREATEST(${document.processingAttempts} - 1, 0)` }
+            : {}),
       })
       .where(
         and(
@@ -1462,7 +1522,7 @@ export async function processDocumentAsync(
         )
       )
 
-    throw error
+    throw recordedError
   }
 }
 
@@ -3184,6 +3244,19 @@ async function deleteDocumentsByLifecyclePolicy(
   return excludedCount + hardDeletedCount
 }
 
+export class ConnectorSyncDeletionGuardError extends Error {
+  constructor() {
+    super('Connector sync no longer owns the destructive document operation')
+    this.name = 'ConnectorSyncDeletionGuardError'
+  }
+}
+
+export interface ConnectorSyncDeletionGuard {
+  connectorId: string
+  knowledgeBaseId: string
+  syncLockToken: string
+}
+
 export async function hardDeleteDocuments(
   documentIds: string[],
   requestId: string,
@@ -3197,7 +3270,8 @@ export async function hardDeleteDocuments(
    * despite no longer belonging to the connector the caller reasoned about.
    */
   expectedConnectorId?: string,
-  expectedKnowledgeBaseId?: string
+  expectedKnowledgeBaseId?: string,
+  connectorSyncGuard?: ConnectorSyncDeletionGuard
 ): Promise<number> {
   const ids = [...new Set(documentIds)]
   if (ids.length === 0) {
@@ -3210,7 +3284,8 @@ export async function hardDeleteDocuments(
       ids.slice(offset, offset + HARD_DELETE_DOCUMENT_BATCH_SIZE),
       requestId,
       expectedConnectorId,
-      expectedKnowledgeBaseId
+      expectedKnowledgeBaseId,
+      connectorSyncGuard
     )
   }
   return deletedCount
@@ -3224,9 +3299,14 @@ async function hardDeleteDocumentBatch(
   documentIds: string[],
   requestId: string,
   expectedConnectorId?: string,
-  expectedKnowledgeBaseId?: string
+  expectedKnowledgeBaseId?: string,
+  connectorSyncGuard?: ConnectorSyncDeletionGuard
 ): Promise<number> {
   const ids = [...new Set(documentIds)]
+  const scopedConnectorId = connectorSyncGuard?.connectorId ?? expectedConnectorId
+  const scopedKnowledgeBaseId = connectorSyncGuard?.knowledgeBaseId ?? expectedKnowledgeBaseId
+  const requireEligibleDocument = Boolean(expectedKnowledgeBaseId || connectorSyncGuard)
+  const requireVisibleDocument = Boolean(expectedKnowledgeBaseId && !connectorSyncGuard)
   const documentsToDelete = await db
     .select({
       id: document.id,
@@ -3243,11 +3323,11 @@ async function hardDeleteDocumentBatch(
     .where(
       and(
         inArray(document.id, ids),
-        expectedConnectorId ? eq(document.connectorId, expectedConnectorId) : undefined,
-        expectedKnowledgeBaseId ? eq(document.knowledgeBaseId, expectedKnowledgeBaseId) : undefined,
-        expectedKnowledgeBaseId ? eq(document.userExcluded, false) : undefined,
-        expectedKnowledgeBaseId ? isNull(document.archivedAt) : undefined,
-        expectedKnowledgeBaseId ? isNull(document.deletedAt) : undefined
+        scopedConnectorId ? eq(document.connectorId, scopedConnectorId) : undefined,
+        scopedKnowledgeBaseId ? eq(document.knowledgeBaseId, scopedKnowledgeBaseId) : undefined,
+        requireEligibleDocument ? eq(document.userExcluded, false) : undefined,
+        requireEligibleDocument ? isNull(document.archivedAt) : undefined,
+        requireVisibleDocument ? isNull(document.deletedAt) : undefined
       )
     )
 
@@ -3303,12 +3383,20 @@ async function hardDeleteDocumentBatch(
         userId: knowledgeBase.userId,
       })
       .from(knowledgeBase)
-      .where(inArray(knowledgeBase.id, knowledgeBaseIds))
+      .where(
+        and(
+          inArray(knowledgeBase.id, knowledgeBaseIds),
+          connectorSyncGuard ? isNull(knowledgeBase.deletedAt) : undefined
+        )
+      )
       .orderBy(asc(knowledgeBase.id))
       .for('update')
     const lockedKnowledgeBaseById = new Map(lockedKnowledgeBases.map((kb) => [kb.id, kb]))
     for (const doc of documentsToDelete) {
       const lockedKb = lockedKnowledgeBaseById.get(doc.knowledgeBaseId)
+      if (!lockedKb && connectorSyncGuard) {
+        throw new ConnectorSyncDeletionGuardError()
+      }
       if (
         !lockedKb ||
         lockedKb.workspaceId !== doc.workspaceId ||
@@ -3317,6 +3405,27 @@ async function hardDeleteDocumentBatch(
         throw new Error(
           `Knowledge base ${doc.knowledgeBaseId} storage ownership changed; retry document deletion`
         )
+      }
+    }
+
+    if (connectorSyncGuard) {
+      const [heldSyncLock] = await tx
+        .select({ id: knowledgeConnector.id })
+        .from(knowledgeConnector)
+        .where(
+          and(
+            eq(knowledgeConnector.id, connectorSyncGuard.connectorId),
+            eq(knowledgeConnector.knowledgeBaseId, connectorSyncGuard.knowledgeBaseId),
+            eq(knowledgeConnector.status, 'syncing'),
+            eq(knowledgeConnector.syncLockToken, connectorSyncGuard.syncLockToken),
+            isNull(knowledgeConnector.archivedAt),
+            isNull(knowledgeConnector.deletedAt)
+          )
+        )
+        .for('update')
+
+      if (!heldSyncLock) {
+        throw new ConnectorSyncDeletionGuardError()
       }
     }
 
@@ -3331,7 +3440,7 @@ async function hardDeleteDocumentBatch(
      * ID set rather than the stale `existingIds`.
      */
     const stillTargetedIds =
-      expectedConnectorId || expectedKnowledgeBaseId
+      scopedConnectorId || scopedKnowledgeBaseId
         ? (
             await tx
               .select({ id: document.id })
@@ -3339,15 +3448,17 @@ async function hardDeleteDocumentBatch(
               .where(
                 and(
                   inArray(document.id, existingIds),
-                  expectedConnectorId ? eq(document.connectorId, expectedConnectorId) : undefined,
-                  expectedKnowledgeBaseId
-                    ? eq(document.knowledgeBaseId, expectedKnowledgeBaseId)
+                  scopedConnectorId ? eq(document.connectorId, scopedConnectorId) : undefined,
+                  scopedKnowledgeBaseId
+                    ? eq(document.knowledgeBaseId, scopedKnowledgeBaseId)
                     : undefined,
-                  expectedKnowledgeBaseId ? eq(document.userExcluded, false) : undefined,
-                  expectedKnowledgeBaseId ? isNull(document.archivedAt) : undefined,
-                  expectedKnowledgeBaseId ? isNull(document.deletedAt) : undefined
+                  requireEligibleDocument ? eq(document.userExcluded, false) : undefined,
+                  requireEligibleDocument ? isNull(document.archivedAt) : undefined,
+                  requireVisibleDocument ? isNull(document.deletedAt) : undefined
                 )
               )
+              .orderBy(asc(document.id))
+              .for('update')
           ).map((d) => d.id)
         : existingIds
 

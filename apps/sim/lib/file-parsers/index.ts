@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { CsvParser } from '@/lib/file-parsers/csv-parser'
 import { DocParser } from '@/lib/file-parsers/doc-parser'
 import { DocxParser } from '@/lib/file-parsers/docx-parser'
+import { FileParserError } from '@/lib/file-parsers/errors'
 import { HtmlParser } from '@/lib/file-parsers/html-parser'
 import {
   parseJSON,
@@ -125,7 +126,7 @@ export async function parseFile(filePath: string): Promise<FileParseResult> {
 export async function parseBuffer(buffer: Buffer, extension: string): Promise<FileParseResult> {
   try {
     if (!buffer || buffer.length === 0) {
-      throw new Error('Empty buffer provided')
+      throw new FileParserError('empty_input', 'Empty buffer provided')
     }
 
     if (!extension) {
@@ -138,13 +139,17 @@ export async function parseBuffer(buffer: Buffer, extension: string): Promise<Fi
     const parser = PARSERS.get(normalizedExtension)
 
     if (!parser) {
-      throw new Error(
+      throw new FileParserError(
+        'unsupported_type',
         `Unsupported file type: ${normalizedExtension}. Supported types are: ${SUPPORTED_EXTENSIONS_TEXT}`
       )
     }
 
     if (!parser.parseBuffer) {
-      throw new Error(`Parser for ${normalizedExtension} does not support buffer parsing`)
+      throw new FileParserError(
+        'unsupported_type',
+        `Parser for ${normalizedExtension} does not support buffer parsing`
+      )
     }
 
     return await parser.parseBuffer(buffer)

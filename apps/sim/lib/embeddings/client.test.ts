@@ -4,13 +4,17 @@
 import { resetEnvMock, setEnv } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
+  clampEmbeddingConcurrency,
   EMBEDDING_MAX_RETRIES,
   EmbeddingAPIError,
+  EmbeddingQuotaExhaustedError,
   embed,
   embedKnowledgeForDeployment,
   embedOpenRouter,
+  isEmbeddingQuotaExhaustion,
   isTransientEmbeddingError,
 } from '@/lib/embeddings/client'
+import { resetEmbeddingQuotaCircuitsForTesting } from '@/lib/embeddings/quota-circuit'
 
 const { mockGetBYOKKey } = vi.hoisted(() => ({
   mockGetBYOKKey: vi.fn(),
@@ -30,15 +34,11 @@ vi.mock('@/lib/api-key/byok', () => ({
 const originalFetch = global.fetch
 
 function jsonResponse(body: unknown, status = 200, responseHeaders?: HeadersInit): Response {
-  return {
-    ok: status >= 200 && status < 300,
+  return new Response(JSON.stringify(body), {
     status,
     statusText: String(status),
-    // A real Response always carries these; the failure path reads them for rate-limit signals.
     headers: new Headers(responseHeaders),
-    json: async () => body,
-    text: async () => JSON.stringify(body),
-  } as Response
+  })
 }
 
 function openAIBody(vectors: number[][], totalTokens = 5) {
@@ -68,6 +68,7 @@ beforeEach(() => {
 })
 
 afterEach(() => {
+  resetEmbeddingQuotaCircuitsForTesting()
   global.fetch = originalFetch
   vi.useRealTimers()
   vi.restoreAllMocks()
@@ -503,6 +504,25 @@ describe('embedOpenRouter', () => {
     ).rejects.toThrow('inconsistent dimensions')
   })
 
+  it('treats OpenRouter HTTP 402 as exhausted credit and opens the circuit', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ error: { message: 'Payment required' } }, 402))
+
+    const options = {
+      model: 'openrouter/qwen/qwen3-embedding-8b',
+      apiKey: 'or-exhausted',
+      maxInputTokens: 32768,
+      projectInputs: null,
+    } as const
+
+    await expect(embedOpenRouter(['alpha'], options)).rejects.toEqual(
+      expect.objectContaining({ name: 'EmbeddingQuotaExhaustedError', status: 402 })
+    )
+    await expect(embedOpenRouter(['beta'], options)).rejects.toBeInstanceOf(
+      EmbeddingQuotaExhaustedError
+    )
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
   it('truncates inputs to the selected model context length', async () => {
     fetchMock.mockResolvedValue(jsonResponse(openAIBody([[1, 2]])))
 
@@ -548,6 +568,18 @@ describe('embedOpenRouter', () => {
     expect(result.embeddings).toHaveLength(2049)
     expect(result.embeddings[0]).toEqual([0])
     expect(result.embeddings[2048]).toEqual([2048])
+  })
+})
+
+describe('embedding concurrency admission', () => {
+  it.each([
+    [Number.NaN, 8],
+    [0, 1],
+    [-10, 1],
+    [4.9, 4],
+    [10_000, 16],
+  ])('clamps %s to %s', (configured, expected) => {
+    expect(clampEmbeddingConcurrency(configured)).toBe(expected)
   })
 })
 
@@ -664,6 +696,24 @@ describe('knowledge embedding transport fallback', () => {
       /Embedding API failed: 401/
     )
     expect(fetchMock).toHaveBeenCalledOnce()
+  })
+
+  it('falls back immediately when the first provider credential has exhausted credit', async () => {
+    setEnv({ OPENAI_API_KEY: 'openai-test', OPENROUTER_API_KEY: 'or-test' })
+    fetchMock.mockImplementation(async (url) =>
+      url === 'https://api.openai.com/v1/embeddings'
+        ? jsonResponse({ error: { type: 'insufficient_quota', code: 'insufficient_quota' } }, 429)
+        : jsonResponse(openAIBody([[7, 8]], 2))
+    )
+
+    const result = await embedKnowledgeForDeployment(['hello'], options, false)
+
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
+      'https://api.openai.com/v1/embeddings',
+      'https://openrouter.ai/api/v1/embeddings',
+    ])
+    expect(result.embeddings).toEqual([[7, 8]])
   })
 
   it('falls back after transient retries and projects inputs only once', async () => {
@@ -827,33 +877,65 @@ describe('knowledge embedding transport fallback', () => {
    * sync — so retrying one burns the budget per document, indefinitely.
    */
   it('does not retry a 429 that reports an exhausted balance', async () => {
-    vi.useFakeTimers()
     setEnv({ OPENAI_API_KEY: 'openai-test' })
-    const fetchMock = vi.fn().mockImplementation(
-      async () =>
-        ({
-          ok: false,
-          status: 429,
-          statusText: 'Too Many Requests',
-          headers: new Headers(),
-          json: async () => ({}),
-          text: async () =>
-            JSON.stringify({
-              error: {
-                message: 'You have no credits remaining.',
-                type: 'insufficient_quota',
-                code: 'credit_balance_exhausted',
-              },
-            }),
-        }) as Response
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse(
+        {
+          error: {
+            message: 'You have no credits remaining.',
+            type: 'insufficient_quota',
+            code: 'credit_balance_exhausted',
+          },
+        },
+        429
+      )
     )
     vi.stubGlobal('fetch', fetchMock)
 
-    const pending = embed(['hello'], { ...options, apiKey: 'openai-test' }).catch((e) => e)
-    await vi.runAllTimersAsync()
-    const error = await pending
+    await expect(embed(['hello'], { ...options, apiKey: 'openai-test' })).rejects.toEqual(
+      expect.objectContaining({ name: 'EmbeddingQuotaExhaustedError', quotaExhausted: true })
+    )
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
 
-    expect(error).toBeInstanceOf(EmbeddingAPIError)
+  it('classifies quota JSON beyond the diagnostic truncation boundary', async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse(
+        {
+          diagnosticPadding: 'x'.repeat(10_000),
+          error: {
+            message: 'You have no credits remaining.',
+            type: 'insufficient_quota',
+            code: 'insufficient_quota',
+          },
+        },
+        429
+      )
+    )
+
+    await expect(embed(['hello'], { ...options, apiKey: 'large-quota-body-key' })).rejects.toEqual(
+      expect.objectContaining({
+        name: 'EmbeddingQuotaExhaustedError',
+        status: 429,
+      })
+    )
+    expect(fetchMock).toHaveBeenCalledOnce()
+  })
+
+  it('short-circuits later requests that use the exhausted credential', async () => {
+    const quotaResponse = jsonResponse(
+      { error: { type: 'insufficient_quota', code: 'insufficient_quota' } },
+      429
+    )
+    fetchMock.mockResolvedValue(quotaResponse)
+
+    await expect(embed(['first'], { ...options, apiKey: 'exhausted-key' })).rejects.toBeInstanceOf(
+      EmbeddingQuotaExhaustedError
+    )
+    await expect(embed(['second'], { ...options, apiKey: 'exhausted-key' })).rejects.toBeInstanceOf(
+      EmbeddingQuotaExhaustedError
+    )
+
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
@@ -898,6 +980,20 @@ describe('knowledge embedding transport fallback', () => {
     const error = new EmbeddingAPIError('Embedding API failed: 429', 429)
     error.quotaExhausted = true
     expect(isTransientEmbeddingError(error)).toBe(true)
+  })
+
+  it('classifies aggregate quota exhaustion only when every fallback exhausted credit', () => {
+    const openAIQuota = new EmbeddingQuotaExhaustedError('openai')
+    const openRouterQuota = new EmbeddingQuotaExhaustedError('openrouter')
+
+    expect(isEmbeddingQuotaExhaustion(new AggregateError([openAIQuota, openRouterQuota]))).toBe(
+      true
+    )
+    expect(
+      isEmbeddingQuotaExhaustion(
+        new AggregateError([openAIQuota, new EmbeddingAPIError('temporarily unavailable', 503)])
+      )
+    ).toBe(false)
   })
 
   it('classifies only transient embedding failures for failover', () => {

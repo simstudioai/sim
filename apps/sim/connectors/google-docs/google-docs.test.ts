@@ -1,0 +1,290 @@
+/**
+ * @vitest-environment node
+ */
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+vi.mock('@/components/icons', () => ({
+  GoogleDocsIcon: () => null,
+}))
+
+import { googleDocsConnector } from '@/connectors/google-docs/google-docs'
+
+const ACCESS_TOKEN = 'token-123'
+const DOCUMENT_ID = 'document-abc'
+const DRIVE_FILE = {
+  id: DOCUMENT_ID,
+  name: 'Product plan',
+  mimeType: 'application/vnd.google-apps.document',
+  modifiedTime: '2026-08-24T12:00:00.000Z',
+  createdTime: '2026-08-01T12:00:00.000Z',
+  webViewLink: `https://docs.google.com/document/d/${DOCUMENT_ID}/edit`,
+  owners: [{ displayName: 'Ada Lovelace' }],
+}
+
+function stubFetchDocument(docsResponse: Response) {
+  const fetchMock = vi.fn(async (input: string | URL | Request) => {
+    const url = new URL(typeof input === 'string' ? input : input.toString())
+
+    if (url.hostname === 'www.googleapis.com') {
+      return new Response(JSON.stringify({ ...DRIVE_FILE, trashed: false }), { status: 200 })
+    }
+    if (url.hostname === 'docs.googleapis.com') return docsResponse
+
+    throw new Error(`Unexpected fetch to ${url.toString()}`)
+  })
+
+  vi.stubGlobal('fetch', fetchMock)
+  return fetchMock
+}
+
+describe('googleDocsConnector', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  describe('getDocument', () => {
+    it('requests the tab response view and extracts nested tab content', async () => {
+      const fetchMock = stubFetchDocument(
+        new Response(
+          JSON.stringify({
+            tabs: [
+              {
+                documentTab: {
+                  body: {
+                    content: [
+                      {
+                        paragraph: {
+                          paragraphStyle: { namedStyleType: 'HEADING_1' },
+                          elements: [{ textRun: { content: 'Overview\n' } }],
+                        },
+                      },
+                      {
+                        table: {
+                          tableRows: [
+                            {
+                              tableCells: [
+                                {
+                                  content: [
+                                    {
+                                      paragraph: {
+                                        elements: [{ textRun: { content: 'Table cell\n' } }],
+                                      },
+                                    },
+                                  ],
+                                },
+                              ],
+                            },
+                          ],
+                        },
+                      },
+                    ],
+                  },
+                },
+                childTabs: [
+                  {
+                    documentTab: {
+                      body: {
+                        content: [
+                          {
+                            paragraph: {
+                              elements: [
+                                {
+                                  richLink: {
+                                    richLinkProperties: {
+                                      title: 'Linked specification',
+                                      uri: 'https://example.com/spec',
+                                    },
+                                  },
+                                },
+                              ],
+                            },
+                          },
+                        ],
+                      },
+                    },
+                  },
+                ],
+              },
+            ],
+          }),
+          { status: 200 }
+        )
+      )
+
+      const document = await googleDocsConnector.getDocument(ACCESS_TOKEN, {}, DOCUMENT_ID)
+
+      expect(document?.content).toBe('# Overview\nTable cell\nLinked specification')
+      expect(document?.contentDeferred).toBe(false)
+
+      const docsCall = fetchMock.mock.calls.find(([input]) =>
+        input.toString().startsWith('https://docs.googleapis.com/')
+      )
+      expect(docsCall).toBeDefined()
+
+      const docsUrl = new URL(docsCall?.[0].toString() ?? '')
+      expect(docsUrl.pathname).toBe(`/v1/documents/${DOCUMENT_ID}`)
+      expect(docsUrl.searchParams.get('includeTabsContent')).toBe('true')
+      expect(docsUrl.searchParams.get('fields')).toBe('tabs')
+    })
+
+    it('includes the structured Google API error message when hydration fails', async () => {
+      stubFetchDocument(
+        new Response(
+          JSON.stringify({
+            error: {
+              code: 400,
+              message: 'Invalid field selection tabs',
+              status: 'INVALID_ARGUMENT',
+            },
+          }),
+          { status: 400 }
+        )
+      )
+
+      await expect(googleDocsConnector.getDocument(ACCESS_TOKEN, {}, DOCUMENT_ID)).rejects.toThrow(
+        `Failed to fetch Google Doc content ${DOCUMENT_ID}: 400 — Invalid field selection tabs`
+      )
+    })
+
+    it('redacts credentials from bounded Google API diagnostics', async () => {
+      stubFetchDocument(
+        new Response(
+          JSON.stringify({
+            error: {
+              code: 403,
+              message: 'Authorization: Bearer production-secret',
+              status: 'PERMISSION_DENIED',
+            },
+          }),
+          { status: 403 }
+        )
+      )
+
+      await expect(googleDocsConnector.getDocument(ACCESS_TOKEN, {}, DOCUMENT_ID)).rejects.toThrow(
+        `Failed to fetch Google Doc content ${DOCUMENT_ID}: 403 — Authorization: Bearer [REDACTED]`
+      )
+    })
+
+    it('does not persist an empty tab response as an indexed document', async () => {
+      stubFetchDocument(new Response(JSON.stringify({ tabs: [] }), { status: 200 }))
+
+      await expect(
+        googleDocsConnector.getDocument(ACCESS_TOKEN, {}, DOCUMENT_ID)
+      ).resolves.toBeNull()
+    })
+
+    it('keeps the metadata hash identical between listing and hydration', async () => {
+      let driveRequestCount = 0
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async (input: string | URL | Request) => {
+          const url = new URL(typeof input === 'string' ? input : input.toString())
+          if (url.hostname === 'www.googleapis.com' && url.pathname === '/drive/v3/files') {
+            return new Response(JSON.stringify({ files: [DRIVE_FILE] }), { status: 200 })
+          }
+          if (url.hostname === 'www.googleapis.com') {
+            driveRequestCount += 1
+            return new Response(JSON.stringify({ ...DRIVE_FILE, trashed: false }), { status: 200 })
+          }
+          if (url.hostname === 'docs.googleapis.com') {
+            return new Response(
+              JSON.stringify({
+                tabs: [
+                  {
+                    documentTab: {
+                      body: {
+                        content: [
+                          { paragraph: { elements: [{ textRun: { content: 'Content\n' } }] } },
+                        ],
+                      },
+                    },
+                  },
+                ],
+              }),
+              { status: 200 }
+            )
+          }
+          throw new Error(`Unexpected fetch to ${url.toString()}`)
+        })
+      )
+
+      const listing = await googleDocsConnector.listDocuments(ACCESS_TOKEN, {})
+      const hydrated = await googleDocsConnector.getDocument(ACCESS_TOKEN, {}, DOCUMENT_ID)
+
+      expect(listing.documents[0]?.contentDeferred).toBe(true)
+      expect(hydrated?.contentHash).toBe(listing.documents[0]?.contentHash)
+      expect(driveRequestCount).toBe(1)
+    })
+  })
+
+  describe('listDocuments', () => {
+    it('does not issue another Drive request after a lowered cap is already exhausted', async () => {
+      const fetchMock = vi.fn()
+      vi.stubGlobal('fetch', fetchMock)
+      const syncContext: Record<string, unknown> = { totalDocsFetched: 5 }
+
+      const result = await googleDocsConnector.listDocuments(
+        ACCESS_TOKEN,
+        { maxDocs: '2' },
+        'stale-page-token',
+        syncContext
+      )
+
+      expect(result).toEqual({ documents: [], hasMore: false })
+      expect(syncContext.listingCapped).toBe(true)
+      expect(fetchMock).not.toHaveBeenCalled()
+    })
+
+    it.each(['1.5', 'Infinity', 1.5, Number.POSITIVE_INFINITY])(
+      'rejects invalid persisted maxDocs %s before calling Google Drive',
+      async (maxDocs) => {
+        const fetchMock = vi.fn()
+        vi.stubGlobal('fetch', fetchMock)
+
+        await expect(googleDocsConnector.listDocuments(ACCESS_TOKEN, { maxDocs })).rejects.toThrow(
+          'Max documents must be a positive safe integer, or 0 for unlimited'
+        )
+        expect(fetchMock).not.toHaveBeenCalled()
+      }
+    )
+
+    it.each([undefined, null, '', '   ', 0, '0'])(
+      'keeps omitted or explicit unlimited maxDocs %s valid at runtime',
+      async (maxDocs) => {
+        const fetchMock = vi
+          .fn()
+          .mockResolvedValue(
+            new Response(JSON.stringify({ files: [], nextPageToken: null }), { status: 200 })
+          )
+        vi.stubGlobal('fetch', fetchMock)
+
+        await expect(
+          googleDocsConnector.listDocuments(ACCESS_TOKEN, { maxDocs })
+        ).resolves.toMatchObject({ documents: [], hasMore: false })
+        expect(new URL(String(fetchMock.mock.calls[0][0])).searchParams.get('pageSize')).toBe('100')
+      }
+    )
+  })
+
+  describe('validateConfig', () => {
+    it.each(['1.5', 'Infinity', 1.5, Number.POSITIVE_INFINITY])(
+      'rejects invalid maxDocs %s before calling Google Drive',
+      async (maxDocs) => {
+        const fetchMock = vi.fn()
+        vi.stubGlobal('fetch', fetchMock)
+
+        const result = await googleDocsConnector.validateConfig(ACCESS_TOKEN, { maxDocs })
+
+        expect(result).toEqual({
+          valid: false,
+          error: 'Max documents must be a positive safe integer, or 0 for unlimited',
+        })
+        expect(fetchMock).not.toHaveBeenCalled()
+      }
+    )
+  })
+})

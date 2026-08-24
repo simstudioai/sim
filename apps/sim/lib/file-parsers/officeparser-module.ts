@@ -1,3 +1,5 @@
+import { FileParserError } from '@/lib/file-parsers/errors'
+
 /** `officeparser`'s single entry point, as every parser here calls it. */
 type ParseOfficeAsync = (input: Buffer) => Promise<string>
 
@@ -46,5 +48,13 @@ export function resolveParseOfficeAsync(mod: OfficeParserModule): ParseOfficeAsy
  * can only assert the shape that already worked.
  */
 export async function loadParseOfficeAsync(): Promise<ParseOfficeAsync> {
-  return resolveParseOfficeAsync((await import('officeparser')) as OfficeParserModule)
+  try {
+    return resolveParseOfficeAsync((await import('officeparser')) as OfficeParserModule)
+  } catch (error) {
+    throw new FileParserError(
+      'runtime_failure',
+      'The officeparser runtime could not be loaded',
+      error
+    )
+  }
 }

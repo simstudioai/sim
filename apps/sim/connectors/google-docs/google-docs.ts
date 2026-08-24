@@ -1,6 +1,13 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
+import { isRecordLike } from '@sim/utils/object'
+import { truncate } from '@sim/utils/string'
+import { redactSensitiveValues } from '@/lib/core/security/redaction'
+import {
+  fetchWithRetry,
+  readBoundedHttpErrorBody,
+  VALIDATE_RETRY_OPTIONS,
+} from '@/lib/knowledge/documents/utils'
 import { googleDocsConnectorMeta } from '@/connectors/google-docs/meta'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
 import {
@@ -30,6 +37,33 @@ const MAX_DOCS_RESPONSE_BYTES = 100 * 1024 * 1024
 const PAGE_SIZE = 100
 
 const GOOGLE_DOC_MIME_TYPE = 'application/vnd.google-apps.document'
+const MAX_DOCS_VALIDATION_ERROR =
+  'Max documents must be a positive safe integer, or 0 for unlimited'
+
+function parseMaxDocs(value: unknown): number {
+  if (value === undefined || value === null) return 0
+  if (typeof value !== 'string' && typeof value !== 'number') {
+    throw new Error(MAX_DOCS_VALIDATION_ERROR)
+  }
+  const normalized = typeof value === 'string' ? value.trim() : value
+  if (normalized === '') return 0
+  if (typeof normalized === 'string' && !/^\d+$/.test(normalized)) {
+    throw new Error(MAX_DOCS_VALIDATION_ERROR)
+  }
+  const parsed = Number(normalized)
+  if (!Number.isSafeInteger(parsed) || parsed < 0) {
+    throw new Error(MAX_DOCS_VALIDATION_ERROR)
+  }
+  return parsed
+}
+
+/**
+ * `includeTabsContent=true` switches the Docs response to the tab representation.
+ * Request only that representation because the legacy top-level `body` is empty
+ * in tab mode. Google accepts `fields=tabs`; the historical hydration failures
+ * did not retain enough provider detail to attribute their exact cause.
+ */
+const GOOGLE_DOC_CONTENT_FIELDS = 'tabs'
 
 /**
  * Represents a Google Drive file entry returned by the Drive API.
@@ -82,7 +116,9 @@ interface DocsStructuralElement {
 }
 
 /**
- * A tab of a Google Doc. Tabs may nest arbitrarily deep via `childTabs`.
+ * A tab of a Google Doc. Tabs may nest arbitrarily deep via `childTabs`. This
+ * connector indexes the body text of each tab; headers, footers, footnotes, and
+ * inline-object payloads are outside its current plain-text coverage.
  */
 interface DocsTab {
   documentTab?: {
@@ -92,16 +128,33 @@ interface DocsTab {
 }
 
 /**
- * Represents the response from the Google Docs API for a single document. With
- * `includeTabsContent=true` the content lands in `tabs` and the legacy `body`
- * field is left empty; `body` is retained only as a fallback in case the request
- * is ever served without tab content.
+ * Represents the tab-based response from the Google Docs API for one document.
+ * With `includeTabsContent=true`, the legacy top-level text fields are empty.
  */
 interface DocsDocument {
-  body?: {
-    content?: DocsStructuralElement[]
-  }
   tabs?: DocsTab[]
+}
+
+/** Describes a Google API failure without leaking an unbounded response body. */
+async function describeGoogleApiFailure(response: Response): Promise<string> {
+  const rawBody = await readBoundedHttpErrorBody(response)
+  const normalizedBody = redactSensitiveValues(rawBody).replace(/\s+/g, ' ').trim()
+  if (!normalizedBody) return String(response.status)
+
+  try {
+    const parsed: unknown = JSON.parse(rawBody)
+    if (isRecordLike(parsed) && isRecordLike(parsed.error)) {
+      const message = parsed.error.message
+      if (typeof message === 'string' && message.trim()) {
+        const safeMessage = redactSensitiveValues(message).replace(/\s+/g, ' ').trim()
+        return `${response.status} — ${truncate(safeMessage, 500)}`
+      }
+    }
+  } catch {
+    return `${response.status} — ${truncate(normalizedBody, 500)}`
+  }
+
+  return `${response.status} — ${truncate(normalizedBody, 500)}`
 }
 
 /**
@@ -204,16 +257,11 @@ function extractTextFromTabs(tabs: DocsTab[]): string[] {
 /**
  * Extracts plain text from a Google Docs API document response. `tabs` is the
  * source of truth because `includeTabsContent=true` moves all content there and
- * leaves `body` empty; `body` is read only when `tabs` yields nothing, so a
- * response served without tab content still indexes instead of coming back blank.
+ * leaves the legacy top-level text fields empty. Extraction intentionally covers
+ * tab body text only; unsupported resource types are not represented as complete.
  */
 function extractTextFromDocument(doc: DocsDocument): string {
-  const parts = doc.tabs?.length ? extractTextFromTabs(doc.tabs) : []
-  if (parts.length === 0 && doc.body?.content) {
-    parts.push(...extractTextFromStructuralElements(doc.body.content))
-  }
-
-  return parts.join('\n').trim()
+  return doc.tabs?.length ? extractTextFromTabs(doc.tabs).join('\n').trim() : ''
 }
 
 /**
@@ -227,7 +275,7 @@ function extractTextFromDocument(doc: DocsDocument): string {
 async function fetchDocContent(accessToken: string, documentId: string): Promise<string> {
   const params = new URLSearchParams({
     includeTabsContent: 'true',
-    fields: 'body.content,tabs',
+    fields: GOOGLE_DOC_CONTENT_FIELDS,
   })
   const url = `https://docs.googleapis.com/v1/documents/${encodeURIComponent(documentId)}?${params.toString()}`
 
@@ -240,7 +288,9 @@ async function fetchDocContent(accessToken: string, documentId: string): Promise
   })
 
   if (!response.ok) {
-    throw new Error(`Failed to fetch Google Doc content ${documentId}: ${response.status}`)
+    throw new Error(
+      `Failed to fetch Google Doc content ${documentId}: ${await describeGoogleApiFailure(response)}`
+    )
   }
 
   const buffer = await readBodyWithLimit(response, MAX_DOCS_RESPONSE_BYTES)
@@ -302,10 +352,14 @@ export const googleDocsConnector: ConnectorConfig = {
   ): Promise<ExternalDocumentList> => {
     const query = buildQuery(sourceConfig)
 
-    const maxDocs = sourceConfig.maxDocs ? Number(sourceConfig.maxDocs) : 0
+    const maxDocs = parseMaxDocs(sourceConfig.maxDocs)
     const previouslyFetched = (syncContext?.totalDocsFetched as number) ?? 0
     /** Last-page precision: never ask Drive for more files than the cap still allows. */
     const remaining = maxDocs > 0 ? Math.max(0, maxDocs - previouslyFetched) : 0
+    if (maxDocs > 0 && remaining === 0) {
+      if (syncContext) syncContext.listingCapped = true
+      return { documents: [], hasMore: false }
+    }
     const pageSize = remaining > 0 ? Math.min(PAGE_SIZE, remaining) : PAGE_SIZE
 
     /**
@@ -345,12 +399,12 @@ export const googleDocsConnector: ConnectorConfig = {
     })
 
     if (!response.ok) {
-      const errorText = await response.text()
+      const failure = await describeGoogleApiFailure(response)
       logger.error('Failed to list Google Docs', {
         status: response.status,
-        error: errorText,
+        error: failure,
       })
-      throw new Error(`Failed to list Google Docs: ${response.status}`)
+      throw new Error(`Failed to list Google Docs: ${failure}`)
     }
 
     const data = await response.json()
@@ -415,7 +469,9 @@ export const googleDocsConnector: ConnectorConfig = {
 
     if (!response.ok) {
       if (response.status === 404) return null
-      throw new Error(`Failed to get Google Doc metadata: ${response.status}`)
+      throw new Error(
+        `Failed to get Google Doc metadata: ${await describeGoogleApiFailure(response)}`
+      )
     }
 
     const file = (await response.json()) as DriveFile & { trashed?: boolean }
@@ -452,13 +508,10 @@ export const googleDocsConnector: ConnectorConfig = {
     sourceConfig: Record<string, unknown>
   ): Promise<{ valid: boolean; error?: string }> => {
     const folderIds = parseMultiValue(sourceConfig.folderId)
-    const maxDocs = sourceConfig.maxDocs as string | undefined
-
-    if (maxDocs && (Number.isNaN(Number(maxDocs)) || Number(maxDocs) <= 0)) {
-      return { valid: false, error: 'Max documents must be a positive number' }
-    }
 
     try {
+      parseMaxDocs(sourceConfig.maxDocs)
+
       if (folderIds.length > 0) {
         for (const folderId of folderIds) {
           const url = `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(folderId)}?fields=id,name,mimeType&supportsAllDrives=true`
@@ -483,7 +536,7 @@ export const googleDocsConnector: ConnectorConfig = {
             }
             return {
               valid: false,
-              error: `Failed to access folder "${folderId}": ${response.status}`,
+              error: `Failed to access folder "${folderId}": ${await describeGoogleApiFailure(response)}`,
             }
           }
 
@@ -514,7 +567,10 @@ export const googleDocsConnector: ConnectorConfig = {
         )
 
         if (!response.ok) {
-          return { valid: false, error: `Failed to access Google Docs: ${response.status}` }
+          return {
+            valid: false,
+            error: `Failed to access Google Docs: ${await describeGoogleApiFailure(response)}`,
+          }
         }
       }
 

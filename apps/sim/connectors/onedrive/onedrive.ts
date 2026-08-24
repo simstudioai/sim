@@ -1,16 +1,25 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
-import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
+import {
+  fetchWithRetry,
+  readBoundedHttpErrorBody,
+  VALIDATE_RETRY_OPTIONS,
+} from '@/lib/knowledge/documents/utils'
 import { onedriveConnectorMeta } from '@/connectors/onedrive/meta'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
 import {
+  appendPendingMicrosoftGraphFolders,
+  assertMicrosoftGraphNextLink,
   CONNECTOR_MAX_FILE_BYTES,
   ConnectorFileTooLargeError,
   connectorFileExtension,
+  decodeMicrosoftGraphTraversalCursor,
+  encodeMicrosoftGraphTraversalCursor,
   extractConnectorText,
   hasIndexablePayload,
   isIndexableConnectorFile,
   isSkippedDocument,
+  type MicrosoftGraphTraversalState,
   markSkipped,
   parseTagDate,
   pipelineParsedMimeType,
@@ -58,6 +67,23 @@ const PAGE_SIZE = 200
  * drive with thousands of folders from silently truncating its listing.
  */
 const MAX_LIST_REQUESTS_PER_CALL = 25
+
+function parseMaxFiles(value: unknown): number {
+  if (value === undefined || value === null) return 0
+  if (typeof value !== 'string' && typeof value !== 'number') {
+    throw new Error('Max files must be a positive safe integer, or 0 for unlimited')
+  }
+  const normalized = typeof value === 'string' ? value.trim() : value
+  if (normalized === '') return 0
+  if (typeof normalized === 'string' && !/^\d+$/.test(normalized)) {
+    throw new Error('Max files must be a positive safe integer, or 0 for unlimited')
+  }
+  const parsed = Number(normalized)
+  if (!Number.isSafeInteger(parsed) || parsed < 0) {
+    throw new Error('Max files must be a positive safe integer, or 0 for unlimited')
+  }
+  return parsed
+}
 
 interface OneDriveItem {
   id: string
@@ -177,36 +203,16 @@ function buildListUrl(folderPath: string | undefined, folderId: string | undefin
  * `assertGraphNextPageUrl` used by the Graph tool routes.
  */
 function assertGraphNextLink(nextLink: string): string {
-  const url = new URL(nextLink.trim())
-  if (url.origin !== GRAPH_API_ORIGIN) {
-    throw new Error('Refusing to follow a non-Microsoft Graph @odata.nextLink')
-  }
-  return url.toString()
+  return assertMicrosoftGraphNextLink(nextLink)
 }
 
 /**
  * Depth-first traversal position carried across `listDocuments` calls.
  */
-interface OneDriveTraversalState {
-  /** Absolute `@odata.nextLink` for the current folder's next page, if any. */
-  nextLink?: string
-  /** Item id of the folder being listed; `undefined` means the configured root. */
-  currentFolder?: string
-  /** Subfolder ids discovered but not yet listed. */
-  folderStack: string[]
-}
+type OneDriveTraversalState = MicrosoftGraphTraversalState
 
 function decodeCursor(cursor: string): OneDriveTraversalState {
-  try {
-    const parsed = JSON.parse(cursor) as Partial<OneDriveTraversalState>
-    return {
-      nextLink: typeof parsed.nextLink === 'string' ? parsed.nextLink : undefined,
-      currentFolder: typeof parsed.currentFolder === 'string' ? parsed.currentFolder : undefined,
-      folderStack: Array.isArray(parsed.folderStack) ? parsed.folderStack : [],
-    }
-  } catch {
-    return { folderStack: [] }
-  }
+  return decodeMicrosoftGraphTraversalCursor(cursor, 'OneDrive')
 }
 
 export const onedriveConnector: ConnectorConfig = {
@@ -220,8 +226,7 @@ export const onedriveConnector: ConnectorConfig = {
   ): Promise<ExternalDocumentList> => {
     const folderPath = sourceConfig.folderPath as string | undefined
 
-    const parsedMaxFiles = Number(sourceConfig.maxFiles)
-    const maxFiles = Number.isFinite(parsedMaxFiles) && parsedMaxFiles > 0 ? parsedMaxFiles : 0
+    const maxFiles = parseMaxFiles(sourceConfig.maxFiles)
 
     const state: OneDriveTraversalState = cursor ? decodeCursor(cursor) : { folderStack: [] }
 
@@ -253,7 +258,7 @@ export const onedriveConnector: ConnectorConfig = {
       })
 
       if (!response.ok) {
-        const errorText = await response.text()
+        const errorText = await readBoundedHttpErrorBody(response)
         logger.error('Failed to list OneDrive files', {
           status: response.status,
           error: errorText,
@@ -265,6 +270,7 @@ export const onedriveConnector: ConnectorConfig = {
       const items = data.value || []
 
       const files: OneDriveItem[] = []
+      const subfolders: string[] = []
       /**
        * Extensions this connector cannot index, tallied per page. A folder of
        * unsupported files otherwise syncs as "success, 0 documents", which reads
@@ -276,7 +282,7 @@ export const onedriveConnector: ConnectorConfig = {
 
       for (const item of items) {
         if (item.folder) {
-          state.folderStack.push(item.id)
+          subfolders.push(item.id)
         } else if (item.file) {
           if (isIndexableConnectorFile(item.name)) {
             // Keep oversized files; they are surfaced as skipped (failed) docs below.
@@ -319,9 +325,14 @@ export const onedriveConnector: ConnectorConfig = {
          * block deletion reconciliation for a complete listing.
          */
         cappedWithItemsLeft =
-          take.documents.length < stubs.length || Boolean(nextLink) || state.folderStack.length > 0
+          take.documents.length < stubs.length ||
+          Boolean(nextLink) ||
+          subfolders.length > 0 ||
+          state.folderStack.length > 0
         break
       }
+
+      appendPendingMicrosoftGraphFolders(state.folderStack, subfolders, 'OneDrive')
 
       if (nextLink) {
         state.nextLink = nextLink
@@ -353,7 +364,7 @@ export const onedriveConnector: ConnectorConfig = {
      */
     return {
       documents,
-      nextCursor: JSON.stringify(state),
+      nextCursor: encodeMicrosoftGraphTraversalCursor(state, 'OneDrive'),
       hasMore: true,
     }
   },
@@ -410,10 +421,10 @@ export const onedriveConnector: ConnectorConfig = {
     sourceConfig: Record<string, unknown>
   ): Promise<{ valid: boolean; error?: string }> => {
     const folderPath = sourceConfig.folderPath as string | undefined
-    const maxFiles = sourceConfig.maxFiles as string | undefined
-
-    if (maxFiles && (Number.isNaN(Number(maxFiles)) || Number(maxFiles) <= 0)) {
-      return { valid: false, error: 'Max files must be a positive number' }
+    try {
+      parseMaxFiles(sourceConfig.maxFiles)
+    } catch (error) {
+      return { valid: false, error: toError(error).message }
     }
 
     try {

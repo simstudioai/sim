@@ -1,6 +1,7 @@
 import { inflateRawSync } from 'zlib'
 import { createLogger } from '@sim/logger'
 import {
+  ArchiveIntegrityError,
   MAX_OOXML_ENTRY_UNCOMPRESSED_BYTES,
   MAX_OOXML_TOTAL_UNCOMPRESSED_BYTES,
   ZipBombError,
@@ -506,7 +507,7 @@ export function assertOoxmlArchiveWithinLimits(
       logger.warn('Rejected ZIP-shaped archive: central directory could not be parsed', {
         compressedBytes: buffer.length,
       })
-      throw new ZipBombError(
+      throw new ArchiveIntegrityError(
         'Unable to inspect ZIP central directory; refusing to parse an unverifiable ZIP-shaped archive'
       )
     }
@@ -556,7 +557,7 @@ export function assertOoxmlArchiveWithinLimits(
     logger.warn('Rejected ZIP-shaped archive: central directory could not be re-read', {
       compressedBytes: buffer.length,
     })
-    throw new ZipBombError(
+    throw new ArchiveIntegrityError(
       'Unable to inspect ZIP central directory; refusing to parse an unverifiable ZIP-shaped archive'
     )
   }
@@ -568,6 +569,6 @@ export function assertOoxmlArchiveWithinLimits(
       declaredTotalUncompressed: totalUncompressed,
       compressedBytes: buffer.length,
     })
-    throw new ZipBombError(`Archive contents do not match declared sizes: ${mismatch}`)
+    throw new ArchiveIntegrityError(`Archive contents do not match declared sizes: ${mismatch}`)
   }
 }

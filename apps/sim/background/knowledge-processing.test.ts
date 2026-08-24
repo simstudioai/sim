@@ -19,6 +19,8 @@ vi.mock('@/lib/knowledge/documents/service', () => ({
   processDocumentAsync: mockProcessDocumentAsync,
 }))
 
+import { EmbeddingQuotaExhaustedError } from '@/lib/embeddings/client'
+import { PermanentDocumentProcessingError } from '@/lib/knowledge/documents/document-processing-error'
 import { runDocumentProcessing } from '@/background/knowledge-processing'
 
 const BILLING_ATTRIBUTION = {
@@ -93,7 +95,8 @@ describe('knowledge processing worker', () => {
         workspaceId: 'workspace-1',
         billingAttribution: BILLING_ATTRIBUTION,
       },
-      BASE_PAYLOAD.requestId
+      BASE_PAYLOAD.requestId,
+      { chargedAtDispatch: true }
     )
   })
 
@@ -135,8 +138,77 @@ describe('knowledge processing worker', () => {
         actorUserId: 'legacy-owner',
         workspaceId: null,
       },
-      BASE_PAYLOAD.requestId
+      BASE_PAYLOAD.requestId,
+      { chargedAtDispatch: true }
     )
+  })
+
+  it('reports elapsed processing time rather than an epoch timestamp', async () => {
+    vi.spyOn(Date, 'now').mockReturnValueOnce(1_000).mockReturnValueOnce(1_125)
+
+    const result = await runDocumentProcessing({
+      ...BASE_PAYLOAD,
+      billingScope: 'non-workspace',
+      actorUserId: 'legacy-owner',
+      workspaceId: null,
+    })
+
+    expect(result.processingTime).toBe(125)
+  })
+
+  it('returns a controlled terminal result for permanent document input failures', async () => {
+    mockProcessDocumentAsync.mockRejectedValue(
+      new PermanentDocumentProcessingError(
+        'archive_safety_limit',
+        'This file expands beyond the safe processing limit.'
+      )
+    )
+
+    await expect(
+      runDocumentProcessing({
+        ...BASE_PAYLOAD,
+        billingScope: 'non-workspace',
+        actorUserId: 'legacy-owner',
+        workspaceId: null,
+      })
+    ).resolves.toMatchObject({
+      success: false,
+      outcome: 'permanent_failure',
+      code: 'archive_safety_limit',
+      error: 'This file expands beyond the safe processing limit.',
+    })
+  })
+
+  it('preserves normal retries for transient failures', async () => {
+    const transientError = new Error('Database connection timed out')
+    mockProcessDocumentAsync.mockRejectedValue(transientError)
+
+    await expect(
+      runDocumentProcessing({
+        ...BASE_PAYLOAD,
+        billingScope: 'non-workspace',
+        actorUserId: 'legacy-owner',
+        workspaceId: null,
+      })
+    ).rejects.toBe(transientError)
+  })
+
+  it('defers without failing the task when every embedding provider has exhausted credit', async () => {
+    mockProcessDocumentAsync.mockRejectedValue(new EmbeddingQuotaExhaustedError('openai'))
+
+    await expect(
+      runDocumentProcessing({
+        ...BASE_PAYLOAD,
+        billingScope: 'non-workspace',
+        actorUserId: 'legacy-owner',
+        workspaceId: null,
+      })
+    ).resolves.toMatchObject({
+      success: false,
+      outcome: 'quota_deferred',
+      error:
+        'The embedding provider has exhausted its available quota. Add credit or replace the credential before retrying.',
+    })
   })
 })
 

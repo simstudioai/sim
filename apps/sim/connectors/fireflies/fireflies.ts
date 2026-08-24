@@ -1,14 +1,49 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
-import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
+import { truncate } from '@sim/utils/string'
+import { redactExactSensitiveValues } from '@/lib/core/security/redaction'
+import { isPayloadSizeLimitError, readResponseTextWithLimit } from '@/lib/core/utils/stream-limits'
+import {
+  isRetryableError,
+  type RetryOptions,
+  resolveRetryDelayMs,
+  retryWithExponentialBackoff,
+  VALIDATE_RETRY_OPTIONS,
+} from '@/lib/knowledge/documents/utils'
 import { firefliesConnectorMeta } from '@/connectors/fireflies/meta'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
-import { parseTagDate } from '@/connectors/utils'
+import { ConnectorFileTooLargeError, markSkipped, parseTagDate } from '@/connectors/utils'
 
 const logger = createLogger('FirefliesConnector')
 
 const FIREFLIES_GRAPHQL_URL = 'https://api.fireflies.ai/graphql'
 const TRANSCRIPTS_PER_PAGE = 50
+const FIREFLIES_MAX_RESPONSE_BYTES = 16 * 1024 * 1024
+const FIREFLIES_MAX_EXTRACTED_CONTENT_BYTES = 8 * 1024 * 1024
+const FIREFLIES_MAX_ERROR_MESSAGE_CHARS = 2000
+const FIREFLIES_DEFAULT_MAX_RETRY_DELAY_MS = 120_000
+const FIREFLIES_DEFAULT_MAX_RETRIES = 2
+const FIREFLIES_EXTRACTED_CONTENT_SKIP_REASON =
+  'Transcript exceeds the 8MB extracted-content limit and was not indexed'
+const FIREFLIES_RESPONSE_SKIP_REASON =
+  'Transcript response exceeds the 16MB safe hydration limit and was not indexed'
+
+function parseMaxTranscripts(value: unknown): number {
+  if (value === undefined || value === null) return 0
+  if (typeof value !== 'string' && typeof value !== 'number') {
+    throw new Error('Max transcripts must be a positive safe integer, or 0 for unlimited')
+  }
+  const normalized = typeof value === 'string' ? value.trim() : value
+  if (normalized === '') return 0
+  if (typeof normalized === 'string' && !/^\d+$/.test(normalized)) {
+    throw new Error('Max transcripts must be a positive safe integer, or 0 for unlimited')
+  }
+  const parsed = Number(normalized)
+  if (!Number.isSafeInteger(parsed) || parsed < 0) {
+    throw new Error('Max transcripts must be a positive safe integer, or 0 for unlimited')
+  }
+  return parsed
+}
 
 interface FirefliesTranscript {
   id: string
@@ -24,10 +59,20 @@ interface FirefliesTranscript {
   speakers?: { name: string }[]
   sentences?: { speaker_name: string; text: string }[]
   summary?: {
-    keywords?: string[]
+    /** Fireflies documents a string; tolerate the historical array shape defensively. */
+    keywords?: string | string[]
     action_items?: string
     overview?: string
     short_summary?: string
+  }
+}
+
+interface FirefliesGraphQLError {
+  message?: string
+  code?: string
+  extensions?: {
+    status?: number
+    metadata?: { retryAfter?: number }
   }
 }
 
@@ -38,11 +83,37 @@ interface FirefliesTranscript {
 class FirefliesApiError extends Error {
   constructor(
     message: string,
-    readonly code?: string
+    readonly code?: string,
+    readonly status?: number,
+    readonly retryAfterMs?: number
   ) {
     super(message)
     this.name = 'FirefliesApiError'
   }
+}
+
+class FirefliesMalformedResponseError extends Error {
+  constructor(status: number) {
+    super(`Fireflies API returned a malformed response with no data (HTTP ${status})`)
+    this.name = 'FirefliesMalformedResponseError'
+  }
+}
+
+const FIREFLIES_RETRYABLE_ERROR_CODES = new Set([
+  'too_many_requests',
+  'request_timeout',
+  'invariant_violation',
+])
+
+function isRetryableFirefliesError(error: unknown): boolean {
+  if (error instanceof FirefliesMalformedResponseError) return true
+  if (error instanceof FirefliesApiError) {
+    return (
+      Boolean(error.code && FIREFLIES_RETRYABLE_ERROR_CODES.has(error.code)) ||
+      isRetryableError(error)
+    )
+  }
+  return isRetryableError(error)
 }
 
 /**
@@ -52,109 +123,176 @@ async function firefliesGraphQL(
   accessToken: string,
   query: string,
   variables: Record<string, unknown> = {},
-  retryOptions?: Parameters<typeof fetchWithRetry>[2]
+  retryOptions?: RetryOptions
 ): Promise<Record<string, unknown>> {
-  const response = await fetchWithRetry(
-    FIREFLIES_GRAPHQL_URL,
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${accessToken}`,
-      },
-      body: JSON.stringify({ query, variables }),
+  return retryWithExponentialBackoff(
+    async () => {
+      /** One retry layer owns transport, HTTP, and GraphQL semantic failures. */
+      const response = await fetch(FIREFLIES_GRAPHQL_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({ query, variables }),
+      })
+
+      /**
+       * Fireflies reports failures as an `errors` array in the body, and does so on
+       * non-2xx responses too (`object_not_found` → 404, `too_many_requests` → 429,
+       * `paid_required` → 403). Read the body first so the caller sees the actual
+       * reason instead of a bare status code.
+       */
+      let rawBody: string
+      try {
+        rawBody = await readResponseTextWithLimit(response, {
+          maxBytes: FIREFLIES_MAX_RESPONSE_BYTES,
+          label: 'Fireflies GraphQL response',
+        })
+      } catch (error) {
+        if (!response.ok && isPayloadSizeLimitError(error)) {
+          throw new FirefliesApiError(
+            `Fireflies API HTTP error: ${response.status} (response body exceeded the diagnostic limit)`,
+            undefined,
+            response.status
+          )
+        }
+        throw error
+      }
+
+      let parsedBody: unknown = null
+      try {
+        parsedBody = JSON.parse(rawBody)
+      } catch {
+        parsedBody = null
+      }
+
+      const data = parsedBody as {
+        data?: Record<string, unknown> | null
+        errors?: FirefliesGraphQLError[]
+      } | null
+      const headerRetryAfterMs = resolveRetryDelayMs(response.headers)
+
+      const firstError = data?.errors?.[0]
+      if (firstError) {
+        const code = firstError.code ? ` (${firstError.code})` : ''
+        const safeMessage = truncate(
+          redactExactSensitiveValues(firstError.message || 'Unknown GraphQL error', [accessToken]),
+          FIREFLIES_MAX_ERROR_MESSAGE_CHARS
+        )
+        const retryAt = firstError.extensions?.metadata?.retryAfter
+        const graphQLRetryAfterMs =
+          typeof retryAt === 'number' && retryAt > Date.now() ? retryAt - Date.now() : undefined
+        throw new FirefliesApiError(
+          `Fireflies API error${code}: ${safeMessage}`,
+          firstError.code,
+          firstError.extensions?.status ?? response.status,
+          graphQLRetryAfterMs ?? headerRetryAfterMs
+        )
+      }
+
+      if (!response.ok) {
+        const safeDiagnostic = truncate(
+          redactExactSensitiveValues(rawBody, [accessToken]),
+          FIREFLIES_MAX_ERROR_MESSAGE_CHARS
+        )
+        throw new FirefliesApiError(
+          `Fireflies API HTTP error: ${response.status}${safeDiagnostic ? `: ${safeDiagnostic}` : ''}`,
+          undefined,
+          response.status,
+          headerRetryAfterMs
+        )
+      }
+
+      /**
+       * A 2xx carrying neither `errors` nor a `data` object is unreadable — an
+       * unparseable body, a truncated response, or a proxy interstitial. It must
+       * raise rather than degrade to an empty result: `listDocuments` would
+       * otherwise report a confident empty listing and reconcile every stored
+       * document as deleted. Retrying at the page boundary preserves prior pages.
+       */
+      if (!data || typeof data.data !== 'object' || data.data === null) {
+        throw new FirefliesMalformedResponseError(response.status)
+      }
+
+      return data.data
     },
-    retryOptions
+    {
+      maxRetries: retryOptions?.maxRetries ?? FIREFLIES_DEFAULT_MAX_RETRIES,
+      initialDelayMs: retryOptions?.initialDelayMs ?? 1000,
+      maxDelayMs: retryOptions?.maxDelayMs ?? FIREFLIES_DEFAULT_MAX_RETRY_DELAY_MS,
+      maxRetryAfterMs:
+        retryOptions?.maxRetryAfterMs ??
+        retryOptions?.maxDelayMs ??
+        FIREFLIES_DEFAULT_MAX_RETRY_DELAY_MS,
+      backoffMultiplier: retryOptions?.backoffMultiplier,
+      retryCondition: isRetryableFirefliesError,
+    }
   )
-
-  /**
-   * Fireflies reports failures as an `errors` array in the body, and does so on
-   * non-2xx responses too (`object_not_found` → 404, `too_many_requests` → 429,
-   * `paid_required` → 403). Read the body first so the caller sees the actual
-   * reason instead of a bare status code.
-   */
-  const data = (await response.json().catch(() => null)) as {
-    data?: Record<string, unknown> | null
-    errors?: { message?: string; code?: string }[]
-  } | null
-
-  const firstError = data?.errors?.[0]
-  if (firstError) {
-    const code = firstError.code ? ` (${firstError.code})` : ''
-    throw new FirefliesApiError(
-      `Fireflies API error${code}: ${firstError.message || 'Unknown GraphQL error'}`,
-      firstError.code
-    )
-  }
-
-  if (!response.ok) {
-    throw new Error(`Fireflies API HTTP error: ${response.status}`)
-  }
-
-  /**
-   * A 2xx carrying neither `errors` nor a `data` object is unreadable — an
-   * unparseable body, a truncated response, a proxy interstitial. It must raise
-   * rather than degrade to an empty result: `listDocuments` would otherwise
-   * report a confident empty listing and the sync engine would reconcile every
-   * stored document as deleted.
-   */
-  if (!data || typeof data.data !== 'object' || data.data === null) {
-    throw new Error('Fireflies API returned a malformed response with no data')
-  }
-
-  return data.data
 }
 
-/**
- * Formats transcript sentences into plain text content.
- */
 function formatTranscriptContent(transcript: FirefliesTranscript): string {
   const parts: string[] = []
+  let totalBytes = 0
+  const push = (part: string) => {
+    const addedBytes = Buffer.byteLength(part, 'utf8') + (parts.length > 0 ? 1 : 0)
+    if (totalBytes + addedBytes > FIREFLIES_MAX_EXTRACTED_CONTENT_BYTES) {
+      throw new ConnectorFileTooLargeError(FIREFLIES_MAX_EXTRACTED_CONTENT_BYTES)
+    }
+    parts.push(part)
+    totalBytes += addedBytes
+  }
 
   if (transcript.title) {
-    parts.push(`Meeting: ${transcript.title}`)
+    push(`Meeting: ${transcript.title}`)
   }
 
   if (transcript.date) {
-    parts.push(`Date: ${new Date(transcript.date).toISOString()}`)
+    push(`Date: ${new Date(transcript.date).toISOString()}`)
   }
 
   if (transcript.duration) {
-    parts.push(`Duration: ${Math.round(transcript.duration)} minutes`)
+    push(`Duration: ${Math.round(transcript.duration)} minutes`)
   }
 
   const host = transcript.host_email || transcript.organizer_email
   if (host) {
-    parts.push(`Host: ${host}`)
+    push(`Host: ${host}`)
   }
 
   if (transcript.participants && transcript.participants.length > 0) {
-    parts.push(`Participants: ${transcript.participants.join(', ')}`)
+    push(`Participants: ${transcript.participants.join(', ')}`)
   }
 
   const overview = transcript.summary?.overview || transcript.summary?.short_summary
   if (overview) {
-    parts.push('')
-    parts.push('--- Overview ---')
-    parts.push(overview)
+    push('')
+    push('--- Overview ---')
+    push(overview)
   }
 
   if (transcript.summary?.action_items) {
-    parts.push('')
-    parts.push('--- Action Items ---')
-    parts.push(transcript.summary.action_items)
+    push('')
+    push('--- Action Items ---')
+    push(transcript.summary.action_items)
   }
 
-  if (transcript.summary?.keywords && transcript.summary.keywords.length > 0) {
-    parts.push('')
-    parts.push(`Keywords: ${transcript.summary.keywords.join(', ')}`)
+  const keywords = transcript.summary?.keywords
+  const formattedKeywords = Array.isArray(keywords)
+    ? keywords.filter((keyword): keyword is string => typeof keyword === 'string').join(', ')
+    : typeof keywords === 'string'
+      ? keywords
+      : ''
+  if (formattedKeywords) {
+    push('')
+    push(`Keywords: ${formattedKeywords}`)
   }
 
   if (transcript.sentences && transcript.sentences.length > 0) {
-    parts.push('')
-    parts.push('--- Transcript ---')
+    push('')
+    push('--- Transcript ---')
     for (const sentence of transcript.sentences) {
-      parts.push(`${sentence.speaker_name}: ${sentence.text}`)
+      push(`${sentence.speaker_name}: ${sentence.text}`)
     }
   }
 
@@ -177,7 +315,14 @@ function transcriptToStub(transcript: FirefliesTranscript): ExternalDocument {
     contentDeferred: true,
     mimeType: 'text/plain',
     sourceUrl: transcript.transcript_url || undefined,
-    contentHash: `fireflies:${transcript.id}:${transcript.date ?? ''}:${transcript.duration ?? ''}`,
+    contentHash: `fireflies:v2:${transcript.id}:${JSON.stringify({
+      date: transcript.date ?? null,
+      duration: transcript.duration ?? null,
+      title: transcript.title ?? null,
+      host: transcript.host_email || transcript.organizer_email || null,
+      participants: transcript.participants ?? [],
+      speakers: speakerNames,
+    })}`,
     metadata: {
       hostEmail: transcript.host_email || transcript.organizer_email,
       duration: transcript.duration,
@@ -186,6 +331,20 @@ function transcriptToStub(transcript: FirefliesTranscript): ExternalDocument {
       speakers: speakerNames,
     },
   }
+}
+
+function oversizedTranscriptResponseStub(externalId: string): ExternalDocument {
+  return markSkipped(
+    {
+      externalId,
+      title: `Fireflies transcript ${externalId}`,
+      content: '',
+      contentDeferred: true,
+      mimeType: 'text/plain',
+      contentHash: `fireflies:oversized-response:${externalId}`,
+    },
+    FIREFLIES_RESPONSE_SKIP_REASON
+  )
 }
 
 export const firefliesConnector: ConnectorConfig = {
@@ -198,7 +357,7 @@ export const firefliesConnector: ConnectorConfig = {
     syncContext?: Record<string, unknown>
   ): Promise<ExternalDocumentList> => {
     const hostEmail = (sourceConfig.hostEmail as string) || ''
-    const maxTranscripts = sourceConfig.maxTranscripts ? Number(sourceConfig.maxTranscripts) : 0
+    const maxTranscripts = parseMaxTranscripts(sourceConfig.maxTranscripts)
 
     const skip = cursor ? Number(cursor) : 0
     const prevFetched = (syncContext?.totalDocsFetched as number) ?? 0
@@ -214,7 +373,9 @@ export const firefliesConnector: ConnectorConfig = {
     let listingCeiling = syncContext?.firefliesListingCeiling as string | undefined
     if (!listingCeiling) {
       listingCeiling = new Date().toISOString()
-      if (syncContext) syncContext.firefliesListingCeiling = listingCeiling
+      if (syncContext) {
+        syncContext.firefliesListingCeiling = listingCeiling
+      }
     }
 
     /**
@@ -306,6 +467,12 @@ export const firefliesConnector: ConnectorConfig = {
        */
       nextCursor: hasMore ? String(skip + transcripts.length) : undefined,
       hasMore,
+      /**
+       * Fireflies exposes offset pagination without a documented stable sort or
+       * snapshot cursor. `toDate` excludes new transcripts, but a deletion during
+       * the walk can still shift later offsets and make a live item appear absent.
+       */
+      reconciliationSafe: false,
     }
   },
 
@@ -349,10 +516,19 @@ export const firefliesConnector: ConnectorConfig = {
       if (!transcript?.id) return null
 
       const stub = transcriptToStub(transcript)
+      let content: string
+      try {
+        content = formatTranscriptContent(transcript)
+      } catch (error) {
+        if (error instanceof ConnectorFileTooLargeError) {
+          return markSkipped(stub, FIREFLIES_EXTRACTED_CONTENT_SKIP_REASON)
+        }
+        throw error
+      }
 
       return {
         ...stub,
-        content: formatTranscriptContent(transcript),
+        content,
         contentDeferred: false,
         metadata: {
           ...stub.metadata,
@@ -360,6 +536,13 @@ export const firefliesConnector: ConnectorConfig = {
         },
       }
     } catch (error) {
+      if (isPayloadSizeLimitError(error)) {
+        logger.info('Skipping Fireflies transcript with oversized hydration response', {
+          externalId,
+          maxResponseBytes: FIREFLIES_MAX_RESPONSE_BYTES,
+        })
+        return oversizedTranscriptResponseStub(externalId)
+      }
       /**
        * Only `object_not_found` means the transcript is genuinely gone. Every other
        * failure — `too_many_requests`, `paid_required`, transport faults — is rethrown so
@@ -382,9 +565,10 @@ export const firefliesConnector: ConnectorConfig = {
     accessToken: string,
     sourceConfig: Record<string, unknown>
   ): Promise<{ valid: boolean; error?: string }> => {
-    const maxTranscripts = sourceConfig.maxTranscripts as string | undefined
-    if (maxTranscripts && (Number.isNaN(Number(maxTranscripts)) || Number(maxTranscripts) < 0)) {
-      return { valid: false, error: 'Max transcripts must be a non-negative number' }
+    try {
+      parseMaxTranscripts(sourceConfig.maxTranscripts)
+    } catch (error) {
+      return { valid: false, error: toError(error).message }
     }
 
     try {

@@ -21,3 +21,11 @@ export class ZipBombError extends Error {
     this.name = 'ZipBombError'
   }
 }
+
+/** A ZIP-shaped file whose structure cannot be verified safely or parsed consistently. */
+export class ArchiveIntegrityError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'ArchiveIntegrityError'
+  }
+}

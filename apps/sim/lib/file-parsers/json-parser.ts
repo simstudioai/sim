@@ -1,4 +1,5 @@
 import { getErrorMessage } from '@sim/utils/errors'
+import { FileParserError } from '@/lib/file-parsers/errors'
 import type { FileParseResult } from '@/lib/file-parsers/types'
 
 /**
@@ -29,7 +30,11 @@ export async function parseJSON(filePath: string): Promise<FileParseResult> {
       metadata,
     }
   } catch (error) {
-    throw new Error(`Invalid JSON: ${getErrorMessage(error, 'Unknown error')}`)
+    throw new FileParserError(
+      'invalid_format',
+      `Invalid JSON: ${getErrorMessage(error, 'Unknown error')}`,
+      error
+    )
   }
 }
 
@@ -56,7 +61,11 @@ export async function parseJSONBuffer(buffer: Buffer): Promise<FileParseResult> 
       metadata,
     }
   } catch (error) {
-    throw new Error(`Invalid JSON: ${getErrorMessage(error, 'Unknown error')}`)
+    throw new FileParserError(
+      'invalid_format',
+      `Invalid JSON: ${getErrorMessage(error, 'Unknown error')}`,
+      error
+    )
   }
 }
 
@@ -84,8 +93,12 @@ function parseJSONLContent(content: string): FileParseResult {
   for (const line of lines) {
     try {
       items.push(JSON.parse(line))
-    } catch {
-      throw new Error(`Invalid JSONL: failed to parse line: ${line.slice(0, 100)}`)
+    } catch (error) {
+      throw new FileParserError(
+        'invalid_format',
+        `Invalid JSONL: failed to parse line: ${line.slice(0, 100)}`,
+        error
+      )
     }
   }
 

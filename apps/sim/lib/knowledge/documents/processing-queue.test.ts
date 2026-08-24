@@ -206,6 +206,29 @@ describe('processDocumentsWithQueue dispatch backend', () => {
     expect(mockBatchTrigger).toHaveBeenCalledTimes(1)
   })
 
+  it('returns acceptance separately from eventual child completion', async () => {
+    markInsideTriggerRun()
+
+    const result = await processDocumentsWithQueue(
+      [DOCUMENT],
+      'knowledge-base-1',
+      {},
+      'request-1',
+      BILLING_ATTRIBUTION
+    )
+
+    expect(result).toEqual({ requested: 1, accepted: 1, failed: 0 })
+  })
+
+  it('returns an empty dispatch summary without resolving billing context', async () => {
+    await expect(
+      processDocumentsWithQueue([], 'missing-knowledge-base', {}, 'request-1', undefined)
+    ).resolves.toEqual({ requested: 0, accepted: 0, failed: 0 })
+
+    expect(mockBatchTrigger).not.toHaveBeenCalled()
+    expect(dbChainMockFns.limit).not.toHaveBeenCalled()
+  })
+
   it('dispatches via Trigger.dev inside a run when only the secret key is missing', async () => {
     setEnvFlags({ isTriggerDevEnabled: true })
     markInsideTriggerRun()

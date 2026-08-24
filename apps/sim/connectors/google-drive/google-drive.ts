@@ -1,6 +1,10 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
+import {
+  GoogleDriveApiError,
+  readGoogleDriveApiError,
+} from '@/connectors/google-drive/google-drive-errors'
 import { googleDriveConnectorMeta } from '@/connectors/google-drive/meta'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
 import {
@@ -8,6 +12,7 @@ import {
   CONNECTOR_MAX_FILE_BYTES,
   ConnectorFileTooLargeError,
   htmlToPlainText,
+  isSkippedDocument,
   joinTagArray,
   markSkipped,
   parseMultiValue,
@@ -15,11 +20,12 @@ import {
   readBodyWithLimit,
   sizeLimitSkipReason,
   stubOrSkipBySize,
+  takeIndexableWithinCap,
 } from '@/connectors/utils'
 
 const logger = createLogger('GoogleDriveConnector')
 
-const GOOGLE_WORKSPACE_MIME_TYPES: Record<string, string> = {
+const GOOGLE_WORKSPACE_EXPORTS: Record<string, string> = {
   'application/vnd.google-apps.document': 'text/plain',
   'application/vnd.google-apps.spreadsheet': 'text/csv',
   'application/vnd.google-apps.presentation': 'text/plain',
@@ -37,9 +43,39 @@ const SUPPORTED_TEXT_MIME_TYPES = [
 // Google Drive's `files.export` API rejects exports over 10 MB (exportSizeLimitExceeded),
 // so this is a hard external limit for Google Workspace docs — not the connector cap.
 const MAX_EXPORT_SIZE = 10 * 1024 * 1024
+const MAX_FILES_VALIDATION_ERROR = 'Max files must be a positive safe integer, or 0 for unlimited'
+
+function parseMaxFiles(value: unknown): number {
+  if (value === undefined || value === null) return 0
+  if (typeof value !== 'string' && typeof value !== 'number') {
+    throw new Error(MAX_FILES_VALIDATION_ERROR)
+  }
+  const normalized = typeof value === 'string' ? value.trim() : value
+  if (normalized === '') return 0
+  if (typeof normalized === 'string' && !/^\d+$/.test(normalized)) {
+    throw new Error(MAX_FILES_VALIDATION_ERROR)
+  }
+  const parsed = Number(normalized)
+  if (!Number.isSafeInteger(parsed) || parsed < 0) {
+    throw new Error(MAX_FILES_VALIDATION_ERROR)
+  }
+  return parsed
+}
+
+function googleDriveErrorLogFields(error: unknown): Record<string, unknown> {
+  if (error instanceof GoogleDriveApiError) {
+    return {
+      error: error.message,
+      status: error.status,
+      reasons: error.reasons,
+      providerMessage: error.providerMessage,
+    }
+  }
+  return { error: toError(error).message }
+}
 
 function isGoogleWorkspaceFile(mimeType: string): boolean {
-  return mimeType in GOOGLE_WORKSPACE_MIME_TYPES
+  return mimeType in GOOGLE_WORKSPACE_EXPORTS
 }
 
 function isSupportedTextFile(mimeType: string): boolean {
@@ -50,8 +86,8 @@ async function exportGoogleWorkspaceFile(
   accessToken: string,
   fileId: string,
   sourceMimeType: string
-): Promise<string> {
-  const exportMimeType = GOOGLE_WORKSPACE_MIME_TYPES[sourceMimeType]
+): Promise<Buffer> {
+  const exportMimeType = GOOGLE_WORKSPACE_EXPORTS[sourceMimeType]
   if (!exportMimeType) {
     throw new Error(`Unsupported Google Workspace MIME type: ${sourceMimeType}`)
   }
@@ -64,22 +100,18 @@ async function exportGoogleWorkspaceFile(
   })
 
   if (!response.ok) {
-    // Google rejects exports over its 10 MB limit with a 403 exportSizeLimitExceeded
-    // before streaming any bytes — surface that as an oversize skip, not a hard error.
-    if (response.status === 403) {
-      const body = await response.text().catch(() => '')
-      if (body.includes('exportSizeLimitExceeded')) {
-        throw new ConnectorFileTooLargeError(MAX_EXPORT_SIZE)
-      }
+    const error = await readGoogleDriveApiError(response)
+    if (error.kind === 'export_too_large') {
+      throw new ConnectorFileTooLargeError(MAX_EXPORT_SIZE)
     }
-    throw new Error(`Failed to export file ${fileId}: ${response.status}`)
+    throw error
   }
 
   const buffer = await readBodyWithLimit(response, MAX_EXPORT_SIZE)
   if (!buffer) {
     throw new ConnectorFileTooLargeError(MAX_EXPORT_SIZE)
   }
-  return buffer.toString('utf8')
+  return buffer
 }
 
 async function downloadTextFile(accessToken: string, fileId: string): Promise<string> {
@@ -94,7 +126,7 @@ async function downloadTextFile(accessToken: string, fileId: string): Promise<st
   })
 
   if (!response.ok) {
-    throw new Error(`Failed to download file ${fileId}: ${response.status}`)
+    throw await readGoogleDriveApiError(response)
   }
 
   // Stream with a hard byte cap so a file with missing/under-reported listing
@@ -107,23 +139,22 @@ async function downloadTextFile(accessToken: string, fileId: string): Promise<st
   return buffer.toString('utf8')
 }
 
-async function fetchFileContent(
-  accessToken: string,
-  fileId: string,
-  mimeType: string
-): Promise<string> {
-  if (isGoogleWorkspaceFile(mimeType)) {
-    return exportGoogleWorkspaceFile(accessToken, fileId, mimeType)
+type FilePayload = Pick<ExternalDocument, 'content' | 'mimeType'>
+
+async function fetchFilePayload(accessToken: string, file: DriveFile): Promise<FilePayload> {
+  if (GOOGLE_WORKSPACE_EXPORTS[file.mimeType]) {
+    const bytes = await exportGoogleWorkspaceFile(accessToken, file.id, file.mimeType)
+    return { content: bytes.toString('utf8'), mimeType: 'text/plain' }
   }
-  if (mimeType === 'text/html') {
-    const html = await downloadTextFile(accessToken, fileId)
-    return htmlToPlainText(html)
+  if (file.mimeType === 'text/html') {
+    const html = await downloadTextFile(accessToken, file.id)
+    return { content: htmlToPlainText(html), mimeType: 'text/plain' }
   }
-  if (isSupportedTextFile(mimeType)) {
-    return downloadTextFile(accessToken, fileId)
+  if (isSupportedTextFile(file.mimeType)) {
+    return { content: await downloadTextFile(accessToken, file.id), mimeType: 'text/plain' }
   }
 
-  throw new Error(`Unsupported MIME type for content extraction: ${mimeType}`)
+  throw new Error(`Unsupported MIME type for content extraction: ${file.mimeType}`)
 }
 
 interface DriveFile {
@@ -137,6 +168,12 @@ interface DriveFile {
   size?: string
   starred?: boolean
   trashed?: boolean
+}
+
+interface DriveFileListResponse {
+  files?: DriveFile[]
+  incompleteSearch?: boolean
+  nextPageToken?: string
 }
 
 function buildQuery(sourceConfig: Record<string, unknown>): string {
@@ -161,10 +198,7 @@ function buildQuery(sourceConfig: Record<string, unknown>): string {
       break
     default: {
       // Include Google Workspace files + plain text files, exclude folders
-      const allMimeTypes = [
-        ...Object.keys(GOOGLE_WORKSPACE_MIME_TYPES),
-        ...SUPPORTED_TEXT_MIME_TYPES,
-      ]
+      const allMimeTypes = [...Object.keys(GOOGLE_WORKSPACE_EXPORTS), ...SUPPORTED_TEXT_MIME_TYPES]
       parts.push(`(${allMimeTypes.map((t) => `mimeType = '${t}'`).join(' or ')})`)
       break
     }
@@ -205,7 +239,7 @@ export const googleDriveConnector: ConnectorConfig = {
     const query = buildQuery(sourceConfig)
     const pageSize = 100
 
-    const maxFiles = sourceConfig.maxFiles ? Number(sourceConfig.maxFiles) : 0
+    const maxFiles = parseMaxFiles(sourceConfig.maxFiles)
     const previouslyFetched = (syncContext?.totalDocsFetched as number) ?? 0
 
     if (maxFiles > 0 && previouslyFetched >= maxFiles) {
@@ -242,16 +276,13 @@ export const googleDriveConnector: ConnectorConfig = {
     })
 
     if (!response.ok) {
-      const errorText = await response.text()
-      logger.error('Failed to list Google Drive files', {
-        status: response.status,
-        error: errorText,
-      })
-      throw new Error(`Failed to list Google Drive files: ${response.status}`)
+      const error = await readGoogleDriveApiError(response)
+      logger.error('Failed to list Google Drive files', googleDriveErrorLogFields(error))
+      throw error
     }
 
-    const data = await response.json()
-    const files = (data.files || []) as DriveFile[]
+    const data = (await response.json()) as DriveFileListResponse
+    const files = data.files ?? []
 
     /**
      * Drive sets `incompleteSearch` when it could not search every corpus (it
@@ -261,17 +292,24 @@ export const googleDriveConnector: ConnectorConfig = {
      */
     const incompleteSearch = data.incompleteSearch === true
 
-    const documents = files
+    const pageDocuments = files
       .filter((f) => isGoogleWorkspaceFile(f.mimeType) || isSupportedTextFile(f.mimeType))
       .map((f) =>
         stubOrSkipBySize(fileToStub(f), Number(f.size) || undefined, CONNECTOR_MAX_FILE_BYTES)
       )
 
-    const totalFetched = previouslyFetched + documents.length
-    if (syncContext) syncContext.totalDocsFetched = totalFetched
-    const hitLimit = maxFiles > 0 && totalFetched >= maxFiles
+    const page = takeIndexableWithinCap(
+      pageDocuments,
+      isSkippedDocument,
+      maxFiles,
+      previouslyFetched
+    )
 
-    const nextPageToken = data.nextPageToken as string | undefined
+    const totalFetched = previouslyFetched + page.indexableCount
+    if (syncContext) syncContext.totalDocsFetched = totalFetched
+    const hitLimit = page.capReached
+
+    const nextPageToken = data.nextPageToken
 
     /**
      * Suppress deletion reconciliation only when the listing really is partial.
@@ -284,7 +322,7 @@ export const googleDriveConnector: ConnectorConfig = {
     }
 
     return {
-      documents,
+      documents: page.documents,
       nextCursor: hitLimit ? undefined : nextPageToken,
       hasMore: hitLimit ? false : Boolean(nextPageToken),
     }
@@ -308,8 +346,9 @@ export const googleDriveConnector: ConnectorConfig = {
     })
 
     if (!response.ok) {
-      if (response.status === 404) return null
-      throw new Error(`Failed to get Google Drive file: ${response.status}`)
+      const error = await readGoogleDriveApiError(response)
+      if (error.kind === 'not_found') return null
+      throw error
     }
 
     const file = (await response.json()) as DriveFile
@@ -330,11 +369,11 @@ export const googleDriveConnector: ConnectorConfig = {
     }
 
     try {
-      const content = await fetchFileContent(accessToken, file.id, file.mimeType)
-      if (!content.trim()) return null
+      const payload = await fetchFilePayload(accessToken, file)
+      if (!payload.content.trim()) return null
 
       const stub = fileToStub(file)
-      return { ...stub, content, contentDeferred: false }
+      return { ...stub, ...payload, contentDeferred: false }
     } catch (error) {
       if (error instanceof ConnectorFileTooLargeError) {
         logger.info('Skipping oversized Google Drive file', { fileId: file.id, name: file.name })
@@ -347,7 +386,7 @@ export const googleDriveConnector: ConnectorConfig = {
        */
       const err = toError(error)
       logger.warn(`Failed to fetch content for file: ${file.name} (${file.id})`, {
-        error: err.message,
+        ...googleDriveErrorLogFields(err),
       })
       throw err
     }
@@ -358,14 +397,11 @@ export const googleDriveConnector: ConnectorConfig = {
     sourceConfig: Record<string, unknown>
   ): Promise<{ valid: boolean; error?: string }> => {
     const folderIds = parseMultiValue(sourceConfig.folderId)
-    const maxFiles = sourceConfig.maxFiles as string | undefined
-
-    if (maxFiles && (Number.isNaN(Number(maxFiles)) || Number(maxFiles) <= 0)) {
-      return { valid: false, error: 'Max files must be a positive number' }
-    }
 
     // Verify access to Drive API
     try {
+      parseMaxFiles(sourceConfig.maxFiles)
+
       if (folderIds.length > 0) {
         // Verify each folder exists, is accessible, and is actually a folder
         for (const folderId of folderIds) {
@@ -383,7 +419,8 @@ export const googleDriveConnector: ConnectorConfig = {
           )
 
           if (!response.ok) {
-            if (response.status === 404) {
+            const error = await readGoogleDriveApiError(response)
+            if (error.kind === 'not_found') {
               return {
                 valid: false,
                 error: `Folder "${folderId}" not found. Check the folder ID and permissions.`,
@@ -391,7 +428,7 @@ export const googleDriveConnector: ConnectorConfig = {
             }
             return {
               valid: false,
-              error: `Failed to access folder "${folderId}": ${response.status}`,
+              error: `Failed to access folder "${folderId}": ${error.message}`,
             }
           }
 
@@ -417,7 +454,8 @@ export const googleDriveConnector: ConnectorConfig = {
         )
 
         if (!response.ok) {
-          return { valid: false, error: `Failed to access Google Drive: ${response.status}` }
+          const error = await readGoogleDriveApiError(response)
+          return { valid: false, error: `Failed to access Google Drive: ${error.message}` }
         }
       }
 

@@ -71,6 +71,17 @@ const SENSITIVE_VALUE_PATTERNS: Array<{
     pattern: /api[_-]?key['":\s]*['"][^'"]+['"]/gi,
     replacement: `api_key: "${REDACTED_MARKER}"`,
   },
+  /** Form-encoded credentials, including OAuth token endpoint request bodies. */
+  {
+    pattern: /\b((?:access_|refresh_|auth_)?token|client_secret|password|api[_-]?key)=([^&\s]+)/gi,
+    replacement: `$1=${REDACTED_MARKER}`,
+  },
+  /** The same fields after URL encoding (`=` -> `%3D`, `&` -> `%26`). */
+  {
+    pattern:
+      /\b((?:access_|refresh_|auth_)?token|client_secret|password|api[_-]?key)%3D.*?(?=%26|&|\s|$)/gi,
+    replacement: `$1%3D${REDACTED_MARKER}`,
+  },
 ]
 
 export function isSensitiveKey(key: string): boolean {
@@ -94,6 +105,33 @@ export function redactSensitiveValues(value: string): string {
   let result = value
   for (const { pattern, replacement } of SENSITIVE_VALUE_PATTERNS) {
     result = result.replace(pattern, replacement)
+  }
+  return result
+}
+
+/**
+ * Redacts known secret values in all literal and URL-encoded forms after the
+ * generic pattern pass. This closes the gap where an upstream error echoes a
+ * credential under an unexpected field name or inside free-form prose.
+ */
+export function redactExactSensitiveValues(value: string, secrets: string[]): string {
+  let result = redactSensitiveValues(value)
+  for (const secret of secrets) {
+    if (!secret) continue
+    result = result.replaceAll(secret, REDACTED_MARKER)
+    const encodedVariants = new Set([
+      encodeURIComponent(secret),
+      new URLSearchParams({ value: secret }).toString().slice('value='.length),
+    ])
+    for (const encoded of encodedVariants) {
+      if (encoded !== secret) result = result.replaceAll(encoded, REDACTED_MARKER)
+      const lowercaseEscapes = encoded.replace(/%[0-9A-F]{2}/g, (sequence) =>
+        sequence.toLowerCase()
+      )
+      if (lowercaseEscapes !== encoded) {
+        result = result.replaceAll(lowercaseEscapes, REDACTED_MARKER)
+      }
+    }
   }
   return result
 }

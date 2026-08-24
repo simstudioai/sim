@@ -716,7 +716,11 @@ export function SyncHistory({ logs, isLoading }: SyncHistoryProps) {
       {logs.map((log) => {
         const state = getSyncLogState(log, now)
         const totalChanges =
-          log.docsAdded + log.docsUpdated + log.docsDeleted + (log.docsFailed ?? 0)
+          log.docsAdded +
+          log.docsUpdated +
+          log.docsDeleted +
+          log.docsSkipped +
+          (log.docsFailed ?? 0)
 
         return (
           <div key={log.id} className='flex items-start gap-2 rounded-md px-2 py-1.5 text-xs'>
@@ -761,6 +765,16 @@ export function SyncHistory({ logs, isLoading }: SyncHistoryProps) {
                             {(log.docsAdded > 0 || log.docsUpdated > 0 || log.docsDeleted > 0) &&
                               ' '}
                             <span className='text-[var(--text-error)]'>!{log.docsFailed}</span>
+                          </>
+                        )}
+                        {log.docsSkipped > 0 && (
+                          <>
+                            {(log.docsAdded > 0 ||
+                              log.docsUpdated > 0 ||
+                              log.docsDeleted > 0 ||
+                              log.docsFailed > 0) &&
+                              ' '}
+                            <span className='text-[var(--caution)]'>⊘{log.docsSkipped}</span>
                           </>
                         )}
                       </>

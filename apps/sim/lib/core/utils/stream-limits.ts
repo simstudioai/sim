@@ -317,13 +317,7 @@ export async function readResponseToBufferWithLimit(
     }
     throw error
   }
-  if (
-    !options.allowNoBodyFallback &&
-    !options.preferTextFallback &&
-    !response.body &&
-    contentLength === null &&
-    (response.arrayBuffer || response.text)
-  ) {
+  if (!options.allowNoBodyFallback && !response.body && contentLength === null) {
     throw new PayloadSizeLimitError({
       label: options.label,
       maxBytes: options.maxBytes,

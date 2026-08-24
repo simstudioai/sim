@@ -4,6 +4,7 @@ import {
   isSensitiveKey,
   REDACTED_MARKER,
   redactApiKeys,
+  redactExactSensitiveValues,
   redactSensitiveValues,
   sanitizeEventData,
   sanitizeForLogging,
@@ -176,6 +177,28 @@ describe('redactSensitiveValues', () => {
     const result = redactSensitiveValues(input)
     expect(result).toContain('[REDACTED]')
     expect(result).not.toContain('key123456')
+  })
+
+  it.concurrent('should redact form and percent-encoded OAuth credentials', () => {
+    const input =
+      'refresh_token=secret-one&client_secret=secret-two refresh_token%3Dsecret-three%26scope%3Dx'
+    const result = redactSensitiveValues(input)
+
+    expect(result).not.toContain('secret-one')
+    expect(result).not.toContain('secret-two')
+    expect(result).not.toContain('secret-three')
+  })
+
+  it.concurrent('should redact exact secrets echoed in free-form text', () => {
+    const result = redactExactSensitiveValues(
+      'provider echoed s3cr%2Ft, s3cr%2ft, space+secret, and plain s3cr/t',
+      ['s3cr/t', 'space secret']
+    )
+
+    expect(result).not.toContain('s3cr/t')
+    expect(result).not.toContain('s3cr%2Ft')
+    expect(result).not.toContain('s3cr%2ft')
+    expect(result).not.toContain('space+secret')
   })
 
   it.concurrent('should not modify safe strings', () => {

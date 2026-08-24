@@ -7,11 +7,16 @@ const { mockFetchWithRetry } = vi.hoisted(() => ({ mockFetchWithRetry: vi.fn() }
 
 vi.mock('@/lib/knowledge/documents/utils', () => ({
   fetchWithRetry: mockFetchWithRetry,
+  readBoundedHttpErrorBody: async (response: Response) => response.text(),
   VALIDATE_RETRY_OPTIONS: {},
 }))
 vi.mock('@/components/icons', () => ({ MicrosoftOneDriveIcon: () => null }))
 
 import { onedriveConnector } from '@/connectors/onedrive/onedrive'
+import {
+  encodeMicrosoftGraphTraversalCursor,
+  MICROSOFT_GRAPH_MAX_PENDING_FOLDERS,
+} from '@/connectors/utils'
 
 const GRAPH = 'https://graph.microsoft.com/v1.0'
 
@@ -161,6 +166,33 @@ describe('onedrive listDocuments', () => {
     expect(syncContext.listingCapped).toBe(true)
   })
 
+  it('does not retain irrelevant folders after maxFiles has stopped traversal', async () => {
+    mockGraph({
+      [ROOT_URL]: { body: { value: [file('f1', 'a.txt'), folder('overflow', 'overflow')] } },
+    })
+    const cursor = encodeMicrosoftGraphTraversalCursor(
+      {
+        folderStack: Array.from(
+          { length: MICROSOFT_GRAPH_MAX_PENDING_FOLDERS },
+          (_, index) => `pending-${index}`
+        ),
+      },
+      'OneDrive'
+    )
+    const syncContext: Record<string, unknown> = {}
+
+    const result = await onedriveConnector.listDocuments(
+      'token',
+      { maxFiles: '1' },
+      cursor,
+      syncContext
+    )
+
+    expect(result.documents.map((document) => document.externalId)).toEqual(['f1'])
+    expect(result.hasMore).toBe(false)
+    expect(syncContext.listingCapped).toBe(true)
+  })
+
   it('resumes from the cursor when the per-call request budget is exhausted', async () => {
     const routes: Record<string, GraphRoute> = {
       [ROOT_URL]: {
@@ -198,6 +230,47 @@ describe('onedrive listDocuments', () => {
 
     expect(requested[0]).toBe(url)
   })
+
+  it.each(['1.5', 'Infinity'])(
+    'rejects invalid maxFiles %s before calling Graph',
+    async (maxFiles) => {
+      const requested = mockGraph({})
+
+      await expect(
+        onedriveConnector.listDocuments('token', { maxFiles }, undefined, {})
+      ).rejects.toThrow(/positive safe integer/)
+      expect(requested).toHaveLength(0)
+    }
+  )
+})
+
+describe('onedrive validateConfig', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it.each(['1.5', 'Infinity'])(
+    'rejects invalid maxFiles %s without calling Graph',
+    async (maxFiles) => {
+      const requested = mockGraph({})
+
+      await expect(onedriveConnector.validateConfig!('token', { maxFiles })).resolves.toEqual({
+        valid: false,
+        error: 'Max files must be a positive safe integer, or 0 for unlimited',
+      })
+      expect(requested).toHaveLength(0)
+    }
+  )
+
+  it('accepts a valid integer maxFiles', async () => {
+    const validateRootUrl = `${GRAPH}/me/drive/root/children?$top=1&$select=id`
+    const requested = mockGraph({ [validateRootUrl]: { body: { value: [] } } })
+
+    await expect(onedriveConnector.validateConfig!('token', { maxFiles: '25' })).resolves.toEqual({
+      valid: true,
+    })
+    expect(requested).toEqual([validateRootUrl])
+  })
 })
 
 describe('onedrive getDocument', () => {
@@ -227,6 +300,7 @@ describe('onedrive getDocument', () => {
           ok: true,
           status: 200,
           body: null,
+          headers: new Headers({ 'content-length': '5' }),
           arrayBuffer: async () => new TextEncoder().encode('hello').buffer,
         } as unknown as Response
       }

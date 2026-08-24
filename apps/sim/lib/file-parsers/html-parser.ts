@@ -2,6 +2,7 @@ import { readFile } from 'fs/promises'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import * as cheerio from 'cheerio'
+import { FileParserError } from '@/lib/file-parsers/errors'
 import type { FileParseResult, FileParser } from '@/lib/file-parsers/types'
 import { sanitizeTextForUTF8 } from '@/lib/file-parsers/utils'
 
@@ -36,9 +37,9 @@ const MARKUP_TOKEN_BYTE = 0x3c
  * Raised when a document exceeds the limits above, so an input rejected on
  * resource grounds is not reported as a malformed file.
  */
-export class HtmlComplexityError extends Error {
+export class HtmlComplexityError extends FileParserError {
   constructor(message: string) {
-    super(message)
+    super('complexity_limit', message)
     this.name = 'HtmlComplexityError'
   }
 }
@@ -97,6 +98,10 @@ export class HtmlParser implements FileParser {
   }
 
   async parseBuffer(buffer: Buffer): Promise<FileParseResult> {
+    if (!buffer || buffer.length === 0) {
+      throw new FileParserError('empty_input', 'Empty buffer provided')
+    }
+
     assertHtmlWithinLimits(buffer)
 
     try {
@@ -164,7 +169,11 @@ export class HtmlParser implements FileParser {
       }
 
       logger.error('HTML buffer parsing error:', error)
-      throw new Error(`Failed to parse HTML buffer: ${getErrorMessage(error, 'Unknown error')}`)
+      throw new FileParserError(
+        'invalid_format',
+        `Failed to parse HTML buffer: ${getErrorMessage(error, 'Unknown error')}`,
+        error
+      )
     }
   }
 

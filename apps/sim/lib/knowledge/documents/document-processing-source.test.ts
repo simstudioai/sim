@@ -54,6 +54,8 @@ vi.mock('@/lib/uploads/server/metadata', () => ({
   getFileMetadataByKeys: mockGetFileMetadataByKeys,
 }))
 
+import { EmbeddingQuotaExhaustedError } from '@/lib/embeddings/client'
+import { PermanentDocumentProcessingError } from '@/lib/knowledge/documents/document-processing-error'
 import { processDocumentAsync } from '@/lib/knowledge/documents/service'
 
 const PERSISTED_KEY = 'workspace/workspace-1/persisted.pdf'
@@ -391,4 +393,119 @@ describe('processDocumentAsync write guards', () => {
     expect(completion).toBeDefined()
     expect((completion?.[0] as Record<string, unknown>).processingAttempts).toBe(0)
   })
+
+  it('dead-letters deterministic input failures after recording an actionable reason', async () => {
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([PERSISTED_CONTEXT])
+      .mockResolvedValueOnce([PERSISTED_PROVENANCE_ROW])
+      .mockResolvedValueOnce([{ id: 'document-1' }])
+    mockGetFileMetadataByKeys.mockResolvedValue([SOURCE_BINDING])
+    mockGetBoundWorkspaceFileSecretProvenanceByMetadata.mockResolvedValue(
+      new Map([[SOURCE_BINDING.id, { status: 'exact', entries: [] }]])
+    )
+    mockProcessDocument.mockRejectedValue(
+      new PermanentDocumentProcessingError(
+        'encrypted_file',
+        'This file is encrypted or password-protected. Remove the protection and retry.'
+      )
+    )
+
+    await expect(
+      processDocumentAsync('knowledge-base-1', 'document-1', {
+        filename: 'protected.xlsx',
+        fileUrl: 'https://example.com/protected.xlsx',
+        fileSize: 1,
+        mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      })
+    ).rejects.toMatchObject({
+      code: 'encrypted_file',
+    })
+
+    const failure = dbChainMockFns.set.mock.calls.find(
+      (call) => (call[0] as Record<string, unknown> | undefined)?.processingStatus === 'failed'
+    )
+    expect(failure?.[0]).toMatchObject({
+      processingError:
+        'This file is encrypted or password-protected. Remove the protection and retry.',
+      processingAttempts: 5,
+    })
+  })
+
+  it('keeps infrastructure failures eligible for automatic recovery', async () => {
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([PERSISTED_CONTEXT])
+      .mockResolvedValueOnce([PERSISTED_PROVENANCE_ROW])
+      .mockResolvedValueOnce([{ id: 'document-1' }])
+    mockGetFileMetadataByKeys.mockResolvedValue([SOURCE_BINDING])
+    mockGetBoundWorkspaceFileSecretProvenanceByMetadata.mockResolvedValue(
+      new Map([[SOURCE_BINDING.id, { status: 'exact', entries: [] }]])
+    )
+    mockProcessDocument.mockRejectedValue(new Error('Storage request timed out'))
+
+    await expect(
+      processDocumentAsync('knowledge-base-1', 'document-1', {
+        filename: 'report.docx',
+        fileUrl: 'https://example.com/report.docx',
+        fileSize: 1,
+        mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      })
+    ).rejects.toThrow('Storage request timed out')
+
+    const failure = dbChainMockFns.set.mock.calls.find(
+      (call) => (call[0] as Record<string, unknown> | undefined)?.processingStatus === 'failed'
+    )
+    expect(failure?.[0]).not.toHaveProperty('processingAttempts')
+  })
+
+  it.each([
+    { chargedAtDispatch: true, refundsAttempt: true },
+    { chargedAtDispatch: false, refundsAttempt: false },
+  ])(
+    'refunds only a charged document attempt when provider credit is exhausted',
+    async ({ chargedAtDispatch, refundsAttempt }) => {
+      dbChainMockFns.limit
+        .mockResolvedValueOnce([PERSISTED_CONTEXT])
+        .mockResolvedValueOnce([PERSISTED_PROVENANCE_ROW])
+        .mockResolvedValueOnce([{ id: 'document-1' }])
+      mockGetFileMetadataByKeys.mockResolvedValue([SOURCE_BINDING])
+      mockGetBoundWorkspaceFileSecretProvenanceByMetadata.mockResolvedValue(
+        new Map([[SOURCE_BINDING.id, { status: 'exact', entries: [] }]])
+      )
+      mockProcessDocument.mockResolvedValue({
+        chunks: [{ text: 'Index me', metadata: { startIndex: 0, endIndex: 8 } }],
+        metadata: { chunkCount: 1, tokenCount: 2, characterCount: 8 },
+      })
+      mockGenerateEmbeddings.mockRejectedValue(new EmbeddingQuotaExhaustedError('openai'))
+
+      await expect(
+        processDocumentAsync(
+          'knowledge-base-1',
+          'document-1',
+          {
+            filename: 'report.docx',
+            fileUrl: 'https://example.com/report.docx',
+            fileSize: 1,
+            mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+          },
+          {},
+          undefined,
+          undefined,
+          chargedAtDispatch ? { chargedAtDispatch: true } : undefined
+        )
+      ).rejects.toBeInstanceOf(EmbeddingQuotaExhaustedError)
+
+      const failure = dbChainMockFns.set.mock.calls.find(
+        (call) => (call[0] as Record<string, unknown> | undefined)?.processingStatus === 'failed'
+      )
+      const attempts = (failure?.[0] as Record<string, unknown>)?.processingAttempts as
+        | { toSQL: () => { params: unknown[]; sql: string } }
+        | undefined
+      if (refundsAttempt) {
+        expect(attempts?.toSQL().sql).toBe('GREATEST(? - 1, 0)')
+        expect(attempts?.toSQL().params).toEqual([schemaMock.document.processingAttempts])
+      } else {
+        expect(failure?.[0]).not.toHaveProperty('processingAttempts')
+      }
+    }
+  )
 })

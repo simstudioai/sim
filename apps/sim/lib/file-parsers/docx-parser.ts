@@ -1,6 +1,11 @@
 import { readFile } from 'fs/promises'
 import { createLogger } from '@sim/logger'
 import mammoth from 'mammoth'
+import {
+  FileParserError,
+  isEncryptedOfficeParserError,
+  toFileParserError,
+} from '@/lib/file-parsers/errors'
 import { loadParseOfficeAsync } from '@/lib/file-parsers/officeparser-module'
 import type { FileParseResult, FileParser } from '@/lib/file-parsers/types'
 import { sanitizeTextForUTF8 } from '@/lib/file-parsers/utils'
@@ -20,26 +25,24 @@ interface MammothResult {
 
 export class DocxParser implements FileParser {
   async parseFile(filePath: string): Promise<FileParseResult> {
-    try {
-      if (!filePath) {
-        throw new Error('No file path provided')
-      }
-
-      const buffer = await readFile(filePath)
-      return this.parseBuffer(buffer)
-    } catch (error) {
-      logger.error('DOCX file error:', error)
-      throw new Error(`Failed to parse DOCX file: ${(error as Error).message}`)
+    if (!filePath) {
+      throw new Error('No file path provided')
     }
+
+    const buffer = await readFile(filePath)
+    return this.parseBuffer(buffer)
   }
 
   async parseBuffer(buffer: Buffer): Promise<FileParseResult> {
     try {
       if (!buffer || buffer.length === 0) {
-        throw new Error('Empty buffer provided')
+        throw new FileParserError('empty_input', 'Empty buffer provided')
       }
 
       assertOoxmlArchiveWithinLimits(buffer)
+
+      const extractionErrors: unknown[] = []
+      let parserReturnedEmpty = false
 
       try {
         const result = await mammoth.extractRawText({ buffer })
@@ -61,12 +64,15 @@ export class DocxParser implements FileParser {
             },
           }
         }
+        parserReturnedEmpty = true
       } catch (mammothError) {
         logger.warn('mammoth failed, trying officeparser:', mammothError)
+        extractionErrors.push(mammothError)
       }
 
+      const parseOfficeAsync = await loadParseOfficeAsync()
+
       try {
-        const parseOfficeAsync = await loadParseOfficeAsync()
         const result = await parseOfficeAsync(buffer)
 
         if (result) {
@@ -83,8 +89,10 @@ export class DocxParser implements FileParser {
             }
           }
         }
+        parserReturnedEmpty = true
       } catch (officeError) {
         logger.warn('officeparser failed:', officeError)
+        extractionErrors.push(officeError)
       }
 
       const isZipFile = buffer.length >= 2 && buffer[0] === 0x50 && buffer[1] === 0x4b
@@ -102,10 +110,30 @@ export class DocxParser implements FileParser {
         }
       }
 
-      throw new Error('Failed to extract text from DOCX file')
+      if (extractionErrors.some(isEncryptedOfficeParserError)) {
+        throw new FileParserError(
+          'encrypted_file',
+          'This document is encrypted or password-protected',
+          new AggregateError(extractionErrors)
+        )
+      }
+
+      if (parserReturnedEmpty) {
+        throw new FileParserError(
+          'no_extractable_text',
+          'No text could be extracted from this DOCX file',
+          extractionErrors.length > 0 ? new AggregateError(extractionErrors) : undefined
+        )
+      }
+
+      throw new FileParserError(
+        'invalid_format',
+        'The DOCX container could not be read',
+        new AggregateError(extractionErrors)
+      )
     } catch (error) {
       logger.error('DOCX parsing error:', error)
-      throw new Error(`Failed to parse DOCX buffer: ${(error as Error).message}`)
+      throw toFileParserError(error, 'invalid_format', 'Failed to parse DOCX buffer')
     }
   }
 }

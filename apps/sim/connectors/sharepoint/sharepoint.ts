@@ -1,16 +1,26 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
-import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
+import {
+  fetchWithRetry,
+  readBoundedHttpErrorBody,
+  VALIDATE_RETRY_OPTIONS,
+} from '@/lib/knowledge/documents/utils'
 import { sharepointConnectorMeta } from '@/connectors/sharepoint/meta'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
 import {
+  appendPendingMicrosoftGraphFolders,
+  assertMicrosoftGraphNextLink,
   CONNECTOR_MAX_FILE_BYTES,
   ConnectorFileTooLargeError,
   connectorFileExtension,
+  decodeMicrosoftGraphTraversalCursor,
+  encodeMicrosoftGraphTraversalCursor,
   extractConnectorText,
   hasIndexablePayload,
   isIndexableConnectorFile,
   isSkippedDocument,
+  MICROSOFT_GRAPH_MAX_PENDING_FOLDERS,
+  type MicrosoftGraphTraversalState,
   markSkipped,
   parseTagDate,
   pipelineParsedMimeType,
@@ -44,6 +54,34 @@ const ITEM_SELECT =
  * library with thousands of folders from silently truncating its listing.
  */
 const MAX_LIST_REQUESTS_PER_CALL = 25
+
+/**
+ * Maximum breadth retained by the depth-first library walk.
+ *
+ * A library page can contribute 200 folders, and the sync engine may request
+ * 12,500 Graph pages in one run. Without this guard a folder-heavy tenant can
+ * retain millions of IDs and serialize them into a multi-megabyte cursor before
+ * yielding one document. Exceeding the bound fails visibly so users can scope
+ * the connector to a narrower library or folder.
+ */
+export const SHAREPOINT_MAX_PENDING_FOLDERS = MICROSOFT_GRAPH_MAX_PENDING_FOLDERS
+
+function parseMaxFiles(value: unknown): number {
+  if (value === undefined || value === null) return 0
+  if (typeof value !== 'string' && typeof value !== 'number') {
+    throw new Error('Max files must be a positive safe integer, or 0 for unlimited')
+  }
+  const normalized = typeof value === 'string' ? value.trim() : value
+  if (normalized === '') return 0
+  if (typeof normalized === 'string' && !/^\d+$/.test(normalized)) {
+    throw new Error('Max files must be a positive safe integer, or 0 for unlimited')
+  }
+  const parsed = Number(normalized)
+  if (!Number.isSafeInteger(parsed) || parsed < 0) {
+    throw new Error('Max files must be a positive safe integer, or 0 for unlimited')
+  }
+  return parsed
+}
 
 /** Microsoft Graph drive item shape (subset of fields we use). */
 interface DriveItem {
@@ -94,11 +132,7 @@ type RetryOptions = Parameters<typeof fetchWithRetry>[2]
  * party. Mirrors `assertGraphNextPageUrl` used by the Graph tool routes.
  */
 function assertGraphUrl(url: string): string {
-  const parsed = new URL(url.trim())
-  if (parsed.origin !== GRAPH_API_ORIGIN) {
-    throw new Error('Refusing to follow a non-Microsoft Graph URL')
-  }
-  return parsed.toString()
+  return assertMicrosoftGraphNextLink(url)
 }
 
 /**
@@ -164,7 +198,7 @@ async function resolveSiteId(
   const response = await graphGet(url, accessToken, retryOptions)
 
   if (!response.ok) {
-    const errorText = await response.text()
+    const errorText = await readBoundedHttpErrorBody(response)
     throw new Error(
       `Failed to resolve SharePoint site "${siteUrl}": ${response.status} – ${errorText}`
     )
@@ -271,7 +305,7 @@ async function listFolderItems(
   const response = await graphGet(url, accessToken)
 
   if (!response.ok) {
-    const errorText = await response.text()
+    const errorText = await readBoundedHttpErrorBody(response)
     throw new Error(`Failed to list folder items: ${response.status} – ${errorText}`)
   }
 
@@ -685,21 +719,21 @@ async function buildFolderNotFoundMessage(
  * Pagination state encoded as the cursor string.
  * We track a stack of folder IDs to traverse plus an optional @odata.nextLink.
  */
-interface PaginationState {
-  /** Folders still to be listed (depth-first) */
-  folderStack: string[]
-  /** Current folder being listed (undefined = root) */
-  currentFolder?: string
-  /** @odata.nextLink for the current folder page */
-  nextLink?: string
-}
+type PaginationState = MicrosoftGraphTraversalState
 
 function encodeCursor(state: PaginationState): string {
-  return Buffer.from(JSON.stringify(state)).toString('base64')
+  return encodeMicrosoftGraphTraversalCursor(state, 'SharePoint')
 }
 
 function decodeCursor(cursor: string): PaginationState {
-  return JSON.parse(Buffer.from(cursor, 'base64').toString('utf-8')) as PaginationState
+  return decodeMicrosoftGraphTraversalCursor(cursor, 'SharePoint')
+}
+
+export function appendPendingSharePointFolders(
+  pendingFolders: string[],
+  discoveredFolders: string[]
+): void {
+  appendPendingMicrosoftGraphFolders(pendingFolders, discoveredFolders, 'SharePoint')
 }
 
 export const sharepointConnector: ConnectorConfig = {
@@ -765,7 +799,7 @@ export const sharepointConnector: ConnectorConfig = {
     }
 
     const documents: ExternalDocument[] = []
-    const maxFiles = sourceConfig.maxFiles ? Number(sourceConfig.maxFiles) : 0
+    const maxFiles = parseMaxFiles(sourceConfig.maxFiles)
     let totalFetched = (syncContext?.totalDocsFetched as number) ?? 0
 
     /** Set when the walk stopped for good — either the cap hit or the source ran out. */
@@ -813,9 +847,6 @@ export const sharepointConnector: ConnectorConfig = {
         })
       }
 
-      // Push subfolders onto the stack for depth-first traversal
-      state.folderStack.push(...subfolders)
-
       // Convert files to lightweight stubs (no content download). Oversized files are
       // kept as skipped stubs but do not consume the max-files cap.
       const stubs = files.map((file) =>
@@ -838,9 +869,16 @@ export const sharepointConnector: ConnectorConfig = {
          * or in folders still on the stack.
          */
         cappedWithItemsLeft =
-          take.documents.length < stubs.length || Boolean(nextLink) || state.folderStack.length > 0
+          take.documents.length < stubs.length ||
+          Boolean(nextLink) ||
+          subfolders.length > 0 ||
+          state.folderStack.length > 0
         break
       }
+
+      // Retain subfolders only when traversal will continue. A maxFiles stop must
+      // not fail merely because folders beyond the requested scope exceed the cap.
+      appendPendingSharePointFolders(state.folderStack, subfolders)
 
       if (nextLink) {
         // More pages in the current folder
@@ -965,9 +1003,10 @@ export const sharepointConnector: ConnectorConfig = {
       return { valid: false, error: 'Site URL is required' }
     }
 
-    const maxFiles = sourceConfig.maxFiles as string | undefined
-    if (maxFiles && (Number.isNaN(Number(maxFiles)) || Number(maxFiles) <= 0)) {
-      return { valid: false, error: 'Max files must be a positive number' }
+    try {
+      parseMaxFiles(sourceConfig.maxFiles)
+    } catch (error) {
+      return { valid: false, error: toError(error).message }
     }
 
     try {

@@ -1,6 +1,8 @@
 import { createLogger } from '@sim/logger'
 import { task } from '@trigger.dev/sdk'
 import { env, envNumber } from '@/lib/core/config/env'
+import { EMBEDDING_QUOTA_EXHAUSTED_MESSAGE, isEmbeddingQuotaExhaustion } from '@/lib/embeddings'
+import { isPermanentDocumentProcessingError } from '@/lib/knowledge/documents/document-processing-error'
 import {
   assertDocumentProcessingPayload,
   type DocumentProcessingBillingContext,
@@ -11,6 +13,7 @@ import { processDocumentAsync } from '@/lib/knowledge/documents/service'
 const logger = createLogger('TriggerKnowledgeProcessing')
 
 export async function runDocumentProcessing(rawPayload: DocumentProcessingPayload) {
+  const startedAt = Date.now()
   const payload = assertDocumentProcessingPayload(rawPayload)
   const { knowledgeBaseId, documentId, docData, processingOptions, requestId } = payload
   const billingContext: DocumentProcessingBillingContext =
@@ -36,7 +39,8 @@ export async function runDocumentProcessing(rawPayload: DocumentProcessingPayloa
       docData,
       processingOptions,
       billingContext,
-      requestId
+      requestId,
+      { chargedAtDispatch: true }
     )
 
     logger.info(`[${requestId}] Successfully processed document: ${docData.filename}`)
@@ -45,9 +49,37 @@ export async function runDocumentProcessing(rawPayload: DocumentProcessingPayloa
       success: true,
       documentId,
       filename: docData.filename,
-      processingTime: Date.now(),
+      processingTime: Date.now() - startedAt,
     }
   } catch (error) {
+    if (isEmbeddingQuotaExhaustion(error)) {
+      logger.warn(`[${requestId}] Embedding quota is exhausted; deferring document processing`, {
+        filename: docData.filename,
+      })
+      return {
+        success: false,
+        outcome: 'quota_deferred' as const,
+        documentId,
+        filename: docData.filename,
+        error: EMBEDDING_QUOTA_EXHAUSTED_MESSAGE,
+        processingTime: Date.now() - startedAt,
+      }
+    }
+    if (isPermanentDocumentProcessingError(error)) {
+      logger.warn(`[${requestId}] Document cannot be processed without changing its content`, {
+        code: error.code,
+        filename: docData.filename,
+      })
+      return {
+        success: false,
+        outcome: 'permanent_failure' as const,
+        documentId,
+        filename: docData.filename,
+        code: error.code,
+        error: error.message,
+        processingTime: Date.now() - startedAt,
+      }
+    }
     logger.error(`[${requestId}] Failed to process document: ${docData.filename}`, error)
     throw error
   }

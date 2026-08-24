@@ -1,7 +1,13 @@
 /**
  * @vitest-environment node
  */
-import { dbChainMock, dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import {
+  dbChainMock,
+  dbChainMockFns,
+  queueTableRows,
+  resetDbChainMock,
+  schemaMock,
+} from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -46,6 +52,7 @@ vi.mock('@/lib/knowledge/documents/processing-outbox-event', () => ({
 }))
 
 import {
+  ConnectorSyncDeletionGuardError,
   createDocumentRecords,
   createSingleDocument,
   hardDeleteDocuments,
@@ -57,6 +64,23 @@ const STORAGE_CONTEXT = {
   billingEntity: { type: 'organization' as const, id: 'workspace-org' },
   plan: 'team_25000',
   customStorageLimitGB: null,
+}
+
+interface MockSqlCondition {
+  type?: string
+  column?: unknown
+  left?: unknown
+  right?: unknown
+  conditions?: unknown[]
+}
+
+function flattenMockSqlConditions(condition: unknown): MockSqlCondition[] {
+  if (!condition || typeof condition !== 'object') return []
+  const node = condition as MockSqlCondition
+  const nested = Array.isArray(node.conditions)
+    ? node.conditions.flatMap(flattenMockSqlConditions)
+    : []
+  return [node, ...nested]
 }
 
 describe('knowledge document storage attribution', () => {
@@ -376,6 +400,84 @@ describe('knowledge document storage attribution', () => {
       legacyDeltas: [],
     })
     expect(mockDecrementStorageUsageForBillingContextInTx).not.toHaveBeenCalled()
+  })
+
+  it('refuses connector reconciliation deletion after the sync lock is lost', async () => {
+    dbChainMockFns.where.mockResolvedValueOnce([
+      {
+        id: 'connector-doc',
+        knowledgeBaseId: 'knowledge-base-1',
+        fileUrl: 'data:text/plain;base64,QQ==',
+        fileSize: 500,
+        uploadedBy: null,
+        connectorId: 'connector-1',
+        workspaceId: 'workspace-1',
+        kbUserId: 'knowledge-owner',
+      },
+    ])
+    dbChainMockFns.for
+      .mockResolvedValueOnce([
+        { id: 'knowledge-base-1', workspaceId: 'workspace-1', userId: 'knowledge-owner' },
+      ])
+      .mockResolvedValueOnce([])
+
+    await expect(
+      hardDeleteDocuments(['connector-doc'], 'request-1', 'connector-1', undefined, {
+        connectorId: 'connector-1',
+        knowledgeBaseId: 'knowledge-base-1',
+        syncLockToken: 'sync-1',
+      })
+    ).rejects.toBeInstanceOf(ConnectorSyncDeletionGuardError)
+
+    expect(dbChainMockFns.delete).not.toHaveBeenCalled()
+  })
+
+  it('makes the connector sync guard self-contained without excluding tombstones', async () => {
+    const connectorDocument = {
+      id: 'connector-doc',
+      knowledgeBaseId: 'knowledge-base-1',
+      fileUrl: 'data:text/plain;base64,QQ==',
+      fileSize: 500,
+      uploadedBy: null,
+      connectorId: 'connector-1',
+      workspaceId: 'workspace-1',
+      kbUserId: 'knowledge-owner',
+    }
+    queueTableRows(schemaMock.document, [connectorDocument])
+    queueTableRows(schemaMock.knowledgeBase, [
+      { id: 'knowledge-base-1', workspaceId: 'workspace-1', userId: 'knowledge-owner' },
+    ])
+    queueTableRows(schemaMock.knowledgeConnector, [{ id: 'connector-1' }])
+    queueTableRows(schemaMock.document, [{ id: 'connector-doc' }])
+    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'connector-doc' }])
+
+    await expect(
+      hardDeleteDocuments(['connector-doc'], 'request-1', undefined, undefined, {
+        connectorId: 'connector-1',
+        knowledgeBaseId: 'knowledge-base-1',
+        syncLockToken: 'sync-1',
+      })
+    ).resolves.toBe(1)
+
+    const conditions = dbChainMockFns.where.mock.calls.flatMap(([condition]) =>
+      flattenMockSqlConditions(condition)
+    )
+    expect(conditions).toContainEqual({
+      type: 'eq',
+      left: schemaMock.document.connectorId,
+      right: 'connector-1',
+    })
+    expect(conditions).toContainEqual({
+      type: 'eq',
+      left: schemaMock.document.knowledgeBaseId,
+      right: 'knowledge-base-1',
+    })
+    expect(conditions).not.toContainEqual({
+      type: 'isNull',
+      column: schemaMock.document.deletedAt,
+    })
+    expect(dbChainMockFns.for).toHaveBeenCalledTimes(3)
+    expect(dbChainMockFns.for).toHaveBeenLastCalledWith('update')
   })
 
   it('splits hard deletion into bounded 250-document transactions', async () => {

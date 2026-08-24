@@ -26,6 +26,10 @@ function buildAliasBomb(levels: number, width: number): string {
 }
 
 describe('parseYAMLBuffer', () => {
+  it('reports empty input with the typed parser taxonomy', async () => {
+    await expect(parseYAMLBuffer(Buffer.alloc(0))).rejects.toMatchObject({ code: 'empty_input' })
+  })
+
   it('parses a normal YAML document', async () => {
     const result = await parseYAMLBuffer(
       Buffer.from('name: sim\nlist:\n  - a\n  - b\nnested:\n  key: value\n')

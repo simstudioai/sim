@@ -136,6 +136,7 @@ function makeLog(overrides: Partial<SyncLogData> & Pick<SyncLogData, 'status'>):
     docsUpdated: 0,
     docsDeleted: 0,
     docsUnchanged: 0,
+    docsSkipped: 0,
     docsFailed: 0,
     errorMessage: null,
     ...overrides,

@@ -76,7 +76,25 @@ export interface ExternalDocumentList {
   documents: ExternalDocument[]
   nextCursor?: string
   hasMore: boolean
+  /**
+   * Whether absence from this listing is authoritative enough for deletion
+   * reconciliation. Defaults to true. Offset-based or otherwise unstable
+   * provider pagination must set this to false.
+   */
+  reconciliationSafe?: boolean
 }
+
+export const SYNC_SKIP_REASONS = [
+  'connector_unavailable',
+  'knowledge_base_deleted',
+  'connector_not_syncable',
+  'dispatch_superseded',
+  'sync_in_progress',
+  'sync_superseded',
+  'connector_deleted_during_sync',
+] as const
+
+export type SyncSkipReason = (typeof SYNC_SKIP_REASONS)[number]
 
 /**
  * Result of a sync operation.
@@ -86,7 +104,19 @@ export interface SyncResult {
   docsUpdated: number
   docsDeleted: number
   docsUnchanged: number
+  /** Source documents intentionally recorded without indexing, such as oversized files. */
+  docsSkipped: number
+  /** Source documents that failed during listing, hydration, or persistence. */
   docsFailed: number
+  /** Immediate hand-off outcome; eventual child results live on document rows and child runs. */
+  processingDispatch: {
+    requested: number
+    accepted: number
+    failed: number
+  }
+  /** Expected queue, lifecycle, or lock no-op. Never derived from error text. */
+  skipReason?: SyncSkipReason
+  /** Diagnostic for an actual failed sync. */
   error?: string
 }
 

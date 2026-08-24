@@ -39,7 +39,11 @@ import {
   SYNC_LOCK_HEARTBEAT_INTERVAL_MS,
 } from '@/lib/knowledge/connectors/sync-limits'
 import type { DocumentData } from '@/lib/knowledge/documents/service'
-import { hardDeleteDocuments, processDocumentsWithQueue } from '@/lib/knowledge/documents/service'
+import {
+  ConnectorSyncDeletionGuardError,
+  hardDeleteDocuments,
+  processDocumentsWithQueue,
+} from '@/lib/knowledge/documents/service'
 import {
   type DocumentProcessingStatus,
   isDocumentProcessingStatus,
@@ -85,8 +89,8 @@ class ConnectorDeletedException extends Error {
 }
 
 const SYNC_BATCH_SIZE = 5
-/** Estimated source bytes for a doc whose listing did not report a size. */
-const DEFAULT_OP_SIZE_BYTES = 4 * 1024 * 1024
+/** Unknown deferred downloads run alone; actual connector files can reach this budget. */
+const DEFAULT_OP_SIZE_BYTES = 64 * 1024 * 1024
 /**
  * Max summed source bytes hydrated/uploaded concurrently within a batch. Each
  * in-flight file materializes as a content string plus an upload buffer, so this
@@ -96,6 +100,22 @@ const DEFAULT_OP_SIZE_BYTES = 4 * 1024 * 1024
  */
 const CONTENT_INFLIGHT_BUDGET_BYTES = 64 * 1024 * 1024
 const MAX_PAGES = 500
+/**
+ * Maximum documents retained in either the source corpus or owned corpus.
+ *
+ * The engine needs the complete source identity set and the connector's complete
+ * owned-document set at the same time to distinguish adds from updates and to
+ * reconcile deletions safely. Page-count limits alone do not bound that working
+ * set: a connector page can contain many documents, and an incremental connector
+ * can accumulate a corpus much larger than its current page. The two corpora
+ * coexist, so the row-count peak is twice this value plus bounded
+ * maps and operation references. Crossing either per-corpus ceiling fails before
+ * document writes.
+ */
+export const CONNECTOR_SYNC_MAX_CORPUS_DOCUMENTS = 50_000
+
+/** Maximum retained inline source payload before classification begins. */
+export const CONNECTOR_SYNC_MAX_SOURCE_PAYLOAD_BYTES = 256 * 1024 * 1024
 const MAX_SAFE_TITLE_LENGTH = 200
 /**
  * How many stuck documents are re-dispatched per call.
@@ -139,6 +159,7 @@ export const STUCK_RETRY_MAX_CANDIDATES_PER_SYNC = 200
  * large enough that the per-call overhead stays negligible.
  */
 const HARD_DELETE_CHUNK_SIZE = 25
+const CONNECTOR_DELETION_CLEANUP_BATCH_SIZE = 250
 /**
  * Concurrent `knowledge-process-document` runs, shared by every workspace.
  *
@@ -147,6 +168,69 @@ const HARD_DELETE_CHUNK_SIZE = 25
  * deployment does not actually run.
  */
 const PROCESSING_QUEUE_CONCURRENCY = envNumber(env.KB_CONFIG_CONCURRENCY_LIMIT, 20)
+
+class ConnectorSyncWorkingSetLimitError extends Error {
+  constructor(connectorId: string, scope: 'source listing' | 'owned corpus') {
+    super(
+      `Connector ${connectorId} ${scope} exceeds the safe per-corpus limit of ${CONNECTOR_SYNC_MAX_CORPUS_DOCUMENTS.toLocaleString()} documents. Narrow the configured source scope or set a connector document limit before syncing again.`
+    )
+    this.name = 'ConnectorSyncWorkingSetLimitError'
+  }
+}
+
+/**
+ * Returns a query's sentinel-inclusive limit for the remaining working-set
+ * budget. The extra row proves the corpus exceeded the cap without loading the
+ * rest of it.
+ */
+export function syncWorkingSetQueryLimit(rowsAlreadyLoaded: number): number {
+  return Math.max(CONNECTOR_SYNC_MAX_CORPUS_DOCUMENTS - rowsAlreadyLoaded, 0) + 1
+}
+
+export function sourcePageFitsSyncWorkingSet(rowsAlreadyLoaded: number, pageRows: number): boolean {
+  return rowsAlreadyLoaded + pageRows <= CONNECTOR_SYNC_MAX_CORPUS_DOCUMENTS
+}
+
+function assertSyncWorkingSetWithinLimit(
+  connectorId: string,
+  rowsAlreadyLoaded: number,
+  rowsJustLoaded: number
+): void {
+  if (rowsAlreadyLoaded + rowsJustLoaded > CONNECTOR_SYNC_MAX_CORPUS_DOCUMENTS) {
+    throw new ConnectorSyncWorkingSetLimitError(connectorId, 'owned corpus')
+  }
+}
+
+function retainedExternalDocumentBytes(doc: ExternalDocument): number {
+  let bytes = Buffer.byteLength(doc.externalId) + Buffer.byteLength(doc.title)
+  bytes += Buffer.byteLength(doc.content ?? '')
+  bytes += Buffer.byteLength(doc.sourceUrl ?? '')
+  bytes += Buffer.byteLength(doc.contentHash ?? '')
+  if (doc.sourceFile?.bytes) bytes += doc.sourceFile.bytes.byteLength
+  try {
+    bytes += Buffer.byteLength(JSON.stringify(doc.metadata ?? {}))
+  } catch {
+    bytes += DEFAULT_OP_SIZE_BYTES
+  }
+  return bytes
+}
+
+/** Fails listing before the engine retains an unbounded inline-content corpus. */
+export function addSourcePagePayloadBytes(
+  retainedBytes: number,
+  documents: ExternalDocument[]
+): number {
+  let nextBytes = retainedBytes
+  for (const doc of documents) {
+    nextBytes += retainedExternalDocumentBytes(doc)
+    if (nextBytes > CONNECTOR_SYNC_MAX_SOURCE_PAYLOAD_BYTES) {
+      throw new Error(
+        `Connector source listing exceeds the safe retained-payload limit of ${CONNECTOR_SYNC_MAX_SOURCE_PAYLOAD_BYTES.toLocaleString()} bytes. Use a narrower source scope or a deferred-content connector.`
+      )
+    }
+  }
+  return nextBytes
+}
 
 /**
  * Worst-case wall clock for one document's processing: the task's own duration
@@ -447,11 +531,44 @@ export function mergeHydratedDocument(
   }
 }
 
-/** Estimated source bytes for a pending op, taken from its listing metadata. */
+/**
+ * A listed deferred document is known to exist at listing time. A null hydration
+ * is therefore ambiguous provider failure, not authoritative deletion: treating
+ * it as a successful drop can advance an incremental watermark past a document
+ * that merely became inaccessible.
+ */
+export function requireHydratedListedDocument(
+  document: ExternalDocument | null,
+  externalId: string
+): ExternalDocument {
+  if (!document) {
+    throw new Error(`Connector returned no content for listed document ${externalId}`)
+  }
+  return document
+}
+
+/**
+ * Records a source update that was observed but could not be verified or
+ * persisted. The stored document remains last-known-good, while `docsFailed`
+ * prevents an incremental watermark from advancing past the consumed change.
+ */
+export function recordUnverifiedExistingRefresh(
+  result: Pick<SyncResult, 'docsFailed'>,
+  failedExternalIds: Set<string>,
+  externalId: string
+): void {
+  if (failedExternalIds.has(externalId)) return
+  failedExternalIds.add(externalId)
+  result.docsFailed++
+}
+
+/** Actual retained bytes when available, otherwise a conservative deferred estimate. */
 function estimateOpSizeBytes(op: DocOp): number {
   // Skip ops load no content (just a row insert), so they do not count against the
   // in-flight content budget.
   if (op.type === 'skip') return 0
+  if (op.extDoc.sourceFile?.bytes) return op.extDoc.sourceFile.bytes.byteLength
+  if (op.extDoc.content) return Buffer.byteLength(op.extDoc.content)
   const size = op.extDoc.metadata?.fileSize ?? op.extDoc.metadata?.size
   return typeof size === 'number' && Number.isFinite(size) && size > 0
     ? size
@@ -620,6 +737,7 @@ export async function completeSyncLog(
       docsUpdated: result.docsUpdated,
       docsDeleted: result.docsDeleted,
       docsUnchanged: result.docsUnchanged,
+      docsSkipped: result.docsSkipped,
       docsFailed: result.docsFailed,
     })
     .where(
@@ -634,6 +752,101 @@ export async function completeSyncLog(
     .returning({ id: knowledgeConnectorSyncLog.id })
 
   return closed.length > 0
+}
+
+class SyncCompletionOwnershipLost extends Error {
+  constructor() {
+    super('Connector sync no longer owns its terminal state')
+    this.name = 'SyncCompletionOwnershipLost'
+  }
+}
+
+/**
+ * Atomically publishes the completed log and connector terminal state.
+ *
+ * The knowledge base is locked first to match lifecycle mutations, then the
+ * connector lock is verified under `FOR UPDATE`. A completed log can therefore
+ * never become visible unless the matching connector state commits with it.
+ */
+export async function completeSuccessfulSync(
+  connectorId: string,
+  knowledgeBaseId: string,
+  syncLogId: string,
+  syncIntervalMinutes: number,
+  result: SyncResult,
+  reconciliationHoldNotice: string | null
+): Promise<boolean> {
+  try {
+    return await db.transaction(async (tx) => {
+      const [lockedKnowledgeBase] = await tx
+        .select({ id: knowledgeBase.id })
+        .from(knowledgeBase)
+        .where(and(eq(knowledgeBase.id, knowledgeBaseId), isNull(knowledgeBase.deletedAt)))
+        .for('update')
+      if (!lockedKnowledgeBase) throw new SyncCompletionOwnershipLost()
+
+      const [lockedConnector] = await tx
+        .select({ id: knowledgeConnector.id })
+        .from(knowledgeConnector)
+        .where(stillHoldsSyncLock(connectorId, syncLogId))
+        .for('update')
+      if (!lockedConnector) throw new SyncCompletionOwnershipLost()
+
+      const [{ count: actualDocCount }] = await tx
+        .select({ count: sql<number>`count(*)::int` })
+        .from(document)
+        .where(
+          and(
+            eq(document.connectorId, connectorId),
+            eq(document.userExcluded, false),
+            isNull(document.archivedAt),
+            isNull(document.deletedAt)
+          )
+        )
+
+      const now = new Date()
+      const [closedLog] = await tx
+        .update(knowledgeConnectorSyncLog)
+        .set({
+          status: 'completed',
+          completedAt: now,
+          docsAdded: result.docsAdded,
+          docsUpdated: result.docsUpdated,
+          docsDeleted: result.docsDeleted,
+          docsUnchanged: result.docsUnchanged,
+          docsSkipped: result.docsSkipped,
+          docsFailed: result.docsFailed,
+        })
+        .where(
+          and(
+            eq(knowledgeConnectorSyncLog.id, syncLogId),
+            eq(knowledgeConnectorSyncLog.status, 'started')
+          )
+        )
+        .returning({ id: knowledgeConnectorSyncLog.id })
+      if (!closedLog) throw new SyncCompletionOwnershipLost()
+
+      const [writtenConnector] = await tx
+        .update(knowledgeConnector)
+        .set(
+          buildSyncSuccessUpdate(
+            now,
+            actualDocCount,
+            calculateNextSyncTime(syncIntervalMinutes),
+            reconciliationHoldNotice,
+            result.docsFailed === 0
+          )
+        )
+        .where(stillHoldsSyncLock(connectorId, syncLogId))
+        .returning({ id: knowledgeConnector.id })
+      if (!writtenConnector) throw new SyncCompletionOwnershipLost()
+
+      return true
+    })
+  } catch (error) {
+    if (error instanceof SyncCompletionOwnershipLost) return false
+    throw error
+  }
 }
 
 /**
@@ -746,17 +959,35 @@ export function shouldHeartbeatSyncLock(
  * return means the lock was reclaimed and this run must stop rather than keep
  * writing alongside its replacement.
  */
-export async function heartbeatSyncLock(
-  connectorId: string,
-  syncLockToken: string
+async function writeSyncHeartbeat(
+  condition: ReturnType<typeof holdsSyncLockToken>
 ): Promise<boolean> {
   const beat = await db
     .update(knowledgeConnector)
     .set({ syncLockLeaseAt: new Date() })
-    .where(holdsSyncLockToken(connectorId, syncLockToken))
+    .where(condition)
     .returning({ id: knowledgeConnector.id })
 
   return beat.length > 0
+}
+
+export async function heartbeatSyncLock(
+  connectorId: string,
+  syncLockToken: string
+): Promise<boolean> {
+  return writeSyncHeartbeat(holdsSyncLockToken(connectorId, syncLockToken))
+}
+
+/**
+ * Extends the lease only while this run owns a live connector. Destructive
+ * follow-up work uses this stricter probe immediately before dispatch so a run
+ * reclaimed after its transaction cannot enqueue alongside its replacement.
+ */
+export async function heartbeatLiveSyncLock(
+  connectorId: string,
+  syncLockToken: string
+): Promise<boolean> {
+  return writeSyncHeartbeat(stillHoldsSyncLock(connectorId, syncLockToken))
 }
 
 /** Columns a terminal write may set. Both paths write a subset of the same set. */
@@ -834,12 +1065,11 @@ async function releaseSyncLockOnDeletedConnector(
 export const SUPERSEDED_SYNC_ERROR = 'sync_superseded'
 
 /**
- * Marks a superseded run so the task wrapper's `success: !result.error` does not
- * report a discarded run as a clean sync — the same reason a lock-contended run
- * returns `sync_in_progress` rather than an empty success.
+ * Marks a superseded run with typed control flow so provider diagnostics can
+ * never collide with a lifecycle reason.
  */
 export function markSyncSuperseded(result: SyncResult): SyncResult {
-  return { ...result, error: SUPERSEDED_SYNC_ERROR }
+  return { ...result, skipReason: SUPERSEDED_SYNC_ERROR }
 }
 
 /**
@@ -850,6 +1080,7 @@ export function markSyncSuperseded(result: SyncResult): SyncResult {
  * - never on incremental syncs (they list only changed documents)
  * - never when the engine truncated pagination (`listingTruncated`) — a forced
  *   fullSync cannot fix truncation, so it cannot override it
+ * - never when a provider declares its pagination non-authoritative
  * - not when a connector capped its listing (`listingCapped`), unless a forced
  *   fullSync deliberately overrides the cap to reconcile the capped scope
  */
@@ -860,6 +1091,7 @@ export function shouldReconcileDeletions(
 ): boolean {
   if (isIncremental) return false
   if (syncContext?.listingTruncated) return false
+  if (syncContext?.reconciliationUnsafe) return false
   return !syncContext?.listingCapped || Boolean(fullSync)
 }
 
@@ -1085,11 +1317,12 @@ export function buildSyncSuccessUpdate(
   now: Date,
   actualDocCount: number,
   nextSyncAt: Date | null,
-  holdNotice: string | null
+  holdNotice: string | null,
+  advanceLastSyncAt = true
 ) {
   return {
     status: 'active' as const,
-    lastSyncAt: now,
+    ...(advanceLastSyncAt ? { lastSyncAt: now } : {}),
     lastSyncError: holdNotice,
     lastSyncDocCount: actualDocCount,
     nextSyncAt,
@@ -1238,8 +1471,8 @@ export function capReconciliationDeletions(
 /**
  * Reconstructs the previous completed sync's listing from its log counters.
  *
- * No schema change is needed: every document the previous run listed landed in
- * exactly one of added/updated/unchanged/failed, and `lastSyncDocCount` records
+ * Every document the previous run listed landed in exactly one of
+ * added/updated/unchanged/skipped/failed, and `lastSyncDocCount` records
  * how many documents the connector owned when that run finished. Documents the
  * user excluded also land in `docsUnchanged`, which can only inflate the
  * reconstructed listing — erring toward "the previous listing looked healthy",
@@ -1256,6 +1489,7 @@ async function loadPreviousListingObservation(
       docsAdded: knowledgeConnectorSyncLog.docsAdded,
       docsUpdated: knowledgeConnectorSyncLog.docsUpdated,
       docsUnchanged: knowledgeConnectorSyncLog.docsUnchanged,
+      docsSkipped: knowledgeConnectorSyncLog.docsSkipped,
       docsFailed: knowledgeConnectorSyncLog.docsFailed,
     })
     .from(knowledgeConnectorSyncLog)
@@ -1274,7 +1508,11 @@ async function loadPreviousListingObservation(
 
   return {
     listedCount:
-      previous.docsAdded + previous.docsUpdated + previous.docsUnchanged + previous.docsFailed,
+      previous.docsAdded +
+      previous.docsUpdated +
+      previous.docsUnchanged +
+      previous.docsSkipped +
+      previous.docsFailed,
     ownedCount: previousOwnedCount,
     trustworthy,
   }
@@ -1500,7 +1738,13 @@ export async function executeSync(
     docsUpdated: 0,
     docsDeleted: 0,
     docsUnchanged: 0,
+    docsSkipped: 0,
     docsFailed: 0,
+    processingDispatch: {
+      requested: 0,
+      accepted: 0,
+      failed: 0,
+    },
   }
 
   const connectorRows = await db
@@ -1517,7 +1761,7 @@ export async function executeSync(
 
   if (connectorRows.length === 0) {
     logger.warn(`Skipping sync: connector ${connectorId} not found, archived, or deleted`)
-    return { ...result, error: 'connector_unavailable' }
+    return { ...result, skipReason: 'connector_unavailable' }
   }
 
   const connectorBeforeLock = connectorRows[0]
@@ -1564,7 +1808,7 @@ export async function executeSync(
         updatedAt: new Date(),
       })
       .where(eq(knowledgeConnector.id, connectorId))
-    return { ...result, error: 'knowledge_base_deleted' }
+    return { ...result, skipReason: 'knowledge_base_deleted' }
   }
 
   const userId = kbRows[0].userId
@@ -1643,18 +1887,16 @@ export async function executeSync(
         connectorId,
         status: current.status,
       })
-      return { ...result, error: 'connector_not_syncable' }
+      return { ...result, skipReason: 'connector_not_syncable' }
     }
 
     if (options.dispatchToken && current?.syncLockToken !== options.dispatchToken) {
       logger.info('Sync superseded by a newer dispatch, skipping', { connectorId })
-      return { ...result, error: 'dispatch_superseded' }
+      return { ...result, skipReason: 'dispatch_superseded' }
     }
 
     logger.info('Sync already in progress, skipping', { connectorId })
-    // Reported as an error so the task wrapper's `success: !result.error` does not
-    // present a skipped run as a successful zero-document sync.
-    return { ...result, error: 'sync_in_progress' }
+    return { ...result, skipReason: 'sync_in_progress' }
   }
 
   /**
@@ -1716,6 +1958,7 @@ export async function executeSync(
     let accessToken = await resolveAccessToken(connector, connectorConfig, credentialUserId)
 
     const externalDocs: ExternalDocument[] = []
+    let retainedSourcePayloadBytes = 0
     let cursor: string | undefined
     let hasMore = true
     const syncContext: Record<string, unknown> = { syncRunId: generateId() }
@@ -1807,6 +2050,16 @@ export async function executeSync(
         syncContext,
         lastSyncAt
       )
+      if (page.reconciliationSafe === false) {
+        syncContext.reconciliationUnsafe = true
+      }
+      if (!sourcePageFitsSyncWorkingSet(externalDocs.length, page.documents.length)) {
+        throw new ConnectorSyncWorkingSetLimitError(connectorId, 'source listing')
+      }
+      retainedSourcePayloadBytes = addSourcePagePayloadBytes(
+        retainedSourcePayloadBytes,
+        page.documents
+      )
       externalDocs.push(...page.documents)
 
       if (page.hasMore && !page.nextCursor) {
@@ -1842,70 +2095,98 @@ export async function executeSync(
       connectorId,
     })
 
-    const [existingDocs, tombstonedDocs, excludedDocs] = await Promise.all([
-      db
-        .select({
-          id: document.id,
-          externalId: document.externalId,
-          contentHash: document.contentHash,
-          // Projected as well as filtered: the SQL predicate and the in-memory
-          // guard in partitionSyncReconciliation must both hold, so dropping
-          // either one alone cannot make an excluded document deletable.
-          userExcluded: document.userExcluded,
-        })
-        .from(document)
-        .where(
-          and(
-            eq(document.connectorId, connectorId),
-            // A user's explicit "keep but don't index" choice must never make a
-            // document eligible for reconciliation deletion: it is deliberately
-            // never refreshed, so its absence from a listing says nothing.
-            eq(document.userExcluded, false),
-            isNull(document.archivedAt),
-            isNull(document.deletedAt)
-          )
-        ),
-      // Docs already marked pending-removal by a prior sync's reconciliation (see
-      // shouldReconcileDeletions below): absent from the source once, not yet
-      // absent twice in a row. Included in classification so a document that
-      // reappears is recognized as existing (resurrected) rather than re-added
-      // as a duplicate.
-      db
-        .select({
-          id: document.id,
-          externalId: document.externalId,
-          contentHash: document.contentHash,
-          deletedAt: document.deletedAt,
-          // Gates hard deletion in partitionSyncReconciliation without gating
-          // resurrection — see that function's contract.
-          userExcluded: document.userExcluded,
-        })
-        .from(document)
-        .where(
-          and(
-            eq(document.connectorId, connectorId),
-            isNull(document.archivedAt),
-            isNotNull(document.deletedAt)
-          )
-        ),
-      // Not filtered on deletedAt: a document can be both userExcluded and
-      // tombstoned (e.g. excluded via a bulk request that raced a sync marking
-      // it pending-removal). Excluding it here regardless of tombstone state
-      // keeps it short-circuited in the classification loop below instead of
-      // silently reappearing through the normal update/resurrect path.
-      db
-        .select({ externalId: document.externalId })
-        .from(document)
-        .where(
-          and(
-            eq(document.connectorId, connectorId),
-            eq(document.userExcluded, true),
-            isNull(document.archivedAt)
-          )
-        ),
-    ])
+    /**
+     * Loaded sequentially with a shared sentinel budget. Three concurrent
+     * `SELECT`s each capped independently could still materialize three times
+     * the intended working set before the overflow was detected.
+     */
+    const existingDocs = await db
+      .select({
+        id: document.id,
+        externalId: document.externalId,
+        contentHash: document.contentHash,
+        /**
+         * Projected as well as filtered: the SQL predicate and the in-memory guard in
+         * partitionSyncReconciliation must both hold, so dropping either one alone cannot make
+         * an excluded document deletable.
+         */
+        userExcluded: document.userExcluded,
+      })
+      .from(document)
+      .where(
+        and(
+          eq(document.connectorId, connectorId),
+          /**
+           * A user's explicit "keep but don't index" choice must never make a document eligible
+           * for reconciliation deletion: it is deliberately never refreshed, so its absence from
+           * a listing says nothing.
+           */
+          eq(document.userExcluded, false),
+          isNull(document.archivedAt),
+          isNull(document.deletedAt)
+        )
+      )
+      .limit(syncWorkingSetQueryLimit(0))
+    assertSyncWorkingSetWithinLimit(connectorId, 0, existingDocs.length)
 
-    const excludedExternalIds = new Set(excludedDocs.map((d) => d.externalId).filter(Boolean))
+    /**
+     * Documents already marked pending-removal by a prior sync's reconciliation: absent from the
+     * source once, not yet absent twice in a row. Including them in classification lets a document
+     * that reappears be recognized as existing (resurrected) rather than re-added.
+     */
+    const tombstonedDocs = await db
+      .select({
+        id: document.id,
+        externalId: document.externalId,
+        contentHash: document.contentHash,
+        deletedAt: document.deletedAt,
+        /**
+         * Gates hard deletion in partitionSyncReconciliation without gating resurrection.
+         */
+        userExcluded: document.userExcluded,
+      })
+      .from(document)
+      .where(
+        and(
+          eq(document.connectorId, connectorId),
+          /**
+           * Load both included and user-excluded tombstones. Excluded tombstones are never
+           * deletion-eligible, but they must remain resurrection-eligible when their source
+           * document reappears or the row becomes permanently invisible and unrestorable.
+           */
+          isNull(document.archivedAt),
+          isNotNull(document.deletedAt)
+        )
+      )
+      .limit(syncWorkingSetQueryLimit(existingDocs.length))
+    assertSyncWorkingSetWithinLimit(connectorId, existingDocs.length, tombstonedDocs.length)
+
+    /**
+     * Live user-excluded rows form the third disjoint population in the shared memory budget.
+     * User-excluded tombstones were loaded above so source presence can clear their deletion marker;
+     * they are added to `excludedExternalIds` below to keep hydration short-circuited.
+     */
+    const loadedOwnedDocs = existingDocs.length + tombstonedDocs.length
+    const excludedDocs = await db
+      .select({ externalId: document.externalId })
+      .from(document)
+      .where(
+        and(
+          eq(document.connectorId, connectorId),
+          eq(document.userExcluded, true),
+          isNull(document.archivedAt),
+          isNull(document.deletedAt)
+        )
+      )
+      .limit(syncWorkingSetQueryLimit(loadedOwnedDocs))
+    assertSyncWorkingSetWithinLimit(connectorId, loadedOwnedDocs, excludedDocs.length)
+
+    const excludedExternalIds = new Set(
+      [
+        ...excludedDocs.map((doc) => doc.externalId),
+        ...tombstonedDocs.filter((doc) => doc.userExcluded).map((doc) => doc.externalId),
+      ].filter((externalId): externalId is string => Boolean(externalId))
+    )
 
     const priorByExternalId = new Map(
       [...existingDocs, ...tombstonedDocs]
@@ -1950,7 +2231,9 @@ export async function executeSync(
           // Empty, non-deferred content is never usable. If this was a
           // reappearing tombstoned document, its content was never verified as
           // current — see failedExternalIds below.
-          if (existing) failedExternalIds.add(extDoc.externalId)
+          if (existing) {
+            recordUnverifiedExistingRefresh(result, failedExternalIds, extDoc.externalId)
+          }
           logger.info(`Skipping empty document: ${extDoc.title}`, {
             externalId: extDoc.externalId,
           })
@@ -1967,8 +2250,11 @@ export async function executeSync(
           // verified-unchanged match — same as the deferred-hydration
           // equivalent above. A genuine hash match never sets skippedReason,
           // so this only fires for the short-circuited case.
-          if (extDoc.skippedReason && existing) failedExternalIds.add(extDoc.externalId)
-          result.docsUnchanged++
+          if (extDoc.skippedReason && existing) {
+            recordUnverifiedExistingRefresh(result, failedExternalIds, extDoc.externalId)
+          } else {
+            result.docsUnchanged++
+          }
           break
       }
     }
@@ -2007,11 +2293,14 @@ export async function executeSync(
 
         const hydrated = await Promise.allSettled(
           deferredOps.map(async (op) => {
-            const fullDoc = await connectorConfig.getDocument(
-              accessToken!,
-              sourceConfig,
-              op.extDoc.externalId,
-              syncContext
+            const fullDoc = requireHydratedListedDocument(
+              await connectorConfig.getDocument(
+                accessToken!,
+                sourceConfig,
+                op.extDoc.externalId,
+                syncContext
+              ),
+              op.extDoc.externalId
             )
             // A connector may only learn a file is too large at fetch time (its
             // listing has no size). Surface that as a failed row for new files; keep
@@ -2025,21 +2314,17 @@ export async function executeSync(
                   metadata: { ...op.extDoc.metadata, ...fullDoc.metadata },
                 })
               } else if (op.type === 'update') {
-                // Already-indexed file is kept as last-known-good (not downgraded), so it
-                // counts as unchanged rather than slipping past every result counter. Not a
-                // verified refresh, though — see failedExternalIds below.
-                result.docsUnchanged++
-                failedExternalIds.add(op.extDoc.externalId)
+                // Already-indexed content stays last-known-good, but this source
+                // change was not verified and must keep the watermark replayable.
+                recordUnverifiedExistingRefresh(result, failedExternalIds, op.extDoc.externalId)
               }
               return null
             }
-            if (!fullDoc || !hasIndexablePayload(fullDoc)) {
-              // An empty re-fetch leaves an already-indexed update as last-known-good; count
-              // it as unchanged so the totals still reconcile with documents seen. Not a
-              // verified refresh, though — see failedExternalIds below.
+            if (!hasIndexablePayload(fullDoc)) {
+              // An empty re-fetch leaves an already-indexed update as
+              // last-known-good while holding the incremental watermark.
               if (op.type === 'update') {
-                result.docsUnchanged++
-                failedExternalIds.add(op.extDoc.externalId)
+                recordUnverifiedExistingRefresh(result, failedExternalIds, op.extDoc.externalId)
               }
               return null
             }
@@ -2088,8 +2373,12 @@ export async function executeSync(
             skipExtDocs,
             sourceConfig
           )
-          result.docsFailed += recorded
+          result.docsSkipped += recorded
         } catch (error) {
+          /**
+           * The source items were intentionally skipped, but failing to persist their visible
+           * failed rows is an actual sync failure.
+           */
           result.docsFailed += skipExtDocs.length
           logger.error('Failed to record skipped documents', {
             connectorId,
@@ -2144,15 +2433,19 @@ export async function executeSync(
       }
 
       if (batchDocs.length > 0) {
+        result.processingDispatch.requested += batchDocs.length
         try {
-          await processDocumentsWithQueue(
+          const dispatch = await processDocumentsWithQueue(
             batchDocs,
             connector.knowledgeBaseId,
             {},
             generateId(),
             billingAttribution
           )
+          result.processingDispatch.accepted += dispatch.accepted
+          result.processingDispatch.failed += dispatch.failed
         } catch (error) {
+          result.processingDispatch.failed += batchDocs.length
           logger.warn('Failed to enqueue batch for processing — will retry on next sync', {
             connectorId,
             count: batchDocs.length,
@@ -2285,14 +2578,6 @@ export async function executeSync(
     let safeSoftDeleteIds: string[] = []
     let safeHardDeleteIds: string[] = []
 
-    /**
-     * Probes ownership before the reconciliation writes rather than after them:
-     * the soft-delete transaction and `hardDeleteDocuments` below are the most
-     * destructive block in this file, and a run that has lost its lock must not
-     * execute them alongside its replacement.
-     */
-    await beatIfDue()
-
     if (candidateIds.length > 0) {
       /**
        * A concurrent "delete connector, keep documents" request detaches these
@@ -2305,16 +2590,34 @@ export async function executeSync(
        * already billed) as a standalone KB entry.
        */
       await db.transaction(async (tx) => {
-        await tx.execute(
-          sql`SELECT 1 FROM knowledge_connector WHERE id = ${connectorId} FOR UPDATE`
-        )
+        const [activeKnowledgeBase] = await tx
+          .select({ id: knowledgeBase.id })
+          .from(knowledgeBase)
+          .where(
+            and(eq(knowledgeBase.id, connector.knowledgeBaseId), isNull(knowledgeBase.deletedAt))
+          )
+          .for('update')
+        if (!activeKnowledgeBase) throw new SyncLockLostException(connectorId)
+
+        const [heldSyncLock] = await tx
+          .select({ id: knowledgeConnector.id })
+          .from(knowledgeConnector)
+          .where(stillHoldsSyncLock(connectorId, syncLogId))
+          .for('update')
+        if (!heldSyncLock) throw new SyncLockLostException(connectorId)
 
         const stillOwned = new Set(
           (
             await tx
               .select({ id: document.id })
               .from(document)
-              .where(and(inArray(document.id, candidateIds), eq(document.connectorId, connectorId)))
+              .where(
+                and(
+                  inArray(document.id, candidateIds),
+                  eq(document.connectorId, connectorId),
+                  isNull(document.archivedAt)
+                )
+              )
           ).map((d) => d.id)
         )
 
@@ -2338,13 +2641,28 @@ export async function executeSync(
           await tx
             .update(document)
             .set({ deletedAt: null })
-            .where(inArray(document.id, safeResurrectIds))
+            .where(
+              and(
+                inArray(document.id, safeResurrectIds),
+                eq(document.connectorId, connectorId),
+                isNull(document.archivedAt),
+                isNotNull(document.deletedAt)
+              )
+            )
         }
         if (safeSoftDeleteIds.length > 0) {
           await tx
             .update(document)
             .set({ deletedAt: new Date() })
-            .where(inArray(document.id, safeSoftDeleteIds))
+            .where(
+              and(
+                inArray(document.id, safeSoftDeleteIds),
+                eq(document.connectorId, connectorId),
+                eq(document.userExcluded, false),
+                isNull(document.archivedAt),
+                isNull(document.deletedAt)
+              )
+            )
         }
       })
     }
@@ -2364,17 +2682,24 @@ export async function executeSync(
       )
     }
     for (let i = 0; i < safeHardDeleteIds.length; i += HARD_DELETE_CHUNK_SIZE) {
-      await beatIfDue()
-
-      // Re-verifies connectorId once more at the moment of the actual delete
-      // query — the FOR UPDATE lock above only covers the window up to its
-      // own commit; this closes the remaining gap between that commit and
-      // this call.
-      result.docsDeleted += await hardDeleteDocuments(
-        safeHardDeleteIds.slice(i, i + HARD_DELETE_CHUNK_SIZE),
-        syncLogId,
-        connectorId
-      )
+      try {
+        result.docsDeleted += await hardDeleteDocuments(
+          safeHardDeleteIds.slice(i, i + HARD_DELETE_CHUNK_SIZE),
+          syncLogId,
+          connectorId,
+          connector.knowledgeBaseId,
+          {
+            connectorId,
+            knowledgeBaseId: connector.knowledgeBaseId,
+            syncLockToken: syncLogId,
+          }
+        )
+      } catch (error) {
+        if (error instanceof ConnectorSyncDeletionGuardError) {
+          throw new SyncLockLostException(connectorId)
+        }
+        throw error
+      }
     }
 
     const postBatchPresence = await checkSyncTargetPresence(connectorId, connector.knowledgeBaseId)
@@ -2447,20 +2772,27 @@ export async function executeSync(
         let retryDocs: typeof stuckDocs = []
 
         /**
-         * Takes the same `knowledge_connector` FOR UPDATE lock the DELETE route
-         * takes before nulling connectorId on detached documents, so the two
-         * requests serialize instead of racing — a plain re-SELECT only
-         * narrows the window between the ownership check and these writes, it
-         * never closes it, since a concurrent detach can still commit in
-         * between. Embedding cleanup and the processing-state reset happen
-         * inside the same locked transaction so a document already claimed by
-         * a detach never gets its embeddings wiped or is reprocessed as if
-         * still connector-owned.
+         * Locks the parent first to match lifecycle mutations, then proves this
+         * run still owns the live connector row. A bare connector lock can match
+         * a replacement run after this lease was reclaimed, allowing the stale
+         * run to reset documents and dispatch duplicate processing.
          */
         await db.transaction(async (tx) => {
-          await tx.execute(
-            sql`SELECT 1 FROM knowledge_connector WHERE id = ${connectorId} FOR UPDATE`
-          )
+          const [activeKnowledgeBase] = await tx
+            .select({ id: knowledgeBase.id })
+            .from(knowledgeBase)
+            .where(
+              and(eq(knowledgeBase.id, connector.knowledgeBaseId), isNull(knowledgeBase.deletedAt))
+            )
+            .for('update')
+          if (!activeKnowledgeBase) throw new SyncLockLostException(connectorId)
+
+          const [heldSyncLock] = await tx
+            .select({ id: knowledgeConnector.id })
+            .from(knowledgeConnector)
+            .where(stillHoldsSyncLock(connectorId, syncLogId))
+            .for('update')
+          if (!heldSyncLock) throw new SyncLockLostException(connectorId)
 
           const stillOwnedIds = new Set(
             (
@@ -2468,7 +2800,14 @@ export async function executeSync(
                 .select({ id: document.id })
                 .from(document)
                 .where(
-                  and(inArray(document.id, stuckDocIds), eq(document.connectorId, connectorId))
+                  and(
+                    inArray(document.id, stuckDocIds),
+                    eq(document.connectorId, connectorId),
+                    eq(document.userExcluded, false),
+                    isNotNull(document.storageKey),
+                    isNull(document.archivedAt),
+                    isNull(document.deletedAt)
+                  )
                 )
             ).map((d) => d.id)
           )
@@ -2493,19 +2832,22 @@ export async function executeSync(
                 characterCount: 0,
               })
               /**
-               * Re-asserts the status the candidate SELECT filtered on.
-               *
-               * The ownership re-check above covers `connectorId` only, so
-               * between the SELECT and this write a worker could have claimed
-               * or finished the document. Resetting it then would delete the
-               * embeddings of a pass that had already completed and bill a
-               * second one — the same TOCTOU the connector-side writes in this
-               * file were guarded against.
+               * Re-asserts ownership, lifecycle state, retry budget, and the
+               * processing status the candidate read filtered on. A worker or
+               * lifecycle mutation can change any of them between that read
+               * and this write; only rows the guarded reset actually returns
+               * have their embeddings removed and are dispatched again.
                */
               .where(
                 and(
                   inArray(document.id, retryDocIds),
-                  inArray(document.processingStatus, SWEEPABLE_PROCESSING_STATUSES)
+                  eq(document.connectorId, connectorId),
+                  inArray(document.processingStatus, SWEEPABLE_PROCESSING_STATUSES),
+                  lt(document.processingAttempts, MAX_PROCESSING_ATTEMPTS),
+                  eq(document.userExcluded, false),
+                  isNotNull(document.storageKey),
+                  isNull(document.archivedAt),
+                  isNull(document.deletedAt)
                 )
               )
               .returning({ id: document.id })
@@ -2523,10 +2865,15 @@ export async function executeSync(
         })
 
         for (let i = 0; i < retryDocs.length; i += STUCK_RETRY_DISPATCH_CHUNK_SIZE) {
-          await beatIfDue()
+          if (!(await heartbeatLiveSyncLock(connectorId, syncLogId))) {
+            throw new SyncLockLostException(connectorId)
+          }
+          lastHeartbeatAtMs = Date.now()
 
-          await processDocumentsWithQueue(
-            retryDocs.slice(i, i + STUCK_RETRY_DISPATCH_CHUNK_SIZE).map((doc) => ({
+          const retryChunk = retryDocs.slice(i, i + STUCK_RETRY_DISPATCH_CHUNK_SIZE)
+          result.processingDispatch.requested += retryChunk.length
+          const dispatch = await processDocumentsWithQueue(
+            retryChunk.map((doc) => ({
               documentId: doc.id,
               filename: doc.filename ?? 'document.txt',
               fileUrl: doc.fileUrl ?? '',
@@ -2538,13 +2885,15 @@ export async function executeSync(
             generateId(),
             billingAttribution
           )
+          result.processingDispatch.accepted += dispatch.accepted
+          result.processingDispatch.failed += dispatch.failed
         }
       } catch (error) {
         /**
          * Kept out of the best-effort swallow below. A run that has provably
          * lost its lock would otherwise be mislabelled an enqueue failure, fall
-         * through, and publish `completeSyncLog(..., 'completed')` — which the
-         * replacement run then reads as corroboration of its own listing.
+         * through and publish an atomic completed outcome, which a replacement
+         * run could then read as corroboration of its own listing.
          */
         if (error instanceof SyncLockLostException) throw error
 
@@ -2553,54 +2902,23 @@ export async function executeSync(
           count: stuckDocs.length,
           error: toError(error).message,
         })
+        result.processingDispatch.failed +=
+          result.processingDispatch.requested -
+          result.processingDispatch.accepted -
+          result.processingDispatch.failed
       }
     }
 
-    const logClosed = await completeSyncLog(syncLogId, 'completed', result, {
-      requireSyncLockOn: connectorId,
-    })
-
-    /**
-     * Short-circuits on exactly the condition {@link writeTerminalConnectorState}
-     * would have rejected two statements later, so the outcome is unchanged and
-     * the intervening document count is skipped. Returning here is what keeps a
-     * discarded run from publishing the `completed` row that
-     * {@link loadPreviousListingObservation} reads as corroboration.
-     */
-    if (!logClosed) {
-      logger.warn('Sync result discarded — connector was reclaimed while this run was executing', {
-        connectorId,
-        syncLogId,
-        ...result,
-      })
-      return markSyncSuperseded(result)
-    }
-
-    const [{ count: actualDocCount }] = await db
-      .select({ count: sql<number>`count(*)::int` })
-      .from(document)
-      .where(
-        and(
-          eq(document.connectorId, connectorId),
-          eq(document.userExcluded, false),
-          isNull(document.archivedAt),
-          isNull(document.deletedAt)
-        )
-      )
-
-    const now = new Date()
-    const successWriteLanded = await writeTerminalConnectorState(
+    const completionLanded = await completeSuccessfulSync(
       connectorId,
+      connector.knowledgeBaseId,
       syncLogId,
-      buildSyncSuccessUpdate(
-        now,
-        actualDocCount,
-        calculateNextSyncTime(connector.syncIntervalMinutes),
-        reconciliationHoldNotice
-      )
+      connector.syncIntervalMinutes,
+      result,
+      reconciliationHoldNotice
     )
 
-    if (!successWriteLanded) {
+    if (!completionLanded) {
       logger.warn('Sync result discarded — connector was reclaimed while this run was executing', {
         connectorId,
         syncLogId,
@@ -2632,18 +2950,35 @@ export async function executeSync(
       try {
         await releaseSyncLockOnDeletedConnector(connectorId, syncLogId)
 
-        // Includes pending-removal (tombstoned) docs — the connector is gone, so
-        // there's no future sync left to confirm or resurrect them.
-        const connectorDocs = await db
-          .select({ id: document.id })
-          .from(document)
-          .where(and(eq(document.connectorId, connectorId), isNull(document.archivedAt)))
+        /**
+         * Includes pending-removal tombstones. Page IDs so deleting a connector
+         * with a legacy corpus above the sync admission cap cannot materialize
+         * the entire corpus in the cleanup worker.
+         */
+        let afterDocumentId: string | undefined
+        while (true) {
+          const connectorDocs = await db
+            .select({ id: document.id })
+            .from(document)
+            .where(
+              and(
+                eq(document.connectorId, connectorId),
+                isNull(document.archivedAt),
+                afterDocumentId ? gt(document.id, afterDocumentId) : undefined
+              )
+            )
+            .orderBy(asc(document.id))
+            .limit(CONNECTOR_DELETION_CLEANUP_BATCH_SIZE)
+          if (connectorDocs.length === 0) break
 
-        await hardDeleteDocuments(
-          connectorDocs.map((doc) => doc.id),
-          syncLogId,
-          connectorId
-        )
+          await hardDeleteDocuments(
+            connectorDocs.map((doc) => doc.id),
+            syncLogId,
+            connectorId
+          )
+          afterDocumentId = connectorDocs.at(-1)?.id
+          if (connectorDocs.length < CONNECTOR_DELETION_CLEANUP_BATCH_SIZE) break
+        }
 
         await completeSyncLog(syncLogId, 'failed', result, {
           errorMessage: 'Connector deleted during sync',
@@ -2655,7 +2990,7 @@ export async function executeSync(
         })
       }
 
-      result.error = 'Connector deleted during sync'
+      result.skipReason = 'connector_deleted_during_sync'
       return result
     }
 
@@ -2686,10 +3021,9 @@ export async function executeSync(
 
       /**
        * Deliberately does NOT get {@link markSyncSuperseded}. `result.error`
-       * is set to the real failure cause below and the task wrapper already
-       * reports this run as unsuccessful, so overwriting it with
-       * `sync_superseded` would destroy the diagnostic without changing the
-       * reported outcome. The supersession is carried by this log line instead.
+       * is set to the real failure cause below, so replacing it with lifecycle
+       * control flow would destroy the diagnostic. The supersession is carried
+       * by this log line instead.
        */
       if (!failureWriteLanded) {
         logger.warn(
@@ -2888,6 +3222,20 @@ async function addDocument(
  * Update an existing connector-sourced document with new content.
  * Updates in-place to avoid unique constraint violations on (connectorId, externalId).
  */
+export function connectorDocumentSyncTarget(
+  documentId: string,
+  knowledgeBaseId: string,
+  connectorId: string
+) {
+  return and(
+    eq(document.id, documentId),
+    eq(document.knowledgeBaseId, knowledgeBaseId),
+    eq(document.connectorId, connectorId),
+    eq(document.userExcluded, false),
+    isNull(document.archivedAt)
+  )
+}
+
 async function updateDocument(
   existingDocId: string,
   knowledgeBaseId: string,
@@ -2900,9 +3248,11 @@ async function updateDocument(
   const existingRows = await db
     .select({ fileUrl: document.fileUrl })
     .from(document)
-    .where(eq(document.id, existingDocId))
+    .where(connectorDocumentSyncTarget(existingDocId, knowledgeBaseId, connectorId))
     .limit(1)
-  const oldFileUrl = existingRows[0]?.fileUrl
+  const existingRow = existingRows[0]
+  if (!existingRow) throw new Error(`Document ${existingDocId} is no longer active`)
+  const oldFileUrl = existingRow.fileUrl
 
   const artifact = connectorStoredArtifact(extDoc)
   const customKey = `kb/${buildStorageKeySegment(`${Date.now()}-${existingDocId}-`, artifact.fileName)}`
@@ -2952,17 +3302,7 @@ async function updateDocument(
           // on deletedAt IS NULL, rejects the row and leaves stale content active.
           deletedAt: null,
         })
-        .where(
-          and(
-            eq(document.id, existingDocId),
-            // A concurrent "delete connector, keep documents" request can null out
-            // connectorId between this sync's liveness check and this write. Without
-            // this check, that now-standalone document would still match on id alone
-            // and get overwritten with connector-sourced content post-detachment.
-            eq(document.connectorId, connectorId),
-            isNull(document.archivedAt)
-          )
-        )
+        .where(connectorDocumentSyncTarget(existingDocId, knowledgeBaseId, connectorId))
         .returning({ id: document.id })
         .then((rows) => {
           if (rows.length === 0) {

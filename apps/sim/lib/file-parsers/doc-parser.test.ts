@@ -3,6 +3,7 @@
  */
 import JSZip from 'jszip'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { ZipBombError } from '@/lib/file-parsers/ooxml-limits'
 
 const { mockParseOfficeAsync, mockExtractRawText } = vi.hoisted(() => ({
   mockParseOfficeAsync: vi.fn(),
@@ -53,7 +54,7 @@ describe('DocParser.parseBuffer', () => {
   it('rejects a ZIP-shaped .doc whose declared expanded size exceeds the cap', async () => {
     const bomb = await buildDeclaredOversizeArchive(2 * 1024 * 1024 * 1024)
 
-    await expect(new DocParser().parseBuffer(bomb)).rejects.toThrow(/exceeds the maximum allowed/)
+    await expect(new DocParser().parseBuffer(bomb)).rejects.toBeInstanceOf(ZipBombError)
   })
 
   it('rejects the bomb before either decompression library sees the buffer', async () => {

@@ -71,6 +71,7 @@ import {
   requireOAuthClientCapability,
 } from '@/lib/core/config/env-capabilities'
 import { isSlackExtendedScopesEnabled } from '@/lib/core/config/env-flags'
+import { redactExactSensitiveValues } from '@/lib/core/security/redaction'
 import {
   DEFAULT_MAX_ERROR_BODY_BYTES,
   readResponseTextWithLimit,
@@ -2001,6 +2002,24 @@ function extractErrorCode(value: unknown): string | undefined {
  */
 const TOKEN_REFRESH_TIMEOUT_MS = 15_000
 
+function parseOAuthResponse(responseText: string): unknown {
+  try {
+    return JSON.parse(responseText)
+  } catch {
+    return responseText
+  }
+}
+
+function oauthResponseRecord(value: unknown): Record<string, unknown> | undefined {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : undefined
+}
+
+function safeOAuthDiagnostic(responseText: string, secrets: string[]): string {
+  return truncate(redactExactSensitiveValues(responseText, secrets), 1000)
+}
+
 async function refreshInstagramLongLivedToken(
   config: ProviderAuthConfig,
   longLivedToken: string,
@@ -2019,20 +2038,18 @@ async function refreshInstagramLongLivedToken(
     maxBytes: DEFAULT_MAX_ERROR_BODY_BYTES,
     label: 'Instagram token refresh response',
   })
-  let responseData: unknown = responseText
-  try {
-    responseData = JSON.parse(responseText)
-  } catch {
-    responseData = responseText
-  }
+  const responseData = parseOAuthResponse(responseText)
 
   if (!response.ok) {
-    const errorSummary = truncate(responseText, 1000)
+    const errorSummary = safeOAuthDiagnostic(responseText, [
+      longLivedToken,
+      config.clientSecret ?? '',
+    ])
     logger.error('Instagram long-lived token refresh failed:', {
       status: response.status,
       statusText: response.statusText,
       error: errorSummary,
-      parsedError: responseData,
+      errorCode: extractErrorCode(responseData),
       providerId,
       tokenEndpoint: config.tokenEndpoint,
     })
@@ -2067,10 +2084,12 @@ export async function refreshOAuthToken(
   providerId: string,
   refreshToken: string
 ): Promise<RefreshTokenResult> {
+  const exactSecrets = [refreshToken]
   try {
     const provider = getBaseProviderForService(providerId)
 
     const config = getProviderAuthConfig(provider)
+    if (config.clientSecret) exactSecrets.push(config.clientSecret)
 
     if (config.refreshStrategy === 'instagram_long_lived') {
       return await refreshInstagramLongLivedToken(config, refreshToken, providerId)
@@ -2085,21 +2104,20 @@ export async function refreshOAuthToken(
       signal: AbortSignal.timeout(TOKEN_REFRESH_TIMEOUT_MS),
     })
 
+    const responseText = await readResponseTextWithLimit(response, {
+      maxBytes: DEFAULT_MAX_ERROR_BODY_BYTES,
+      label: 'OAuth token refresh response',
+    })
+    const responseData = parseOAuthResponse(responseText)
+
     if (!response.ok) {
-      const errorText = await response.text()
-      let errorData: unknown = errorText
-
-      try {
-        errorData = JSON.parse(errorText)
-      } catch (_e) {
-        // Not JSON, keep as text
-      }
+      const errorSummary = safeOAuthDiagnostic(responseText, exactSecrets)
 
       logger.error('Token refresh failed:', {
         status: response.status,
         statusText: response.statusText,
-        error: errorText,
-        parsedError: errorData,
+        error: errorSummary,
+        errorCode: extractErrorCode(responseData),
         providerId,
         tokenEndpoint: config.tokenEndpoint,
         hasClientId: !!config.clientId,
@@ -2108,19 +2126,25 @@ export async function refreshOAuthToken(
       })
       return {
         ok: false,
-        errorCode: extractErrorCode(errorData),
-        message: `Failed to refresh token: ${response.status} ${errorText}`,
+        errorCode: extractErrorCode(responseData),
+        message: `Failed to refresh token: ${response.status} ${errorSummary}`,
       }
     }
 
-    const data = await response.json()
+    const data = oauthResponseRecord(responseData)
+    if (!data) {
+      logger.warn('Invalid OAuth token refresh response', { providerId })
+      return { ok: false, message: 'Invalid OAuth token refresh response' }
+    }
 
-    if (data && typeof data === 'object' && data.ok === false) {
+    if (data.ok === false) {
+      const errorCode = typeof data.error === 'string' ? data.error : undefined
+      const safeError = safeOAuthDiagnostic(errorCode ?? 'unknown', exactSecrets)
       logger.error('Token refresh failed:', {
         status: response.status,
         statusText: response.statusText,
-        error: data.error,
-        parsedError: data,
+        error: safeError,
+        errorCode,
         providerId,
         tokenEndpoint: config.tokenEndpoint,
         hasClientId: !!config.clientId,
@@ -2129,20 +2153,33 @@ export async function refreshOAuthToken(
       })
       return {
         ok: false,
-        errorCode: typeof data.error === 'string' ? data.error : undefined,
-        message: `Failed to refresh token: ${data.error ?? 'unknown'}`,
+        errorCode,
+        message: `Failed to refresh token: ${safeError}`,
       }
     }
 
-    const accessToken = data.access_token
+    const accessToken =
+      typeof data.access_token === 'string' && data.access_token.length > 0
+        ? data.access_token
+        : undefined
 
-    let newRefreshToken = null
-    if (config.supportsRefreshTokenRotation && data.refresh_token) {
+    let newRefreshToken: string | undefined
+    if (
+      config.supportsRefreshTokenRotation &&
+      typeof data.refresh_token === 'string' &&
+      data.refresh_token.length > 0
+    ) {
       newRefreshToken = data.refresh_token
       logger.info(`Received new refresh token from ${provider}`)
     }
 
-    const expiresIn = data.expires_in || data.expiresIn || 3600
+    const rawExpiresIn = data.expires_in ?? data.expiresIn
+    const parsedExpiresIn =
+      typeof rawExpiresIn === 'number' || typeof rawExpiresIn === 'string'
+        ? Number(rawExpiresIn)
+        : Number.NaN
+    const expiresIn =
+      Number.isFinite(parsedExpiresIn) && parsedExpiresIn > 0 ? parsedExpiresIn : 3600
 
     if (!accessToken) {
       // Log only the shape, never `data` itself - on a partial success it can
@@ -2164,10 +2201,10 @@ export async function refreshOAuthToken(
       ok: true,
       accessToken,
       expiresIn,
-      refreshToken: newRefreshToken || refreshToken, // Return new refresh token if available
+      refreshToken: newRefreshToken ?? refreshToken,
     }
   } catch (error) {
-    const message = toError(error).message
+    const message = redactExactSensitiveValues(toError(error).message, exactSecrets)
     logger.error('Error refreshing token:', { error: message })
     return { ok: false, message }
   }
