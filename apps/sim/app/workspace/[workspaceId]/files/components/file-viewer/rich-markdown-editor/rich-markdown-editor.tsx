@@ -94,9 +94,10 @@ const EDITOR_SURFACE_CLASS =
  */
 interface ReadOnlyPlaceholderProps {
   content: JSONContent
+  workspaceId: string
 }
 
-function ReadOnlyPlaceholder({ content }: ReadOnlyPlaceholderProps) {
+function ReadOnlyPlaceholder({ content, workspaceId }: ReadOnlyPlaceholderProps) {
   const editor = useEditor({
     extensions: EXTENSIONS,
     editable: false,
@@ -108,6 +109,7 @@ function ReadOnlyPlaceholder({ content }: ReadOnlyPlaceholderProps) {
     content,
     editorProps: { attributes: { class: 'rich-markdown-nodes rich-markdown-prose' } },
   })
+  useEditorMentions(editor, workspaceId, { navigable: true, disableTagging: true })
   return <EditorContent editor={editor} className={EDITOR_SURFACE_CLASS} />
 }
 
@@ -1216,7 +1218,7 @@ export function LoadedRichMarkdownEditor({
         }}
       />
       {showPlaceholder && placeholderContent && (
-        <ReadOnlyPlaceholder content={placeholderContent} />
+        <ReadOnlyPlaceholder content={placeholderContent} workspaceId={workspaceId} />
       )}
       <EditorContent
         editor={editor}

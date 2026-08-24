@@ -18,20 +18,21 @@ export function toSimHref(kind: string, id: string): string {
  * credentials), so the chip stays display-only.
  */
 export function simLinkPath(workspaceId: string, kind: string, id: string): string | null {
-  const base = `/workspace/${workspaceId}`
+  const base = `/workspace/${encodeURIComponent(workspaceId)}`
+  const encodedId = encodeURIComponent(id)
   switch (kind) {
     case 'file':
-      return `${base}/files/${id}/view`
+      return `${base}/files/${encodedId}`
     case 'folder':
-      return `${base}/files?folderId=${id}`
+      return `${base}/files?folderId=${encodedId}`
     case 'table':
-      return `${base}/tables/${id}`
+      return `${base}/tables/${encodedId}`
     case 'knowledge':
-      return `${base}/knowledge/${id}`
+      return `${base}/knowledge/${encodedId}`
     case 'workflow':
-      return `${base}/w/${id}`
+      return `${base}/w/${encodedId}`
     case 'skill':
-      return `${base}/skills?skillId=${id}`
+      return `${base}/skills?skillId=${encodedId}`
     default:
       return null
   }
