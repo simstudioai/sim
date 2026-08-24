@@ -3,7 +3,7 @@
  */
 import type { CaptureResult } from 'posthog-js'
 import { describe, expect, it } from 'vitest'
-import { dropUnactionableExceptions } from '@/lib/posthog/exception-filter'
+import { dropUnactionableExceptions, preparePostHogEvent } from '@/lib/posthog/exception-filter'
 
 interface TestException {
   type?: string
@@ -140,5 +140,39 @@ describe('dropUnactionableExceptions', () => {
     } as CaptureResult
 
     expect(dropUnactionableExceptions(event)).toBe(event)
+  })
+})
+
+describe('preparePostHogEvent', () => {
+  it('strips query strings and fragments from automatically captured URL properties', () => {
+    const event = {
+      uuid: 'test-uuid',
+      event: 'signup_page_viewed',
+      properties: {
+        $current_url: 'https://sim.ai/signup?email=private%40example.com#form',
+        $referrer: 'https://sim.ai/invite?token=secret',
+        $pathname: '/signup',
+      },
+    } as CaptureResult
+
+    expect(preparePostHogEvent(event)).toEqual({
+      ...event,
+      properties: {
+        $current_url: 'https://sim.ai/signup',
+        $referrer: 'https://sim.ai/invite',
+        $pathname: '/signup',
+      },
+    })
+    expect(event.properties?.$current_url).toContain('?email=')
+  })
+
+  it('still drops an unactionable exception after URL sanitization', () => {
+    const event = browserRaised({
+      type: 'DOMException',
+      value: 'AbortError: signal is aborted without reason',
+    })
+    event.properties.$current_url = 'https://sim.ai/workspace/id?token=secret'
+
+    expect(preparePostHogEvent(event)).toBeNull()
   })
 })
