@@ -83,6 +83,14 @@ export interface PreprocessExecutionOptions {
   skipConcurrencyReservation?: boolean
   /** Skip execution-log error rows when the caller presents the failure itself. */
   logPreprocessingErrors?: boolean
+  /**
+   * Skip execution-log error rows ONLY for retryable infrastructure failures
+   * (`statusCode >= 500 && retryable`). Set by callers that requeue such
+   * failures under the same execution id, so an attempt that will be retried
+   * does not leave a terminal failed row behind; the caller passes `false`
+   * again on its final attempt so an exhausted retry still records the row.
+   */
+  suppressRetryableFailureLogs?: boolean
 
   workspaceId?: string
   loggingSession?: LoggingSession
@@ -176,6 +184,7 @@ export async function preprocessExecution(
     skipUsageLimits = false,
     skipConcurrencyReservation = false,
     logPreprocessingErrors = true,
+    suppressRetryableFailureLogs = false,
     workspaceId: providedWorkspaceId,
     loggingSession: providedLoggingSession,
     triggerData,
@@ -190,6 +199,10 @@ export async function preprocessExecution(
   /** Suppresses log rows when the caller surfaces preprocessing failures itself. */
   const recordPreprocessingError: typeof logPreprocessingError = (args) =>
     logPreprocessingErrors ? logPreprocessingError(args) : Promise.resolve()
+
+  /** True when this failure's log row is deferred to a caller that will requeue it. */
+  const isFailureLogSuppressed = (failure: PreprocessExecutionError): boolean =>
+    suppressRetryableFailureLogs && failure.statusCode >= 500 && failure.retryable === true
 
   logger.info(`[${requestId}] Starting execution preprocessing`, {
     workflowId,
@@ -239,27 +252,27 @@ export async function preprocessExecution(
     } catch (error) {
       logger.error(`[${requestId}] Error fetching workflow`, { error, workflowId })
 
-      await recordPreprocessingError({
-        workflowId,
-        executionId,
-        triggerType,
-        requestId,
-        userId: userId || 'unknown',
-        workspaceId: providedWorkspaceId || '',
-        errorMessage: 'Internal error while fetching workflow',
-        loggingSession: providedLoggingSession,
-        triggerData,
-      })
-
-      return {
-        success: false,
-        error: {
-          message: 'Internal error while fetching workflow',
-          statusCode: 500,
-          retryable: isRetryableInfrastructureError(error),
-          cause: describeRetryableInfrastructureError(error),
-        },
+      const failure: PreprocessExecutionError = {
+        message: 'Internal error while fetching workflow',
+        statusCode: 500,
+        retryable: isRetryableInfrastructureError(error),
+        cause: describeRetryableInfrastructureError(error),
       }
+      if (!isFailureLogSuppressed(failure)) {
+        await recordPreprocessingError({
+          workflowId,
+          executionId,
+          triggerType,
+          requestId,
+          userId: userId || 'unknown',
+          workspaceId: providedWorkspaceId || '',
+          errorMessage: 'Internal error while fetching workflow',
+          loggingSession: providedLoggingSession,
+          triggerData,
+        })
+      }
+
+      return { success: false, error: failure }
     }
   } else if (workflowRecord.archivedAt) {
     logger.warn(`[${requestId}] Prefetched workflow is archived: ${workflowId}`)
@@ -381,27 +394,27 @@ export async function preprocessExecution(
   } catch (error) {
     logger.error(`[${requestId}] Error resolving billing attribution`, { error, workflowId })
     const errorLogUserId = userId || 'unknown'
-    await recordPreprocessingError({
-      workflowId,
-      executionId,
-      triggerType,
-      requestId,
-      userId: errorLogUserId,
-      workspaceId,
-      errorMessage: BILLING_ERROR_MESSAGES.BILLING_ERROR_GENERIC,
-      loggingSession: providedLoggingSession,
-      triggerData,
-    })
-
-    return {
-      success: false,
-      error: {
-        message: 'Error resolving billing account',
-        statusCode: 500,
-        retryable: isRetryableInfrastructureError(error),
-        cause: describeRetryableInfrastructureError(error),
-      },
+    const failure: PreprocessExecutionError = {
+      message: 'Error resolving billing account',
+      statusCode: 500,
+      retryable: isRetryableInfrastructureError(error),
+      cause: describeRetryableInfrastructureError(error),
     }
+    if (!isFailureLogSuppressed(failure)) {
+      await recordPreprocessingError({
+        workflowId,
+        executionId,
+        triggerType,
+        requestId,
+        userId: errorLogUserId,
+        workspaceId,
+        errorMessage: BILLING_ERROR_MESSAGES.BILLING_ERROR_GENERIC,
+        loggingSession: providedLoggingSession,
+        triggerData,
+      })
+    }
+
+    return { success: false, error: failure }
   }
 
   const plan = billingAttribution.payerSubscription?.plan as SubscriptionPlan | undefined
@@ -700,7 +713,7 @@ export async function preprocessExecution(
 
   const readGateFailure = banFailure ?? usageResult.failure
   if (readGateFailure) {
-    if (readGateFailure.recordError) {
+    if (readGateFailure.recordError && !isFailureLogSuppressed(readGateFailure.response.error)) {
       await recordPreprocessingError(readGateFailure.recordError)
     }
     return readGateFailure.response
@@ -708,7 +721,7 @@ export async function preprocessExecution(
 
   const rateLimitFailure = await runRateLimitGate()
   if (rateLimitFailure) {
-    if (rateLimitFailure.recordError) {
+    if (rateLimitFailure.recordError && !isFailureLogSuppressed(rateLimitFailure.response.error)) {
       await recordPreprocessingError(rateLimitFailure.recordError)
     }
     return rateLimitFailure.response

@@ -2,8 +2,10 @@ import { db } from '@sim/db'
 import { account, webhook } from '@sim/db/schema'
 import { createLogger, runWithRequestContext } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { isRecordLike } from '@sim/utils/object'
+import { backoffWithJitter } from '@sim/utils/retry'
 import { task, timeout } from '@trigger.dev/sdk'
 import { eq } from 'drizzle-orm'
 import {
@@ -14,7 +16,15 @@ import {
   assertBillingAttributionSnapshot,
   type BillingAttributionSnapshot,
 } from '@/lib/billing/core/billing-attribution'
+import { getJobQueue } from '@/lib/core/async-jobs'
 import type { AsyncExecutionCorrelation } from '@/lib/core/async-jobs/types'
+import { env, envNumber } from '@/lib/core/config/env'
+import {
+  describeRetryableInfrastructureError,
+  isRetryableInfrastructureError,
+  isRetryableSetupError,
+  RetryableSetupError,
+} from '@/lib/core/errors/retryable-infrastructure'
 import {
   capExecutionTimeoutMs,
   createTimeoutAbortController,
@@ -22,6 +32,7 @@ import {
   getExecutionDeadlineAt,
   getTimeoutErrorMessage,
   RESERVATION_TTL_BUFFER_MS,
+  toTriggerMaxDurationSeconds,
 } from '@/lib/core/execution-limits'
 import {
   IdempotencyService,
@@ -289,6 +300,122 @@ export type WebhookExecutionPayload = {
   triggerTimestampMs?: number
   /** Trusted attempt budget resolved before the webhook enters the queue. */
   executionTimeoutMs?: number
+  /**
+   * How many times this delivery was already requeued after a retryable
+   * infrastructure failure during setup (before any block ran). Absent on
+   * first delivery and on legacy queued jobs.
+   */
+  infraRetryCount?: number
+}
+
+const WEBHOOK_INFRA_RETRY_BASE_MS = envNumber(env.WEBHOOK_INFRA_RETRY_BASE_MS, 30_000, {
+  min: 1,
+  integer: true,
+})
+
+const WEBHOOK_INFRA_RETRY_MAX_MS = envNumber(env.WEBHOOK_INFRA_RETRY_MAX_MS, 5 * 60_000, {
+  min: 1,
+  integer: true,
+})
+
+/** Set to 0 to disable setup-failure requeues and restore fail-on-first-error behavior. */
+export const WEBHOOK_INFRA_RETRY_MAX_ATTEMPTS = envNumber(env.WEBHOOK_INFRA_RETRY_MAX_ATTEMPTS, 5, {
+  min: 0,
+  integer: true,
+})
+
+function hasRemainingWebhookInfraRetry(payload: WebhookExecutionPayload): boolean {
+  return (payload.infraRetryCount ?? 0) < WEBHOOK_INFRA_RETRY_MAX_ATTEMPTS
+}
+
+/** Bounded, jittered delay for webhook setup-failure requeues. Attempt is 1-indexed. */
+function calculateWebhookInfraRetryDelayMs(retryAttempt: number): number {
+  return Math.min(
+    WEBHOOK_INFRA_RETRY_MAX_MS,
+    Math.round(
+      backoffWithJitter(retryAttempt, null, {
+        baseMs: WEBHOOK_INFRA_RETRY_BASE_MS,
+        maxMs: WEBHOOK_INFRA_RETRY_MAX_MS,
+      })
+    )
+  )
+}
+
+/**
+ * Re-enqueues a delivery whose setup failed on retryable infrastructure,
+ * preserving the execution identity (execution id, request id, idempotency
+ * inputs) so the retry is the same delivery, not a duplicate. Returns false
+ * when the enqueue itself fails, in which case the caller must surface the
+ * original error so the run fails loudly instead of losing the delivery
+ * silently.
+ */
+async function requeueWebhookExecutionAfterSetupFailure(
+  payload: WebhookExecutionPayload,
+  correlation: AsyncExecutionCorrelation,
+  error: RetryableSetupError
+): Promise<boolean> {
+  const retryAttempt = (payload.infraRetryCount ?? 0) + 1
+  const delayMs = calculateWebhookInfraRetryDelayMs(retryAttempt)
+
+  try {
+    const retryPayload: WebhookExecutionPayload = {
+      ...payload,
+      executionId: correlation.executionId,
+      requestId: correlation.requestId,
+      correlation,
+      infraRetryCount: retryAttempt,
+    }
+    const jobId = await (await getJobQueue()).enqueue('webhook-execution', retryPayload, {
+      delayMs,
+      metadata: {
+        workflowId: payload.workflowId,
+        workspaceId: payload.workspaceId,
+        userId: payload.userId,
+        correlation,
+      },
+      maxDurationSeconds: toTriggerMaxDurationSeconds(payload.executionTimeoutMs),
+      /**
+       * The database backend executes jobs only through an in-process runner
+       * and does not apply `delayMs` to it, so the runner sleeps out the
+       * backoff itself; the trigger.dev backend ignores this field and delays
+       * server-side.
+       */
+      runner: async (_queuedPayload: unknown, signal: AbortSignal) => {
+        await sleep(delayMs)
+        if (signal.aborted) return undefined
+        return executeWebhookJob(retryPayload, signal)
+      },
+    })
+
+    logger.warn(
+      `[${correlation.requestId}] Requeued webhook execution after retryable setup failure`,
+      {
+        workflowId: payload.workflowId,
+        webhookId: payload.webhookId,
+        executionId: correlation.executionId,
+        provider: payload.provider,
+        retryAttempt,
+        maxAttempts: WEBHOOK_INFRA_RETRY_MAX_ATTEMPTS,
+        delayMs,
+        jobId,
+        error: error.message,
+        cause: error.cause,
+      }
+    )
+    return true
+  } catch (enqueueError) {
+    logger.error(
+      `[${correlation.requestId}] Failed to requeue webhook execution after setup failure`,
+      {
+        workflowId: payload.workflowId,
+        webhookId: payload.webhookId,
+        executionId: correlation.executionId,
+        retryAttempt,
+        error: enqueueError,
+      }
+    )
+    return false
+  }
 }
 
 export async function executeWebhookJob(
@@ -381,6 +508,29 @@ export async function executeWebhookJob(
         return result
       } catch (error) {
         await releaseExecutionSlot(executionId)
+
+        /**
+         * A typed setup failure certifies no block ran and the idempotency
+         * claim was released, so requeueing the same delivery cannot double
+         * run it; the retry re-admits usage and re-claims from scratch. When
+         * the requeue enqueue itself fails, fall through to the throw so the
+         * run fails loudly rather than dropping the delivery silently.
+         */
+        if (
+          isRetryableSetupError(error) &&
+          hasRemainingWebhookInfraRetry(payload) &&
+          (await requeueWebhookExecutionAfterSetupFailure(payload, correlation, error))
+        ) {
+          return {
+            success: false,
+            requeued: true,
+            workflowId: payload.workflowId,
+            executionId,
+            output: {},
+            executedAt: new Date().toISOString(),
+            provider: payload.provider,
+          }
+        }
         throw error
       }
     })
@@ -424,7 +574,8 @@ export async function resolveWebhookExecutionProviderConfig<
   } catch (error) {
     const errorMessage = toError(error).message
     throw new Error(
-      `Failed to resolve webhook provider config for ${provider} webhook ${webhookRecord.id}: ${errorMessage}`
+      `Failed to resolve webhook provider config for ${provider} webhook ${webhookRecord.id}: ${errorMessage}`,
+      { cause: toError(error) }
     )
   }
 }
@@ -503,6 +654,7 @@ async function executeWebhookJobInternal(
     checkRateLimit: false,
     checkDeployment: false,
     skipUsageLimits: admissionCompleted,
+    suppressRetryableFailureLogs: hasRemainingWebhookInfraRetry(payload),
     workspaceId: payload.workspaceId,
     loggingSession,
     billingAttribution: payload.billingAttribution,
@@ -511,7 +663,12 @@ async function executeWebhookJobInternal(
   })
 
   if (!preprocessResult.success) {
-    throw new Error(preprocessResult.error?.message || 'Preprocessing failed in background job')
+    const failure = preprocessResult.error
+    const failureMessage = failure?.message || 'Preprocessing failed in background job'
+    if (failure && failure.statusCode >= 500 && failure.retryable === true) {
+      throw new RetryableSetupError(failureMessage, { cause: failure.cause })
+    }
+    throw new Error(failureMessage)
   }
 
   const { actorUserId, billingAttribution, workflowRecord } = preprocessResult
@@ -548,6 +705,15 @@ async function executeWebhookJobInternal(
   const workflowVariables = (workflowRecord.variables as Record<string, unknown>) || {}
 
   let deploymentVersionId: string | undefined
+  /**
+   * Flipped immediately before `executeWorkflowCore` is invoked. While false,
+   * no block has run and no execution effect exists, so a retryable
+   * infrastructure error may be surfaced as a `RetryableSetupError` and the
+   * whole delivery safely re-attempted. Once true, errors are never
+   * reclassified as retryable — retrying after the executor started could
+   * double-run the workflow.
+   */
+  let workflowCoreStarted = false
 
   try {
     const workflowStatePromise = payload.deploymentVersionId
@@ -802,6 +968,7 @@ async function executeWebhookJobInternal(
       []
     )
 
+    workflowCoreStarted = true
     const executionResult = await executeWorkflowCore({
       snapshot,
       callbacks: {},
@@ -838,6 +1005,28 @@ async function executeWebhookJobInternal(
   } catch (error: unknown) {
     const errorMessage = toError(error).message
     const errorStack = error instanceof Error ? error.stack : undefined
+
+    /**
+     * Mirrors the schedule executor's setup boundary: an infrastructure error
+     * raised before the workflow core started left no execution effect, so it
+     * is surfaced as a `RetryableSetupError` — releasing the idempotency claim
+     * and, while attempts remain, requeueing without recording a terminal
+     * failed row for an attempt that will be retried. Exhausted retries fall
+     * through to normal failure handling but still throw typed so a provider
+     * redelivery is not rejected for a run that never happened.
+     */
+    const retryableSetupCause =
+      !workflowCoreStarted && isRetryableInfrastructureError(error)
+        ? describeRetryableInfrastructureError(error)
+        : undefined
+    if (retryableSetupCause && hasRemainingWebhookInfraRetry(payload)) {
+      logger.warn(`[${requestId}] Retryable setup failure before webhook workflow started`, {
+        workflowId: payload.workflowId,
+        provider: payload.provider,
+        cause: retryableSetupCause,
+      })
+      throw new RetryableSetupError(errorMessage, { cause: retryableSetupCause })
+    }
 
     logger.error(
       `[${requestId}] Webhook execution failed`,
@@ -906,6 +1095,9 @@ async function executeWebhookJobInternal(
       )
     }
 
+    if (retryableSetupCause) {
+      throw new RetryableSetupError(errorMessage, { cause: retryableSetupCause })
+    }
     throw error
   }
 }
