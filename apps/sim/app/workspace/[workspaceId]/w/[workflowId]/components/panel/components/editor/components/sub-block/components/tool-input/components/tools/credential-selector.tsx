@@ -148,11 +148,11 @@ export function ToolCredentialSelector({
     hasSelection && missingRequiredScopes.length > 0 && !disabled && !credentialsLoading
 
   useEffect(() => {
-    if (showOAuthModal && selectedId && !selectedCredential) {
+    if (showOAuthModal && selectedId && !selectedCredential && !credentialsLoading) {
       consumeOAuthReturnContext()
       setShowOAuthModal(false)
     }
-  }, [showOAuthModal, selectedId, selectedCredential])
+  }, [showOAuthModal, selectedId, selectedCredential, credentialsLoading])
 
   const handleSelect = useCallback(
     (credentialId: string) => {
