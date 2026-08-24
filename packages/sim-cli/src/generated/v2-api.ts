@@ -25,6 +25,7 @@ export type AbortFileUploadHeaders = {
 
 type AbortFileUploadResponseRef0 = {
   id: string
+  webUrl: string
   name: string
   size: number
   type: string
@@ -1002,6 +1003,7 @@ export type CompleteFileUploadHeaders = {
 
 type CompleteFileUploadResponseRef0 = {
   id: string
+  webUrl: string
   name: string
   size: number
   type: string
@@ -1227,6 +1229,7 @@ export type CreateFileBody = {
 
 type CreateFileResponseRef0 = {
   id: string
+  webUrl: string
   name: string
   size: number
   type: string
@@ -1279,6 +1282,7 @@ export type CreateFileUploadBody = {
 
 type CreateFileUploadResponseRef0 = {
   id: string
+  webUrl: string
   name: string
   size: number
   type: string
@@ -1415,6 +1419,7 @@ type CreateKnowledgeBaseResponseRef1 = {
   connectorTypes?: Array<string>
   createdAt: string
   updatedAt: string
+  webUrl: string
   ownerEmail: string
   folderPath: string
   deletedAt: string | null
@@ -1819,6 +1824,7 @@ type CreateTableResponseRef0 = {
 
 type CreateTableResponseRef1 = {
   id: string
+  webUrl: string
   name: string
   description: string | null
   ownerEmail: string
@@ -2369,6 +2375,7 @@ type CreateWorkflowResponseRef0 = {
 
 type CreateWorkflowResponseRef1 = {
   id: string
+  webUrl: string
   name: string
   description: string | null
   folderPath: string
@@ -3190,6 +3197,7 @@ export type DuplicateWorkflowBody = {
 
 type DuplicateWorkflowResponseRef0 = {
   id: string
+  webUrl: string
   name: string
   description: string | null
   folderPath: string
@@ -3604,6 +3612,7 @@ type GetFileResponseRef0 = {
 
 type GetFileResponseRef1 = {
   id: string
+  webUrl: string
   name: string
   size: number
   type: string
@@ -3660,6 +3669,7 @@ export type GetFileUploadHeaders = {
 
 type GetFileUploadResponseRef0 = {
   id: string
+  webUrl: string
   name: string
   size: number
   type: string
@@ -3728,6 +3738,7 @@ type GetKnowledgeBaseResponseRef1 = {
   connectorTypes?: Array<string>
   createdAt: string
   updatedAt: string
+  webUrl: string
   ownerEmail: string
   folderPath: string
   deletedAt: string | null
@@ -4148,6 +4159,7 @@ type GetTableResponseRef0 = {
 
 type GetTableResponseRef1 = {
   id: string
+  webUrl: string
   name: string
   description: string | null
   ownerEmail: string
@@ -4443,6 +4455,7 @@ type GetWorkflowResponseRef0 = {
 
 type GetWorkflowResponseRef1 = {
   id: string
+  webUrl: string
   name: string
   description: string | null
   folderPath: string
@@ -5244,6 +5257,7 @@ export type ListFilesQuery = {
 
 type ListFilesResponseRef0 = {
   id: string
+  webUrl: string
   name: string
   size: number
   type: string
@@ -5286,6 +5300,7 @@ type ListKnowledgeBasesResponseRef0 = {
   connectorTypes?: Array<string>
   createdAt: string
   updatedAt: string
+  webUrl: string
   ownerEmail: string
   folderPath: string
   deletedAt: string | null
@@ -5884,6 +5899,7 @@ export type ListTablesQuery = {
 
 type ListTablesResponseRef0 = {
   id: string
+  webUrl: string
   name: string
   description: string | null
   ownerEmail: string
@@ -6159,6 +6175,7 @@ export type ListWorkflowsQuery = {
 
 type ListWorkflowsResponseRef0 = {
   id: string
+  webUrl: string
   name: string
   description: string | null
   folderPath: string
@@ -6701,6 +6718,7 @@ export type RenameFileBody = {
 
 type RenameFileResponseRef0 = {
   id: string
+  webUrl: string
   name: string
   size: number
   type: string
@@ -6970,6 +6988,7 @@ export type RestoreFileBody = {
 
 type RestoreFileResponseRef0 = {
   id: string
+  webUrl: string
   name: string
   size: number
   type: string
@@ -7051,6 +7070,7 @@ type RestoreKnowledgeBaseResponseRef1 = {
   connectorTypes?: Array<string>
   createdAt: string
   updatedAt: string
+  webUrl: string
   ownerEmail: string
   folderPath: string
   deletedAt: string | null
@@ -7081,6 +7101,7 @@ type RestoreTableResponseRef0 = {
 
 type RestoreTableResponseRef1 = {
   id: string
+  webUrl: string
   name: string
   description: string | null
   ownerEmail: string
@@ -7157,6 +7178,7 @@ export type RestoreWorkflowQuery = Record<string, unknown>
 
 type RestoreWorkflowResponseRef0 = {
   id: string
+  webUrl: string
   name: string
   description: string | null
   folderPath: string
@@ -7763,6 +7785,7 @@ export type UpdateFileContentBody = {
 
 type UpdateFileContentResponseRef0 = {
   id: string
+  webUrl: string
   name: string
   size: number
   type: string
@@ -7833,6 +7856,7 @@ type UpdateKnowledgeBaseResponseRef1 = {
   connectorTypes?: Array<string>
   createdAt: string
   updatedAt: string
+  webUrl: string
   ownerEmail: string
   folderPath: string
   deletedAt: string | null
@@ -8215,6 +8239,7 @@ type UpdateTableResponseRef0 = {
 
 type UpdateTableResponseRef1 = {
   id: string
+  webUrl: string
   name: string
   description: string | null
   ownerEmail: string
@@ -8503,6 +8528,7 @@ export type UpdateWorkflowBody = {
 
 type UpdateWorkflowResponseRef0 = {
   id: string
+  webUrl: string
   name: string
   description: string | null
   folderPath: string

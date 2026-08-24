@@ -134,6 +134,7 @@ describe('GET /api/v2/files/[fileId]/metadata', () => {
     expect(await response.json()).toEqual({
       data: {
         id: FILE_ID,
+        webUrl: `https://test.sim.ai/workspace/${WORKSPACE_ID}/files/${FILE_ID}`,
         name: 'data.csv',
         size: 1024,
         type: 'text/csv',
@@ -190,6 +191,7 @@ describe('GET /api/v2/files/[fileId]/metadata', () => {
     expect(await response.json()).toEqual({
       data: {
         id: FILE_ID,
+        webUrl: `https://test.sim.ai/workspace/${WORKSPACE_ID}/files/${FILE_ID}`,
         name: 'data.csv',
         size: 1024,
         type: 'text/csv',

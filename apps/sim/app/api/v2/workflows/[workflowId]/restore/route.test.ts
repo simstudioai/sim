@@ -77,6 +77,7 @@ describe('/api/v2/workflows/[workflowId]/restore', () => {
     expect(await response.json()).toEqual({
       data: {
         id: WORKFLOW_ID,
+        webUrl: `https://test.sim.ai/workspace/workspace-1/w/${WORKFLOW_ID}`,
         name: 'Daily digest',
         description: null,
         folderPath: '/',

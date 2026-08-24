@@ -238,6 +238,12 @@ describe('folder paths are shown by name, but piped in wire form', () => {
     expect(logged).toContain('folder\t/cli-test-a/nested one')
   })
 
+  it('shows the canonical web URL in file details', () => {
+    const webUrl = 'https://www.sim.ai/workspace/ws-1/files/f_1'
+    renderResult('getFile', 'text', { id: 'f_1', webUrl }, CLI_CONTRACT.getFile as CommandSpec)
+    expect(logged).toContain(`web URL\t${webUrl}`)
+  })
+
   it('shows an undecodable path as it arrived rather than dropping it', () => {
     renderPage('text', [{ path: '/100%zz', name: 'x', parentPath: '/', updatedAt: null }], spec)
     expect(logged[0].split('\t')[0]).toBe('/100%zz')

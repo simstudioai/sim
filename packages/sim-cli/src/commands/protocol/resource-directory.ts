@@ -40,6 +40,7 @@ interface DirectoryEntry {
   kind: string
   name: string
   ref: string
+  webUrl?: string
   folderPath: string
   updatedAt: string
 }
@@ -149,6 +150,7 @@ function entriesFor(
       kind: config.kind,
       name: resource.name,
       ref: resource.id,
+      webUrl: resource.webUrl,
       folderPath: resource.folderPath,
       updatedAt: resource.updatedAt,
     })),

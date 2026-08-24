@@ -1,5 +1,7 @@
 import { v2RestoreWorkflowContract } from '@/lib/api/contracts/v2/workflows'
 import { defineV2JsonRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/routes'
+import { getBaseUrl } from '@/lib/core/utils/urls'
+import { workspaceResourceWebUrl } from '@/lib/resources'
 import { v2WorkflowErrorPolicies } from '@/lib/workflows/api'
 import { workflowOperations } from '@/lib/workflows/application/operations'
 import { restoreWorkflow } from '@/lib/workflows/application/restore-workflow'
@@ -23,6 +25,7 @@ export const POST = defineV2JsonRoute({
   present: ({ workflow, workspaceId, folderPath }) => ({
     data: {
       id: workflow.id,
+      webUrl: workspaceResourceWebUrl(getBaseUrl(), workspaceId, 'workflow', workflow.id),
       name: workflow.name,
       description: workflow.description,
       folderPath,

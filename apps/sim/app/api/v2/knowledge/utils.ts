@@ -5,6 +5,7 @@ import type {
   V2KnowledgeTaggedDocument,
 } from '@/lib/api/contracts/v2/knowledge'
 import type { V2KnowledgeChunk } from '@/lib/api/contracts/v2/knowledge-chunks'
+import { getBaseUrl } from '@/lib/core/utils/urls'
 import type { ChunkData } from '@/lib/knowledge/chunks/types'
 import { ALL_TAG_SLOTS, type AllTagSlot } from '@/lib/knowledge/constants'
 import {
@@ -13,6 +14,7 @@ import {
 } from '@/lib/knowledge/documents/types'
 import type { DocumentTagDefinition } from '@/lib/knowledge/tags/types'
 import type { KnowledgeBaseWithCounts } from '@/lib/knowledge/types'
+import { workspaceResourceWebUrl } from '@/lib/resources'
 import { getUserEmailsByIds, requireResolvedUserEmail } from '@/lib/users/queries'
 import { serializeDate } from '@/app/api/v1/knowledge/utils'
 
@@ -128,10 +130,21 @@ interface KnowledgeBaseWithFolder {
 function serializeV2KnowledgeBase(
   knowledgeBase: KnowledgeBaseWithCounts,
   folderPath: string,
-  ownerEmail: string
+  ownerEmail: string,
+  baseUrl: string
 ): V2KnowledgeBase {
+  if (!knowledgeBase.workspaceId) {
+    throw new Error(`Knowledge base ${knowledgeBase.id} has no workspace`)
+  }
+
   return {
     id: knowledgeBase.id,
+    webUrl: workspaceResourceWebUrl(
+      baseUrl,
+      knowledgeBase.workspaceId,
+      'knowledge',
+      knowledgeBase.id
+    ),
     name: knowledgeBase.name,
     description: knowledgeBase.description,
     ownerEmail,
@@ -170,7 +183,8 @@ export async function toV2KnowledgeBase(
   return serializeV2KnowledgeBase(
     knowledgeBase,
     folderPath,
-    requireResolvedUserEmail(emailByUserId, knowledgeBase.userId)
+    requireResolvedUserEmail(emailByUserId, knowledgeBase.userId),
+    getBaseUrl()
   )
 }
 
@@ -181,11 +195,13 @@ export async function toV2KnowledgeBases(
   const emailByUserId = await getUserEmailsByIds(
     entries.map(({ knowledgeBase }) => knowledgeBase.userId)
   )
+  const baseUrl = getBaseUrl()
   return entries.map(({ knowledgeBase, folderPath }) =>
     serializeV2KnowledgeBase(
       knowledgeBase,
       folderPath,
-      requireResolvedUserEmail(emailByUserId, knowledgeBase.userId)
+      requireResolvedUserEmail(emailByUserId, knowledgeBase.userId),
+      baseUrl
     )
   )
 }

@@ -86,6 +86,7 @@ describe('/api/v2/workflows/[workflowId]/duplicate', () => {
     expect(await response.json()).toEqual({
       data: {
         id: 'workflow-2',
+        webUrl: 'https://test.sim.ai/workspace/workspace-1/w/workflow-2',
         name: 'Daily digest (copy)',
         description: null,
         folderPath: '/Operations',

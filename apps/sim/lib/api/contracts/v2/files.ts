@@ -23,6 +23,7 @@ import {
   v2NonRootFolderPathInputSchema,
   v2PaginationFields,
   v2RelocateFolderBodySchema,
+  v2ResourceWebUrlSchema,
   v2SearchSchema,
   v2SortFields,
   v2TimestampSchema,
@@ -58,6 +59,7 @@ export const v2FileSchema = z
       .string()
       .describe('Unique file identifier.')
       .meta({ examples: ['wf_V1StGXR8z5jdHi6BmyT91'] }),
+    webUrl: v2ResourceWebUrlSchema,
     name: z
       .string()
       .describe('Original file name.')

@@ -4931,6 +4931,11 @@
             "type": "string",
             "description": "Unique table identifier."
           },
+          "webUrl": {
+            "type": "string",
+            "format": "uri",
+            "description": "Canonical absolute URL for opening this resource in the Sim web application."
+          },
           "name": {
             "type": "string",
             "description": "Table name."
@@ -5099,6 +5104,7 @@
         },
         "required": [
           "id",
+          "webUrl",
           "name",
           "description",
           "ownerEmail",

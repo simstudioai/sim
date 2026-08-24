@@ -80,6 +80,7 @@ const RUN_ID = 'run_8f14e45f-ceea-467f-a'
 
 const WORKFLOW_EXAMPLE = {
   id: WORKFLOW_ID,
+  webUrl: `https://www.sim.ai/workspace/${WORKSPACE_ID}/w/${WORKFLOW_ID}`,
   name: 'Customer support triage',
   description: 'Routes incoming support requests to the right team.',
   folderPath: '/Operations',

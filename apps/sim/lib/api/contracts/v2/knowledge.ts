@@ -38,6 +38,7 @@ import {
   v2ListFoldersQuerySchema,
   v2PaginationFields,
   v2RelocateFolderBodySchema,
+  v2ResourceWebUrlSchema,
   v2SearchSchema,
   v2SortFields,
   v2TimestampSchema,
@@ -127,6 +128,7 @@ export const v2KnowledgeBaseSchema = knowledgeBaseDataSchema
     id: knowledgeBaseDataSchema.shape.id
       .describe('Unique knowledge base identifier.')
       .meta({ examples: ['7c9e6679-7425-40de-944b-e07fc1f90ae7'] }),
+    webUrl: v2ResourceWebUrlSchema,
     name: knowledgeBaseDataSchema.shape.name
       .describe('Human-readable knowledge base name.')
       .meta({ examples: ['Product Documentation'] }),

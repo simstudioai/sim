@@ -61,6 +61,7 @@ import {
   v2NonRootFolderPathInputSchema,
   v2PaginationFields,
   v2RelocateFolderBodySchema,
+  v2ResourceWebUrlSchema,
   v2SearchSchema,
   v2SortFields,
   v2TimestampSchema,
@@ -167,6 +168,7 @@ export type V2TableJobState = z.output<typeof v2TableJobStateSchema>
 export const v2ApiTableSchema = z
   .object({
     id: z.string().describe('Unique table identifier.'),
+    webUrl: v2ResourceWebUrlSchema,
     name: z.string().describe('Table name.'),
     description: z.string().nullable().describe('Table description, or null when none is set.'),
     ownerEmail: z

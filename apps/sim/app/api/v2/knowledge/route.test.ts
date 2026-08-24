@@ -142,6 +142,7 @@ describe('/api/v2/knowledge route composition', () => {
       data: [
         expect.objectContaining({
           id: 'kb-1',
+          webUrl: `https://test.sim.ai/workspace/${WORKSPACE_ID}/knowledge/kb-1`,
           folderPath: '/',
           ownerEmail: 'owner@example.com',
           connectorTypes: ['notion'],

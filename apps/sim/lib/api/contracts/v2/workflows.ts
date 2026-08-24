@@ -43,6 +43,7 @@ import {
   v2ListFoldersQuerySchema,
   v2PaginationFields,
   v2RelocateFolderBodySchema,
+  v2ResourceWebUrlSchema,
   v2RunOrderSchema,
   v2RunWindowBoundSchema,
   v2SearchSchema,
@@ -183,6 +184,7 @@ export const v2WorkflowListItemSchema = z
       .string()
       .describe('Unique workflow identifier.')
       .meta({ examples: ['3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36'] }),
+    webUrl: v2ResourceWebUrlSchema,
     name: z
       .string()
       .describe('Workflow name.')

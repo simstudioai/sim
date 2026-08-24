@@ -273,6 +273,7 @@ describe('/api/v2/workflows', () => {
       data: [
         {
           id: WORKFLOW.id,
+          webUrl: `https://test.sim.ai/workspace/${WORKSPACE_ID}/w/${WORKFLOW.id}`,
           name: WORKFLOW.name,
           description: null,
           folderPath: '/',

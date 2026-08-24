@@ -1,5 +1,7 @@
 import { v2DuplicateWorkflowContract } from '@/lib/api/contracts/v2/workflows'
 import { defineV2JsonRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/routes'
+import { getBaseUrl } from '@/lib/core/utils/urls'
+import { workspaceResourceWebUrl } from '@/lib/resources'
 import { v2WorkflowErrorPolicies } from '@/lib/workflows/api'
 import { duplicateWorkflow } from '@/lib/workflows/application/duplicate-workflow'
 import { workflowOperations } from '@/lib/workflows/application/operations'
@@ -22,6 +24,7 @@ export const POST = defineV2JsonRoute({
   present: (result) => ({
     data: {
       id: result.id,
+      webUrl: workspaceResourceWebUrl(getBaseUrl(), result.workspaceId, 'workflow', result.id),
       name: result.name,
       description: result.description,
       folderPath: result.folderPath,

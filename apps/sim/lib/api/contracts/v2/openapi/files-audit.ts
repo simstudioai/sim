@@ -56,6 +56,8 @@ import { MAX_ZIP_DOWNLOAD_FILES } from '@/lib/workspace-files/limits'
 
 const FILE_EXAMPLE = {
   id: 'wf_V1StGXR8z5jdHi6BmyT91',
+  webUrl:
+    'https://www.sim.ai/workspace/a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64/files/wf_V1StGXR8z5jdHi6BmyT91',
   name: 'data.csv',
   size: 1024,
   type: 'text/csv',

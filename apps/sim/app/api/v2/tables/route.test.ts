@@ -211,6 +211,7 @@ describe('/api/v2/tables', () => {
       data: [
         {
           id: 'table-1',
+          webUrl: `https://test.sim.ai/workspace/${WORKSPACE_ID}/tables/table-1`,
           folderPath: '/',
           description: null,
           ownerEmail: 'owner@example.com',
