@@ -990,7 +990,7 @@ export const Panel = memo(function Panel() {
         onOpenChange={setIsDeleteModalOpen}
         srTitle='Delete Workflow'
         title='Delete Workflow'
-        defaultAction='confirm'
+        defaultAction='dismiss'
         text={[
           'Are you sure you want to delete ',
           { text: currentWorkflow?.name ?? 'this workflow', bold: true },

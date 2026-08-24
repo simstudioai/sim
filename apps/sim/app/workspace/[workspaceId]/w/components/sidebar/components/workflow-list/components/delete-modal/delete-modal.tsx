@@ -70,7 +70,7 @@ export function DeleteModal({
   const isConfirmed = !isWorkspace || confirmationText === workspaceName
   const defaultAction = isWorkspace
     ? 'none'
-    : isSingle && (itemType === 'workflow' || itemType === 'task')
+    : isSingle && itemType === 'task'
       ? 'confirm'
       : 'dismiss'
 
