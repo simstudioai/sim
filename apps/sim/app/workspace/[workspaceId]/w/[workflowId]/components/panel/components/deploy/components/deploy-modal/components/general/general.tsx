@@ -1,19 +1,17 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useId, useState } from 'react'
 import {
   Button,
   ButtonGroup,
   ButtonGroupItem,
   ChipConfirmModal,
+  ChipModal,
+  ChipModalBody,
+  ChipModalHeader,
   cn,
   Expand,
   Label,
-  Modal,
-  ModalBody,
-  ModalContent,
-  ModalDescription,
-  ModalHeader,
   Skeleton,
   Tooltip,
 } from '@sim/emcn'
@@ -62,6 +60,7 @@ export function GeneralDeploy({
   onLoadDeploymentComplete,
   onLoadDeploymentBlocked,
 }: GeneralDeployProps) {
+  const expandedPreviewDescriptionId = useId()
   const [selectedVersion, setSelectedVersion] = useState<number | null>(null)
   const [showActiveDespiteSelection, setShowActiveDespiteSelection] = useState(false)
   const previewMode: PreviewMode =
@@ -137,13 +136,6 @@ export function GeneralDeploy({
       logger.error('Failed to load deployment:', error)
     }
   }
-
-  useEffect(() => {
-    setShowLoadDialog(false)
-    setVersionToLoad(null)
-    setShowPromoteDialog(false)
-    setVersionToPromote(null)
-  }, [workflowId])
 
   const confirmPromoteToLive = async () => {
     if (!versionToPromote || isPromotingVersion) return
@@ -336,21 +328,26 @@ export function GeneralDeploy({
       />
 
       {workflowToShow && (
-        <Modal open={showExpandedPreview} onOpenChange={setShowExpandedPreview}>
-          <ModalContent size='full' className='flex h-[90vh] flex-col'>
-            <ModalHeader>
-              {previewMode === 'selected' && selectedVersionInfo
-                ? formatVersionLabel(selectedVersionInfo.version, selectedVersionInfo.name)
-                : 'Live Workflow'}
-            </ModalHeader>
-            <ModalBody className='!p-0 min-h-0 flex-1 overflow-hidden'>
-              <ModalDescription className='sr-only'>
-                Visual preview of the selected workflow version.
-              </ModalDescription>
-              <Preview workflowState={workflowToShow} autoSelectLeftmost />
-            </ModalBody>
-          </ModalContent>
-        </Modal>
+        <ChipModal
+          open={showExpandedPreview}
+          onOpenChange={setShowExpandedPreview}
+          srTitle='Workflow preview'
+          aria-describedby={expandedPreviewDescriptionId}
+          size='full'
+          className='h-[90vh] [&>div]:h-full'
+        >
+          <ChipModalHeader onClose={() => setShowExpandedPreview(false)}>
+            {previewMode === 'selected' && selectedVersionInfo
+              ? formatVersionLabel(selectedVersionInfo.version, selectedVersionInfo.name)
+              : 'Live Workflow'}
+          </ChipModalHeader>
+          <ChipModalBody fullBleed>
+            <p id={expandedPreviewDescriptionId} className='sr-only'>
+              Visual preview of the selected workflow version.
+            </p>
+            <Preview workflowState={workflowToShow} autoSelectLeftmost />
+          </ChipModalBody>
+        </ChipModal>
       )}
     </>
   )

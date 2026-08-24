@@ -263,6 +263,7 @@ export function Browser() {
         open={confirming !== null}
         onOpenChange={(open) => !open && setConfirming(null)}
         title={target ? target.action : 'Clear all browsing data'}
+        defaultAction={target?.kind === 'cache' ? 'confirm' : 'dismiss'}
         text={[
           'This will ',
           {
