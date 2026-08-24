@@ -2115,6 +2115,13 @@
       "when": 1787432959648,
       "tag": "0302_fat_sentry",
       "breakpoints": true
+    },
+    {
+      "idx": 303,
+      "version": "7",
+      "when": 1787506599710,
+      "tag": "0303_colorful_gressill",
+      "breakpoints": true
     }
   ]
 }
