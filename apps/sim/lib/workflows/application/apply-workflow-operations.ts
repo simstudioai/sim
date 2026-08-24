@@ -120,6 +120,13 @@ function asGraph(value: Record<string, unknown>): Pick<WorkflowState, 'blocks' |
   return value as unknown as Pick<WorkflowState, 'blocks' | 'edges'>
 }
 
+/**
+ * Loads the editable graph after the workflow row has already been resolved.
+ *
+ * The normalized loader projects a legitimate blockless draft as an empty
+ * graph. A null result therefore remains a hard failure rather than becoming a
+ * fallback graph that a write could persist after a failed read.
+ */
 async function loadStoredGraph(workflowId: string): Promise<Record<string, unknown>> {
   const normalized = await loadWorkflowFromNormalizedTables(workflowId)
   if (!normalized) {

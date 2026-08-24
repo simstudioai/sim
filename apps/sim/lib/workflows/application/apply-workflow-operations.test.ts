@@ -188,6 +188,36 @@ describe('applyWorkflowOperations', () => {
     expect(result.needsRedeployment).toBe(true)
   })
 
+  /**
+   * Replacing a draft with `{ blocks: {}, edges: [] }` legitimately deletes
+   * every normalized block row. The workflow row still exists, so the next add
+   * must initialize that empty canvas rather than treating it as missing state.
+   */
+  it('adds the first block to a blockless workflow', async () => {
+    const emptyGraph = graph({})
+    const graphWithAddedBlock = graph({
+      'block-2': { ...BLOCK, id: 'block-2', type: 'agent', name: 'Triage' },
+    })
+    mocks.loadNormalized.mockResolvedValue(emptyGraph)
+    mocks.normalizeState.mockImplementation((state) => ({ state, warnings: [] }))
+    mocks.applyOperations.mockReturnValue({
+      state: graphWithAddedBlock,
+      validationErrors: [],
+      skippedItems: [],
+      mintedBlockIds: {},
+    })
+
+    const result = await applyWorkflowOperations.execute({
+      principal: sessionPrincipal,
+      input: { workflowId: 'workflow-1', operations, atomic: true },
+    })
+
+    expect(mocks.normalizeState).toHaveBeenCalledWith(emptyGraph)
+    expect(mocks.applyOperations).toHaveBeenCalledWith(emptyGraph, operations, null)
+    expect(mocks.replace).toHaveBeenCalledTimes(1)
+    expect(result.graph.blocks).toEqual(graphWithAddedBlock.blocks)
+  })
+
   describe('dry run', () => {
     it('runs the whole engine and stops at the write', async () => {
       const result = await applyWorkflowOperations.execute({

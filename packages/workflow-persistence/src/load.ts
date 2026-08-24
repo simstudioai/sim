@@ -125,11 +125,8 @@ export async function loadWorkflowFromNormalizedTablesRaw(
         .limit(1),
     ])
 
-    if (blocks.length === 0) {
-      return null
-    }
-
-    if (!workflowRow?.workspaceId) {
+    if (!workflowRow) return null
+    if (!workflowRow.workspaceId) {
       throw new Error(`Workflow ${workflowId} has no workspace`)
     }
 
