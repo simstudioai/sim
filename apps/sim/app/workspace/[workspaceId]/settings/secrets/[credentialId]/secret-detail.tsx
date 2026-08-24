@@ -261,7 +261,7 @@ export function SecretDetail({ workspaceId, credentialId }: SecretDetailProps) {
                 <Label htmlFor='secret-unredacted'>Show value in logs and Chat</Label>
                 <p className='text-[var(--text-muted)] text-caption'>
                   {
-                    'The value is visible to anyone who can see this workspace’s runs, including shared log links.'
+                    'The value is visible to anyone who can see this workspace’s runs — in logs, Chat, and the API, including shared log links.'
                   }
                 </p>
               </div>

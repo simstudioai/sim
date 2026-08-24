@@ -2,7 +2,7 @@ import { db } from '@sim/db'
 import { credential, environment, workspaceEnvironment } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
 import { and, eq, sql } from 'drizzle-orm'
-import { encryptSecret } from '@/lib/core/security/encryption'
+import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
 import {
   createWorkspaceEnvCredentials,
   deletePersonalEnvCredentialForUser,
@@ -24,6 +24,44 @@ async function lockSecretMap(tx: DbOrTx, lockKey: string): Promise<void> {
     sql`SELECT set_config('lock_timeout', ${`${SECRET_MAP_LOCK_TIMEOUT_MS}ms`}, true)`
   )
   await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${lockKey}, 0))`)
+}
+
+/**
+ * Decrypts the stored values for the requested workspace secret names.
+ *
+ * Exists for exactly one read path: rows a workspace marked visible (unredacted),
+ * whose values already print into every run log the caller can open. Every other
+ * secret read stays metadata-only — callers gate on the flag BEFORE asking. A
+ * name that is absent or fails to decrypt is omitted rather than failing the
+ * batch, since the value is optional on the wire.
+ */
+export async function readWorkspaceSecretValues(params: {
+  workspaceId: string
+  names: readonly string[]
+}): Promise<Record<string, string>> {
+  if (params.names.length === 0) return {}
+
+  const [row] = await db
+    .select({ variables: workspaceEnvironment.variables })
+    .from(workspaceEnvironment)
+    .where(eq(workspaceEnvironment.workspaceId, params.workspaceId))
+    .limit(1)
+  const variables = (row?.variables as Record<string, string> | null) ?? {}
+
+  const values: Record<string, string> = {}
+  await Promise.all(
+    params.names.map(async (name) => {
+      const encrypted = variables[name]
+      if (!encrypted) return
+      try {
+        const { decrypted } = await decryptSecret(encrypted)
+        values[name] = decrypted
+      } catch {
+        // Omitted from the result; the caller's wire shape treats the value as optional.
+      }
+    })
+  )
+  return values
 }
 
 /** Stores one workspace secret without decrypting any existing value. */

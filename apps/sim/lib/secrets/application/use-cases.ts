@@ -16,6 +16,7 @@ import {
 import {
   deletePersonalSecret,
   deleteWorkspaceSecret,
+  readWorkspaceSecretValues,
   setPersonalSecret,
   setWorkspaceSecret,
 } from '@/lib/credentials/secret-values'
@@ -239,8 +240,22 @@ export const listSecretsUseCase = defineAuthorizedWorkspaceUseCase({
       workspaceId: context.workspaceId,
       userId,
     })
+    /**
+     * The one place a secret value rides a read response: rows the workspace marked
+     * visible (unredacted) — whose values already print into every run log this
+     * caller can open — so external agents don't have to scrape logs for them.
+     * Bounded by the page, and read from one environment row.
+     */
+    const visibleNames = page.data.flatMap((row) =>
+      row.type === 'env_workspace' && row.unredacted && row.envKey ? [row.envKey] : []
+    )
+    const values = await readWorkspaceSecretValues({
+      workspaceId: context.workspaceId,
+      names: visibleNames,
+    })
     return {
       secrets: page.data,
+      values,
       nextCursorKeys: page.nextCursorKeys,
       userId,
       sortBy: input.sortBy,

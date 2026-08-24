@@ -250,6 +250,17 @@ const SECRET_EXAMPLE = {
   updatedAt: '2026-06-20T14:02:11.000Z',
 } as const
 
+const VISIBLE_SECRET_EXAMPLE = {
+  name: 'STAGING_BASE_URL',
+  scope: 'workspace',
+  description: 'Staging environment base URL.',
+  unredacted: true,
+  role: 'member',
+  createdAt: '2026-06-03T11:30:00.000Z',
+  updatedAt: '2026-06-21T08:45:09.000Z',
+  value: 'https://staging.example.com',
+} as const
+
 type ResourceTag =
   | 'Workspaces'
   | 'MCP Servers'
@@ -1140,7 +1151,7 @@ const declaredRoutes = [
     resourceOperation('Secrets', {
       operationId: 'listSecrets',
       summary: 'List Secrets',
-      description: `List workspace and caller-owned personal secret metadata with opaque cursor pagination. Only names, scope, role, and timestamps are returned; secret values are never returned. ${WORKSPACE_API_KEY_DENIED}`,
+      description: `List workspace and caller-owned personal secret metadata with opaque cursor pagination. Rows for workspace secrets marked visible (unredacted) include the stored value; every other row is metadata-only and no other response ever carries a value. ${WORKSPACE_API_KEY_DENIED}`,
       errors: RESOURCE_ERRORS,
       success: { description: 'Secret metadata visible to the caller.' },
     }),
@@ -1155,8 +1166,8 @@ const declaredRoutes = [
         v2ListSecretsContract.response.schema,
         'ListSecretsResponse',
         'List secrets response',
-        'Secret metadata visible to the caller without stored values.',
-        [{ data: [SECRET_EXAMPLE], nextCursor: null }]
+        'Secret metadata visible to the caller; visible (unredacted) workspace secrets carry their value.',
+        [{ data: [SECRET_EXAMPLE, VISIBLE_SECRET_EXAMPLE], nextCursor: null }]
       ),
     }
   ),

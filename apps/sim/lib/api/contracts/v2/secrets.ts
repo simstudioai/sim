@@ -55,6 +55,28 @@ export const v2SecretSchema = z
   })
 export type V2Secret = z.output<typeof v2SecretSchema>
 
+/**
+ * List-row shape: metadata plus the stored value for exactly the secrets whose
+ * workspace marked them visible (unredacted). Every other secret stays
+ * metadata-only, and no other secret response ever carries a value.
+ */
+export const v2SecretWithValueSchema = v2SecretSchema
+  .extend({
+    value: z
+      .string()
+      .optional()
+      .describe(
+        'The stored secret value. Present only when the workspace secret is marked visible (unredacted); omitted for every other secret.'
+      ),
+  })
+  .meta({
+    id: 'V2SecretWithValue',
+    title: 'Secret metadata with visible value',
+    description:
+      'Secret metadata; the stored value is included only for a workspace secret marked visible (unredacted).',
+  })
+export type V2SecretWithValue = z.output<typeof v2SecretWithValueSchema>
+
 export const v2SecretDeleteDataSchema = z
   .object({
     name: v2SecretNameSchema,
@@ -144,8 +166,9 @@ export const v2DeleteSecretQuerySchema = z
 export type V2DeleteSecretQuery = z.output<typeof v2DeleteSecretQuerySchema>
 
 /**
- * Lists names and metadata only, keyset-paginated over the active sort. There is
- * deliberately no single-secret GET, and no response ever carries a value.
+ * Lists secret metadata, keyset-paginated over the active sort. There is
+ * deliberately no single-secret GET. Rows for workspace secrets marked visible
+ * (unredacted) carry the stored value; every other row is metadata-only.
  */
 export const v2ListSecretsContract = defineRouteContract({
   method: 'GET',
@@ -153,7 +176,7 @@ export const v2ListSecretsContract = defineRouteContract({
   query: v2ListSecretsQuerySchema,
   response: {
     mode: 'json',
-    schema: v2CursorListResponse(v2SecretSchema),
+    schema: v2CursorListResponse(v2SecretWithValueSchema),
   },
 })
 

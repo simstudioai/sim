@@ -4019,6 +4019,7 @@ type ListSecretsResponseRef0 = {
   role: 'admin' | 'member'
   createdAt: string
   updatedAt: string
+  value?: string
 }
 
 export type ListSecretsResponse = {
