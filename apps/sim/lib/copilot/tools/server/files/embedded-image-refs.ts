@@ -1,5 +1,6 @@
-import { extractEmbeddedFileRefs, storedFileId } from '@/lib/uploads/server/embedded-image-refs'
+import { extractEmbeddedFileRefs } from '@/lib/uploads/server/embedded-image-refs'
 import { getFileMetadataById } from '@/lib/uploads/server/metadata'
+import { storedFileId } from '@/lib/uploads/utils/embedded-image-ref'
 
 /**
  * Returns the ids of image embeds in `content` that will not render or survive a workspace export.

@@ -33,7 +33,6 @@ vi.mock('@/app/api/files/authorization', () => ({ verifyFileAccess: mockVerifyFi
 vi.mock('@/lib/uploads/core/storage-service', () => ({ downloadFile: mockDownloadFile }))
 vi.mock('@/lib/uploads/server/embedded-image-refs', () => ({
   extractEmbeddedFileRefs: mockExtractEmbeddedFileRefs,
-  storedFileId: (spelledId: string) => decodeURIComponent(spelledId),
 }))
 vi.mock('@sim/audit', () => ({
   recordAudit: vi.fn(),

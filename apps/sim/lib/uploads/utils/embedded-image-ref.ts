@@ -13,6 +13,19 @@
 export type EmbeddedFileRef = { key: string } | { fileId: string } | null
 
 /**
+ * The stored id behind the spelling a document used. Embedded refs retain ids exactly as written so
+ * export rewriting can find the original URL, while storage and inline routes use the decoded id.
+ * Decode exactly once so malformed or double-encoded spellings continue to fail closed.
+ */
+export function storedFileId(spelledId: string): string {
+  try {
+    return decodeURIComponent(spelledId)
+  } catch {
+    return spelledId
+  }
+}
+
+/**
  * Parse a single embed `src` into the workspace file it references, normalizing the spellings the
  * editor and file agent produce: `/api/files/serve/<key>` (incl. `s3/`/`blob/`/`gcs/` prefixes), `/api/files/view/<id>`,
  * and the in-app path `/workspace/<wsId>/files/<id>`. Returns null for absolute, `data:`, or non-workspace
