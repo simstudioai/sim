@@ -1,5 +1,5 @@
 import { type JSX, type MouseEvent, memo, useCallback, useMemo, useRef, useState } from 'react'
-import { Button, cn, Input, Label, Tooltip } from '@sim/emcn'
+import { Button, cn, Info, Input, Label, Tooltip } from '@sim/emcn'
 import {
   ArrowLeftRight,
   ArrowUp,
@@ -253,6 +253,11 @@ const renderLabel = (
       <Label className='flex items-baseline gap-1.5 whitespace-nowrap'>
         {config.title}
         {required && <span className='ml-0.5'>*</span>}
+        {config.tooltip && !wandState?.isPreview && (
+          <Info side='top' align='start' className='text-[var(--text-muted)]'>
+            {config.tooltip}
+          </Info>
+        )}
         {labelSuffix}
         {config.type === 'code' &&
           config.language === 'json' &&

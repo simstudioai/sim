@@ -22,6 +22,7 @@ const { stubInput } = vi.hoisted(() => {
 vi.mock('@sim/emcn', () => ({
   Button: ({ children }: { children?: ReactNode }) => <button type='button'>{children}</button>,
   cn: (...classes: unknown[]) => classes.filter(Boolean).join(' '),
+  Info: ({ children }: { children?: ReactNode }) => <span data-info='true'>{children}</span>,
   Input: () => null,
   Label: ({ children }: { children?: ReactNode }) => <span>{children}</span>,
   Tooltip: ({ children }: { children?: ReactNode }) => <>{children}</>,
@@ -125,5 +126,19 @@ describe('SubBlock password forwarding', () => {
     })
 
     expect(html).toContain('data-password="off"')
+  })
+})
+
+describe('SubBlock label guidance', () => {
+  it('renders configured tooltip content beside the field label', () => {
+    const html = renderSubBlock({
+      id: 'fileName',
+      title: 'File Path',
+      type: 'short-input',
+      tooltip: 'Missing folders are created automatically.',
+    })
+
+    expect(html).toContain('data-info="true"')
+    expect(html).toContain('Missing folders are created automatically.')
   })
 })

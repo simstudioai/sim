@@ -14,6 +14,11 @@ import { isApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
 import { fileDeleteContract } from '@/lib/api/contracts/storage-transfer'
 import { getExtensionFromMimeType } from '@/lib/uploads/utils/file-utils'
+import {
+  findSelectedWorkspaceFile,
+  getWorkspaceFileDisplayLabel,
+  workspaceFileMatchesSelection,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/file-upload/workspace-file-display'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { getWorkflowSearchLabelHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
@@ -56,15 +61,18 @@ interface FileUploadProps {
 }
 
 export interface UploadedFile {
+  id?: string
   name: string
   path: string
   key?: string
+  folderPath?: string | null
   size: number
   type: string
 }
 
 interface SingleFileSelectorProps {
   file: UploadedFile
+  displayName: string
   options: Array<{ label: string; value: string; disabled?: boolean }>
   selectedValue: string
   inputValue: string
@@ -86,6 +94,7 @@ interface SingleFileSelectorProps {
  */
 function SingleFileSelector({
   file,
+  displayName,
   options,
   selectedValue,
   inputValue,
@@ -99,7 +108,7 @@ function SingleFileSelector({
   isDeleting,
   workflowSearchHighlight,
 }: SingleFileSelectorProps) {
-  const displayLabel = `${truncateMiddle(file.name, 20, 12)} (${formatFileSize(file.size)})`
+  const displayLabel = `${truncateMiddle(displayName, 20, 12)} (${formatFileSize(file.size)})`
   const [searchQuery, setSearchQuery] = useState('')
   const [isEditing, setIsEditing] = useState(false)
   // When not editing, always show the file's display label. When editing, show the user's query.
@@ -277,11 +286,8 @@ export function FileUpload({
   const availableWorkspaceFiles = workspaceFiles.filter((workspaceFile) => {
     const existingFiles = Array.isArray(value) ? value : value ? [value] : []
 
-    const isAlreadySelected = existingFiles.some(
-      (existing) =>
-        existing.name === workspaceFile.name ||
-        existing.path?.includes(workspaceFile.key) ||
-        existing.key === workspaceFile.key
+    const isAlreadySelected = existingFiles.some((existing) =>
+      workspaceFileMatchesSelection(workspaceFile, existing)
     )
 
     return !isAlreadySelected
@@ -389,9 +395,11 @@ export function FileUpload({
           })
 
           uploadedFiles.push({
+            id: data.file.id,
             name: data.file.name,
             path: data.file.url,
             key: data.file.key,
+            folderPath: null,
             size: data.file.size,
             type: data.file.type,
           })
@@ -481,9 +489,11 @@ export function FileUpload({
     if (!selectedFile) return
 
     const uploadedFile: UploadedFile = {
+      id: selectedFile.id,
       name: selectedFile.name,
       path: selectedFile.path,
       key: selectedFile.key,
+      folderPath: selectedFile.folderPath,
       size: selectedFile.size,
       type: selectedFile.type,
     }
@@ -558,7 +568,9 @@ export function FileUpload({
   const renderFileItem = (file: UploadedFile, index: number) => {
     const fileKey = file.path || ''
     const isDeleting = deletingFiles[fileKey]
-    const displayName = truncateMiddle(file.name)
+    const matchedWorkspaceFile = findSelectedWorkspaceFile(workspaceFiles, file)
+    const fullDisplayName = getWorkspaceFileDisplayLabel(matchedWorkspaceFile ?? file)
+    const displayName = truncateMiddle(fullDisplayName)
     const workflowSearchHighlight = getWorkflowSearchLabelHighlight({
       activeSearchTarget,
       blockId,
@@ -572,7 +584,7 @@ export function FileUpload({
         key={fileKey}
         className='relative rounded-sm border border-[var(--border-1)] bg-[var(--surface-5)] px-2 py-1.5 hover-hover:bg-[var(--surface-active)] dark:bg-[var(--surface-5)]'
       >
-        <div className='truncate pr-6 text-sm' title={file.name}>
+        <div className='truncate pr-6 text-sm' title={fullDisplayName}>
           <span className='text-[var(--text-primary)]'>
             {formatDisplayText(displayName, { workflowSearchHighlight })}
           </span>
@@ -624,7 +636,7 @@ export function FileUpload({
         const isAccepted =
           !acceptedTypes || acceptedTypes === '*' || isFileTypeAccepted(file.type, acceptedTypes)
         return {
-          label: file.name,
+          label: getWorkspaceFileDisplayLabel(file),
           value: file.id,
           // When cloud is required, local workspace files are also unpublishable.
           disabled: !isAccepted || cloudUploadBlocked,
@@ -642,7 +654,7 @@ export function FileUpload({
         const isAccepted =
           !acceptedTypes || acceptedTypes === '*' || isFileTypeAccepted(file.type, acceptedTypes)
         return {
-          label: file.name,
+          label: getWorkspaceFileDisplayLabel(file),
           value: file.id,
           disabled: !isAccepted || cloudUploadBlocked,
         }
@@ -656,13 +668,7 @@ export function FileUpload({
     if (!hasFiles || multiple) return ''
     const currentFile = filesArray[0]
     if (!currentFile) return ''
-    // Match by key or path
-    const matchedWorkspaceFile = workspaceFiles.find(
-      (wf) =>
-        wf.key === currentFile.key ||
-        wf.name === currentFile.name ||
-        currentFile.path?.includes(wf.key)
-    )
+    const matchedWorkspaceFile = findSelectedWorkspaceFile(workspaceFiles, currentFile)
     return matchedWorkspaceFile?.id || ''
   }, [filesArray, workspaceFiles, hasFiles, multiple])
 
@@ -768,6 +774,9 @@ export function FileUpload({
       {hasFiles && !multiple && !isUploading && (
         <SingleFileSelector
           file={filesArray[0]}
+          displayName={getWorkspaceFileDisplayLabel(
+            findSelectedWorkspaceFile(workspaceFiles, filesArray[0]) ?? filesArray[0]
+          )}
           options={singleFileOptions}
           selectedValue={selectedFileId}
           inputValue={inputValue}
@@ -786,7 +795,13 @@ export function FileUpload({
             blockId,
             subBlockId,
             valuePath: [],
-            label: `${truncateMiddle(filesArray[0].name, 20, 12)} (${formatFileSize(filesArray[0].size)})`,
+            label: `${truncateMiddle(
+              getWorkspaceFileDisplayLabel(
+                findSelectedWorkspaceFile(workspaceFiles, filesArray[0]) ?? filesArray[0]
+              ),
+              20,
+              12
+            )} (${formatFileSize(filesArray[0].size)})`,
           })}
         />
       )}

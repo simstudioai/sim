@@ -12,7 +12,7 @@ export const fileWriteTool: ToolConfig<FileWriteParams, ToolResponse> = {
   id: 'file_write',
   name: 'File Write',
   description:
-    'Create a new workspace file. If a file with the same name already exists, a numeric suffix is added (e.g., "data (1).csv").',
+    'Create a new workspace file at a relative path. Missing folders are created automatically. If a file with the same name already exists, a numeric suffix is added (e.g., "data (1).csv").',
   version: '1.0.0',
 
   params: {
@@ -21,7 +21,7 @@ export const fileWriteTool: ToolConfig<FileWriteParams, ToolResponse> = {
       required: true,
       visibility: 'user-or-llm',
       description:
-        'File name (e.g., "data.csv"). If a file with this name exists, a numeric suffix is added automatically.',
+        'Relative workspace file path (e.g., "Reports/2026/report.md"). Missing folders are created automatically, and name conflicts receive a numeric suffix.',
     },
     content: {
       type: 'string',
@@ -65,6 +65,11 @@ export const fileWriteTool: ToolConfig<FileWriteParams, ToolResponse> = {
   outputs: {
     id: { type: 'string', description: 'File ID' },
     name: { type: 'string', description: 'File name' },
+    vfsPath: {
+      type: 'string',
+      description:
+        'Canonical workspace path of the created file (e.g., files/Reports/2026/report.md)',
+    },
     size: { type: 'number', description: 'File size in bytes' },
     url: { type: 'string', description: 'URL to access the file', optional: true },
   },
