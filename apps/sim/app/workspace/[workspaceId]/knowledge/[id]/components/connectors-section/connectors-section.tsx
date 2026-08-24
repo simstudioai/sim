@@ -280,16 +280,24 @@ function ConnectorCard({
       ? (connectorDef.auth.requiredScopes ?? EMPTY_REQUIRED_SCOPES)
       : EMPTY_REQUIRED_SCOPES
 
-  const { data: credentials, refetch: refetchCredentials } = useOAuthCredentials(providerId, {
+  const {
+    data: credentials,
+    isFetching: credentialsLoading,
+    refetch: refetchCredentials,
+  } = useOAuthCredentials(providerId, {
     workspaceId,
   })
-
-  useCredentialRefreshTriggers(refetchCredentials, providerId ?? '', workspaceId)
 
   const selectedCredential = useMemo(() => {
     if (!credentials || !connector.credentialId) return undefined
     return credentials.find((credential) => credential.id === connector.credentialId)
   }, [credentials, connector.credentialId])
+
+  useCredentialRefreshTriggers(
+    refetchCredentials,
+    selectedCredential?.provider ?? providerId ?? '',
+    workspaceId
+  )
 
   const missingScopes = useMemo(
     () => (selectedCredential ? getMissingRequiredScopes(selectedCredential, requiredScopes) : []),
@@ -297,11 +305,11 @@ function ConnectorCard({
   )
 
   useEffect(() => {
-    if (showOAuthModal && connector.credentialId && !selectedCredential) {
+    if (showOAuthModal && connector.credentialId && !selectedCredential && !credentialsLoading) {
       consumeOAuthReturnContext()
       setShowOAuthModal(false)
     }
-  }, [showOAuthModal, connector.credentialId, selectedCredential])
+  }, [showOAuthModal, connector.credentialId, selectedCredential, credentialsLoading])
 
   const { data: detail, isLoading: detailLoading } = useConnectorDetail(
     expanded ? knowledgeBaseId : undefined,

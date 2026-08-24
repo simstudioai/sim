@@ -8,17 +8,24 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { SyncLogData } from '@/lib/api/contracts/knowledge/connectors'
 import { CONNECTOR_SYNC_STALE_LOCK_TTL_MS } from '@/lib/knowledge/connectors/sync-limits'
 
-const { consumeOAuthReturnContextMock, connectOAuthModalMock, icon, oauthCredentialsState } =
-  vi.hoisted(() => ({
-    consumeOAuthReturnContextMock: vi.fn(),
-    connectOAuthModalMock: vi.fn(),
-    icon: (name: string) => (props: SVGProps<SVGSVGElement>) => (
-      <svg data-testid={`icon-${name}`} className={props.className} />
-    ),
-    oauthCredentialsState: {
-      current: [] as Array<{ id: string; name: string; provider: string }>,
-    },
-  }))
+const {
+  consumeOAuthReturnContextMock,
+  connectOAuthModalMock,
+  credentialRefreshTriggersMock,
+  icon,
+  oauthCredentialsState,
+} = vi.hoisted(() => ({
+  consumeOAuthReturnContextMock: vi.fn(),
+  connectOAuthModalMock: vi.fn(),
+  credentialRefreshTriggersMock: vi.fn(),
+  icon: (name: string) => (props: SVGProps<SVGSVGElement>) => (
+    <svg data-testid={`icon-${name}`} className={props.className} />
+  ),
+  oauthCredentialsState: {
+    current: [] as Array<{ id: string; name: string; provider: string }>,
+    isFetching: false,
+  },
+}))
 
 vi.mock('@sim/emcn/icons', () => ({
   ChevronDown: icon('chevron-down'),
@@ -101,10 +108,14 @@ vi.mock('@/hooks/queries/kb/connectors', () => ({
   useUpdateConnector: vi.fn(() => ({ mutate: vi.fn() })),
 }))
 vi.mock('@/hooks/queries/oauth/oauth-credentials', () => ({
-  useOAuthCredentials: vi.fn(() => ({ data: oauthCredentialsState.current })),
+  useOAuthCredentials: vi.fn(() => ({
+    data: oauthCredentialsState.current,
+    isFetching: oauthCredentialsState.isFetching,
+    refetch: vi.fn(),
+  })),
 }))
 vi.mock('@/hooks/use-credential-refresh-triggers', () => ({
-  useCredentialRefreshTriggers: vi.fn(),
+  useCredentialRefreshTriggers: credentialRefreshTriggersMock,
 }))
 
 import {
@@ -191,6 +202,7 @@ afterEach(() => {
   root = null
   document.body.innerHTML = ''
   oauthCredentialsState.current = []
+  oauthCredentialsState.isFetching = false
   vi.clearAllMocks()
 })
 
@@ -231,6 +243,60 @@ describe('Connector credential reauthorization', () => {
         },
       })
     )
+    expect(credentialRefreshTriggersMock).toHaveBeenLastCalledWith(
+      expect.any(Function),
+      'slack-custom',
+      'workspace-1'
+    )
+  })
+
+  it('keeps reauthorization open while the credential query is loading', () => {
+    oauthCredentialsState.current = [
+      { id: 'credential-1', name: 'Workspace Slack', provider: 'slack-custom' },
+    ]
+    const connector = makeConnector()
+    const container = renderSection(connector)
+    const reconnectButton = Array.from(container.querySelectorAll('button')).find(
+      (button) => button.textContent === 'Reconnect'
+    )
+
+    act(() => reconnectButton?.click())
+    expect(connectOAuthModalMock).toHaveBeenCalledOnce()
+
+    connectOAuthModalMock.mockClear()
+    oauthCredentialsState.current = []
+    oauthCredentialsState.isFetching = true
+    act(() =>
+      root?.render(
+        <ConnectorsSection
+          workspaceId='workspace-1'
+          knowledgeBaseId='knowledge-1'
+          connectors={[connector]}
+          isLoading={false}
+          canEdit
+        />
+      )
+    )
+
+    expect(consumeOAuthReturnContextMock).not.toHaveBeenCalled()
+
+    oauthCredentialsState.current = [
+      { id: 'credential-1', name: 'Workspace Slack', provider: 'slack-custom' },
+    ]
+    oauthCredentialsState.isFetching = false
+    act(() =>
+      root?.render(
+        <ConnectorsSection
+          workspaceId='workspace-1'
+          knowledgeBaseId='knowledge-1'
+          connectors={[connector]}
+          isLoading={false}
+          canEdit
+        />
+      )
+    )
+
+    expect(connectOAuthModalMock).toHaveBeenCalledOnce()
   })
 
   it('clears the OAuth return context if the credential disappears while open', () => {
