@@ -393,15 +393,6 @@ export interface WorkflowBlockViewProps {
   runPathStatus?: BlockRunStatus
   /** Whether execution controls are active for this block. */
   isRunning?: boolean
-  /**
-   * Whether the parent workflow is executing.
-   *
-   * Accepted and currently unread: `workflow-block.tsx` supplies it and nothing
-   * below consults it, so the hold-open behavior this once claimed is not
-   * implemented. Kept in the interface because the caller passes it — wire it up
-   * or stop passing it, but do not read this as working today.
-   */
-  isWorkflowRunning?: boolean
   /** Whether this block participates in the current execution handoff. */
   isExecutionHighlighted?: boolean
   /** Block icon component and its background color. */
