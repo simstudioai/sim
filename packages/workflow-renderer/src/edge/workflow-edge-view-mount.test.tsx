@@ -1,11 +1,19 @@
 /**
  * @vitest-environment jsdom
  */
-import { act } from 'react'
+import { act, type ReactNode } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { Position } from 'reactflow'
-import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { WorkflowEdgeView, type WorkflowEdgeViewProps } from '../index'
+
+vi.mock('reactflow', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('reactflow')>()
+  return {
+    ...actual,
+    EdgeLabelRenderer: ({ children }: { children: ReactNode }) => <>{children}</>,
+  }
+})
 
 const mountedHosts = new Set<HTMLDivElement>()
 const mountedRoots = new Set<Root>()
@@ -209,5 +217,13 @@ describe('WorkflowEdgeView', () => {
     })
 
     expect(path?.style.stroke).toBe('var(--text-error)')
+  })
+
+  it('keeps the selected-edge control on a container target occlusion layer', () => {
+    const { host } = renderEdge({
+      data: { isSelected: true, labelZIndex: 1 },
+    })
+
+    expect(host.querySelector('button')).toHaveStyle({ zIndex: 1 })
   })
 })
