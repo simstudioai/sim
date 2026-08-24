@@ -1,13 +1,21 @@
 /**
  * @vitest-environment node
  */
-import crypto from 'crypto'
+import crypto from 'node:crypto'
 import { NextRequest } from 'next/server'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   parseSenderAllowlist,
   photonImessageHandler,
 } from '@/lib/webhooks/providers/photon-imessage'
+import type {
+  AuthContext,
+  DeleteSubscriptionContext,
+  EventFilterContext,
+  EventMatchContext,
+  FormatInputContext,
+  SubscriptionContext,
+} from '@/lib/webhooks/providers/types'
 import {
   buildPhotonImessageOutputs,
   buildPhotonImessageReactionOutputs,
@@ -61,12 +69,15 @@ function sign(secret: string, timestamp: string, rawBody: string): string {
   return `v0=${digest}`
 }
 
+const testRequest = (headers: Record<string, string> = {}) =>
+  new NextRequest('http://localhost/api/webhooks/trigger/test', { headers })
+
 function authContext(overrides: {
   rawBody: string
   signature?: string
   timestamp?: string
   withoutSecret?: boolean
-}) {
+}): AuthContext {
   const timestamp = overrides.timestamp ?? String(Math.floor(Date.now() / 1000))
   const headers: Record<string, string> = { 'x-spectrum-timestamp': timestamp }
   const signature = overrides.signature ?? sign(SECRET, timestamp, overrides.rawBody)
@@ -75,28 +86,43 @@ function authContext(overrides: {
   }
 
   return {
-    request: new NextRequest('http://localhost/api/webhooks/trigger/test', { headers }),
+    request: testRequest(headers),
     rawBody: overrides.rawBody,
     requestId: 'r1',
     providerConfig: overrides.withoutSecret ? {} : { signingSecret: SECRET },
     webhook: {},
     workflow: {},
-  } as any
+  }
 }
 
-const matchContext = (body: unknown, providerConfig: Record<string, unknown>) =>
-  ({ body, providerConfig, requestId: 'r1', webhook: {}, workflow: {}, request: {} }) as any
+const filterContext = (body: unknown): EventFilterContext => ({
+  body,
+  requestId: 'r1',
+  webhook: {},
+  providerConfig: {},
+})
 
-const formatContext = (body: unknown, triggerId?: string) =>
-  ({
-    body,
-    requestId: 'r1',
-    webhook: { providerConfig: triggerId ? { triggerId } : {} },
-    workflow: { id: 'w1', userId: 'u1' },
-    headers: {},
-    query: {},
-    method: 'POST',
-  }) as any
+const matchContext = (
+  body: unknown,
+  providerConfig: Record<string, unknown>
+): EventMatchContext => ({
+  body,
+  providerConfig,
+  requestId: 'r1',
+  webhook: {},
+  workflow: {},
+  request: testRequest(),
+})
+
+const formatContext = (body: unknown, triggerId?: string): FormatInputContext => ({
+  body,
+  requestId: 'r1',
+  webhook: { providerConfig: triggerId ? { triggerId } : {} },
+  workflow: { id: 'w1', userId: 'u1' },
+  headers: {},
+  query: {},
+  method: 'POST',
+})
 
 describe('photonImessageHandler', () => {
   describe('verifyAuth', () => {
@@ -151,15 +177,11 @@ describe('photonImessageHandler', () => {
 
   describe('shouldSkipEvent', () => {
     it('processes an inbound text message', () => {
-      expect(
-        photonImessageHandler.shouldSkipEvent!({ body: textBody, requestId: 'r1' } as any)
-      ).toBe(false)
+      expect(photonImessageHandler.shouldSkipEvent!(filterContext(textBody))).toBe(false)
     })
 
     it('keeps read receipts flowing so the read-receipt trigger can claim them', () => {
-      expect(
-        photonImessageHandler.shouldSkipEvent!({ body: readBody, requestId: 'r1' } as any)
-      ).toBe(false)
+      expect(photonImessageHandler.shouldSkipEvent!(filterContext(readBody))).toBe(false)
     })
 
     it('skips a typing signal, which never fires any trigger', () => {
@@ -167,13 +189,25 @@ describe('photonImessageHandler', () => {
         ...textBody,
         message: { ...textBody.message, content: { type: 'typing', state: 'start' } },
       }
-      expect(photonImessageHandler.shouldSkipEvent!({ body, requestId: 'r1' } as any)).toBe(true)
+      expect(photonImessageHandler.shouldSkipEvent!(filterContext(body))).toBe(true)
     })
 
     it('skips an event that is not a message envelope', () => {
-      expect(
-        photonImessageHandler.shouldSkipEvent!({ body: { hello: 'world' }, requestId: 'r1' } as any)
-      ).toBe(true)
+      expect(photonImessageHandler.shouldSkipEvent!(filterContext({ hello: 'world' }))).toBe(true)
+    })
+
+    it('skips our own outbound send so a reply workflow cannot re-trigger itself', () => {
+      for (const body of [textBody, reactionBody, readBody]) {
+        const outbound = { ...body, message: { ...body.message, direction: 'outbound' } }
+        expect(photonImessageHandler.shouldSkipEvent!(filterContext(outbound))).toBe(true)
+      }
+    })
+
+    it('still processes a delivery that omits direction', () => {
+      const { direction: _direction, ...message } = textBody.message
+      expect(photonImessageHandler.shouldSkipEvent!(filterContext({ ...textBody, message }))).toBe(
+        false
+      )
     })
   })
 
@@ -374,18 +408,27 @@ describe('photonImessageHandler', () => {
       vi.unstubAllGlobals()
     })
 
-    const subscriptionContext = (providerConfig: Record<string, unknown>) =>
-      ({
-        webhook: {
-          id: 'wh-1',
-          path: 'hook-path',
-          providerConfig,
-        },
-        workflow: {},
-        userId: 'u1',
-        requestId: 'r1',
-        request: {},
-      }) as any
+    const subscriptionContext = (providerConfig: Record<string, unknown>): SubscriptionContext => ({
+      webhook: {
+        id: 'wh-1',
+        path: 'hook-path',
+        providerConfig,
+      },
+      workflow: {},
+      userId: 'u1',
+      requestId: 'r1',
+      request: testRequest(),
+    })
+
+    const deleteContext = (
+      providerConfig: Record<string, unknown>,
+      strict?: boolean
+    ): DeleteSubscriptionContext => ({
+      webhook: { id: 'wh-1', providerConfig },
+      workflow: {},
+      requestId: 'r1',
+      ...(strict === undefined ? {} : { strict }),
+    })
 
     const CREDS = { triggerProjectId: 'proj-1', triggerProjectSecret: 'secret-1' }
 
@@ -493,14 +536,9 @@ describe('photonImessageHandler', () => {
       vi.stubGlobal('fetch', fetchMock)
 
       await expect(
-        photonImessageHandler.deleteSubscription!({
-          webhook: {
-            id: 'wh-1',
-            providerConfig: { ...CREDS, externalId: 'wh-ext-1' },
-          },
-          workflow: {},
-          requestId: 'r1',
-        } as any)
+        photonImessageHandler.deleteSubscription!(
+          deleteContext({ ...CREDS, externalId: 'wh-ext-1' })
+        )
       ).resolves.toBeUndefined()
       expect(String(fetchMock.mock.calls[0][0])).toBe(
         'https://spectrum.photon.codes/projects/proj-1/webhooks/wh-ext-1/'
@@ -514,20 +552,15 @@ describe('photonImessageHandler', () => {
       )
 
       await expect(
-        photonImessageHandler.deleteSubscription!({
-          webhook: { id: 'wh-1', providerConfig: { ...CREDS, externalId: 'wh-ext-1' } },
-          workflow: {},
-          requestId: 'r1',
-          strict: true,
-        } as any)
+        photonImessageHandler.deleteSubscription!(
+          deleteContext({ ...CREDS, externalId: 'wh-ext-1' }, true)
+        )
       ).rejects.toThrow(/Failed to delete Photon webhook/)
 
       await expect(
-        photonImessageHandler.deleteSubscription!({
-          webhook: { id: 'wh-1', providerConfig: { ...CREDS, externalId: 'wh-ext-1' } },
-          workflow: {},
-          requestId: 'r1',
-        } as any)
+        photonImessageHandler.deleteSubscription!(
+          deleteContext({ ...CREDS, externalId: 'wh-ext-1' })
+        )
       ).resolves.toBeUndefined()
     })
   })

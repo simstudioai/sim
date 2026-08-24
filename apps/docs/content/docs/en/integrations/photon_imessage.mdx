@@ -401,7 +401,7 @@ Fetch a single message with its text, sender, and attachment metadata
 | `contentType` | string | Content kind \(text, attachment, reaction, and so on\) |
 | `senderId` | string | Sender handle |
 | `timestamp` | string | ISO 8601 send time |
-| `attachments` | json | Attachment metadata as an array of \{ id, name, mimeType \} |
+| `attachments` | json | Attachment metadata as an array of \{ id, name, mimeType, size \}, covering media and voice memos |
 
 ### Download Attachment
 
@@ -475,7 +475,7 @@ A **Trigger** is a block that starts a workflow when an event happens in this se
 
 ### Photon Any Event
 
-Trigger workflow on every Photon delivery: messages, tapbacks, and read receipts
+Trigger workflow on every inbound Photon delivery: messages, tapbacks, and read receipts
 
 #### Configuration
 

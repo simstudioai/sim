@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { NextResponse } from 'next/server'
+import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { processFilesToUserFiles, type RawFileInput } from '@/lib/uploads/utils/file-utils'
 import { downloadServableFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 import { docNotReadyResponse } from '@/lib/uploads/utils/servable-file-response'
@@ -15,6 +16,16 @@ export interface PhotonRouteContext {
 
 /** Attachments ride the gRPC stream; cap uploads the same way Linq caps its pre-upload. */
 const MAX_UPLOAD_BYTES = 100 * 1024 * 1024
+
+function fileTooLargeError(sizeBytes: number): NextResponse {
+  return NextResponse.json(
+    {
+      success: false,
+      error: `File exceeds the 100MB attachment limit (${(sizeBytes / (1024 * 1024)).toFixed(2)}MB)`,
+    },
+    { status: 400 }
+  )
+}
 
 export interface MaterializedFile {
   buffer: Buffer
@@ -59,7 +70,9 @@ export async function materializePhotonFile(
     const denied = await assertToolFileAccess(userFile.key, ctx.userId, ctx.requestId, logger)
     if (denied) return denied
     try {
-      const resolved = await downloadServableFileFromStorage(userFile, ctx.requestId, logger)
+      const resolved = await downloadServableFileFromStorage(userFile, ctx.requestId, logger, {
+        maxBytes: MAX_UPLOAD_BYTES,
+      })
       buffer = resolved.buffer
       if (!resolvedContentType) {
         resolvedContentType = resolved.contentType || userFile.type || 'application/octet-stream'
@@ -67,6 +80,9 @@ export async function materializePhotonFile(
     } catch (error) {
       const notReady = docNotReadyResponse(error)
       if (notReady) return notReady
+      if (isPayloadSizeLimitError(error)) {
+        return fileTooLargeError(error.observedBytes ?? userFile.size)
+      }
       logger.error(`[${ctx.requestId}] Failed to download Photon media file:`, error)
       return NextResponse.json(
         { success: false, error: getErrorMessage(error, 'Unknown error occurred') },
@@ -86,13 +102,7 @@ export async function materializePhotonFile(
     return NextResponse.json({ success: false, error: 'File is empty' }, { status: 400 })
   }
   if (buffer.length > MAX_UPLOAD_BYTES) {
-    return NextResponse.json(
-      {
-        success: false,
-        error: `File exceeds the 100MB attachment limit (${(buffer.length / (1024 * 1024)).toFixed(2)}MB)`,
-      },
-      { status: 400 }
-    )
+    return fileTooLargeError(buffer.length)
   }
 
   return { buffer, fileName: resolvedFilename, mimeType: resolvedContentType }

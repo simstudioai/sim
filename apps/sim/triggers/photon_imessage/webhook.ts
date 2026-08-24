@@ -12,7 +12,8 @@ export const photonImessageWebhookTrigger: TriggerConfig = {
   id: 'photon_imessage_webhook',
   name: 'Photon Any Event',
   provider: 'photon_imessage',
-  description: 'Trigger workflow on every Photon delivery: messages, tapbacks, and read receipts',
+  description:
+    'Trigger workflow on every inbound Photon delivery: messages, tapbacks, and read receipts',
   version: '1.0.0',
   icon: PhotonIcon,
 

@@ -167,7 +167,12 @@ export interface PhotonMessageDetailsResult extends ToolResponse {
     contentType: string
     senderId: string | null
     timestamp: string | null
-    attachments: Array<{ id: string | null; name: string | null; mimeType: string | null }>
+    attachments: Array<{
+      id: string | null
+      name: string | null
+      mimeType: string | null
+      size: number | null
+    }>
   }
 }
 

@@ -73,6 +73,7 @@ export const photonImessageGetMessageTool: ToolConfig<
             id: string | null
             name: string | null
             mimeType: string | null
+            size: number | null
           }>) ?? [],
       })
     )) as PhotonMessageDetailsResult,
@@ -93,7 +94,8 @@ export const photonImessageGetMessageTool: ToolConfig<
     timestamp: { type: 'string', description: 'ISO 8601 send time', optional: true },
     attachments: {
       type: 'json',
-      description: 'Attachment metadata as an array of { id, name, mimeType }',
+      description:
+        'Attachment metadata as an array of { id, name, mimeType, size }, covering media and voice memos',
     },
   },
 }

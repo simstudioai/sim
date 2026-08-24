@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { isRecordLike } from '@sim/utils/object'
 import { slimEnvelopeSchema, verifySpectrumSignature } from '@spectrum-ts/core/webhook'
 import { NextResponse } from 'next/server'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
@@ -29,15 +30,21 @@ const PHOTON_WEBHOOKS_API_BASE = 'https://spectrum.photon.codes/projects'
 const NON_MESSAGE_TYPES = new Set<string>(PHOTON_NON_MESSAGE_CONTENT_TYPES)
 const SKIPPED_TYPES = new Set<string>(PHOTON_SKIPPED_CONTENT_TYPES)
 
+/**
+ * Photon delivers our own sends back on the same webhook, tagged `outbound`. A workflow that
+ * replies would then be re-triggered by its own reply and loop, so no trigger ever sees one.
+ *
+ * The test is for an explicit `outbound` rather than for `inbound`: the envelope field is
+ * optional, and a delivery that omits it must keep firing the trigger it fires today.
+ */
+const OUTBOUND_DIRECTION = 'outbound'
+
 interface AttachmentSummary {
   id: string
   name: string
   mimeType: string
   size: number | null
 }
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === 'object' && value !== null && !Array.isArray(value)
 
 const asString = (value: unknown): string => (typeof value === 'string' ? value : '')
 
@@ -54,7 +61,7 @@ function lowercaseHeaders(headers: Headers): Record<string, string> {
  * group carries N items, so the text a workflow wants is not always at the top level.
  */
 function collectText(content: unknown): string {
-  if (!isRecord(content)) {
+  if (!isRecordLike(content)) {
     return ''
   }
 
@@ -66,7 +73,7 @@ function collectText(content: unknown): string {
     case 'group': {
       const items = Array.isArray(content.items) ? content.items : []
       return items
-        .map((item) => (isRecord(item) ? collectText(item.content) : ''))
+        .map((item) => (isRecordLike(item) ? collectText(item.content) : ''))
         .filter(Boolean)
         .join('\n')
     }
@@ -80,7 +87,7 @@ function collectText(content: unknown): string {
  * demand, which a webhook payload cannot do.
  */
 function collectAttachments(content: unknown): AttachmentSummary[] {
-  if (!isRecord(content)) {
+  if (!isRecordLike(content)) {
     return []
   }
 
@@ -99,7 +106,7 @@ function collectAttachments(content: unknown): AttachmentSummary[] {
       return collectAttachments(content.content)
     case 'group': {
       const items = Array.isArray(content.items) ? content.items : []
-      return items.flatMap((item) => (isRecord(item) ? collectAttachments(item.content) : []))
+      return items.flatMap((item) => (isRecordLike(item) ? collectAttachments(item.content) : []))
     }
     default:
       return []
@@ -191,11 +198,18 @@ export const photonImessageHandler: WebhookProviderHandler = {
     return null
   },
 
-  /** Drop payloads that are not message envelopes, and signals that never fire any trigger. */
+  /**
+   * Drop payloads that are not message envelopes, our own outbound sends, and signals that never
+   * fire any trigger.
+   */
   shouldSkipEvent({ body, requestId }: EventFilterContext): boolean {
     const envelope = parseEnvelope(body)
     if (!envelope) {
       logger.info(`[${requestId}] Photon delivery did not match the message envelope, skipping`)
+      return true
+    }
+    if (envelope.message.direction === OUTBOUND_DIRECTION) {
+      logger.info(`[${requestId}] Photon delivery is our own outbound send, skipping`)
       return true
     }
     return SKIPPED_TYPES.has(envelope.message.content.type)
@@ -258,7 +272,7 @@ export const photonImessageHandler: WebhookProviderHandler = {
     const { message } = envelope
     const space = message.space
     const content = message.content as Record<string, unknown> & { type: string }
-    const target = isRecord(content.target) ? content.target : undefined
+    const target = isRecordLike(content.target) ? content.target : undefined
     const triggerId = getProviderConfig(webhook).triggerId as string | undefined
 
     logger.info(`[${requestId}] Formatting Photon iMessage delivery`, {
@@ -322,11 +336,11 @@ export const photonImessageHandler: WebhookProviderHandler = {
 
   /** Photon delivers at least once, so retries of one delivery must collapse to one run. */
   extractIdempotencyId(body: unknown): string | null {
-    if (!isRecord(body)) {
+    if (!isRecordLike(body)) {
       return null
     }
     const message = body.message
-    if (!isRecord(message)) {
+    if (!isRecordLike(message)) {
       return null
     }
     const id = asString(message.id)

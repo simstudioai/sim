@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-08-22",
+  "updatedAt": "2026-08-24",
   "integrations": [
     {
       "type": "onepassword",
@@ -11146,7 +11146,7 @@
         {
           "id": "photon_imessage_webhook",
           "name": "Photon Any Event",
-          "description": "Trigger workflow on every Photon delivery: messages, tapbacks, and read receipts"
+          "description": "Trigger workflow on every inbound Photon delivery: messages, tapbacks, and read receipts"
         }
       ],
       "triggerCount": 4,

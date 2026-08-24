@@ -12,8 +12,9 @@ export const photonImessageTriggerOptions = [
  * Which slim content arms each trigger fires on. `null` means every delivery. Kept in sync with
  * `matchEvent` in `apps/sim/lib/webhooks/providers/photon-imessage.ts`.
  *
- * Photon delivers every inbound record on one webhook; the content `type` is the event
- * discriminator. Signals (`typing`) never fire workflows.
+ * Photon delivers every record on one webhook; the content `type` is the event discriminator.
+ * Signals (`typing`) never fire workflows, and neither do our own outbound sends — see
+ * `shouldSkipEvent`, which drops them before routing so a reply cannot re-trigger its own workflow.
  */
 export const PHOTON_TRIGGER_CONTENT_TYPES: Record<string, readonly string[] | null> = {
   photon_imessage_message_received: null, // any content that is not claimed below and not a signal
