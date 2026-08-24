@@ -59,9 +59,9 @@ export const vllmProvider: ProviderConfig = {
       logger.info('VLLM_BASE_URL not configured, skipping initialization')
       return
     }
-    const apiBaseUrl = getOpenAICompatibleApiBaseUrl(baseUrl)
 
     try {
+      const apiBaseUrl = getOpenAICompatibleApiBaseUrl(baseUrl)
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
       }

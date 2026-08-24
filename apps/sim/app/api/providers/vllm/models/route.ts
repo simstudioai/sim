@@ -27,9 +27,9 @@ export const GET = withRouteHandler(async (_request: NextRequest) => {
     logger.info('VLLM_BASE_URL not configured')
     return NextResponse.json({ models: [] })
   }
-  const apiBaseUrl = getOpenAICompatibleApiBaseUrl(baseUrl)
 
   try {
+    const apiBaseUrl = getOpenAICompatibleApiBaseUrl(baseUrl)
     logger.info('Fetching vLLM models', {
       baseUrl,
     })

@@ -62,4 +62,13 @@ describe('vLLM models route', () => {
       })
     )
   })
+
+  it('returns an empty model list when the configured base URL is unsupported', async () => {
+    setEnv({ VLLM_BASE_URL: 'http://localhost:1234?token=value' })
+
+    const response = await GET(request())
+
+    await expect(response.json()).resolves.toEqual({ models: [] })
+    expect(mockFetch).not.toHaveBeenCalled()
+  })
 })
