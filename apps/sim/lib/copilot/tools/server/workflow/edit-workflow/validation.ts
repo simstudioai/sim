@@ -11,6 +11,7 @@ import { getSkillById } from '@/lib/workflows/skills/operations'
 import {
   buildCanonicalIndex,
   buildSubBlockValues,
+  getCanonicalSubBlocksForSurface,
   isCanonicalPair,
   resolveCanonicalMode,
 } from '@/lib/workflows/subblocks/visibility'
@@ -1034,11 +1035,18 @@ function collectSelectorFields(
     const blockConfig = getBlock(blockType)
     if (!blockConfig) continue
 
-    const canonicalIndex = buildCanonicalIndex(blockConfig.subBlocks)
+    // Scoped to the block's active surface: a trigger field sharing a `canonicalParamId` with an
+    // action pair matches neither of its members, so an unscoped index skipped every trigger
+    // selector as "inactive" while still validating the dormant action ones.
+    const activeSubBlocks = getCanonicalSubBlocksForSurface(
+      blockConfig.subBlocks,
+      blockData.triggerMode === true
+    )
+    const canonicalIndex = buildCanonicalIndex(activeSubBlocks)
     const allValues = buildSubBlockValues(blockData.subBlocks || {})
     const canonicalModeOverrides = blockData.data?.canonicalModes
 
-    for (const subBlockConfig of blockConfig.subBlocks) {
+    for (const subBlockConfig of activeSubBlocks) {
       if (!SELECTOR_TYPES.has(subBlockConfig.type)) continue
 
       // oauth-input credentials are only validated when explicitly requested

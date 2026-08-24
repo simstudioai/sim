@@ -79,6 +79,34 @@ describe('refuseResolvedSecretProjection', () => {
     )
   })
 
+  /**
+   * The reason says what tripped; without the location a reader still has to go hunting for which
+   * block. Nested rather than flattened because the guard's own `inputPath` and the refusal's name
+   * different places once a latch has travelled.
+   */
+  it('reports where the first guard tripped, not only what it was', () => {
+    const registry = new ResolvedSecretTraceRegistry([], scope)
+    registry.markIncomplete('structural-input-root-unprojected', {
+      detail: { blockType: 'table', tool: 'table_insert_row', inputPath: 'data' },
+    })
+
+    expect(() =>
+      refuseResolvedSecretProjection({
+        site: 'agent.toolCallCrossing',
+        message: 'Tool call could not be safely projected',
+        registry,
+        inputPath: 'messages',
+      })
+    ).toThrow()
+
+    expect(refusalRecords()[0][1]).toEqual(
+      expect.objectContaining({
+        inputPath: 'messages',
+        detail: { blockType: 'table', tool: 'table_insert_row', inputPath: 'data' },
+      })
+    )
+  })
+
   it('names a by-design origin that was silenced when it was marked', () => {
     const registry = createIncompleteResolvedSecretTraceRegistry(scope)
     expect(mockLogger.error).not.toHaveBeenCalled()

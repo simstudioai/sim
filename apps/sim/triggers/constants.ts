@@ -17,11 +17,13 @@ export const SYSTEM_SUBBLOCK_IDS: string[] = [
  * Trigger-related subblock IDs that represent runtime metadata. They should remain
  * in the workflow state but must not be modified or cleared by diff operations.
  *
- * Note: 'triggerConfig' is included because it's an aggregate of individual trigger
- * field subblocks. Those individual fields are compared separately, so comparing
- * triggerConfig would be redundant. Additionally, the client populates triggerConfig
- * with default values from the trigger definition on load, which aren't present in
- * the deployed state, causing false positive change detection.
+ * Note: 'triggerConfig' is included because it is an aggregate of the individual
+ * trigger field subblocks, which are compared separately — comparing the
+ * aggregate too would double-count them.
+ *
+ * It is also a write guard: `edit_workflow` rejects writes to these ids, which
+ * is what stops the copilot resurrecting the modal-era aggregate. Do not remove
+ * an entry here on the grounds that the comparison no longer needs it.
  */
 export const TRIGGER_RUNTIME_SUBBLOCK_IDS: string[] = [
   'webhookId',

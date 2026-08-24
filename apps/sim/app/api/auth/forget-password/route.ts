@@ -8,7 +8,7 @@ import { forgetPasswordContract } from '@/lib/api/contracts'
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { auth } from '@/lib/auth'
 import {
-  enforceIpRateLimit,
+  enforceIpRateLimitWithIndependentBackstop,
   enforceRecipientRateLimit,
   type TokenBucketConfig,
 } from '@/lib/core/rate-limiter'
@@ -27,7 +27,10 @@ const RESET_EMAIL_RATE_LIMIT: TokenBucketConfig = {
 
 export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
-    const ipRateLimited = await enforceIpRateLimit('forget-password', request)
+    const ipRateLimited = await enforceIpRateLimitWithIndependentBackstop(
+      'forget-password',
+      request
+    )
     if (ipRateLimited) return ipRateLimited
 
     const parsed = await parseRequest(

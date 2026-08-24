@@ -95,6 +95,7 @@ import {
   isSsoEnabled,
 } from '@/lib/core/config/env-flags'
 import { PlatformEvents } from '@/lib/core/telemetry'
+import { trustedProxies } from '@/lib/core/utils/request'
 import { getBaseUrl, isLocalhostUrl, parseOriginList } from '@/lib/core/utils/urls'
 import {
   captureOAuthCredentialDraftBinding,
@@ -164,17 +165,6 @@ if (validStripeKey) {
     apiVersion: '2025-08-27.basil',
   })
 }
-
-/**
- * Reverse-proxy hops trusted for forwarded-IP resolution. When configured,
- * Better Auth walks the x-forwarded-for chain right to left, skips these
- * hops, and records the first untrusted address as the session client IP —
- * preventing header spoofing behind multi-hop proxies.
- */
-const trustedProxies = (env.AUTH_TRUSTED_PROXIES ?? '')
-  .split(',')
-  .map((entry) => entry.trim())
-  .filter(Boolean)
 
 /**
  * Resolves the org's API instance URL for a freshly linked Salesforce account.

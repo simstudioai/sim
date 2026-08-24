@@ -2,8 +2,11 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
+import type { SubBlockConfig } from '@/blocks/types'
 import {
+  buildCanonicalIndexForSurface,
   evaluateSubBlockCondition,
+  getCanonicalSubBlocksForSurface,
   reindexToolCanonicalModes,
   scopeCanonicalModesForTool,
 } from './visibility'
@@ -237,6 +240,21 @@ describe('scopeCanonicalModesForTool', () => {
     expect(scopeCanonicalModesForTool(overrides, 0, 'table')).toEqual({ tableId: 'basic' })
   })
 
+  it.concurrent('keeps legacy modes for canonical ids the user has not re-toggled', () => {
+    // Toggles are written one key at a time, so the first toggle on a legacy tool leaves a map
+    // holding both formats. Returning only the index-scoped side reverted every canonical id the
+    // user had not yet touched back to basic.
+    const overrides = {
+      'table:tableId': 'advanced' as const,
+      'table:conflictColumn': 'advanced' as const,
+      '0:conflictColumn': 'basic' as const,
+    }
+    expect(scopeCanonicalModesForTool(overrides, 0, 'table')).toEqual({
+      tableId: 'advanced',
+      conflictColumn: 'basic',
+    })
+  })
+
   it.concurrent('does not fall back when no legacyToolType is given', () => {
     expect(scopeCanonicalModesForTool({ 'table:tableId': 'advanced' }, 0)).toBeUndefined()
   })
@@ -324,5 +342,50 @@ describe('reindexToolCanonicalModes', () => {
       '0:tableId': undefined as unknown as 'advanced',
     })
     expect(result).toBeUndefined()
+  })
+})
+
+describe('canonical index scoping by surface', () => {
+  /** Webflow's shape: an action pair and a trigger alias sharing one `canonicalParamId`. */
+  const MIXED: SubBlockConfig[] = [
+    { id: 'siteSelector', type: 'dropdown', canonicalParamId: 'siteId', mode: 'basic' },
+    { id: 'manualSiteId', type: 'short-input', canonicalParamId: 'siteId', mode: 'advanced' },
+    { id: 'triggerSiteId', type: 'dropdown', canonicalParamId: 'siteId', mode: 'trigger' },
+  ] as SubBlockConfig[]
+
+  it.concurrent('keeps the whole array on the action surface', () => {
+    expect(getCanonicalSubBlocksForSurface(MIXED, false)).toBe(MIXED)
+  })
+
+  it.concurrent('keeps only trigger members on the trigger surface', () => {
+    expect(getCanonicalSubBlocksForSurface(MIXED, true).map((s) => s.id)).toEqual(['triggerSiteId'])
+  })
+
+  it.concurrent('makes the trigger alias its own group rather than a stranded member', () => {
+    // Unscoped, `triggerSiteId` joins the action pair and matches neither side of it, so every
+    // group-relative question about it answers for the dormant surface.
+    const unscoped = buildCanonicalIndexForSurface(MIXED, false).groupsById.siteId
+    expect(unscoped.basicId).toBe('siteSelector')
+    expect(unscoped.advancedIds).toEqual(['manualSiteId'])
+
+    const scoped = buildCanonicalIndexForSurface(MIXED, true).groupsById.siteId
+    expect(scoped.basicId).toBe('triggerSiteId')
+    expect(scoped.advancedIds).toEqual([])
+  })
+
+  it.concurrent('preserves a pair that lives entirely on the trigger surface', () => {
+    const triggerPair: SubBlockConfig[] = [
+      { id: 'calendarId', type: 'dropdown', canonicalParamId: 'calId', mode: 'trigger' },
+      {
+        id: 'manualCalendarId',
+        type: 'short-input',
+        canonicalParamId: 'calId',
+        mode: 'trigger-advanced',
+      },
+    ] as SubBlockConfig[]
+
+    const group = buildCanonicalIndexForSurface(triggerPair, true).groupsById.calId
+    expect(group.basicId).toBe('calendarId')
+    expect(group.advancedIds).toEqual(['manualCalendarId'])
   })
 })

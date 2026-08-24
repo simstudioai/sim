@@ -77,7 +77,6 @@ import {
   tablesSortParams,
   tablesUrlKeys,
 } from '@/app/workspace/[workspaceId]/tables/search-params'
-import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import { useCreateFolder, useDeleteFolderMutation, useUpdateFolder } from '@/hooks/queries/folders'
 import { usePinItem, usePinnedIds, useUnpinItem } from '@/hooks/queries/pinned-items'
 import {
@@ -93,6 +92,7 @@ import {
 } from '@/hooks/queries/tables'
 import { getCanonicalFolderPath } from '@/hooks/queries/utils/folder-tree'
 import { useWorkspaceMembersQuery, type WorkspaceMember } from '@/hooks/queries/workspace'
+import { useContextMenu } from '@/hooks/use-context-menu'
 import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
 import { useInlineRename } from '@/hooks/use-inline-rename'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
@@ -1395,6 +1395,7 @@ export function Tables() {
         disableDelete={!canEdit}
         disableRename={!canEdit}
         disableImport={!canEdit}
+        selectedCount={selectedRowIds.size}
       />
 
       <FolderContextMenu
@@ -1417,6 +1418,7 @@ export function Tables() {
         onMove={canEdit ? handleMoveFolderFromMenu : undefined}
         moveOptions={canEdit ? activeFolderMoveOptions : undefined}
         canEdit={canEdit}
+        selectedCount={selectedRowIds.size}
       />
 
       {activeTable && (

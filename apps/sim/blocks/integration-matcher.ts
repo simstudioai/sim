@@ -46,6 +46,7 @@ function normalizeDisplayName(name: string): string {
 
 let cachedMatcher: IntegrationMatcher | null = null
 let cachedList: readonly IntegrationDescriptor[] | null = null
+let cachedPopularList: readonly IntegrationDescriptor[] | null = null
 
 /**
  * Drops the memoized matcher/list. Registered with the block cache-invalidator
@@ -55,6 +56,7 @@ let cachedList: readonly IntegrationDescriptor[] | null = null
 function clearIntegrationMatcherCache(): void {
   cachedMatcher = null
   cachedList = null
+  cachedPopularList = null
 }
 
 registerBlockCacheInvalidator(clearIntegrationMatcherCache)
@@ -141,4 +143,68 @@ export function listIntegrations(): readonly IntegrationDescriptor[] {
   const { byName } = getIntegrationMatcher()
   cachedList = [...byName.values()].sort((a, b) => a.name.localeCompare(b.name))
   return cachedList
+}
+
+/**
+ * The integrations a surface should lead with when it can only show a handful,
+ * most-reached-for first.
+ *
+ * Keyed by NORMALIZED DISPLAY NAME rather than block type on purpose: the matcher
+ * dedups versioned blocks down to one descriptor per display name
+ * ({@link normalizeDisplayName}), so `gmail` and a future `gmail_v2` collapse to
+ * "Gmail" and only one of them is ever the canonical `blockType`. Ranking by name
+ * therefore survives a version bump that ranking by type would silently break —
+ * the entry would stop matching and the integration would drop out of the preview
+ * with nothing failing.
+ *
+ * Hand-curated, not derived. The landing page's `POPULAR_WORKFLOWS` is the other
+ * popularity signal in the app, but it is built from `getAllBlockMeta()` at module
+ * scope and so drags the entire block registry into whatever imports it — which is
+ * exactly what a client chat surface must not do.
+ */
+export const POPULAR_INTEGRATION_NAMES: readonly string[] = [
+  'Slack',
+  'Gmail',
+  'Notion',
+  'Linear',
+  'GitHub',
+  'Google Sheets',
+  'Google Drive',
+  'Google Calendar',
+  'Google Docs',
+  'Jira',
+  'Airtable',
+  'HubSpot',
+  'Salesforce',
+  'Discord',
+]
+
+const POPULAR_RANK = new Map(
+  POPULAR_INTEGRATION_NAMES.map((name, index) => [name.toLowerCase(), index])
+)
+
+/**
+ * Orders by {@link POPULAR_INTEGRATION_NAMES} rank first, then alphabetically.
+ * Exported for direct testing — the ordering rule needs no block registry.
+ */
+export function byIntegrationPopularity(a: { name: string }, b: { name: string }): number {
+  const unranked = POPULAR_RANK.size
+  const rankA = POPULAR_RANK.get(a.name.toLowerCase()) ?? unranked
+  const rankB = POPULAR_RANK.get(b.name.toLowerCase()) ?? unranked
+  return rankA === rankB ? a.name.localeCompare(b.name) : rankA - rankB
+}
+
+/**
+ * Every integration, the curated popular ones first (in
+ * {@link POPULAR_INTEGRATION_NAMES} order) and the rest alphabetically after.
+ *
+ * For surfaces that show a truncated preview — the `@`-mention list takes the first
+ * few — where plain alphabetical order means leading with whatever happens to sort
+ * first (1Password, Affinity, AgentMail) rather than anything a user is likely to
+ * want. {@link listIntegrations} stays alphabetical for surfaces that show them all.
+ */
+export function listIntegrationsByPopularity(): readonly IntegrationDescriptor[] {
+  if (cachedPopularList) return cachedPopularList
+  cachedPopularList = [...listIntegrations()].sort(byIntegrationPopularity)
+  return cachedPopularList
 }

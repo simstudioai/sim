@@ -14,9 +14,10 @@ import {
 } from '@/connectors/utils'
 import {
   BITBUCKET_API_BASE,
+  bitbucketApiUrl,
+  bitbucketRepositoryPath,
   encodeBitbucketRepositoryPath,
   encodeBitbucketSegment,
-  validateBitbucketOpaqueUrl,
 } from '@/tools/bitbucket/utils'
 
 const logger = createLogger('BitbucketConnector')
@@ -49,10 +50,10 @@ const PULL_REQUEST_PAGE_SIZE = 50
  * enumerates `reviewers`/`participants` as such. The pull request body is exactly
  * the kind of field that carve-out covers and the reference never promises it on
  * the collection, so rather than assume, the connector asks for it explicitly:
- * `+` additive syntax keeps every default field and adds `values.summary` on top.
- * Without it a listing that omits the body would index title-only documents.
+ * `+` additive syntax keeps every default field and adds the rendered description
+ * on top. `summary` is retained only as a fallback.
  */
-const PULL_REQUEST_LIST_FIELDS = '+values.summary'
+const PULL_REQUEST_LIST_FIELDS = '+values.rendered.description'
 /**
  * Sort key for the pull request collection.
  *
@@ -78,11 +79,11 @@ const BINARY_SNIFF_BYTES = 8000
  */
 const MAX_TREE_DEPTH = 5
 const BINARY_SKIP_REASON = 'Binary file was not indexed'
+const NON_UTF8_SKIP_REASON = 'Non-UTF-8 file was not indexed'
 /**
  * Bitbucket answers a raw read of an LFS-managed file with a 301 to Atlassian's
- * media services platform, which the connector does not follow — the redirect is
- * cross-origin, so the bearer token would be stripped and the request would fail
- * anyway. The file surfaces once as a skipped row instead of being dropped.
+ * media services platform. The connector deliberately surfaces the file as
+ * unsupported instead of following an unvalidated cross-origin location.
  */
 const LFS_SKIP_REASON = 'Git LFS file was not indexed'
 
@@ -114,9 +115,33 @@ interface BitbucketTreeEntry {
 }
 
 interface BitbucketPagedResponse<T> {
-  values?: T[]
+  values: T[]
   /** Opaque absolute URL for the next page; absent on the last page. */
   next?: string
+}
+
+/**
+ * Validates Bitbucket's guaranteed pagination envelope before reconciliation can
+ * interpret it as a complete page. Treating a malformed response as an empty list
+ * would make the sync engine hard-delete documents that still exist upstream.
+ */
+function parsePagedResponse<T>(value: unknown, resource: string): BitbucketPagedResponse<T> {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    throw new Error(`Bitbucket ${resource} response must be an object`)
+  }
+
+  const record = value as Record<string, unknown>
+  if (!Array.isArray(record.values)) {
+    throw new Error(`Bitbucket ${resource} response must include a values array`)
+  }
+  if (record.next !== undefined && typeof record.next !== 'string') {
+    throw new Error(`Bitbucket ${resource} response next cursor must be a URL`)
+  }
+
+  return {
+    values: record.values as T[],
+    next: record.next as string | undefined,
+  }
 }
 
 interface BitbucketRenderedText {
@@ -196,6 +221,17 @@ function authHeaders(accessToken: string, json = true): Record<string, string> {
  */
 function readSlug(value: unknown): string {
   return typeof value === 'string' ? value.trim() : ''
+}
+
+/** Reads an optional positive, finite integer document cap. */
+function readMaxItems(value: unknown): number {
+  if (value === undefined || value === null) return 0
+  if (typeof value === 'string' && !value.trim()) return 0
+  const parsed = Number(value)
+  if (!Number.isSafeInteger(parsed) || parsed <= 0) {
+    throw new Error('Max items must be a positive integer')
+  }
+  return parsed
 }
 
 /**
@@ -439,10 +475,9 @@ function fileToStub(
 /**
  * Builds a pull request document from either the collection or the `self` record.
  *
- * The body is read from `summary.raw` — the text as the author typed it — which the
- * listing requests explicitly via {@link PULL_REQUEST_LIST_FIELDS}, so no per-document
- * fetch is needed. `rendered.description.raw` is the same text under the endpoint's
- * rendered-markup element and stands in on the rare record that carries only that.
+ * The body is read from `rendered.description.raw`, the documented rendered-markup
+ * representation of the user-provided description. `summary.raw` is a fallback
+ * when the rendered description is absent.
  */
 function pullRequestToDocument(
   repository: ResolvedRepository,
@@ -453,7 +488,7 @@ function pullRequestToDocument(
 
   const title = pullRequest.title?.trim() || `Pull request #${id}`
   const description =
-    pullRequest.summary?.raw?.trim() || pullRequest.rendered?.description?.raw?.trim() || ''
+    pullRequest.rendered?.description?.raw?.trim() || pullRequest.summary?.raw?.trim() || ''
   const body = composeBody(title, description)
   if (!body.trim()) return null
 
@@ -637,12 +672,17 @@ async function fetchSourceListing(
   accessToken: string,
   shallowUrl?: string
 ): Promise<{ response: Response; depth: number }> {
-  const response = await fetchWithRetry(url, { method: 'GET', headers: authHeaders(accessToken) })
+  const response = await fetchWithRetry(url, {
+    method: 'GET',
+    headers: authHeaders(accessToken),
+  })
   if (response.status !== 555 || !shallowUrl) {
     return { response, depth: requestedDepth }
   }
 
-  logger.warn('Bitbucket source listing timed out; retrying at depth 1', { url })
+  logger.warn('Bitbucket source listing timed out; retrying at depth 1', {
+    url,
+  })
   const shallow = await fetchWithRetry(shallowUrl, {
     method: 'GET',
     headers: authHeaders(accessToken),
@@ -711,6 +751,17 @@ function pendingDirectories(syncContext: Record<string, unknown> | undefined): s
 }
 
 /**
+ * Marks a provider-truncated listing as unsafe for deletion reconciliation, even
+ * during a forced full sync. Configured max-item caps use only `listingCapped`;
+ * transient provider omissions must additionally use the engine's absolute gate.
+ */
+function markListingIncomplete(syncContext: Record<string, unknown> | undefined): void {
+  if (!syncContext) return
+  syncContext.listingCapped = true
+  syncContext.listingTruncated = true
+}
+
+/**
  * Applies the optional maxItems cap to a page, tracking the running total in
  * syncContext and flagging `listingCapped` when the cap truncates the listing.
  * Skipped (oversized) documents ride along without consuming the cap.
@@ -774,7 +825,7 @@ export const bitbucketConnector: ConnectorConfig = {
     const phases = activePhases(choice)
     if (phases.length === 0) return { documents: [], hasMore: false }
 
-    const maxItems = sourceConfig.maxItems ? Number(sourceConfig.maxItems) : 0
+    const maxItems = readMaxItems(sourceConfig.maxItems)
     const repository = await resolveRepository(syncContext, workspaceSlug, repoSlug, accessToken)
 
     let state = decodeCursor(cursor, phases[0])
@@ -819,14 +870,28 @@ export const bitbucketConnector: ConnectorConfig = {
       /** Depth-1 retry target, offered only for URLs this connector built itself. */
       let shallowUrl: string | undefined
       if (state.nextUrl) {
-        url = validateBitbucketOpaqueUrl(state.nextUrl)
         dir = state.dir ?? ''
         requestedDepth = state.depth ?? MAX_TREE_DEPTH
+        const encodedDir = encodeBitbucketRepositoryPath(dir, true)
+        const repositoryPath = bitbucketRepositoryPath(workspaceSlug, repoSlug)
+        url = bitbucketApiUrl(
+          `${repositoryPath}/src/${encodeBitbucketSegment(commit, 'commit')}/${encodedDir}`,
+          {
+            nextUrl: state.nextUrl,
+            nextPathPrefix: `${repositoryPath}/src`,
+            nextPathSuffix: encodedDir,
+            nextRevision: commit,
+          }
+        )
       } else {
         const nextDir = frontier.shift()
         if (nextDir === undefined) {
           const adv = advance('code')
-          return { documents: [], nextCursor: adv.nextCursor, hasMore: adv.hasMore }
+          return {
+            documents: [],
+            nextCursor: adv.nextCursor,
+            hasMore: adv.hasMore,
+          }
         }
         dir = nextDir
         requestedDepth = MAX_TREE_DEPTH
@@ -860,31 +925,36 @@ export const bitbucketConnector: ConnectorConfig = {
             repository: repository.fullName,
             dir,
           })
-          if (syncContext) syncContext.listingCapped = true
+          markListingIncomplete(syncContext)
           const skipped = continueCode(frontier)
-          return { documents: [], nextCursor: skipped.nextCursor, hasMore: skipped.hasMore }
+          return {
+            documents: [],
+            nextCursor: skipped.nextCursor,
+            hasMore: skipped.hasMore,
+          }
         }
         if (response.status === 404) {
           /**
-           * `resolveRepository` already proved the repository is readable, so a 404
-           * here can only mean the directory (or an empty repository's root) is
-           * absent. Reconciliation is left enabled so its files delete normally.
+           * Every directory was discovered at the same pinned commit, so a later 404
+           * is an inconsistent partial listing rather than evidence that documents
+           * were deleted. Keep walking, but block deletion reconciliation.
            */
           logger.warn('Bitbucket source path not found; skipping', {
             repository: repository.fullName,
             dir,
           })
+          markListingIncomplete(syncContext)
           const skipped = continueCode(frontier)
-          return { documents: [], nextCursor: skipped.nextCursor, hasMore: skipped.hasMore }
+          return {
+            documents: [],
+            nextCursor: skipped.nextCursor,
+            hasMore: skipped.hasMore,
+          }
         }
         if (response.status === 401 || response.status === 403) {
-          /**
-           * The token stopped working mid-sync. Flag the listing as incomplete so
-           * deletion reconciliation does not hard-delete previously synced files.
-           */
-          if (syncContext) syncContext.listingCapped = true
-          const adv = advance('code')
-          return { documents: [], nextCursor: adv.nextCursor, hasMore: adv.hasMore }
+          throw new Error(
+            `Bitbucket authorization failed while listing repository files: ${response.status}`
+          )
         }
         const errorText = await response.text().catch(() => '')
         logger.error('Failed to list Bitbucket repository files', {
@@ -894,14 +964,29 @@ export const bitbucketConnector: ConnectorConfig = {
         throw new Error(`Failed to list Bitbucket repository files: ${response.status}`)
       }
 
-      const page = (await response.json()) as BitbucketPagedResponse<BitbucketTreeEntry>
-      const entries = Array.isArray(page.values) ? page.values : []
+      const page = parsePagedResponse<BitbucketTreeEntry>(await response.json(), 'source listing')
+      const entries = page.values
       const dirDepth = pathDepth(dir)
       const documents: ExternalDocument[] = []
 
       for (const entry of entries) {
+        if (typeof entry !== 'object' || entry === null || Array.isArray(entry)) {
+          logger.warn('Skipping malformed Bitbucket source entry', {
+            repository: repository.fullName,
+            dir,
+          })
+          markListingIncomplete(syncContext)
+          continue
+        }
         const path = typeof entry.path === 'string' ? entry.path : ''
-        if (!path) continue
+        if (!path) {
+          logger.warn('Skipping Bitbucket source entry without a path', {
+            repository: repository.fullName,
+            dir,
+          })
+          markListingIncomplete(syncContext)
+          continue
+        }
 
         if (entry.type === 'commit_directory') {
           /**
@@ -916,7 +1001,15 @@ export const bitbucketConnector: ConnectorConfig = {
           continue
         }
 
-        if (entry.type !== 'commit_file') continue
+        if (entry.type !== 'commit_file') {
+          logger.warn('Skipping Bitbucket source entry with an unknown type', {
+            repository: repository.fullName,
+            dir,
+            type: entry.type,
+          })
+          markListingIncomplete(syncContext)
+          continue
+        }
 
         const attributes = entryAttributes(entry)
         if (attributes.has('binary') || attributes.has('link') || attributes.has('subrepository')) {
@@ -945,17 +1038,28 @@ export const bitbucketConnector: ConnectorConfig = {
       if (page.next) {
         return {
           documents: capped,
-          nextCursor: encodeCursor({ phase: 'code', nextUrl: page.next, dir, depth }),
+          nextCursor: encodeCursor({
+            phase: 'code',
+            nextUrl: page.next,
+            dir,
+            depth,
+          }),
           hasMore: true,
         }
       }
       const cont = continueCode(frontier)
-      return { documents: capped, nextCursor: cont.nextCursor, hasMore: cont.hasMore }
+      return {
+        documents: capped,
+        nextCursor: cont.nextCursor,
+        hasMore: cont.hasMore,
+      }
     }
 
     let url: string
     if (state.nextUrl) {
-      url = validateBitbucketOpaqueUrl(state.nextUrl)
+      url = bitbucketApiUrl(`${bitbucketRepositoryPath(workspaceSlug, repoSlug)}/pullrequests`, {
+        nextUrl: state.nextUrl,
+      })
     } else {
       const prUrl = new URL(repositoryUrl(workspaceSlug, repoSlug, '/pullrequests'))
       prUrl.searchParams.set('pagelen', String(PULL_REQUEST_PAGE_SIZE))
@@ -968,8 +1072,8 @@ export const bitbucketConnector: ConnectorConfig = {
         /**
          * The filtering reference is explicit that the paginated envelope's
          * `values.` prefix must not appear in a query field, so the field is
-         * named bare even though the partial response above addresses it as
-         * `values.summary`.
+         * named bare even though the partial response above addresses nested
+         * fields under `values`.
          */
         prUrl.searchParams.set('q', `updated_on > ${bbqlDateTime(lastSyncAt)}`)
       }
@@ -996,11 +1100,21 @@ export const bitbucketConnector: ConnectorConfig = {
       throw new Error(`Failed to list Bitbucket pull requests: ${response.status}`)
     }
 
-    const page = (await response.json()) as BitbucketPagedResponse<BitbucketPullRequest>
+    const page = parsePagedResponse<BitbucketPullRequest>(
+      await response.json(),
+      'pull request listing'
+    )
     const documents: ExternalDocument[] = []
-    for (const pullRequest of Array.isArray(page.values) ? page.values : []) {
+    for (const pullRequest of page.values) {
       const doc = pullRequestToDocument(repository, pullRequest)
-      if (doc) documents.push(doc)
+      if (doc) {
+        documents.push(doc)
+      } else {
+        logger.warn('Skipping malformed Bitbucket pull request', {
+          repository: repository.fullName,
+        })
+        markListingIncomplete(syncContext)
+      }
     }
 
     const { documents: capped, capped: hitLimit } = applyMaxItemsCap(
@@ -1047,7 +1161,14 @@ export const bitbucketConnector: ConnectorConfig = {
           if (response.status === 404) return null
           throw new Error(`Failed to fetch Bitbucket pull request: ${response.status}`)
         }
-        return pullRequestToDocument(repository, (await response.json()) as BitbucketPullRequest)
+        const document = pullRequestToDocument(
+          repository,
+          (await response.json()) as BitbucketPullRequest
+        )
+        if (!document) {
+          throw new Error(`Bitbucket pull request ${id} response was malformed`)
+        }
+        return document
       }
 
       if (!externalId.startsWith(FILE_PREFIX)) return null
@@ -1078,7 +1199,7 @@ export const bitbucketConnector: ConnectorConfig = {
 
       const stub = fileToStub(repository, ref, commit, path, undefined)
 
-      if (response.status >= 300 && response.status < 400) {
+      if (response.status === 301) {
         logger.info('Skipping Bitbucket LFS-managed file', { path })
         return markSkipped(stub, LFS_SKIP_REASON)
       }
@@ -1088,7 +1209,10 @@ export const bitbucketConnector: ConnectorConfig = {
 
       const buffer = await readBodyWithLimit(response, MAX_FILE_SIZE)
       if (buffer === null) {
-        logger.info('Skipping oversized Bitbucket file', { path, limit: MAX_FILE_SIZE })
+        logger.info('Skipping oversized Bitbucket file', {
+          path,
+          limit: MAX_FILE_SIZE,
+        })
         return markSkipped(stub, sizeLimitSkipReason(MAX_FILE_SIZE))
       }
       if (isBinaryBuffer(buffer)) {
@@ -1096,7 +1220,15 @@ export const bitbucketConnector: ConnectorConfig = {
         return markSkipped(stub, BINARY_SKIP_REASON)
       }
 
-      const body = composeBody(stub.title, buffer.toString('utf8'))
+      let text: string
+      try {
+        text = new TextDecoder('utf-8', { fatal: true }).decode(buffer)
+      } catch {
+        logger.info('Skipping non-UTF-8 Bitbucket file', { path })
+        return markSkipped(stub, NON_UTF8_SKIP_REASON)
+      }
+
+      const body = composeBody(stub.title, text)
       if (!body.trim()) return null
 
       return {
@@ -1130,9 +1262,13 @@ export const bitbucketConnector: ConnectorConfig = {
     const repoSlug = readSlug(sourceConfig.repoSlug)
     if (!repoSlug) return { valid: false, error: 'Repository is required' }
 
-    const maxItems = sourceConfig.maxItems as string | undefined
-    if (maxItems && (Number.isNaN(Number(maxItems)) || Number(maxItems) <= 0)) {
-      return { valid: false, error: 'Max items must be a positive number' }
+    try {
+      readMaxItems(sourceConfig.maxItems)
+    } catch (error) {
+      return {
+        valid: false,
+        error: getErrorMessage(error, 'Max items must be a positive integer'),
+      }
     }
 
     const choice = getContentTypeChoice(sourceConfig)
@@ -1152,10 +1288,16 @@ export const bitbucketConnector: ConnectorConfig = {
         }
       }
       if (response.status === 401 || response.status === 403) {
-        return { valid: false, error: 'Invalid credential or insufficient permissions' }
+        return {
+          valid: false,
+          error: 'Invalid credential or insufficient permissions',
+        }
       }
       if (!response.ok) {
-        return { valid: false, error: `Cannot access repository: ${response.status}` }
+        return {
+          valid: false,
+          error: `Cannot access repository: ${response.status}`,
+        }
       }
 
       const record = (await response.json()) as BitbucketRepositoryRecord
@@ -1187,7 +1329,10 @@ export const bitbucketConnector: ConnectorConfig = {
 
       return { valid: true }
     } catch (error) {
-      return { valid: false, error: getErrorMessage(error, 'Failed to validate configuration') }
+      return {
+        valid: false,
+        error: getErrorMessage(error, 'Failed to validate configuration'),
+      }
     }
   },
 

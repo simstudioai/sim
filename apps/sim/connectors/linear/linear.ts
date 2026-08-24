@@ -7,6 +7,7 @@ import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/document
 import { linearConnectorMeta } from '@/connectors/linear/meta'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
 import { joinTagArray, parseMultiValue, parseTagDate } from '@/connectors/utils'
+import { linearAuthorizationHeader } from '@/tools/linear/utils'
 
 const logger = createLogger('LinearConnector')
 
@@ -88,7 +89,7 @@ async function linearGraphQL(
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${accessToken}`,
+          Authorization: linearAuthorizationHeader(accessToken),
         },
         body: JSON.stringify({ query, variables }),
       },

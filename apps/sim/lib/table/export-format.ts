@@ -4,6 +4,7 @@
  * byte-identical files.
  */
 
+import { formatCsvValue, neutralizeCsvFormula } from '@/lib/core/utils/csv'
 import { columnTypeOf } from '@/lib/table/column-types'
 import { selectValueToNames } from '@/lib/table/select-values'
 import type { ColumnDefinition } from '@/lib/table/types'
@@ -20,26 +21,6 @@ export function sanitizeExportFilename(name: string): string {
 }
 
 /**
- * Prefixes a single quote to values starting with a spreadsheet formula trigger
- * (`=`, `+`, `-`, `@`, tab, CR), neutralizing CSV injection in Excel/Sheets.
- */
-export function neutralizeCsvFormula(value: string): string {
-  return /^[=+\-@\t\r]/.test(value) ? `'${value}` : value
-}
-
-/**
- * Serializes a cell for CSV. Only string cells are formula-neutralized; numbers,
- * booleans, dates, and JSON objects can never form a trigger and pass through verbatim.
- */
-export function formatCsvValue(value: unknown): string {
-  if (value === null || value === undefined) return ''
-  if (value instanceof Date) return value.toISOString()
-  if (typeof value === 'object') return JSON.stringify(value)
-  if (typeof value === 'string') return neutralizeCsvFormula(value)
-  return String(value)
-}
-
-/**
  * Serializes one cell for CSV, resolving `select` option ids to their names
  * (comma-joined for multi) so the file shows the enum label, not the id.
  */
@@ -50,15 +31,4 @@ export function formatCsvCell(column: ColumnDefinition, value: unknown): string 
     return neutralizeCsvFormula(columnTypeOf(column).formatForDisplay(value, column))
   }
   return formatCsvValue(value)
-}
-
-export function toCsvRow(values: string[]): string {
-  return values.map(escapeCsvField).join(',')
-}
-
-function escapeCsvField(field: string): string {
-  if (/[",\n\r]/.test(field)) {
-    return `"${field.replace(/"/g, '""')}"`
-  }
-  return field
 }

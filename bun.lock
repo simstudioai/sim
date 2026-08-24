@@ -392,6 +392,7 @@
       "dependencies": {
         "@sim/db": "workspace:*",
         "@sim/logger": "workspace:*",
+        "@sim/security": "workspace:*",
         "@sim/utils": "workspace:*",
         "drizzle-orm": "^0.45.2",
       },

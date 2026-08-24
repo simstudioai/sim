@@ -12,6 +12,7 @@ import {
 } from '@/lib/copilot/tools/secret-mount-materializer.server'
 import { decodeVfsPathSegments, encodeVfsPathSegments } from '@/lib/copilot/vfs/path-utils'
 import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
+import { neutralizeCsvFormula, toCsvRow } from '@/lib/core/utils/csv'
 import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import type { PrivateSecretProvenanceBundleV1 } from '@/lib/execution/model-input-provenance'
 import {
@@ -22,7 +23,7 @@ import { MAX_PLAN_REQUIRED } from '@/lib/execution/remote-sandbox/workspace-sand
 import { recordSecretUsage } from '@/lib/secrets/usage/record'
 import { getColumnId } from '@/lib/table/column-keys'
 import { TABLE_LIMITS } from '@/lib/table/constants'
-import { formatCsvCell, neutralizeCsvFormula, toCsvRow } from '@/lib/table/export-format'
+import { formatCsvCell } from '@/lib/table/export-format'
 import {
   isTableSnapshotSafeForModelMount,
   loadTableRowSecretProvenance,

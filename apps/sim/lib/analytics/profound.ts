@@ -102,10 +102,7 @@ export function sendToProfound(request: Request, statusCode: number): void {
       host: getBaseDomain(),
       path: url.pathname,
       status_code: statusCode,
-      ip: (() => {
-        const resolved = getClientIp(request)
-        return resolved === 'unknown' ? '0.0.0.0' : resolved
-      })(),
+      ip: getClientIp(request) ?? '0.0.0.0',
       user_agent: request.headers.get('user-agent') || '',
       ...(Object.keys(queryParams).length > 0 && { query_params: queryParams }),
       ...(request.headers.get('referer') && { referer: request.headers.get('referer')! }),

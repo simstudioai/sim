@@ -4,6 +4,7 @@ import { airtableHandler } from '@/lib/webhooks/providers/airtable'
 import { ashbyHandler } from '@/lib/webhooks/providers/ashby'
 import { attioHandler } from '@/lib/webhooks/providers/attio'
 import { azureDevOpsHandler } from '@/lib/webhooks/providers/azure-devops'
+import { bitbucketHandler } from '@/lib/webhooks/providers/bitbucket'
 import { calcomHandler } from '@/lib/webhooks/providers/calcom'
 import { calendlyHandler } from '@/lib/webhooks/providers/calendly'
 import { circlebackHandler } from '@/lib/webhooks/providers/circleback'
@@ -71,6 +72,7 @@ const PROVIDER_HANDLERS: Record<string, WebhookProviderHandler> = {
   ashby: ashbyHandler,
   attio: attioHandler,
   azure_devops: azureDevOpsHandler,
+  bitbucket: bitbucketHandler,
   calendly: calendlyHandler,
   calcom: calcomHandler,
   circleback: circlebackHandler,

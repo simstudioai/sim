@@ -125,8 +125,22 @@ function overLimitNames(row: { overLimitNames?: unknown } | undefined): Set<stri
   return new Set(row.overLimitNames.filter((name): name is string => typeof name === 'string'))
 }
 
-function activeAdmin(row: CredentialAccessRow): boolean {
-  return row.role === 'admin' && row.status === 'active'
+/**
+ * Whether the actor holds a live grant on this credential, at any role.
+ *
+ * Deliberately looser than the credential-admin predicate that reveals a value under
+ * Settings → Secrets, and deliberately equal to what a workflow resolves. A Function block
+ * reads the same secret at use level through {@link getPersonalAndWorkspaceEnv}, and Copilot
+ * reaches that path itself via `edit_workflow` + `run_workflow`, so an admin-only bar here
+ * contained nothing — it redirected a member through a detour that mutates a persisted
+ * workflow, while the direct path is ephemeral and files a usage row. The view gate stays
+ * where it can still hold: the Settings mask and the usage trail.
+ *
+ * Rechecked in memory even though the query already filters on it, so a later edit to that
+ * `where` cannot silently widen this.
+ */
+function activeGrant(row: CredentialAccessRow): boolean {
+  return row.status === 'active'
 }
 
 function unavailableError(names: readonly string[]): CopilotCodeSecretAccessError {
@@ -204,7 +218,6 @@ export async function materializeCopilotCodeSecrets(params: {
           eq(credential.workspaceId, params.workspaceId),
           inArray(credential.type, ['env_workspace', 'env_personal']),
           inArray(credential.envKey, requestedNames),
-          eq(credentialMember.role, 'admin'),
           eq(credentialMember.status, 'active'),
           or(
             eq(credential.type, 'env_workspace'),
@@ -230,7 +243,7 @@ export async function materializeCopilotCodeSecrets(params: {
       row.type === 'env_personal' &&
       row.envOwnerUserId !== null &&
       row.envOwnerUserId !== params.actorUserId &&
-      activeAdmin(row)
+      activeGrant(row)
   )
 
   const authorizedSources: AuthorizedEncryptedSecret[] = []
@@ -243,7 +256,7 @@ export async function materializeCopilotCodeSecrets(params: {
       workspaceExists &&
       (access.canAdmin ||
         envCredentialRows.some(
-          (row) => row.type === 'env_workspace' && row.envKey === name && activeAdmin(row)
+          (row) => row.type === 'env_workspace' && row.envKey === name && activeGrant(row)
         ))
 
     if (workspaceAuthorized) {

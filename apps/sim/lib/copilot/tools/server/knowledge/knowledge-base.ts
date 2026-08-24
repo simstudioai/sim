@@ -1013,16 +1013,27 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
           }
 
           assertNotAborted()
-          await executeCopilotKnowledgeUseCase(context, updateKnowledgeConnector, {
-            connectorId: args.connectorId,
-            assertedWorkspaceId: workspaceId,
-            updates,
-            source: 'agent',
-          })
+          const { connector } = await executeCopilotKnowledgeUseCase(
+            context,
+            updateKnowledgeConnector,
+            {
+              connectorId: args.connectorId,
+              assertedWorkspaceId: workspaceId,
+              updates,
+              resolveBillingAttribution: async (canonicalWorkspaceId) =>
+                requireKnowledgeBillingAttribution(context, canonicalWorkspaceId),
+              source: 'agent',
+            }
+          )
 
           return {
             success: true,
-            message: 'Connector updated successfully',
+            message:
+              updates.sourceConfig === undefined
+                ? 'Connector updated successfully'
+                : connector.status === 'paused' || connector.status === 'disabled'
+                  ? 'Connector updated successfully. The source change will synchronize when the connector is resumed.'
+                  : 'Connector updated successfully. Synchronization was queued for the source change.',
             data: {
               id: args.connectorId,
               ...(updates.sourceConfig !== undefined && { sourceConfig: updates.sourceConfig }),

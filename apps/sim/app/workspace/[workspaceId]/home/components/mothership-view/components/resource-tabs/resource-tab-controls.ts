@@ -10,22 +10,32 @@ export const RESOURCE_TAB_ICON_CLASS = 'size-[16px] text-[var(--text-icon)]'
 /** Shared geometry for the resource header and controls positioned over it. */
 export const RESOURCE_HEADER_CLASSES = {
   layout:
-    '[--resource-header-controls-height:34px] [--resource-header-end-inset:16px] [--resource-header-fixed-reserve:54px] [--resource-header-toggle-size:30px]',
+    '[--resource-header-controls-height:40px] [--resource-header-end-inset:16px] [--resource-header-fixed-reserve:54px] [--resource-header-toggle-size:30px]',
   /**
    * Drives the tab strip from this header's own tokens rather than restating the
    * strip's defaults, so the height the overlaid controls below are positioned
    * against and the height the strip renders at cannot drift apart. Set on the
    * strip itself, not an ancestor — the browser and terminal strips nested in
    * this panel keep their own geometry.
+   *
+   * The `+ 1px` is the strip's own bottom border. The controls height is the
+   * CONTENT box both clusters centre in, so the strip's box has to be a pixel
+   * taller than it or the tabs would centre in 43px while the overlaid toggle
+   * centres in 44px, and the two rows would sit half a pixel apart.
+   *
+   * The band is the tabs' own height, set below the 30px the collapse toggle
+   * keeps: a tab paints a fill, so its box is visible and wants air around it,
+   * where the toggle and the action buttons are bare glyphs whose box only shows
+   * on hover.
    */
   stripGeometry:
-    '[--tab-strip-height:var(--resource-header-controls-height)] [--tab-strip-inline-start:var(--resource-header-end-inset)] [--tab-strip-inline-end:var(--resource-header-fixed-reserve)]',
+    '[--tab-strip-height:calc(var(--resource-header-controls-height)_+_1px)] [--tab-strip-band:26px] [--tab-strip-max-tab-width:160px] [--tab-strip-inline-start:var(--resource-header-end-inset)] [--tab-strip-inline-end:var(--resource-header-fixed-reserve)]',
   /**
-   * Bottom-aligned rather than centred: the header's own controls sit in the tab
-   * strip's band, one pixel clear of its border, and an overlaid control has to
-   * land in that same band to read as part of the row.
+   * Centred, matching the `floating` strip: its tabs and controls sit centred in
+   * the header band rather than hanging from the top, so an overlaid control has
+   * to centre too or it lands a pixel below the row it belongs to.
    */
-  overlay: 'absolute top-0 flex h-[var(--resource-header-controls-height)] items-end pb-px',
+  overlay: 'absolute top-0 flex h-[var(--resource-header-controls-height)] items-center',
   endPosition: 'right-[var(--resource-header-end-inset)]',
   /**
    * Sits a control 1px clear of the overlaid 30px collapse toggle — the same

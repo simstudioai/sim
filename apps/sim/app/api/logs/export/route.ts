@@ -6,7 +6,7 @@ import { and, desc, eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { MATERIALIZE_CONCURRENCY, mapWithConcurrency } from '@/lib/core/utils/concurrency'
-import { neutralizeCsvFormula } from '@/lib/core/utils/csv'
+import { formatCsvValue, toCsvRow } from '@/lib/core/utils/csv'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { materializeExecutionDataForDisplay } from '@/lib/logs/execution/trace-store'
 import { buildFilterConditions, LogFilterParamsSchema } from '@/lib/logs/filters'
@@ -16,15 +16,6 @@ import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 const logger = createLogger('LogsExportAPI')
 
 export const revalidate = 0
-
-function escapeCsv(value: any): string {
-  if (value === null || value === undefined) return ''
-  const str = typeof value === 'string' ? neutralizeCsvFormula(value) : String(value)
-  if (/[",\n]/.test(str)) {
-    return `"${str.replace(/"/g, '""')}"`
-  }
-  return str
-}
 
 export const GET = withRouteHandler(async (request: NextRequest) => {
   try {
@@ -61,7 +52,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       ? and(workspaceCondition, filterConditions)
       : workspaceCondition
 
-    const header = [
+    const header = toCsvRow([
       'startedAt',
       'level',
       'workflow',
@@ -72,7 +63,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       'executionId',
       'message',
       'traceSpans',
-    ].join(',')
+    ])
 
     const access = await checkWorkspaceAccess(params.workspaceId, userId)
     if (!access.hasAccess) {
@@ -147,18 +138,18 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
                   error: getErrorMessage(rowError),
                 })
               }
-              const line = [
-                escapeCsv(r.startedAt?.toISOString?.() || r.startedAt),
-                escapeCsv(r.level),
-                escapeCsv(r.workflowName),
-                escapeCsv(r.trigger),
-                escapeCsv(r.totalDurationMs ?? ''),
-                escapeCsv(r.costTotal ?? ''),
-                escapeCsv(r.workflowId ?? ''),
-                escapeCsv(r.executionId ?? ''),
-                escapeCsv(message),
-                escapeCsv(tracesJson),
-              ].join(',')
+              const line = toCsvRow([
+                formatCsvValue(r.startedAt?.toISOString?.() || r.startedAt),
+                formatCsvValue(r.level),
+                formatCsvValue(r.workflowName),
+                formatCsvValue(r.trigger),
+                formatCsvValue(r.totalDurationMs ?? ''),
+                formatCsvValue(r.costTotal ?? ''),
+                formatCsvValue(r.workflowId ?? ''),
+                formatCsvValue(r.executionId ?? ''),
+                formatCsvValue(message),
+                formatCsvValue(tracesJson),
+              ])
               controller.enqueue(encoder.encode(`${line}\n`))
             }
 

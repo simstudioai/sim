@@ -1,10 +1,12 @@
 import { auditLog, db, user } from '@sim/db'
 import { createLogger } from '@sim/logger'
+import { createClientIpResolver } from '@sim/security/ip'
 import { generateShortId } from '@sim/utils/id'
 import { eq } from 'drizzle-orm'
 import type { AuditActionType, AuditResourceTypeValue } from './types'
 
 const logger = createLogger('AuditLog')
+const clientIpResolver = createClientIpResolver(process.env.AUTH_TRUSTED_PROXIES)
 
 export interface AuditLogParams {
   workspaceId?: string | null
@@ -24,14 +26,6 @@ export interface AuditLogParams {
   description?: string
   metadata?: Record<string, unknown>
   request?: { headers: { get(name: string): string | null } }
-}
-
-function getClientIp(request: { headers: { get(name: string): string | null } }): string {
-  return (
-    request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
-    request.headers.get('x-real-ip')?.trim() ||
-    'unknown'
-  )
 }
 
 /**
@@ -90,7 +84,7 @@ function buildAuditRow(
     resourceName: params.resourceName,
     description: params.description,
     metadata: params.metadata ?? {},
-    ipAddress: params.request ? getClientIp(params.request) : undefined,
+    ipAddress: params.request ? clientIpResolver.resolve(params.request.headers) : undefined,
     userAgent: params.request?.headers.get('user-agent') ?? undefined,
   }
 }

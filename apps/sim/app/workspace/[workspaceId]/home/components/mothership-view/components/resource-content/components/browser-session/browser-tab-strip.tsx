@@ -216,9 +216,7 @@ export function BrowserTabStrip({
           onOpenInNewTab={openTabInExternalBrowser}
           openInNewTabLabel='Open in External Browser'
           openInNewTabPosition='last'
-          separateNavigationAction
           showOpenInNewTab={Boolean(contextTab?.url && contextTab.url !== 'about:blank')}
-          groupNonDestructiveActions
           onTogglePin={
             contextTab ? () => onSetTabPinned(contextTab.tabId, !contextTab.pinned) : undefined
           }

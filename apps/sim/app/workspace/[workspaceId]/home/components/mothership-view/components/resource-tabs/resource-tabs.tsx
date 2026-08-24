@@ -256,7 +256,7 @@ export function ResourceTabs({
       resources.map((resource) => ({
         id: resource.id,
         title: nameLookup.get(`${resource.type}:${resource.id}`) ?? resource.title,
-        icon: getResourceConfig(resource.type).renderTabIcon(resource, 'size-[14px] shrink-0'),
+        icon: getResourceConfig(resource.type).renderTabIcon(resource, 'size-[16px] shrink-0'),
         active: activeId === resource.id,
         selected: selectedIds.size > 1 && selectedIds.has(resource.id),
         attention: activityIds?.has(resource.id) ?? false,
@@ -452,6 +452,7 @@ export function ResourceTabs({
       onClose={handleClose}
       onReorder={handleReorder}
       onTabDragStart={handleTabDragStart}
+      variant='floating'
       className={RESOURCE_HEADER_CLASSES.stripGeometry}
       newTabControl={
         // Offered before the chat exists too: a resource opened while composing

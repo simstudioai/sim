@@ -2094,6 +2094,27 @@
       "when": 1787338729668,
       "tag": "0299_bright_nemesis",
       "breakpoints": true
+    },
+    {
+      "idx": 300,
+      "version": "7",
+      "when": 1787360221351,
+      "tag": "0300_hesitant_war_machine",
+      "breakpoints": true
+    },
+    {
+      "idx": 301,
+      "version": "7",
+      "when": 1787365065919,
+      "tag": "0301_backfill_table_default_views",
+      "breakpoints": true
+    },
+    {
+      "idx": 302,
+      "version": "7",
+      "when": 1787432959648,
+      "tag": "0302_fat_sentry",
+      "breakpoints": true
     }
   ]
 }

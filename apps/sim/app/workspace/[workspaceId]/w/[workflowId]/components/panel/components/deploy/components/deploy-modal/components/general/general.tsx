@@ -33,6 +33,8 @@ interface GeneralDeployProps {
   workflowId: string | null
   deployedState?: WorkflowState | null
   isLoadingDeployedState: boolean
+  /** A snapshot is expected but has not arrived — render loading, not "undeployed". */
+  isAwaitingSnapshot: boolean
   versions: WorkflowDeploymentVersionResponse[]
   versionsLoading: boolean
   isPromotingVersion: boolean
@@ -51,6 +53,7 @@ export function GeneralDeploy({
   workflowId,
   deployedState,
   isLoadingDeployedState,
+  isAwaitingSnapshot,
   versions,
   versionsLoading,
   isPromotingVersion,
@@ -169,7 +172,13 @@ export function GeneralDeploy({
   const showToggle = selectedVersion !== null && deployedState
 
   const hasDeployedData = deployedState && Object.keys(deployedState.blocks || {}).length > 0
-  const showLoadingSkeleton = isLoadingDeployedState && !hasDeployedData
+  /*
+   * `isAwaitingSnapshot` counts as loading. A missing snapshot is not evidence
+   * that the workflow is undeployed — it is usually the snapshot not having
+   * arrived yet — and treating it as evidence is what rendered "Deploy your
+   * workflow to see a preview" directly above a row reading `v1 (live)`.
+   */
+  const showLoadingSkeleton = (isLoadingDeployedState || isAwaitingSnapshot) && !hasDeployedData
 
   if (showLoadingSkeleton) {
     return (

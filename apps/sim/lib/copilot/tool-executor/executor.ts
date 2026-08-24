@@ -38,7 +38,26 @@ export async function executeTool(
   params: Record<string, unknown>,
   context: ToolExecutionContext
 ): Promise<ToolExecutionResult> {
-  const requiredPermission = getToolEntry(toolId)?.requiredPermission
+  // Client-routed tools (e.g. run_workflow) are normally executed in the browser and never
+  // reach this point in interactive mode. In headless mode (Mothership block, no browser) there
+  // is no client to delegate to, so fall back to the registered server-side handler when one
+  // exists — otherwise the call would route to executeAppTool and throw "Tool not found".
+  const usesHeadlessClientFallback = isClientExecuted(toolId) && hasHandler(toolId)
+
+  /**
+   * Client-routed tools carry no catalog `requiredPermission` because the browser runs them
+   * through the workflow APIs, which authorize the caller's own session. The headless fallback
+   * has no session to authorize against and runs under the request's principal instead, so it
+   * has to supply a bar of its own.
+   *
+   * Without one, a run whose permission was deliberately capped still reaches `run_workflow`,
+   * and `runWorkflowFromCopilot` executes with `enforceCredentialAccess` — resolving the
+   * principal's workspace and personal secrets. That is the hole an unattributed inbox message
+   * leaves open: `resolveInboxExecutionActor` refuses it a secret actor, but the run still
+   * carries the workspace owner as principal.
+   */
+  const requiredPermission =
+    getToolEntry(toolId)?.requiredPermission ?? (usesHeadlessClientFallback ? 'write' : undefined)
   if (
     requiredPermission &&
     !permissionSatisfies(
@@ -54,13 +73,8 @@ export async function executeTool(
 
   const normalizedParams = normalizeToolParams(toolId, params, context)
 
-  // Client-routed tools (e.g. run_workflow) are normally executed in the browser and never
-  // reach this point in interactive mode. In headless mode (Mothership block, no browser) there
-  // is no client to delegate to, so fall back to the registered server-side handler when one
-  // exists — otherwise the call would route to executeAppTool and throw "Tool not found".
   const canUseRegisteredHandler =
-    isKnownTool(toolId) &&
-    (isSimExecuted(toolId) || (isClientExecuted(toolId) && hasHandler(toolId)))
+    isKnownTool(toolId) && (isSimExecuted(toolId) || usesHeadlessClientFallback)
   if (!canUseRegisteredHandler) {
     const appParams = buildAppToolParams(normalizedParams, context)
     const options = {

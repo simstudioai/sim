@@ -13,7 +13,6 @@ import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/provide
 import { ContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/context-menu/context-menu'
 import { DeleteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/delete-modal/delete-modal'
 import {
-  useContextMenu,
   useFolderExpand,
   useItemDrag,
   useItemRename,
@@ -41,6 +40,7 @@ import {
 } from '@/hooks/queries/utils/folder-tree'
 import { getWorkflows } from '@/hooks/queries/utils/workflow-cache'
 import { useCreateWorkflow } from '@/hooks/queries/workflows'
+import { useContextMenu } from '@/hooks/use-context-menu'
 import { useFolderStore } from '@/stores/folders/store'
 import type { FolderTreeNode } from '@/stores/folders/types'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -475,6 +475,10 @@ export const FolderItem = memo(function FolderItem({ workspaceId, folder }: Fold
   const isMixedSelection = useMemo(() => {
     return capturedSelectionRef.current?.isMixed ?? false
   }, [isContextMenuOpen])
+  const contextMenuSelectedCount = capturedSelectionRef.current
+    ? capturedSelectionRef.current.workflowIds.length +
+      capturedSelectionRef.current.folderIds.length
+    : 1
 
   const hasExportableContent = useMemo(() => {
     if (!capturedSelectionRef.current) return hasWorkflows
@@ -583,8 +587,8 @@ export const FolderItem = memo(function FolderItem({ workspaceId, folder }: Fold
         onDuplicate={handleDuplicate}
         onExport={handleExport}
         onDelete={handleOpenDeleteModal}
-        showCreate={!isMixedSelection}
-        showCreateFolder={!isMixedSelection}
+        showCreate={!isMixedSelection && selectedFolders.size <= 1}
+        showCreateFolder={!isMixedSelection && selectedFolders.size <= 1}
         showRename={!isMixedSelection && selectedFolders.size <= 1}
         showDuplicate={true}
         showExport={true}
@@ -605,6 +609,7 @@ export const FolderItem = memo(function FolderItem({ workspaceId, folder }: Fold
         showLock={!isMixedSelection && selectedFolders.size <= 1}
         disableLock={!userPermissions.canAdmin || inheritedFolderLocked}
         isLocked={effectiveLocked}
+        selectedCount={contextMenuSelectedCount}
       />
 
       <DeleteModal

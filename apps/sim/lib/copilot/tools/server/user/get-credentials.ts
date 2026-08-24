@@ -6,6 +6,7 @@ import { eq } from 'drizzle-orm'
 import { decodeJwt } from 'jose'
 import { createPermissionError, verifyWorkflowAccess } from '@/lib/copilot/auth/permissions'
 import type { BaseServerTool } from '@/lib/copilot/tools/server/base-tool'
+import { requireCopilotWorkspace } from '@/lib/copilot/tools/server/workspace-scope'
 import { getAllowedIntegrationsFromEnv } from '@/lib/core/config/env-flags'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { getAccessibleOAuthCredentials } from '@/lib/credentials/environment'
@@ -54,7 +55,7 @@ export const getCredentialsServerTool: BaseServerTool<GetCredentialsParams, any>
         throw new OrchestrationError('forbidden', errorMessage)
       }
 
-      workspaceId = wId
+      workspaceId = requireCopilotWorkspace(context, wId)
     }
 
     const userId = authenticatedUserId

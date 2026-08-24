@@ -9,6 +9,7 @@ import {
   resolveCopilotWorkspaceFileReference,
 } from '@/lib/copilot/application/execute-file-use-case'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
+import { requireCopilotWorkspace } from '@/lib/copilot/tools/server/workspace-scope'
 import { canonicalizeVfsPath } from '@/lib/copilot/vfs/path-utils'
 import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import { buildStorageKeySegment } from '@/lib/uploads/core/storage-key'
@@ -147,9 +148,14 @@ export async function executeDeployCustomBlock(
         error: "Managing a custom block requires admin permission on the workflow's workspace",
       }
     }
-    const workspaceId = workflowRecord.workspaceId
-    if (!workspaceId) {
+    if (!workflowRecord.workspaceId) {
       return { success: false, error: 'Workflow must belong to a workspace' }
+    }
+    let workspaceId: string
+    try {
+      workspaceId = requireCopilotWorkspace(context, workflowRecord.workspaceId)
+    } catch (error) {
+      return { success: false, error: toError(error).message }
     }
 
     const ws = await getWorkspaceWithOwner(workspaceId)
@@ -276,6 +282,10 @@ export async function executeDeployCustomBlock(
       }
     }
 
+    // `traceChildRuns` is deliberately not passed and must never become a
+    // parameter here: opening a block's runs to every consumer in the org exposes
+    // the source workflow's internals, and that is a decision for a human
+    // publisher in the settings UI, not one an agent makes on their behalf.
     const block = await publishCustomBlock({
       organizationId,
       workspaceId,

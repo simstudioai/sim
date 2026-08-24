@@ -484,6 +484,7 @@ const PROVIDER_SCOPE_DESCRIPTIONS: Readonly<Record<string, Readonly<Record<strin
     'pullrequest:write': 'Create, update, approve, decline, and merge pull requests',
     pipeline: 'View pipelines, steps, and logs',
     'pipeline:write': 'Run and stop pipelines',
+    webhook: 'Manage repository webhooks',
   },
 }
 

@@ -144,14 +144,33 @@ export const CLI_CONTRACT: CliContract = {
       selectAll: { boolean: true, describe: 'Apply to every document in the knowledge base' },
     },
   },
+  createKnowledgeConnector: {
+    pathArgumentNames: KNOWLEDGE_BASE_PATH_ARGUMENT,
+  },
+  listKnowledgeConnectors: {
+    pathArgumentNames: KNOWLEDGE_BASE_PATH_ARGUMENT,
+  },
+  getKnowledgeConnector: {
+    pathArgumentNames: KNOWLEDGE_BASE_PATH_ARGUMENT,
+  },
   listKnowledgeConnectorDocuments: {
     command: 'knowledge connectors documents list',
+    pathArgumentNames: KNOWLEDGE_BASE_PATH_ARGUMENT,
+  },
+  updateKnowledgeConnector: {
+    pathArgumentNames: KNOWLEDGE_BASE_PATH_ARGUMENT,
   },
   updateKnowledgeConnectorDocuments: {
     command: 'knowledge connectors documents update',
+    pathArgumentNames: KNOWLEDGE_BASE_PATH_ARGUMENT,
     flags: {
       documentIds: { name: 'document', list: true },
     },
+  },
+  syncKnowledgeConnector: {
+    command: 'knowledge connectors sync',
+    pathArgumentNames: KNOWLEDGE_BASE_PATH_ARGUMENT,
+    describe: 'Queue a knowledge connector synchronization',
   },
   // `DELETE /workflows/[id]/deploy` is an undeploy, not a delete.
   undeployWorkflow: {
@@ -182,6 +201,7 @@ export const CLI_CONTRACT: CliContract = {
     confirm: 'This deletes the document and its embeddings.',
   },
   deleteKnowledgeConnector: {
+    pathArgumentNames: KNOWLEDGE_BASE_PATH_ARGUMENT,
     confirm:
       'This deletes the connector; --delete-documents also deletes its synchronized documents.',
   },

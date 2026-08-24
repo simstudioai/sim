@@ -1,6 +1,7 @@
 /**
  * @vitest-environment node
  */
+import { requestUtilsMockFns } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -49,6 +50,18 @@ describe('POST /api/files/public/[token]/sso', () => {
     const res = await POST(post('user@acme.com'), params())
     expect(res.status).toBe(200)
     expect(await res.json()).toEqual({ eligible: true })
+    expect(mockCheckRateLimitDirect).toHaveBeenNthCalledWith(
+      1,
+      'file-sso:ip:127.0.0.1',
+      expect.objectContaining({ maxTokens: 20 }),
+      { failClosed: true }
+    )
+    expect(mockCheckRateLimitDirect).toHaveBeenNthCalledWith(
+      2,
+      'file-sso:resource:sh_1',
+      expect.objectContaining({ maxTokens: 100 }),
+      { failClosed: true }
+    )
   })
 
   it('returns eligible:false for a non-listed email', async () => {
@@ -78,5 +91,30 @@ describe('POST /api/files/public/[token]/sso', () => {
     const res = await POST(post('user@acme.com'), params())
     expect(res.status).toBe(429)
     expect(res.headers.get('Retry-After')).toBe('2')
+  })
+
+  it('returns 429 when the share resource limit is exceeded', async () => {
+    mockCheckRateLimitDirect
+      .mockResolvedValueOnce({ allowed: true })
+      .mockResolvedValueOnce({ allowed: false, retryAfterMs: 3000 })
+
+    const res = await POST(post('user@acme.com'), params())
+
+    expect(res.status).toBe(429)
+    expect(res.headers.get('Retry-After')).toBe('3')
+  })
+
+  it('uses the share resource limit when the client IP cannot be resolved', async () => {
+    requestUtilsMockFns.mockGetClientIp.mockReturnValueOnce(null)
+
+    const res = await POST(post('user@acme.com'), params())
+
+    expect(res.status).toBe(200)
+    expect(mockCheckRateLimitDirect).toHaveBeenCalledTimes(1)
+    expect(mockCheckRateLimitDirect).toHaveBeenCalledWith(
+      'file-sso:resource:sh_1',
+      expect.objectContaining({ maxTokens: 100 }),
+      { failClosed: true }
+    )
   })
 })

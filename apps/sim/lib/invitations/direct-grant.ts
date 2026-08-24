@@ -23,6 +23,10 @@ import { PlatformEvents } from '@/lib/core/telemetry'
 import { syncWorkspaceEnvCredentials } from '@/lib/credentials/environment'
 import type { DbOrTx } from '@/lib/db/types'
 import { revokeInvitationWorkspaceGrantTx } from '@/lib/invitations/core'
+import {
+  DIRECT_GRANT_EMAIL_EVENT_TYPE,
+  type DirectGrantEmailPayload,
+} from '@/lib/invitations/direct-grant-event'
 import { acquireInvitationMutationLocks } from '@/lib/invitations/locks'
 import { sendWorkspaceAddedEmail } from '@/lib/invitations/send'
 import { captureServerEvent } from '@/lib/posthog/server'
@@ -33,16 +37,6 @@ import {
 } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('InvitationDirectGrant')
-
-export const DIRECT_GRANT_EMAIL_EVENT_TYPE = 'invitation.send-workspace-added'
-
-export interface DirectGrantEmailPayload {
-  email: string
-  inviterName: string
-  workspaceId: string
-  workspaceName: string
-  sourceOperationId?: string
-}
 
 export type DirectGrantOutcome =
   | { outcome: 'added'; permission: PermissionType }

@@ -8,6 +8,7 @@ import {
   type WorkspaceFileRecord,
 } from '@/lib/uploads/contexts/workspace'
 import { getFileMetadataByKey } from '@/lib/uploads/server/metadata'
+import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
 import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 
@@ -33,7 +34,10 @@ async function executeReadWorkspaceFileContentByKey({
     throwOnError: true,
   })
   if (!file || file.key !== input.key) throw new OrchestrationError('not_found', 'File not found')
-  return { file, content: await fetchWorkspaceFileBuffer(file) }
+  return {
+    file,
+    content: await fetchWorkspaceFileBuffer(file, { maxBytes: MAX_BUFFERED_TRANSFER_BYTES }),
+  }
 }
 
 export const readWorkspaceFileContentByKey = defineAuthorizedWorkspaceFileUseCase({

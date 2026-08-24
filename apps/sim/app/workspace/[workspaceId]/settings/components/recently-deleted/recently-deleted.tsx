@@ -15,6 +15,7 @@ import { folderedResourceListHref } from '@/app/workspace/[workspaceId]/componen
 import { RESOURCE_REGISTRY } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
 import type { MothershipResourceType } from '@/app/workspace/[workspaceId]/home/types'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
+import { getRecentlyDeletedQueryPlan } from '@/app/workspace/[workspaceId]/settings/components/recently-deleted/query-plan'
 import {
   type RecentlyDeletedTab,
   recentlyDeletedParsers,
@@ -216,11 +217,21 @@ export function RecentlyDeleted() {
   const [restoringIds, setRestoringIds] = useState<Set<string>>(new Set())
   const [restoredItems, setRestoredItems] = useState<Map<string, RestoredResourceEntry>>(new Map())
 
-  const workflowsQuery = useWorkflows(workspaceId, { scope: 'archived' })
-  const foldersQuery = useFolders(workspaceId, { scope: 'archived' })
-  const activeFoldersQuery = useFolders(workspaceId)
-  const tablesQuery = useTablesList(workspaceId, 'archived')
-  const knowledgeQuery = useKnowledgeBasesQuery(workspaceId, { scope: 'archived' })
+  const queryPlan = getRecentlyDeletedQueryPlan(activeTab)
+  const workflowsQuery = useWorkflows(workspaceId, {
+    scope: 'archived',
+    enabled: queryPlan.workflows,
+  })
+  const foldersQuery = useFolders(workspaceId, {
+    scope: 'archived',
+    enabled: queryPlan.folders,
+  })
+  const activeFoldersQuery = useFolders(workspaceId, { enabled: queryPlan.folders })
+  const tablesQuery = useTablesList(workspaceId, 'archived', { enabled: queryPlan.tables })
+  const knowledgeQuery = useKnowledgeBasesQuery(workspaceId, {
+    scope: 'archived',
+    enabled: queryPlan.knowledge,
+  })
   /**
    * One archived-folder query per non-workflow tree, in the fixed order of
    * {@link FOLDERED_RESOURCE_TREES} so the hook call order stays stable.
@@ -228,15 +239,22 @@ export function RecentlyDeleted() {
   const knowledgeFoldersQuery = useFolders(workspaceId, {
     scope: 'archived',
     resourceType: 'knowledge_base',
+    enabled: queryPlan.knowledgeFolders,
   })
-  const tableFoldersQuery = useFolders(workspaceId, { scope: 'archived', resourceType: 'table' })
-  const filesQuery = useWorkspaceFiles(workspaceId, 'archived')
-  const workspaceFoldersQuery = useWorkspaceFileFolders(workspaceId, 'archived')
+  const tableFoldersQuery = useFolders(workspaceId, {
+    scope: 'archived',
+    resourceType: 'table',
+    enabled: queryPlan.tableFolders,
+  })
+  const filesQuery = useWorkspaceFiles(workspaceId, 'archived', { enabled: queryPlan.files })
+  const workspaceFoldersQuery = useWorkspaceFileFolders(workspaceId, 'archived', {
+    enabled: queryPlan.workspaceFolders,
+  })
   // Restoring a chat navigates to a route that 404s with Chat off, and this
   // query's loading/error state feeds the whole panel's.
   const chatsQuery = useMothershipChats(workspaceId, {
     scope: 'archived',
-    enabled: isChatEnabled,
+    enabled: queryPlan.chats && isChatEnabled,
   })
 
   const restoreWorkflow = useRestoreWorkflow()
@@ -247,27 +265,19 @@ export function RecentlyDeleted() {
   const restoreWorkspaceFileFolder = useRestoreWorkspaceFileFolder()
   const restoreChat = useRestoreMothershipChat(workspaceId)
 
-  const isLoading =
-    workflowsQuery.isLoading ||
-    foldersQuery.isLoading ||
-    tablesQuery.isLoading ||
-    knowledgeQuery.isLoading ||
-    knowledgeFoldersQuery.isLoading ||
-    tableFoldersQuery.isLoading ||
-    filesQuery.isLoading ||
-    workspaceFoldersQuery.isLoading ||
-    chatsQuery.isLoading
-
-  const error =
-    workflowsQuery.error ||
-    foldersQuery.error ||
-    tablesQuery.error ||
-    knowledgeQuery.error ||
-    knowledgeFoldersQuery.error ||
-    tableFoldersQuery.error ||
-    filesQuery.error ||
-    workspaceFoldersQuery.error ||
-    chatsQuery.error
+  const activeQueryStates = [
+    queryPlan.workflows ? workflowsQuery : null,
+    queryPlan.folders ? foldersQuery : null,
+    queryPlan.tables ? tablesQuery : null,
+    queryPlan.knowledge ? knowledgeQuery : null,
+    queryPlan.knowledgeFolders ? knowledgeFoldersQuery : null,
+    queryPlan.tableFolders ? tableFoldersQuery : null,
+    queryPlan.files ? filesQuery : null,
+    queryPlan.workspaceFolders ? workspaceFoldersQuery : null,
+    queryPlan.chats && isChatEnabled ? chatsQuery : null,
+  ]
+  const isLoading = activeQueryStates.some((query) => query?.isLoading)
+  const error = activeQueryStates.find((query) => query?.error)?.error
 
   const resources = useMemo<DeletedResource[]>(() => {
     const items: DeletedResource[] = []
@@ -515,7 +525,6 @@ export function RecentlyDeleted() {
           placeholder='Search deleted items...'
           value={urlSearchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          disabled={isLoading}
           className='min-w-0 flex-1'
         />
         <SortDropdown
@@ -538,7 +547,7 @@ export function RecentlyDeleted() {
         <SettingsEmptyState tone='error'>
           {toError(error).message || 'Failed to load deleted items'}
         </SettingsEmptyState>
-      ) : isLoading ? null : filtered.length === 0 ? (
+      ) : isLoading && filtered.length === 0 ? null : filtered.length === 0 ? (
         showNoResults ? (
           <SettingsEmptyState variant='inline'>
             {`No items found matching \u201c${urlSearchTerm}\u201d`}

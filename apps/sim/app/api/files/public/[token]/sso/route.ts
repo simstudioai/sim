@@ -24,6 +24,21 @@ const SSO_IP_RATE_LIMIT: TokenBucketConfig = {
   refillIntervalMs: 15 * 60_000,
 }
 
+const SSO_RESOURCE_RATE_LIMIT: TokenBucketConfig = {
+  maxTokens: 100,
+  refillRate: 100,
+  refillIntervalMs: 15 * 60_000,
+}
+
+function rateLimited(retryAfterMs: number | undefined, fallbackMs: number): NextResponse {
+  const response = NextResponse.json(
+    { error: 'Too many requests. Please try again later.' },
+    { status: 429 }
+  )
+  response.headers.set('Retry-After', String(Math.ceil((retryAfterMs ?? fallbackMs) / 1000)))
+  return response
+}
+
 /**
  * POST /api/files/public/[token]/sso
  * Reports whether an email is on the allow-list for an SSO-gated share. The actual
@@ -34,21 +49,16 @@ export const POST = withRouteHandler(
     const requestId = generateRequestId()
 
     const ip = getClientIp(request)
-    const ipRateLimit = await rateLimiter.checkRateLimitDirect(
-      `file-sso:ip:${ip}`,
-      SSO_IP_RATE_LIMIT
-    )
-    if (!ipRateLimit.allowed) {
-      logger.warn(`[${requestId}] SSO eligibility rate limit exceeded from ${ip}`)
-      const response = NextResponse.json(
-        { error: 'Too many requests. Please try again later.' },
-        { status: 429 }
+    if (ip) {
+      const ipRateLimit = await rateLimiter.checkRateLimitDirect(
+        `file-sso:ip:${ip}`,
+        SSO_IP_RATE_LIMIT,
+        { failClosed: true }
       )
-      response.headers.set(
-        'Retry-After',
-        String(Math.ceil((ipRateLimit.retryAfterMs ?? SSO_IP_RATE_LIMIT.refillIntervalMs) / 1000))
-      )
-      return response
+      if (!ipRateLimit.allowed) {
+        logger.warn(`[${requestId}] SSO eligibility rate limit exceeded from ${ip}`)
+        return rateLimited(ipRateLimit.retryAfterMs, SSO_IP_RATE_LIMIT.refillIntervalMs)
+      }
     }
 
     const parsed = await parseRequest(publicFileSSOContract, request, context)
@@ -62,6 +72,18 @@ export const POST = withRouteHandler(
     }
     if (resolved.share.authType !== 'sso') {
       return NextResponse.json({ error: 'This file is not configured for SSO' }, { status: 400 })
+    }
+
+    const resourceRateLimit = await rateLimiter.checkRateLimitDirect(
+      `file-sso:resource:${resolved.share.id}`,
+      SSO_RESOURCE_RATE_LIMIT,
+      { failClosed: true }
+    )
+    if (!resourceRateLimit.allowed) {
+      logger.warn(`[${requestId}] SSO eligibility resource rate limit exceeded`, {
+        shareId: resolved.share.id,
+      })
+      return rateLimited(resourceRateLimit.retryAfterMs, SSO_RESOURCE_RATE_LIMIT.refillIntervalMs)
     }
 
     const allowedEmails = Array.isArray(resolved.share.allowedEmails)

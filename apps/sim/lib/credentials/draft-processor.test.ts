@@ -119,11 +119,23 @@ describe('parseCredentialDraftIdFromCallbackUrl', () => {
     ).toBe('draft-1')
   })
 
+  it('reads the relative callback URL Better Auth documents and stores verbatim', () => {
+    expect(
+      parseCredentialDraftIdFromCallbackUrl(
+        '/desktop/connect/complete?state=abc&port=57979&credentialDraftId=draft-1'
+      )
+    ).toBe('draft-1')
+    expect(
+      parseCredentialDraftIdFromCallbackUrl('/desktop/connect/complete?state=abc&port=57979')
+    ).toBeUndefined()
+  })
+
   it('fails closed for malformed or non-string callback state', () => {
     expect(() => parseCredentialDraftIdFromCallbackUrl({})).toThrow(
       'OAuth state callback URL must be a string'
     )
     expect(() => parseCredentialDraftIdFromCallbackUrl('not a URL')).toThrow()
+    expect(() => parseCredentialDraftIdFromCallbackUrl('//elsewhere.test/path')).toThrow()
   })
 })
 

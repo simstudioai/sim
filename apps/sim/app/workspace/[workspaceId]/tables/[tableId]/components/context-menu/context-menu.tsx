@@ -141,6 +141,22 @@ export function ContextMenu({
       ? `Add ${addToChatRows.toLocaleString()} rows to Chat`
       : 'Add row to Chat'
 
+  /**
+   * Whether anything renders above the sibling-creating inserts. Each term is the
+   * exact render condition of its item, so the rule can never lead the menu.
+   *
+   * @see `.claude/rules/sim-list-ordering.md` — a rule marks a change in what the
+   * action acts on.
+   */
+  const hasCellScopedActions =
+    Boolean(onAddToChat) ||
+    Boolean(contextMenu.columnName && canEditCell) ||
+    Boolean(onFilterByCellValue) ||
+    Boolean(hasWorkflowColumns && onRunWorkflows) ||
+    Boolean(hasWorkflowColumns && onRefreshWorkflows) ||
+    Boolean(hasWorkflowColumns && onStopWorkflows && runningInSelectionCount > 0) ||
+    Boolean(canViewExecution && onViewExecution)
+
   return (
     <DropdownMenu
       open={contextMenu.isOpen}
@@ -169,13 +185,10 @@ export function ContextMenu({
         onCloseAutoFocus={(e) => e.preventDefault()}
       >
         {onAddToChat && (
-          <>
-            <DropdownMenuItem onSelect={onAddToChat}>
-              <Blimp />
-              {addToChatLabel}
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-          </>
+          <DropdownMenuItem onSelect={onAddToChat}>
+            <Blimp />
+            {addToChatLabel}
+          </DropdownMenuItem>
         )}
         {contextMenu.columnName && canEditCell && (
           <DropdownMenuItem disabled={disableEdit} onSelect={onEditCell}>
@@ -222,6 +235,9 @@ export function ContextMenu({
             View execution
           </DropdownMenuItem>
         )}
+        {/* Stops acting on the clicked cell/row and starts creating siblings. Every
+            item above is conditional, so the rule is guarded on all of them. */}
+        {hasCellScopedActions && <DropdownMenuSeparator />}
         <DropdownMenuItem disabled={disableInsert} onSelect={onInsertAbove}>
           <ArrowUp />
           Insert row above

@@ -4,10 +4,11 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { truncate } from '@sim/utils/string'
 import { and, eq, isNull } from 'drizzle-orm'
+import { KNOWLEDGE_DOCUMENT_PROCESSING_STALE_THRESHOLD_MS } from '@/lib/knowledge/constants'
 
 const logger = createLogger('KnowledgeDocumentProcessingClaim')
 
-export const KNOWLEDGE_DOCUMENT_PROCESSING_STALE_THRESHOLD_MS = 10 * 60 * 1000
+export { KNOWLEDGE_DOCUMENT_PROCESSING_STALE_THRESHOLD_MS } from '@/lib/knowledge/constants'
 
 interface ReclaimStaleDocumentProcessingClaimParams {
   knowledgeBaseId: string

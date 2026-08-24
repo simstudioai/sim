@@ -15,6 +15,7 @@ import {
   isModelSafeWorkspaceFileKey,
   MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE,
 } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
 import {
   extractStorageKey,
   isInternalFileUrl,
@@ -157,7 +158,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         const { buffer, contentType } = await downloadServableFileFromStorage(
           userFile,
           requestId,
-          logger
+          logger,
+          {
+            maxBytes: MAX_BUFFERED_TRANSFER_BYTES,
+          }
         )
         base64 = buffer.toString('base64')
         if (contentType && contentType !== 'application/octet-stream') {

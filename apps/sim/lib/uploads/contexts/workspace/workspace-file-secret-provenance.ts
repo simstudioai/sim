@@ -13,6 +13,10 @@ import {
   isPrivateSecretProvenanceScopeCompatible,
 } from '@/lib/execution/durable-secret-provenance'
 import {
+  isDurableSecretProvenanceEnforced,
+  reportUnrecordedDurableProvenance,
+} from '@/lib/execution/durable-secret-provenance-enforcement'
+import {
   PROVENANCE_MAX_ENTRIES,
   PROVENANCE_MAX_SERIALIZED_BYTES,
 } from '@/lib/execution/provenance-limits'
@@ -29,9 +33,23 @@ const LEGACY_ANONYMOUS_WORKSPACE_FILE_SECRET_STORAGE_NAME =
 export const MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE =
   'File cannot be sent to a model because its secret provenance is unavailable'
 
+/**
+ * What can be said about the secrets a file's bytes carry.
+ *
+ * Note the deliberate mismatch with storage: the sidecar's `status` column holds only
+ * `'exact' | 'unknown'`, and a stored `'unknown'` maps to `'unrecorded'` here, not to the
+ * `'unknown'` below. Storage is recording what the writer could vouch for; this union is recording
+ * what a reader can conclude, and "the writer said it could not vouch" and "there is nothing usable
+ * to read" are different conclusions that must not share a branch — only the first is an absence a
+ * policy may relax. `'unrecorded'` is the name the shared vocabulary already uses for it
+ * (`reportUnrecordedDurableProvenance`, the `secret_provenance.unrecorded` audit action).
+ */
 export type WorkspaceFileSecretProvenance =
   | { status: 'exact'; entries: readonly WorkspaceFileSecretProvenanceEntry[] }
+  /** Nothing can be said: the row is gone, the version moved, or the sidecar is stale or malformed. */
   | { status: 'unknown' }
+  /** A current sidecar recording that nobody vouched for these bytes — an absence, not a fault. */
+  | { status: 'unrecorded' }
 
 export const EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE = Object.freeze({
   status: 'exact' as const,
@@ -95,12 +113,22 @@ interface ModelSafeWorkspaceFileRow {
   entries: unknown
 }
 
-/** Combines byte-contributing classifications without broadening an unknown source. */
+/**
+ * Combines byte-contributing classifications without broadening any source.
+ *
+ * Ordered by how little each says: `unknown` beats `unrecorded`, which beats `exact`. An absence
+ * has to survive the merge — bytes nobody vouched for do not become vouched-for by being combined
+ * with bytes that were, and dropping through to the exact branch would hand a later boundary a
+ * positive claim that neither input made.
+ */
 export function mergeWorkspaceFileSecretProvenance(
   ...provenances: readonly WorkspaceFileSecretProvenance[]
 ): WorkspaceFileSecretProvenance {
   if (provenances.some((provenance) => provenance.status === 'unknown')) {
     return { status: 'unknown' }
+  }
+  if (provenances.some((provenance) => provenance.status === 'unrecorded')) {
+    return { status: 'unrecorded' }
   }
 
   return {
@@ -214,7 +242,12 @@ export async function createWorkspaceFileSecretProvenanceFromRegistry(
   representations: readonly WorkspaceFileSecretProvenanceRepresentation[] = [],
   representationsComplete = true
 ): Promise<WorkspaceFileSecretProvenanceWriteDecision> {
-  if (!registry) return { safe: true, provenance: { status: 'unknown' } }
+  /**
+   * No registry means no recorder ran, so nothing was written down about these bytes. That is an
+   * absence, and it is the one thing this surface's policy may relax — distinct from the taint
+   * every `safe: false` below produces, which a caller persists as `unknown` and no policy relaxes.
+   */
+  if (!registry) return { safe: true, provenance: { status: 'unrecorded' } }
   const sourceProvenance = registry.exportCommittedProvenanceForValue(sourceValue)
   const persistedProvenance = Object.is(sourceValue, persistedValue)
     ? sourceProvenance
@@ -394,31 +427,47 @@ export async function replaceWorkspaceFileSecretProvenanceInTx(
     return
   }
 
+  /**
+   * Absence and taint are different claims and must not share a stored value. Collapsing them here
+   * is what let a file the writer deliberately refused — a child of a secret-bearing archive, a
+   * generated asset whose safety decision was `false` — become indistinguishable from one nobody
+   * recorded, and therefore eligible for the same relaxation.
+   */
+  const status = provenance.status === 'unrecorded' ? 'unrecorded' : 'unknown'
   await tx
     .insert(workspaceFileSecretProvenance)
-    .values({ fileId, contentUpdatedAt, status: 'unknown', entries: [], updatedAt: new Date() })
+    .values({ fileId, contentUpdatedAt, status, entries: [], updatedAt: new Date() })
     .onConflictDoUpdate({
       target: workspaceFileSecretProvenance.fileId,
-      set: { contentUpdatedAt, status: 'unknown', entries: [], updatedAt: new Date() },
+      set: { contentUpdatedAt, status, entries: [], updatedAt: new Date() },
     })
   await markWorkspaceFileSecretProvenanceTrackedInTx(tx, fileId, contentUpdatedAt)
 }
 
-/** Initializes provenance for an exact file version without replacing an existing classification. */
+/**
+ * Initializes provenance for an exact file version without replacing an existing classification.
+ *
+ * Narrows to the two states the column accepts, as {@link replaceWorkspaceFileSecretProvenanceInTx}
+ * does. The union has three; the CHECK constraint permits `('exact', 'unknown')`, so forwarding the
+ * status verbatim would let an `'unrecorded'` reach the database as a value it rejects — a
+ * constraint violation aborting the enclosing transaction, not a bad row. Nothing passes one today,
+ * which is exactly why it needs saying here rather than in a caller.
+ */
 export async function initializeWorkspaceFileSecretProvenanceInTx(
   tx: DbTransaction,
   fileId: string,
   contentUpdatedAt: Date,
   provenance: WorkspaceFileSecretProvenance
 ): Promise<void> {
-  const entries =
-    provenance.status === 'exact' ? serializeExactEntriesForStorage(provenance.entries) : []
+  const isExact = provenance.status === 'exact'
+  const entries = isExact ? serializeExactEntriesForStorage(provenance.entries) : []
+  const status = isExact ? 'exact' : provenance.status === 'unrecorded' ? 'unrecorded' : 'unknown'
   await tx
     .insert(workspaceFileSecretProvenance)
     .values({
       fileId,
       contentUpdatedAt,
-      status: provenance.status,
+      status,
       entries,
       updatedAt: new Date(),
     })
@@ -536,8 +585,29 @@ export async function copyWorkspaceFileSecretProvenanceInTx(
   }
   if (
     source.provenanceContentUpdatedAt?.getTime() !== source.fileContentUpdatedAt.getTime() ||
+    !isValidStoredEntries(source.entries)
+  ) {
+    await replaceWorkspaceFileSecretProvenanceInTx(tx, targetFileId, target.contentUpdatedAt, {
+      status: 'unknown',
+    })
+    return
+  }
+  /**
+   * An absence copies as an absence. Folding it in with the refusals below would hand the target a
+   * taint the source never carried, and a fork or a chat copy would turn a readable file into a
+   * permanently refused one — the pathology this surface exists to undo, reached by copying.
+   *
+   * Safe to carry across the scope checks below, which exist to stop one workspace's secret entries
+   * landing in another's file. A recorded absence has no entries to carry.
+   */
+  if (source.status === 'unrecorded') {
+    await replaceWorkspaceFileSecretProvenanceInTx(tx, targetFileId, target.contentUpdatedAt, {
+      status: 'unrecorded',
+    })
+    return
+  }
+  if (
     source.status !== 'exact' ||
-    !isValidStoredEntries(source.entries) ||
     (source.entries.length > 0 &&
       (!source.workspaceId ||
         !target.workspaceId ||
@@ -634,6 +704,10 @@ export async function getBoundWorkspaceFileSecretProvenance(
     .limit(1)
 
   if (!row) return { status: 'unknown' }
+  /**
+   * A version mismatch is not an absence: the caller is asking about content this file no longer
+   * holds, so nothing can be said about it and no policy relaxes that.
+   */
   if (
     identity.contentUpdatedAt &&
     identity.contentUpdatedAt.getTime() !== row.fileContentUpdatedAt.getTime()
@@ -642,13 +716,17 @@ export async function getBoundWorkspaceFileSecretProvenance(
   }
   if (row.secretProvenanceVersion === null) return EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE
   if (row.secretProvenanceVersion !== 1) return { status: 'unknown' }
-  if (
-    row.provenanceContentUpdatedAt?.getTime() !== row.fileContentUpdatedAt.getTime() ||
-    row.status !== 'exact' ||
-    !isValidStoredEntries(row.entries)
-  ) {
-    return { status: 'unknown' }
-  }
+  const bindingIsCurrent =
+    row.provenanceContentUpdatedAt?.getTime() === row.fileContentUpdatedAt.getTime()
+  if (!bindingIsCurrent || !isValidStoredEntries(row.entries)) return { status: 'unknown' }
+  /**
+   * The one shape the surface's policy may relax: a sidecar bound to this exact content recording
+   * that nobody vouched for it — the same statement the untracked file above makes. A stored
+   * `unknown` is the opposite claim, written by a writer that refused these bytes on purpose, and
+   * stays refused.
+   */
+  if (row.status === 'unrecorded') return { status: 'unrecorded' }
+  if (row.status !== 'exact') return { status: 'unknown' }
   return { status: 'exact', entries: deserializeExactEntriesFromStorage(row.entries) }
 }
 
@@ -697,9 +775,22 @@ export async function getBoundWorkspaceFileSecretProvenanceByMetadata(
       if (
         row.secretProvenanceVersion !== 1 ||
         row.provenanceContentUpdatedAt?.getTime() !== row.fileContentUpdatedAt.getTime() ||
-        row.status !== 'exact' ||
         !isValidStoredEntries(row.entries)
       ) {
+        result.set(row.id, { status: 'unknown' })
+        continue
+      }
+      /**
+       * Same answer the single-file reader gives the same row. Collapsing a recorded absence into
+       * `unknown` here would leave two classifiers describing one policy differently, and the
+       * caller that eventually distinguishes them would get a different verdict depending on which
+       * one it happened to call.
+       */
+      if (row.status === 'unrecorded') {
+        result.set(row.id, { status: 'unrecorded' })
+        continue
+      }
+      if (row.status !== 'exact') {
         result.set(row.id, { status: 'unknown' })
         continue
       }
@@ -713,6 +804,33 @@ export async function getBoundWorkspaceFileSecretProvenanceByMetadata(
     if (!result.has(id)) result.set(id, { status: 'unknown' })
   }
   return result
+}
+
+/**
+ * Whether a file nobody could vouch for may still be read.
+ *
+ * A file that was never tracked already returns exact-empty a branch earlier, and it makes exactly
+ * the same statement as this one: nobody recorded which secrets these bytes carry. Refusing only
+ * the second left a writer that momentarily could not vouch permanently worse off than one that
+ * never tried, with no way back — nothing rewrites a file's provenance but another content write,
+ * so the file simply stopped working, everywhere, for good.
+ *
+ * So it reads, and the workspace is told. Deliberately narrower than "not exact": a stale binding
+ * describes content that has since changed and a malformed sidecar is a fault, and neither is the
+ * absence this covers. Closing the surface again is a matter of naming it in
+ * `DURABLE_SECRET_PROVENANCE_ENFORCED_SURFACES`.
+ */
+function mayReadUnrecordedWorkspaceFile(workspaceId: string | undefined, count = 1): boolean {
+  if (isDurableSecretProvenanceEnforced('workspace-file')) return false
+  if (count > 0) {
+    reportUnrecordedDurableProvenance({
+      surface: 'workspace-file',
+      cause: 'durable-provenance-unknown',
+      ...(count > 1 ? { affectedCount: count } : {}),
+      ...(workspaceId ? { workspaceId } : {}),
+    })
+  }
+  return true
 }
 
 /**
@@ -730,6 +848,7 @@ export async function importWorkspaceFileSecretProvenanceForModelView(args: {
 }): Promise<boolean> {
   const provenance = await getBoundWorkspaceFileSecretProvenance(args.workspaceId, args.identity)
   if (provenance.status === 'unknown') return false
+  if (provenance.status === 'unrecorded') return mayReadUnrecordedWorkspaceFile(args.workspaceId)
   if (provenance.entries.length === 0) return true
   if (args.view === 'opaque' || !args.registry) return false
 
@@ -748,7 +867,9 @@ export async function isOpaqueWorkspaceFileEgressSafe(
   identity: WorkspaceFileSecretProvenanceIdentity
 ): Promise<boolean> {
   const provenance = await getBoundWorkspaceFileSecretProvenance(workspaceId, identity)
-  return provenance.status === 'exact' && provenance.entries.length === 0
+  if (provenance.status === 'unknown') return false
+  if (provenance.status === 'unrecorded') return mayReadUnrecordedWorkspaceFile(workspaceId)
+  return provenance.entries.length === 0
 }
 
 /**
@@ -763,6 +884,7 @@ export async function importWorkspaceFileSecretProvenanceForRuntime(args: {
 }): Promise<boolean> {
   const provenance = await getBoundWorkspaceFileSecretProvenance(args.workspaceId, args.identity)
   if (provenance.status === 'unknown') return false
+  if (provenance.status === 'unrecorded') return mayReadUnrecordedWorkspaceFile(args.workspaceId)
   if (provenance.entries.length === 0) return true
   if (!args.registry) return false
 
@@ -801,30 +923,44 @@ export async function filterModelSafeWorkspaceFileAttachments<
   const rows = await loadModelSafeWorkspaceFileRows(keys)
 
   const rowByKey = new Map(rows.map((row) => [row.key, row]))
-  return attachments.filter((attachment) => {
+  let unrecorded = 0
+  const kept = attachments.filter((attachment) => {
     if (typeof attachment.key !== 'string' || attachment.key.length === 0) return true
     const row = rowByKey.get(attachment.key)
     if (!row) return true
     if (row.context !== 'workspace' && row.context !== 'mothership') return true
-    return isModelSafeWorkspaceFileRow(row, options.workspaceId)
+    const classification = classifyModelSafeWorkspaceFileRow(row, options.workspaceId)
+    if (classification === 'safe') return true
+    if (classification === 'unsafe') return false
+    unrecorded += 1
+    return !isDurableSecretProvenanceEnforced('workspace-file')
   })
+  /** One report for the whole set of attachments, which is one read, rather than one per file. */
+  if (unrecorded > 0) mayReadUnrecordedWorkspaceFile(options.workspaceId, unrecorded)
+  return kept
 }
 
-function isModelSafeWorkspaceFileRow(
+/**
+ * Classifies one row without deciding it. `unrecorded` is kept apart from `unsafe` because only the
+ * first is the same statement an untracked file makes, and only the first is the surface's policy
+ * to relax — a stale binding describes content that has since changed, and a malformed sidecar is a
+ * fault no policy relaxes.
+ */
+type ModelSafeWorkspaceFileClassification = 'safe' | 'unrecorded' | 'unsafe'
+
+function classifyModelSafeWorkspaceFileRow(
   row: ModelSafeWorkspaceFileRow,
   workspaceId?: string
-): boolean {
-  if (workspaceId && row.workspaceId !== workspaceId) return false
-  if (row.secretProvenanceVersion === null) return true
-  if (row.secretProvenanceVersion !== 1) return false
-  if (
-    row.provenanceContentUpdatedAt?.getTime() !== row.fileContentUpdatedAt.getTime() ||
-    row.status !== 'exact' ||
-    !isValidStoredEntries(row.entries)
-  ) {
-    return false
-  }
-  return row.entries.length === 0
+): ModelSafeWorkspaceFileClassification {
+  if (workspaceId && row.workspaceId !== workspaceId) return 'unsafe'
+  if (row.secretProvenanceVersion === null) return 'safe'
+  if (row.secretProvenanceVersion !== 1) return 'unsafe'
+  const bindingIsCurrent =
+    row.provenanceContentUpdatedAt?.getTime() === row.fileContentUpdatedAt.getTime()
+  if (!bindingIsCurrent || !isValidStoredEntries(row.entries)) return 'unsafe'
+  if (row.status === 'unrecorded') return 'unrecorded'
+  if (row.status !== 'exact') return 'unsafe'
+  return row.entries.length === 0 ? 'safe' : 'unsafe'
 }
 
 async function loadModelSafeWorkspaceFileRows(
@@ -879,9 +1015,13 @@ export async function areModelSafeWorkspaceFileKeys(
 
   const rows = await loadModelSafeWorkspaceFileRows(uniqueKeys)
 
-  return rows.every(
-    (row) =>
-      (row.context !== 'workspace' && row.context !== 'mothership') ||
-      isModelSafeWorkspaceFileRow(row, options.workspaceId)
-  )
+  let unrecorded = 0
+  for (const row of rows) {
+    if (row.context !== 'workspace' && row.context !== 'mothership') continue
+    const classification = classifyModelSafeWorkspaceFileRow(row, options.workspaceId)
+    if (classification === 'unsafe') return false
+    if (classification === 'unrecorded') unrecorded += 1
+  }
+  /** One report for the batch, not one per key: a caller checking many keys is one read. */
+  return unrecorded === 0 || mayReadUnrecordedWorkspaceFile(options.workspaceId, unrecorded)
 }

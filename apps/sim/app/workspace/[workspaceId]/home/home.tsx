@@ -652,6 +652,7 @@ export function Home({ chatId, userName, userId, tableViewsEnabled }: HomeProps)
           </div>
         ) : (
           <MothershipChat
+            workspaceId={workspaceId}
             messages={messages}
             isSending={isSending}
             isReconnecting={isReconnecting}
@@ -725,7 +726,7 @@ export function Home({ chatId, userName, userId, tableViewsEnabled }: HomeProps)
           size={null}
           type='button'
           onClick={isResourceCollapsed ? expandResource : collapseResource}
-          className='size-[var(--resource-header-toggle-size)] hover-hover:bg-[var(--surface-active)]'
+          className='size-[var(--resource-header-toggle-size)] rounded-[8px] hover-hover:bg-[var(--surface-active)]'
           aria-label={isResourceCollapsed ? 'Expand resource view' : 'Collapse resource view'}
         >
           <span className='relative'>

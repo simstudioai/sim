@@ -89,6 +89,7 @@ export function useDynamicSubBlockOptionDisplayName({
       workflowId: activeWorkflowId ?? undefined,
       workspaceId,
       canonicalModes: block.data?.canonicalModes,
+      triggerMode: block.triggerMode,
     })
   }, [block, liveValues, activeWorkflowId, workspaceId])
 

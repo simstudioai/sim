@@ -42,9 +42,10 @@ export interface ResourceTypeConfig {
   renderTabIcon: (resource: MothershipResource, className: string) => ReactNode
   renderDropdownItem: (props: DropdownItemRenderProps) => ReactNode
   /**
-   * How many of this family's candidates an unfiltered `@` list shows.
-   * Uncapped by default; set it for a family whose near-identical rows would
-   * otherwise bury every other family.
+   * How many of this family's candidates an unfiltered `@` list shows, overriding
+   * {@link MENTION_PREVIEW_DEFAULT_LIMIT}. Raise it only for a family whose rows a
+   * user browses; the unfiltered list is a preview, not a browser, and typing a
+   * query lifts the cap entirely — see `buildMentionPreview`.
    */
   mentionPreviewLimit?: number
 }
@@ -218,7 +219,6 @@ export const RESOURCE_REGISTRY: Record<MothershipResourceType, ResourceTypeConfi
       <Library className={cn(className, 'text-[var(--text-icon)]')} />
     ),
     renderDropdownItem: (props) => <LogDropdownItem {...props} />,
-    mentionPreviewLimit: 5,
   },
   integration: {
     type: 'integration',
@@ -248,6 +248,13 @@ export const RESOURCE_REGISTRY: Record<MothershipResourceType, ResourceTypeConfi
     renderDropdownItem: (props) => <IconDropdownItem {...props} icon={TerminalWindow} />,
   },
 } as const
+
+/**
+ * Rows per family in the unfiltered `@` preview, unless the family overrides it
+ * with {@link ResourceTypeConfig.mentionPreviewLimit}. Enough to show what a family
+ * holds without any one of them crowding out the rest.
+ */
+export const MENTION_PREVIEW_DEFAULT_LIMIT = 5
 
 /**
  * Top-down order for every menu that lists resource families, mirroring the
@@ -324,7 +331,7 @@ const RESOURCE_INVALIDATORS: Record<
   },
   /**
    * Integrations are sourced from the static integration catalog
-   * (`listIntegrations()`), not a server-backed query, so there is nothing to
+   * (`listIntegrationsByPopularity()`), not a server-backed query, so there is nothing to
    * invalidate when one is added.
    */
   integration: () => {},

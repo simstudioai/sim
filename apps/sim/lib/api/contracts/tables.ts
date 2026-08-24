@@ -3,6 +3,7 @@ import { z } from 'zod'
 import {
   booleanQueryFlagSchema,
   folderIdSchema,
+  MAX_ID_LENGTH,
   privateSecretProvenanceBundleSchema,
   requiredFieldSchema,
   workspaceIdSchema,
@@ -1097,6 +1098,21 @@ export const rowQueryBodySchema = z.object({
   workspaceId: z.string().min(1, 'Workspace ID is required'),
   predicate: predicateInputSchema.optional(),
   sort: sortSpecSchema.optional(),
+  columns: z
+    .array(
+      requiredFieldSchema('Column reference must not be empty').max(
+        MAX_ID_LENGTH,
+        'Column reference is too long'
+      )
+    )
+    .max(
+      TABLE_LIMITS.MAX_COLUMNS_PER_TABLE,
+      `Cannot select more than ${TABLE_LIMITS.MAX_COLUMNS_PER_TABLE} columns`
+    )
+    .optional()
+    .describe(
+      'Stable column identifiers or column names to include. Omit or pass an empty array for all columns; a reference that matches no column is ignored.'
+    ),
   // Omitted limit returns the ENTIRE matching result, failing fast (400) when
   // it exceeds the response byte budget. An explicit limit caps the page row
   // count; the byte budget may still end a page early with nextCursor set.

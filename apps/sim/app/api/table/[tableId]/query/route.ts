@@ -7,7 +7,12 @@ import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import type { Sort, TableSchema } from '@/lib/table'
-import { buildIdByName, sortSpecNamesToIds } from '@/lib/table/column-keys'
+import {
+  buildIdByName,
+  columnMatchesRef,
+  getColumnId,
+  sortSpecNamesToIds,
+} from '@/lib/table/column-keys'
 import { TableQueryValidationError } from '@/lib/table/errors'
 import { validatePredicate, validateSortSpec } from '@/lib/table/query-builder/validate'
 import { assertCursorQueryBinding, decodeCursor } from '@/lib/table/rows/cursor'
@@ -63,6 +68,27 @@ export const POST = withRouteHandler(async (request: NextRequest, context: RowQu
     const schema = table.schema as TableSchema
     const wire = rowWireTranslators(authResult.authType, schema)
     const cursor = body.cursor ? decodeCursor(body.cursor) : undefined
+    /**
+     * A reference that matches no column is dropped, not rejected: a workflow
+     * whose picked column was since deleted keeps running and simply gets the
+     * columns that still exist (the editor shows the orphaned id so it can be
+     * cleared). Skipped references are logged for server-side diagnostics.
+     */
+    let selectedColumnIds: Set<string> | undefined
+    const ignoredColumns: string[] = []
+    if (body.columns?.length) {
+      selectedColumnIds = new Set()
+      for (const reference of body.columns) {
+        const column = schema.columns.find((candidate) => columnMatchesRef(candidate, reference))
+        if (column) selectedColumnIds.add(getColumnId(column))
+        else ignoredColumns.push(reference)
+      }
+      if (ignoredColumns.length > 0) {
+        logger.warn(
+          `[${requestId}] Ignoring output columns not on table ${tableId}: ${ignoredColumns.join(', ')}`
+        )
+      }
+    }
 
     // Predicate/sort fields are column-NAME-keyed by construction (the caller
     // authors names), so validate against the schema then translate names →
@@ -99,6 +125,8 @@ export const POST = withRouteHandler(async (request: NextRequest, context: RowQu
         // Executions are grid UI state; the v2 surface returns row data only
         // and the byte budget deliberately measures just `data`.
         withExecutions: false,
+        // Projected inside the drain so the byte budget measures the response.
+        columnIds: selectedColumnIds,
       },
       requestId
     )

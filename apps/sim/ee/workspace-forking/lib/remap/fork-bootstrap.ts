@@ -22,7 +22,7 @@ export type ForkCopyResolver = (kind: ForkRemapKind, sourceId: string) => string
  * the child defines the key).
  */
 export function createForkBootstrapTransform(resolveCopied: ForkCopyResolver): SubBlockTransform {
-  return (subBlocks, blockType, canonicalModes, onCanonicalModesChanged) => {
+  return (subBlocks, blockType, canonicalModes, onCanonicalModesChanged, triggerMode) => {
     // Every resolution at fork-create IS a copy (the resolver is the copy id map), so all
     // remapped keys carry copy provenance - copy-faithful dependents (column picks) survive.
     // `blockType`/`canonicalModes` activate the mode policy: active basic remaps, active
@@ -30,6 +30,7 @@ export function createForkBootstrapTransform(resolveCopied: ForkCopyResolver): S
     const result = remapForkSubBlocks(subBlocks, resolveCopied, 'create', {
       blockType,
       canonicalModes,
+      triggerMode,
       isCopiedTarget: (kind, sourceId) => resolveCopied(kind, sourceId) != null,
     })
     if (result.canonicalModes) onCanonicalModesChanged?.(result.canonicalModes)
@@ -38,7 +39,8 @@ export function createForkBootstrapTransform(resolveCopied: ForkCopyResolver): S
       blockType,
       result.remappedKeys,
       result.canonicalModes ?? canonicalModes,
-      result.copyRemappedKeys
+      result.copyRemappedKeys,
+      triggerMode
     )
   }
 }

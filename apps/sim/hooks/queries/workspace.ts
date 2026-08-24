@@ -1,5 +1,11 @@
 import type { QueryClient } from '@tanstack/react-query'
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import {
+  keepPreviousData,
+  queryOptions,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query'
 import { ApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
 import type { ContractBodyInput } from '@/lib/api/contracts'
@@ -378,24 +384,30 @@ async function fetchWorkspaceSettings(workspaceId: string, signal?: AbortSignal)
  */
 export function prefetchWorkspaceSettings(queryClient: QueryClient, workspaceId: string) {
   if (!workspaceId) return
-  queryClient.prefetchQuery({
+  queryClient.prefetchQuery(workspaceSettingsQueryOptions(workspaceId))
+}
+
+export function workspaceSettingsQueryOptions(workspaceId: string) {
+  return queryOptions({
     queryKey: workspaceKeys.settings(workspaceId),
     queryFn: ({ signal }) => fetchWorkspaceSettings(workspaceId, signal),
     staleTime: WORKSPACE_SETTINGS_STALE_TIME,
+    placeholderData: keepPreviousData,
   })
+}
+
+interface UseWorkspaceSettingsOptions {
+  enabled?: boolean
 }
 
 /**
  * Fetches workspace settings including permissions.
  * @param workspaceId - The workspace ID to fetch settings for
  */
-export function useWorkspaceSettings(workspaceId: string) {
+export function useWorkspaceSettings(workspaceId: string, options?: UseWorkspaceSettingsOptions) {
   return useQuery({
-    queryKey: workspaceKeys.settings(workspaceId),
-    queryFn: ({ signal }) => fetchWorkspaceSettings(workspaceId, signal),
-    enabled: !!workspaceId,
-    staleTime: WORKSPACE_SETTINGS_STALE_TIME,
-    placeholderData: keepPreviousData,
+    ...workspaceSettingsQueryOptions(workspaceId),
+    enabled: !!workspaceId && (options?.enabled ?? true),
   })
 }
 

@@ -150,9 +150,10 @@ The same variables also power "Sign in with Microsoft".
 For Bitbucket, create an OAuth consumer and register
 `https://<your-domain>/api/auth/oauth2/callback/bitbucket` as its callback URL. Bitbucket fixes
 permissions on the consumer instead of narrowing them per authorization request. Enable exactly
-Account read, Repositories read/write, Pull requests read/write, and Pipelines read/write
-(`account`, `repository`, `repository:write`, `pullrequest`, `pullrequest:write`, `pipeline`, and
-`pipeline:write`). Webhook permission is not required for the integration-only release.
+Account read, Repositories read/write, Pull requests read/write, Pipelines read/write, and Webhooks
+read/write (`account`, `repository`, `repository:write`, `pullrequest`, `pullrequest:write`,
+`pipeline`, `pipeline:write`, and `webhook`). The webhook permission is required for automatic
+trigger subscription management.
 
 ### Services with a different flow
 

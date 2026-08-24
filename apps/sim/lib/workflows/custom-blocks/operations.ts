@@ -69,6 +69,8 @@ export interface CustomBlockWithInputs {
   description: string
   iconUrl: string | null
   enabled: boolean
+  /** Publisher's org-wide decision on joining this block's runs into consumer traces. */
+  traceChildRuns: boolean
   inputFields: WorkflowInputField[]
   exposedOutputs: CustomBlockOutput[]
 }
@@ -217,6 +219,7 @@ async function hydrateCustomBlockRow(joined: {
     description: row.description,
     iconUrl: row.iconUrl,
     enabled: row.enabled,
+    traceChildRuns: row.traceChildRuns,
     inputFields: applyInputPlaceholders(row.inputs, await deriveInputFields(row.workflowId)),
     exposedOutputs: row.outputs ?? [],
   }
@@ -312,6 +315,13 @@ export async function getCustomBlockAuthority(
   exposedOutputs: CustomBlockOutput[]
   /** Start-field ids (form keys) the publisher marked required. May reference removed fields. */
   requiredInputIds: string[]
+  /**
+   * Whether this invocation may publish its child run to the caller's trace. The
+   * publisher's decision is the whole policy, and it is resolved HERE so both the
+   * canvas handler and the Agent-tool runner — which reach execution through this
+   * same lookup — read one value that no consumer input can influence.
+   */
+  traceChildRuns: boolean
 } | null> {
   // Scope resolution to the consumer's org: `(organizationId, type)` is the unique
   // key, so without the org filter a `custom_block_*` type smuggled in from another
@@ -330,6 +340,7 @@ export async function getCustomBlockAuthority(
       enabled: customBlock.enabled,
       outputs: customBlock.outputs,
       inputs: customBlock.inputs,
+      traceChildRuns: customBlock.traceChildRuns,
       ownerUserId: workflow.userId,
     })
     .from(customBlock)
@@ -346,6 +357,7 @@ export async function getCustomBlockAuthority(
     ownerUserId: row.ownerUserId,
     exposedOutputs: row.outputs ?? [],
     requiredInputIds: (row.inputs ?? []).filter((i) => i.required).map((i) => i.id),
+    traceChildRuns: row.traceChildRuns,
   }
 }
 
@@ -440,6 +452,8 @@ export async function publishCustomBlock(params: {
   inputs?: InputPlaceholder[]
   /** Required — see {@link assertCuratedOutputs}. */
   exposedOutputs: CustomBlockOutput[]
+  /** Omitted means off — publishing a block never opens its runs to consumers by default. */
+  traceChildRuns?: boolean
 }): Promise<CustomBlockWithInputs> {
   const {
     organizationId,
@@ -451,6 +465,7 @@ export async function publishCustomBlock(params: {
     iconUrl,
     inputs,
     exposedOutputs,
+    traceChildRuns = false,
   } = params
 
   assertNoReservedOutputNames(exposedOutputs)
@@ -510,6 +525,7 @@ export async function publishCustomBlock(params: {
     inputs: inputs ?? [],
     outputs: exposedOutputs ?? [],
     enabled: true,
+    traceChildRuns,
     createdBy: userId,
     createdAt: now,
     updatedAt: now,
@@ -529,6 +545,7 @@ export async function publishCustomBlock(params: {
     description,
     iconUrl: iconUrl ?? null,
     enabled: true,
+    traceChildRuns,
     inputFields: applyInputPlaceholders(inputs ?? null, await deriveInputFields(workflowId)),
     exposedOutputs: exposedOutputs ?? [],
   }
@@ -548,6 +565,7 @@ export async function updateCustomBlock(
     iconUrl?: string | null
     inputs?: InputPlaceholder[]
     exposedOutputs?: CustomBlockOutput[]
+    traceChildRuns?: boolean
   }
 ): Promise<void> {
   if (updates.exposedOutputs !== undefined) {
@@ -561,6 +579,7 @@ export async function updateCustomBlock(
   if (updates.inputs !== undefined) patch.inputs = updates.inputs
   if (updates.exposedOutputs !== undefined) patch.outputs = updates.exposedOutputs
   if (updates.iconUrl !== undefined) patch.iconUrl = updates.iconUrl
+  if (updates.traceChildRuns !== undefined) patch.traceChildRuns = updates.traceChildRuns
 
   await db.update(customBlock).set(patch).where(eq(customBlock.id, id))
 }

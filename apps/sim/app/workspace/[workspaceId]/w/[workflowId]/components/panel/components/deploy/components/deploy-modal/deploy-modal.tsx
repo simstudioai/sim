@@ -35,6 +35,7 @@ import {
   tryAcquireDeployAction,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/hooks/deploy-action-lock'
 import type { DeployReadiness } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/hooks/use-deploy-readiness'
+import type { DeploymentViewState } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/hooks/use-deployment-view-state'
 import { runPreDeployChecks } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/hooks/use-predeploy-checks'
 import { normalizeName, startsWithUuid } from '@/executor/constants'
 import { useApiKeys } from '@/hooks/queries/api-keys'
@@ -66,12 +67,10 @@ interface DeployModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   workflowId: string | null
-  isDeployed: boolean
-  needsRedeployment: boolean
+  /** The one derived deployment verdict, shared with the deploy chip. */
+  deployment: DeploymentViewState
   deployedState?: WorkflowState | null
-  isLoadingDeployedState: boolean
   deployReadiness: DeployReadiness
-  isDeploymentSettling: boolean
 }
 
 interface WorkflowDeploymentInfoUI {
@@ -96,13 +95,19 @@ export function DeployModal({
   open,
   onOpenChange,
   workflowId,
-  isDeployed: isDeployedProp,
-  needsRedeployment,
-  deployedState,
-  isLoadingDeployedState,
+  deployment,
   deployReadiness,
-  isDeploymentSettling,
 }: DeployModalProps) {
+  const {
+    status: deploymentStatus,
+    isDeployed: isDeployedProp,
+    deployedState,
+    isAwaitingSnapshot,
+    isSettling: isDeploymentSettling,
+  } = deployment
+  const needsRedeployment = deploymentStatus === 'changed'
+  /* A snapshot that is expected but absent reads as loading everywhere. */
+  const isLoadingDeployedState = isAwaitingSnapshot
   const queryClient = useQueryClient()
   const params = useParams()
   const workspaceId = params?.workspaceId as string
@@ -135,9 +140,14 @@ export function DeployModal({
   const userPermissions = useUserPermissionsContext()
   const canManageWorkspaceKeys = userPermissions.canAdmin
   const { config: permissionConfig, isPublicApiDisabled } = usePermissionConfig()
-  const { data: apiKeysData, isLoading: isLoadingKeys } = useApiKeys(workflowWorkspaceId || '')
+  const { data: apiKeysData, isLoading: isLoadingKeys } = useApiKeys(
+    workflowWorkspaceId || '',
+    'combined',
+    { enabled: open }
+  )
   const { data: workspaceSettingsData, isLoading: isLoadingSettings } = useWorkspaceSettings(
-    workflowWorkspaceId || ''
+    workflowWorkspaceId || '',
+    { enabled: open }
   )
   const apiKeyWorkspaceKeys = apiKeysData?.workspaceKeys || []
   const apiKeyPersonalKeys = apiKeysData?.personalKeys || []
@@ -165,7 +175,9 @@ export function DeployModal({
     refetch: refetchChatInfo,
   } = useChatDeploymentInfo(workflowId, { enabled: open })
 
-  const { data: mcpServers = [] } = useWorkflowMcpServers(workflowWorkspaceId || '')
+  const { data: mcpServers = [] } = useWorkflowMcpServers(workflowWorkspaceId || '', {
+    enabled: open,
+  })
   const hasMcpServers = mcpServers.length > 0
 
   const deployMutation = useDeployWorkflow()
@@ -561,6 +573,7 @@ export function DeployModal({
                   workflowId={workflowId}
                   deployedState={deployedState}
                   isLoadingDeployedState={isLoadingDeployedState}
+                  isAwaitingSnapshot={isAwaitingSnapshot}
                   versions={versions}
                   versionsLoading={versionsLoading}
                   isPromotingVersion={isActivatingVersion || activateVersionMutation.isPending}

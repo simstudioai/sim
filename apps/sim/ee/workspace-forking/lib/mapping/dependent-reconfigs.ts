@@ -4,6 +4,7 @@ import { coerceObjectArray } from '@/lib/workflows/persistence/remap-internal-id
 import { getToolInputParamConfigs } from '@/lib/workflows/search-replace/indexer'
 import {
   buildSelectorContextFromBlock,
+  getSelectorContextSubBlocks,
   SELECTOR_CONTEXT_FIELDS,
 } from '@/lib/workflows/subblocks/context'
 import {
@@ -75,6 +76,8 @@ interface EmitAnchoredParams {
   targetWorkflowId: string
   /** Canonical-mode overrides for resolving the active parent member (undefined -> value heuristic). */
   canonicalModes?: CanonicalModeOverrides
+  /** Restricts a top-level trigger-mode block to its condition-visible trigger fields. */
+  triggerMode?: boolean
   /** Memoized so the deterministic target block id is derived at most once per block. */
   resolveTargetBlockId: () => string
   /** Map a dependent's config id to its wire `subBlockKey` (identity, or nested `tools[i].id`). */
@@ -117,6 +120,7 @@ function emitAnchoredDependents(params: EmitAnchoredParams): void {
     blockName,
     targetWorkflowId,
     canonicalModes,
+    triggerMode,
     resolveTargetBlockId,
     makeSubBlockKey,
     makeTitle,
@@ -127,18 +131,22 @@ function emitAnchoredDependents(params: EmitAnchoredParams): void {
   } = params
   const fullContext = buildSelectorContextFromBlock(contextBlockType, contextSubBlocks, {
     canonicalModes,
+    triggerMode,
   })
-  const canonicalIndex = buildCanonicalIndex(config.subBlocks)
-  const gates = createCanonicalModeGates(config.subBlocks, values, canonicalModes)
-  const configById = new Map(config.subBlocks.filter((cfg) => cfg.id).map((cfg) => [cfg.id, cfg]))
+  const scanSubBlocks = getSelectorContextSubBlocks(config.subBlocks, values, triggerMode)
+  const canonicalIndex = buildCanonicalIndex(scanSubBlocks)
+  // canonical-index-unscoped: `scanSubBlocks` is already narrowed to the active surface by
+  // `getSelectorContextSubBlocks` above, so scoping again here would be a no-op.
+  const gates = createCanonicalModeGates(scanSubBlocks, values, canonicalModes)
+  const configById = new Map(scanSubBlocks.filter((cfg) => cfg.id).map((cfg) => [cfg.id, cfg]))
   // Shared with `applyDependentOverrides`, so what the modal offers is exactly what the sync
   // can write back — the two encoded this rule separately once and drifted.
-  const reconfigurableIds = reconfigurableDependentIds(config.subBlocks)
+  const reconfigurableIds = reconfigurableDependentIds(scanSubBlocks)
   // A field could hang off two anchors (or be reachable via two paths); emit it once.
   const seen = new Set<string>()
 
   for (const anchor of PARENT_ANCHORS) {
-    for (const anchorCfg of config.subBlocks) {
+    for (const anchorCfg of scanSubBlocks) {
       if (anchorCfg.type !== anchor.subBlockType || !anchorCfg.id) continue
       // An anchor whose canonical pair is in ADVANCED (manual) mode is skipped entirely: the
       // active value is the user-owned manual member's, which is verbatim by policy - a sync
@@ -169,7 +177,7 @@ function emitAnchoredDependents(params: EmitAnchoredParams): void {
         if (typeof value === 'string' && value) context[key] = value
       }
 
-      for (const clear of getTransitiveSubBlockDependents(config.subBlocks, [anchorCfg.id])) {
+      for (const clear of getTransitiveSubBlockDependents(scanSubBlocks, [anchorCfg.id])) {
         const dependent = configById.get(clear.subBlockId)
         // A dependent is offered when the modal can actually render a control for it: a
         // registered selector, or a plain text field. Anything else is skipped and the
@@ -327,6 +335,7 @@ export function collectForkDependentReconfigs(
         blockName: block.name,
         targetWorkflowId: item.targetWorkflowId,
         canonicalModes: block.data?.canonicalModes,
+        triggerMode: block.triggerMode,
         resolveTargetBlockId: resolveBlockId,
         makeSubBlockKey: (id) => id,
         makeTitle: (dependent) => dependent.title ?? dependent.id ?? '',
