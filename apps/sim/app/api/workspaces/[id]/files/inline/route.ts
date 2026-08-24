@@ -4,6 +4,7 @@ import {
   internalRateLimits,
   internalSessionAuth,
 } from '@/lib/api/server/routes'
+import { resolveEffectiveMimeType } from '@/lib/uploads/utils/file-utils'
 import { internalFileErrorPolicies } from '@/lib/workspace-files/api'
 import { readWorkspaceInlineFile } from '@/lib/workspace-files/application/read-workspace-inline-file'
 import { encodeFilenameForHeader, getSecureFileHeaders } from '@/app/api/files/utils'
@@ -48,7 +49,7 @@ export const GET = defineInternalBinaryRoute({
   }),
   useCase: readWorkspaceInlineFile,
   present: ({ file, stream, contentAddressed }) => {
-    const secure = getSecureFileHeaders(file.name, file.type)
+    const secure = getSecureFileHeaders(file.name, resolveEffectiveMimeType(file.type, file.name))
     const headers = new Headers({
       'Content-Type': secure.contentType,
       'Content-Disposition': `${secure.disposition}; ${encodeFilenameForHeader(file.name)}`,

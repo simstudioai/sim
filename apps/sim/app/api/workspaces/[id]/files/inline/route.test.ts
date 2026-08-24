@@ -60,6 +60,19 @@ describe('GET /api/workspaces/[id]/files/inline', () => {
     })
   })
 
+  it('derives a renderable image type when storage recorded generic bytes', async () => {
+    mockReadInline.mockResolvedValue({
+      file: { name: 'photo.png', type: 'application/octet-stream', size: PNG.length },
+      stream: new Blob([new Uint8Array(PNG)]).stream(),
+      contentAddressed: true,
+    })
+
+    const res = await GET(req('key=workspace%2Fws-1%2Fphoto.png'), params)
+
+    expect(res.headers.get('Content-Type')).toBe('image/png')
+    expect(res.headers.get('Content-Disposition')).toBe('inline; filename="photo.png"')
+  })
+
   /**
    * A storage key names one object and a content write never rewrites one, so these bytes can never
    * change. Revalidating them meant re-downloading every embedded image on every open — a document is
