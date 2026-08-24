@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Button, Combobox } from '@sim/emcn'
 import { SquareArrowUpRight } from '@sim/emcn/icons'
 import { useParams } from 'next/navigation'
@@ -147,6 +147,13 @@ export function ToolCredentialSelector({
   const needsUpdate =
     hasSelection && missingRequiredScopes.length > 0 && !disabled && !credentialsLoading
 
+  useEffect(() => {
+    if (showOAuthModal && selectedId && !selectedCredential && !credentialsLoading) {
+      consumeOAuthReturnContext()
+      setShowOAuthModal(false)
+    }
+  }, [showOAuthModal, selectedId, selectedCredential, credentialsLoading])
+
   const handleSelect = useCallback(
     (credentialId: string) => {
       onChange(credentialId)
@@ -279,7 +286,7 @@ export function ToolCredentialSelector({
         />
       )}
 
-      {showOAuthModal && (
+      {showOAuthModal && selectedCredential && (
         <ConnectOAuthModal
           mode='reauthorize'
           open={showOAuthModal}
@@ -297,7 +304,12 @@ export function ToolCredentialSelector({
           // A reauthorize must return to the authorization server that issued
           // the credential — deriving it from the service id would send a
           // sandbox user to production, where they cannot sign in at all.
-          providerId={selectedCredential?.provider ?? effectiveProviderId}
+          providerId={selectedCredential.provider}
+          reconnectTarget={{
+            workspaceId,
+            credentialId: selectedCredential.id,
+            displayName: selectedCredential.name,
+          }}
         />
       )}
     </div>
