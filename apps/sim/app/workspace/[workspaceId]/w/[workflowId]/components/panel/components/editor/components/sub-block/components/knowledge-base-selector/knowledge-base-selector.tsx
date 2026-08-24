@@ -14,7 +14,7 @@ import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflow
 import type { SubBlockConfig } from '@/blocks/types'
 import { useKnowledgeBasesList } from '@/hooks/kb/use-knowledge'
 import { useFolderMap } from '@/hooks/queries/folders'
-import { fetchKnowledgeBase } from '@/hooks/queries/kb/knowledge'
+import { fetchKnowledgeBase, KNOWLEDGE_BASE_DETAIL_STALE_TIME } from '@/hooks/queries/kb/knowledge'
 import { collectDuplicateNames, disambiguateLabelByFolder } from '@/hooks/queries/utils/folder-tree'
 import { knowledgeKeys } from '@/hooks/queries/utils/knowledge-keys'
 
@@ -75,9 +75,9 @@ export function KnowledgeBaseSelector({
   const selectedKnowledgeBaseQueries = useQueries({
     queries: selectedIds.map((selectedId) => ({
       queryKey: knowledgeKeys.detail(selectedId),
-      queryFn: () => fetchKnowledgeBase(selectedId),
+      queryFn: ({ signal }: { signal: AbortSignal }) => fetchKnowledgeBase(selectedId, signal),
       enabled: Boolean(selectedId),
-      staleTime: 60 * 1000,
+      staleTime: KNOWLEDGE_BASE_DETAIL_STALE_TIME,
     })),
   })
 
