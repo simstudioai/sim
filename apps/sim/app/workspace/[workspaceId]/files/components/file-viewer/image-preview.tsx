@@ -8,9 +8,9 @@ import { ZoomablePreview } from './zoomable-preview'
 
 export const ImagePreview = memo(function ImagePreview({ file }: { file: WorkspaceFileRecord }) {
   const source = useFileContentSource()
-  /** `v` busts the browser cache across content writes; `preview` lets the server
-   *  substitute a renderable JPEG for a HEIC. */
-  const serveUrl = source.buildUrl(file.key, {
+  /** Workspace images use their content-addressed inline URL. Derivative-backed
+   *  sources use the version and preview flag to render formats such as HEIC. */
+  const serveUrl = source.buildImageUrl(file, {
     version: Number(new Date(file.updatedAt)) || file.size,
     preview: true,
   })

@@ -56,6 +56,10 @@ export interface ImageDimensionsSource {
  */
 export interface FileContentSource {
   buildUrl: (key: string, opts?: FileContentUrlOptions) => string
+  buildImageUrl: (
+    file: { key: string; name: string; type: string },
+    opts?: FileContentUrlOptions
+  ) => string
   /**
    * Map an embedded image `src` to a display URL scoped to the current context: the in-app source
    * points at the workspace-scoped inline route, the public source at the token-scoped cascade route.
@@ -81,7 +85,7 @@ function buildServeUrl(key: string, opts?: FileContentUrlOptions): string {
 function inlineImageSource(
   buildUrl: FileContentSource['buildUrl'],
   inlineBase: string
-): FileContentSource {
+): Pick<FileContentSource, 'buildUrl' | 'resolveImageSrc'> {
   return {
     buildUrl,
     resolveImageSrc: (src) => {
@@ -103,6 +107,16 @@ export function createWorkspaceFileContentSource(
 ): FileContentSource {
   return {
     ...inlineImageSource(buildServeUrl, `/api/workspaces/${workspaceId}/files/inline`),
+    buildImageUrl: (file, opts) => {
+      const heic =
+        file.type === 'image/heic' ||
+        file.type === 'image/heif' ||
+        /\.(?:heic|heif)$/i.test(file.name)
+      if (heic) return buildServeUrl(file.key, { ...opts, preview: true })
+
+      const params = new URLSearchParams({ key: file.key })
+      return `/api/workspaces/${encodeURIComponent(workspaceId)}/files/inline?${params}`
+    },
     ...imageDimensions,
   }
 }
@@ -116,11 +130,17 @@ export function createPublicFileContentSource(
   token: string,
   contentUrl: string
 ): FileContentSource {
-  return inlineImageSource(
-    (_key, opts) =>
+  return {
+    ...inlineImageSource(
+      (_key, opts) =>
+        opts?.preview
+          ? `${contentUrl}${contentUrl.includes('?') ? '&' : '?'}preview=1`
+          : contentUrl,
+      `/api/files/public/${token}/inline`
+    ),
+    buildImageUrl: (_file, opts) =>
       opts?.preview ? `${contentUrl}${contentUrl.includes('?') ? '&' : '?'}preview=1` : contentUrl,
-    `/api/files/public/${token}/inline`
-  )
+  }
 }
 
 /**
@@ -130,6 +150,7 @@ export function createPublicFileContentSource(
  */
 export const workspaceFileContentSource: FileContentSource = {
   buildUrl: buildServeUrl,
+  buildImageUrl: (file, opts) => buildServeUrl(file.key, { ...opts, preview: true }),
   resolveImageSrc: (src) => src,
 }
 

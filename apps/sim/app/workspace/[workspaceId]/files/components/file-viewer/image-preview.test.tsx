@@ -5,6 +5,10 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
+import {
+  createWorkspaceFileContentSource,
+  FileContentSourceProvider,
+} from '@/hooks/use-file-content-source'
 import { ImagePreview } from './image-preview'
 
 const file = {
@@ -43,7 +47,13 @@ afterEach(() => {
 })
 
 function render(record: WorkspaceFileRecord = file) {
-  act(() => root.render(<ImagePreview file={record} />))
+  act(() =>
+    root.render(
+      <FileContentSourceProvider value={createWorkspaceFileContentSource(record.workspaceId)}>
+        <ImagePreview file={record} />
+      </FileContentSourceProvider>
+    )
+  )
 }
 
 describe('ImagePreview', () => {
@@ -53,6 +63,13 @@ describe('ImagePreview', () => {
     const src = container.querySelector('img')?.getAttribute('src') ?? ''
     expect(src).toContain('preview=1')
     expect(src).not.toContain('raw=1')
+  })
+
+  it('streams browser-renderable images through the workspace inline endpoint', () => {
+    render({ ...file, name: 'photo.png', key: 'workspace/ws-1/photo.png', type: 'image/png' })
+
+    const src = container.querySelector('img')?.getAttribute('src') ?? ''
+    expect(src).toBe('/api/workspaces/ws-1/files/inline?key=workspace%2Fws-1%2Fphoto.png')
   })
 
   it('falls back to the unsupported state when the image fails to decode', () => {
