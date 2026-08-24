@@ -27,7 +27,7 @@ const CONSENT_OPTIONS = {
   mode: 'hosted',
   backendURL: CONSENT_BACKEND_URL,
   consentCategories: [...CONSENT_CATEGORIES],
-  scripts: GLOBAL_CONSENT_SCRIPTS,
+  scripts: [...GLOBAL_CONSENT_SCRIPTS],
   store: {
     reloadOnConsentRevoked: true,
     iframeBlockerConfig: { disableAutomaticBlocking: true },
