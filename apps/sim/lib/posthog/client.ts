@@ -2,53 +2,38 @@ import type { PostHog } from 'posthog-js'
 import type { PostHogEventMap, PostHogEventName } from '@/lib/posthog/events'
 
 /**
- * Resolves with the initialized PostHog instance, or `null` when analytics is
- * disabled or the library failed to load. Settled exactly once by
- * {@link settlePostHogClient}, which `PostHogProvider` calls on every branch.
- *
- * This gate exists because `posthog.capture` is a hard no-op until
- * `posthog.init()` has run: its entire body sits behind `if (this.__loaded)`,
- * with no buffer and no warning, so a call made before init is discarded
- * silently. `PostHogProvider` reaches init through two dynamic imports
- * (`posthog-js` and `posthog-js/react`), while a caller only needs `posthog-js`
- * — so anything captured on mount resolves first and lands in that dead window.
- * Mount-time events (`login_page_viewed`, `landing_page_viewed`) and, worst of
- * all, a crash report from an error boundary that fired during first paint were
- * the events most reliably lost.
+ * The currently consented, initialized PostHog client. Events raised before
+ * initialization or after consent withdrawal are intentionally dropped rather
+ * than buffered and replayed after the user's privacy decision changes.
  */
-let settlePostHog!: (instance: PostHog | null) => void
-const postHogReady = new Promise<PostHog | null>((resolve) => {
-  settlePostHog = resolve
-})
+let postHogClient: PostHog | null = null
 
 /**
- * Publishes the outcome of PostHog initialization to the capture helpers.
- * Called only by `PostHogProvider`. Repeat calls are no-ops.
+ * Publishes or clears the consented PostHog client used by non-React callers.
+ * Called only by `PostHogProvider`.
  *
  * @param instance - The initialized instance, or `null` when analytics is off.
  */
-export function settlePostHogClient(instance: PostHog | null): void {
-  settlePostHog(instance)
+export function setPostHogClient(instance: PostHog | null): void {
+  postHogClient = instance
 }
 
 /**
- * Runs `send` once PostHog is ready, swallowing everything. Analytics must
- * never surface as an unhandled rejection — these helpers are called from
- * error-reporting paths, where a throw would be captured as its own exception.
+ * Runs a capture against the currently consented client, swallowing everything.
+ * Analytics is fire-and-forget and must never fail an application path.
  */
-function whenReady(send: (posthog: PostHog) => void): void {
-  postHogReady
-    .then((posthog) => {
-      if (posthog) send(posthog)
-    })
-    .catch(() => {})
+function captureIfReady(send: (posthog: PostHog) => void): void {
+  if (!postHogClient) return
+  try {
+    send(postHogClient)
+  } catch {}
 }
 
 /**
  * Capture a client-side PostHog event from a non-React context (e.g. Zustand stores).
  *
  * Fully fire-and-forget — never throws, never blocks. Events captured before
- * PostHog finishes initializing are held until it does rather than dropped.
+ * consent and initialization are dropped.
  *
  * React components should use {@link captureEvent} with the `posthog` instance from `usePostHog()`.
  *
@@ -59,7 +44,7 @@ export function captureClientEvent<E extends PostHogEventName>(
   event: E,
   properties: PostHogEventMap[E]
 ): void {
-  whenReady((posthog) => {
+  captureIfReady((posthog) => {
     posthog.capture(event, properties as Record<string, unknown>)
   })
 }
@@ -78,7 +63,7 @@ export function captureClientEvent<E extends PostHogEventName>(
  * @param properties - Extra context merged onto the `$exception` event.
  */
 export function captureClientException(error: unknown, properties?: Record<string, unknown>): void {
-  whenReady((posthog) => {
+  captureIfReady((posthog) => {
     posthog.captureException(error, properties)
   })
 }

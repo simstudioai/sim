@@ -2,7 +2,9 @@
 
 import { useEffect } from 'react'
 import Cal, { getCalApi } from '@calcom/embed-react'
-import { isHosted } from '@/lib/core/config/env-flags'
+import { trackGoogleEvent } from '@/lib/analytics/google'
+import { X_DEMO_BOOKED_EVENT_ID } from '@/lib/consent/scripts'
+import { useTrackingConsent } from '@/lib/consent/tracking-consent'
 import type { DemoLead } from '@/app/(landing)/demo/components/demo-form'
 
 /** The Cal.com event the demo books - set `NEXT_PUBLIC_CAL_LINK` to override. */
@@ -15,34 +17,12 @@ const CAL_LINK = process.env.NEXT_PUBLIC_CAL_LINK ?? 'team/sim/demo'
  */
 const CAL_BRAND_COLOR = '#6f3dfa'
 
-/**
- * X (Twitter) conversion event fired when a demo is actually booked, so ad
- * delivery optimizes toward bookings rather than form submits.
- */
-const X_DEMO_BOOKED_EVENT_ID = 'tw-q5xbl-q5xbn'
-
 interface DemoSchedulerProps {
   /** The captured lead used to prefill the Cal.com booking. */
   lead: DemoLead
 }
 
 let calEmbedPreloaded = false
-
-/**
- * Fires the X conversion once the Cal.com booking is confirmed. There is no
- * standalone confirmation page to drop the pixel snippet into — Cal renders the
- * "you're booked" state inside its cross-origin iframe — so the embed's
- * `bookingSuccessfulV2` event is the confirmation.
- *
- * Module-scope so the same function identity can be handed to both `on` and
- * `off`. `window.twq` is only defined where {@link LandingLayout} renders the
- * pixel base code, so the optional call is a second guard for the window
- * between mount and `uwt.js` finishing — the stub `twq` queues calls made
- * before the script loads and replays them.
- */
-function trackDemoBooked(): void {
-  window.twq?.('event', X_DEMO_BOOKED_EVENT_ID, {})
-}
 
 /**
  * Warm the Cal.com embed before the scheduler mounts. Loads `embed.js` and
@@ -77,8 +57,20 @@ export function preloadCalEmbed(): void {
  * card stays the same height across the form→calendar transition.
  */
 export function DemoScheduler({ lead }: DemoSchedulerProps) {
+  const { marketing, measurement } = useTrackingConsent()
+
   useEffect(() => {
     let cancelled = false
+    const trackDemoBooked = () => {
+      if (measurement) {
+        trackGoogleEvent('get_a_demo', {
+          page_path: '/demo',
+          form_name: 'sim_demo',
+          booking_status: 'scheduled',
+        })
+      }
+      if (marketing) window.twq?.('event', X_DEMO_BOOKED_EVENT_ID, {})
+    }
     const api = getCalApi({ namespace: CAL_NAMESPACE })
     api
       .then((cal) => {
@@ -87,19 +79,19 @@ export function DemoScheduler({ lead }: DemoSchedulerProps) {
           hideEventTypeDetails: true,
           styles: { branding: { brandColor: CAL_BRAND_COLOR } },
         })
-        // Matches the layout's pixel gating - a self-hosted deployment loads no
-        // base pixel, so it must not subscribe an ad-tracking callback either.
-        if (isHosted) cal('on', { action: 'bookingSuccessfulV2', callback: trackDemoBooked })
+        if (measurement || marketing) {
+          cal('on', { action: 'bookingSuccessfulV2', callback: trackDemoBooked })
+        }
       })
       .catch(() => {})
     return () => {
       cancelled = true
-      if (!isHosted) return
+      if (!measurement && !marketing) return
       api
         .then((cal) => cal('off', { action: 'bookingSuccessfulV2', callback: trackDemoBooked }))
         .catch(() => {})
     }
-  }, [])
+  }, [marketing, measurement])
 
   return (
     <div className='flex h-full min-w-0 flex-col p-6 max-sm:p-5'>
