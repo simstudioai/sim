@@ -65,7 +65,14 @@ export interface SubflowNodeViewProps {
   isFocused: boolean
   /** Whether execution controls are active for this subflow. */
   isRunning?: boolean
-  /** Whether the parent workflow is executing. Holds every subflow action swell open. */
+  /**
+   * Whether the parent workflow is executing.
+   *
+   * Accepted and currently unread: `subflow-node.tsx` supplies it and nothing
+   * below consults it, so the hold-open behavior this once claimed is not
+   * implemented. Kept in the interface because the caller passes it — wire it up
+   * or stop passing it, but do not read this as working today.
+   */
   isWorkflowRunning?: boolean
   /** Whether this subflow participates in the current execution handoff. */
   isExecutionHighlighted?: boolean
@@ -326,7 +333,6 @@ export function SubflowNodeView({
   isLocked,
   isFocused,
   isRunning = false,
-  isWorkflowRunning = false,
   isExecutionHighlighted = false,
   diffStatus,
   nestingLevel,

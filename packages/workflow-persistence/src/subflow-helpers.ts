@@ -78,7 +78,7 @@ export function generateLoopBlocks(blocks: Record<string, BlockState>): Record<s
 
   Object.entries(blocks)
     .filter(([_, block]) => block.type === 'loop')
-    .forEach(([id, block]) => {
+    .forEach(([id]) => {
       const loop = convertLoopBlockToLoop(id, blocks)
       if (loop) {
         loops[id] = loop
@@ -95,7 +95,7 @@ export function generateParallelBlocks(
 
   Object.entries(blocks)
     .filter(([_, block]) => block.type === 'parallel')
-    .forEach(([id, block]) => {
+    .forEach(([id]) => {
       const parallel = convertParallelBlockToParallel(id, blocks)
       if (parallel) {
         parallels[id] = parallel

@@ -471,7 +471,7 @@ export class SimStudioClient {
     try {
       const status = await this.getWorkflowStatus(workflowId)
       return status.isDeployed
-    } catch (error) {
+    } catch {
       return false
     }
   }
