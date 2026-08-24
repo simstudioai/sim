@@ -1399,7 +1399,16 @@ export class ExecutionLogger implements IExecutionLoggerService {
           actorUserId,
           exactBillingContext
         )
-      } catch {}
+      } catch (recordError) {
+        /* The safety net is the last thing between a completed run and an unbilled
+           one. Swallowing it left the only emitted line saying a notification check
+           had failed and was non-fatal. */
+        execLog.error('Failed to record execution usage — this run may be unbilled', {
+          error: recordError,
+          executionId,
+          workflowId: updatedLog.workflowId,
+        })
+      }
       execLog.warn('Usage threshold notification check failed (non-fatal)', { error: e })
     }
 

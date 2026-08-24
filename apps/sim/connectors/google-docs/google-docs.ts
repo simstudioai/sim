@@ -304,7 +304,8 @@ export const googleDocsConnector: ConnectorConfig = {
 
     const maxDocs = sourceConfig.maxDocs ? Number(sourceConfig.maxDocs) : 0
     const previouslyFetched = (syncContext?.totalDocsFetched as number) ?? 0
-    const remaining = maxDocs > 0 ? maxDocs - previouslyFetched : 0
+    /** Last-page precision: never ask Drive for more files than the cap still allows. */
+    const remaining = maxDocs > 0 ? Math.max(0, maxDocs - previouslyFetched) : 0
     const pageSize = remaining > 0 ? Math.min(PAGE_SIZE, remaining) : PAGE_SIZE
 
     /**
