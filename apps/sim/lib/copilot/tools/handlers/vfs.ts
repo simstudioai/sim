@@ -564,7 +564,6 @@ export async function executeVfsRead(
       }
     }
 
-    let resolvedReadPath = path
     let result = await vfs.read(path, offset, limit)
     if (!result) {
       // Same name, wrong encoding (spaces instead of %20) is the most common
@@ -576,7 +575,6 @@ export async function executeVfsRead(
           requested: path,
           resolved: decodedEquivalent,
         })
-        resolvedReadPath = decodedEquivalent
         result = await vfs.read(decodedEquivalent, offset, limit)
       }
     }

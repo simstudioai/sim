@@ -1,4 +1,3 @@
-import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import type { RequestTraceV1Outcome as RequestTraceOutcome } from '@/lib/copilot/generated/request-trace-v1'
 import {
@@ -11,8 +10,6 @@ import { runCopilotLifecycle } from '@/lib/copilot/request/lifecycle/run'
 import { withCopilotOtelContext } from '@/lib/copilot/request/otel'
 import { TraceCollector } from '@/lib/copilot/request/trace'
 import type { OrchestratorResult } from '@/lib/copilot/request/types'
-
-const logger = createLogger('CopilotHeadlessLifecycle')
 
 export async function runHeadlessCopilotLifecycle(
   requestPayload: Record<string, unknown>,

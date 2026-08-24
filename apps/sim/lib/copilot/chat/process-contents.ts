@@ -558,46 +558,6 @@ async function processWorkflowFromDb(
   }
 }
 
-async function processPastChat(chatId: string, tagOverride?: string): Promise<AgentContext | null> {
-  try {
-    // boundary-raw-fetch: GET /api/mothership/chat?chatId=... has no defineRouteContract;
-    // the route forwards to the copilot chat handler and emits a free-form chat envelope
-    // that isn't covered by mothershipChatGetQuerySchema or copilotChatGetContract.
-    const resp = await fetch(`/api/mothership/chat?chatId=${encodeURIComponent(chatId)}`)
-    if (!resp.ok) {
-      logger.error('Failed to fetch past chat', { chatId, status: resp.status })
-      return null
-    }
-    const data = await resp.json()
-    const messages = Array.isArray(data?.chat?.messages) ? data.chat.messages : []
-    const content = messages
-      .map((m: any) => {
-        const role = m.role || 'user'
-        // Prefer contentBlocks text if present (joins text blocks), else use content
-        let text = ''
-        if (Array.isArray(m.contentBlocks) && m.contentBlocks.length > 0) {
-          text = m.contentBlocks
-            .filter((b: any) => b?.type === 'text')
-            .map((b: any) => String(b.content || ''))
-            .join('')
-            .trim()
-        }
-        if (!text && typeof m.content === 'string') text = m.content
-        return `${role}: ${text}`.trim()
-      })
-      .filter((s: string) => s.length > 0)
-      .join('\n')
-    logger.info('Processed past_chat context via API', { chatId, length: content.length })
-
-    return { type: 'past_chat', tag: tagOverride || '@', content }
-  } catch (error) {
-    logger.error('Error processing past chat', { chatId, error })
-    return null
-  }
-}
-
-// Back-compat alias; used by processContexts above
-
 async function processKnowledgeFromDb(
   knowledgeBaseId: string,
   userId: string | undefined,
