@@ -481,7 +481,12 @@ export const googleDocsConnector: ConnectorConfig = {
 
     try {
       const content = await fetchDocContent(accessToken, file.id)
-      if (!content.trim()) return null
+      if (!content.trim()) {
+        return {
+          ...markSkipped(fileToStub(file), 'Document contains no extractable text'),
+          skippedExistingDisposition: 'replace',
+        }
+      }
 
       return { ...fileToStub(file), content, contentDeferred: false }
     } catch (error) {

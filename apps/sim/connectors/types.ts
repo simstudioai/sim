@@ -65,6 +65,12 @@ export interface ExternalDocument {
    * being silently dropped.
    */
   skippedReason?: string
+  /**
+   * Controls what happens when a previously indexed document is intentionally
+   * skipped. The default retains its last-known-good content; `replace` removes
+   * stale indexed content and persists the skipped state as authoritative.
+   */
+  skippedExistingDisposition?: 'replace'
   /** Additional source-specific metadata */
   metadata?: Record<string, unknown>
 }

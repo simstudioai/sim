@@ -450,12 +450,12 @@ type KnowledgeBaseLockingTx = Pick<typeof db, 'execute' | 'select'>
 type DocOp =
   | { type: 'add'; extDoc: ExternalDocument }
   | { type: 'update'; existingId: string; extDoc: ExternalDocument }
-  | { type: 'skip'; extDoc: ExternalDocument }
+  | { type: 'skip'; existingId?: string; extDoc: ExternalDocument }
 
 type DocClassification =
   | { type: 'add' }
   | { type: 'update'; existingId: string }
-  | { type: 'skip' }
+  | { type: 'skip'; existingId?: string }
   | { type: 'unchanged' }
   | { type: 'drop' }
 
@@ -463,8 +463,8 @@ type DocClassification =
  * Decides what a listed external document becomes during reconciliation.
  *
  * - `skip`: connector flagged it (e.g. too large) and it is not already indexed —
- *   record a visible `failed` document instead of dropping it silently. A file that
- *   is already indexed is kept as-is (last-known-good) rather than downgraded.
+ *   record a visible `failed` document instead of dropping it silently. Existing
+ *   content stays last-known-good unless the connector marks the skip authoritative.
  * - `drop`: empty, non-deferred content that cannot be indexed.
  * - `add` / `update` / `unchanged`: normal content reconciliation by content hash.
  *
@@ -477,13 +477,21 @@ type DocClassification =
 export function classifyExternalDoc(
   extDoc: Pick<
     ExternalDocument,
-    'content' | 'sourceFile' | 'contentDeferred' | 'contentHash' | 'skippedReason'
+    | 'content'
+    | 'sourceFile'
+    | 'contentDeferred'
+    | 'contentHash'
+    | 'skippedReason'
+    | 'skippedExistingDisposition'
   >,
   existing: { id: string; contentHash: string | null } | undefined,
   forceRehydrate = false
 ): DocClassification {
   if (extDoc.skippedReason) {
-    return existing ? { type: 'unchanged' } : { type: 'skip' }
+    if (!existing) return { type: 'skip' }
+    return extDoc.skippedExistingDisposition === 'replace'
+      ? { type: 'skip', existingId: existing.id }
+      : { type: 'unchanged' }
   }
   if (!hasIndexablePayload(extDoc) && !extDoc.contentDeferred) {
     return { type: 'drop' }
@@ -2225,7 +2233,11 @@ export async function executeSync(
 
       switch (classification.type) {
         case 'skip':
-          pendingOps.push({ type: 'skip', extDoc })
+          pendingOps.push({
+            type: 'skip',
+            existingId: classification.existingId,
+            extDoc,
+          })
           break
         case 'drop':
           // Empty, non-deferred content is never usable. If this was a
@@ -2278,9 +2290,7 @@ export async function executeSync(
       // Oversized/skipped docs become visible `failed` rows (never silent). They are
       // flagged either at listing time (skip ops here) or discovered only at fetch
       // time during hydration below; both are collected and persisted after hydration.
-      const skipExtDocs: ExternalDocument[] = rawBatch
-        .filter((op) => op.type === 'skip')
-        .map((op) => op.extDoc)
+      const skipOps = rawBatch.filter((op) => op.type === 'skip')
 
       const contentOps = rawBatch.filter((op) => op.type !== 'skip')
       const deferredOps = contentOps.filter((op) => op.extDoc.contentDeferred)
@@ -2307,16 +2317,34 @@ export async function executeSync(
             // already-indexed files as last-known-good rather than downgrading them.
             if (fullDoc?.skippedReason) {
               if (op.type === 'add') {
-                skipExtDocs.push({
-                  ...op.extDoc,
-                  skippedReason: fullDoc.skippedReason,
-                  contentHash: fullDoc.contentHash ?? op.extDoc.contentHash,
-                  metadata: { ...op.extDoc.metadata, ...fullDoc.metadata },
+                skipOps.push({
+                  type: 'skip',
+                  extDoc: {
+                    ...op.extDoc,
+                    skippedReason: fullDoc.skippedReason,
+                    skippedExistingDisposition: fullDoc.skippedExistingDisposition,
+                    contentHash: fullDoc.contentHash ?? op.extDoc.contentHash,
+                    metadata: { ...op.extDoc.metadata, ...fullDoc.metadata },
+                  },
                 })
               } else if (op.type === 'update') {
-                // Already-indexed content stays last-known-good, but this source
-                // change was not verified and must keep the watermark replayable.
-                recordUnverifiedExistingRefresh(result, failedExternalIds, op.extDoc.externalId)
+                if (fullDoc.skippedExistingDisposition === 'replace') {
+                  skipOps.push({
+                    type: 'skip',
+                    existingId: op.existingId,
+                    extDoc: {
+                      ...op.extDoc,
+                      skippedReason: fullDoc.skippedReason,
+                      skippedExistingDisposition: 'replace',
+                      contentHash: fullDoc.contentHash ?? op.extDoc.contentHash,
+                      metadata: { ...op.extDoc.metadata, ...fullDoc.metadata },
+                    },
+                  })
+                } else {
+                  // Already-indexed content stays last-known-good, but this source
+                  // change was not verified and must keep the watermark replayable.
+                  recordUnverifiedExistingRefresh(result, failedExternalIds, op.extDoc.externalId)
+                }
               }
               return null
             }
@@ -2364,13 +2392,13 @@ export async function executeSync(
       }
 
       // Record all skipped (oversized) docs in this batch in one bulk insert.
-      if (skipExtDocs.length > 0) {
+      if (skipOps.length > 0) {
         try {
-          const recorded = await skipDocuments(
+          const recorded = await persistSkippedDocuments(
             connector.knowledgeBaseId,
             connectorId,
             connector.connectorType,
-            skipExtDocs,
+            skipOps,
             sourceConfig
           )
           result.docsSkipped += recorded
@@ -2379,10 +2407,13 @@ export async function executeSync(
            * The source items were intentionally skipped, but failing to persist their visible
            * failed rows is an actual sync failure.
            */
-          result.docsFailed += skipExtDocs.length
+          result.docsFailed += skipOps.length
+          for (const op of skipOps) {
+            failedExternalIds.add(op.extDoc.externalId)
+          }
           logger.error('Failed to record skipped documents', {
             connectorId,
-            count: skipExtDocs.length,
+            count: skipOps.length,
             error: toError(error).message,
           })
         }
@@ -3102,30 +3133,40 @@ function buildSkippedDocumentRow(
 }
 
 /**
- * Records source files that were intentionally not indexed (e.g. they exceed the
- * connector's size limit) as content-less `failed` documents in a single bulk insert.
+ * Records source files that were intentionally not indexed as content-less `failed`
+ * documents. New rows are inserted in bulk; authoritative skips replace stale rows.
  * This keeps the files visible in the knowledge base UI — with `processingError`
  * explaining why — instead of silently dropping them. The rows have no storage key,
  * so they are excluded from the stuck-document retry sweep (nothing to reprocess).
  *
- * Only called for files not already indexed; previously-indexed files that later
- * exceed the limit are kept as-is (last-known-good) by `classifyExternalDoc`.
+ * Ordinary skips on previously indexed files remain last-known-good. A connector can
+ * explicitly make a skip authoritative when retaining stale content would be wrong.
  *
  * Returns the number of rows recorded.
  */
-async function skipDocuments(
+export async function persistSkippedDocuments(
   knowledgeBaseId: string,
   connectorId: string,
   connectorType: string,
-  extDocs: ExternalDocument[],
+  skipOps: Array<{
+    type: 'skip'
+    existingId?: string
+    extDoc: ExternalDocument
+  }>,
   sourceConfig?: Record<string, unknown>
 ): Promise<number> {
-  if (extDocs.length === 0) {
+  if (skipOps.length === 0) {
     return 0
   }
-  const rows = extDocs.map((extDoc) =>
-    buildSkippedDocumentRow(knowledgeBaseId, connectorId, connectorType, extDoc, sourceConfig)
+  const inserts = skipOps
+    .filter((op) => !op.existingId)
+    .map((op) =>
+      buildSkippedDocumentRow(knowledgeBaseId, connectorId, connectorType, op.extDoc, sourceConfig)
+    )
+  const replacements = skipOps.filter((op): op is typeof op & { existingId: string } =>
+    Boolean(op.existingId)
   )
+  const replacedFileUrls: string[] = []
 
   await db.transaction(async (tx) => {
     const isActive = await isKnowledgeBaseActiveInTx(tx, knowledgeBaseId)
@@ -3133,10 +3174,78 @@ async function skipDocuments(
       throw new Error(`Knowledge base ${knowledgeBaseId} is deleted`)
     }
 
-    await tx.insert(document).values(rows)
+    if (inserts.length > 0) {
+      await tx.insert(document).values(inserts)
+    }
+
+    for (const replacement of replacements) {
+      const skipped = buildSkippedDocumentRow(
+        knowledgeBaseId,
+        connectorId,
+        connectorType,
+        replacement.extDoc,
+        sourceConfig
+      )
+      const [current] = await tx
+        .select({ fileUrl: document.fileUrl })
+        .from(document)
+        .where(connectorDocumentSyncTarget(replacement.existingId, knowledgeBaseId, connectorId))
+        .for('update')
+      if (!current) {
+        throw new Error(`Document ${replacement.existingId} is no longer active`)
+      }
+      const tagValues = replacement.extDoc.metadata
+        ? resolveTagMapping(connectorType, replacement.extDoc.metadata, sourceConfig)
+        : undefined
+      const replaced = await tx
+        .update(document)
+        .set({
+          filename: skipped.filename,
+          fileUrl: skipped.fileUrl,
+          storageKey: skipped.storageKey,
+          fileSize: skipped.fileSize,
+          mimeType: skipped.mimeType,
+          processingStatus: skipped.processingStatus,
+          processingError: skipped.processingError,
+          processingStartedAt: null,
+          processingCompletedAt: new Date(),
+          processingQueuedAt: null,
+          processingAttempts: 0,
+          chunkCount: 0,
+          tokenCount: 0,
+          characterCount: 0,
+          contentHash: skipped.contentHash,
+          sourceUrl: skipped.sourceUrl,
+          uploadedAt: skipped.uploadedAt,
+          deletedAt: null,
+          ...tagValues,
+        })
+        .where(connectorDocumentSyncTarget(replacement.existingId, knowledgeBaseId, connectorId))
+        .returning({ id: document.id })
+      if (replaced.length === 0) {
+        throw new Error(`Document ${replacement.existingId} is no longer active`)
+      }
+      if (current.fileUrl) replacedFileUrls.push(current.fileUrl)
+      await tx.delete(embedding).where(eq(embedding.documentId, replacement.existingId))
+    }
   })
 
-  return rows.length
+  for (const fileUrl of replacedFileUrls) {
+    try {
+      const urlPath = new URL(fileUrl, 'http://localhost').pathname
+      const storageKey = extractStorageKey(urlPath)
+      if (storageKey && storageKey !== urlPath) {
+        await deleteFile({ key: storageKey, context: 'knowledge-base' })
+        await deleteFileMetadata(storageKey)
+      }
+    } catch (error) {
+      logger.warn('Failed to delete storage for an authoritatively skipped document', {
+        error: toError(error).message,
+      })
+    }
+  }
+
+  return skipOps.length
 }
 
 /**

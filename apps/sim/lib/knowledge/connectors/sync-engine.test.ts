@@ -31,6 +31,12 @@ vi.mock('@/lib/knowledge/documents/service', () => ({
   processDocumentAsync: vi.fn(),
 }))
 vi.mock('@/lib/uploads', () => ({ StorageService: {} }))
+const { mockDeleteFile, mockDeleteFileMetadata } = vi.hoisted(() => ({
+  mockDeleteFile: vi.fn(),
+  mockDeleteFileMetadata: vi.fn(),
+}))
+vi.mock('@/lib/uploads/core/storage-service', () => ({ deleteFile: mockDeleteFile }))
+vi.mock('@/lib/uploads/server/metadata', () => ({ deleteFileMetadata: mockDeleteFileMetadata }))
 vi.mock('@/lib/oauth/credential-service', () => authOAuthUtilsMock)
 vi.mock('@/background/knowledge-connector-sync', () => ({
   knowledgeConnectorSync: { trigger: vi.fn() },
@@ -477,6 +483,22 @@ describe('classifyExternalDoc', () => {
     ).toEqual({ type: 'unchanged' })
   })
 
+  it('replaces stale indexed content for an authoritative skip', async () => {
+    const { classifyExternalDoc } = await import('@/lib/knowledge/connectors/sync-engine')
+
+    expect(
+      classifyExternalDoc(
+        {
+          ...base,
+          content: '',
+          skippedReason: 'no extractable text',
+          skippedExistingDisposition: 'replace',
+        },
+        { id: 'doc-1', contentHash: 'old' }
+      )
+    ).toEqual({ type: 'skip', existingId: 'doc-1' })
+  })
+
   it('drops empty non-deferred content', async () => {
     const { classifyExternalDoc } = await import('@/lib/knowledge/connectors/sync-engine')
     expect(classifyExternalDoc({ ...base, content: '   ' }, undefined)).toEqual({ type: 'drop' })
@@ -517,6 +539,118 @@ describe('classifyExternalDoc', () => {
     expect(classifyExternalDoc(base, { id: 'doc-1', contentHash: 'h1' }, true)).toEqual({
       type: 'unchanged',
     })
+  })
+})
+
+describe('persistSkippedDocuments', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
+  it('persists a new skipped document without dispatching processing', async () => {
+    const { persistSkippedDocuments } = await import('@/lib/knowledge/connectors/sync-engine')
+    queueTableRows(schemaMock.knowledgeBase, [{ id: 'kb-1' }])
+
+    await expect(
+      persistSkippedDocuments('kb-1', 'connector-1', 'no-tags', [
+        {
+          type: 'skip',
+          extDoc: {
+            externalId: 'external-1',
+            title: 'Empty document',
+            content: '',
+            mimeType: 'text/plain',
+            contentHash: 'empty-hash',
+            skippedReason: 'Document contains no extractable text',
+            skippedExistingDisposition: 'replace',
+          },
+        },
+      ])
+    ).resolves.toBe(1)
+
+    expect(dbChainMockFns.values).toHaveBeenCalledWith([
+      expect.objectContaining({
+        connectorId: 'connector-1',
+        externalId: 'external-1',
+        storageKey: null,
+        processingStatus: 'failed',
+        contentHash: 'empty-hash',
+      }),
+    ])
+    expect(dbChainMockFns.delete).not.toHaveBeenCalled()
+  })
+
+  it('atomically replaces stale indexed content for an authoritative skip', async () => {
+    const { persistSkippedDocuments } = await import('@/lib/knowledge/connectors/sync-engine')
+    const oldFileUrl = '/api/files/serve/kb/old-document.txt?context=knowledge-base'
+    queueTableRows(schemaMock.knowledgeBase, [{ id: 'kb-1' }])
+    queueTableRows(schemaMock.document, [{ fileUrl: oldFileUrl }])
+    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'doc-1' }])
+
+    await expect(
+      persistSkippedDocuments('kb-1', 'connector-1', 'no-tags', [
+        {
+          type: 'skip',
+          existingId: 'doc-1',
+          extDoc: {
+            externalId: 'external-1',
+            title: 'Empty document',
+            content: '',
+            mimeType: 'text/plain',
+            contentHash: 'new-empty-hash',
+            skippedReason: 'Document contains no extractable text',
+            skippedExistingDisposition: 'replace',
+          },
+        },
+      ])
+    ).resolves.toBe(1)
+
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        fileUrl: '',
+        storageKey: null,
+        processingStatus: 'failed',
+        processingError: 'Document contains no extractable text',
+        processingQueuedAt: null,
+        chunkCount: 0,
+        contentHash: 'new-empty-hash',
+        deletedAt: null,
+      })
+    )
+    expect(dbChainMockFns.delete).toHaveBeenCalledWith(schemaMock.embedding)
+    expect(mockDeleteFile).toHaveBeenCalledWith({
+      key: 'kb/old-document.txt',
+      context: 'knowledge-base',
+    })
+    expect(mockDeleteFileMetadata).toHaveBeenCalledWith('kb/old-document.txt')
+  })
+
+  it('does not delete old storage when the authoritative replacement fails', async () => {
+    const { persistSkippedDocuments } = await import('@/lib/knowledge/connectors/sync-engine')
+    queueTableRows(schemaMock.knowledgeBase, [{ id: 'kb-1' }])
+    queueTableRows(schemaMock.document, [])
+
+    await expect(
+      persistSkippedDocuments('kb-1', 'connector-1', 'no-tags', [
+        {
+          type: 'skip',
+          existingId: 'missing-doc',
+          extDoc: {
+            externalId: 'external-1',
+            title: 'Empty document',
+            content: '',
+            mimeType: 'text/plain',
+            contentHash: 'new-empty-hash',
+            skippedReason: 'Document contains no extractable text',
+            skippedExistingDisposition: 'replace',
+          },
+        },
+      ])
+    ).rejects.toThrow('Document missing-doc is no longer active')
+
+    expect(mockDeleteFile).not.toHaveBeenCalled()
+    expect(mockDeleteFileMetadata).not.toHaveBeenCalled()
   })
 })
 

@@ -356,9 +356,8 @@ export const googleDriveConnector: ConnectorConfig = {
     if (file.trashed) return null
 
     /**
-     * Mirrors the listing filter: a file re-uploaded under an unextractable type between
-     * listing and hydration has no content, which is an absence rather than a fetch
-     * failure. Returning null keeps it from being retried as a failure every sync.
+     * Mirrors the listing filter. The marker distinguishes a successfully
+     * verified unindexable file from an ambiguous null hydration.
      */
     if (!isGoogleWorkspaceFile(file.mimeType) && !isSupportedTextFile(file.mimeType)) {
       logger.info('Google Drive file has no extractable text type', {
@@ -370,7 +369,15 @@ export const googleDriveConnector: ConnectorConfig = {
 
     try {
       const payload = await fetchFilePayload(accessToken, file)
-      if (!payload.content.trim()) return null
+      if (!payload.content.trim()) {
+        return {
+          ...markSkipped(
+            { ...fileToStub(file), ...payload },
+            'Document contains no extractable text'
+          ),
+          skippedExistingDisposition: 'replace',
+        }
+      }
 
       const stub = fileToStub(file)
       return { ...stub, ...payload, contentDeferred: false }

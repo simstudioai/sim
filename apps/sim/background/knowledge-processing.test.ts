@@ -20,8 +20,12 @@ vi.mock('@/lib/knowledge/documents/service', () => ({
 }))
 
 import { EmbeddingQuotaExhaustedError } from '@/lib/embeddings/client'
+import { EMBEDDING_QUOTA_CIRCUIT_TTL_MS } from '@/lib/embeddings/quota-circuit'
 import { PermanentDocumentProcessingError } from '@/lib/knowledge/documents/document-processing-error'
-import { runDocumentProcessing } from '@/background/knowledge-processing'
+import {
+  documentProcessingRetryOverride,
+  runDocumentProcessing,
+} from '@/background/knowledge-processing'
 
 const BILLING_ATTRIBUTION = {
   actorUserId: 'external-admin',
@@ -193,8 +197,9 @@ describe('knowledge processing worker', () => {
     ).rejects.toBe(transientError)
   })
 
-  it('defers without failing the task when every embedding provider has exhausted credit', async () => {
-    mockProcessDocumentAsync.mockRejectedValue(new EmbeddingQuotaExhaustedError('openai'))
+  it('rethrows quota exhaustion so Trigger.dev can delay the retry', async () => {
+    const quotaError = new EmbeddingQuotaExhaustedError('openai')
+    mockProcessDocumentAsync.mockRejectedValue(quotaError)
 
     await expect(
       runDocumentProcessing({
@@ -203,12 +208,33 @@ describe('knowledge processing worker', () => {
         actorUserId: 'legacy-owner',
         workspaceId: null,
       })
-    ).resolves.toMatchObject({
-      success: false,
-      outcome: 'quota_deferred',
-      error:
-        'The embedding provider has exhausted its available quota. Add credit or replace the credential before retrying.',
-    })
+    ).rejects.toBe(quotaError)
+  })
+
+  it('does not refund the original dispatch charge again on a task retry', async () => {
+    await runDocumentProcessing(
+      {
+        ...BASE_PAYLOAD,
+        billingScope: 'non-workspace',
+        actorUserId: 'legacy-owner',
+        workspaceId: null,
+      },
+      2
+    )
+
+    expect(mockProcessDocumentAsync).toHaveBeenCalledWith(
+      'knowledge-base-1',
+      'document-1',
+      BASE_PAYLOAD.docData,
+      {},
+      {
+        billingScope: 'non-workspace',
+        actorUserId: 'legacy-owner',
+        workspaceId: null,
+      },
+      BASE_PAYLOAD.requestId,
+      undefined
+    )
   })
 })
 
@@ -223,5 +249,14 @@ describe('knowledge-process-document task configuration', () => {
     const { processDocument } = await import('@/background/knowledge-processing')
 
     expect(processDocument.retry?.outOfMemory?.machine).toBe('large-2x')
+  })
+
+  it('delays quota retries until the shared provider circuit can close', () => {
+    const now = Date.parse('2026-08-24T12:00:00.000Z')
+
+    expect(
+      documentProcessingRetryOverride(new EmbeddingQuotaExhaustedError('openai'), now)
+    ).toEqual({ retryAt: new Date(now + EMBEDDING_QUOTA_CIRCUIT_TTL_MS) })
+    expect(documentProcessingRetryOverride(new Error('transient'), now)).toBeUndefined()
   })
 })

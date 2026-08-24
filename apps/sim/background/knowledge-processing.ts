@@ -1,7 +1,8 @@
 import { createLogger } from '@sim/logger'
 import { task } from '@trigger.dev/sdk'
 import { env, envNumber } from '@/lib/core/config/env'
-import { EMBEDDING_QUOTA_EXHAUSTED_MESSAGE, isEmbeddingQuotaExhaustion } from '@/lib/embeddings'
+import { isEmbeddingQuotaExhaustion } from '@/lib/embeddings'
+import { EMBEDDING_QUOTA_CIRCUIT_TTL_MS } from '@/lib/embeddings/quota-circuit'
 import { isPermanentDocumentProcessingError } from '@/lib/knowledge/documents/document-processing-error'
 import {
   assertDocumentProcessingPayload,
@@ -12,7 +13,10 @@ import { processDocumentAsync } from '@/lib/knowledge/documents/service'
 
 const logger = createLogger('TriggerKnowledgeProcessing')
 
-export async function runDocumentProcessing(rawPayload: DocumentProcessingPayload) {
+export async function runDocumentProcessing(
+  rawPayload: DocumentProcessingPayload,
+  attemptNumber = 1
+) {
   const startedAt = Date.now()
   const payload = assertDocumentProcessingPayload(rawPayload)
   const { knowledgeBaseId, documentId, docData, processingOptions, requestId } = payload
@@ -40,7 +44,7 @@ export async function runDocumentProcessing(rawPayload: DocumentProcessingPayloa
       processingOptions,
       billingContext,
       requestId,
-      { chargedAtDispatch: true }
+      attemptNumber === 1 ? { chargedAtDispatch: true } : undefined
     )
 
     logger.info(`[${requestId}] Successfully processed document: ${docData.filename}`)
@@ -53,17 +57,10 @@ export async function runDocumentProcessing(rawPayload: DocumentProcessingPayloa
     }
   } catch (error) {
     if (isEmbeddingQuotaExhaustion(error)) {
-      logger.warn(`[${requestId}] Embedding quota is exhausted; deferring document processing`, {
+      logger.warn(`[${requestId}] Embedding quota is exhausted; requesting a delayed task retry`, {
         filename: docData.filename,
       })
-      return {
-        success: false,
-        outcome: 'quota_deferred' as const,
-        documentId,
-        filename: docData.filename,
-        error: EMBEDDING_QUOTA_EXHAUSTED_MESSAGE,
-        processingTime: Date.now() - startedAt,
-      }
+      throw error
     }
     if (isPermanentDocumentProcessingError(error)) {
       logger.warn(`[${requestId}] Document cannot be processed without changing its content`, {
@@ -83,6 +80,14 @@ export async function runDocumentProcessing(rawPayload: DocumentProcessingPayloa
     logger.error(`[${requestId}] Failed to process document: ${docData.filename}`, error)
     throw error
   }
+}
+
+export function documentProcessingRetryOverride(
+  error: unknown,
+  now = Date.now()
+): { retryAt: Date } | undefined {
+  if (!isEmbeddingQuotaExhaustion(error)) return
+  return { retryAt: new Date(now + EMBEDDING_QUOTA_CIRCUIT_TTL_MS) }
 }
 
 export const processDocument = task({
@@ -109,5 +114,7 @@ export const processDocument = task({
     concurrencyLimit: envNumber(env.KB_CONFIG_CONCURRENCY_LIMIT, 20),
     name: 'document-processing-queue',
   },
-  run: runDocumentProcessing,
+  catchError: ({ error }: { error: unknown }) => documentProcessingRetryOverride(error),
+  run: (payload: DocumentProcessingPayload, { ctx }) =>
+    runDocumentProcessing(payload, ctx.attempt.number),
 })

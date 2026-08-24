@@ -169,12 +169,17 @@ describe('googleDocsConnector', () => {
       )
     })
 
-    it('does not persist an empty tab response as an indexed document', async () => {
+    it('marks an empty tab response as an authoritative skip', async () => {
       stubFetchDocument(new Response(JSON.stringify({ tabs: [] }), { status: 200 }))
 
       await expect(
         googleDocsConnector.getDocument(ACCESS_TOKEN, {}, DOCUMENT_ID)
-      ).resolves.toBeNull()
+      ).resolves.toMatchObject({
+        content: '',
+        contentDeferred: false,
+        skippedExistingDisposition: 'replace',
+        skippedReason: 'Document contains no extractable text',
+      })
     })
 
     it('keeps the metadata hash identical between listing and hydration', async () => {

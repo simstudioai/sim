@@ -182,6 +182,17 @@ describe('Google Drive export failures', () => {
     expect(document?.sourceFile).toBeUndefined()
     expect(document?.contentHash).toBe('gdrive:drive-file-1:2026-08-20T12:00:00Z')
   })
+
+  it('marks an empty export as an authoritative skip', async () => {
+    const document = await hydrateWithExportResponse(new Response('   '))
+
+    expect(document).toMatchObject({
+      content: '',
+      contentDeferred: false,
+      skippedExistingDisposition: 'replace',
+      skippedReason: 'Document contains no extractable text',
+    })
+  })
 })
 
 describe('Google Drive connector limits', () => {
