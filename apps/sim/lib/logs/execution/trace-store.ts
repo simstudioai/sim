@@ -300,11 +300,16 @@ export async function materializeExecutionDataForDisplayWithBlockOutputs(
     return { executionData: displayData, blockOutputs: new Map() }
   }
 
+  const runProvenance =
+    materialized[RESOLVED_SECRET_PROVENANCE_KEY] ?? executionState?.[RESOLVED_SECRET_PROVENANCE_KEY]
   const runRegistry = await importResolvedSecretTraceRegistry(
-    materialized[RESOLVED_SECRET_PROVENANCE_KEY] ??
-      executionState?.[RESOLVED_SECRET_PROVENANCE_KEY],
+    runProvenance,
     'traceStore.blockOutputRunProvenance'
   )
+  const provenanceFaults = new Map<string, StoredDisplayProvenanceFault>()
+  if (isResolvedSecretTraceProvenanceV1(runProvenance) && !runProvenance.complete) {
+    provenanceFaults.set('run', 'incomplete')
+  }
   const blockOutputs = new Map<string, unknown>()
   const projectionStore = createReadOnlyProjectionStore(context)
 
@@ -313,6 +318,12 @@ export async function materializeExecutionDataForDisplayWithBlockOutputs(
     if (!blockState || blockState.output === undefined) continue
 
     const hasExactProvenance = Object.hasOwn(blockState, RESOLVED_SECRET_PROVENANCE_KEY)
+    if (hasExactProvenance) {
+      const blockProvenance = blockState[RESOLVED_SECRET_PROVENANCE_KEY]
+      if (isResolvedSecretTraceProvenanceV1(blockProvenance) && !blockProvenance.complete) {
+        provenanceFaults.set(`blockOutput:${blockId}`, 'incomplete')
+      }
+    }
     const registry = hasExactProvenance
       ? await importResolvedSecretTraceRegistry(
           blockState[RESOLVED_SECRET_PROVENANCE_KEY],
@@ -338,6 +349,7 @@ export async function materializeExecutionDataForDisplayWithBlockOutputs(
       blockOutputs.set(blockId, projected.output.value)
     }
   }
+  reportStoredDisplayProvenanceFaults('traceStore.blockOutputs', context, provenanceFaults)
 
   return { executionData: displayData, blockOutputs }
 }
@@ -346,15 +358,65 @@ function readRecord(value: unknown): Record<string, unknown> | undefined {
   return isRecordLike(value) ? (value as Record<string, unknown>) : undefined
 }
 
+/**
+ * Staged: display registries filter stored values for one materialization and are discarded, and
+ * their own mark-time summaries name no execution — the read boundary reports instead, through
+ * {@link reportStoredDisplayProvenanceFaults}. A stored envelope's incompleteness is not an event
+ * on this path; it was recorded when the run wrote it, and every later view re-derives it.
+ */
 async function importResolvedSecretTraceRegistry(
   provenance: unknown,
   origin: string
 ): Promise<ResolvedSecretTraceRegistry | undefined> {
   if (!isResolvedSecretTraceProvenanceV1(provenance)) return undefined
 
-  const registry = new ResolvedSecretTraceRegistry([], provenance.scope)
+  const registry = new ResolvedSecretTraceRegistry([], provenance.scope, { staged: true })
   await registry.importProvenance(provenance, { trusted: true, origin })
   return registry
+}
+
+type StoredDisplayProvenanceFault = 'incomplete' | 'malformed'
+
+const MAX_REPORTED_PROVENANCE_FAULT_PARTS = 20
+
+/**
+ * One attributed line per display materialization, in place of one registry summary per envelope
+ * per view.
+ *
+ * The registry summaries these replace carried counts and a workspace but no execution id, so a
+ * reader repeatedly materializing the same stored rows produced an unattributable stream — the
+ * lines could not say which executions to go look at. Incomplete stays at warn (a stored state
+ * being re-read); malformed stays at error (a stored envelope that cannot be parsed is a fault
+ * wherever it is met, matching the level its registry reason carries elsewhere).
+ */
+function reportStoredDisplayProvenanceFaults(
+  site: string,
+  context: TraceStoreReadContext,
+  faults: ReadonlyMap<string, StoredDisplayProvenanceFault>
+): void {
+  if (faults.size === 0) return
+  const partsByFault = { incomplete: [] as string[], malformed: [] as string[] }
+  for (const [part, fault] of faults) partsByFault[fault].push(part)
+  const details = {
+    site,
+    executionId: context.executionId,
+    ...(context.workflowId ? { workflowId: context.workflowId } : {}),
+    ...(context.workspaceId ? { workspaceId: context.workspaceId } : {}),
+  }
+  if (partsByFault.incomplete.length > 0) {
+    logger.warn('Stored execution provenance cannot vouch for display content', {
+      ...details,
+      parts: partsByFault.incomplete.slice(0, MAX_REPORTED_PROVENANCE_FAULT_PARTS),
+      partCount: partsByFault.incomplete.length,
+    })
+  }
+  if (partsByFault.malformed.length > 0) {
+    logger.error('Stored execution provenance is malformed', {
+      ...details,
+      parts: partsByFault.malformed.slice(0, MAX_REPORTED_PROVENANCE_FAULT_PARTS),
+      partCount: partsByFault.malformed.length,
+    })
+  }
 }
 
 function createReadOnlyProjectionStore(context: TraceStoreReadContext) {
@@ -426,6 +488,11 @@ export async function projectExecutionDataForDisplay(
 
   const projectionStore = createReadOnlyProjectionStore(context)
 
+  const provenanceFaults = new Map<string, StoredDisplayProvenanceFault>()
+  if (isResolvedSecretTraceProvenanceV1(provenance) && !provenance.complete) {
+    provenanceFaults.set('traceSpans', 'incomplete')
+  }
+
   const exactValueProjections = new Map<string, unknown>()
   for (const [valueKey, provenanceKey] of Object.entries(EXACT_LOG_VALUE_PROVENANCE_KEYS)) {
     if (
@@ -438,14 +505,16 @@ export async function projectExecutionDataForDisplay(
 
     const exactProvenance = executionState[provenanceKey]
     const exactRegistry = isResolvedSecretTraceProvenanceV1(exactProvenance)
-      ? new ResolvedSecretTraceRegistry([], exactProvenance.scope)
-      : new ResolvedSecretTraceRegistry()
+      ? new ResolvedSecretTraceRegistry([], exactProvenance.scope, { staged: true })
+      : new ResolvedSecretTraceRegistry([], undefined, { staged: true })
     if (isResolvedSecretTraceProvenanceV1(exactProvenance)) {
+      if (!exactProvenance.complete) provenanceFaults.set(valueKey, 'incomplete')
       await exactRegistry.importProvenance(exactProvenance, {
         trusted: true,
         origin: 'traceStore.exactProvenance',
       })
     } else {
+      provenanceFaults.set(valueKey, 'malformed')
       exactRegistry.markIncomplete('untrusted-provenance', { origin: 'traceStore.exactProvenance' })
     }
 
@@ -467,6 +536,7 @@ export async function projectExecutionDataForDisplay(
       exactValueProjections.set(valueKey, projected.output.value)
     }
   }
+  reportStoredDisplayProvenanceFaults('traceStore.displayProjection', context, provenanceFaults)
 
   const envelope: Record<string, unknown> = {}
   for (const key of LOG_DISPLAY_CONTENT_KEYS) {
