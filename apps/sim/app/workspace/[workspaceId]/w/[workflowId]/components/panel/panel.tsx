@@ -640,13 +640,10 @@ export const Panel = memo(function Panel() {
     setIsMenuOpen(false)
   }, [collaborativeBatchToggleLocked])
 
-  // Compute run button state
-  const canRun = userPermissions.canRead // Running only requires read permissions
+  const canRun = userPermissions.canRead
   const isLoadingPermissions = userPermissions.isLoading
-  const hasValidationErrors = false // TODO: Add validation logic if needed
-  const isWorkflowBlocked = isExecuting || hasValidationErrors
   const isButtonDisabled =
-    !isExecuting && (isUsageGateLoading || isWorkflowBlocked || (!canRun && !isLoadingPermissions))
+    !isExecuting && (isUsageGateLoading || (!canRun && !isLoadingPermissions))
 
   /**
    * Register global keyboard shortcuts using the central commands registry.
