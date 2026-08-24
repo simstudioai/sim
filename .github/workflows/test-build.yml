@@ -126,11 +126,18 @@ jobs:
       - name: Verify docs manifest is in sync
         run: bun run docs-manifest:check
 
+      # Its own step, and no `|| true`: a swallowed fetch leaves the base ref absent,
+      # which the audit cannot distinguish from a branch that changed no migrations.
+      # The depth stays at 1 — without a merge-base the audit diffs the two tips,
+      # which under `--diff-filter=AM` is exactly the migrations new on this branch.
+      - name: Fetch base ref for migration diff
+        if: github.event_name == 'pull_request'
+        run: git fetch --depth=1 origin "${{ github.base_ref }}"
+
       - name: Migration safety (zero-downtime) audit
         run: |
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             BASE_REF="origin/${{ github.base_ref }}"
-            git fetch --depth=1 origin "${{ github.base_ref }}" 2>/dev/null || true
           else
             BASE_REF="HEAD~1"
           fi
