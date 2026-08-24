@@ -86,9 +86,16 @@ const ENTRY_FILENAMES = new Set([
  * it as a boundary for having no default. Counting it as an entry both inflated
  * the coverage number and would have recorded a shared component in the
  * graph-weight baseline as though it were a route.
+ *
+ * All four declaring forms count — `export default …`, `export { default } from`,
+ * `export { default, … } from`, and `export { X as default }`. `export { default
+ * as X }` does not: it re-exports someone else's default under a name and leaves
+ * the module without one. Missing a form is the dangerous direction, since the
+ * entry would drop out of the walk and skip both the registry gate and the
+ * graph-weight ratchet silently.
  */
 const DEFAULT_EXPORT_RE =
-  /(?:^|\n)\s*export\s+default\b|(?:^|\n)\s*export\s*\{[^}]*\bas\s+default\b/
+  /(?:^|\n)\s*export\s+default\b|(?:^|\n)\s*export\s*\{[^}]*(?:\bas\s+default\b|\bdefault\s*[,}])/
 
 function hasDefaultExport(file: string): boolean {
   try {
