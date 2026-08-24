@@ -324,17 +324,24 @@ export const photonImessageHandler: WebhookProviderHandler = {
       //
       // Every step is checked. Re-registering over a stale record that is still there just earns
       // another 409, so a failure here has to surface as the thing the operator can act on rather
-      // than as a second conflict with no explanation.
+      // than as a second conflict with no explanation — and a transient fault has to read as
+      // "try again", not as the manual cleanup that only an unrecoverable state calls for.
       logger.info(`[${requestId}] Photon webhook URL already registered; re-keying`)
 
       const listed = await photonWebhooksRequest(projectId, projectSecret, '')
+      if (listed.status >= 400) {
+        throw new Error(
+          `Photon reports ${webhookUrl} is already registered, but listing webhooks to re-key it failed with status ${listed.status}. Deploy again once Photon is reachable.`
+        )
+      }
+
       const existing = (Array.isArray(listed.body.data) ? listed.body.data : []).find(
         (record: PhotonWebhookRecord) => record.webhookUrl === webhookUrl
       ) as PhotonWebhookRecord | undefined
 
       if (!existing?.id) {
         throw new Error(
-          `Photon reports ${webhookUrl} is already registered but did not return it when listing webhooks (status ${listed.status}). Its signing secret can only be reissued by re-creating it — delete the webhook in the Photon dashboard, then deploy again.`
+          `Photon reports ${webhookUrl} is already registered but did not return it when listing webhooks. Its signing secret can only be reissued by re-creating it — delete the webhook in the Photon dashboard, then deploy again.`
         )
       }
 

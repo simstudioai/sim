@@ -535,6 +535,25 @@ describe('photonImessageHandler', () => {
       ).rejects.toThrow(/could not remove the stale registration/i)
     })
 
+    it('tells the operator to retry when listing webhooks fails, not to clean up by hand', async () => {
+      const fetchMock = vi.fn(async (_url: RequestInfo | URL, init?: RequestInit) => {
+        const method = init?.method ?? 'GET'
+        if (method === 'POST') return new Response(JSON.stringify({}), { status: 409 })
+        return new Response(JSON.stringify({}), { status: 503 })
+      })
+      vi.stubGlobal('fetch', fetchMock)
+
+      await expect(
+        photonImessageHandler.createSubscription!(subscriptionContext(CREDS))
+      ).rejects.toThrow(/listing webhooks to re-key it failed with status 503/i)
+      // A transient list failure must not read as the manual-cleanup case.
+      await expect(
+        photonImessageHandler.createSubscription!(subscriptionContext(CREDS))
+      ).rejects.not.toThrow(/dashboard/i)
+      // Nothing was deleted on a read that never succeeded.
+      expect(fetchMock.mock.calls.some((call) => call[1]?.method === 'DELETE')).toBe(false)
+    })
+
     it('fails clearly when Photon reports a conflict but does not list the webhook', async () => {
       const fetchMock = vi.fn(async (_url: RequestInfo | URL, init?: RequestInit) => {
         const method = init?.method ?? 'GET'
