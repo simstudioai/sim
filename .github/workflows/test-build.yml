@@ -104,11 +104,22 @@ jobs:
 
           echo "✅ All env flags are properly configured"
 
+      # One fetch for both base-ref audits, and no `|| true`: a swallowed fetch leaves
+      # the base ref absent, which neither audit can tell apart from a branch that
+      # changed nothing. The block-registry check at least degrades to a visible
+      # `⚠ … skipping` line; the migration audit printed `✓ No new migrations to
+      # check` and exited 0, clearing the only guard on production DDL.
+      #
+      # Depth stays at 1 — without a merge-base the migration audit diffs the two
+      # tips, which under `--diff-filter=AM` is exactly the migrations new here.
+      - name: Fetch base ref for diff-based audits
+        if: github.event_name == 'pull_request'
+        run: git fetch --depth=1 origin "${{ github.base_ref }}"
+
       - name: Check block registry invariants
         run: |
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             BASE_REF="origin/${{ github.base_ref }}"
-            git fetch --depth=1 origin "${{ github.base_ref }}" 2>/dev/null || true
           else
             BASE_REF="HEAD~1"
           fi
@@ -125,14 +136,6 @@ jobs:
 
       - name: Verify docs manifest is in sync
         run: bun run docs-manifest:check
-
-      # Its own step, and no `|| true`: a swallowed fetch leaves the base ref absent,
-      # which the audit cannot distinguish from a branch that changed no migrations.
-      # The depth stays at 1 — without a merge-base the audit diffs the two tips,
-      # which under `--diff-filter=AM` is exactly the migrations new on this branch.
-      - name: Fetch base ref for migration diff
-        if: github.event_name == 'pull_request'
-        run: git fetch --depth=1 origin "${{ github.base_ref }}"
 
       - name: Migration safety (zero-downtime) audit
         run: |
