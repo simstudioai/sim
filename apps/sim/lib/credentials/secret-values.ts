@@ -38,8 +38,10 @@ export async function setWorkspaceSecret(params: {
    * clears it.
    */
   description?: string | null
+  /** Redaction opt-out on the credential row. `undefined` leaves the current setting. */
+  unredacted?: boolean
 }): Promise<SecretMutationResult> {
-  const { workspaceId, name, value, userId, description } = params
+  const { workspaceId, name, value, userId, description, unredacted } = params
   const { encrypted } = await encryptSecret(value)
   const updatedAt = new Date()
 
@@ -82,7 +84,11 @@ export async function setWorkspaceSecret(params: {
     })
     await tx
       .update(credential)
-      .set(description === undefined ? { updatedAt } : { updatedAt, description })
+      .set({
+        updatedAt,
+        ...(description !== undefined ? { description } : {}),
+        ...(unredacted !== undefined ? { unredacted } : {}),
+      })
       .where(
         and(
           eq(credential.workspaceId, workspaceId),

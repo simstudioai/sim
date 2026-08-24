@@ -39,6 +39,7 @@ import {
   verifyAndBuildServiceAccountSecret,
 } from '@/lib/credentials/service-account-secret'
 import { TokenServiceAccountValidationError } from '@/lib/credentials/token-service-accounts/errors'
+import { invalidateEffectiveDecryptedEnvCache } from '@/lib/environment/utils'
 import {
   GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID,
   SLACK_CUSTOM_BOT_PROVIDER_ID,
@@ -153,6 +154,8 @@ interface CredentialActorParams {
 export interface PerformUpdateCredentialParams extends CredentialActorParams {
   displayName?: string
   description?: string | null
+  /** Workspace-secret redaction opt-out; rejected for every type but env_workspace. */
+  unredacted?: boolean
   serviceAccountJson?: string
   /** Slack custom-bot secret rotation (reconnect). */
   signingSecret?: string
@@ -207,9 +210,23 @@ export async function updateCredentialRecord(
       }
     }
 
+    // Redaction only guards a shared workspace value, so the opt-out is meaningless on any
+    // other credential type. Rejected here, at the same layer as the description rule, so no
+    // surface can write a flag every reader would then have to special-case away.
+    if (params.unredacted !== undefined && params.credential.type !== 'env_workspace') {
+      return {
+        success: false,
+        error: 'Only workspace secrets can be marked visible (unredacted).',
+        errorCode: 'validation',
+      }
+    }
+
     const updates: Record<string, unknown> = {}
     if (params.description !== undefined) {
       updates.description = params.description ?? null
+    }
+    if (params.unredacted !== undefined) {
+      updates.unredacted = params.unredacted
     }
     if (
       params.displayName !== undefined &&
@@ -383,6 +400,13 @@ export async function updateCredentialRecord(
     updates.updatedAt = new Date()
     await db.update(credential).set(updates).where(eq(credential.id, params.credentialId))
 
+    // The flag rides the environment snapshot into every run's redaction catalog, so a flip
+    // must not serve stale from the same-process snapshot cache. Cross-process readers are
+    // bounded by that cache's short TTL instead.
+    if (updates.unredacted !== undefined) {
+      invalidateEffectiveDecryptedEnvCache({ workspaceId: params.credential.workspaceId })
+    }
+
     // Reconnecting to a recreated Slack app changes the bot user id, but each
     // deployed webhook cached the old one at deploy for reaction self-drop.
     // Propagate the rotated id to the credential's live custom-bot webhooks so
@@ -398,12 +422,16 @@ export async function updateCredentialRecord(
     }
 
     const updatedFields = auditUpdatedFields(updates)
+    const auditMetadata =
+      params.unredacted === undefined
+        ? rotatedAuditMetadata
+        : { ...(rotatedAuditMetadata ?? {}), unredacted: params.unredacted }
     return {
       success: true,
       workspaceId: params.credential.workspaceId,
       updatedFields,
       previousDisplayName: params.credential.displayName,
-      auditMetadata: rotatedAuditMetadata,
+      auditMetadata,
     }
   } catch (error) {
     if (error instanceof Error && error.message.includes('unique')) {

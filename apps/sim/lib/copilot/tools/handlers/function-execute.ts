@@ -704,6 +704,14 @@ export async function executeFunctionExecute(
     enrichedParams.envVars = mounted.envVars
     enrichedParams.secretScope = 'selected'
     enrichedParams.mountedSecrets = requestedNames
+    /**
+     * Certified by the mounted registry rather than read off the raw materializer entries, so
+     * a mounted secret sharing its plaintext with a protected one is withheld from the route.
+     */
+    const unredactedSecretNames = mountedRegistry.getUnredactedSecretNames()
+    if (unredactedSecretNames.length > 0) {
+      enrichedParams.unredactedSecretNames = unredactedSecretNames
+    }
 
     if (context.workspaceId) {
       const inputs = enrichedParams.inputs as

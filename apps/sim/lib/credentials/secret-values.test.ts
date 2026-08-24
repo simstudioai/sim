@@ -104,6 +104,71 @@ describe('secret value storage', () => {
     expect(result.created).toBe(false)
   })
 
+  it('writes the unredacted flag onto the credential row without touching the description', async () => {
+    queueTableRows(schemaMock.workspaceEnvironment, [
+      {
+        id: 'env-1',
+        variables: { STRIPE_KEY: 'encrypted-existing-value' },
+        createdAt: new Date('2024-01-01T00:00:00Z'),
+      },
+    ])
+
+    await setWorkspaceSecret({
+      workspaceId: 'workspace-1',
+      name: 'STRIPE_KEY',
+      value: 'rotated',
+      userId: 'user-1',
+      unredacted: true,
+    })
+
+    const credentialUpdate = dbChainMockFns.set.mock.calls[0][0] as Record<string, unknown>
+    expect(credentialUpdate.unredacted).toBe(true)
+    expect(credentialUpdate).not.toHaveProperty('description')
+  })
+
+  it('leaves the stored unredacted flag alone when the caller omits it', async () => {
+    queueTableRows(schemaMock.workspaceEnvironment, [
+      {
+        id: 'env-1',
+        variables: { STRIPE_KEY: 'encrypted-existing-value' },
+        createdAt: new Date('2024-01-01T00:00:00Z'),
+      },
+    ])
+
+    await setWorkspaceSecret({
+      workspaceId: 'workspace-1',
+      name: 'STRIPE_KEY',
+      value: 'rotated',
+      userId: 'user-1',
+    })
+
+    const credentialUpdate = dbChainMockFns.set.mock.calls[0][0] as Record<string, unknown>
+    expect(credentialUpdate).not.toHaveProperty('unredacted')
+    expect(credentialUpdate).not.toHaveProperty('description')
+  })
+
+  it('carries a description without touching the unredacted flag', async () => {
+    queueTableRows(schemaMock.workspaceEnvironment, [
+      {
+        id: 'env-1',
+        variables: { STRIPE_KEY: 'encrypted-existing-value' },
+        createdAt: new Date('2024-01-01T00:00:00Z'),
+      },
+    ])
+
+    await setWorkspaceSecret({
+      workspaceId: 'workspace-1',
+      name: 'STRIPE_KEY',
+      value: 'rotated',
+      userId: 'user-1',
+      description: 'Prod billing key',
+    })
+
+    const credentialUpdate = dbChainMockFns.set.mock.calls[0][0] as Record<string, unknown>
+    expect(credentialUpdate.description).toBe('Prod billing key')
+    expect(credentialUpdate).not.toHaveProperty('unredacted')
+  })
+
   it('sets a personal value through caller-owned metadata only', async () => {
     queueTableRows(schemaMock.environment, [])
 

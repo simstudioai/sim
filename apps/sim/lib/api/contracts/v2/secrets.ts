@@ -39,6 +39,11 @@ export const v2SecretSchema = z
       .describe(
         'What the secret is for, as set on the workspace secret. Always null for a personal secret, which has no shared audience.'
       ),
+    unredacted: z
+      .boolean()
+      .describe(
+        'Whether the workspace secret opts out of redaction, so its value appears in plaintext in run logs and model-visible content. Always false for a personal secret.'
+      ),
     role: workspaceCredentialRoleSchema.describe('Caller role for the secret.'),
     createdAt: v2TimestampSchema.describe('ISO 8601 timestamp when the secret was created.'),
     updatedAt: v2TimestampSchema.describe('ISO 8601 timestamp when the secret was last updated.'),
@@ -102,6 +107,12 @@ export const v2SetSecretBodySchema = z
       .describe(
         'What the secret is for, shown to teammates. Workspace scope only — sending it for a personal secret is rejected. Omit it to leave an existing description untouched; send null or an empty string to clear one.'
       ),
+    unredacted: z
+      .boolean()
+      .optional()
+      .describe(
+        'Opt the workspace secret out of redaction: its value then appears in plaintext in run logs, model-visible content, and files, including publicly shared log links. Workspace scope only — sending it for a personal secret is rejected. Omit it to leave the current setting untouched.'
+      ),
   })
   .strict()
   .superRefine((data, ctx) => {
@@ -110,6 +121,13 @@ export const v2SetSecretBodySchema = z
         code: 'custom',
         path: ['description'],
         message: 'description is only supported for a workspace secret',
+      })
+    }
+    if (data.scope === 'personal' && data.unredacted !== undefined) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['unredacted'],
+        message: 'unredacted is only supported for a workspace secret',
       })
     }
   })

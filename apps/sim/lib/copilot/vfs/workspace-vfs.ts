@@ -3164,9 +3164,18 @@ export class WorkspaceVFS {
         Object.keys(envData.workspaceEncrypted),
         secretMountPolicy
       )
+      /** Intersected with the policy-filtered names, so the mount policy applies here too. */
+      const workspaceVarNameSet = new Set(workspaceVarNames)
+      const unredactedWorkspaceVarNames = envData.workspaceUnredactedKeys.filter((name) =>
+        workspaceVarNameSet.has(name)
+      )
       this.files.set(
         'environment/variables.json',
-        serializeEnvironmentVariables(personalVarNames, workspaceVarNames)
+        serializeEnvironmentVariables(
+          personalVarNames,
+          workspaceVarNames,
+          unredactedWorkspaceVarNames
+        )
       )
 
       const envKeys = [...visibleEnvCredentialNames]

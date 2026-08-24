@@ -5607,6 +5607,10 @@
             ],
             "description": "What the secret is for, as set on the workspace secret. Always null for a personal secret, which has no shared audience."
           },
+          "unredacted": {
+            "type": "boolean",
+            "description": "Whether the workspace secret opts out of redaction, so its value appears in plaintext in run logs and model-visible content. Always false for a personal secret."
+          },
           "role": {
             "type": "string",
             "enum": ["admin", "member"],
@@ -5625,7 +5629,15 @@
             "description": "ISO 8601 timestamp when the secret was last updated."
           }
         },
-        "required": ["name", "scope", "description", "role", "createdAt", "updatedAt"],
+        "required": [
+          "name",
+          "scope",
+          "description",
+          "unredacted",
+          "role",
+          "createdAt",
+          "updatedAt"
+        ],
         "additionalProperties": false,
         "title": "Secret metadata",
         "description": "Public secret metadata without the stored secret value."
@@ -5663,6 +5675,7 @@
                 "name": "STRIPE_API_KEY",
                 "scope": "workspace",
                 "description": "Production billing key — rotate quarterly.",
+                "unredacted": false,
                 "role": "admin",
                 "createdAt": "2026-06-01T09:14:00.000Z",
                 "updatedAt": "2026-06-20T14:02:11.000Z"
@@ -5690,6 +5703,7 @@
               "name": "STRIPE_API_KEY",
               "scope": "workspace",
               "description": "Production billing key — rotate quarterly.",
+              "unredacted": false,
               "role": "admin",
               "createdAt": "2026-06-01T09:14:00.000Z",
               "updatedAt": "2026-06-20T14:02:11.000Z"
@@ -5729,6 +5743,10 @@
                 "type": "null"
               }
             ]
+          },
+          "unredacted": {
+            "description": "Opt the workspace secret out of redaction: its value then appears in plaintext in run logs, model-visible content, and files, including publicly shared log links. Workspace scope only — sending it for a personal secret is rejected. Omit it to leave the current setting untouched.",
+            "type": "boolean"
           }
         },
         "required": ["workspaceId", "scope", "value"],

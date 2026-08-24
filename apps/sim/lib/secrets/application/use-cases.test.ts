@@ -216,6 +216,76 @@ describe('secret application use cases', () => {
     ).rejects.toThrow(/only supported for a workspace secret/)
   })
 
+  it('refuses unredacted on a personal secret in the use case, not just the contract', async () => {
+    await expect(
+      setSecretUseCase.execute({
+        principal: session,
+        input: {
+          workspaceId: workspace.workspaceId,
+          name: secret.envKey,
+          scope: 'personal',
+          value: 'secret-value',
+          unredacted: true,
+        },
+      })
+    ).rejects.toThrow(/unredacted is only supported for a workspace secret/)
+
+    expect(mocks.setPersonal).not.toHaveBeenCalled()
+    expect(mocks.audit).not.toHaveBeenCalled()
+  })
+
+  it('forwards the workspace unredacted flag to the manager and audits its value', async () => {
+    await setSecretUseCase.execute({
+      principal: session,
+      input: {
+        workspaceId: workspace.workspaceId,
+        name: secret.envKey,
+        scope: 'workspace',
+        value: 'secret-value',
+        unredacted: true,
+      },
+    })
+
+    expect(mocks.setWorkspace).toHaveBeenCalledWith(expect.objectContaining({ unredacted: true }))
+    expect(mocks.audit).toHaveBeenCalledWith(
+      expect.objectContaining({ metadata: expect.objectContaining({ unredacted: true }) })
+    )
+  })
+
+  it('audits the recorded value when the flag is explicitly turned off', async () => {
+    await setSecretUseCase.execute({
+      principal: session,
+      input: {
+        workspaceId: workspace.workspaceId,
+        name: secret.envKey,
+        scope: 'workspace',
+        value: 'secret-value',
+        unredacted: false,
+      },
+    })
+
+    expect(mocks.setWorkspace).toHaveBeenCalledWith(expect.objectContaining({ unredacted: false }))
+    expect(mocks.audit).toHaveBeenCalledWith(
+      expect.objectContaining({ metadata: expect.objectContaining({ unredacted: false }) })
+    )
+  })
+
+  it('omits unredacted from the audit metadata when it was not provided', async () => {
+    await setSecretUseCase.execute({
+      principal: session,
+      input: {
+        workspaceId: workspace.workspaceId,
+        name: secret.envKey,
+        scope: 'workspace',
+        value: 'secret-value',
+      },
+    })
+
+    const metadata = (mocks.audit.mock.calls[0][0] as { metadata: Record<string, unknown> })
+      .metadata
+    expect(metadata).not.toHaveProperty('unredacted')
+  })
+
   it('still fails a workspace write whose metadata never materialized', async () => {
     mocks.listCredentials.mockResolvedValue({ data: [], nextCursorKeys: null })
 

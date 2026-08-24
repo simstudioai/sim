@@ -43,6 +43,8 @@ interface AuthorizedEncryptedSecret {
    * a secret the borrower does not have.
    */
   ownerUserId?: string
+  /** Workspace secrets whose credential row opts them out of redaction. */
+  unredacted?: true
 }
 
 export interface MaterializedCopilotCodeSecrets {
@@ -168,7 +170,7 @@ export async function materializeCopilotCodeSecrets(params: {
     )
   }
 
-  const [personalRows, workspaceRows, credentialRows] = await Promise.all([
+  const [personalRows, workspaceRows, credentialRows, unredactedRows] = await Promise.all([
     db
       .select({
         variables: requestedVariables(environment.variables, requestedNames),
@@ -227,10 +229,32 @@ export async function materializeCopilotCodeSecrets(params: {
       )
       .orderBy(credential.type, credential.envKey, desc(credential.updatedAt))
       .limit(MAX_SECRET_MOUNT_NAMES * 2),
+    /**
+     * Membership-free on purpose: the join above returns rows only for the actor's own
+     * credentialMember grants, but a workspace admin mounts through `access.canAdmin` with no
+     * membership row at all — the flag must not go silently inert for exactly the admins who
+     * set it. The flag is workspace-level metadata, not secret material, and the actor already
+     * passed the write-access check above.
+     */
+    db
+      .select({ envKey: credential.envKey })
+      .from(credential)
+      .where(
+        and(
+          eq(credential.workspaceId, params.workspaceId),
+          eq(credential.type, 'env_workspace'),
+          inArray(credential.envKey, requestedNames),
+          eq(credential.unredacted, true)
+        )
+      )
+      .limit(MAX_SECRET_MOUNT_NAMES),
   ])
 
   const ownPersonalEncrypted = encryptedVariables(personalRows[0])
   const workspaceEncrypted = encryptedVariables(workspaceRows[0])
+  const unredactedWorkspaceKeys = new Set(
+    unredactedRows.flatMap((row) => (row.envKey === null ? [] : [row.envKey]))
+  )
   const ownPersonalOverLimit = overLimitNames(personalRows[0])
   const workspaceOverLimit = overLimitNames(workspaceRows[0])
   const envCredentialRows = credentialRows.filter(
@@ -264,7 +288,12 @@ export async function materializeCopilotCodeSecrets(params: {
         overLimit.push(name)
         continue
       }
-      authorizedSources.push({ name, encryptedValue: workspaceValue, scope: 'workspace' })
+      authorizedSources.push({
+        name,
+        encryptedValue: workspaceValue,
+        scope: 'workspace',
+        ...(unredactedWorkspaceKeys.has(name) ? { unredacted: true as const } : {}),
+      })
       continue
     }
 
@@ -318,7 +347,7 @@ export async function materializeCopilotCodeSecrets(params: {
   let decryptedEntries: ResolvedSecretTraceCatalogEntry[]
   try {
     decryptedEntries = await Promise.all(
-      authorizedSources.map(async ({ name, encryptedValue, scope, ownerUserId }) => {
+      authorizedSources.map(async ({ name, encryptedValue, scope, ownerUserId, unredacted }) => {
         const { decrypted } = await decryptSecret(encryptedValue)
         return {
           name,
@@ -326,6 +355,7 @@ export async function materializeCopilotCodeSecrets(params: {
           encryptedValue,
           scope,
           ...(ownerUserId ? { ownerUserId } : {}),
+          ...(unredacted ? { unredacted } : {}),
         }
       })
     )
