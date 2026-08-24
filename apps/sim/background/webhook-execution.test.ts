@@ -661,7 +661,7 @@ describe('executeWebhookJob fault vs error handling', () => {
     expect(loggingSessionMockFns.mockSafeCompleteWithError).toHaveBeenCalled()
   })
 
-  it('faults the run when the requeue enqueue itself fails', async () => {
+  it('faults the run and restores the terminal log row when the requeue enqueue itself fails', async () => {
     executionPreprocessingMockFns.mockPreprocessExecution.mockResolvedValueOnce({
       success: false,
       error: {
@@ -674,6 +674,17 @@ describe('executeWebhookJob fault vs error handling', () => {
 
     await expect(executeWebhookJob(payload)).rejects.toThrow(
       'Internal error while fetching workflow'
+    )
+
+    // The retry-bound attempt suppressed its failure row; a failed requeue means
+    // no retry will run, so the terminal row must be written before faulting.
+    expect(loggingSessionMockFns.mockSafeStart).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: 'user-1', workspaceId: 'workspace-1' })
+    )
+    expect(loggingSessionMockFns.mockSafeCompleteWithError).toHaveBeenCalledWith(
+      expect.objectContaining({
+        error: expect.objectContaining({ message: 'Internal error while fetching workflow' }),
+      })
     )
   })
 })

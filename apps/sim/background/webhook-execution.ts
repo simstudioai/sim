@@ -2,7 +2,7 @@ import { db } from '@sim/db'
 import { account, webhook } from '@sim/db/schema'
 import { createLogger, runWithRequestContext } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { sleep } from '@sim/utils/helpers'
+import { interruptibleSleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { isRecordLike } from '@sim/utils/object'
 import { backoffWithJitter } from '@sim/utils/retry'
@@ -377,11 +377,12 @@ async function requeueWebhookExecutionAfterSetupFailure(
       /**
        * The database backend executes jobs only through an in-process runner
        * and does not apply `delayMs` to it, so the runner sleeps out the
-       * backoff itself; the trigger.dev backend ignores this field and delays
+       * backoff itself (abort-aware, so cancellation and shutdown don't wait
+       * out the timer); the trigger.dev backend ignores this field and delays
        * server-side.
        */
       runner: async (_queuedPayload: unknown, signal: AbortSignal) => {
-        await sleep(delayMs)
+        await interruptibleSleep(delayMs, signal)
         if (signal.aborted) return undefined
         return executeWebhookJob(retryPayload, signal)
       },
@@ -415,6 +416,54 @@ async function requeueWebhookExecutionAfterSetupFailure(
       }
     )
     return false
+  }
+}
+
+/**
+ * Restores the terminal failed execution-log row for a setup failure whose
+ * replacement enqueue failed. Attempts headed for a requeue suppress their
+ * failure row so the retry can reuse the execution id; once the requeue is
+ * known to have failed, no retry will run, so the row must be written here or
+ * the delivery faults without any execution record. Best-effort by design:
+ * the same infrastructure outage that broke setup may also break this write,
+ * in which case the faulted run remains the only signal — matching how
+ * preprocessing's own error logging degrades.
+ */
+async function recordSetupFailureWithoutRequeue(
+  payload: WebhookExecutionPayload,
+  correlation: AsyncExecutionCorrelation,
+  error: RetryableSetupError
+): Promise<void> {
+  try {
+    const loggingSession = new LoggingSession(
+      payload.workflowId,
+      correlation.executionId,
+      payload.provider,
+      correlation.requestId
+    )
+    await loggingSession.safeStart({
+      userId: payload.userId,
+      workspaceId: payload.workspaceId,
+      variables: {},
+      triggerData: { correlation },
+    })
+    await loggingSession.safeCompleteWithError({
+      error: {
+        message: error.message,
+        stackTrace: undefined,
+      },
+      traceSpans: [],
+      skipCost: true,
+    })
+  } catch (loggingError) {
+    logger.error(
+      `[${correlation.requestId}] Failed to record webhook setup failure after requeue failure`,
+      {
+        workflowId: payload.workflowId,
+        executionId: correlation.executionId,
+        error: loggingError,
+      }
+    )
   }
 }
 
@@ -513,23 +562,23 @@ export async function executeWebhookJob(
          * A typed setup failure certifies no block ran and the idempotency
          * claim was released, so requeueing the same delivery cannot double
          * run it; the retry re-admits usage and re-claims from scratch. When
-         * the requeue enqueue itself fails, fall through to the throw so the
-         * run fails loudly rather than dropping the delivery silently.
+         * the requeue enqueue itself fails, restore the terminal failure row
+         * the retry-bound attempt suppressed, then fall through to the throw
+         * so the run fails loudly rather than dropping the delivery silently.
          */
-        if (
-          isRetryableSetupError(error) &&
-          hasRemainingWebhookInfraRetry(payload) &&
-          (await requeueWebhookExecutionAfterSetupFailure(payload, correlation, error))
-        ) {
-          return {
-            success: false,
-            requeued: true,
-            workflowId: payload.workflowId,
-            executionId,
-            output: {},
-            executedAt: new Date().toISOString(),
-            provider: payload.provider,
+        if (isRetryableSetupError(error) && hasRemainingWebhookInfraRetry(payload)) {
+          if (await requeueWebhookExecutionAfterSetupFailure(payload, correlation, error)) {
+            return {
+              success: false,
+              requeued: true,
+              workflowId: payload.workflowId,
+              executionId,
+              output: {},
+              executedAt: new Date().toISOString(),
+              provider: payload.provider,
+            }
           }
+          await recordSetupFailureWithoutRequeue(payload, correlation, error)
         }
         throw error
       }
