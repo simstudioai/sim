@@ -42,7 +42,16 @@ export const GET = defineV2JsonRoute({
   useCase: listSecretsUseCase,
   present: ({ secrets, values, userId, nextCursorKeys }, { query }) => ({
     data: secrets.map((secret) =>
-      toV2Secret(secret, userId, secret.envKey ? values[secret.envKey] : undefined)
+      toV2Secret(
+        secret,
+        userId,
+        /**
+         * Own-property read: a secret may legally be named `constructor` or `toString`,
+         * and a bare index on a missing key would hand the inherited function to the
+         * serializer and fail response validation for the whole page.
+         */
+        secret.envKey && Object.hasOwn(values, secret.envKey) ? values[secret.envKey] : undefined
+      )
     ),
     nextCursor: writeSortedCursor(
       nextCursorKeys,

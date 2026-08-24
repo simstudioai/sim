@@ -176,6 +176,37 @@ describe('GET /api/v2/secrets', () => {
     })
   })
 
+  it('never attaches an inherited prototype member as a missing value', async () => {
+    mocks.list.mockResolvedValue({
+      secrets: [
+        {
+          ...secret,
+          id: 'secret-proto',
+          displayName: 'constructor',
+          envKey: 'constructor',
+          unredacted: true,
+        },
+      ],
+      /** The name is legal but its value is absent — a bare index would read Object's constructor. */
+      values: {},
+      userId: 'user-1',
+      nextCursorKeys: null,
+      sortBy: 'name',
+      sortOrder: 'asc',
+    })
+
+    const response = await GET(
+      new NextRequest(`http://localhost:3000/api/v2/secrets?workspaceId=${WORKSPACE_ID}`, {
+        headers: { 'x-api-key': 'key' },
+      })
+    )
+    const body = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(body.data[0]).toMatchObject({ name: 'constructor', unredacted: true })
+    expect(body.data[0]).not.toHaveProperty('value')
+  })
+
   /**
    * Pins the binding end-to-end — the mint in `present` and the read in
    * `mapInput` — because the contract-level sweep only checks a hand-maintained

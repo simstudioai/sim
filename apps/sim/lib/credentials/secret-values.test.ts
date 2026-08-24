@@ -269,4 +269,15 @@ describe('readWorkspaceSecretValues', () => {
     ).resolves.toEqual({})
     expect(mockDecryptSecret).not.toHaveBeenCalled()
   })
+
+  it('never reads an inherited prototype member for a missing key', async () => {
+    queueTableRows(schemaMock.workspaceEnvironment, [
+      { id: 'env-1', variables: { OTHER_KEY: 'encrypted-other' } },
+    ])
+
+    await expect(
+      readWorkspaceSecretValues({ workspaceId: 'workspace-1', names: ['constructor', 'toString'] })
+    ).resolves.toEqual({})
+    expect(mockDecryptSecret).not.toHaveBeenCalled()
+  })
 })

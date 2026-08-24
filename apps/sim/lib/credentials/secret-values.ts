@@ -51,7 +51,7 @@ export async function readWorkspaceSecretValues(params: {
   const values: Record<string, string> = {}
   await Promise.all(
     params.names.map(async (name) => {
-      const encrypted = variables[name]
+      const encrypted = Object.hasOwn(variables, name) ? variables[name] : undefined
       if (!encrypted) return
       try {
         const { decrypted } = await decryptSecret(encrypted)
