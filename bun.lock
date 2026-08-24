@@ -630,7 +630,7 @@
     },
     "packages/sim-setup": {
       "name": "sim-setup",
-      "version": "1.0.1",
+      "version": "1.0.2",
       "bin": {
         "sim-setup": "dist/index.js",
       },

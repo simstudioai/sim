@@ -27,7 +27,7 @@ import {
 } from '@sim/deployment-config/env-capabilities'
 import { SETUP_FEATURES, type SetupFeatureId } from './capability-config'
 
-export type SetupStatusFeatureId = Exclude<SetupFeatureId, 'integration'>
+export type SetupStatusFeatureId = Exclude<SetupFeatureId, 'chat' | 'integration'>
 export type CapabilityStatusState = 'default' | 'configured' | 'missing' | 'partial' | 'invalid'
 
 export interface CapabilityStatusIssue {
