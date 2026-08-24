@@ -4,11 +4,38 @@
 import { describe, expect, it } from 'vitest'
 import {
   getArrowNavigationDirection,
+  getWorkflowCanvasInteractionPolicy,
   isPositionalTriggerBlock,
   reconcileCanvasEdges,
   reconcileCanvasNodes,
   shouldHighlightContainerDropTarget,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/workflow-canvas-helpers'
+
+describe('getWorkflowCanvasInteractionPolicy', () => {
+  it('allows position changes and re-parenting in the editable workflow editor', () => {
+    expect(getWorkflowCanvasInteractionPolicy({ embedded: false, canEdit: true })).toEqual({
+      canDragNodes: true,
+      canReparentNodes: true,
+    })
+  })
+
+  it('allows position changes without re-parenting in an editable embedded canvas', () => {
+    expect(getWorkflowCanvasInteractionPolicy({ embedded: true, canEdit: true })).toEqual({
+      canDragNodes: true,
+      canReparentNodes: false,
+    })
+  })
+
+  it.each([false, true])(
+    'disables dragging when edit access is denied (embedded=%s)',
+    (embedded) => {
+      expect(getWorkflowCanvasInteractionPolicy({ embedded, canEdit: false })).toEqual({
+        canDragNodes: false,
+        canReparentNodes: false,
+      })
+    }
+  )
+})
 
 describe('getArrowNavigationDirection', () => {
   it('moves once for a fresh horizontal arrow press', () => {
