@@ -10,4 +10,13 @@ describe('getOpenAICompatibleApiBaseUrl', () => {
   ])('normalizes %s to %s', (input, expected) => {
     expect(getOpenAICompatibleApiBaseUrl(input)).toBe(expected)
   })
+
+  it.each(['http://localhost:8000?token=value', 'http://localhost:8000#models'])(
+    'rejects unsupported URL components in %s',
+    (input) => {
+      expect(() => getOpenAICompatibleApiBaseUrl(input)).toThrow(
+        'OpenAI-compatible base URL must not include query parameters or a fragment'
+      )
+    }
+  )
 })
