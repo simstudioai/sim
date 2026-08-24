@@ -46,19 +46,33 @@ const APP = join(ROOT, 'apps/sim')
 const FORBIDDEN = join(APP, 'tools/registry.ts')
 
 /**
- * Root the guard walks: every `page.tsx` and `layout.tsx` under the workspace app.
+ * Root the guard walks: every route entry Next.js composes under the workspace app.
  *
  * Discovered rather than listed. A hardcoded list goes stale silently — the
  * first version of this guard named `app/workspace/layout.tsx` as "the shared
  * shell", but that file only wraps `SocketProvider`; the real shell is
  * `app/workspace/[workspaceId]/layout.tsx`, which was never checked.
  *
- * Layouts must be enumerated separately because Next.js composes them by
- * convention — a page does not `import` its layout, so walking pages alone never
- * reaches layout modules even though every route pays for them.
+ * Every filename here is composed by convention rather than imported, so each
+ * must be enumerated: a page does not `import` its layout, its error boundary,
+ * or its loading state, yet the route pays for all of them. `error.tsx` in
+ * particular is always a Client Component — Next requires it — so a registry
+ * edge there lands in the browser bundle as surely as one from a page.
+ *
+ * The root stays at `app/workspace`. Widening it to `app` reports
+ * `(interfaces)/resume/[workflowId]/[executionId]/page.tsx`, which is a Server
+ * Component (`runtime = 'nodejs'`, `force-dynamic`) whose `PauseResumeManager`
+ * import resolves server-side and never reaches a client bundle. This guard
+ * cannot tell the two apart, so it stays where the premise holds.
  */
 const ENTRY_ROOT = 'app/workspace'
-const ENTRY_FILENAMES = new Set(['page.tsx', 'layout.tsx'])
+const ENTRY_FILENAMES = new Set([
+  'page.tsx',
+  'layout.tsx',
+  'error.tsx',
+  'loading.tsx',
+  'not-found.tsx',
+])
 
 function collectEntries(dir: string, found: string[] = []): string[] {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
