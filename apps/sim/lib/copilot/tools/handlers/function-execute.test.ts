@@ -13,7 +13,6 @@ import {
 const {
   mockGetTableById,
   mockListTables,
-  mockQueryRows,
   mockGetOrCreateTableSnapshot,
   mockDownloadFile,
   mockGeneratePresignedDownloadUrl,
@@ -32,12 +31,10 @@ const {
   mockMaterializeCopilotCodeSecrets,
   mockHasWorkspaceSandboxAccess,
   mockImportWorkspaceFileSecretProvenanceForRuntime,
-  mockLoadTableRowSecretProvenance,
   mockIsTableSnapshotSafeForModelMount,
 } = vi.hoisted(() => ({
   mockGetTableById: vi.fn(),
   mockListTables: vi.fn(),
-  mockQueryRows: vi.fn(),
   mockGetOrCreateTableSnapshot: vi.fn(),
   mockDownloadFile: vi.fn(),
   mockGeneratePresignedDownloadUrl: vi.fn(),
@@ -56,7 +53,6 @@ const {
   mockMaterializeCopilotCodeSecrets: vi.fn(),
   mockHasWorkspaceSandboxAccess: vi.fn(),
   mockImportWorkspaceFileSecretProvenanceForRuntime: vi.fn(),
-  mockLoadTableRowSecretProvenance: vi.fn(),
   mockIsTableSnapshotSafeForModelMount: vi.fn(),
 }))
 
@@ -65,10 +61,8 @@ vi.mock('@/lib/table/service', () => ({
   getTableById: mockGetTableById,
   listTables: mockListTables,
 }))
-vi.mock('@/lib/table/rows/service', () => ({ queryRows: mockQueryRows }))
 vi.mock('@/lib/table/rows/secret-provenance', () => ({
   isTableSnapshotSafeForModelMount: mockIsTableSnapshotSafeForModelMount,
-  loadTableRowSecretProvenance: mockLoadTableRowSecretProvenance,
 }))
 vi.mock('@/lib/table/snapshot-cache', () => ({
   getOrCreateTableSnapshot: mockGetOrCreateTableSnapshot,
@@ -125,13 +119,12 @@ vi.mock('@/lib/execution/remote-sandbox/workspace-sandboxes', () => ({
 import { projectToolResultForCopilot } from '@/lib/copilot/request/tools/resolved-secret-result'
 import { executeFunctionExecute } from '@/lib/copilot/tools/handlers/function-execute'
 import { executeRunCode } from '@/lib/copilot/tools/handlers/run-code'
-import { TABLE_LIMITS } from '@/lib/table/constants'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 const table = {
   id: 'tbl_1',
   workspaceId: 'ws_1',
-  rowCount: TABLE_LIMITS.DEFAULT_QUERY_LIMIT + 1,
+  rowCount: 1,
   schema: { columns: [{ id: 'col_name', name: 'name', type: 'string' }] },
 }
 
@@ -153,13 +146,7 @@ function resetExecutionMocks(): void {
   vi.clearAllMocks()
   mockExecuteTool.mockReset()
   mockMaterializeCopilotCodeSecrets.mockReset()
-  mockLoadTableRowSecretProvenance.mockReset()
   mockIsTableSnapshotSafeForModelMount.mockReset()
-  mockLoadTableRowSecretProvenance.mockResolvedValue({
-    version: 1,
-    complete: true,
-    entries: [],
-  })
   mockIsTableSnapshotSafeForModelMount.mockResolvedValue(true)
   mockListWorkspaceFiles.mockResolvedValue([])
   mockListWorkspaceFileFolders.mockResolvedValue([])
@@ -572,76 +559,12 @@ describe('executeFunctionExecute table mounts', () => {
     resetExecutionMocks()
     mockExecuteTool.mockResolvedValue({ success: true })
     mockGetTableById.mockResolvedValue(table)
-    // Row data is keyed by stable column id at rest, not display name.
-    mockQueryRows.mockResolvedValue({ rows: [{ data: { col_name: 'Ada' } }] })
     mockHasCloudStorage.mockReturnValue(true)
     mockGeneratePresignedDownloadUrl.mockResolvedValue('https://s3.example/presigned?sig=abc')
   })
 
-  it('mounts a table at the inline row limit without truncation', async () => {
-    mockGetTableById.mockResolvedValue({ ...table, rowCount: TABLE_LIMITS.DEFAULT_QUERY_LIMIT })
-
-    await executeFunctionExecute({ inputTables: ['tbl_1'] }, context as never)
-
-    expect(mockQueryRows).toHaveBeenCalledWith(
-      expect.objectContaining({ id: 'tbl_1' }),
-      { limit: TABLE_LIMITS.DEFAULT_QUERY_LIMIT },
-      'copilot-fn-exec'
-    )
-    expect(mockGetOrCreateTableSnapshot).not.toHaveBeenCalled()
-    const files = mountedFiles()
-    expect(files[0].path).toBe('/home/user/tables/tbl_1.csv')
-    expect(files[0].content).toBe('name\nAda')
-  })
-
-  it('mounts CSV with display-name headers and id-keyed values, never column ids', async () => {
-    mockGetTableById.mockResolvedValue({
-      id: 'tbl_2',
-      workspaceId: 'ws_1',
-      rowCount: 2,
-      schema: {
-        columns: [
-          { id: 'col_name', name: 'name', type: 'string' },
-          { id: 'col_company', name: 'company', type: 'string' },
-        ],
-      },
-    })
-    mockQueryRows.mockResolvedValue({
-      rows: [
-        { data: { col_name: 'Ada', col_company: 'Analytical Engine' } },
-        { data: { col_name: 'Grace', col_company: 'Navy, Inc' } },
-      ],
-    })
-
-    await executeFunctionExecute({ inputTables: ['tbl_2'] }, context as never)
-
-    const csv = mountedFiles()[0].content as string
-    const lines = csv.split('\n')
-    expect(lines[0]).toBe('name,company')
-    expect(lines[1]).toBe('Ada,Analytical Engine')
-    // Value containing a comma is quoted.
-    expect(lines[2]).toBe('Grace,"Navy, Inc"')
-    // No stable column id leaks into the mounted file.
-    expect(csv).not.toContain('col_name')
-    expect(csv).not.toContain('col_company')
-  })
-
-  it('reads values by column id for legacy name-keyed rows too', async () => {
-    // Legacy column with no id: getColumnId falls back to name, so name-keyed data is correct.
-    mockGetTableById.mockResolvedValue({
-      id: 'tbl_legacy',
-      workspaceId: 'ws_1',
-      rowCount: 1,
-      schema: { columns: [{ name: 'email', type: 'string' }] },
-    })
-    mockQueryRows.mockResolvedValue({ rows: [{ data: { email: 'a@b.com' } }] })
-
-    await executeFunctionExecute({ inputTables: ['tbl_legacy'] }, context as never)
-
-    expect(mountedFiles()[0].content).toBe('email\na@b.com')
-  })
-
-  it('mounts a table above the inline row limit by presigned snapshot URL', async () => {
+  it('mounts every table by presigned snapshot URL', async () => {
+    mockGetTableById.mockResolvedValue({ ...table, rowCount: 0 })
     mockGetOrCreateTableSnapshot.mockResolvedValue({
       key: 'table-snapshots/ws_1/tbl_1/v5.csv',
       size: 9,
@@ -651,7 +574,6 @@ describe('executeFunctionExecute table mounts', () => {
     await executeFunctionExecute({ inputTables: ['tbl_1'] }, context as never)
 
     expect(mockGetOrCreateTableSnapshot).toHaveBeenCalledTimes(1)
-    expect(mockQueryRows).not.toHaveBeenCalled()
     expect(mockDownloadFile).not.toHaveBeenCalled()
     expect(mockGeneratePresignedDownloadUrl).toHaveBeenCalledWith(
       'table-snapshots/ws_1/tbl_1/v5.csv',
@@ -705,35 +627,6 @@ describe('executeFunctionExecute table mounts', () => {
     )
 
     expect(mockGeneratePresignedDownloadUrl).toHaveBeenCalled()
-    expect(mockExecuteTool.mock.calls[0]?.[1]?.[PRIVATE_SECRET_PROVENANCE_FIELD]).toEqual({
-      version: 1,
-      complete: false,
-      selections: [],
-    })
-    expect(result).toEqual({ success: true, output: { result: 'raw output' } })
-    expect(parentRegistry.isComplete()).toBe(false)
-    expect(projectToolResultForCopilot(result, parentRegistry)).toEqual({ success: true })
-  })
-
-  it('unknown inline row provenance still mounts and taints model egress', async () => {
-    mockGetTableById.mockResolvedValue({ ...table, rowCount: TABLE_LIMITS.DEFAULT_QUERY_LIMIT })
-    mockLoadTableRowSecretProvenance.mockResolvedValue({
-      version: 1,
-      complete: false,
-      entries: [],
-    })
-    mockExecuteTool.mockResolvedValue({ success: true, output: { result: 'raw output' } })
-    const parentRegistry = new ResolvedSecretTraceRegistry([], {
-      userId: 'u1',
-      workspaceId: 'ws_1',
-    })
-
-    const result = await executeFunctionExecute(
-      { inputTables: ['tbl_1'] },
-      { ...context, resolvedSecretTraceRegistry: parentRegistry }
-    )
-
-    expect(mountedFiles()[0].content).toBe('name\nAda')
     expect(mockExecuteTool.mock.calls[0]?.[1]?.[PRIVATE_SECRET_PROVENANCE_FIELD]).toEqual({
       version: 1,
       complete: false,
