@@ -290,6 +290,7 @@ export const COLUMN_TYPE_SERVER_REGISTRY: Record<ColumnType, ColumnTypeServerEnt
       migrateSelectCellsToNames(trx, tableId, workspaceId, columnKey, previous.options ?? []),
   },
   currency: COLUMN_TYPE_REGISTRY.currency,
+  reference: COLUMN_TYPE_REGISTRY.reference,
 }
 
 /** The inbound migration for a target type, if it has one. */
