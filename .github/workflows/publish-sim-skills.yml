@@ -1,0 +1,148 @@
+name: Publish Sim Skills Package
+
+on:
+  push:
+    branches: [main, staging, dev]
+    paths:
+      - 'packages/sim-skills/**'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-sim-skills-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish-npm:
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-4vcpu-ubuntu-2404' || 'ubuntu-latest' }}
+    timeout-minutes: 15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: 1.3.14
+
+      - name: Setup Node
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: '22.20.0'
+
+      - name: Cache Bun dependencies
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        with:
+          path: |
+            ~/.bun/install/cache
+            node_modules
+            **/node_modules
+          key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-bun-
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile --ignore-scripts
+
+      - name: Verify npm authentication
+        env:
+          NPM_CONFIG_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: bun pm whoami
+
+      - name: Validate skills
+        working-directory: packages/sim-skills
+        run: bun run check:skills
+
+      - name: Run tests
+        working-directory: packages/sim-skills
+        run: bun run test
+
+      - name: Type-check package
+        working-directory: packages/sim-skills
+        run: bun run type-check
+
+      - name: Build package
+        working-directory: packages/sim-skills
+        run: bun run build
+
+      - name: Resolve release channel
+        id: release
+        working-directory: packages/sim-skills
+        env:
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          BASE_VERSION="$(bun -p "require('./package.json').version")"
+          if [[ ! "$BASE_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Package version must be a stable X.Y.Z base, got '$BASE_VERSION'." >&2
+            exit 1
+          fi
+
+          case "$BRANCH" in
+            dev)
+              VERSION="${BASE_VERSION}-dev.${GITHUB_RUN_NUMBER}.${GITHUB_RUN_ATTEMPT}"
+              TAG="dev"
+              ;;
+            staging)
+              VERSION="${BASE_VERSION}-preview.${GITHUB_RUN_NUMBER}.${GITHUB_RUN_ATTEMPT}"
+              TAG="staging"
+              ;;
+            main)
+              VERSION="$BASE_VERSION"
+              TAG="latest"
+              ;;
+            *)
+              echo "Unsupported release branch '$BRANCH'." >&2
+              exit 1
+              ;;
+          esac
+
+          bun pm pkg set "version=$VERSION"
+          RESOLVED_VERSION="$(bun -p "require('./package.json').version")"
+          if [ "$RESOLVED_VERSION" != "$VERSION" ]; then
+            echo "Version injection mismatch: wanted '$VERSION', got '$RESOLVED_VERSION'." >&2
+            exit 1
+          fi
+
+          {
+            echo "version=$VERSION"
+            echo "tag=$TAG"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Smoke-test packed skill bundle
+        working-directory: packages/sim-skills
+        run: |
+          set -euo pipefail
+          SMOKE_DIR="$(mktemp -d "$RUNNER_TEMP/sim-skills-smoke.XXXXXX")"
+          PACKAGE_PATH="$SMOKE_DIR/sim-skills.tgz"
+          bun pm pack --ignore-scripts --filename "$PACKAGE_PATH" --quiet
+          tar -xzf "$PACKAGE_PATH" -C "$SMOKE_DIR"
+          test -x "$SMOKE_DIR/package/dist/index.js"
+          test -f "$SMOKE_DIR/package/skills/build-sim-workflow/SKILL.md"
+          test -f "$SMOKE_DIR/package/skills/run-sim-workflow/SKILL.md"
+          test -f "$SMOKE_DIR/package/skills/deploy-sim-workflow/SKILL.md"
+          test -f "$SMOKE_DIR/package/skills/sim-table/SKILL.md"
+          test -f "$SMOKE_DIR/package/skills/sim-knowledge-base/SKILL.md"
+
+      - name: Verify version is unpublished
+        working-directory: packages/sim-skills
+        env:
+          VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          if bun pm view "sim-skills@$VERSION" version > /dev/null 2>&1; then
+            echo "sim-skills@$VERSION is already published. Bump packages/sim-skills/package.json before releasing another build." >&2
+            exit 1
+          fi
+
+      - name: Publish to npm
+        working-directory: packages/sim-skills
+        env:
+          NPM_CONFIG_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_TAG: ${{ steps.release.outputs.tag }}
+        run: bun publish --access public --tag "$NPM_TAG" --no-save
+
+      - name: Summarize release
+        env:
+          VERSION: ${{ steps.release.outputs.version }}
+          NPM_TAG: ${{ steps.release.outputs.tag }}
+        run: echo "Published sim-skills@$VERSION with the '$NPM_TAG' tag."

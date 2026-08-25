@@ -1,0 +1,59 @@
+{
+  "name": "sim-skills",
+  "version": "0.1.0",
+  "description": "Official Agent Skills for building workflows and operating Sim resources",
+  "type": "module",
+  "bin": {
+    "sim-skills": "dist/index.js"
+  },
+  "scripts": {
+    "prebuild": "bun run clean",
+    "build": "bun build src/index.ts --target=node --format=esm --packages=external --outfile=dist/index.js",
+    "clean": "bun -e \"import { rmSync } from 'node:fs'; rmSync('dist', { recursive: true, force: true })\"",
+    "type-check": "tsc --noEmit",
+    "lint": "biome check --write --unsafe .",
+    "lint:check": "biome check .",
+    "format": "biome format --write .",
+    "format:check": "biome format .",
+    "test": "vitest run",
+    "check:skills": "bun run scripts/validate-skills.ts",
+    "prepublishOnly": "bun run check:skills && bun run test && bun run build"
+  },
+  "files": [
+    "dist",
+    "skills"
+  ],
+  "keywords": [
+    "sim",
+    "agent-skills",
+    "ai-agents",
+    "workflow",
+    "automation"
+  ],
+  "author": "Sim",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/simstudioai/sim.git",
+    "directory": "packages/sim-skills"
+  },
+  "homepage": "https://github.com/simstudioai/sim/tree/main/packages/sim-skills#readme",
+  "bugs": {
+    "url": "https://github.com/simstudioai/sim/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=22.20.0"
+  },
+  "dependencies": {
+    "skills": "1.5.22"
+  },
+  "devDependencies": {
+    "@sim/tsconfig": "workspace:*",
+    "@types/node": "24.2.1",
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.0"
+  }
+}

@@ -646,6 +646,22 @@
         "vitest": "^4.1.0",
       },
     },
+    "packages/sim-skills": {
+      "name": "sim-skills",
+      "version": "0.1.0",
+      "bin": {
+        "sim-skills": "dist/index.js",
+      },
+      "dependencies": {
+        "skills": "1.5.22",
+      },
+      "devDependencies": {
+        "@sim/tsconfig": "workspace:*",
+        "@types/node": "24.2.1",
+        "typescript": "^7.0.2",
+        "vitest": "^4.1.0",
+      },
+    },
     "packages/terminal-protocol": {
       "name": "@sim/terminal-protocol",
       "version": "0.1.0",
@@ -4235,6 +4251,8 @@
 
     "sim-setup": ["sim-setup@workspace:packages/sim-setup"],
 
+    "sim-skills": ["sim-skills@workspace:packages/sim-skills"],
+
     "simple-update-notifier": ["simple-update-notifier@2.0.0", "", { "dependencies": { "semver": "^7.5.3" } }, "sha512-a2B9Y0KlNXl9u/vsW6sTIu9vGEpfKu2wRV6l1H3XEas/0gUIzGzBoP/IouTcUQbm9JWZLH3COxyn03TYlFax6w=="],
 
     "simstudio": ["simstudio@workspace:packages/cli"],
@@ -4242,6 +4260,8 @@
     "simstudio-ts-sdk": ["simstudio-ts-sdk@workspace:packages/ts-sdk"],
 
     "sisteransi": ["sisteransi@1.0.5", "", {}, "sha512-bLGGlR1QxBcynn2d5YmDX4MGjlZvy2MRBDRNHLJ8VI6l6+9FUiyTFNJ0IveOSP0bcXgVDPRcfGqA0pjaqUpfVg=="],
+
+    "skills": ["skills@1.5.22", "", { "dependencies": { "tar": "^7.5.20", "yaml": "^2.8.3" }, "bin": { "skills": "bin/cli.mjs", "add-skill": "bin/cli.mjs" } }, "sha512-cHiLjwZEawWFvudIqeeMZlvZayTLbRouydMbblyrdiyH7ZLbqUrSrEEr+Tg+X265iztRlVMsyOYRwpD5JxBsvg=="],
 
     "slice-ansi": ["slice-ansi@5.0.0", "", { "dependencies": { "ansi-styles": "^6.0.0", "is-fullwidth-code-point": "^4.0.0" } }, "sha512-FC+lgizVPfie0kkhqUScwRu1O/lF6NOgJmlCgK+/LYxDCTk8sGelYaHDhFcDN+Sn3Cv+3VSa4Byeo+IMCzpMgQ=="],
 
