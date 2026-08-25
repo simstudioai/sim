@@ -66,7 +66,7 @@ vi.mock('@/lib/mcp/tool-limits', () => ({
 }))
 
 import { workflowMcpTool } from '@sim/db'
-import { MAX_MCP_TOOLS_PER_SERVER } from '@/lib/mcp/constants'
+import { MAX_MCP_SERVERS_PER_WORKFLOW, MAX_MCP_TOOLS_PER_SERVER } from '@/lib/mcp/constants'
 import { removeMcpToolsForWorkflow, syncMcpToolsForWorkflow } from '@/lib/mcp/workflow-mcp-sync'
 
 const WORKFLOW_ID = 'wf-1'
@@ -80,20 +80,42 @@ interface RecordedWrite {
 }
 
 /**
+ * A queued read is either a fixed row set or a thunk evaluated at read time, so
+ * a test can model a row another transaction commits partway through the sync.
+ */
+type QueuedRead = unknown[] | (() => unknown[])
+
+/**
  * Minimal drizzle chain over an ordered queue of results, so the sync's exact
  * statement sequence — and whether a withdrawal deletes or archives — is
  * observable without a live database.
+ *
+ * `selectDistinctOn` and `limit` are evaluated the way Postgres evaluates them
+ * (dedupe first, then bound), so a test can observe which rows a bounded
+ * candidate query actually returns rather than being handed a canned answer.
  */
-function createFakeTx(results: unknown[]) {
+function createFakeTx(results: QueuedRead[]) {
   const writes: RecordedWrite[] = []
   const queue = [...results]
   let pending: RecordedWrite | null = null
+  let distinctOnKey: string | null = null
+  let rowLimit: number | null = null
 
   const builder: Record<string, unknown> = {
-    select: () => builder,
+    select: () => {
+      distinctOnKey = null
+      return builder
+    },
+    selectDistinctOn(columns: unknown[], projection: Record<string, unknown>) {
+      distinctOnKey = Object.keys(projection).find((key) => projection[key] === columns[0]) ?? null
+      return builder
+    },
     from: () => builder,
     orderBy: () => builder,
-    limit: () => builder,
+    limit(value: number) {
+      rowLimit = value
+      return builder
+    },
     update(table: unknown) {
       pending = { op: 'update', table }
       return builder
@@ -116,7 +138,22 @@ function createFakeTx(results: unknown[]) {
       return builder
     },
     then(onFulfilled: (value: unknown) => unknown) {
-      return Promise.resolve(queue.shift() ?? []).then(onFulfilled)
+      const next = queue.shift() ?? []
+      let rows = typeof next === 'function' ? next() : next
+      if (distinctOnKey) {
+        const key = distinctOnKey
+        const seen = new Set<unknown>()
+        rows = rows.filter((row) => {
+          const value = (row as Record<string, unknown>)[key]
+          if (seen.has(value)) return false
+          seen.add(value)
+          return true
+        })
+      }
+      if (rowLimit !== null) rows = rows.slice(0, rowLimit)
+      distinctOnKey = null
+      rowLimit = null
+      return Promise.resolve(rows).then(onFulfilled)
     },
   }
 
@@ -176,7 +213,6 @@ describe('workflow MCP tool withdrawal and restore', () => {
       [archivedRow('t-1', 'srv-1', 'orders')],
       [],
       [],
-      [],
       [toolRow('t-1', 'srv-1')],
       [],
       [],
@@ -211,8 +247,7 @@ describe('workflow MCP tool withdrawal and restore', () => {
   it('never restores onto a server that already carries a live registration', async () => {
     const { tx, writes } = createFakeTx([
       [archivedRow('t-archived', 'srv-1', 'orders')],
-      [{ serverId: 'srv-1' }],
-      [toolRow('t-live', 'srv-1')],
+      [{ id: 't-live', toolName: 'invoices', workflowId: WORKFLOW_ID }],
       [],
       [],
     ])
@@ -229,6 +264,99 @@ describe('workflow MCP tool withdrawal and restore', () => {
     expect(writes.some((write) => write.values?.archivedAt === null)).toBe(false)
   })
   /**
+   * Repeated undeploy/skipped-restore/manual-re-add cycles stack several
+   * archived generations on one server. Bounding the candidate query by ROWS
+   * let those duplicates consume the whole budget, so every other server the
+   * workflow was published on fell out of the result and stayed unavailable
+   * after an otherwise successful redeploy. The bound must apply to servers,
+   * which means deduping to one row per server first.
+   */
+  it('restores every distinct server even when one server has more archived generations than the bound', async () => {
+    const duplicates = Array.from({ length: MAX_MCP_SERVERS_PER_WORKFLOW }, (_, index) =>
+      archivedRow(`t-dup-${index}`, 'srv-dup', 'orders')
+    )
+    const { tx, writes } = createFakeTx([
+      [...duplicates, archivedRow('t-2', 'srv-2', 'orders'), archivedRow('t-3', 'srv-3', 'orders')],
+      [],
+      [],
+      [],
+      [],
+    ])
+
+    await syncMcpToolsForWorkflow({
+      workflowId: WORKFLOW_ID,
+      requestId: REQUEST_ID,
+      state: { blocks: {} },
+      tx,
+      notify: false,
+      throwOnError: true,
+    })
+
+    expect(mocks.acquireLock.mock.calls.map((call) => call[1])).toEqual([
+      'srv-2',
+      'srv-3',
+      'srv-dup',
+    ])
+    const restore = writes.find((write) => write.values?.archivedAt === null)
+    expect(
+      hasMockCondition(
+        restore?.where,
+        (node) => node.type === 'inArray' && (node.values as string[]).includes('t-2')
+      )
+    ).toBe(true)
+    expect(
+      hasMockCondition(
+        restore?.where,
+        (node) => node.type === 'inArray' && (node.values as string[]).includes('t-3')
+      )
+    ).toBe(true)
+    expect(
+      hasMockCondition(
+        restore?.where,
+        (node) => node.type === 'inArray' && (node.values as string[]).includes('t-dup-0')
+      )
+    ).toBe(true)
+  })
+
+  /**
+   * A manual `tools create` on the same server can commit between a pre-lock
+   * uniqueness read and the lock. Reading live rows before the lock therefore
+   * proves nothing: restore would un-archive a second live row for the same
+   * `(server_id, workflow_id)`, violate
+   * `workflow_mcp_tool_server_workflow_unique` on commit, and roll back the
+   * whole deploy. The queued read here answers differently once the lock has
+   * been taken, exactly as the database would.
+   */
+  it('sees a live registration that appears only after the lock is taken', async () => {
+    let concurrentCreateCommitted = false
+    mocks.acquireLock.mockImplementation(async () => {
+      concurrentCreateCommitted = true
+    })
+
+    const { tx, writes } = createFakeTx([
+      [archivedRow('t-archived', 'srv-1', 'orders')],
+      () =>
+        concurrentCreateCommitted
+          ? [{ id: 't-live', toolName: 'invoices', workflowId: WORKFLOW_ID }]
+          : [],
+      [],
+      [],
+    ])
+
+    await syncMcpToolsForWorkflow({
+      workflowId: WORKFLOW_ID,
+      requestId: REQUEST_ID,
+      state: { blocks: {} },
+      tx,
+      notify: false,
+      throwOnError: true,
+    })
+
+    expect(mocks.acquireLock).toHaveBeenCalledWith(tx, 'srv-1')
+    expect(writes.some((write) => write.values?.archivedAt === null)).toBe(false)
+  })
+
+  /**
    * Archiving frees the tool name: the create-path collision query skips
    * archived rows, so another workflow can take `orders` while this one is
    * undeployed. Restoring blindly would leave the server serving two live
@@ -237,7 +365,6 @@ describe('workflow MCP tool withdrawal and restore', () => {
   it('leaves a candidate archived when its tool name is taken by a live tool', async () => {
     const { tx, writes } = createFakeTx([
       [archivedRow('t-archived', 'srv-1', 'orders')],
-      [],
       [{ id: 't-other', toolName: 'orders' }],
       [],
       [],
@@ -268,7 +395,6 @@ describe('workflow MCP tool withdrawal and restore', () => {
     }))
     const { tx, writes } = createFakeTx([
       [archivedRow('t-archived', 'srv-1', 'orders')],
-      [],
       liveTools,
       [],
       [],
@@ -296,7 +422,6 @@ describe('workflow MCP tool withdrawal and restore', () => {
     mocks.exceedsBudget.mockReturnValue(true)
     const { tx, writes } = createFakeTx([
       [archivedRow('t-archived', 'srv-1', 'orders')],
-      [],
       [],
       [],
       [],

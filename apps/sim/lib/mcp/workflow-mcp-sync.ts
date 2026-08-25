@@ -119,21 +119,34 @@ interface RestoreCandidate {
 
 /**
  * Re-run, against a candidate's already-locked server, the invariants
- * `performCreateWorkflowMcpTool` enforces when a registration is first created.
+ * `performCreateWorkflowMcpTool` enforces when a registration is first created,
+ * plus the `(server_id, workflow_id)` uniqueness that
+ * `workflow_mcp_tool_server_workflow_unique` enforces over unarchived rows.
+ * Every one of them is read under the server's lock, so a concurrent manual
+ * tool create cannot slip a live row in between the check and the unarchive.
  * Returns the reason the candidate must stay archived, or `null` when it is
  * safe to revive.
  */
 async function getRestoreSkipReason(
   tx: DbOrTx,
+  workflowId: string,
   candidate: RestoreCandidate
 ): Promise<string | null> {
   const liveTools = await tx
-    .select({ id: workflowMcpTool.id, toolName: workflowMcpTool.toolName })
+    .select({
+      id: workflowMcpTool.id,
+      toolName: workflowMcpTool.toolName,
+      workflowId: workflowMcpTool.workflowId,
+    })
     .from(workflowMcpTool)
     .where(
       and(eq(workflowMcpTool.serverId, candidate.serverId), isNull(workflowMcpTool.archivedAt))
     )
     .limit(MAX_MCP_TOOLS_PER_SERVER)
+
+  if (liveTools.some((tool) => tool.workflowId === workflowId)) {
+    return 'the server already carries a live registration for this workflow'
+  }
 
   if (liveTools.length >= MAX_MCP_TOOLS_PER_SERVER) {
     return `server already has the maximum of ${MAX_MCP_TOOLS_PER_SERVER} tools`
@@ -163,24 +176,26 @@ async function getRestoreSkipReason(
  * Un-archive the registrations an earlier undeploy withdrew, so redeploying a
  * workflow republishes it on exactly the servers it was published on before.
  *
- * A server is skipped when it already carries a live registration for the
- * workflow — the `(server_id, workflow_id)` uniqueness that
- * `workflow_mcp_tool_server_workflow_unique` enforces over unarchived rows only
- * holds if restore never adds a second one — and only the most recently updated
- * archived row per server is revived, so a stale generation cannot outrank it.
+ * Repeated undeploy/skipped-restore/manual-re-add cycles leave several archived
+ * generations per server, so the candidate query dedupes in SQL — one row per
+ * `server_id`, the most recently updated generation winning — and only then
+ * bounds the result at `MAX_MCP_SERVERS_PER_WORKFLOW`. Bounding rows instead
+ * would let one server's stale generations consume the budget and silently drop
+ * other servers out of the restore entirely.
  *
- * A candidate is also dropped when reviving it would break an invariant that
+ * A candidate is dropped when reviving it would break an invariant that
  * `performCreateWorkflowMcpTool` enforces on create but that archiving silently
  * relaxes: archiving frees both the tool name and the server slot, so while a
  * workflow sits undeployed another workflow can take its name on the server or
  * fill the server to `MAX_MCP_TOOLS_PER_SERVER`, and no database constraint
- * covers either case. Restore therefore re-checks, per candidate server, the
- * live tool count, a `toolName` collision, and the server's tools/list metadata
- * budget. A dropped candidate stays archived and is logged as a warning naming
- * the workflow, the server, and the reason: restore runs inside the deploy
- * transaction, so throwing would fail an otherwise valid deploy over a
- * registration the user can restore by hand, while silently skipping would
- * leave the operator with no signal at all.
+ * covers either case. It is dropped too when the server already carries a live
+ * registration for this workflow, which `workflow_mcp_tool_server_workflow_unique`
+ * does cover — a violation there would abort the whole deploy transaction.
+ * {@link getRestoreSkipReason} checks all four. A dropped candidate stays
+ * archived and is logged as a warning naming the workflow, the server, and the
+ * reason: restore runs inside the deploy transaction, so throwing would fail an
+ * otherwise valid deploy over a registration the user can restore by hand, while
+ * silently skipping would leave the operator with no signal at all.
  *
  * Locks are taken in sorted server order before any of those checks read the
  * server's live rows, matching every other writer here, so concurrent syncs
@@ -191,8 +206,8 @@ async function restoreArchivedMcpToolsForWorkflow(
   workflowId: string,
   requestId: string
 ): Promise<void> {
-  const archived = await tx
-    .select({
+  const archived: RestoreCandidate[] = await tx
+    .selectDistinctOn([workflowMcpTool.serverId], {
       id: workflowMcpTool.id,
       serverId: workflowMcpTool.serverId,
       toolName: workflowMcpTool.toolName,
@@ -201,26 +216,18 @@ async function restoreArchivedMcpToolsForWorkflow(
     })
     .from(workflowMcpTool)
     .where(and(eq(workflowMcpTool.workflowId, workflowId), isNotNull(workflowMcpTool.archivedAt)))
-    .orderBy(desc(workflowMcpTool.updatedAt), desc(workflowMcpTool.id))
+    .orderBy(
+      asc(workflowMcpTool.serverId),
+      desc(workflowMcpTool.updatedAt),
+      desc(workflowMcpTool.id)
+    )
     .limit(MAX_MCP_SERVERS_PER_WORKFLOW)
 
   if (archived.length === 0) return
 
-  const liveRows = await tx
-    .select({ serverId: workflowMcpTool.serverId })
-    .from(workflowMcpTool)
-    .where(and(eq(workflowMcpTool.workflowId, workflowId), isNull(workflowMcpTool.archivedAt)))
-    .limit(MAX_MCP_SERVERS_PER_WORKFLOW)
-  const liveServerIds = new Set(liveRows.map((row) => row.serverId))
-
-  const candidateByServer = new Map<string, RestoreCandidate>()
-  for (const row of archived) {
-    if (liveServerIds.has(row.serverId)) continue
-    if (candidateByServer.has(row.serverId)) continue
-    candidateByServer.set(row.serverId, row)
-  }
-  if (candidateByServer.size === 0) return
-
+  const candidateByServer = new Map<string, RestoreCandidate>(
+    archived.map((row) => [row.serverId, row])
+  )
   const candidateServerIds = [...candidateByServer.keys()].sort()
   for (const serverId of candidateServerIds) {
     await acquireWorkflowMcpServerLock(tx, serverId)
@@ -231,7 +238,7 @@ async function restoreArchivedMcpToolsForWorkflow(
     const candidate = candidateByServer.get(serverId)
     if (!candidate) continue
 
-    const skipReason = await getRestoreSkipReason(tx, candidate)
+    const skipReason = await getRestoreSkipReason(tx, workflowId, candidate)
     if (skipReason) {
       logger.warn(
         `[${requestId}] Skipped restoring archived MCP tool "${candidate.toolName}" for workflow ${workflowId} on server ${serverId}: ${skipReason}`
