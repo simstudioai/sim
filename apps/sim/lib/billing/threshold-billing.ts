@@ -13,7 +13,7 @@ import {
   getHighestPrioritySubscription,
   getOrganizationSubscriptionUsable,
 } from '@/lib/billing/core/subscription'
-import { type BillingEntity, getBillingPeriodUsageCostByUser } from '@/lib/billing/core/usage-log'
+import { type BillingEntity, getBillingPeriodUsageCost } from '@/lib/billing/core/usage-log'
 import { isSubscriptionCycleCloseCurrent } from '@/lib/billing/cycle-close'
 import { isEnterprise, isFree } from '@/lib/billing/plan-helpers'
 import {
@@ -32,7 +32,6 @@ const OVERAGE_THRESHOLD = envNumber(env.OVERAGE_THRESHOLD_DOLLARS, DEFAULT_OVERA
 const USAGE_TOTAL_EPSILON = 0.000001
 
 interface OrganizationUsageSnapshot {
-  memberIds: string[]
   ownerId: string
   memberSignature: string
 }
@@ -615,20 +614,13 @@ async function checkAndBillOrganizationOverageThreshold(
       ownerId: usageSnapshot.ownerId,
     })
 
-    const orgUsageByUser =
+    const ledgerUsage =
       orgSubscription.periodStart && orgSubscription.periodEnd
-        ? await getBillingPeriodUsageCostByUser(
+        ? await getBillingPeriodUsageCost(
             { type: 'organization', id: organizationId },
             { start: orgSubscription.periodStart, end: orgSubscription.periodEnd }
           )
-        : new Map<string, number>()
-    let ledgerUsage = 0
-    for (const cost of orgUsageByUser.values()) ledgerUsage += cost
-    // Union current members with every actor holding org-attributed rows this
-    // period: a member who departed mid-period still bills here, so their
-    // daily-refresh consumption must offset the overage too — same actor set
-    // as `calculateSubscriptionOverage` and the cycle close.
-    const overageActorIds = [...new Set([...usageSnapshot.memberIds, ...orgUsageByUser.keys()])]
+        : 0
 
     const {
       totalOverage: currentOverage,
@@ -641,7 +633,6 @@ async function checkAndBillOrganizationOverageThreshold(
       periodEnd: orgSubscription.periodEnd ?? null,
       organizationId,
       pooledLedgerUsage: ledgerUsage,
-      memberIds: overageActorIds,
     })
 
     if (currentOverage < threshold) {
@@ -950,7 +941,6 @@ function buildOrganizationUsageSnapshot(
   const sortedRows = [...rows].sort((a, b) => a.userId.localeCompare(b.userId))
 
   return {
-    memberIds: sortedRows.map((row) => row.userId),
     ownerId: owner.userId,
     memberSignature: sortedRows.map((row) => `${row.userId}:${row.role}`).join('|'),
   }

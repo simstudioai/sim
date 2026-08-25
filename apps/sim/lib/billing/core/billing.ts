@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { member, organization, subscription, userStats } from '@sim/db/schema'
+import { organization, subscription, userStats } from '@sim/db/schema'
 import { and, desc, eq, inArray } from 'drizzle-orm'
 import { defaultBillingPeriod } from '@/lib/billing/core/billing-period'
 import {
@@ -10,7 +10,6 @@ import { ensureUserStatsExists } from '@/lib/billing/core/usage'
 import {
   COPILOT_USAGE_SOURCES,
   getBillingPeriodUsageCost,
-  getBillingPeriodUsageCostByUser,
   getBillingPeriodUsageCostWithSourceSubset,
 } from '@/lib/billing/core/usage-log'
 import { computeDailyRefreshConsumed } from '@/lib/billing/credits/daily-refresh'
@@ -124,7 +123,6 @@ export async function computeOrgOverageAmount(params: {
   periodEnd: Date | null
   organizationId: string
   pooledLedgerUsage: number
-  memberIds: string[]
 }): Promise<{
   effectiveUsage: number
   baseSubscriptionAmount: number
@@ -135,14 +133,13 @@ export async function computeOrgOverageAmount(params: {
 
   let dailyRefreshDeduction = 0
   const planDollars = getPlanTierDollars(params.plan)
-  if (planDollars > 0 && params.periodStart && params.memberIds.length > 0) {
+  if (planDollars > 0 && params.periodStart) {
     dailyRefreshDeduction = await computeDailyRefreshConsumed({
-      userIds: params.memberIds,
+      billingEntity: { type: 'organization', id: params.organizationId },
       periodStart: params.periodStart,
       periodEnd: params.periodEnd ?? null,
       planDollars,
       seats: params.seats || 1,
-      billingEntity: { type: 'organization', id: params.organizationId },
     })
   }
 
@@ -180,23 +177,13 @@ export async function calculateSubscriptionOverage(sub: {
   const isOrgScoped = await isSubscriptionOrgScoped(sub)
 
   if (isOrgScoped) {
-    const memberRows = await db
-      .select({ userId: member.userId })
-      .from(member)
-      .where(eq(member.organizationId, sub.referenceId))
-    const usageByUser =
+    const ledgerUsage =
       sub.periodStart && sub.periodEnd
-        ? await getBillingPeriodUsageCostByUser(
+        ? await getBillingPeriodUsageCost(
             { type: 'organization', id: sub.referenceId },
             { start: sub.periodStart, end: sub.periodEnd }
           )
-        : new Map<string, number>()
-    let ledgerUsage = 0
-    for (const cost of usageByUser.values()) ledgerUsage += cost
-    // Union current members with every actor holding org-attributed rows this
-    // period: a member who departed mid-period still bills here, so their
-    // daily-refresh consumption must offset the overage too.
-    const memberIds = [...new Set([...memberRows.map((row) => row.userId), ...usageByUser.keys()])]
+        : 0
 
     const { totalOverage, effectiveUsage, baseSubscriptionAmount } = await computeOrgOverageAmount({
       plan: sub.plan,
@@ -205,7 +192,6 @@ export async function calculateSubscriptionOverage(sub: {
       periodEnd: sub.periodEnd ?? null,
       organizationId: sub.referenceId,
       pooledLedgerUsage: ledgerUsage,
-      memberIds,
     })
 
     totalOverageDecimal = toDecimal(totalOverage)
@@ -238,11 +224,10 @@ export async function calculateSubscriptionOverage(sub: {
       const planDollars = getPlanTierDollars(sub.plan)
       if (planDollars > 0 && sub.periodStart) {
         dailyRefreshDeduction = await computeDailyRefreshConsumed({
-          userIds: [sub.referenceId],
+          billingEntity: { type: 'user', id: sub.referenceId },
           periodStart: sub.periodStart,
           periodEnd: sub.periodEnd ?? null,
           planDollars,
-          billingEntity: { type: 'user', id: sub.referenceId },
         })
       }
     }
@@ -322,11 +307,10 @@ export async function getPersonalBillingSummary(userId: string, executor: DbClie
       if (planDollars > 0) {
         refreshDeduction = await computeDailyRefreshConsumed(
           {
-            userIds: [userId],
+            billingEntity: { type: 'user', id: userId },
             periodStart: personalSubscription.periodStart,
             periodEnd: personalSubscription.periodEnd ?? null,
             planDollars,
-            billingEntity: { type: 'user', id: userId },
           },
           executor
         )

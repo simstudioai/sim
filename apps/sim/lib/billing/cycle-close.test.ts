@@ -84,6 +84,7 @@ vi.mock('@/lib/posthog/server', () => ({
 import {
   claimTerminalPeriod,
   closeElapsedBillingPeriod,
+  closeElapsedPeriodBeforeDeletion,
   isSubscriptionCycleCloseCurrent,
   sweepBillingCycleCloses,
   writeFinalPeriodBookkeeping,
@@ -194,7 +195,6 @@ describe('closeElapsedBillingPeriod', () => {
       periodEnd: PERIOD_START,
       organizationId: 'org-1',
       pooledLedgerUsage: 150,
-      memberIds: ['owner-1'],
     })
 
     expect(mockEnqueueOutboxEvent).toHaveBeenCalledTimes(1)
@@ -280,9 +280,11 @@ describe('closeElapsedBillingPeriod', () => {
     expect(mockEnqueueOutboxEvent).not.toHaveBeenCalled()
   })
 
-  it('includes departed members with billed ledger usage in the refresh actor set', async () => {
+  it('bills departed members through the pooled entity sums, not a roster', async () => {
     // 'departed-1' has org-attributed rows in the closed period but no member
-    // row anymore; their refresh consumption must still offset the overage.
+    // row anymore; the pooled sum carries them, and the entity-scoped refresh
+    // inside computeOrgOverageAmount offsets them identically — no actor list
+    // is passed anywhere.
     mockGetStampedPeriodRangeUsageCostByUser.mockResolvedValue(
       new Map([
         ['owner-1', 100],
@@ -293,12 +295,14 @@ describe('closeElapsedBillingPeriod', () => {
 
     await closeElapsedBillingPeriod(subRow())
 
-    expect(mockComputeOrgOverageAmount).toHaveBeenCalledWith(
-      expect.objectContaining({
-        pooledLedgerUsage: 150,
-        memberIds: ['owner-1', 'departed-1'],
-      })
-    )
+    expect(mockComputeOrgOverageAmount).toHaveBeenCalledWith({
+      plan: 'team',
+      seats: null,
+      periodStart: PREV_PERIOD_START,
+      periodEnd: PERIOD_START,
+      organizationId: 'org-1',
+      pooledLedgerUsage: 150,
+    })
   })
 
   it('applies organization credits before invoicing and skips Stripe when covered', async () => {
@@ -444,6 +448,54 @@ describe('writeFinalPeriodBookkeeping', () => {
     expect(mockGetStampedPeriodRangeUsageCostByUser).not.toHaveBeenCalled()
     expect(dbChainMockFns.transaction).not.toHaveBeenCalled()
     expect(dbChainMockFns.set).not.toHaveBeenCalled()
+  })
+})
+
+describe('closeElapsedPeriodBeforeDeletion', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+    mockIsSubscriptionOrgScoped.mockResolvedValue(true)
+    mockIsEnterprise.mockReturnValue(false)
+    mockIsFree.mockReturnValue(false)
+    mockResolveSubscriptionUsagePeriod.mockReturnValue(null)
+    mockGetPlanTierDollars.mockReturnValue(40)
+    mockGetPlanPricing.mockReturnValue({ basePrice: 40 })
+    mockComputeDailyRefreshConsumed.mockResolvedValue(0)
+    mockGetStampedPeriodRangeUsageCostByUser.mockResolvedValue(new Map([['owner-1', 150]]))
+    mockComputeOrgOverageAmount.mockResolvedValue({
+      effectiveUsage: 150,
+      baseSubscriptionAmount: 80,
+      dailyRefreshDeduction: 0,
+      totalOverage: 70,
+    })
+    dbChainMockFns.returning.mockResolvedValue([{ id: 'sub-1' }])
+  })
+
+  it('closes a lagging period with the settlement grace bypassed', async () => {
+    // Rollover 30 minutes ago — inside the grace the sweep would honor. The
+    // deletion path cannot wait: no later sweep revisits a canceled sub, so
+    // it settles the elapsed period now with whatever rows have landed.
+    const recentRollover = new Date(Date.now() - 30 * 60 * 1000)
+    queueTableRows(schemaMock.subscription, [subRow({ periodStart: recentRollover })])
+    queueOrgCloseReads()
+
+    await closeElapsedPeriodBeforeDeletion('sub-1')
+
+    expect(mockEnqueueOutboxEvent).toHaveBeenCalledTimes(1)
+    const markerSet = dbChainMockFns.set.mock.calls.find(
+      (call) => (call[0] as Record<string, unknown>).lastClosedPeriodStart instanceof Date
+    )
+    expect(markerSet).toBeDefined()
+  })
+
+  it('no-ops when the close marker is already current', async () => {
+    queueTableRows(schemaMock.subscription, [subRow({ lastClosedPeriodStart: PERIOD_START })])
+
+    await closeElapsedPeriodBeforeDeletion('sub-1')
+
+    expect(dbChainMockFns.transaction).not.toHaveBeenCalled()
+    expect(mockEnqueueOutboxEvent).not.toHaveBeenCalled()
   })
 })
 

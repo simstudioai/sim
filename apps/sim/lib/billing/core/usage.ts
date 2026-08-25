@@ -22,7 +22,7 @@ import {
   type ResolvedUsagePeriod,
   resolveSubscriptionUsagePeriod,
 } from '@/lib/billing/core/reporting-period'
-import { getBillingPeriodUsageCost } from '@/lib/billing/core/usage-log'
+import { type BillingEntity, getBillingPeriodUsageCost } from '@/lib/billing/core/usage-log'
 import { computeDailyRefreshConsumed } from '@/lib/billing/credits/daily-refresh'
 import { getPlanTierDollars, isEnterprise, isFree, isPaid } from '@/lib/billing/plan-helpers'
 import {
@@ -63,39 +63,29 @@ export interface UsageLimitSubscription {
 }
 
 /**
- * Member ids plus the pooled previous-period bookkeeping total for an
- * organization. Current-period usage is never read here — it is always the
- * attributed usage_log ledger. `lastPeriodCost` rows are written by the
- * cycle-close sweep from ledger sums.
+ * Pooled previous-period bookkeeping total for an organization — the sum of
+ * member `lastPeriodCost` rows, which the cycle-close sweep writes from
+ * ledger sums. Current-period usage is never read here — it is always the
+ * attributed usage_log ledger.
  *
  * Uses `LEFT JOIN` so members whose `userStats` row is missing still
- * appear (contributing 0), which keeps `memberIds` complete for
- * downstream refresh / bounds computations.
+ * count (contributing 0).
  */
-export async function getOrgMemberBillingRollup(
+export async function getOrgLastPeriodCost(
   organizationId: string,
   executor: DbClient = db
-): Promise<{ memberIds: string[]; lastPeriodCost: number }> {
+): Promise<number> {
   const rows = await executor
-    .select({
-      userId: member.userId,
-      lastPeriodCost: userStats.lastPeriodCost,
-    })
+    .select({ lastPeriodCost: userStats.lastPeriodCost })
     .from(member)
     .leftJoin(userStats, eq(member.userId, userStats.userId))
     .where(eq(member.organizationId, organizationId))
 
   let lastPeriodCost = new Decimal(0)
-  const memberIds: string[] = []
   for (const row of rows) {
-    memberIds.push(row.userId)
     lastPeriodCost = lastPeriodCost.plus(toDecimal(row.lastPeriodCost))
   }
-
-  return {
-    memberIds,
-    lastPeriodCost: toNumber(lastPeriodCost),
-  }
+  return toNumber(lastPeriodCost)
 }
 
 /**
@@ -244,9 +234,6 @@ export async function getResolvedUserUsageData(
     let lastPeriodCost = toNumber(toDecimal(stats.lastPeriodCost))
 
     let limit: number
-    // Shared between the pooled-usage and pooled-refresh blocks so we
-    // don't issue the member lookup twice per org-scoped call.
-    let orgMemberIds: string[] = []
 
     if (orgScoped && subscription) {
       const orgLimit = await getOrgUsageLimit(
@@ -257,9 +244,7 @@ export async function getResolvedUserUsageData(
       )
       limit = orgLimit.limit
 
-      const rollup = await getOrgMemberBillingRollup(subscription.referenceId, executor)
-      orgMemberIds = rollup.memberIds
-      lastPeriodCost = rollup.lastPeriodCost
+      lastPeriodCost = await getOrgLastPeriodCost(subscription.referenceId, executor)
       currentUsage = await getBillingPeriodUsageCost(
         { type: 'organization', id: subscription.referenceId },
         billingPeriod,
@@ -279,32 +264,18 @@ export async function getResolvedUserUsageData(
     if (subscription && isPaid(subscription.plan) && billingPeriodStart) {
       const planDollars = getPlanTierDollars(subscription.plan)
       if (planDollars > 0) {
-        if (orgScoped) {
-          if (orgMemberIds.length > 0) {
-            dailyRefreshConsumed = await computeDailyRefreshConsumed(
-              {
-                userIds: orgMemberIds,
-                periodStart: billingPeriodStart,
-                periodEnd: billingPeriodEnd,
-                planDollars,
-                seats: subscription.seats || 1,
-                billingEntity: { type: 'organization', id: subscription.referenceId },
-              },
-              executor
-            )
-          }
-        } else {
-          dailyRefreshConsumed = await computeDailyRefreshConsumed(
-            {
-              userIds: [userId],
-              periodStart: billingPeriodStart,
-              periodEnd: billingPeriodEnd,
-              planDollars,
-              billingEntity: { type: 'user', id: userId },
-            },
-            executor
-          )
-        }
+        dailyRefreshConsumed = await computeDailyRefreshConsumed(
+          {
+            billingEntity: orgScoped
+              ? { type: 'organization', id: subscription.referenceId }
+              : { type: 'user', id: userId },
+            periodStart: billingPeriodStart,
+            periodEnd: billingPeriodEnd,
+            planDollars,
+            seats: orgScoped ? subscription.seats || 1 : undefined,
+          },
+          executor
+        )
       }
     }
 
@@ -668,9 +639,6 @@ export async function getEffectiveCurrentPeriodCost(
   const subscription = await getHighestPrioritySubscription(userId, { executor })
   const orgScoped = isOrgScopedSubscription(subscription, userId)
 
-  let rawCost: number
-  let refreshUserIds: string[] = [userId]
-
   const billingPeriod = resolveSubscriptionUsagePeriod(subscription) ?? {
     ...defaultBillingPeriod(),
     source: 'default' as const,
@@ -678,24 +646,11 @@ export async function getEffectiveCurrentPeriodCost(
     interval: null,
   }
 
-  if (orgScoped && subscription) {
-    const rollup = await getOrgMemberBillingRollup(subscription.referenceId, executor)
-    if (rollup.memberIds.length === 0) return 0
-    refreshUserIds = rollup.memberIds
-    rawCost = await getBillingPeriodUsageCost(
-      { type: 'organization', id: subscription.referenceId },
-      billingPeriod,
-      undefined,
-      executor
-    )
-  } else {
-    rawCost = await getBillingPeriodUsageCost(
-      { type: 'user', id: userId },
-      billingPeriod,
-      undefined,
-      executor
-    )
-  }
+  const billingEntity: BillingEntity =
+    orgScoped && subscription
+      ? { type: 'organization', id: subscription.referenceId }
+      : { type: 'user', id: userId }
+  const rawCost = await getBillingPeriodUsageCost(billingEntity, billingPeriod, undefined, executor)
 
   if (!subscription || !isPaid(subscription.plan) || !subscription.periodStart) {
     return rawCost
@@ -706,15 +661,11 @@ export async function getEffectiveCurrentPeriodCost(
 
   const refreshConsumed = await computeDailyRefreshConsumed(
     {
-      userIds: refreshUserIds,
+      billingEntity,
       periodStart: subscription.periodStart,
       periodEnd: subscription.periodEnd ?? null,
       planDollars,
       seats: subscription.seats || 1,
-      billingEntity:
-        orgScoped && subscription
-          ? { type: 'organization', id: subscription.referenceId }
-          : { type: 'user', id: userId },
     },
     executor
   )

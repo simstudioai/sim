@@ -7,11 +7,7 @@ import { isOrganizationBillingBlocked } from '@/lib/billing/core/access'
 import { defaultBillingPeriod } from '@/lib/billing/core/billing-period'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/plan'
 import { resolveSubscriptionUsagePeriod } from '@/lib/billing/core/reporting-period'
-import {
-  getOrgMemberBillingRollup,
-  getUserUsageLimit,
-  type UsageLimitSubscription,
-} from '@/lib/billing/core/usage'
+import { getUserUsageLimit, type UsageLimitSubscription } from '@/lib/billing/core/usage'
 import {
   type BillingContext,
   type BillingEntity,
@@ -70,15 +66,9 @@ async function computePooledOrgUsage(
     return getBillingPeriodUsageCost({ type: 'organization', id: organizationId }, billingPeriod)
   }
 
-  const { memberIds } = await getOrgMemberBillingRollup(organizationId)
-  if (memberIds.length === 0) {
-    return getBillingPeriodUsageCost({ type: 'organization', id: organizationId }, billingPeriod)
-  }
-
   const { ledgerUsage, refreshConsumed } = await computeBillingPeriodUsageWithDailyRefresh({
     billingEntity: { type: 'organization', id: organizationId },
     billingPeriod,
-    userIds: memberIds,
     refreshPeriodStart: sub.periodStart,
     refreshPeriodEnd: sub.periodEnd ?? null,
     planDollars,
@@ -151,7 +141,6 @@ export async function checkUsageStatus(
         const usage = await computeBillingPeriodUsageWithDailyRefresh({
           billingEntity: { type: 'user', id: userId },
           billingPeriod,
-          userIds: [userId],
           refreshPeriodStart: sub.periodStart,
           refreshPeriodEnd: sub.periodEnd ?? null,
           planDollars,

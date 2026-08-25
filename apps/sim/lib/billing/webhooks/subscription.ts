@@ -5,7 +5,11 @@ import { createLogger } from '@sim/logger'
 import { and, eq, inArray, ne } from 'drizzle-orm'
 import { calculateSubscriptionOverage, isSubscriptionOrgScoped } from '@/lib/billing/core/billing'
 import { syncUsageLimitsFromSubscription } from '@/lib/billing/core/usage'
-import { claimTerminalPeriod, writeFinalPeriodBookkeeping } from '@/lib/billing/cycle-close'
+import {
+  claimTerminalPeriod,
+  closeElapsedPeriodBeforeDeletion,
+  writeFinalPeriodBookkeeping,
+} from '@/lib/billing/cycle-close'
 import { restoreUserProSubscription } from '@/lib/billing/organizations/membership'
 import { isEnterprise, isPaid, isPro, isTeam } from '@/lib/billing/plan-helpers'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
@@ -280,11 +284,18 @@ export async function handleSubscriptionDeleted(
       'subscription-deleted',
       idempotencyIdentifier,
       async () => {
-        // Claim the terminal period BEFORE computing or charging: this reads
-        // the row's fresh period (webhook payloads can be stale across a
-        // rollover) and serializes with the cycle-close sweep — an in-flight
-        // close fails its guarded marker claim and rolls back, so both paths
-        // can never bill the same period.
+        // Settle any elapsed period the sweep has not closed yet — a deleted
+        // subscription leaves the sweep's candidate set, so this is the last
+        // chance to bill it (and to reset the threshold tracker so the
+        // terminal settlement below is not offset by the elapsed period's
+        // collections).
+        await closeElapsedPeriodBeforeDeletion(subscription.id)
+
+        // Then claim the terminal period BEFORE computing or charging: this
+        // reads the row's fresh period (webhook payloads can be stale across
+        // a rollover) and serializes with the cycle-close sweep — an
+        // in-flight close fails its guarded marker claim and rolls back, so
+        // both paths can never bill the same period.
         const terminal = await claimTerminalPeriod(subscription.id)
         const settlementPeriod = {
           periodStart: terminal.periodStart ?? subscription.periodStart ?? null,

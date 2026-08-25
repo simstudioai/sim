@@ -10,7 +10,7 @@ import {
   getBillingPeriodUsageCostByUser,
   type UsageQueryPeriod,
 } from '@/lib/billing/core/usage-log'
-import { computeOrganizationDailyRefreshConsumed } from '@/lib/billing/credits/daily-refresh'
+import { computeDailyRefreshConsumed } from '@/lib/billing/credits/daily-refresh'
 import { getPlanTierDollars, isEnterprise, isPaid } from '@/lib/billing/plan-helpers'
 import {
   getEffectiveSeats,
@@ -274,9 +274,9 @@ export async function getOrganizationBillingData(
     if (isPaid(subscription.plan) && subscription.periodStart) {
       const planDollars = getPlanTierDollars(subscription.plan)
       if (planDollars > 0) {
-        const refreshConsumed = await computeOrganizationDailyRefreshConsumed(
+        const refreshConsumed = await computeDailyRefreshConsumed(
           {
-            organizationId: subscription.referenceId,
+            billingEntity: { type: 'organization', id: subscription.referenceId },
             periodStart: subscription.periodStart,
             periodEnd: subscription.periodEnd ?? null,
             planDollars,

@@ -9,12 +9,19 @@
  *   SUM( MIN(day_usage, daily_refresh_amount) ) for each day
  *
  * This is subtracted from ledger period usage to derive "effective billable usage".
+ *
+ * Refresh reads are scoped by the ledger's write-time entity and period
+ * stamps — never by an actor list. Every row attributed to the billing entity
+ * participates in that entity's refresh, exactly like it participates in the
+ * entity's ledger total: rows from a member who departed the organization
+ * mid-period stay stamped to the organization, and a member's pre-join rows
+ * are user-stamped, so they can never appear under an organization entity.
  */
 
 import { db } from '@sim/db'
 import { usageLog } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq, gte, inArray, lt, or, sql, sum } from 'drizzle-orm'
+import { and, eq, gte, lt, or, sql, sum } from 'drizzle-orm'
 import { DAILY_REFRESH_RATE } from '@/lib/billing/constants'
 import type { BillingEntity, UsageQueryPeriod } from '@/lib/billing/core/usage-log'
 import type { DbClient } from '@/lib/db/types'
@@ -27,7 +34,6 @@ const MAX_BILLING_PERIOD_DAYS = 370
 interface BillingPeriodUsageWithDailyRefreshParams {
   billingEntity: BillingEntity
   billingPeriod: UsageQueryPeriod
-  userIds: string[]
   refreshPeriodStart: Date
   refreshPeriodEnd?: Date | null
   planDollars: number
@@ -37,9 +43,9 @@ interface BillingPeriodUsageWithDailyRefreshParams {
 /**
  * Reads the exact ledger total and the daily-refresh buckets from one snapshot.
  *
- * The two aggregates intentionally keep different predicates. Ledger totals use
- * both captured period bounds (or a reporting-time window), while refresh uses
- * the captured period start, eligible users, and per-user time bounds.
+ * The two aggregates intentionally keep different predicates. Ledger totals
+ * use both captured period bounds (or a reporting-time window), while refresh
+ * uses the captured period start plus a created-at day window.
  */
 export async function computeBillingPeriodUsageWithDailyRefresh(
   params: BillingPeriodUsageWithDailyRefreshParams,
@@ -48,7 +54,6 @@ export async function computeBillingPeriodUsageWithDailyRefresh(
   const {
     billingEntity,
     billingPeriod,
-    userIds,
     refreshPeriodStart,
     refreshPeriodEnd,
     planDollars,
@@ -57,23 +62,14 @@ export async function computeBillingPeriodUsageWithDailyRefresh(
   const now = new Date()
   const cap = refreshPeriodEnd && refreshPeriodEnd < now ? refreshPeriodEnd : now
   const dailyRefreshDollars = planDollars * DAILY_REFRESH_RATE * seats
-  const refreshUserFilters =
-    cap > refreshPeriodStart
-      ? [
-          and(
-            inArray(usageLog.userId, userIds),
-            gte(usageLog.createdAt, refreshPeriodStart),
-            lt(usageLog.createdAt, cap)
-          ),
-        ]
-      : []
-  const refreshFilter =
-    refreshUserFilters.length > 0
-      ? and(
-          eq(usageLog.billingPeriodStart, refreshPeriodStart),
-          refreshUserFilters.length === 1 ? refreshUserFilters[0] : or(...refreshUserFilters)
-        )
-      : sql<boolean>`false`
+  const refreshWindowActive = cap > refreshPeriodStart
+  const refreshFilter = refreshWindowActive
+    ? and(
+        eq(usageLog.billingPeriodStart, refreshPeriodStart),
+        gte(usageLog.createdAt, refreshPeriodStart),
+        lt(usageLog.createdAt, cap)
+      )
+    : sql<boolean>`false`
   const ledgerPeriodFilter =
     billingPeriod.source === 'reporting'
       ? and(gte(usageLog.createdAt, billingPeriod.start), lt(usageLog.createdAt, billingPeriod.end))
@@ -89,14 +85,13 @@ export async function computeBillingPeriodUsageWithDailyRefresh(
     billingPeriod.source === 'reporting' &&
     refreshPeriodStart >= billingPeriod.start &&
     cap <= billingPeriod.end
-  const scanFilter =
-    refreshUserFilters.length === 0
-      ? ledgerPeriodFilter
-      : sameCapturedPeriodStart
-        ? eq(usageLog.billingPeriodStart, billingPeriod.start)
-        : reportingWindowContainsRefresh
-          ? ledgerPeriodFilter
-          : or(ledgerPeriodFilter, refreshFilter)
+  const scanFilter = !refreshWindowActive
+    ? ledgerPeriodFilter
+    : sameCapturedPeriodStart
+      ? eq(usageLog.billingPeriodStart, billingPeriod.start)
+      : reportingWindowContainsRefresh
+        ? ledgerPeriodFilter
+        : or(ledgerPeriodFilter, refreshFilter)
 
   const rows = await executor
     .select({
@@ -135,88 +130,20 @@ export async function computeBillingPeriodUsageWithDailyRefresh(
 }
 
 /**
- * Compute the total daily refresh credits consumed in the current billing period
- * using a single aggregating SQL query grouped by day offset.
+ * Compute the total daily refresh credits a billing entity consumed in a
+ * period, using a single aggregating SQL query grouped by day offset.
  *
  * For each day from `periodStart`:
  *   consumed_today = MIN(actual_usage_today, daily_refresh_dollars)
+ *
+ * Rows are scoped purely by the entity and period stamps — see the module
+ * header for why no actor list participates.
  *
  * @returns Total dollars of refresh consumed across all days (to subtract from usage)
  */
 export async function computeDailyRefreshConsumed(
   params: {
-    userIds: string[]
-    periodStart: Date
-    periodEnd?: Date | null
-    planDollars: number
-    seats?: number
-    billingEntity?: { type: 'user' | 'organization'; id: string }
-  },
-  executor: DbClient = db
-): Promise<number> {
-  const { userIds, periodStart, periodEnd, planDollars, seats = 1, billingEntity } = params
-
-  if (planDollars <= 0 || userIds.length === 0) return 0
-
-  const dailyRefreshDollars = planDollars * DAILY_REFRESH_RATE * seats
-
-  const now = new Date()
-  const cap = periodEnd && periodEnd < now ? periodEnd : now
-
-  if (cap <= periodStart) return 0
-
-  const dayCount = Math.ceil((cap.getTime() - periodStart.getTime()) / MS_PER_DAY)
-  if (dayCount <= 0) return 0
-
-  const billingEntityFilter = billingEntity
-    ? and(
-        eq(usageLog.billingEntityType, billingEntity.type),
-        eq(usageLog.billingEntityId, billingEntity.id),
-        eq(usageLog.billingPeriodStart, periodStart)
-      )
-    : undefined
-
-  const rowFilters = [
-    and(
-      inArray(usageLog.userId, userIds),
-      billingEntityFilter,
-      gte(usageLog.createdAt, periodStart),
-      lt(usageLog.createdAt, cap)
-    ),
-  ]
-
-  const rows = await executor
-    .select({
-      dayIndex:
-        sql<number>`FLOOR((EXTRACT(EPOCH FROM ${usageLog.createdAt}) - ${Math.floor(periodStart.getTime() / 1000)}) / 86400)`.as(
-          'day_index'
-        ),
-      dayTotal: sum(usageLog.cost).as('day_total'),
-    })
-    .from(usageLog)
-    .where(rowFilters.length === 1 ? rowFilters[0] : or(...rowFilters))
-    .groupBy(sql`day_index`)
-
-  let totalConsumed = 0
-  for (const row of rows) {
-    const dayUsage = Number.parseFloat(row.dayTotal ?? '0')
-    totalConsumed += Math.min(dayUsage, dailyRefreshDollars)
-  }
-
-  logger.debug('Daily refresh computed', {
-    userCount: userIds.length,
-    periodStart: periodStart.toISOString(),
-    days: dayCount,
-    dailyRefreshDollars,
-    totalConsumed,
-  })
-
-  return totalConsumed
-}
-
-export async function computeOrganizationDailyRefreshConsumed(
-  params: {
-    organizationId: string
+    billingEntity: BillingEntity
     periodStart: Date
     periodEnd?: Date | null
     planDollars: number
@@ -224,21 +151,22 @@ export async function computeOrganizationDailyRefreshConsumed(
   },
   executor: DbClient = db
 ): Promise<number> {
-  const { organizationId, periodStart, periodEnd, planDollars, seats = 1 } = params
+  const { billingEntity, periodStart, periodEnd, planDollars, seats = 1 } = params
+
   if (planDollars <= 0) return 0
 
+  const dailyRefreshDollars = planDollars * DAILY_REFRESH_RATE * seats
+
   const now = new Date()
   const cap = periodEnd && periodEnd < now ? periodEnd : now
+
   if (cap <= periodStart) return 0
+
   const dayCount = Math.ceil((cap.getTime() - periodStart.getTime()) / MS_PER_DAY)
   if (dayCount > MAX_BILLING_PERIOD_DAYS) {
-    throw new Error('Organization billing period exceeds the supported annual bound')
+    throw new Error('Billing period exceeds the supported annual bound')
   }
 
-  const dailyRefreshDollars = planDollars * DAILY_REFRESH_RATE * seats
-  // Entity/period stamps fully scope the rows: every org-attributed row —
-  // including a departed member's — participates in the org's refresh, and a
-  // member's pre-join rows are user-stamped so they can never appear here.
   const rows = await executor
     .select({
       dayIndex:
@@ -250,8 +178,8 @@ export async function computeOrganizationDailyRefreshConsumed(
     .from(usageLog)
     .where(
       and(
-        eq(usageLog.billingEntityType, 'organization'),
-        eq(usageLog.billingEntityId, organizationId),
+        eq(usageLog.billingEntityType, billingEntity.type),
+        eq(usageLog.billingEntityId, billingEntity.id),
         eq(usageLog.billingPeriodStart, periodStart),
         gte(usageLog.createdAt, periodStart),
         lt(usageLog.createdAt, cap)
@@ -259,15 +187,19 @@ export async function computeOrganizationDailyRefreshConsumed(
     )
     .groupBy(sql`day_index`)
 
-  return rows.reduce((total, row) => {
+  let totalConsumed = 0
+  for (const row of rows) {
     const dayUsage = Number.parseFloat(row.dayTotal ?? '0')
-    return total + Math.min(dayUsage, dailyRefreshDollars)
-  }, 0)
-}
+    totalConsumed += Math.min(dayUsage, dailyRefreshDollars)
+  }
 
-/**
- * Get the daily refresh allowance in dollars for a plan.
- */
-export function getDailyRefreshDollars(planDollars: number): number {
-  return planDollars * DAILY_REFRESH_RATE
+  logger.debug('Daily refresh computed', {
+    billingEntityType: billingEntity.type,
+    periodStart: periodStart.toISOString(),
+    days: dayCount,
+    dailyRefreshDollars,
+    totalConsumed,
+  })
+
+  return totalConsumed
 }

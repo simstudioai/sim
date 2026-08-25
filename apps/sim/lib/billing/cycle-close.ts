@@ -145,6 +145,48 @@ export async function isSubscriptionCycleCloseCurrent(
 }
 
 /**
+ * Close any elapsed-but-unclosed billing period for a subscription that is
+ * being deleted, ahead of its terminal settlement. A deleted subscription
+ * leaves the sweep's candidate set (its status leaves
+ * `ENTITLED_SUBSCRIPTION_STATUSES`), so this is the last chance to settle a
+ * period the sweep has not caught up to — without it, `claimTerminalPeriod`
+ * would advance the marker past the elapsed period and silently forgive its
+ * final overage, while the elapsed period's threshold collections would
+ * wrongly offset the terminal window's. The settlement grace is bypassed:
+ * no later sweep will revisit, so straggler rows are forgiven exactly like
+ * the terminal settlement's own.
+ */
+export async function closeElapsedPeriodBeforeDeletion(subscriptionId: string): Promise<void> {
+  const [row] = await db
+    .select()
+    .from(subscriptionTable)
+    .where(eq(subscriptionTable.id, subscriptionId))
+    .limit(1)
+  if (!row?.periodStart) return
+  const lagging =
+    row.lastClosedPeriodStart === null ||
+    row.lastClosedPeriodStart.getTime() < row.periodStart.getTime()
+  if (!lagging) return
+
+  const result = await closeElapsedBillingPeriod(row, { bypassSettlementGrace: true })
+  if (result.status === 'skipped') {
+    // The close deferred (missing Stripe linkage, ownerless org, or a roster
+    // change mid-close). Deletion proceeds — blocking member downgrades on an
+    // unbillable period is the wrong trade — so the residual overage is
+    // forgiven; the close path already logged the specific cause.
+    logger.error(
+      'Deletion proceeding past an unclosable elapsed period; residual overage forgiven',
+      {
+        subscriptionId,
+        plan: row.plan,
+        marker: row.lastClosedPeriodStart?.toISOString() ?? null,
+        periodStart: row.periodStart.toISOString(),
+      }
+    )
+  }
+}
+
+/**
  * Claim the terminal period for a subscription that is being deleted, BEFORE
  * the deletion handler computes and charges final overage. Reads the
  * subscription row fresh (webhook payloads can be stale across a rollover)
@@ -152,8 +194,9 @@ export async function isSubscriptionCycleCloseCurrent(
  * transaction, serializing with the sweep on the subscription row: an
  * in-flight sweep close then fails its guarded marker claim and rolls back —
  * including its outbox invoice — so deletion and sweep can never both bill
- * the same period. Returns the fresh period bounds for the deletion flow to
- * settle against.
+ * the same period. Call `closeElapsedPeriodBeforeDeletion` first so a lagging
+ * elapsed period is settled rather than jumped. Returns the fresh period
+ * bounds for the deletion flow to settle against.
  */
 export async function claimTerminalPeriod(
   subscriptionId: string
@@ -227,7 +270,10 @@ async function claimCloseMarker(
  * anchor. A null marker initializes to the current `periodStart` without
  * billing, so historical periods are never retroactively closed.
  */
-export async function closeElapsedBillingPeriod(sub: SubscriptionRow): Promise<CycleCloseResult> {
+export async function closeElapsedBillingPeriod(
+  sub: SubscriptionRow,
+  options: { bypassSettlementGrace?: boolean } = {}
+): Promise<CycleCloseResult> {
   const base: CycleCloseResult = { status: 'skipped', subscriptionId: sub.id }
 
   if (!sub.periodStart || isFree(sub.plan)) return base
@@ -250,7 +296,10 @@ export async function closeElapsedBillingPeriod(sub: SubscriptionRow): Promise<C
     return { ...base, status: 'initialized' }
   }
 
-  if (Date.now() - periodStart.getTime() < CLOSE_SETTLEMENT_GRACE_MS) {
+  if (
+    !options.bypassSettlementGrace &&
+    Date.now() - periodStart.getTime() < CLOSE_SETTLEMENT_GRACE_MS
+  ) {
     // Rollover too recent — a run started before it could still insert rows
     // stamped with the elapsed period. A later sweep closes it with final sums.
     return base
@@ -267,7 +316,13 @@ export async function closeElapsedBillingPeriod(sub: SubscriptionRow): Promise<C
   // the refresh window aligned with the stamped period even when anchor-day
   // drift (e.g. Jan 31 → Feb 28) makes `periodStart - 1 interval` inexact.
   const [prevStamp] = await db
-    .select({ start: sql<Date | null>`max(${usageLog.billingPeriodStart})` })
+    .select({
+      // mapWith(column) applies the timestamp decoder — a raw aggregate
+      // bypasses column mapping, so the driver would return a string here.
+      start: sql<Date | null>`max(${usageLog.billingPeriodStart})`.mapWith(
+        usageLog.billingPeriodStart
+      ),
+    })
     .from(usageLog)
     .where(
       and(
@@ -324,16 +379,11 @@ export async function closeElapsedBillingPeriod(sub: SubscriptionRow): Promise<C
   const trackerUserId = orgScoped
     ? (memberRows.find((row) => row.role === 'owner')?.userId ?? null)
     : sub.referenceId
-  // Every actor whose org-attributed usage is billed at this close, including
-  // members who departed mid-period: their ledger rows stay stamped to this
-  // organization's period, so their daily-refresh consumption must offset the
-  // overage exactly like a current member's. Current members with no rows stay
-  // in the set for their refresh bounds.
-  const overageActorIds = orgScoped
-    ? [...new Set([...memberIds, ...usageByUser.keys()])]
-    : memberIds
 
   // Final overage for the closed period (enterprise never bills overage).
+  // Refresh reads are scoped by the same entity/period stamps as the ledger
+  // sums, so a departed member's org-attributed rows offset the overage
+  // exactly like a current member's.
   let totalOverage = 0
   if (!enterprise) {
     if (orgScoped) {
@@ -344,7 +394,6 @@ export async function closeElapsedBillingPeriod(sub: SubscriptionRow): Promise<C
         periodEnd: periodStart,
         organizationId: sub.referenceId,
         pooledLedgerUsage: closedLedgerUsage,
-        memberIds: overageActorIds,
       })
       totalOverage = computed
     } else {
@@ -352,11 +401,10 @@ export async function closeElapsedBillingPeriod(sub: SubscriptionRow): Promise<C
       let refreshConsumed = 0
       if (planDollars > 0) {
         refreshConsumed = await computeDailyRefreshConsumed({
-          userIds: [sub.referenceId],
+          billingEntity,
           periodStart: closeFrom,
           periodEnd: periodStart,
           planDollars,
-          billingEntity,
         })
       }
       const { basePrice } = getPlanPricing(sub.plan)
