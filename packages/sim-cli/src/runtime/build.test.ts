@@ -722,7 +722,9 @@ describe('commands parsed through commander', () => {
 
   it('describes asynchronous workflow runs without a contradictory negative flag', () => {
     const help = commandAt('workflows', 'run').helpInformation()
-    expect(commandAt('workflows', 'run').description()).toBe('Run a deployed workflow')
+    expect(commandAt('workflows', 'run').description()).toBe(
+      'Run a deployed workflow or execute saved state manually'
+    )
     expect(help).toContain('--async')
     expect(help).not.toContain('--no-async')
   })
