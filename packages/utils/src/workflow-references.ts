@@ -4,7 +4,6 @@ const REFERENCE_PATH_DELIMITER = '.'
 const INVALID_REFERENCE_CHARS = /[+*/=<>!&|]/
 const LEADING_REFERENCE_PATTERN = /^[<>=!\s]*$/
 const ENV_REFERENCE_PATTERN = /\{\{[^{}\r\n]+\}\}/g
-const ANGLE_REFERENCE_PATTERN = /<[^>\r\n]+>/g
 
 export type WorkflowReferenceTokenKind = 'environment' | 'workflow'
 
@@ -67,13 +66,29 @@ export function findWorkflowReferenceTokens(source: string): WorkflowReferenceTo
     tokens.push({ kind: 'environment', value: match[0], start, end: start + match[0].length })
   }
 
-  for (const match of source.matchAll(ANGLE_REFERENCE_PATTERN)) {
-    const split = splitWorkflowReferenceSegment(match[0])
-    if (!split || !isLikelyWorkflowReferenceSegment(match[0])) continue
-    const start = match.index + split.leading.length
-    const end = start + split.reference.length
-    if (tokens.some((token) => start < token.end && end > token.start)) continue
-    tokens.push({ kind: 'workflow', value: split.reference, start, end })
+  let candidateStart = -1
+  for (let index = 0; index < source.length; index += 1) {
+    const character = source[index]
+    if (character === REFERENCE_START && candidateStart === -1) {
+      candidateStart = index
+      continue
+    }
+    if (character === '\r' || character === '\n') {
+      candidateStart = -1
+      continue
+    }
+    if (character !== REFERENCE_END || candidateStart === -1) continue
+
+    const candidate = source.slice(candidateStart, index + REFERENCE_END.length)
+    const split = splitWorkflowReferenceSegment(candidate)
+    if (split && isLikelyWorkflowReferenceSegment(candidate)) {
+      const start = candidateStart + split.leading.length
+      const end = start + split.reference.length
+      if (!tokens.some((token) => start < token.end && end > token.start)) {
+        tokens.push({ kind: 'workflow', value: split.reference, start, end })
+      }
+    }
+    candidateStart = -1
   }
 
   return tokens.sort((left, right) => left.start - right.start)

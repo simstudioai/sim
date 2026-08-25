@@ -51,4 +51,23 @@ describe('workflow references', () => {
       },
     ])
   })
+
+  it('scans long runs of opening brackets while preserving final reference offsets', () => {
+    expect(findWorkflowReferenceTokens(`${'<'.repeat(10_000)}value>`)).toEqual([
+      {
+        kind: 'workflow',
+        value: '<value>',
+        start: 9_999,
+        end: 10_006,
+      },
+    ])
+    expect(findWorkflowReferenceTokens(`${'<'.repeat(10_000)}<block.output>`)).toEqual([
+      {
+        kind: 'workflow',
+        value: '<block.output>',
+        start: 10_000,
+        end: 10_014,
+      },
+    ])
+  })
 })
