@@ -74,6 +74,22 @@ export function projectIntegrationToolsForViewer(
   return { tools, allowedBlockTypes, isToolAllowed }
 }
 
+/**
+ * Stable signature of the policy {@link projectIntegrationToolsForViewer} reads,
+ * for keying caches whose contents depend on the projection.
+ *
+ * The projection is only as fresh as what keys it: an entry cached under a
+ * viewer's identity alone outlives the policy that produced it, so an admin's
+ * change would not take effect until the entry expired. Mirrors
+ * `visibilitySignature`, which does the same job for block visibility.
+ */
+export function integrationGateSignature(config: IntegrationGateConfig | null | undefined): string {
+  return JSON.stringify([
+    config?.allowedIntegrations ? [...config.allowedIntegrations].sort() : null,
+    config?.deniedTools?.length ? [...config.deniedTools].sort() : null,
+  ])
+}
+
 /** What a viewer's `deniedTools` denylist costs the block schemas they are shown. */
 export interface DeniedBlockOperations {
   /**

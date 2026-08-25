@@ -299,6 +299,34 @@ describe('buildIntegrationToolSchemas', () => {
     expect(second[0].input_schema).not.toHaveProperty('mutated')
     expect(second[0].outputs).not.toHaveProperty('mutated')
   })
+
+  it('rebuilds instead of serving a cache entry from the previous policy', async () => {
+    mockGetHighestPrioritySubscription.mockResolvedValue({ plan: 'pro', status: 'active' })
+    mockGetUserPermissionConfig.mockResolvedValue({ allowedIntegrations: null, deniedTools: [] })
+
+    const before = await buildIntegrationToolSchemas(
+      'user-policy',
+      undefined,
+      { schemaSurface: 'copilot' },
+      'workspace-policy'
+    )
+    expect(before.map((tool) => tool.name)).toContain('gmail_send')
+
+    // An admin denies the tool. The viewer and surface are unchanged, so only
+    // the policy component of the key can force a rebuild.
+    mockGetUserPermissionConfig.mockResolvedValue({
+      allowedIntegrations: null,
+      deniedTools: ['gmail_send'],
+    })
+
+    const after = await buildIntegrationToolSchemas(
+      'user-policy',
+      undefined,
+      { schemaSurface: 'copilot' },
+      'workspace-policy'
+    )
+    expect(after.map((tool) => tool.name)).not.toContain('gmail_send')
+  })
 })
 
 describe('buildCopilotRequestPayload', () => {

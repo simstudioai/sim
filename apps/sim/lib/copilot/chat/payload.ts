@@ -9,6 +9,7 @@ import { getBlockVisibilityForCopilot, visibilitySignature } from '@/lib/copilot
 import type { VfsSnapshotV1 } from '@/lib/copilot/generated/vfs-snapshot-v1'
 import {
   type IntegrationGateConfig,
+  integrationGateSignature,
   projectIntegrationToolsForViewer,
 } from '@/lib/copilot/integration-tool-projection'
 import { buildTaggedMcpToolSchemas } from '@/lib/copilot/mcp-tools'
@@ -110,11 +111,14 @@ function getIntegrationToolSchemaCacheKey(
   userId: string,
   workspaceId: string | undefined,
   schemaSurface: string,
-  visSignature: string
+  visSignature: string,
+  gateSignature: string
 ): string {
   // The visibility signature keys the entry to the viewer's gated projection —
   // two users in one workspace with different preview reveals must not share.
-  return JSON.stringify([userId, workspaceId ?? null, schemaSurface, visSignature])
+  // The gate signature does the same for permission-group policy, so an admin's
+  // change takes effect on the next build rather than when the entry expires.
+  return JSON.stringify([userId, workspaceId ?? null, schemaSurface, visSignature, gateSignature])
 }
 
 function cloneToolSchemas(toolSchemas: ToolSchema[]): ToolSchema[] {
@@ -151,11 +155,20 @@ export async function buildIntegrationToolSchemas(
 ): Promise<ToolSchema[]> {
   const schemaSurface = options.schemaSurface ?? 'copilot'
   const vis = await getBlockVisibilityForCopilot(userId, workspaceId)
+  // Resolved before the key, not inside the cached build, so the entry is keyed
+  // to the policy it was produced under. The read this adds is cheap next to
+  // what the entry caches: a user-tool schema per exposed integration tool.
+  let permissionConfig: IntegrationGateConfig | null = null
+  if (workspaceId) {
+    const { getUserPermissionConfig } = await import('@/ee/access-control/utils/permission-check')
+    permissionConfig = await getUserPermissionConfig(userId, workspaceId)
+  }
   const cacheKey = getIntegrationToolSchemaCacheKey(
     userId,
     workspaceId,
     schemaSurface,
-    visibilitySignature(vis)
+    visibilitySignature(vis),
+    integrationGateSignature(permissionConfig)
   )
   const cached = integrationToolSchemaCache.get(cacheKey)
   if (cached) {
@@ -167,7 +180,8 @@ export async function buildIntegrationToolSchemas(
     messageId,
     { schemaSurface },
     workspaceId,
-    vis
+    vis,
+    permissionConfig
   ).catch((error) => {
     integrationToolSchemaCache.delete(cacheKey)
     throw error
@@ -185,15 +199,11 @@ async function buildIntegrationToolSchemasUncached(
   messageId: string | undefined,
   options: Required<BuildIntegrationToolSchemasOptions>,
   workspaceId?: string,
-  vis: BlockVisibilityState | null = null
+  vis: BlockVisibilityState | null = null,
+  permissionConfig: IntegrationGateConfig | null = null
 ): Promise<ToolSchema[]> {
   const reqLogger = logger.withMetadata({ messageId })
   const integrationTools: ToolSchema[] = []
-  let permissionConfig: IntegrationGateConfig | null = null
-  if (workspaceId) {
-    const { getUserPermissionConfig } = await import('@/ee/access-control/utils/permission-check')
-    permissionConfig = await getUserPermissionConfig(userId, workspaceId)
-  }
 
   try {
     const { createUserToolSchema } = await import('@/tools/params')
