@@ -765,6 +765,46 @@ interface MarkDocumentsQueuedResult {
   readonly unresolvedIds: string[]
 }
 
+function acceptedDocumentStateCondition(observedAt: Date): SQL | undefined {
+  const queuedCutoff = new Date(observedAt.getTime() - QUEUED_DISPATCH_GRACE_MS)
+  const processingCutoff = new Date(observedAt.getTime() - DOCUMENT_PROCESSING_STALE_THRESHOLD_MS)
+  return or(
+    eq(document.processingStatus, 'completed'),
+    and(
+      eq(document.processingStatus, 'pending'),
+      isNotNull(document.processingQueuedAt),
+      gte(document.processingQueuedAt, queuedCutoff)
+    ),
+    and(
+      eq(document.processingStatus, 'processing'),
+      isNotNull(document.processingStartedAt),
+      gte(document.processingStartedAt, processingCutoff)
+    )
+  )
+}
+
+async function isDocumentAcceptedWithoutDispatch(
+  documentId: string,
+  knowledgeBaseId: string,
+  observedAt: Date
+): Promise<boolean> {
+  const accepted = await db
+    .select({ id: document.id })
+    .from(document)
+    .where(
+      and(
+        eq(document.id, documentId),
+        eq(document.knowledgeBaseId, knowledgeBaseId),
+        acceptedDocumentStateCondition(observedAt),
+        eq(document.userExcluded, false),
+        isNull(document.archivedAt),
+        isNull(document.deletedAt)
+      )
+    )
+    .limit(1)
+  return accepted.length > 0
+}
+
 async function markDocumentsQueued(
   documentIds: string[],
   knowledgeBaseId: string,
@@ -772,9 +812,6 @@ async function markDocumentsQueued(
   queuedAt: Date
 ): Promise<MarkDocumentsQueuedResult> {
   const legacyAdoptionCutoff = new Date(queuedAt.getTime() - QUEUED_DISPATCH_GRACE_MS)
-  const processingStaleCutoff = new Date(
-    queuedAt.getTime() - DOCUMENT_PROCESSING_STALE_THRESHOLD_MS
-  )
   return db.transaction(async (tx) => {
     const claimed = await tx
       .update(document)
@@ -850,19 +887,7 @@ async function markDocumentsQueued(
               and(
                 inArray(document.id, unresolvedIds),
                 eq(document.knowledgeBaseId, knowledgeBaseId),
-                or(
-                  eq(document.processingStatus, 'completed'),
-                  and(
-                    eq(document.processingStatus, 'pending'),
-                    isNotNull(document.processingQueuedAt),
-                    gte(document.processingQueuedAt, legacyAdoptionCutoff)
-                  ),
-                  and(
-                    eq(document.processingStatus, 'processing'),
-                    isNotNull(document.processingStartedAt),
-                    gte(document.processingStartedAt, processingStaleCutoff)
-                  )
-                ),
+                acceptedDocumentStateCondition(queuedAt),
                 eq(document.userExcluded, false),
                 isNull(document.archivedAt),
                 isNull(document.deletedAt)
@@ -1216,7 +1241,14 @@ async function dispatchInProcess(
             },
           }
         )
-        return true
+        if (processingClaimed) return true
+
+        const acceptedByLiveGeneration = await isDocumentAcceptedWithoutDispatch(
+          p.documentId,
+          p.knowledgeBaseId,
+          new Date()
+        )
+        return acceptedByLiveGeneration
       } catch (error) {
         if (isPermanentDocumentProcessingError(error)) {
           logger.warn(`[${requestId}] Document processing reached an expected terminal state`, {

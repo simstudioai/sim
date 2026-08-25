@@ -811,6 +811,145 @@ describe('processDocumentsWithQueue dispatch backend', () => {
     ).toBe(false)
   })
 
+  it('withdraws a direct dispatch whose guarded processing claim lost the race', async () => {
+    setEnvFlags({ isTriggerDevEnabled: true })
+    dbChainMockFns.returning.mockReset()
+    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'document-1' }]).mockResolvedValueOnce([])
+    dbChainMockFns.limit.mockReset()
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([{ userId: 'knowledge-owner', workspaceId: 'workspace-1' }])
+      .mockResolvedValueOnce([
+        {
+          knowledgeBaseUserId: 'knowledge-owner',
+          workspaceId: 'workspace-1',
+          filename: DOCUMENT.filename,
+          fileUrl: DOCUMENT.fileUrl,
+          fileSize: DOCUMENT.fileSize,
+          mimeType: DOCUMENT.mimeType,
+        },
+      ])
+      .mockResolvedValueOnce([])
+
+    await expect(
+      processDocumentsWithQueue(
+        [DOCUMENT],
+        'knowledge-base-1',
+        {},
+        'request-1',
+        BILLING_ATTRIBUTION
+      )
+    ).rejects.toThrow('document processing dispatches failed')
+
+    expect(mockBatchTrigger).not.toHaveBeenCalled()
+    expect(
+      dbChainMockFns.set.mock.calls.some(
+        (call) =>
+          (call[0] as Record<string, unknown> | undefined)?.processingQueuedAt === null &&
+          'processingAttempts' in ((call[0] as Record<string, unknown> | undefined) ?? {})
+      )
+    ).toBe(true)
+  })
+
+  it('accepts an unclaimed direct dispatch only after revalidating live document state', async () => {
+    vi.useFakeTimers()
+    const now = new Date('2026-08-25T06:00:00.000Z')
+    vi.setSystemTime(now)
+    setEnvFlags({ isTriggerDevEnabled: true })
+    dbChainMockFns.returning.mockReset()
+    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'document-1' }]).mockResolvedValueOnce([])
+    dbChainMockFns.limit.mockReset()
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([{ userId: 'knowledge-owner', workspaceId: 'workspace-1' }])
+      .mockResolvedValueOnce([
+        {
+          knowledgeBaseUserId: 'knowledge-owner',
+          workspaceId: 'workspace-1',
+          filename: DOCUMENT.filename,
+          fileUrl: DOCUMENT.fileUrl,
+          fileSize: DOCUMENT.fileSize,
+          mimeType: DOCUMENT.mimeType,
+        },
+      ])
+      .mockResolvedValueOnce([{ id: 'document-1' }])
+
+    await expect(
+      processDocumentsWithQueue(
+        [DOCUMENT],
+        'knowledge-base-1',
+        {},
+        'request-1',
+        BILLING_ATTRIBUTION
+      )
+    ).resolves.toEqual({ requested: 1, accepted: 1, failed: 0, failedDocumentIds: [] })
+
+    const revalidationGuard = dbChainMockFns.where.mock.calls.find(
+      (call) =>
+        hasMockCondition(
+          call[0],
+          (node: MockCondition) =>
+            node.type === 'eq' &&
+            node.left === schemaMock.document.id &&
+            node.right === 'document-1'
+        ) &&
+        flattenMockConditions(call[0]).some(
+          (node: MockCondition) =>
+            node.type === 'or' &&
+            (node.conditions as MockCondition[]).some(
+              (condition) =>
+                condition.type === 'eq' &&
+                condition.left === schemaMock.document.processingStatus &&
+                condition.right === 'completed'
+            )
+        )
+    )?.[0]
+    expect(revalidationGuard).toBeDefined()
+    const acceptedStatusGuard = flattenMockConditions(revalidationGuard).find(
+      (node: MockCondition) => node.type === 'or'
+    )
+    const acceptedStatuses = acceptedStatusGuard?.conditions as MockCondition[]
+    const pendingState = acceptedStatuses.find(
+      (condition) =>
+        condition.type === 'and' &&
+        hasMockCondition(
+          condition,
+          (node: MockCondition) =>
+            node.type === 'eq' &&
+            node.left === schemaMock.document.processingStatus &&
+            node.right === 'pending'
+        )
+    )
+    const queuedFreshness = flattenMockConditions(pendingState).find(
+      (node: MockCondition) =>
+        node.type === 'gte' && node.left === schemaMock.document.processingQueuedAt
+    )
+    expect(queuedFreshness?.right).toEqual(new Date(now.getTime() - QUEUED_DISPATCH_GRACE_MS))
+    const processingState = acceptedStatuses.find(
+      (condition) =>
+        condition.type === 'and' &&
+        hasMockCondition(
+          condition,
+          (node: MockCondition) =>
+            node.type === 'eq' &&
+            node.left === schemaMock.document.processingStatus &&
+            node.right === 'processing'
+        )
+    )
+    const processingFreshness = flattenMockConditions(processingState).find(
+      (node: MockCondition) =>
+        node.type === 'gte' && node.left === schemaMock.document.processingStartedAt
+    )
+    expect(processingFreshness?.right).toEqual(
+      new Date(now.getTime() - DOCUMENT_PROCESSING_STALE_THRESHOLD_MS)
+    )
+    expect(
+      dbChainMockFns.set.mock.calls.some(
+        (call) =>
+          (call[0] as Record<string, unknown> | undefined)?.processingQueuedAt === null &&
+          'processingAttempts' in ((call[0] as Record<string, unknown> | undefined) ?? {})
+      )
+    ).toBe(false)
+  })
+
   it('uses the direct fallback outside a run when the deployment flag is off', async () => {
     setEnvFlags({ isTriggerDevEnabled: false })
     Object.assign(env, { TRIGGER_SECRET_KEY: 'trigger-secret' })

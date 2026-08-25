@@ -175,9 +175,12 @@ async function notionApiError(response: Response, operation: string): Promise<No
   let body: NotionApiErrorBody = {}
 
   try {
-    const parsed: unknown = JSON.parse(await readBoundedHttpErrorPayload(response))
-    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-      body = parsed as NotionApiErrorBody
+    const payload = await readBoundedHttpErrorPayload(response)
+    if (payload.ok) {
+      const parsed: unknown = JSON.parse(payload.body)
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        body = parsed as NotionApiErrorBody
+      }
     }
   } catch {
     body = {}
@@ -292,10 +295,13 @@ function unsupportedBlockFallback(block: Record<string, unknown>): string {
   if (!payload || Array.isArray(payload)) return ''
 
   const value = payload as Record<string, unknown>
+  const expression =
+    type === 'equation' && typeof value.expression === 'string' ? value.expression : ''
   const text =
     richTextToPlainText(value.rich_text) ||
     richTextToPlainText(value.caption) ||
-    richTextToPlainText(value.title)
+    richTextToPlainText(value.title) ||
+    expression
   const url = typeof value.url === 'string' ? value.url : ''
   return [text, url].filter(Boolean).join('\n')
 }
@@ -1032,20 +1038,26 @@ async function listFromDatabases(
     queryResultIncomplete =
       data.request_status?.type === 'incomplete' &&
       data.request_status?.incomplete_reason === 'query_result_limit_reached'
+    const providerCursor =
+      typeof data.next_cursor === 'string' && data.next_cursor.trim().length > 0
+        ? data.next_cursor
+        : undefined
+    const paginationCursorMissing = data.has_more === true && providerCursor === undefined
 
-    if (queryResultIncomplete && syncContext) {
+    if ((queryResultIncomplete || paginationCursorMissing) && syncContext) {
       syncContext.listingCapped = true
       syncContext.reconciliationUnsafe = true
     }
 
-    if (data.has_more === true && typeof data.next_cursor === 'string') {
-      const nextStart = data.next_cursor as string
-      nextCursor = encodeDataSourceCursor({ sourceIndex, cursor: nextStart })
+    if (data.has_more === true && providerCursor !== undefined) {
+      nextCursor = encodeDataSourceCursor({ sourceIndex, cursor: providerCursor })
       hasMore = true
-    } else if (sourceIndex + 1 < dataSources.length) {
+    } else if (!paginationCursorMissing && sourceIndex + 1 < dataSources.length) {
       nextCursor = encodeDataSourceCursor({ sourceIndex: sourceIndex + 1 })
       hasMore = true
     }
+
+    if (paginationCursorMissing) queryResultIncomplete = true
   }
 
   const totalFetched = ((syncContext?.totalDocsFetched as number) ?? 0) + documents.length

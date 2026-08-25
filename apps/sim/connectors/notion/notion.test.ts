@@ -3,12 +3,14 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockFetchWithRetry } = vi.hoisted(() => ({ mockFetchWithRetry: vi.fn() }))
+const { mockFetchWithRetry, mockReadBoundedHttpErrorPayload } = vi.hoisted(() => ({
+  mockFetchWithRetry: vi.fn(),
+  mockReadBoundedHttpErrorPayload: vi.fn(),
+}))
 
 vi.mock('@/lib/knowledge/documents/utils', () => ({
   fetchWithRetry: mockFetchWithRetry,
-  readBoundedHttpErrorBody: async (response: Response) => (await response.text()).slice(0, 2000),
-  readBoundedHttpErrorPayload: async (response: Response) => response.text(),
+  readBoundedHttpErrorPayload: mockReadBoundedHttpErrorPayload,
   VALIDATE_RETRY_OPTIONS: {},
 }))
 vi.mock('@/components/icons', () => ({ NotionIcon: () => null }))
@@ -51,6 +53,14 @@ function dataSources(prefix: string, count: number): { id: string; name: string 
 function dataSourceCursor(value: Record<string, unknown>): string {
   return `notion-data-sources:v1:${encodeURIComponent(JSON.stringify(value))}`
 }
+
+beforeEach(() => {
+  mockReadBoundedHttpErrorPayload.mockReset()
+  mockReadBoundedHttpErrorPayload.mockImplementation(async (response: Response) => ({
+    ok: true,
+    body: await response.text(),
+  }))
+})
 
 describe('notion markdown hydration', () => {
   beforeEach(() => {
@@ -226,6 +236,35 @@ describe('notion markdown hydration', () => {
     )
   })
 
+  it('recovers the expression from an unsupported equation block', async () => {
+    mockFetchWithRetry
+      .mockResolvedValueOnce(notionResponse(page()))
+      .mockResolvedValueOnce(
+        notionResponse({
+          markdown: 'Before unsupported equation: <unknown>',
+          truncated: false,
+          unknown_block_ids: ['equation-1'],
+        })
+      )
+      .mockResolvedValueOnce(
+        notionResponse({
+          object: 'block',
+          id: 'equation-1',
+          type: 'equation',
+          equation: { expression: 'e=mc^2' },
+        })
+      )
+
+    const document = await notionConnector.getDocument('token', {}, 'page-1')
+
+    expect(document).toMatchObject({ contentDeferred: false })
+    expect(document?.content).toContain('e=mc^2')
+    expect(document?.skippedReason).toBeUndefined()
+    expect(String(mockFetchWithRetry.mock.calls[2][0])).toBe(
+      'https://api.notion.com/v1/blocks/equation-1'
+    )
+  })
+
   it('marks an unrecoverable truncated response as skipped rather than storing partial content', async () => {
     mockFetchWithRetry
       .mockResolvedValueOnce(notionResponse(page()))
@@ -338,6 +377,29 @@ describe('notion markdown hydration', () => {
     await expect(notionConnector.getDocument('token', {}, 'page-1')).rejects.toThrow(
       'Failed to fetch markdown for page-1: 400, code=validation_error, message=The start_cursor provided is invalid, requestId=request-large'
     )
+  })
+
+  it('degrades to status-only diagnostics when the bounded error payload is unavailable', async () => {
+    mockReadBoundedHttpErrorPayload.mockResolvedValueOnce({ ok: false, reason: 'too_large' })
+    mockFetchWithRetry.mockResolvedValueOnce(notionResponse(page())).mockResolvedValueOnce(
+      notionResponse(
+        {
+          object: 'error',
+          code: 'validation_error',
+          message: 'This diagnostic must not be consumed',
+          request_id: 'request-omitted',
+        },
+        400
+      )
+    )
+
+    await expect(notionConnector.getDocument('token', {}, 'page-1')).rejects.toMatchObject({
+      message: 'Failed to fetch markdown for page-1: 400',
+      status: 400,
+      code: undefined,
+      requestId: undefined,
+    })
+    expect(mockReadBoundedHttpErrorPayload).toHaveBeenCalledTimes(1)
   })
 
   it('records an oversized markdown response as an intrinsic skipped document', async () => {
@@ -472,6 +534,49 @@ describe('notion listing completeness', () => {
     )
     expect(mockFetchWithRetry).toHaveBeenCalledTimes(3)
   })
+
+  it.each([undefined, null, '', '   '])(
+    'stops safely when a data source has more rows without a usable cursor: %j',
+    async (nextCursor) => {
+      mockFetchWithRetry
+        .mockResolvedValueOnce(
+          notionResponse({
+            object: 'database',
+            id: 'database-1',
+            data_sources: [
+              { id: 'source-1', name: 'Primary' },
+              { id: 'source-2', name: 'Archive' },
+            ],
+          })
+        )
+        .mockResolvedValueOnce(
+          notionResponse({
+            results: [page('page-1')],
+            has_more: true,
+            next_cursor: nextCursor,
+          })
+        )
+
+      const syncContext: Record<string, unknown> = {}
+      const result = await notionConnector.listDocuments(
+        'token',
+        { scope: 'database', databaseId: 'database-1' },
+        undefined,
+        syncContext
+      )
+
+      expect(result.documents.map((document) => document.externalId)).toEqual(['page-1'])
+      expect(result.hasMore).toBe(false)
+      expect(result.nextCursor).toBeUndefined()
+      expect(result.reconciliationSafe).toBe(false)
+      expect(syncContext.listingCapped).toBe(true)
+      expect(syncContext.reconciliationUnsafe).toBe(true)
+      expect(mockFetchWithRetry).toHaveBeenCalledTimes(2)
+      expect(
+        mockFetchWithRetry.mock.calls.some(([url]) => String(url).includes('/source-2/query'))
+      ).toBe(false)
+    }
+  )
 
   it('makes a data-source listing non-authoritative when Notion reports its 10,000-row ceiling', async () => {
     mockFetchWithRetry

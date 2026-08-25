@@ -17,6 +17,7 @@ import {
   type HTTPError,
   hasRateLimitEvidence,
   isRetryableError,
+  readBoundedHttpErrorPayload,
   resolveRetryDelayMs,
   retryWithExponentialBackoff,
   sanitizeHttpErrorDiagnostic,
@@ -58,6 +59,25 @@ describe('sanitizeHttpErrorDiagnostic', () => {
     expect(new TextEncoder().encode(body).byteLength).toBeLessThan(64 * 1024)
     expect(diagnostic).toBe('[response body omitted: unable to safely sanitize structured error]')
     expect(diagnostic).not.toContain(secret)
+  })
+})
+
+describe('readBoundedHttpErrorPayload', () => {
+  it('returns a typed failure and cancels a response body that exceeds 64KiB', async () => {
+    let cancelled = false
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        controller.enqueue(new Uint8Array(64 * 1024 + 1))
+      },
+      cancel() {
+        cancelled = true
+      },
+    })
+
+    const result = await readBoundedHttpErrorPayload(new Response(body))
+
+    expect(result).toEqual({ ok: false, reason: 'too_large' })
+    expect(cancelled).toBe(true)
   })
 })
 

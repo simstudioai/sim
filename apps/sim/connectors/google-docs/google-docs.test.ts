@@ -204,6 +204,25 @@ describe('googleDocsConnector', () => {
       expect(error?.message).not.toContain(secret)
     })
 
+    it('returns only the status when an error envelope exceeds the diagnostic limit', async () => {
+      const secret = 'over-limit-provider-secret-that-must-not-escape'
+      stubFetchDocument(
+        new Response(`${'x'.repeat(64 * 1024)}${secret}`, {
+          status: 400,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      )
+
+      const error = await googleDocsConnector.getDocument(ACCESS_TOKEN, {}, DOCUMENT_ID).then(
+        () => undefined,
+        (caught) => caught as Error
+      )
+
+      expect(error?.message).toBe(`Failed to fetch Google Doc content ${DOCUMENT_ID}: 400`)
+      expect(error?.message).not.toContain('response body omitted')
+      expect(error?.message).not.toContain(secret)
+    })
+
     it('marks an empty tab response as an authoritative skip', async () => {
       stubFetchDocument(new Response(JSON.stringify({ tabs: [] }), { status: 200 }))
 

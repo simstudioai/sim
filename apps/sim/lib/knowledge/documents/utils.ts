@@ -117,9 +117,22 @@ export async function readBoundedHttpErrorBody(
   },
   options: { sensitiveValues?: string[] } = {}
 ): Promise<string> {
-  const body = await readBoundedHttpErrorPayload(response)
-  return sanitizeHttpErrorDiagnostic(body, options)
+  const payload = await readBoundedHttpErrorPayload(response)
+  if (payload.ok) {
+    return sanitizeHttpErrorDiagnostic(payload.body, options)
+  }
+
+  const diagnostic =
+    payload.reason === 'too_large'
+      ? `[response body omitted: exceeded ${DEFAULT_MAX_ERROR_BODY_BYTES} bytes]`
+      : `[response body unavailable: ${payload.message}]`
+  return sanitizeHttpErrorDiagnostic(diagnostic, options)
 }
+
+export type BoundedHttpErrorPayload =
+  | { ok: true; body: string }
+  | { ok: false; reason: 'too_large' }
+  | { ok: false; reason: 'unavailable'; message: string }
 
 /**
  * Reads a byte-bounded upstream error payload for structured parsing. The raw
@@ -131,17 +144,20 @@ export async function readBoundedHttpErrorPayload(response: {
   body?: ReadableStream<Uint8Array> | null
   arrayBuffer?: () => Promise<ArrayBuffer>
   text?: () => Promise<string>
-}): Promise<string> {
+}): Promise<BoundedHttpErrorPayload> {
   try {
-    return await readResponseTextWithLimit(response, {
-      maxBytes: DEFAULT_MAX_ERROR_BODY_BYTES,
-      label: 'Upstream HTTP error response',
-    })
+    return {
+      ok: true,
+      body: await readResponseTextWithLimit(response, {
+        maxBytes: DEFAULT_MAX_ERROR_BODY_BYTES,
+        label: 'Upstream HTTP error response',
+      }),
+    }
   } catch (error) {
     if (isPayloadSizeLimitError(error)) {
-      return `[response body omitted: exceeded ${DEFAULT_MAX_ERROR_BODY_BYTES} bytes]`
+      return { ok: false, reason: 'too_large' }
     }
-    return `[response body unavailable: ${toError(error).message}]`
+    return { ok: false, reason: 'unavailable', message: toError(error).message }
   }
 }
 

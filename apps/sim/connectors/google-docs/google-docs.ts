@@ -149,7 +149,10 @@ interface DocsDocument {
 
 /** Describes a Google API failure without leaking an unbounded response body. */
 async function describeGoogleApiFailure(response: Response): Promise<string> {
-  const rawBody = await readBoundedHttpErrorPayload(response)
+  const payload = await readBoundedHttpErrorPayload(response)
+  if (!payload.ok) return String(response.status)
+
+  const rawBody = payload.body
   const normalizedBody = sanitizeHttpErrorDiagnostic(rawBody).replace(/\s+/g, ' ').trim()
   if (!normalizedBody) return String(response.status)
 
