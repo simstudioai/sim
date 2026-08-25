@@ -253,7 +253,20 @@ export async function createWorkspaceFileSecretProvenanceFromRegistry(
   const persistedProvenance = Object.is(sourceValue, persistedValue)
     ? sourceProvenance
     : registry.exportCommittedProvenanceForValue(persistedValue)
-  if (!sourceProvenance.complete || !persistedProvenance.complete) return { safe: false }
+  if (!sourceProvenance.complete || !persistedProvenance.complete) {
+    /**
+     * A latched registry holding no active entries is the same absence: no secret plaintext was
+     * ever resolved or imported in this context, so none can be in these bytes — the latch says
+     * only that content of unrecorded history crossed (a failed workflow run is the recurring
+     * producer), which is exactly what `unrecorded` states. Taint stays reserved for a registry
+     * that holds plaintext it cannot map to this output: stamping it here made one failed run
+     * turn every file its chat later wrote into a hard refusal until the next clean write.
+     */
+    if (registry.getIncompletenessDiagnostics()?.activeEntryCount === 0) {
+      return { safe: true, provenance: { status: 'unrecorded' } }
+    }
+    return { safe: false }
+  }
   if (
     (sourceProvenance.entries.length > 0 &&
       !isPrivateSecretProvenanceScopeCompatible(sourceProvenance.scope, destinationScope)) ||

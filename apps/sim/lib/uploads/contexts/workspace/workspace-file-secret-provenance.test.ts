@@ -20,6 +20,7 @@ import type { DbTransaction } from '@/lib/db/types'
 import {
   areModelSafeWorkspaceFileKeys,
   copyWorkspaceFileSecretProvenanceInTx,
+  createWorkspaceFileSecretProvenanceFromRegistry,
   filterModelSafeWorkspaceFileAttachments,
   importWorkspaceFileSecretProvenanceForModelView,
   importWorkspaceFileSecretProvenanceForRuntime,
@@ -1546,5 +1547,69 @@ describe('workspace file secret provenance', () => {
     expect(
       mergeWorkspaceFileSecretProvenance({ status: 'unrecorded' }, { status: 'unknown' })
     ).toEqual({ status: 'unknown' })
+  })
+})
+
+describe('createWorkspaceFileSecretProvenanceFromRegistry write decision', () => {
+  const SCOPE = { userId: 'user-1', workspaceId: 'workspace-1' }
+
+  /**
+   * A registry latched with nothing resolved is an absence, not a taint: no plaintext exists in
+   * the context to be in the bytes, so the file must stay readable under the unrecorded policy.
+   * Stamping taint here made one failed workflow run hard-refuse every file its chat later wrote.
+   */
+  it('classifies a latched registry holding no active entries as unrecorded', async () => {
+    const registry = {
+      exportCommittedProvenanceForValue: vi.fn(() => ({
+        version: 1,
+        complete: false,
+        entries: [],
+      })),
+      getIncompletenessDiagnostics: vi.fn(() => ({
+        reasons: ['value-provenance-absent'],
+        origins: [],
+        incompleteInputPathCount: 0,
+        activeEntryCount: 0,
+      })),
+    } as unknown as ResolvedSecretTraceRegistry
+
+    await expect(
+      createWorkspaceFileSecretProvenanceFromRegistry(registry, 'generated content', SCOPE)
+    ).resolves.toEqual({ safe: true, provenance: { status: 'unrecorded' } })
+  })
+
+  it('keeps a latched registry holding plaintext it cannot map as a taint', async () => {
+    const registry = {
+      exportCommittedProvenanceForValue: vi.fn(() => ({
+        version: 1,
+        complete: false,
+        entries: [],
+      })),
+      getIncompletenessDiagnostics: vi.fn(() => ({
+        reasons: ['source-provenance-incomplete'],
+        origins: [],
+        incompleteInputPathCount: 0,
+        activeEntryCount: 1,
+      })),
+    } as unknown as ResolvedSecretTraceRegistry
+
+    await expect(
+      createWorkspaceFileSecretProvenanceFromRegistry(registry, 'generated content', SCOPE)
+    ).resolves.toEqual({ safe: false })
+  })
+
+  it('stays a taint when the incomplete export carries no diagnostics to vouch with', async () => {
+    const registry = {
+      exportCommittedProvenanceForValue: vi.fn(() => ({
+        version: 1,
+        complete: false,
+        entries: [],
+      })),
+      getIncompletenessDiagnostics: vi.fn(() => undefined),
+    } as unknown as ResolvedSecretTraceRegistry
+
+    await expect(
+      createWorkspaceFileSecretProvenanceFromRegistry(registry, 'generated content', SCOPE)
+    ).resolves.toEqual({ safe: false })
   })
 })
