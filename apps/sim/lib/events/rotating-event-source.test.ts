@@ -68,13 +68,15 @@ describe('createRotatingEventSource', () => {
 
   it('keeps the current source open until its replacement connects', () => {
     const reasons: EventSourceOpenReason[] = []
+    const onMessage = vi.fn()
     const connection = createRotatingEventSource({
       url: '/api/events',
-      events: {},
+      events: { message: onMessage },
       onOpen: (reason) => reasons.push(reason),
     })
     const first = MockEventSource.instances[0]
     first.open()
+    first.emit('message')
 
     first.emit('rotate')
 
@@ -83,18 +85,21 @@ describe('createRotatingEventSource', () => {
 
     const second = MockEventSource.instances[1]
     second.open()
+    second.emit('message')
 
     expect(first.readyState).toBe(MockEventSource.CLOSED)
     expect(second.readyState).toBe(MockEventSource.OPEN)
     expect(reasons).toEqual(['initial', 'rotation'])
+    expect(onMessage).toHaveBeenCalledTimes(2)
     connection.close()
   })
 
   it('classifies a replacement as reconnecting when the old source dropped first', () => {
     const reasons: EventSourceOpenReason[] = []
+    const onMessage = vi.fn()
     const connection = createRotatingEventSource({
       url: '/api/events',
-      events: {},
+      events: { message: onMessage },
       onOpen: (reason) => reasons.push(reason),
     })
     const first = MockEventSource.instances[0]
@@ -102,9 +107,12 @@ describe('createRotatingEventSource', () => {
     first.emit('rotate')
     first.error()
 
-    MockEventSource.instances[1].open()
+    const second = MockEventSource.instances[1]
+    second.open()
+    second.emit('message')
 
     expect(reasons).toEqual(['initial', 'reconnect'])
+    expect(onMessage).toHaveBeenCalledTimes(1)
     connection.close()
   })
 

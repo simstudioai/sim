@@ -543,9 +543,9 @@ export function useStoredMcpTools(workspaceId: string, options?: { enabled?: boo
  * Reference-counted so the connection is closed when the last consumer unmounts.
  * Attached to `globalThis` so connections survive HMR in development.
  */
-const SSE_KEY = '__mcp_rotating_sse_connections' as const
+const SSE_KEY = '__mcp_sse_connections' as const
 
-type SseEntry = { connection: RotatingEventSourceConnection; refs: number }
+type SseEntry = { source: RotatingEventSourceConnection; refs: number }
 
 const sseConnections: Map<string, SseEntry> =
   ((globalThis as Record<string, unknown>)[SSE_KEY] as Map<string, SseEntry>) ??
@@ -582,7 +582,7 @@ export function useMcpToolsEvents(workspaceId: string) {
     if (!entry) {
       const isResubscribe = sseEverSubscribed.has(workspaceId)
       sseEverSubscribed.add(workspaceId)
-      const connection = createRotatingEventSource({
+      const source = createRotatingEventSource({
         url: `/api/mcp/events?workspaceId=${encodeURIComponent(workspaceId)}`,
         events: {
           tools_changed: (event) => {
@@ -602,7 +602,7 @@ export function useMcpToolsEvents(workspaceId: string) {
         },
       })
 
-      entry = { connection, refs: 0 }
+      entry = { source, refs: 0 }
       sseConnections.set(workspaceId, entry)
     }
 
@@ -614,7 +614,7 @@ export function useMcpToolsEvents(workspaceId: string) {
 
       current.refs--
       if (current.refs <= 0) {
-        current.connection.close()
+        current.source.close()
         sseConnections.delete(workspaceId)
       }
     }
