@@ -31,11 +31,7 @@ interface SemrushColumnDef {
   labels: string[]
 }
 
-function column(
-  key: string,
-  type: SemrushValueType,
-  ...labels: string[]
-): Omit<SemrushColumnDef, 'labels'> & { labels: string[] } {
+function column(key: string, type: SemrushValueType, ...labels: string[]): SemrushColumnDef {
   return { key, type, labels: labels.map((label) => label.toLowerCase()) }
 }
 
@@ -254,18 +250,17 @@ function resolveHeader(
 
   for (const [index, cell] of headerCells.entries()) {
     const label = normalizeLabel(cell)
-    const code = columnCodes.find(
-      (candidate, position) =>
-        position >= cursor &&
-        (candidate.toLowerCase() === label || COLUMN_DEFS[candidate].labels.includes(label))
-    )
+    let matched: SemrushColumnDef | null = null
 
-    if (code) {
-      cursor = columnCodes.indexOf(code, cursor) + 1
-      resolved.push(COLUMN_DEFS[code])
-    } else {
-      resolved.push(sameLength ? defs[index] : null)
+    for (let position = cursor; position < defs.length; position++) {
+      const code = columnCodes[position]
+      if (code.toLowerCase() === label || defs[position].labels.includes(label)) {
+        matched = defs[position]
+        cursor = position + 1
+        break
+      }
     }
+    resolved.push(matched ?? (sameLength ? defs[index] : null))
   }
   return resolved
 }
