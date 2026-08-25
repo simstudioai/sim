@@ -70,7 +70,7 @@ afterAll(resetEnvMock)
 import { GoogleIcon, GoogleVaultIcon } from '@/components/icons'
 import { buildConnectorProviders } from '@/lib/auth/connectors/providers'
 import { DEFAULT_MAX_ERROR_BODY_BYTES } from '@/lib/core/utils/stream-limits'
-import { OAUTH_PROVIDERS, refreshOAuthToken } from '@/lib/oauth'
+import { getSlackApprovalGatedScopes, OAUTH_PROVIDERS, refreshOAuthToken } from '@/lib/oauth'
 import { REDDIT_USER_AGENT } from '@/tools/reddit/constants'
 
 /**
@@ -283,6 +283,17 @@ describe('Bitbucket OAuth Connector', () => {
 })
 
 describe('OAuth Token Refresh', () => {
+  describe('Slack approval-gated scopes', () => {
+    it('adds the extended scope set only when the deployment capability is enabled', () => {
+      expect(getSlackApprovalGatedScopes(false)).toEqual([])
+      expect(getSlackApprovalGatedScopes(true)).toEqual([
+        'assistant:write',
+        'app_mentions:read',
+        'im:history',
+      ])
+    })
+  })
+
   describe('Basic Auth Providers', () => {
     const basicAuthProviders = [
       {

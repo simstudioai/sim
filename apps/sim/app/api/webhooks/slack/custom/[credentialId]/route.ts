@@ -1,14 +1,14 @@
-import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { admissionRejectedResponse, tryAdmit } from '@/lib/core/admission/gate'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { getSlackBotCredential } from '@/lib/oauth/credential-service'
-import { findWebhooksByRoutingKey, parseWebhookBody } from '@/lib/webhooks/processor'
-import { handleSlackChallenge, verifySlackRequestSignature } from '@/lib/webhooks/providers/slack'
-import { dispatchSlackWebhooks } from '@/lib/webhooks/slack-dispatch'
-
-const logger = createLogger('SlackCustomBotWebhookAPI')
+import { parseWebhookBody } from '@/lib/webhooks/processor'
+import { handleSlackChallenge } from '@/lib/webhooks/providers/slack'
+import {
+  dispatchSlackCustomBotCredential,
+  verifySlackCustomBotCredentialRequest,
+} from '@/lib/webhooks/slack-custom-ingress'
+import { getSlackDispatchResponse } from '@/lib/webhooks/slack-dispatch'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -58,31 +58,22 @@ async function handleSlackCustomBotWebhook(
     return challenge
   }
 
-  const botCredential = await getSlackBotCredential(credentialId)
-  if (!botCredential) {
-    logger.warn(`[${requestId}] Unknown Slack bot credential ${credentialId}`)
-    return new NextResponse(null, { status: 404 })
-  }
-
-  const authError = verifySlackRequestSignature(
-    botCredential.signingSecret,
+  const authError = await verifySlackCustomBotCredentialRequest({
+    credentialId,
     request,
     rawBody,
-    requestId
-  )
+    requestId,
+  })
   if (authError) {
     return authError
   }
 
-  const webhooks = await findWebhooksByRoutingKey(credentialId, requestId, 'slack')
-  if (webhooks.length === 0) {
-    logger.info(
-      `[${requestId}] No active trigger for bot credential ${credentialId}; nothing to run`
-    )
-    return new NextResponse(null, { status: 200 })
-  }
-
-  await dispatchSlackWebhooks(webhooks, { body, request, requestId, receivedAt })
-
-  return new NextResponse(null, { status: 200 })
+  const dispatchResults = await dispatchSlackCustomBotCredential({
+    credentialId,
+    body,
+    request,
+    requestId,
+    receivedAt,
+  })
+  return getSlackDispatchResponse(dispatchResults)
 }
