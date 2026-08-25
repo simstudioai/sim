@@ -6,6 +6,7 @@ import {
 
 const FALLBACK_TTL_MS = 15 * 60 * 1000
 const MAX_IN_MEMORY_BYTES = 256 * 1024 * 1024
+const SWEEP_INTERVAL_MS = 60 * 1000
 
 interface LargeValueCacheScope {
   workspaceId?: string
@@ -28,9 +29,26 @@ const inMemoryValues = new Map<
 >()
 let inMemoryBytes = 0
 
+let sweepTimer: ReturnType<typeof setInterval> | null = null
+
 export function clearLargeValueCacheForTests(): void {
   inMemoryValues.clear()
   inMemoryBytes = 0
+  if (sweepTimer) {
+    clearInterval(sweepTimer)
+    sweepTimer = null
+  }
+}
+
+/**
+ * Point-in-time occupancy of the in-memory large-value cache, for the periodic
+ * memory-telemetry snapshot. `trackedBytes` is the JSON-serialized accounting
+ * the admission/eviction budget uses — the retained heap of the parsed values
+ * is a multiple of it, which is exactly what comparing this line against
+ * `heapUsedMB` in the same snapshot is meant to expose.
+ */
+export function getLargeValueCacheStats(): { entries: number; trackedBytes: number } {
+  return { entries: inMemoryValues.size, trackedBytes: inMemoryBytes }
 }
 
 function cleanupExpiredValues(now = Date.now()): void {
@@ -40,6 +58,27 @@ function cleanupExpiredValues(now = Date.now()): void {
       inMemoryBytes -= entry.size
     }
   }
+}
+
+/**
+ * Keeps the fallback TTL honest on quiet instances. Expiry was previously
+ * enforced only inside `cacheLargeValue`/`materializeLargeValueRefSync`, so on
+ * an instance that stopped storing large values the last entries — up to the
+ * full budget, held as parsed object graphs — sat in memory indefinitely
+ * instead of for `FALLBACK_TTL_MS`. The timer is unref'd so it never holds the
+ * process open, and retires itself once the cache drains (the next insert
+ * restarts it), so an idle process carries no interval at all.
+ */
+function ensureSweepTimer(): void {
+  if (sweepTimer) return
+  sweepTimer = setInterval(() => {
+    cleanupExpiredValues()
+    if (inMemoryValues.size === 0 && sweepTimer) {
+      clearInterval(sweepTimer)
+      sweepTimer = null
+    }
+  }, SWEEP_INTERVAL_MS)
+  sweepTimer.unref()
 }
 
 export function cacheLargeValue(
@@ -87,6 +126,7 @@ export function cacheLargeValue(
     expiresAt: Date.now() + FALLBACK_TTL_MS,
   })
   inMemoryBytes += size
+  ensureSweepTimer()
   return true
 }
 

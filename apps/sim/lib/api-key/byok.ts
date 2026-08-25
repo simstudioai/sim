@@ -2,6 +2,7 @@ import { db } from '@sim/db'
 import { organizationBYOKKeys, workspace, workspaceBYOKKeys } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, asc, eq, notExists } from 'drizzle-orm'
+import { LRUCache } from 'lru-cache'
 import { isOrganizationBYOKEntitledCached } from '@/lib/api-key/byok-entitlement'
 import { getRotatingApiKey } from '@/lib/core/config/api-keys'
 import { env } from '@/lib/core/config/env'
@@ -27,7 +28,13 @@ export interface BYOKKeyResult {
 
 export type BYOKKeyScopeName = 'workspace' | 'organization'
 
-const rotationCounters = new Map<string, number>()
+/**
+ * Bounded so tenant-keyed cursors cannot accumulate for the life of the
+ * process (one entry per workspace/organization × provider that ever rotated).
+ * Evicting an idle pool's cursor just restarts its rotation at index 0, which
+ * the per-instance, approximate-rotation contract already tolerates.
+ */
+const rotationCounters = new LRUCache<string, number>({ max: 10_000 })
 
 interface EncryptedBYOKKey {
   id: string
