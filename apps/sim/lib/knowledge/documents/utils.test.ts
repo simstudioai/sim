@@ -44,7 +44,7 @@ function fakeResponse(
   }
 }
 
-const FAST_RETRY = { initialDelayMs: 1, maxDelayMs: 2, maxRetries: 3, retryBudgetMs: 50 }
+const FAST_RETRY = { initialDelayMs: 1, maxDelayMs: 2, maxRetries: 3, retryBudgetMs: 1_000 }
 
 describe('isRetryableError', () => {
   describe('retryable status codes', () => {
