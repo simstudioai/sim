@@ -7,6 +7,13 @@ import {
   normalizeBlockRetryWaitMs,
 } from '@sim/workflow-types/workflow'
 import { isIntegrationDeploymentAvailableForVisibility } from '@/lib/integrations/availability.server'
+import { createModelAccessGate } from '@/lib/permission-groups/model-access'
+import {
+  createToolAccessGate,
+  isOperationAllowed,
+  MODEL_SUBBLOCK_ID,
+  OPERATION_SUBBLOCK_ID,
+} from '@/lib/permission-groups/operation-access'
 import type { PermissionGroupConfig } from '@/lib/permission-groups/types'
 import { getEffectiveBlockOutputs } from '@/lib/workflows/blocks/block-outputs'
 import { isRetryEligibleBlock } from '@/lib/workflows/blocks/retry-eligibility'
@@ -173,8 +180,19 @@ export function createBlockFromParams(
 
   // Add validated inputs as subBlocks
   if (validatedInputs) {
+    const isInputAllowed = createSubBlockInputGate({
+      blockType: params.type,
+      permissionConfig,
+      blockId,
+      operationType: 'add',
+      skippedItems: skippedItems ?? [],
+    })
     Object.entries(validatedInputs).forEach(([key, value]) => {
       if (TRIGGER_RUNTIME_SUBBLOCK_IDS.includes(key)) {
+        return
+      }
+
+      if (!isInputAllowed(key, value)) {
         return
       }
 
@@ -691,12 +709,21 @@ export function addConnectionsAsEdges(
   })
 }
 
-export function applyTriggerConfigToBlockSubblocks(block: any, triggerConfig: Record<string, any>) {
+export function applyTriggerConfigToBlockSubblocks(
+  block: any,
+  triggerConfig: Record<string, any>,
+  isInputAllowed: SubBlockInputGate = ALLOW_ALL_INPUTS
+) {
   if (!block?.subBlocks || !triggerConfig || typeof triggerConfig !== 'object') {
     return
   }
 
   Object.entries(triggerConfig).forEach(([configKey, configValue]) => {
+    /* `triggerConfig` is a runtime id the validated write path rejects, so its
+       keys reach sibling subBlocks only through here — redistributing an
+       aggregate persisted before the group's denylist changed. Same gate, so a
+       denied operation cannot be re-applied by the redistribution. */
+    if (!isInputAllowed(configKey, configValue)) return
     const existingSubblock = block.subBlocks[configKey]
     if (existingSubblock) {
       const existingValue = existingSubblock.value
@@ -760,6 +787,7 @@ export function filterDisallowedTools(
 
   if (!permissionConfig) return deploymentAvailableTools
 
+  const isToolAllowed = createToolAccessGate(permissionConfig.deniedTools)
   const allowedTools: any[] = []
   for (const tool of deploymentAvailableTools) {
     if (tool.type === 'custom-tool' && permissionConfig.disableCustomTools) {
@@ -782,10 +810,97 @@ export function filterDisallowedTools(
       })
       continue
     }
+    /* An integration tool entry names a block and (when the block exposes more
+       than one) the operation to run, which is what the group's `deniedTools`
+       denylist is written against. Passing `''` for an absent operation is the
+       single-tool case, where the resolver returns the block's only tool
+       without consulting it. */
+    if (
+      typeof tool?.type === 'string' &&
+      !isOperationAllowed(getBlock(tool.type), tool.operation ?? '', isToolAllowed)
+    ) {
+      logSkippedItem(skippedItems, {
+        type: 'tool_not_allowed',
+        operationType: 'add',
+        blockId,
+        reason: `Tool "${tool.type}${tool.operation ? `.${tool.operation}` : ''}" is blocked by access control - tool not added`,
+        details: { toolType: tool.type, operation: tool.operation },
+      })
+      continue
+    }
     allowedTools.push(tool)
   }
 
   return allowedTools
+}
+
+/** Decides whether one subBlock input may be written. Records its own skips. */
+export type SubBlockInputGate = (key: string, value: unknown) => boolean
+
+/** Shared allow-everything gate, so the unrestricted case allocates nothing. */
+const ALLOW_ALL_INPUTS: SubBlockInputGate = () => true
+
+export interface SubBlockInputGateContext {
+  blockType: string
+  permissionConfig: PermissionGroupConfig | null | undefined
+  blockId: string
+  operationType: string
+  skippedItems: SkippedItem[]
+}
+
+/**
+ * Builds the permission gate for one block's subBlock writes.
+ *
+ * Two fields are gated, because they are the two that name something the group
+ * has a policy about: `operation` decides which concrete tool id the block runs,
+ * and `model` names a model id. Every other input passes through untouched.
+ *
+ * A denied value is dropped from the write and reported rather than failing the
+ * whole operation, matching {@link filterDisallowedTools}: the block still
+ * lands, and the model reads the skip reason and picks a value it may use. An
+ * edit therefore leaves whatever the block already had, never clearing a value
+ * the caller is allowed to keep.
+ *
+ * Built once per block rather than per input so the denylist is indexed once,
+ * and so every path that writes subBlocks — including the trigger-config
+ * fan-out, which never passes through input validation — can share one gate.
+ */
+export function createSubBlockInputGate(context: SubBlockInputGateContext): SubBlockInputGate {
+  const { blockType, permissionConfig, blockId, operationType, skippedItems } = context
+  if (!permissionConfig) return ALLOW_ALL_INPUTS
+
+  const isToolAllowed = createToolAccessGate(permissionConfig.deniedTools)
+  const isModelUsable = createModelAccessGate(permissionConfig)
+
+  return (key: string, value: unknown) => {
+    if (typeof value !== 'string') return true
+
+    if (key === OPERATION_SUBBLOCK_ID) {
+      if (isOperationAllowed(getBlock(blockType), value, isToolAllowed)) return true
+      logSkippedItem(skippedItems, {
+        type: 'tool_not_allowed',
+        operationType,
+        blockId,
+        reason: `Operation "${value}" on block type "${blockType}" is blocked by access control - operation not set`,
+        details: { blockType, operation: value },
+      })
+      return false
+    }
+
+    if (key === MODEL_SUBBLOCK_ID) {
+      if (isModelUsable(value)) return true
+      logSkippedItem(skippedItems, {
+        type: 'model_not_allowed',
+        operationType,
+        blockId,
+        reason: `Model "${value}" is blocked by access control - model not set`,
+        details: { blockType, model: value },
+      })
+      return false
+    }
+
+    return true
+  }
 }
 
 /**

@@ -12,6 +12,7 @@ import {
   applyBlockRetry,
   applyTriggerConfigToBlockSubblocks,
   createBlockFromParams,
+  createSubBlockInputGate,
   filterDisallowedTools,
   normalizeConditionRouterIds,
   normalizeResponseFormat,
@@ -210,8 +211,16 @@ function mergeNestedNodesForParent(
         )
         validationErrors.push(...childValidation.errors)
 
+        const isInputAllowed = createSubBlockInputGate({
+          blockType: existingBlock.type,
+          permissionConfig,
+          blockId: existingId,
+          operationType: 'edit',
+          skippedItems,
+        })
         Object.entries(childValidation.validInputs).forEach(([key, value]) => {
           if (TRIGGER_RUNTIME_SUBBLOCK_IDS.includes(key)) return
+          if (!isInputAllowed(key, value)) return
           let sanitizedValue = normalizeSubblockValue(key, value)
           sanitizedValue = normalizeConditionRouterIds(existingId, key, sanitizedValue)
           if (key === 'tools' && Array.isArray(value)) {
@@ -442,6 +451,14 @@ export function handleEditOperation(op: EditWorkflowOperation, ctx: OperationCon
     const validationResult = validateInputsForBlock(block.type, params.inputs, block_id)
     validationErrors.push(...validationResult.errors)
 
+    const isInputAllowed = createSubBlockInputGate({
+      blockType: block.type,
+      permissionConfig,
+      blockId: block_id,
+      operationType: 'edit',
+      skippedItems,
+    })
+
     Object.entries(validationResult.validInputs).forEach(([inputKey, value]) => {
       // Normalize common field name variations (LLM may use plural/singular inconsistently)
       let key = inputKey
@@ -452,6 +469,11 @@ export function handleEditOperation(op: EditWorkflowOperation, ctx: OperationCon
       if (TRIGGER_RUNTIME_SUBBLOCK_IDS.includes(key)) {
         return
       }
+
+      if (!isInputAllowed(key, value)) {
+        return
+      }
+
       explicitInputKeys.add(key)
       let sanitizedValue = normalizeSubblockValue(key, value)
 
@@ -492,7 +514,7 @@ export function handleEditOperation(op: EditWorkflowOperation, ctx: OperationCon
       block.subBlocks.triggerConfig &&
       isRecordLike(block.subBlocks.triggerConfig.value)
     ) {
-      applyTriggerConfigToBlockSubblocks(block, block.subBlocks.triggerConfig.value)
+      applyTriggerConfigToBlockSubblocks(block, block.subBlocks.triggerConfig.value, isInputAllowed)
       for (const key of Object.keys(block.subBlocks.triggerConfig.value)) {
         explicitInputKeys.add(key)
       }
@@ -939,9 +961,20 @@ export function handleInsertIntoSubflowOperation(
       const validationResult = validateInputsForBlock(existingBlock.type, params.inputs, block_id)
       validationErrors.push(...validationResult.errors)
 
+      const isInputAllowed = createSubBlockInputGate({
+        blockType: existingBlock.type,
+        permissionConfig,
+        blockId: block_id,
+        operationType: 'insert_into_subflow',
+        skippedItems,
+      })
       Object.entries(validationResult.validInputs).forEach(([key, value]) => {
         // Skip runtime subblock IDs (webhookId, triggerPath)
         if (TRIGGER_RUNTIME_SUBBLOCK_IDS.includes(key)) {
+          return
+        }
+
+        if (!isInputAllowed(key, value)) {
           return
         }
 
