@@ -19,10 +19,7 @@ import {
   type UsageQueryPeriod,
 } from '@/lib/billing/core/usage-log'
 import { dollarsToCredits } from '@/lib/billing/credits/conversion'
-import {
-  computeBillingPeriodUsageWithDailyRefresh,
-  getOrgMemberRefreshBounds,
-} from '@/lib/billing/credits/daily-refresh'
+import { computeBillingPeriodUsageWithDailyRefresh } from '@/lib/billing/credits/daily-refresh'
 import {
   getOrgMemberUsageForBillingPeriod,
   getOrgMemberUsageLimit,
@@ -78,7 +75,6 @@ async function computePooledOrgUsage(
     return getBillingPeriodUsageCost({ type: 'organization', id: organizationId }, billingPeriod)
   }
 
-  const userBounds = await getOrgMemberRefreshBounds(organizationId, sub.periodStart)
   const { ledgerUsage, refreshConsumed } = await computeBillingPeriodUsageWithDailyRefresh({
     billingEntity: { type: 'organization', id: organizationId },
     billingPeriod,
@@ -87,7 +83,6 @@ async function computePooledOrgUsage(
     refreshPeriodEnd: sub.periodEnd ?? null,
     planDollars,
     seats: sub.seats || 1,
-    userBounds: Object.keys(userBounds).length > 0 ? userBounds : undefined,
   })
 
   return Math.max(0, ledgerUsage - refreshConsumed)

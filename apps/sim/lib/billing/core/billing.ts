@@ -13,10 +13,7 @@ import {
   getBillingPeriodUsageCostByUser,
   getBillingPeriodUsageCostWithSourceSubset,
 } from '@/lib/billing/core/usage-log'
-import {
-  computeDailyRefreshConsumed,
-  getOrgMemberRefreshBounds,
-} from '@/lib/billing/credits/daily-refresh'
+import { computeDailyRefreshConsumed } from '@/lib/billing/credits/daily-refresh'
 import { getPlanTierDollars, isEnterprise, isPaid, isPro, isTeam } from '@/lib/billing/plan-helpers'
 import {
   ENTITLED_SUBSCRIPTION_STATUSES,
@@ -139,14 +136,12 @@ export async function computeOrgOverageAmount(params: {
   let dailyRefreshDeduction = 0
   const planDollars = getPlanTierDollars(params.plan)
   if (planDollars > 0 && params.periodStart && params.memberIds.length > 0) {
-    const userBounds = await getOrgMemberRefreshBounds(params.organizationId, params.periodStart)
     dailyRefreshDeduction = await computeDailyRefreshConsumed({
       userIds: params.memberIds,
       periodStart: params.periodStart,
       periodEnd: params.periodEnd ?? null,
       planDollars,
       seats: params.seats || 1,
-      userBounds: Object.keys(userBounds).length > 0 ? userBounds : undefined,
       billingEntity: { type: 'organization', id: params.organizationId },
     })
   }

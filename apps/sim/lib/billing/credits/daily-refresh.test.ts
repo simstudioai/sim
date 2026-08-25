@@ -89,28 +89,6 @@ describe('computeBillingPeriodUsageWithDailyRefresh', () => {
       reportingEnd
     )
   })
-
-  it('preserves a bounded user refresh window without narrowing the ledger total', async () => {
-    const userStart = new Date('2026-03-10T00:00:00.000Z')
-    const userEnd = new Date('2026-03-20T00:00:00.000Z')
-    dbChainMockFns.groupBy.mockResolvedValueOnce([
-      { ledgerTotal: '30.00', refreshDayTotal: '0.25' },
-    ])
-
-    await computeBillingPeriodUsageWithDailyRefresh({
-      billingEntity: { type: 'organization', id: 'org-1' },
-      billingPeriod: { start: periodStart, end: periodEnd },
-      userIds: ['bounded-user'],
-      refreshPeriodStart: periodStart,
-      refreshPeriodEnd: periodEnd,
-      planDollars: 25,
-      userBounds: { 'bounded-user': { userStart, userEnd } },
-    })
-
-    expect(drizzleOrmMock.eq).toHaveBeenCalledWith(schemaMock.usageLog.userId, 'bounded-user')
-    expect(drizzleOrmMock.gte).toHaveBeenCalledWith(schemaMock.usageLog.createdAt, userStart)
-    expect(drizzleOrmMock.lt).toHaveBeenCalledWith(schemaMock.usageLog.createdAt, userEnd)
-  })
 })
 
 describe('computeDailyRefreshConsumed', () => {

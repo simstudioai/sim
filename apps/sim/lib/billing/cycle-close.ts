@@ -145,6 +145,37 @@ export async function isSubscriptionCycleCloseCurrent(
 }
 
 /**
+ * Claim the terminal period for a subscription that is being deleted, BEFORE
+ * the deletion handler computes and charges final overage. Reads the
+ * subscription row fresh (webhook payloads can be stale across a rollover)
+ * and advances the close marker to its current `periodStart` in one
+ * transaction, serializing with the sweep on the subscription row: an
+ * in-flight sweep close then fails its guarded marker claim and rolls back —
+ * including its outbox invoice — so deletion and sweep can never both bill
+ * the same period. Returns the fresh period bounds for the deletion flow to
+ * settle against.
+ */
+export async function claimTerminalPeriod(
+  subscriptionId: string
+): Promise<{ periodStart: Date | null; periodEnd: Date | null }> {
+  return db.transaction(async (tx) => {
+    const [row] = await tx
+      .select({
+        periodStart: subscriptionTable.periodStart,
+        periodEnd: subscriptionTable.periodEnd,
+      })
+      .from(subscriptionTable)
+      .where(eq(subscriptionTable.id, subscriptionId))
+      .for('update')
+      .limit(1)
+
+    if (!row?.periodStart) return { periodStart: null, periodEnd: null }
+    await claimCloseMarker(tx, subscriptionId, row.periodStart)
+    return { periodStart: row.periodStart, periodEnd: row.periodEnd }
+  })
+}
+
+/**
  * Advance the durable close marker to `periodStart`, guarded so concurrent
  * closers and replays collapse to one winner. Returns false when another
  * worker already advanced the marker at or past this boundary.
@@ -597,16 +628,13 @@ export async function closeElapsedBillingPeriod(sub: SubscriptionRow): Promise<C
  * Terminal bookkeeping for a subscription that is ending (deleted/cancelled):
  * writes `lastPeriodCost` / `lastPeriodCopilotCost` from the final period's
  * stamped ledger sums, clears the per-period trackers so a future
- * subscription starts clean, and claims the close marker for the terminal
- * period in the same transaction so an in-flight sweep close cannot land
- * after it and re-bill overage the deletion handler already settled (the two
- * paths serialize on the member userStats locks, and the loser's marker
- * re-check aborts it). Money is NOT collected here — the deletion handler
- * bills the final overage itself before calling this.
+ * subscription starts clean. Money is NOT collected here — the deletion
+ * handler claims the terminal period via `claimTerminalPeriod` and bills the
+ * final overage itself before calling this.
  *
- * Reporting-anchor enterprise subscriptions are skipped entirely except for
- * the marker claim: their usage windows derive live from the anchor, and the
- * subscription's Stripe bounds would range the wrong stamped rows.
+ * Reporting-anchor enterprise subscriptions are skipped: their usage windows
+ * derive live from the anchor, and the subscription's Stripe bounds would
+ * range the wrong stamped rows.
  */
 export async function writeFinalPeriodBookkeeping(sub: {
   id: string
@@ -619,10 +647,7 @@ export async function writeFinalPeriodBookkeeping(sub: {
   if (!sub.periodStart) return
   const periodStart = sub.periodStart
 
-  if (usesReportingWindows(sub)) {
-    await db.transaction(async (tx) => claimCloseMarker(tx, sub.id, periodStart))
-    return
-  }
+  if (usesReportingWindows(sub)) return
 
   const orgScoped = await isSubscriptionOrgScoped(sub)
   const billingEntity = orgScoped
@@ -674,11 +699,6 @@ export async function writeFinalPeriodBookkeeping(sub: {
         .set({ departedMemberUsage: '0' })
         .where(eq(organization.id, sub.referenceId))
     }
-    // Claim the terminal period's marker with the tracker reset: an in-flight
-    // sweep close for the elapsed period now fails its under-lock marker
-    // re-check and rolls back instead of re-billing settled overage. If the
-    // close already committed, this claim is a guarded no-op.
-    await claimCloseMarker(tx, sub.id, periodStart)
   })
 }
 

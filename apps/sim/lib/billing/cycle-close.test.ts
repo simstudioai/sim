@@ -82,6 +82,7 @@ vi.mock('@/lib/posthog/server', () => ({
 }))
 
 import {
+  claimTerminalPeriod,
   closeElapsedBillingPeriod,
   isSubscriptionCycleCloseCurrent,
   sweepBillingCycleCloses,
@@ -409,7 +410,7 @@ describe('writeFinalPeriodBookkeeping', () => {
     dbChainMockFns.returning.mockResolvedValue([{ id: 'sub-1' }])
   })
 
-  it('resets trackers, writes last-period sums, and claims the terminal marker in one transaction', async () => {
+  it('resets trackers and writes last-period sums in one transaction', async () => {
     queueTableRows(schemaMock.member, [{ userId: 'owner-1' }])
 
     await writeFinalPeriodBookkeeping({
@@ -425,13 +426,9 @@ describe('writeFinalPeriodBookkeeping', () => {
       (call) => (call[0] as Record<string, unknown>).billedOverageThisPeriod === '0'
     )
     expect(bookkeepingSet).toBeDefined()
-    const markerSet = dbChainMockFns.set.mock.calls.find(
-      (call) => (call[0] as Record<string, unknown>).lastClosedPeriodStart instanceof Date
-    )
-    expect(markerSet).toBeDefined()
   })
 
-  it('only claims the marker for reporting-anchor enterprise subscriptions', async () => {
+  it('is a no-op for reporting-anchor enterprise subscriptions', async () => {
     mockIsEnterprise.mockReturnValue(true)
     mockResolveSubscriptionUsagePeriod.mockReturnValue({ source: 'reporting' })
 
@@ -445,14 +442,39 @@ describe('writeFinalPeriodBookkeeping', () => {
     })
 
     expect(mockGetStampedPeriodRangeUsageCostByUser).not.toHaveBeenCalled()
+    expect(dbChainMockFns.transaction).not.toHaveBeenCalled()
+    expect(dbChainMockFns.set).not.toHaveBeenCalled()
+  })
+})
+
+describe('claimTerminalPeriod', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+    dbChainMockFns.returning.mockResolvedValue([{ id: 'sub-1' }])
+  })
+
+  it('claims the marker from the fresh row period and returns it for settlement', async () => {
+    queueTableRows(schemaMock.subscription, [
+      { periodStart: PERIOD_START, periodEnd: new Date('2026-09-01T00:00:00.000Z') },
+    ])
+
+    const terminal = await claimTerminalPeriod('sub-1')
+
+    expect(terminal.periodStart).toEqual(PERIOD_START)
     const markerSet = dbChainMockFns.set.mock.calls.find(
       (call) => (call[0] as Record<string, unknown>).lastClosedPeriodStart instanceof Date
     )
     expect(markerSet).toBeDefined()
-    const bookkeepingSet = dbChainMockFns.set.mock.calls.find(
-      (call) => (call[0] as Record<string, unknown>).billedOverageThisPeriod === '0'
-    )
-    expect(bookkeepingSet).toBeUndefined()
+  })
+
+  it('returns nulls without claiming when the subscription has no period', async () => {
+    queueTableRows(schemaMock.subscription, [{ periodStart: null, periodEnd: null }])
+
+    const terminal = await claimTerminalPeriod('sub-1')
+
+    expect(terminal).toEqual({ periodStart: null, periodEnd: null })
+    expect(dbChainMockFns.set).not.toHaveBeenCalled()
   })
 })
 

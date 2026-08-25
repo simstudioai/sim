@@ -12,9 +12,9 @@
  */
 
 import { db } from '@sim/db'
-import { member, usageLog, userStats } from '@sim/db/schema'
+import { usageLog } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq, gte, inArray, isNull, lt, lte, or, sql, sum } from 'drizzle-orm'
+import { and, eq, gte, inArray, lt, or, sql, sum } from 'drizzle-orm'
 import { DAILY_REFRESH_RATE } from '@/lib/billing/constants'
 import type { BillingEntity, UsageQueryPeriod } from '@/lib/billing/core/usage-log'
 import type { DbClient } from '@/lib/db/types'
@@ -24,17 +24,6 @@ const logger = createLogger('DailyRefresh')
 const MS_PER_DAY = 86_400_000
 const MAX_BILLING_PERIOD_DAYS = 370
 
-/**
- * Optional per-user date window. `usageLog` rows outside
- * `[userStart, userEnd)` are excluded from that user's contribution.
- * Used to slice refresh around a mid-cycle org join so pre-join and
- * post-join refresh are billed by the right subscription.
- */
-export interface PerUserBounds {
-  userStart?: Date | null
-  userEnd?: Date | null
-}
-
 interface BillingPeriodUsageWithDailyRefreshParams {
   billingEntity: BillingEntity
   billingPeriod: UsageQueryPeriod
@@ -43,7 +32,6 @@ interface BillingPeriodUsageWithDailyRefreshParams {
   refreshPeriodEnd?: Date | null
   planDollars: number
   seats?: number
-  userBounds?: Record<string, PerUserBounds>
 }
 
 /**
@@ -65,44 +53,18 @@ export async function computeBillingPeriodUsageWithDailyRefresh(
     refreshPeriodEnd,
     planDollars,
     seats = 1,
-    userBounds,
   } = params
   const now = new Date()
   const cap = refreshPeriodEnd && refreshPeriodEnd < now ? refreshPeriodEnd : now
   const dailyRefreshDollars = planDollars * DAILY_REFRESH_RATE * seats
-  const eligibleUserIds = new Set(userIds)
-  const unboundedUsers = userBounds ? userIds.filter((id) => !(id in userBounds)) : userIds
-  const boundedClauses = userBounds
-    ? Object.entries(userBounds).flatMap(([userId, bounds]) => {
-        if (!eligibleUserIds.has(userId)) return []
-        const effectiveStart =
-          bounds.userStart && bounds.userStart > refreshPeriodStart
-            ? bounds.userStart
-            : refreshPeriodStart
-        const effectiveEnd = bounds.userEnd && bounds.userEnd < cap ? bounds.userEnd : cap
-        if (effectiveEnd <= effectiveStart) return []
-        return [
-          and(
-            eq(usageLog.userId, userId),
-            gte(usageLog.createdAt, effectiveStart),
-            lt(usageLog.createdAt, effectiveEnd)
-          ),
-        ]
-      })
-    : []
   const refreshUserFilters =
     cap > refreshPeriodStart
       ? [
-          ...(unboundedUsers.length > 0
-            ? [
-                and(
-                  inArray(usageLog.userId, unboundedUsers),
-                  gte(usageLog.createdAt, refreshPeriodStart),
-                  lt(usageLog.createdAt, cap)
-                ),
-              ]
-            : []),
-          ...boundedClauses,
+          and(
+            inArray(usageLog.userId, userIds),
+            gte(usageLog.createdAt, refreshPeriodStart),
+            lt(usageLog.createdAt, cap)
+          ),
         ]
       : []
   const refreshFilter =
@@ -188,20 +150,11 @@ export async function computeDailyRefreshConsumed(
     periodEnd?: Date | null
     planDollars: number
     seats?: number
-    userBounds?: Record<string, PerUserBounds>
     billingEntity?: { type: 'user' | 'organization'; id: string }
   },
   executor: DbClient = db
 ): Promise<number> {
-  const {
-    userIds,
-    periodStart,
-    periodEnd,
-    planDollars,
-    seats = 1,
-    userBounds,
-    billingEntity,
-  } = params
+  const { userIds, periodStart, periodEnd, planDollars, seats = 1, billingEntity } = params
 
   if (planDollars <= 0 || userIds.length === 0) return 0
 
@@ -215,7 +168,6 @@ export async function computeDailyRefreshConsumed(
   const dayCount = Math.ceil((cap.getTime() - periodStart.getTime()) / MS_PER_DAY)
   if (dayCount <= 0) return 0
 
-  const unboundedUsers = userBounds ? userIds.filter((id) => !(id in userBounds)) : userIds
   const billingEntityFilter = billingEntity
     ? and(
         eq(usageLog.billingEntityType, billingEntity.type),
@@ -224,38 +176,14 @@ export async function computeDailyRefreshConsumed(
       )
     : undefined
 
-  const boundedClauses = userBounds
-    ? Object.entries(userBounds).flatMap(([userId, bounds]) => {
-        if (!userIds.includes(userId)) return []
-        const effectiveStart =
-          bounds.userStart && bounds.userStart > periodStart ? bounds.userStart : periodStart
-        const effectiveEnd = bounds.userEnd && bounds.userEnd < cap ? bounds.userEnd : cap
-        if (effectiveEnd <= effectiveStart) return []
-        return [
-          and(
-            eq(usageLog.userId, userId),
-            billingEntityFilter,
-            gte(usageLog.createdAt, effectiveStart),
-            lt(usageLog.createdAt, effectiveEnd)
-          ),
-        ]
-      })
-    : []
-
-  const rowFilters =
-    unboundedUsers.length > 0
-      ? [
-          and(
-            inArray(usageLog.userId, unboundedUsers),
-            billingEntityFilter,
-            gte(usageLog.createdAt, periodStart),
-            lt(usageLog.createdAt, cap)
-          ),
-          ...boundedClauses,
-        ]
-      : boundedClauses
-
-  if (rowFilters.length === 0) return 0
+  const rowFilters = [
+    and(
+      inArray(usageLog.userId, userIds),
+      billingEntityFilter,
+      gte(usageLog.createdAt, periodStart),
+      lt(usageLog.createdAt, cap)
+    ),
+  ]
 
   const rows = await executor
     .select({
@@ -281,7 +209,6 @@ export async function computeDailyRefreshConsumed(
     days: dayCount,
     dailyRefreshDollars,
     totalConsumed,
-    hasUserBounds: Boolean(userBounds),
   })
 
   return totalConsumed
@@ -309,6 +236,9 @@ export async function computeOrganizationDailyRefreshConsumed(
   }
 
   const dailyRefreshDollars = planDollars * DAILY_REFRESH_RATE * seats
+  // Entity/period stamps fully scope the rows: every org-attributed row —
+  // including a departed member's — participates in the org's refresh, and a
+  // member's pre-join rows are user-stamped so they can never appear here.
   const rows = await executor
     .select({
       dayIndex:
@@ -318,23 +248,13 @@ export async function computeOrganizationDailyRefreshConsumed(
       dayTotal: sum(usageLog.cost).as('day_total'),
     })
     .from(usageLog)
-    .innerJoin(
-      member,
-      and(eq(member.userId, usageLog.userId), eq(member.organizationId, organizationId))
-    )
-    .leftJoin(userStats, eq(userStats.userId, member.userId))
     .where(
       and(
         eq(usageLog.billingEntityType, 'organization'),
         eq(usageLog.billingEntityId, organizationId),
         eq(usageLog.billingPeriodStart, periodStart),
         gte(usageLog.createdAt, periodStart),
-        lt(usageLog.createdAt, cap),
-        or(
-          isNull(userStats.proPeriodCostSnapshotAt),
-          lte(userStats.proPeriodCostSnapshotAt, periodStart),
-          gte(usageLog.createdAt, userStats.proPeriodCostSnapshotAt)
-        )
+        lt(usageLog.createdAt, cap)
       )
     )
     .groupBy(sql`day_index`)
@@ -350,27 +270,4 @@ export async function computeOrganizationDailyRefreshConsumed(
  */
 export function getDailyRefreshDollars(planDollars: number): number {
   return planDollars * DAILY_REFRESH_RATE
-}
-
-export async function getOrgMemberRefreshBounds(
-  organizationId: string,
-  periodStart: Date,
-  executor: DbClient = db
-): Promise<Record<string, { userStart: Date }>> {
-  const rows = await executor
-    .select({
-      userId: member.userId,
-      snapshotAt: userStats.proPeriodCostSnapshotAt,
-    })
-    .from(member)
-    .leftJoin(userStats, eq(member.userId, userStats.userId))
-    .where(eq(member.organizationId, organizationId))
-
-  const bounds: Record<string, { userStart: Date }> = {}
-  for (const row of rows) {
-    if (row.snapshotAt && row.snapshotAt > periodStart) {
-      bounds[row.userId] = { userStart: row.snapshotAt }
-    }
-  }
-  return bounds
 }

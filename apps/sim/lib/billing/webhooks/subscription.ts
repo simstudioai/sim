@@ -5,7 +5,7 @@ import { createLogger } from '@sim/logger'
 import { and, eq, inArray, ne } from 'drizzle-orm'
 import { calculateSubscriptionOverage, isSubscriptionOrgScoped } from '@/lib/billing/core/billing'
 import { syncUsageLimitsFromSubscription } from '@/lib/billing/core/usage'
-import { writeFinalPeriodBookkeeping } from '@/lib/billing/cycle-close'
+import { claimTerminalPeriod, writeFinalPeriodBookkeeping } from '@/lib/billing/cycle-close'
 import { restoreUserProSubscription } from '@/lib/billing/organizations/membership'
 import { isEnterprise, isPaid, isPro, isTeam } from '@/lib/billing/plan-helpers'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
@@ -280,7 +280,21 @@ export async function handleSubscriptionDeleted(
       'subscription-deleted',
       idempotencyIdentifier,
       async () => {
-        const totalOverage = await calculateSubscriptionOverage(subscription)
+        // Claim the terminal period BEFORE computing or charging: this reads
+        // the row's fresh period (webhook payloads can be stale across a
+        // rollover) and serializes with the cycle-close sweep — an in-flight
+        // close fails its guarded marker claim and rolls back, so both paths
+        // can never bill the same period.
+        const terminal = await claimTerminalPeriod(subscription.id)
+        const settlementPeriod = {
+          periodStart: terminal.periodStart ?? subscription.periodStart ?? null,
+          periodEnd: terminal.periodEnd ?? subscription.periodEnd ?? null,
+        }
+
+        const totalOverage = await calculateSubscriptionOverage({
+          ...subscription,
+          ...settlementPeriod,
+        })
         const stripe = requireStripeClient()
 
         if (isEnterprise(subscription.plan)) {
@@ -288,8 +302,7 @@ export async function handleSubscriptionDeleted(
             id: subscription.id,
             plan: subscription.plan,
             referenceId: subscription.referenceId,
-            periodStart: subscription.periodStart ?? null,
-            periodEnd: subscription.periodEnd ?? null,
+            ...settlementPeriod,
             metadata: subscription.metadata,
           })
 
@@ -410,8 +423,7 @@ export async function handleSubscriptionDeleted(
           id: subscription.id,
           plan: subscription.plan,
           referenceId: subscription.referenceId,
-          periodStart: subscription.periodStart ?? null,
-          periodEnd: subscription.periodEnd ?? null,
+          ...settlementPeriod,
           metadata: subscription.metadata,
         })
 

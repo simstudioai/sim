@@ -12,7 +12,6 @@ const {
   mockGetBillingPeriodUsageCostWithSourceSubset,
   mockGetHighestPriorityPersonalSubscription,
   mockGetHighestPrioritySubscription,
-  mockGetOrgMemberRefreshBounds,
   mockResolveBillingInterval,
 } = vi.hoisted(() => ({
   mockComputeDailyRefreshConsumed: vi.fn(),
@@ -22,7 +21,6 @@ const {
   mockGetBillingPeriodUsageCostWithSourceSubset: vi.fn(),
   mockGetHighestPriorityPersonalSubscription: vi.fn(),
   mockGetHighestPrioritySubscription: vi.fn(),
-  mockGetOrgMemberRefreshBounds: vi.fn(),
   mockResolveBillingInterval: vi.fn(),
 }))
 
@@ -47,7 +45,6 @@ vi.mock('@/lib/billing/core/usage-log', () => ({
 
 vi.mock('@/lib/billing/credits/daily-refresh', () => ({
   computeDailyRefreshConsumed: mockComputeDailyRefreshConsumed,
-  getOrgMemberRefreshBounds: mockGetOrgMemberRefreshBounds,
 }))
 
 import { calculateSubscriptionOverage, getPersonalBillingSummary } from '@/lib/billing/core/billing'
@@ -129,7 +126,6 @@ describe('getPersonalBillingSummary', () => {
 describe('calculateSubscriptionOverage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockGetOrgMemberRefreshBounds.mockResolvedValue({})
     mockComputeDailyRefreshConsumed.mockResolvedValue(0)
   })
 

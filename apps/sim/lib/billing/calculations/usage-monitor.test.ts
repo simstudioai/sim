@@ -12,7 +12,6 @@ const {
   mockGetUserUsageLimit,
   mockIsOrganizationBillingBlocked,
   mockComputeBillingPeriodUsageWithDailyRefresh,
-  mockGetOrgMemberRefreshBounds,
 } = vi.hoisted(() => ({
   mockGetBillingPeriodUsageCost: vi.fn(),
   mockGetOrgMemberUsageForBillingPeriod: vi.fn(),
@@ -21,7 +20,6 @@ const {
   mockGetUserUsageLimit: vi.fn(),
   mockIsOrganizationBillingBlocked: vi.fn(),
   mockComputeBillingPeriodUsageWithDailyRefresh: vi.fn(),
-  mockGetOrgMemberRefreshBounds: vi.fn(),
 }))
 
 vi.mock('@/lib/billing/organizations/member-limits', () => ({
@@ -46,7 +44,6 @@ vi.mock('@/lib/billing/core/usage-log', () => ({
 
 vi.mock('@/lib/billing/credits/daily-refresh', () => ({
   computeBillingPeriodUsageWithDailyRefresh: mockComputeBillingPeriodUsageWithDailyRefresh,
-  getOrgMemberRefreshBounds: mockGetOrgMemberRefreshBounds,
 }))
 
 import {
@@ -74,7 +71,6 @@ describe('checkUsageStatus', () => {
       ledgerUsage: 125,
       refreshConsumed: 25,
     })
-    mockGetOrgMemberRefreshBounds.mockResolvedValue({})
   })
 
   it('reads reporting-period organization usage without loading the member roster', async () => {
@@ -206,10 +202,9 @@ describe('checkUsageStatus', () => {
     expect(mockComputeBillingPeriodUsageWithDailyRefresh).not.toHaveBeenCalled()
   })
 
-  it('combines paid organization ledger usage with bounded member refresh', async () => {
+  it('combines paid organization ledger usage with member refresh', async () => {
     const periodStart = new Date('2026-06-01T00:00:00.000Z')
     const periodEnd = new Date('2026-07-01T00:00:00.000Z')
-    const userStart = new Date('2026-06-10T00:00:00.000Z')
     const subscription = {
       referenceId: 'org-1',
       plan: 'team',
@@ -222,7 +217,6 @@ describe('checkUsageStatus', () => {
       memberIds: ['user-1', 'user-2'],
       lastPeriodCost: 0,
     })
-    mockGetOrgMemberRefreshBounds.mockResolvedValue({ 'user-2': { userStart } })
     mockComputeBillingPeriodUsageWithDailyRefresh.mockResolvedValue({
       ledgerUsage: 100,
       refreshConsumed: 10,
@@ -246,7 +240,6 @@ describe('checkUsageStatus', () => {
       refreshPeriodEnd: periodEnd,
       planDollars: expect.any(Number),
       seats: 2,
-      userBounds: { 'user-2': { userStart } },
     })
     expect(mockGetBillingPeriodUsageCost).not.toHaveBeenCalled()
   })
@@ -271,7 +264,6 @@ describe('checkUsageStatus', () => {
 
     expect(mockGetBillingPeriodUsageCost).toHaveBeenCalledTimes(1)
     expect(mockComputeBillingPeriodUsageWithDailyRefresh).not.toHaveBeenCalled()
-    expect(mockGetOrgMemberRefreshBounds).not.toHaveBeenCalled()
   })
 })
 
