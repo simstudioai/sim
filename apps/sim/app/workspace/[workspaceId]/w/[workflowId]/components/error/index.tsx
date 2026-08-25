@@ -1,16 +1,11 @@
 'use client'
 
 import { Component, type ErrorInfo, type ReactNode } from 'react'
-import { Button } from '@sim/emcn'
-import { RefreshCw } from '@sim/emcn/icons'
+import { Chip } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { truncate } from '@sim/utils/string'
-import { ReactFlowProvider } from 'reactflow'
 import { captureClientEvent, captureClientException } from '@/lib/posthog/client'
-import { Panel } from '@/app/workspace/[workspaceId]/w/[workflowId]/components'
-import { usePreventZoom } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
-import { Sidebar } from '@/app/workspace/[workspaceId]/w/components/sidebar/sidebar'
-import { readCollapsedCookie } from '@/stores/sidebar/store'
+import { ErrorShell } from '@/app/workspace/[workspaceId]/components'
 
 const logger = createLogger('ErrorBoundary')
 
@@ -24,51 +19,19 @@ interface ErrorUIProps {
   title?: string
   message?: string
   onReset?: () => void
-  fullScreen?: boolean
 }
 
 export function ErrorUI({
   title = 'Something went wrong',
   message = 'An unexpected error occurred. Please try again or refresh the page.',
   onReset,
-  fullScreen = false,
 }: ErrorUIProps) {
-  const preventZoomRef = usePreventZoom()
-
-  if (!fullScreen) {
-    return (
-      <div className='flex h-full flex-1 items-center justify-center'>
-        <div className='flex flex-col items-center gap-4 text-center'>
-          <div className='flex flex-col gap-2'>
-            <h2 className='text-[var(--text-primary)] text-md'>{title}</h2>
-            <p className='max-w-[300px] text-[var(--text-tertiary)] text-small'>{message}</p>
-          </div>
-          <Button variant='default' size='sm' onClick={onReset ?? (() => window.location.reload())}>
-            <RefreshCw className='mr-1.5 size-[14px]' />
-            Try again
-          </Button>
-        </div>
-      </div>
-    )
-  }
-
   return (
-    <div ref={preventZoomRef} className='flex h-screen w-full flex-col bg-[var(--surface-1)]'>
-      <Sidebar isCollapsed={readCollapsedCookie()} />
-
-      <div className='relative flex flex-1'>
-        <div className='pointer-events-none absolute inset-0 flex items-center justify-center'>
-          <div className='pointer-events-none flex flex-col items-center gap-4'>
-            <h3 className='text-[var(--text-primary)] text-md'>{title}</h3>
-            <p className='max-w-sm text-center text-[var(--text-tertiary)] text-sm'>{message}</p>
-          </div>
-        </div>
-
-        <ReactFlowProvider>
-          <Panel />
-        </ReactFlowProvider>
-      </div>
-    </div>
+    <ErrorShell title={title} description={message}>
+      <Chip variant='primary' onClick={onReset ?? (() => window.location.reload())}>
+        Try again
+      </Chip>
+    </ErrorShell>
   )
 }
 

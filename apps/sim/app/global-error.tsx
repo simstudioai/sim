@@ -1,16 +1,30 @@
 'use client'
 
-import NextError from 'next/error'
+import { Chip } from '@sim/emcn'
+import { StatusPageContent } from '@/components/status-page'
+import { season } from '@/app/_styles/fonts/season/season'
+import { LogoShell } from '@/app/(landing)/components'
+import '@/app/_styles/globals.css'
 
-export default function GlobalError({ error }: { error: Error & { digest?: string } }) {
+interface GlobalErrorProps {
+  error: Error & { digest?: string }
+  reset: () => void
+}
+
+export default function GlobalError({ reset }: GlobalErrorProps) {
   return (
-    <html lang='en'>
-      <body>
-        {/* `NextError` is the default Next.js error page component. Its type
-        definition requires a `statusCode` prop. However, since the App Router
-        does not expose status codes for errors, we simply pass 0 to render a
-        generic error message. */}
-        <NextError statusCode={0} />
+    <html lang='en' className='light'>
+      <body className={`${season.variable} font-season`}>
+        <LogoShell center>
+          <StatusPageContent
+            title='Something went wrong'
+            description='An unexpected error occurred. Please try again.'
+          >
+            <Chip variant='primary' onClick={reset}>
+              Try again
+            </Chip>
+          </StatusPageContent>
+        </LogoShell>
       </body>
     </html>
   )

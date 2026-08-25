@@ -10,6 +10,8 @@ files:
   - dist/**
   - static/**
   - package.json
+  - from: ../sim/public/brand/fonts/SeasonSansUprightsVF.woff2
+    to: static/SeasonSansUprightsVF.woff2
 
 asar: true
 
