@@ -319,6 +319,18 @@ export const workflowOperations = {
     workspaceApiKey: 'allow',
     ...ALL_WORKFLOW_PRINCIPAL_POLICY,
   }),
+  executeManual: defineWorkspaceOperation({
+    id: 'workflows.manual.execute',
+    minimumRole: 'write',
+    workspaceApiKey: 'deny',
+    principalKinds: ['personal_api_key'],
+  }),
+  executeManualFromBlock: defineWorkspaceOperation({
+    id: 'workflows.manual.execute_from_block',
+    minimumRole: 'write',
+    workspaceApiKey: 'deny',
+    principalKinds: ['personal_api_key'],
+  }),
   listRuns: defineWorkspaceOperation({
     id: 'workflows.runs.list',
     minimumRole: 'read',

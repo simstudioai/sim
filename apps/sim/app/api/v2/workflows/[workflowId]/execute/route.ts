@@ -34,6 +34,10 @@ import {
   validateCallChain,
 } from '@/lib/execution/call-chain'
 import { v2WorkflowErrorPolicies } from '@/lib/workflows/api'
+import {
+  executeManualWorkflowFromBlockOperation,
+  executeManualWorkflowOperation,
+} from '@/lib/workflows/application/execute-manual-workflow'
 import { executeWorkflowOperation } from '@/lib/workflows/application/execute-workflow'
 import { workflowOperations } from '@/lib/workflows/application/operations'
 import {
@@ -218,6 +222,21 @@ export const POST = withRouteHandler(
       })
       if (!parsed.success) return parsed.response
       const body = parsed.data.body
+      const manualRun = body.run?.source === 'manual' ? body.run : undefined
+
+      if (manualRun && !apiKeyPrincipal) {
+        return v2Error('UNAUTHORIZED', 'Manual execution requires a personal API key')
+      }
+      if (manualRun && body.async) {
+        return v2Error('BAD_REQUEST', 'Manual execution does not support async mode')
+      }
+      if (
+        manualRun?.entry?.type === 'trigger' &&
+        manualRun.entry.useMockPayload === true &&
+        body.input !== undefined
+      ) {
+        return v2Error('BAD_REQUEST', 'input and run.entry.useMockPayload cannot be combined')
+      }
 
       if (body.async && isPublicApiAccess) {
         return v2Error('BAD_REQUEST', 'Async execution requires an API key')
@@ -267,26 +286,55 @@ export const POST = withRouteHandler(
 
       let result: ExecuteWorkflowServiceResult
       if (apiKeyPrincipal) {
-        result = await executeWorkflowOperation.execute({
-          principal: apiKeyPrincipal,
-          input: {
-            workflowId,
-            requestId,
-            input: body.input ?? {},
-            executionId: requestedExecutionId,
-            includeFileBase64: body.includeFileBase64,
-            base64MaxBytes: body.base64MaxBytes,
-            selectedOutputs: body.selectedOutputs,
-            requestedTimeoutSeconds: body.executionTimeoutSeconds,
-            abortSignal: req.signal,
-            mode: body.async ? 'async' : body.stream ? 'stream' : 'sync',
-            requestHeaders: req.headers,
-            includeThinking: body.includeThinking,
-            includeToolCalls: body.includeToolCalls,
-            callChain,
-          },
-          request: req,
-        })
+        const commonInput = {
+          workflowId,
+          requestId,
+          executionId: requestedExecutionId,
+          includeFileBase64: body.includeFileBase64,
+          base64MaxBytes: body.base64MaxBytes,
+          selectedOutputs: body.selectedOutputs,
+          abortSignal: req.signal,
+          requestHeaders: req.headers,
+          includeThinking: body.includeThinking,
+          includeToolCalls: body.includeToolCalls,
+          callChain,
+        }
+        if (manualRun?.entry?.type === 'block') {
+          result = await executeManualWorkflowFromBlockOperation.execute({
+            principal: apiKeyPrincipal,
+            input: {
+              ...commonInput,
+              input: body.input,
+              mode: body.stream ? 'stream' : 'sync',
+              blockId: manualRun.entry.blockId,
+              sourceRunId: manualRun.entry.sourceRunId,
+            },
+            request: req,
+          })
+        } else if (manualRun) {
+          result = await executeManualWorkflowOperation.execute({
+            principal: apiKeyPrincipal,
+            input: {
+              ...commonInput,
+              input: body.input,
+              mode: body.stream ? 'stream' : 'sync',
+              triggerBlockId: manualRun.entry?.blockId,
+              useMockPayload: manualRun.entry?.useMockPayload === true,
+            },
+            request: req,
+          })
+        } else {
+          result = await executeWorkflowOperation.execute({
+            principal: apiKeyPrincipal,
+            input: {
+              ...commonInput,
+              input: body.input ?? {},
+              requestedTimeoutSeconds: body.executionTimeoutSeconds,
+              mode: body.async ? 'async' : body.stream ? 'stream' : 'sync',
+            },
+            request: req,
+          })
+        }
       } else {
         const workflowAuthorization = await authorizeWorkflowByWorkspacePermission({
           workflowId,

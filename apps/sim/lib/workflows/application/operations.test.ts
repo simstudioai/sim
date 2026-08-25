@@ -92,4 +92,18 @@ describe('workflow operation registry', () => {
     })
     expect(workflowOperations.applyOperations.principalKinds).not.toContain('workspace_api_key')
   })
+
+  it('reserves manual execution for personal keys with write access', () => {
+    for (const operation of [
+      workflowOperations.executeManual,
+      workflowOperations.executeManualFromBlock,
+    ]) {
+      expect(operation).toMatchObject({
+        minimumRole: 'write',
+        workspaceApiKey: 'deny',
+        principalKinds: ['personal_api_key'],
+      })
+      expect(operation.id).toMatch(/^workflows\.manual\.execute/)
+    }
+  })
 })

@@ -16,6 +16,7 @@ import {
   workflowsUtilsMock,
 } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { WorkspaceApiKeyAuthorizationError } from '@/lib/core/application'
 
 const {
   MockV2ApiKeyUnauthenticatedError,
@@ -24,6 +25,8 @@ const {
   mockCheckOperationRate,
   mockCheckPreAuthRate,
   mockEnqueue,
+  mockExecuteManualFromBlock,
+  mockExecuteManualTrigger,
   mockExecuteWorkflowCore,
   mockGenerateId,
   mockHasDurableExecutionOwner,
@@ -37,12 +40,19 @@ const {
   mockCheckOperationRate: vi.fn(),
   mockCheckPreAuthRate: vi.fn(),
   mockEnqueue: vi.fn().mockResolvedValue('workflow-execution:execution-123'),
+  mockExecuteManualFromBlock: vi.fn(),
+  mockExecuteManualTrigger: vi.fn(),
   mockExecuteWorkflowCore: vi.fn(),
   mockGenerateId: vi.fn(() => 'execution-123'),
   mockHasDurableExecutionOwner: vi.fn(),
   mockReleaseExecutionIdClaim: vi.fn(),
   mockReleaseExecutionSlot: vi.fn(),
   mockValidatePublicApiAllowed: vi.fn(),
+}))
+
+vi.mock('@/lib/workflows/application/execute-manual-workflow', () => ({
+  executeManualWorkflowOperation: { execute: mockExecuteManualTrigger },
+  executeManualWorkflowFromBlockOperation: { execute: mockExecuteManualFromBlock },
 }))
 
 vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => ({
@@ -155,12 +165,15 @@ vi.mock('@/app/api/v2/lib/gate', () => ({
   v2ApiGateError: vi.fn().mockResolvedValue(null),
 }))
 
+import { executeWorkflowService } from '@/lib/workflows/executor/execute-service'
 import { attachExecutionResult } from '@/executor/utils/errors'
 import { POST } from './route'
 
 const mockPreprocessExecution = executionPreprocessingMockFns.mockPreprocessExecution
 const mockAuthorize = workflowAuthzMockFns.mockAuthorizeWorkflowByWorkspacePermission
 const mockLoadDeployedWorkflowState = workflowsPersistenceUtilsMockFns.mockLoadDeployedWorkflowState
+const mockLoadWorkflowFromNormalizedTables =
+  workflowsPersistenceUtilsMockFns.mockLoadWorkflowFromNormalizedTables
 
 const billingAttribution = {
   actorUserId: 'actor-1',
@@ -207,6 +220,16 @@ function callPublicExecute(body: Record<string, unknown>, headers: Record<string
     ...headers,
   })
   return POST(req, { params: Promise.resolve({ workflowId: 'workflow-1' }) })
+}
+
+function authenticatePersonalKey() {
+  mockAuthenticateV2ApiKey.mockResolvedValue({
+    principal: { kind: 'personal_api_key', userId: 'actor-1', keyId: 'key-1' },
+    rolloutUserId: 'actor-1',
+    rateLimitSubjectIds: ['api-key:key-1', 'user:actor-1'],
+    rateLimitSubscription: null,
+    keyType: 'personal',
+  })
 }
 
 describe('POST /api/v2/workflows/[workflowId]/execute', () => {
@@ -282,6 +305,18 @@ describe('POST /api/v2/workflows/[workflowId]/execute', () => {
         endTime: '2026-07-31T00:00:01.000Z',
       },
     })
+    const manualResult = {
+      ok: true,
+      executionId: 'execution-123',
+      workflowId: 'workflow-1',
+      status: 'completed',
+      aborted: null,
+      output: { result: 'manual done' },
+      error: null,
+      hasResponseBlock: false,
+    }
+    mockExecuteManualTrigger.mockResolvedValue(manualResult)
+    mockExecuteManualFromBlock.mockResolvedValue(manualResult)
   })
 
   it('runs sync and returns the run resource in the v2 envelope', async () => {
@@ -399,6 +434,171 @@ describe('POST /api/v2/workflows/[workflowId]/execute', () => {
     expect(res.status).toBe(400)
     expect((await res.json()).error.code).toBe('BAD_REQUEST')
     expect(mockPreprocessExecution).not.toHaveBeenCalled()
+  })
+
+  it('rejects unknown keys inside the nested run selection', async () => {
+    const res = await callExecute({
+      run: { source: 'manual', entry: { type: 'trigger', unexpected: true } },
+    })
+
+    expect(res.status).toBe(400)
+    expect((await res.json()).error.code).toBe('BAD_REQUEST')
+    expect(mockExecuteManualTrigger).not.toHaveBeenCalled()
+  })
+
+  it('dispatches a personal-key manual trigger run through the manual operation', async () => {
+    authenticatePersonalKey()
+
+    const res = await callExecute({
+      input: { event: 'created' },
+      run: { source: 'manual', entry: { type: 'trigger', blockId: 'slack-trigger' } },
+    })
+
+    expect(res.status).toBe(200)
+    expect(mockExecuteManualTrigger).toHaveBeenCalledWith(
+      expect.objectContaining({
+        principal: expect.objectContaining({ kind: 'personal_api_key' }),
+        input: expect.objectContaining({
+          workflowId: 'workflow-1',
+          input: { event: 'created' },
+          mode: 'sync',
+          triggerBlockId: 'slack-trigger',
+          useMockPayload: false,
+        }),
+      })
+    )
+    expect(mockExecuteWorkflowCore).not.toHaveBeenCalled()
+  })
+
+  it('returns the typed workspace-key denial for manual execution', async () => {
+    mockExecuteManualTrigger.mockRejectedValueOnce(new WorkspaceApiKeyAuthorizationError())
+
+    const response = await callExecute({ run: { source: 'manual' } })
+
+    expect(response.status).toBe(403)
+    expect((await response.json()).error.details.code).toBe('WORKSPACE_KEY_OPERATION_NOT_PERMITTED')
+  })
+
+  it('dispatches from-block with only the exact source run id from the wire', async () => {
+    authenticatePersonalKey()
+
+    const res = await callExecute({
+      run: {
+        source: 'manual',
+        entry: { type: 'block', blockId: 'agent-1', sourceRunId: 'source-run-1' },
+      },
+    })
+
+    expect(res.status).toBe(200)
+    expect(mockExecuteManualFromBlock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        input: expect.objectContaining({
+          blockId: 'agent-1',
+          sourceRunId: 'source-run-1',
+          mode: 'sync',
+        }),
+      })
+    )
+    expect(mockExecuteManualTrigger).not.toHaveBeenCalled()
+  })
+
+  it('passes a manual stream through without changing its response encoding', async () => {
+    authenticatePersonalKey()
+    mockExecuteManualTrigger.mockResolvedValueOnce({
+      ok: true,
+      executionId: 'execution-123',
+      stream: new Response('data: "[DONE]"\n\n', {
+        headers: { 'Content-Type': 'text/event-stream' },
+      }),
+    })
+
+    const response = await callExecute({ run: { source: 'manual' }, stream: true })
+
+    expect(response.status).toBe(200)
+    expect(response.headers.get('Content-Type')).toContain('text/event-stream')
+    expect(await response.text()).toBe('data: "[DONE]"\n\n')
+    expect(mockExecuteManualTrigger).toHaveBeenCalledWith(
+      expect.objectContaining({ input: expect.objectContaining({ mode: 'stream' }) })
+    )
+  })
+
+  it('carries trusted manual and from-block controls through the shared execution service', async () => {
+    const sourceSnapshot = {
+      blockStates: {},
+      executedBlocks: [],
+      blockLogs: [],
+      decisions: {},
+      completedLoops: [],
+      activeExecutionPath: [],
+    }
+    mockLoadWorkflowFromNormalizedTables.mockResolvedValueOnce({
+      blocks: { 'agent-1': { id: 'agent-1', name: 'Agent' } },
+      edges: [],
+      loops: {},
+      parallels: {},
+      isFromNormalizedTables: true,
+    })
+
+    const result = await executeWorkflowService({
+      workflowId: 'workflow-1',
+      userId: 'actor-1',
+      input: {},
+      triggerType: 'manual',
+      triggerBlockId: 'trigger-1',
+      useDraftState: true,
+      runFromBlock: {
+        startBlockId: 'agent-1',
+        sourceSnapshot,
+        sourceExecutionId: 'source-run-1',
+      },
+      requestId: 'request-1',
+      workflowRecord,
+      useAuthenticatedUserAsActor: true,
+      mode: 'sync',
+      requestHeaders: new Headers(),
+    })
+
+    expect(result).toMatchObject({ ok: true, executionId: 'execution-123' })
+    expect(mockPreprocessExecution).toHaveBeenCalledWith(
+      expect.objectContaining({ triggerType: 'manual', checkDeployment: false })
+    )
+    expect(mockLoadWorkflowFromNormalizedTables).toHaveBeenCalledWith('workflow-1')
+    expect(mockExecuteWorkflowCore).toHaveBeenCalledWith(
+      expect.objectContaining({
+        snapshot: expect.objectContaining({
+          metadata: expect.objectContaining({
+            triggerType: 'manual',
+            triggerBlockId: 'trigger-1',
+            useDraftState: true,
+          }),
+        }),
+        runFromBlock: {
+          startBlockId: 'agent-1',
+          sourceSnapshot,
+          sourceExecutionId: 'source-run-1',
+        },
+      })
+    )
+  })
+
+  it('rejects async manual execution and conflicting mock input before dispatch', async () => {
+    authenticatePersonalKey()
+
+    const asyncResponse = await callExecute({ run: { source: 'manual' }, async: true })
+    expect(asyncResponse.status).toBe(400)
+    expect((await asyncResponse.json()).error.message).toBe(
+      'Manual execution does not support async mode'
+    )
+
+    const conflictingInput = await callExecute({
+      input: { event: 'created' },
+      run: { source: 'manual', entry: { type: 'trigger', useMockPayload: true } },
+    })
+    expect(conflictingInput.status).toBe(400)
+    expect((await conflictingInput.json()).error.message).toBe(
+      'input and run.entry.useMockPayload cannot be combined'
+    )
+    expect(mockExecuteManualTrigger).not.toHaveBeenCalled()
   })
 
   it('rejects async combined with stream or output-shaping options', async () => {
@@ -591,6 +791,21 @@ describe('POST /api/v2/workflows/[workflowId]/execute', () => {
     ])
     const asyncRes = await callPublicExecute({ input: {}, async: true })
     expect(asyncRes.status).toBe(400)
+  })
+
+  it('never permits manual execution on the anonymous public path', async () => {
+    dbChainMockFns.limit.mockReset()
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      { isPublicApi: true, isDeployed: true, userId: 'owner-1', workspaceId: 'workspace-1' },
+    ])
+
+    const response = await callPublicExecute({ run: { source: 'manual' } })
+
+    expect(response.status).toBe(401)
+    expect((await response.json()).error.message).toBe(
+      'Manual execution requires a personal API key'
+    )
+    expect(mockExecuteManualTrigger).not.toHaveBeenCalled()
   })
 
   it('returns not found when a public workflow disappears before authorization', async () => {

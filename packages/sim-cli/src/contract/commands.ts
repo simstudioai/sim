@@ -1093,10 +1093,14 @@ export const CLI_CONTRACT: CliContract = {
   // `workflows execute create` and `workflows cancel create`.
   executeWorkflow: {
     command: 'workflows run',
-    describe: 'Run a deployed workflow',
+    describe: 'Run a deployed workflow or execute saved state manually',
     flags: {
       async: { boolean: true, describe: 'Queue the run and return immediately' },
       input: { json: true, describe: 'Trigger input as JSON' },
+      run: {
+        hidden: true,
+        describe: 'Low-level workflow state and entry-point selection',
+      },
       selectedOutputs: {
         name: 'select-output',
         list: true,

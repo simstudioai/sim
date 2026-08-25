@@ -5125,7 +5125,7 @@ sim workflows duplicate create <workflowId> [options]
 
 ### sim workflows run
 
-Run a deployed workflow
+Run a deployed workflow or execute saved state manually
 
 ```bash
 sim workflows run <workflowId> [options]
@@ -5154,6 +5154,11 @@ sim workflows run <workflowId> [options]
 | `--include-file-base64` | No | Inline eligible output files as base64 content. Rejected when `async` is true. |
 | `--no-include-file-base64` | No | Send --include-file-base64 as false. |
 | `--base64-max-bytes <value>` | No | Maximum total bytes of file content to inline as base64, lowering but never raising the server limit of 16 MiB. Rejected when `async` is true. |
+| `--manual` | No | Run the current saved workflow state instead of the active deployment. |
+| `--trigger <blockId>` | No | Enter a manual run through this runnable trigger (requires --manual). |
+| `--mock-payload` | No | Use the selected trigger's server-derived mock payload (requires --manual). |
+| `--from-block <blockId>` | No | Run manually from this saved workflow block. |
+| `--source-run <runId>` | No | Prior run whose persisted state supplies upstream outputs (requires --from-block). |
 | `--follow` | No | Stream the run as it happens; progress on stderr, result on stdout. The stream reports only success and output, so the result omits the run id and timings a non-streaming run returns. |
 | `--include-thinking` | No | Show model reasoning while following (requires --follow). |
 | `--include-tool-calls` | No | Show tool calls while following (requires --follow). |

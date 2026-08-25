@@ -2443,7 +2443,7 @@
       "post": {
         "operationId": "executeWorkflowV2",
         "summary": "Execute Workflow",
-        "description": "Execute a deployed workflow synchronously, asynchronously, or as Server-Sent Events. Public workflows permit anonymous synchronous and streaming execution; asynchronous execution requires an API key. A synchronous run that exceeds its execution timeout returns HTTP 200 with `status: \"failed\"` and `error.code: \"TIMEOUT\"` rather than an HTTP error, so branch on `status`. Each option carries the modes it requires and the modes that reject it; a violated combination is a 400.",
+        "description": "Execute the active deployment by default, or select manual execution of the current saved workflow state with `run.source: \"manual\"`. Manual runs require a personal API key with current write access and support synchronous or Server-Sent Event execution only; workspace keys, anonymous public access, and async manual runs are rejected. A manual run can enter through one runnable trigger (including external integration/webhook triggers) or resume at a named block from the exact same-workflow run identified by `sourceRunId`; the server loads that run's persisted snapshot, which is never accepted from the request. Omit a trigger block id only when the saved workflow has exactly one runnable trigger. Public deployed workflows permit anonymous synchronous and streaming execution, while asynchronous deployed execution requires an API key. A synchronous run that exceeds its execution timeout returns HTTP 200 with `status: \"failed\"` and `error.code: \"TIMEOUT\"` rather than an HTTP error, so branch on `status`. Each option carries the modes it requires and the modes that reject it; a violated combination is a 400.",
         "tags": ["Workflows"],
         "security": [
           {
@@ -2491,7 +2491,7 @@
         ],
         "requestBody": {
           "required": true,
-          "description": "Input and execution-mode options for a deployed workflow. Each option carries the modes it requires and the modes that reject it; a violated combination is a 400.",
+          "description": "Input, workflow-state selection, and execution-mode options. Each option carries the modes it requires and the modes that reject it; a violated combination is a 400.",
           "content": {
             "application/json": {
               "schema": {
@@ -8858,7 +8858,7 @@
         "type": "object",
         "properties": {
           "input": {
-            "description": "Workflow input keyed by deployed trigger input-field name.",
+            "description": "Workflow input keyed by the selected trigger input-field name.",
             "type": "object",
             "propertyNames": {
               "type": "string"
@@ -8866,6 +8866,83 @@
             "additionalProperties": {
               "description": "Value supplied for one workflow input field."
             }
+          },
+          "run": {
+            "description": "Workflow state and entry point to execute. Omit for the active deployment. Manual execution requires a personal API key with write access and supports synchronous or streamed runs only.",
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "source": {
+                    "type": "string",
+                    "const": "deployment",
+                    "description": "Execute the active deployed workflow state."
+                  }
+                },
+                "required": ["source"],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "source": {
+                    "type": "string",
+                    "const": "manual",
+                    "description": "Execute the current saved workflow state manually."
+                  },
+                  "entry": {
+                    "description": "Manual entry mode. Omit to enter through the workflow trigger; a block entry requires an exact source run.",
+                    "oneOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "type": {
+                            "type": "string",
+                            "const": "trigger",
+                            "description": "Enter the manual run through a runnable trigger."
+                          },
+                          "blockId": {
+                            "description": "Runnable trigger block to enter through. Omit only when the saved workflow has exactly one runnable trigger.",
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "useMockPayload": {
+                            "description": "Use the selected trigger's server-derived mock payload. Cannot be combined with `input`.",
+                            "type": "boolean"
+                          }
+                        },
+                        "required": ["type"],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "type": {
+                            "type": "string",
+                            "const": "block",
+                            "description": "Resume manual execution at a block using persisted upstream state."
+                          },
+                          "blockId": {
+                            "type": "string",
+                            "minLength": 1,
+                            "description": "Saved workflow block at which manual execution should resume."
+                          },
+                          "sourceRunId": {
+                            "type": "string",
+                            "minLength": 1,
+                            "description": "Exact prior run whose persisted execution snapshot supplies upstream block state."
+                          }
+                        },
+                        "required": ["type", "blockId", "sourceRunId"],
+                        "additionalProperties": false
+                      }
+                    ]
+                  }
+                },
+                "required": ["source"],
+                "additionalProperties": false
+              }
+            ]
           },
           "async": {
             "default": false,
@@ -8915,7 +8992,7 @@
         },
         "additionalProperties": false,
         "title": "Execute workflow request",
-        "description": "Input and execution-mode options for a deployed workflow. Each option carries the modes it requires and the modes that reject it; a violated combination is a 400.",
+        "description": "Input, workflow-state selection, and execution-mode options. Each option carries the modes it requires and the modes that reject it; a violated combination is a 400.",
         "examples": [
           {
             "input": {
@@ -8933,6 +9010,21 @@
               "ticketId": "ticket_123"
             },
             "stream": true
+          },
+          {
+            "run": {
+              "source": "manual"
+            }
+          },
+          {
+            "run": {
+              "source": "manual",
+              "entry": {
+                "type": "block",
+                "blockId": "block_123",
+                "sourceRunId": "run_123"
+              }
+            }
           }
         ]
       },

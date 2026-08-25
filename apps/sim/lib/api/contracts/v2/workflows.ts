@@ -1177,11 +1177,70 @@ export type V2ExecutionError = z.output<typeof v2ExecutionErrorSchema>
 export const EXECUTE_OPTION_CONSTRAINTS =
   'Each option carries the modes it requires and the modes that reject it; a violated combination is a 400.'
 
+export const v2WorkflowRunSelectionSchema = z.discriminatedUnion('source', [
+  z
+    .object({
+      source: z.literal('deployment').describe('Execute the active deployed workflow state.'),
+    })
+    .strict(),
+  z
+    .object({
+      source: z.literal('manual').describe('Execute the current saved workflow state manually.'),
+      entry: z
+        .discriminatedUnion('type', [
+          z
+            .object({
+              type: z
+                .literal('trigger')
+                .describe('Enter the manual run through a runnable trigger.'),
+              blockId: z
+                .string()
+                .min(1, 'run.entry.blockId cannot be empty')
+                .optional()
+                .describe(
+                  'Runnable trigger block to enter through. Omit only when the saved workflow has exactly one runnable trigger.'
+                ),
+              useMockPayload: z
+                .boolean()
+                .optional()
+                .describe(
+                  "Use the selected trigger's server-derived mock payload. Cannot be combined with `input`."
+                ),
+            })
+            .strict(),
+          z
+            .object({
+              type: z
+                .literal('block')
+                .describe('Resume manual execution at a block using persisted upstream state.'),
+              blockId: z
+                .string()
+                .min(1, 'run.entry.blockId cannot be empty')
+                .describe('Saved workflow block at which manual execution should resume.'),
+              sourceRunId: z
+                .string()
+                .min(1, 'run.entry.sourceRunId cannot be empty')
+                .describe(
+                  'Exact prior run whose persisted execution snapshot supplies upstream block state.'
+                ),
+            })
+            .strict(),
+        ])
+        .optional()
+        .describe(
+          'Manual entry mode. Omit to enter through the workflow trigger; a block entry requires an exact source run.'
+        ),
+    })
+    .strict(),
+])
+export type V2WorkflowRunSelection = z.input<typeof v2WorkflowRunSelectionSchema>
+
 /**
  * Strict public execute body. Async is body-selected (`async: true`) — v2 has
- * no `X-Execution-Mode`/`X-Stream-Response` headers. Internal caller facts
- * (triggerType, draft state, deployment pinning) are NEVER wire fields; they
- * are typed options on the execution service.
+ * no `X-Execution-Mode`/`X-Stream-Response` headers. `run` selects the public
+ * deployment/manual behavior, while internal executor facts (`triggerType`,
+ * `useDraftState`, deployment pinning, and source snapshots) remain trusted
+ * server-side options and are NEVER wire fields.
  *
  * The rejected option combinations are enforced by the route after parsing and
  * described on the fields they constrain; {@link EXECUTE_OPTION_CONSTRAINTS}
@@ -1192,7 +1251,12 @@ export const v2ExecuteWorkflowBodySchema = z
     input: z
       .record(z.string(), z.unknown().describe('Value supplied for one workflow input field.'))
       .optional()
-      .describe('Workflow input keyed by deployed trigger input-field name.'),
+      .describe('Workflow input keyed by the selected trigger input-field name.'),
+    run: v2WorkflowRunSelectionSchema
+      .optional()
+      .describe(
+        'Workflow state and entry point to execute. Omit for the active deployment. Manual execution requires a personal API key with write access and supports synchronous or streamed runs only.'
+      ),
     async: z
       .boolean()
       .optional()
@@ -1269,11 +1333,18 @@ export const v2ExecuteWorkflowBodySchema = z
   .meta({
     id: 'ExecuteWorkflowRequest',
     title: 'Execute workflow request',
-    description: `Input and execution-mode options for a deployed workflow. ${EXECUTE_OPTION_CONSTRAINTS}`,
+    description: `Input, workflow-state selection, and execution-mode options. ${EXECUTE_OPTION_CONSTRAINTS}`,
     examples: [
       { input: { ticketId: 'ticket_123' } },
       { input: { ticketId: 'ticket_123' }, async: true },
       { input: { ticketId: 'ticket_123' }, stream: true },
+      { run: { source: 'manual' } },
+      {
+        run: {
+          source: 'manual',
+          entry: { type: 'block', blockId: 'block_123', sourceRunId: 'run_123' },
+        },
+      },
     ],
   })
 export type V2ExecuteWorkflowBody = z.input<typeof v2ExecuteWorkflowBodySchema>

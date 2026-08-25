@@ -285,6 +285,57 @@ describe('sim workflows run --follow', () => {
     expect(request.mock.calls[0][1].body).toEqual({ input: { topic: 'otters' } })
   })
 
+  it('projects manual trigger flags into one nested run selector', async () => {
+    request.mockResolvedValue({ data: { success: true, output: {} } })
+    vi.spyOn(console, 'log').mockImplementation(() => {})
+
+    await run('wf_1', '--manual', '--trigger', 'slack-trigger', '--input', '{"event":"created"}')
+
+    expect(request.mock.calls[0][1].body).toEqual({
+      input: { event: 'created' },
+      run: { source: 'manual', entry: { type: 'trigger', blockId: 'slack-trigger' } },
+    })
+  })
+
+  it('lets --from-block imply manual and requires an exact source run', async () => {
+    request.mockResolvedValue({ data: { success: true, output: {} } })
+    vi.spyOn(console, 'log').mockImplementation(() => {})
+
+    await run('wf_1', '--from-block', 'agent-1', '--source-run', 'run-1')
+
+    expect(request.mock.calls[0][1].body).toEqual({
+      run: {
+        source: 'manual',
+        entry: { type: 'block', blockId: 'agent-1', sourceRunId: 'run-1' },
+      },
+    })
+  })
+
+  it('passes the same manual selector through the streaming path', async () => {
+    requestRaw.mockResolvedValue(streamResponse(sse({ event: 'final', data: { success: true } })))
+    vi.spyOn(console, 'log').mockImplementation(() => {})
+    vi.spyOn(process.stderr, 'write').mockImplementation(() => true)
+
+    await run('wf_1', '--manual', '--mock-payload', '--follow')
+
+    expect(requestRaw.mock.calls[0][1].body).toEqual({
+      run: { source: 'manual', entry: { type: 'trigger', useMockPayload: true } },
+      stream: true,
+    })
+  })
+
+  it('fails fast on invalid manual flag combinations', async () => {
+    await expect(run('wf_1', '--trigger', 'trigger-1')).rejects.toThrow(/require --manual/)
+    await expect(run('wf_1', '--from-block', 'agent-1')).rejects.toThrow(/requires --source-run/)
+    await expect(run('wf_1', '--source-run', 'run-1')).rejects.toThrow(/requires --from-block/)
+    await expect(run('wf_1', '--manual', '--async')).rejects.toThrow(/does not support --async/)
+    await expect(
+      run('wf_1', '--manual', '--mock-payload', '--input', '{"event":"created"}')
+    ).rejects.toThrow(/cannot be combined/)
+    expect(request).not.toHaveBeenCalled()
+    expect(requestRaw).not.toHaveBeenCalled()
+  })
+
   it('asks for a stream and does not negotiate agent events by default', async () => {
     requestRaw.mockResolvedValue(streamResponse(sse({ event: 'final', data: { success: true } })))
     vi.spyOn(console, 'log').mockImplementation(() => {})

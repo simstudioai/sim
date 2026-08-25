@@ -3223,6 +3223,24 @@ export type ExecuteWorkflowQuery = Record<string, unknown>
 
 export type ExecuteWorkflowBody = {
   input?: Record<string, unknown>
+  run?:
+    | {
+        source: 'deployment'
+      }
+    | {
+        source: 'manual'
+        entry?:
+          | {
+              type: 'trigger'
+              blockId?: string
+              useMockPayload?: boolean
+            }
+          | {
+              type: 'block'
+              blockId: string
+              sourceRunId: string
+            }
+      }
   async?: boolean
   executionTimeoutSeconds?: number
   stream?: boolean
@@ -10496,7 +10514,12 @@ export const V2_OPERATIONS = {
     body: {
       input: {
         kind: 'object',
-        describe: 'Workflow input keyed by deployed trigger input-field name.',
+        describe: 'Workflow input keyed by the selected trigger input-field name.',
+      },
+      run: {
+        kind: 'unknown',
+        describe:
+          'Workflow state and entry point to execute. Omit for the active deployment. Manual execution requires a personal API key with write access and supports synchronous or streamed runs only.',
       },
       async: {
         kind: 'boolean',
